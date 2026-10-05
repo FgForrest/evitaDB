@@ -51,7 +51,8 @@ import java.util.Optional;
  *
  * The practical effect is that the impact prediction for each facet option in an exclusive group shows "how many
  * results you would get if you replaced your current selection with this option" rather than "how many results you
- * would get if you added this option to your current selection".
+ * would get if you added this option to your current selection". Only the selection of the same reference is
+ * replaced - the selected options of other references and the other constraints of the user filter stay.
  *
  * ## UI implication
  *

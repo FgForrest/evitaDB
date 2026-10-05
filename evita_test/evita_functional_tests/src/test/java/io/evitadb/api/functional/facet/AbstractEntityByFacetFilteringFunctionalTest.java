@@ -2050,7 +2050,8 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 * Returns the relation setups of the label reference of the {@link #FACET_RELATION_SHAPES} data set whose reference
 	 * summary must predict the query result exactly. Each row is a label, the relation requirements and the sources
 	 * selected next to the labels. Exclusivity is left out on purpose - it changes only the summary, which then
-	 * predicts the selection of the option alone.
+	 * predicts a selection replacing the selection of the option's reference, see
+	 * {@link #shouldPredictExclusiveOptionAsReplacingSelectionOfItsReferenceOnly}.
 	 *
 	 * @return the row arguments
 	 */
@@ -2475,6 +2476,172 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					expected.length,
 					impact.matchCount(),
 					"the reference summary must predict the products adding the option leaves in the result"
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Returns the rows of the witness of options of a group exclusive with the other groups of its reference, over the
+	 * {@link #FACET_RELATION_SHAPES} data set. Selecting such an option deselects the options of the other groups of
+	 * its reference, and only of its reference. Each row is a label, the relation requirements, the constraints of the
+	 * user filter, the reference, group and primary key of the option whose impact is predicted, the constraints of the
+	 * user filter of the query selecting the option, and the primary keys of the products that query returns, computed
+	 * from the fixture table.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> exclusiveOptionRows() {
+		final RequireConstraint[] exclusivityOfTags = {facetGroupsExclusivity(REF_TAG, WITH_DIFFERENT_GROUPS)};
+		final RequireConstraint[] exclusivityOfLabels = {facetGroupsExclusivity(REF_LABEL, WITH_DIFFERENT_GROUPS)};
+		final FilterConstraint label1 = facetHaving(REF_LABEL, entityPrimaryKeyInSet(1));
+		final FilterConstraint source1 = facetHaving(REF_SOURCE, entityPrimaryKeyInSet(1));
+		final int[] productsWithSource1 = shapedProductsWithSources(true, 1);
+		return Stream.of(
+			// the selections of other references and the other constraints of the user filter stay
+			Arguments.of(
+				"exclusivity between the groups of tags, a grouped tag option next to a label", exclusivityOfTags,
+				new FilterConstraint[]{label1}, REF_TAG, TAG_GROUP, GROUPED_TAG,
+				new FilterConstraint[]{label1, facetHaving(REF_TAG, entityPrimaryKeyInSet(GROUPED_TAG))},
+				intersectionOf(shapedProductsWithLabels(true, 1), shapedProductsWithTag(GROUPED_TAG))
+			),
+			Arguments.of(
+				"exclusivity between the groups of tags, a tag option without a group next to a label", exclusivityOfTags,
+				new FilterConstraint[]{label1}, REF_TAG, null, UNGROUPED_TAG,
+				new FilterConstraint[]{label1, facetHaving(REF_TAG, entityPrimaryKeyInSet(UNGROUPED_TAG))},
+				intersectionOf(shapedProductsWithLabels(true, 1), shapedProductsWithTag(UNGROUPED_TAG))
+			),
+			Arguments.of(
+				"exclusivity between the groups of tags, a tag option next to a constraint selecting no option",
+				exclusivityOfTags, new FilterConstraint[]{entityPrimaryKeyInSet(1, 2, 3, 4)}, REF_TAG, TAG_GROUP,
+				GROUPED_TAG,
+				new FilterConstraint[]{
+					entityPrimaryKeyInSet(1, 2, 3, 4), facetHaving(REF_TAG, entityPrimaryKeyInSet(GROUPED_TAG))
+				},
+				intersectionOf(new int[]{1, 2, 3, 4}, shapedProductsWithTag(GROUPED_TAG))
+			),
+			// the options of the other groups of the option's own reference are deselected
+			Arguments.of(
+				"exclusivity between the groups of labels, a label option replacing a label of another group",
+				exclusivityOfLabels, new FilterConstraint[]{facetHaving(REF_LABEL, entityPrimaryKeyInSet(3))},
+				REF_LABEL, LABEL_GROUP_A, 1, new FilterConstraint[]{label1}, shapedProductsWithLabels(true, 1)
+			),
+			Arguments.of(
+				"exclusivity between the groups of labels, a label option replacing a label of another group next to " +
+					"a source",
+				exclusivityOfLabels, new FilterConstraint[]{facetHaving(REF_LABEL, entityPrimaryKeyInSet(3)), source1},
+				REF_LABEL, LABEL_GROUP_A, 1, new FilterConstraint[]{label1, source1},
+				intersectionOf(shapedProductsWithLabels(true, 1), productsWithSource1)
+			),
+			Arguments.of(
+				"exclusivity of group A, negation of group B, a label option replacing a negated label next to a source",
+				new RequireConstraint[]{
+					facetGroupsNegation(REF_LABEL, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_B))),
+					facetGroupsExclusivity(REF_LABEL, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_A)))
+				},
+				new FilterConstraint[]{facetHaving(REF_LABEL, entityPrimaryKeyInSet(3)), source1},
+				REF_LABEL, LABEL_GROUP_A, 1, new FilterConstraint[]{label1, source1},
+				intersectionOf(shapedProductsWithLabels(true, 1), productsWithSource1)
+			),
+			// an option of a selected group joins the options of its group, the other groups are deselected
+			Arguments.of(
+				"exclusivity between the groups of labels, a label option of a selected group",
+				exclusivityOfLabels, new FilterConstraint[]{facetHaving(REF_LABEL, entityPrimaryKeyInSet(1, 3))},
+				REF_LABEL, LABEL_GROUP_A, 2, new FilterConstraint[]{facetHaving(REF_LABEL, entityPrimaryKeyInSet(1, 2))},
+				shapedProductsWithLabels(true, 1, 2)
+			),
+			Arguments.of(
+				"exclusivity between the groups of labels, a label option of a selected group next to a source",
+				exclusivityOfLabels,
+				new FilterConstraint[]{facetHaving(REF_LABEL, entityPrimaryKeyInSet(1, 3)), source1},
+				REF_LABEL, LABEL_GROUP_A, 2,
+				new FilterConstraint[]{facetHaving(REF_LABEL, entityPrimaryKeyInSet(1, 2)), source1},
+				intersectionOf(shapedProductsWithLabels(true, 1, 2), productsWithSource1)
+			),
+			Arguments.of(
+				"exclusivity within and between the groups of labels, a label option of a selected group next to a source",
+				new RequireConstraint[]{
+					facetGroupsExclusivity(REF_LABEL, WITH_DIFFERENT_FACETS_IN_GROUP),
+					facetGroupsExclusivity(REF_LABEL, WITH_DIFFERENT_GROUPS)
+				},
+				new FilterConstraint[]{facetHaving(REF_LABEL, entityPrimaryKeyInSet(1, 3)), source1},
+				REF_LABEL, LABEL_GROUP_A, 2,
+				new FilterConstraint[]{facetHaving(REF_LABEL, entityPrimaryKeyInSet(2)), source1},
+				intersectionOf(shapedProductsWithLabels(true, 2), productsWithSource1)
+			),
+			// exclusivity within a group deselects the other options of the group only
+			Arguments.of(
+				"exclusivity within the groups of labels, a label option of a selected group next to a source",
+				new RequireConstraint[]{facetGroupsExclusivity(REF_LABEL, WITH_DIFFERENT_FACETS_IN_GROUP)},
+				new FilterConstraint[]{label1, source1},
+				REF_LABEL, LABEL_GROUP_A, 2,
+				new FilterConstraint[]{facetHaving(REF_LABEL, entityPrimaryKeyInSet(2)), source1},
+				intersectionOf(shapedProductsWithLabels(true, 2), productsWithSource1)
+			)
+		);
+	}
+
+	/**
+	 * Checks that the reference summary predicts the impact of an option of a group exclusive with other groups as the
+	 * result of the query selecting it: the options of the other groups of the option's reference are deselected, while
+	 * the selections of other references and the other constraints of the user filter stay.
+	 *
+	 * @param label           the row label, used in the test name only
+	 * @param relations       the relation requirements
+	 * @param selection       the constraints of the user filter
+	 * @param referenceName   the reference of the option whose impact is predicted
+	 * @param groupId         the group of the option, NULL for an option without a group
+	 * @param optionId        the option whose impact is predicted
+	 * @param optionSelection the constraints of the user filter of the query selecting the option
+	 * @param expected        the primary keys of the products the query selecting the option returns, ascending
+	 * @param evita           the engine instance provided by the test extension
+	 */
+	@DisplayName("Should predict an exclusive option as replacing the selection of its reference only")
+	@UseDataSet(FACET_RELATION_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("exclusiveOptionRows")
+	void shouldPredictExclusiveOptionAsReplacingSelectionOfItsReferenceOnly(
+		@Nonnull String label,
+		@Nonnull RequireConstraint[] relations,
+		@Nonnull FilterConstraint[] selection,
+		@Nonnull String referenceName,
+		@Nullable Integer groupId,
+		int optionId,
+		@Nonnull FilterConstraint[] optionSelection,
+		@Nonnull int[] expected,
+		Evita evita
+	) {
+		assertTrue(expected.length > 0, "the selection of the option must keep some products");
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					shapedFilterQuery(optionSelection, relations), EntityReference.class
+				);
+				assertArrayEquals(
+					expected,
+					result.getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).sorted().toArray()
+				);
+
+				final EvitaResponse<EntityReference> withSummary = session.query(
+					shapedFilterQuery(
+						selection, relations, referenceSummaryOfReference(referenceName, FacetStatisticsDepth.IMPACT)
+					),
+					EntityReference.class
+				);
+				final RequestImpact impact = facetStatisticsOf(withSummary, referenceName, groupId, optionId).getImpact();
+				assertNotNull(impact, "the reference summary must predict the impact of the option");
+				assertEquals(
+					expected.length,
+					impact.matchCount(),
+					"the reference summary must predict the products selecting the option leaves in the result"
+				);
+				assertEquals(
+					expected.length - withSummary.getTotalRecordCount(),
+					impact.difference(),
+					"the reference summary must predict the difference selecting the option makes"
 				);
 				return null;
 			}

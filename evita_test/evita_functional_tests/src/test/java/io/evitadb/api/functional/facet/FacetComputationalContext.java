@@ -468,8 +468,16 @@ class FacetComputationalContext {
 			.filter(matchTypeAndGroup.negate());
 
 		if (isExclusiveAmongOtherGroups(currentFacetGroupPredicate)) {
-			// use only this facet group predicate - the group is exclusive on group level
-			return currentFacetGroupPredicate;
+			// the group is exclusive on group level - the other groups of its reference are deselected, the selections
+			// of other references stay
+			return combineFacetsIntoPredicate(
+				Stream.concat(
+					otherFacetGroupPredicates.filter(
+						it -> !facet.referenceName().equals(it.referenceSchema().getName())
+					),
+					Stream.of(currentFacetGroupPredicate)
+				).collect(toList())
+			);
 		} else {
 			// now create combined predicate upon it
 			return combineFacetsIntoPredicate(

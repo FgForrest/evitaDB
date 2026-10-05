@@ -1186,7 +1186,8 @@ more than one, the system falls back to the [system defaults](#default-reference
 within the same group, logical AND between different groups).
 
 The [impact statistics](#3rd-tier-reference-option) are calculated for the situation in which only this particular
-option is selected and no others in the same group / different groups are.
+option is selected and no others in the same group / different groups of the same reference are. The selected options
+of other references and the other constraints of the `userFilter` stay as they are.
 
 <Note type="info">
 
@@ -1323,7 +1324,7 @@ because the [`userFilter`](../filtering/behavioral.md#user-filter) combines its 
 
         Effect on [impact statistics](#3rd-tier-reference-option): the calculated match count and impact will be
         computed for the situation where only this particular option is selected and no others in the same group /
-        in different groups are.
+        in different groups of the same reference are. The selected options of other references stay.
 
         **Note**: because this operator doesn't affect the actual result-set output, it can only be used for the
         specific impact calculation if you want to see the impact of selecting only one option at a particular

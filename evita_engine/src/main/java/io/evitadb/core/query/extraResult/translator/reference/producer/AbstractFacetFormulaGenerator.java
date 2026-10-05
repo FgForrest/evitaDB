@@ -66,6 +66,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
@@ -405,7 +406,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 						childrenWithFacetSelection;
 				}
 				case NEGATION -> addNewFormulaAsNegation(newFormula, updatedChildren, this.baseFormulaWithoutUserFilter);
-				case EXCLUSIVITY -> new Formula[]{newFormula};
+				case EXCLUSIVITY -> replaceFacetSelection(newFormula, updatedChildren);
 			};
 			// we can immediately alter the current formula adding new facet formula
 			storeFormula(formula.getCloneWithInnerFormulas(alteredChildren));
@@ -483,6 +484,117 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 			altered |= alteredChildren[i] != children[i];
 		}
 		return altered ? alteredChildren : null;
+	}
+
+	/**
+	 * Replaces the facet selection the user filter holds for the facet's reference with the formula of a facet whose
+	 * group is exclusive with the other groups. Selecting such a facet deselects the facets of the other groups of its
+	 * reference, but neither the selections of other references nor the other constraints of the user filter, which
+	 * the user filter keeps combining by conjunction.
+	 *
+	 * The selection of the reference takes one of the two places {@link #addNewFormulaToFacetSelection} describes:
+	 *
+	 * - a {@link FacetHavingFormula} with at least one positive group is replaced by the selection of the facet - alone,
+	 *   or joined with the other facets of its group when the user filter already selects the group and the subclass
+	 *   has replaced the group formula with a {@link MutableFormula} joining the facet to it
+	 * - a {@link NotFormula} subtracting the facet selection of the reference with only negated groups no longer
+	 *   subtracts it, because those groups are deselected
+	 *
+	 * When the user filter holds no positive facet selection of the reference, the facet joins the user filter as one
+	 * more conjunct.
+	 *
+	 * @param newFormula the formula of the facet being added
+	 * @param children   the children of the user filter formula
+	 * @return the altered children
+	 */
+	@Nonnull
+	private Formula[] replaceFacetSelection(@Nonnull Formula newFormula, @Nonnull Formula[] children) {
+		final String referenceName = this.referenceSchema.getName();
+		final AtomicBoolean selectionReplaced = new AtomicBoolean();
+		final Formula[] alteredChildren = new Formula[children.length];
+		for (int i = 0; i < children.length; i++) {
+			alteredChildren[i] = FormulaCloner.clone(
+				children[i],
+				examinedFormula -> {
+					if (examinedFormula instanceof NotFormula notFormula &&
+						isNegatedFacetSelection(notFormula.getSubtractedFormula(), referenceName)) {
+						final Formula otherNegatedSelections = withoutNegatedFacetSelection(
+							notFormula.getSubtractedFormula(), referenceName
+						);
+						return otherNegatedSelections == null ?
+							notFormula.getSupersetFormula() :
+							notFormula.getCloneWithInnerFormulas(otherNegatedSelections, notFormula.getSupersetFormula());
+					} else if (examinedFormula instanceof FacetHavingFormula facetHavingFormula &&
+						referenceName.equals(facetHavingFormula.getReferenceName())) {
+						// the group of the facet is exclusive, never negated, so a selection holding its group is positive
+						final MutableFormula enrichedGroupFormula = findMutableFormula(facetHavingFormula);
+						if (enrichedGroupFormula == null && isNegatedFacetSelection(facetHavingFormula, referenceName)) {
+							return examinedFormula;
+						}
+						selectionReplaced.set(true);
+						return FacetHavingTranslator.composeFacetSelectionFormula(
+							referenceName,
+							List.of(enrichedGroupFormula == null ? newFormula : enrichedGroupFormula),
+							groupFormula -> FacetRelationType.EXCLUSIVITY
+						);
+					} else {
+						return examinedFormula;
+					}
+				}
+			);
+		}
+		return selectionReplaced.get() ?
+			alteredChildren :
+			ArrayUtils.insertRecordIntoArrayOnIndex(newFormula, alteredChildren, alteredChildren.length);
+	}
+
+	/**
+	 * Returns the subtracted part of a {@link NotFormula} without the facet selection of the reference with only
+	 * negated groups - see {@link #isNegatedFacetSelection(Formula, String)} for the shapes the part takes.
+	 *
+	 * @param subtractedFormula the subtracted part containing the negated facet selection of the reference
+	 * @param referenceName     the name of the reference whose negated facet selection is removed
+	 * @return the rest of the subtracted part, or NULL when nothing else is subtracted
+	 */
+	@Nullable
+	private Formula withoutNegatedFacetSelection(@Nonnull Formula subtractedFormula, @Nonnull String referenceName) {
+		if (subtractedFormula instanceof FacetHavingFormula) {
+			return null;
+		}
+		final Formula[] otherSelections = Arrays.stream(subtractedFormula.getInnerFormulas())
+			.filter(it -> !(it instanceof FacetHavingFormula && isNegatedFacetSelection(it, referenceName)))
+			.toArray(Formula[]::new);
+		if (otherSelections.length == 0) {
+			return null;
+		} else if (otherSelections.length == 1) {
+			return otherSelections[0];
+		} else {
+			return subtractedFormula.getCloneWithInnerFormulas(otherSelections);
+		}
+	}
+
+	/**
+	 * Finds the {@link MutableFormula} a subclass placed into the facet selection in place of the formula of the group
+	 * of the facet being added.
+	 *
+	 * @param facetHavingFormula the facet selection of one reference
+	 * @return the mutable formula, or NULL when the selection holds none
+	 */
+	@Nullable
+	private static MutableFormula findMutableFormula(@Nonnull FacetHavingFormula facetHavingFormula) {
+		final Deque<Formula> stack = new ArrayDeque<>(8);
+		stack.push(facetHavingFormula);
+		while (!stack.isEmpty()) {
+			final Formula examinedFormula = stack.pop();
+			if (examinedFormula instanceof MutableFormula mutableFormula) {
+				return mutableFormula;
+			} else if (!(examinedFormula instanceof FacetGroupFormula)) {
+				for (Formula innerFormula : examinedFormula.getInnerFormulas()) {
+					stack.push(innerFormula);
+				}
+			}
+		}
+		return null;
 	}
 
 	/**

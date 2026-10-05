@@ -164,12 +164,18 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 		final int normalizedFacetGroupId = this.facetGroupId == null ? Integer.MIN_VALUE : this.facetGroupId;
 		final boolean wasFoundInTheUserFilter = groupsForReference != null
 			&& groupsForReference.contains(normalizedFacetGroupId);
+		// a facet of a group exclusive with the other groups deselects them, so the selection of its reference is
+		// replaced by the enriched group formula even when the user filter already selects the group
+		final boolean replacesFacetSelection = !isInsideNotContainer() &&
+			this.facetRelationType.resolve(this.referenceSchema, this.facetGroupId, WITH_DIFFERENT_GROUPS) ==
+				FacetRelationType.EXCLUSIVITY;
 
-		if (wasFoundInTheUserFilter) {
+		if (wasFoundInTheUserFilter && !replacesFacetSelection) {
 			// we've already enriched existing formula with new formula - let the logic continue without modification
 			return false;
 		} else {
-			// there was no FacetGroupFormula inside - we have to create a brand new one and add it before leaving user filter
+			// there was no FacetGroupFormula inside - we have to create a brand new one and add it before leaving user
+			// filter, or the selection of the reference is replaced by the facet group formula
 			return super.handleUserFilter(formula, updatedChildren);
 		}
 	}

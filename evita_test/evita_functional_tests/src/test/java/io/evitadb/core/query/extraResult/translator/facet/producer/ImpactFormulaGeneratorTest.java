@@ -278,7 +278,7 @@ class ImpactFormulaGeneratorTest {
 
 	@Test
 	void shouldAddNewExclusiveConstraint() {
-		// make group 5 exclusive
+		// make group 5 exclusive - selecting its facet deselects the other groups of the reference
 		this.facetGroupExclusivity.add(new EntityReference(Entities.BRAND, 5));
 		final ConstantFormula baseFormula = new ConstantFormula(new ArrayBitmap(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12));
 		final Formula updatedFormula = this.impactFormulaGenerator.generateFormula(
@@ -286,8 +286,47 @@ class ImpactFormulaGeneratorTest {
 				baseFormula,
 				new UserFilterFormula(
 					baseFormula,
-					new FacetGroupOrFormula(Entities.BRAND, 8, new ArrayBitmap(10), new ArrayBitmap(8, 9, 12)),
-					new FacetGroupOrFormula(Entities.BRAND, 5, new ArrayBitmap(16), new ArrayBitmap(12))
+					new FacetHavingFormula(
+						Entities.BRAND,
+						new AndFormula(
+							new FacetGroupOrFormula(Entities.BRAND, 8, new ArrayBitmap(10), new ArrayBitmap(8, 9, 12)),
+							new FacetGroupOrFormula(Entities.BRAND, 5, new ArrayBitmap(16), new ArrayBitmap(12))
+						)
+					)
+				)
+			),
+			baseFormula,
+			this.brandReference, 5, 15,
+			new Bitmap[]{new ArrayBitmap(8, 9, 10)}
+		);
+		assertArrayEquals(new int[] {8, 9, 10}, updatedFormula.compute().getArray());
+		assertEquals(
+			"""
+			[#0] AND → [8, 9, 10]
+			   [#1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+			   [#2] USER FILTER → [8, 9, 10]
+			      [Ref to #1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+			      [#3] FACET HAVING (FACET BRAND OR (5 - [15]):  ↦ [8, 9, 10]) → [8, 9, 10]
+			         [#4] FACET BRAND OR (5 - [15]):  ↦ [8, 9, 10]
+			""",
+			PrettyPrintingFormulaVisitor.toStringVerbose(updatedFormula)
+		);
+	}
+
+	@Test
+	void shouldAddNewExclusiveConstraintNextToSelectionOfAnotherReferenceByConjunction() {
+		// make group 5 exclusive - its facet deselects the other groups of its own reference only
+		this.facetGroupExclusivity.add(new EntityReference(Entities.BRAND, 5));
+		final ConstantFormula baseFormula = new ConstantFormula(new ArrayBitmap(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12));
+		final Formula updatedFormula = this.impactFormulaGenerator.generateFormula(
+			new AndFormula(
+				baseFormula,
+				new UserFilterFormula(
+					baseFormula,
+					new FacetHavingFormula(
+						Entities.PARAMETER,
+						new FacetGroupOrFormula(Entities.PARAMETER, 8, new ArrayBitmap(10), new ArrayBitmap(8, 9, 12))
+					)
 				)
 			),
 			baseFormula,
@@ -301,8 +340,9 @@ class ImpactFormulaGeneratorTest {
 			   [#1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
 			   [#2] USER FILTER → [8, 9]
 			      [Ref to #1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
-			      [#3] FACET BRAND OR (8 - [10]):  ↦ [8, 9, 12]
-			      [#4] FACET BRAND OR (5 - [15]):  ↦ [8, 9, 10]
+			      [#3] FACET HAVING (FACET PARAMETER OR (8 - [10]):  ↦ [8, 9, 12]) → [8, 9, 12]
+			         [#4] FACET PARAMETER OR (8 - [10]):  ↦ [8, 9, 12]
+			      [#5] FACET BRAND OR (5 - [15]):  ↦ [8, 9, 10]
 			""",
 			PrettyPrintingFormulaVisitor.toStringVerbose(updatedFormula)
 		);
