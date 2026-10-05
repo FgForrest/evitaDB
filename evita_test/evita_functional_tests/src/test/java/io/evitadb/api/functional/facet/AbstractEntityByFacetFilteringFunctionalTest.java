@@ -242,7 +242,9 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 * whose entities - the groups 100, 200 and 300 - are all live, so the type has no index of the archived scope. Its
 	 * attribute {@link #ATTRIBUTE_CODE} is filterable in every scope, its attribute {@link #ATTRIBUTE_NOTE} is not
 	 * filterable at all. The tags themselves are all live as well, with the same two attributes. Tags 10, 11, 12 and
-	 * 13 belong to group 100, tag 20 to group 200 and tag 30 to group 300.
+	 * 13 belong to group 100, tag 20 to group 200 and tag 30 to group 300. The group type declares the reference
+	 * {@link #REF_CATEGORY} to the tags, indexed and faceted in every scope, with the same two attributes of the same
+	 * filterability; no group references a tag by it, so it has no index of any scope.
 	 *
 	 * | product | scope    | tags   |
 	 * |---------|----------|--------|
@@ -264,6 +266,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	private static final String ENTITY_SCOPED_PRODUCT = "scopedProduct";
 	private static final String ENTITY_SCOPED_TAG = "scopedTag";
 	private static final String ENTITY_SCOPED_TAG_GROUP = "scopedTagGroup";
+	private static final String REF_CATEGORY = "category";
 	/**
 	 * The tags of the {@link #FACET_SCOPE_SHAPES} data set.
 	 */
@@ -1799,18 +1802,6 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
-				session.defineEntitySchema(ENTITY_SCOPED_TAG_GROUP)
-					.withoutGeneratedPrimaryKey()
-					.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.filterableInScope(Scope.values()))
-					.withAttribute(ATTRIBUTE_NOTE, String.class)
-					.updateVia(session);
-				for (final int groupId : IntStream.of(SCOPED_TAG_GROUPS).distinct().toArray()) {
-					session.upsertEntity(
-						session.createNewEntity(ENTITY_SCOPED_TAG_GROUP, groupId)
-							.setAttribute(ATTRIBUTE_CODE, "group" + groupId)
-							.setAttribute(ATTRIBUTE_NOTE, "not filterable")
-					);
-				}
 				session.defineEntitySchema(ENTITY_SCOPED_TAG)
 					.withoutGeneratedPrimaryKey()
 					.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.filterableInScope(Scope.values()))
@@ -1820,6 +1811,27 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					session.upsertEntity(
 						session.createNewEntity(ENTITY_SCOPED_TAG, tagId)
 							.setAttribute(ATTRIBUTE_CODE, "tag" + tagId)
+							.setAttribute(ATTRIBUTE_NOTE, "not filterable")
+					);
+				}
+				session.defineEntitySchema(ENTITY_SCOPED_TAG_GROUP)
+					.withoutGeneratedPrimaryKey()
+					.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.filterableInScope(Scope.values()))
+					.withAttribute(ATTRIBUTE_NOTE, String.class)
+					.withReferenceToEntity(
+						REF_CATEGORY, ENTITY_SCOPED_TAG, Cardinality.ZERO_OR_MORE,
+						whichIs -> makeReferenceIndexedInEveryScope(whichIs)
+							.facetedInScope(Scope.values())
+							.withAttribute(
+								ATTRIBUTE_CODE, String.class, thatIs -> thatIs.filterableInScope(Scope.values())
+							)
+							.withAttribute(ATTRIBUTE_NOTE, String.class)
+					)
+					.updateVia(session);
+				for (final int groupId : IntStream.of(SCOPED_TAG_GROUPS).distinct().toArray()) {
+					session.upsertEntity(
+						session.createNewEntity(ENTITY_SCOPED_TAG_GROUP, groupId)
+							.setAttribute(ATTRIBUTE_CODE, "group" + groupId)
 							.setAttribute(ATTRIBUTE_NOTE, "not filterable")
 					);
 				}
@@ -5564,6 +5576,162 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				);
 				return null;
 			}
+		);
+	}
+
+	/**
+	 * Returns the rows of the filters of the reference {@link #REF_CATEGORY} of the {@link #FACET_SCOPE_SHAPES} data
+	 * set, by which no group references a tag, so that the reference has no type index in any scope although it is
+	 * indexed in every one, and of a filter of the tags restricted to the archived scope, which the tag type holds no
+	 * entity of. Each row is a label and the query, whose filter asks the attribute {@link #ATTRIBUTE_NOTE}, which is
+	 * not filterable.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> filterOfReferenceWithoutTypeIndexRows() {
+		final FilterConstraint facetNote = facetHaving(REF_CATEGORY, attributeEquals(ATTRIBUTE_NOTE, "anything"));
+		final FilterConstraint referenceNote = referenceHaving(
+			REF_CATEGORY, attributeEquals(ATTRIBUTE_NOTE, "anything")
+		);
+		return Stream.of(
+			Arguments.of("facetHaving of the groups", scopedTagGroupQuery(facetNote)),
+			Arguments.of("referenceHaving of the groups", scopedTagGroupQuery(referenceNote)),
+			Arguments.of(
+				"facetHaving in a facet relation group filter restricted to the archived scope",
+				scopedProductSummaryQuery(facetGroupsNegation(REF_TAG, filterBy(inScope(Scope.ARCHIVED, facetNote))))
+			),
+			Arguments.of(
+				"referenceHaving in a facet relation group filter restricted to the archived scope",
+				scopedProductSummaryQuery(
+					facetGroupsNegation(REF_TAG, filterBy(inScope(Scope.ARCHIVED, referenceNote)))
+				)
+			),
+			Arguments.of(
+				"referenceHaving in the group filter of the reference summary restricted to the archived scope",
+				scopedProductSummaryQuery(
+					referenceSummaryOfReference(
+						REF_TAG, FacetStatisticsDepth.COUNTS, (FilterBy) null,
+						filterGroupBy(inScope(Scope.ARCHIVED, referenceNote))
+					)
+				)
+			),
+			Arguments.of(
+				"entityHaving of the tags restricted to the archived scope",
+				query(
+					collection(ENTITY_SCOPED_PRODUCT),
+					filterBy(
+						scope(Scope.LIVE, Scope.ARCHIVED),
+						inScope(
+							Scope.ARCHIVED,
+							referenceHaving(REF_TAG, entityHaving(attributeEquals(ATTRIBUTE_NOTE, "anything")))
+						)
+					),
+					require(page(1, SCOPED_PRODUCT_TAGS.length))
+				)
+			)
+		);
+	}
+
+	/**
+	 * Checks that a filter of a reference which cannot be evaluated makes the query fail with a client error even when
+	 * the reference has no type index in a scope it is indexed in - no entity of the scope references anything by it -
+	 * because the filter is checked against the reference schema in every requested scope, not only where the
+	 * references exist.
+	 *
+	 * @param label the row label, used in the test name only
+	 * @param query the query with the filter of the reference
+	 * @param evita the engine instance provided by the test extension
+	 */
+	@DisplayName("Should fail the query whose filter of a reference without type index cannot be evaluated")
+	@UseDataSet(FACET_SCOPE_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("filterOfReferenceWithoutTypeIndexRows")
+	void shouldFailQueryWhoseFilterOfReferenceWithoutTypeIndexCannotBeEvaluated(
+		@Nonnull String label,
+		@Nonnull Query query,
+		Evita evita
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final AttributeNotFilterableException exception = assertThrowsExactly(
+					AttributeNotFilterableException.class,
+					() -> session.query(query, EntityReference.class)
+				);
+				assertTrue(
+					exception.getMessage().contains("`" + ATTRIBUTE_NOTE + "`"),
+					"the message `" + exception.getMessage() + "` must name the attribute"
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Checks that a filter of a reference without type index in a scope it is indexed in is accepted when it can be
+	 * evaluated, and matches nothing there - also under a negation - while the relation constraint whose group filter
+	 * holds it keeps working.
+	 *
+	 * @param evita the engine instance provided by the test extension
+	 */
+	@DisplayName("Should accept an evaluable filter of a reference without type index and match nothing")
+	@UseDataSet(FACET_SCOPE_SHAPES)
+	@Test
+	void shouldAcceptEvaluableFilterOfReferenceWithoutTypeIndex(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final FilterConstraint referenceCode = referenceHaving(
+					REF_CATEGORY, attributeEquals(ATTRIBUTE_CODE, "tag10")
+				);
+				assertEquals(
+					0,
+					session.query(scopedTagGroupQuery(referenceCode), EntityReference.class).getTotalRecordCount()
+				);
+				assertEquals(
+					0,
+					session.query(
+						scopedTagGroupQuery(
+							referenceHaving(REF_CATEGORY, not(attributeEquals(ATTRIBUTE_CODE, "tag10")))
+						),
+						EntityReference.class
+					).getTotalRecordCount()
+				);
+				assertEquals(
+					0,
+					session.query(
+						scopedTagGroupQuery(facetHaving(REF_CATEGORY, attributeEquals(ATTRIBUTE_CODE, "tag10"))),
+						EntityReference.class
+					).getTotalRecordCount()
+				);
+				assertEquals(
+					SCOPED_PRODUCT_TAGS.length,
+					session.query(
+						scopedProductSummaryQuery(
+							facetGroupsNegation(REF_TAG, filterBy(inScope(Scope.ARCHIVED, referenceCode)))
+						),
+						EntityReference.class
+					).getTotalRecordCount()
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Builds the query of the groups of the {@link #FACET_SCOPE_SHAPES} data set over both scopes filtered by the
+	 * passed constraint.
+	 *
+	 * @param filter the filter constraint
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query scopedTagGroupQuery(@Nonnull FilterConstraint filter) {
+		return query(
+			collection(ENTITY_SCOPED_TAG_GROUP),
+			filterBy(scope(Scope.LIVE, Scope.ARCHIVED), filter),
+			require(page(1, SCOPED_TAG_GROUPS.length))
 		);
 	}
 

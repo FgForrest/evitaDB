@@ -151,7 +151,8 @@ public class HavingTranslatorHelper {
 	 * Plans and constructs a nested query for the provided target entity type and filter constraint.
 	 * The formula is cached and computed only once to avoid redundant computation. When the target
 	 * entity doesn't have a global index, an empty formula is returned (since no entities are present
-	 * there).
+	 * there). The filter is still checked against the target entity schema in every scope without a global index,
+	 * so that a filter that cannot be evaluated fails the query whether the entities exist or not.
 	 *
 	 * @param targetEntityType         the type of the target entity for which the nested query is being planned
 	 * @param filter                   the filter constraint that applies the necessary filtering logic
@@ -182,6 +183,22 @@ public class HavingTranslatorHelper {
 			.filter(Objects::nonNull)
 			.map(GlobalEntityIndex.class::cast)
 			.toList();
+
+		// a scope the target entity type holds no entity of has no index and the nested query is not planned there,
+		// but the filter is still checked against the entity schema in that scope, so that the query does not fail or
+		// pass depending on the data - nothing can match there, so the formula of the check is not used
+		if (globalIndexes.size() < processingScope.getScopes().size()) {
+			final Set<Scope> scopesWithoutIndex = EnumSet.copyOf(processingScope.getScopes());
+			globalIndexes.forEach(it -> scopesWithoutIndex.remove(it.getIndexKey().scope()));
+			FilterByVisitor.createFormulaForTheFilter(
+				filterByVisitor.getQueryContext(),
+				scopesWithoutIndex,
+				filter instanceof FilterBy filterBy ? filterBy : new FilterBy(filter),
+				null,
+				targetEntityType,
+				taskDescriptionSupplier
+			);
+		}
 
 		if (globalIndexes.isEmpty()) {
 			return List.of(new GlobalIndexAndFormula(null, EmptyFormula.INSTANCE));

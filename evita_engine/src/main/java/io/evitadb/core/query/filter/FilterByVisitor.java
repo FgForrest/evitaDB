@@ -1150,6 +1150,10 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * parameter controls whether entity-level ({@link EntityIndexType#REFERENCED_ENTITY_TYPE}) or
 	 * group-level ({@link EntityIndexType#REFERENCED_GROUP_ENTITY_TYPE}) indexes are used.
 	 *
+	 * The filter is translated in every scope to look up, also in a scope where the reference is indexed but no
+	 * entity references anything by it, so there is no type index - an empty index stands in for it, the filter is
+	 * checked against the reference schema there, and the scope contributes nothing to the result.
+	 *
 	 * @param entitySchema                       the schema of the entity being queried
 	 * @param referenceSchema                    the reference schema
 	 * @param filterBy                           the filter constraint to evaluate
@@ -1201,9 +1205,16 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 					);
 
 					ReferencedTypeEntityIndex targetReferencedTypeIndex;
+					final boolean referencesMissing = entityIndex.isEmpty() && referenceSchema.isIndexedInScope(scope);
 					if (entityIndex.isEmpty()) {
-						if (referenceSchema.isIndexedInScope(scope)) {
-							return EmptyFormula.INSTANCE;
+						if (referencesMissing) {
+							// no entity of the scope references anything by the reference, so there is no type index -
+							// an empty one in its place lets the translation check the filter against the reference
+							// schema exactly as it does when the references exist, so that the query does not fail or
+							// pass depending on the data; nothing can match there, whatever the filter says
+							targetReferencedTypeIndex = new ReferencedTypeEntityIndex(
+								-1, entitySchema.getName(), entityIndexKey
+							);
 						} else {
 							// we need to behave like if the index existed - we never know where in the filtering
 							// constraint the client might have used InScope container limiting the scope of the query
@@ -1218,7 +1229,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 						targetReferencedTypeIndex = entityIndex.get();
 					}
 
-					return executeInContextAndIsolatedFormulaStack(
+					final Formula scopeFormula = executeInContextAndIsolatedFormulaStack(
 						ReferencedTypeEntityIndex.class,
 						() -> Collections.singletonList(targetReferencedTypeIndex),
 						ReferenceContent.ALL_REFERENCES,
@@ -1239,6 +1250,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 						FacetIncludingChildren.class,
 						FacetIncludingChildrenExcept.class
 					);
+					return referencesMissing ? EmptyFormula.INSTANCE : scopeFormula;
 				})
 				.filter(it -> it != EmptyFormula.INSTANCE)
 				.toArray(Formula[]::new)
