@@ -98,10 +98,8 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 		final IntSet groupsForReference = this.facetGroupsInUserFilter.get(referenceName);
 		final boolean found = groupsForReference != null && groupsForReference.contains(normalizedFacetGroupId);
 
-		// if we didn't find the facet group in the user filter, we can use the generic formula
-		final CacheKey key = found ?
-			new CacheKey(referenceName, relationType, normalizedFacetGroupId) :
-			new CacheKey(null, relationType, null);
+		// if we didn't find the facet group in the user filter, we can use the generic formula of the reference
+		final CacheKey key = new CacheKey(referenceName, relationType, found ? normalizedFacetGroupId : null);
 
 		final Formula formula = this.cache.get(key);
 		if (formula != null) {
@@ -122,9 +120,9 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 			final IntSet groupsForReferenceAtLast = this.facetGroupsInUserFilter.get(referenceName);
 			final boolean foundAtLast = groupsForReferenceAtLast != null
 				&& groupsForReferenceAtLast.contains(normalizedFacetGroupId);
-			final CacheKey cacheKey = foundAtLast ?
-				new CacheKey(referenceName, relationType, normalizedFacetGroupId) :
-				new CacheKey(null, relationType, null);
+			final CacheKey cacheKey = new CacheKey(
+				referenceName, relationType, foundAtLast ? normalizedFacetGroupId : null
+			);
 			this.cache.put(cacheKey, result);
 			return result;
 		}
@@ -216,10 +214,12 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 	 * needed to distinguish the situation when we need to analyze and create new formula composition and we can reuse
 	 * the existing one and just replace one formula with another.
 	 *
-	 * The reference name and the facet group id are set only for cache keys that represents existing facet group
-	 * formulas in original formula tree inside user filter container. If such formula is not found, we may reuse
-	 * the generic formula, because new formula is added always at the same place with behavior driven only by
-	 * negation / disjunction / conjunction combination.
+	 * The facet group id is set only for cache keys that represents existing facet group formulas in original formula
+	 * tree inside user filter container. If such formula is not found, we may reuse the generic formula of the
+	 * reference, because new formula is added always at the same place with behavior driven only by negation /
+	 * disjunction / conjunction combination. The place depends on the reference, though - a positive facet joins the
+	 * facet selection of its own reference in the user filter - so the generic formula of one reference must not
+	 * serve another.
 	 *
 	 * @param referenceName the reference name of the facet group
 	 * @param relationType  the relation type of the facet group with other groups
@@ -227,7 +227,7 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 	 *                      the main formula
 	 */
 	private record CacheKey(
-		@Nullable String referenceName,
+		@Nonnull String referenceName,
 		@Nonnull FacetRelationType relationType,
 		@Nullable Integer facetGroupId
 	) {

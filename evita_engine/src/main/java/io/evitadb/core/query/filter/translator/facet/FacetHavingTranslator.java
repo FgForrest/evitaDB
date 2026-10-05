@@ -43,6 +43,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
+import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.facet.CombinedFacetFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupAndFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
@@ -354,27 +355,49 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 				)
 			).values();
 
-		// now aggregate formulas by their group relation type
-		final Map<Class<? extends FilterConstraint>, List<FacetGroupFormula>> formulasGroupedByAggregationType = formulasGroupedByGroupId
+		// now aggregate formulas by their group relation type - the facets without a group and the groups of a type
+		// evitaDB does not manage follow the relation settings like any other group, the reference summary resolves
+		// the relation the same way, so the result must not deviate from it
+		return composeFacetSelectionFormula(
+			facetHaving.getReferenceName(),
+			formulasGroupedByGroupId.stream()
+				.filter(Optional::isPresent)
+				.map(Optional::get)
+				.toList(),
+			it -> filterByVisitor.getFacetRelationType(referenceSchema, it.getFacetGroupId(), WITH_DIFFERENT_GROUPS)
+		);
+	}
+
+	/**
+	 * Composes the facet-selection formula of one reference from the formulas of its selected facet groups - each
+	 * group joins the container of its relation to the other groups and the containers are composed by
+	 * {@link #composeFacetSelectionFormula(String, Formula, Formula, Formula)}. The reference summary composes its
+	 * impact predictions through this method as well, so that the prediction for a group not selected yet has exactly
+	 * the shape of the result selecting it.
+	 *
+	 * @param referenceName         the name of the reference the facets belong to
+	 * @param facetGroupFormulas    the formulas of the selected facet groups, one for each group
+	 * @param relationBetweenGroups resolves the relation of the group of the passed formula to the other groups
+	 * @param <T>                   the type of the facet group formulas
+	 * @return the composed facet-selection formula, either a {@link FacetHavingFormula} wrapping the compound or a
+	 * {@link FutureNotFormula} sentinel when all the groups are negated
+	 */
+	@Nonnull
+	public static <T extends Formula> Formula composeFacetSelectionFormula(
+		@Nonnull String referenceName,
+		@Nonnull Collection<T> facetGroupFormulas,
+		@Nonnull Function<T, FacetRelationType> relationBetweenGroups
+	) {
+		final Map<Class<? extends FilterConstraint>, List<T>> formulasGroupedByAggregationType = facetGroupFormulas
 			.stream()
-			.filter(Optional::isPresent)
-			.map(Optional::get)
 			.collect(
 				Collectors.groupingBy(
-					it -> {
-						// the facets without a group and the groups of a type evitaDB does not manage follow the
-						// relation settings like any other group - the reference summary resolves the relation the
-						// same way, so the result must not deviate from it
-						final FacetRelationType relationType = filterByVisitor.getFacetRelationType(
-							referenceSchema, it.getFacetGroupId(), WITH_DIFFERENT_GROUPS
-						);
-						return switch (relationType) {
-							case DISJUNCTION -> Or.class;
-							case NEGATION -> Not.class;
-							// exclusivity changes only the reference summary, the result falls back to the system
-							// default between groups, which is a conjunction
-							case CONJUNCTION, EXCLUSIVITY -> And.class;
-						};
+					it -> switch (relationBetweenGroups.apply(it)) {
+						case DISJUNCTION -> Or.class;
+						case NEGATION -> Not.class;
+						// exclusivity changes only the reference summary, the result falls back to the system
+						// default between groups, which is a conjunction
+						case CONJUNCTION, EXCLUSIVITY -> And.class;
 					}
 				)
 			);
@@ -390,7 +413,7 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 			.map(it -> FormulaFactory.or(it.toArray(Formula[]::new)))
 			.orElse(null);
 
-		return composeFacetSelectionFormula(facetHaving.getReferenceName(), notFormula, andFormula, orFormula);
+		return composeFacetSelectionFormula(referenceName, notFormula, andFormula, orFormula);
 	}
 
 	/**
@@ -429,7 +452,9 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 				composed = orFormula;
 			} else if (orFormula == null) {
 				composed = andFormula;
-			} else if (orFormula instanceof FacetGroupFormula) {
+			} else if (!(orFormula instanceof OrFormula)) {
+				// a single disjunctive group - the reference summary passes a formula standing in for a facet group
+				// formula here, which cannot be cloned
 				composed = new CombinedFacetFormula(andFormula, orFormula);
 			} else {
 				composed = orFormula.getCloneWithInnerFormulas(

@@ -43,6 +43,7 @@ import io.evitadb.core.query.algebra.facet.CombinedFacetFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupAndFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
+import io.evitadb.core.query.algebra.facet.FacetHavingFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
@@ -64,8 +65,10 @@ import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Deque;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
@@ -614,20 +617,162 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 				return false;
 			}
 		} else {
+			// a positive facet joins the facet selection of its reference the way the result composes it, when the user
+			// filter selects facets of the reference at all
+			final Formula[] childrenWithFacetSelection = relationType == FacetRelationType.DISJUNCTION ||
+				relationType == FacetRelationType.CONJUNCTION ?
+				addNewFormulaToFacetSelection(newFormula, relationType, updatedChildren) : null;
 			// we can immediately alter the current formula adding new facet formula
 			storeFormula(
 				formula.getCloneWithInnerFormulas(
-					alterFormula(
-						newFormula,
-						this.baseFormulaWithoutUserFilter,
-						relationType,
-						updatedChildren
-					)
+					childrenWithFacetSelection == null ?
+						alterFormula(
+							newFormula,
+							this.baseFormulaWithoutUserFilter,
+							relationType,
+							updatedChildren
+						) :
+						childrenWithFacetSelection
 				)
 			);
 			// we've stored the formula - instruct super method to skip it's handling
 			return true;
 		}
+	}
+
+	/**
+	 * Adds the formula of a positive facet - one whose group is disjunctive or conjunctive to the other groups - to the
+	 * facet selection the user filter holds for the facet's reference, so that the prediction has exactly the shape
+	 * of the result selecting the facet along with the others. {@link FacetHavingTranslator} composes the selection of
+	 * one reference as `(conjunctive groups OR disjunctive groups) AND NOT negated groups`, so a facet joining the
+	 * selection is subtracted by its negated groups, too - merely joining it to the user filter with OR or AND, as
+	 * {@link #alterFormula(Formula, Formula, FacetRelationType, Formula...)} does, would let it escape them.
+	 *
+	 * The selection takes one of two places in the user filter:
+	 *
+	 * - a {@link FacetHavingFormula} with at least one positive group is a positive part of the user filter, and it
+	 *   is composed anew from its group formulas and the new one by
+	 *   {@link FacetHavingTranslator#composeFacetSelectionFormula(String, java.util.Collection, java.util.function.Function)}
+	 * - a {@link FacetHavingFormula} with only negated groups is what {@link FutureNotFormula} post-processing
+	 *   subtracts from the rest of the user filter - `NOT(negated, rest)` - and the result selecting a positive facet
+	 *   along with it is `rest AND (facet AND NOT negated)`, which is the same set as `NOT(negated, rest AND facet)`,
+	 *   so the new formula joins the superset part of the enclosing {@link NotFormula}
+	 *
+	 * Every occurrence is altered, because the scope post-processing copies the user filter into the
+	 * {@link ScopeContainerFormula} of every scope.
+	 *
+	 * @param newFormula   the formula of the facet being added
+	 * @param relationType the relation of the facet's group to the other groups, disjunction or conjunction
+	 * @param children     the children of the user filter formula
+	 * @return the altered children, or NULL when the user filter selects no facet of the reference
+	 */
+	@Nullable
+	private Formula[] addNewFormulaToFacetSelection(
+		@Nonnull Formula newFormula,
+		@Nonnull FacetRelationType relationType,
+		@Nonnull Formula[] children
+	) {
+		final String referenceName = this.referenceSchema.getName();
+		final Formula[] alteredChildren = new Formula[children.length];
+		boolean altered = false;
+		for (int i = 0; i < children.length; i++) {
+			alteredChildren[i] = FormulaCloner.clone(
+				children[i],
+				examinedFormula -> {
+					if (examinedFormula instanceof NotFormula notFormula &&
+						isNegatedFacetSelection(notFormula.getSubtractedFormula(), referenceName)) {
+						return notFormula.getCloneWithInnerFormulas(
+							notFormula.getSubtractedFormula(),
+							FormulaFactory.and(notFormula.getSupersetFormula(), newFormula)
+						);
+					} else if (examinedFormula instanceof FacetHavingFormula facetHavingFormula &&
+						referenceName.equals(facetHavingFormula.getReferenceName()) &&
+						!isNegatedFacetSelection(facetHavingFormula, referenceName)) {
+						final List<Formula> groupFormulas = collectFacetGroupFormulas(facetHavingFormula);
+						groupFormulas.add(newFormula);
+						return FacetHavingTranslator.composeFacetSelectionFormula(
+							referenceName,
+							groupFormulas,
+							groupFormula -> groupFormula == newFormula ?
+								relationType :
+								this.facetRelationType.resolve(
+									this.referenceSchema,
+									((FacetGroupFormula) groupFormula).getFacetGroupId(),
+									WITH_DIFFERENT_GROUPS
+								)
+						);
+					} else {
+						return examinedFormula;
+					}
+				}
+			);
+			altered |= alteredChildren[i] != children[i];
+		}
+		return altered ? alteredChildren : null;
+	}
+
+	/**
+	 * Returns true if the passed formula is the facet selection of the reference with only negated groups, or a
+	 * disjunction of the negated parts of the user filter containing it - the subtracted part {@link FutureNotFormula}
+	 * post-processing produces.
+	 *
+	 * @param formula       the examined formula
+	 * @param referenceName the name of the reference of the facet being added
+	 * @return true if the formula is or directly contains the facet selection of the reference with only negated groups
+	 */
+	private boolean isNegatedFacetSelection(@Nonnull Formula formula, @Nonnull String referenceName) {
+		if (formula instanceof FacetHavingFormula facetHavingFormula) {
+			if (!referenceName.equals(facetHavingFormula.getReferenceName())) {
+				return false;
+			}
+			for (Formula groupFormula : collectFacetGroupFormulas(facetHavingFormula)) {
+				final FacetRelationType groupRelationType = this.facetRelationType.resolve(
+					this.referenceSchema, ((FacetGroupFormula) groupFormula).getFacetGroupId(), WITH_DIFFERENT_GROUPS
+				);
+				if (groupRelationType != FacetRelationType.NEGATION) {
+					return false;
+				}
+			}
+			return true;
+		} else if (formula instanceof OrFormula) {
+			for (Formula innerFormula : formula.getInnerFormulas()) {
+				if (innerFormula instanceof FacetHavingFormula && isNegatedFacetSelection(innerFormula, referenceName)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Collects the formulas of the facet groups the facet selection is composed of. {@link FacetHavingTranslator}
+	 * composes the selection of {@link FacetGroupFormula} leaves only, joined by logical containers.
+	 *
+	 * @param facetHavingFormula the facet selection of one reference
+	 * @return the formulas of its facet groups, in a mutable list
+	 */
+	@Nonnull
+	private static List<Formula> collectFacetGroupFormulas(@Nonnull FacetHavingFormula facetHavingFormula) {
+		final List<Formula> groupFormulas = new ArrayList<>(8);
+		final Deque<Formula> stack = new ArrayDeque<>(8);
+		stack.push(facetHavingFormula);
+		while (!stack.isEmpty()) {
+			final Formula examinedFormula = stack.pop();
+			if (examinedFormula instanceof FacetGroupFormula) {
+				groupFormulas.add(examinedFormula);
+			} else {
+				final Formula[] innerFormulas = examinedFormula.getInnerFormulas();
+				Assert.isPremiseValid(
+					innerFormulas.length > 0,
+					() -> "The facet selection is expected to be composed of facet group formulas only, but " +
+						"contains: " + examinedFormula
+				);
+				for (Formula innerFormula : innerFormulas) {
+					stack.push(innerFormula);
+				}
+			}
+		}
+		return groupFormulas;
 	}
 
 	/**
