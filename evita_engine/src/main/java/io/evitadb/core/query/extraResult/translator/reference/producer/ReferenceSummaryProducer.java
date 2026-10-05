@@ -24,6 +24,8 @@
 package io.evitadb.core.query.extraResult.translator.reference.producer;
 
 import com.carrotsearch.hppc.IntHashSet;
+import com.carrotsearch.hppc.IntObjectHashMap;
+import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.FilterGroupBy;
@@ -56,7 +58,6 @@ import io.evitadb.core.query.extraResult.translator.common.UserFilterRelaxer;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.function.TriFunction;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -431,65 +432,131 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	@Nonnull
 	private FacetGroupOccurrences.Resolver createFacetGroupOccurrencesResolver(@Nonnull QueryExecutionContext context) {
 		final Set<Scope> scopes = context.getQueryContext().getScopes();
-		final Map<Scope, GlobalEntityIndex> globalIndexes = new EnumMap<>(Scope.class);
+		final Map<Scope, Map<String, FacetReferenceIndex>> globalFacetIndexes = new EnumMap<>(Scope.class);
 		for (final Scope scope : scopes) {
-			context.getQueryContext().getGlobalEntityIndexIfExists(scope).ifPresent(it -> globalIndexes.put(scope, it));
+			context.getQueryContext().getGlobalEntityIndexIfExists(scope)
+				.ifPresent(it -> globalFacetIndexes.put(scope, it.getFacetingEntities()));
 		}
+		return createFacetGroupOccurrencesResolver(scopes, globalFacetIndexes, this.facetIndexes);
+	}
+
+	/**
+	 * Creates the resolver of the groups each facet of the reference summary is referenced under - see
+	 * {@link #createFacetGroupOccurrencesResolver(QueryExecutionContext)}. A facet referenced under several groups is
+	 * listed in each of them, and all of its entries predict the same selection, so the occurrences are resolved once
+	 * for the facet and shared by all of its entries - the entities under the group of the entry resolving them come
+	 * from the same searched indexes as those of the other groups.
+	 *
+	 * @param scopes             the scopes of the query
+	 * @param globalFacetIndexes the facet indexes of the global index of each scope, indexed by the reference name; a
+	 *                           scope without a global index is missing
+	 * @param facetIndexes       the facet indexes the reference summary is computed from, the same indexes the query
+	 *                           searches
+	 * @return the resolver
+	 */
+	@Nonnull
+	static FacetGroupOccurrences.Resolver createFacetGroupOccurrencesResolver(
+		@Nonnull Set<Scope> scopes,
+		@Nonnull Map<Scope, Map<String, FacetReferenceIndex>> globalFacetIndexes,
+		@Nonnull List<Map<String, FacetReferenceIndex>> facetIndexes
+	) {
+		final Map<String, IntObjectMap<FacetGroupOccurrences>> resolvedOccurrences = createHashMap(8);
 		return (referenceSchema, facetId, facetGroupId, facetEntityIds) -> {
-			final String referenceName = referenceSchema.getName();
-			Map<Scope, List<Integer>> groupsByScope = null;
-			for (final Scope scope : scopes) {
-				final GlobalEntityIndex globalIndex = globalIndexes.get(scope);
-				final FacetReferenceIndex facetReferenceIndex = globalIndex == null ?
-					null : globalIndex.getFacetingEntities().get(referenceName);
-				final List<Integer> groups = facetReferenceIndex == null ?
-					List.of() : facetReferenceIndex.getGroupsOfFacet(facetId);
-				if (groupsByScope == null && !(groups.size() == 1 && Objects.equals(groups.get(0), facetGroupId))) {
-					groupsByScope = new EnumMap<>(Scope.class);
-					for (final Scope previousScope : scopes) {
-						if (previousScope == scope) {
-							break;
-						}
-						groupsByScope.put(previousScope, Collections.singletonList(facetGroupId));
-					}
-				}
-				if (groupsByScope != null) {
-					groupsByScope.put(scope, groups);
-				}
+			final IntObjectMap<FacetGroupOccurrences> resolvedOccurrencesOfReference =
+				resolvedOccurrences.computeIfAbsent(referenceSchema.getName(), it -> new IntObjectHashMap<>(64));
+			FacetGroupOccurrences occurrences = resolvedOccurrencesOfReference.get(facetId);
+			if (occurrences == null) {
+				occurrences = resolveFacetGroupOccurrences(
+					scopes, globalFacetIndexes, facetIndexes, referenceSchema.getName(), facetId, facetGroupId,
+					facetEntityIds
+				);
+				resolvedOccurrencesOfReference.put(facetId, occurrences);
 			}
-			if (groupsByScope == null) {
-				return FacetGroupOccurrences.singleGroup(facetGroupId, facetEntityIds);
-			}
-			final List<Integer> groupsInQuery = new ArrayList<>(4);
-			final Map<Integer, Bitmap> entityIdsByGroup = new HashMap<>(8);
-			entityIdsByGroup.put(facetGroupId, facetEntityIds);
-			for (final List<Integer> groups : groupsByScope.values()) {
-				for (final Integer groupId : groups) {
-					if (!groupsInQuery.contains(groupId)) {
-						groupsInQuery.add(groupId);
-						if (!entityIdsByGroup.containsKey(groupId)) {
-							entityIdsByGroup.put(groupId, getFacetEntityIds(referenceName, groupId, facetId));
-						}
-					}
-				}
-			}
-			return new FacetGroupOccurrences(groupsByScope, groupsInQuery, entityIdsByGroup);
+			return occurrences;
 		};
+	}
+
+	/**
+	 * Resolves the groups the facet is referenced under in each scope of the query and the entities referencing it
+	 * under each of them - see {@link #createFacetGroupOccurrencesResolver(QueryExecutionContext)}.
+	 *
+	 * @param scopes             the scopes of the query
+	 * @param globalFacetIndexes the facet indexes of the global index of each scope, indexed by the reference name
+	 * @param facetIndexes       the facet indexes the reference summary is computed from
+	 * @param referenceName      the name of the faceted reference
+	 * @param facetId            the facet
+	 * @param facetGroupId       the group of the entry resolving the occurrences, NULL for the facets without a group
+	 * @param facetEntityIds     the entities referencing the facet under that group
+	 * @return the occurrences of the facet
+	 */
+	@Nonnull
+	private static FacetGroupOccurrences resolveFacetGroupOccurrences(
+		@Nonnull Set<Scope> scopes,
+		@Nonnull Map<Scope, Map<String, FacetReferenceIndex>> globalFacetIndexes,
+		@Nonnull List<Map<String, FacetReferenceIndex>> facetIndexes,
+		@Nonnull String referenceName,
+		int facetId,
+		@Nullable Integer facetGroupId,
+		@Nonnull Bitmap facetEntityIds
+	) {
+		Map<Scope, List<Integer>> groupsByScope = null;
+		for (final Scope scope : scopes) {
+			final Map<String, FacetReferenceIndex> globalFacetIndex = globalFacetIndexes.get(scope);
+			final FacetReferenceIndex facetReferenceIndex = globalFacetIndex == null ?
+				null : globalFacetIndex.get(referenceName);
+			final List<Integer> groups = facetReferenceIndex == null ?
+				List.of() : facetReferenceIndex.getGroupsOfFacet(facetId);
+			if (groupsByScope == null && !(groups.size() == 1 && Objects.equals(groups.get(0), facetGroupId))) {
+				groupsByScope = new EnumMap<>(Scope.class);
+				for (final Scope previousScope : scopes) {
+					if (previousScope == scope) {
+						break;
+					}
+					groupsByScope.put(previousScope, Collections.singletonList(facetGroupId));
+				}
+			}
+			if (groupsByScope != null) {
+				groupsByScope.put(scope, groups);
+			}
+		}
+		if (groupsByScope == null) {
+			return FacetGroupOccurrences.singleGroup(facetGroupId, facetEntityIds);
+		}
+		final List<Integer> groupsInQuery = new ArrayList<>(4);
+		final Map<Integer, Bitmap> entityIdsByGroup = new HashMap<>(8);
+		entityIdsByGroup.put(facetGroupId, facetEntityIds);
+		for (final List<Integer> groups : groupsByScope.values()) {
+			for (final Integer groupId : groups) {
+				if (!groupsInQuery.contains(groupId)) {
+					groupsInQuery.add(groupId);
+					if (!entityIdsByGroup.containsKey(groupId)) {
+						entityIdsByGroup.put(groupId, getFacetEntityIds(facetIndexes, referenceName, groupId, facetId));
+					}
+				}
+			}
+		}
+		return new FacetGroupOccurrences(groupsByScope, groupsInQuery, entityIdsByGroup);
 	}
 
 	/**
 	 * Returns the entities referencing the facet under the group in the indexes the reference summary is computed
 	 * from.
 	 *
+	 * @param facetIndexes  the facet indexes the reference summary is computed from
 	 * @param referenceName the name of the faceted reference
 	 * @param groupId       the group, NULL for the references without a group
 	 * @param facetId       the facet
 	 * @return the entities referencing the facet under the group, empty when no searched index holds such a reference
 	 */
 	@Nonnull
-	private Bitmap getFacetEntityIds(@Nonnull String referenceName, @Nullable Integer groupId, int facetId) {
+	private static Bitmap getFacetEntityIds(
+		@Nonnull List<Map<String, FacetReferenceIndex>> facetIndexes,
+		@Nonnull String referenceName,
+		@Nullable Integer groupId,
+		int facetId
+	) {
 		final List<Bitmap> entityIds = new ArrayList<>(4);
-		for (final Map<String, FacetReferenceIndex> facetIndex : this.facetIndexes) {
+		for (final Map<String, FacetReferenceIndex> facetIndex : facetIndexes) {
 			final FacetReferenceIndex facetReferenceIndex = facetIndex.get(referenceName);
 			final FacetGroupIndex groupIndex = facetReferenceIndex == null ?
 				null : facetReferenceIndex.getFacetsInGroup(groupId);
@@ -1384,13 +1451,17 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		 * Produces final result of this accumulator.
 		 */
 		public FacetStatistics toFacetStatistics(@Nonnull EntityClassifier facetEntity) {
+			final FacetGroupOccurrences occurrences = getFacetGroupOccurrences();
 			return new FacetStatistics(
 				facetEntity,
 				this.requested,
 				getCount(),
-				this.impactCalculator.calculateImpact(
-					this.referenceSchema, this.facetId, this.facetGroupId, this.requested,
-					getEntityIdsArray(), getFacetGroupOccurrences()
+				// every entry of the facet predicts the same selection, so the first one computes the impact for all
+				occurrences.computeImpactIfAbsent(
+					() -> this.impactCalculator.calculateImpact(
+						this.referenceSchema, this.facetId, this.facetGroupId, this.requested,
+						getEntityIdsArray(), occurrences
+					)
 				)
 			);
 		}
@@ -1457,9 +1528,17 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		}
 
 		/**
-		 * Returns count of all entities in the query response that has this facet.
+		 * Returns count of all entities in the query response that has this facet - every entry of the facet predicts
+		 * the same selection, so the first one computes the count for all.
 		 */
 		public int getCount() {
+			return getFacetGroupOccurrences().computeCountIfAbsent(this::computeCount);
+		}
+
+		/**
+		 * Computes count of all entities in the query response that has this facet.
+		 */
+		private int computeCount() {
 			if (this.resultFormula == null) {
 				// we need to combine all collected facet formulas and then AND them with base formula to get rid
 				// of entity primary keys that haven't passed the filter logic

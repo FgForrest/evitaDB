@@ -24,6 +24,7 @@
 package io.evitadb.core.query.extraResult.translator.reference.producer;
 
 import io.evitadb.api.query.filter.FacetHaving;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.RequestImpact;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.bitmap.Bitmap;
@@ -35,6 +36,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 
 /**
  * The groups one facet is referenced under, which the reference summary needs to predict the result of selecting
@@ -46,6 +49,10 @@ import java.util.Map;
  * The groups are kept for each scope of the query, because the scope post-processing copies a user filter into the
  * branch of every scope and each copy composes the facet the way its own scope does, and for the query as a whole,
  * for a user filter that is not copied. The entities referencing the facet are kept for each group.
+ *
+ * The reference summary resolves the occurrences once for the facet and shares them by all of its entries, which
+ * share the prediction of the selection through them as well - the count and the impact are computed for the first
+ * entry asking and reused by the others. The instance is not thread safe.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -68,6 +75,20 @@ public final class FacetGroupOccurrences {
 	 * a group.
 	 */
 	@Nonnull private final Map<Integer, Bitmap> entityIdsByGroup;
+	/**
+	 * The number of entities the selection of the facet returns, shared by all the entries of the facet; -1 until
+	 * computed.
+	 */
+	private int count = -1;
+	/**
+	 * The impact of adding the facet to the selection, shared by all the entries of the facet; valid only when
+	 * {@link #impactComputed} is true - the impact is NULL when it is not requested.
+	 */
+	@Nullable private RequestImpact impact;
+	/**
+	 * True once {@link #impact} has been computed.
+	 */
+	private boolean impactComputed;
 
 	/**
 	 * Creates the occurrences of a facet referenced under the passed single group in every scope of the query.
@@ -149,6 +170,37 @@ public final class FacetGroupOccurrences {
 	@Nullable
 	public Object getSignature() {
 		return this.groupsByScope == null ? null : List.of(this.groupsByScope, this.groupsInQuery);
+	}
+
+	/**
+	 * Returns the number of entities the selection of the facet returns, computed by the passed function for the first
+	 * entry of the facet asking - every entry of the facet, one for each group it is listed in, predicts the same
+	 * selection.
+	 *
+	 * @param countComputation computes the number of entities the selection of the facet returns
+	 * @return the number of entities
+	 */
+	int computeCountIfAbsent(@Nonnull IntSupplier countComputation) {
+		if (this.count < 0) {
+			this.count = countComputation.getAsInt();
+		}
+		return this.count;
+	}
+
+	/**
+	 * Returns the impact of adding the facet to the selection, computed by the passed function for the first entry of
+	 * the facet asking - every entry of the facet, one for each group it is listed in, predicts the same selection.
+	 *
+	 * @param impactComputation computes the impact, NULL when the impact is not requested
+	 * @return the impact, NULL when it is not requested
+	 */
+	@Nullable
+	RequestImpact computeImpactIfAbsent(@Nonnull Supplier<RequestImpact> impactComputation) {
+		if (!this.impactComputed) {
+			this.impact = impactComputation.get();
+			this.impactComputed = true;
+		}
+		return this.impact;
 	}
 
 	@Override
