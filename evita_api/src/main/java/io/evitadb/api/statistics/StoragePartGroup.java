@@ -142,9 +142,9 @@ public enum StoragePartGroup {
 	REFERENCE_HISTOGRAM_INDEX(StoragePartKind.INDEX),
 
 	/**
-	 * Everything built because an attribute or associated data is `searchable` - the fulltext index of each locale:
-	 * its root record, the leaf pages of its term dictionary with the impact of every posting, and the pages of its
-	 * field length tables.
+	 * Everything built because an attribute is `searchable` - the fulltext index of each locale: its root record, the
+	 * leaf pages of its term dictionary with the impact of every posting, and the pages of its field length tables.
+	 * Associated data is not indexed for fulltext search.
 	 *
 	 * Charged apart from {@link #ATTRIBUTE_INDEX} because searchability is a separate schema decision from
 	 * filterability and sortability, and an operator weighing whether to keep a field searchable needs to see what

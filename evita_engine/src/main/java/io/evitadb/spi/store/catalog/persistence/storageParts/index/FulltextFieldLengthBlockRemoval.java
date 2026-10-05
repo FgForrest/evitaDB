@@ -35,8 +35,10 @@ import java.io.Serial;
 import java.util.Locale;
 
 /**
- * Removal of a {@link FulltextFieldLengthBlockPart} whose block left its table - every entity it held lost its length.
- * Never serialized: the flush resolves it to the removed page's primary key and drops that page.
+ * Removal of a {@link FulltextFieldLengthBlockPart} whose block left its table - every entity it held lost its length
+ * - or whose whole index left: dropped from the entity index, dropped with it, or replaced by a new index that does
+ * not overwrite the block. Never serialized: the flush resolves it to the removed page's primary key and drops that
+ * page.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

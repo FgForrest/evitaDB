@@ -176,10 +176,11 @@ class CatalogFulltextAnalyzerRegistryTest implements EvitaTestSupport {
 		void shouldReloadTheFulltextIndexThroughAFreshRegistry() {
 			final Catalog before = catalogOf(CATALOG);
 			final FulltextAnalyzerRegistry registry = before.getFulltextAnalyzerRegistry();
-			// no schema can make the write path fill a fulltext index yet, so the index is filled directly - what is
-			// under test is that the catalog load hands its registry down to the fulltext loader. It is filled inside
-			// the session of an upsert, after it: the upsert is what registers the global index as modified, and a
-			// warm-up flush persists only the indexes registered that way
+			// the index is filled directly rather than through a searchable attribute: what is under test is that the
+			// catalog load hands its registry down to the fulltext loader, not the write path, which
+			// `FulltextWritePathTest.Persistence` covers across a restart. It is filled inside the session of an
+			// upsert, after it: the upsert is what registers the global index as modified, and a warm-up flush
+			// persists only the indexes registered that way
 			final FulltextIndex[] filled = new FulltextIndex[1];
 			CatalogFulltextAnalyzerRegistryTest.this.evita.updateCatalog(
 				CATALOG,

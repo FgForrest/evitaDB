@@ -35,8 +35,9 @@ import java.util.Locale;
 
 /**
  * Removal of a {@link FulltextDictionaryLeafPagePart} whose leaf left the dictionary - merged into a sibling, or
- * replaced by the two halves of a split. Never serialized: the flush resolves it to the removed page's primary key
- * and drops that page.
+ * replaced by the two halves of a split - or whose whole index left: dropped from the entity index, dropped with it,
+ * or replaced by a new index that does not overwrite the page. Never serialized: the flush resolves it to the removed
+ * page's primary key and drops that page.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

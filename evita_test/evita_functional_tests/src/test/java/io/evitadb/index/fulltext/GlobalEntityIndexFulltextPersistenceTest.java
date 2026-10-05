@@ -118,8 +118,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The fulltext indexes attached to a {@link GlobalEntityIndex}, persisted and read back the way a catalog does it: the
  * index's own flush emits the parts, a real on-disk {@link OffsetIndex} stores them through the production Kryo chain -
  * the manifest serializer included - and {@link GlobalEntityIndex#reloadPlan()} rebuilds the index from them. Covers
- * the reload of every locale, the analyzer the reload uses, the reclaim of a dropped locale, of a dropped entity index
- * and of a replaced index, and a transactional commit.
+ * the reload of every locale, the analyzer the reload uses, the refusal to reload an index missing a part it lists,
+ * the reclaim of a dropped locale, of a dropped entity index and of a replaced index, and a transactional commit.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -480,6 +480,123 @@ class GlobalEntityIndexFulltextPersistenceTest {
 				GenericEvitaInternalError.class,
 				() -> index.getOrCreateFulltextIndex(CZECH, registry.getIndexAnalyzerByName("english"))
 			);
+		}
+
+		@Test
+		@DisplayName("a field without lengths ahead of one with lengths reloads, each with its own table")
+		void shouldReloadAFieldWithoutLengthsBesideAFieldWithLengths() {
+			final GlobalEntityIndex index = newGlobalIndex();
+			final FulltextIndex czech = index.getOrCreateFulltextIndex(
+				CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH)
+			);
+			// field 0 holds postings only, so the length stream is first named by field 1
+			final int code = czech.getOrAssignFieldId(attribute("code"));
+			czech.addPosting(code, "abc123", 1, 10);
+			czech.addPosting(code, "xyz789", 2, 20);
+			czech.addValue(attribute("title"), 1, "zelený čaj");
+			czech.addValue(attribute("title"), 70_001, "černý čaj");
+
+			final List<StoragePart> parts = flush(index);
+			final FulltextIndexStoragePart root = partsOf(parts, FulltextIndexStoragePart.class).get(0);
+			assertEquals(0, root.getFields()[0].lengthBlocks().length, "The postings-only field has no length block.");
+			assertEquals(2, root.getFields()[1].lengthBlocks().length);
+
+			try (final Disk disk = new Disk()) {
+				disk.write(parts);
+				assertSameFulltext(index, disk.reload(registry));
+			}
+		}
+
+		@Test
+		@DisplayName("an index whose fields have no lengths at all reloads without a length stream")
+		void shouldReloadAnIndexWithoutAnyLengths() {
+			final GlobalEntityIndex index = newGlobalIndex();
+			final FulltextIndex czech = index.getOrCreateFulltextIndex(
+				CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH)
+			);
+			final int code = czech.getOrAssignFieldId(attribute("code"));
+			czech.addPosting(code, "abc123", 1, 10);
+
+			final List<StoragePart> parts = flush(index);
+			assertTrue(
+				partsOf(parts, FulltextFieldLengthBlockPart.class).isEmpty(),
+				"No block was written, so the length stream key was never registered."
+			);
+
+			try (final Disk disk = new Disk()) {
+				disk.write(parts);
+				assertSameFulltext(index, disk.reload(registry));
+			}
+		}
+
+		@Test
+		@DisplayName("a reload missing the root of a listed index refuses to load")
+		void shouldRefuseAReloadMissingTheRoot() {
+			assertReloadRefusedWithout(
+				parts -> partsOf(parts, FulltextIndexStoragePart.class).get(0),
+				root -> "Fulltext index of entity index `" + ENTITY_INDEX_PK + "` and locale `cs` was not found"
+			);
+		}
+
+		@Test
+		@DisplayName("a reload missing a listed dictionary page refuses to load")
+		void shouldRefuseAReloadMissingADictionaryPage() {
+			assertReloadRefusedWithout(
+				parts -> partsOf(parts, FulltextDictionaryLeafPagePart.class).get(1),
+				page -> "Dictionary page " + ((FulltextDictionaryLeafPagePart) page).getPageSequence() + " of"
+			);
+		}
+
+		@Test
+		@DisplayName("a reload missing a listed length block refuses to load")
+		void shouldRefuseAReloadMissingALengthBlock() {
+			assertReloadRefusedWithout(
+				parts -> {
+					for (final FulltextFieldLengthBlockPart block : partsOf(parts, FulltextFieldLengthBlockPart.class)) {
+						// the second block of the title table - the one holding primary keys from 65,536 on
+						if (block.getFieldId() == 0 && block.getBlock().blockKey() == 1) {
+							return block;
+						}
+					}
+					throw new AssertionError("The title table must have a block of key 1.");
+				},
+				block -> "Length block 1 of field "
+			);
+		}
+
+		/**
+		 * Flushes a filled Czech index, writes every part of the flush except the one picked, and asserts that the reload
+		 * refuses to load the index rather than restoring it empty or partial.
+		 *
+		 * @param omitted         picks the part left out of the write
+		 * @param expectedMessage the fragment the refusal message must contain, given the omitted part
+		 */
+		private void assertReloadRefusedWithout(
+			@Nonnull Function<List<StoragePart>, StoragePart> omitted,
+			@Nonnull Function<StoragePart, String> expectedMessage
+		) {
+			final GlobalEntityIndex index = newGlobalIndex();
+			fill(index.getOrCreateFulltextIndex(CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH)), 1, 1_000);
+			final List<StoragePart> parts = flush(index);
+			final StoragePart omittedPart = omitted.apply(parts);
+			final List<StoragePart> written = new ArrayList<>(parts.size());
+			for (final StoragePart part : parts) {
+				if (part != omittedPart) {
+					written.add(part);
+				}
+			}
+			assertEquals(parts.size() - 1, written.size(), "Exactly one part is left out.");
+
+			try (final Disk disk = new Disk()) {
+				disk.write(written);
+				final GenericEvitaInternalError error = assertThrows(
+					GenericEvitaInternalError.class, () -> disk.reload(registry)
+				);
+				assertTrue(
+					error.getMessage().contains(expectedMessage.apply(omittedPart)),
+					"The refusal must name the missing part: " + error.getMessage()
+				);
+			}
 		}
 
 	}

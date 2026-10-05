@@ -64,7 +64,8 @@ public abstract class AbstractLeafPagePart implements StoragePart {
 	 */
 	@Getter private int streamId;
 	/**
-	 * The advance-only, never-reused page sequence of this leaf within its stream.
+	 * The page sequence of this leaf within its stream - allocated advance-only and never reused by the tree families,
+	 * derived from the block's own identity by the fulltext length blocks, which reuse it when a block refills.
 	 */
 	@Getter private final int pageSequence;
 	/**

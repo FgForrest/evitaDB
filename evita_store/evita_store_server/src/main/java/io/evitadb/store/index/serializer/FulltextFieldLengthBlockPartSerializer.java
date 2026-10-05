@@ -36,12 +36,14 @@ import javax.annotation.Nonnull;
 
 /**
  * This serializer reads/writes {@link FulltextFieldLengthBlockPart} - one block of a fulltext field length table.
- * After the `(streamId, pageSequence)` frame comes the entity count, then the block in whichever of two encodings is
- * smaller for that count:
+ * After the `(streamId, pageSequence)` frame comes the entity count, then the block in whichever of two encodings a
+ * three-bytes-per-entity cost model says is smaller for that count:
  *
- * - **sparse** - the low 16 bits of the primary keys as ascending deltas, then the encoded lengths, about three bytes
- *   per entity;
- * - **slots** - all {@link #BLOCK_SIZE} slots, one byte each, `0` for an absent entity.
+ * - **sparse** - the low 16 bits of the primary keys as ascending var-int deltas, then the encoded lengths; budgeted
+ *   at about three bytes per entity, and closer to two when the entities are spread evenly;
+ * - **slots** - all {@link #BLOCK_SIZE} slots, one byte each, `0` for an absent entity. `0` can mean absent only
+ *   because a stored length is never `0` - `LengthBlock` refuses one - and a slot run holding more occupied slots
+ *   than its count is refused on read.
  *
  * The encoding is a function of the count alone, so it needs no marker of its own.
  *
@@ -56,7 +58,9 @@ public class FulltextFieldLengthBlockPartSerializer
 	static final int BLOCK_SIZE = 1 << 16;
 
 	/**
-	 * Entity count above which the slot encoding is the smaller one.
+	 * Entity count above which the slot encoding is the smaller one by the cost model: the sparse encoding is budgeted
+	 * at three bytes per entity - a length byte plus a var-int delta of one or two bytes, three for the widest gaps -
+	 * so past a third of the slots the budget outgrows the one byte per slot of the slot run.
 	 */
 	static final int SLOTS_ENCODING_THRESHOLD = BLOCK_SIZE / 3;
 

@@ -57,6 +57,12 @@ public class FulltextFieldLengthBlockPart extends AbstractLeafPagePart {
 	public static final int MAX_FIELD_ID = 0x7FFF;
 
 	/**
+	 * The highest block key: a block key is the high 16 bits of a primary key, and it takes the low 16 bits of the page
+	 * sequence - so the value is also the mask that reads it back out of one.
+	 */
+	public static final int MAX_BLOCK_KEY = 0xFFFF;
+
+	/**
 	 * Primary key of the owning entity index - write-path identity; `null` on a rehydrated page.
 	 */
 	@Nullable @Getter private final Integer entityIndexPrimaryKey;
@@ -73,7 +79,7 @@ public class FulltextFieldLengthBlockPart extends AbstractLeafPagePart {
 	 * Packs a field id and a block key into the page sequence of the block's page.
 	 *
 	 * @param fieldId  the field id, at most {@link #MAX_FIELD_ID}
-	 * @param blockKey the block key, a 16-bit value
+	 * @param blockKey the block key, at most {@link #MAX_BLOCK_KEY}
 	 * @return the page sequence
 	 * @throws io.evitadb.exception.GenericEvitaInternalError when the field id does not fit
 	 */
@@ -125,7 +131,7 @@ public class FulltextFieldLengthBlockPart extends AbstractLeafPagePart {
 		super(streamId, pageSequence, storagePartPK);
 		this.entityIndexPrimaryKey = null;
 		this.locale = null;
-		this.block = new LengthBlock(pageSequence & 0xFFFF, lows, lengths);
+		this.block = new LengthBlock(pageSequence & MAX_BLOCK_KEY, lows, lengths);
 	}
 
 	/**

@@ -88,7 +88,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Verifies the persisted form of a fulltext index: the {@link FulltextIndexStoragePart} root, the
  * {@link FulltextDictionaryLeafPagePart} pages with the impacts appended to their buckets, the
- * {@link FulltextDictionaryLeafPageRemoval}, and the two compressed keys - each through the Kryo instance it is
+ * {@link FulltextDictionaryLeafPageRemoval}, the {@link FulltextFieldLengthBlockPart} blocks in both their encodings
+ * with the {@link FulltextFieldLengthBlockRemoval}, and the two compressed keys - each through the Kryo instance it is
  * registered in. The end-to-end group writes the pages a real {@link FulltextIndex} flush emits through the
  * serializers and loads the index back from the bytes.
  *
@@ -378,10 +379,10 @@ class FulltextIndexStoragePartSerializerTest {
 		}
 
 		@Test
-		@DisplayName("round-trips a sparse block at about three bytes per entity")
+		@DisplayName("round-trips a sparse block within a three-bytes-per-entity budget")
 		void shouldRoundTripASparseBlock() {
 			final int size = assertRoundTrips(blockPage(3, block(0x7FFF, 1_000)));
-			assertTrue(size < 3_100, "A sparse block of 1,000 entities must stay near 3 bytes each: " + size);
+			assertTrue(size < 3_100, "A sparse block of 1,000 entities must stay within 3 bytes each: " + size);
 		}
 
 		@Test
@@ -392,10 +393,12 @@ class FulltextIndexStoragePartSerializerTest {
 		}
 
 		@Test
-		@DisplayName("round-trips the blocks either side of the encoding threshold")
+		@DisplayName("round-trips the blocks either side of the encoding threshold, each in its own encoding")
 		void shouldRoundTripTheBlocksAroundTheThreshold() {
-			assertRoundTrips(blockPage(1, block(2, 21_845)));
-			assertRoundTrips(blockPage(1, block(2, 21_846)));
+			final int sparse = assertRoundTrips(blockPage(1, block(2, 21_845)));
+			assertTrue(sparse < 65_536, "A third of the slots is still written sparse: " + sparse);
+			final int slots = assertRoundTrips(blockPage(1, block(2, 21_846)));
+			assertTrue(slots > 65_536 && slots < 65_600, "One entity more is written as the slot run: " + slots);
 		}
 
 		@Test

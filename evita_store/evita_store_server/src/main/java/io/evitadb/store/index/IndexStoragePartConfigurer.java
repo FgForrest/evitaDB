@@ -358,9 +358,9 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			index++
 		);
 
-		// the fulltext index root record and its dictionary leaf-page record - brand-new record types with no
-		// backward-compatible reader (the fulltext feature is unreleased). Appended last to keep the preceding
-		// registration ids stable.
+		// the fulltext index root record, its dictionary leaf-page record and its field length block record -
+		// brand-new record types with no backward-compatible reader (the fulltext feature is unreleased). Appended
+		// last to keep the preceding registration ids stable.
 		kryo.register(
 			FulltextIndexStoragePart.class,
 			new SerialVersionBasedSerializer<>(
@@ -375,8 +375,6 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 			),
 			index++
 		);
-		// the fulltext field length block record - a brand-new record type with no backward-compatible reader (the
-		// fulltext feature is unreleased). Appended last to keep the preceding registration ids stable.
 		kryo.register(
 			FulltextFieldLengthBlockPart.class,
 			new SerialVersionBasedSerializer<>(

@@ -603,7 +603,8 @@ public class GlobalEntityIndex extends EntityIndex
 
 	/**
 	 * Drops the fulltext index of the passed locale partition. Its footprint on disk - the root, the dictionary pages
-	 * and the length blocks - is removed by the next flush.
+	 * and the length blocks - is removed by the next flush that collects this entity index, which happens only when the
+	 * caller obtained the index for modification, as for any other change of it.
 	 *
 	 * @param locale the locale of the partition
 	 */

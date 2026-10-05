@@ -146,8 +146,8 @@ public class EntityIndexStoragePart implements StoragePart {
 	}
 
 	/**
-	 * Modern (2026.2) constructor: the entity-id bitmaps are persisted separately in a sibling
-	 * {@link EntityIdsStoragePart}, so this manifest carries no inline bitmaps ({@link #entityIds} and
+	 * Constructor of the current format, in which the entity-id bitmaps are persisted separately in a sibling
+	 * {@link EntityIdsStoragePart} (since 2026.2), so this manifest carries no inline bitmaps ({@link #entityIds} and
 	 * {@link #entityIdsByLanguage} are left `null`).
 	 */
 	public EntityIndexStoragePart(

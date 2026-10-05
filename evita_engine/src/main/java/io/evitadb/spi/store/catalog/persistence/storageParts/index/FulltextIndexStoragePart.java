@@ -84,7 +84,8 @@ public class FulltextIndexStoragePart implements StoragePart {
 	 */
 	@Getter @Nonnull private final FieldEntry[] fields;
 	/**
-	 * The highest page sequence the dictionary ever allocated.
+	 * The highest page sequence the dictionary ever allocated - the allocator's state, not the highest listed sequence,
+	 * which it exceeds once the page holding the highest one is freed.
 	 */
 	@Getter private final int dictionaryHighWaterPageSequence;
 	/**
@@ -107,7 +108,10 @@ public class FulltextIndexStoragePart implements StoragePart {
 	 * @param lengthPivot  the field's length pivot, which every impact of the field was computed with
 	 * @param retired      whether the field was retired - its key resolves to no field, or to a later one
 	 * @param lengthBlocks the high 16 bits of the primary keys of every block of the field's length table that has a
-	 *                     page, strictly ascending
+	 *                     page, strictly ascending; each names the page of sequence
+	 *                     {@link FulltextFieldLengthBlockPart#pageSequenceOf(int, int) pageSequenceOf(fieldId, blockKey)}
+	 *                     in the {@link FulltextLeafStreamKey.StreamKind#FIELD_LENGTHS} stream of the index, which is
+	 *                     how the reload finds it
 	 */
 	public record FieldEntry(
 		@Nonnull FulltextFieldKey key,
@@ -125,7 +129,7 @@ public class FulltextIndexStoragePart implements StoragePart {
 				final int block = lengthBlocks[i];
 				final int previous = i == 0 ? -1 : lengthBlocks[i - 1];
 				Assert.isPremiseValid(
-					block > previous && block <= 0xFFFF,
+					block > previous && block <= FulltextFieldLengthBlockPart.MAX_BLOCK_KEY,
 					() -> "The length blocks of fulltext field " + key + " must be strictly ascending 16-bit " +
 						"block keys, but " + block + " follows " + previous + "!"
 				);
