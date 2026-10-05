@@ -96,6 +96,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+import java.util.function.ToIntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -3423,13 +3424,95 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		boolean userFilterOfEachScope,
 		Evita evita
 	) {
+		assertOptionsPredictedInEveryScope(
+			liveTags, archivedTags, userFilterOfEachScope, new RequireConstraint[0], evita
+		);
+	}
+
+	/**
+	 * Returns the rows of {@link #scopedSelectionRows()} under group relations that differ between the group 100 the
+	 * archived-only tag 13 belongs to and the facets without a group: the group 100 joins the other groups by
+	 * disjunction, or is subtracted from them, while the facets without a group keep the default conjunction. In the
+	 * live scope, which references no tag 13, selecting it adds a facet without a group, whose term has no entities.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> scopedSelectionRowsUnderGroupRelations() {
+		final List<Arguments> rows = scopedSelectionRows().toList();
+		return Stream.of(
+				new RequireConstraint[]{
+					facetGroupsDisjunction(REF_TAG, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(100)))
+				},
+				new RequireConstraint[]{
+					facetGroupsNegation(REF_TAG, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(100)))
+				}
+			)
+			.flatMap(
+				relations -> rows.stream().map(
+					row -> {
+						final Object[] arguments = row.get();
+						return Arguments.of(
+							relations[0].getClass().getSimpleName() + " of group 100, " + arguments[0],
+							arguments[1], arguments[2], arguments[3], relations
+						);
+					}
+				)
+			);
+	}
+
+	/**
+	 * Checks the prediction of {@link #shouldPredictOptionJoiningSelectionOfEveryScope} under group relations that
+	 * tell a facet of the group 100 from a facet without a group. A tag no entity of a scope references is a facet
+	 * without a group in that scope - selecting it there follows the relations of the facets without a group, not the
+	 * relations of the group it has in the other scope.
+	 *
+	 * @param label                 the row label, used in the test name only
+	 * @param liveTags              the tags selected in the live scope
+	 * @param archivedTags          the tags selected in the archived scope
+	 * @param userFilterOfEachScope whether each scope has a user filter of its own
+	 * @param relations             the relation requirements
+	 * @param evita                 the engine instance provided by the test extension
+	 */
+	@DisplayName("Should predict the option joining the selection of every scope under group relations")
+	@UseDataSet(FACET_SCOPE_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("scopedSelectionRowsUnderGroupRelations")
+	void shouldPredictOptionJoiningSelectionOfEveryScopeUnderGroupRelations(
+		@Nonnull String label,
+		@Nonnull int[] liveTags,
+		@Nonnull int[] archivedTags,
+		boolean userFilterOfEachScope,
+		@Nonnull RequireConstraint[] relations,
+		Evita evita
+	) {
+		assertOptionsPredictedInEveryScope(liveTags, archivedTags, userFilterOfEachScope, relations, evita);
+	}
+
+	/**
+	 * Asserts that the reference summary predicts the impact of every tag not selected yet as the result of the query
+	 * selecting it in the selection of every scope - see {@link #shouldPredictOptionJoiningSelectionOfEveryScope}.
+	 *
+	 * @param liveTags              the tags selected in the live scope
+	 * @param archivedTags          the tags selected in the archived scope
+	 * @param userFilterOfEachScope whether each scope has a user filter of its own
+	 * @param relations             the relation requirements
+	 * @param evita                 the engine instance provided by the test extension
+	 */
+	private static void assertOptionsPredictedInEveryScope(
+		@Nonnull int[] liveTags,
+		@Nonnull int[] archivedTags,
+		boolean userFilterOfEachScope,
+		@Nonnull RequireConstraint[] relations,
+		@Nonnull Evita evita
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
 				final List<String> disagreements = new ArrayList<>(16);
 				final EvitaResponse<EntityReference> withSummary = session.query(
 					scopedTagSelectionQuery(
-						liveTags, archivedTags, userFilterOfEachScope,
+						liveTags, archivedTags, userFilterOfEachScope, relations,
 						referenceSummaryOfReference(REF_TAG, FacetStatisticsDepth.IMPACT)
 					),
 					EntityReference.class
@@ -3445,7 +3528,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						scopedTagSelectionQuery(
 							ArrayUtils.insertIntIntoArrayOnIndex(tagId, liveTags, liveTags.length),
 							ArrayUtils.insertIntIntoArrayOnIndex(tagId, archivedTags, archivedTags.length),
-							userFilterOfEachScope
+							userFilterOfEachScope, relations
 						),
 						EntityReference.class
 					).getTotalRecordCount();
@@ -3461,7 +3544,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 							ArrayUtils.insertIntIntoArrayOnIndex(
 								tagId, archivedTagsOfOtherGroups, archivedTagsOfOtherGroups.length
 							),
-							userFilterOfEachScope
+							userFilterOfEachScope, relations
 						),
 						EntityReference.class
 					).getTotalRecordCount();
@@ -3495,6 +3578,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 * @param liveTags              the tags selected in the live scope, possibly none
 	 * @param archivedTags          the tags selected in the archived scope, possibly none
 	 * @param userFilterOfEachScope whether each scope has a user filter of its own
+	 * @param relations             the relation requirements
 	 * @param summaries             the reference summary requirements
 	 * @return the query
 	 */
@@ -3503,6 +3587,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		@Nonnull int[] liveTags,
 		@Nonnull int[] archivedTags,
 		boolean userFilterOfEachScope,
+		@Nonnull RequireConstraint[] relations,
 		@Nonnull RequireConstraint... summaries
 	) {
 		final FilterConstraint[] scopeSelections = Stream.of(Scope.LIVE, Scope.ARCHIVED)
@@ -3532,9 +3617,152 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						page(1, SCOPED_PRODUCT_TAGS.length),
 						debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
 					},
-					summaries
+					summaries,
+					relations
 				)
 			)
+		);
+	}
+
+	/**
+	 * Returns the rows of selections over the {@link #FACET_SCOPE_SHAPES} data set naming a tag no product of the
+	 * searched scope references - tag 13 is referenced by an archived product only, tag 99 by no product at all. Each
+	 * row is a label, the filter constraints, the relation requirements, and the primary keys of the products the query
+	 * returns, computed from the fixture table.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> unreferencedSelectedFacetRows() {
+		final RequireConstraint[] defaults = new RequireConstraint[0];
+		final RequireConstraint[] disjunctionOfGroup100 = {
+			facetGroupsDisjunction(REF_TAG, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(100)))
+		};
+		final FilterConstraint live = scope(Scope.LIVE);
+		final FilterConstraint both = scope(Scope.LIVE, Scope.ARCHIVED);
+		return Stream.of(
+			Arguments.of(
+				"live scope, tag 13 next to tag 20",
+				new FilterConstraint[]{live, userFilter(facetHaving(REF_TAG, entityPrimaryKeyInSet(20, 13)))},
+				defaults, new int[0]
+			),
+			Arguments.of(
+				"live scope, tag 99 next to tag 20",
+				new FilterConstraint[]{live, userFilter(facetHaving(REF_TAG, entityPrimaryKeyInSet(20, 99)))},
+				defaults, new int[0]
+			),
+			Arguments.of(
+				"live scope, tag 13 next to tag 20 inside a live scope container",
+				new FilterConstraint[]{
+					live, userFilter(inScope(Scope.LIVE, facetHaving(REF_TAG, entityPrimaryKeyInSet(20, 13))))
+				},
+				defaults, new int[0]
+			),
+			Arguments.of(
+				"live scope, tag 13 alone",
+				new FilterConstraint[]{live, userFilter(facetHaving(REF_TAG, entityPrimaryKeyInSet(13)))},
+				defaults, new int[0]
+			),
+			Arguments.of(
+				"live scope, tag 99 alone, every group negated",
+				new FilterConstraint[]{live, userFilter(facetHaving(REF_TAG, entityPrimaryKeyInSet(99)))},
+				new RequireConstraint[]{facetGroupsNegation(REF_TAG)}, new int[]{1, 2, 5, 6, 9, 11}
+			),
+			Arguments.of(
+				"live scope, tag 99 next to tag 20, disjunction between every group",
+				new FilterConstraint[]{live, userFilter(facetHaving(REF_TAG, entityPrimaryKeyInSet(20, 99)))},
+				new RequireConstraint[]{facetGroupsDisjunction(REF_TAG, WITH_DIFFERENT_GROUPS)}, new int[]{5, 6}
+			),
+			Arguments.of(
+				"live scope, tag 13 next to tag 20, disjunction of group 100 only",
+				new FilterConstraint[]{live, userFilter(facetHaving(REF_TAG, entityPrimaryKeyInSet(20, 13)))},
+				disjunctionOfGroup100, new int[0]
+			),
+			Arguments.of(
+				"live scope, tag 13 named by a filter other than a plain primary key set",
+				new FilterConstraint[]{
+					live,
+					userFilter(facetHaving(REF_TAG, or(entityPrimaryKeyInSet(20), entityPrimaryKeyInSet(13))))
+				},
+				defaults, new int[]{5, 6}
+			),
+			Arguments.of(
+				"both scopes, tag 13 next to tag 20, disjunction of group 100, one selection for both scopes",
+				new FilterConstraint[]{both, userFilter(facetHaving(REF_TAG, entityPrimaryKeyInSet(20, 13)))},
+				disjunctionOfGroup100, new int[]{3, 4, 5, 6, 10, 12, 13}
+			),
+			Arguments.of(
+				"both scopes, tag 13 next to tag 20, disjunction of group 100, a selection in each scope",
+				new FilterConstraint[]{
+					both,
+					userFilter(
+						inScope(Scope.LIVE, facetHaving(REF_TAG, entityPrimaryKeyInSet(20, 13))),
+						inScope(Scope.ARCHIVED, facetHaving(REF_TAG, entityPrimaryKeyInSet(20, 13)))
+					)
+				},
+				disjunctionOfGroup100, new int[]{3, 4, 10, 12, 13}
+			),
+			Arguments.of(
+				"both scopes, tag 13 next to tag 20, defaults",
+				new FilterConstraint[]{both, userFilter(facetHaving(REF_TAG, entityPrimaryKeyInSet(20, 13)))},
+				defaults, new int[0]
+			)
+		);
+	}
+
+	/**
+	 * Checks that a selected facet no product of the searched scope references is a facet without a group: the group
+	 * is a property of a reference, and the scope holds no reference to the facet to take one from. Its term holds no
+	 * product, joins the facets without a group and follows their relations - not the relations of the group the facet
+	 * has in another scope. So a selection made for both scopes at once keeps the group the archived scope gives tag
+	 * 13, while the same selection made for each scope separately treats the tag as a facet without a group in the live
+	 * scope. Only a filter that is exactly a primary key set selects an unreferenced facet.
+	 *
+	 * @param label     the row label, used in the test name only
+	 * @param filter    the constraints of the filter
+	 * @param relations the relation requirements
+	 * @param expected  the primary keys of the products the query returns, ascending
+	 * @param evita     the engine instance provided by the test extension
+	 */
+	@DisplayName("Should treat a selected facet the searched scope does not reference as a facet without a group")
+	@UseDataSet(FACET_SCOPE_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("unreferencedSelectedFacetRows")
+	void shouldTreatSelectedFacetUnreferencedInScopeAsFacetWithoutGroup(
+		@Nonnull String label,
+		@Nonnull FilterConstraint[] filter,
+		@Nonnull RequireConstraint[] relations,
+		@Nonnull int[] expected,
+		Evita evita
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					query(
+						collection(ENTITY_SCOPED_PRODUCT),
+						filterBy(filter),
+						require(
+							ArrayUtils.mergeArrays(
+								new RequireConstraint[]{
+									page(1, SCOPED_PRODUCT_TAGS.length),
+									debug(
+										DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS,
+										DebugMode.VERIFY_POSSIBLE_CACHING_TREES
+									)
+								},
+								relations
+							)
+						)
+					),
+					EntityReference.class
+				);
+				assertArrayEquals(
+					expected,
+					result.getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).sorted().toArray()
+				);
+				return null;
+			}
 		);
 	}
 
@@ -3610,6 +3838,246 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				return null;
 			}
 		);
+	}
+
+	/**
+	 * Returns the rows of the reference summary witness over the {@link #FACET_GROUPING_SHAPES} data set. Each row is
+	 * a label, the requested scopes, the selected tags - each referenced under a single group, so that the selection
+	 * alone in the groups of an option is the selection without the tags of those groups - whether the selection is
+	 * made in each scope separately - `inScope(scope, facetHaving(...))` for every requested scope - and the relation
+	 * requirements.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> facetGroupingSummaryRows() {
+		final List<Arguments> rows = new ArrayList<>(40);
+		final Map<String, RequireConstraint[]> relations = new LinkedHashMap<>();
+		relations.put("defaults", new RequireConstraint[0]);
+		relations.put(
+			"disjunction between groups",
+			new RequireConstraint[]{facetGroupsDisjunction(REF_TAG, WITH_DIFFERENT_GROUPS)}
+		);
+		relations.put(
+			"disjunction of group 300",
+			new RequireConstraint[]{
+				facetGroupsDisjunction(REF_TAG, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(300)))
+			}
+		);
+		relations.put(
+			"negation of group 200",
+			new RequireConstraint[]{
+				facetGroupsNegation(REF_TAG, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(200)))
+			}
+		);
+		final Map<String, Scope[]> scopes = new LinkedHashMap<>();
+		scopes.put("live scope", new Scope[]{Scope.LIVE});
+		scopes.put("both scopes", new Scope[]{Scope.LIVE, Scope.ARCHIVED});
+		final int[][] selections = {{}, {10}, {20}, {40}, {10, 20}};
+		for (final Entry<String, Scope[]> scope : scopes.entrySet()) {
+			for (final int[] selection : selections) {
+				for (final Entry<String, RequireConstraint[]> relation : relations.entrySet()) {
+					rows.add(
+						Arguments.of(
+							scope.getKey() + ", selection " + Arrays.toString(selection) + ", " + relation.getKey(),
+							scope.getValue(), selection, false, relation.getValue()
+						)
+					);
+					if (scope.getValue().length > 1 && selection.length > 0) {
+						rows.add(
+							Arguments.of(
+								scope.getKey() + ", selection " + Arrays.toString(selection) + " in each scope, " +
+									relation.getKey(),
+								scope.getValue(), selection, true, relation.getValue()
+							)
+						);
+					}
+				}
+			}
+		}
+		return rows.stream();
+	}
+
+	/**
+	 * Checks that the reference summary predicts the selection of a facet the way the result composes it when the facet
+	 * is referenced under several groups, without a group included, or by an archived product only: every entry of the
+	 * facet - one for each group it is listed in - predicts the result of selecting the facet, which selects it in
+	 * all of its groups. The count must equal the result of selecting the facet alone, the impact the result of adding
+	 * it to the selection, and an entry is listed exactly when that count is not zero. A selection made in each scope
+	 * separately composes the facet in each scope by the groups that scope gives it - a scope holding no reference to
+	 * it makes it a facet without a group; the count drops the selection and so stands for the facet selected in the
+	 * whole query. The oracle is the engine's own result.
+	 *
+	 * @param label            the row label, used in the test name only
+	 * @param scopes           the requested scopes
+	 * @param selection        the selected tags
+	 * @param selectionByScope whether the selection is made in each scope separately
+	 * @param relations        the relation requirements
+	 * @param evita            the engine instance provided by the test extension
+	 */
+	@DisplayName("Should predict the selection of a facet in every group it is referenced under")
+	@UseDataSet(FACET_GROUPING_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("facetGroupingSummaryRows")
+	void shouldPredictSelectionOfFacetInEveryGroupItIsReferencedUnder(
+		@Nonnull String label,
+		@Nonnull Scope[] scopes,
+		@Nonnull int[] selection,
+		boolean selectionByScope,
+		@Nonnull RequireConstraint[] relations,
+		Evita evita
+	) {
+		final FilterConstraint[] nothing = new FilterConstraint[0];
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<String> disagreements = new ArrayList<>(16);
+				final ToIntFunction<int[]> resultSize = tags -> session.query(
+					groupingTagSelectionQuery(scopes, nothing, tags, selectionByScope, relations), EntityReference.class
+				).getTotalRecordCount();
+				final EvitaResponse<EntityReference> withSummary = session.query(
+					groupingTagSelectionQuery(
+						scopes, nothing, selection, selectionByScope, relations,
+						referenceSummaryOfReference(REF_TAG, FacetStatisticsDepth.IMPACT)
+					),
+					EntityReference.class
+				);
+				final int currentSize = withSummary.getTotalRecordCount();
+				final ReferenceSummary summary = withSummary.getExtraResult(ReferenceSummary.class);
+				assertNotNull(summary, "the reference summary must be computed");
+				for (final int tagId : GROUPING_TAGS) {
+					final Set<Integer> groups = groupingTagGroupsOf(tagId, scopes);
+					final int aloneSize = session.query(
+						groupingTagSelectionQuery(scopes, nothing, new int[]{tagId}, false, relations),
+						EntityReference.class
+					).getTotalRecordCount();
+					for (final Integer groupId : groups) {
+						final ReferenceGroupStatistics groupStatistics = groupId == null ?
+							summary.getReferenceGroupStatistics(REF_TAG) :
+							summary.getReferenceGroupStatistics(REF_TAG, groupId);
+						final FacetStatistics statistics = groupStatistics == null ?
+							null : groupStatistics.getFacetStatistics(tagId);
+						final String entry = "tag " + tagId + " in group " + groupId + ": ";
+						if (statistics == null) {
+							if (aloneSize > 0) {
+								disagreements.add(entry + "missing, selecting it alone returns " + aloneSize);
+							}
+							continue;
+						}
+						if (statistics.getCount() != aloneSize) {
+							disagreements.add(
+								entry + "count " + statistics.getCount() + ", selecting it alone returns " + aloneSize
+							);
+						}
+						if (ArrayUtils.indexOf(tagId, selection) >= 0) {
+							continue;
+						}
+						final RequestImpact impact = statistics.getImpact();
+						final int extendedSize = resultSize.applyAsInt(
+							ArrayUtils.insertIntIntoArrayOnIndex(tagId, selection, selection.length)
+						);
+						// the option alone in its groups - in each scope by the groups that scope gives the tags when
+						// the selection is made in each scope separately
+						final Scope[][] selectionScopes = selectionByScope ?
+							Arrays.stream(scopes).map(it -> new Scope[]{it}).toArray(Scope[][]::new) :
+							new Scope[][]{scopes};
+						final FilterConstraint[] aloneSelections = new FilterConstraint[selectionScopes.length];
+						for (int i = 0; i < selectionScopes.length; i++) {
+							final Scope[] selectionScope = selectionScopes[i];
+							final Set<Integer> optionGroups = effectiveGroupingTagGroupsOf(tagId, selectionScope);
+							final int[] selectionOfOtherGroups = IntStream.of(selection)
+								.filter(
+									it -> effectiveGroupingTagGroupsOf(it, selectionScope)
+										.stream()
+										.noneMatch(optionGroups::contains)
+								)
+								.toArray();
+							final FilterConstraint aloneSelection = facetHaving(
+								REF_TAG,
+								entityPrimaryKeyInSet(
+									IntStream.concat(IntStream.of(selectionOfOtherGroups), IntStream.of(tagId))
+										.boxed()
+										.toArray(Integer[]::new)
+								)
+							);
+							aloneSelections[i] = selectionByScope ?
+								inScope(selectionScope[0], aloneSelection) : aloneSelection;
+						}
+						final int extendedAloneSize = session.query(
+							query(
+								collection(ENTITY_GROUPING_PRODUCT),
+								filterBy(scope(scopes), userFilter(aloneSelections)),
+								require(
+									ArrayUtils.mergeArrays(
+										new RequireConstraint[]{page(1, GROUPING_PRODUCT_TAGS.length)}, relations
+									)
+								)
+							),
+							EntityReference.class
+						).getTotalRecordCount();
+						final boolean hasSense = extendedSize > 0 &&
+							(extendedSize != currentSize || extendedAloneSize > 0);
+						if (impact == null || impact.matchCount() != extendedSize ||
+							impact.difference() != extendedSize - currentSize || impact.hasSense() != hasSense) {
+							disagreements.add(
+								entry + "impact " +
+									(impact == null ?
+										"none" :
+										impact.matchCount() + " (difference " + impact.difference() + ", has sense " +
+											impact.hasSense() + ")") +
+									", result " + extendedSize + " (difference " + (extendedSize - currentSize) +
+									", has sense " + hasSense + ")"
+							);
+						}
+					}
+				}
+				assertTrue(
+					disagreements.isEmpty(),
+					() -> "the reference summary must predict the result:\n" + String.join("\n", disagreements)
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Returns the groups the passed tag takes part in when selected in the passed scopes of the
+	 * {@link #FACET_GROUPING_SHAPES} data set - the groups their products reference it under, or no group when none of
+	 * them references it.
+	 *
+	 * @param tagId  the tag
+	 * @param scopes the scopes of the products
+	 * @return the groups, NULL standing for the facets without a group; never empty
+	 */
+	@Nonnull
+	private static Set<Integer> effectiveGroupingTagGroupsOf(int tagId, @Nonnull Scope[] scopes) {
+		final Set<Integer> groups = groupingTagGroupsOf(tagId, scopes);
+		return groups.isEmpty() ? Collections.singleton(null) : groups;
+	}
+
+	/**
+	 * Returns the groups the products of the passed scopes of the {@link #FACET_GROUPING_SHAPES} data set reference
+	 * the passed tag under.
+	 *
+	 * @param tagId  the tag
+	 * @param scopes the scopes of the products
+	 * @return the groups, NULL standing for the references without a group
+	 */
+	@Nonnull
+	private static Set<Integer> groupingTagGroupsOf(int tagId, @Nonnull Scope[] scopes) {
+		final Set<Integer> groups = new LinkedHashSet<>(4);
+		for (int i = 0; i < GROUPING_PRODUCT_TAGS.length; i++) {
+			if (ArrayUtils.indexOf(GROUPING_PRODUCT_SCOPES[i], scopes) < 0) {
+				continue;
+			}
+			for (int j = 0; j < GROUPING_PRODUCT_TAGS[i].length; j++) {
+				if (GROUPING_PRODUCT_TAGS[i][j] == tagId) {
+					final int groupId = GROUPING_PRODUCT_TAG_GROUPS[i][j];
+					groups.add(groupId == NO_GROUP ? null : groupId);
+				}
+			}
+		}
+		return groups;
 	}
 
 	/**
@@ -3717,21 +4185,49 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		@Nonnull RequireConstraint[] relations,
 		@Nonnull RequireConstraint... summaries
 	) {
+		return groupingTagSelectionQuery(scopes, constraints, selectedTags, false, relations, summaries);
+	}
+
+	/**
+	 * Builds the query of the {@link #FACET_GROUPING_SHAPES} data set selecting the passed tags in the user filter,
+	 * possibly in each requested scope separately.
+	 *
+	 * @param scopes           the requested scopes
+	 * @param constraints      the constraints of the filter next to the user filter
+	 * @param selectedTags     the selected tags, possibly none
+	 * @param selectionByScope whether the tags are selected in each scope separately
+	 * @param relations        the relation requirements
+	 * @param summaries        the reference summary requirements
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query groupingTagSelectionQuery(
+		@Nonnull Scope[] scopes,
+		@Nonnull FilterConstraint[] constraints,
+		@Nonnull int[] selectedTags,
+		boolean selectionByScope,
+		@Nonnull RequireConstraint[] relations,
+		@Nonnull RequireConstraint... summaries
+	) {
+		final FilterConstraint selection = selectedTags.length == 0 ?
+			null :
+			facetHaving(REF_TAG, entityPrimaryKeyInSet(Arrays.stream(selectedTags).boxed().toArray(Integer[]::new)));
 		return query(
 			collection(ENTITY_GROUPING_PRODUCT),
 			filterBy(
 				ArrayUtils.mergeArrays(
 					new FilterConstraint[]{scope(scopes)},
 					constraints,
-					selectedTags.length == 0 ?
+					selection == null ?
 						new FilterConstraint[0] :
 						new FilterConstraint[]{
-							userFilter(
-								facetHaving(
-									REF_TAG,
-									entityPrimaryKeyInSet(Arrays.stream(selectedTags).boxed().toArray(Integer[]::new))
-								)
-							)
+							selectionByScope ?
+								userFilter(
+									Arrays.stream(scopes)
+										.map(scope -> inScope(scope, selection))
+										.toArray(FilterConstraint[]::new)
+								) :
+								userFilter(selection)
 						}
 				)
 			),

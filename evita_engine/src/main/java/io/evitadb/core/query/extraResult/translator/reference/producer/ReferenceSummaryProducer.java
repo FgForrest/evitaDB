@@ -55,9 +55,13 @@ import io.evitadb.core.query.extraResult.translator.common.RangeCarrierGroup;
 import io.evitadb.core.query.extraResult.translator.common.UserFilterRelaxer;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.function.TriFunction;
+import io.evitadb.dataType.Scope;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.index.facet.FacetGroupIndex;
 import io.evitadb.index.facet.FacetIdIndex;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.facet.FacetReferenceIndex;
@@ -76,6 +80,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumMap;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -413,6 +418,102 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	}
 
 	/**
+	 * Creates the resolver of the groups each facet of the reference summary is referenced under. The groups in each
+	 * scope come from the global index of the scope - the plan over the global indexes takes them from there, and the
+	 * plan over reduced indexes completes the groups the reduced indexes do not know from there too - and a scope
+	 * without any reference to the facet makes it a facet without a group there. The entities referencing the facet
+	 * under each group come from the indexes the reference summary is computed from, the same indexes the query
+	 * searches.
+	 *
+	 * @param context the query execution context
+	 * @return the resolver
+	 */
+	@Nonnull
+	private FacetGroupOccurrences.Resolver createFacetGroupOccurrencesResolver(@Nonnull QueryExecutionContext context) {
+		final Set<Scope> scopes = context.getQueryContext().getScopes();
+		final Map<Scope, GlobalEntityIndex> globalIndexes = new EnumMap<>(Scope.class);
+		for (final Scope scope : scopes) {
+			context.getQueryContext().getGlobalEntityIndexIfExists(scope).ifPresent(it -> globalIndexes.put(scope, it));
+		}
+		return (referenceSchema, facetId, facetGroupId, facetEntityIds) -> {
+			final String referenceName = referenceSchema.getName();
+			Map<Scope, List<Integer>> groupsByScope = null;
+			for (final Scope scope : scopes) {
+				final GlobalEntityIndex globalIndex = globalIndexes.get(scope);
+				final FacetReferenceIndex facetReferenceIndex = globalIndex == null ?
+					null : globalIndex.getFacetingEntities().get(referenceName);
+				final List<Integer> groups = facetReferenceIndex == null ?
+					List.of() : facetReferenceIndex.getGroupsOfFacet(facetId);
+				if (groupsByScope == null && !(groups.size() == 1 && Objects.equals(groups.get(0), facetGroupId))) {
+					groupsByScope = new EnumMap<>(Scope.class);
+					for (final Scope previousScope : scopes) {
+						if (previousScope == scope) {
+							break;
+						}
+						groupsByScope.put(previousScope, Collections.singletonList(facetGroupId));
+					}
+				}
+				if (groupsByScope != null) {
+					groupsByScope.put(scope, groups);
+				}
+			}
+			if (groupsByScope == null) {
+				return FacetGroupOccurrences.singleGroup(facetGroupId, facetEntityIds);
+			}
+			final List<Integer> groupsInQuery = new ArrayList<>(4);
+			final Map<Integer, Bitmap> entityIdsByGroup = new HashMap<>(8);
+			entityIdsByGroup.put(facetGroupId, facetEntityIds);
+			for (final List<Integer> groups : groupsByScope.values()) {
+				for (final Integer groupId : groups) {
+					if (!groupsInQuery.contains(groupId)) {
+						groupsInQuery.add(groupId);
+						if (!entityIdsByGroup.containsKey(groupId)) {
+							entityIdsByGroup.put(groupId, getFacetEntityIds(referenceName, groupId, facetId));
+						}
+					}
+				}
+			}
+			return new FacetGroupOccurrences(groupsByScope, groupsInQuery, entityIdsByGroup);
+		};
+	}
+
+	/**
+	 * Returns the entities referencing the facet under the group in the indexes the reference summary is computed
+	 * from.
+	 *
+	 * @param referenceName the name of the faceted reference
+	 * @param groupId       the group, NULL for the references without a group
+	 * @param facetId       the facet
+	 * @return the entities referencing the facet under the group, empty when no searched index holds such a reference
+	 */
+	@Nonnull
+	private Bitmap getFacetEntityIds(@Nonnull String referenceName, @Nullable Integer groupId, int facetId) {
+		final List<Bitmap> entityIds = new ArrayList<>(4);
+		for (final Map<String, FacetReferenceIndex> facetIndex : this.facetIndexes) {
+			final FacetReferenceIndex facetReferenceIndex = facetIndex.get(referenceName);
+			final FacetGroupIndex groupIndex = facetReferenceIndex == null ?
+				null : facetReferenceIndex.getFacetsInGroup(groupId);
+			final FacetIdIndex facetIdIndex = groupIndex == null ? null : groupIndex.getFacetIdIndex(facetId);
+			if (facetIdIndex != null) {
+				entityIds.add(facetIdIndex.getRecords());
+			}
+		}
+		if (entityIds.isEmpty()) {
+			return EmptyBitmap.INSTANCE;
+		} else if (entityIds.size() == 1) {
+			return entityIds.get(0);
+		} else {
+			return new BaseBitmap(
+				PersistentRoaringBitmap.or(
+					entityIds.stream()
+						.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
+						.toArray(PersistentRoaringBitmap[]::new)
+				)
+			);
+		}
+	}
+
+	/**
 	 * Type-capture helper for {@link #fabricate}. Executes the two-phase fabrication:
 	 *
 	 * **Phase 1 — facet statistics**: streams all {@link FacetReferenceIndex} entries through
@@ -437,6 +538,8 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		final MemoizingFacetCalculator universalCalculator = new MemoizingFacetCalculator(
 			context, this.filterFormula, this.filterFormulaWithoutUserFilter
 		);
+		final FacetGroupOccurrences.Resolver facetGroupOccurrencesResolver =
+			createFacetGroupOccurrencesResolver(context);
 		final AtomicInteger counter = new AtomicInteger();
 		final FacetGroupStatisticsCollector<T> collector = new FacetGroupStatisticsCollector<>(
 			resultAdapter,
@@ -446,7 +549,8 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			referenceSchema -> resolveReferenceRequest(referenceSchema, counter),
 			this.requestedFacets,
 			universalCalculator,
-			universalCalculator
+			universalCalculator,
+			facetGroupOccurrencesResolver
 		);
 		// drive the collector imperatively: partition FacetReferenceIndex entries by reference name
 		// into per-reference GroupAccumulator maps (matches Collectors.groupingBy semantics — each bucket
@@ -683,6 +787,10 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		 * Impact calculator computes the potential entity count returned should the facet be selected as well.
 		 */
 		private final ImpactCalculator impactCalculator;
+		/**
+		 * Resolves the groups each facet is referenced under.
+		 */
+		private final FacetGroupOccurrences.Resolver facetGroupOccurrencesResolver;
 
 		/**
 		 * Method returns an index of fetched {@link EntityClassifier facet groups} indexed by their primary key
@@ -975,7 +1083,8 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 							referenceSummaryRequest,
 							gId,
 							this.countCalculator,
-							this.impactCalculator
+							this.impactCalculator,
+							this.facetGroupOccurrencesResolver
 						)
 					);
 					for (final FacetIdIndex facetIx : groupIx.getFacetIdIndexes().values()) {
@@ -1126,6 +1235,10 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		 */
 		private final ImpactCalculator impactCalculator;
 		/**
+		 * Resolves the groups each facet is referenced under.
+		 */
+		private final FacetGroupOccurrences.Resolver facetGroupOccurrencesResolver;
+		/**
 		 * Contains statistic accumulator for each of the facet.
 		 */
 		private final Map<Integer, FacetAccumulator> facetStatistics = createLinkedHashMap(32);
@@ -1135,12 +1248,14 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			@Nonnull ReferenceSummaryRequest referenceSummaryRequest,
 			@Nullable Integer groupId,
 			@Nonnull FacetCalculator countCalculator,
-			@Nonnull ImpactCalculator impactCalculator
+			@Nonnull ImpactCalculator impactCalculator,
+			@Nonnull FacetGroupOccurrences.Resolver facetGroupOccurrencesResolver
 		) {
 			this.referenceSchema = referenceSchema;
 			this.referenceSummaryRequest = referenceSummaryRequest;
 			this.groupId = groupId;
 			this.countCalculator = countCalculator;
+			this.facetGroupOccurrencesResolver = facetGroupOccurrencesResolver;
 			// gate on the depth that WANTS the impact, not on the one that does not: testing for COUNTS sent
 			// NONE - documented as the cheapest depth - down the same branch as IMPACT, the most expensive one
 			this.impactCalculator = referenceSummaryRequest.facetStatisticsDepth() == FacetStatisticsDepth.IMPACT ?
@@ -1164,7 +1279,8 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 						requestedResolver.test(fId),
 						facetIx.getRecords(),
 						this.countCalculator,
-						this.impactCalculator
+						this.impactCalculator,
+						this.facetGroupOccurrencesResolver
 					);
 					if (facetAccumulator == null) {
 						return newAccumulator;
@@ -1221,6 +1337,14 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		 */
 		private final ImpactCalculator impactCalculator;
 		/**
+		 * Resolves the groups the facet is referenced under.
+		 */
+		private final FacetGroupOccurrences.Resolver facetGroupOccurrencesResolver;
+		/**
+		 * The groups the facet is referenced under, resolved once all the indexes have been accumulated.
+		 */
+		@Nullable private FacetGroupOccurrences facetGroupOccurrences;
+		/**
 		 * Contains finished result formula so that {@link #getCount()} can be called multiple times without performance
 		 * penalty.
 		 */
@@ -1243,7 +1367,8 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			boolean requested,
 			@Nonnull Bitmap facetEntityIds,
 			@Nonnull FacetCalculator countCalculator,
-			@Nonnull ImpactCalculator impactCalculator
+			@Nonnull ImpactCalculator impactCalculator,
+			@Nonnull FacetGroupOccurrences.Resolver facetGroupOccurrencesResolver
 		) {
 			this.referenceSchema = referenceSchema;
 			this.facetId = facetId;
@@ -1251,6 +1376,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			this.requested = requested;
 			this.countCalculator = countCalculator;
 			this.impactCalculator = impactCalculator;
+			this.facetGroupOccurrencesResolver = facetGroupOccurrencesResolver;
 			this.facetEntityIds.add(facetEntityIds);
 		}
 
@@ -1264,7 +1390,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 				getCount(),
 				this.impactCalculator.calculateImpact(
 					this.referenceSchema, this.facetId, this.facetGroupId, this.requested,
-					getEntityIdsArray()
+					getEntityIdsArray(), getFacetGroupOccurrences()
 				)
 			);
 		}
@@ -1285,6 +1411,32 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		}
 
 		/**
+		 * Returns the groups the facet is referenced under, resolved lazily - only after all the indexes have been
+		 * accumulated, because the entities referencing the facet under its own group come from all of them.
+		 */
+		@Nonnull
+		private FacetGroupOccurrences getFacetGroupOccurrences() {
+			FacetGroupOccurrences occurrences = this.facetGroupOccurrences;
+			if (occurrences == null) {
+				final Bitmap[] entityIds = getEntityIdsArray();
+				occurrences = this.facetGroupOccurrencesResolver.resolve(
+					this.referenceSchema, this.facetId, this.facetGroupId,
+					entityIds.length == 1 ?
+						entityIds[0] :
+						new BaseBitmap(
+							PersistentRoaringBitmap.or(
+								Arrays.stream(entityIds)
+									.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
+									.toArray(PersistentRoaringBitmap[]::new)
+							)
+						)
+				);
+				this.facetGroupOccurrences = occurrences;
+			}
+			return occurrences;
+		}
+
+		/**
 		 * Combines two FacetAccumulator together. It adds everything from the `otherAccumulator` to self
 		 * instance and returns self.
 		 */
@@ -1293,6 +1445,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			Assert.isPremiseValid(this.requested == otherAccumulator.requested, ERROR_SANITY_CHECK);
 			this.facetEntityIds.addAll(otherAccumulator.getFacetEntityIds());
 			this.facetEntityIdsArray = null;
+			this.facetGroupOccurrences = null;
 			return this;
 		}
 
@@ -1312,7 +1465,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 				// of entity primary keys that haven't passed the filter logic
 				this.resultFormula = this.countCalculator.createCountFormula(
 					this.referenceSchema, this.facetId, this.facetGroupId,
-					getEntityIdsArray()
+					getEntityIdsArray(), getFacetGroupOccurrences()
 				);
 			}
 			// this is the most expensive call in this very class

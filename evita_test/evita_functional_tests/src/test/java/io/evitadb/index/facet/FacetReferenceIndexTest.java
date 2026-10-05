@@ -883,5 +883,19 @@ class FacetReferenceIndexTest {
 			assertNull(formulas.get(1).getFacetGroupId());
 			assertArrayEquals(new int[]{100}, formulas.get(1).getBitmaps()[0].getArray());
 		}
+
+		@Test
+		@DisplayName("the groups of a facet list every group it is referenced under, without a group last")
+		void shouldListEveryGroupOfFacet() {
+			final FacetReferenceIndex index = new FacetReferenceIndex(REFERENCE_NAME);
+			index.addFacet(10, null, 100);
+			index.addFacet(10, 7, 200);
+			index.addFacet(10, 5, 300);
+			index.addFacet(11, 5, 400);
+
+			assertEquals(Arrays.asList(5, 7, null), index.getGroupsOfFacet(10));
+			assertEquals(List.of(5), index.getGroupsOfFacet(11));
+			assertEquals(List.of(), index.getGroupsOfFacet(999));
+		}
 	}
 }

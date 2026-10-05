@@ -30,10 +30,7 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.RequestImpact;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.facet.FacetGroupAndFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
-import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
-import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -41,8 +38,13 @@ import io.evitadb.utils.CollectionUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
 import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS;
@@ -69,13 +71,13 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 	 */
 	private final Map<String, IntSet> facetGroupsInUserFilter = CollectionUtils.createHashMap(16);
 	/**
-	 * Contains true when the group of the facet being computed has been found in the user filter the visitor is
-	 * currently in, and its formula has been enriched with the facet. The scope post-processing copies the user filter
-	 * into the branch of every scope, and the user filter of each scope may select different groups, so whether the
-	 * facet still has to be added to a user filter is decided by each user filter on its own - unlike
-	 * {@link #facetGroupsInUserFilter}, which collects the groups of all of them.
+	 * Contains the groups of the facet being computed that have been found in the user filter the visitor is
+	 * currently in, and whose formulas have been enriched with the facet; NULL stands for the facets without a group.
+	 * The scope post-processing copies the user filter into the branch of every scope, and the user filter of each
+	 * scope may select different groups, so whether the facet still has to be added to a user filter is decided by
+	 * each user filter on its own - unlike {@link #facetGroupsInUserFilter}, which collects the groups of all of them.
 	 */
-	private boolean facetGroupFoundInCurrentUserFilter;
+	private final Set<Integer> groupsEnrichedInCurrentUserFilter = new HashSet<>(4);
 
 	public ImpactFormulaGenerator(
 		@Nonnull FacetRelationTypeResolver facetRelationType,
@@ -94,47 +96,94 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable Integer facetGroupId,
 		int facetId,
-		@Nonnull Bitmap[] facetEntityIds
+		@Nonnull Bitmap[] facetEntityIds,
+		@Nonnull FacetGroupOccurrences facetGroupOccurrences
 	) {
 		final FacetRelationType relationType = this.facetRelationType.resolve(
 			referenceSchema, facetGroupId, WITH_DIFFERENT_GROUPS
 		);
 		final String referenceName = referenceSchema.getName();
-		// when facetGroupId is null, we use Integer.MIN_VALUE as a placeholder because IntSet can't work with nulls
-		// we're risking that someone will have facet group with such id, but it's very unlikely
-		final int normalizedFacetGroupId = facetGroupId == null ? Integer.MIN_VALUE : facetGroupId;
-		final IntSet groupsForReference = this.facetGroupsInUserFilter.get(referenceName);
-		final boolean found = groupsForReference != null && groupsForReference.contains(normalizedFacetGroupId);
 
 		// if we didn't find the facet group in the user filter, we can use the generic formula of the reference
-		final CacheKey key = new CacheKey(referenceName, relationType, found ? normalizedFacetGroupId : null);
+		final CacheKey key = new CacheKey(
+			referenceName, relationType,
+			getGroupsFoundInUserFilter(referenceName, facetGroupId, facetGroupOccurrences),
+			facetGroupOccurrences.getSignature()
+		);
 
 		final Formula formula = this.cache.get(key);
 		if (formula != null) {
-			final Bitmap facetEntityIdsBitmap = getBaseEntityIds(facetEntityIds);
 			final MutableFormulaFinderAndReplacer mutableFormulaFinderAndReplacer = new MutableFormulaFinderAndReplacer(
-				() -> relationType == FacetRelationType.CONJUNCTION ?
-					new FacetGroupAndFormula(referenceName, facetGroupId, new BaseBitmap(facetId), facetEntityIdsBitmap) :
-					new FacetGroupOrFormula(referenceName, facetGroupId, new BaseBitmap(facetId), facetEntityIdsBitmap)
+				mutableFormula -> {
+					// a facet with a single group shares the formula of any other such facet of the same relations,
+					// a facet with more groups shares it only with facets of the very same groups
+					final Integer groupId = facetGroupOccurrences.isSingleGroup() ?
+						facetGroupId : mutableFormula.getFacetGroupId();
+					return createFacetGroupFormula(
+						referenceSchema, groupId, facetId, facetGroupOccurrences.getEntityIds(groupId), false
+					);
+				}
 			);
 			formula.accept(mutableFormulaFinderAndReplacer);
 			return formula;
 		} else {
-			this.facetGroupFoundInCurrentUserFilter = false;
+			this.groupsEnrichedInCurrentUserFilter.clear();
 			final Formula result = super.generateFormula(
-				baseFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
+				baseFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds,
+				facetGroupOccurrences
 			);
 			// the generation may have been the first time we've seen the formula, so the facetGroupsInUserFilter
 			// may not contain the referenceName yet, and we have to repeat the look-up
-			final IntSet groupsForReferenceAtLast = this.facetGroupsInUserFilter.get(referenceName);
-			final boolean foundAtLast = groupsForReferenceAtLast != null
-				&& groupsForReferenceAtLast.contains(normalizedFacetGroupId);
 			final CacheKey cacheKey = new CacheKey(
-				referenceName, relationType, foundAtLast ? normalizedFacetGroupId : null
+				referenceName, relationType,
+				getGroupsFoundInUserFilter(referenceName, facetGroupId, facetGroupOccurrences),
+				facetGroupOccurrences.getSignature()
 			);
 			this.cache.put(cacheKey, result);
 			return result;
 		}
+	}
+
+	/**
+	 * Returns the groups of the facet being computed that some user filter of the formula selects, as recorded in
+	 * {@link #facetGroupsInUserFilter}. NULL, standing for the facets without a group, is recorded as
+	 * {@link Integer#MIN_VALUE}, because an {@link IntSet} cannot hold it - we're risking that someone will have facet
+	 * group with such id, but it's very unlikely.
+	 *
+	 * @param referenceName         the name of the faceted reference
+	 * @param facetGroupId          the group of the statistics being computed
+	 * @param facetGroupOccurrences the groups the facet is referenced under
+	 * @return the found groups in their recorded form, or NULL when none is found
+	 */
+	@Nullable
+	private List<Integer> getGroupsFoundInUserFilter(
+		@Nonnull String referenceName,
+		@Nullable Integer facetGroupId,
+		@Nonnull FacetGroupOccurrences facetGroupOccurrences
+	) {
+		final IntSet groupsForReference = this.facetGroupsInUserFilter.get(referenceName);
+		if (groupsForReference == null) {
+			return null;
+		}
+		final List<Integer> groups;
+		if (facetGroupOccurrences.isSingleGroup()) {
+			groups = Collections.singletonList(facetGroupId);
+		} else {
+			// a scope holding no reference to the facet makes it a facet without a group there
+			groups = new ArrayList<>(facetGroupOccurrences.getGroups(null));
+			groups.add(null);
+		}
+		List<Integer> foundGroups = null;
+		for (final Integer groupId : groups) {
+			final int normalizedGroupId = groupId == null ? Integer.MIN_VALUE : groupId;
+			if (groupsForReference.contains(normalizedGroupId)) {
+				if (foundGroups == null) {
+					foundGroups = new ArrayList<>(groups.size());
+				}
+				foundGroups.add(normalizedGroupId);
+			}
+		}
+		return foundGroups;
 	}
 
 	@Override
@@ -148,18 +197,20 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 				s -> new IntHashSet(16)
 			).add(oldFacetGroupId == null ? Integer.MIN_VALUE : oldFacetGroupId);
 
-			// now process it for current facet as well
+			// now process it for current facet as well - in any group the facet takes part in within this user filter
 			if (Objects.equals(this.referenceSchema.getName(), oldFacetGroupFormula.getReferenceName()) &&
-				Objects.equals(this.facetGroupId, oldFacetGroupFormula.getFacetGroupId())
+				getFacetGroupsOfCurrentScope().contains(oldFacetGroupId)
 			) {
-				final MutableFormula newFacetGroupFormula = createNewFacetGroupFormula();
+				final MutableFormula newFacetGroupFormula = createNewFacetGroupFormula(oldFacetGroupId);
 				// we found the facet group formula - we need to enrich it with new facet
-				if (!this.isFacetGroupExclusivity.test(this.referenceSchema, this.facetGroupId, WITH_DIFFERENT_FACETS_IN_GROUP)) {
+				if (!this.isFacetGroupExclusivity.test(
+					this.referenceSchema, oldFacetGroupId, WITH_DIFFERENT_FACETS_IN_GROUP
+				)) {
 					// if the facet group is not exclusive, we just combine the new facet formula with the existing formula
 					newFacetGroupFormula.setPivot(oldFacetGroupFormula);
 				}
 				storeFormula(newFacetGroupFormula);
-				this.facetGroupFoundInCurrentUserFilter = true;
+				this.groupsEnrichedInCurrentUserFilter.add(oldFacetGroupId);
 				// we've stored the formula - instruct super method to skip it's handling
 				return true;
 			}
@@ -170,23 +221,28 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 
 	@Override
 	protected boolean handleUserFilter(@Nonnull Formula formula, @Nonnull Formula[] updatedChildren) {
-		// the user filters of the scopes are decided each on its own - the next one starts afresh
-		final boolean wasFoundInTheUserFilter = this.facetGroupFoundInCurrentUserFilter;
-		this.facetGroupFoundInCurrentUserFilter = false;
-		// a facet of a group exclusive with the other groups deselects them, so the selection of its reference is
-		// replaced by the enriched group formula even when the user filter already selects the group
-		final boolean replacesFacetSelection =
-			this.facetRelationType.resolve(this.referenceSchema, this.facetGroupId, WITH_DIFFERENT_GROUPS) ==
-				FacetRelationType.EXCLUSIVITY;
-
-		if (wasFoundInTheUserFilter && !replacesFacetSelection) {
-			// we've already enriched existing formula with new formula - let the logic continue without modification
-			return false;
-		} else {
-			// there was no FacetGroupFormula inside - we have to create a brand new one and add it before leaving user
-			// filter, or the selection of the reference is replaced by the facet group formula
-			return super.handleUserFilter(formula, updatedChildren);
+		try {
+			final List<Integer> groups = getFacetGroupsOfCurrentScope();
+			// a facet of a group exclusive with the other groups deselects them, so the selection of its reference is
+			// replaced by the enriched group formula even when the user filter already selects the group
+			if (!isExclusiveWithOtherGroups(groups) && this.groupsEnrichedInCurrentUserFilter.containsAll(groups)) {
+				// we've already enriched existing formulas with new formula - let the logic continue without
+				// modification
+				return false;
+			} else {
+				// some group formula of the facet was not inside - we have to create a brand new one and add it before
+				// leaving user filter, or the selection of the reference is replaced by the facet group formulas
+				return super.handleUserFilter(formula, updatedChildren);
+			}
+		} finally {
+			// the user filters of the scopes are decided each on its own - the next one starts afresh
+			this.groupsEnrichedInCurrentUserFilter.clear();
 		}
+	}
+
+	@Override
+	protected boolean isGroupEnrichedInCurrentUserFilter(@Nullable Integer groupId) {
+		return this.groupsEnrichedInCurrentUserFilter.contains(groupId);
 	}
 
 	/**
@@ -207,12 +263,42 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 		int facetId,
 		@Nonnull Bitmap[] facetEntityIds
 	) {
+		return hasSenseAlone(
+			hypotheticalFormula, referenceSchema, facetGroupId, facetId,
+			FacetGroupOccurrences.singleGroup(facetGroupId, getBaseEntityIds(facetEntityIds))
+		);
+	}
+
+	/**
+	 * We need to calculate whether the `facetId` returns any results when other facets in the groups it takes part in
+	 * are removed.
+	 *
+	 * @param hypotheticalFormula   the current formula including this facet and all other facets
+	 * @param referenceSchema       the reference schema of the facet group
+	 * @param facetGroupId          the facet group id of the statistics being computed
+	 * @param facetId               the examined facet id
+	 * @param facetGroupOccurrences the groups the facet is referenced under
+	 * @return true when there is at least one result when the formula is altered in a way, that the `facetId` is
+	 * requested on its own in each of its facet group OR formulas
+	 */
+	public boolean hasSenseAlone(
+		@Nonnull Formula hypotheticalFormula,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer facetGroupId,
+		int facetId,
+		@Nonnull FacetGroupOccurrences facetGroupOccurrences
+	) {
 		if (this.isFacetGroupConjunction.test(referenceSchema, facetGroupId, WITH_DIFFERENT_FACETS_IN_GROUP)) {
 			return !hypotheticalFormula.compute().isEmpty();
 		} else {
-			final Bitmap facetEntityIdsBitmap = getBaseEntityIds(facetEntityIds);
 			final MutableFormulaFinderAndReplacer mutableFormulaFinderAndReplacer = new MutableFormulaFinderAndReplacer(
-				() -> new FacetGroupOrFormula(referenceSchema.getName(), facetGroupId, new BaseBitmap(facetId), facetEntityIdsBitmap)
+				mutableFormula -> {
+					final Integer groupId = facetGroupOccurrences.isSingleGroup() ?
+						facetGroupId : mutableFormula.getFacetGroupId();
+					return createFacetGroupFormula(
+						referenceSchema, groupId, facetId, facetGroupOccurrences.getEntityIds(groupId), true
+					);
+				}
 			);
 			hypotheticalFormula.accept(mutableFormulaFinderAndReplacer);
 			Assert.isPremiseValid(
@@ -239,15 +325,23 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 	 * facet selection of its own reference in the user filter - so the generic formula of one reference must not
 	 * serve another.
 	 *
+	 * A facet referenced under several groups, or in a scope that holds no reference to it, takes part in other groups
+	 * than the group of its statistics, so its formula serves only the facets of the very same groups - its key
+	 * carries their signature.
+	 *
 	 * @param referenceName the reference name of the facet group
 	 * @param relationType  the relation type of the facet group with other groups
-	 * @param facetGroupId  the facet group id - non-null only if the formula for particular facet group is found in
-	 *                      the main formula
+	 * @param facetGroupIds the facet group ids of the facet found in the main formula inside a user filter, NULL
+	 *                      standing for the facets without a group recorded as {@link Integer#MIN_VALUE}; null when
+	 *                      none is found
+	 * @param signature     the {@link FacetGroupOccurrences#getSignature() signature} of the groups of the facet, null
+	 *                      for a facet with a single group everywhere
 	 */
 	private record CacheKey(
 		@Nonnull String referenceName,
 		@Nonnull FacetRelationType relationType,
-		@Nullable Integer facetGroupId
+		@Nullable List<Integer> facetGroupIds,
+		@Nullable Object signature
 	) {
 
 		@Nonnull
@@ -256,7 +350,8 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 			return "CacheKey{" +
 				"referenceName='" + this.referenceName + '\'' +
 				", relationType=" + this.relationType +
-				", facetGroupId=" + this.facetGroupId +
+				", facetGroupIds=" + this.facetGroupIds +
+				", signature=" + this.signature +
 				'}';
 		}
 

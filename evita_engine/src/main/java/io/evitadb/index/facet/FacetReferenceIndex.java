@@ -456,6 +456,32 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	}
 
 	/**
+	 * Returns the groups the references to the facet are filed under - the group is a property of a reference, so
+	 * a facet may be referenced under several groups, without a group included.
+	 *
+	 * @param facetId the primary key of the facet
+	 * @return the groups in ascending order, NULL (last) standing for the references without a group; empty when no
+	 * reference to the facet is indexed here
+	 */
+	@Nonnull
+	public List<Integer> getGroupsOfFacet(int facetId) {
+		final int[] groupIds = this.facetToGroupIndex.get(facetId);
+		final FacetGroupIndex notGroupedFacetIndex = this.notGroupedFacets.get();
+		final boolean referencedWithoutGroup = notGroupedFacetIndex != null &&
+			notGroupedFacetIndex.getFacetIdIndex(facetId) != null;
+		final List<Integer> groups = new ArrayList<>((groupIds == null ? 0 : groupIds.length) + 1);
+		if (groupIds != null) {
+			for (final int groupId : groupIds) {
+				groups.add(groupId);
+			}
+		}
+		if (referencedWithoutGroup) {
+			groups.add(null);
+		}
+		return groups;
+	}
+
+	/**
 	 * Method returns true if facet id is part of the passed group id for specified `entityType`.
 	 */
 	public boolean isFacetInGroup(int groupId, int facetId) {

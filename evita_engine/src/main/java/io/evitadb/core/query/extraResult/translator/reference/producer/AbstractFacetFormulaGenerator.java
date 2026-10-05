@@ -46,6 +46,7 @@ import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.filter.translator.facet.FacetHavingTranslator;
+import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -68,7 +69,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BooleanSupplier;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
 import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS;
@@ -137,6 +138,16 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * the {@link FacetIndex}.
 	 */
 	protected Bitmap facetEntityIds;
+	/**
+	 * Contains the groups the facet of {@link #facetId} is referenced under - in each scope and in the whole query -
+	 * and the entities referencing it under each of them.
+	 */
+	protected FacetGroupOccurrences facetGroupOccurrences;
+	/**
+	 * Contains the scopes of the {@link ScopeContainerFormula scope containers} the visitor is currently in - the
+	 * scope post-processing copies the user filter into the container of every scope.
+	 */
+	private final Deque<Scope> scopes = new ArrayDeque<>(4);
 	/**
 	 * Result optimized form of formula.
 	 */
@@ -218,6 +229,35 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 		int facetId,
 		@Nonnull Bitmap[] facetEntityIds
 	) {
+		return generateFormula(
+			baseFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds,
+			FacetGroupOccurrences.singleGroup(facetGroupId, getBaseEntityIds(facetEntityIds))
+		);
+	}
+
+	/**
+	 * Generates a formula based on the given parameters - the facet takes part in every group its occurrences give it
+	 * in the scope of the user filter it joins.
+	 *
+	 * @param baseFormula                  The base formula to generate the formula from.
+	 * @param baseFormulaWithoutUserFilter The base formula without the user filter applied.
+	 * @param referenceSchema              The reference schema contract.
+	 * @param facetGroupId                 The facet group ID of the statistics being computed.
+	 * @param facetId                      The facet ID.
+	 * @param facetEntityIds               The facet entity IDs referencing the facet under the facet group.
+	 * @param facetGroupOccurrences        The groups the facet is referenced under.
+	 * @return The generated formula.
+	 */
+	@Nonnull
+	public Formula generateFormula(
+		@Nonnull Formula baseFormula,
+		@Nonnull Formula baseFormulaWithoutUserFilter,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer facetGroupId,
+		int facetId,
+		@Nonnull Bitmap[] facetEntityIds,
+		@Nonnull FacetGroupOccurrences facetGroupOccurrences
+	) {
 		try {
 			// initialize global variables for this execution
 			this.result = null;
@@ -225,6 +265,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 			this.referenceSchema = referenceSchema;
 			this.facetId = facetId;
 			this.facetGroupId = facetGroupId;
+			this.facetGroupOccurrences = facetGroupOccurrences;
 
 			// facets from multiple indexes are always joined with OR
 			this.facetEntityIds = getBaseEntityIds(facetEntityIds);
@@ -245,6 +286,10 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 		if (isUserFilter) {
 			this.insideUserFilter.push(true);
 		}
+		final boolean isScopeContainer = formula instanceof ScopeContainerFormula;
+		if (isScopeContainer) {
+			this.scopes.push(((ScopeContainerFormula) formula).getScope());
+		}
 		// now iterate and copy children
 		final Formula[] updatedChildren;
 		this.levelStack.push(new CompositeObjectArray<>(Formula.class));
@@ -257,6 +302,9 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 			}
 		} finally {
 			updatedChildren = this.levelStack.pop().toArray();
+			if (isScopeContainer) {
+				this.scopes.pop();
+			}
 		}
 		// if we're leaving UserFilterFormula scope
 		if (isUserFilter) {
@@ -294,6 +342,46 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	}
 
 	/**
+	 * Returns the groups the facet takes part in when it joins the currently visited user filter - the groups the
+	 * scope of the enclosing {@link ScopeContainerFormula} gives it, or the groups of the whole query when the user
+	 * filter is not copied into a scope container.
+	 *
+	 * @return the groups, NULL standing for the facets without a group; never empty
+	 */
+	@Nonnull
+	protected List<Integer> getFacetGroupsOfCurrentScope() {
+		return this.facetGroupOccurrences.getGroups(this.scopes.peek());
+	}
+
+	/**
+	 * Returns true if the group formula of the passed group has been enriched with the facet in place inside the user
+	 * filter the visitor is leaving, so that no new formula has to be added for the group.
+	 *
+	 * @param groupId the group, NULL for the facets without a group
+	 * @return true if the group has been enriched in place
+	 */
+	protected boolean isGroupEnrichedInCurrentUserFilter(@Nullable Integer groupId) {
+		return false;
+	}
+
+	/**
+	 * Returns true if any of the passed groups of the facet is exclusive with the other groups, so that selecting the
+	 * facet replaces the selection of its reference.
+	 *
+	 * @param groups the groups of the facet
+	 * @return true if selecting the facet deselects the other groups of its reference
+	 */
+	protected boolean isExclusiveWithOtherGroups(@Nonnull List<Integer> groups) {
+		for (final Integer groupId : groups) {
+			if (this.facetRelationType.resolve(this.referenceSchema, groupId, WITH_DIFFERENT_GROUPS) ==
+				FacetRelationType.EXCLUSIVITY) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
 	 * Method allows reacting to currently processed formula.
 	 */
 	protected boolean handleFormula(@Nonnull Formula formula) {
@@ -305,30 +393,60 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * user filter is placed - also in the subtracted part of a {@link NotFormula} (`not(userFilter(...))`) or in its
 	 * superset part (a negated constraint next to the user filter) - because selecting the facet extends the user
 	 * filter only, and the formula around it then composes the extended user filter the way the result does.
+	 *
+	 * The facet joins the user filter in every group it is referenced under in the scope the user filter restricts
+	 * (see {@link FacetGroupOccurrences}): the positive groups join the facet selection of its reference, the negated
+	 * ones subtract the facet from the user filter, and a group exclusive with the other groups replaces the
+	 * selection of the reference.
 	 */
 	protected boolean handleUserFilter(@Nonnull Formula formula, @Nonnull Formula[] updatedChildren) {
-		// determine the facet group relation to other groups
-		final FacetRelationType relationType = this.facetRelationType.resolve(
-			this.referenceSchema, this.facetGroupId, WITH_DIFFERENT_GROUPS
-		);
-		// create facet group formula
-		final Formula newFormula = createNewFacetGroupFormula();
-		final Formula[] alteredChildren = switch (relationType) {
-			case DISJUNCTION, CONJUNCTION -> {
+		// the facet takes part in every group the scope of the user filter gives it, each with a formula of its own
+		// unless the subclass has enriched the group formula of the user filter in place
+		final List<Integer> groups = getFacetGroupsOfCurrentScope();
+		final List<Formula> newFormulas = new ArrayList<>(groups.size());
+		for (final Integer groupId : groups) {
+			if (!isGroupEnrichedInCurrentUserFilter(groupId)) {
+				newFormulas.add(createNewFacetGroupFormula(groupId));
+			}
+		}
+		final Formula[] alteredChildren;
+		if (isExclusiveWithOtherGroups(groups)) {
+			alteredChildren = replaceFacetSelection(newFormulas, updatedChildren);
+		} else {
+			final List<Formula> positiveFormulas = new ArrayList<>(newFormulas.size());
+			final List<Formula> negatedFormulas = new ArrayList<>(newFormulas.size());
+			for (final Formula newFormula : newFormulas) {
+				if (getRelationBetweenGroups(newFormula) == FacetRelationType.NEGATION) {
+					negatedFormulas.add(newFormula);
+				} else {
+					positiveFormulas.add(newFormula);
+				}
+			}
+			Formula[] children = updatedChildren;
+			if (!positiveFormulas.isEmpty()) {
 				// a positive facet joins the facet selection of its reference the way the result composes it
-				final Formula[] childrenWithFacetSelection = addNewFormulaToFacetSelection(
-					newFormula, relationType, updatedChildren
-				);
+				final Formula[] childrenWithFacetSelection = addNewFormulasToFacetSelection(positiveFormulas, children);
 				// when the user filter selects no facet of the reference, the facet joins the user filter itself -
 				// the relation between groups applies between the groups of one reference only, and the user filter
 				// combines its constraints, the facet selections of different references included, by conjunction
-				yield childrenWithFacetSelection == null ?
-					ArrayUtils.insertRecordIntoArrayOnIndex(newFormula, updatedChildren, updatedChildren.length) :
+				children = childrenWithFacetSelection == null ?
+					ArrayUtils.insertRecordIntoArrayOnIndex(
+						composeFacetSelection(positiveFormulas), children, children.length
+					) :
 					childrenWithFacetSelection;
 			}
-			case NEGATION -> addNewFormulaAsNegation(newFormula, updatedChildren, this.baseFormulaWithoutUserFilter);
-			case EXCLUSIVITY -> replaceFacetSelection(newFormula, updatedChildren);
-		};
+			if (!negatedFormulas.isEmpty()) {
+				// a negated group subtracts the facet from the whole user filter, which is the same set as subtracting
+				// it from the facet selection of its reference
+				children = addNewFormulaAsNegation(
+					negatedFormulas.size() == 1 ?
+						negatedFormulas.get(0) : FormulaFactory.or(negatedFormulas.toArray(Formula[]::new)),
+					children,
+					this.baseFormulaWithoutUserFilter
+				);
+			}
+			alteredChildren = children;
+		}
 		// we can immediately alter the current formula adding new facet formula
 		storeFormula(formula.getCloneWithInnerFormulas(alteredChildren));
 		// we've stored the formula - instruct super method to skip it's handling
@@ -336,12 +454,55 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	}
 
 	/**
-	 * Adds the formula of a positive facet - one whose group is disjunctive or conjunctive to the other groups - to the
-	 * facet selection the user filter holds for the facet's reference, so that the prediction has exactly the shape
-	 * of the result selecting the facet along with the others. {@link FacetHavingTranslator} composes the selection of
-	 * one reference as `(conjunctive groups OR disjunctive groups) AND NOT negated groups`, so a facet joining the
-	 * selection is subtracted by its negated groups, too - merely joining it to the rest of the user filter would let
-	 * it escape them.
+	 * Returns the relation of the group of the passed group formula - a {@link FacetGroupFormula} or
+	 * a {@link MutableFormula} standing for one - to the other groups of the reference.
+	 *
+	 * @param groupFormula the group formula
+	 * @return the relation of its group to the other groups
+	 */
+	@Nonnull
+	private FacetRelationType getRelationBetweenGroups(@Nonnull Formula groupFormula) {
+		return this.facetRelationType.resolve(
+			this.referenceSchema, getFacetGroupId(groupFormula), WITH_DIFFERENT_GROUPS
+		);
+	}
+
+	/**
+	 * Returns the group of the passed group formula - a {@link FacetGroupFormula} or a {@link MutableFormula} standing
+	 * for one.
+	 *
+	 * @param groupFormula the group formula
+	 * @return the group, NULL for the facets without a group
+	 */
+	@Nullable
+	private static Integer getFacetGroupId(@Nonnull Formula groupFormula) {
+		return groupFormula instanceof MutableFormula mutableFormula ?
+			mutableFormula.getFacetGroupId() : ((FacetGroupFormula) groupFormula).getFacetGroupId();
+	}
+
+	/**
+	 * Composes the facet selection of the facet's reference from the passed group formulas of the facet, the way
+	 * {@link FacetHavingTranslator} composes the selection of the facet alone. A single formula is returned as it is.
+	 *
+	 * @param groupFormulas the group formulas of the facet
+	 * @return the facet selection
+	 */
+	@Nonnull
+	private Formula composeFacetSelection(@Nonnull List<Formula> groupFormulas) {
+		return groupFormulas.size() == 1 ?
+			groupFormulas.get(0) :
+			FacetHavingTranslator.composeFacetSelectionFormula(
+				this.referenceSchema.getName(), groupFormulas, this::getRelationBetweenGroups
+			);
+	}
+
+	/**
+	 * Adds the formulas of a positive facet - one for each of its groups disjunctive or conjunctive to the other
+	 * groups - to the facet selection the user filter holds for the facet's reference, so that the prediction has
+	 * exactly the shape of the result selecting the facet along with the others. {@link FacetHavingTranslator}
+	 * composes the selection of one reference as `(conjunctive groups OR disjunctive groups) AND NOT negated groups`,
+	 * so a facet joining the selection is subtracted by its negated groups, too - merely joining it to the rest of the
+	 * user filter would let it escape them.
 	 *
 	 * The selection takes one of two places in the user filter:
 	 *
@@ -356,15 +517,13 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * Every occurrence is altered, because the scope post-processing copies the user filter into the
 	 * {@link ScopeContainerFormula} of every scope.
 	 *
-	 * @param newFormula   the formula of the facet being added
-	 * @param relationType the relation of the facet's group to the other groups, disjunction or conjunction
-	 * @param children     the children of the user filter formula
+	 * @param newFormulas the formulas of the facet being added, one for each of its groups not negated
+	 * @param children    the children of the user filter formula
 	 * @return the altered children, or NULL when the user filter selects no facet of the reference
 	 */
 	@Nullable
-	private Formula[] addNewFormulaToFacetSelection(
-		@Nonnull Formula newFormula,
-		@Nonnull FacetRelationType relationType,
+	private Formula[] addNewFormulasToFacetSelection(
+		@Nonnull List<Formula> newFormulas,
 		@Nonnull Formula[] children
 	) {
 		final String referenceName = this.referenceSchema.getName();
@@ -378,23 +537,15 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 						isNegatedFacetSelection(notFormula.getSubtractedFormula(), referenceName)) {
 						return notFormula.getCloneWithInnerFormulas(
 							notFormula.getSubtractedFormula(),
-							FormulaFactory.and(notFormula.getSupersetFormula(), newFormula)
+							FormulaFactory.and(notFormula.getSupersetFormula(), composeFacetSelection(newFormulas))
 						);
 					} else if (examinedFormula instanceof FacetHavingFormula facetHavingFormula &&
 						referenceName.equals(facetHavingFormula.getReferenceName()) &&
 						!isNegatedFacetSelection(facetHavingFormula, referenceName)) {
 						final List<Formula> groupFormulas = collectFacetGroupFormulas(facetHavingFormula);
-						groupFormulas.add(newFormula);
+						groupFormulas.addAll(newFormulas);
 						return FacetHavingTranslator.composeFacetSelectionFormula(
-							referenceName,
-							groupFormulas,
-							groupFormula -> groupFormula == newFormula ?
-								relationType :
-								this.facetRelationType.resolve(
-									this.referenceSchema,
-									((FacetGroupFormula) groupFormula).getFacetGroupId(),
-									WITH_DIFFERENT_GROUPS
-								)
+							referenceName, groupFormulas, this::getRelationBetweenGroups
 						);
 					} else {
 						return examinedFormula;
@@ -415,20 +566,20 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * The selection of the reference takes one of the two places {@link #addNewFormulaToFacetSelection} describes:
 	 *
 	 * - a {@link FacetHavingFormula} with at least one positive group is replaced by the selection of the facet - alone,
-	 *   or joined with the other facets of its group when the user filter already selects the group and the subclass
-	 *   has replaced the group formula with a {@link MutableFormula} joining the facet to it
+	 *   or joined with the other facets of its groups the user filter already selects, whose group formulas the
+	 *   subclass has replaced with a {@link MutableFormula} joining the facet to them
 	 * - a {@link NotFormula} subtracting the facet selection of the reference with only negated groups no longer
 	 *   subtracts it, because those groups are deselected
 	 *
 	 * When the user filter holds no positive facet selection of the reference, the facet joins the user filter as one
 	 * more conjunct.
 	 *
-	 * @param newFormula the formula of the facet being added
-	 * @param children   the children of the user filter formula
+	 * @param newFormulas the formulas of the facet being added, one for each of its groups not enriched in place
+	 * @param children    the children of the user filter formula
 	 * @return the altered children
 	 */
 	@Nonnull
-	private Formula[] replaceFacetSelection(@Nonnull Formula newFormula, @Nonnull Formula[] children) {
+	private Formula[] replaceFacetSelection(@Nonnull List<Formula> newFormulas, @Nonnull Formula[] children) {
 		final String referenceName = this.referenceSchema.getName();
 		final AtomicBoolean selectionReplaced = new AtomicBoolean();
 		final Formula[] alteredChildren = new Formula[children.length];
@@ -447,15 +598,14 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 					} else if (examinedFormula instanceof FacetHavingFormula facetHavingFormula &&
 						referenceName.equals(facetHavingFormula.getReferenceName())) {
 						// the group of the facet is exclusive, never negated, so a selection holding its group is positive
-						final MutableFormula enrichedGroupFormula = findMutableFormula(facetHavingFormula);
-						if (enrichedGroupFormula == null && isNegatedFacetSelection(facetHavingFormula, referenceName)) {
+						final List<Formula> facetFormulas = findMutableFormulas(facetHavingFormula);
+						if (facetFormulas.isEmpty() && isNegatedFacetSelection(facetHavingFormula, referenceName)) {
 							return examinedFormula;
 						}
 						selectionReplaced.set(true);
+						facetFormulas.addAll(newFormulas);
 						return FacetHavingTranslator.composeFacetSelectionFormula(
-							referenceName,
-							List.of(enrichedGroupFormula == null ? newFormula : enrichedGroupFormula),
-							groupFormula -> FacetRelationType.EXCLUSIVITY
+							referenceName, facetFormulas, this::getRelationBetweenGroups
 						);
 					} else {
 						return examinedFormula;
@@ -463,9 +613,11 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 				}
 			);
 		}
-		return selectionReplaced.get() ?
+		return selectionReplaced.get() || newFormulas.isEmpty() ?
 			alteredChildren :
-			ArrayUtils.insertRecordIntoArrayOnIndex(newFormula, alteredChildren, alteredChildren.length);
+			ArrayUtils.insertRecordIntoArrayOnIndex(
+				composeFacetSelection(newFormulas), alteredChildren, alteredChildren.length
+			);
 	}
 
 	/**
@@ -494,27 +646,28 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	}
 
 	/**
-	 * Finds the {@link MutableFormula} a subclass placed into the facet selection in place of the formula of the group
-	 * of the facet being added.
+	 * Finds the {@link MutableFormula mutable formulas} a subclass placed into the facet selection in place of the
+	 * formulas of the groups of the facet being added.
 	 *
 	 * @param facetHavingFormula the facet selection of one reference
-	 * @return the mutable formula, or NULL when the selection holds none
+	 * @return the mutable formulas in a mutable list, empty when the selection holds none
 	 */
-	@Nullable
-	private static MutableFormula findMutableFormula(@Nonnull FacetHavingFormula facetHavingFormula) {
+	@Nonnull
+	private static List<Formula> findMutableFormulas(@Nonnull FacetHavingFormula facetHavingFormula) {
+		final List<Formula> mutableFormulas = new ArrayList<>(2);
 		final Deque<Formula> stack = new ArrayDeque<>(8);
 		stack.push(facetHavingFormula);
 		while (!stack.isEmpty()) {
 			final Formula examinedFormula = stack.pop();
-			if (examinedFormula instanceof MutableFormula mutableFormula) {
-				return mutableFormula;
+			if (examinedFormula instanceof MutableFormula) {
+				mutableFormulas.add(examinedFormula);
 			} else if (!(examinedFormula instanceof FacetGroupFormula)) {
 				for (Formula innerFormula : examinedFormula.getInnerFormulas()) {
 					stack.push(innerFormula);
 				}
 			}
 		}
-		return null;
+		return mutableFormulas;
 	}
 
 	/**
@@ -532,10 +685,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 				return false;
 			}
 			for (Formula groupFormula : collectFacetGroupFormulas(facetHavingFormula)) {
-				final FacetRelationType groupRelationType = this.facetRelationType.resolve(
-					this.referenceSchema, ((FacetGroupFormula) groupFormula).getFacetGroupId(), WITH_DIFFERENT_GROUPS
-				);
-				if (groupRelationType != FacetRelationType.NEGATION) {
+				if (getRelationBetweenGroups(groupFormula) != FacetRelationType.NEGATION) {
 					return false;
 				}
 			}
@@ -552,7 +702,8 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 
 	/**
 	 * Collects the formulas of the facet groups the facet selection is composed of. {@link FacetHavingTranslator}
-	 * composes the selection of {@link FacetGroupFormula} leaves only, joined by logical containers.
+	 * composes the selection of {@link FacetGroupFormula} leaves only, joined by logical containers; a subclass may
+	 * have replaced some of them with a {@link MutableFormula} standing for the group.
 	 *
 	 * @param facetHavingFormula the facet selection of one reference
 	 * @return the formulas of its facet groups, in a mutable list
@@ -564,7 +715,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 		stack.push(facetHavingFormula);
 		while (!stack.isEmpty()) {
 			final Formula examinedFormula = stack.pop();
-			if (examinedFormula instanceof FacetGroupFormula) {
+			if (examinedFormula instanceof FacetGroupFormula || examinedFormula instanceof MutableFormula) {
 				groupFormulas.add(examinedFormula);
 			} else {
 				final Formula[] innerFormulas = examinedFormula.getInnerFormulas();
@@ -600,16 +751,64 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	}
 
 	/**
-	 * Method creates new {@link Formula} instance that corresponds with requested
-	 * {@link FacetGroupsConjunction} requirement in input {@link EvitaRequest}.
+	 * Method creates new {@link Formula} instance of the facet in the group of the statistics being computed that
+	 * corresponds with requested {@link FacetGroupsConjunction} requirement in input {@link EvitaRequest}.
 	 */
 	@Nonnull
 	protected MutableFormula createNewFacetGroupFormula() {
-		return new MutableFormula(
-			this.isFacetGroupConjunction.test(this.referenceSchema, this.facetGroupId, WITH_DIFFERENT_FACETS_IN_GROUP) ?
-				new FacetGroupAndFormula(this.referenceSchema.getName(), this.facetGroupId, new BaseBitmap(this.facetId), this.facetEntityIds) :
-				new FacetGroupOrFormula(this.referenceSchema.getName(), this.facetGroupId, new BaseBitmap(this.facetId), this.facetEntityIds)
+		return createNewFacetGroupFormula(this.facetGroupId);
+	}
+
+	/**
+	 * Method creates new {@link Formula} instance of the facet in the passed group, with the entities referencing the
+	 * facet under that group, that corresponds with requested {@link FacetGroupsConjunction} requirement in input
+	 * {@link EvitaRequest}.
+	 *
+	 * @param groupId the group, NULL for the facets without a group
+	 * @return the formula of the facet in the group
+	 */
+	@Nonnull
+	protected MutableFormula createNewFacetGroupFormula(@Nullable Integer groupId) {
+		return new MutableFormula(createFacetGroupFormula(groupId, false));
+	}
+
+	/**
+	 * Creates the formula of the facet in the passed group, with the entities referencing the facet under that group.
+	 *
+	 * @param groupId     the group, NULL for the facets without a group
+	 * @param disjunctive true to create a disjunctive formula whatever the relation of the facets in the group is
+	 * @return the formula of the facet in the group
+	 */
+	@Nonnull
+	protected FacetGroupFormula createFacetGroupFormula(@Nullable Integer groupId, boolean disjunctive) {
+		return createFacetGroupFormula(
+			this.referenceSchema, groupId, this.facetId, this.facetGroupOccurrences.getEntityIds(groupId), disjunctive
 		);
+	}
+
+	/**
+	 * Creates the formula of a facet in a group, whose facets are joined by conjunction when the input
+	 * {@link EvitaRequest} says so, and by disjunction otherwise.
+	 *
+	 * @param referenceSchema the schema of the faceted reference
+	 * @param groupId         the group, NULL for the facets without a group
+	 * @param facetId         the facet
+	 * @param entityIds       the entities referencing the facet under the group
+	 * @param disjunctive     true to create a disjunctive formula whatever the relation of the facets in the group is
+	 * @return the formula of the facet in the group
+	 */
+	@Nonnull
+	protected FacetGroupFormula createFacetGroupFormula(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		int facetId,
+		@Nonnull Bitmap entityIds,
+		boolean disjunctive
+	) {
+		return !disjunctive &&
+			this.isFacetGroupConjunction.test(referenceSchema, groupId, WITH_DIFFERENT_FACETS_IN_GROUP) ?
+			new FacetGroupAndFormula(referenceSchema.getName(), groupId, new BaseBitmap(facetId), entityIds) :
+			new FacetGroupOrFormula(referenceSchema.getName(), groupId, new BaseBitmap(facetId), entityIds);
 	}
 
 	/**
@@ -642,8 +841,10 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 		this.facetId = -1;
 		this.facetGroupId = null;
 		this.facetEntityIds = null;
+		this.facetGroupOccurrences = null;
 		this.result = null;
 		this.insideUserFilter.clear();
+		this.scopes.clear();
 	}
 
 	/**
@@ -693,7 +894,8 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 
 	/**
 	 * This implementation of {@link FormulaVisitor} traverses the formula tree and replaces every found
-	 * {@link MutableFormula} with a formula provided by the supplier, a new one for each occurrence. There is usually
+	 * {@link MutableFormula} with a formula provided by the function for it, a new one for each occurrence - the
+	 * function may tell the occurrences apart by the group each stands for. There is usually
 	 * a single one, but a user filter that the scope post-processing copies into the {@link ScopeContainerFormula} of
 	 * every scope holds one in each container, and a facet replaced in one of them only would leave the previous facet
 	 * selected in the other scopes. The replacement is done in-place and the memoized results of all the parent
@@ -702,9 +904,9 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	@RequiredArgsConstructor
 	protected static class MutableFormulaFinderAndReplacer implements FormulaVisitor {
 		/**
-		 * The supplier of the formula that replaces each found {@link MutableFormula}.
+		 * The function providing the formula that replaces each found {@link MutableFormula}.
 		 */
-		private final Supplier<FacetGroupFormula> formulaToReplaceSupplier;
+		private final Function<MutableFormula, FacetGroupFormula> formulaToReplaceFactory;
 		/**
 		 * The stack of parent formulas of the currently visited formula tree.
 		 */
@@ -750,7 +952,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 		public void visit(@Nonnull Formula formula) {
 			if (formula instanceof MutableFormula mutableFormula) {
 				registerTarget(mutableFormula);
-				mutableFormula.setDelegate(this.formulaToReplaceSupplier.get());
+				mutableFormula.setDelegate(this.formulaToReplaceFactory.apply(mutableFormula));
 				for (Formula parentFormula : this.formulaStack) {
 					parentFormula.clearMemory();
 				}

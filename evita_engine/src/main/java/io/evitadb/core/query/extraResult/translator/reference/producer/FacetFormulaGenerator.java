@@ -29,15 +29,13 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.NotFormula;
-import io.evitadb.core.query.algebra.facet.FacetGroupAndFormula;
-import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.extraResult.translator.reference.FilterFormulaFacetOptimizeVisitor;
-import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.core.query.filter.translator.facet.FacetHavingTranslator;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -45,6 +43,8 @@ import io.evitadb.utils.CollectionUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP;
@@ -84,13 +84,16 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable Integer facetGroupId,
 		int facetId,
-		@Nonnull Bitmap[] facetEntityIds
+		@Nonnull Bitmap[] facetEntityIds,
+		@Nonnull FacetGroupOccurrences facetGroupOccurrences
 	) {
 		// the shape of the formula depends on the relation of the group to the other groups as well - two groups whose
-		// facets share a relation may still differ in it, and must not share one formula
+		// facets share a relation may still differ in it, and must not share one formula; a facet taking part in
+		// several groups shares it only with the facets of the very same groups
 		final CacheKey key = new CacheKey(
 			this.facetRelationType.resolve(referenceSchema, facetGroupId, WITH_DIFFERENT_FACETS_IN_GROUP),
-			this.facetRelationType.resolve(referenceSchema, facetGroupId, WITH_DIFFERENT_GROUPS)
+			this.facetRelationType.resolve(referenceSchema, facetGroupId, WITH_DIFFERENT_GROUPS),
+			facetGroupOccurrences.getSignature()
 		);
 		return this.cache.compute(
 			key,
@@ -103,14 +106,18 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 					final Formula countedFormula = isUserFilterScoped(baseFormula) || isUserFilterNegated(baseFormula) ?
 						FilterFormulaFacetOptimizeVisitor.optimize(baseFormulaWithoutUserFilter) : baseFormula;
 					return super.generateFormula(
-						countedFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
+						countedFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId,
+						facetEntityIds, facetGroupOccurrences
 					);
 				} else {
-					final Bitmap facetEntityIdsBitmap = getBaseEntityIds(facetEntityIds);
 					final MutableFormulaFinderAndReplacer mutableFormulaFinderAndReplacer = new MutableFormulaFinderAndReplacer(
-						() -> cacheKey.facetRelationType() == FacetRelationType.CONJUNCTION ?
-							new FacetGroupAndFormula(referenceSchema.getName(), facetGroupId, new BaseBitmap(facetId), facetEntityIdsBitmap) :
-							new FacetGroupOrFormula(referenceSchema.getName(), facetGroupId, new BaseBitmap(facetId), facetEntityIdsBitmap)
+						mutableFormula -> {
+							final Integer groupId = facetGroupOccurrences.isSingleGroup() ?
+								facetGroupId : mutableFormula.getFacetGroupId();
+							return createFacetGroupFormula(
+								referenceSchema, groupId, facetId, facetGroupOccurrences.getEntityIds(groupId), false
+							);
+						}
 					);
 					formula.accept(mutableFormulaFinderAndReplacer);
 					Assert.isPremiseValid(
@@ -163,7 +170,7 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 	protected Formula getResult(@Nonnull Formula baseFormula) {
 		Assert.isPremiseValid(this.result != null, "Result formula must be set!");
 		// if the output is same as input, it means the input didn't contain UserFilterFormula
-		if (this.result == baseFormula) {
+		if (this.result == baseFormula && this.facetGroupOccurrences.isSingleGroup()) {
 			// so we need to change it here adding new facet group formula
 			if (this.isFacetGroupNegation.test(this.referenceSchema, this.facetGroupId, WITH_DIFFERENT_FACETS_IN_GROUP)) {
 				return FormulaFactory.not(
@@ -176,6 +183,37 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 					createNewFacetGroupFormula()
 				);
 			}
+		} else if (this.result == baseFormula) {
+			// a facet taking part in several groups is selected in each of them, composed the way the result of
+			// selecting it composes the groups of one reference - the negated groups are subtracted from the rest
+			final List<Formula> positiveFormulas = new ArrayList<>(4);
+			final List<Formula> negatedFormulas = new ArrayList<>(4);
+			for (final Integer groupId : this.facetGroupOccurrences.getGroups(null)) {
+				final MutableFormula groupFormula = createNewFacetGroupFormula(groupId);
+				final FacetRelationType relationType = this.facetRelationType.resolve(
+					this.referenceSchema, groupId, WITH_DIFFERENT_GROUPS
+				);
+				if (relationType == FacetRelationType.NEGATION) {
+					negatedFormulas.add(groupFormula);
+				} else {
+					positiveFormulas.add(groupFormula);
+				}
+			}
+			final Formula positiveFormula = positiveFormulas.isEmpty() ?
+				baseFormula :
+				FormulaFactory.and(
+					baseFormula,
+					FacetHavingTranslator.composeFacetSelectionFormula(
+						this.referenceSchema.getName(),
+						positiveFormulas,
+						it -> this.facetRelationType.resolve(
+							this.referenceSchema, ((MutableFormula) it).getFacetGroupId(), WITH_DIFFERENT_GROUPS
+						)
+					)
+				);
+			return negatedFormulas.isEmpty() ?
+				positiveFormula :
+				FormulaFactory.not(FormulaFactory.or(negatedFormulas.toArray(Formula[]::new)), positiveFormula);
 		} else {
 			// output changed - just propagate it
 			return this.result;
@@ -187,10 +225,13 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 	 *
 	 * @param facetRelationType the relation of the facets within their group
 	 * @param groupRelationType the relation of the group to the other groups
+	 * @param signature         the {@link FacetGroupOccurrences#getSignature() signature} of the groups of the facet,
+	 *                          null for a facet with a single group everywhere
 	 */
 	private record CacheKey(
 		@Nonnull FacetRelationType facetRelationType,
-		@Nonnull FacetRelationType groupRelationType
+		@Nonnull FacetRelationType groupRelationType,
+		@Nullable Object signature
 	) {
 
 	}

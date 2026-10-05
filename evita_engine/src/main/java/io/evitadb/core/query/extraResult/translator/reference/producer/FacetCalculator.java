@@ -54,6 +54,7 @@ public interface FacetCalculator {
 	 * @param facetId         {@link EntityReference#getPrimaryKey()} of the facet
 	 * @param facetGroupId    {@link GroupEntityReference#getPrimaryKey()} the facet is part of
 	 * @param facetEntityIds  bitmaps that represent primary keys of all entities that posses this facet
+	 * @param facetGroupOccurrences the groups the facet is referenced under - selecting it selects it in each of them
 	 * @return computed {@link Formula} that returns all entity primary keys, that posses the facet
 	 */
 	@Nonnull
@@ -61,7 +62,8 @@ public interface FacetCalculator {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		int facetId,
 		@Nullable Integer facetGroupId,
-		@Nonnull Bitmap[] facetEntityIds
+		@Nonnull Bitmap[] facetEntityIds,
+		@Nonnull FacetGroupOccurrences facetGroupOccurrences
 	);
 
 	/**

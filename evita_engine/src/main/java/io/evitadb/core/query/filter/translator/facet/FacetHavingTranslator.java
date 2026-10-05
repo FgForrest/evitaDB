@@ -61,6 +61,7 @@ import io.evitadb.function.TriFunction;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.ArrayUtils;
@@ -76,6 +77,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
@@ -357,6 +359,12 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 				finalFacetIds
 			)
 		);
+		final FacetGroupFormula unreferencedFacetsTerm = getTermOfUnreferencedNamedFacets(
+			facetFiltering, collectedFormulas, groupFormulaFactory
+		);
+		if (unreferencedFacetsTerm != null) {
+			collectedFormulas.add(unreferencedFacetsTerm);
+		}
 
 		// no single entity references this particular facet - return empty result quickly
 		if (collectedFormulas.isEmpty()) {
@@ -384,6 +392,53 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 				.toList(),
 			it -> filterByVisitor.getFacetRelationType(referenceSchema, it.getFacetGroupId(), WITH_DIFFERENT_GROUPS)
 		);
+	}
+
+	/**
+	 * Returns the term of the facets the facet filter names by primary key that no searched scope references. Such a
+	 * facet has no reference to take a group from, so it is a facet without a group: its term joins the term of the
+	 * facets without a group and follows their relations, and it holds no entity. A filter that is exactly
+	 * {@link EntityPrimaryKeyInSet} selects every primary key it names, referenced or not - the way a client selects
+	 * options. Any other filter selects among the facets the searched scopes reference only, because every other
+	 * constraint reads data of a reference, which an unreferenced facet does not have; so does a filter expanding
+	 * hierarchical facets to their children, whose named parents are commonly referenced by no entity at all.
+	 *
+	 * @param facetFiltering      the isolated constraints of the facet filter
+	 * @param collectedFormulas   the terms of the selected facets collected from the searched indexes and the scopes
+	 * @param groupFormulaFactory creates the formula of one group from its id, its facets and their entities
+	 * @return the term of the unreferenced named facets in the group of the facets without a group, or NULL when the
+	 * filter names no such facet
+	 */
+	@Nullable
+	private static FacetGroupFormula getTermOfUnreferencedNamedFacets(
+		@Nonnull FacetFiltering facetFiltering,
+		@Nonnull List<FacetGroupFormula> collectedFormulas,
+		@Nonnull TriFunction<Integer, Bitmap, Bitmap[], FacetGroupFormula> groupFormulaFactory
+	) {
+		final FilterConstraint[] filterConstraints = facetFiltering.mainFiltering().getChildren();
+		if (facetFiltering.includeChildren() ||
+			filterConstraints.length != 1 ||
+			!(filterConstraints[0] instanceof EntityPrimaryKeyInSet entityPrimaryKeyInSet)) {
+			return null;
+		}
+		final IntSet referencedFacetIds = new IntHashSet(16);
+		for (final FacetGroupFormula collectedFormula : collectedFormulas) {
+			final OfInt facetIdIterator = collectedFormula.getFacetIds().iterator();
+			while (facetIdIterator.hasNext()) {
+				referencedFacetIds.add(facetIdIterator.nextInt());
+			}
+		}
+		final int[] unreferencedFacetIds = Arrays.stream(entityPrimaryKeyInSet.getPrimaryKeys())
+			.filter(it -> !referencedFacetIds.contains(it))
+			.distinct()
+			.sorted()
+			.toArray();
+		if (unreferencedFacetIds.length == 0) {
+			return null;
+		}
+		final Bitmap[] noEntities = new Bitmap[unreferencedFacetIds.length];
+		Arrays.fill(noEntities, EmptyBitmap.INSTANCE);
+		return groupFormulaFactory.apply(null, new BaseBitmap(unreferencedFacetIds), noEntities);
 	}
 
 	/**
