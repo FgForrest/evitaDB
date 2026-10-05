@@ -6335,9 +6335,74 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * Checks that a hierarchy constraint or a nested ordering the schema refuses fails the query with the same client
-	 * error in every scope - also where the hierarchy it searches or describes, or the entity type it orders, holds no
-	 * entity, so that the query does not fail or pass depending on the data.
+	 * Returns the rows of the stop nodes of the parents fetched by `hierarchyContent` of the
+	 * {@link #FACET_SCOPE_SHAPES} data set that the schema refuses. Whether a parent chain is walked at all depends on
+	 * the data - on whether the query returns an entity, of a scope with data, that has a parent - so the rows cover
+	 * a query returning a node with a parent, a root only, nothing in a scope with data, a scope without data, and the
+	 * parents of the referenced folders of an item. Each row has the shape of {@link #hierarchyConstraintRows()}.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> hierarchyContentRows() {
+		final EntityFetch fetchWithNoteStop = entityFetch(
+			hierarchyContent(stopAt(node(filterBy(attributeEquals(ATTRIBUTE_NOTE, "anything")))))
+		);
+		return Stream.of(
+			Arguments.of(
+				"stop node of the parents of a folder with a parent", Scope.LIVE,
+				query(collection(ENTITY_SCOPED_FOLDER), filterBy(scope(Scope.LIVE)), require(fetchWithNoteStop)),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			Arguments.of(
+				"stop node of the parents of a root folder", Scope.LIVE,
+				query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(scope(Scope.LIVE), entityPrimaryKeyInSet(1)),
+					require(fetchWithNoteStop)
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			Arguments.of(
+				"stop node of the parents of no folder", Scope.LIVE,
+				query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(scope(Scope.LIVE), entityPrimaryKeyInSet(999)),
+					require(fetchWithNoteStop)
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			Arguments.of(
+				"stop node of the parents of the folders", Scope.ARCHIVED,
+				query(collection(ENTITY_SCOPED_FOLDER), filterBy(scope(Scope.ARCHIVED)), require(fetchWithNoteStop)),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			Arguments.of(
+				"stop node of the parents of the referenced folders", Scope.ARCHIVED,
+				query(
+					collection(ENTITY_SCOPED_FOLDER_ITEM),
+					filterBy(scope(Scope.ARCHIVED)),
+					require(entityFetch(referenceContent(REF_FOLDER, fetchWithNoteStop)))
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			Arguments.of(
+				"stop node of the parents of the referenced folders of no item", Scope.LIVE,
+				query(
+					collection(ENTITY_SCOPED_FOLDER_ITEM),
+					filterBy(scope(Scope.LIVE), entityPrimaryKeyInSet(999)),
+					require(entityFetch(referenceContent(REF_FOLDER, fetchWithNoteStop)))
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			)
+		);
+	}
+
+	/**
+	 * Checks that a hierarchy constraint, a nested ordering or a stop node of the fetched parents the schema refuses
+	 * fails the query with the same client error in every scope - also where the hierarchy it searches or describes,
+	 * or the entity type it orders, holds no entity, and whether or not the query returns an entity with a parent - so
+	 * that the query does not fail or pass depending on the data.
 	 *
 	 * @param label             the row label, used in the test name only
 	 * @param scope             the scope the constraint is evaluated in, used in the test name only
@@ -6349,7 +6414,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should fail the query whose nested constraint cannot be evaluated in every scope")
 	@UseDataSet(FACET_SCOPE_SHAPES)
 	@ParameterizedTest(name = "{0} in {1}")
-	@MethodSource({"hierarchyConstraintRows", "nestedOrderingRows"})
+	@MethodSource({"hierarchyConstraintRows", "nestedOrderingRows", "hierarchyContentRows"})
 	void shouldFailQueryWhoseNestedConstraintCannotBeEvaluatedInEveryScope(
 		@Nonnull String label,
 		@Nonnull Scope scope,
@@ -6375,10 +6440,11 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * Returns the evaluable counterparts of {@link #hierarchyConstraintRows()} and {@link #nestedOrderingRows()} in the
-	 * archived scope, where the folders, the tags and their groups hold no entity. Each row is a label, the query, the
-	 * primary keys it must return, the reference whose hierarchy statistics it computes (NULL for the queried entity's
-	 * own) and the outputs of those statistics that must be absent - a scope without any node has no tree to describe.
+	 * Returns the evaluable counterparts of {@link #hierarchyConstraintRows()}, {@link #nestedOrderingRows()} and
+	 * {@link #hierarchyContentRows()} in the archived scope, where the folders, the tags and their groups hold no
+	 * entity, and of a root folder fetched with its parents. Each row is a label, the query, the primary keys it must
+	 * return, the reference whose hierarchy statistics it computes (NULL for the queried entity's own) and the outputs
+	 * of those statistics that must be absent - a scope without any node has no tree to describe.
 	 *
 	 * @return the row arguments
 	 */
@@ -6519,15 +6585,44 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					.filter(pk -> SCOPED_PRODUCT_SCOPES[pk - 1] == archived)
 					.toArray(),
 				null, new String[0]
+			),
+			Arguments.of(
+				"stop node of the parents of the folders",
+				query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(scope(archived)),
+					require(entityFetch(hierarchyContent(stopAt(node(code)))))
+				),
+				new int[0], null, new String[0]
+			),
+			Arguments.of(
+				"stop node of the parents of a root folder",
+				query(
+					collection(ENTITY_SCOPED_FOLDER),
+					filterBy(scope(Scope.LIVE), entityPrimaryKeyInSet(1)),
+					require(entityFetch(hierarchyContent(stopAt(node(code)))))
+				),
+				new int[] {1}, null, new String[0]
+			),
+			Arguments.of(
+				"stop node of the parents of the referenced folders",
+				query(
+					collection(ENTITY_SCOPED_FOLDER_ITEM),
+					filterBy(scope(archived)),
+					require(
+						entityFetch(referenceContent(REF_FOLDER, entityFetch(hierarchyContent(stopAt(node(code))))))
+					)
+				),
+				new int[] {2}, null, new String[0]
 			)
 		);
 	}
 
 	/**
-	 * Checks that the evaluable counterparts of {@link #hierarchyConstraintRows()} and {@link #nestedOrderingRows()} are
-	 * accepted in a scope the folders, the tags and their groups hold no entity of and keep their result - checking the
-	 * nested constraints of such a scope must not refuse a constraint the schema allows. The hierarchy statistics of
-	 * such a scope produce no output.
+	 * Checks that the evaluable counterparts of {@link #hierarchyConstraintRows()}, {@link #nestedOrderingRows()} and
+	 * {@link #hierarchyContentRows()} are accepted in a scope the folders, the tags and their groups hold no entity of
+	 * and keep their result - checking the nested constraints of such a scope must not refuse a constraint the schema
+	 * allows. The hierarchy statistics of such a scope produce no output.
 	 *
 	 * @param label             the row label, used in the test name only
 	 * @param query             the query with the evaluable constraints
