@@ -46,6 +46,7 @@ import io.evitadb.index.invertedIndex.ValueToRecordPrimitive;
 import io.evitadb.index.map.MapHeapSize;
 import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.page.PageStreamRegistry;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextFieldLengthBlockPart;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.MemoryMeasuringConstants;
@@ -147,6 +148,15 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * Returned by {@link #getFieldId(FulltextFieldKey)} for a field the index has never seen, or has retired.
 	 */
 	public static final int UNKNOWN_FIELD_ID = -1;
+
+	/**
+	 * The highest field id the index assigns: the lower of what the term key prefix addresses and what a persisted
+	 * length block can name. A field the index accepts must also be one it can flush - checking only the prefix
+	 * would let the write succeed and fail every flush after it.
+	 */
+	public static final int MAX_FIELD_ID = Math.min(
+		FulltextTermKeys.MAX_FIELD_ID, FulltextFieldLengthBlockPart.MAX_FIELD_ID
+	);
 
 	/**
 	 * The length pivot used when the caller supplies none: a field of this many tokens is "of normal length", and
@@ -518,8 +528,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * @param lengthPivot the field's length pivot; must be positive
 	 * @return the field's id
 	 * @throws io.evitadb.exception.GenericEvitaInternalError when the pivot differs from the registered one, or the
-	 *                                                        index already holds as many fields as the key prefix can
-	 *                                                        address
+	 *                                                        index already holds {@link #MAX_FIELD_ID} + 1 fields
 	 */
 	public int getOrAssignFieldId(@Nonnull FulltextFieldKey fieldKey, double lengthPivot) {
 		assertPivotValid(lengthPivot);
@@ -538,8 +547,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		this.dirty.setToTrue();
 		final int fieldId = getFieldCount();
 		Assert.isPremiseValid(
-			fieldId <= FulltextTermKeys.MAX_FIELD_ID,
-			() -> "The fulltext index cannot address more than " + (FulltextTermKeys.MAX_FIELD_ID + 1) + " fields!"
+			fieldId <= MAX_FIELD_ID,
+			() -> "The fulltext index cannot address more than " + (MAX_FIELD_ID + 1) + " fields!"
 		);
 		final Field field = new Field(fieldKey, lengthPivot, false, new FieldLengthTable());
 		if (layer != null) {

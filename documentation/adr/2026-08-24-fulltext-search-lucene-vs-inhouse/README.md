@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-10-05 14:17
+updated: 2026-10-05 15:58
 status: partially-implemented
 kind: feature
 issues: [258, 1454]
@@ -876,6 +876,14 @@ rather than a tuning one. Both are open items below.
   output is built by reflection over the mutation's constructor; and `SetAttributeSchemaSearchableMutation` has no
   external-API converter, so a change-data-capture stream reaching one through those APIs fails. The user
   documentation of `searchable()` and its schema-capability usage statistics wait for the query constraint as well.
+- **A runtime-registered analyzer does not survive a restart, and must before one can be assigned (2026-10-05).**
+  `FulltextAnalyzerRegistry#register` lives in memory only, and a catalog load resolves each persisted index's
+  analyzer by name from a registry nothing has registered into yet - so a catalog holding an index built by a
+  registered analyzer would fail to load. Nothing reaches that today: the catalog's registry uses the default
+  assignment, which resolves built-in analyzers only. Whatever lets a schema assign a registered analyzer in F1 must
+  also make its definition available before the indexes load (persisted with the catalog, or supplied by
+  configuration at start-up), and belongs with the analyzer fingerprint, which pins what an analyzer *does* under
+  its name.
 - **P5 merged on 2026-09-24 (PR #1453); the 2026-09-02 blockers are closed.** The two red tests
   asserted accent-stripped recall the index chain alone could not deliver; the asymmetric M7 analyzer
   pairs that graduated on 2026-09-15 deliver it on the search side, and `CzechAccentTypingTest` was

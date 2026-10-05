@@ -33,6 +33,7 @@ import io.evitadb.index.fulltext.analysis.AnalyzedTerm;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.invertedIndex.ValueToRecord;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextFieldLengthBlockPart;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -176,6 +177,23 @@ class FulltextIndexTest {
 			assertThrows(
 				GenericEvitaInternalError.class, () -> index.forEachTerm(1, "", (term, postings, impacts) -> true)
 			);
+		}
+
+		@Test
+		@DisplayName("The last field id the index assigns is one a persisted length block can name")
+		void shouldStopAssigningFieldIdsWhereLengthBlocksStop() {
+			// the term key prefix addresses more fields than a length block page can name - the lower limit wins
+			assertTrue(FulltextIndex.MAX_FIELD_ID < FulltextTermKeys.MAX_FIELD_ID);
+			assertEquals(FulltextFieldLengthBlockPart.MAX_FIELD_ID, FulltextIndex.MAX_FIELD_ID);
+
+			final FulltextIndex index = newIndex();
+			for (int i = 0; i <= FulltextIndex.MAX_FIELD_ID; i++) {
+				index.getOrAssignFieldId(attribute("field" + i));
+			}
+			assertEquals(FulltextIndex.MAX_FIELD_ID + 1, index.getFieldCount());
+			assertDoesNotThrow(() -> FulltextFieldLengthBlockPart.pageSequenceOf(FulltextIndex.MAX_FIELD_ID, 0xFFFF));
+			assertThrows(GenericEvitaInternalError.class, () -> index.getOrAssignFieldId(attribute("oneTooMany")));
+			assertEquals(FulltextIndex.MAX_FIELD_ID + 1, index.getFieldCount());
 		}
 
 	}
