@@ -25,10 +25,12 @@ package io.evitadb.core.query.sort.reference.translator;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
+import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.query.order.EntityGroupProperty;
 import io.evitadb.api.query.order.EntityPrimaryKeyNatural;
 import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderDirection;
@@ -62,6 +64,7 @@ import io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver
 import io.evitadb.core.query.sort.reference.sorter.SequentialSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -372,6 +375,70 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	}
 
 	/**
+	 * Refuses an ordering constraint {@link #traverseChildConstraints} cannot translate - an {@link EntityProperty}
+	 * other than the one ordering by the primary key alone, and an {@link EntityGroupProperty}, at any depth. The
+	 * child constraints are translated only when there is a reduced index of the reference to sort, so the query is
+	 * checked up front, whether or not there is any data to order.
+	 *
+	 * @param referenceProperty the ordering whose child constraints are checked
+	 * @throws EvitaInvalidUsageException when a child constraint cannot be used within `referenceProperty`
+	 */
+	private static void assertChildConstraintsSupported(@Nonnull ReferenceProperty referenceProperty) {
+		for (OrderConstraint innerConstraint : referenceProperty.getOrderConstraints()) {
+			if (!(innerConstraint instanceof EntityProperty entityProperty && isPrimaryKeyOrdering(entityProperty))) {
+				assertNoEntityProperty(innerConstraint, referenceProperty);
+			}
+		}
+	}
+
+	/**
+	 * Refuses the passed constraint when it is an {@link EntityProperty} or an {@link EntityGroupProperty}, and
+	 * checks the children of a container the same way. A nested {@link ReferenceProperty} is left to its own
+	 * translator.
+	 *
+	 * @param constraint        the constraint to check
+	 * @param referenceProperty the ordering the constraint is placed in, quoted in the error message
+	 * @throws EvitaInvalidUsageException when the constraint cannot be used within `referenceProperty`
+	 */
+	private static void assertNoEntityProperty(
+		@Nonnull OrderConstraint constraint,
+		@Nonnull ReferenceProperty referenceProperty
+	) {
+		if (constraint instanceof EntityProperty || constraint instanceof EntityGroupProperty) {
+			throw new EvitaInvalidUsageException(
+				"Ordering constraint `" + constraint + "` cannot be used within `referenceProperty` of reference `" +
+					referenceProperty.getReferenceName() + "`: " +
+					(constraint instanceof EntityProperty ?
+						"`entityProperty` is supported there only with `entityPrimaryKeyNatural` as its single " +
+							"child. " :
+						"`entityGroupProperty` is not supported there. ") +
+					"The references themselves can be ordered by the properties of the referenced entity or its " +
+					"group in the `orderBy` of `referenceContent`."
+			);
+		} else if (
+			constraint instanceof ConstraintContainer<?> container && !(constraint instanceof ReferenceProperty)
+		) {
+			for (Object child : container.getChildren()) {
+				if (child instanceof OrderConstraint orderConstraint) {
+					assertNoEntityProperty(orderConstraint, referenceProperty);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Returns true when the passed {@link EntityProperty} orders by the primary key of the referenced entity alone -
+	 * the only form {@link #traverseChildConstraints} supports.
+	 *
+	 * @param entityProperty the constraint to examine
+	 * @return true when its single child is {@link EntityPrimaryKeyNatural}
+	 */
+	private static boolean isPrimaryKeyOrdering(@Nonnull EntityProperty entityProperty) {
+		final OrderConstraint[] childrenConstraints = entityProperty.getChildren();
+		return childrenConstraints.length == 1 && childrenConstraints[0] instanceof EntityPrimaryKeyNatural;
+	}
+
+	/**
 	 * Traverses the child constraints within the provided {@link ReferenceProperty}
 	 * and applies the specified {@link OrderByVisitor} to handle the ordering constraints.
 	 * This method handles specific constraints such as {@link EntityProperty} with
@@ -488,6 +555,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	@Nonnull
 	@Override
 	public Stream<Sorter> createSorter(@Nonnull ReferenceProperty referenceProperty, @Nonnull OrderByVisitor orderByVisitor) {
+		assertChildConstraintsSupported(referenceProperty);
 		final String referenceName = referenceProperty.getReferenceName();
 		final EntitySchema entitySchema = orderByVisitor.getSchema();
 		final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);

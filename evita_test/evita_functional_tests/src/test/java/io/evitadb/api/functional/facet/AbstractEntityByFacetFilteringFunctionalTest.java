@@ -6495,6 +6495,48 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
+	 * Returns the rows of the orderings by a reference of the {@link #FACET_SCOPE_SHAPES} data set whose nested
+	 * constraint `referenceProperty` cannot use - an `entityProperty` other than the one of the primary key, and an
+	 * `entityGroupProperty`. Whether the nested constraint is translated at all depends on the data - on whether there
+	 * is a reduced index to sort by - so the rows cover the items, whose folders hold no archived node, and the groups,
+	 * which reference nothing by {@link #REF_CATEGORY}. Each row has the shape of {@link #hierarchyConstraintRows()}.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> misplacedReferencePropertyRows() {
+		return Stream.of(
+			inEveryScope(
+				"entity property of the referenced folders in the ordering of the items",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER_ITEM),
+					filterBy(scope(scope)),
+					orderBy(referenceProperty(REF_FOLDER, entityProperty(attributeNatural(ATTRIBUTE_CODE))))
+				),
+				EvitaInvalidUsageException.class, REF_FOLDER
+			),
+			inEveryScope(
+				"entity group property of the referenced folders in the ordering of the items",
+				scope -> query(
+					collection(ENTITY_SCOPED_FOLDER_ITEM),
+					filterBy(scope(scope)),
+					orderBy(referenceProperty(REF_FOLDER, entityGroupProperty(attributeNatural(ATTRIBUTE_CODE))))
+				),
+				EvitaInvalidUsageException.class, REF_FOLDER
+			),
+			inEveryScope(
+				"entity property of the referenced tags in the ordering of the groups",
+				scope -> query(
+					collection(ENTITY_SCOPED_TAG_GROUP),
+					filterBy(scope(scope)),
+					orderBy(referenceProperty(REF_CATEGORY, entityProperty(attributeNatural(ATTRIBUTE_CODE))))
+				),
+				EvitaInvalidUsageException.class, REF_CATEGORY
+			)
+		).flatMap(Function.identity());
+	}
+
+	/**
 	 * Builds the query of the products of the {@link #FACET_SCOPE_SHAPES} data set of the passed scope fetching the
 	 * passed references.
 	 *
@@ -6545,8 +6587,9 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * Checks that a hierarchy constraint, a nested ordering, a stop node of the fetched parents or a filter or an
-	 * ordering of the fetched references the schema refuses fails the query with the same client error in every scope -
+	 * Checks that a hierarchy constraint, a nested ordering, a stop node of the fetched parents, a filter or an
+	 * ordering of the fetched references the schema refuses, or a constraint misplaced in the ordering by a reference,
+	 * fails the query with the same client error in every scope -
 	 * also where the hierarchy it searches or describes, or the entity type it orders, holds no entity, whether or not
 	 * the query returns an entity with a parent, and whether or not it returns an entity referencing an existing
 	 * entity - so that the query does not fail or pass depending on the data.
@@ -6561,7 +6604,12 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should fail the query whose nested constraint cannot be evaluated in every scope")
 	@UseDataSet(FACET_SCOPE_SHAPES)
 	@ParameterizedTest(name = "{0} in {1}")
-	@MethodSource({"hierarchyConstraintRows", "nestedOrderingRows", "hierarchyContentRows", "referenceContentRows"})
+	@MethodSource(
+		{
+			"hierarchyConstraintRows", "nestedOrderingRows", "hierarchyContentRows", "referenceContentRows",
+			"misplacedReferencePropertyRows"
+		}
+	)
 	void shouldFailQueryWhoseNestedConstraintCannotBeEvaluatedInEveryScope(
 		@Nonnull String label,
 		@Nonnull Scope scope,
@@ -6814,6 +6862,26 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 							entityHaving(attributeEquals(ATTRIBUTE_CODE, "tag10"))
 						),
 						orderBy(entityProperty(entityPrimaryKeyNatural(OrderDirection.DESC)))
+					)
+				),
+				IntStream.of(SCOPED_TAG_GROUPS).distinct().toArray(), null, new String[0]
+			),
+			Arguments.of(
+				"primary key of the referenced folders in the ordering of the items",
+				query(
+					collection(ENTITY_SCOPED_FOLDER_ITEM),
+					filterBy(scope(archived)),
+					orderBy(referenceProperty(REF_FOLDER, entityProperty(entityPrimaryKeyNatural(OrderDirection.DESC))))
+				),
+				new int[] {2}, null, new String[0]
+			),
+			Arguments.of(
+				"primary key of the referenced tags in the ordering of the groups",
+				query(
+					collection(ENTITY_SCOPED_TAG_GROUP),
+					filterBy(scope(Scope.LIVE)),
+					orderBy(
+						referenceProperty(REF_CATEGORY, entityProperty(entityPrimaryKeyNatural(OrderDirection.DESC)))
 					)
 				),
 				IntStream.of(SCOPED_TAG_GROUPS).distinct().toArray(), null, new String[0]
