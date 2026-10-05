@@ -32,6 +32,7 @@ import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
@@ -71,10 +72,13 @@ import static io.evitadb.api.query.QueryConstraints.attributeEquals;
 import static io.evitadb.api.query.QueryConstraints.attributeNatural;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.debug;
+import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
+import static io.evitadb.api.query.QueryConstraints.entityProperty;
 import static io.evitadb.api.query.QueryConstraints.facetHaving;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
+import static io.evitadb.api.query.QueryConstraints.referenceContent;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static io.evitadb.api.query.QueryConstraints.referenceProperty;
 import static io.evitadb.api.query.QueryConstraints.require;
@@ -126,11 +130,17 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	private static final String CATALOG = "requestedCapabilityAccumulationTest";
 	private static final String ENTITY_PRODUCT = "product";
 	private static final String ENTITY_CATEGORY = "category";
+	/** A type whose only entity is archived and references a category, which has no archived entity. */
+	private static final String ENTITY_STOCK = "stock";
 	private static final String REFERENCE_CATEGORIES = "categories";
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_PRIORITY = "priority";
 	private static final String ATTRIBUTE_EAN = "ean";
 	private static final String ATTRIBUTE_ORDER_IN_CATEGORY = "orderInCategory";
+	/** The attribute of {@link #ENTITY_CATEGORY}, filterable and sortable in every scope. */
+	private static final String ATTRIBUTE_CATEGORY_NAME = "categoryName";
+	/** The only stock, archived. */
+	private static final int ARCHIVED_STOCK = 1;
 	private static final String COMPOUND_CODE_WITH_PRIORITY = "codeWithPriority";
 	private static final int CATEGORY_COUNT = 4;
 	private static final int PRODUCTS_PER_CATEGORY = 5;
@@ -493,26 +503,78 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("A query the planner answers without selecting any index counts nothing")
-		void shouldCountNothingWhenNoIndexIsSelected() {
-			// index selection comes back empty for a category no product references, and the planner returns the
-			// empty plan - its filter is translated over empty indexes only to be checked, so `code` is named by the
-			// query and still must not be counted
+		@DisplayName("A query whose reference constraint matches nothing counts what its twin matching data counts")
+		void shouldCountQueryWhoseReferenceConstraintMatchesNothing() {
+			// index selection comes back empty for a category no product references, and the planner answers with the
+			// empty plan after checking the constraints over empty indexes - the query still named `code` and
+			// `priority`, and dropping either flag would break it, so it counts exactly like its twin that matches data
 			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByExecuting(
-				Query.query(
-					collection(ENTITY_PRODUCT),
-					filterBy(
-						and(
-							attributeEquals(ATTRIBUTE_CODE, "product-3"),
-							referenceHaving(REFERENCE_CATEGORIES, entityPrimaryKeyInSet(CATEGORY_COUNT + 1))
-						)
-					)
-				)
+				productsOfCategoryOrderedByPriority(CATEGORY_COUNT + 1)
+			);
+			final Map<SchemaCapabilityKey, Long> requestedByTwin = capabilitiesRequestedByExecuting(
+				productsOfCategoryOrderedByPriority(QUERIED_CATEGORY)
 			);
 
-			assertTrue(
-				requested.isEmpty(),
-				"The empty-plan short-circuit counted a request: " + requested
+			assertEquals(
+				Map.of(CODE_FILTER, 1L, PRIORITY_SORT, 1L), requestedByTwin,
+				"The twin matching data must count each capability it named once"
+			);
+			assertEquals(
+				requestedByTwin, requested,
+				"The query matching nothing must count exactly what its twin matching data counts"
+			);
+		}
+
+		@Test
+		@DisplayName("A query over a scope without data counts what its twin over a scope with data counts")
+		void shouldCountQueryOverScopeWithoutData() {
+			// the categories hold no archived entity, so index selection comes back empty for the archived scope and
+			// the planner answers with the empty plan after checking the filter and the ordering over empty indexes
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY, categoriesByNameInScope(Scope.ARCHIVED)
+			);
+			final Map<SchemaCapabilityKey, Long> requestedByTwin = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY, categoriesByNameInScope(Scope.LIVE)
+			);
+
+			assertEquals(
+				Map.of(
+					categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L,
+					categoryNameKey(Capability.SORTABLE, Scope.LIVE), 1L
+				),
+				requestedByTwin,
+				"The twin over the scope with data must count each capability it named once"
+			);
+			assertEquals(
+				Map.of(
+					categoryNameKey(Capability.FILTERABLE, Scope.ARCHIVED), 1L,
+					categoryNameKey(Capability.SORTABLE, Scope.ARCHIVED), 1L
+				),
+				requested,
+				"The query over the scope without data must count each capability it named once, like its twin"
+			);
+		}
+
+		@Test
+		@DisplayName("A nested query over a scope without data counts what its twin over a scope with data counts")
+		void shouldCountNestedQueryOverScopeWithoutData() {
+			// the references of the archived stock are ordered by a nested query over the archived categories, of
+			// which there is none - that nested query is answered by the empty plan, while the same ordering of the
+			// references of a live product is planned over the live categories
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY, entityWithCategoriesOrderedByName(ENTITY_STOCK, Scope.ARCHIVED)
+			);
+			final Map<SchemaCapabilityKey, Long> requestedByTwin = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY, entityWithCategoriesOrderedByName(ENTITY_PRODUCT, Scope.LIVE)
+			);
+
+			assertEquals(
+				Map.of(categoryNameKey(Capability.SORTABLE, Scope.LIVE), 1L), requestedByTwin,
+				"The nested query over the scope with data must count the capability it named once"
+			);
+			assertEquals(
+				Map.of(categoryNameKey(Capability.SORTABLE, Scope.ARCHIVED), 1L), requested,
+				"The nested query over the scope without data must count the capability it named once, like its twin"
 			);
 		}
 
@@ -603,6 +665,101 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Same reading as {@link #capabilitiesRequestedByExecuting(Query)}, but for a query whose entities are fetched with
+	 * their bodies, and read on the registry of the passed collection - the one whose schema declares what the query
+	 * or a nested query of it named.
+	 *
+	 * @param entityType the collection whose registry is read
+	 * @param query      the query to execute
+	 * @return the capabilities whose count the query moved on that registry, and by how much
+	 */
+	@Nonnull
+	private Map<SchemaCapabilityKey, Long> capabilitiesRequestedByFetching(
+		@Nonnull String entityType,
+		@Nonnull Query query
+	) {
+		final Map<SchemaCapabilityKey, Long> before = requestedCounts(entityType);
+		this.evita.queryCatalog(
+			CATALOG,
+			session -> {
+				session.queryList(query, EntityClassifier.class);
+			}
+		);
+		return requestedCountsSince(entityType, before);
+	}
+
+	/**
+	 * Builds the query of the products of one category filtered by `code` and ordered by `priority`.
+	 *
+	 * @param categoryPrimaryKey the category the products must reference
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query productsOfCategoryOrderedByPriority(int categoryPrimaryKey) {
+		return Query.query(
+			collection(ENTITY_PRODUCT),
+			filterBy(
+				and(
+					attributeEquals(ATTRIBUTE_CODE, "product-3"),
+					referenceHaving(REFERENCE_CATEGORIES, entityPrimaryKeyInSet(categoryPrimaryKey))
+				)
+			),
+			orderBy(attributeNatural(ATTRIBUTE_PRIORITY, OrderDirection.DESC))
+		);
+	}
+
+	/**
+	 * Builds the query of the categories of one scope filtered and ordered by their name.
+	 *
+	 * @param scope the scope to query
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query categoriesByNameInScope(@Nonnull Scope scope) {
+		return Query.query(
+			collection(ENTITY_CATEGORY),
+			filterBy(and(scope(scope), attributeEquals(ATTRIBUTE_CATEGORY_NAME, "category-1"))),
+			orderBy(attributeNatural(ATTRIBUTE_CATEGORY_NAME, OrderDirection.ASC))
+		);
+	}
+
+	/**
+	 * Builds the query fetching the first entity of one type and scope with its references to the categories ordered
+	 * by the name of the category.
+	 *
+	 * @param entityType the type of the queried entity, declaring the reference {@link #REFERENCE_CATEGORIES}
+	 * @param scope      the scope to query
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query entityWithCategoriesOrderedByName(@Nonnull String entityType, @Nonnull Scope scope) {
+		return Query.query(
+			collection(entityType),
+			filterBy(and(scope(scope), entityPrimaryKeyInSet(1))),
+			require(
+				entityFetch(
+					referenceContent(
+						REFERENCE_CATEGORIES,
+						orderBy(entityProperty(attributeNatural(ATTRIBUTE_CATEGORY_NAME, OrderDirection.ASC)))
+					)
+				)
+			)
+		);
+	}
+
+	/**
+	 * Returns the key of a capability of the name of the category.
+	 *
+	 * @param capability the flag
+	 * @param scope      the scope
+	 * @return the key
+	 */
+	@Nonnull
+	private static SchemaCapabilityKey categoryNameKey(@Nonnull Capability capability, @Nonnull Scope scope) {
+		return SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CATEGORY_NAME, capability, scope);
+	}
+
+	/**
 	 * Executes one query the way a client would.
 	 *
 	 * @param query the query to execute
@@ -623,8 +780,19 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private Map<SchemaCapabilityKey, Long> requestedCounts() {
+		return requestedCounts(ENTITY_PRODUCT);
+	}
+
+	/**
+	 * Reads every request count the registry of the passed collection currently holds.
+	 *
+	 * @param entityType the collection whose registry is read
+	 * @return the counts, keyed by capability
+	 */
+	@Nonnull
+	private Map<SchemaCapabilityKey, Long> requestedCounts(@Nonnull String entityType) {
 		final Map<SchemaCapabilityKey, Long> result = new HashMap<>();
-		for (final UsageEntry entry : productCollection().getUsageRegistry().listUsages()) {
+		for (final UsageEntry entry : entityCollection(entityType).getUsageRegistry().listUsages()) {
 			result.put(entry.key(), entry.usage().getRequestedCount());
 		}
 		return result;
@@ -641,8 +809,24 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private Map<SchemaCapabilityKey, Long> requestedCountsSince(@Nonnull Map<SchemaCapabilityKey, Long> before) {
+		return requestedCountsSince(ENTITY_PRODUCT, before);
+	}
+
+	/**
+	 * Reports how much each request count of the registry of the passed collection has moved since the snapshot was
+	 * taken, dropping the ones that did not move.
+	 *
+	 * @param entityType the collection whose registry is read
+	 * @param before     counts read before the query ran
+	 * @return the capabilities whose count moved, and by how much
+	 */
+	@Nonnull
+	private Map<SchemaCapabilityKey, Long> requestedCountsSince(
+		@Nonnull String entityType,
+		@Nonnull Map<SchemaCapabilityKey, Long> before
+	) {
 		final Map<SchemaCapabilityKey, Long> result = new LinkedHashMap<>();
-		for (final UsageEntry entry : productCollection().getUsageRegistry().listUsages()) {
+		for (final UsageEntry entry : entityCollection(entityType).getUsageRegistry().listUsages()) {
 			final long delta = entry.usage().getRequestedCount() - before.getOrDefault(entry.key(), 0L);
 			if (delta != 0L) {
 				result.put(entry.key(), delta);
@@ -782,10 +966,21 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private EntityCollection productCollection() {
+		return entityCollection(ENTITY_PRODUCT);
+	}
+
+	/**
+	 * Looks a collection up behind the public API - the registry it holds is engine-internal state.
+	 *
+	 * @param entityType the type of the collection
+	 * @return the collection
+	 */
+	@Nonnull
+	private EntityCollection entityCollection(@Nonnull String entityType) {
 		return ((Catalog) this.evita.getCatalogInstanceOrThrowException(CATALOG))
-			.getCollectionForEntityInternal(ENTITY_PRODUCT)
+			.getCollectionForEntityInternal(entityType)
 			.orElseThrow(
-				() -> new AssertionError("Catalog `" + CATALOG + "` holds no collection `" + ENTITY_PRODUCT + "`")
+				() -> new AssertionError("Catalog `" + CATALOG + "` holds no collection `" + entityType + "`")
 			);
 	}
 
@@ -815,14 +1010,30 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	/**
 	 * Builds a fixture with several candidate index sets to plan against and one element of every kind the query side
 	 * can request: an entity attribute filtered on, one ordered by, a sortable compound, a reference attribute usable
-	 * both ways, and a filterable attribute nothing ever names.
+	 * both ways, and a filterable attribute nothing ever names. The categories are live only, and the only stock is
+	 * archived and references a category - so a query over the archived categories, or a nested query of the archived
+	 * stock over them, matches nothing because the scope holds no data.
 	 */
 	private void buildCatalog() {
 		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
 		this.evita.updateCatalog(
 			CATALOG,
 			session -> {
-				session.defineEntitySchema(ENTITY_CATEGORY).withoutGeneratedPrimaryKey().updateVia(session);
+				session.defineEntitySchema(ENTITY_CATEGORY)
+					.withoutGeneratedPrimaryKey()
+					.withAttribute(
+						ATTRIBUTE_CATEGORY_NAME, String.class,
+						thatIs -> thatIs.filterableInScope(Scope.values()).sortableInScope(Scope.values())
+					)
+					.updateVia(session);
+				session.defineEntitySchema(ENTITY_STOCK)
+					.withoutGeneratedPrimaryKey()
+					.withReferenceToEntity(REFERENCE_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE)
+					.updateVia(session);
+				session.upsertEntity(
+					session.createNewEntity(ENTITY_STOCK, ARCHIVED_STOCK).setReference(REFERENCE_CATEGORIES, 1)
+				);
+				session.archiveEntity(ENTITY_STOCK, ARCHIVED_STOCK);
 				session.defineEntitySchema(ENTITY_PRODUCT)
 					.withoutGeneratedPrimaryKey()
 					.withAttribute(
@@ -854,7 +1065,10 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 					)
 					.updateVia(session);
 				for (int i = 1; i <= CATEGORY_COUNT; i++) {
-					session.upsertEntity(session.createNewEntity(ENTITY_CATEGORY, i));
+					session.upsertEntity(
+						session.createNewEntity(ENTITY_CATEGORY, i)
+							.setAttribute(ATTRIBUTE_CATEGORY_NAME, "category-" + i)
+					);
 				}
 				for (int i = 1; i <= PRODUCT_COUNT; i++) {
 					final int productPrimaryKey = i;

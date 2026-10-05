@@ -101,10 +101,27 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	@Getter private Collection<ExtraResultProducer> extraResultProducers = Collections.emptyList();
 
 	/**
-	 * Returns empty query plan.
+	 * Returns empty query plan - the answer to a query the index selection proved to match nothing.
+	 *
+	 * Such a query uses no index, so no index counts it as queried, but it still counts the schema capabilities it
+	 * requested ({@link SchemaCapabilityUsage}): its constraints were checked by
+	 * {@link QueryPlanner#planOverEmptyIndexes} exactly as they are translated where the entities exist, and dropping
+	 * any flag they needed would break the query.
+	 * The drain counts them once per logical query, the same as {@link #build()} does - a query is answered either by
+	 * this plan or by a built one, never by both.
+	 *
+	 * @param queryContext planning context of the query, holding the capabilities its check accumulated
+	 * @return the plan producing no entity
 	 */
 	@Nonnull
 	public static QueryPlan empty(@Nonnull QueryPlanningContext queryContext) {
+		final List<SchemaCapabilityUsage> requestedCapabilities = queryContext.drainRequestedCapabilities();
+		if (!requestedCapabilities.isEmpty()) {
+			final long now = System.currentTimeMillis();
+			for (SchemaCapabilityUsage requestedCapability : requestedCapabilities) {
+				requestedCapability.recordRequested(now);
+			}
+		}
 		return new QueryPlan(
 			queryContext,
 			"None",
@@ -183,7 +200,7 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	 * This is also where the winning index set is counted as **queried** ({@link IndexActivity}). The seam is here
 	 * rather than on {@link QueryPlan} because this is the last point that still holds the index *instances*, which
 	 * the plan itself does not - it carries only their description string. A query answered without any index at all
-	 * goes through {@link #empty(QueryPlanningContext)} instead and correctly counts nothing.
+	 * goes through {@link #empty(QueryPlanningContext)} instead and correctly counts no index.
 	 *
 	 * **One increment means "the planner handed this plan back", not "this plan produced a response".** The set counted
 	 * is the one that won the cost comparison, and a losing variant is normally never built - but two callers build a
@@ -207,10 +224,11 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	 * holding nothing - every further build of that same query finds an empty list. That difference is not an
 	 * inconsistency: an index counts a physical read that genuinely happened again, while a capability counts a
 	 * question the query asked, and asking it a second time to verify the answer does not make it a second question.
-	 * The empty-plan short-circuit {@link #empty(QueryPlanningContext)} counts neither. It is taken when index
-	 * selection comes back empty, and the constraints of such a query are translated only to be checked - over empty
-	 * indexes, by {@link QueryPlanner#planOverEmptyIndexes} - in a pass whose plan is thrown away, so what that
-	 * translation accumulates is never drained.
+	 * The empty-plan short-circuit {@link #empty(QueryPlanningContext)} counts the capabilities but no index. It is
+	 * taken when index selection comes back empty, and the constraints of such a query are translated only to be
+	 * checked - over empty indexes, by {@link QueryPlanner#planOverEmptyIndexes} - in a pass whose plan is thrown away.
+	 * What that translation accumulates is drained by the empty plan instead, because the query asked for it all the
+	 * same: counting it nowhere would make a flag only such queries use look dead.
 	 *
 	 * The cost is `O(winning set)` volatile increments plus one per distinct capability the query named, both bounded
 	 * from below by the reads the query is about to perform on those very indexes.

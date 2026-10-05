@@ -297,6 +297,10 @@ public class QueryPlanner {
 	 * outcome, and the cost stays at one translation over indexes holding nothing. A query without an entity type is
 	 * not checked - there is no schema to check it against.
 	 *
+	 * The plan is thrown away, but the schema capabilities its translation requested stay accumulated in the context,
+	 * and {@link QueryPlanBuilder#empty(QueryPlanningContext)} counts them: a valid query that matches nothing asks the
+	 * schema for the same flags as one that matches something.
+	 *
 	 * @param context          planning context of the query
 	 * @param withExtraResults true when the extra results of the query are planned as well - false for a nested query,
 	 *                         which plans none
