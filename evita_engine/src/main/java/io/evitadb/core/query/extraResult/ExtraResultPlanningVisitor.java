@@ -50,6 +50,7 @@ import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
 import io.evitadb.core.query.algebra.facet.FacetHavingFormula;
@@ -349,13 +350,40 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 	@Nonnull
 	public Formula getFilteringFormulaWithoutUserFilter() {
 		if (this.filteringFormulaWithoutUserFilter == null) {
-			this.filteringFormulaWithoutUserFilter = ofNullable(
-				FormulaCloner.clone(
-					this.filteringFormula,
-					formula -> formula instanceof UserFilterFormula ? null : formula
-				)).orElseGet(this::getSuperSetFormula);
+			final Formula superSetFormula = getSuperSetFormula();
+			this.filteringFormulaWithoutUserFilter = ofNullable(withoutUserFilter(this.filteringFormula, superSetFormula))
+				.orElse(superSetFormula);
 		}
 		return this.filteringFormulaWithoutUserFilter;
+	}
+
+	/**
+	 * Returns the passed formula stripped of all {@link UserFilterFormula} parts. A negated constraint next to the user
+	 * filter is planned as a {@link NotFormula} subtracting the constraint from the user filter, and stripping the user
+	 * filter from it would leave nothing to subtract from and drop the negated constraint as well - so the constraint
+	 * is subtracted from the superset instead, as if the user filter had never been there.
+	 *
+	 * @param formula         the formula to strip
+	 * @param superSetFormula the formula of all entities the filtering formula is planned over
+	 * @return the stripped formula, or NULL when nothing but the user filter is left
+	 */
+	@Nullable
+	private static Formula withoutUserFilter(@Nonnull Formula formula, @Nonnull Formula superSetFormula) {
+		return FormulaCloner.clone(
+			formula,
+			examinedFormula -> {
+				if (examinedFormula instanceof UserFilterFormula) {
+					return null;
+				} else if (examinedFormula instanceof NotFormula notFormula &&
+					notFormula.getSupersetFormula() instanceof UserFilterFormula) {
+					final Formula subtractedFormula = withoutUserFilter(notFormula.getSubtractedFormula(), superSetFormula);
+					return subtractedFormula == null ?
+						superSetFormula : notFormula.getCloneWithInnerFormulas(subtractedFormula, superSetFormula);
+				} else {
+					return examinedFormula;
+				}
+			}
+		);
 	}
 
 	/**

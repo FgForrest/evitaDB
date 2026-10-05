@@ -3130,14 +3130,11 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					expected.length :
 					session.query(shapedTopLevelFilterQuery(aloneFilter, relations), EntityReference.class)
 						.getTotalRecordCount();
-				final int countWithoutUserFilter = facetCountOf(
-					session.query(
-						shapedTopLevelFilterQuery(
-							mandatoryFilter, relations, referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS)
-						),
-						EntityReference.class
+				final EvitaResponse<EntityReference> withoutUserFilter = session.query(
+					shapedTopLevelFilterQuery(
+						mandatoryFilter, relations, referenceSummaryOfReference(referenceName, FacetStatisticsDepth.COUNTS)
 					),
-					referenceName, groupId, optionId
+					EntityReference.class
 				);
 
 				final EvitaResponse<EntityReference> withSummary = session.query(
@@ -3166,13 +3163,41 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					"the reference summary must predict whether selecting the option makes sense"
 				);
 				assertEquals(
-					countWithoutUserFilter,
+					facetCountOf(withoutUserFilter, referenceName, groupId, optionId),
 					statistics.getCount(),
 					"the count of the option must not depend on the user filter"
+				);
+				assertEquals(
+					groupStatisticsOf(withoutUserFilter, referenceName, groupId).getCount(),
+					groupStatisticsOf(withSummary, referenceName, groupId).getCount(),
+					"the count of the group of the option must not depend on the user filter"
 				);
 				return null;
 			}
 		);
+	}
+
+	/**
+	 * Returns the statistics of the passed group the reference summary of the passed response computes.
+	 *
+	 * @param response      the response carrying the reference summary
+	 * @param referenceName the reference the group belongs to
+	 * @param groupId       the group, NULL for the options without a group
+	 * @return the statistics of the group
+	 */
+	@Nonnull
+	private static ReferenceGroupStatistics groupStatisticsOf(
+		@Nonnull EvitaResponse<EntityReference> response,
+		@Nonnull String referenceName,
+		@Nullable Integer groupId
+	) {
+		final ReferenceSummary summary = response.getExtraResult(ReferenceSummary.class);
+		assertNotNull(summary, "the reference summary must be computed");
+		final ReferenceGroupStatistics groupStatistics = groupId == null ?
+			summary.getReferenceGroupStatistics(referenceName) :
+			summary.getReferenceGroupStatistics(referenceName, groupId);
+		assertNotNull(groupStatistics, "the group " + groupId + " of `" + referenceName + "` must have statistics");
+		return groupStatistics;
 	}
 
 	/**
