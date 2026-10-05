@@ -33,11 +33,13 @@ import io.evitadb.api.exception.CatalogAlreadyPresentException;
 import io.evitadb.api.exception.CatalogNotFoundException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.file.FileForFetch;
+import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.task.ServerTask;
 import io.evitadb.api.task.Task;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.CatalogConsumerControl;
 import io.evitadb.core.management.EvitaManagement;
 import io.evitadb.dataType.PaginatedList;
@@ -67,8 +69,10 @@ import java.util.concurrent.TimeoutException;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.TASK;
+import static io.evitadb.test.TestTags.WAL;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -567,6 +571,10 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		 * Name of the PRODUCT reference to BRAND used by the test needing an entity index of its own.
 		 */
 		private static final String REFERENCE_BRAND = "brand";
+		/**
+		 * How many brands {@link #commitBrandsAfterCapture()} commits after a backup task captured its version.
+		 */
+		private static final int BRANDS_COMMITTED_AFTER_CAPTURE = 3;
 
 		@Test
 		@DisplayName("A collection moved by a later commit is copied as it stood at the captured version")
@@ -575,6 +583,7 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 
 			final String restoredCatalogName = backUpCurrentStateAndRestore(
 				capturedVersion,
+				false,
 				() -> evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
@@ -598,6 +607,7 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 
 			final String restoredCatalogName = backUpCurrentStateAndRestore(
 				capturedVersion,
+				false,
 				() -> evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
@@ -638,6 +648,7 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 			// the later commit assigns the next product primary key and creates an entity index for the second brand
 			final String restoredCatalogName = backUpCurrentStateAndRestore(
 				capturedVersion,
+				false,
 				() -> evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
@@ -664,17 +675,136 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 			);
 		}
 
+		@Test
+		@Tag(WAL)
+		@DisplayName("An activated restore of a backup including the WAL serves the state the WAL was replayed to")
+		void shouldServeTheReplayedStateWhenTheRestoredBackupIncludesTheWal() throws Exception {
+			final long capturedVersion = versions.get(BRAND_COUNT - 1);
+
+			final String restoredCatalogName = backUpCurrentStateAndRestore(
+				capturedVersion,
+				true,
+				this::commitBrandsAfterCapture
+			);
+			final long walHeadVersion = catalogVersion(TEST_CATALOG);
+			final int walHeadBrandCount = BRAND_COUNT + BRANDS_COMMITTED_AFTER_CAPTURE;
+			// precondition - the archive's data stands at the captured version and only its WAL reaches the head,
+			// so the state asserted below can come from nowhere but the replay
+			assertTrue(
+				walHeadVersion > capturedVersion,
+				"The commits after the capture must have moved the source catalog past the captured version!"
+			);
+
+			// the restore replays the WAL on activation - the activated catalog has to be the replayed one, not the
+			// instance that was loaded at the captured version before the replay ran
+			assertEquals(
+				walHeadVersion, catalogVersion(restoredCatalogName),
+				"The activated catalog must stand at the version its WAL was replayed to!"
+			);
+			assertEquals(
+				walHeadBrandCount, brandCount(restoredCatalogName),
+				"The activated catalog must hold the brands its WAL replayed!"
+			);
+
+			// the next commit continues the replayed history - one version further, nothing lost and nothing doubled
+			final int nextBrandId = walHeadBrandCount + 1;
+			evita.updateCatalog(
+				restoredCatalogName,
+				session -> {
+					session.upsertEntity(session.createNewEntity(Entities.BRAND, nextBrandId));
+				}
+			);
+			assertEquals(walHeadVersion + 1, catalogVersion(restoredCatalogName));
+			assertEquals(walHeadBrandCount + 1, brandCount(restoredCatalogName));
+		}
+
+		@Test
+		@Tag(WAL)
+		@DisplayName("The load of a restored backup including the WAL yields the instance the WAL was replayed to")
+		void shouldYieldTheReplayedInstanceFromTheLoadOfARestoredBackupIncludingTheWal() throws Exception {
+			final long capturedVersion = versions.get(BRAND_COUNT - 1);
+
+			final String restoredCatalogName = backUpCurrentStateAndRestoreInactive(
+				capturedVersion,
+				true,
+				this::commitBrandsAfterCapture
+			);
+			final long walHeadVersion = catalogVersion(TEST_CATALOG);
+			// precondition - the archive's data stands at the captured version and only its WAL reaches the head
+			assertTrue(
+				walHeadVersion > capturedVersion,
+				"The commits after the capture must have moved the source catalog past the captured version!"
+			);
+
+			// the activation installs whatever this future yields, so the future must yield the replayed instance
+			// itself - reading it back from the engine state instead is not reliable, because the load publishes it
+			// there without the engine state lock and a concurrent engine mutation can overwrite that publication
+			final ProgressingFuture<Catalog> load = evita.loadCatalogInternal(restoredCatalogName, false);
+			load.execute(ProgressingFuture.unrejectableExecutor(evita.getRequestExecutor()));
+			final Catalog loadedCatalog = load.get(OPERATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+
+			assertEquals(
+				walHeadVersion, loadedCatalog.getVersion(),
+				"The load must yield the instance its WAL was replayed to, not the one loaded at the captured version!"
+			);
+			assertSame(
+				evita.getCatalogInstance(restoredCatalogName).orElseThrow(), loadedCatalog,
+				"The load must yield the very instance its replay published into the engine state!"
+			);
+		}
+
+		/**
+		 * Commits {@link #BRANDS_COMMITTED_AFTER_CAPTURE} brands into the source catalog, one per transaction, so that
+		 * its write-ahead log reaches past the version a backup task captured.
+		 */
+		private void commitBrandsAfterCapture() {
+			for (int i = 1; i <= BRANDS_COMMITTED_AFTER_CAPTURE; i++) {
+				final int brandId = BRAND_COUNT + i;
+				evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.upsertEntity(session.createNewEntity(Entities.BRAND, brandId));
+					}
+				);
+			}
+		}
+
 		/**
 		 * Creates a backup task of the current state, lets `commitAfterCapture` move the catalog past the version the
 		 * task captured, then runs the task and restores its archive under a new name.
 		 *
 		 * @param capturedVersion    the version the catalog is at when the task is created
+		 * @param includingWAL       whether the archive carries the write-ahead log - copied whole when the task
+		 *                           runs, so it holds the commits that landed after the capture too
 		 * @param commitAfterCapture the commit landing between the creation of the task and its run
 		 * @return name of the activated restored catalog
 		 */
 		@Nonnull
 		private String backUpCurrentStateAndRestore(
 			long capturedVersion,
+			boolean includingWAL,
+			@Nonnull Runnable commitAfterCapture
+		) throws Exception {
+			final String restoredCatalogName = backUpCurrentStateAndRestoreInactive(
+				capturedVersion, includingWAL, commitAfterCapture
+			);
+			evita.activateCatalog(restoredCatalogName);
+			return restoredCatalogName;
+		}
+
+		/**
+		 * Does what {@link #backUpCurrentStateAndRestore} does, except that the restored catalog is left inactive.
+		 *
+		 * @param capturedVersion    the version the catalog is at when the task is created
+		 * @param includingWAL       whether the archive carries the write-ahead log - copied whole when the task
+		 *                           runs, so it holds the commits that landed after the capture too
+		 * @param commitAfterCapture the commit landing between the creation of the task and its run
+		 * @return name of the restored, still inactive catalog
+		 */
+		@Nonnull
+		private String backUpCurrentStateAndRestoreInactive(
+			long capturedVersion,
+			boolean includingWAL,
 			@Nonnull Runnable commitAfterCapture
 		) throws Exception {
 			// precondition - the task below captures the published version, which must be the one the test expects
@@ -685,7 +815,7 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 				.orElseThrow();
 			// the actual branch: no past moment and no version, the task copies whatever is published right now
 			final ServerTask<?, FileForFetch> backupTask = sourceCatalog.createBackupTask(
-				null, null, false, consumerControl::pinCatalogVersion
+				null, null, includingWAL, consumerControl::pinCatalogVersion
 			);
 			final FileForFetch backupFile;
 			try {
@@ -715,7 +845,6 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 					.getFutureResult()
 					.get(OPERATION_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 			}
-			evita.activateCatalog(restoredCatalogName);
 			return restoredCatalogName;
 		}
 	}

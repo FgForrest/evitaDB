@@ -29,6 +29,7 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.core.Evita;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.exception.CatalogInactiveException;
@@ -40,6 +41,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -133,7 +135,9 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 									return ExpandedEngineState
 										.builder(expandedEngineState)
 										.withVersion(version)
-										.withCatalog(installed)
+										.withCatalog(
+											newestOf(installed, expandedEngineState.getCatalog(catalogName).orElse(null))
+										)
 										.build();
 								}
 							}
@@ -212,6 +216,41 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 				}
 			);
 		}
+	}
+
+	/**
+	 * Picks the catalog instance the activation installs: the one the load settled on, unless the engine state
+	 * already holds a newer instance of the very same catalog.
+	 *
+	 * The future of `Evita#loadCatalogInternal` yields the instance its write-ahead log was replayed to, and its
+	 * success callback has already put that instance into the engine state. From that moment sessions open on it
+	 * and commits move it further, each of them swapping its successor in through `Evita#replaceCatalogReference`.
+	 * Installing the instance the future yielded over such a successor would roll the activated catalog back by
+	 * those commits until the next commit replaces it again, so the newer instance is kept.
+	 *
+	 * Any real `Catalog` present here belongs to that replayed lineage, which is why the version alone tells the
+	 * instances apart. The transition phase installed an `UnusableCatalog` placeholder; a concurrent activation,
+	 * deactivation or go-live of the same catalog is refused by its conflict key; and while it is being activated,
+	 * the only code installing a real instance under its name is the load's success callback and the commit
+	 * pipeline of the instance that callback published.
+	 *
+	 * **This keeps a commit that landed before the state was read, not every commit.** The choice is made from
+	 * the state read under the engine state lock, but published only after the engine write-ahead log append that
+	 * follows. `Evita#replaceCatalogReference` swaps a commit into the wrapper of the snapshot being replaced, not
+	 * into the fresh one this activation publishes, so a commit landing during that append is dropped from the
+	 * engine state until the next commit replaces the instance again. Readers see the chosen instance for that
+	 * span; nothing is lost, because every commit builds on its transaction manager's last finalized catalog rather
+	 * than on the engine state.
+	 *
+	 * @param loaded  the instance the load future completed with
+	 * @param current the instance the engine state holds right now, `null` when it holds none
+	 * @return the instance to install
+	 */
+	@Nonnull
+	private static CatalogContract newestOf(@Nonnull CatalogContract loaded, @Nullable CatalogContract current) {
+		return current instanceof Catalog liveCatalog && liveCatalog.getVersion() > loaded.getVersion()
+			? liveCatalog
+			: loaded;
 	}
 
 }
