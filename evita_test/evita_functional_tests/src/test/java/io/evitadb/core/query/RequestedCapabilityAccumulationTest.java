@@ -33,6 +33,7 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
@@ -142,6 +143,12 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_CATEGORY_NAME = "categoryName";
 	/** The only stock, archived. */
 	private static final int ARCHIVED_STOCK = 1;
+	/** The type the categories reference by {@link #REFERENCE_TAGS}. */
+	private static final String ENTITY_TAG = "tag";
+	/** The reference of {@link #ENTITY_CATEGORY} to the tags; category 1 references tag 1. */
+	private static final String REFERENCE_TAGS = "tags";
+	/** The attribute of the {@link #REFERENCE_TAGS} reference, filterable in the live scope. */
+	private static final String ATTRIBUTE_WEIGHT = "weight";
 	private static final String COMPOUND_CODE_WITH_PRIORITY = "codeWithPriority";
 	private static final int CATEGORY_COUNT = 4;
 	private static final int PRODUCTS_PER_CATEGORY = 5;
@@ -184,6 +191,14 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	/** The archive counterpart of the flag above - a scope the fixture deliberately leaves undeclared. */
 	private static final SchemaCapabilityKey CATEGORIES_FACETED_ARCHIVED = SchemaCapabilityKey.reference(
 		REFERENCE_CATEGORIES, Capability.FACETED, Scope.ARCHIVED
+	);
+	/** Filtering by an attribute the `tags` reference of the categories declares. */
+	private static final SchemaCapabilityKey WEIGHT_FILTER = SchemaCapabilityKey.referenceAttribute(
+		REFERENCE_TAGS, ATTRIBUTE_WEIGHT, Capability.FILTERABLE, Scope.LIVE
+	);
+	/** The `tags` reference's own `indexed()` flag. */
+	private static final SchemaCapabilityKey TAGS_INDEXED = SchemaCapabilityKey.reference(
+		REFERENCE_TAGS, Capability.INDEXED, Scope.LIVE
 	);
 
 	private TestPaths paths;
@@ -634,6 +649,30 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		}
 
 		@Test
+		@DisplayName("A filter of the references of the fetched referenced entities counts once on their collection")
+		void shouldCountFilterOfReferencesOfFetchedReferencedEntitiesOnce() {
+			// the categories fetched with a product own the references to the tags, so the filter of those references
+			// asks the schema of the categories - it is checked while the query is planned, in a context of the
+			// category collection, and must be counted once whether or not there is a category to fetch
+			final Map<SchemaCapabilityKey, Long> requestedWithReference = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY, productWithCategoriesWithTagsFilteredByWeight(1)
+			);
+			final Map<SchemaCapabilityKey, Long> requestedWithoutProduct = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY, productWithCategoriesWithTagsFilteredByWeight(PRODUCT_COUNT + 1)
+			);
+
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(WEIGHT_FILTER, 1L, TAGS_INDEXED, 1L);
+			assertEquals(
+				expected, requestedWithReference,
+				"The query fetching a category with filtered tags must count the capabilities the filter named once"
+			);
+			assertEquals(
+				expected, requestedWithoutProduct,
+				"The query fetching no category must count what its twin fetching one counts"
+			);
+		}
+
+		@Test
 		@DisplayName("A query refused over a scope without index counts nothing")
 		void shouldCountNothingWhenQueryOverScopeWithoutIndexIsRefused() {
 			// the catalog holds no index of the archived scope, and `code` is not filterable there - the query fails
@@ -818,6 +857,31 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 				entityFetch(
 					referenceContent(
 						REFERENCE_CATEGORIES, filterBy(attributeEquals(ATTRIBUTE_ORDER_IN_CATEGORY, 1L))
+					)
+				)
+			)
+		);
+	}
+
+	/**
+	 * Builds the query fetching one product with its categories, fetched with their references to the tags filtered by
+	 * the weight of the tag in the category.
+	 *
+	 * @param productPrimaryKey the product to fetch
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query productWithCategoriesWithTagsFilteredByWeight(int productPrimaryKey) {
+		return Query.query(
+			collection(ENTITY_PRODUCT),
+			filterBy(entityPrimaryKeyInSet(productPrimaryKey)),
+			require(
+				entityFetch(
+					referenceContent(
+						REFERENCE_CATEGORIES,
+						entityFetch(
+							referenceContent(REFERENCE_TAGS, filterBy(attributeEquals(ATTRIBUTE_WEIGHT, 1L)))
+						)
 					)
 				)
 			)
@@ -1089,18 +1153,30 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	 * can request: an entity attribute filtered on, one ordered by, a sortable compound, a reference attribute usable
 	 * both ways, and a filterable attribute nothing ever names. The categories are live only, and the only stock is
 	 * archived and references a category - so a query over the archived categories, or a nested query of the archived
-	 * stock over them, matches nothing because the scope holds no data.
+	 * stock over them, matches nothing because the scope holds no data. The categories reference the tags, the first of
+	 * them tag 1 with the weight 1.
 	 */
 	private void buildCatalog() {
 		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
 		this.evita.updateCatalog(
 			CATALOG,
 			session -> {
+				session.defineEntitySchema(ENTITY_TAG)
+					.withoutGeneratedPrimaryKey()
+					.updateVia(session);
+				session.upsertEntity(session.createNewEntity(ENTITY_TAG, 1));
 				session.defineEntitySchema(ENTITY_CATEGORY)
 					.withoutGeneratedPrimaryKey()
 					.withAttribute(
 						ATTRIBUTE_CATEGORY_NAME, String.class,
 						thatIs -> thatIs.filterableInScope(Scope.values()).sortableInScope(Scope.values())
+					)
+					.withReferenceToEntity(
+						REFERENCE_TAGS, ENTITY_TAG, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.indexedInScope(Scope.LIVE)
+							.withAttribute(
+								ATTRIBUTE_WEIGHT, Long.class, thatIs -> thatIs.filterableInScope(Scope.LIVE).nullable()
+							)
 					)
 					.updateVia(session);
 				session.defineEntitySchema(ENTITY_STOCK)
@@ -1142,10 +1218,12 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 					)
 					.updateVia(session);
 				for (int i = 1; i <= CATEGORY_COUNT; i++) {
-					session.upsertEntity(
-						session.createNewEntity(ENTITY_CATEGORY, i)
-							.setAttribute(ATTRIBUTE_CATEGORY_NAME, "category-" + i)
-					);
+					final EntityBuilder category = session.createNewEntity(ENTITY_CATEGORY, i)
+						.setAttribute(ATTRIBUTE_CATEGORY_NAME, "category-" + i);
+					if (i == 1) {
+						category.setReference(REFERENCE_TAGS, 1, whichIs -> whichIs.setAttribute(ATTRIBUTE_WEIGHT, 1L));
+					}
+					session.upsertEntity(category);
 				}
 				for (int i = 1; i <= PRODUCT_COUNT; i++) {
 					final int productPrimaryKey = i;

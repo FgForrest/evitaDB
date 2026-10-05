@@ -125,6 +125,7 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.hierarchy.HierarchyIndexContract;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate.SelfTraversingPredicate;
+import io.evitadb.index.usage.SchemaCapabilityUsage;
 import io.evitadb.spi.store.catalog.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -1055,6 +1056,12 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * The cost is one translation of each constraint per scope and query; nothing is evaluated and no nested query is
 	 * planned.
 	 *
+	 * The schema capabilities the check requests of the entity owning the references are counted once per query: the
+	 * check of a nested `referenceContent` runs in a context of the referenced collection, whose requests are handed to
+	 * the context of the query, and the fetch translates the constraints again only in contexts it never counts. The
+	 * capabilities of the entities an `entityHaving`, a `groupHaving` or an ordering by the referenced entity reaches
+	 * are left to the nested queries of the fetch, which count them - the check plans none of them.
+	 *
 	 * @param queryContext    planning context of the query fetching the references
 	 * @param entitySchema    schema of the entity owning the references
 	 * @param referenceSchema schema of the fetched reference
@@ -1092,6 +1099,14 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		}
 		if (orderBy != null) {
 			verifyReferenceOrdering(ownerQueryContext, entitySchema, referenceSchema, orderBy);
+		}
+		// the context of the referenced entity is thrown away and its plan is never built, so the capabilities its
+		// check requested are handed to the query, which counts them once with its own - the fetch translates the
+		// constraints again in a context it never counts, so nothing is counted twice
+		if (ownerQueryContext != queryContext) {
+			for (SchemaCapabilityUsage requestedCapability : ownerQueryContext.drainRequestedCapabilities()) {
+				queryContext.registerRequestedCapability(requestedCapability);
+			}
 		}
 	}
 
