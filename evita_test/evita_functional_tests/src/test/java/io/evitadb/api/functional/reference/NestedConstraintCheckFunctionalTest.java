@@ -171,7 +171,8 @@ public class NestedConstraintCheckFunctionalTest {
 
 	/**
 	 * A nested filter is checked as the nested query evaluated over data plans it: in the scopes its `scope(...)`
-	 * names. A query the evaluation accepts is accepted and returns what it returned before the check existed.
+	 * names, and against the entity type it targets rather than the entity type of the enclosing query. A query the
+	 * evaluation accepts is accepted and returns what it returned before the check existed.
 	 */
 	@DisplayName("Nested filter resolved as the nested query resolves it")
 	@Nested
@@ -223,6 +224,52 @@ public class NestedConstraintCheckFunctionalTest {
 							referenceHaving(
 								REF_TAGS, entityHaving(and(scope(Scope.LIVE), attributeEquals(ATTRIBUTE_CODE, "t1")))
 							)
+						)
+					)
+				)
+			);
+		}
+
+		@DisplayName("Should fetch references filtered by the hierarchy a reference of the referenced entity reaches")
+		@UseDataSet(NESTED_CHECK)
+		@Test
+		void shouldFetchReferencesFilteredByHierarchyOfReferencedEntity(Evita evita) {
+			// `hierarchyWithin(tags, ...)` names a reference of the brands, not of the products fetching them - tag 2
+			// is a child of tag 1, so both live brands are within it
+			assertEquals(
+				Map.of(1, List.of(1, 2)),
+				fetchedBrands(
+					evita,
+					query(
+						collection(ENTITY_PRODUCT),
+						filterBy(scope(Scope.LIVE)),
+						require(
+							entityFetch(
+								referenceContent(
+									REF_BRAND,
+									filterBy(entityHaving(hierarchyWithin(REF_TAGS, entityPrimaryKeyInSet(1))))
+								)
+							)
+						)
+					)
+				)
+			);
+		}
+
+		@DisplayName("Should filter by the own hierarchy of a target over a scope the target holds no entity of")
+		@UseDataSet(NESTED_CHECK)
+		@Test
+		void shouldFilterByOwnHierarchyOfTargetOverScopeWithoutTarget(Evita evita) {
+			// the tags are hierarchical, the brands are not - the nested filter is resolved against the tags
+			assertEquals(
+				List.of(1, 2, 3),
+				queriedPrimaryKeys(
+					evita,
+					query(
+						collection(ENTITY_BRAND),
+						filterBy(
+							scope(Scope.LIVE, Scope.ARCHIVED),
+							referenceHaving(REF_TAGS, entityHaving(hierarchyWithinRootSelf()))
 						)
 					)
 				)

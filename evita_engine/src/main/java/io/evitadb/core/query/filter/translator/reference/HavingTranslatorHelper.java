@@ -159,8 +159,9 @@ public class HavingTranslatorHelper {
 	 * the target entity type holds no entity - its formula is thrown away, and nothing is evaluated for it.
 	 *
 	 * Either check uses the scopes the nested query is planned in - those a `scope(...)` of the filter names, which the
-	 * nested query honours whatever the enclosing query processes, see {@link #getNestedQueryScopes} - so that it
-	 * refuses nothing the nested query evaluated over data accepts.
+	 * nested query honours whatever the enclosing query processes, see {@link #getNestedQueryScopes} - and the planning
+	 * context of the nested query, which resolves the constraints against the target entity type rather than against
+	 * the entity type of the enclosing query, so that it refuses nothing the nested query evaluated over data accepts.
 	 *
 	 * @param targetEntityType         the type of the target entity for which the nested query is being planned
 	 * @param filter                   the filter constraint that applies the necessary filtering logic
@@ -186,16 +187,20 @@ public class HavingTranslatorHelper {
 			nestedFilterBy, EntityScope.class, SeparateEntityScopeContainer.class
 		);
 		if (filterByVisitor.isConstraintCheckOnly()) {
+			final Set<Scope> nestedQueryScopes = getNestedQueryScopes(nestedScope, processingScope.getScopes());
+			final QueryPlanningContext nestedQueryContext = createNestedQueryContext(
+				targetEntityCollection, nestedFilterBy, nestedQueryScopes, filterByVisitor
+			);
 			FilterByVisitor.createFormulaForTheFilter(
-				filterByVisitor.getQueryContext(),
+				nestedQueryContext,
 				GlobalEntityIndex.class,
-				getNestedQueryScopes(nestedScope, processingScope.getScopes())
+				nestedQueryScopes
 					.stream()
 					.map(scope -> GlobalEntityIndex.createEmptyIndex(targetEntityType, scope))
 					.toList(),
 				nestedFilterBy,
 				null,
-				filterByVisitor.getQueryContext().getSchema(targetEntityType),
+				nestedQueryContext.getSchema(),
 				taskDescriptionSupplier
 			);
 			return List.of(new GlobalIndexAndFormula(null, EmptyFormula.INSTANCE));
@@ -225,7 +230,7 @@ public class HavingTranslatorHelper {
 		}
 		if (!scopesToCheck.isEmpty()) {
 			FilterByVisitor.createFormulaForTheFilter(
-				filterByVisitor.getQueryContext(),
+				createNestedQueryContext(targetEntityCollection, nestedFilterBy, scopesToCheck, filterByVisitor),
 				scopesToCheck,
 				nestedFilterBy,
 				null,
@@ -337,6 +342,35 @@ public class HavingTranslatorHelper {
 		@Nonnull Set<Scope> processingScopes
 	) {
 		return nestedScope == null ? processingScopes : nestedScope.getScope();
+	}
+
+	/**
+	 * Creates the planning context a nested query of the target entity type is planned in over the passed scopes. A
+	 * check of the nested filter translates it in this context, as the nested query evaluated over data does, because
+	 * several translators resolve their constraint against the entity type of the context - a `hierarchyWithin` of a
+	 * reference of the target, or of the target's own tree - and would resolve it against the entity type of the
+	 * enclosing query in its context.
+	 *
+	 * @param targetEntityCollection the collection of the target entity type
+	 * @param filterBy               the nested filter
+	 * @param scopes                 the scopes the nested query is planned in
+	 * @param filterByVisitor        the visitor translating the enclosing filter
+	 * @return the planning context of the nested query
+	 */
+	@Nonnull
+	private static QueryPlanningContext createNestedQueryContext(
+		@Nonnull EntityCollection targetEntityCollection,
+		@Nonnull FilterBy filterBy,
+		@Nonnull Set<Scope> scopes,
+		@Nonnull FilterByVisitor filterByVisitor
+	) {
+		return targetEntityCollection.createQueryContext(
+			filterByVisitor.getQueryContext(),
+			filterByVisitor.getEvitaRequest().deriveCopyWith(
+				targetEntityCollection.getEntityType(), filterBy, null, null, scopes
+			),
+			filterByVisitor.getEvitaSession()
+		);
 	}
 
 	/**
