@@ -268,6 +268,11 @@ This group sits on the summary as a `nonGroupedStatistics` property.
 This group is returned as a single group inside the reference.
 </LS>
 
+The group belongs to the reference, not to the option: an option referenced under several groups — or under a group
+by some entities and without one by others — is listed in each of these groups. Selecting it selects it in all of
+them (see [facet groups belong to references](../filtering/references.md#facet-groups-belong-to-references)), so each
+entry of the option shows the same statistics.
+
 #### 3rd tier: reference option
 
 A reference option contains the per-option statistics:

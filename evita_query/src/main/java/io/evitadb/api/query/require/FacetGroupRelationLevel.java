@@ -47,6 +47,11 @@ import io.evitadb.dataType.SupportedEnum;
  * Neither level relates the selections of different references: those are always combined by logical AND, because
  * `userFilter` combines its constraints the way `and` does.
  *
+ * The group of a facet is a property of its reference, so a facet referenced under several groups takes part in each
+ * of them and its terms there are combined at the `WITH_DIFFERENT_GROUPS` level like the terms of different facets;
+ * a facet the searched scope holds no reference to is a facet without a group there and follows the relations of the
+ * facets without a group (see `facetHaving`).
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 @SupportedEnum
