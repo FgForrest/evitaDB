@@ -29,7 +29,6 @@ import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -48,7 +47,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -704,23 +702,23 @@ class FacetReferenceIndexTest {
 		}
 
 		@Test
-		@DisplayName("a facet its bucket does not hold still gets a slot, filled with an empty bitmap")
-		void shouldFillTheSlotOfAnUnknownFacetWithAnEmptyBitmap() {
+		@DisplayName("a facet the index does not know is skipped even when an ungrouped index exists")
+		void shouldSkipUnknownFacetNextToUngroupedIndex() {
 			final FacetReferenceIndex index = new FacetReferenceIndex(REFERENCE_NAME);
 			index.addFacet(10, null, 100);
 
-			// facet 999 belongs to no group, so it joins the ungrouped bucket even though that index has never
-			// heard of it - the bitmap array must keep a slot for it rather than shift the remaining ones
+			// facet 999 is referenced by nothing here, so this index cannot say which group it belongs to - another
+			// index of the same query may know it in a group of its own, and an ungrouped term would contradict it
 			final List<FacetGroupFormula> formulas = index.getFacetReferencingEntityIdsFormula(
 				this.formulaFactory, new BaseBitmap(10, 999)
 			);
 
 			assertEquals(1, formulas.size());
 			final FacetGroupFormula formula = formulas.get(0);
-			assertArrayEquals(new int[]{10, 999}, formula.getFacetIds().getArray());
-			assertEquals(2, formula.getBitmaps().length);
+			assertNull(formula.getFacetGroupId());
+			assertArrayEquals(new int[]{10}, formula.getFacetIds().getArray());
+			assertEquals(1, formula.getBitmaps().length);
 			assertArrayEquals(new int[]{100}, formula.getBitmaps()[0].getArray());
-			assertSame(EmptyBitmap.INSTANCE, formula.getBitmaps()[1]);
 		}
 
 		@Test

@@ -283,6 +283,66 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		Scope.LIVE, Scope.LIVE, Scope.ARCHIVED, Scope.ARCHIVED, Scope.LIVE, Scope.LIVE, Scope.ARCHIVED, Scope.ARCHIVED,
 		Scope.LIVE, Scope.ARCHIVED, Scope.LIVE, Scope.ARCHIVED, Scope.ARCHIVED
 	};
+	/**
+	 * A small hand-made data set exercising facets whose group is a property of the reference rather than of the
+	 * facet: products of {@link #ENTITY_GROUPING_PRODUCT} reference tags of type {@link #ENTITY_GROUPING_TAG} by
+	 * {@link #REF_TAG}, indexed and faceted in every scope and grouped by the managed type
+	 * {@link #ENTITY_GROUPING_TAG_GROUP} (groups 100, 200 and 300, all live). Tag 13 is referenced by archived products
+	 * only, tag 40 without a group, tag 50 in group 100 by one product and in group 200 by others, and tag 60 in group
+	 * 300 by one product and without a group by another.
+	 *
+	 * | product | scope    | tags (group)          |
+	 * |---------|----------|-----------------------|
+	 * | 1       | LIVE     | 10 (100)              |
+	 * | 2       | LIVE     | 11 (100), 40 (-)      |
+	 * | 3       | LIVE     | 20 (200)              |
+	 * | 4       | LIVE     | 10 (100), 20 (200)    |
+	 * | 5       | ARCHIVED | 13 (100)              |
+	 * | 6       | ARCHIVED | 13 (100), 20 (200)    |
+	 * | 7       | LIVE     | 50 (100)              |
+	 * | 8       | LIVE     | 50 (200), 10 (100)    |
+	 * | 9       | LIVE     | 60 (300)              |
+	 * | 10      | LIVE     | 60 (-), 20 (200)      |
+	 * | 11      | ARCHIVED | 50 (200)              |
+	 * | 12      | LIVE     | 40 (-), 10 (100)      |
+	 */
+	private static final String FACET_GROUPING_SHAPES = "FacetGroupingShapes";
+	private static final String ENTITY_GROUPING_PRODUCT = "groupingProduct";
+	private static final String ENTITY_GROUPING_TAG = "groupingTag";
+	private static final String ENTITY_GROUPING_TAG_GROUP = "groupingTagGroup";
+	/**
+	 * The tags of the {@link #FACET_GROUPING_SHAPES} data set; a primary key missing here belongs to no tag entity.
+	 */
+	private static final int[] GROUPING_TAGS = {10, 11, 13, 20, 40, 50, 60};
+	/**
+	 * The groups of the {@link #FACET_GROUPING_SHAPES} data set.
+	 */
+	private static final int[] GROUPING_TAG_GROUPS = {100, 200, 300};
+	/**
+	 * The marker of a reference without a group in {@link #GROUPING_PRODUCT_TAG_GROUPS}.
+	 */
+	private static final int NO_GROUP = 0;
+	/**
+	 * The tags of each product of {@link #FACET_GROUPING_SHAPES}, indexed by the product primary key minus one.
+	 */
+	private static final int[][] GROUPING_PRODUCT_TAGS = {
+		{10}, {11, 40}, {20}, {10, 20}, {13}, {13, 20}, {50}, {50, 10}, {60}, {60, 20}, {50}, {40, 10}
+	};
+	/**
+	 * The group of each reference of {@link #GROUPING_PRODUCT_TAGS}, at the same position, {@link #NO_GROUP} for a
+	 * reference without a group.
+	 */
+	private static final int[][] GROUPING_PRODUCT_TAG_GROUPS = {
+		{100}, {100, NO_GROUP}, {200}, {100, 200}, {100}, {100, 200}, {100}, {200, 100}, {300}, {NO_GROUP, 200}, {200},
+		{NO_GROUP, 100}
+	};
+	/**
+	 * The scope of each product of {@link #FACET_GROUPING_SHAPES}, indexed by the product primary key minus one.
+	 */
+	private static final Scope[] GROUPING_PRODUCT_SCOPES = {
+		Scope.LIVE, Scope.LIVE, Scope.LIVE, Scope.LIVE, Scope.ARCHIVED, Scope.ARCHIVED, Scope.LIVE, Scope.LIVE,
+		Scope.LIVE, Scope.LIVE, Scope.ARCHIVED, Scope.LIVE
+	};
 
 	static {
 		STORE_ORDER = new int[STORE_COUNT];
@@ -1758,6 +1818,55 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 */
 	private static int scopedTagGroupOf(int tagId) {
 		return SCOPED_TAG_GROUPS[ArrayUtils.indexOf(tagId, SCOPED_TAGS)];
+	}
+
+	/**
+	 * Builds the small hand-made data set described on {@link #FACET_GROUPING_SHAPES}.
+	 *
+	 * @param evita the engine instance provided by the test extension
+	 */
+	@DataSet(value = FACET_GROUPING_SHAPES, destroyAfterClass = true)
+	void setUpFacetGroupingShapes(Evita evita) {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(ENTITY_GROUPING_TAG_GROUP)
+					.withoutGeneratedPrimaryKey()
+					.updateVia(session);
+				for (final int groupId : GROUPING_TAG_GROUPS) {
+					session.upsertEntity(session.createNewEntity(ENTITY_GROUPING_TAG_GROUP, groupId));
+				}
+				session.defineEntitySchema(ENTITY_GROUPING_TAG)
+					.withoutGeneratedPrimaryKey()
+					.updateVia(session);
+				for (final int tagId : GROUPING_TAGS) {
+					session.upsertEntity(session.createNewEntity(ENTITY_GROUPING_TAG, tagId));
+				}
+				session.defineEntitySchema(ENTITY_GROUPING_PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withReferenceToEntity(
+						REF_TAG, ENTITY_GROUPING_TAG, Cardinality.ZERO_OR_MORE,
+						whichIs -> makeReferenceIndexedInEveryScope(whichIs)
+							.facetedInScope(Scope.values())
+							.withGroupTypeRelatedToEntity(ENTITY_GROUPING_TAG_GROUP)
+					)
+					.updateVia(session);
+				for (int pk = 1; pk <= GROUPING_PRODUCT_TAGS.length; pk++) {
+					final EntityBuilder product = session.createNewEntity(ENTITY_GROUPING_PRODUCT, pk);
+					for (int i = 0; i < GROUPING_PRODUCT_TAGS[pk - 1].length; i++) {
+						final int groupId = GROUPING_PRODUCT_TAG_GROUPS[pk - 1][i];
+						product.setReference(
+							REF_TAG, GROUPING_PRODUCT_TAGS[pk - 1][i],
+							groupId == NO_GROUP ? null : whichIs -> whichIs.setGroup(groupId)
+						);
+					}
+					session.upsertEntity(product);
+					if (GROUPING_PRODUCT_SCOPES[pk - 1] == Scope.ARCHIVED) {
+						session.archiveEntity(ENTITY_GROUPING_PRODUCT, pk);
+					}
+				}
+			}
+		);
 	}
 
 	/**
@@ -3424,6 +3533,142 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
 					},
 					summaries
+				)
+			)
+		);
+	}
+
+	/**
+	 * Returns the rows of selections over the {@link #FACET_GROUPING_SHAPES} data set whose facets some searched index
+	 * does not know while another one, or the global index of the scope, does. Each row is a label, the requested
+	 * scopes, the constraints of the filter next to the selection, the selected tags, the relation requirements, and
+	 * the primary keys of the products the query returns, computed from the fixture table.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> facetKnownToAnotherIndexRows() {
+		final Scope[] both = {Scope.LIVE, Scope.ARCHIVED};
+		final FilterConstraint[] nothing = new FilterConstraint[0];
+		final RequireConstraint[] defaults = new RequireConstraint[0];
+		final RequireConstraint[] conjunctionWithinGroups = {
+			facetGroupsConjunction(REF_TAG, WITH_DIFFERENT_FACETS_IN_GROUP)
+		};
+		return Stream.of(
+			Arguments.of(
+				"archived-only tag next to a live index holding ungrouped tags", both, nothing, new int[]{13}, defaults,
+				new int[]{5, 6}
+			),
+			Arguments.of(
+				"archived-only tag joining a live tag of its group", both, nothing, new int[]{10, 13}, defaults,
+				new int[]{1, 4, 5, 6, 8, 12}
+			),
+			Arguments.of(
+				"tag unknown to the reduced index of tag 20, which holds ungrouped tags, conjunction within groups",
+				new Scope[]{Scope.LIVE}, new FilterConstraint[]{referenceHaving(REF_TAG, entityPrimaryKeyInSet(20))},
+				new int[]{10, 50}, conjunctionWithinGroups, new int[0]
+			),
+			Arguments.of(
+				"tag unknown to the reduced index of tag 50, which holds no ungrouped tag, conjunction within groups",
+				new Scope[]{Scope.LIVE}, new FilterConstraint[]{referenceHaving(REF_TAG, entityPrimaryKeyInSet(50))},
+				new int[]{10, 11}, conjunctionWithinGroups, new int[0]
+			),
+			Arguments.of(
+				"tag unknown to the reduced index of tag 50, which holds no ungrouped tag, defaults",
+				new Scope[]{Scope.LIVE}, new FilterConstraint[]{referenceHaving(REF_TAG, entityPrimaryKeyInSet(50))},
+				new int[]{10, 11}, defaults, new int[]{8}
+			)
+		);
+	}
+
+	/**
+	 * Checks that a selected facet some searched index does not know keeps the groups the scope gives it: the facets of
+	 * a selection are looked up in each searched index, and an index that does not know a facet the scope references
+	 * must neither drop the facet's term from its group nor turn it into a term without a group. Every alternative
+	 * plan of the query - the global indexes or the reduced indexes of a referenced tag - must return the same
+	 * products.
+	 *
+	 * @param label        the row label, used in the test name only
+	 * @param scopes       the requested scopes
+	 * @param constraints  the constraints of the filter next to the selection
+	 * @param selectedTags the selected tags
+	 * @param relations    the relation requirements
+	 * @param expected     the primary keys of the products the query returns, ascending
+	 * @param evita        the engine instance provided by the test extension
+	 */
+	@DisplayName("Should keep the group of a selected facet unknown to a searched index")
+	@UseDataSet(FACET_GROUPING_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("facetKnownToAnotherIndexRows")
+	void shouldKeepGroupOfSelectedFacetUnknownToSearchedIndex(
+		@Nonnull String label,
+		@Nonnull Scope[] scopes,
+		@Nonnull FilterConstraint[] constraints,
+		@Nonnull int[] selectedTags,
+		@Nonnull RequireConstraint[] relations,
+		@Nonnull int[] expected,
+		Evita evita
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					groupingTagSelectionQuery(scopes, constraints, selectedTags, relations),
+					EntityReference.class
+				);
+				assertArrayEquals(
+					expected,
+					result.getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).sorted().toArray()
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Builds the query of the {@link #FACET_GROUPING_SHAPES} data set selecting the passed tags in the user filter.
+	 *
+	 * @param scopes       the requested scopes
+	 * @param constraints  the constraints of the filter next to the user filter
+	 * @param selectedTags the selected tags, possibly none
+	 * @param relations    the relation requirements
+	 * @param summaries    the reference summary requirements
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query groupingTagSelectionQuery(
+		@Nonnull Scope[] scopes,
+		@Nonnull FilterConstraint[] constraints,
+		@Nonnull int[] selectedTags,
+		@Nonnull RequireConstraint[] relations,
+		@Nonnull RequireConstraint... summaries
+	) {
+		return query(
+			collection(ENTITY_GROUPING_PRODUCT),
+			filterBy(
+				ArrayUtils.mergeArrays(
+					new FilterConstraint[]{scope(scopes)},
+					constraints,
+					selectedTags.length == 0 ?
+						new FilterConstraint[0] :
+						new FilterConstraint[]{
+							userFilter(
+								facetHaving(
+									REF_TAG,
+									entityPrimaryKeyInSet(Arrays.stream(selectedTags).boxed().toArray(Integer[]::new))
+								)
+							)
+						}
+				)
+			),
+			require(
+				ArrayUtils.mergeArrays(
+					new RequireConstraint[]{
+						page(1, GROUPING_PRODUCT_TAGS.length),
+						debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+					},
+					summaries,
+					relations
 				)
 			)
 		);

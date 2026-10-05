@@ -363,6 +363,10 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	 * in ascending facet-id order of first appearance rather than in the hash order this method used to
 	 * return them in.
 	 *
+	 * A facet this index does not know is left out: the groups of a facet are the groups the references to it are
+	 * filed under, and an index holding no reference to the facet cannot say which they are - another index of the
+	 * same query may know them.
+	 *
 	 * @param formulaFactory builds one formula per group from its id, its facets and their entity-id indexes
 	 * @param facetId        the facets to compute for
 	 * @return one formula per distinct group the given facets belong to; empty when none of them is indexed
@@ -386,8 +390,12 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 			final int[] groupIds = this.facetToGroupIndex.get(facetPrimaryKey);
 			if (groupIds == null) {
 				// the facet belongs to no group - it is indexed in the single ungrouped index, under the
-				// `null` key
-				collect(facetsByGroup, null, this.notGroupedFacets.get(), facetPrimaryKey);
+				// `null` key; a facet this index does not know at all has no group here, and it must not be
+				// given one: another index may know it in its own groups
+				final FacetGroupIndex notGroupedFacetIndex = this.notGroupedFacets.get();
+				if (notGroupedFacetIndex != null && notGroupedFacetIndex.getFacetIdIndex(facetPrimaryKey) != null) {
+					collect(facetsByGroup, null, notGroupedFacetIndex, facetPrimaryKey);
+				}
 			} else {
 				for (int i = 0; i < groupIds.length; i++) {
 					final int groupId = groupIds[i];
