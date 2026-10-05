@@ -175,10 +175,12 @@ import static org.junit.jupiter.api.Assertions.fail;
  * At every checkpoint the registry of single-owner partitions of every collection of the maintaining engine is checked
  * against its partitions by {@link VirtualReferencePartitionOracle}, exactly: every single-owner partition must have
  * its row, inside the open session too, because a partition left with one owner of two is demoted by the very mutation
- * that left it so. Both engines report every transition of their partitions and the outcome of every root mutation to
- * a history of their own (see {@link TransitionHistory}), installed before the catalog is defined and before every
- * load, which tests read to prove what a history exercised. Any further check can be added by
- * {@link #addMaintainingEngineCheck(MaintainingEngineCheck)}.
+ * that left it so. It is checked against the entity bodies by {@link VirtualReferencePartitionRawRowOracle} too, so a
+ * defect of the indexing path both engines and the mirror share - which leaves the partitions, the registry and the
+ * other engine in agreement - is found as well. Both engines report every transition of their partitions and the
+ * outcome of every root mutation to a history of their own (see {@link TransitionHistory}), installed before the
+ * catalog is defined and before every load, which tests read to prove what a history exercised. Any further check can
+ * be added by {@link #addMaintainingEngineCheck(MaintainingEngineCheck)}.
  *
  * Failures can be injected right after a transition, in both engines at once (see
  * {@link #failingStepAfter(String, TransitionStage, String, int, Consumer)}): the engine that maintains nothing passes
@@ -939,6 +941,7 @@ final class DifferentialEngines implements AutoCloseable {
 			);
 			if (maintained) {
 				VirtualReferencePartitionOracle.assertConsistent(label, collection);
+				VirtualReferencePartitionRawRowOracle.assertConsistent(label, session, collection);
 				for (final MaintainingEngineCheck check : this.maintainingEngineChecks) {
 					check.check(label, collection);
 				}
