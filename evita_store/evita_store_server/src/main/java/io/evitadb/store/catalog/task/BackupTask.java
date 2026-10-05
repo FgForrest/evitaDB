@@ -124,7 +124,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 			"Catalog " + catalogName + " backup" +
 				(pastMoment == null ? " with current data" : " snapshot at " + pastMoment) +
 				(catalogVersion == null ? "" : " for version " + catalogVersion) +
-				(includingWAL ? "" : ", including WAL"),
+				(includingWAL ? ", including WAL" : ""),
 			new BackupSettings(pastMoment, catalogVersion, includingWAL),
 			(task) -> ((BackupTask) task).doBackup(),
 			TaskTrait.CAN_BE_STARTED, TaskTrait.CAN_BE_CANCELLED
@@ -214,7 +214,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 						"historical_" + (thePastMoment == null ? theHistoricalCatalogVersion : thePastMoment.format(DateTimeFormatter.ISO_OFFSET_DATE_TIME))
 					) + ".zip",
 				"The backup of the " +
-					(thePastMoment == null && theHistoricalCatalogVersion == null ? "actual " : "historical " + (thePastMoment == null ? theHistoricalCatalogVersion : thePastMoment)) +
+					(thePastMoment == null && theHistoricalCatalogVersion == null ? "actual " : "historical " + (thePastMoment == null ? theHistoricalCatalogVersion : thePastMoment) + " ") +
 					"catalog `" + this.catalogName + "`" + (theIncludingWAL ? " including WAL." : "."),
 				"application/zip",
 				this.getClass().getSimpleName()
