@@ -427,9 +427,11 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 			0
 		);
 		zipOutputStream.putNextEntry(new ZipEntry(this.catalogName + "/" + entityDataFileName));
-		final DefaultEntityCollectionPersistenceService entityCollectionPersistenceService = servicesAndStatistics.getServiceByEntityTypePrimaryKey(entityTypeFileIndex.entityTypePrimaryKey());
+		final ServiceWithStatistics serviceWithStatistics = servicesAndStatistics.getServiceByEntityTypePrimaryKey(
+			entityTypeFileIndex.entityTypePrimaryKey()
+		);
 		final int finalBackedUpRecords = backedUpRecords;
-		final EntityCollectionFileHeader newEntityCollectionHeader = entityCollectionPersistenceService
+		final EntityCollectionFileHeader newEntityCollectionHeader = serviceWithStatistics.service()
 			.copySnapshotTo(
 				catalogVersion,
 				new CollectionFileReference(
@@ -438,6 +440,9 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 					0,
 					entityTypeFileIndex.fileLocation()
 				),
+				// the counters must come from the version being copied - the live service of the actual branch knows
+				// only its newest header, which may list entity indexes the copied data does not contain yet
+				serviceWithStatistics.headerAtVersion(),
 				zipOutputStream,
 				recordsCopied -> doUpdateProgress(finalBackedUpRecords + recordsCopied, servicesAndStatistics.totalRecords())
 			);
@@ -559,7 +564,9 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 			);
 			// the stored header may name a data file generation a compaction has already replaced; the historical
 			// branch below opens the collection from it directly, so it has to be reconciled with the catalog header
-			// of the very same version first (see EntityCollectionHeaderReconciler)
+			// of the very same version first (see EntityCollectionHeaderReconciler). Both sides are read at
+			// `catalogVersion` - the catalog header too, even on the actual branch where commits keep landing while
+			// this task runs - otherwise a collection that merely moved after that version reads as a disagreement
 			final EntityCollectionFileHeader entityCollectionHeader = EntityCollectionHeaderReconciler.reconcile(
 				catalogHeader.catalogName(), entityTypeFileIndex, storedCollectionHeader
 			);
@@ -572,6 +579,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 				);
 			final ServiceWithStatistics serviceStats = new ServiceWithStatistics(
 				entityCollectionPersistenceService,
+				entityCollectionHeader,
 				entityCollectionPersistenceService.getStoragePartPersistenceService().countStorageParts(catalogVersion)
 			);
 			entityCollectionPersistenceServices.put(
@@ -611,8 +619,8 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 	) {
 
 		@Nonnull
-		public DefaultEntityCollectionPersistenceService getServiceByEntityTypePrimaryKey(int entityTypePrimaryKey) {
-			return ofNullable(this.serviceIndex.get(entityTypePrimaryKey)).map(ServiceWithStatistics::service).orElseThrow();
+		public ServiceWithStatistics getServiceByEntityTypePrimaryKey(int entityTypePrimaryKey) {
+			return ofNullable(this.serviceIndex.get(entityTypePrimaryKey)).orElseThrow();
 		}
 
 		public int getServiceRecordCount(int entityTypePrimaryKey) {
@@ -623,9 +631,16 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 
 	/**
 	 * Record contains reference to service along with total record count it manages.
+	 *
+	 * @param service          the service reading the collection data file
+	 * @param headerAtVersion  the collection header valid at the backed up catalog version - the source of the counters
+	 *                         written into the backup, which the live header of `service` cannot provide once newer
+	 *                         versions were committed
+	 * @param totalRecordCount number of records the collection holds at the backed up catalog version
 	 */
 	private record ServiceWithStatistics(
 		@Nonnull DefaultEntityCollectionPersistenceService service,
+		@Nonnull EntityCollectionFileHeader headerAtVersion,
 		int totalRecordCount
 	) {
 	}

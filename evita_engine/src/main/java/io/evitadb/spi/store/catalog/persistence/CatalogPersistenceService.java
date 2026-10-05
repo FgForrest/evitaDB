@@ -325,11 +325,14 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	long getLastAppliedCatalogVersion();
 
 	/**
-	 * Returns {@link CatalogHeader} that is used for this service. The header is initialized in the instance constructor
-	 * and (because it's immutable) is exchanged with each {@link #storeHeader(UUID, CatalogState, long, int, TransactionMutation, List, DataStoreMemoryBuffer)}   method call.
+	 * Returns {@link CatalogHeader} valid at `catalogVersion`. The header is initialized in the instance constructor
+	 * and (because it's immutable) is exchanged with each
+	 * {@link #storeHeader(UUID, CatalogState, long, int, TransactionMutation, List, DataStoreMemoryBuffer)} method call -
+	 * but a request for a version older than the newest stored header answers the header of that older version, never
+	 * the newest one. See {@link CatalogStoragePartPersistenceService#getCatalogHeader(long)} for the full contract.
 	 *
-	 * @param catalogVersion the version of the catalog
-	 * @return the header of the catalog
+	 * @param catalogVersion the version of the catalog the header must be valid at
+	 * @return the header of the catalog valid at `catalogVersion`
 	 */
 	@Nonnull
 	CatalogHeader<S, T> getCatalogHeader(long catalogVersion);
