@@ -401,6 +401,11 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 					final int groupId = groupIds[i];
 					collect(facetsByGroup, groupId, this.groupedFacets.get(groupId), facetPrimaryKey);
 				}
+				// the group is a property of the reference, so the facet may be referenced without a group as well
+				final FacetGroupIndex notGroupedFacetIndex = this.notGroupedFacets.get();
+				if (notGroupedFacetIndex != null && notGroupedFacetIndex.getFacetIdIndex(facetPrimaryKey) != null) {
+					collect(facetsByGroup, null, notGroupedFacetIndex, facetPrimaryKey);
+				}
 			}
 		}
 

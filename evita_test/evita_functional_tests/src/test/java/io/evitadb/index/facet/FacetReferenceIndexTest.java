@@ -864,25 +864,24 @@ class FacetReferenceIndexTest {
 			return facetIds;
 		}
 
-		// Known limitation: a facet held in both a group index and the ungrouped index is reported only under
-		// its group, so the entities that reference it without a group are dropped from the formula
 		@Test
-		@DisplayName("a facet indexed both in a group and without one is reported only under its group")
-		void shouldReportOnlyTheGroupFormulaForAFacetIndexedBothWays() {
+		@DisplayName("a facet indexed both in a group and without one is reported under both")
+		void shouldReportFacetIndexedBothWaysUnderBoth() {
 			final FacetReferenceIndex index = new FacetReferenceIndex(REFERENCE_NAME);
 			index.addFacet(10, null, 100);
 			index.addFacet(10, 5, 200);
 
+			// the group is a property of the reference, so the facet takes part in both the group and the facets
+			// without a group, each with the entities referencing it that way
 			final List<FacetGroupFormula> formulas = index.getFacetReferencingEntityIdsFormula(
 				this.formulaFactory, new BaseBitmap(10)
 			);
 
-			assertEquals(1, formulas.size());
+			assertEquals(2, formulas.size());
 			assertEquals(5, formulas.get(0).getFacetGroupId());
-			assertArrayEquals(
-				new int[]{200}, formulas.get(0).getBitmaps()[0].getArray(),
-				"entity 100 references facet 10 without a group and is not reported"
-			);
+			assertArrayEquals(new int[]{200}, formulas.get(0).getBitmaps()[0].getArray());
+			assertNull(formulas.get(1).getFacetGroupId());
+			assertArrayEquals(new int[]{100}, formulas.get(1).getBitmaps()[0].getArray());
 		}
 	}
 }

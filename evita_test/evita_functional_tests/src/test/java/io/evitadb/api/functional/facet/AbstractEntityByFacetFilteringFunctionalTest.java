@@ -3539,6 +3539,80 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
+	 * Returns the rows of selections over the {@link #FACET_GROUPING_SHAPES} data set of the tags referenced under
+	 * several groups - tag 50 in groups 100 and 200, tag 60 in group 300 and without a group. Each row is a label, the
+	 * selected tags, the relation requirements, and the primary keys of the live products the query returns, computed
+	 * from the fixture table.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> facetReferencedUnderSeveralGroupsRows() {
+		final RequireConstraint[] defaults = new RequireConstraint[0];
+		final RequireConstraint[] disjunctionBetweenGroups = {facetGroupsDisjunction(REF_TAG, WITH_DIFFERENT_GROUPS)};
+		return Stream.of(
+			Arguments.of("tag 60 alone", new int[]{60}, defaults, new int[0]),
+			Arguments.of(
+				"tag 60 alone, disjunction between groups", new int[]{60}, disjunctionBetweenGroups, new int[]{9, 10}
+			),
+			Arguments.of(
+				"tags 40 and 60, disjunction of group 300",
+				new int[]{40, 60},
+				new RequireConstraint[]{
+					facetGroupsDisjunction(REF_TAG, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(300)))
+				},
+				new int[]{2, 9, 10, 12}
+			),
+			Arguments.of("tags 40 and 60", new int[]{40, 60}, defaults, new int[0]),
+			Arguments.of("tag 50 alone", new int[]{50}, defaults, new int[0]),
+			Arguments.of(
+				"tag 50 alone, disjunction between groups", new int[]{50}, disjunctionBetweenGroups, new int[]{7, 8}
+			),
+			Arguments.of("tags 10 and 50", new int[]{10, 50}, defaults, new int[]{8})
+		);
+	}
+
+	/**
+	 * Checks that a selected facet takes part in every group it is referenced under, including the facets without
+	 * a group: the group is a property of a reference, so tag 60, referenced in group 300 by product 9 and without
+	 * a group by product 10, has a term in both, and the terms are composed by the relations of their groups.
+	 *
+	 * @param label        the row label, used in the test name only
+	 * @param selectedTags the selected tags
+	 * @param relations    the relation requirements
+	 * @param expected     the primary keys of the products the query returns, ascending
+	 * @param evita        the engine instance provided by the test extension
+	 */
+	@DisplayName("Should select a facet in every group it is referenced under")
+	@UseDataSet(FACET_GROUPING_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("facetReferencedUnderSeveralGroupsRows")
+	void shouldSelectFacetInEveryGroupItIsReferencedUnder(
+		@Nonnull String label,
+		@Nonnull int[] selectedTags,
+		@Nonnull RequireConstraint[] relations,
+		@Nonnull int[] expected,
+		Evita evita
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					groupingTagSelectionQuery(
+						new Scope[]{Scope.LIVE}, new FilterConstraint[0], selectedTags, relations
+					),
+					EntityReference.class
+				);
+				assertArrayEquals(
+					expected,
+					result.getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).sorted().toArray()
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
 	 * Returns the rows of selections over the {@link #FACET_GROUPING_SHAPES} data set whose facets some searched index
 	 * does not know while another one, or the global index of the scope, does. Each row is a label, the requested
 	 * scopes, the constraints of the filter next to the selection, the selected tags, the relation requirements, and
