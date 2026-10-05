@@ -45,6 +45,8 @@ import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
 import io.evitadb.core.query.filter.translator.facet.FacetHavingTranslator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.array.CompositeObjectArray;
@@ -167,6 +169,23 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Returns true if a {@link UserFilterFormula} of the formula sits in the subtracted part of a {@link NotFormula} -
+	 * a user filter negated by the user, `not(userFilter(...))` - so the formula subtracts the user filter rather than
+	 * restricting the result to it. A user filter in the superset part of a {@link NotFormula} - next to a negated
+	 * constraint - still restricts the result, the negated constraint is subtracted from it.
+	 *
+	 * @param formula the formula of the facet computation
+	 * @return true if the user filter of the formula is subtracted
+	 */
+	protected static boolean isUserFilterNegated(@Nonnull Formula formula) {
+		return FormulaFinder.find(formula, NotFormula.class, LookUp.DEEP)
+			.stream()
+			.anyMatch(
+				it -> !FormulaFinder.find(it.getSubtractedFormula(), UserFilterFormula.class, LookUp.SHALLOW).isEmpty()
+			);
 	}
 
 	/**

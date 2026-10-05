@@ -41,6 +41,7 @@ import javax.annotation.concurrent.NotThreadSafe;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -78,6 +79,12 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 	 * each user filter on its own - unlike {@link #facetGroupsInUserFilter}, which collects the groups of all of them.
 	 */
 	private final Set<Integer> groupsEnrichedInCurrentUserFilter = new HashSet<>(4);
+	/**
+	 * Memoizes {@link #isUserFilterNegated(Formula)} per hypothetical formula, keyed by its identity: the formulas are
+	 * served from {@link #cache}, so there are as few of them as its keys, while the question is asked for every option
+	 * whose selection changes nothing.
+	 */
+	private final Map<Formula, Boolean> userFilterNegation = new IdentityHashMap<>(8);
 
 	public ImpactFormulaGenerator(
 		@Nonnull FacetRelationTypeResolver facetRelationType,
@@ -274,11 +281,11 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 	 * are removed.
 	 *
 	 * A facet of a single group whose facets are joined by conjunction is answered by the hypothetical formula itself -
-	 * removing the other facets of the group can only widen the facet's term, which widens the result unless the group
-	 * is negated and its term is subtracted, so a negated group is not answered that way. A facet taking part in
-	 * several groups is always requested on its own in each of them, because the shortcut would depend on the group of
-	 * the statistics being computed, and every entry of such a facet - one for each of its groups - predicts the same
-	 * selection.
+	 * removing the other facets of the group can only widen the facet's term, which widens the result unless the term
+	 * is subtracted, so neither a negated group nor a user filter negated as a whole (`not(userFilter(...))`) is
+	 * answered that way. A facet taking part in several groups is always requested on its own in each of them, because
+	 * the shortcut would depend on the group of the statistics being computed, and every entry of such a facet - one
+	 * for each of its groups - predicts the same selection.
 	 *
 	 * @param hypotheticalFormula   the current formula including this facet and all other facets
 	 * @param referenceSchema       the reference schema of the facet group
@@ -298,7 +305,10 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 		if (facetGroupOccurrences.isSingleGroup() &&
 			this.isFacetGroupConjunction.test(referenceSchema, facetGroupId, WITH_DIFFERENT_FACETS_IN_GROUP) &&
 			this.facetRelationType.resolve(referenceSchema, facetGroupId, WITH_DIFFERENT_GROUPS) !=
-				FacetRelationType.NEGATION) {
+				FacetRelationType.NEGATION &&
+			!this.userFilterNegation.computeIfAbsent(
+				hypotheticalFormula, AbstractFacetFormulaGenerator::isUserFilterNegated
+			)) {
 			return !hypotheticalFormula.compute().isEmpty();
 		} else {
 			final MutableFormulaFinderAndReplacer mutableFormulaFinderAndReplacer = new MutableFormulaFinderAndReplacer(

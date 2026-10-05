@@ -4394,13 +4394,48 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	/**
 	 * Returns the rows of the reference summary witness over the {@link #FACET_TWIN_REFERENCE_SHAPES} data set, whose
 	 * two references share the layout of facets and groups and differ only in the relations a row declares for them.
-	 * Each row is a label, the tags selected by {@link #REF_TAG} - each referenced under a single group - and the
-	 * relation requirements.
+	 * Each row is a label, the tags selected by {@link #REF_TAG} - each referenced under a single group - the relation
+	 * requirements, the place of the user filter - {@link UserFilterPlacement#ALONE} or
+	 * {@link UserFilterPlacement#NEGATED} - and the products the query is restricted to, none meaning all of them.
 	 *
 	 * @return the row arguments
 	 */
 	@Nonnull
 	static Stream<Arguments> twinReferenceSummaryRows() {
+		return Stream.concat(
+			twinReferenceSummaryRowsOfUserFilterAlone()
+				.map(
+					row -> Arguments.of(
+						ArrayUtils.mergeArrays(row.get(), new Object[]{UserFilterPlacement.ALONE, new int[0]})
+					)
+				),
+			Stream.of(
+				// the user filter is subtracted, so removing the other facets of the conjunctive group narrows the
+				// result instead of widening it: adding tag 30 to tag 40 changes nothing (40 AND 30 is product 1, as 40
+				// alone is), while selecting tag 30 alone subtracts both products
+				Arguments.of(
+					"tag 40 selected in a negated user filter over products 1 and 2, conjunction within group 300",
+					new int[]{40},
+					new RequireConstraint[]{
+						facetGroupsConjunction(
+							REF_TAG, WITH_DIFFERENT_FACETS_IN_GROUP, filterBy(entityPrimaryKeyInSet(300))
+						)
+					},
+					UserFilterPlacement.NEGATED,
+					new int[]{1, 2}
+				)
+			)
+		);
+	}
+
+	/**
+	 * Returns the rows of {@link #twinReferenceSummaryRows()} whose user filter is the only filter constraint, without
+	 * the place of the user filter and the restriction to products.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	private static Stream<Arguments> twinReferenceSummaryRowsOfUserFilterAlone() {
 		return Stream.of(
 			Arguments.of("no selection, defaults", new int[0], new RequireConstraint[0]),
 			Arguments.of(
@@ -4446,12 +4481,17 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 * each group it is listed in - must have the count of the result selecting the facet alone and the impact and
 	 * has-sense of the result adding it to the selection, and an entry is listed exactly when that count is not zero.
 	 * The has-sense of an option that changes nothing is the result of the option alone in each of its groups, next to
-	 * the selection of the other groups. The oracle is the engine's own result.
+	 * the selection of the other groups. The oracle is the engine's own result. The count does not depend on the user
+	 * filter, so it is the result of selecting the facet alone in a user filter nothing negates, wherever the row
+	 * places the user filter; the impact and the has-sense are the results of the queries placing it where the row
+	 * does.
 	 *
-	 * @param label     the row label, used in the test name only
-	 * @param selection the tags selected by {@link #REF_TAG}
-	 * @param relations the relation requirements
-	 * @param evita     the engine instance provided by the test extension
+	 * @param label      the row label, used in the test name only
+	 * @param selection  the tags selected by {@link #REF_TAG}
+	 * @param relations  the relation requirements
+	 * @param placement  the place of the user filter in the filter
+	 * @param productIds the products the query is restricted to, none meaning all of them
+	 * @param evita      the engine instance provided by the test extension
 	 */
 	@DisplayName("Should predict the selection of a facet of either of two references with the same layout")
 	@UseDataSet(FACET_TWIN_REFERENCE_SHAPES)
@@ -4461,6 +4501,8 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		@Nonnull String label,
 		@Nonnull int[] selection,
 		@Nonnull RequireConstraint[] relations,
+		@Nonnull UserFilterPlacement placement,
+		@Nonnull int[] productIds,
 		Evita evita
 	) {
 		evita.queryCatalog(
@@ -4468,11 +4510,11 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 			session -> {
 				final List<String> disagreements = new ArrayList<>(16);
 				final ToIntFunction<Map<String, int[]>> resultSize = tags -> session.query(
-					twinTagSelectionQuery(tags, relations), EntityReference.class
+					twinTagSelectionQuery(tags, relations, placement, productIds), EntityReference.class
 				).getTotalRecordCount();
 				final EvitaResponse<EntityReference> withSummary = session.query(
 					twinTagSelectionQuery(
-						Map.of(REF_TAG, selection), relations,
+						Map.of(REF_TAG, selection), relations, placement, productIds,
 						referenceSummaryOfReference(REF_TAG, FacetStatisticsDepth.IMPACT),
 						referenceSummaryOfReference(REF_TAG_COPY, FacetStatisticsDepth.IMPACT)
 					),
@@ -4485,7 +4527,13 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					final int[] selectionOfReference = REF_TAG.equals(referenceName) ? selection : new int[0];
 					for (final int tagId : TWIN_TAGS) {
 						final Set<Integer> groups = twinTagGroupsOf(tagId);
-						final int aloneSize = resultSize.applyAsInt(Map.of(referenceName, new int[]{tagId}));
+						final int aloneSize = session.query(
+							twinTagSelectionQuery(
+								Map.of(referenceName, new int[]{tagId}), relations, UserFilterPlacement.ALONE,
+								productIds
+							),
+							EntityReference.class
+						).getTotalRecordCount();
 						for (final Integer groupId : groups) {
 							final ReferenceGroupStatistics groupStatistics =
 								summary.getReferenceGroupStatistics(referenceName, groupId);
@@ -4574,17 +4622,21 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 
 	/**
 	 * Builds the query of the {@link #FACET_TWIN_REFERENCE_SHAPES} data set selecting the passed tags of each reference
-	 * in the user filter.
+	 * in the user filter placed as requested.
 	 *
-	 * @param selection the selected tags of each reference, possibly none
-	 * @param relations the relation requirements
-	 * @param summaries the reference summary requirements
+	 * @param selection  the selected tags of each reference, possibly none
+	 * @param relations  the relation requirements
+	 * @param placement  the place of the user filter in the filter
+	 * @param productIds the products the query is restricted to, none meaning all of them
+	 * @param summaries  the reference summary requirements
 	 * @return the query
 	 */
 	@Nonnull
 	private static Query twinTagSelectionQuery(
 		@Nonnull Map<String, int[]> selection,
 		@Nonnull RequireConstraint[] relations,
+		@Nonnull UserFilterPlacement placement,
+		@Nonnull int[] productIds,
 		@Nonnull RequireConstraint... summaries
 	) {
 		final FilterConstraint[] facetSelections = Stream.of(REF_TAG, REF_TAG_COPY)
@@ -4598,7 +4650,16 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 			.toArray(FilterConstraint[]::new);
 		return query(
 			collection(ENTITY_TWIN_PRODUCT),
-			filterBy(scope(Scope.LIVE), facetSelections.length == 0 ? null : userFilter(facetSelections)),
+			filterBy(
+				ArrayUtils.mergeArrays(
+					new FilterConstraint[]{
+						scope(Scope.LIVE),
+						productIds.length == 0 ?
+							null : entityPrimaryKeyInSet(Arrays.stream(productIds).boxed().toArray(Integer[]::new))
+					},
+					facetSelections.length == 0 ? new FilterConstraint[0] : placement.place(userFilter(facetSelections))
+				)
+			),
 			require(
 				ArrayUtils.mergeArrays(
 					new RequireConstraint[]{
