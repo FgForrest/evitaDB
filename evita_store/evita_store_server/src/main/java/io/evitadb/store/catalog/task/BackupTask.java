@@ -78,7 +78,6 @@ import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.STORAGE_PROTOCOL_VERSION;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.WAL_FILE_SUFFIX;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.getCatalogBootstrapFileName;
 import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.serializeBootstrapRecord;
@@ -269,7 +268,8 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 
 						// finally, store the catalog bootstrap
 						backupBootstrapRecord(
-							catalogVersion, zipOutputStream, catalogDataFileDescriptor, defaultCatalogPersistenceService
+							catalogVersion, catalogHeader.storageProtocolVersion(), zipOutputStream,
+							catalogDataFileDescriptor, defaultCatalogPersistenceService
 						);
 					} catch (IOException e) {
 						throw new UnexpectedIOException(
@@ -354,6 +354,12 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 
 	/**
 	 * Copies the active contents of the catalog data file to the backup.
+	 *
+	 * The rewritten catalog header keeps the storage protocol of the `catalogHeader` it is derived from rather than
+	 * stamping the engine's current one. The parts are copied verbatim, so a point-in-time backup of a version written
+	 * before a storage-protocol migration holds them in the older format - and the header protocol is what a restore
+	 * reads to decide which migrations still have to run over them. Claiming the current protocol would make the
+	 * restored catalog skip exactly those migrations.
 	 */
 	@Interruptible
 	@Nonnull
@@ -374,7 +380,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 				Stream.concat(
 						Stream.of(
 							new CatalogHeader<>(
-								STORAGE_PROTOCOL_VERSION,
+								catalogHeader.storageProtocolVersion(),
 								catalogHeader.version(),
 								catalogHeader.walFileReference(),
 								entityHeaders.values().stream()
@@ -481,10 +487,21 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 
 	/**
 	 * Stores the catalog bootstrap record to the backup.
+	 *
+	 * The record carries the same storage protocol as the catalog header written by
+	 * {@link #backupCatalogDataFile}, so the backup describes one protocol throughout: the protocol of the data it
+	 * contains, which the restore's migrations then advance as they do for any catalog written by an older engine.
+	 *
+	 * @param catalogVersion            the backed-up catalog version
+	 * @param storageProtocolVersion    the storage protocol of the backed-up catalog version
+	 * @param zipOutputStream           the archive the record is written to
+	 * @param catalogDataFileDescriptor the descriptor of the catalog data file written to the archive
+	 * @param catalogPersistenceService the persistence service supplying the checksum
 	 */
 	@Interruptible
 	private void backupBootstrapRecord(
 		long catalogVersion,
+		int storageProtocolVersion,
 		@Nonnull ZipOutputStream zipOutputStream,
 		@Nonnull OffsetIndexDescriptor catalogDataFileDescriptor,
 		@Nonnull DefaultCatalogPersistenceService catalogPersistenceService
@@ -503,6 +520,7 @@ public class BackupTask extends ClientCallableTask<BackupSettings, FileForFetch>
 		final StorageRecord<CatalogBootstrap> catalogBootstrapStorageRecord = serializeBootstrapRecord(
 			boostrapOutput,
 			new CatalogBootstrap(
+				storageProtocolVersion,
 				catalogVersion,
 				0,
 				OffsetDateTime.now(),
