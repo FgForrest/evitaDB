@@ -1,7 +1,7 @@
 ---
 title: Schema-capability usage is counted per schema element in a collection-carried registry, not per physical index
 date: 2026-08-19
-updated: 2026-08-24 09:15
+updated: 2026-10-05 21:20
 status: accepted
 kind: feature
 issues: [1429]
@@ -127,7 +127,10 @@ side.
   `QueryPlanBuilder.build()` drains and increments once per logical query — the drain empties the
   accumulator, which is what makes the debug modes (`VERIFY_ALTERNATIVE_INDEX_RESULTS`,
   `VERIFY_POSSIBLE_CACHING_TREES`) unable to double-flush even though they re-build and re-execute
-  plans. The empty-plan short-circuit flushes nothing.
+  plans. The empty-plan short-circuit (`QueryPlanBuilder.empty`) drains and increments the same way: a query
+  the index selection proves to match nothing is still checked against the schema
+  (`QueryPlanner#planOverEmptyIndexes`, #1695), so it counts the capabilities that check requested - counting
+  them nowhere would make a flag only such queries use look dead.
 - Update side: `AttributeIndexMutator` reports the touched element to
   `EntityIndexLocalMutationExecutor.reportAttributeTouched(...)`; `markTouched` deduplicates across the
   index fan-out, `applyChanges` flushes once per entity mutation with the same `nowMillis` as the
@@ -267,7 +270,7 @@ Functional: `SchemaCapabilityUsageTest` (holder: cross-thread exactness, stamp c
 `SchemaCapabilityKeyTest`, `SchemaCapabilityUsageRegistryTest` (identity; alignment seeds the declared set
 exactly, preserves surviving holders and drops the rest, incl. the catalog pin above),
 `RequestedCapabilityAccumulationTest` (once per logical query across
-candidate plans; debug modes cannot double-flush; empty plan flushes nothing),
+candidate plans; debug modes cannot double-flush; an empty plan counts what its constraint check requested),
 `EntityCollectionUsageRegistryTest` (copy sites enumerated), `CatalogUsageRegistryTest` (collection-less
 query lands on the catalog, one update per entity mutation, restart resets and re-seeds, adoption realigns),
 `SchemaCapabilityUsageSurfaceTest` (end to end incl. drop/re-add starting over, an untouched declared
