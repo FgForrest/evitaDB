@@ -25,6 +25,7 @@ package io.evitadb.index.range;
 
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -665,6 +666,38 @@ class TransactionalRangePointTest {
 			}
 			assertEquals(List.of(1, 2, 4, 8, 16), lengthsAtGrowth);
 			assertEquals(17, startLevels(point).length);
+		}
+
+		@Test
+		@DisplayName("a record alternately starting and ending here doubles each side on its own, not every addition")
+		void shouldDoubleEachSideIndependentlyWhenStartsAndEndsAlternate() {
+			final int pairs = 1_000;
+			TransactionalRangePoint point = new TransactionalRangePoint(1L);
+			final List<Integer> startLengthsAtGrowth = new ArrayList<>();
+			final List<Integer> endLengthsAtGrowth = new ArrayList<>();
+			for (int occurrence = 1; occurrence <= pairs; occurrence++) {
+				final TransactionalRangePoint afterStart = point.addStart(5);
+				if (afterStart != point) {
+					startLengthsAtGrowth.add(afterStart.getRepeatedStarts().length);
+				}
+				final TransactionalRangePoint afterEnd = afterStart.addEnd(5);
+				if (afterEnd != afterStart) {
+					endLengthsAtGrowth.add(afterEnd.getRepeatedEnds().length);
+				}
+				point = afterEnd;
+			}
+			// the 999 repeated occurrences of each side need the lengths 1, 2, 4, ..., 1024 - eleven new points per
+			// side; a growth that dropped the other side's spare levels would make that side grow again on its next
+			// addition, which is a new point on almost every one of the 2,000 additions
+			final List<Integer> doubling = List.of(1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024);
+			assertEquals(doubling, startLengthsAtGrowth, "start-level arrays allocated while the sides alternate");
+			assertEquals(doubling, endLengthsAtGrowth, "end-level arrays allocated while the sides alternate");
+			assertEquals(pairs, startLevels(point).length, "every start occurrence is kept");
+			final TransactionalBitmap[] repeatedEnds = point.getRepeatedEnds();
+			for (int level = 0; level < pairs - 1; level++) {
+				assertArrayEquals(new int[]{5}, repeatedEnds[level].getArray(), "end level " + (level + 2));
+			}
+			assertTrue(repeatedEnds[pairs - 1].isEmpty(), "the end levels past the last occurrence are spare");
 		}
 
 		@Test

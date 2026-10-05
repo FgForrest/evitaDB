@@ -80,10 +80,16 @@ import java.util.Objects;
  * the record needs next is filled in place — both through the transactional bitmap, so both are isolated and undone on
  * rollback like any other write. Only when every level of the array holds the record does {@link #addStart} /
  * {@link #addEnd} return a new point with twice the capacity, which the caller stores in place of this one —
- * {@link RangeIndex} does so through the tree's transactional, journalled value replacement. Growing by doubling keeps
- * the copies amortized constant per occurrence even where one record starts here thousands of times. Readers stop at
- * the first empty level; the spare levels are dropped whenever the point is copied — on commit, on clone, and by the
- * persisted form, which writes the non-empty levels only.
+ * {@link RangeIndex} does so through the tree's transactional, journalled value replacement. The new point carries the
+ * other side's levels over with their spare capacity, so the start and end arrays double independently. Growing by
+ * doubling keeps the replacements logarithmic in the number of occurrences added to one point between two copies of
+ * it, even where one record starts and ends here thousands of times. Readers stop at the first empty level; the spare
+ * levels are dropped whenever the point is copied — on the commit of a point changed in place, on clone, and by the
+ * persisted form, which writes the non-empty levels only. (A point minted by a growth and not changed afterwards is
+ * not dirty, so the commit takes it over as it is, spare levels included.) A commit that copies a point visits every
+ * level of it, so the doubling amortizes the additions within one transaction, not across transactions: once a commit
+ * compacted the array, the next transaction adding one more occurrence of a record that fills it grows the point
+ * again.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  * @see RangePoint for more information about the purpose of the class
@@ -140,6 +146,31 @@ public class TransactionalRangePoint
 		final TransactionalBitmap[] result = new TransactionalBitmap[count];
 		for (int i = 0; i < count; i++) {
 			result[i] = new TransactionalBitmap(levels[i]);
+		}
+		return result;
+	}
+
+	/**
+	 * Copies the passed occurrence levels into fresh transactional bitmaps, keeping the length of the array — its
+	 * spare levels become fresh empty bitmaps. Used for the side that does not grow when the other side does: dropping
+	 * its spare levels there would make the next repetition on this side grow the point again, so a record alternately
+	 * starting and ending here would replace the point on almost every addition instead of once per doubling.
+	 *
+	 * @param levels the levels to copy, may be `null` when nothing repeats
+	 * @return the copies with the same capacity, or `null` for `null`
+	 */
+	@Nullable
+	private static TransactionalBitmap[] copyLevelsKeepingCapacity(@Nullable TransactionalBitmap[] levels) {
+		if (levels == null) {
+			return null;
+		}
+		final TransactionalBitmap[] result = new TransactionalBitmap[levels.length];
+		final int count = nonEmptyLevelCount(levels);
+		for (int i = 0; i < count; i++) {
+			result[i] = new TransactionalBitmap(levels[i]);
+		}
+		for (int i = count; i < result.length; i++) {
+			result[i] = new TransactionalBitmap();
 		}
 		return result;
 	}
@@ -599,18 +630,18 @@ public class TransactionalRangePoint
 			return this;
 		}
 		// every level holds the record already - only a new point can carry a longer array; the other side keeps its
-		// non-empty levels
+		// capacity, spare levels included, so each side doubles on its own account
 		return fromStart ?
 			new TransactionalRangePoint(
 				this.threshold,
 				new TransactionalBitmap(this.starts), new TransactionalBitmap(this.ends),
-				copyLevelsWithOneMore(this.repeatedStarts, recordId), copyLevels(this.repeatedEnds),
+				copyLevelsWithOneMore(this.repeatedStarts, recordId), copyLevelsKeepingCapacity(this.repeatedEnds),
 				true
 			) :
 			new TransactionalRangePoint(
 				this.threshold,
 				new TransactionalBitmap(this.starts), new TransactionalBitmap(this.ends),
-				copyLevels(this.repeatedStarts), copyLevelsWithOneMore(this.repeatedEnds, recordId),
+				copyLevelsKeepingCapacity(this.repeatedStarts), copyLevelsWithOneMore(this.repeatedEnds, recordId),
 				true
 			);
 	}

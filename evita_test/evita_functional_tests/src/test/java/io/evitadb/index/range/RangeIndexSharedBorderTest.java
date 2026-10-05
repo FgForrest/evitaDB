@@ -23,6 +23,9 @@
 
 package io.evitadb.index.range;
 
+import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.base.RangeCountFormula;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.index.attribute.OwnerFilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
@@ -40,6 +43,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.test.TestTags.DATA_TYPE;
 import static io.evitadb.test.TestTags.HISTOGRAM;
@@ -51,6 +55,7 @@ import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static io.evitadb.utils.AssertionUtils.assertWarmUpSavepointRollbackRestores;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -64,8 +69,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * shared border has to be kept once per range: a start kept once makes the record vanish while the longer range still
  * runs, an end kept once keeps it after both ranges are over, and removing one of two ranges must not strip the border
  * from the other. Each scenario has a control with the borders shifted apart. The nests below also cover borders
- * shared more than twice, the suffix query, transactions and savepoints, the paged persistence of the levels, and the
- * range-histogram sweep, which has to count a record's open ranges for the same reason.
+ * shared more than twice, the suffix query, transactions and savepoints, which repeated levels a query turns into
+ * operands, the paged persistence of the levels, and the range-histogram sweep, which has to count a record's open
+ * ranges for the same reason.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -120,6 +126,20 @@ class RangeIndexSharedBorderTest {
 			result.add(sb.toString());
 		}
 		return result;
+	}
+
+	/**
+	 * Counts the non-empty levels of a repeated-level array, leaving its spare levels out.
+	 *
+	 * @param levels the repeated levels of one side of a point
+	 * @return the number of levels holding a record
+	 */
+	private static int nonEmptyLevels(@Nonnull Bitmap[] levels) {
+		int count = 0;
+		while (count < levels.length && !levels[count].isEmpty()) {
+			count++;
+		}
+		return count;
 	}
 
 	/**
@@ -443,6 +463,142 @@ class RangeIndexSharedBorderTest {
 					index.addRecord(5L, 40L, RECORD);
 				}
 			);
+		}
+
+		@Test
+		@DisplayName("a record alternately starting and ending at one threshold keeps every level as both sides grow")
+		void shouldKeepBothSidesWhenStartsAndEndsAlternateInTransaction() {
+			final long border = 1_000L;
+			final int pairs = 20;
+			final RangeIndex index = withOneRange();
+			final List<String> before = levelsOf(index);
+			final AtomicReference<List<String>> inTransaction = new AtomicReference<>();
+			assertStateAfterCommit(
+				index,
+				original -> {
+					// each pair grows the start levels and the end levels at the border once more, so the point is
+					// replaced inside the transaction while the other side holds spare levels
+					for (int i = 1; i <= pairs; i++) {
+						original.addRecord(border, border + i, RECORD);
+						original.addRecord(border - i, border, RECORD);
+					}
+					inTransaction.set(levelsOf(original));
+					assertArrayEquals(JUST_RECORD, enveloping(original, border - pairs));
+					assertArrayEquals(JUST_RECORD, enveloping(original, border + pairs));
+					assertArrayEquals(NOTHING, enveloping(original, border + pairs + 1));
+					assertArrayEquals(NOTHING, enveloping(original, border - pairs - 1));
+				},
+				(original, committed) -> {
+					assertNotNull(committed);
+					assertEquals(before, levelsOf(original), "the original is untouched");
+					assertEquals(inTransaction.get(), levelsOf(committed));
+					final TransactionalRangePoint point = pointAt(committed, border);
+					assertEquals(pairs - 1, nonEmptyLevels(point.getRepeatedStarts()), "every repeated start is kept");
+					assertEquals(pairs - 1, nonEmptyLevels(point.getRepeatedEnds()), "every repeated end is kept");
+					assertArrayEquals(JUST_RECORD, enveloping(committed, border + pairs));
+					assertArrayEquals(NOTHING, enveloping(committed, border + pairs + 1));
+				}
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Query operands")
+	class QueryOperands {
+		/**
+		 * The number of distinct open-bound ranges the record holds - each one more occurrence at the shared sentinel.
+		 */
+		private static final int RANGES = 64;
+
+		/**
+		 * Builds an index where {@link #RECORD} holds {@link #RANGES} `until` ranges, all sharing the `MIN` sentinel
+		 * and ending at `100`, `101`, … — the shape a popular referenced entity gets from many owners.
+		 *
+		 * @return the index
+		 */
+		@Nonnull
+		private static RangeIndex withOpenStartRanges() {
+			final RangeIndex index = new RangeIndex();
+			for (int i = 0; i < RANGES; i++) {
+				index.addRecord(Long.MIN_VALUE, 100L + i, RECORD);
+			}
+			return index;
+		}
+
+		/**
+		 * Builds an index where {@link #RECORD} holds {@link #RANGES} `since` ranges starting at `1`, `2`, … and all
+		 * sharing the `MAX` sentinel.
+		 *
+		 * @return the index
+		 */
+		@Nonnull
+		private static RangeIndex withOpenEndRanges() {
+			final RangeIndex index = new RangeIndex();
+			for (int i = 1; i <= RANGES; i++) {
+				index.addRecord(i, Long.MAX_VALUE, RECORD);
+			}
+			return index;
+		}
+
+		@Test
+		@DisplayName("a prefix query reaching no end answers from level 1 alone")
+		void shouldAnswerPrefixQueryWithoutEndsFromLevelOne() {
+			final RangeIndex index = withOpenStartRanges();
+			assertEquals(
+				RANGES - 1, nonEmptyLevels(pointAt(index, Long.MIN_VALUE).getRepeatedStarts()),
+				"precondition: every range but the first adds a level at the MIN sentinel"
+			);
+
+			for (final Formula formula : List.of(
+				index.getRecordsTo(50L),
+				index.getRecordsEnvelopingInclusive(50L),
+				index.getRecordsWithRangesOverlapping(10L, 50L)
+			)) {
+				assertInstanceOf(
+					ConstantFormula.class, formula,
+					"nothing ends in the prefix, so the union of the level-1 starts is the answer: " + formula
+				);
+				assertArrayEquals(JUST_RECORD, formula.compute().getArray());
+			}
+		}
+
+		@Test
+		@DisplayName("a suffix query reaching no start answers from level 1 alone")
+		void shouldAnswerSuffixQueryWithoutStartsFromLevelOne() {
+			final RangeIndex index = withOpenEndRanges();
+			assertEquals(
+				RANGES - 1, nonEmptyLevels(pointAt(index, Long.MAX_VALUE).getRepeatedEnds()),
+				"precondition: every range but the first adds a level at the MAX sentinel"
+			);
+
+			final Formula formula = index.getRecordsFrom(RANGES + 10L);
+			assertInstanceOf(
+				ConstantFormula.class, formula,
+				"nothing starts in the suffix, so the union of the level-1 ends is the answer: " + formula
+			);
+			assertArrayEquals(JUST_RECORD, formula.compute().getArray());
+		}
+
+		@Test
+		@DisplayName("a prefix query that cancels still counts every repeated level")
+		void shouldCountEveryRepeatedLevelWhenPrefixQueryCancels() {
+			final RangeIndex index = withOpenStartRanges();
+
+			final Formula running = index.getRecordsTo(100L + RANGES / 2);
+			assertInstanceOf(RangeCountFormula.class, running, "ends in the prefix need the counted levels");
+			assertArrayEquals(JUST_RECORD, running.compute().getArray(), "the later half of the ranges still runs");
+			assertArrayEquals(NOTHING, index.getRecordsTo(100L + RANGES).compute().getArray(), "every range is over");
+		}
+
+		@Test
+		@DisplayName("a suffix query that cancels still counts every repeated level")
+		void shouldCountEveryRepeatedLevelWhenSuffixQueryCancels() {
+			final RangeIndex index = withOpenEndRanges();
+
+			final Formula running = index.getRecordsFrom(RANGES / 2);
+			assertInstanceOf(RangeCountFormula.class, running, "starts in the suffix need the counted levels");
+			assertArrayEquals(JUST_RECORD, running.compute().getArray(), "the earlier half of the ranges runs");
+			assertArrayEquals(NOTHING, index.getRecordsFrom(1L).compute().getArray(), "nothing started before 1");
 		}
 	}
 
