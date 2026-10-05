@@ -153,6 +153,7 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.index.*;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.MapChanges.ValueMerger;
 import io.evitadb.index.map.PersistentTransactionalProducerMap;
@@ -4607,6 +4608,11 @@ public final class EntityCollection implements
 				EntityCollection.this.indexesByPrimaryKey,
 				EntityCollection.this.cacheSupervisor
 			);
+			// a scope this collection holds no entity of has nothing to match - the expression is not planned there,
+			// a write must not depend on whether the expression could be evaluated in a scope with no entities
+			if (queryContext.getGlobalEntityIndexIfExists(EntityCollection.this.getEntityType(), scope).isEmpty()) {
+				return EmptyBitmap.INSTANCE;
+			}
 			final Set<Scope> requestedScopes = EnumSet.of(scope);
 			final Formula formula = FilterByVisitor.createFormulaForTheFilter(
 				queryContext,

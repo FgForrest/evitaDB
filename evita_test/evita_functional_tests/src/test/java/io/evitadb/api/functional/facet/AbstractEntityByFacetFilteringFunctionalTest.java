@@ -32,6 +32,7 @@ import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.EntityFetch;
@@ -238,7 +239,8 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 * indexed and faceted in every scope. The tags are grouped by the managed type {@link #ENTITY_SCOPED_TAG_GROUP},
 	 * whose entities - the groups 100, 200 and 300 - are all live, so the type has no index of the archived scope. Its
 	 * attribute {@link #ATTRIBUTE_CODE} is filterable in every scope, its attribute {@link #ATTRIBUTE_NOTE} is not
-	 * filterable at all. Tags 10, 11, 12 and 13 belong to group 100, tag 20 to group 200 and tag 30 to group 300.
+	 * filterable at all. The tags themselves are all live as well, with the same two attributes. Tags 10, 11, 12 and
+	 * 13 belong to group 100, tag 20 to group 200 and tag 30 to group 300.
 	 *
 	 * | product | scope    | tags   |
 	 * |---------|----------|--------|
@@ -1185,14 +1187,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 							facetSummaryOfReference(
 								EMPTY_COLLECTION_ENTITY,
 								FacetStatisticsDepth.COUNTS,
-								filterBy(
-									referenceHaving(
-										Entities.PARAMETER,
-										filterBy(
-											entityHaving(entityPrimaryKeyInSet(1))
-										)
-									)
-								)
+								filterBy(attributeEquals(ATTRIBUTE_NAME, "anything"))
 							)
 						)
 					),
@@ -1722,9 +1717,15 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				}
 				session.defineEntitySchema(ENTITY_SCOPED_TAG)
 					.withoutGeneratedPrimaryKey()
+					.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.filterableInScope(Scope.values()))
+					.withAttribute(ATTRIBUTE_NOTE, String.class)
 					.updateVia(session);
 				for (final int tagId : SCOPED_TAGS) {
-					session.upsertEntity(session.createNewEntity(ENTITY_SCOPED_TAG, tagId));
+					session.upsertEntity(
+						session.createNewEntity(ENTITY_SCOPED_TAG, tagId)
+							.setAttribute(ATTRIBUTE_CODE, "tag" + tagId)
+							.setAttribute(ATTRIBUTE_NOTE, "not filterable")
+					);
 				}
 				session.defineEntitySchema(ENTITY_SCOPED_PRODUCT)
 					.withoutGeneratedPrimaryKey()
@@ -4332,6 +4333,133 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				);
 				return null;
 			}
+		);
+	}
+
+	/**
+	 * Returns the rows of the nested filters restricted to the archived scope of the {@link #FACET_SCOPE_SHAPES} data
+	 * set, each looking into an entity type that holds no archived entity and so has no index of that scope, while the
+	 * query requests both scopes. Each row is a label and the query, whose nested filter asks the attribute
+	 * {@link #ATTRIBUTE_NOTE}, which is not filterable.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> nestedFilterOfScopeWithoutIndexRows() {
+		final FilterConstraint archivedNote = inScope(Scope.ARCHIVED, attributeEquals(ATTRIBUTE_NOTE, "anything"));
+		return Stream.of(
+			Arguments.of(
+				"group filter of the reference summary",
+				scopedProductSummaryQuery(
+					referenceSummaryOfReference(
+						REF_TAG, FacetStatisticsDepth.COUNTS, (FilterBy) null, filterGroupBy(archivedNote)
+					)
+				)
+			),
+			Arguments.of(
+				"option filter of the reference summary",
+				scopedProductSummaryQuery(
+					referenceSummaryOfReference(
+						REF_TAG, FacetStatisticsDepth.COUNTS, filterBy(archivedNote), (FilterGroupBy) null
+					)
+				)
+			),
+			Arguments.of(
+				"entity filter of a result segment",
+				query(
+					collection(ENTITY_SCOPED_TAG_GROUP),
+					filterBy(scope(Scope.LIVE, Scope.ARCHIVED)),
+					orderBy(
+						segments(
+							segment(entityHaving(archivedNote), orderBy(entityPrimaryKeyNatural(OrderDirection.DESC)))
+						)
+					),
+					require(page(1, SCOPED_TAGS.length))
+				)
+			)
+		);
+	}
+
+	/**
+	 * Checks that a nested filter which cannot be evaluated in one of the requested scopes makes the query fail with
+	 * a client error even when the entity type it looks into has no index of that scope - the filter is checked in
+	 * every requested scope, not only in those the entity type holds entities of.
+	 *
+	 * @param label the row label, used in the test name only
+	 * @param query the query with the nested filter
+	 * @param evita the engine instance provided by the test extension
+	 */
+	@DisplayName("Should fail the query whose nested filter cannot be evaluated in a scope without index")
+	@UseDataSet(FACET_SCOPE_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("nestedFilterOfScopeWithoutIndexRows")
+	void shouldFailQueryWhoseNestedFilterCannotBeEvaluatedInScopeWithoutIndex(
+		@Nonnull String label,
+		@Nonnull Query query,
+		Evita evita
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final AttributeNotFilterableException exception = assertThrowsExactly(
+					AttributeNotFilterableException.class,
+					() -> session.query(query, EntityReference.class)
+				);
+				assertTrue(
+					exception.getMessage().contains("`" + ATTRIBUTE_NOTE + "`"),
+					"the message `" + exception.getMessage() + "` must name the attribute"
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Checks that a nested filter restricted to a requested scope the entity type it looks into has no index of is
+	 * accepted when it can be evaluated there - checking the filter in that scope must not refuse a filter the schema
+	 * allows, and the filter keeps restricting that scope only, so the live tags stay in the summary.
+	 *
+	 * @param evita the engine instance provided by the test extension
+	 */
+	@DisplayName("Should accept an evaluable nested filter of a scope without index")
+	@UseDataSet(FACET_SCOPE_SHAPES)
+	@Test
+	void shouldAcceptEvaluableNestedFilterOfScopeWithoutIndex(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final FilterConstraint archivedCode = inScope(Scope.ARCHIVED, attributeEquals(ATTRIBUTE_CODE, "tag10"));
+				final ReferenceSummary summary = session.query(
+					scopedProductSummaryQuery(
+						referenceSummaryOfReference(
+							REF_TAG, FacetStatisticsDepth.COUNTS, filterBy(archivedCode), (FilterGroupBy) null
+						)
+					),
+					EntityReference.class
+				).getExtraResult(ReferenceSummary.class);
+				assertNotNull(summary, "the reference summary must be computed");
+				assertNotNull(
+					summary.getReferenceGroupStatistics(REF_TAG, scopedTagGroupOf(10)),
+					"a filter of the archived scope must not restrict the live tags"
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Builds the query of the {@link #FACET_SCOPE_SHAPES} data set over both scopes requesting the passed reference
+	 * summary.
+	 *
+	 * @param summary the reference summary requirement
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query scopedProductSummaryQuery(@Nonnull RequireConstraint summary) {
+		return query(
+			collection(ENTITY_SCOPED_PRODUCT),
+			filterBy(scope(Scope.LIVE, Scope.ARCHIVED)),
+			require(page(1, SCOPED_PRODUCT_TAGS.length), summary)
 		);
 	}
 
@@ -7578,14 +7706,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 							referenceSummaryOfReference(
 								EMPTY_COLLECTION_ENTITY,
 								FacetStatisticsDepth.COUNTS,
-								filterBy(
-									referenceHaving(
-										Entities.PARAMETER,
-										filterBy(
-											entityHaving(entityPrimaryKeyInSet(1))
-										)
-									)
-								)
+								filterBy(attributeEquals(ATTRIBUTE_NAME, "anything"))
 							)
 						)
 					),
@@ -7595,6 +7716,44 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				final ReferenceSummary referenceSummary = result.getExtraResult(ReferenceSummary.class);
 				assertNotNull(referenceSummary);
 				assertTrue(referenceSummary.getReferenceStatistics().isEmpty());
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Checks that a filter of the reference summary the schema of the referenced entity type cannot evaluate fails the
+	 * query with a client error even when the referenced collection holds no entity - the filter is checked against
+	 * the schema whether the entities exist or not.
+	 *
+	 * @param evita the engine instance provided by the test extension
+	 */
+	@DisplayName("Should fail the reference summary whose filter cannot be evaluated over an empty collection")
+	@UseDataSet(THOUSAND_PRODUCTS_WITH_FACETS)
+	@Test
+	void shouldFailReferenceSummaryWhoseFilterCannotBeEvaluatedOverEmptyCollection(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertThrowsExactly(
+					ReferenceNotFoundException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							require(
+								page(1, Integer.MAX_VALUE),
+								referenceSummaryOfReference(
+									EMPTY_COLLECTION_ENTITY,
+									FacetStatisticsDepth.COUNTS,
+									filterBy(
+										referenceHaving(Entities.PARAMETER, filterBy(entityHaving(entityPrimaryKeyInSet(1))))
+									)
+								)
+							)
+						),
+						EntityReference.class
+					)
+				);
 				return null;
 			}
 		);

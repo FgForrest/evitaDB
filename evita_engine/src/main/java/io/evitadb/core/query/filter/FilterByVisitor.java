@@ -331,8 +331,16 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * Method creates a new formula that looks for entity primary keys in global index of `entityType` collection that
 	 * match the `filterBy` constraint.
 	 *
+	 * The filter is planned in every requested scope. An entity type that holds no entity of a scope has no index of
+	 * that scope, and the part of the filter restricted to a scope with no index to look into would never be
+	 * translated - an empty index in its place lets the translation check the filter against the entity schema in
+	 * every requested scope exactly as it does when the entities exist, so that the query does not fail or pass
+	 * depending on the data. The empty index matches nothing.
+	 *
 	 * @param queryContext            used for accessing global index, global cache and recording query telemetry
+	 * @param requestedScopes         the scopes the filter is planned in
 	 * @param filterBy                the filter constraints the entities must match
+	 * @param rootFilterBy            the filter of the enclosing query, NULL when there is none
 	 * @param entityType              the entity type of the entity that is looked up
 	 * @param stepDescriptionSupplier the message supplier for the query telemetry
 	 * @return output {@link Formula} that is able to produce the matching entity primary keys
@@ -352,7 +360,10 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			// now analyze the filter by in a nested context with exchanged primary entity index
 			requestedScopes
 				.stream()
-				.flatMap(scope -> queryContext.getGlobalEntityIndexIfExists(entityType, scope).stream())
+				.map(
+					scope -> queryContext.getGlobalEntityIndexIfExists(entityType, scope)
+						.orElseGet(() -> new GlobalEntityIndex(-1, entityType, new EntityIndexKey(EntityIndexType.GLOBAL, scope)))
+				)
 				.toList(),
 			filterBy,
 			rootFilterBy,
