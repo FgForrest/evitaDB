@@ -24,6 +24,7 @@
 package io.evitadb.api.functional.reference;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
@@ -35,6 +36,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.exception.AttributeNotFilterableException;
+import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
@@ -63,6 +65,7 @@ import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FILTER;
+import static io.evitadb.test.TestTags.ORDER;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -112,6 +115,7 @@ public class NestedConstraintCheckFunctionalTest {
 	private static final String ATTRIBUTE_NOTE = "note";
 	private static final String ATTRIBUTE_WEIGHT = "weight";
 	private static final String ATTRIBUTE_PRIORITY = "priority";
+	private static final String ATTRIBUTE_MISSING = "missing";
 	/**
 	 * A product primary key no product has.
 	 */
@@ -406,6 +410,101 @@ public class NestedConstraintCheckFunctionalTest {
 					);
 					return null;
 				}
+			);
+		}
+
+	}
+
+	/**
+	 * The default ordering of a reference to a non-hierarchical entity picks the first reference of each entity. An
+	 * ordering by a reference no entity holds a row of sorts nothing, but its attribute is checked all the same.
+	 */
+	@DisplayName("Pick-first ordering by a reference without rows")
+	@Nested
+	@Tag(ORDER)
+	class PickFirstOrderingWithoutRows {
+
+		/**
+		 * Returns the rows of the reference orderings the schema refuses. Each row is a label, the scope queried, the
+		 * ordered reference, the ordered attribute and the exception the query must fail with. Every row is paired
+		 * with the same ordering by {@link #REF_BRAND}, which has rows in both scopes and fails the same way.
+		 *
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> refusedReferenceOrderingRows() {
+			return Stream.of(REF_FORMER_BRAND, REF_BRAND)
+				.flatMap(
+					referenceName -> Stream.of(
+						Arguments.of(
+							"missing attribute of " + referenceName + " in the live scope", Scope.LIVE, referenceName,
+							ATTRIBUTE_MISSING, AttributeNotFoundException.class
+						),
+						Arguments.of(
+							"missing attribute of " + referenceName + " in the archived scope", Scope.ARCHIVED,
+							referenceName, ATTRIBUTE_MISSING, AttributeNotFoundException.class
+						),
+						Arguments.of(
+							"attribute of " + referenceName + " sortable nowhere", Scope.LIVE, referenceName,
+							ATTRIBUTE_NOTE, AttributeNotSortableException.class
+						),
+						Arguments.of(
+							"attribute of " + referenceName + " sortable in the live scope only, in the archived scope",
+							Scope.ARCHIVED, referenceName, ATTRIBUTE_PRIORITY, AttributeNotSortableException.class
+						)
+					)
+				);
+		}
+
+		@DisplayName("Should fail the ordering whose attribute the schema refuses, with or without reference rows")
+		@UseDataSet(NESTED_CHECK)
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("refusedReferenceOrderingRows")
+		void shouldFailOrderingWhoseAttributeSchemaRefuses(
+			@Nonnull String label,
+			@Nonnull Scope scope,
+			@Nonnull String referenceName,
+			@Nonnull String attributeName,
+			@Nonnull Class<? extends EvitaInvalidUsageException> expectedException,
+			Evita evita
+		) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EvitaInvalidUsageException exception = assertThrowsExactly(
+						expectedException,
+						() -> session.queryList(
+							query(
+								collection(ENTITY_PRODUCT),
+								filterBy(scope(scope)),
+								orderBy(referenceProperty(referenceName, attributeNatural(attributeName)))
+							),
+							EntityClassifier.class
+						)
+					);
+					assertTrue(
+						exception.getMessage().contains("`" + attributeName + "`"),
+						"the message `" + exception.getMessage() + "` must name `" + attributeName + "`"
+					);
+					return null;
+				}
+			);
+		}
+
+		@DisplayName("Should accept the ordering by an evaluable attribute of a reference without rows")
+		@UseDataSet(NESTED_CHECK)
+		@Test
+		void shouldAcceptOrderingByEvaluableAttributeOfReferenceWithoutRows(Evita evita) {
+			assertEquals(
+				List.of(1),
+				queriedPrimaryKeys(
+					evita,
+					query(
+						collection(ENTITY_PRODUCT),
+						filterBy(scope(Scope.LIVE)),
+						orderBy(referenceProperty(REF_FORMER_BRAND, attributeNatural(ATTRIBUTE_PRIORITY)))
+					)
+				)
 			);
 		}
 

@@ -439,6 +439,58 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	}
 
 	/**
+	 * Translates the child constraints of a pick-first ordering by a reference no owner of the processed scopes holds a
+	 * row of, only to check them against the schemas in every processed scope, and throws the sorters away - so that
+	 * the query does not fail or pass depending on whether there are any rows to order by.
+	 *
+	 * The constraints are translated exactly as the ordering with rows translates them, with two differences that keep
+	 * the translation from depending on the data: the resolver of the pick-first indexes offers a single empty reduced
+	 * index of the reference to the translators asking for the indexes at planning time - one index, as the rows of
+	 * one referenced entity would - and the sorters are collected in isolation, so that none joins the sorters of the
+	 * query: an owner without a row stays unsorted by the reference.
+	 *
+	 * @param referenceProperty         the ordering whose child constraints are checked
+	 * @param orderByVisitor            the visitor of the planned query
+	 * @param referenceSchema           the reference being ordered by
+	 * @param pickFirstByEntityProperty the ordering of the targets
+	 * @param implicit                  true when the pick-first specification is the implicit default of the reference
+	 */
+	private static void checkChildConstraintsWithoutRows(
+		@Nonnull ReferenceProperty referenceProperty,
+		@Nonnull OrderByVisitor orderByVisitor,
+		@Nonnull ReferenceSchema referenceSchema,
+		@Nonnull PickFirstByEntityProperty pickFirstByEntityProperty,
+		boolean implicit
+	) {
+		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
+		final String referenceName = referenceSchema.getName();
+		final ReducedEntityIndex[] emptyIndexes = {
+			new ReducedEntityIndex(
+				-1,
+				orderByVisitor.getSchema().getName(),
+				new EntityIndexKey(
+					EntityIndexType.REFERENCED_ENTITY,
+					processingScope.getScopes().iterator().next(),
+					new RepresentativeReferenceKey(new ReferenceKey(referenceName, -1))
+				)
+			)
+		};
+		orderByVisitor.executeInContext(
+			EMPTY_REDUCED_INDEXES,
+			referenceSchema,
+			null,
+			processingScope.withReferenceSchemaAccessor(referenceName),
+			new MergeModeDefinition(MergeMode.APPEND_FIRST, implicit),
+			createPickFirstIndexResolver(
+				orderByVisitor, referenceSchema, pickFirstByEntityProperty.getChildren(), () -> emptyIndexes
+			),
+			() -> orderByVisitor.collectIsolatedSorters(
+				() -> traverseChildConstraints(referenceProperty, orderByVisitor)
+			)
+		);
+	}
+
+	/**
 	 * Traverses the child constraints within the provided {@link ReferenceProperty}
 	 * and applies the specified {@link OrderByVisitor} to handle the ordering constraints.
 	 * This method handles specific constraints such as {@link EntityProperty} with
@@ -590,8 +642,11 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 
 		if (orderingSpecification instanceof PickFirstByEntityProperty pfbep) {
 			if (!hasAnyReducedIndex(orderByVisitor, referenceName)) {
-				// no owner has a row of this reference in the processed scopes - there is nothing to sort by, and the
-				// nested constraints must not be planned (single-index translators require an index to exist)
+				// no owner has a row of this reference in the processed scopes - there is nothing to sort by, but the
+				// nested constraints are checked against the schemas all the same
+				checkChildConstraintsWithoutRows(
+					referenceProperty, orderByVisitor, referenceSchema, pfbep, orderingSpecificationRef.isEmpty()
+				);
 				return Stream.empty();
 			}
 			// the reduced indexes a pick-first ordering walks depend on the selected owners only - every row of a
