@@ -158,6 +158,10 @@ public class HavingTranslatorHelper {
 	 * all: the filter is checked over an empty global index of every scope, and the empty formula is returned as when
 	 * the target entity type holds no entity - its formula is thrown away, and nothing is evaluated for it.
 	 *
+	 * Either check uses the scopes the nested query is planned in - those a `scope(...)` of the filter names, which the
+	 * nested query honours whatever the enclosing query processes, see {@link #getNestedQueryScopes} - so that it
+	 * refuses nothing the nested query evaluated over data accepts.
+	 *
 	 * @param targetEntityType         the type of the target entity for which the nested query is being planned
 	 * @param filter                   the filter constraint that applies the necessary filtering logic
 	 * @param filterByVisitor          the visitor object used for traversing and processing filter constraints
@@ -177,15 +181,19 @@ public class HavingTranslatorHelper {
 		final EntityCollection targetEntityCollection = filterByVisitor.getEntityCollectionOrThrowException(
 			targetEntityType, taskDescriptionSupplier
 		);
+		final FilterBy nestedFilterBy = filter instanceof FilterBy filterBy ? filterBy : new FilterBy(filter);
+		final EntityScope nestedScope = QueryUtils.findConstraint(
+			nestedFilterBy, EntityScope.class, SeparateEntityScopeContainer.class
+		);
 		if (filterByVisitor.isConstraintCheckOnly()) {
 			FilterByVisitor.createFormulaForTheFilter(
 				filterByVisitor.getQueryContext(),
 				GlobalEntityIndex.class,
-				processingScope.getScopes()
+				getNestedQueryScopes(nestedScope, processingScope.getScopes())
 					.stream()
 					.map(scope -> GlobalEntityIndex.createEmptyIndex(targetEntityType, scope))
 					.toList(),
-				filter instanceof FilterBy filterBy ? filterBy : new FilterBy(filter),
+				nestedFilterBy,
 				null,
 				filterByVisitor.getQueryContext().getSchema(targetEntityType),
 				taskDescriptionSupplier
@@ -205,14 +213,21 @@ public class HavingTranslatorHelper {
 
 		// a scope the target entity type holds no entity of has no index and the nested query is not planned there,
 		// but the filter is still checked against the entity schema in that scope, so that the query does not fail or
-		// pass depending on the data - nothing can match there, so the formula of the check is not used
-		if (globalIndexes.size() < processingScope.getScopes().size()) {
-			final Set<Scope> scopesWithoutIndex = EnumSet.copyOf(processingScope.getScopes());
-			globalIndexes.forEach(it -> scopesWithoutIndex.remove(it.getIndexKey().scope()));
+		// pass depending on the data - nothing can match there, so the formula of the check is not used; a nested
+		// `scope(...)` takes the scopes of the nested query out of the processing scopes, so it is checked in the
+		// scopes it names, and only when no nested query is planned at all - one planned query checks all of them
+		final Set<Scope> scopesToCheck;
+		if (nestedScope == null) {
+			scopesToCheck = EnumSet.copyOf(processingScope.getScopes());
+			globalIndexes.forEach(it -> scopesToCheck.remove(it.getIndexKey().scope()));
+		} else {
+			scopesToCheck = globalIndexes.isEmpty() ? nestedScope.getScope() : Set.of();
+		}
+		if (!scopesToCheck.isEmpty()) {
 			FilterByVisitor.createFormulaForTheFilter(
 				filterByVisitor.getQueryContext(),
-				scopesWithoutIndex,
-				filter instanceof FilterBy filterBy ? filterBy : new FilterBy(filter),
+				scopesToCheck,
+				nestedFilterBy,
 				null,
 				targetEntityType,
 				taskDescriptionSupplier
@@ -305,6 +320,23 @@ public class HavingTranslatorHelper {
 					)
 				).toList();
 		}
+	}
+
+	/**
+	 * Returns the scopes a nested query is planned in when it is planned for all processing scopes at once: those the
+	 * `scope(...)` of its filter names - the nested query honours it whatever the enclosing query processes - or the
+	 * processing scopes when its filter names none.
+	 *
+	 * @param nestedScope      the `scope(...)` of the nested filter, NULL when it has none
+	 * @param processingScopes the scopes of the enclosing query being processed
+	 * @return the scopes of the nested query
+	 */
+	@Nonnull
+	private static Set<Scope> getNestedQueryScopes(
+		@Nullable EntityScope nestedScope,
+		@Nonnull Set<Scope> processingScopes
+	) {
+		return nestedScope == null ? processingScopes : nestedScope.getScope();
 	}
 
 	/**
