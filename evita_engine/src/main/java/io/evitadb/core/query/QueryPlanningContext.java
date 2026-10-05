@@ -2173,19 +2173,18 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		final Supplier<String> stepDescription = () -> "Facet group " + relationType.name().toLowerCase() +
 			" of `" + referenceName + "` filter: " + facetFilterBy;
 		if (referenceSchema.isReferencedGroupTypeManaged()) {
-			final List<GlobalEntityIndex> groupIndexes = getScopes().stream()
-				.flatMap(scope -> getGlobalEntityIndexIfExists(referencedGroupType, scope).stream())
-				.toList();
-			// a group type that holds no entity has no index yet, and a filter with no index to look into would never
-			// be translated - empty indexes in its place let the translation check the filter against the group schema
-			// exactly as it does when the groups exist, so that the query does not fail or pass depending on the data
+			// a group type that holds no entity of a scope has no index of that scope, and the part of the filter
+			// restricted to a scope with no index to look into would never be translated - an empty index in its place
+			// lets the translation check the filter against the group schema in every requested scope exactly as it
+			// does when the groups exist, so that the query does not fail or pass depending on the data
 			return new FilteringFormulaPredicate(
 				this,
-				groupIndexes.isEmpty() ?
-					getScopes().stream()
-						.map(scope -> new GlobalEntityIndex(-1, referencedGroupType, GLOBAL_INDEX_KEY.get(scope)))
-						.toList() :
-					groupIndexes,
+				getScopes().stream()
+					.map(
+						scope -> getGlobalEntityIndexIfExists(referencedGroupType, scope)
+							.orElseGet(() -> new GlobalEntityIndex(-1, referencedGroupType, GLOBAL_INDEX_KEY.get(scope)))
+					)
+					.toList(),
 				filterBy,
 				getSchema(referencedGroupType),
 				stepDescription

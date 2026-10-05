@@ -3737,6 +3737,124 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
+	 * Returns the rows of the group filters restricted to the archived scope of the {@link #FACET_SCOPE_SHAPES} data
+	 * set, whose group type holds no archived entity and so has no index of that scope. Each row is a label, the
+	 * relation requirement with the group filter, whether the query selects a tag, and whether it requests the
+	 * reference summary of the tags.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> groupFilterOfScopeWithoutGroupIndexRows() {
+		final FilterBy byArchivedNote = filterBy(inScope(Scope.ARCHIVED, attributeEquals(ATTRIBUTE_NOTE, "anything")));
+		return Stream.of(
+				Arguments.of("negation", facetGroupsNegation(REF_TAG, byArchivedNote)),
+				Arguments.of("negation between groups", facetGroupsNegation(REF_TAG, WITH_DIFFERENT_GROUPS, byArchivedNote)),
+				Arguments.of("conjunction", facetGroupsConjunction(REF_TAG, byArchivedNote)),
+				Arguments.of(
+					"disjunction between groups", facetGroupsDisjunction(REF_TAG, WITH_DIFFERENT_GROUPS, byArchivedNote)
+				),
+				Arguments.of("exclusivity", facetGroupsExclusivity(REF_TAG, byArchivedNote))
+			)
+			.flatMap(
+				row -> Stream.of(
+					Arguments.of(row.get()[0] + ", no selection", row.get()[1], false, false),
+					Arguments.of(row.get()[0] + ", a tag selected", row.get()[1], true, false),
+					Arguments.of(row.get()[0] + ", a tag selected, with summary", row.get()[1], true, true)
+				)
+			);
+	}
+
+	/**
+	 * Checks that a group filter which cannot be evaluated in one of the requested scopes makes the query fail with
+	 * a client error even when the group type has no index of that scope, while it has one of another requested
+	 * scope - the filter is checked in every requested scope, not only in those the group type holds entities of.
+	 *
+	 * @param label         the row label, used in the test name only
+	 * @param relation      the relation requirement with the group filter
+	 * @param withSelection whether the query selects a tag
+	 * @param withSummary   whether the query requests the reference summary of the tags
+	 * @param evita         the engine instance provided by the test extension
+	 */
+	@DisplayName("Should fail the query whose group filter cannot be evaluated in a scope without group index")
+	@UseDataSet(FACET_SCOPE_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("groupFilterOfScopeWithoutGroupIndexRows")
+	void shouldFailQueryWhoseGroupFilterCannotBeEvaluatedInScopeWithoutGroupIndex(
+		@Nonnull String label,
+		@Nonnull RequireConstraint relation,
+		boolean withSelection,
+		boolean withSummary,
+		Evita evita
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final AttributeNotFilterableException exception = assertThrowsExactly(
+					AttributeNotFilterableException.class,
+					() -> session.query(
+						query(
+							collection(ENTITY_SCOPED_PRODUCT),
+							filterBy(
+								scope(Scope.LIVE, Scope.ARCHIVED),
+								withSelection ? userFilter(facetHaving(REF_TAG, entityPrimaryKeyInSet(10))) : null
+							),
+							require(
+								page(1, SCOPED_PRODUCT_TAGS.length),
+								relation,
+								withSummary ? referenceSummaryOfReference(REF_TAG, FacetStatisticsDepth.COUNTS) : null
+							)
+						),
+						EntityReference.class
+					)
+				);
+				assertTrue(
+					exception.getMessage().contains("`" + ATTRIBUTE_NOTE + "`"),
+					"the message `" + exception.getMessage() + "` must name the attribute"
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Checks that a group filter restricted to a requested scope the group type has no index of is accepted when it
+	 * can be evaluated there - checking the filter in that scope must not refuse a filter the group schema allows.
+	 *
+	 * @param evita the engine instance provided by the test extension
+	 */
+	@DisplayName("Should accept an evaluable group filter of a scope without group index")
+	@UseDataSet(FACET_SCOPE_SHAPES)
+	@Test
+	void shouldAcceptEvaluableGroupFilterOfScopeWithoutGroupIndex(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				assertDoesNotThrow(
+					() -> session.query(
+						query(
+							collection(ENTITY_SCOPED_PRODUCT),
+							filterBy(
+								scope(Scope.LIVE, Scope.ARCHIVED),
+								userFilter(facetHaving(REF_TAG, entityPrimaryKeyInSet(10)))
+							),
+							require(
+								page(1, SCOPED_PRODUCT_TAGS.length),
+								facetGroupsNegation(
+									REF_TAG, filterBy(inScope(Scope.ARCHIVED, attributeEquals(ATTRIBUTE_CODE, "group100")))
+								),
+								referenceSummaryOfReference(REF_TAG, FacetStatisticsDepth.COUNTS)
+							)
+						),
+						EntityReference.class
+					)
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
 	 * Returns the rows of the facet relation constraints naming a reference the entity does not have, over the
 	 * {@link #FACET_RELATION_SHAPES} data set. Each row is a label, the relation requirement, whether the query selects
 	 * an option of {@link #REF_TAG} in `facetHaving`, and whether it requests the reference summary of
