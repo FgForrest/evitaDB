@@ -294,7 +294,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * - see {@link #createConstraintCheckVisitor(QueryPlanningContext)}. Such a visitor looks into no index holding
 	 * data: the type index of a reference and the global index of an entity type a nested `entityHaving` or
 	 * `groupHaving` query targets are replaced by empty indexes, so the check costs one translation and never
-	 * evaluates anything.
+	 * evaluates anything. The nested filter of such a query is checked by a visitor that only checks as well, so the
+	 * reference constraints nested in it at any depth look into no index holding data either.
 	 */
 	@Getter private final boolean constraintCheckOnly;
 
@@ -402,6 +403,40 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nullable EntitySchemaContract entitySchema,
 		@Nonnull Supplier<String> stepDescriptionSupplier
 	) {
+		return createFormulaForTheFilter(
+			queryContext, indexType, indexesToUse, filterBy, rootFilterBy, entitySchema, stepDescriptionSupplier, false
+		);
+	}
+
+	/**
+	 * Method creates a new formula that looks for entity primary keys in the passed indexes that match the `filterBy`
+	 * constraint - see {@link #createFormulaForTheFilter(QueryPlanningContext, Class, List, FilterBy, FilterBy,
+	 * EntitySchemaContract, Supplier)} - by a visitor that only checks the filter when `constraintCheckOnly` is true
+	 * (see {@link #isConstraintCheckOnly()}). A check of a nested filter passes true, so that the check stays one
+	 * however deep the filter nests further reference constraints.
+	 *
+	 * @param queryContext            used for accessing global index, global cache and recording query telemetry
+	 * @param indexType               the type of the indexes to use
+	 * @param indexesToUse            the indexes the filter is translated over
+	 * @param filterBy                the filter constraints the entities must match
+	 * @param rootFilterBy            the filter of the enclosing query, NULL when there is none
+	 * @param entitySchema            the entity schema of the entity that is looked up
+	 * @param stepDescriptionSupplier the message supplier for the query telemetry
+	 * @param constraintCheckOnly     true when the filter is translated only to be checked and its formula is thrown
+	 *                                away
+	 * @return output {@link Formula} that is able to produce the matching entity primary keys
+	 */
+	@Nonnull
+	public static <T extends EntityIndex> Formula createFormulaForTheFilter(
+		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull Class<T> indexType,
+		@Nonnull List<T> indexesToUse,
+		@Nonnull FilterBy filterBy,
+		@Nullable FilterBy rootFilterBy,
+		@Nullable EntitySchemaContract entitySchema,
+		@Nonnull Supplier<String> stepDescriptionSupplier,
+		boolean constraintCheckOnly
+	) {
 		final Formula theFormula;
 		try {
 			queryContext.pushStep(
@@ -410,9 +445,11 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			);
 			// create a visitor
 			final FilterByVisitor theFilterByVisitor = new FilterByVisitor(
+				createRootProcessingScope(queryContext, TargetIndexes.EMPTY),
 				queryContext,
 				Collections.emptyList(),
-				TargetIndexes.EMPTY
+				TargetIndexes.EMPTY,
+				constraintCheckOnly
 			);
 
 			// now analyze the filter by in a nested context with exchanged primary entity index

@@ -158,10 +158,9 @@ public class HavingTranslatorHelper {
 	 * all: the filter is checked over an empty global index of every scope, and the empty formula is returned as when
 	 * the target entity type holds no entity - its formula is thrown away, and nothing is evaluated for it.
 	 *
-	 * Either check uses the scopes the nested query is planned in - those a `scope(...)` of the filter names, which the
-	 * nested query honours whatever the enclosing query processes, see {@link #getNestedQueryScopes} - and the planning
-	 * context of the nested query, which resolves the constraints against the target entity type rather than against
-	 * the entity type of the enclosing query, so that it refuses nothing the nested query evaluated over data accepts.
+	 * Either check is made by {@link #checkNestedFilter}, in the scopes the nested query is planned in - those a
+	 * `scope(...)` of the filter names, which the nested query honours whatever the enclosing query processes, see
+	 * {@link #getNestedQueryScopes} - so that it refuses nothing the nested query evaluated over data accepts.
 	 *
 	 * @param targetEntityType         the type of the target entity for which the nested query is being planned
 	 * @param filter                   the filter constraint that applies the necessary filtering logic
@@ -187,21 +186,10 @@ public class HavingTranslatorHelper {
 			nestedFilterBy, EntityScope.class, SeparateEntityScopeContainer.class
 		);
 		if (filterByVisitor.isConstraintCheckOnly()) {
-			final Set<Scope> nestedQueryScopes = getNestedQueryScopes(nestedScope, processingScope.getScopes());
-			final QueryPlanningContext nestedQueryContext = createNestedQueryContext(
-				targetEntityCollection, nestedFilterBy, nestedQueryScopes, filterByVisitor
-			);
-			FilterByVisitor.createFormulaForTheFilter(
-				nestedQueryContext,
-				GlobalEntityIndex.class,
-				nestedQueryScopes
-					.stream()
-					.map(scope -> GlobalEntityIndex.createEmptyIndex(targetEntityType, scope))
-					.toList(),
-				nestedFilterBy,
-				null,
-				nestedQueryContext.getSchema(),
-				taskDescriptionSupplier
+			checkNestedFilter(
+				targetEntityCollection, nestedFilterBy,
+				getNestedQueryScopes(nestedScope, processingScope.getScopes()),
+				filterByVisitor, taskDescriptionSupplier
 			);
 			return List.of(new GlobalIndexAndFormula(null, EmptyFormula.INSTANCE));
 		}
@@ -229,13 +217,8 @@ public class HavingTranslatorHelper {
 			scopesToCheck = globalIndexes.isEmpty() ? nestedScope.getScope() : Set.of();
 		}
 		if (!scopesToCheck.isEmpty()) {
-			FilterByVisitor.createFormulaForTheFilter(
-				createNestedQueryContext(targetEntityCollection, nestedFilterBy, scopesToCheck, filterByVisitor),
-				scopesToCheck,
-				nestedFilterBy,
-				null,
-				targetEntityType,
-				taskDescriptionSupplier
+			checkNestedFilter(
+				targetEntityCollection, nestedFilterBy, scopesToCheck, filterByVisitor, taskDescriptionSupplier
 			);
 		}
 
@@ -342,6 +325,43 @@ public class HavingTranslatorHelper {
 		@Nonnull Set<Scope> processingScopes
 	) {
 		return nestedScope == null ? processingScopes : nestedScope.getScope();
+	}
+
+	/**
+	 * Checks the nested filter against the schema of the target entity type in the passed scopes, without planning the
+	 * nested query and without evaluating anything: the filter is translated over an empty global index of every scope,
+	 * in the planning context of the nested query, by a visitor that only checks it - so the reference constraints the
+	 * filter nests look into no index holding data either, however deep they are - and the formula is thrown away.
+	 *
+	 * @param targetEntityCollection  the collection of the target entity type
+	 * @param filterBy                the nested filter
+	 * @param scopes                  the scopes the nested query is planned in
+	 * @param filterByVisitor         the visitor translating the enclosing filter
+	 * @param taskDescriptionSupplier a supplier of the description of the nested query for the telemetry
+	 */
+	private static void checkNestedFilter(
+		@Nonnull EntityCollection targetEntityCollection,
+		@Nonnull FilterBy filterBy,
+		@Nonnull Set<Scope> scopes,
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull Supplier<String> taskDescriptionSupplier
+	) {
+		final String targetEntityType = targetEntityCollection.getEntityType();
+		final QueryPlanningContext nestedQueryContext = createNestedQueryContext(
+			targetEntityCollection, filterBy, scopes, filterByVisitor
+		);
+		FilterByVisitor.createFormulaForTheFilter(
+			nestedQueryContext,
+			GlobalEntityIndex.class,
+			scopes.stream()
+				.map(scope -> GlobalEntityIndex.createEmptyIndex(targetEntityType, scope))
+				.toList(),
+			filterBy,
+			null,
+			nestedQueryContext.getSchema(),
+			taskDescriptionSupplier,
+			true
+		);
 	}
 
 	/**

@@ -24,6 +24,8 @@
 package io.evitadb.api.functional.reference;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -31,7 +33,13 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
+import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.IndexActivity;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
@@ -40,11 +48,15 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -53,6 +65,9 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FILTER;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Pins the checks the planner makes of nested constraints before it knows whether there is any data to evaluate them
@@ -97,6 +112,10 @@ public class NestedConstraintCheckFunctionalTest {
 	private static final String ATTRIBUTE_NOTE = "note";
 	private static final String ATTRIBUTE_WEIGHT = "weight";
 	private static final String ATTRIBUTE_PRIORITY = "priority";
+	/**
+	 * A product primary key no product has.
+	 */
+	private static final int NO_PRODUCT = 999;
 
 	/**
 	 * Builds the fixture described on the class.
@@ -279,6 +298,120 @@ public class NestedConstraintCheckFunctionalTest {
 	}
 
 	/**
+	 * The filter of the fetched references is checked by a visitor that evaluates nothing - not even the reference
+	 * constraints nested in its `entityHaving`, which look up the indexes of yet another entity type and plan a
+	 * nested query over them when they are evaluated.
+	 */
+	@DisplayName("Nested reference constraint of the fetched references")
+	@Nested
+	class NestedReferenceConstraintOfFetchedReferences {
+
+		/**
+		 * Returns the rows of the nested reference constraints the schema refuses. Each row is a label, the filter of
+		 * the fetched brands, the primary key of the queried product and the exception the query must fail with.
+		 *
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> refusedNestedReferenceConstraintRows() {
+			return Stream.of(1, NO_PRODUCT)
+				.flatMap(
+					productPk -> Stream.of(
+						Arguments.of(
+							"entity filter of the tags of the brands of product " + productPk,
+							entityHaving(
+								referenceHaving(REF_TAGS, entityHaving(attributeEquals(ATTRIBUTE_NOTE, "anything")))
+							),
+							productPk, AttributeNotFilterableException.class
+						),
+						Arguments.of(
+							"attribute filter of the tags of the brands of product " + productPk,
+							entityHaving(referenceHaving(REF_TAGS, attributeEquals(ATTRIBUTE_NOTE, "anything"))),
+							productPk, AttributeNotFilterableException.class
+						)
+					)
+				);
+		}
+
+		@DisplayName("Should check a nested reference constraint without planning a nested query of its target")
+		@UseDataSet(NESTED_CHECK)
+		@Test
+		void shouldCheckNestedReferenceConstraintWithoutPlanningNestedQueryOfItsTarget(Evita evita) {
+			final IndexActivity tagIndexActivity = liveGlobalIndexActivity(evita, ENTITY_TAG);
+			final FilterConstraint tagReference = referenceHaving(
+				REF_TAGS, entityHaving(attributeEquals(ATTRIBUTE_CODE, "t1"))
+			);
+
+			// the premise: the same nested filter evaluated over data plans a nested query of the tags, which the
+			// global index of the tags counts - so a zero below is not a counter that never moves
+			final long beforeEvaluation = tagIndexActivity.getQueryCount();
+			assertEquals(
+				List.of(1),
+				queriedPrimaryKeys(
+					evita, query(collection(ENTITY_BRAND), filterBy(scope(Scope.LIVE), tagReference))
+				)
+			);
+			assertTrue(
+				tagIndexActivity.getQueryCount() > beforeEvaluation,
+				"The evaluated filter did not plan a nested query of the tags, so the check below proves nothing"
+			);
+
+			// no product is returned, so nothing is fetched - whatever the query plans over the tags, the check did
+			final long beforeCheck = tagIndexActivity.getQueryCount();
+			assertEquals(
+				Map.of(),
+				fetchedBrands(
+					evita,
+					query(
+						collection(ENTITY_PRODUCT),
+						filterBy(entityPrimaryKeyInSet(NO_PRODUCT)),
+						require(entityFetch(referenceContent(REF_BRAND, filterBy(entityHaving(tagReference)))))
+					)
+				)
+			);
+			assertEquals(
+				0L, tagIndexActivity.getQueryCount() - beforeCheck,
+				"The check of the fetched references planned a nested query of the tags"
+			);
+		}
+
+		@DisplayName("Should fail the query whose nested reference constraint the schema refuses")
+		@UseDataSet(NESTED_CHECK)
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("refusedNestedReferenceConstraintRows")
+		void shouldFailQueryWhoseNestedReferenceConstraintSchemaRefuses(
+			@Nonnull String label,
+			@Nonnull FilterConstraint brandFilter,
+			int productPk,
+			@Nonnull Class<? extends EvitaInvalidUsageException> expectedException,
+			Evita evita
+		) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EvitaInvalidUsageException exception = assertThrowsExactly(
+						expectedException,
+						() -> session.queryList(
+							query(
+								collection(ENTITY_PRODUCT),
+								filterBy(entityPrimaryKeyInSet(productPk)),
+								require(entityFetch(referenceContent(REF_BRAND, filterBy(brandFilter))))
+							),
+							EntityClassifier.class
+						)
+					);
+					assertTrue(
+						exception.getMessage().contains("`" + ATTRIBUTE_NOTE + "`"),
+						"the message `" + exception.getMessage() + "` must name `" + ATTRIBUTE_NOTE + "`"
+					);
+					return null;
+				}
+			);
+		}
+
+	}
+
+	/**
 	 * Upserts one brand with its code and one tag.
 	 *
 	 * @param session the session to write in
@@ -346,6 +479,26 @@ public class NestedConstraintCheckFunctionalTest {
 				return result;
 			}
 		);
+	}
+
+	/**
+	 * Reads the activity of the live global index of the entity type - it counts every plan built over the index,
+	 * including the plan of a nested query.
+	 *
+	 * @param evita      the engine instance
+	 * @param entityType the entity type
+	 * @return the activity of the index
+	 */
+	@Nonnull
+	private static IndexActivity liveGlobalIndexActivity(@Nonnull Evita evita, @Nonnull String entityType) {
+		final EntityIndex index = ((Catalog) evita.getCatalogInstanceOrThrowException(TEST_CATALOG))
+			.getCollectionForEntityInternal(entityType)
+			.orElseThrow()
+			.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE));
+		assertNotNull(index, "The live global index of `" + entityType + "` does not exist");
+		final IndexActivity activity = index.getActivity();
+		assertNotNull(activity, "The live global index of `" + entityType + "` counts no activity");
+		return activity;
 	}
 
 }
