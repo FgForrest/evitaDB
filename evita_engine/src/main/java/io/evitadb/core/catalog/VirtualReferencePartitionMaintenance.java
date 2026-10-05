@@ -103,17 +103,6 @@ public final class VirtualReferencePartitionMaintenance {
 
 	// TODO JNO - remove at the end of #1615
 	/**
-	 * Creates a holder with the switch already on for the collections of the given entity types - the holder of a
-	 * catalog being loaded from disk, seeded before any of its collections is attached.
-	 *
-	 * @param maintainedEntityTypes the names of the entity types to maintain
-	 */
-	public VirtualReferencePartitionMaintenance(@Nonnull Set<String> maintainedEntityTypes) {
-		this(maintainedEntityTypes, null);
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
 	 * Creates a holder with the switch already on for the collections of the given entity types and the given probe
 	 * installed - the holder of a catalog being loaded from disk, seeded before any of its collections is attached, so
 	 * the probe observes the mutations the write-ahead log replays at load as well.

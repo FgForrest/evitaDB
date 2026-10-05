@@ -376,7 +376,7 @@ final class VirtualReferencePartitionWriter {
 	 * @return the partition, or `null` when the write is not mirrored
 	 */
 	@Nullable
-	static ReferencePartition getMirroredPartition(
+	private static ReferencePartition getMirroredPartition(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull EntityIndex index

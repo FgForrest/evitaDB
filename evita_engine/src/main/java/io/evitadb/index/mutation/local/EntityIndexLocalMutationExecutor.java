@@ -440,6 +440,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		return globalIndex.insertPrimaryKeyIfMissing(entityPrimaryKey);
 	}
 
+	// TODO JNO - remove at the end of #1615 (the parameter's documentation)
 	/**
 	 * Creates the index executor of one entity's local mutations.
 	 *

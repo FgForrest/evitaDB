@@ -578,12 +578,14 @@ public class VirtualReferencePartitionIndex
 		return this.entries.size() == 0 && this.sortKeys.isEmpty() && this.chainKeys.isEmpty();
 	}
 
+	// TODO JNO - remove at the end of #1615
 	/**
 	 * Returns how many entries the index holds across all its slots - owner rows, representative tuples, sort values
 	 * and chain predecessors together. The dictionaries and the declared keys are not entries.
 	 *
 	 * @return the number of entries
 	 */
+	// TODO JNO - remove at the end of #1615
 	public int getEntryCount() {
 		return this.entries.size();
 	}
