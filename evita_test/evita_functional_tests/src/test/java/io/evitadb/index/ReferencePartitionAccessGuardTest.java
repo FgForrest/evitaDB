@@ -84,11 +84,13 @@ import static org.junit.jupiter.api.Assertions.fail;
  * A hit is attributed to `Class#member`; a lambda body (`lambda$m$n`) counts as its enclosing method `m`, a field as
  * `Class#field:name`, the class header as `Class#<class>`.
  *
- * An entry names a member, not a method, so it vouches for exactly one overload of the name: a member whose hits come
- * from more overloads than its entry declares fails the test, naming their descriptors - otherwise a new overload
- * could hide behind the entry an old one earned. A member whose overloads are all allowed on purpose declares how
- * many there are, as `Class#member (N overloads)`. A lambda body counts as the overload it was written in; bridges
- * and other synthetic methods, which only forward, count as none.
+ * An entry names a member, and a member may have several overloads - an entry that does not say which of them it
+ * vouches for could be satisfied by another one hitting in its place. Hence an entry vouches for the only overload of
+ * a member that declares one, and otherwise pins the descriptors of the overloads it vouches for, as
+ * `Class#member (overloads desc1 desc2)`: the overloads hit must then be exactly the pinned ones. An unpinned entry
+ * of a member declaring several overloads, an overload hit that the entry does not pin and a pinned overload no longer
+ * hit all fail the test, naming the descriptors. A lambda body counts as the overload it was written in; bridges and
+ * other synthetic methods, which only forward, count as none.
  *
  * - **R1 type use** of {@link ReducedEntityIndex} or {@link AbstractReducedEntityIndex}: `NEW`, `CHECKCAST`,
  *   `INSTANCEOF`, `ANEWARRAY`, class tokens, the owner of a member access, field and method descriptors, generic
@@ -101,6 +103,12 @@ import static org.junit.jupiter.api.Assertions.fail;
  *   method references of the by-primary-key accessors on any owner, including `getIndexIfExists(int, IntFunction)`
  *   that Lombok delegates onto `EntityCollection` - invisible in its source.
  * - **R4 partition primary key enumeration**: `forEachReferenceIndexPrimaryKey`, `getAllReferenceIndexes`.
+ * - **R5 partition key handed out**: calls and method references of {@link ReferencePartitions#createKey} outside
+ *   {@link ReferencePartitions} itself. A by-key lookup is not reported - it cannot confuse the two reduced index
+ *   families - but a key built by the resolver's factory and looked up outside the resolver yields the partition as
+ *   a raw index, which a caller can read without naming its type, building the key by hand or resolving it by
+ *   primary key. The resolver builds the key inside the methods that narrow its result to the handle, so that is the
+ *   only place the factory may be called from.
  *
  * The reduced index classes themselves are not scanned - their references to their own type are not accesses.
  *
@@ -174,9 +182,15 @@ class ReferencePartitionAccessGuardTest {
 	 */
 	private static final String FORWARDER = "forwarder";
 	/**
-	 * Matches the member of an allow-list entry, capturing `Class#member` and the declared number of overloads.
+	 * Internal name of the partition resolver, the only class allowed to call its key factory (rule R5).
 	 */
-	private static final Pattern ALLOW_LIST_MEMBER = Pattern.compile("^(\\S+)(?: \\((\\d+) overloads\\))?$");
+	private static final String RESOLVER = "io/evitadb/index/ReferencePartitions";
+	/**
+	 * Matches the member of an allow-list entry, capturing `Class#member` and the space-separated descriptors of the
+	 * overloads it pins. No method descriptor contains a space or ends with `)`, so the closing parenthesis is
+	 * unambiguous.
+	 */
+	private static final Pattern ALLOW_LIST_MEMBER = Pattern.compile("^(\\S+)(?: \\(overloads (\\S+(?: \\S+)*)\\))?$");
 	/**
 	 * Matches the synthetic name javac gives a lambda body, capturing the enclosing method.
 	 */
@@ -208,64 +222,9 @@ class ReferencePartitionAccessGuardTest {
 			"The sentinel sites in ReferencePartitions were not reported - the scanner is broken"
 		);
 
-		final Map<String, AllowListEntry> allowList = readAllowList();
-		final Map<String, Set<String>> unexpected = new TreeMap<>();
-		for (Map.Entry<String, Set<String>> hit : scanner.hits.entrySet()) {
-			if (!allowList.containsKey(hit.getKey())) {
-				unexpected.put(hit.getKey(), hit.getValue());
-			}
-		}
-		final Set<String> stale = new TreeSet<>();
-		for (String entry : allowList.keySet()) {
-			if (!scanner.hits.containsKey(entry)) {
-				stale.add(entry);
-			}
-		}
-		// an entry names a member, not a method: a name hit in several overloads would let a new overload hide behind
-		// the entry an old one earned
-		final Map<String, Set<String>> overloaded = new TreeMap<>();
-		for (Map.Entry<String, Set<String>> overload : scanner.overloads.entrySet()) {
-			final AllowListEntry entry = allowList.get(overload.getKey());
-			final int vouchedFor = entry == null ? 1 : entry.overloads();
-			final int found = overload.getValue().size();
-			if (found > vouchedFor || (vouchedFor > 1 && found != vouchedFor)) {
-				overloaded.put(overload.getKey(), overload.getValue());
-			}
-		}
-		if (!unexpected.isEmpty() || !stale.isEmpty() || !overloaded.isEmpty()) {
-			final StringBuilder message = new StringBuilder(256 + 128 * (unexpected.size() + stale.size()));
-			if (!unexpected.isEmpty()) {
-				message.append(unexpected.size())
-					.append(" direct reduced index access(es) outside the allow-list - resolve the partition through ")
-					.append("ReferencePartition / ReferencePartitions instead, or add a justified entry to ")
-					.append(ALLOW_LIST).append(":\n");
-				for (Map.Entry<String, Set<String>> hit : unexpected.entrySet()) {
-					final String[] ruleAndSite = hit.getKey().split(" ", 2);
-					message.append(ruleAndSite[0]).append(" | ").append(ruleAndSite[1])
-						.append(" | ? ").append(hit.getValue()).append('\n');
-				}
-			}
-			if (!overloaded.isEmpty()) {
-				message.append(overloaded.size())
-					.append(" member(s) hit in another number of overloads than their allow-list entry vouches for - ")
-					.append("an entry is keyed by the member name, so a new overload must reach the partition through ")
-					.append("the handle, and overloads allowed on purpose are declared as ")
-					.append("`Class#member (N overloads)`:\n");
-				for (Map.Entry<String, Set<String>> overload : overloaded.entrySet()) {
-					final String[] ruleAndSite = overload.getKey().split(" ", 2);
-					message.append(ruleAndSite[0]).append(" | ").append(ruleAndSite[1])
-						.append(" | overloads ").append(overload.getValue()).append('\n');
-				}
-			}
-			if (!stale.isEmpty()) {
-				message.append(stale.size())
-					.append(" allow-list entr(y/ies) no longer hit - delete them from ")
-					.append(ALLOW_LIST).append(":\n");
-				for (String entry : stale) {
-					message.append(entry).append('\n');
-				}
-			}
-			fail(message.toString());
+		final Verdict verdict = Verdict.of(scanner, readAllowList());
+		if (!verdict.isClean()) {
+			fail(verdict.describe());
 		}
 	}
 
@@ -277,6 +236,107 @@ class ReferencePartitionAccessGuardTest {
 	@Test
 	@DisplayName("reports every access shape of the counterfactual fixture and nothing else")
 	void shouldReportEveryShapeOfCounterfactualFixture() {
+		final Scanner scanner = scanFixture();
+		final String fixture = ReferencePartitionGuardFixture.class.getName() + "#";
+		final String nested = ReferencePartitionGuardFixture.class.getName() + "$";
+		final Map<String, String> expected = CollectionUtils.createLinkedHashMap(24);
+		expected.put("R1 " + fixture + "castShape", "CHECKCAST");
+		expected.put("R1 " + fixture + "instanceofShape", "INSTANCEOF");
+		expected.put("R1 " + fixture + "classTokenShape", "LDC");
+		expected.put("R1 " + fixture + "field:genericField", "signature");
+		expected.put("R1 " + fixture + "genericSignatureShape", "signature");
+		expected.put("R1 " + fixture + "methodReferenceShape", "indy");
+		expected.put("R2 " + fixture + "keyShape", "REFERENCED_ENTITY");
+		expected.put("R3 " + fixture + "delegatedRawPrimaryKeyShape", "getIndexIfExists");
+		expected.put("R3 " + fixture + "untypedRawPrimaryKeyShape", "getIndexByPrimaryKeyIfExists");
+		expected.put("R4 " + fixture + "enumerationShape", "getAllReferenceIndexes");
+		expected.put("R1 " + fixture + "lambdaShape", "INSTANCEOF");
+		expected.put("R1 " + fixture + "newShape", "NEW");
+		expected.put("R1 " + fixture + "arrayShape", "ANEWARRAY");
+		expected.put("R1 " + fixture + "descriptorShape", "descriptor");
+		expected.put("R1 " + fixture + "localVariableShape", "local");
+		expected.put("R1 " + nested + "ExtendsShape#<class>", "extends");
+		expected.put("R1 " + nested + "ExtendsShape#<init>", "call");
+		expected.put("R2 " + nested + "1#<clinit>", "REFERENCED_ENTITY");
+		expected.put("R3 " + fixture + "modificationByPrimaryKeyShape", "getIndexForModification");
+		expected.put("R4 " + fixture + "enumerationByCallbackShape", "forEachReferenceIndexPrimaryKey");
+		expected.put("R1 " + fixture + "overloadShape", "CHECKCAST");
+		expected.put("R1 " + fixture + "substitutedShape", "CHECKCAST");
+		expected.put("R5 " + fixture + "resolverKeyShape", "call io/evitadb/index/ReferencePartitions.createKey");
+		expected.put(
+			"R5 " + fixture + "resolverKeyReferenceShape", "indy handle io/evitadb/index/ReferencePartitions.createKey"
+		);
+		for (Map.Entry<String, String> shape : expected.entrySet()) {
+			final Set<String> evidence = scanner.hits.get(shape.getKey());
+			assertNotNull(evidence, "The guard does not report `" + shape.getKey() + "` - found only " + scanner.hits);
+			assertTrue(
+				evidence.stream().anyMatch(it -> it.contains(shape.getValue())),
+				"`" + shape.getKey() + "` was reported, but not through `" + shape.getValue() + "`: " + evidence
+			);
+		}
+		// both overloads of one name are told apart - the one hit in a lambda body by the method it was written in
+		assertEquals(
+			Set.of(
+				"(Lio/evitadb/index/Index;)Lio/evitadb/index/bitmap/Bitmap;",
+				"(Ljava/lang/Object;I)Ljava/util/function/Predicate;"
+			),
+			scanner.overloads.get("R1 " + fixture + "overloadShape"),
+			"The overloads of `overloadShape` were not told apart: " + scanner.overloads
+		);
+		// a lambda body in a single overload counts as that overload, not as a second one
+		assertEquals(1, scanner.overloads.get("R1 " + fixture + "lambdaShape").size(), scanner.overloads.toString());
+		// no hit may be attributed to a synthetic lambda method instead of its enclosing one
+		for (String site : scanner.hits.keySet()) {
+			assertFalse(site.contains("lambda$"), "A lambda body was not attributed to its enclosing method: " + site);
+		}
+		// the shapes that must not be reported - the group family, a group key, a by-key lookup, a resolution through
+		// the resolver, the handle - are covered here: any hit of theirs would be one more than expected
+		assertEquals(expected.size(), scanner.hits.size(), "Unexpected hits in the fixture: " + scanner.hits);
+	}
+
+	/**
+	 * Checks allow-list entries against the overloads of the counterfactual fixture, and shows that an entry is not
+	 * satisfied by another overload hitting in place of the one it vouches for - neither a pinned entry whose number
+	 * of overloads still matches, nor an unpinned one whose member declares several overloads.
+	 */
+	@Test
+	@DisplayName("rejects an allow-list entry whose overloads are substituted by others of the same member")
+	void shouldRejectAllowListEntryWhenAnotherOverloadHitsInPlaceOfVouchedOne() {
+		final Scanner scanner = scanFixture();
+		final String fixture = ReferencePartitionGuardFixture.class.getName() + "#";
+		final String cast = "(Lio/evitadb/index/Index;)Lio/evitadb/index/bitmap/Bitmap;";
+		final String lambda = "(Ljava/lang/Object;I)Ljava/util/function/Predicate;";
+		final String handle = "(Lio/evitadb/index/ReferencePartition;)Lio/evitadb/index/bitmap/Bitmap;";
+		final String overloadShape = "R1 " + fixture + "overloadShape";
+		final String substitutedShape = "R1 " + fixture + "substitutedShape";
+		assertEquals(Set.of(cast, lambda, handle), scanner.declaredOverloads.get(fixture + "overloadShape"));
+		assertEquals(Set.of(cast, handle), scanner.declaredOverloads.get(fixture + "substitutedShape"));
+
+		// the overloads hit pinned exactly: nothing to report
+		assertNull(overloadMismatch(scanner, overloadShape, Set.of(cast, lambda)));
+		assertNull(overloadMismatch(scanner, substitutedShape, Set.of(cast)));
+
+		// the entry once vouched for the cast and the overload now behind the handle; the lambda overload took the
+		// place of the latter - the same number of overloads, which a count could not tell apart
+		final Set<String> substitutedPins = Set.of(cast, handle);
+		assertEquals(substitutedPins.size(), scanner.overloads.get(overloadShape).size());
+		assertMismatch(scanner, overloadShape, substitutedPins, lambda);
+		// the same substitution with a single overload: pinned, and unpinned on a member declaring two
+		assertMismatch(scanner, substitutedShape, Set.of(handle), cast);
+		assertMismatch(scanner, substitutedShape, Set.of(), "pin the one it vouches for");
+		// an unpinned entry of a member hit in several overloads
+		assertMismatch(scanner, overloadShape, Set.of(), "pin them");
+		// a member declaring a single overload needs no pin
+		assertNull(overloadMismatch(scanner, "R1 " + fixture + "castShape", Set.of()));
+	}
+
+	/**
+	 * Scans the counterfactual fixture, its nested classes and the synthetic classes javac generated for it.
+	 *
+	 * @return the scanner holding the hits of the fixture
+	 */
+	@Nonnull
+	private static Scanner scanFixture() {
 		final Scanner scanner = new Scanner();
 		final String fixtureName = ReferencePartitionGuardFixture.class.getSimpleName();
 		final Path fixturePackage = codeSource(ReferencePartitionGuardFixture.class)
@@ -301,56 +361,43 @@ class ReferencePartitionAccessGuardTest {
 			"The fixture, its nested class and its switch map must all be scanned, but only " +
 				scanner.scannedClasses + " class file(s) were found in " + fixturePackage
 		);
-		final String fixture = ReferencePartitionGuardFixture.class.getName() + "#";
-		final String nested = ReferencePartitionGuardFixture.class.getName() + "$";
-		final Map<String, String> expected = CollectionUtils.createLinkedHashMap(21);
-		expected.put("R1 " + fixture + "castShape", "CHECKCAST");
-		expected.put("R1 " + fixture + "instanceofShape", "INSTANCEOF");
-		expected.put("R1 " + fixture + "classTokenShape", "LDC");
-		expected.put("R1 " + fixture + "field:genericField", "signature");
-		expected.put("R1 " + fixture + "genericSignatureShape", "signature");
-		expected.put("R1 " + fixture + "methodReferenceShape", "indy");
-		expected.put("R2 " + fixture + "keyShape", "REFERENCED_ENTITY");
-		expected.put("R3 " + fixture + "delegatedRawPrimaryKeyShape", "getIndexIfExists");
-		expected.put("R3 " + fixture + "untypedRawPrimaryKeyShape", "getIndexByPrimaryKeyIfExists");
-		expected.put("R4 " + fixture + "enumerationShape", "getAllReferenceIndexes");
-		expected.put("R1 " + fixture + "lambdaShape", "INSTANCEOF");
-		expected.put("R1 " + fixture + "newShape", "NEW");
-		expected.put("R1 " + fixture + "arrayShape", "ANEWARRAY");
-		expected.put("R1 " + fixture + "descriptorShape", "descriptor");
-		expected.put("R1 " + fixture + "localVariableShape", "local");
-		expected.put("R1 " + nested + "ExtendsShape#<class>", "extends");
-		expected.put("R1 " + nested + "ExtendsShape#<init>", "call");
-		expected.put("R2 " + nested + "1#<clinit>", "REFERENCED_ENTITY");
-		expected.put("R3 " + fixture + "modificationByPrimaryKeyShape", "getIndexForModification");
-		expected.put("R4 " + fixture + "enumerationByCallbackShape", "forEachReferenceIndexPrimaryKey");
-		expected.put("R1 " + fixture + "overloadShape", "CHECKCAST");
-		for (Map.Entry<String, String> shape : expected.entrySet()) {
-			final Set<String> evidence = scanner.hits.get(shape.getKey());
-			assertNotNull(evidence, "The guard does not report `" + shape.getKey() + "` - found only " + scanner.hits);
-			assertTrue(
-				evidence.stream().anyMatch(it -> it.contains(shape.getValue())),
-				"`" + shape.getKey() + "` was reported, but not through `" + shape.getValue() + "`: " + evidence
-			);
-		}
-		// both overloads of one name are told apart - the one hit in a lambda body by the method it was written in
-		assertEquals(
-			Set.of(
-				"(Lio/evitadb/index/Index;)Lio/evitadb/index/bitmap/Bitmap;",
-				"(Ljava/lang/Object;I)Ljava/util/function/Predicate;"
-			),
-			scanner.overloads.get("R1 " + fixture + "overloadShape"),
-			"The overloads of `overloadShape` were not told apart: " + scanner.overloads
-		);
-		// a lambda body in a single overload counts as that overload, not as a second one
-		assertEquals(1, scanner.overloads.get("R1 " + fixture + "lambdaShape").size(), scanner.overloads.toString());
-		// no hit may be attributed to a synthetic lambda method instead of its enclosing one
-		for (String site : scanner.hits.keySet()) {
-			assertFalse(site.contains("lambda$"), "A lambda body was not attributed to its enclosing method: " + site);
-		}
-		// the shapes that must not be reported - the group family, a group key, a by-key lookup, the handle - are
-		// covered here: any hit of theirs would be one more than expected
-		assertEquals(expected.size(), scanner.hits.size(), "Unexpected hits in the fixture: " + scanner.hits);
+		return scanner;
+	}
+
+	/**
+	 * Compares the scan with an allow-list holding a single entry and returns the overload mismatch it reports.
+	 *
+	 * @param scanner the scanner holding the hits
+	 * @param key     the `rule Class#member` of the entry
+	 * @param pinned  the overloads the entry pins, empty for an unpinned entry
+	 * @return the explanation of the mismatch, or `null` when the entry vouches for exactly the overloads hit
+	 */
+	@Nullable
+	private static String overloadMismatch(
+		@Nonnull Scanner scanner,
+		@Nonnull String key,
+		@Nonnull Set<String> pinned
+	) {
+		return Verdict.of(scanner, Map.of(key, new AllowListEntry("fixture", pinned))).overloaded().get(key);
+	}
+
+	/**
+	 * Asserts that an allow-list holding a single entry is reported as not vouching for the overloads hit.
+	 *
+	 * @param scanner     the scanner holding the hits
+	 * @param key         the `rule Class#member` of the entry
+	 * @param pinned      the overloads the entry pins, empty for an unpinned entry
+	 * @param explanation a fragment the explanation of the mismatch must contain
+	 */
+	private static void assertMismatch(
+		@Nonnull Scanner scanner,
+		@Nonnull String key,
+		@Nonnull Set<String> pinned,
+		@Nonnull String explanation
+	) {
+		final String mismatch = overloadMismatch(scanner, key, pinned);
+		assertNotNull(mismatch, "The entry `" + key + "` pinning " + pinned + " was accepted");
+		assertTrue(mismatch.contains(explanation), "`" + key + "` was rejected for another reason: " + mismatch);
 	}
 
 	/**
@@ -369,8 +416,9 @@ class ReferencePartitionAccessGuardTest {
 	}
 
 	/**
-	 * Reads the allow-list resource into `rule Class#member` keys mapped to their entries. A member may declare the
-	 * number of its overloads the entry vouches for as `Class#member (N overloads)`; it vouches for one otherwise.
+	 * Reads the allow-list resource into `rule Class#member` keys mapped to their entries. A member may pin the
+	 * descriptors of the overloads the entry vouches for as `Class#member (overloads desc1 desc2)`; it vouches for the
+	 * only overload of the member otherwise.
 	 *
 	 * @return the allow-list entries
 	 */
@@ -403,15 +451,16 @@ class ReferencePartitionAccessGuardTest {
 				final Matcher member = ALLOW_LIST_MEMBER.matcher(parts[1]);
 				assertTrue(
 					member.matches(),
-					ALLOW_LIST + ":" + lineNumber + " must name `Class#member` or `Class#member (N overloads)`"
+					ALLOW_LIST + ":" + lineNumber + " must name `Class#member` or `Class#member (overloads desc...)`"
 				);
-				final int overloads = member.group(2) == null ? 1 : Integer.parseInt(member.group(2));
-				assertTrue(
-					member.group(2) == null || overloads > 1,
-					ALLOW_LIST + ":" + lineNumber + " declares fewer than two overloads - leave the count out"
+				final List<String> pinnedList = member.group(2) == null ?
+					List.of() : List.of(member.group(2).split(" "));
+				final Set<String> pinned = new TreeSet<>(pinnedList);
+				assertEquals(
+					pinnedList.size(), pinned.size(), ALLOW_LIST + ":" + lineNumber + " pins one overload twice"
 				);
 				final AllowListEntry previous = result.put(
-					parts[0] + " " + member.group(1), new AllowListEntry(parts[2], overloads)
+					parts[0] + " " + member.group(1), new AllowListEntry(parts[2], pinned)
 				);
 				assertNull(previous, ALLOW_LIST + ":" + lineNumber + " duplicates an earlier entry");
 			}
@@ -425,9 +474,136 @@ class ReferencePartitionAccessGuardTest {
 	 * One allow-list entry.
 	 *
 	 * @param reason    why the site reaches a reduced entity index directly
-	 * @param overloads how many overloads of the member the entry vouches for
+	 * @param overloads the descriptors of the overloads the entry pins, empty when it vouches for the only overload
+	 *                  of the member
 	 */
-	private record AllowListEntry(@Nonnull String reason, int overloads) {
+	private record AllowListEntry(@Nonnull String reason, @Nonnull Set<String> overloads) {
+
+		/**
+		 * Tells whether the entry pins the overloads it vouches for.
+		 *
+		 * @return true for a pinned entry
+		 */
+		boolean pinned() {
+			return !this.overloads.isEmpty();
+		}
+	}
+
+	/**
+	 * The comparison of the hits of a scan with an allow-list, in both directions.
+	 *
+	 * @param unexpected hits by `rule Class#member` the allow-list has no entry for, with their evidence
+	 * @param overloaded entries by `rule Class#member` whose overloads hit are not the ones they vouch for, with the
+	 *                   explanation
+	 * @param stale      entries no longer hit
+	 */
+	private record Verdict(
+		@Nonnull Map<String, Set<String>> unexpected,
+		@Nonnull Map<String, String> overloaded,
+		@Nonnull Set<String> stale
+	) {
+
+		/**
+		 * Compares the hits of a scan with an allow-list.
+		 *
+		 * @param scanner   the scanner holding the hits
+		 * @param allowList the allow-list entries by `rule Class#member`
+		 * @return the verdict
+		 */
+		@Nonnull
+		static Verdict of(@Nonnull Scanner scanner, @Nonnull Map<String, AllowListEntry> allowList) {
+			final Map<String, Set<String>> unexpected = new TreeMap<>();
+			for (Map.Entry<String, Set<String>> hit : scanner.hits.entrySet()) {
+				if (!allowList.containsKey(hit.getKey())) {
+					unexpected.put(hit.getKey(), hit.getValue());
+				}
+			}
+			final Set<String> stale = new TreeSet<>();
+			final Map<String, String> overloaded = new TreeMap<>();
+			for (Map.Entry<String, AllowListEntry> entry : allowList.entrySet()) {
+				final String key = entry.getKey();
+				if (!scanner.hits.containsKey(key)) {
+					stale.add(key);
+					continue;
+				}
+				// an entry names a member, not a method: an entry that does not say which overload it vouches for
+				// would be satisfied by another one hitting in its place
+				final Set<String> found = scanner.overloads.getOrDefault(key, Set.of());
+				final Set<String> pinned = entry.getValue().overloads();
+				if (entry.getValue().pinned()) {
+					if (!found.equals(pinned)) {
+						overloaded.put(key, "pins " + pinned + " but is hit in " + found);
+					}
+				} else if (found.size() > 1) {
+					overloaded.put(key, "is hit in " + found.size() + " overloads, pin them: " + found);
+				} else if (!found.isEmpty()) {
+					final Set<String> declared = scanner.declaredOverloads.getOrDefault(
+						key.substring(key.indexOf(' ') + 1), Set.of()
+					);
+					if (declared.size() > 1) {
+						overloaded.put(
+							key,
+							"names a member declaring " + declared.size() + " overloads " + declared +
+								", pin the one it vouches for: " + found
+						);
+					}
+				}
+			}
+			return new Verdict(unexpected, overloaded, stale);
+		}
+
+		/**
+		 * Tells whether the scan matches the allow-list in both directions.
+		 *
+		 * @return true when there is nothing to report
+		 */
+		boolean isClean() {
+			return this.unexpected.isEmpty() && this.overloaded.isEmpty() && this.stale.isEmpty();
+		}
+
+		/**
+		 * Describes everything the scan and the allow-list disagree on.
+		 *
+		 * @return the failure message
+		 */
+		@Nonnull
+		String describe() {
+			final StringBuilder message = new StringBuilder(
+				256 + 128 * (this.unexpected.size() + this.overloaded.size() + this.stale.size())
+			);
+			if (!this.unexpected.isEmpty()) {
+				message.append(this.unexpected.size())
+					.append(" direct reduced index access(es) outside the allow-list - resolve the partition through ")
+					.append("ReferencePartition / ReferencePartitions instead, or add a justified entry to ")
+					.append(ALLOW_LIST).append(":\n");
+				for (Map.Entry<String, Set<String>> hit : this.unexpected.entrySet()) {
+					final String[] ruleAndSite = hit.getKey().split(" ", 2);
+					message.append(ruleAndSite[0]).append(" | ").append(ruleAndSite[1])
+						.append(" | ? ").append(hit.getValue()).append('\n');
+				}
+			}
+			if (!this.overloaded.isEmpty()) {
+				message.append(this.overloaded.size())
+					.append(" allow-list entr(y/ies) not vouching for exactly the overloads hit - an entry is keyed ")
+					.append("by the member name, so it pins the overloads it vouches for as ")
+					.append("`Class#member (overloads desc1 desc2)` unless the member declares only one, and a new ")
+					.append("overload must reach the partition through the handle:\n");
+				for (Map.Entry<String, String> overload : this.overloaded.entrySet()) {
+					final String[] ruleAndSite = overload.getKey().split(" ", 2);
+					message.append(ruleAndSite[0]).append(" | ").append(ruleAndSite[1])
+						.append(" | ").append(overload.getValue()).append('\n');
+				}
+			}
+			if (!this.stale.isEmpty()) {
+				message.append(this.stale.size())
+					.append(" allow-list entr(y/ies) no longer hit - delete them from ")
+					.append(ALLOW_LIST).append(":\n");
+				for (String entry : this.stale) {
+					message.append(entry).append('\n');
+				}
+			}
+			return message.toString();
+		}
 	}
 
 	/**
@@ -444,6 +620,12 @@ class ReferencePartitionAccessGuardTest {
 		 * one name hit the rule, which one allow-list entry, keyed by the name alone, cannot tell apart.
 		 */
 		private final Map<String, Set<String>> overloads = new TreeMap<>();
+		/**
+		 * The descriptors of every overload each method name declares, hit or not, by `Class#member` - bridges and
+		 * other forwarding synthetic methods and lambda bodies left out. An allow-list entry of a member declaring
+		 * more than one must pin the overloads it vouches for.
+		 */
+		private final Map<String, Set<String>> declaredOverloads = new TreeMap<>();
 		/**
 		 * Number of class files scanned.
 		 */
@@ -620,6 +802,9 @@ class ReferencePartitionAccessGuardTest {
 			) {
 				final String site = this.className + "#" + enclosingMethod(name);
 				final String countedDescriptor = countedDescriptor(access, name, descriptor);
+				if (countedDescriptor != null && !LAMBDA.matcher(name).matches()) {
+					Scanner.this.declaredOverloads.computeIfAbsent(site, key -> new TreeSet<>()).add(countedDescriptor);
+				}
 				if (mentionsReducedIndexType(descriptor)) {
 					methodHit("R1", site, name, countedDescriptor, "descriptor " + descriptor);
 				}
@@ -872,7 +1057,7 @@ class ReferencePartitionAccessGuardTest {
 			}
 
 			/**
-			 * Applies rules R1, R3 and R4 to a called or referenced method.
+			 * Applies rules R1, R3, R4 and R5 to a called or referenced method.
 			 *
 			 * @param owner      the owner of the method
 			 * @param name       the method name
@@ -897,6 +1082,13 @@ class ReferencePartitionAccessGuardTest {
 				}
 				if (ENUMERATIONS.contains(name)) {
 					bodyHit("R4", channel + " " + owner + "." + name);
+				}
+				// the resolver builds the key inside the methods narrowing their result to the handle
+				if (
+					RESOLVER.equals(owner) && "createKey".equals(name) &&
+						!RESOLVER.equals(this.classVisitor.internalName)
+				) {
+					bodyHit("R5", channel + " " + owner + "." + name);
 				}
 			}
 		}

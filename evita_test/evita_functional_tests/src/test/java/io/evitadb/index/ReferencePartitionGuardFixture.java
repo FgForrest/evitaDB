@@ -34,6 +34,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -45,8 +46,8 @@ import java.util.function.Supplier;
  * a scanner that silently stopped seeing a shape fails here instead of passing everywhere else.
  *
  * The fixture also carries shapes the guard must not report - the group family, a key of another index type, a
- * by-key lookup and a read through the partition handle. The test expects exactly the listed hits, so a scanner that
- * started reporting one of these fails too.
+ * by-key lookup, a resolution through the resolver and a read through the partition handle. The test expects exactly
+ * the listed hits, so a scanner that started reporting one of these fails too.
  *
  * Nothing here is ever executed; the members only have to compile into the bytecode shape they are named after.
  *
@@ -318,6 +319,81 @@ final class ReferencePartitionGuardFixture {
 	@Nonnull
 	static Predicate<Object> overloadShape(@Nonnull Object index, int times) {
 		return candidate -> times > 0 && candidate instanceof ReducedEntityIndex;
+	}
+
+	/**
+	 * A third overload of the same name reading through the partition handle - never reported. It stands for an
+	 * overload an allow-list entry once vouched for and that has since moved behind the handle, so that the test can
+	 * show a pinned entry is not satisfied by another overload hitting in its place.
+	 *
+	 * @param partition any partition
+	 * @return the owners
+	 */
+	@Nonnull
+	static Bitmap overloadShape(@Nonnull ReferencePartition partition) {
+		return partition.getAllPrimaryKeys();
+	}
+
+	/**
+	 * The only overload of its name that reaches the partition directly (rule R1, `CHECKCAST`), next to one that does
+	 * not - an entry that vouches for the member without naming the overload could be satisfied by either.
+	 *
+	 * @param index any index
+	 * @return the owners
+	 */
+	@Nonnull
+	static Bitmap substitutedShape(@Nonnull Index<?> index) {
+		return ((ReducedEntityIndex) index).getAllPrimaryKeys();
+	}
+
+	/**
+	 * The overload of `substitutedShape` that reads through the partition handle - never reported.
+	 *
+	 * @param partition any partition
+	 * @return the owners
+	 */
+	@Nonnull
+	static Bitmap substitutedShape(@Nonnull ReferencePartition partition) {
+		return partition.getAllPrimaryKeys();
+	}
+
+	/**
+	 * A partition key obtained from the resolver and looked up by key, whose result is read without ever naming the
+	 * type and without any by-primary-key accessor (rule R5).
+	 *
+	 * @param collection any collection
+	 * @return the owners
+	 */
+	@Nonnull
+	static Bitmap resolverKeyShape(@Nonnull EntityCollection collection) {
+		return collection.getIndexByKeyIfExists(
+			ReferencePartitions.createKey(Scope.LIVE, new RepresentativeReferenceKey(new ReferenceKey("any", 1)))
+		).getAllPrimaryKeys();
+	}
+
+	/**
+	 * A method reference to the resolver's key factory, whose only trace is the `invokedynamic` call site (rule R5).
+	 *
+	 * @return the function
+	 */
+	@Nonnull
+	static BiFunction<Scope, RepresentativeReferenceKey, EntityIndexKey> resolverKeyReferenceShape() {
+		return ReferencePartitions::createKey;
+	}
+
+	/**
+	 * A by-key resolution through the partition handle, which builds the key inside the resolver - never reported.
+	 *
+	 * @param collection any collection
+	 * @return the owners, or `null` when the partition does not exist
+	 */
+	@Nullable
+	static Bitmap resolverShape(@Nonnull EntityCollection collection) {
+		final ReferencePartition partition = ReferencePartitions.resolveIfExists(
+			collection::getIndexByKeyIfExists, Scope.LIVE,
+			new RepresentativeReferenceKey(new ReferenceKey("any", 1))
+		);
+		return partition == null ? null : partition.getAllPrimaryKeys();
 	}
 
 	/**
