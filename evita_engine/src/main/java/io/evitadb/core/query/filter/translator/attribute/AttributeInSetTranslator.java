@@ -44,6 +44,7 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
@@ -180,10 +181,15 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 			final List<? extends Serializable> theComparedValues = targetValues.stream()
 				.map(normalizer)
 				.toList();
-			// uniqueness stays exact BigDecimal: probe the unique index with the exact values for BigDecimal attributes;
-			// for every other type the canonical (NFD/instant) form matches what the unique index stored
-			final List<? extends Serializable> uniqueComparedValues =
-				plainType == BigDecimal.class ? targetValues : theComparedValues;
+			// uniqueness stays exact BigDecimal: probe the unique index with the unscaled values for BigDecimal
+			// attributes, stripped of trailing zeros exactly as the stored keys are (`NumberUtils#normalizeForIndexing`
+			// at the write boundary) because the index orders its keys by scale too; for every other type the
+			// canonical (NFD/instant) form matches what the unique index stored
+			final List<? extends Serializable> uniqueComparedValues = plainType == BigDecimal.class ?
+				targetValues.stream()
+					.map(it -> NumberUtils.normalizeForIndexing(it, attributeSchema.getIndexedDecimalPlaces()))
+					.toList() :
+				theComparedValues;
 
 			if (scopes.stream().anyMatch(scope -> isUniqueInScope(attributeSchema, scope))) {
 				return createUniqueAttributeFormula(
