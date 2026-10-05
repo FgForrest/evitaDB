@@ -36,13 +36,16 @@ import io.evitadb.dataType.SupportedEnum;
  *   reference and the same group entity* are combined. By default this level uses `DISJUNCTION` (OR), meaning
  *   that selecting "Red" and "Blue" in a "Color" group yields products that are red **or** blue. A constraint at
  *   this level overrides that default for the specified reference/group combination.
- * - `WITH_DIFFERENT_GROUPS` — the relation type governs how selections from *different groups or different
- *   references* interact with each other. By default this level uses `CONJUNCTION` (AND), meaning that selecting
+ * - `WITH_DIFFERENT_GROUPS` — the relation type governs how selections from *different groups of the same
+ *   reference* interact with each other. By default this level uses `CONJUNCTION` (AND), meaning that selecting
  *   "Red" from "Color" and "Large" from "Size" yields products that are red **and** large. A constraint at this
  *   level overrides that default for the specified reference.
  *
  * The two levels are orthogonal: specifying a conjunction at `WITH_DIFFERENT_FACETS_IN_GROUP` only affects
  * intra-group logic, while `WITH_DIFFERENT_GROUPS` only affects inter-group logic.
+ *
+ * Neither level relates the selections of different references: those are always combined by logical AND, because
+ * `userFilter` combines its constraints the way `and` does.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -55,7 +58,7 @@ public enum FacetGroupRelationLevel {
 	WITH_DIFFERENT_FACETS_IN_GROUP,
 
 	/**
-	 * Defines relation type between two facets in the different groups or references.
+	 * Defines relation type between two facets in the different groups of the same reference.
 	 */
 	WITH_DIFFERENT_GROUPS
 

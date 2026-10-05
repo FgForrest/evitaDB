@@ -82,8 +82,10 @@ import java.util.Optional;
  * 2. Filter constraints placed **outside** `userFilter` are always respected and cannot be overridden by reference
  *    selection.
  * 3. References **within the same group** are combined with logical OR (disjunction) — selecting blue OR red.
- * 4. References **across different groups or references** are combined with logical AND (conjunction) — must be blue AND
- *    large.
+ * 4. References **across different groups** of the same reference are combined with logical AND (conjunction) — must
+ *    be blue AND large.
+ * 5. Options of **different references** are always combined with logical AND (conjunction) — no constraint overrides
+ *    this, because `userFilter` combines its constraints the way `and` does.
  *
  * ## Entity fetch requirements
  *

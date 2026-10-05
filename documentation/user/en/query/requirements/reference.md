@@ -54,8 +54,12 @@ The visualization mirrors the structure of the summary itself:
 2. The calculation respects every filter constraint placed outside the
    [`userFilter`](../filtering/behavioral.md#user-filter) container.
 3. The default relation between options within a group is logical disjunction (logical OR), unless changed.
-4. The default relation between options in different groups / references is logical conjunction (logical AND),
-   unless changed.
+4. The default relation between options in different groups of the same reference is logical conjunction
+   (logical AND), unless changed.
+5. Options of different references are always combined by logical conjunction (logical AND), because the
+   [`userFilter`](../filtering/behavioral.md#user-filter) combines its constraints the way
+   [`and`](../filtering/logical.md#and) does. The relation between groups applies only between the groups of one
+   reference.
 
 <Note type="info">
 
@@ -843,8 +847,8 @@ facetGroupsConjunction(
     <dd>
         <p>**Default: `WITH_DIFFERENT_FACETS_IN_GROUP`**</p>
         <p>Optional enumeration argument specifying whether the relationship type should be applied to options at
-        a particular level (within the same reference group, or to options in different reference groups /
-        references).</p>
+        a particular level (within the same reference group, or to options in different groups of the same
+        reference).</p>
     </dd>
     <dt>filterConstraint:filterBy</dt>
     <dd>
@@ -944,8 +948,8 @@ facetGroupsDisjunction(
     <dd>
         <p>**Default: `WITH_DIFFERENT_GROUPS`**</p>
         <p>Optional enumeration argument specifying whether the relationship type should be applied to options at
-        a particular level (within the same reference group, or to options in different reference groups /
-        references).</p>
+        a particular level (within the same reference group, or to options in different groups of the same
+        reference).</p>
         <p>This is the one constraint of the four whose default is `WITH_DIFFERENT_GROUPS`, and it defaults there
         for the same reason the others default to `WITH_DIFFERENT_FACETS_IN_GROUP`: a constraint defaults to the
         level at which it changes something. Disjunction is already the
@@ -1043,8 +1047,8 @@ facetGroupsNegation(
     <dd>
         <p>**Default: `WITH_DIFFERENT_FACETS_IN_GROUP`**</p>
         <p>Optional enumeration argument specifying whether the relationship type should be applied to options at
-        a particular level (within the same reference group, or to options in different reference groups /
-        references).</p>
+        a particular level (within the same reference group, or to options in different groups of the same
+        reference).</p>
     </dd>
     <dt>filterConstraint:filterBy</dt>
     <dd>
@@ -1157,8 +1161,8 @@ facetGroupsExclusivity(
     <dd>
         <p>**Default: `WITH_DIFFERENT_FACETS_IN_GROUP`**</p>
         <p>Optional enumeration argument specifying whether the relationship type should be applied to options at
-        a particular level (within the same reference group, or to options in different reference groups /
-        references).</p>
+        a particular level (within the same reference group, or to options in different groups of the same
+        reference).</p>
     </dd>
     <dt>filterConstraint:filterBy</dt>
     <dd>
@@ -1251,15 +1255,19 @@ facetCalculationRules(
     </dd>
     <dt>argument:enum(DISJUNCTION|CONJUNCTION|NEGATION|EXCLUSIVITY)!</dt>
     <dd>
-        Mandatory argument specifying the default relationship behaviour for options between different reference
-        groups or references. You can change the default logical conjunction (logical AND) to a different value.
+        Mandatory argument specifying the default relationship behaviour for options between different groups of
+        the same reference. You can change the default logical conjunction (logical AND) to a different value.
+        Options of different references are always combined by logical conjunction (logical AND).
     </dd>
 </dl>
 
 The <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetCalculationRules.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/FacetCalculationRules.cs</SourceClass></LS>
 requirement changes the [default behaviour](#default-reference-calculation-rules) of the reference summary
 calculation to the specified logical operators. The first argument sets the default relationship for options within
-the same reference group; the second sets it for options between different groups or references.
+the same reference group; the second sets it for options between different groups of the same reference. Options of
+different references are always combined by logical conjunction (logical AND), whatever the second argument is,
+because the [`userFilter`](../filtering/behavioral.md#user-filter) combines its constraints the way
+[`and`](../filtering/logical.md#and) does.
 
 **Supported logical operators:**
 

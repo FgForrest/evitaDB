@@ -101,7 +101,8 @@ import java.util.Optional;
  * 1. Only entities in the current query result are counted.
  * 2. Filters outside `userFilter` are always respected.
  * 3. Facets within the same group are combined with logical OR.
- * 4. Facets across different groups or references are combined with logical AND.
+ * 4. Facets across different groups of the same reference are combined with logical AND.
+ * 5. Facets of different references are always combined with logical AND.
  *
  * ## Example — combining generic and per-reference settings
  *
