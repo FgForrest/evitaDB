@@ -97,8 +97,9 @@ public class CreateAttributeSchemaMutationSerializer extends Serializer<CreateAt
 		kryo.writeObjectOrNull(output, mutation.getDefaultValue(), mutation.getType());
 		output.writeVarInt(mutation.getIndexedDecimalPlaces(), true);
 		kryo.writeObject(output, mutation.getConflictResolutionOverride());
-		// appended last - the release-2026.2 reader (CreateAttributeSchemaMutationSerializer_2026_2) stops before
-		// this point and never looks for the presence flag
+		// two sections appended last, in this fixed order - the accelerators, then the searchable scopes; the
+		// release-2026.2 reader (CreateAttributeSchemaMutationSerializer_2026_2) stops before both and never looks
+		// for the accelerators' presence flag
 		writeScopedAcceleratorsArray(kryo, output, mutation.getAcceleratorsInScopes());
 		writeScopeArray(kryo, output, mutation.getSearchableInScopes());
 	}

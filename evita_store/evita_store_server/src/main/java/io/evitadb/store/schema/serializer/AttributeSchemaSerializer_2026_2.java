@@ -43,18 +43,18 @@ import java.util.Map;
 
 /**
  * This {@link Serializer} implementation reads {@link AttributeSchema} from the binary format shipped by release
- * 2026.2 - the shape that predates the per-scope {@link AttributeFilterAccelerator filter accelerators}. That
- * format ends with the conflict-resolution override and carries no accelerator section at all.
+ * 2026.2 - the shape that predates the per-scope {@link AttributeFilterAccelerator filter accelerators} and the
+ * per-scope searchability. That format ends with the conflict-resolution override and carries neither section.
  *
- * The substitution for the absent section is `null`, which {@link AttributeSchema} normalizes into an empty map: an
- * attribute stored before accelerators existed is plainly filterable and asks the filter index for no acceleration,
- * which is exactly what an empty map means.
+ * The substitution for both absent sections is `null`, which {@link AttributeSchema} normalizes into an empty map
+ * and an empty scope set: an attribute stored before accelerators and searchability existed is plainly filterable,
+ * asks the filter index for no acceleration and is searchable nowhere, which is exactly what the empty values mean.
  *
  * This serializer only reads - writes always go through the current {@link AttributeSchemaSerializer}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  * @deprecated kept for backward compatibility; can be removed once no catalog written before filter index
- *             accelerators were introduced is still in use.
+ *             accelerators and searchability were introduced is still in use.
  */
 @Deprecated(since = "2026.2", forRemoval = true)
 @RequiredArgsConstructor

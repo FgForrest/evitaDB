@@ -419,6 +419,29 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		return globalIndex.insertPrimaryKeyIfMissing(entityPrimaryKey);
 	}
 
+	/**
+	 * Creates an executor that applies the local mutations of one entity to the indexes of its collection.
+	 *
+	 * @param containerAccessor            accessor of the current and previous storage containers of the entity
+	 * @param entityPrimaryKey             primary key of the mutated entity
+	 * @param entityIndexCreatingAccessor  accessor that creates or removes the entity indexes of the collection
+	 * @param catalogIndexCreatingAccessor accessor that creates or removes the catalog indexes
+	 * @param schemaAccessor               supplies the current entity schema
+	 * @param priceInternalIdSupplier      sequence assigning new price internal ids
+	 * @param fullEntitySupplier           supplies the full entity body, needed when the entity changes its scope
+	 * @param triggerRegistrySupplier      supplies the catalog registry of cross-entity expression triggers, or
+	 *                                     `null` when cross-entity triggers are not evaluated
+	 * @param localFacetTriggerSupplier    supplies the local facet expression trigger of a reference and scope, or
+	 *                                     `null` when no local expression is evaluated
+	 * @param crossEntitySchemaResolver    resolves an entity type to its schema across the catalog, or `null` to
+	 *                                     resolve only this executor's own entity schema
+	 * @param entityTypeClassifierResolver resolves an entity type name to its compact primary key and back
+	 * @param usageRegistry                the usage counters of the collection written into
+	 * @param catalogUsageRegistry         the usage counters of the catalog written into
+	 * @param fulltextAnalyzerRegistry     the catalog-owned analyzer registry, which supplies the analyzer when the
+	 *                                     fulltext index of a locale is first created
+	 * @param usageStatisticsTracking      whether the mutation counts the index-maintenance effort it costs
+	 */
 	public EntityIndexLocalMutationExecutor(
 		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
 		int entityPrimaryKey,

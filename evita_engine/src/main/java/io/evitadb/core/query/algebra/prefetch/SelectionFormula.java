@@ -72,7 +72,9 @@ import java.util.Optional;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class SelectionFormula extends AbstractFormula implements ChildrenDependentFormula, FilteredPriceRecordAccessor, FilteredOutPriceRecordAccessor, FulltextScoreAccessor, RequirementsDefiner {
+public class SelectionFormula extends AbstractFormula
+	implements ChildrenDependentFormula, FilteredPriceRecordAccessor, FilteredOutPriceRecordAccessor,
+	FulltextScoreAccessor, RequirementsDefiner {
 	/**
 	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
 	 */

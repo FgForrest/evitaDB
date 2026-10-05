@@ -1198,9 +1198,8 @@ public abstract class EntityIndex implements
 
 	/**
 	 * Rebuilds the change-detection baseline (`originalAttributeIndexes`, `originalPriceIndexes`,
-	 * `originalFacetIndexes`, `originalHistogramKeys`, `originalFulltextKeys`, `originalHierarchyIndexEmpty`) by running
-	 * every
-	 * registered {@link IndexComponent} once against a discardable {@link EntityIndexManifest}. The
+	 * `originalFacetIndexes`, `originalHistogramKeys`, `originalFulltextKeys`, `originalHierarchyIndexEmpty`) by
+	 * running every registered {@link IndexComponent} once against a discardable {@link EntityIndexManifest}. The
 	 * resulting snapshot is the "what was on disk" reference against which
 	 * {@link #getModifiedStorageParts(TrappedChanges)} diffs current state.
 	 *

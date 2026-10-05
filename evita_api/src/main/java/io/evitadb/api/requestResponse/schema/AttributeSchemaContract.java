@@ -322,13 +322,20 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * and a long description is typically searchable without ever being filterable.
 	 *
 	 * Only a {@link #isLocalized() localized} attribute of type {@link String} or `String[]` may be searchable,
-	 * because the words of a value can only be analyzed in the language they are written in.
+	 * because the words of a value can only be analyzed in the language they are written in. The rule is reported by
+	 * {@link #validate()} on the assembled schema.
 	 *
 	 * **On a reference attribute**, the entity is searchable by the **set union** of the attribute's values over all
 	 * of its references of that reference type - an entity referencing three brands is found by the name of any of
 	 * them, and a name two of its references share counts once. A change of a reference attribute that adds no value
 	 * missing from that union and removes no value no other reference still holds changes nothing in the fulltext
 	 * index at all.
+	 *
+	 * **Over stored data**, declaring an attribute searchable is never refused, but values stored before the
+	 * declaration are not indexed retroactively - stored data is not reindexed yet - so a search returns incomplete
+	 * results until such a value is written again. Withdrawing searchability takes effect lazily, at the next write of
+	 * the attribute in the scope and locale, and the space its old values took in the index is not reclaimed; a later
+	 * re-declaration starts from an empty field. Results are only ever incomplete, never phantom.
 	 *
 	 * This method returns true only if the attribute is searchable in the default (i.e. {@link Scope#LIVE}) scope.
 	 *

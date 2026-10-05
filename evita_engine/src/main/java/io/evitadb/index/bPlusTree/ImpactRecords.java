@@ -403,31 +403,36 @@ final class ImpactRecords {
 	 */
 	@Nonnull
 	static Object loaded(@Nonnull byte[] impacts, @Nullable Object recordSlot) {
-		final int recordCount;
 		if (recordSlot == null) {
-			recordCount = 1;
+			verifyLoadedImpactCount(impacts, 1);
+			return Byte.valueOf(impacts[0]);
 		} else if (recordSlot instanceof final int[] small) {
-			recordCount = small.length;
+			verifyLoadedImpactCount(impacts, small.length);
+			return impacts;
 		} else if (recordSlot instanceof final TransactionalBitmap bitmap) {
-			recordCount = bitmap.size();
+			verifyLoadedImpactCount(impacts, bitmap.size());
+			return chunkByContainer(impacts, RoaringBitmapBackedBitmap.getRoaringBitmap(bitmap));
 		} else {
 			throw new GenericEvitaInternalError(
 				"A loaded record slot must be null, an int[] or a TransactionalBitmap, not " +
 					recordSlot.getClass().getName() + "!"
 			);
 		}
+	}
+
+	/**
+	 * Verifies that the impacts of a bucket read back from a persisted page cover exactly its records.
+	 *
+	 * @param impacts     the bucket's impacts as persisted
+	 * @param recordCount the number of records the bucket's loaded record slot holds
+	 * @throws GenericEvitaInternalError when the two counts differ
+	 */
+	private static void verifyLoadedImpactCount(@Nonnull byte[] impacts, int recordCount) {
 		if (impacts.length != recordCount) {
 			throw new GenericEvitaInternalError(
 				"A persisted bucket carries " + impacts.length + " impacts for " + recordCount + " records!"
 			);
 		}
-		if (recordSlot == null) {
-			return Byte.valueOf(impacts[0]);
-		}
-		if (recordSlot instanceof int[]) {
-			return impacts;
-		}
-		return chunkByContainer(impacts, RoaringBitmapBackedBitmap.getRoaringBitmap((TransactionalBitmap) recordSlot));
 	}
 
 	/**

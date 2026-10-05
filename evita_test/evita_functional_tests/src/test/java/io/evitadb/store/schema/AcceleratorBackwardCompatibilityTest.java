@@ -70,18 +70,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Verifies backward-compatible deserialization of the schema types and schema mutations that gained the per-scope
  * {@link AttributeFilterAccelerator} field. Adding it bumped the `serialVersionUID` of every affected class, so any
- * record
- * persisted by the immediately-preceding format must still be readable through the version-routing
+ * record persisted by the immediately-preceding format must still be readable through the version-routing
  * {@link io.evitadb.store.entity.serializer.SerialVersionBasedSerializer} - reading back as an attribute that is
- * filterable exactly as it was, with no acceleration declared anywhere.
+ * filterable exactly as it was, with no acceleration declared anywhere and searchable nowhere.
  *
  * Each test emulates a pre-capability on-disk record the same way its sibling
  * {@link ConflictResolutionBackwardCompatibilityTest} does: it writes the routing envelope's leading
  * `serialVersionUID` as the value the bump orphaned, followed by the payload the *current* serializer produces. That
- * is byte-valid here because every writer touched by this change appends the capability section **last**, so the
- * pre-capability payload is a byte-exact prefix of the current one and the backward-compatible reader simply stops
- * short of it. The record is then read back through the fully configured Kryo, exercising the real
- * registration/routing path rather than the serializer alone.
+ * is byte-valid here because every writer touched by this change appends its new sections **last** - the
+ * accelerators, then the searchable scopes - so the pre-capability payload is a byte-exact prefix of the current one
+ * and the backward-compatible reader simply stops short of both. The record is then read back through the fully
+ * configured Kryo, exercising the real registration/routing path rather than the serializer alone.
  *
  * Every subject is deliberately built **with** a capability, so the trailing bytes genuinely exist in the rendered
  * payload. A subject declaring none would leave nothing for the reader to stop short of, and the test would pass just

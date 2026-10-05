@@ -145,8 +145,8 @@ public class ModifyAttributeSchemaTypeMutation
 		final Class newType = EvitaDataTypes.toWrappedForm(this.type);
 		// the rebuild branches below carry the existing accelerators over verbatim, so the new type has to be checked
 		// against them here - otherwise changing a `String` attribute that declares SUBSTRING to `Integer` would
-		// silently produce a schema the accelerator's own contract forbids. The non-empty-collection refusal cannot
-		// catch this: it compares accelerator sets and sees nothing *added*.
+		// silently produce a schema the accelerator's own contract forbids. A type change adds no accelerator, so no
+		// check that looks at the accelerators a schema change adds would ever see the new type.
 		verifyAcceleratorsApplicableToType(
 			this.name, newType, attributeSchema.getAcceleratorsInScopes()
 		);

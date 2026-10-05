@@ -74,9 +74,17 @@ import java.util.Set;
  * - **a scope change** - the entity leaves the fulltext indexes of its old scope and enters those of the new one with
  *   everything it holds.
  *
- * Every index is updated at the mutation that changes it, so that between two mutations the fulltext indexes always
- * answer for what the entity's storage parts hold - the same invariant the attribute indexes keep, which is what lets a
- * scope change remove exactly what is indexed.
+ * Every index is updated at the mutation that changes it, so that between two mutations the fulltext indexes answer
+ * for every value the entity's storage parts hold that was written while its attribute was searchable - the same
+ * invariant the attribute indexes keep, which is what lets a scope change remove exactly what is indexed. A value
+ * stored before its attribute became searchable was never indexed, and removing it is a no-op (see
+ * {@link FulltextIndex#removeValue(FulltextFieldKey, int, String[])}).
+ *
+ * **Caller ordering.** Both the value an update removes and the union "before" a reference change are read from the
+ * storage parts as they stand before the mutation, so every method here must run in the index executor, before the
+ * storage executor applies the same local mutation. The reference hook runs before the `isIndexedInScope` gate of the
+ * reference fan-out, because the fulltext structures live in the global index whether the reference is indexed or
+ * not. The local mutations of an entity arrive ordered as removals, then a scope change, then upserts.
  *
  * **Withdrawal retires lazily.** A write to an attribute that is no longer searchable in the scope retires its field in
  * the locale's index, if the index still knows it: the field keeps its postings as dead weight until #409 rebuilds the
@@ -92,8 +100,8 @@ public interface FulltextIndexMutator {
 
 	/**
 	 * Applies an entity attribute mutation to the fulltext index of its locale in `globalIndex`'s scope: removes the
-	 * value the entity holds now and indexes the upserted one, or retires the field when the attribute is no longer
-	 * searchable in the scope.
+	 * value the entity holds now and indexes the upserted one - a removal mutation only removes - or retires the field
+	 * when the attribute is no longer searchable in the scope.
 	 *
 	 * @param executor              the executor of the entity mutation
 	 * @param globalIndex           the global index of the scope being written
@@ -203,7 +211,9 @@ public interface FulltextIndexMutator {
 
 	/**
 	 * Applies an attribute mutation of one reference: recomputes the union of the attribute over the entity's
-	 * references of that name, before and after the mutation, and replaces the indexed union when the two differ.
+	 * references of that name, before and after the mutation, and replaces the indexed union when the two differ. Both
+	 * unions are computed from the references storage part as it stands before the mutation. A field that is not
+	 * searchable in the scope - or whose attribute the reference schema no longer declares - is retired instead.
 	 *
 	 * @param executor    the executor of the entity mutation
 	 * @param globalIndex the global index of the scope being written
@@ -223,11 +233,14 @@ public interface FulltextIndexMutator {
 		final ReferenceKey referenceKey = mutation.getReferenceKey();
 		final String referenceName = referenceKey.referenceName();
 		final String attributeName = attributeKey.attributeName();
-		final AttributeSchemaContract attributeSchema = getReferenceAttributeSchema(
-			executor.getEntitySchema().getReferenceOrThrowException(referenceName), attributeName
-		);
+		// an attribute the reference schema no longer declares counts as not searchable, as its stored values may
+		// outlive its schema
+		final AttributeSchemaContract attributeSchema = executor.getEntitySchema()
+			.getReferenceOrThrowException(referenceName)
+			.getAttribute(attributeName)
+			.orElse(null);
 		final FulltextFieldKey fieldKey = FulltextFieldKey.referenceAttribute(referenceName, attributeName);
-		if (!attributeSchema.isSearchableInScope(globalIndex.getIndexKey().scope())) {
+		if (attributeSchema == null || !attributeSchema.isSearchableInScope(globalIndex.getIndexKey().scope())) {
 			retireField(globalIndex, locale, fieldKey);
 			return;
 		}
@@ -246,7 +259,9 @@ public interface FulltextIndexMutator {
 	/**
 	 * Applies the removal of one reference: for every localized attribute the removed reference carries, recomputes
 	 * the union over the entity's references of that name without it, and replaces the indexed union when the two
-	 * differ.
+	 * differ. The union "before" is computed from the references storage part as it stands before the removal, so it
+	 * still includes the removed reference. A field that is not searchable in the scope - or whose attribute the
+	 * reference schema no longer declares - is retired instead.
 	 *
 	 * @param executor     the executor of the entity mutation
 	 * @param globalIndex  the global index of the scope being written
@@ -261,7 +276,10 @@ public interface FulltextIndexMutator {
 			executor.getReferencesStoragePart().getReferencesAsCollection();
 		ReferenceContract removedReference = null;
 		for (final ReferenceContract reference : references) {
-			if (reference.exists() && reference.getReferenceKey().equals(referenceKey)) {
+			if (
+				reference.exists() &&
+					ReferenceKey.FULL_COMPARATOR.compare(reference.getReferenceKey(), referenceKey) == 0
+			) {
 				removedReference = reference;
 				break;
 			}
@@ -281,9 +299,11 @@ public interface FulltextIndexMutator {
 				continue;
 			}
 			final String attributeName = attributeKey.attributeName();
-			final AttributeSchemaContract attributeSchema = getReferenceAttributeSchema(referenceSchema, attributeName);
 			final FulltextFieldKey fieldKey = FulltextFieldKey.referenceAttribute(referenceName, attributeName);
-			if (attributeSchema.isSearchableInScope(scope)) {
+			final boolean searchable = referenceSchema.getAttribute(attributeName)
+				.map(it -> it.isSearchableInScope(scope))
+				.orElse(false);
+			if (searchable) {
 				replaceUnion(
 					executor, globalIndex, locale, fieldKey,
 					collectUnion(references, referenceName, attributeKey, null, null),
@@ -343,7 +363,10 @@ public interface FulltextIndexMutator {
 					continue;
 				}
 				final String attributeName = attributeValue.key().attributeName();
-				if (getReferenceAttributeSchema(referenceSchema, attributeName).isSearchableInScope(scope)) {
+				final boolean searchable = referenceSchema.getAttribute(attributeName)
+					.map(it -> it.isSearchableInScope(scope))
+					.orElse(false);
+				if (searchable) {
 					collectValues(
 						attributeValue.value(),
 						unions.computeIfAbsent(
@@ -391,7 +414,12 @@ public interface FulltextIndexMutator {
 			if (!reference.exists() || !referenceName.equals(reference.getReferenceName())) {
 				continue;
 			}
-			if (replacedReference != null && reference.getReferenceKey().equals(replacedReference)) {
+			// the full comparison tells apart duplicates of one target - `equals` takes a not yet persisted
+			// (negative) internal primary key for a match of every duplicate
+			if (
+				replacedReference != null &&
+					ReferenceKey.FULL_COMPARATOR.compare(reference.getReferenceKey(), replacedReference) == 0
+			) {
 				replaced = true;
 				if (replacement != null) {
 					collectValues(replacement, union);
@@ -405,7 +433,8 @@ public interface FulltextIndexMutator {
 				}
 			}
 		}
-		// the reference was inserted by an earlier mutation of the same entity the storage part does not show yet
+		// defensive: a reference inserted earlier in the same entity mutation is already in the storage part, so this
+		// is reached only for a reference the storage part does not hold - whose mutation the storage executor rejects
 		if (!replaced && replacement != null) {
 			collectValues(replacement, union);
 		}
@@ -567,26 +596,6 @@ public interface FulltextIndexMutator {
 		return Objects.requireNonNull(
 			EvitaDataTypes.toTargetType(value, attributeSchema.getType(), attributeSchema.getIndexedDecimalPlaces())
 		);
-	}
-
-	/**
-	 * Returns the schema of a reference attribute.
-	 *
-	 * @param referenceSchema the schema of the reference
-	 * @param attributeName   the name of the attribute
-	 * @return the attribute schema
-	 * @throws GenericEvitaInternalError when the reference does not declare the attribute
-	 */
-	@Nonnull
-	private static AttributeSchemaContract getReferenceAttributeSchema(
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull String attributeName
-	) {
-		return referenceSchema.getAttribute(attributeName)
-			.orElseThrow(() -> new GenericEvitaInternalError(
-				"Attribute `" + attributeName + "` is not defined in the schema of reference `" +
-					referenceSchema.getName() + "`!"
-			));
 	}
 
 	/**

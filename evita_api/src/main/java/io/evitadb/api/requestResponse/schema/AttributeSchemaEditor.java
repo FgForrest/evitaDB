@@ -237,6 +237,9 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * of its references of that reference type. A change of a reference attribute that adds no value missing from that
 	 * union and removes no value no other reference still holds changes nothing in the fulltext index at all.
 	 *
+	 * The declaration is accepted on a collection that already holds entities, but their stored values are not
+	 * indexed retroactively - each becomes searchable when it is written again.
+	 *
 	 * This method makes attribute searchable only in the {@link Scope#DEFAULT_SCOPE} scope, archived entities will not
 	 * be searchable by this attribute unless explicitly set via {@link #searchableInScope(Scope...)}.
 	 *
@@ -276,6 +279,9 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 * Makes attribute not searchable in all scopes. This means it will not be possible to search entities by the
 	 * words of this attribute anymore.
 	 *
+	 * The withdrawal takes effect lazily, at the next write of the attribute, and the space its old values took in the
+	 * index is not reclaimed; declaring the attribute searchable again starts from an empty field.
+	 *
 	 * @return builder to continue with configuration
 	 */
 	@Nonnull
@@ -285,7 +291,8 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 
 	/**
 	 * Makes attribute not searchable in specified scope(s), leaving the other scopes as they are. This means it will
-	 * not be possible to search entities by the words of this attribute in that scope anymore.
+	 * not be possible to search entities by the words of this attribute in that scope anymore. The withdrawal takes
+	 * effect lazily - see {@link #nonSearchable()}.
 	 *
 	 * @param inScope one or more scopes in which the attribute should not be searchable
 	 * @return builder to continue with configuration

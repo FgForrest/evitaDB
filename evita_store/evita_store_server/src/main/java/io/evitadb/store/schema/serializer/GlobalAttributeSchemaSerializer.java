@@ -96,8 +96,9 @@ public class GlobalAttributeSchemaSerializer extends Serializer<GlobalAttributeS
 			output.writeBoolean(false);
 		}
 		kryo.writeObject(output, attributeSchema.getConflictResolutionOverride());
-		// appended last, mirroring how the conflict-resolution override was added - the release-2026.2 reader
-		// (GlobalAttributeSchemaSerializer_2026_2) simply stops before this point
+		// two sections appended last, in this fixed order - the accelerators, then the searchable scopes - mirroring
+		// how the conflict-resolution override was added; the release-2026.2 reader
+		// (GlobalAttributeSchemaSerializer_2026_2) simply stops before both
 		EntitySchemaSerializer.writeAccelerators(kryo, output, attributeSchema.getAcceleratorsInScopes());
 		EntitySchemaSerializer.writeScopeSet(kryo, output, attributeSchema.getSearchableInScopes());
 	}

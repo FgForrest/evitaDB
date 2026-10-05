@@ -51,7 +51,8 @@ import javax.annotation.Nullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class EntityFilteringFormula extends AbstractFormula implements RequirementsDefiner, FilteredPriceRecordAccessor, FulltextScoreAccessor {
+public class EntityFilteringFormula extends AbstractFormula
+	implements RequirementsDefiner, FilteredPriceRecordAccessor, FulltextScoreAccessor {
 	/**
 	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
 	 */

@@ -233,6 +233,8 @@ class ConflictResolutionBackwardCompatibilityTest {
 		assertEquals("code", deserialized.getName());
 		// … and the absent override defaults to INHERITED
 		assertEquals(ConflictResolutionOverride.INHERITED, deserialized.getConflictResolutionOverride());
+		// the format predates searchability too, so the attribute reads back searchable nowhere
+		assertTrue(deserialized.getSearchableInScopes().isEmpty());
 	}
 
 	@Test
@@ -257,6 +259,8 @@ class ConflictResolutionBackwardCompatibilityTest {
 		assertEquals("url", deserialized.getName());
 		// … and the absent override defaults to INHERITED
 		assertEquals(ConflictResolutionOverride.INHERITED, deserialized.getConflictResolutionOverride());
+		// the format predates searchability too, so the attribute reads back searchable nowhere
+		assertTrue(deserialized.getSearchableInScopes().isEmpty());
 	}
 
 	@Test
@@ -281,6 +285,8 @@ class ConflictResolutionBackwardCompatibilityTest {
 		assertEquals("name", deserialized.getName());
 		// … and the absent override defaults to INHERITED
 		assertEquals(ConflictResolutionOverride.INHERITED, deserialized.getConflictResolutionOverride());
+		// the format predates searchability too, so the attribute reads back searchable nowhere
+		assertTrue(deserialized.getSearchableInScopes().isEmpty());
 	}
 
 	@Test
@@ -378,6 +384,8 @@ class ConflictResolutionBackwardCompatibilityTest {
 
 		assertEquals("code", deserialized.getName());
 		assertEquals(ConflictResolutionOverride.INHERITED, deserialized.getConflictResolutionOverride());
+		// the format predates searchability too, so the mutation reads back searchable nowhere
+		assertEquals(0, deserialized.getSearchableInScopes().length);
 	}
 
 	@Test
@@ -400,6 +408,8 @@ class ConflictResolutionBackwardCompatibilityTest {
 
 		assertEquals("url", deserialized.getName());
 		assertEquals(ConflictResolutionOverride.INHERITED, deserialized.getConflictResolutionOverride());
+		// the format predates searchability too, so the mutation reads back searchable nowhere
+		assertEquals(0, deserialized.getSearchableInScopes().length);
 	}
 
 	@Test

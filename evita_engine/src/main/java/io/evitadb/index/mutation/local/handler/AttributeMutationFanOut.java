@@ -45,8 +45,8 @@ import javax.annotation.Nonnull;
 /**
  * Shared entity-side fan-out used by all three concrete attribute-mutation handlers
  * (`Upsert`, `Remove`, `ApplyDelta`). The three differ only in the inner branch of
- * `updateAttribute` — every step before and after (pre-mutation capture, global update, unique
- * fan-out across reduced indexes, deferred facet re-evaluation) is identical, so it lives here
+ * `updateAttribute` — every step before and after (pre-mutation capture, global update, fulltext
+ * update, unique fan-out across reduced indexes, deferred facet re-evaluation) is identical, so it lives here
  * exactly once. The handlers are thin shells whose only responsibility is naming the concrete
  * mutation class.
  */
@@ -57,11 +57,12 @@ final class AttributeMutationFanOut {
 	}
 
 	/**
-	 * Applies the attribute mutation to the global index, then fans out to every unique reduced
-	 * index via `IterationPath.BOTH`. The unique fan-out is required because entity-level
-	 * attribute bookkeeping is indexed once per (entity, reduced-index) pair — a per-reference
-	 * variant would double-decrement the `AttributeCardinalityIndex` whenever N sibling references
-	 * resolve to a single shared `ReducedGroupEntityIndex`.
+	 * Applies the attribute mutation to the global index and to the fulltext indexes the global index
+	 * holds (see {@link FulltextIndexMutator#executeAttributeMutation}, which takes no part in the fan-out),
+	 * then fans out to every unique reduced index via `IterationPath.BOTH`. The unique fan-out is
+	 * required because entity-level attribute bookkeeping is indexed once per (entity, reduced-index)
+	 * pair — a per-reference variant would double-decrement the `AttributeCardinalityIndex` whenever N
+	 * sibling references resolve to a single shared `ReducedGroupEntityIndex`.
 	 */
 	static void apply(
 		@Nonnull AttributeMutation mutation,
