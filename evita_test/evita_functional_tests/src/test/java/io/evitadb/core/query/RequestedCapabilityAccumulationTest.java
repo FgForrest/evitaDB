@@ -73,6 +73,7 @@ import static io.evitadb.api.query.QueryConstraints.attributeNatural;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.debug;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
+import static io.evitadb.api.query.QueryConstraints.entityHaving;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.entityProperty;
 import static io.evitadb.api.query.QueryConstraints.facetHaving;
@@ -579,6 +580,60 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		}
 
 		@Test
+		@DisplayName("A filter of the fetched references counts once, whether or not there is a reference to filter")
+		void shouldCountFilterOfFetchedReferencesOnce() {
+			// the filter is checked while the query is planned, before the winning plan drains the accumulator, and
+			// translated again by the fetch only when a fetched product references something - which must not count
+			// the same request a second time
+			final Map<SchemaCapabilityKey, Long> requestedWithReference = capabilitiesRequestedByFetching(
+				ENTITY_PRODUCT, productWithCategoriesFilteredByOrder(1)
+			);
+			final Map<SchemaCapabilityKey, Long> requestedWithoutProduct = capabilitiesRequestedByFetching(
+				ENTITY_PRODUCT, productWithCategoriesFilteredByOrder(PRODUCT_COUNT + 1)
+			);
+
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(
+				ORDER_IN_CATEGORY_FILTER, 1L, CATEGORIES_INDEXED, 1L
+			);
+			assertEquals(
+				expected, requestedWithReference,
+				"The query fetching a filtered reference must count the capabilities its filter named once"
+			);
+			assertEquals(
+				expected, requestedWithoutProduct,
+				"The query fetching no reference must count what its twin fetching one counts"
+			);
+		}
+
+		@Test
+		@DisplayName("An entity filter of the fetched references counts once on the referenced collection")
+		void shouldCountEntityFilterOfFetchedReferencesOnceOnReferencedCollection() {
+			// the fetch plans the filter of the referenced categories as a nested query of their collection, which
+			// counts what it named there; the check made while the query is planned plans no nested query, so it must
+			// not add a second count
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY,
+				Query.query(
+					collection(ENTITY_PRODUCT),
+					filterBy(entityPrimaryKeyInSet(1)),
+					require(
+						entityFetch(
+							referenceContent(
+								REFERENCE_CATEGORIES,
+								filterBy(entityHaving(attributeEquals(ATTRIBUTE_CATEGORY_NAME, "category-1")))
+							)
+						)
+					)
+				)
+			);
+
+			assertEquals(
+				Map.of(categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L), requested,
+				"The filter of the referenced categories must be counted once on their collection"
+			);
+		}
+
+		@Test
 		@DisplayName("A query refused over a scope without index counts nothing")
 		void shouldCountNothingWhenQueryOverScopeWithoutIndexIsRefused() {
 			// the catalog holds no index of the archived scope, and `code` is not filterable there - the query fails
@@ -741,6 +796,28 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 					referenceContent(
 						REFERENCE_CATEGORIES,
 						orderBy(entityProperty(attributeNatural(ATTRIBUTE_CATEGORY_NAME, OrderDirection.ASC)))
+					)
+				)
+			)
+		);
+	}
+
+	/**
+	 * Builds the query fetching one product with its references to the categories filtered by the order of the
+	 * product in the category.
+	 *
+	 * @param productPrimaryKey the product to fetch
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query productWithCategoriesFilteredByOrder(int productPrimaryKey) {
+		return Query.query(
+			collection(ENTITY_PRODUCT),
+			filterBy(entityPrimaryKeyInSet(productPrimaryKey)),
+			require(
+				entityFetch(
+					referenceContent(
+						REFERENCE_CATEGORIES, filterBy(attributeEquals(ATTRIBUTE_ORDER_IN_CATEGORY, 1L))
 					)
 				)
 			)

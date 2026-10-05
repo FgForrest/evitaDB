@@ -289,6 +289,14 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 */
 	@Nonnull
 	private final List<ResolvedHistogramHaving> resolvedHistogramHavings = new ArrayList<>(4);
+	/**
+	 * True when this visitor translates a filter only to check it against the schemas and its formula is thrown away
+	 * - see {@link #createConstraintCheckVisitor(QueryPlanningContext)}. Such a visitor looks into no index holding
+	 * data: the type index of a reference and the global index of an entity type a nested `entityHaving` or
+	 * `groupHaving` query targets are replaced by empty indexes, so the check costs one translation and never
+	 * evaluates anything.
+	 */
+	@Getter private final boolean constraintCheckOnly;
 
 	/**
 	 * Method returns true for all {@link FilterConstraint} types that are conjunctive.
@@ -452,11 +460,74 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		return theFormula;
 	}
 
+	/**
+	 * Creates a visitor that translates filters only to check them against the schemas and throws their formulas away.
+	 * It reads no index holding data - see {@link #isConstraintCheckOnly()} - so it suits a check made while planning,
+	 * before it is known whether there is any data the filter will be evaluated over.
+	 *
+	 * @param queryContext planning context of the query the checked filter belongs to
+	 * @return a visitor checking filters only
+	 */
+	@Nonnull
+	public static FilterByVisitor createConstraintCheckVisitor(@Nonnull QueryPlanningContext queryContext) {
+		return new FilterByVisitor(
+			createRootProcessingScope(queryContext, TargetIndexes.EMPTY),
+			queryContext,
+			Collections.emptyList(),
+			TargetIndexes.EMPTY,
+			true
+		);
+	}
+
+	/**
+	 * Creates the processing scope a visitor starts in: the indexes of the passed set, the scopes and the schema of
+	 * the query, and the attributes of the queried entity itself.
+	 *
+	 * @param queryContext  planning context of the query
+	 * @param indexSetToUse the indexes the filter is translated over
+	 * @return the root processing scope
+	 */
+	@Nonnull
+	private static <T extends Index<?>> ProcessingScope<T> createRootProcessingScope(
+		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull TargetIndexes<T> indexSetToUse
+	) {
+		return new ProcessingScope<>(
+			indexSetToUse.getIndexType(),
+			indexSetToUse.getIndexes(),
+			queryContext.getScopes(),
+			AttributeContent.ALL_ATTRIBUTES,
+			queryContext.isEntityTypeKnown() ? queryContext.getSchema() : null,
+			null, null,
+			new AttributeSchemaAccessor(queryContext),
+			(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale))
+		);
+	}
+
 	protected <T extends Index<?>> FilterByVisitor(
 		@Nonnull ProcessingScope<T> processingScope,
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull List<TargetIndexes<T>> targetIndexes,
 		@Nonnull TargetIndexes<T> indexSetToUse
+	) {
+		this(processingScope, queryContext, targetIndexes, indexSetToUse, false);
+	}
+
+	/**
+	 * Creates a visitor starting in the passed processing scope.
+	 *
+	 * @param processingScope     the scope the visitor starts in
+	 * @param queryContext        planning context of the query
+	 * @param targetIndexes       all alternative index sets of the query
+	 * @param indexSetToUse       the index set the filter is translated over
+	 * @param constraintCheckOnly true when the visitor only checks the filters - see {@link #isConstraintCheckOnly()}
+	 */
+	private <T extends Index<?>> FilterByVisitor(
+		@Nonnull ProcessingScope<T> processingScope,
+		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull List<TargetIndexes<T>> targetIndexes,
+		@Nonnull TargetIndexes<T> indexSetToUse,
+		boolean constraintCheckOnly
 	) {
 		this.stack.push(new LinkedList<>());
 		this.postProcessors.push(new LinkedHashMap<>(16));
@@ -466,6 +537,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		//noinspection unchecked,rawtypes
 		this.targetIndexes = (List) targetIndexes;
 		this.indexSetToUse = indexSetToUse;
+		this.constraintCheckOnly = constraintCheckOnly;
 	}
 
 	public <T extends Index<?>> FilterByVisitor(
@@ -473,21 +545,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull List<TargetIndexes<T>> targetIndexes,
 		@Nonnull TargetIndexes<T> indexSetToUse
 	) {
-		this(
-			new ProcessingScope<>(
-				indexSetToUse.getIndexType(),
-				indexSetToUse.getIndexes(),
-				queryContext.getScopes(),
-				AttributeContent.ALL_ATTRIBUTES,
-				queryContext.isEntityTypeKnown() ? queryContext.getSchema() : null,
-				null, null,
-				new AttributeSchemaAccessor(queryContext),
-				(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale))
-			),
-			queryContext,
-			targetIndexes,
-			indexSetToUse
-		);
+		this(createRootProcessingScope(queryContext, indexSetToUse), queryContext, targetIndexes, indexSetToUse, false);
 	}
 
 	/**
@@ -1203,25 +1261,26 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 					);
 
 					ReferencedTypeEntityIndex targetReferencedTypeIndex;
-					final boolean referencesMissing = entityIndex.isEmpty() && referenceSchema.isIndexedInScope(scope);
-					if (entityIndex.isEmpty()) {
-						if (referencesMissing) {
-							// no entity of the scope references anything by the reference, so there is no type index -
-							// an empty one in its place lets the translation check the filter against the reference
-							// schema exactly as it does when the references exist, so that the query does not fail or
-							// pass depending on the data; nothing can match there, whatever the filter says
-							targetReferencedTypeIndex = new ReferencedTypeEntityIndex(
-								-1, entitySchema.getName(), entityIndexKey
-							);
+					// a visitor that only checks the filter reads no type index either - the empty one stands in for
+					// an existing index as well, and the formula over it is thrown away like the one below
+					final boolean referencesMissing = (entityIndex.isEmpty() || this.constraintCheckOnly) &&
+						referenceSchema.isIndexedInScope(scope);
+					if (referencesMissing) {
+						// no entity of the scope references anything by the reference, so there is no type index -
+						// an empty one in its place lets the translation check the filter against the reference
+						// schema exactly as it does when the references exist, so that the query does not fail or
+						// pass depending on the data; nothing can match there, whatever the filter says
+						targetReferencedTypeIndex = new ReferencedTypeEntityIndex(
+							-1, entitySchema.getName(), entityIndexKey
+						);
+					} else if (entityIndex.isEmpty()) {
+						// we need to behave like if the index existed - we never know where in the filtering
+						// constraint the client might have used InScope container limiting the scope of the query
+						final ReferencedTypeEntityIndex missingIndexStub = missingReferencedTypeIndexSupplier.apply(entitySchema, entityIndexKey);
+						if (missingIndexStub == null) {
+							return EmptyFormula.INSTANCE;
 						} else {
-							// we need to behave like if the index existed - we never know where in the filtering
-							// constraint the client might have used InScope container limiting the scope of the query
-							final ReferencedTypeEntityIndex missingIndexStub = missingReferencedTypeIndexSupplier.apply(entitySchema, entityIndexKey);
-							if (missingIndexStub == null) {
-								return EmptyFormula.INSTANCE;
-							} else {
-								targetReferencedTypeIndex = missingIndexStub;
-							}
+							targetReferencedTypeIndex = missingIndexStub;
 						}
 					} else {
 						targetReferencedTypeIndex = entityIndex.get();

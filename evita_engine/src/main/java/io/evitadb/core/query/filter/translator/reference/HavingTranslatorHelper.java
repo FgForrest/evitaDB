@@ -154,6 +154,10 @@ public class HavingTranslatorHelper {
 	 * there). The filter is still checked against the target entity schema in every scope without a global index,
 	 * so that a filter that cannot be evaluated fails the query whether the entities exist or not.
 	 *
+	 * A visitor that only checks the filter ({@link FilterByVisitor#isConstraintCheckOnly()}) plans no nested query at
+	 * all: the filter is checked over an empty global index of every scope, and the empty formula is returned as when
+	 * the target entity type holds no entity - its formula is thrown away, and nothing is evaluated for it.
+	 *
 	 * @param targetEntityType         the type of the target entity for which the nested query is being planned
 	 * @param filter                   the filter constraint that applies the necessary filtering logic
 	 * @param filterByVisitor          the visitor object used for traversing and processing filter constraints
@@ -173,6 +177,21 @@ public class HavingTranslatorHelper {
 		final EntityCollection targetEntityCollection = filterByVisitor.getEntityCollectionOrThrowException(
 			targetEntityType, taskDescriptionSupplier
 		);
+		if (filterByVisitor.isConstraintCheckOnly()) {
+			FilterByVisitor.createFormulaForTheFilter(
+				filterByVisitor.getQueryContext(),
+				GlobalEntityIndex.class,
+				processingScope.getScopes()
+					.stream()
+					.map(scope -> GlobalEntityIndex.createEmptyIndex(targetEntityType, scope))
+					.toList(),
+				filter instanceof FilterBy filterBy ? filterBy : new FilterBy(filter),
+				null,
+				filterByVisitor.getQueryContext().getSchema(targetEntityType),
+				taskDescriptionSupplier
+			);
+			return List.of(new GlobalIndexAndFormula(null, EmptyFormula.INSTANCE));
+		}
 		final List<GlobalEntityIndex> globalIndexes = processingScope.getScopes()
 			.stream()
 			.map(

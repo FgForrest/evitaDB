@@ -42,6 +42,7 @@ import io.evitadb.api.query.require.FacetRelationType;
 import io.evitadb.api.query.require.FacetGroupRelationLevel;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -6399,10 +6400,156 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * Checks that a hierarchy constraint, a nested ordering or a stop node of the fetched parents the schema refuses
-	 * fails the query with the same client error in every scope - also where the hierarchy it searches or describes,
-	 * or the entity type it orders, holds no entity, and whether or not the query returns an entity with a parent - so
-	 * that the query does not fail or pass depending on the data.
+	 * Returns the rows of the filters and the orderings of the references fetched by `referenceContent` of the
+	 * {@link #FACET_SCOPE_SHAPES} data set that the schema refuses. The fetched references are filtered and ordered
+	 * only while an entity is fetched, and only when it references an entity existing in the scope - so the rows cover
+	 * the products of a scope with data (whose tags exist in it) and without (whose tags do not), no product at all,
+	 * and the groups, which reference nothing by {@link #REF_CATEGORY}. They cover the filter by the referenced entity,
+	 * by the referenced group and by an attribute of the reference, and the ordering by the referenced entity, by the
+	 * referenced group and by an attribute of the reference. Each row has the shape of
+	 * {@link #hierarchyConstraintRows()}.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> referenceContentRows() {
+		final FilterConstraint note = attributeEquals(ATTRIBUTE_NOTE, "anything");
+		final FilterBy everyTag = filterBy(entityPrimaryKeyInSet(SCOPED_TAGS));
+		return Stream.concat(
+			Stream.of(
+				inEveryScope(
+					"entity filter of the references of the products",
+					scope -> scopedProductFetchQuery(scope, referenceContent(REF_TAG, filterBy(entityHaving(note)))),
+					AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+				),
+				inEveryScope(
+					"group filter of the references of the products",
+					scope -> scopedProductFetchQuery(scope, referenceContent(REF_TAG, filterBy(groupHaving(note)))),
+					AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+				),
+				inEveryScope(
+					"ordering of the filtered references of the products by the referenced entity",
+					scope -> scopedProductFetchQuery(
+						scope,
+						referenceContent(REF_TAG, everyTag, orderBy(entityProperty(attributeNatural(ATTRIBUTE_NOTE))))
+					),
+					AttributeNotSortableException.class, ATTRIBUTE_NOTE
+				),
+				inEveryScope(
+					"ordering of the filtered references of the products by the referenced group",
+					scope -> scopedProductFetchQuery(
+						scope,
+						referenceContent(
+							REF_TAG, everyTag, orderBy(entityGroupProperty(attributeNatural(ATTRIBUTE_NOTE)))
+						)
+					),
+					AttributeNotSortableException.class, ATTRIBUTE_NOTE
+				),
+				inEveryScope(
+					"entity filter of the references of the groups referencing nothing",
+					scope -> scopedTagGroupFetchQuery(
+						scope, referenceContent(REF_CATEGORY, filterBy(entityHaving(note)))
+					),
+					AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+				),
+				inEveryScope(
+					"attribute filter of the references of the groups referencing nothing",
+					scope -> scopedTagGroupFetchQuery(scope, referenceContent(REF_CATEGORY, filterBy(note))),
+					AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+				),
+				inEveryScope(
+					"attribute ordering of the references of the groups referencing nothing",
+					scope -> scopedTagGroupFetchQuery(
+						scope, referenceContent(REF_CATEGORY, orderBy(attributeNatural(ATTRIBUTE_NOTE)))
+					),
+					AttributeNotSortableException.class, ATTRIBUTE_NOTE
+			)
+			).flatMap(Function.identity()),
+			Stream.of(
+				Arguments.of(
+					"entity filter of the references of no product", Scope.LIVE,
+					noScopedProductFetchQuery(referenceContent(REF_TAG, filterBy(entityHaving(note)))),
+					AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+				),
+				Arguments.of(
+					"group filter of the references of no product", Scope.LIVE,
+					noScopedProductFetchQuery(referenceContent(REF_TAG, filterBy(groupHaving(note)))),
+					AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+				),
+				Arguments.of(
+					"ordering of the references of no product by the referenced entity", Scope.LIVE,
+					noScopedProductFetchQuery(
+						referenceContent(REF_TAG, orderBy(entityProperty(attributeNatural(ATTRIBUTE_NOTE))))
+					),
+					AttributeNotSortableException.class, ATTRIBUTE_NOTE
+				),
+				Arguments.of(
+					"ordering of the references of no product by the referenced group", Scope.LIVE,
+					noScopedProductFetchQuery(
+						referenceContent(REF_TAG, orderBy(entityGroupProperty(attributeNatural(ATTRIBUTE_NOTE))))
+					),
+					AttributeNotSortableException.class, ATTRIBUTE_NOTE
+			)
+			)
+		);
+	}
+
+	/**
+	 * Builds the query of the products of the {@link #FACET_SCOPE_SHAPES} data set of the passed scope fetching the
+	 * passed references.
+	 *
+	 * @param scope            the scope to query
+	 * @param referenceContent the references to fetch
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query scopedProductFetchQuery(@Nonnull Scope scope, @Nonnull ReferenceContent referenceContent) {
+		return query(
+			collection(ENTITY_SCOPED_PRODUCT),
+			filterBy(scope(scope)),
+			require(page(1, SCOPED_PRODUCT_TAGS.length), entityFetch(referenceContent))
+		);
+	}
+
+	/**
+	 * Builds the query of the {@link #FACET_SCOPE_SHAPES} data set matching no product of the live scope, which has
+	 * data, fetching the passed references.
+	 *
+	 * @param referenceContent the references to fetch
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query noScopedProductFetchQuery(@Nonnull ReferenceContent referenceContent) {
+		return query(
+			collection(ENTITY_SCOPED_PRODUCT),
+			filterBy(scope(Scope.LIVE), entityPrimaryKeyInSet(999)),
+			require(entityFetch(referenceContent))
+		);
+	}
+
+	/**
+	 * Builds the query of the groups of the {@link #FACET_SCOPE_SHAPES} data set of the passed scope fetching the
+	 * passed references.
+	 *
+	 * @param scope            the scope to query
+	 * @param referenceContent the references to fetch
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query scopedTagGroupFetchQuery(@Nonnull Scope scope, @Nonnull ReferenceContent referenceContent) {
+		return query(
+			collection(ENTITY_SCOPED_TAG_GROUP),
+			filterBy(scope(scope)),
+			require(page(1, SCOPED_TAG_GROUPS.length), entityFetch(referenceContent))
+		);
+	}
+
+	/**
+	 * Checks that a hierarchy constraint, a nested ordering, a stop node of the fetched parents or a filter or an
+	 * ordering of the fetched references the schema refuses fails the query with the same client error in every scope -
+	 * also where the hierarchy it searches or describes, or the entity type it orders, holds no entity, whether or not
+	 * the query returns an entity with a parent, and whether or not it returns an entity referencing an existing
+	 * entity - so that the query does not fail or pass depending on the data.
 	 *
 	 * @param label             the row label, used in the test name only
 	 * @param scope             the scope the constraint is evaluated in, used in the test name only
@@ -6414,7 +6561,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@DisplayName("Should fail the query whose nested constraint cannot be evaluated in every scope")
 	@UseDataSet(FACET_SCOPE_SHAPES)
 	@ParameterizedTest(name = "{0} in {1}")
-	@MethodSource({"hierarchyConstraintRows", "nestedOrderingRows", "hierarchyContentRows"})
+	@MethodSource({"hierarchyConstraintRows", "nestedOrderingRows", "hierarchyContentRows", "referenceContentRows"})
 	void shouldFailQueryWhoseNestedConstraintCannotBeEvaluatedInEveryScope(
 		@Nonnull String label,
 		@Nonnull Scope scope,
@@ -6453,6 +6600,9 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		final FilterConstraint codeFilter = attributeEquals(ATTRIBUTE_CODE, "folder1");
 		final FilterBy code = filterBy(codeFilter);
 		final Scope archived = Scope.ARCHIVED;
+		final int[] archivedProducts = IntStream.rangeClosed(1, SCOPED_PRODUCT_SCOPES.length)
+			.filter(pk -> SCOPED_PRODUCT_SCOPES[pk - 1] == archived)
+			.toArray();
 		return Stream.of(
 			Arguments.of(
 				"having of the folders",
@@ -6614,6 +6764,59 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					)
 				),
 				new int[] {2}, null, new String[0]
+			),
+			Arguments.of(
+				"entity and group filter and ordering by the referenced entity of the references of the products",
+				scopedProductFetchQuery(
+					archived,
+					referenceContent(
+						REF_TAG,
+						filterBy(
+							entityHaving(attributeEquals(ATTRIBUTE_CODE, "tag10")),
+							groupHaving(attributeEquals(ATTRIBUTE_CODE, "group100"))
+						),
+						orderBy(entityProperty(entityPrimaryKeyNatural(OrderDirection.DESC)))
+					)
+				),
+				archivedProducts, null, new String[0]
+			),
+			Arguments.of(
+				"ordering by the referenced group of the filtered references of the products",
+				scopedProductFetchQuery(
+					archived,
+					referenceContent(
+						REF_TAG,
+						filterBy(entityPrimaryKeyInSet(SCOPED_TAGS)),
+						orderBy(entityGroupProperty(entityPrimaryKeyNatural(OrderDirection.DESC)))
+					)
+				),
+				archivedProducts, null, new String[0]
+			),
+			Arguments.of(
+				"entity filter and ordering by the referenced entity of the references of no product",
+				noScopedProductFetchQuery(
+					referenceContent(
+						REF_TAG,
+						filterBy(entityHaving(attributeEquals(ATTRIBUTE_CODE, "tag10"))),
+						orderBy(entityProperty(entityPrimaryKeyNatural(OrderDirection.DESC)))
+					)
+				),
+				new int[0], null, new String[0]
+			),
+			Arguments.of(
+				"entity and attribute filter of the references of the groups referencing nothing",
+				scopedTagGroupFetchQuery(
+					Scope.LIVE,
+					referenceContent(
+						REF_CATEGORY,
+						filterBy(
+							attributeEquals(ATTRIBUTE_CODE, "anything"),
+							entityHaving(attributeEquals(ATTRIBUTE_CODE, "tag10"))
+						),
+						orderBy(entityProperty(entityPrimaryKeyNatural(OrderDirection.DESC)))
+					)
+				),
+				IntStream.of(SCOPED_TAG_GROUPS).distinct().toArray(), null, new String[0]
 			)
 		);
 	}
