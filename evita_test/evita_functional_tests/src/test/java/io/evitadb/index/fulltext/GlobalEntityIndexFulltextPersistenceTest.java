@@ -100,6 +100,7 @@ import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.stream.Stream;
 
+import static io.evitadb.index.fulltext.FulltextFieldKey.attribute;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.SERIALIZATION;
@@ -191,8 +192,8 @@ class GlobalEntityIndexFulltextPersistenceTest {
 	 * @param termCount how many terms to add
 	 */
 	private static void fill(@Nonnull FulltextIndex index, int seed, int termCount) {
-		final int title = index.getOrAssignFieldId("title");
-		final int body = index.getOrAssignFieldId("body", 300.0);
+		final int title = index.getOrAssignFieldId(attribute("title"));
+		final int body = index.getOrAssignFieldId(attribute("body"), 300.0);
 		for (int i = 0; i < termCount; i++) {
 			final String term = String.format("t%d_%04d", seed, i);
 			for (int j = 0; j <= i % 4; j++) {
@@ -200,13 +201,13 @@ class GlobalEntityIndexFulltextPersistenceTest {
 			}
 		}
 		for (int primaryKey = 1; primaryKey <= 300; primaryKey++) {
-			index.addValue("title", primaryKey, "krátký titulek " + primaryKey);
+			index.addValue(attribute("title"), primaryKey, "krátký titulek " + primaryKey);
 		}
 		for (int primaryKey = 70_001; primaryKey <= 70_050; primaryKey++) {
-			index.addValue("title", primaryKey, "jiný titulek " + primaryKey);
+			index.addValue(attribute("title"), primaryKey, "jiný titulek " + primaryKey);
 		}
 		for (int primaryKey = 1; primaryKey <= 100; primaryKey++) {
-			index.addValue("body", primaryKey, "slovo " + "dlouhé ".repeat(primaryKey % 30));
+			index.addValue(attribute("body"), primaryKey, "slovo " + "dlouhé ".repeat(primaryKey % 30));
 		}
 	}
 
@@ -313,7 +314,10 @@ class GlobalEntityIndexFulltextPersistenceTest {
 		final List<String> lines = new ArrayList<>(4_096);
 		lines.add("analyzer " + index.getAnalyzerName() + " pivot " + index.getDefaultLengthPivot());
 		for (int fieldId = 0; fieldId < index.getFieldCount(); fieldId++) {
-			lines.add("field " + fieldId + " " + index.getFieldName(fieldId) + " " + index.getLengthPivot(fieldId));
+			lines.add(
+				"field " + fieldId + " " + index.getFieldKey(fieldId) + " " + index.getLengthPivot(fieldId) +
+					(index.isFieldRetired(fieldId) ? " retired" : "")
+			);
 			index.forEachTerm(fieldId, "", (term, postings, impacts) -> {
 				lines.add(term + " " + Arrays.toString(postings.getArray()) + " " + Arrays.toString(impacts.toArray()));
 				return true;
@@ -393,7 +397,7 @@ class GlobalEntityIndexFulltextPersistenceTest {
 			assertFalse(flush(index).isEmpty());
 			assertTrue(flush(index).isEmpty(), "Nothing was written since the last flush.");
 
-			czech.addPosting(czech.getFieldId("title"), "novinka", 5, 100);
+			czech.addPosting(czech.getFieldId(attribute("title")), "novinka", 5, 100);
 			final List<StoragePart> parts = flush(index);
 			assertEquals(1, partsOf(parts, FulltextIndexStoragePart.class).size(), "The written index rewrites its root.");
 			assertTrue(
@@ -401,6 +405,37 @@ class GlobalEntityIndexFulltextPersistenceTest {
 				"Only the changed leaf is written, or the two halves it split into."
 			);
 			assertTrue(partsOf(parts, EntityIndexStoragePart.class).isEmpty(), "The locale set did not change.");
+		}
+
+		@Test
+		@DisplayName("a retirement alone rewrites only the root; the retired field reloads retired, postings and all")
+		void shouldReloadARetiredField() {
+			final GlobalEntityIndex index = newGlobalIndex();
+			final FulltextIndex czech = index.getOrCreateFulltextIndex(
+				CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH)
+			);
+			fill(czech, 1, 600);
+
+			try (final Disk disk = new Disk()) {
+				disk.write(flush(index));
+				assertTrue(czech.retireField(attribute("title")));
+				final List<StoragePart> retirement = flush(index);
+				final List<FulltextIndexStoragePart> roots = partsOf(retirement, FulltextIndexStoragePart.class);
+				assertEquals(1, roots.size(), "The retirement changes the field registry the root carries.");
+				assertTrue(roots.get(0).getFields()[0].retired());
+				assertFalse(roots.get(0).getFields()[1].retired());
+				assertEquals(1, retirement.size(), "No posting and no length moved.");
+				disk.write(retirement);
+
+				czech.addValue(attribute("title"), 7, "nový titulek");
+				disk.write(flush(index));
+				final GlobalEntityIndex reloaded = disk.reload(registry);
+				assertSameFulltext(index, reloaded);
+				final FulltextIndex reloadedCzech = reloaded.getFulltextIndex(CZECH);
+				assertTrue(reloadedCzech.isFieldRetired(0));
+				assertEquals(2, reloadedCzech.getFieldId(attribute("title")));
+				assertEquals(1, reloadedCzech.getFieldId(attribute("body")));
+			}
 		}
 
 		@Test
@@ -547,7 +582,7 @@ class GlobalEntityIndexFulltextPersistenceTest {
 					CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH)
 				);
 				for (int primaryKey = 1; primaryKey <= 5; primaryKey++) {
-					replacement.addValue("title", primaryKey, "nový titulek " + primaryKey);
+					replacement.addValue(attribute("title"), primaryKey, "nový titulek " + primaryKey);
 				}
 				final List<StoragePart> second = flush(index);
 				assertTrue(partsOf(second, FulltextIndexRootRemoval.class).isEmpty(), "The root is overwritten.");
@@ -591,9 +626,9 @@ class GlobalEntityIndexFulltextPersistenceTest {
 					loaded,
 					original -> {
 						final FulltextIndex czech = original.getFulltextIndex(CZECH);
-						czech.addPosting(czech.getFieldId("title"), "novinka", 5, 100);
+						czech.addPosting(czech.getFieldId(attribute("title")), "novinka", 5, 100);
 						original.getOrCreateFulltextIndex(ENGLISH, registry.getIndexAnalyzer(ENTITY_TYPE, ENGLISH))
-							.addValue("title", 1, "a brand new title");
+							.addValue(attribute("title"), 1, "a brand new title");
 						// the flush of a transaction runs before its commit merge
 						flushed.addAll(flush(original));
 					},

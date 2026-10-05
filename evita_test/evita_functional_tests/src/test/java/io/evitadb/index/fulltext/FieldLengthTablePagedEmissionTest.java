@@ -43,6 +43,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
+import static io.evitadb.index.fulltext.FulltextFieldKey.attribute;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.TRANSACTION;
@@ -554,8 +555,8 @@ class FieldLengthTablePagedEmissionTest {
 			final FulltextIndex index = new FulltextIndex(
 				registry.getIndexAnalyzer("product", Locale.forLanguageTag("cs"))
 			);
-			index.addValue("title", 5, "Rychlá hnědá liška");
-			index.addValue("title", pk(3, 1), "Líná kočka");
+			index.addValue(attribute("title"), 5, "Rychlá hnědá liška");
+			index.addValue(attribute("title"), pk(3, 1), "Líná kočka");
 			final LengthBlockEmission[] warmUp = index.collectChangedLengthBlocks();
 			assertEquals(1, warmUp.length);
 			assertArrayEquals(new int[]{0, 3}, changedKeys(warmUp[0]));
@@ -563,7 +564,7 @@ class FieldLengthTablePagedEmissionTest {
 			assertStateAfterCommit(
 				index,
 				t -> {
-					t.addValue("body", 9, "Skáče přes plot");
+					t.addValue(attribute("body"), 9, "Skáče přes plot");
 					final LengthBlockEmission[] emissions = t.collectChangedLengthBlocks();
 					assertEquals(2, emissions.length, "The field the transaction registered is collected too.");
 					assertTrue(emissions[0].changedBlocks().isEmpty(), "The title was not written.");

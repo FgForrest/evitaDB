@@ -235,7 +235,10 @@ public final class FulltextIndexMapComponent implements IndexComponent {
 				);
 			}
 			fields[fieldId] = new FieldEntry(
-				Objects.requireNonNull(index.getFieldName(fieldId)), index.getLengthPivot(fieldId), emission.blockKeys()
+				Objects.requireNonNull(index.getFieldKey(fieldId)),
+				index.getLengthPivot(fieldId),
+				index.isFieldRetired(fieldId),
+				emission.blockKeys()
 			);
 		}
 		trappedChanges.addChangeToStore(

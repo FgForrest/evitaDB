@@ -69,6 +69,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static io.evitadb.index.fulltext.FulltextFieldKey.associatedData;
+import static io.evitadb.index.fulltext.FulltextFieldKey.attribute;
+import static io.evitadb.index.fulltext.FulltextFieldKey.referenceAttribute;
 import static io.evitadb.store.index.serializer.StoragePartSerializerTestSupport.roundTrip;
 import static io.evitadb.test.TestTags.SERIALIZATION;
 import static io.evitadb.test.TestTags.STORAGE;
@@ -437,7 +440,8 @@ class FulltextIndexStoragePartSerializerTest {
 	class Root {
 
 		/**
-		 * Builds a root with two fields, one of them with length blocks.
+		 * Builds a root with a field of every kind, two of them with length blocks and one retired - its key
+		 * resolving to the attribute registered after it.
 		 *
 		 * @return the root
 		 */
@@ -446,8 +450,10 @@ class FulltextIndexStoragePartSerializerTest {
 			return new FulltextIndexStoragePart(
 				12, CZECH, "czech", 25.0,
 				new FieldEntry[]{
-					new FieldEntry("title", 8.5, new int[]{0, 1, 14}),
-					new FieldEntry("body", 400.0, new int[0])
+					new FieldEntry(attribute("title"), 8.5, true, new int[]{0, 1, 14}),
+					new FieldEntry(associatedData("body"), 400.0, false, new int[0]),
+					new FieldEntry(referenceAttribute("brand", "title"), 25.0, false, new int[]{3}),
+					new FieldEntry(attribute("title"), 25.0, false, new int[0])
 				},
 				17, new int[]{3, 17, 0, 9}, null
 			);
@@ -464,9 +470,10 @@ class FulltextIndexStoragePartSerializerTest {
 			assertEquals(CZECH, read.getLocale());
 			assertEquals("czech", read.getAnalyzerName());
 			assertEquals(25.0, read.getDefaultLengthPivot());
-			assertEquals(2, read.getFields().length);
-			for (int i = 0; i < 2; i++) {
-				assertEquals(root.getFields()[i].name(), read.getFields()[i].name());
+			assertEquals(4, read.getFields().length);
+			for (int i = 0; i < 4; i++) {
+				assertEquals(root.getFields()[i].key(), read.getFields()[i].key());
+				assertEquals(root.getFields()[i].retired(), read.getFields()[i].retired());
 				assertEquals(root.getFields()[i].lengthPivot(), read.getFields()[i].lengthPivot());
 				assertArrayEquals(root.getFields()[i].lengthBlocks(), read.getFields()[i].lengthBlocks());
 			}
@@ -492,9 +499,16 @@ class FulltextIndexStoragePartSerializerTest {
 				GenericEvitaInternalError.class,
 				() -> new FulltextIndexStoragePart(1, CZECH, "czech", 25.0, new FieldEntry[0], 0, new int[0], null)
 			);
-			assertThrows(GenericEvitaInternalError.class, () -> new FieldEntry("title", 1.0, new int[]{2, 1}));
-			assertThrows(GenericEvitaInternalError.class, () -> new FieldEntry("title", 1.0, new int[]{1, 1}));
-			assertThrows(GenericEvitaInternalError.class, () -> new FieldEntry("title", 1.0, new int[]{0x10000}));
+			assertThrows(
+				GenericEvitaInternalError.class, () -> new FieldEntry(attribute("title"), 1.0, false, new int[]{2, 1})
+			);
+			assertThrows(
+				GenericEvitaInternalError.class, () -> new FieldEntry(attribute("title"), 1.0, false, new int[]{1, 1})
+			);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new FieldEntry(attribute("title"), 1.0, false, new int[]{0x10000})
+			);
 		}
 
 	}
@@ -547,8 +561,8 @@ class FulltextIndexStoragePartSerializerTest {
 		@DisplayName("a flushed index loads back from the serialized pages with every posting, impact and length")
 		void shouldLoadAFlushedIndexBackFromTheBytes() {
 			final FulltextIndex index = new FulltextIndex(registry.getIndexAnalyzer("product", CZECH));
-			final int title = index.getOrAssignFieldId("title");
-			final int body = index.getOrAssignFieldId("body", 300.0);
+			final int title = index.getOrAssignFieldId(attribute("title"));
+			final int body = index.getOrAssignFieldId(attribute("body"), 300.0);
 			// enough terms for several leaves, postings across roaring containers, impacts spanning the byte range
 			for (int i = 0; i < 1_000; i++) {
 				final String term = String.format("t%04d", i);
@@ -557,13 +571,13 @@ class FulltextIndexStoragePartSerializerTest {
 					index.addPosting(i % 3 == 0 ? body : title, term, primaryKey, 1 + (i * 7 + j * 31) % 255);
 				}
 			}
-			index.addValue("title", 5, "Rychlá hnědá liška");
+			index.addValue(attribute("title"), 5, "Rychlá hnědá liška");
 			// lengths: a body block past a third of its slots, which takes the slot encoding, and sparse title blocks
 			for (int primaryKey = 1; primaryKey <= 22_000; primaryKey++) {
-				index.addValue("body", primaryKey, "slovo " + "dlouhé ".repeat(primaryKey % 40));
+				index.addValue(attribute("body"), primaryKey, "slovo " + "dlouhé ".repeat(primaryKey % 40));
 			}
 			for (int primaryKey = 140_000; primaryKey < 140_050; primaryKey++) {
-				index.addValue("title", primaryKey, "krátký titulek " + primaryKey);
+				index.addValue(attribute("title"), primaryKey, "krátký titulek " + primaryKey);
 			}
 
 			final PageEmission<DictionaryPage> emission = index.collectChangedPages();
@@ -593,8 +607,12 @@ class FulltextIndexStoragePartSerializerTest {
 				new FulltextIndexStoragePart(
 					3, CZECH, "czech", FulltextIndex.DEFAULT_LENGTH_PIVOT,
 					new FieldEntry[]{
-						new FieldEntry("title", index.getLengthPivot(title), lengthEmissions[title].blockKeys()),
-						new FieldEntry("body", index.getLengthPivot(body), lengthEmissions[body].blockKeys())
+						new FieldEntry(
+							attribute("title"), index.getLengthPivot(title), false, lengthEmissions[title].blockKeys()
+						),
+						new FieldEntry(
+							attribute("body"), index.getLengthPivot(body), false, lengthEmissions[body].blockKeys()
+						)
 					},
 					emission.highWaterPageSequence(), emission.orderedPageSequences(), null
 				),
@@ -625,7 +643,7 @@ class FulltextIndexStoragePartSerializerTest {
 				}
 				fields.add(
 					new FulltextIndex.Field(
-						entry.name(), entry.lengthPivot(), FieldLengthTable.fromPersistedBlocks(blocks)
+						entry.key(), entry.lengthPivot(), entry.retired(), FieldLengthTable.fromPersistedBlocks(blocks)
 					)
 				);
 			}
@@ -635,7 +653,7 @@ class FulltextIndexStoragePartSerializerTest {
 			);
 
 			assertEquals(index.getTermCount(), reloaded.getTermCount());
-			assertEquals(300.0, reloaded.getLengthPivot(reloaded.getFieldId("body")));
+			assertEquals(300.0, reloaded.getLengthPivot(reloaded.getFieldId(attribute("body"))));
 			for (final int fieldId : new int[]{title, body}) {
 				assertEquals(terms(index, fieldId), terms(reloaded, fieldId), "Field " + fieldId + " must survive.");
 			}

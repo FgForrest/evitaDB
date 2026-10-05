@@ -48,6 +48,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 
+import static io.evitadb.index.fulltext.FulltextFieldKey.attribute;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.TRANSACTION;
@@ -113,8 +114,8 @@ class FulltextIndexPagedEmissionTest {
 		final FulltextIndex index = new FulltextIndex(
 			registry.getIndexAnalyzer("product", Locale.forLanguageTag("cs"))
 		);
-		index.getOrAssignFieldId("title");
-		index.getOrAssignFieldId("body");
+		index.getOrAssignFieldId(attribute("title"));
+		index.getOrAssignFieldId(attribute("body"));
 		return index;
 	}
 
@@ -306,7 +307,8 @@ class FulltextIndexPagedEmissionTest {
 			for (int fieldId = 0; fieldId < index.getFieldCount(); fieldId++) {
 				fields.add(
 					new FulltextIndex.Field(
-						index.getFieldName(fieldId), index.getLengthPivot(fieldId), index.getFieldLengths(fieldId)
+						index.getFieldKey(fieldId), index.getLengthPivot(fieldId), index.isFieldRetired(fieldId),
+						index.getFieldLengths(fieldId)
 					)
 				);
 			}
@@ -343,14 +345,14 @@ class FulltextIndexPagedEmissionTest {
 			);
 			assertFalse(index.isDirty());
 
-			index.getOrAssignFieldId("title");
+			index.getOrAssignFieldId(attribute("title"));
 			assertTrue(index.isDirty(), "A new field changes what the index persists.");
 			index.resetDirty();
 
-			index.getOrAssignFieldId("title");
+			index.getOrAssignFieldId(attribute("title"));
 			assertFalse(index.isDirty(), "Looking up an existing field writes nothing.");
 
-			index.addValue("title", 1, "horské kolo");
+			index.addValue(attribute("title"), 1, "horské kolo");
 			assertTrue(index.isDirty());
 			index.resetDirty();
 

@@ -65,6 +65,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
 
+import static io.evitadb.index.fulltext.FulltextFieldKey.attribute;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.QUERY;
@@ -431,7 +432,7 @@ class FulltextFormulaTest {
 				final List<Set<String>> entityTerms = new ArrayList<>(fields.length);
 				for (final String field : fields) {
 					final String value = randomText(random, 1 + random.nextInt(4));
-					index.addValue(field, pk, value);
+					index.addValue(attribute(field), pk, value);
 					entityTerms.add(termsOf(value));
 				}
 				model.add(entityTerms);
@@ -515,7 +516,7 @@ class FulltextFormulaTest {
 		) {
 			final List<ExpandedTerm> result = new ArrayList<>(fields.length * wordTerms.size());
 			for (final String field : fields) {
-				final int fieldId = index.getFieldId(field);
+				final int fieldId = index.getFieldId(attribute(field));
 				for (final String term : wordTerms) {
 					final Bitmap postings = index.getPostings(fieldId, term);
 					if (!postings.isEmpty()) {

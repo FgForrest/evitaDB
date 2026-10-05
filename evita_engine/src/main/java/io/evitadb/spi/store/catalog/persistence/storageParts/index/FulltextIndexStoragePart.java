@@ -23,6 +23,7 @@
 
 package io.evitadb.spi.store.catalog.persistence.storageParts.index;
 
+import io.evitadb.index.fulltext.FulltextFieldKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.utils.Assert;
@@ -41,8 +42,8 @@ import java.util.Locale;
  * and no lengths itself; it says how to read the pages that do, and with which configuration they were written:
  *
  * - the **field registry** in field-id order - the id of a field is its position, and it is the key prefix of every
- *   term the field owns, so the order is part of the format - with each field's length pivot and the blocks of its
- *   length table that have a page;
+ *   term the field owns, so the order is part of the format - with each field's identity, its length pivot, whether
+ *   it was retired, and the blocks of its length table that have a page;
  * - the **dictionary page list** - the sequences of the dictionary's leaf pages in key order, which a load assembles
  *   into the tree leaf by leaf - and the high-water of the dictionary's page-sequence allocator, so a sequence is never
  *   handed out twice across a restart;
@@ -79,7 +80,7 @@ public class FulltextIndexStoragePart implements StoragePart {
 	//TODO JNO change it at the end of #258
 	@Getter private final double defaultLengthPivot;
 	/**
-	 * The registered fields, the i-th having field id `i`.
+	 * The registered fields, the i-th having field id `i`, retired ones included.
 	 */
 	@Getter @Nonnull private final FieldEntry[] fields;
 	/**
@@ -99,15 +100,20 @@ public class FulltextIndexStoragePart implements StoragePart {
 	/**
 	 * One registered field.
 	 *
-	 * @param name         the field's name
+	 * A retired field is persisted with everything it held, because its postings are still in the dictionary pages
+	 * under its id: dropping its entry would shift the ids of every later field off their key prefixes.
+	 *
+	 * @param key          the field's identity
 	 * @param lengthPivot  the field's length pivot, which every impact of the field was computed with
+	 * @param retired      whether the field was retired - its key resolves to no field, or to a later one
 	 * @param lengthBlocks the high 16 bits of the primary keys of every block of the field's length table that has a
 	 *                     page, strictly ascending
 	 */
 	public record FieldEntry(
-		@Nonnull String name,
+		@Nonnull FulltextFieldKey key,
 		//TODO JNO change it at the end of #258
 		double lengthPivot,
+		boolean retired,
 		@Nonnull int[] lengthBlocks
 	) {
 
@@ -120,7 +126,7 @@ public class FulltextIndexStoragePart implements StoragePart {
 				final int previous = i == 0 ? -1 : lengthBlocks[i - 1];
 				Assert.isPremiseValid(
 					block > previous && block <= 0xFFFF,
-					() -> "The length blocks of fulltext field `" + name + "` must be strictly ascending 16-bit " +
+					() -> "The length blocks of fulltext field " + key + " must be strictly ascending 16-bit " +
 						"block keys, but " + block + " follows " + previous + "!"
 				);
 			}

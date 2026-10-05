@@ -154,13 +154,17 @@ public final class FulltextIndexMapLoader implements ComponentLoader {
 				);
 				isPremiseValid(
 					block != null,
-					() -> "Length block " + blockKey + " of field `" + entry.name() + "` of the fulltext index of " +
+					() -> "Length block " + blockKey + " of field " + entry.key() + " of the fulltext index of " +
 						"entity index `" + entityIndexId + "` and locale `" + locale + "` was not found in persistent " +
 						"storage!"
 				);
 				blocks[i] = block.getBlock();
 			}
-			fields.add(new Field(entry.name(), entry.lengthPivot(), FieldLengthTable.fromPersistedBlocks(blocks)));
+			fields.add(
+				new Field(
+					entry.key(), entry.lengthPivot(), entry.retired(), FieldLengthTable.fromPersistedBlocks(blocks)
+				)
+			);
 		}
 
 		return FulltextIndex.fromPersistedPages(

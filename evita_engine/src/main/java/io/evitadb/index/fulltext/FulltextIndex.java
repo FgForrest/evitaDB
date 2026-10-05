@@ -74,8 +74,17 @@ import java.util.Map;
  *   so that the n-th impact of a term always belongs to its n-th posting — by construction, through every insert,
  *   split, merge and commit, rather than by bookkeeping kept in step from outside.
  * - **A {@link FieldLengthTable} per field**, the length of every indexed value in tokens.
- * - **Field ids**, assigned on first use, which become the key prefix. The id of a field never changes for the life
- *   of the index, so a key once written always means the same field.
+ * - **Field ids**, assigned on first use of a {@link FulltextFieldKey}, which become the key prefix. The id of a field
+ *   never changes for the life of the index, so a key once written always means the same field.
+ *
+ * ## Retired fields
+ *
+ * A field whose source stopped being searchable is **retired** ({@link #retireField(FulltextFieldKey)}): its key no
+ * longer resolves to its id, its postings and lengths stay where they are, and nothing writes to it again. Should the
+ * source become searchable once more, its key is registered anew under a fresh id and starts empty. Removing the old
+ * postings would take every value the field ever indexed, which only a reindex has; leaving them reachable would let a
+ * re-added field return entities whose values changed while it was not searchable. A retired field is dead weight until
+ * a reindex drops it - a query over the re-added field may miss entities, but it never finds a wrong one.
  *
  * ## The impact byte
  *
@@ -84,7 +93,7 @@ import java.util.Map;
  * not the corpus' average length: an average moves with every write, which would make every stored impact stale the
  * moment the next document arrives and make two replicas of one catalog disagree about a score. With a fixed pivot
  * the impact is a function of the query term and the document alone. Until the schema can declare a pivot, it is
- * passed to the constructor (and per field through {@link #getOrAssignFieldId(String, double)}).
+ * passed to the constructor (and per field through {@link #getOrAssignFieldId(FulltextFieldKey, double)}).
  *
  * ## Why the key order matters
  *
@@ -109,15 +118,15 @@ import java.util.Map;
  *
  * Each part versions itself: the dictionary through the bucket tree's node layers (the impacts ride along in the
  * leaves), every length table through its own layer, and the field registry through this index's
- * {@link FulltextIndexChanges}, which holds the fields a transaction registered. Every write also creates that
- * layer, so it doubles as the "written in this transaction" mark: an index no transaction wrote to is carried forward
- * as the same instance - keeping its identity, which is what a consumer keys a cache on - and none of its parts is
- * merged.
+ * {@link FulltextIndexChanges}, which holds the fields a transaction registered and retired. Every write also creates
+ * that layer, so it doubles as the "written in this transaction" mark: an index no transaction wrote to is carried
+ * forward as the same instance - keeping its identity, which is what a consumer keys a cache on - and none of its
+ * parts is merged.
  *
  * Outside a transaction (the warm-up bulk path) everything is written in place, and each part journals its writes
- * into an open warm-up savepoint; the registry journals a field's registration, so a rolled-back entity mutation
- * that introduced a field leaves no field behind. Inside a transaction a per-entity savepoint rewinds every part
- * through its layer's memento.
+ * into an open warm-up savepoint; the registry journals a field's registration and retirement, so a rolled-back entity
+ * mutation that introduced a field leaves no field behind, and one that retired a field leaves it in service. Inside a
+ * transaction a per-entity savepoint rewinds every part through its layer's memento.
  *
  * ## Persistence
  *
@@ -135,7 +144,7 @@ import java.util.Map;
 public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexChanges, FulltextIndex> {
 
 	/**
-	 * Returned by {@link #getFieldId(String)} for a field the index has never seen.
+	 * Returned by {@link #getFieldId(FulltextFieldKey)} for a field the index has never seen, or has retired.
 	 */
 	public static final int UNKNOWN_FIELD_ID = -1;
 
@@ -204,9 +213,10 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	private final double defaultLengthPivot;
 
 	/**
-	 * Field name to its id, for the fields committed with this instance (and, outside a transaction, registered since).
+	 * Field key to its id, for the fields committed with this instance (and, outside a transaction, registered since)
+	 * that are not retired - a key resolves to one field at most.
 	 */
-	@Nonnull private final Map<String, Integer> fieldIds;
+	@Nonnull private final Map<FulltextFieldKey, Integer> fieldIds;
 
 	/**
 	 * Per-field state indexed by the field's id, for the same fields as {@link #fieldIds}. A transaction's own
@@ -257,14 +267,31 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * The state of one field. Its name and pivot never change; its length table is replaced by its committed copy at
-	 * every commit that merges the index.
+	 * The state of one field. Its key and pivot never change, and it is retired at most once; its length table is
+	 * replaced by its committed copy at every commit that merges the index.
 	 *
-	 * @param name        the field's name
+	 * @param key         the field's identity
 	 * @param lengthPivot the field's length pivot
+	 * @param retired     whether the field was retired - its key no longer resolves to it, and it takes no writes
 	 * @param lengths     the lengths of the field's indexed values
 	 */
-	public record Field(@Nonnull String name, double lengthPivot, @Nonnull FieldLengthTable lengths) {
+	public record Field(
+		@Nonnull FulltextFieldKey key,
+		double lengthPivot,
+		boolean retired,
+		@Nonnull FieldLengthTable lengths
+	) {
+
+		/**
+		 * Returns this field retired, with the very same length table.
+		 *
+		 * @return the retired copy
+		 */
+		@Nonnull
+		Field retire() {
+			return new Field(this.key, this.lengthPivot, true, this.lengths);
+		}
+
 	}
 
 	/**
@@ -299,7 +326,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 *
 	 * @param indexAnalyzer      analyzer of the index slot of the partition's locale
 	 * @param defaultLengthPivot length pivot a field gets when registered without one
-	 * @param fieldIds           field name to id
+	 * @param fieldIds           key to id of every field not retired
 	 * @param fields             per-field state by id
 	 * @param dictionary         the term dictionary
 	 * @param pageStreamRegistry the page bookkeeping, carried by reference from the version being merged
@@ -307,7 +334,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	private FulltextIndex(
 		@Nonnull FulltextAnalyzer indexAnalyzer,
 		double defaultLengthPivot,
-		@Nonnull Map<String, Integer> fieldIds,
+		@Nonnull Map<FulltextFieldKey, Integer> fieldIds,
 		@Nonnull Field[] fields,
 		@Nonnull TransactionalBucketBPlusTree<String> dictionary,
 		@Nonnull PageStreamRegistry pageStreamRegistry
@@ -332,7 +359,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 *
 	 * @param indexAnalyzer         analyzer of the index slot of the partition's locale
 	 * @param defaultLengthPivot    length pivot a field registered later without one gets
-	 * @param fields                the registered fields in id order, each with its length table
+	 * @param fields                the registered fields in id order, retired ones included, each with its length
+	 *                              table
 	 * @param orderedPageSequences  the dictionary's page sequences in key order, as the last flush listed them
 	 * @param pages                 the pages, positionally aligned with `orderedPageSequences`
 	 * @param highWaterPageSequence the highest page sequence the dictionary ever allocated
@@ -373,12 +401,16 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		final PageStreamRegistry pageStreamRegistry = PageStreamRegistry.restoredFrom(
 			DICTIONARY_PAGE_STREAM, highWaterPageSequence, dictionary.leafPageHandles()
 		);
-		final Map<String, Integer> fieldIds = CollectionUtils.createHashMap(fields.size());
+		final Map<FulltextFieldKey, Integer> fieldIds = CollectionUtils.createHashMap(fields.size());
 		for (int fieldId = 0; fieldId < fields.size(); fieldId++) {
 			final Field field = fields.get(fieldId);
 			assertPivotValid(field.lengthPivot());
-			final Integer previous = fieldIds.put(field.name(), fieldId);
-			Assert.isPremiseValid(previous == null, () -> "Fulltext field `" + field.name() + "` is persisted twice!");
+			if (!field.retired()) {
+				final Integer previous = fieldIds.put(field.key(), fieldId);
+				Assert.isPremiseValid(
+					previous == null, () -> "Fulltext field " + field.key() + " is persisted twice as not retired!"
+				);
+			}
 		}
 		return new FulltextIndex(
 			indexAnalyzer, defaultLengthPivot, fieldIds, fields.toArray(NO_FIELDS), dictionary, pageStreamRegistry
@@ -468,35 +500,35 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * Returns the id of a field, registering it with the default pivot when it is new. An existing field is returned
 	 * whatever pivot it was registered with.
 	 *
-	 * @param fieldName name of the searchable field
+	 * @param fieldKey identity of the searchable field
 	 * @return the field's id
 	 */
-	public int getOrAssignFieldId(@Nonnull String fieldName) {
-		final int existing = getFieldId(fieldName);
+	public int getOrAssignFieldId(@Nonnull FulltextFieldKey fieldKey) {
+		final int existing = getFieldId(fieldKey);
 		// the default pivot applies to a registration only - a field registered with its own keeps it
-		return existing == UNKNOWN_FIELD_ID ? getOrAssignFieldId(fieldName, this.defaultLengthPivot) : existing;
+		return existing == UNKNOWN_FIELD_ID ? getOrAssignFieldId(fieldKey, this.defaultLengthPivot) : existing;
 	}
 
 	/**
 	 * Returns the id of a field, registering it with the passed pivot when it is new. A field's pivot cannot change
 	 * once impacts were computed against it — that would take a reindex — so asking for an existing field with a
-	 * different pivot is refused.
+	 * different pivot is refused. A key whose field was retired is new again, and gets a fresh id.
 	 *
-	 * @param fieldName   name of the searchable field
+	 * @param fieldKey    identity of the searchable field
 	 * @param lengthPivot the field's length pivot; must be positive
 	 * @return the field's id
 	 * @throws io.evitadb.exception.GenericEvitaInternalError when the pivot differs from the registered one, or the
 	 *                                                        index already holds as many fields as the key prefix can
 	 *                                                        address
 	 */
-	public int getOrAssignFieldId(@Nonnull String fieldName, double lengthPivot) {
+	public int getOrAssignFieldId(@Nonnull FulltextFieldKey fieldKey, double lengthPivot) {
 		assertPivotValid(lengthPivot);
-		final int existing = getFieldId(fieldName);
+		final int existing = getFieldId(fieldKey);
 		if (existing != UNKNOWN_FIELD_ID) {
 			final double registered = fieldAt(existing).lengthPivot();
 			Assert.isPremiseValid(
 				Double.compare(registered, lengthPivot) == 0,
-				() -> "Fulltext field `" + fieldName + "` is registered with length pivot " + registered +
+				() -> "Fulltext field " + fieldKey + " is registered with length pivot " + registered +
 					", it cannot change to " + lengthPivot + " without a reindex!"
 			);
 			return existing;
@@ -509,7 +541,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			fieldId <= FulltextTermKeys.MAX_FIELD_ID,
 			() -> "The fulltext index cannot address more than " + (FulltextTermKeys.MAX_FIELD_ID + 1) + " fields!"
 		);
-		final Field field = new Field(fieldName, lengthPivot, new FieldLengthTable());
+		final Field field = new Field(fieldKey, lengthPivot, false, new FieldLengthTable());
 		if (layer != null) {
 			layer.addField(field);
 		} else {
@@ -518,7 +550,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 				// an absolute restore: no field from this id on, whatever was registered after it
 				savepoint.push(() -> unregisterFieldsFrom(fieldId));
 			}
-			this.fieldIds.put(fieldName, fieldId);
+			this.fieldIds.put(fieldKey, fieldId);
 			final Field[] registered = Arrays.copyOf(this.fields, fieldId + 1);
 			registered[fieldId] = field;
 			this.fields = registered;
@@ -529,20 +561,22 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	/**
 	 * Returns the id of a field without assigning one.
 	 *
-	 * @param fieldName name of the searchable field
-	 * @return the field's id, or {@link #UNKNOWN_FIELD_ID} when the index has never seen the field
+	 * @param fieldKey identity of the searchable field
+	 * @return the field's id, or {@link #UNKNOWN_FIELD_ID} when the index has never seen the field or has retired it
 	 */
-	public int getFieldId(@Nonnull String fieldName) {
-		final Integer existing = this.fieldIds.get(fieldName);
-		if (existing != null) {
+	public int getFieldId(@Nonnull FulltextFieldKey fieldKey) {
+		final FulltextIndexChanges layer = Transaction.getTransactionalMemoryLayerIfExists(this);
+		final Integer existing = this.fieldIds.get(fieldKey);
+		if (existing != null && (layer == null || !layer.isRetired(existing))) {
 			return existing;
 		}
-		final FulltextIndexChanges layer = Transaction.getTransactionalMemoryLayerIfExists(this);
 		if (layer != null) {
+			// at most one of the fields the transaction registered under the key is not retired
 			final List<Field> added = layer.getAddedFields();
 			for (int i = 0; i < added.size(); i++) {
-				if (added.get(i).name().equals(fieldName)) {
-					return this.fields.length + i;
+				final int fieldId = this.fields.length + i;
+				if (added.get(i).key().equals(fieldKey) && !layer.isRetired(fieldId)) {
+					return fieldId;
 				}
 			}
 		}
@@ -550,14 +584,60 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * Returns the name of a field.
+	 * Retires the field of a key: the key stops resolving to it, its postings and lengths stay as they are, and a
+	 * later {@link #getOrAssignFieldId(FulltextFieldKey)} of the key registers a fresh, empty field - see the class
+	 * documentation for why the old postings are kept.
+	 *
+	 * @param fieldKey identity of the searchable field
+	 * @return true when a field was retired, false when the key resolved to none
+	 */
+	public boolean retireField(@Nonnull FulltextFieldKey fieldKey) {
+		final int fieldId = getFieldId(fieldKey);
+		if (fieldId == UNKNOWN_FIELD_ID) {
+			return false;
+		}
+		final FulltextIndexChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+		// the field registry is persisted, and it changed
+		this.dirty.setToTrue();
+		if (layer != null) {
+			layer.retireField(fieldId);
+		} else {
+			final Field field = this.fields[fieldId];
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null) {
+				savepoint.push(() -> unretireField(fieldId, field));
+			}
+			this.fieldIds.remove(fieldKey);
+			replaceField(fieldId, field.retire());
+		}
+		return true;
+	}
+
+	/**
+	 * Returns the identity of a field.
 	 *
 	 * @param fieldId id of the field
-	 * @return the field's name, or null when no field carries the id
+	 * @return the field's key, or null when no field carries the id
 	 */
 	@Nullable
-	public String getFieldName(int fieldId) {
-		return fieldId >= 0 && fieldId < getFieldCount() ? fieldAt(fieldId).name() : null;
+	public FulltextFieldKey getFieldKey(int fieldId) {
+		return fieldId >= 0 && fieldId < getFieldCount() ? fieldAt(fieldId).key() : null;
+	}
+
+	/**
+	 * Returns whether a field was retired.
+	 *
+	 * @param fieldId id of the field
+	 * @return true when the field was retired
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the index never assigned the id
+	 */
+	public boolean isFieldRetired(int fieldId) {
+		assertFieldKnown(fieldId);
+		if (fieldAt(fieldId).retired()) {
+			return true;
+		}
+		final FulltextIndexChanges layer = Transaction.getTransactionalMemoryLayerIfExists(this);
+		return layer != null && layer.isRetired(fieldId);
 	}
 
 	/**
@@ -629,34 +709,34 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	/**
 	 * Indexes the value of an entity's field: analyzes it through the index slot, and records every distinct term
 	 * with its impact and the value's length. The entity must not already have a value indexed for the field — an
-	 * update is a {@link #removeValue(String, int, String)} of the old value followed by this.
+	 * update is a {@link #removeValue(FulltextFieldKey, int, String)} of the old value followed by this.
 	 *
 	 * A value producing no token is indexed as nothing: no posting and no length.
 	 *
-	 * @param fieldName  name of the searchable field; registered with the default pivot when new
+	 * @param fieldKey   identity of the searchable field; registered with the default pivot when new
 	 * @param primaryKey primary key of the entity
 	 * @param value      the stored value
 	 * @throws io.evitadb.exception.GenericEvitaInternalError when the entity already has a value for the field
 	 */
-	public void addValue(@Nonnull String fieldName, int primaryKey, @Nonnull String value) {
-		indexValues(fieldName, primaryKey, value);
+	public void addValue(@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull String value) {
+		indexValues(fieldKey, primaryKey, value);
 	}
 
 	/**
 	 * Indexes the array value of an entity's field as one text: every element is analyzed through the index slot,
 	 * and the term frequencies and lengths of all of them are summed (see the class documentation). The entity must
-	 * not already have a value indexed for the field — an update is a {@link #removeValue(String, int, String[])} of
-	 * the whole old array followed by this.
+	 * not already have a value indexed for the field — an update is a
+	 * {@link #removeValue(FulltextFieldKey, int, String[])} of the whole old array followed by this.
 	 *
 	 * An array whose elements produce no token is indexed as nothing: no posting and no length.
 	 *
-	 * @param fieldName  name of the searchable field; registered with the default pivot when new
+	 * @param fieldKey   identity of the searchable field; registered with the default pivot when new
 	 * @param primaryKey primary key of the entity
 	 * @param values     the stored array
 	 * @throws io.evitadb.exception.GenericEvitaInternalError when the entity already has a value for the field
 	 */
-	public void addValue(@Nonnull String fieldName, int primaryKey, @Nonnull String[] values) {
-		indexValues(fieldName, primaryKey, values);
+	public void addValue(@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull String[] values) {
+		indexValues(fieldKey, primaryKey, values);
 	}
 
 	/**
@@ -664,44 +744,45 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * original — and removes the entity from the posting list of every term it produced, and its length. The value
 	 * must be the one that was indexed, or terms it no longer produces would keep their postings.
 	 *
-	 * Removing from a field the index has never seen, or a value producing no token, changes nothing.
+	 * Removing from a field the index has never seen or has retired, or a value producing no token, changes nothing.
 	 *
-	 * @param fieldName  name of the searchable field
+	 * @param fieldKey   identity of the searchable field
 	 * @param primaryKey primary key of the entity
 	 * @param value      the value that was indexed
 	 */
-	public void removeValue(@Nonnull String fieldName, int primaryKey, @Nonnull String value) {
-		unindexValues(fieldName, primaryKey, value);
+	public void removeValue(@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull String value) {
+		unindexValues(fieldKey, primaryKey, value);
 	}
 
 	/**
 	 * Removes the array value of an entity's field from the index — the mirror of
-	 * {@link #addValue(String, int, String[])}. The array must hold the elements that were indexed, in any order;
-	 * removing only some of them is not possible, because the entity has one entry for the whole array.
+	 * {@link #addValue(FulltextFieldKey, int, String[])}. The array must hold the elements that were indexed, in any
+	 * order; removing only some of them is not possible, because the entity has one entry for the whole array.
 	 *
-	 * Removing from a field the index has never seen, or an array producing no token, changes nothing.
+	 * Removing from a field the index has never seen or has retired, or an array producing no token, changes
+	 * nothing.
 	 *
-	 * @param fieldName  name of the searchable field
+	 * @param fieldKey   identity of the searchable field
 	 * @param primaryKey primary key of the entity
 	 * @param values     the array that was indexed
 	 */
-	public void removeValue(@Nonnull String fieldName, int primaryKey, @Nonnull String[] values) {
-		unindexValues(fieldName, primaryKey, values);
+	public void removeValue(@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull String[] values) {
+		unindexValues(fieldKey, primaryKey, values);
 	}
 
 	/**
 	 * The body of both `addValue` overloads: one value is an array of one element.
 	 *
-	 * @param fieldName  name of the searchable field; registered with the default pivot when new
+	 * @param fieldKey   identity of the searchable field; registered with the default pivot when new
 	 * @param primaryKey primary key of the entity
 	 * @param values     the elements of the value
 	 */
-	private void indexValues(@Nonnull String fieldName, int primaryKey, @Nonnull String... values) {
-		final int fieldId = getOrAssignFieldId(fieldName);
+	private void indexValues(@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull String... values) {
+		final int fieldId = getOrAssignFieldId(fieldKey);
 		final Field field = fieldAt(fieldId);
 		Assert.isPremiseValid(
 			field.lengths().getEncoded(primaryKey) == 0,
-			() -> "Entity " + primaryKey + " already has a value of fulltext field `" + fieldName + "` indexed; " +
+			() -> "Entity " + primaryKey + " already has a value of fulltext field " + fieldKey + " indexed; " +
 				"remove it before indexing another."
 		);
 		final AnalyzedValue analyzed = analyze(values);
@@ -720,12 +801,12 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	/**
 	 * The body of both `removeValue` overloads: one value is an array of one element.
 	 *
-	 * @param fieldName  name of the searchable field
+	 * @param fieldKey   identity of the searchable field
 	 * @param primaryKey primary key of the entity
 	 * @param values     the elements of the value that was indexed
 	 */
-	private void unindexValues(@Nonnull String fieldName, int primaryKey, @Nonnull String... values) {
-		final int fieldId = getFieldId(fieldName);
+	private void unindexValues(@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull String... values) {
+		final int fieldId = getFieldId(fieldKey);
 		if (fieldId == UNKNOWN_FIELD_ID) {
 			return;
 		}
@@ -744,21 +825,22 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 
 	/**
 	 * Records a single posting directly, bypassing analysis — the low-level counterpart of
-	 * {@link #addValue(String, int, String)} for callers that analyze themselves. Adding a posting that is already
-	 * present replaces its impact.
+	 * {@link #addValue(FulltextFieldKey, int, String)} for callers that analyze themselves. Adding a posting that is
+	 * already present replaces its impact.
 	 *
 	 * Only the dictionary is touched: the field's {@link FieldLengthTable} is not, so a caller mixing this with
-	 * {@link #addValue(String, int, String)} for the same entity leaves its length and its postings disagreeing.
+	 * {@link #addValue(FulltextFieldKey, int, String)} for the same entity leaves its length and its postings
+	 * disagreeing.
 	 *
-	 * @param fieldId    id of the field, as returned by {@link #getOrAssignFieldId(String)}
+	 * @param fieldId    id of the field, as returned by {@link #getOrAssignFieldId(FulltextFieldKey)}
 	 * @param term       the analyzed term
 	 * @param primaryKey primary key of the entity
 	 * @param impact     the posting's impact, `1..`{@link #MAX_IMPACT}
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the index never assigned the field id, or the
-	 *                                                        impact is out of range
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the index never assigned the field id, the field
+	 *                                                        was retired, or the impact is out of range
 	 */
 	public void addPosting(int fieldId, @Nonnull String term, int primaryKey, int impact) {
-		assertFieldKnown(fieldId);
+		assertFieldWritable(fieldId);
 		Assert.isPremiseValid(
 			impact >= 1 && impact <= MAX_IMPACT,
 			() -> "An impact must be within 1.." + MAX_IMPACT + ", " + impact + " was passed!"
@@ -772,13 +854,14 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * removing a posting that is not present changes nothing. Like {@link #addPosting}, it leaves the field's
 	 * {@link FieldLengthTable} untouched.
 	 *
-	 * @param fieldId    id of the field, as returned by {@link #getOrAssignFieldId(String)}
+	 * @param fieldId    id of the field, as returned by {@link #getOrAssignFieldId(FulltextFieldKey)}
 	 * @param term       the analyzed term
 	 * @param primaryKey primary key of the entity
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the index never assigned the field id
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the index never assigned the field id, or the field
+	 *                                                        was retired
 	 */
 	public void removePosting(int fieldId, @Nonnull String term, int primaryKey) {
-		assertFieldKnown(fieldId);
+		assertFieldWritable(fieldId);
 		markWritten();
 		this.dictionary.removeRecord(FulltextTermKeys.encode(fieldId, term), primaryKey);
 	}
@@ -870,8 +953,9 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * impacts, priced by the dictionary itself.
 	 *
 	 * Not charged: the analyzer, which the registry shares among every index using it, and the page bookkeeping, which
-	 * no paged index charges - it is flush state carried by reference through every committed copy. Each field name is
-	 * charged once, as the key of {@link #fieldIds}; its {@link Field} holds the very same instance. A running
+	 * no paged index charges - it is flush state carried by reference through every committed copy. Each field key is
+	 * charged with its {@link Field}, the one holder a retired field's key still has; {@link #fieldIds} maps the very
+	 * same instance. A retired field and its successor registered with one key instance are charged it twice. A running
 	 * transaction's layer belongs to the transaction.
 	 *
 	 * Walking the dictionary costs `O(terms / block size)`, so this is an index-detail figure, never one a query path
@@ -885,21 +969,35 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		// pageStreamRegistry slots
 		long size = layout.sizeOfObject(Long.BYTES + Double.BYTES + 6L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
-			// the boxed field id is charged to this map, its only holder
-			+ MapHeapSize.sizeOf(
-				this.fieldIds, MemoryMeasuringConstants::computeStringSize, fieldId -> layout.sizeOfObject(Integer.BYTES)
-			)
+			// the key is charged with its field, the boxed field id to this map, its only holder
+			+ MapHeapSize.sizeOf(this.fieldIds, fieldKey -> 0L, fieldId -> layout.sizeOfObject(Integer.BYTES))
 			+ this.dictionary.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER);
 		if (this.fields.length > 0) {
 			// the shared empty registry belongs to no index
 			size += layout.sizeOfArray(this.fields.length, layout.referenceSize());
 			for (final Field field : this.fields) {
-				// lengthPivot, then the name / lengths slots
-				size += layout.sizeOfObject(Double.BYTES + 2L * layout.referenceSize())
+				// lengthPivot and retired, then the key / lengths slots
+				size += layout.sizeOfObject(Double.BYTES + 1L + 2L * layout.referenceSize())
+					+ getHeapSizeInBytes(field.key(), layout)
 					+ field.lengths().getHeapSizeInBytes();
 			}
 		}
 		return size;
+	}
+
+	/**
+	 * Returns the heap a field key occupies: the record with its kind / referenceName / name slots and its two names.
+	 * The kind is an enum constant, owned by the JVM.
+	 *
+	 * @param fieldKey the key
+	 * @param layout   the layout of the running VM
+	 * @return the heap footprint in bytes
+	 */
+	private static long getHeapSizeInBytes(@Nonnull FulltextFieldKey fieldKey, @Nonnull VMLayout layout) {
+		final String referenceName = fieldKey.referenceName();
+		return layout.sizeOfObject(3L * layout.referenceSize())
+			+ MemoryMeasuringConstants.computeStringSize(fieldKey.name())
+			+ (referenceName == null ? 0L : MemoryMeasuringConstants.computeStringSize(referenceName));
 	}
 
 	@Nonnull
@@ -909,8 +1007,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * The delegate branch journals the one thing it writes itself, a field registration; every part journals its own
-	 * writes.
+	 * The delegate branch journals the two things it writes itself, a field registration and a field retirement; every
+	 * part journals its own writes.
 	 *
 	 * @return always true
 	 */
@@ -937,16 +1035,20 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		final List<Field> added = layer.getAddedFields();
 		final int committedCount = this.fields.length;
 		final int fieldCount = committedCount + added.size();
-		final Map<String, Integer> mergedFieldIds = CollectionUtils.createHashMap(fieldCount);
+		final Map<FulltextFieldKey, Integer> mergedFieldIds = CollectionUtils.createHashMap(fieldCount);
 		final Field[] mergedFields = fieldCount == 0 ? NO_FIELDS : new Field[fieldCount];
 		for (int fieldId = 0; fieldId < fieldCount; fieldId++) {
 			final Field field = fieldId < committedCount
 				? this.fields[fieldId]
 				: added.get(fieldId - committedCount);
-			mergedFieldIds.put(field.name(), fieldId);
+			final boolean retired = field.retired() || layer.isRetired(fieldId);
+			if (!retired) {
+				mergedFieldIds.put(field.key(), fieldId);
+			}
 			mergedFields[fieldId] = new Field(
-				field.name(),
+				field.key(),
 				field.lengthPivot(),
+				retired,
 				transactionalLayer.getStateCopyWithCommittedChanges(field.lengths())
 			);
 		}
@@ -1115,10 +1217,39 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	private void unregisterFieldsFrom(int fieldId) {
 		if (this.fields.length > fieldId) {
 			for (int i = fieldId; i < this.fields.length; i++) {
-				this.fieldIds.remove(this.fields[i].name());
+				final Field field = this.fields[i];
+				// a retired field's key no longer maps to it - when it maps anywhere, it is to another field
+				if (!field.retired()) {
+					this.fieldIds.remove(field.key());
+				}
 			}
 			this.fields = fieldId == 0 ? NO_FIELDS : Arrays.copyOf(this.fields, fieldId);
 		}
+	}
+
+	/**
+	 * Puts a retired field back as it was before its retirement - the inverse a warm-up savepoint replays for a
+	 * retirement. Strict reverse replay has already undone every later registration, so the key maps to no field.
+	 *
+	 * @param fieldId the id of the retired field
+	 * @param field   the field as it was before the retirement
+	 */
+	private void unretireField(int fieldId, @Nonnull Field field) {
+		replaceField(fieldId, field);
+		this.fieldIds.put(field.key(), fieldId);
+	}
+
+	/**
+	 * Replaces the committed state of a field - copy-on-write, as every change of the registry array is, because a
+	 * reader may still hold the array it replaces.
+	 *
+	 * @param fieldId id of a committed field
+	 * @param field   its new state
+	 */
+	private void replaceField(int fieldId, @Nonnull Field field) {
+		final Field[] registered = Arrays.copyOf(this.fields, this.fields.length);
+		registered[fieldId] = field;
+		this.fields = registered;
 	}
 
 	/**
@@ -1174,6 +1305,21 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		Assert.isPremiseValid(
 			fieldId >= 0 && fieldId < getFieldCount(),
 			() -> "Fulltext field id " + fieldId + " was never assigned by this index!"
+		);
+	}
+
+	/**
+	 * Verifies the field id was assigned by this index and the field still takes writes - a retired field keeps what
+	 * it held until a reindex drops it, and nothing more.
+	 *
+	 * @param fieldId the id to verify
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the id was never assigned, or the field was retired
+	 */
+	private void assertFieldWritable(int fieldId) {
+		Assert.isPremiseValid(
+			!isFieldRetired(fieldId),
+			() -> "Fulltext field " + fieldAt(fieldId).key() + " with id " + fieldId +
+				" was retired and takes no writes!"
 		);
 	}
 

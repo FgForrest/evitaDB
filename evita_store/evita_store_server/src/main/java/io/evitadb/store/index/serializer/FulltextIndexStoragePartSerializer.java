@@ -28,6 +28,8 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.index.fulltext.FulltextFieldKey;
+import io.evitadb.index.fulltext.FulltextFieldKey.FieldKind;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexStoragePart.FieldEntry;
@@ -41,6 +43,10 @@ import java.util.Locale;
  * fulltext index - from/to binary format: its identity, the analyzer and default pivot, the field registry in
  * field-id order and the dictionary's page-stream metadata. The dictionary is always paged, so the metadata is
  * written without the paged flag.
+ *
+ * A field is written as its kind by name - as the stream kind of a {@link FulltextLeafStreamKeySerializer} key is -
+ * the reference name (`null` for every kind but a reference attribute), the name, the pivot, the retired flag and
+ * the keys of its length blocks.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -64,9 +70,13 @@ public class FulltextIndexStoragePartSerializer extends Serializer<FulltextIndex
 		final FieldEntry[] fields = part.getFields();
 		output.writeVarInt(fields.length, true);
 		for (final FieldEntry field : fields) {
-			output.writeString(field.name());
+			final FulltextFieldKey key = field.key();
+			output.writeString(key.kind().name());
+			output.writeString(key.referenceName());
+			output.writeString(key.name());
 			//TODO JNO change it at the end of #258
 			output.writeDouble(field.lengthPivot());
+			output.writeBoolean(field.retired());
 			final int[] lengthBlocks = field.lengthBlocks();
 			output.writeVarInt(lengthBlocks.length, true);
 			for (final int lengthBlock : lengthBlocks) {
@@ -89,13 +99,16 @@ public class FulltextIndexStoragePartSerializer extends Serializer<FulltextIndex
 
 		final FieldEntry[] fields = new FieldEntry[input.readVarInt(true)];
 		for (int i = 0; i < fields.length; i++) {
-			final String name = input.readString();
+			final FieldKind kind = FieldKind.valueOf(input.readString());
+			final String referenceName = input.readString();
+			final FulltextFieldKey key = new FulltextFieldKey(kind, referenceName, input.readString());
 			final double lengthPivot = input.readDouble();
+			final boolean retired = input.readBoolean();
 			final int[] lengthBlocks = new int[input.readVarInt(true)];
 			for (int j = 0; j < lengthBlocks.length; j++) {
 				lengthBlocks[j] = input.readVarInt(true);
 			}
-			fields[i] = new FieldEntry(name, lengthPivot, lengthBlocks);
+			fields[i] = new FieldEntry(key, lengthPivot, retired, lengthBlocks);
 		}
 
 		final PagedStreamMetadata dictionary = PagedStreamMetadataSerializer.readBody(input);

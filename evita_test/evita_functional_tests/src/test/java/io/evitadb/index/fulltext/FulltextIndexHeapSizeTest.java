@@ -28,6 +28,7 @@ import io.evitadb.index.component.EntityIndexManifest;
 import io.evitadb.index.component.FulltextIndexMapComponent;
 import io.evitadb.index.fulltext.FieldLengthTable.LengthBlock;
 import io.evitadb.index.fulltext.FieldLengthTable.LengthBlockEmission;
+import io.evitadb.index.fulltext.FulltextFieldKey.FieldKind;
 import io.evitadb.index.fulltext.FulltextIndex.DictionaryPage;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.map.TransactionalMap;
@@ -48,6 +49,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
+import static io.evitadb.index.fulltext.FulltextFieldKey.attribute;
 import static io.evitadb.index.IndexHeapSizeAssertions.AUTOBOX_CACHE_CEILING;
 import static io.evitadb.index.IndexHeapSizeAssertions.assertExceedsMeasuredHeapBy;
 import static io.evitadb.index.IndexHeapSizeAssertions.assertMatchesMeasuredHeap;
@@ -72,7 +74,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   deliberate over-report that sizer documents instead.
  * - The impact of a single posting is a boxed {@link Byte}, always the JVM's cached instance - `Byte.valueOf` caches
  *   every value by the language's contract, not by a flag - which `ImpactRecords` charges nothing for. The walk is
- *   handed the whole cache as shared roots.
+ *   handed the whole cache as shared roots, and with it the {@link FieldKind} constants every field key points at,
+ *   which the arithmetic prices at zero as it prices every enum constant.
  * - `MapHeapSize` charges a map pre-sized below sixteen slots for the sixteen organic growth would allocate. The
  *   fixtures whose maps are pre-sized from a known count therefore hold at least seven entries, where the two agree.
  *
@@ -96,9 +99,10 @@ class FulltextIndexHeapSizeTest {
 	};
 
 	/**
-	 * Every cached {@link Byte}: a single posting's impact is one of them, and no index owns it.
+	 * What every index reaches and no index owns: every cached {@link Byte} - a single posting's impact is one of
+	 * them - and every {@link FieldKind} constant, which a field key points at.
 	 */
-	private static final Object[] CACHED_BYTES = cachedBytes();
+	private static final Object[] SHARED_ROOTS = sharedRoots();
 
 	/**
 	 * Registry providing the real analyzers.
@@ -116,15 +120,17 @@ class FulltextIndexHeapSizeTest {
 	}
 
 	/**
-	 * @return every cached {@link Byte} instance
+	 * @return every cached {@link Byte} instance, followed by every {@link FieldKind} constant
 	 */
 	@Nonnull
-	private static Object[] cachedBytes() {
-		final Object[] bytes = new Object[256];
-		for (int i = 0; i < bytes.length; i++) {
-			bytes[i] = Byte.valueOf((byte) i);
+	private static Object[] sharedRoots() {
+		final FieldKind[] kinds = FieldKind.values();
+		final Object[] roots = new Object[256 + kinds.length];
+		for (int i = 0; i < 256; i++) {
+			roots[i] = Byte.valueOf((byte) i);
 		}
-		return bytes;
+		System.arraycopy(kinds, 0, roots, 256, kinds.length);
+		return roots;
 	}
 
 	/**
@@ -146,8 +152,8 @@ class FulltextIndexHeapSizeTest {
 	 * @param stem      the stem every field name and term starts with - its encoding decides how they are stored
 	 */
 	private static void fill(@Nonnull FulltextIndex index, int termCount, @Nonnull String stem) {
-		final int title = index.getOrAssignFieldId(stem + "title");
-		final int body = index.getOrAssignFieldId(stem + "body", 300.0);
+		final int title = index.getOrAssignFieldId(attribute(stem + "title"));
+		final int body = index.getOrAssignFieldId(attribute(stem + "body"), 300.0);
 		for (int i = 0; i < termCount; i++) {
 			final String term = stem + String.format("%05d", i);
 			for (int j = 0; j <= i % 4; j++) {
@@ -172,7 +178,7 @@ class FulltextIndexHeapSizeTest {
 	 */
 	private static void addSmallFields(@Nonnull FulltextIndex index, int count) {
 		for (int i = 0; i < count; i++) {
-			final int fieldId = index.getOrAssignFieldId("žpole" + i);
+			final int fieldId = index.getOrAssignFieldId(attribute("žpole" + i));
 			index.addPosting(fieldId, "žslovo", AUTOBOX_CACHE_CEILING + i, 7);
 			index.getFieldLengths(fieldId).put(AUTOBOX_CACHE_CEILING + i, 3);
 		}
@@ -205,7 +211,7 @@ class FulltextIndexHeapSizeTest {
 		@DisplayName("an empty index reports exactly what a JOL walk finds")
 		void shouldPriceAnEmptyIndexExactly() {
 			final FulltextIndex index = newIndex();
-			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, CACHED_BYTES, exclusionsOf(index));
+			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, SHARED_ROOTS, exclusionsOf(index));
 		}
 
 		@Test
@@ -213,8 +219,27 @@ class FulltextIndexHeapSizeTest {
 		void shouldPriceAFilledIndexExactly() {
 			final FulltextIndex index = newIndex();
 			fill(index, 2_000, "ž");
-			assertTrue(index.getFieldLengths(index.getFieldId("žbody")).isDenseBlock(70_000), "A dense block is priced.");
-			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, CACHED_BYTES, exclusionsOf(index));
+			assertTrue(
+				index.getFieldLengths(index.getFieldId(attribute("žbody"))).isDenseBlock(70_000),
+				"A dense block is priced."
+			);
+			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, SHARED_ROOTS, exclusionsOf(index));
+		}
+
+		@Test
+		@DisplayName("an index with a retired field and its successor reports exactly what JOL finds")
+		void shouldPriceARetiredFieldExactly() {
+			final FulltextIndex index = newIndex();
+			fill(index, 600, "ž");
+			addSmallFields(index, 5);
+			final String stem = "ž";
+			index.retireField(attribute(stem + "title"));
+			// a new key instance, as the write path makes one per write - one the retired field does not hold
+			final int successor = index.getOrAssignFieldId(attribute(stem + "title"));
+			index.addPosting(successor, "žnovinka", AUTOBOX_CACHE_CEILING, 100);
+			assertTrue(index.isFieldRetired(0));
+			assertEquals(7, successor);
+			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, SHARED_ROOTS, exclusionsOf(index));
 		}
 
 		@Test
@@ -229,7 +254,7 @@ class FulltextIndexHeapSizeTest {
 			for (int fieldId = 0; fieldId < lengths.length; fieldId++) {
 				fields.add(
 					new FulltextIndex.Field(
-						source.getFieldName(fieldId), source.getLengthPivot(fieldId),
+						source.getFieldKey(fieldId), source.getLengthPivot(fieldId), source.isFieldRetired(fieldId),
 						FieldLengthTable.fromPersistedBlocks(lengths[fieldId].changedBlocks().toArray(LengthBlock[]::new))
 					)
 				);
@@ -253,7 +278,7 @@ class FulltextIndexHeapSizeTest {
 			}
 			assertExceedsMeasuredHeapBy(
 				reloaded.getHeapSizeInBytes(), fieldCount * VMLayout.current().sizeOfObject(Integer.BYTES),
-				reloaded, CACHED_BYTES, exclusionsOf(reloaded)
+				reloaded, SHARED_ROOTS, exclusionsOf(reloaded)
 			);
 		}
 
@@ -267,14 +292,14 @@ class FulltextIndexHeapSizeTest {
 			assertStateAfterCommit(
 				index,
 				original -> {
-					final int perex = original.getOrAssignFieldId("žperex");
+					final int perex = original.getOrAssignFieldId(attribute("žperex"));
 					original.addPosting(perex, "žnovinka", AUTOBOX_CACHE_CEILING, 100);
 					original.getFieldLengths(perex).put(AUTOBOX_CACHE_CEILING, 5);
 				},
 				(original, committed) -> {
 					assertEquals(8, committed.getFieldCount());
 					assertMatchesMeasuredHeap(
-						committed.getHeapSizeInBytes(), committed, CACHED_BYTES, exclusionsOf(committed)
+						committed.getHeapSizeInBytes(), committed, SHARED_ROOTS, exclusionsOf(committed)
 					);
 				}
 			);
@@ -288,7 +313,7 @@ class FulltextIndexHeapSizeTest {
 			// field names and the dictionary's separator keys only, so it must stay small against the whole figure
 			final FulltextIndex index = newIndex();
 			fill(index, 2_000, "t");
-			final long measured = measuredHeapOf(index, CACHED_BYTES, exclusionsOf(index));
+			final long measured = measuredHeapOf(index, SHARED_ROOTS, exclusionsOf(index));
 			final long excess = index.getHeapSizeInBytes() - measured;
 			assertTrue(excess > 0, "Latin-1 keys are charged as UTF-16.");
 			assertTrue(excess < measured / 100, "The over-report must stay under one percent: " + excess);

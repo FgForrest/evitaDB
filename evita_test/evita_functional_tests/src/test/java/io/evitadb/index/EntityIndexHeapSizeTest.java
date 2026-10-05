@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.HistogramIndex.PersistedHistogramLeafPages;
+import io.evitadb.index.fulltext.FulltextFieldKey;
 import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.attribute.FilterIndex;
@@ -579,7 +580,8 @@ class EntityIndexHeapSizeTest {
 					final FulltextIndex fulltext = index.getOrCreateFulltextIndex(
 						locale, registry.getIndexAnalyzer(ENTITY_TYPE, locale)
 					);
-					fulltext.addPosting(fulltext.getOrAssignFieldId("title"), "žluť", AUTOBOX_CACHE_CEILING, 10);
+					final int title = fulltext.getOrAssignFieldId(FulltextFieldKey.attribute("title"));
+					fulltext.addPosting(title, "žluť", AUTOBOX_CACHE_CEILING, 10);
 				}
 				final FulltextIndex dropped = index.getFulltextIndex(Locale.ENGLISH);
 				assertNotNull(dropped);
