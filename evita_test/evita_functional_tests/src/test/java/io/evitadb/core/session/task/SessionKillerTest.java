@@ -229,26 +229,30 @@ class SessionKillerTest implements EvitaTestSupport {
 
 		@Test
 		@DisplayName("should kill only inactive sessions when multiple sessions exist")
-		void shouldKillOnlyInactiveSessionsWhenMultipleSessionsExist() throws InterruptedException {
+		void shouldKillOnlyInactiveSessionsWhenMultipleSessionsExist() throws Exception {
 			SessionKillerTest.this.evita.defineCatalog("test");
 			SessionKillerTest.this.evita.makeCatalogAlive("test");
 
 			final EvitaSessionContract inactiveSession =
 				SessionKillerTest.this.evita.createReadOnlySession("test");
+			// read-write, because the held call is an `execute()`, which opens a transaction on an alive catalog
 			final EvitaSessionContract activeSession =
-				SessionKillerTest.this.evita.createReadOnlySession("test");
+				SessionKillerTest.this.evita.createReadWriteSession("test");
 
-			// both sessions are old enough to be killed, only the active one is touched afterwards
-			awaitExpiry(internal(inactiveSession));
-			awaitExpiry(internal(activeSession));
+			// both sessions are old enough to be killed, only the active one has a call in flight - a held call keeps
+			// the verdict independent of how long the killer pass takes, so no premise of this test depends on timing
+			try (final HeldInvocation heldInvocation = HeldInvocation.start(internal(activeSession))) {
+				heldInvocation.awaitEntered();
+				awaitExpiry(internal(inactiveSession));
+				awaitInactivityPastTimeout(internal(activeSession));
 
-			final long touchedAt = System.currentTimeMillis();
-			assertNotNull(activeSession.getCatalogName());
-			SessionKillerTest.this.sessionKiller.run();
-			assumeTouchedWithinTimeout(touchedAt);
+				SessionKillerTest.this.sessionKiller.run();
 
-			assertFalse(inactiveSession.isActive());
-			assertTrue(activeSession.isActive());
+				assertFalse(inactiveSession.isActive());
+				assertTrue(activeSession.isActive());
+				heldInvocation.release();
+				heldInvocation.awaitCompletion();
+			}
 		}
 
 		@Test
