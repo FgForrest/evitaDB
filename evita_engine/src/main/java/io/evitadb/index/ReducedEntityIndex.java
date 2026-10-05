@@ -41,6 +41,8 @@ import io.evitadb.index.component.loader.LoadedComponentBundle;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.price.PriceRefIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 
@@ -50,6 +52,7 @@ import java.io.Serializable;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -378,6 +381,16 @@ public final class ReducedEntityIndex extends AbstractReducedEntityIndex impleme
 	 *
 	 * A reduced index declares no state of its own beyond what {@link AbstractReducedEntityIndex} holds.
 	 */
+	@Override
+	public void forEachSortIndexKey(@Nonnull Consumer<AttributeIndexKey> consumer) {
+		forEachAttributeIndexKey(AttributeIndexType.SORT, consumer);
+	}
+
+	@Override
+	public void forEachChainIndexKey(@Nonnull Consumer<AttributeIndexKey> consumer) {
+		forEachAttributeIndexKey(AttributeIndexType.CHAIN, consumer);
+	}
+
 	@Override
 	public long getHeapSizeInBytes() {
 		return getReducedBaseHeapSizeInBytes(0L);

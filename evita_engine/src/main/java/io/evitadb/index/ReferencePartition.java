@@ -33,10 +33,12 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Locale;
+import java.util.function.Consumer;
 
 /**
  * A reference partition is the rows of one `(scope, RepresentativeReferenceKey)` of a reference - the owners that
@@ -56,8 +58,9 @@ import java.util.Locale;
  * a guard test in the functional test suite rejects new direct accesses to the reduced index family.
  *
  * The read surface is deliberately narrow: identity (primary key, key, representative key, target), owners, and the
- * sort and chain structures the sort translators need. Nothing returning the partition's filter or attribute indexes
- * belongs here.
+ * sort and chain structures the sort translators and the registry of single-owner partitions need - the latter reads
+ * them by key, every key the partition holds, when it copies the values of a partition's only owner. Nothing
+ * returning the partition's filter or attribute indexes belongs here.
  *
  * The group family ({@link ReducedGroupEntityIndex}) is not a reference partition and never will be.
  *
@@ -167,5 +170,38 @@ public sealed interface ReferencePartition permits ReducedEntityIndex {
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nullable Locale locale
 	);
+
+	/**
+	 * Hands the key of every sort index the partition maintains over its owners - of reference attributes and sortable
+	 * attribute compounds alike, in every locale - to the consumer.
+	 *
+	 * @param consumer invoked once per key
+	 */
+	void forEachSortIndexKey(@Nonnull Consumer<AttributeIndexKey> consumer);
+
+	/**
+	 * Hands the key of every chain index the partition maintains over its owners to the consumer.
+	 *
+	 * @param consumer invoked once per key
+	 */
+	void forEachChainIndexKey(@Nonnull Consumer<AttributeIndexKey> consumer);
+
+	/**
+	 * Returns the sort index of a key {@link #forEachSortIndexKey(Consumer)} reports.
+	 *
+	 * @param lookupKey the key of the reference attribute or sortable attribute compound, with its locale
+	 * @return the sort index or `null` when the partition maintains none for the key
+	 */
+	@Nullable
+	SortIndex getSortIndex(@Nonnull AttributeIndexKey lookupKey);
+
+	/**
+	 * Returns the chain index of a key {@link #forEachChainIndexKey(Consumer)} reports.
+	 *
+	 * @param lookupKey the key of the predecessor reference attribute, with its locale
+	 * @return the chain index or `null` when the partition maintains none for the key
+	 */
+	@Nullable
+	ChainIndex getChainIndex(@Nonnull AttributeIndexKey lookupKey);
 
 }

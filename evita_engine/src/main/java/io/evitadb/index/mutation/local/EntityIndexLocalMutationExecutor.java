@@ -314,6 +314,15 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	private Set<RepresentativeReferenceKey> createdReferences;
 	/**
+	 * The partitions of references whose partitions may be virtual that this mutation left with one owner of two
+	 * (2 -> 1), each listed once, in the order they were left. Whether such a partition is a single-owner one again is
+	 * known only once every mutation of the root mutation has been dispatched - another owner may join it meanwhile -
+	 * so {@link #applyChanges()} demotes them (see {@link VirtualReferencePartitionWriter#partitionLeftWithOneOwner}).
+	 * Only their keys and primary keys are relied upon: each is resolved anew by its key when it is demoted.
+	 * Allocated lazily, because most entity mutations leave no partition with one owner.
+	 */
+	@Nullable private List<ReferencePartition> partitionsLeftWithOneOwner;
+	/**
 	 * List of all mutations that are being processed right now.
 	 */
 	@Nullable private List<? extends LocalMutation<?, ?>> localMutations;
@@ -480,6 +489,26 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	@Nonnull
 	MutationHandle getVirtualReferencePartitionMutation() {
 		return this.virtualReferencePartitionMutation;
+	}
+
+	/**
+	 * Remembers a partition of a reference whose partitions may be virtual that this mutation has just left with one
+	 * owner of two (2 -> 1), so that {@link #applyChanges()} demotes it. A partition remembered already is not
+	 * remembered twice.
+	 *
+	 * @param partition the partition left with one owner
+	 */
+	void addPartitionLeftWithOneOwner(@Nonnull ReferencePartition partition) {
+		if (this.partitionsLeftWithOneOwner == null) {
+			this.partitionsLeftWithOneOwner = new ArrayList<>(2);
+		} else {
+			for (final ReferencePartition remembered : this.partitionsLeftWithOneOwner) {
+				if (remembered.getPrimaryKey() == partition.getPrimaryKey()) {
+					return;
+				}
+			}
+		}
+		this.partitionsLeftWithOneOwner.add(partition);
 	}
 
 	/**
@@ -966,6 +995,16 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		if (this.containerAccessor.isEntityRemovedEntirely()) {
 			// remove the entity itself from the indexes
 			removeEntity(primaryKeyToIndex);
+		}
+
+		// the partitions this mutation left with one owner of two get their rows back in the registry of single-owner
+		// partitions, filled with what each holds for its remaining owner - by now every owner the root mutation adds
+		// to them or takes from them has been dispatched
+		if (this.partitionsLeftWithOneOwner != null) {
+			for (final ReferencePartition partition : this.partitionsLeftWithOneOwner) {
+				VirtualReferencePartitionWriter.partitionLeftWithOneOwner(this, partition);
+			}
+			this.partitionsLeftWithOneOwner = null;
 		}
 
 		// one instant for the whole entity mutation, so a single upsert cannot stamp the indexes it touched with two

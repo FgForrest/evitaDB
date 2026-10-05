@@ -83,8 +83,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * The registry may hold rows only for references that are indexed `FOR_FILTERING` with the referenced entity
  * component in the scope (a *shadowed* reference), and for every partition such a reference advertises:
  *
- * - a row exists exactly when the partition has one owner - except for the partitions the caller names as awaiting
- *   their demotion, which may lack it;
+ * - a row exists exactly when the partition has one owner;
  * - the row names that owner and the referenced entity the partition is keyed by;
  * - the row's representative attribute values are the ones in the partition's key - an absent tuple stands for the
  *   empty one;
@@ -131,7 +130,7 @@ final class VirtualReferencePartitionOracle {
 	 */
 	enum FindingKind {
 		/**
-		 * A single-owner partition has no row, and is not named as awaiting its demotion.
+		 * A single-owner partition has no row.
 		 */
 		MISSING_ROW,
 		/**
@@ -265,25 +264,10 @@ final class VirtualReferencePartitionOracle {
 	 */
 	@Nonnull
 	static List<Finding> inspect(@Nonnull EntityCollection collection) {
-		return inspect(collection, Set.of());
-	}
-
-	/**
-	 * Checks the registry of every reference of the collection in every scope against the partitions, tolerating a
-	 * missing row only for the named partitions - the ones whose demotion is still pending. An empty set requires a
-	 * row for every single-owner partition.
-	 *
-	 * @param collection        the collection
-	 * @param awaitingDemotion  primary keys of the partitions that may lack their row
-	 * @return every disagreement found; empty when the registry agrees with the partitions
-	 */
-	@Nonnull
-	static List<Finding> inspect(@Nonnull EntityCollection collection, @Nonnull Set<Integer> awaitingDemotion) {
 		final List<Finding> findings = new ArrayList<>(8);
 		forEachRegistry(
 			collection,
-			(referenceSchema, scope, typeIndex) ->
-				inspect(collection, referenceSchema, scope, typeIndex, awaitingDemotion, findings)
+			(referenceSchema, scope, typeIndex) -> inspect(collection, referenceSchema, scope, typeIndex, findings)
 		);
 		return findings;
 	}
@@ -296,23 +280,7 @@ final class VirtualReferencePartitionOracle {
 	 * @param collection the collection
 	 */
 	static void assertConsistent(@Nonnull String label, @Nonnull EntityCollection collection) {
-		assertConsistent(label, collection, Set.of());
-	}
-
-	/**
-	 * Fails when the registry of the collection disagrees with its partitions, listing every disagreement. A missing
-	 * row is tolerated only for the named partitions.
-	 *
-	 * @param label            names the checkpoint in the failure message
-	 * @param collection       the collection
-	 * @param awaitingDemotion primary keys of the partitions that may lack their row
-	 */
-	static void assertConsistent(
-		@Nonnull String label,
-		@Nonnull EntityCollection collection,
-		@Nonnull Set<Integer> awaitingDemotion
-	) {
-		final List<Finding> findings = inspect(collection, awaitingDemotion);
+		final List<Finding> findings = inspect(collection);
 		if (!findings.isEmpty()) {
 			fail(
 				label + ": the virtual reference partitions of `" + collection.getEntityType() + "` disagree with " +
@@ -476,19 +444,17 @@ final class VirtualReferencePartitionOracle {
 	/**
 	 * Checks the registry of one reference in one scope.
 	 *
-	 * @param collection       the collection resolving the partitions
-	 * @param referenceSchema  the reference
-	 * @param scope            the scope
-	 * @param typeIndex        the referenced-type entity index carrying the registry
-	 * @param awaitingDemotion primary keys of the partitions that may lack their row
-	 * @param findings         receives the disagreements
+	 * @param collection      the collection resolving the partitions
+	 * @param referenceSchema the reference
+	 * @param scope           the scope
+	 * @param typeIndex       the referenced-type entity index carrying the registry
+	 * @param findings        receives the disagreements
 	 */
 	private static void inspect(
 		@Nonnull EntityCollection collection,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Scope scope,
 		@Nonnull ReferencedTypeEntityIndex typeIndex,
-		@Nonnull Set<Integer> awaitingDemotion,
 		@Nonnull List<Finding> findings
 	) {
 		final String referenceName = referenceSchema.getName();
@@ -551,7 +517,7 @@ final class VirtualReferencePartitionOracle {
 				return;
 			}
 			final boolean hasRow = inspectRow(
-				referenceName, scope, registry, partitionPrimaryKey, reducedIndex, awaitingDemotion, findings
+				referenceName, scope, registry, partitionPrimaryKey, reducedIndex, findings
 			);
 			if (hasRow) {
 				registered.put(
@@ -627,7 +593,6 @@ final class VirtualReferencePartitionOracle {
 	 * @param registry            the registry
 	 * @param partitionPrimaryKey the partition primary key
 	 * @param partition           the partition itself
-	 * @param awaitingDemotion    primary keys of the partitions that may lack their row
 	 * @param findings            receives the disagreements
 	 * @return TRUE when the partition has one owner and a row - a registered partition whose keys are checked next
 	 */
@@ -637,7 +602,6 @@ final class VirtualReferencePartitionOracle {
 		@Nonnull VirtualReferencePartitionIndex registry,
 		int partitionPrimaryKey,
 		@Nonnull ReducedEntityIndex partition,
-		@Nonnull Set<Integer> awaitingDemotion,
 		@Nonnull List<Finding> findings
 	) {
 		final Bitmap owners = partition.getAllPrimaryKeys();
@@ -655,14 +619,12 @@ final class VirtualReferencePartitionOracle {
 			return false;
 		}
 		if (row.isEmpty()) {
-			if (!awaitingDemotion.contains(partitionPrimaryKey)) {
-				findings.add(
-					new Finding(
-						referenceName, scope, partitionPrimaryKey, FindingKind.MISSING_ROW,
-						"single owner " + owners.getFirst() + " of " + partition.getRepresentativeReferenceKey()
-					)
-				);
-			}
+			findings.add(
+				new Finding(
+					referenceName, scope, partitionPrimaryKey, FindingKind.MISSING_ROW,
+					"single owner " + owners.getFirst() + " of " + partition.getRepresentativeReferenceKey()
+				)
+			);
 			return false;
 		}
 

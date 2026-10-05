@@ -173,12 +173,11 @@ import static org.junit.jupiter.api.Assertions.fail;
  * # The registry itself
  *
  * At every checkpoint the registry of single-owner partitions of every collection of the maintaining engine is checked
- * against its partitions by {@link VirtualReferencePartitionOracle}. A partition may lack its row only while it awaits
- * its demotion, which the transitions the engine recorded tell (see {@link TransitionHistory}): both engines report
- * every transition of their partitions and the outcome of every root mutation to a history of their own, installed
- * before the catalog is defined and before every load. Inside the open session the check uses the committed history
- * followed by the session's, after the session closes the committed history alone - so a transition a failed or
- * rolled-back mutation passed never excuses a missing row. Any further check can be added by
+ * against its partitions by {@link VirtualReferencePartitionOracle}, exactly: every single-owner partition must have
+ * its row, inside the open session too, because a partition left with one owner of two is demoted by the very mutation
+ * that left it so. Both engines report every transition of their partitions and the outcome of every root mutation to
+ * a history of their own (see {@link TransitionHistory}), installed before the catalog is defined and before every
+ * load, which tests read to prove what a history exercised. Any further check can be added by
  * {@link #addMaintainingEngineCheck(MaintainingEngineCheck)}.
  *
  * Failures can be injected right after a transition, in both engines at once (see
@@ -274,7 +273,7 @@ final class DifferentialEngines implements AutoCloseable {
 	 */
 	private final TransitionHistory referenceHistory = new TransitionHistory();
 	/**
-	 * The transitions the maintaining engine passed - which partitions await their demotion.
+	 * The transitions the maintaining engine passed.
 	 */
 	private final TransitionHistory maintainingHistory = new TransitionHistory();
 	/**
@@ -352,7 +351,7 @@ final class DifferentialEngines implements AutoCloseable {
 	 * Registers a check run on every collection of the maintaining engine at every checkpoint, next to the parity
 	 * oracle of the registry, which runs there always.
 	 *
-	 * @param check receives the checkpoint label, the collection and the partitions awaiting their demotion
+	 * @param check receives the checkpoint label and the collection
 	 */
 	void addMaintainingEngineCheck(@Nonnull MaintainingEngineCheck check) {
 		this.maintainingEngineChecks.add(check);
@@ -939,10 +938,9 @@ final class DifferentialEngines implements AutoCloseable {
 					" in the " + (maintained ? "maintaining" : "reference") + " engine"
 			);
 			if (maintained) {
-				final Set<Integer> awaitingDemotion = this.maintainingHistory.awaitingDemotion(entityType, !committed);
-				VirtualReferencePartitionOracle.assertConsistent(label, collection, awaitingDemotion);
+				VirtualReferencePartitionOracle.assertConsistent(label, collection);
 				for (final MaintainingEngineCheck check : this.maintainingEngineChecks) {
-					check.check(label, collection, awaitingDemotion);
+					check.check(label, collection);
 				}
 			}
 			final EntitySchemaContract schema = session.getEntitySchemaOrThrowException(entityType);
@@ -1513,12 +1511,10 @@ final class DifferentialEngines implements AutoCloseable {
 		/**
 		 * Checks one collection.
 		 *
-		 * @param label            names the checkpoint in failure messages
-		 * @param collection       the collection
-		 * @param awaitingDemotion primary keys of the partitions of the collection awaiting their demotion at the
-		 *                         checkpoint - see {@link TransitionHistory#awaitingDemotion(String, boolean)}
+		 * @param label      names the checkpoint in failure messages
+		 * @param collection the collection
 		 */
-		void check(@Nonnull String label, @Nonnull EntityCollection collection, @Nonnull Set<Integer> awaitingDemotion);
+		void check(@Nonnull String label, @Nonnull EntityCollection collection);
 	}
 
 	private static final class Snapshot {

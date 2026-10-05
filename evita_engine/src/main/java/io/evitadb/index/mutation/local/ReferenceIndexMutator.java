@@ -969,9 +969,11 @@ public interface ReferenceIndexMutator {
 
 	/**
 	 * Keeps the registry of single-owner partitions in step with a partition that has just lost an owner: a partition
-	 * left without any owner (1 -> 0) gets its row dropped. A partition left with one owner (2 -> 1) gets its row back
-	 * only when the mutation finishes, and any other owner count leaves the registry alone. Only partitions of a
-	 * reference whose partitions may be virtual are concerned - see {@link VirtualReferencePartitionWriter}.
+	 * left without any owner (1 -> 0) gets its row dropped. A partition left with one owner (2 -> 1) is handed to the
+	 * executor, which demotes it when it applies its changes - whether it is a single-owner one again is known only
+	 * once the mutation has finished (see {@link VirtualReferencePartitionWriter#partitionLeftWithOneOwner}). Any
+	 * other owner count leaves the registry alone. Only partitions of a reference whose partitions may be virtual are
+	 * concerned - see {@link VirtualReferencePartitionWriter}.
 	 *
 	 * @param executor           the mutation executor
 	 * @param referenceSchema    the schema of the partition's reference
@@ -991,7 +993,14 @@ public interface ReferenceIndexMutator {
 			return;
 		}
 		final Scope scope = referenceTypeIndex.getIndexKey().scope();
-		if (!VirtualReferencePartitionWriter.isShadowed(referenceSchema, scope) || partition.size() != 0) {
+		if (!VirtualReferencePartitionWriter.isShadowed(referenceSchema, scope)) {
+			return;
+		}
+		final int ownerCount = partition.size();
+		if (ownerCount == 1) {
+			executor.addPartitionLeftWithOneOwner(partition);
+		}
+		if (ownerCount != 0) {
 			return;
 		}
 		// TODO JNO - remove at the end of #1615 (the condition, its body stays)

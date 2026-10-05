@@ -34,9 +34,6 @@ import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.TreeSet;
 
 /**
  * Records the transitions of the partitions of one engine as its {@link TransitionProbe}, keeping only what the
@@ -54,14 +51,8 @@ import java.util.TreeSet;
  *   commit, or from the write-ahead log at load), and of the closed sessions of a catalog warming up.
  *
  * The committed history describes the committed state of the engine; the committed history followed by the session
- * history describes what the open session sees.
- *
- * # Awaiting demotion
- *
- * A partition that went from one owner to two loses its row; when it gets back to one owner, its row comes back only
- * when its demotion is implemented. Such a partition is **awaiting its demotion**: of the two transitions that decide
- * whether a partition has a row - {@link TransitionStage#ENTERED} registers one, {@link TransitionStage#SHARED} drops
- * it - the last one it passed was {@link TransitionStage#SHARED}. Only these partitions may lack their row.
+ * history describes what the open session sees. Tests read them to prove that a history exercised the transitions it
+ * names - the registry itself is checked against the partitions, never against a history.
  *
  * # Failure injection
  *
@@ -269,54 +260,5 @@ final class TransitionHistory implements TransitionProbe {
 	@Nonnull
 	synchronized List<Transition> getRolledBack() {
 		return List.copyOf(this.rolledBack);
-	}
-
-	/**
-	 * Returns the partitions of the entity type awaiting their demotion - those whose last transition registering or
-	 * dropping their row dropped it.
-	 *
-	 * @param entityType the entity type owning the references
-	 * @param inSession  TRUE for the state the open session sees - the committed history followed by the session
-	 *                   history - FALSE for the committed state
-	 * @return primary keys of the partitions awaiting their demotion
-	 */
-	@Nonnull
-	synchronized Set<Integer> awaitingDemotion(@Nonnull String entityType, boolean inSession) {
-		final Map<Integer, TransitionStage> lastRowTransition = new TreeMap<>();
-		foldRowTransitions(entityType, this.committed, lastRowTransition);
-		if (inSession) {
-			foldRowTransitions(entityType, this.session, lastRowTransition);
-		}
-		final Set<Integer> awaiting = new TreeSet<>();
-		lastRowTransition.forEach(
-			(partition, stage) -> {
-				if (stage == TransitionStage.SHARED) {
-					awaiting.add(partition);
-				}
-			}
-		);
-		return awaiting;
-	}
-
-	/**
-	 * Remembers, per partition of the entity type, the last of the transitions registering or dropping its row.
-	 *
-	 * @param entityType        the entity type owning the references
-	 * @param transitions       the transitions in the order they were passed
-	 * @param lastRowTransition receives the last such transition per partition primary key
-	 */
-	private static void foldRowTransitions(
-		@Nonnull String entityType,
-		@Nonnull List<Transition> transitions,
-		@Nonnull Map<Integer, TransitionStage> lastRowTransition
-	) {
-		for (final Transition transition : transitions) {
-			if (
-				transition.entityType().equals(entityType) &&
-					(transition.stage() == TransitionStage.ENTERED || transition.stage() == TransitionStage.SHARED)
-			) {
-				lastRowTransition.put(transition.partitionPrimaryKey(), transition.stage());
-			}
-		}
 	}
 }

@@ -80,9 +80,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Drives the transitions of the owner count of reference partitions through both engines of
  * {@link DifferentialEngines} - in a catalog warming up and in a live one - and checks that the registry of
  * single-owner partitions follows them: a partition gaining its only owner (0 -> 1) gets its row, gaining a second
- * one (1 -> 2) or losing the last one (1 -> 0) loses it. A partition left with one owner by losing one of two (2 -> 1)
- * gets its row back only once its demotion is implemented, so until then it is tolerated without a row - but only
- * when the transitions its engine recorded say it is awaiting that demotion.
+ * one (1 -> 2) or losing the last one (1 -> 0) loses it, and one left with one owner by losing one of two (2 -> 1) is
+ * demoted - it gets its row back at the end of the mutation that left it so, unless another owner joined it
+ * meanwhile.
  *
  * The harness checks the registry against the partitions at every checkpoint - inside the session after every step,
  * after a caught failure, after the session closes and after a restart - and compares the two engines everywhere
@@ -160,16 +160,18 @@ class VirtualReferencePartitionTransitionTest implements EvitaTestSupport {
 			"the second product leaves it",
 			updateProduct(2, it -> it.removeReference(REFERENCE_CATEGORIES, FREE_CATEGORY))
 		);
-		// one owner again, but no demotion yet - the partition awaits it, and the harness tolerated exactly that
-		assertNoRow(theEngines, ENTITY_PRODUCT, Scope.LIVE, category(FREE_CATEGORY));
+		// one owner again - the partition is demoted and has its row back, naming the remaining owner
+		assertRow(theEngines, ENTITY_PRODUCT, Scope.LIVE, category(FREE_CATEGORY), 1);
 		assertTrue(
-			theEngines.getMaintainingHistory().awaitingDemotion(ENTITY_PRODUCT, false).contains(partition),
-			"the partition left with one owner by the second leaving must await its demotion"
+			theEngines.getMaintainingHistory().getCommitted().contains(
+				new Transition(TransitionStage.DEMOTED, ENTITY_PRODUCT, REFERENCE_CATEGORIES, Scope.LIVE, partition)
+			),
+			"the partition left with one owner by the second leaving must have been demoted"
 		);
 
 		theEngines.restart();
 		assertRow(theEngines, ENTITY_PRODUCT, Scope.LIVE, category(4), 4);
-		assertNoRow(theEngines, ENTITY_PRODUCT, Scope.LIVE, category(FREE_CATEGORY));
+		assertRow(theEngines, ENTITY_PRODUCT, Scope.LIVE, category(FREE_CATEGORY), 1);
 
 		theEngines.step(
 			"the first product leaves it too",
@@ -231,8 +233,8 @@ class VirtualReferencePartitionTransitionTest implements EvitaTestSupport {
 
 	@ParameterizedTest(name = "{0}")
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
-	@DisplayName("a second owner joining and the first leaving in one mutation leaves the partition awaiting demotion")
-	void shouldLeaveAOneTwoOneChurnAwaitingDemotion(CatalogState state) {
+	@DisplayName("a second owner joining and the first leaving in one mutation demotes the partition once")
+	void shouldDemoteAOneTwoOneChurnOnce(CatalogState state) {
 		final DifferentialEngines theEngines = start(
 			"oneTwoOneChurn", state, SingleOwnerPartitionFixture::setUpWithReflectedProducts
 		);
@@ -267,17 +269,61 @@ class VirtualReferencePartitionTransitionTest implements EvitaTestSupport {
 			.filter(it -> it != TransitionStage.MIRRORED)
 			.toList();
 		assertEquals(
-			List.of(TransitionStage.SHARED), passed,
-			"the second owner must have joined the partition before the first left it"
+			List.of(TransitionStage.SHARED, TransitionStage.DEMOTED), passed,
+			"the second owner must have joined the partition before the first left it, and the partition must have " +
+				"been demoted once, at the end"
 		);
 		assertEquals(
 			List.of(SECOND_FREE_CATEGORY),
 			ownersOf(theEngines.getMaintaining(), ENTITY_CATEGORY, Scope.LIVE, product(4)),
 			"the partition is back to one owner - the second one"
 		);
-		// exactly the state 2 -> 1 leaves until its demotion is implemented: no row, awaiting the demotion
-		assertNoRow(theEngines, ENTITY_CATEGORY, Scope.LIVE, product(4));
-		assertTrue(theEngines.getMaintainingHistory().awaitingDemotion(ENTITY_CATEGORY, false).contains(partition));
+		// the row names the owner that joined, filled with what the partition holds for it
+		assertRow(theEngines, ENTITY_CATEGORY, Scope.LIVE, product(4), SECOND_FREE_CATEGORY);
+		theEngines.restart();
+		assertRow(theEngines, ENTITY_CATEGORY, Scope.LIVE, product(4), SECOND_FREE_CATEGORY);
+	}
+
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("an owner leaving and another joining in one mutation leaves the shared partition undemoted")
+	void shouldNotDemoteATwoOneTwoChurn(CatalogState state) {
+		final DifferentialEngines theEngines = start(
+			"twoOneTwoChurn", state, SingleOwnerPartitionFixture::setUpWithReflectedProducts
+		);
+		// the reflected partition of product 1 on the category side is owned by category 1 and the shared one
+		assertNoRow(theEngines, ENTITY_CATEGORY, Scope.LIVE, product(1));
+		final int partition = partitionOf(theEngines.getMaintaining(), ENTITY_CATEGORY, Scope.LIVE, product(1));
+		final int committedBefore = theEngines.getMaintainingHistory().getCommitted().size();
+
+		theEngines.step(
+			"the shared category leaves the partition and a free one joins it in one root mutation",
+			session -> session.upsertEntity(
+				new EntityUpsertMutation(
+					ENTITY_PRODUCT, 1, EntityExistence.MUST_EXIST,
+					new RemoveReferenceMutation(existingReferenceKey(session, 1, SHARED_CATEGORY)),
+					new InsertReferenceMutation(newReferenceKey(SECOND_FREE_CATEGORY))
+				)
+			)
+		);
+
+		final List<TransitionStage> passed = theEngines.getMaintainingHistory().getCommitted()
+			.subList(committedBefore, theEngines.getMaintainingHistory().getCommitted().size())
+			.stream()
+			.filter(it -> it.entityType().equals(ENTITY_CATEGORY) && it.partitionPrimaryKey() == partition)
+			.map(Transition::stage)
+			.filter(it -> it != TransitionStage.MIRRORED)
+			.toList();
+		assertEquals(
+			List.of(TransitionStage.SHARED), passed,
+			"the partition must have been shared again by the joining owner and never demoted: " + passed
+		);
+		assertEquals(
+			List.of(1, SECOND_FREE_CATEGORY),
+			ownersOf(theEngines.getMaintaining(), ENTITY_CATEGORY, Scope.LIVE, product(1)),
+			"the partition has two owners again"
+		);
+		assertNoRow(theEngines, ENTITY_CATEGORY, Scope.LIVE, product(1));
 	}
 
 	@ParameterizedTest(name = "{0}")
@@ -310,9 +356,14 @@ class VirtualReferencePartitionTransitionTest implements EvitaTestSupport {
 			)
 		);
 
-		assertNoRow(theEngines, ENTITY_CATEGORY, Scope.LIVE, product(1));
+		// category 1 is the only owner left, and the partition is demoted
+		assertRow(theEngines, ENTITY_CATEGORY, Scope.LIVE, product(1), 1);
 		assertTrue(
-			theEngines.getMaintainingHistory().awaitingDemotion(ENTITY_CATEGORY, false).contains(sharedProductPartition)
+			theEngines.getMaintainingHistory().getCommitted().contains(
+				new Transition(
+					TransitionStage.DEMOTED, ENTITY_CATEGORY, REFERENCE_PRODUCTS, Scope.LIVE, sharedProductPartition
+				)
+			)
 		);
 		assertRow(theEngines, ENTITY_CATEGORY, Scope.LIVE, product(NEW_PRODUCT), NEW_PRODUCT);
 		assertNoRow(theEngines, ENTITY_CATEGORY, Scope.LIVE, product(NEW_PRODUCT + 1));
@@ -501,6 +552,48 @@ class VirtualReferencePartitionTransitionTest implements EvitaTestSupport {
 			updateProduct(5, it -> it.setReference(REFERENCE_CATEGORIES, 4))
 		);
 		assertNoRow(theEngines, ENTITY_PRODUCT, Scope.LIVE, category(4));
+		theEngines.restart();
+	}
+
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("a failure injected right after a demotion rolls the demoted row back with everything else")
+	void shouldRollBackADemotionAfterAnInjectedFailure(CatalogState state) {
+		final DifferentialEngines theEngines = start("injectedDemotion", state, SingleOwnerPartitionFixture::setUp);
+		theEngines.step(
+			"two products join a free category",
+			session -> {
+				updateProduct(1, it -> it.setReference(REFERENCE_CATEGORIES, FREE_CATEGORY)).accept(session);
+				updateProduct(2, it -> it.setReference(REFERENCE_CATEGORIES, FREE_CATEGORY)).accept(session);
+			}
+		);
+		assertNoRow(theEngines, ENTITY_PRODUCT, Scope.LIVE, category(FREE_CATEGORY));
+		final int partition =
+			partitionOf(theEngines.getMaintaining(), ENTITY_PRODUCT, Scope.LIVE, category(FREE_CATEGORY));
+		final String before = describeRows(theEngines.getMaintaining(), ENTITY_PRODUCT, REFERENCE_CATEGORIES);
+
+		theEngines.failingStepAfter(
+			"the second product leaves it, failing right after the partition is demoted",
+			TransitionStage.DEMOTED, ENTITY_PRODUCT, 0,
+			updateProduct(2, it -> it.removeReference(REFERENCE_CATEGORIES, FREE_CATEGORY))
+		);
+		assertEquals(
+			before, describeRows(theEngines.getMaintaining(), ENTITY_PRODUCT, REFERENCE_CATEGORIES),
+			"the failed mutation must have left the registry as it was"
+		);
+		assertNoRow(theEngines, ENTITY_PRODUCT, Scope.LIVE, category(FREE_CATEGORY));
+		assertTrue(
+			theEngines.getMaintainingHistory().getRolledBack().contains(
+				new Transition(TransitionStage.DEMOTED, ENTITY_PRODUCT, REFERENCE_CATEGORIES, Scope.LIVE, partition)
+			),
+			"the failure must have struck after the demotion: " + theEngines.getMaintainingHistory().getRolledBack()
+		);
+
+		theEngines.step(
+			"the same demotion succeeds afterwards",
+			updateProduct(2, it -> it.removeReference(REFERENCE_CATEGORIES, FREE_CATEGORY))
+		);
+		assertRow(theEngines, ENTITY_PRODUCT, Scope.LIVE, category(FREE_CATEGORY), 1);
 		theEngines.restart();
 	}
 

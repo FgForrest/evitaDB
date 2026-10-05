@@ -92,8 +92,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Proves that {@link VirtualReferencePartitionOracle} reports what it claims to. Rows, sort values and chain
  * predecessors are planted straight into the registry of a warming-up catalog that does not maintain it, and every
  * kind of disagreement is planted once and must be reported, while a correctly planted
- * registry, a declared chain key emptied while its owners remain and a missing row of a partition awaiting its
- * demotion must not be. The expected single-owner partitions are counted from the entity bodies, independently of the
+ * registry and a declared chain key emptied while its owners remain must not be. The registry of such a catalog lacks
+ * the row of every partition a test plants none for, so most tests set those missing rows aside (see
+ * {@link #inspectIgnoringMissingRowsOf(Set)}) - and prove that a planted disagreement is reported whether they are set
+ * aside or not. The expected single-owner partitions are counted from the entity bodies, independently of the
  * indexes the oracle reads.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -209,7 +211,7 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 	}
 
 	@Test
-	@DisplayName("an empty registry misses every single-owner partition, and nothing when all of them await demotion")
+	@DisplayName("an empty registry misses every single-owner partition, and nothing else")
 	void shouldReportEverySingleOwnerPartitionMissingFromAnEmptyRegistry() {
 		final List<Finding> exact = VirtualReferencePartitionOracle.inspect(product());
 		assertTrue(exact.stream().allMatch(it -> it.kind() == FindingKind.MISSING_ROW), exact::toString);
@@ -217,13 +219,13 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 			countSingleOwnerPartitionsFromBodies(), exact.size(),
 			"Every single-owner partition of a shadowed reference must be reported missing: " + exact
 		);
-		assertTrue(VirtualReferencePartitionOracle.inspect(product(), missingRows(exact)).isEmpty());
+		assertTrue(inspectIgnoringMissingRowsOf(missingRows(exact)).isEmpty());
 	}
 
 	@Test
 	@DisplayName("a correct row silences exactly its own partition")
 	void shouldAcceptACorrectRow() {
-		final Set<Integer> awaiting = missingRows(VirtualReferencePartitionOracle.inspect(product()));
+		final Set<Integer> unplanted = missingRows(VirtualReferencePartitionOracle.inspect(product()));
 		final int categoryPartition = partitionOf(REFERENCE_CATEGORIES, 4);
 		registryOf(REFERENCE_CATEGORIES).putPartitionOwner(categoryPartition, 4, 4);
 		plantOrder(categoryPartition, 4);
@@ -231,7 +233,7 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 		registryOf(REFERENCE_GALLERY).putPartitionOwner(galleryPartition, 5, 5);
 		registryOf(REFERENCE_GALLERY).putRepresentativeTuple(galleryPartition, new Serializable[]{ROLE_DETAIL});
 
-		assertTrue(VirtualReferencePartitionOracle.inspect(product(), awaiting).isEmpty());
+		assertTrue(inspectIgnoringMissingRowsOf(unplanted).isEmpty());
 		final List<Finding> exact = VirtualReferencePartitionOracle.inspect(product());
 		assertEquals(countSingleOwnerPartitionsFromBodies() - 2, exact.size(), exact::toString);
 		assertTrue(
@@ -291,30 +293,7 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 	}
 
 	@Nested
-	@DisplayName("A missing row awaiting demotion")
-	class AwaitingDemotion {
-
-		@Test
-		@DisplayName("is tolerated only for the partitions named, and an empty set tolerates none")
-		void shouldTolerateOnlyTheNamedPartitions() {
-			final List<Finding> exact = VirtualReferencePartitionOracle.inspect(product());
-			final Set<Integer> missing = missingRows(exact);
-			final int notAwaiting = partitionOf(REFERENCE_CATEGORIES, 4);
-			assertTrue(missing.contains(notAwaiting), "the premise: the partition lacks its row");
-			final Set<Integer> awaiting = new TreeSet<>(missing);
-			awaiting.remove(notAwaiting);
-
-			final List<Finding> findings = VirtualReferencePartitionOracle.inspect(product(), awaiting);
-			assertEquals(1, findings.size(), findings::toString);
-			assertEquals(FindingKind.MISSING_ROW, findings.get(0).kind());
-			assertEquals(notAwaiting, findings.get(0).partitionPrimaryKey());
-
-			assertEquals(exact, VirtualReferencePartitionOracle.inspect(product(), Set.of()));
-		}
-	}
-
-	@Nested
-	@DisplayName("A wrong row is reported whatever awaits demotion")
+	@DisplayName("A wrong row is reported whatever rows are missing")
 	class WrongRow {
 
 		@Test
@@ -324,7 +303,7 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 			registryOf(REFERENCE_CATEGORIES).putPartitionOwner(partition, 5, 4);
 			// the sort value is the one of the partition's only member, whatever owner the row names
 			plantOrder(partition, 4);
-			assertReportedWhateverAwaits(FindingKind.OWNER_MISMATCH, partition);
+			assertReportedWhateverIsMissing(FindingKind.OWNER_MISMATCH, partition);
 		}
 
 		@Test
@@ -333,7 +312,7 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 			final int partition = partitionOf(REFERENCE_CATEGORIES, 4);
 			registryOf(REFERENCE_CATEGORIES).putPartitionOwner(partition, 4, 5);
 			plantOrder(partition, 4);
-			assertReportedWhateverAwaits(FindingKind.TARGET_MISMATCH, partition);
+			assertReportedWhateverIsMissing(FindingKind.TARGET_MISMATCH, partition);
 		}
 
 		@Test
@@ -342,7 +321,7 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 			final int partition = partitionOf(REFERENCE_GALLERY, 5, ROLE_DETAIL);
 			registryOf(REFERENCE_GALLERY).putPartitionOwner(partition, 5, 5);
 			registryOf(REFERENCE_GALLERY).putRepresentativeTuple(partition, new Serializable[]{ROLE_GALLERY});
-			assertReportedWhateverAwaits(FindingKind.TUPLE_MISMATCH, partition);
+			assertReportedWhateverIsMissing(FindingKind.TUPLE_MISMATCH, partition);
 		}
 
 		@Test
@@ -350,7 +329,7 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 		void shouldReportAMissingTuple() {
 			final int partition = partitionOf(REFERENCE_GALLERY, 5, ROLE_DETAIL);
 			registryOf(REFERENCE_GALLERY).putPartitionOwner(partition, 5, 5);
-			assertReportedWhateverAwaits(FindingKind.TUPLE_MISMATCH, partition);
+			assertReportedWhateverIsMissing(FindingKind.TUPLE_MISMATCH, partition);
 		}
 
 		@Test
@@ -358,14 +337,14 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 		void shouldReportARowOfASharedPartition() {
 			final int partition = partitionOf(REFERENCE_CATEGORIES, SHARED_CATEGORY);
 			registryOf(REFERENCE_CATEGORIES).putPartitionOwner(partition, 1, SHARED_CATEGORY);
-			assertReportedWhateverAwaits(FindingKind.MULTI_OWNER_ROW, partition);
+			assertReportedWhateverIsMissing(FindingKind.MULTI_OWNER_ROW, partition);
 		}
 
 		@Test
 		@DisplayName("a row for a partition the reference does not advertise")
 		void shouldReportARowOutsideTheAdvertisedPartitions() {
 			registryOf(REFERENCE_CATEGORIES).putPartitionOwner(UNKNOWN_PARTITION, 4, 4);
-			assertReportedWhateverAwaits(FindingKind.ROW_OUTSIDE_ADVERTISED, UNKNOWN_PARTITION);
+			assertReportedWhateverIsMissing(FindingKind.ROW_OUTSIDE_ADVERTISED, UNKNOWN_PARTITION);
 		}
 
 		@Test
@@ -373,14 +352,14 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 		void shouldReportATupleWithoutOwner() {
 			final int partition = partitionOf(REFERENCE_GALLERY, 5, ROLE_DETAIL);
 			registryOf(REFERENCE_GALLERY).putRepresentativeTuple(partition, new Serializable[]{ROLE_DETAIL});
-			assertReportedWhateverAwaits(FindingKind.TUPLE_WITHOUT_OWNER, partition);
+			assertReportedWhateverIsMissing(FindingKind.TUPLE_WITHOUT_OWNER, partition);
 		}
 
 		@Test
 		@DisplayName("a row of a reference indexed for partitioning, which the registry never shadows")
 		void shouldReportARowOfAnUnshadowedReference() {
 			registryOf(REFERENCE_BRAND).putPartitionOwner(UNKNOWN_PARTITION, 1, BRAND_PK);
-			assertReportedWhateverAwaits(FindingKind.ROW_OF_UNSHADOWED_REFERENCE, UNKNOWN_PARTITION);
+			assertReportedWhateverIsMissing(FindingKind.ROW_OF_UNSHADOWED_REFERENCE, UNKNOWN_PARTITION);
 		}
 
 		@Test
@@ -393,26 +372,28 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 				},
 				0
 			);
-			assertReportedWhateverAwaits(FindingKind.KEYS_WITHOUT_OWNER, VirtualReferencePartitionOracle.NO_PARTITION);
+			assertReportedWhateverIsMissing(
+				FindingKind.KEYS_WITHOUT_OWNER, VirtualReferencePartitionOracle.NO_PARTITION
+			);
 		}
 
 		/**
 		 * Asserts the planted disagreement is reported, as the only finding besides missing rows, both when every
-		 * missing row is required and when every one of them awaits demotion.
+		 * missing row is reported and when every one of them is set aside.
 		 *
 		 * @param kind      the kind expected
 		 * @param partition the partition the planted disagreement concerns
 		 */
-		private void assertReportedWhateverAwaits(@Nonnull FindingKind kind, int partition) {
+		private void assertReportedWhateverIsMissing(@Nonnull FindingKind kind, int partition) {
 			final List<Finding> exact = VirtualReferencePartitionOracle.inspect(product());
-			for (final Set<Integer> awaiting : List.of(Set.<Integer>of(), missingRows(exact))) {
-				final List<Finding> findings = VirtualReferencePartitionOracle.inspect(product(), awaiting);
+			for (final Set<Integer> setAside : List.of(Set.<Integer>of(), missingRows(exact))) {
+				final List<Finding> findings = inspectIgnoringMissingRowsOf(setAside);
 				final List<Finding> planted = findings.stream()
 					.filter(it -> it.kind() != FindingKind.MISSING_ROW)
 					.toList();
-				assertEquals(1, planted.size(), awaiting + ": " + findings);
-				assertEquals(kind, planted.get(0).kind(), awaiting + ": " + findings);
-				assertEquals(partition, planted.get(0).partitionPrimaryKey(), awaiting + ": " + findings);
+				assertEquals(1, planted.size(), setAside + ": " + findings);
+				assertEquals(kind, planted.get(0).kind(), setAside + ": " + findings);
+				assertEquals(partition, planted.get(0).partitionPrimaryKey(), setAside + ": " + findings);
 			}
 		}
 	}
@@ -435,7 +416,7 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 		/**
 		 * Every single-owner partition but the three above - none of them gets a row.
 		 */
-		private Set<Integer> awaiting;
+		private Set<Integer> unplanted;
 
 		@BeforeEach
 		void setUpKeys() {
@@ -479,8 +460,8 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 			this.partition7 = partitionOf(REFERENCE_CATEGORIES, 7);
 			this.partition8 = partitionOf(REFERENCE_CATEGORIES, 8);
 			this.partition9 = partitionOf(REFERENCE_CATEGORIES, 9);
-			this.awaiting = missingRows(VirtualReferencePartitionOracle.inspect(product()));
-			this.awaiting.removeAll(Set.of(this.partition7, this.partition8, this.partition9));
+			this.unplanted = missingRows(VirtualReferencePartitionOracle.inspect(product()));
+			this.unplanted.removeAll(Set.of(this.partition7, this.partition8, this.partition9));
 		}
 
 		@Test
@@ -500,7 +481,7 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 				"the premise: the null element first, then the descending order"
 			);
 
-			assertNoFindings(VirtualReferencePartitionOracle.inspect(product(), this.awaiting));
+			assertNoFindings(inspectIgnoringMissingRowsOf(this.unplanted));
 		}
 
 		@Test
@@ -517,11 +498,11 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 		void shouldReportASortEntryOfAPartitionWithoutRow() {
 			plantCorrectly();
 			final int unregistered = partitionOf(REFERENCE_CATEGORIES, 3);
-			assertTrue(this.awaiting.contains(unregistered), "the premise: the partition has no row");
+			assertTrue(this.unplanted.contains(unregistered), "the premise: the partition has no row");
 			registryOf(REFERENCE_CATEGORIES).putSortValue(ORDER_KEY, unregistered, 3);
 
 			// the entry is reported, and the block it occupies breaks the order of the registered partitions too
-			final List<Finding> findings = VirtualReferencePartitionOracle.inspect(product(), this.awaiting);
+			final List<Finding> findings = inspectIgnoringMissingRowsOf(this.unplanted);
 			assertEquals(2, findings.size(), findings::toString);
 			assertEquals(FindingKind.SORT_ENTRY_WITHOUT_ROW, findings.get(0).kind(), findings::toString);
 			assertEquals(unregistered, findings.get(0).partitionPrimaryKey(), findings::toString);
@@ -539,7 +520,7 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 			registry.declareSortKey(staleKey, VALID_FROM_BASE, 0);
 			registry.putSortValue(staleKey, this.partition7, VALID_FROM);
 
-			final List<Finding> findings = VirtualReferencePartitionOracle.inspect(product(), this.awaiting);
+			final List<Finding> findings = inspectIgnoringMissingRowsOf(this.unplanted);
 			assertTrue(
 				findings.stream().anyMatch(
 					it -> it.kind() == FindingKind.SORT_VALUE_MISMATCH && it.partitionPrimaryKey() == this.partition7
@@ -577,7 +558,7 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 			removeChain(8);
 			assertNull(product().getIndexByPrimaryKeyIfExists(this.partition7).getChainIndex(CHAIN_KEY));
 
-			final List<Finding> findings = VirtualReferencePartitionOracle.inspect(product(), this.awaiting);
+			final List<Finding> findings = inspectIgnoringMissingRowsOf(this.unplanted);
 			assertEquals(
 				Set.of(this.partition7, this.partition8),
 				findings.stream()
@@ -602,7 +583,7 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 			registry.removeChainPredecessor(CHAIN_KEY, this.partition8);
 			assertEquals(Set.of(CHAIN_KEY), registry.getDeclaredChainKeys());
 
-			assertNoFindings(VirtualReferencePartitionOracle.inspect(product(), this.awaiting));
+			assertNoFindings(inspectIgnoringMissingRowsOf(this.unplanted));
 		}
 
 		@Test
@@ -611,7 +592,7 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 			plantCorrectly();
 			registryOf(REFERENCE_CATEGORIES).removeSortValue(COMPOUND_KEY, this.partition7);
 
-			final List<Finding> findings = VirtualReferencePartitionOracle.inspect(product(), this.awaiting);
+			final List<Finding> findings = inspectIgnoringMissingRowsOf(this.unplanted);
 			assertTrue(
 				findings.stream().anyMatch(
 					it -> it.kind() == FindingKind.SORT_VALUE_MISMATCH && it.partitionPrimaryKey() == this.partition7
@@ -671,7 +652,7 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 		 * @param partition the partition the planted disagreement concerns
 		 */
 		private void assertOnly(@Nonnull FindingKind kind, int partition) {
-			final List<Finding> findings = VirtualReferencePartitionOracle.inspect(product(), this.awaiting);
+			final List<Finding> findings = inspectIgnoringMissingRowsOf(this.unplanted);
 			assertEquals(1, findings.size(), findings::toString);
 			assertEquals(kind, findings.get(0).kind(), findings::toString);
 			assertEquals(partition, findings.get(0).partitionPrimaryKey(), findings::toString);
@@ -801,6 +782,21 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 	 */
 	private static void assertNoFindings(@Nonnull List<Finding> findings) {
 		assertTrue(findings.isEmpty(), () -> "Expected no finding, got " + findings.size() + ":\n" + findings);
+	}
+
+	/**
+	 * Inspects the registry of the products, setting aside the missing rows of the given partitions - the rows a test
+	 * deliberately plants none for in a registry nothing maintains.
+	 *
+	 * @param unplanted the partitions whose missing row is not reported
+	 * @return every other finding
+	 */
+	@Nonnull
+	private List<Finding> inspectIgnoringMissingRowsOf(@Nonnull Set<Integer> unplanted) {
+		return VirtualReferencePartitionOracle.inspect(product())
+			.stream()
+			.filter(it -> it.kind() != FindingKind.MISSING_ROW || !unplanted.contains(it.partitionPrimaryKey()))
+			.toList();
 	}
 
 	/**

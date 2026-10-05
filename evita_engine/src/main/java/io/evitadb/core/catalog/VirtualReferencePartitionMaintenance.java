@@ -262,6 +262,14 @@ public final class VirtualReferencePartitionMaintenance {
 		 */
 		VACATED,
 		/**
+		 * A partition of a shadowed reference that a mutation left with one owner of two (2 -> 1) still has that one
+		 * owner when the mutation applies its changes, and its row was registered and filled with the values the
+		 * partition holds for that owner when the switch is on and it had none. Reported at the end of the mutation
+		 * that left the partition with one owner - and whether or not a row was registered, so that an engine
+		 * maintaining nothing reports it at the very same points.
+		 */
+		DEMOTED,
+		/**
 		 * A sort value or a chain predecessor of a partition of a shadowed reference was written into the partition
 		 * or removed from it, and the registry mirrored the change when the switch is on and the partition's row names
 		 * the mutated entity as its owner. Reported right after the mirror - and whether or not anything was mirrored,
@@ -290,7 +298,8 @@ public final class VirtualReferencePartitionMaintenance {
 		 * Reports a transition of a partition of a shadowed reference.
 		 *
 		 * @param stage               {@link TransitionStage#ENTERED}, {@link TransitionStage#SHARED},
-		 *                            {@link TransitionStage#VACATED} or {@link TransitionStage#MIRRORED}
+		 *                            {@link TransitionStage#VACATED}, {@link TransitionStage#DEMOTED} or
+		 *                            {@link TransitionStage#MIRRORED}
 		 * @param entityType          the entity type owning the reference
 		 * @param referenceName       the reference
 		 * @param scope               the scope of the partition

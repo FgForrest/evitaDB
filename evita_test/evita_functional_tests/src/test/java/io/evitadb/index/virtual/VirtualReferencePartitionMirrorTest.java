@@ -74,6 +74,7 @@ import java.util.function.Consumer;
 
 import static io.evitadb.api.query.QueryConstraints.referenceContentAll;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.updateProduct;
+import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.assertNoRow;
 import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.assertRow;
 import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.partitionOf;
 import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.registryOf;
@@ -397,38 +398,115 @@ class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 
 	@ParameterizedTest(name = "{0}")
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
-	@DisplayName("the values of a partition left with one of two owners are not mirrored until its row is back")
-	void shouldNotMirrorAPartitionAwaitingItsDemotion(CatalogState state) {
+	@DisplayName("a partition left with one of two owners gets every sortable type and compound by extraction")
+	void shouldExtractEverySortableTypeAndCompoundOfADemotedPartition(CatalogState state) {
 		final DifferentialEngines theEngines = start(
-			"awaiting", state, VirtualReferencePartitionMirrorTest::setUpTypes
+			"demoted", state, VirtualReferencePartitionMirrorTest::setUpTypes
 		);
-		final int shared = partitionOf(
-			theEngines.getMaintaining(), ENTITY_PRODUCT, Scope.LIVE, categoryKey(SHARED_CATEGORY)
-		);
+		final int shared = partitionOfCategory(SHARED_CATEGORY);
+		// the demotion below starts from a registry loaded from disk
+		theEngines.restart();
 
 		theEngines.step(
-			"the second owner of the shared category leaves it, removing its values",
+			"the second owner of the shared category leaves it",
 			updateProduct(2, it -> it.removeReference(REFERENCE_CATEGORIES, SHARED_CATEGORY))
 		);
-		assertTrue(theEngines.getMaintainingHistory().awaitingDemotion(ENTITY_PRODUCT, false).contains(shared));
+		assertRow(theEngines, ENTITY_PRODUCT, Scope.LIVE, categoryKey(SHARED_CATEGORY), 1);
+		final VirtualReferencePartitionIndex registry = productRegistry(theEngines);
+		for (final AttributeIndexKey sortKey : SORT_KEYS) {
+			assertTrue(
+				registry.hasSortValue(sortKey, shared),
+				"the remaining owner's value of " + sortKey + " must have been extracted"
+			);
+		}
+		assertEquals(
+			1,
+			theEngines.getMaintainingHistory().getCommitted().stream()
+				.filter(it -> it.partitionPrimaryKey() == shared && it.stage() == TransitionStage.DEMOTED)
+				.count(),
+			"the partition must have been demoted once"
+		);
+
+		// the mirror removes a value strictly - only the very value the registry holds - so replacing the extracted
+		// values proves each of them is exactly the value the partition holds
 		theEngines.step(
 			"the remaining owner rewrites every value of the shared category",
 			updateProduct(
 				1, it -> it.updateReference(REFERENCE_CATEGORIES, SHARED_CATEGORY, ref -> fillReference(ref, 8))
 			)
 		);
-
-		final VirtualReferencePartitionIndex registry = productRegistry(theEngines);
-		assertFalse(registry.getPartitionOwner(shared).isPresent());
-		for (final AttributeIndexKey sortKey : registry.getDeclaredSortKeys()) {
-			assertFalse(registry.hasSortValue(sortKey, shared), "nothing is mirrored for " + sortKey);
-		}
-		assertTrue(
-			theEngines.getMaintainingHistory().getCommitted().stream().anyMatch(
-				it -> it.stage() == TransitionStage.MIRRORED && it.partitionPrimaryKey() == shared
-			),
-			"the writes into the partition must have reached the mirror, which skipped them"
+		theEngines.restart();
+		theEngines.step(
+			"the remaining owner leaves the shared category too",
+			updateProduct(1, it -> it.removeReference(REFERENCE_CATEGORIES, SHARED_CATEGORY))
 		);
+		assertTrue(
+			theEngines.getMaintainingHistory().getCommitted().contains(
+				new Transition(TransitionStage.VACATED, ENTITY_PRODUCT, REFERENCE_CATEGORIES, Scope.LIVE, shared)
+			),
+			"the demoted partition must have been vacated"
+		);
+	}
+
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("a demoted partition gets its ranges at the indexed scale once populated and once updated")
+	void shouldExtractRangesAtTheirIndexedScale(CatalogState state) {
+		final DifferentialEngines theEngines = start(
+			"demotedRanges", state, VirtualReferencePartitionMirrorTest::setUpTypes
+		);
+		assertNotEquals(
+			DECIMAL_PLACES, spanOf(sharedVariantOf(1)).getEffectiveRetainedDecimalPlaces(),
+			"the premise: the fixture writes ranges at another scale than the schema indexes them at"
+		);
+
+		// population only: the plain range and the compound element both came from the stored reference
+		theEngines.step(
+			"the second owner of the shared category leaves it",
+			updateProduct(2, it -> it.removeReference(REFERENCE_CATEGORIES, SHARED_CATEGORY))
+		);
+		assertSpanAtIndexedScale(theEngines, SHARED_CATEGORY);
+
+		// an incremental update of the range while the partition has two owners: the changed element of the compound
+		// comes from the mutation, and only the extraction can bring it into the registry
+		theEngines.step(
+			"the second owner joins the shared category again",
+			updateProduct(
+				2,
+				it -> it.setReference(
+					REFERENCE_CATEGORIES, SHARED_CATEGORY, ref -> fillReference(ref, sharedVariantOf(2))
+				)
+			)
+		);
+		assertNoRow(theEngines, ENTITY_PRODUCT, Scope.LIVE, categoryKey(SHARED_CATEGORY));
+		theEngines.step(
+			"the span of the first owner in the shared category is updated",
+			updateProduct(
+				1,
+				it -> it.updateReference(
+					REFERENCE_CATEGORIES, SHARED_CATEGORY,
+					ref -> ref.setAttribute(
+						ATTRIBUTE_SPAN, BigDecimalNumberRange.between(new BigDecimal("-2.5"), new BigDecimal("9.1"))
+					)
+				)
+			)
+		);
+		theEngines.step(
+			"the second owner leaves the shared category again",
+			updateProduct(2, it -> it.removeReference(REFERENCE_CATEGORIES, SHARED_CATEGORY))
+		);
+		assertSpanAtIndexedScale(theEngines, SHARED_CATEGORY);
+		assertEquals(
+			2,
+			theEngines.getMaintainingHistory().getCommitted().stream()
+				.filter(
+					it -> it.partitionPrimaryKey() == partitionOfCategory(SHARED_CATEGORY) &&
+						it.stage() == TransitionStage.DEMOTED
+				)
+				.count(),
+			"the shared partition must have been demoted twice"
+		);
+		theEngines.restart();
 	}
 
 	@ParameterizedTest(name = "{0}")
@@ -536,7 +614,8 @@ class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 	 * Defines products in two locales with a category reference indexed for filtering that carries a sortable
 	 * attribute of every type a sort index normalizes in its own way, two compounds, and a filterable and a unique
 	 * attribute that are not sortable; then creates product `n` (1 to {@link #PRODUCT_COUNT}) as the only owner of
-	 * category `n`, the first two also sharing {@link #SHARED_CATEGORY}.
+	 * category `n`, the first two also sharing {@link #SHARED_CATEGORY} with values of every type (see
+	 * {@link #sharedVariantOf(int)}).
 	 *
 	 * @param session the session to write in
 	 */
@@ -592,9 +671,7 @@ class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 				.setReference(REFERENCE_CATEGORIES, pk, ref -> fillReference(ref, productPrimaryKey));
 			if (pk <= 2) {
 				product.setReference(
-					REFERENCE_CATEGORIES, SHARED_CATEGORY,
-					ref -> ref.setAttribute(ATTRIBUTE_ORDER, SHARED_CATEGORY + productPrimaryKey)
-						.setAttribute(ATTRIBUTE_LABEL, Locale.ENGLISH, "shared " + productPrimaryKey)
+					REFERENCE_CATEGORIES, SHARED_CATEGORY, ref -> fillReference(ref, sharedVariantOf(productPrimaryKey))
 				);
 			}
 			session.upsertEntity(product);
@@ -655,6 +732,17 @@ class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 					)
 			);
 		}
+	}
+
+	/**
+	 * Returns the variant of the values product `n` has in {@link #SHARED_CATEGORY} - one no single-owner partition of
+	 * the fixture uses.
+	 *
+	 * @param product the product, 1 or 2
+	 * @return the variant
+	 */
+	private static int sharedVariantOf(int product) {
+		return PRODUCT_COUNT + product;
 	}
 
 	/**
@@ -767,17 +855,18 @@ class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Asserts the registry holds the span of the product's category partition - plain and as a compound element - at
-	 * the schema's indexed scale, whatever scale the value was written at.
+	 * Asserts the registry holds the span of the category's partition - plain and as a compound element - at the
+	 * schema's indexed scale, whatever scale the value was written at.
 	 *
-	 * @param engines the engines
-	 * @param product the product, the only owner of the category of the same primary key
+	 * @param engines  the engines
+	 * @param category the category, whose partition has a row
 	 */
-	private void assertSpanAtIndexedScale(@Nonnull DifferentialEngines engines, int product) {
+	private void assertSpanAtIndexedScale(@Nonnull DifferentialEngines engines, int category) {
 		final VirtualReferencePartitionIndex registry = productRegistry(engines);
-		final int partition = partitionOfCategory(product);
+		final int partition = partitionOfCategory(category);
 		final SortIndexWalk spans = SortIndexWalk.of(sortIndexOf(registry, key(ATTRIBUTE_SPAN, null)));
 		final SortIndexWalk compounds = SortIndexWalk.of(sortIndexOf(registry, key(COMPOUND_TYPED, null)));
+		int found = 0;
 		for (int i = 0; i < spans.records().length; i++) {
 			if (spans.records()[i] == partition) {
 				assertEquals(
@@ -785,6 +874,7 @@ class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 					((BigDecimalNumberRange) spans.values()[i]).getEffectiveRetainedDecimalPlaces(),
 					"the plain span of partition " + partition
 				);
+				found++;
 			}
 		}
 		for (int i = 0; i < compounds.records().length; i++) {
@@ -795,8 +885,10 @@ class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 					((BigDecimalNumberRange) elements[3]).getEffectiveRetainedDecimalPlaces(),
 					"the span element of the compound of partition " + partition
 				);
+				found++;
 			}
 		}
+		assertEquals(2, found, "partition " + partition + " must have a plain span and a compound in the registry");
 	}
 
 	/**

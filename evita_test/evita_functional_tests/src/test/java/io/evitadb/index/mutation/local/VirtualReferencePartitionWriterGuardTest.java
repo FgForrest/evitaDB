@@ -144,8 +144,9 @@ class VirtualReferencePartitionWriterGuardTest {
 			"Only " + scanner.scannedClasses + " classes were scanned in " + sources + " - the guard is reading the " +
 				"wrong code source and its green would be vacuous"
 		);
-		// the transitions decided by the reference index mutator and the sort values the attribute index mutator
-		// writes reach the writer, and the writer the registry - a scan that does not see these sees nothing
+		// the transitions decided by the reference index mutator, the sort values the attribute index mutator writes
+		// and the demotions the executor applies reach the writer, and the writer the registry - a scan that does not
+		// see these sees nothing
 		assertTrue(
 			scanner.allowed.containsKey(
 				"io.evitadb.index.mutation.local.ReferenceIndexMutator#ownerAddedToPartition -> " +
@@ -159,6 +160,12 @@ class VirtualReferencePartitionWriterGuardTest {
 			) && scanner.allowed.containsKey(
 				"io.evitadb.index.mutation.local.VirtualReferencePartitionWriter#attributeValueAdded -> " +
 					"VirtualReferencePartitionIndex.putSortValue"
+			) && scanner.allowed.containsKey(
+				"io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#applyChanges -> " +
+					"VirtualReferencePartitionWriter.partitionLeftWithOneOwner"
+			) && scanner.allowed.containsKey(
+				"io.evitadb.index.mutation.local.VirtualReferencePartitionWriter#extractValuesOfOwner -> " +
+					"VirtualReferencePartitionIndex.putNormalizedSortValue"
 			),
 			"The sentinel calls were not found - the scanner is broken: " + scanner.allowed.keySet()
 		);

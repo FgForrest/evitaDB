@@ -38,6 +38,7 @@ import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.MutationHand
 // TODO JNO - remove at the end of #1615
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.TransitionStage;
 import io.evitadb.dataType.ChainableType;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
@@ -46,6 +47,8 @@ import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.attribute.AttributeIndex;
+import io.evitadb.index.attribute.ChainIndex;
+import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.NumberUtils;
@@ -55,6 +58,8 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.function.Function;
 
@@ -78,9 +83,19 @@ import java.util.function.Function;
  * left, so an index without a single row declares no key either - a key nothing can hold would keep the index, and the
  * referenced-type entity index carrying it, from ever being empty.
  *
- * A partition that goes from two owners back to one (2 -> 1) is not decided here: whether it is a single-owner one
- * again is known only once the mutation that took the owner away has finished, so its row is a matter for the end of
- * that mutation.
+ * A partition that goes from two owners back to one (2 -> 1) is not decided when the owner leaves: another owner may
+ * join it later in the same root mutation, so whether it is a single-owner one again is known only once every
+ * mutation of the root mutation has been dispatched. The executor that took the owner away decides it when it applies
+ * its changes:
+ *
+ * - **demoted** (2 -> 1, and still one owner then) - the partition's row is registered for its remaining owner and
+ *   filled by **extraction**: every sort value, compound value and chain predecessor the partition holds for that
+ *   owner is copied into the registry, read by the owner's record - the referenced entity's record for a
+ *   `ReferencedEntityPredecessor` chain, which the partition indexes under the referenced entity rather than the
+ *   owner. The values are copied as the partition's sort indexes store them, in their normalized form, and recorded
+ *   as such (see {@link VirtualReferencePartitionIndex#putNormalizedSortValue}). A partition that has a row by then -
+ *   another executor of the root mutation demoted it already, or it was vacated and entered again meanwhile - keeps
+ *   it, and one that has no owner or several owners by then gets none.
  *
  * Only references indexed `FOR_FILTERING` with the referenced entity component in the scope have virtual partitions
  * (see {@link #isShadowed(ReferenceSchemaContract, Scope)}); a reference indexed for partitioning keeps a reduced
@@ -179,6 +194,178 @@ final class VirtualReferencePartitionWriter {
 	}
 
 	/**
+	 * Demotes a partition the mutation left with one owner of two (2 -> 1), once every mutation of the root mutation
+	 * has been dispatched: when the partition still has exactly one owner and no row, its row is registered for that
+	 * owner and filled by extraction - see the class documentation. The partition is resolved anew by its key, so a
+	 * partition removed since, or replaced by another one of the same key, is left alone.
+	 *
+	 * @param executor  the mutation executor that left the partition with one owner
+	 * @param partition the partition as it was when it was left with one owner - only its key and primary key are read
+	 */
+	static void partitionLeftWithOneOwner(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferencePartition partition
+	) {
+		final int partitionPrimaryKey = partition.getPrimaryKey();
+		final ReferencePartition current = ReferencePartitions.asPartition(
+			executor.getIndexIfExists(partition.getIndexKey())
+		);
+		// emptied or shared again since it was left with one owner - there is nothing to demote
+		if (current == null || current.getPrimaryKey() != partitionPrimaryKey || current.size() != 1) {
+			return;
+		}
+		final String referenceName = current.getRepresentativeReferenceKey().referenceName();
+		final Scope scope = current.getIndexKey().scope();
+		// TODO JNO - remove at the end of #1615 (the condition, its body stays)
+		if (executor.getVirtualReferencePartitionMutation().maintained()) {
+			final EntityIndex typeIndex = executor.getIndexIfExists(
+				ReferenceIndexMutator.getReferencedTypeIndexKey(referenceName, scope)
+			);
+			if (!(typeIndex instanceof final ReferencedTypeEntityIndex referencedTypeIndex)) {
+				throw new GenericEvitaInternalError(
+					"Partition " + partitionPrimaryKey + " of `" + referenceName + "` in " + scope + " has an owner, " +
+						"but the reference has no referenced-type entity index to carry its row!"
+				);
+			}
+			final OptionalLong row = referencedTypeIndex.getVirtualReferencePartitionIndex()
+				.getPartitionOwner(partitionPrimaryKey);
+			// a partition another executor of the root mutation demoted already, or one vacated and entered again
+			// since, has its row - filled by that demotion or by the mirror
+			if (row.isEmpty()) {
+				final VirtualReferencePartitionIndex registry =
+					((ReferencedTypeEntityIndex) executor.getIndexForSideWrite(referencedTypeIndex.getIndexKey()))
+						.getVirtualReferencePartitionIndex();
+				final int ownerPrimaryKey = current.getAllPrimaryKeys().getFirst();
+				partitionEntered(
+					registry, partitionPrimaryKey, ownerPrimaryKey, current.getRepresentativeReferenceKey()
+				);
+				final EntitySchemaContract entitySchema = executor.getEntitySchema();
+				extractValuesOfOwner(
+					registry, entitySchema, entitySchema.getReferenceOrThrowException(referenceName), current,
+					ownerPrimaryKey
+				);
+			}
+		}
+		// TODO JNO - remove at the end of #1615
+		executor.getVirtualReferencePartitionMutation().transitionPassed(
+			TransitionStage.DEMOTED, referenceName, scope, partitionPrimaryKey
+		);
+	}
+
+	/**
+	 * Copies every sort value, compound value and chain predecessor the partition holds for its only owner into the
+	 * registry, declaring the keys they belong to. Each value is read by its record - the owner's, or the referenced
+	 * entity's for a `ReferencedEntityPredecessor` chain - so a key the owner holds no value of is left out, whatever
+	 * other records the partition's index holds. Sort values are copied in the normalized form the partition's sort
+	 * index stores them in.
+	 *
+	 * Only the keys of the partition's own reference are read; a partition of a reference indexed `FOR_FILTERING` holds
+	 * no other.
+	 *
+	 * @param registry        the registry, holding the partition's row and nothing else of it
+	 * @param entitySchema    the schema of the owner entity
+	 * @param referenceSchema the reference the partition belongs to
+	 * @param partition       the partition
+	 * @param ownerPrimaryKey the primary key of its only owner
+	 */
+	private static void extractValuesOfOwner(
+		@Nonnull VirtualReferencePartitionIndex registry,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferencePartition partition,
+		int ownerPrimaryKey
+	) {
+		final String referenceName = referenceSchema.getName();
+		final int partitionPrimaryKey = partition.getPrimaryKey();
+		final ReferenceSchemaAttributeAndCompoundSchemaProvider schemaProvider =
+			new ReferenceSchemaAttributeAndCompoundSchemaProvider(entitySchema, referenceSchema);
+		partition.forEachSortIndexKey(
+			key -> {
+				if (!referenceName.equals(key.referenceName())) {
+					return;
+				}
+				final SortIndex sortIndex = partition.getSortIndex(key);
+				final Optional<Serializable> value = sortIndex == null ?
+					Optional.empty() : sortIndex.getValueOfRecord(ownerPrimaryKey);
+				if (value.isPresent()) {
+					final Optional<? extends SortableAttributeCompoundSchemaContract> compoundSchema =
+						referenceSchema.getSortableAttributeCompound(key.attributeName());
+					if (compoundSchema.isPresent()) {
+						declareSortKey(
+							registry, key, compoundSchema.get(),
+							attributeName -> schemaProvider.getAttributeSchema(attributeName).getPlainType()
+						);
+					} else {
+						declareSortKey(registry, key, schemaProvider.getAttributeSchema(key.attributeName()));
+					}
+					registry.putNormalizedSortValue(key, partitionPrimaryKey, value.get());
+				}
+			}
+		);
+		partition.forEachChainIndexKey(
+			key -> {
+				if (!referenceName.equals(key.referenceName())) {
+					return;
+				}
+				// the type this collection's reference declares, which reflection may have inverted from the source's
+				final boolean keyedByReferencedEntity = ReferencedEntityPredecessor.class.isAssignableFrom(
+					schemaProvider.getAttributeSchema(key.attributeName()).getPlainType()
+				);
+				final ChainIndex chainIndex = partition.getChainIndex(key);
+				final OptionalInt predecessor = chainIndex == null ?
+					OptionalInt.empty() :
+					chainIndex.getPredecessorPrimaryKey(
+						keyedByReferencedEntity ? partition.getReferenceKey().primaryKey() : ownerPrimaryKey
+					);
+				if (predecessor.isPresent()) {
+					registry.declareChainKey(key);
+					registry.putChainPredecessor(key, partitionPrimaryKey, predecessor.getAsInt());
+				}
+			}
+		);
+	}
+
+	/**
+	 * Declares the sort key of a plain reference attribute with the comparator base and the decimal places the
+	 * partition's own sort index of the attribute has.
+	 *
+	 * @param registry        the registry
+	 * @param key             the sort key
+	 * @param attributeSchema the attribute
+	 */
+	private static void declareSortKey(
+		@Nonnull VirtualReferencePartitionIndex registry,
+		@Nonnull AttributeIndexKey key,
+		@Nonnull AttributeSchemaContract attributeSchema
+	) {
+		final ComparatorSource comparatorSource = new ComparatorSource(
+			attributeSchema.getPlainType(), OrderDirection.ASC, OrderBehaviour.NULLS_LAST
+		);
+		registry.declareSortKey(
+			key, new ComparatorSource[]{comparatorSource}, attributeSchema.getIndexedDecimalPlaces()
+		);
+	}
+
+	/**
+	 * Declares the sort key of a sortable attribute compound of the reference with the comparator base its elements
+	 * define.
+	 *
+	 * @param registry              the registry
+	 * @param key                   the sort key
+	 * @param compoundSchema        the compound
+	 * @param attributeTypeProvider resolves the value type of each element attribute by name
+	 */
+	private static void declareSortKey(
+		@Nonnull VirtualReferencePartitionIndex registry,
+		@Nonnull AttributeIndexKey key,
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema,
+		@Nonnull Function<String, Class<?>> attributeTypeProvider
+	) {
+		// a compound's sort index keeps its `BigDecimal` elements exact, so no decimal places apply
+		registry.declareSortKey(key, AttributeIndex.createComparatorBase(compoundSchema, attributeTypeProvider), 0);
+	}
+
+	/**
 	 * Returns the partition an attribute index write concerns when the registry may mirror it - the index is a
 	 * partition of the given reference, whose partitions may be virtual in the partition's scope.
 	 *
@@ -246,13 +433,7 @@ final class VirtualReferencePartitionWriter {
 				registry.declareChainKey(key);
 				registry.putChainPredecessor(key, partitionPrimaryKey, predecessor.predecessorPk());
 			} else {
-				// the comparator base and the decimal places the partition's own sort index of the attribute has
-				final ComparatorSource comparatorSource = new ComparatorSource(
-					attributeSchema.getPlainType(), OrderDirection.ASC, OrderBehaviour.NULLS_LAST
-				);
-				registry.declareSortKey(
-					key, new ComparatorSource[]{comparatorSource}, attributeSchema.getIndexedDecimalPlaces()
-				);
+				declareSortKey(registry, key, attributeSchema);
 				assertNoSortValue(registry, key, partitionPrimaryKey, value);
 				registry.putSortValue(key, partitionPrimaryKey, value);
 			}
@@ -382,8 +563,7 @@ final class VirtualReferencePartitionWriter {
 			executor, referenceName, scope, partitionPrimaryKey
 		);
 		if (registry != null) {
-			// a compound's sort index keeps its `BigDecimal` elements exact, so no decimal places apply
-			registry.declareSortKey(key, AttributeIndex.createComparatorBase(compoundSchema, attributeTypeProvider), 0);
+			declareSortKey(registry, key, compoundSchema, attributeTypeProvider);
 			assertNoSortValue(registry, key, partitionPrimaryKey, values);
 			registry.putSortValue(key, partitionPrimaryKey, values);
 		}
