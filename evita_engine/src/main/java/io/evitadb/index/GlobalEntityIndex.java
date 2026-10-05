@@ -38,6 +38,7 @@ import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.EntityAttributeIndex;
+import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -143,8 +144,8 @@ public class GlobalEntityIndex extends EntityIndex
 		}
 	);
 	/**
-	 * Matcher for {@link ReferencedTypeEntityIndex#getAllPrimaryKeys()} method that returns the super set of primary keys
-	 * from the proxy state object.
+	 * Matcher for {@link ReferencedTypeEntityIndex#getAllPrimaryKeys()} method that returns the super set of primary
+	 * keys from the proxy state object.
 	 */
 	private static final PredicateMethodClassification<GlobalEntityIndex, Void, GlobalIndexProxyState> GET_ALL_PRIMARY_KEYS_IMPLEMENTATION = new PredicateMethodClassification<>(
 		"getAllPrimaryKeys",
@@ -153,8 +154,8 @@ public class GlobalEntityIndex extends EntityIndex
 		(proxy, method, args, methodContext, proxyState, invokeSuper) -> proxyState.getSuperSetOfPrimaryKeysBitmap()
 	);
 	/**
-	 * Matcher for {@link ReferencedTypeEntityIndex#getAllPrimaryKeysFormula()} method that returns the super set of primary keys
-	 * from the proxy state object.
+	 * Matcher for {@link ReferencedTypeEntityIndex#getAllPrimaryKeysFormula()} method that returns the super set of
+	 * primary keys from the proxy state object.
 	 */
 	private static final PredicateMethodClassification<GlobalEntityIndex, Void, GlobalIndexProxyState> GET_ALL_PRIMARY_KEYS_FORMULA_IMPLEMENTATION = new PredicateMethodClassification<>(
 		"getAllPrimaryKeysFormula",
@@ -194,8 +195,8 @@ public class GlobalEntityIndex extends EntityIndex
 	 */
 	@Nonnull private final TransactionalMap<AttributeIndexKey, TrigramIndex> trigramIndex;
 	/**
-	 * The fulltext indexes of this index, one per locale partition - each holds the term dictionary, the impacts and the
-	 * field lengths of every searchable field of the entities in that locale. Empty, and costing a bare `HashMap`
+	 * The fulltext indexes of this index, one per locale partition - each holds the term dictionary, the impacts and
+	 * the field lengths of every searchable field of the entities in that locale. Empty, and costing a bare `HashMap`
 	 * object, for every collection without a fulltext-searchable field.
 	 *
 	 * Hosted here and nowhere else: the global index is the one index every entity belongs to, so a catalog pays for
@@ -601,8 +602,8 @@ public class GlobalEntityIndex extends EntityIndex
 	}
 
 	/**
-	 * Drops the fulltext index of the passed locale partition. Its footprint on disk - the root, the dictionary pages and
-	 * the length blocks - is removed by the next flush.
+	 * Drops the fulltext index of the passed locale partition. Its footprint on disk - the root, the dictionary pages
+	 * and the length blocks - is removed by the next flush.
 	 *
 	 * @param locale the locale of the partition
 	 */
@@ -869,8 +870,8 @@ public class GlobalEntityIndex extends EntityIndex
 	 * Drops the trigram index of an attribute this index no longer maintains one for — the reconciliation every write
 	 * that takes the non-maintaining branch performs before delegating.
 	 *
-	 * Withdrawing a filter accelerator from a POPULATED collection is deliberately legal (the schema boundary refuses
-	 * additions only, see {@link EntityCollection}), and the accelerator is read on every write, so the withdrawal takes
+	 * Withdrawing a filter accelerator from a POPULATED collection is legal - no schema change is refused because the
+	 * collection holds data - and the accelerator is read on every write, so the withdrawal takes
 	 * effect at the very next one. Without this the entry would survive a gate that can never open again: nothing
 	 * would maintain it, {@link #dropTrigramIndexWithItsSharedValueTree} sits on the branch the write no longer takes,
 	 * and the index would keep its heap, keep answering {@link #getTrigramIndex} with postings drifting further from
@@ -922,12 +923,24 @@ public class GlobalEntityIndex extends EntityIndex
 
 	/**
 	 * Resolves the trigram index the write about to happen must report to, creating it - and switching the shared
-	 * value tree's id column on - the first time the attribute is written to.
+	 * value tree's id column on - the first time the attribute is written to while its tree is still empty. Returns
+	 * `null` while the accelerator is **dormant**, i.e. declared over a tree that already holds values.
 	 *
 	 * Attaching the value id consumer BEFORE the write is what makes the first value of an attribute countable: the
 	 * tree stamps a bucket at the moment it creates it, so a consumer attaching afterwards would find that one value
-	 * unstamped. It also makes the attach itself legal, because the tree is created empty here and the id column may
-	 * only be switched on while it still is.
+	 * unstamped. It also makes the attach itself legal, because the id column may only be switched on while the tree
+	 * is still empty.
+	 *
+	 * **Why a populated tree gets no accelerator.** A schema change is never refused because the collection already
+	 * holds data - bringing the indexes in line with it is the reindexing work of issue #409 - so the accelerator can
+	 * be declared over a tree that already holds values. Such a tree either carries no value ids (the accelerator was
+	 * never declared before its first value), and switching them on would mint ids no leaf page is rewritten to
+	 * persist; or it still carries them from a withdrawn declaration, and an index created here would hold none of the
+	 * values already present, so every substring query would silently under-report. Neither may happen, so the
+	 * accelerator stays dormant: no index, no consumer, and the substring translators scan, which answers correctly -
+	 * see `AbstractAttributeStringSearchTranslator`, which plans the scan whenever this map holds no index. Dormancy
+	 * ends when the tree empties out and is dropped (the next write starts a fresh tree), or at the next catalog load
+	 * for a tree that carries ids ({@link TrigramIndex#rebuildAll} derives the index from it there).
 	 *
 	 * The attach is reached only when the map holds no index yet, which is what keeps this off the steady-state write
 	 * path: an entry in the map exists only because the attach that created it succeeded, and the entry is dropped
@@ -936,16 +949,17 @@ public class GlobalEntityIndex extends EntityIndex
 	 * ({@link #reconcileTrigramIndexAbsence(ReferenceSchemaContract, AttributeSchemaContract, Locale)}) — the two
 	 * halves of the same invariant, and both are needed, since a withdrawn accelerator makes the drop hook unreachable.
 	 * A tree that somehow lost its ids while its entry survived is caught loudly by the tree's own premise on the very
-	 * next value born, rather than silently indexing everything under the unassigned id.
+	 * next value born, rather than silently indexing everything under the unassigned id. A dormant accelerator costs
+	 * one emptiness test per write to its attribute, and nothing else.
 	 *
 	 * @param referenceSchema the reference schema owning the attribute, or `null` for entity-level attributes
 	 * @param attributeSchema the schema of the attribute being written
 	 * @param allowedLocales  the set of locales permitted by the entity schema
 	 * @param locale          the locale of the value, or `null` for language-agnostic attributes
 	 * @param value           the value being written, which decides the key's locale for a localized attribute
-	 * @return the trigram index of that attribute and locale
+	 * @return the trigram index of that attribute and locale, or `null` while the accelerator is dormant
 	 */
-	@Nonnull
+	@Nullable
 	private TrigramIndex obtainTrigramIndex(
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeSchema,
@@ -959,6 +973,11 @@ public class GlobalEntityIndex extends EntityIndex
 		final TrigramIndex existing = this.trigramIndex.get(lookupKey);
 		if (existing != null) {
 			return existing;
+		}
+		final FilterIndex sharedValueView = this.attributeIndex.getFilterIndex(lookupKey);
+		if (sharedValueView != null && !sharedValueView.getInvertedIndex().isEmpty()) {
+			// declared over values indexed before the declaration - dormant, see the method's documentation
+			return null;
 		}
 		this.attributeIndex.attachSharedValueIdConsumer(
 			lookupKey, attributeSchema, TrigramIndex.VALUE_ID_CONSUMER_NAME

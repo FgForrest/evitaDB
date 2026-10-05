@@ -198,6 +198,7 @@ import io.evitadb.utils.IOUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.Delegate;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -233,6 +234,7 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Slf4j
 public final class EntityCollection implements
 	TransactionalLayerProducer<DataStoreChanges, EntityCollection>,
 	EntityCollectionContract,
@@ -1096,7 +1098,7 @@ public final class EntityCollection implements
 
 			updatedSchema = refreshReflectedSchemas(originalSchema, updatedSchema, updatedReferenceSchemas);
 
-			verifyNoAcceleratorAddedToNonEmptyCollection(originalSchema, updatedSchema);
+			warnAboutAcceleratorsAddedOverStoredEntities(originalSchema, updatedSchema);
 
 			if (updatedSchema.version() > originalSchema.version()) {
 				/* TOBEDONE JNO (#501) - apply this just before commit happens in case validations are enabled */
@@ -1989,8 +1991,7 @@ public final class EntityCollection implements
 	 * It hangs off {@link #exchangeSchema} rather than off {@link #updateSchema} because that is where every schema
 	 * change converges: a **reflected** reference inherits its index type from another collection's reference and is
 	 * resolved by `notifyAboutExternalReferenceUpdate` → `exchangeSchema`, a path that never passes through
-	 * `updateSchema` (see the note in `verifyNoAcceleratorAddedToNonEmptyCollection`). Hooked one level up, that
-	 * reference would keep a lookup nothing maintains.
+	 * `updateSchema`. Hooked one level up, that reference would keep a lookup nothing maintains.
 	 *
 	 * @param updatedSchema the schema this collection has just been exchanged to
 	 */
@@ -2740,199 +2741,59 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Dry-runs the given mutations against this collection's current schema and raises the
-	 * accelerator-on-populated-collection refusal **without exchanging anything**.
+	 * Warns when a schema change newly declares a {@link AttributeFilterAccelerator} on an attribute of a collection
+	 * that already holds entities.
 	 *
-	 * This exists because a catalog-level change to a global attribute fans out into one
-	 * {@link io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation} per consuming
-	 * collection, and {@link io.evitadb.core.catalog.Catalog#updateSchema} applies them one at a time - each
-	 * exchanging its schema and persisting a storage part in its own `finally`. A refusal raised by the *third*
-	 * collection therefore cannot undo the first two: the catalog's revert restores only the catalog schema. Running
-	 * this over every affected collection before the first exchange is what makes the cascade all-or-nothing.
+	 * **The change is accepted, never refused.** Bringing indexes in line with a changed schema belongs to the
+	 * reindexing work of issue #409; until it exists evitaDB accepts every schema change and leaves what is already
+	 * indexed in its old shape. For a filter accelerator that shape is a *dormant* one: `GlobalEntityIndex` builds no
+	 * accelerator over an attribute whose shared value tree already holds values, and the substring constraints keep
+	 * scanning it. The answers stay correct, only slower - the accelerator becomes active once the attribute's value
+	 * tree empties out, or at the next catalog load when the tree already carries value ids (see
+	 * `TrigramIndex#rebuildAll`, which warns again on every load it stays dormant through). This warning is where an
+	 * operator first learns that the accelerator they declared is not serving.
 	 *
-	 * **It raises the non-empty-collection refusal and nothing else** - every other failure of the dry run is
-	 * swallowed. That is deliberate rather than lazy, and it is exactly sufficient:
-	 *
-	 * - Replaying a mutation outside its real batch can fail for reasons that would not arise in the real pass - an
-	 *   entity mutation naming a global attribute an earlier mutation in the same batch creates, for instance.
-	 *   Surfacing those here would turn a working schema change into a spurious rejection.
-	 * - The refusals the mutations raise themselves - wrong data type, accelerator on a reference attribute - depend
-	 *   only on the attribute, which a cascade sends identically to every consuming collection. They therefore fire
-	 *   on the *first* collection visited, before anything has been exchanged, and need no preflight to be atomic.
-	 * - The non-empty-collection refusal is the one rule whose verdict differs *per collection*, which is exactly
-	 *   what lets it accept collection A and then refuse collection B. It is the only rule that needs this.
-	 *
-	 * @param catalogSchema  the catalog schema the mutations are applied against
-	 * @param schemaMutation the mutations that are about to be applied
-	 * @throws InvalidSchemaMutationException when an accelerator would be added to this non-empty collection
-	 */
-	public void verifySchemaMutationsApplicable(
-		@Nonnull CatalogSchemaContract catalogSchema,
-		@Nonnull LocalEntitySchemaMutation... schemaMutation
-	) {
-		final EntitySchema originalSchema = getInternalSchema();
-		final EntitySchema updatedSchema;
-		try {
-			EntitySchema schemaSoFar = originalSchema;
-			for (final EntitySchemaMutation theMutation : schemaMutation) {
-				final EntitySchemaContract mutated = theMutation.mutate(catalogSchema, schemaSoFar);
-				if (!(mutated instanceof EntitySchema theSchema)) {
-					// the mutation drops the collection or produces something this preflight cannot reason about -
-					// leave the verdict entirely to the real pass
-					return;
-				}
-				schemaSoFar = theSchema;
-			}
-			updatedSchema = schemaSoFar;
-		} catch (RuntimeException ex) {
-			// A deliberate swallow, and a genuine exemption from "never silently skip unexpected states" - the three
-			// reasons that must all hold for it to stay one are in this method's javadoc. Nothing is lost by staying
-			// quiet: this is a pure dry run against a copy, and the real pass runs moments later with the correct
-			// surrounding state and reports every genuine failure itself.
-			return;
-		}
-		verifyNoAcceleratorAddedToNonEmptyCollection(originalSchema, updatedSchema);
-	}
-
-	/**
-	 * Refuses a schema change that would newly declare a
-	 * {@link io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator} on a collection that already holds
-	 * entities.
-	 *
-	 * **Why this is a refusal rather than a rebuild.** The indexes backing a filter accelerator are built incrementally
-	 * as entities are indexed; there is no reindexing machinery that could walk the existing entities and back-fill
-	 * one. Accepting the mutation would therefore produce an index that silently answers only for entities written
-	 * *after* the schema change - queries would return fewer results than they should, with nothing anywhere saying
-	 * why. Failing loudly at the schema boundary is the only honest outcome available, and it is cheap to work around:
-	 * declare the accelerator before the data goes in.
-	 *
-	 * The check is a diff of the resulting schema against the original rather than an inspection of the incoming
-	 * mutations, so that every route into the schema is covered at one place - the dedicated set mutation, an
-	 * attribute created with accelerators already on it, a reference attribute, and whatever combination the mutation
-	 * pipeline collapses those into.
-	 *
-	 * **Attributes are matched by name, and that is correct even across a rename.**
-	 * {@link io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation} does not
-	 * remove the attribute it renames - `EntityAttributeSchemaMutation#replaceAttributeIfDifferent` filters the
-	 * existing attributes by the *updated* name, so the original survives alongside the copy and the schema really
-	 * does end up with a second attribute carrying the accelerator. That second attribute needs its own index built
-	 * over entities that are already stored, which is precisely what this refusal exists to prevent, so refusing is
-	 * the right answer rather than a false positive. Were that duplication ever fixed, a rename would stop growing
-	 * the schema and this per-name comparison would need to follow the attribute through it - see
-	 * `AttributeFilterAcceleratorRefusalTest.UnrelatedChanges`, whose two rename tests pin both halves of that reasoning.
-	 *
-	 * {@link #isEmpty()} is consulted **only when an accelerator was actually added**, because it is a storage read and
-	 * the overwhelmingly common schema change adds none. In a transactional catalog that read *does* include the open
-	 * transaction's own writes: {@link #isEmpty()} goes through the collection's {@link DataStoreReader}, which is
-	 * backed by {@link io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer} once the catalog is live, and
-	 * {@link io.evitadb.core.buffer.DataStoreChanges#countStorageParts} layers the transaction's trapped inserts and
-	 * removals over the persisted count. An entity upserted earlier in the same transaction therefore makes the
-	 * collection non-empty here, and the accelerator is refused - proven by the `AfterGoingLive` group of
-	 * `AttributeFilterAcceleratorRefusalTest`, whose same-transaction upsert case is refused while its otherwise
-	 * identical empty-collection counterfactual is accepted.
+	 * Only entity attributes are inspected: a filter accelerator on a reference attribute is refused by the mutation
+	 * itself (`AbstractAttributeSchemaMutation#verifyAcceleratorNotOnReferenceAttribute`), whatever data the collection
+	 * holds. {@link #isEmpty()} is consulted only when an accelerator was actually added, and at most once, because it
+	 * is a storage read and the overwhelmingly common schema change adds none.
 	 *
 	 * @param originalSchema the schema as it stood before the mutations were applied
 	 * @param updatedSchema  the schema the mutations produced
-	 * @throws InvalidSchemaMutationException when an accelerator would be added to a collection that is not empty
 	 */
-	private void verifyNoAcceleratorAddedToNonEmptyCollection(
+	private void warnAboutAcceleratorsAddedOverStoredEntities(
 		@Nonnull EntitySchema originalSchema,
 		@Nonnull EntitySchema updatedSchema
 	) {
+		// null until an added accelerator makes the storage read worth paying for
+		Boolean collectionEmpty = null;
 		for (final EntityAttributeSchemaContract updatedAttribute : updatedSchema.getAttributes().values()) {
+			final Map<Scope, Set<AttributeFilterAccelerator>> updatedAccelerators =
+				updatedAttribute.getAcceleratorsInScopes();
+			if (updatedAccelerators.isEmpty()) {
+				continue;
+			}
 			final AttributeSchemaContract originalAttribute = originalSchema.getAttributes()
 				.get(updatedAttribute.getName());
-			assertNoCapabilityAdded(originalAttribute, updatedAttribute, updatedSchema.getName(), null);
-		}
-		// this reference loop is defence in depth today - nothing it walks can currently fail it, because
-		// `AbstractAttributeSchemaMutation#verifyAcceleratorNotOnReferenceAttribute` refuses a filter accelerator on ANY
-		// reference attribute before it can reach a schema at all. That restriction is documented as liftable once the
-		// index learns to host reference attribute values, and on the day it is lifted this loop becomes the live
-		// guard - so it has to be correct for reflected references already. They are the awkward shape here: a
-		// reflected reference is resolved by `notifyAboutExternalReferenceUpdate` -> `exchangeSchema`, a path that
-		// never passes through `updateSchema` and so never reaches this check. Whatever it declares therefore has to
-		// be vetted here, while its target is still missing, rather than deferred to the resolution that follows
-		for (final ReferenceSchemaContract updatedReference : updatedSchema.getReferences().values()) {
-			final ReferenceSchemaContract originalReference = originalSchema.getReferences()
-				.get(updatedReference.getName());
-			final Map<String, AttributeSchemaContract> originalAttributes = originalReference == null ?
-				Collections.emptyMap() : getAttributesVisibleWithoutTarget(originalReference);
-			final Map<String, AttributeSchemaContract> updatedAttributes =
-				getAttributesVisibleWithoutTarget(updatedReference);
-			for (final AttributeSchemaContract updatedAttribute : updatedAttributes.values()) {
-				assertNoCapabilityAdded(
-					originalAttributes.get(updatedAttribute.getName()), updatedAttribute,
-					updatedSchema.getName(), updatedReference.getName()
-				);
-			}
-		}
-	}
-
-	/**
-	 * Returns the attributes of the given reference that can be read without knowing what the reference inherits from
-	 * - all of them for an ordinary reference, and the half it declares itself for an **unresolved reflected**
-	 * reference.
-	 *
-	 * A reflected reference does declare attributes of its own -
-	 * {@link io.evitadb.api.requestResponse.schema.builder.ReflectedReferenceSchemaBuilder#withAttribute} puts them
-	 * there - and presents them merged with the ones it inherits from the reference it reflects. While the target is
-	 * missing that inherited half is unknowable, so {@link ReflectedReferenceSchema#getAttributes()} declines to
-	 * answer at all and throws; {@link ReflectedReferenceSchema#getDeclaredAttributes()} answers the declared half
-	 * without throwing.
-	 *
-	 * Reading only the declared half costs the caller nothing, because the inherited half is a copy of the target
-	 * reference's own attributes and is vetted against the collection that declares *it*.
-	 *
-	 * @param referenceSchema the reference whose attributes are to be read
-	 * @return the attributes readable in the reference's current resolution state
-	 */
-	@Nonnull
-	private static Map<String, AttributeSchemaContract> getAttributesVisibleWithoutTarget(
-		@Nonnull ReferenceSchemaContract referenceSchema
-	) {
-		// ReferenceSchema is sealed and permits only ReflectedReferenceSchema, so this narrowing covers every
-		// reference an EntitySchema can hold
-		return referenceSchema instanceof final ReflectedReferenceSchema reflectedReference
-			&& !reflectedReference.isReflectedReferenceAvailable() ?
-			reflectedReference.getDeclaredAttributes() : referenceSchema.getAttributes();
-	}
-
-	/**
-	 * The per-attribute half of {@link #verifyNoAcceleratorAddedToNonEmptyCollection(EntitySchema, EntitySchema)}
-	 * - compares one attribute's accelerators before and after, scope by scope, and refuses any addition while the
-	 * collection holds entities. An accelerator being *removed* is always allowed: dropping an index needs no data.
-	 *
-	 * @param originalAttribute the attribute as it stood before, or null when the mutation creates it
-	 * @param updatedAttribute  the attribute the mutations produced
-	 * @param entityType        the entity type, for the error message
-	 * @param referenceName     the reference the attribute belongs to, or null for an entity-level attribute
-	 * @throws InvalidSchemaMutationException when an accelerator would be added to a collection that is not empty
-	 */
-	private void assertNoCapabilityAdded(
-		@Nullable AttributeSchemaContract originalAttribute,
-		@Nonnull AttributeSchemaContract updatedAttribute,
-		@Nonnull String entityType,
-		@Nullable String referenceName
-	) {
-		final Map<Scope, Set<AttributeFilterAccelerator>> updatedCapabilities =
-			updatedAttribute.getAcceleratorsInScopes();
-		if (updatedCapabilities.isEmpty()) {
-			return;
-		}
-		for (final Entry<Scope, Set<AttributeFilterAccelerator>> entry : updatedCapabilities.entrySet()) {
-			final Set<AttributeFilterAccelerator> alreadyDeclared = originalAttribute == null ?
-				Set.of() : originalAttribute.getAcceleratorsInScope(entry.getKey());
-			for (final AttributeFilterAccelerator accelerator : entry.getValue()) {
-				if (!alreadyDeclared.contains(accelerator) && !isEmpty()) {
-					throw new InvalidSchemaMutationException(
-						"Cannot declare filter accelerator `" + accelerator + "` on attribute `" +
-							updatedAttribute.getName() + "`" +
-							(referenceName == null ? "" : " of reference `" + referenceName + "`") +
-							" in entity `" + entityType + "` scope `" + entry.getKey() + "`, because the collection " +
-							"already contains entities! The index backing this accelerator is built as entities are " +
-							"indexed and there is no way to build it for entities that are already stored - " +
-							"declare the accelerator before inserting data, or remove the existing entities first."
-					);
+			for (final Entry<Scope, Set<AttributeFilterAccelerator>> entry : updatedAccelerators.entrySet()) {
+				final Set<AttributeFilterAccelerator> alreadyDeclared = originalAttribute == null ?
+					Set.of() : originalAttribute.getAcceleratorsInScope(entry.getKey());
+				for (final AttributeFilterAccelerator accelerator : entry.getValue()) {
+					if (alreadyDeclared.contains(accelerator)) {
+						continue;
+					}
+					if (collectionEmpty == null) {
+						collectionEmpty = isEmpty();
+					}
+					if (!collectionEmpty) {
+						log.warn(
+							"Filter accelerator `{}` was declared on attribute `{}` of entity `{}` in scope `{}`, " +
+								"whose collection already contains entities. Values indexed before the declaration " +
+								"are not accelerated: the accelerator stays dormant (queries scan, results stay " +
+								"correct) until the attribute's index is emptied or rebuilt.",
+							accelerator, updatedAttribute.getName(), updatedSchema.getName(), entry.getKey()
+						);
+					}
 				}
 			}
 		}

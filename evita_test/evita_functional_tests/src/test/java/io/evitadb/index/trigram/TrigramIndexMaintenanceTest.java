@@ -856,11 +856,11 @@ class TrigramIndexMaintenanceTest {
 		}
 
 		@Test
-		@DisplayName("a tree the rebuild cannot use fails the load instead of being skipped")
-		void shouldFailTheLoadRatherThanSkipAnUnusableTree() {
-			// persisted state and schema disagreeing - a populated tree carrying no ids under an attribute that
-			// declares the capability - must stop the catalog opening. Opening it with the accelerator silently
-			// absent would make every substring query against that attribute quietly match too few entities
+		@DisplayName("a populated tree carrying no ids leaves its accelerator dormant instead of failing the load")
+		void shouldLeaveAPopulatedTreeWithoutIdsDormant() {
+			// the shape an accelerator declared over values indexed before the declaration comes back in: no schema
+			// change is refused because the collection holds data, so the load must open the catalog and let the
+			// substring translators scan this attribute rather than treat the tree as corruption
 			final Map<AttributeIndexKey, InvertedIndex> trees = reloadedSharedValueTrees();
 			final InvertedIndex withoutIds = new InvertedIndex(
 				String.class, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
@@ -868,17 +868,14 @@ class TrigramIndexMaintenanceTest {
 			withoutIds.addRecord("abcd", 1);
 			trees.put(keyOf(ATTRIBUTE_TAGS, null), withoutIds);
 
-			final GenericEvitaInternalError error = assertThrows(
-				GenericEvitaInternalError.class,
-				() -> TrigramIndex.rebuildAll(SCHEMA, Scope.LIVE, trees)
+			final Map<AttributeIndexKey, TrigramIndex> rebuilt = TrigramIndex.rebuildAll(SCHEMA, Scope.LIVE, trees);
+
+			assertEquals(
+				Set.of(keyOf(ATTRIBUTE_TITLE, null)), rebuilt.keySet(),
+				"the dormant attribute gets no accelerator, while the one carrying ids is rebuilt as usual"
 			);
-			// naming WHICH premise fires matters: the rebuild attaches the consumer before it walks the tree, so the
-			// refusal comes from the attach's empty-tree rule rather than from the walk's. Asserting only the
-			// exception type would not notice the attach moving after the walk, where the failure would change shape
-			assertTrue(
-				error.getPrivateMessage().contains("still empty"),
-				"the refusal must name the empty-tree premise, but was: " + error.getPrivateMessage()
-			);
+			assertFalse(withoutIds.carriesValueIds(), "the load must not switch ids on for a populated tree");
+			assertTrue(withoutIds.getValueIdConsumerNames().isEmpty(), "and must register no consumer on it");
 		}
 
 		@Test
@@ -1051,7 +1048,7 @@ class TrigramIndexMaintenanceTest {
 			assertNull(index.getFilterIndex(key), "the shared value tree is gone");
 			assertNull(index.getTrigramIndex(key), "and so is the trigram index that indexed it");
 
-			// re-declaring the capability is accepted, because the collection is empty again by now
+			// the tree emptied out and was dropped, so the re-declaration meets no stored value and is active at once
 			index.upsertAttribute(
 				null, attribute(ATTRIBUTE_TITLE), ALLOWED_LOCALES, Scope.LIVE, null, "betamax", 2);
 
@@ -1065,6 +1062,105 @@ class TrigramIndexMaintenanceTest {
 			assertArrayEquals(
 				new int[]{valueIdOf(index, key, "betamax")}, rebuilt.getValueIdsOf(trigram("bet")).getArray(),
 				"and the postings name the id the new tree minted, not one of the dead sequence"
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("an accelerator declared over stored values stays dormant")
+	class Dormancy {
+
+		@Test
+		@DisplayName("a tree populated before the declaration carries no ids and gets no accelerator")
+		void shouldStayDormantOverAPopulatedTreeWithoutIds() {
+			// attaching here used to be impossible to reach - the schema refused the declaration - and would now fail
+			// the write on the tree's empty-at-attach premise; dormancy never attaches
+			final GlobalEntityIndex index = indexInScope(Scope.LIVE);
+			final AttributeIndexKey key = keyOf(ATTRIBUTE_TITLE, null);
+			index.upsertAttribute(
+				null, attributeWithoutCapability(ATTRIBUTE_TITLE), ALLOWED_LOCALES, Scope.LIVE, null, "alphabet", 1);
+
+			index.upsertAttribute(
+				null, attribute(ATTRIBUTE_TITLE), ALLOWED_LOCALES, Scope.LIVE, null, "betamax", 2);
+
+			assertNull(index.getTrigramIndex(key));
+			final InvertedIndex tree = index.getFilterIndex(key).getInvertedIndex();
+			assertFalse(tree.carriesValueIds(), "no id column may be switched on over the stored value");
+			assertTrue(tree.getValueIdConsumerNames().isEmpty());
+			assertEquals(2, tree.getBucketCount(), "the write itself must still reach the tree");
+		}
+
+		@Test
+		@DisplayName("a tree that kept its ids through a withdrawal gets no accelerator on the write path either")
+		void shouldStayDormantOverATreeThatKeptItsIds() {
+			// an index created here would post only the values born from now on - every value stored before would
+			// silently drop out of the accelerated substring queries. The next load derives it from the kept ids
+			// instead
+			final GlobalEntityIndex index = indexInScope(Scope.LIVE);
+			final AttributeIndexKey key = keyOf(ATTRIBUTE_TITLE, null);
+			index.upsertAttribute(
+				null, attribute(ATTRIBUTE_TITLE), ALLOWED_LOCALES, Scope.LIVE, null, "alphabet", 1);
+			index.upsertAttribute(
+				null, attributeWithoutCapability(ATTRIBUTE_TITLE), ALLOWED_LOCALES, Scope.LIVE, null, "betamax", 2);
+			assertNull(index.getTrigramIndex(key), "the withdrawal took the accelerator");
+
+			index.upsertAttribute(
+				null, attribute(ATTRIBUTE_TITLE), ALLOWED_LOCALES, Scope.LIVE, null, "camelot", 3);
+
+			assertNull(index.getTrigramIndex(key));
+			final InvertedIndex tree = index.getFilterIndex(key).getInvertedIndex();
+			assertTrue(tree.carriesValueIds(), "the column the withdrawal left standing keeps minting");
+			assertTrue(tree.getValueIdConsumerNames().isEmpty(), "but nobody consumes it until the next load");
+			assertTrue(valueIdOf(index, key, "camelot") > 0);
+		}
+
+		@Test
+		@DisplayName("dormancy ends when the tree empties out and the next value starts a fresh one")
+		void shouldEndDormancyWhenTheTreeEmptiesOut() {
+			final GlobalEntityIndex index = indexInScope(Scope.LIVE);
+			final AttributeIndexKey key = keyOf(ATTRIBUTE_TITLE, null);
+			index.upsertAttribute(
+				null, attributeWithoutCapability(ATTRIBUTE_TITLE), ALLOWED_LOCALES, Scope.LIVE, null, "alphabet", 1);
+			index.upsertAttribute(
+				null, attribute(ATTRIBUTE_TITLE), ALLOWED_LOCALES, Scope.LIVE, null, "betamax", 2);
+			assertNull(index.getTrigramIndex(key));
+
+			index.removeAttribute(
+				null, attribute(ATTRIBUTE_TITLE), ALLOWED_LOCALES, Scope.LIVE, null, "alphabet", 1);
+			index.removeAttribute(
+				null, attribute(ATTRIBUTE_TITLE), ALLOWED_LOCALES, Scope.LIVE, null, "betamax", 2);
+			assertNull(index.getFilterIndex(key), "the emptied tree is dropped whole");
+
+			index.upsertAttribute(
+				null, attribute(ATTRIBUTE_TITLE), ALLOWED_LOCALES, Scope.LIVE, null, "camelot", 3);
+
+			final TrigramIndex created = index.getTrigramIndex(key);
+			assertNotNull(created, "a fresh tree is empty at the attach, so the accelerator is active");
+			assertArrayEquals(
+				new int[]{valueIdOf(index, key, "camelot")}, created.getValueIdsOf(trigram("cam")).getArray()
+			);
+		}
+
+		@Test
+		@DisplayName("a write inside a transaction leaves the accelerator dormant and publishes nothing for it")
+		@Tag(TRANSACTION)
+		void shouldStayDormantInsideATransaction() {
+			// the live-catalog variant of the first case: the attach would have hit the tree's refusal to back-fill ids
+			// inside a transaction, failing an ordinary entity upsert
+			final GlobalEntityIndex index = indexInScope(Scope.LIVE);
+			final AttributeIndexKey key = keyOf(ATTRIBUTE_TITLE, null);
+			index.upsertAttribute(
+				null, attributeWithoutCapability(ATTRIBUTE_TITLE), ALLOWED_LOCALES, Scope.LIVE, null, "alphabet", 1);
+			assertStateAfterCommit(
+				index,
+				original -> original.upsertAttribute(
+					null, attribute(ATTRIBUTE_TITLE), ALLOWED_LOCALES, Scope.LIVE, null, "betamax", 2),
+				(original, committed) -> {
+					assertNull(committed.getTrigramIndex(key));
+					assertTrue(committed.getTrigramIndexKeys().isEmpty());
+					assertEquals(2, committed.getFilterIndex(key).getInvertedIndex().getBucketCount());
+				}
 			);
 		}
 

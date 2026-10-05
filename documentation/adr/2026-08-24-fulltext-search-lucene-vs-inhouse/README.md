@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-10-01 16:24
+updated: 2026-10-05 11:30
 status: partially-implemented
 kind: feature
 issues: [258, 1454]
@@ -9,7 +9,7 @@ prs: [1453, 1483]
 areas: [evita_engine, evita_api, evita_query, evita_store, evita_external_api, evita_engine/index/trigram]
 supersedes: []
 superseded-by: []
-relates: [2026-07-07-roaring-bitmap-vendoring, 2026-07-10-more-optimized-data-structures, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-27-write-path-performance-tuning, 2026-08-31-trigram-query-path-optimization, 2026-08-31-front-coded-column-stores-wtf8, 2026-09-10-simd-vector-api-feasibility, 2026-09-08-jdk21-safe-modernization, 2026-09-10-jdk21-virtual-threads-and-scoped-values]
+relates: [2026-07-07-roaring-bitmap-vendoring, 2026-07-10-more-optimized-data-structures, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-27-write-path-performance-tuning, 2026-08-31-trigram-query-path-optimization, 2026-08-31-front-coded-column-stores-wtf8, 2026-09-10-simd-vector-api-feasibility, 2026-09-08-jdk21-safe-modernization, 2026-09-10-jdk21-virtual-threads-and-scoped-values, 2026-10-05-schema-changes-never-refused-dormant-accelerator]
 ---
 
 # Fulltext search in evitaDB: an in-house core over the bitmap algebra, not a Lucene integration
@@ -110,6 +110,7 @@ database entirely:
 | 2026-08-30 | The `SUBSTRING` capability requiring its scope to be **`filterable`** is a defect and will be lifted; the builder syntax that expresses it is left open | The capability was bound to `filterable(...)`, which is not the only way to get a filter index: a foldable `unique` attribute has no separate unique store and its values live in the *same* shared filter tree (`AttributeIndex#insertUniqueAttribute` does nothing and returns `BY_FILTER_WRITE`), reached through a write-path guard that is already `unique \|\| filterable \|\| sortable`. The cost of the oversight is measured rather than argued — `Product.code` is `unique`-not-`filterable` in production, and it is the single strongest result of the whole production run | `AttributeSchema:700` (`normalizeFilterCapabilities`), `AttributeIndexMutator:177`/`:325`; the three builder options and why none has won are under *Open items* |
 | 2026-08-31 | The accelerator moves onto its **own builder axis** — `acceleratedFor(...)` — superseding the 2026-08-25 fold into `filterable(...)`; this is option **C** of the three that were left open | The fold bound the accelerator to the wrong identifier. `filterable` is not the only way to get a filter index: a *foldable* `unique` attribute has no separate unique store and its values live in the **same** shared filter tree, which is why `AttributeIndex#insertUniqueAttribute` does nothing and returns `BY_FILTER_WRITE`. Option A (`unique(SUBSTRING)`) duplicated the capability argument onto a second builder family and left `unique(SUBSTRING)` + `filterable(SUBSTRING)` needing a defined meaning; option B′ (`unique().filterable(SUBSTRING)`) added no syntax but made a user declare a flag they did not want in order to reach a structure they already had, changing what the schema advertises. C matches the physical truth — the accelerator belongs to the filter index, not to whichever flag produced it — and the rule relaxes from "scope is filterable" to "scope has a filter index". Validation had to move off the mutation, which sees intermediate state and made declaration order significant, onto assembled schemas | `AttributeFilterAccelerator` (renamed from `FilterIndexCapability`, `SUBSTRING` → `SUBSTRING_SEARCH`), `SetAttributeSchemaAcceleratedMutation`, `AttributeSchemaContract#hasFilterIndexInScope`, `AbstractAttributeSchemaBuilder#validate` and a new `AttributeSchemaContract#validate` reached from `CatalogSchema#validate` — which closes the hole where mutations arriving over gRPC, REST and GraphQL bypassed validation entirely. The axis never shipped (`release_2026-2` has no reference to it), so `SetAttributeSchemaFilterableMutation` returns to its released shape and no new backward-compatible serializers were written. The value of the fix is measured rather than argued: `Product.code` is the strongest result of the production run (34/34 accelerated, worst case 8.42×) and is `unique`-not-`filterable` there, as is `code` in 16 of that catalog's other 17 collections — under the 2026-08-25 shape none of them could have declared the accelerator at all |
 | 2026-09-17 | **A searchable field must carry a locale** — schema validation refuses `searchable()` on a non-localized attribute or associated data | Fulltext structures are partitioned per (collection, locale, scope), and a non-localized field has no partition to live in. It is not hypothetical: a production CMS catalogue stores its article body as associated data with **no locale** while the `title` and `perex` beside it are localized. Three alternatives lost. **Indexing under every locale the entity has** is the only one where a Czech query gets Czech stems of the shared text and a German query German ones, with no new partition kind — *rejected because* it costs N× memory and N× analysis in an N-locale catalogue, to support a modelling shape the rule then disallows anyway; worth revisiting only if a catalogue appears whose non-localized text genuinely must be shared across locales. **One locale-less partition with the generic analyzer**, OR'd into every locale's query, is cheapest — one copy regardless of locale count — *rejected because* the generic chain does no stemming and no stop-word removal, so recall on the body (the largest and most valuable field of the CMS profile) would be markedly worse than on the localized title beside it, an indefensible asymmetry inside one collection; it also adds a second partition kind and an operand on every fulltext query. **A configured default locale** is cheap and correct for a single-language catalogue — *rejected because* it is silently wrong for a multilingual one with shared non-localized text, and it puts indexing semantics into configuration where a reader of the schema cannot see them. **The accepted cost, named before the decision was taken:** a catalogue whose text is not declared localized must migrate its schema before it can enable fulltext — for the CMS corpus, 956,323 records | Lands in F1 as the validation rule itself, next to its closest existing precedent: `AttributeSchemaContract#validate`, reached from `CatalogSchema#validate`, which is where the `acceleratedFor(...)` refusal lives. [`prototypes/p1-index-core-measurements.md`](prototypes/p1-index-core-measurements.md) part 7 |
+| 2026-10-05 | **A schema change is never refused because the collection holds data** — the P8 refusal of a filter accelerator on a non-empty collection is removed, and `searchable()` will not get one either; an accelerator declared over stored values stays **dormant** (no index, the substring constraints scan) | Index maintenance on a schema change is the reindexing work of #409; until it exists the change is accepted and the indexed data keeps its old shape. Deleting the refusal alone was rejected: it shielded a write failure in a transaction, a write failure in warm-up, silent under-reporting after a re-declaration, and a catalog load failure. Full activation (back-fill the ids and rewrite every leaf page) was rejected as #409 machinery in the riskiest storage area | [`2026-10-05-schema-changes-never-refused-dormant-accelerator`](../2026-10-05-schema-changes-never-refused-dormant-accelerator.md); `GlobalEntityIndex#obtainTrigramIndex`, `TrigramIndex#rebuildAll`. Supersedes the "refuse" half of the 2026-08-25 value-id row and of the reindexing consequences below |
 
 ### Why the in-house core won
 
@@ -286,6 +287,10 @@ Shallow pointers only — the depth is in the supporting files.
   is to **refuse** a change the engine cannot perform over a non-empty collection rather than accept
   it quietly. **P8 shipped that refusal for its own capability** and is the worked example — see
   below.
+  **Reversed 2026-10-05 ([`2026-10-05-schema-changes-never-refused-dormant-accelerator`](../2026-10-05-schema-changes-never-refused-dormant-accelerator.md)):** no schema change is refused because the collection holds data;
+  the change is accepted, the indexed data keeps its old shape, and #409 owns bringing it in line. For
+  fulltext that means a withdrawn `searchable` field is retired lazily, so a re-declaration starts empty -
+  incomplete, never phantom.
 - **The fulltext structures must be confined to the global index deliberately.** `AttributeIndex`
   lives on the common `EntityIndex` ancestor, not on `GlobalEntityIndex`, so reduced indexes have it
   too; the restriction is enforced the way `ReferencedTypeEntityIndex` does it for the sort
@@ -895,6 +900,7 @@ rather than a tuning one. Both are open items below.
   way out (`replaceCatalog`) can follow in F1. P8 shipped the refusal for `SUBSTRING`, so the shape
   exists — but only for *adding* a capability to a non-empty collection. Withdrawal stays legal and
   is where the loose end is (below).
+  **Reversed 2026-10-05:** the refusal is gone - see [`2026-10-05-schema-changes-never-refused-dormant-accelerator`](../2026-10-05-schema-changes-never-refused-dormant-accelerator.md).
 - **Diacritics removal is not NFD.** The existing client uses a hand-written code-point table with
   special cases (`ß→ss`, `æ→ae`); we build on evitaDB's NFD normalisation. Results agree in most
   cases but not all, and migrating an existing site means a change in search results that has to be
@@ -959,6 +965,9 @@ rather than a tuning one. Both are open items below.
   its dumped attribute values, with the capability declared before the first upsert. The general
   reindexing story is listed above as the fulltext core's only genuinely blocking item; this is that
   item arriving early, for a feature that has already shipped.
+  **2026-10-05:** the refusal half is gone ([`2026-10-05-schema-changes-never-refused-dormant-accelerator`](../2026-10-05-schema-changes-never-refused-dormant-accelerator.md)) - the declaration is now accepted on a populated
+  collection, but the accelerator stays dormant over a tree without value ids, so adoption by an existing
+  catalog still waits for #409 (or for the `replaceCatalog` route).
 - **The gate needs a second input, and the cheapest candidate is already known.** The four
   `catalogNumber` zero-runs forfeit up to 4.97× at a gate input that is bit-identical to the one cell
   that genuinely loses, so no threshold placed on that input can separate them. The distinguishing
@@ -1139,6 +1148,9 @@ rather than a tuning one. Both are open items below.
   resource with `lucene-analysis-stempel` dropped, a registry-closing race, `HTMLStripCharFilter` pinned by
   `HtmlMarkupStrippingAnalysisTest` with the opt-in switch designed in `prototypes/p5-analyzers.md` §13,
   and a skill for adding a language
+- **2026-10-05** — during the S8b schema design review the P8 refusal of an accelerator on a non-empty
+  collection was replaced by dormancy, under the rule that no schema change is refused for stored data
+  ([`2026-10-05-schema-changes-never-refused-dormant-accelerator`](../2026-10-05-schema-changes-never-refused-dormant-accelerator.md))
 
 ## Supporting material
 
