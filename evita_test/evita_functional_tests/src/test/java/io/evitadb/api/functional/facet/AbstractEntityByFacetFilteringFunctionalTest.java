@@ -65,6 +65,7 @@ import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -229,6 +230,55 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 * A source no product references.
 	 */
 	private static final int MISSING_SOURCE = 3;
+	/**
+	 * A small hand-made data set exercising the reference summary over both scopes. Products of
+	 * {@link #ENTITY_SCOPED_PRODUCT} reference tags of type {@link #ENTITY_SCOPED_TAG} by {@link #REF_TAG}, which is
+	 * indexed and faceted in every scope. The tags are grouped by the managed type {@link #ENTITY_SCOPED_TAG_GROUP},
+	 * whose entities - the groups 100, 200 and 300 - are all live, so the type has no index of the archived scope. Its
+	 * attribute {@link #ATTRIBUTE_CODE} is filterable in every scope, its attribute {@link #ATTRIBUTE_NOTE} is not
+	 * filterable at all. Tags 10, 11, 12 and 13 belong to group 100, tag 20 to group 200 and tag 30 to group 300.
+	 *
+	 * | product | scope    | tags   |
+	 * |---------|----------|--------|
+	 * | 1       | LIVE     | 10     |
+	 * | 2       | LIVE     | 11     |
+	 * | 3       | ARCHIVED | 20, 11 |
+	 * | 4       | ARCHIVED | 20     |
+	 * | 5       | LIVE     | 20, 11 |
+	 * | 6       | LIVE     | 20     |
+	 * | 7       | ARCHIVED | 10     |
+	 * | 8       | ARCHIVED | 11     |
+	 * | 9       | LIVE     | 12     |
+	 * | 10      | ARCHIVED | 12, 20 |
+	 * | 11      | LIVE     | 30, 10 |
+	 * | 12      | ARCHIVED | 30, 20 |
+	 * | 13      | ARCHIVED | 13     |
+	 */
+	private static final String FACET_SCOPE_SHAPES = "FacetScopeShapes";
+	private static final String ENTITY_SCOPED_PRODUCT = "scopedProduct";
+	private static final String ENTITY_SCOPED_TAG = "scopedTag";
+	private static final String ENTITY_SCOPED_TAG_GROUP = "scopedTagGroup";
+	/**
+	 * The tags of the {@link #FACET_SCOPE_SHAPES} data set.
+	 */
+	private static final int[] SCOPED_TAGS = {10, 11, 12, 13, 20, 30};
+	/**
+	 * The group of each tag of {@link #SCOPED_TAGS}, at the same index.
+	 */
+	private static final int[] SCOPED_TAG_GROUPS = {100, 100, 100, 100, 200, 300};
+	/**
+	 * The tags of each product of {@link #FACET_SCOPE_SHAPES}, indexed by the product primary key minus one.
+	 */
+	private static final int[][] SCOPED_PRODUCT_TAGS = {
+		{10}, {11}, {20, 11}, {20}, {20, 11}, {20}, {10}, {11}, {12}, {12, 20}, {30, 10}, {30, 20}, {13}
+	};
+	/**
+	 * The scope of each product of {@link #FACET_SCOPE_SHAPES}, indexed by the product primary key minus one.
+	 */
+	private static final Scope[] SCOPED_PRODUCT_SCOPES = {
+		Scope.LIVE, Scope.LIVE, Scope.ARCHIVED, Scope.ARCHIVED, Scope.LIVE, Scope.LIVE, Scope.ARCHIVED, Scope.ARCHIVED,
+		Scope.LIVE, Scope.ARCHIVED, Scope.LIVE, Scope.ARCHIVED, Scope.ARCHIVED
+	};
 
 	static {
 		STORE_ORDER = new int[STORE_COUNT];
@@ -984,6 +1034,18 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	protected abstract ReferenceSchemaBuilder makeReferenceIndexed(ReferenceSchemaBuilder whichIs);
 
 	/**
+	 * Configures the provided ReferenceSchemaBuilder to be indexed in every scope, the same way
+	 * {@link #makeReferenceIndexed(ReferenceSchemaBuilder)} configures it for the default scope.
+	 *
+	 * @param whichIs the ReferenceSchemaBuilder instance to be configured as indexed
+	 * @return the configured ReferenceSchemaBuilder instance
+	 */
+	@Nonnull
+	protected ReferenceSchemaBuilder makeReferenceIndexedInEveryScope(@Nonnull ReferenceSchemaBuilder whichIs) {
+		return whichIs.indexedForFilteringInScope(Scope.values());
+	}
+
+	/**
 	* @deprecated Use {@link #shouldThrowExceptionWhenAccessingLocalizedAttributesOnFetchedEntitiesUsingReferenceSummary}
 	* instead. Remove this method once FacetSummary is removed.
 	 */
@@ -1632,6 +1694,67 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				}
 			}
 		);
+	}
+
+	/**
+	 * Builds the small hand-made data set described on {@link #FACET_SCOPE_SHAPES}.
+	 *
+	 * @param evita the engine instance provided by the test extension
+	 */
+	@DataSet(value = FACET_SCOPE_SHAPES, destroyAfterClass = true)
+	void setUpFacetScopeShapes(Evita evita) {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(ENTITY_SCOPED_TAG_GROUP)
+					.withoutGeneratedPrimaryKey()
+					.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.filterableInScope(Scope.values()))
+					.withAttribute(ATTRIBUTE_NOTE, String.class)
+					.updateVia(session);
+				for (final int groupId : IntStream.of(SCOPED_TAG_GROUPS).distinct().toArray()) {
+					session.upsertEntity(
+						session.createNewEntity(ENTITY_SCOPED_TAG_GROUP, groupId)
+							.setAttribute(ATTRIBUTE_CODE, "group" + groupId)
+							.setAttribute(ATTRIBUTE_NOTE, "not filterable")
+					);
+				}
+				session.defineEntitySchema(ENTITY_SCOPED_TAG)
+					.withoutGeneratedPrimaryKey()
+					.updateVia(session);
+				for (final int tagId : SCOPED_TAGS) {
+					session.upsertEntity(session.createNewEntity(ENTITY_SCOPED_TAG, tagId));
+				}
+				session.defineEntitySchema(ENTITY_SCOPED_PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withReferenceToEntity(
+						REF_TAG, ENTITY_SCOPED_TAG, Cardinality.ZERO_OR_MORE,
+						whichIs -> makeReferenceIndexedInEveryScope(whichIs)
+							.facetedInScope(Scope.values())
+							.withGroupTypeRelatedToEntity(ENTITY_SCOPED_TAG_GROUP)
+					)
+					.updateVia(session);
+				for (int pk = 1; pk <= SCOPED_PRODUCT_TAGS.length; pk++) {
+					final EntityBuilder product = session.createNewEntity(ENTITY_SCOPED_PRODUCT, pk);
+					for (final int tagId : SCOPED_PRODUCT_TAGS[pk - 1]) {
+						product.setReference(REF_TAG, tagId, whichIs -> whichIs.setGroup(scopedTagGroupOf(tagId)));
+					}
+					session.upsertEntity(product);
+					if (SCOPED_PRODUCT_SCOPES[pk - 1] == Scope.ARCHIVED) {
+						session.archiveEntity(ENTITY_SCOPED_PRODUCT, pk);
+					}
+				}
+			}
+		);
+	}
+
+	/**
+	 * Returns the group of the passed tag of the {@link #FACET_SCOPE_SHAPES} data set.
+	 *
+	 * @param tagId the tag
+	 * @return the group of the tag
+	 */
+	private static int scopedTagGroupOf(int tagId) {
+		return SCOPED_TAG_GROUPS[ArrayUtils.indexOf(tagId, SCOPED_TAGS)];
 	}
 
 	/**
@@ -2645,6 +2768,182 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				);
 				return null;
 			}
+		);
+	}
+
+	/**
+	 * Returns the selections of tags of the {@link #FACET_SCOPE_SHAPES} data set made separately for each scope. Each
+	 * row is a label, the tags selected in the live scope, the tags selected in the archived scope, and whether each
+	 * scope has a user filter of its own - `inScope(scope, userFilter(facetHaving(...)))` - rather than sharing one
+	 * user filter holding `inScope(scope, facetHaving(...))` for each scope.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> scopedSelectionRows() {
+		final int[] none = new int[0];
+		return Stream.of(
+			Arguments.of(
+				"group 100 selected in the live scope, group 200 in the archived scope", new int[]{10}, new int[]{20}, false
+			),
+			Arguments.of(
+				"group 200 selected in the live scope, group 100 in the archived scope", new int[]{20}, new int[]{10}, false
+			),
+			Arguments.of(
+				"group 100 selected by the user filter of the live scope, group 200 by the one of the archived scope",
+				new int[]{10}, new int[]{20}, true
+			),
+			Arguments.of(
+				"group 200 selected by the user filter of the live scope, group 100 by the one of the archived scope",
+				new int[]{20}, new int[]{10}, true
+			),
+			Arguments.of("group 100 selected in both scopes", new int[]{10}, new int[]{10}, false),
+			Arguments.of("group 100 selected in the live scope only", new int[]{10}, none, false),
+			Arguments.of("group 100 selected in the archived scope only", none, new int[]{10}, false),
+			Arguments.of(
+				"groups 100 and 200 selected in the live scope, group 300 in the archived scope",
+				new int[]{10, 20}, new int[]{30}, false
+			)
+		);
+	}
+
+	/**
+	 * Checks that the reference summary predicts the impact of every tag not selected yet as the result of the query
+	 * selecting it in the selection of every scope - the tag joins the selection each scope makes on its own, so the
+	 * group of the tag being selected in one scope must not change how the tag joins the selection of another scope.
+	 * The oracle is the engine's own result, for the match count, the difference and whether the selection makes
+	 * sense: it does when the result is not empty and either changes the current result or keeps some products with
+	 * the tag selected alone in its group.
+	 *
+	 * @param label                 the row label, used in the test name only
+	 * @param liveTags              the tags selected in the live scope
+	 * @param archivedTags          the tags selected in the archived scope
+	 * @param userFilterOfEachScope whether each scope has a user filter of its own
+	 * @param evita                 the engine instance provided by the test extension
+	 */
+	@DisplayName("Should predict the option joining the selection of every scope")
+	@UseDataSet(FACET_SCOPE_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("scopedSelectionRows")
+	void shouldPredictOptionJoiningSelectionOfEveryScope(
+		@Nonnull String label,
+		@Nonnull int[] liveTags,
+		@Nonnull int[] archivedTags,
+		boolean userFilterOfEachScope,
+		Evita evita
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final List<String> disagreements = new ArrayList<>(16);
+				final EvitaResponse<EntityReference> withSummary = session.query(
+					scopedTagSelectionQuery(
+						liveTags, archivedTags, userFilterOfEachScope,
+						referenceSummaryOfReference(REF_TAG, FacetStatisticsDepth.IMPACT)
+					),
+					EntityReference.class
+				);
+				final int currentSize = withSummary.getTotalRecordCount();
+				for (final int tagId : SCOPED_TAGS) {
+					if (ArrayUtils.indexOf(tagId, liveTags) >= 0 || ArrayUtils.indexOf(tagId, archivedTags) >= 0) {
+						continue;
+					}
+					final int groupId = scopedTagGroupOf(tagId);
+					final RequestImpact impact = facetStatisticsOf(withSummary, REF_TAG, groupId, tagId).getImpact();
+					final int resultSize = session.query(
+						scopedTagSelectionQuery(
+							ArrayUtils.insertIntIntoArrayOnIndex(tagId, liveTags, liveTags.length),
+							ArrayUtils.insertIntIntoArrayOnIndex(tagId, archivedTags, archivedTags.length),
+							userFilterOfEachScope
+						),
+						EntityReference.class
+					).getTotalRecordCount();
+					final int[] liveTagsOfOtherGroups = IntStream.of(liveTags)
+						.filter(it -> scopedTagGroupOf(it) != groupId)
+						.toArray();
+					final int[] archivedTagsOfOtherGroups = IntStream.of(archivedTags)
+						.filter(it -> scopedTagGroupOf(it) != groupId)
+						.toArray();
+					final int aloneSize = session.query(
+						scopedTagSelectionQuery(
+							ArrayUtils.insertIntIntoArrayOnIndex(tagId, liveTagsOfOtherGroups, liveTagsOfOtherGroups.length),
+							ArrayUtils.insertIntIntoArrayOnIndex(
+								tagId, archivedTagsOfOtherGroups, archivedTagsOfOtherGroups.length
+							),
+							userFilterOfEachScope
+						),
+						EntityReference.class
+					).getTotalRecordCount();
+					final boolean hasSense = resultSize > 0 && (resultSize != currentSize || aloneSize > 0);
+					if (impact == null || impact.matchCount() != resultSize ||
+						impact.difference() != resultSize - currentSize || impact.hasSense() != hasSense) {
+						disagreements.add(
+							"tag " + tagId + ": impact " +
+								(impact == null ?
+									"none" :
+									impact.matchCount() + " (difference " + impact.difference() + ", has sense " +
+										impact.hasSense() + ")") +
+								", result " + resultSize + " (difference " + (resultSize - currentSize) + ", has sense " +
+								hasSense + ")"
+						);
+					}
+				}
+				assertTrue(
+					disagreements.isEmpty(),
+					() -> "the reference summary must predict the result:\n" + String.join("\n", disagreements)
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Builds the query of the {@link #FACET_SCOPE_SHAPES} data set over both scopes selecting the passed tags in each
+	 * of them.
+	 *
+	 * @param liveTags              the tags selected in the live scope, possibly none
+	 * @param archivedTags          the tags selected in the archived scope, possibly none
+	 * @param userFilterOfEachScope whether each scope has a user filter of its own
+	 * @param summaries             the reference summary requirements
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query scopedTagSelectionQuery(
+		@Nonnull int[] liveTags,
+		@Nonnull int[] archivedTags,
+		boolean userFilterOfEachScope,
+		@Nonnull RequireConstraint... summaries
+	) {
+		final FilterConstraint[] scopeSelections = Stream.of(Scope.LIVE, Scope.ARCHIVED)
+			.map(scope -> {
+				final int[] tags = scope == Scope.LIVE ? liveTags : archivedTags;
+				if (tags.length == 0) {
+					return null;
+				}
+				final FilterConstraint selection = facetHaving(
+					REF_TAG, entityPrimaryKeyInSet(Arrays.stream(tags).boxed().toArray(Integer[]::new))
+				);
+				return userFilterOfEachScope ? inScope(scope, userFilter(selection)) : inScope(scope, selection);
+			})
+			.filter(Objects::nonNull)
+			.toArray(FilterConstraint[]::new);
+		return query(
+			collection(ENTITY_SCOPED_PRODUCT),
+			filterBy(
+				ArrayUtils.mergeArrays(
+					new FilterConstraint[]{scope(Scope.LIVE, Scope.ARCHIVED)},
+					userFilterOfEachScope ? scopeSelections : new FilterConstraint[]{userFilter(scopeSelections)}
+				)
+			),
+			require(
+				ArrayUtils.mergeArrays(
+					new RequireConstraint[]{
+						page(1, SCOPED_PRODUCT_TAGS.length),
+						debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+					},
+					summaries
+				)
+			)
 		);
 	}
 

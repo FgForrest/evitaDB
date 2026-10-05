@@ -68,6 +68,14 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 	 * The `UserFilterFormula` is used to find these facet groups in the existing formula.
 	 */
 	private final Map<String, IntSet> facetGroupsInUserFilter = CollectionUtils.createHashMap(16);
+	/**
+	 * Contains true when the group of the facet being computed has been found in the user filter the visitor is
+	 * currently in, and its formula has been enriched with the facet. The scope post-processing copies the user filter
+	 * into the branch of every scope, and the user filter of each scope may select different groups, so whether the
+	 * facet still has to be added to a user filter is decided by each user filter on its own - unlike
+	 * {@link #facetGroupsInUserFilter}, which collects the groups of all of them.
+	 */
+	private boolean facetGroupFoundInCurrentUserFilter;
 
 	public ImpactFormulaGenerator(
 		@Nonnull FacetRelationTypeResolver facetRelationType,
@@ -112,6 +120,7 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 			formula.accept(mutableFormulaFinderAndReplacer);
 			return formula;
 		} else {
+			this.facetGroupFoundInCurrentUserFilter = false;
 			final Formula result = super.generateFormula(
 				baseFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
 			);
@@ -150,6 +159,7 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 					newFacetGroupFormula.setPivot(oldFacetGroupFormula);
 				}
 				storeFormula(newFacetGroupFormula);
+				this.facetGroupFoundInCurrentUserFilter = true;
 				// we've stored the formula - instruct super method to skip it's handling
 				return true;
 			}
@@ -160,10 +170,9 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 
 	@Override
 	protected boolean handleUserFilter(@Nonnull Formula formula, @Nonnull Formula[] updatedChildren) {
-		final IntSet groupsForReference = this.facetGroupsInUserFilter.get(this.referenceSchema.getName());
-		final int normalizedFacetGroupId = this.facetGroupId == null ? Integer.MIN_VALUE : this.facetGroupId;
-		final boolean wasFoundInTheUserFilter = groupsForReference != null
-			&& groupsForReference.contains(normalizedFacetGroupId);
+		// the user filters of the scopes are decided each on its own - the next one starts afresh
+		final boolean wasFoundInTheUserFilter = this.facetGroupFoundInCurrentUserFilter;
+		this.facetGroupFoundInCurrentUserFilter = false;
 		// a facet of a group exclusive with the other groups deselects them, so the selection of its reference is
 		// replaced by the enriched group formula even when the user filter already selects the group
 		final boolean replacesFacetSelection = !isInsideNotContainer() &&
@@ -221,7 +230,10 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 	 * the existing one and just replace one formula with another.
 	 *
 	 * The facet group id is set only for cache keys that represents existing facet group formulas in original formula
-	 * tree inside user filter container. If such formula is not found, we may reuse the generic formula of the
+	 * tree inside user filter container - inside any of them, when the scope post-processing produced a user filter for
+	 * each scope. The formula of such a key enriches the group formula in the user filters selecting the group and
+	 * adds the facet to the others, which is the same for every facet of the group, so it serves all of them. If such
+	 * formula is not found, we may reuse the generic formula of the
 	 * reference, because new formula is added always at the same place with behavior driven only by negation /
 	 * disjunction / conjunction combination. The place depends on the reference, though - a positive facet joins the
 	 * facet selection of its own reference in the user filter - so the generic formula of one reference must not
