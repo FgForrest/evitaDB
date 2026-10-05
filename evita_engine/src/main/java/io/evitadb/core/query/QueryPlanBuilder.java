@@ -207,9 +207,10 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	 * holding nothing - every further build of that same query finds an empty list. That difference is not an
 	 * inconsistency: an index counts a physical read that genuinely happened again, while a capability counts a
 	 * question the query asked, and asking it a second time to verify the answer does not make it a second question.
-	 * The empty-plan short-circuit {@link #empty(QueryPlanningContext)} counts neither, and on the capability side it
-	 * cannot: it is taken when index selection comes back empty, which is *before* the filter is translated even once,
-	 * so nothing has been accumulated yet and there is nothing a flush could find.
+	 * The empty-plan short-circuit {@link #empty(QueryPlanningContext)} counts neither. It is taken when index
+	 * selection comes back empty, and the constraints of such a query are translated only to be checked - over empty
+	 * indexes, by {@link QueryPlanner#planOverEmptyIndexes} - in a pass whose plan is thrown away, so what that
+	 * translation accumulates is never drained.
 	 *
 	 * The cost is `O(winning set)` volatile increments plus one per distinct capability the query named, both bounded
 	 * from below by the reads the query is about to perform on those very indexes.

@@ -948,6 +948,20 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Returns the {@link CatalogIndex} of the scope when the catalog holds one, without creating it. Unlike
+	 * {@link #getIndexIfExists(IndexKey, Class)} with a {@link CatalogIndexKey}, which creates the archive catalog
+	 * index on its first access, this lookup leaves the catalog untouched - a scope the catalog has no index of holds
+	 * no value to look up, so a query asking about it must not change the catalog.
+	 *
+	 * @param scope the scope of the requested catalog index
+	 * @return the catalog index or empty result when the catalog has not created one for the scope
+	 */
+	@Nonnull
+	public Optional<CatalogIndex> getCatalogIndexIfExists(@Nonnull Scope scope) {
+		return this.catalog.getCatalogIndexIfExits(scope);
+	}
+
+	/**
 	 * Returns {@link EntityIndex} by its key, looked up among the indexes this query was set up with.
 	 *
 	 * A {@link CatalogIndexKey} is special-cased: catalog indexes are not part of the per-query index map (they

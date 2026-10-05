@@ -25,6 +25,7 @@ package io.evitadb.api.functional.facet;
 
 import com.github.javafaker.Faker;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.exception.EntityNotManagedException;
 import io.evitadb.api.exception.ReferenceNotFoundException;
@@ -66,6 +67,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSche
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
 import io.evitadb.core.exception.AttributeNotFilterableException;
+import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -244,7 +246,9 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 * filterable at all. The tags themselves are all live as well, with the same two attributes. Tags 10, 11, 12 and
 	 * 13 belong to group 100, tag 20 to group 200 and tag 30 to group 300. The group type declares the reference
 	 * {@link #REF_CATEGORY} to the tags, indexed and faceted in every scope, with the same two attributes of the same
-	 * filterability; no group references a tag by it, so it has no index of any scope.
+	 * filterability; no group references a tag by it, so it has no index of any scope. The type
+	 * {@link #ENTITY_UNPOPULATED_TAG} declares the same two attributes and holds no entity at all. The hierarchical type
+	 * {@link #ENTITY_SCOPED_FOLDER} declares them too and holds the live root folder 1 with its child 2.
 	 *
 	 * | product | scope    | tags   |
 	 * |---------|----------|--------|
@@ -266,6 +270,12 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	private static final String ENTITY_SCOPED_PRODUCT = "scopedProduct";
 	private static final String ENTITY_SCOPED_TAG = "scopedTag";
 	private static final String ENTITY_SCOPED_TAG_GROUP = "scopedTagGroup";
+	private static final String ENTITY_UNPOPULATED_TAG = "unpopulatedTag";
+	private static final String ENTITY_SCOPED_FOLDER = "scopedFolder";
+	/**
+	 * An attribute no entity type of the {@link #FACET_SCOPE_SHAPES} data set declares.
+	 */
+	private static final String ATTRIBUTE_MISSING = "missing";
 	private static final String REF_CATEGORY = "category";
 	/**
 	 * The tags of the {@link #FACET_SCOPE_SHAPES} data set.
@@ -1814,6 +1824,28 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 							.setAttribute(ATTRIBUTE_NOTE, "not filterable")
 					);
 				}
+				session.defineEntitySchema(ENTITY_UNPOPULATED_TAG)
+					.withoutGeneratedPrimaryKey()
+					.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.filterableInScope(Scope.values()))
+					.withAttribute(ATTRIBUTE_NOTE, String.class)
+					.updateVia(session);
+				session.defineEntitySchema(ENTITY_SCOPED_FOLDER)
+					.withoutGeneratedPrimaryKey()
+					.withHierarchyIndexedInScope(Scope.values())
+					.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.filterableInScope(Scope.values()))
+					.withAttribute(ATTRIBUTE_NOTE, String.class)
+					.updateVia(session);
+				session.upsertEntity(
+					session.createNewEntity(ENTITY_SCOPED_FOLDER, 1)
+						.setAttribute(ATTRIBUTE_CODE, "folder1")
+						.setAttribute(ATTRIBUTE_NOTE, "not filterable")
+				);
+				session.upsertEntity(
+					session.createNewEntity(ENTITY_SCOPED_FOLDER, 2)
+						.setParent(1)
+						.setAttribute(ATTRIBUTE_CODE, "folder2")
+						.setAttribute(ATTRIBUTE_NOTE, "not filterable")
+				);
 				session.defineEntitySchema(ENTITY_SCOPED_TAG_GROUP)
 					.withoutGeneratedPrimaryKey()
 					.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.filterableInScope(Scope.values()))
@@ -5713,6 +5745,239 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						),
 						EntityReference.class
 					).getTotalRecordCount()
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Returns the rows of the queries of the {@link #FACET_SCOPE_SHAPES} data set that match nothing because the
+	 * queried entity type holds no entity of the requested scopes, or because a reference constraint matches no
+	 * entity, and that carry a constraint the schema refuses. Each row is a label, the query, the client error it must
+	 * fail with and the name the error message must contain. The same constraint fails the query of a scope with data.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> queryOverScopesWithoutDataRows() {
+		final FilterConstraint note = attributeEquals(ATTRIBUTE_NOTE, "anything");
+		return Stream.of(
+			Arguments.of(
+				"filter of a scope the type holds no entity of",
+				query(collection(ENTITY_SCOPED_TAG), filterBy(scope(Scope.ARCHIVED), note)),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			Arguments.of(
+				"filter of a type without entities",
+				query(collection(ENTITY_UNPOPULATED_TAG), filterBy(scope(Scope.LIVE, Scope.ARCHIVED), note)),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			Arguments.of(
+				"filter next to a reference constraint no entity matches",
+				query(
+					collection(ENTITY_SCOPED_TAG_GROUP),
+					filterBy(
+						scope(Scope.LIVE, Scope.ARCHIVED), note, referenceHaving(REF_CATEGORY, entityPrimaryKeyInSet(10))
+					)
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			Arguments.of(
+				"ordering of a scope the type holds no entity of",
+				query(
+					collection(ENTITY_SCOPED_TAG),
+					filterBy(scope(Scope.ARCHIVED)),
+					orderBy(attributeNatural(ATTRIBUTE_NOTE))
+				),
+				AttributeNotSortableException.class, ATTRIBUTE_NOTE
+			),
+			Arguments.of(
+				"ordering of a type without entities",
+				query(collection(ENTITY_UNPOPULATED_TAG), orderBy(attributeNatural(ATTRIBUTE_NOTE))),
+				AttributeNotSortableException.class, ATTRIBUTE_NOTE
+			),
+			Arguments.of(
+				"ordering of the references by a referenced type holding no entity of the scope",
+				query(
+					collection(ENTITY_SCOPED_PRODUCT),
+					filterBy(scope(Scope.ARCHIVED)),
+					require(
+						page(1, SCOPED_PRODUCT_TAGS.length),
+						entityFetch(
+							referenceContent(REF_TAG, orderBy(entityProperty(attributeNatural(ATTRIBUTE_NOTE))))
+						)
+					)
+				),
+				AttributeNotSortableException.class, ATTRIBUTE_NOTE
+			),
+			Arguments.of(
+				"reference summary of a reference the type does not have",
+				query(
+					collection(ENTITY_SCOPED_TAG),
+					filterBy(scope(Scope.ARCHIVED)),
+					require(referenceSummaryOfReference(REF_TAG))
+				),
+				ReferenceNotFoundException.class, REF_TAG
+			),
+			Arguments.of(
+				"option filter of the reference summary of a scope the type holds no entity of",
+				query(
+					collection(ENTITY_SCOPED_TAG_GROUP),
+					filterBy(scope(Scope.ARCHIVED)),
+					require(referenceSummaryOfReference(REF_CATEGORY, FacetStatisticsDepth.COUNTS, filterBy(note)))
+				),
+				AttributeNotFilterableException.class, ATTRIBUTE_NOTE
+			),
+			Arguments.of(
+				"histogram of an attribute that is not a number",
+				query(
+					collection(ENTITY_SCOPED_TAG),
+					filterBy(scope(Scope.ARCHIVED)),
+					require(attributeHistogram(5, ATTRIBUTE_NOTE))
+				),
+				EvitaInvalidUsageException.class, ATTRIBUTE_NOTE
+			),
+			Arguments.of(
+				"fetch of an attribute the type does not have",
+				query(
+					collection(ENTITY_SCOPED_TAG),
+					filterBy(scope(Scope.ARCHIVED)),
+					require(entityFetch(attributeContent(ATTRIBUTE_MISSING)))
+				),
+				AttributeNotFoundException.class, ATTRIBUTE_MISSING
+			)
+		);
+	}
+
+	/**
+	 * Checks that a query whose constraint the schema refuses fails with a client error even when it matches nothing -
+	 * because the queried entity type holds no entity of the requested scopes or because a reference constraint
+	 * matches no entity - exactly as it fails where the entities exist, so that the query does not fail or pass
+	 * depending on the data.
+	 *
+	 * @param label             the row label, used in the test name only
+	 * @param query             the query with the refused constraint
+	 * @param expectedException the client error the query must fail with
+	 * @param name              the name the message of the error must contain
+	 * @param evita             the engine instance provided by the test extension
+	 */
+	@DisplayName("Should fail the query over scopes without data whose constraint cannot be evaluated")
+	@UseDataSet(FACET_SCOPE_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("queryOverScopesWithoutDataRows")
+	void shouldFailQueryOverScopesWithoutDataWhoseConstraintCannotBeEvaluated(
+		@Nonnull String label,
+		@Nonnull Query query,
+		@Nonnull Class<? extends EvitaInvalidUsageException> expectedException,
+		@Nonnull String name,
+		Evita evita
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaInvalidUsageException exception = assertThrowsExactly(
+					expectedException,
+					() -> session.query(query, SealedEntity.class)
+				);
+				assertTrue(
+					exception.getMessage().contains("`" + name + "`"),
+					"the message `" + exception.getMessage() + "` must name `" + name + "`"
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Checks that the evaluable counterparts of {@link #queryOverScopesWithoutDataRows()}, and hierarchy constraints of
+	 * a scope the hierarchical type holds no entity of, are accepted and keep their result - checking the constraints
+	 * of a query that matches nothing must not refuse a constraint the schema allows.
+	 *
+	 * @param evita the engine instance provided by the test extension
+	 */
+	@DisplayName("Should accept an evaluable query over scopes without data")
+	@UseDataSet(FACET_SCOPE_SHAPES)
+	@Test
+	void shouldAcceptEvaluableQueryOverScopesWithoutData(Evita evita) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final FilterConstraint code = attributeEquals(ATTRIBUTE_CODE, "tag10");
+				final Map<String, Query> matchingNothing = new LinkedHashMap<>();
+				matchingNothing.put(
+					"filter of a scope the type holds no entity of",
+					query(
+						collection(ENTITY_SCOPED_TAG),
+						filterBy(scope(Scope.ARCHIVED), code),
+						orderBy(entityPrimaryKeyNatural(OrderDirection.DESC))
+					)
+				);
+				matchingNothing.put(
+					"filter of a type without entities",
+					query(collection(ENTITY_UNPOPULATED_TAG), filterBy(scope(Scope.LIVE, Scope.ARCHIVED), code))
+				);
+				matchingNothing.put(
+					"filter next to a reference constraint no entity matches",
+					query(
+						collection(ENTITY_SCOPED_TAG_GROUP),
+						filterBy(
+							scope(Scope.LIVE, Scope.ARCHIVED),
+							attributeEquals(ATTRIBUTE_CODE, "group100"),
+							referenceHaving(REF_CATEGORY, entityPrimaryKeyInSet(10))
+						)
+					)
+				);
+				matchingNothing.put(
+					"option filter of the reference summary of a scope the type holds no entity of",
+					query(
+						collection(ENTITY_SCOPED_TAG_GROUP),
+						filterBy(scope(Scope.ARCHIVED)),
+						require(referenceSummaryOfReference(REF_CATEGORY, FacetStatisticsDepth.COUNTS, filterBy(code)))
+					)
+				);
+				matchingNothing.put(
+					"hierarchy filter of a scope the type holds no entity of",
+					query(
+						collection(ENTITY_SCOPED_FOLDER),
+						filterBy(scope(Scope.ARCHIVED), hierarchyWithinRootSelf(having(code)))
+					)
+				);
+				matchingNothing.put(
+					"node filter of the hierarchy statistics of a scope the type holds no entity of",
+					query(
+						collection(ENTITY_SCOPED_FOLDER),
+						filterBy(scope(Scope.ARCHIVED)),
+						require(hierarchyOfSelf(fromRoot("tree", stopAt(node(filterBy(code))))))
+					)
+				);
+				for (final Entry<String, Query> row : matchingNothing.entrySet()) {
+					assertEquals(
+						0,
+						session.query(row.getValue(), EntityReference.class).getTotalRecordCount(),
+						row.getKey()
+					);
+				}
+				final int archivedProducts = (int) Arrays.stream(SCOPED_PRODUCT_SCOPES)
+					.filter(Scope.ARCHIVED::equals)
+					.count();
+				assertEquals(
+					archivedProducts,
+					session.query(
+						query(
+							collection(ENTITY_SCOPED_PRODUCT),
+							filterBy(scope(Scope.ARCHIVED)),
+							require(
+								page(1, SCOPED_PRODUCT_TAGS.length),
+								entityFetch(
+									referenceContent(
+										REF_TAG, orderBy(entityProperty(entityPrimaryKeyNatural(OrderDirection.DESC)))
+									)
+								)
+							)
+						),
+						SealedEntity.class
+					).getRecordData().size()
 				);
 				return null;
 			}

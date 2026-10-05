@@ -41,6 +41,7 @@ import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.query.indexSelection.IndexSelectionVisitor;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.dataType.Scope;
@@ -86,6 +87,7 @@ import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -493,19 +495,47 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("A query the planner answers without selecting any index counts nothing")
 		void shouldCountNothingWhenNoIndexIsSelected() {
-			// index selection comes back empty for a scope this catalog holds no index in, and the planner returns the
-			// empty plan before the filter is translated even once - so `code` is named by the query and still must
-			// not be counted
+			// index selection comes back empty for a category no product references, and the planner returns the
+			// empty plan - its filter is translated over empty indexes only to be checked, so `code` is named by the
+			// query and still must not be counted
 			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByExecuting(
 				Query.query(
 					collection(ENTITY_PRODUCT),
-					filterBy(and(scope(Scope.ARCHIVED), attributeEquals(ATTRIBUTE_CODE, "product-3")))
+					filterBy(
+						and(
+							attributeEquals(ATTRIBUTE_CODE, "product-3"),
+							referenceHaving(REFERENCE_CATEGORIES, entityPrimaryKeyInSet(CATEGORY_COUNT + 1))
+						)
+					)
 				)
 			);
 
 			assertTrue(
 				requested.isEmpty(),
 				"The empty-plan short-circuit counted a request: " + requested
+			);
+		}
+
+		@Test
+		@DisplayName("A query refused over a scope without index counts nothing")
+		void shouldCountNothingWhenQueryOverScopeWithoutIndexIsRefused() {
+			// the catalog holds no index of the archived scope, and `code` is not filterable there - the query fails
+			// exactly as it fails where the entities exist, and a refused query asked nothing
+			final Map<SchemaCapabilityKey, Long> before = requestedCounts();
+			assertThrowsExactly(
+				AttributeNotFilterableException.class,
+				() -> executeQuery(
+					Query.query(
+						collection(ENTITY_PRODUCT),
+						filterBy(and(scope(Scope.ARCHIVED), attributeEquals(ATTRIBUTE_CODE, "product-3")))
+					)
+				)
+			);
+			final Map<SchemaCapabilityKey, Long> requested = requestedCountsSince(before);
+
+			assertTrue(
+				requested.isEmpty(),
+				"The refused query counted a request: " + requested
 			);
 		}
 

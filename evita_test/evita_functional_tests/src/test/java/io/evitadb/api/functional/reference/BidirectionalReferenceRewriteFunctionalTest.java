@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.core.Evita;
+import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -82,7 +83,6 @@ import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -2228,8 +2228,8 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	 * The channel is read through {@link #assertPlanningShortCircuited} rather than
 	 * {@link #assertReferenceIndexOptionRegistered}, for the same reason as the absent-counterpart row: with no
 	 * referenced entity satisfying both leaves, index selection registers an **empty** reference option,
-	 * `IndexSelectionResult#isEmpty` becomes true and the planner returns before pushing a single
-	 * `PLANNING_FILTER_ALTERNATIVE` step. That short circuit is the per-row answer showing up one layer earlier
+	 * `IndexSelectionResult#isEmpty` becomes true and the planner returns before planning the filter over any
+	 * selected index. That short circuit is the per-row answer showing up one layer earlier
 	 * than the result does - the type-level pass already found no row carrying both values.
 	 */
 	@DisplayName("Should match two attribute siblings within one reference row rather than across rows")
@@ -2369,10 +2369,13 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	private static void assertPlanningReachedTheFilter(@Nonnull EvitaResponse<EntityReference> response) {
 		final QueryTelemetry telemetry = response.getExtraResult(QueryTelemetry.class);
 		assertNotNull(telemetry, "Query telemetry must be present - it is the only channel this class can read!");
-		assertNotNull(
-			findPhase(telemetry, QueryPhase.PLANNING_FILTER),
-			"The planner must have reached filter planning - without a `PLANNING_FILTER` step the empty answer " +
-				"came out of index selection, and the rewrite never ran at all!"
+		final List<String> alternatives = new ArrayList<>();
+		collectFilterAlternativeArguments(telemetry, alternatives);
+		assertTrue(
+			alternatives.stream().anyMatch(it -> !it.contains(QueryPlanner.CONSTRAINT_CHECK_INDEX_DESCRIPTION)),
+			"The planner must have reached filter planning over a real index - without such a " +
+				"`PLANNING_FILTER_ALTERNATIVE` step the empty answer came out of index selection, and the rewrite never " +
+				"ran at all!\nPlanned alternatives:\n - " + String.join("\n - ", alternatives)
 		);
 	}
 
@@ -2382,10 +2385,10 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	 *
 	 * This is the observation that replaces the usual channel on a query whose owner-side discovery finds nothing.
 	 * `IndexSelectionResult#isEmpty` is true when **any** registered `TargetIndexes` is empty, and `QueryPlanner`
-	 * returns an empty plan on that condition *before* `createFilterFormula` runs - so no `PLANNING_FILTER` step and
-	 * no `PLANNING_FILTER_ALTERNATIVE` steps are ever pushed, and
-	 * {@link #assertReferenceIndexOptionRegistered} has nothing to read. Its own guard fires instead, which is what
-	 * it is for.
+	 * returns an empty plan on that condition without planning the filter over any selected index - the only
+	 * `PLANNING_FILTER_ALTERNATIVE` step pushed is the check of the constraints over empty indexes, named
+	 * {@link QueryPlanner#CONSTRAINT_CHECK_INDEX_DESCRIPTION} - and {@link #assertReferenceIndexOptionRegistered} has
+	 * nothing to read. Its own guard fires instead, which is what it is for.
 	 *
 	 * Asserting the short circuit is strictly stronger than asserting the option was registered and empty: it can
 	 * only happen when `addReferenceIndexOption` registered a zero-index reference option, which in turn can only
@@ -2401,11 +2404,14 @@ public class BidirectionalReferenceRewriteFunctionalTest
 			findPhase(telemetry, QueryPhase.PLANNING_INDEX_USAGE),
 			"Index selection must still have run - without it there is no short circuit to observe!"
 		);
-		assertNull(
-			findPhase(telemetry, QueryPhase.PLANNING_FILTER),
-			"The planner must have returned an empty plan straight from index selection, so no `PLANNING_FILTER` step " +
-				"may exist - its presence means a non-empty reference option was registered and the row no longer " +
-				"exercises a missing counterpart type index!"
+		final List<String> alternatives = new ArrayList<>();
+		collectFilterAlternativeArguments(telemetry, alternatives);
+		assertTrue(
+			alternatives.stream().allMatch(it -> it.contains(QueryPlanner.CONSTRAINT_CHECK_INDEX_DESCRIPTION)),
+			"The planner must have returned an empty plan straight from index selection, so the filter may be planned " +
+				"only to check its constraints over empty indexes - any other alternative means a non-empty reference " +
+				"option was registered and the row no longer exercises a missing counterpart type index!" +
+				"\nPlanned alternatives:\n - " + String.join("\n - ", alternatives)
 		);
 	}
 

@@ -99,8 +99,6 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.AbstractReducedEntityIndex;
-import io.evitadb.index.CatalogIndex;
-import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
@@ -1631,7 +1629,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			if (attributeDefinition instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
 				globalAttributeSchema.isUniqueGloballyInScope(scope)
 			) {
-				answer = getIndexIfExists(new CatalogIndexKey(scope), CatalogIndex.class)
+				// a scope the catalog has no index of holds no value - looking it up must not create the index
+				answer = this.queryContext.getCatalogIndexIfExists(scope)
 					.map(catalogIndex -> catalogIndex.getGlobalUniqueIndex(globalAttributeSchema, getLocale()))
 					.map(globalLookup)
 					.orElse(EmptyFormula.INSTANCE);
