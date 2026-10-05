@@ -73,6 +73,10 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  * that thread is held by a task of the test's own while a backup is queued behind it. The occupants differ in the one
  * respect each test is about - one waits on a latch inside the JVM, one is blocked in a native call, one burns CPU.
  *
+ * The cancellation of a task that already runs is told apart by whether its worker lets go, which a queued backup
+ * never reaches. Those tests therefore await a {@link ServiceThreadHoldingTask} that holds the service thread itself,
+ * submitted through the engine's own scheduler - one yields to the interrupt of its cancellation, one ignores it.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Diagnostics of a server task that does not complete in time")
@@ -105,6 +109,22 @@ class TaskHangDiagnosticsTest implements EvitaTestSupport {
 			.filter(it -> it.contains("Evita-service-") && it.contains(TaskHangDiagnosticsTest.class.getName()))
 			.findFirst()
 			.orElseThrow(() -> new AssertionError("No summary line describes the occupant: " + message));
+	}
+
+	/**
+	 * Returns the line of the summary that describes the service thread running the awaited
+	 * {@link ServiceThreadHoldingTask}.
+	 *
+	 * @param message the failure message
+	 * @return the line
+	 */
+	@Nonnull
+	private static String workerLine(@Nonnull String message) {
+		return Arrays.stream(message.split("\n"))
+			.filter(it -> it.contains("Evita-service-"))
+			.filter(it -> it.contains("[runs " + ServiceThreadHoldingTask.TASK_TYPE + "]"))
+			.findFirst()
+			.orElseThrow(() -> new AssertionError("No summary line describes the task's worker: " + message));
 	}
 
 	/**
@@ -342,6 +362,62 @@ class TaskHangDiagnosticsTest implements EvitaTestSupport {
 		} finally {
 			serviceThreadReleased.set(true);
 		}
+	}
+
+	@Test
+	@DisplayName("A running task whose worker yields to the cancellation is reported as let go")
+	void shouldReportWorkerLettingGoOfCancelledRunningTask() throws Exception {
+		final ServiceThreadHoldingTask task = new ServiceThreadHoldingTask(CATALOG, true);
+		try {
+			final CompletableFuture<Void> result = task.submitTo(this.evita.getServiceExecutor());
+			assertTrue(task.awaitStarted(30, TimeUnit.SECONDS), "The task never started!");
+
+			// the default interval also bounds the wait for the worker to let go - a positive wait, kept generous
+			final AssertionFailedError failure = assertThrows(
+				AssertionFailedError.class,
+				() -> TaskHangDiagnostics.awaitTaskResult(
+					result, 200, TimeUnit.MILLISECONDS, this.evita.management(), null,
+					ServiceThreadHoldingTask.TASK_TYPE, CATALOG
+				)
+			);
+
+			final String message = failure.getMessage();
+			assertTrue(message.contains("task RUNNING 0%"), message);
+			assertTrue(workerLine(message).contains("inNative=false"), message);
+			assertTrue(message.contains("cancel accepted; the worker let go of the task in "), message);
+			assertTrue(task.awaitFinished(30, TimeUnit.SECONDS), "The worker still holds the task!");
+		} finally {
+			task.release();
+		}
+	}
+
+	@Test
+	@DisplayName("A running task whose worker ignores the cancellation is reported as still running, with its state")
+	void shouldReportWorkerStillRunningCancelledTask() throws Exception {
+		final ServiceThreadHoldingTask task = new ServiceThreadHoldingTask(CATALOG, false);
+		try {
+			final CompletableFuture<Void> result = task.submitTo(this.evita.getServiceExecutor());
+			assertTrue(task.awaitStarted(30, TimeUnit.SECONDS), "The task never started!");
+
+			final AssertionFailedError failure = assertThrows(
+				AssertionFailedError.class,
+				() -> TaskHangDiagnostics.awaitTaskResult(
+					result, 200, TimeUnit.MILLISECONDS, this.evita.management(), null,
+					ServiceThreadHoldingTask.TASK_TYPE, CATALOG, SAMPLE_INTERVAL
+				)
+			);
+
+			final String message = failure.getMessage();
+			assertTrue(message.contains("task RUNNING 0%"), message);
+			assertTrue(workerLine(message).contains("inNative=false"), message);
+			assertTrue(message.contains("cancel accepted; the worker still runs the task "), message);
+			// the worker waits on its latch again after swallowing the interrupt - inside the JVM, not in native code
+			assertTrue(message.contains(" later, WAITING inNative=false at "), message);
+		} finally {
+			task.release();
+		}
+		// the worker is freed only by the release - make sure it is gone before the engine closes
+		assertTrue(task.awaitFinished(30, TimeUnit.SECONDS), "The worker still holds the task!");
 	}
 
 	@Test
