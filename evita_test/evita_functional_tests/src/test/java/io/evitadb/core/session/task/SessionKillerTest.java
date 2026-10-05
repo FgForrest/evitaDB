@@ -25,6 +25,7 @@ package io.evitadb.core.session.task;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.exception.ConcurrentSessionAccessException;
 import io.evitadb.core.Evita;
 import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.Scheduler;
@@ -37,14 +38,18 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentMatchers;
+import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
+import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.stream.Stream;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.SESSION;
@@ -320,6 +325,46 @@ class SessionKillerTest implements EvitaTestSupport {
 				session.isActive(),
 				"Session was unexpectedly killed despite having recent activity (lastCall was just updated " +
 					"after method completion)."
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Pass resilience")
+	class PassResilienceTest {
+
+		@Test
+		@DisplayName("should kill other expired sessions when one session is caught mid-call")
+		void shouldKillOtherExpiredSessionsWhenOneSessionIsCaughtMidCall() throws InterruptedException {
+			SessionKillerTest.this.evita.defineCatalog("test");
+			final EvitaSessionContract expiredSession = SessionKillerTest.this.evita.createReadWriteSession("test");
+			awaitExpiry(internal(expiredSession));
+
+			// A read-write session whose client call started after the killer's idle check: the call claims the
+			// proxy's ownership guard before it is counted as in flight, so the check sees the session idle, and the
+			// killer's own next call is then rejected by the guard. No real call can be held in that state - every
+			// held call is already counted - so the session is stubbed to the bare minimum the killer touches.
+			final EvitaInternalSessionContract caughtSession = Mockito.mock(EvitaInternalSessionContract.class);
+			Mockito.when(caughtSession.isInactiveAndIdle(ArgumentMatchers.anyLong())).thenReturn(true);
+			Mockito.when(caughtSession.getCatalogName()).thenThrow(
+				new ConcurrentSessionAccessException(UUID.randomUUID(), "client-thread", "session-killer-thread")
+			);
+			// the caught session is visited first, so it decides whether the rest of the pass still runs
+			final Evita evitaWithCaughtSession = Mockito.spy(SessionKillerTest.this.evita);
+			Mockito.doReturn(Stream.of(caughtSession, expiredSession))
+				.when(evitaWithCaughtSession)
+				.getActiveSessions();
+			final SessionKiller killer = new SessionKiller(
+				INACTIVITY_TIMEOUT_SECONDS, evitaWithCaughtSession, SessionKillerTest.this.killerScheduler
+			);
+			killer.close();
+
+			killer.run();
+
+			Mockito.verify(caughtSession).getCatalogName();
+			assertFalse(
+				expiredSession.isActive(),
+				"The expired session must be killed in the same pass as the session caught mid-call."
 			);
 		}
 	}
