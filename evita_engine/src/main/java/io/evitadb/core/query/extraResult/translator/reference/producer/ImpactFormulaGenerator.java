@@ -274,9 +274,11 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 	 * are removed.
 	 *
 	 * A facet of a single group whose facets are joined by conjunction is answered by the hypothetical formula itself -
-	 * removing the other facets of the group can only widen the facet's term. A facet taking part in several groups is
-	 * always requested on its own in each of them, because the shortcut would depend on the group of the statistics
-	 * being computed, and every entry of such a facet - one for each of its groups - predicts the same selection.
+	 * removing the other facets of the group can only widen the facet's term, which widens the result unless the group
+	 * is negated and its term is subtracted, so a negated group is not answered that way. A facet taking part in
+	 * several groups is always requested on its own in each of them, because the shortcut would depend on the group of
+	 * the statistics being computed, and every entry of such a facet - one for each of its groups - predicts the same
+	 * selection.
 	 *
 	 * @param hypotheticalFormula   the current formula including this facet and all other facets
 	 * @param referenceSchema       the reference schema of the facet group
@@ -294,7 +296,9 @@ public class ImpactFormulaGenerator extends AbstractFacetFormulaGenerator {
 		@Nonnull FacetGroupOccurrences facetGroupOccurrences
 	) {
 		if (facetGroupOccurrences.isSingleGroup() &&
-			this.isFacetGroupConjunction.test(referenceSchema, facetGroupId, WITH_DIFFERENT_FACETS_IN_GROUP)) {
+			this.isFacetGroupConjunction.test(referenceSchema, facetGroupId, WITH_DIFFERENT_FACETS_IN_GROUP) &&
+			this.facetRelationType.resolve(referenceSchema, facetGroupId, WITH_DIFFERENT_GROUPS) !=
+				FacetRelationType.NEGATION) {
 			return !hypotheticalFormula.compute().isEmpty();
 		} else {
 			final MutableFormulaFinderAndReplacer mutableFormulaFinderAndReplacer = new MutableFormulaFinderAndReplacer(

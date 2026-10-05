@@ -351,11 +351,11 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 * {@link #REF_TAG} and by {@link #REF_TAG_COPY}, each grouped by the managed type {@link #ENTITY_TWIN_TAG_GROUP}
 	 * (groups 100, 200 and 300). Tag 10 is referenced in group 100 by one product and in group 200 by another.
 	 *
-	 * | product | tags (group) of both references |
-	 * |---------|---------------------------------|
-	 * | 1       | 10 (100), 30 (300)              |
-	 * | 2       | 10 (200), 30 (300)              |
-	 * | 3       | 20 (200)                        |
+	 * | product | tags (group) of both references        |
+	 * |---------|----------------------------------------|
+	 * | 1       | 10 (100), 30 (300), 40 (300), 50 (100) |
+	 * | 2       | 10 (200), 30 (300), 50 (100)           |
+	 * | 3       | 20 (200)                               |
 	 */
 	private static final String FACET_TWIN_REFERENCE_SHAPES = "FacetTwinReferenceShapes";
 	private static final String ENTITY_TWIN_PRODUCT = "twinProduct";
@@ -365,7 +365,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	/**
 	 * The tags of the {@link #FACET_TWIN_REFERENCE_SHAPES} data set.
 	 */
-	private static final int[] TWIN_TAGS = {10, 20, 30};
+	private static final int[] TWIN_TAGS = {10, 20, 30, 40, 50};
 	/**
 	 * The groups of the {@link #FACET_TWIN_REFERENCE_SHAPES} data set.
 	 */
@@ -374,11 +374,11 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 * The tags each product of {@link #FACET_TWIN_REFERENCE_SHAPES} references by both references, indexed by the
 	 * product primary key minus one.
 	 */
-	private static final int[][] TWIN_PRODUCT_TAGS = {{10, 30}, {10, 30}, {20}};
+	private static final int[][] TWIN_PRODUCT_TAGS = {{10, 30, 40, 50}, {10, 30, 50}, {20}};
 	/**
 	 * The group of each reference of {@link #TWIN_PRODUCT_TAGS}, at the same position.
 	 */
-	private static final int[][] TWIN_PRODUCT_TAG_GROUPS = {{100, 300}, {200, 300}, {200}};
+	private static final int[][] TWIN_PRODUCT_TAG_GROUPS = {{100, 300, 300, 100}, {200, 300, 100}, {200}};
 
 	static {
 		STORE_ORDER = new int[STORE_COUNT];
@@ -4364,6 +4364,14 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						REF_TAG, WITH_DIFFERENT_FACETS_IN_GROUP, filterBy(entityPrimaryKeyInSet(100))
 					),
 					facetGroupsNegation(REF_TAG, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(300)))
+				}
+			),
+			Arguments.of(
+				"tags 40 and 50 selected, group 300 negated with conjunction within",
+				new int[]{40, 50},
+				new RequireConstraint[]{
+					facetGroupsNegation(REF_TAG, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(300))),
+					facetGroupsConjunction(REF_TAG, WITH_DIFFERENT_FACETS_IN_GROUP, filterBy(entityPrimaryKeyInSet(300)))
 				}
 			)
 		);
