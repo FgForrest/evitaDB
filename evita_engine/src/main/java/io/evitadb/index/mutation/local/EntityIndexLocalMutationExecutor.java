@@ -3926,19 +3926,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		final int epk = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
 		final EntityIndex globalIndex = getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, getScope()));
 		removeEntityLocaleInTargetIndex(locale, entitySchema, globalIndex, epk);
+		// a reduced index created in this mutation holds the locales before it as well (see
+		// `ReferenceIndexMutator#getLocalesBeforeMutation`), so it loses the language like any other
 		applyOnExistingReducedIndexes(
 			getScope(),
 			existingDataSupplierFactory.getReferenceSupplier(),
-			(referenceSchema, index) -> {
-				// removal mutations happen before indexes are created and thus the created indexes will not have
-				// the language set (entity already lacks the language) - so we cannot remove it for those indexes
-				final RepresentativeReferenceKey referenceKey = Objects.requireNonNull(
-					(RepresentativeReferenceKey) index.getIndexKey().discriminator()
-				);
-				if (this.createdReferences == null || !this.createdReferences.contains(referenceKey)) {
-					removeEntityLocaleInTargetIndex(locale, entitySchema, index, epk);
-				}
-			}
+			(referenceSchema, index) -> removeEntityLocaleInTargetIndex(locale, entitySchema, index, epk)
 		);
 	}
 
@@ -3970,19 +3963,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	) {
 		final EntityIndex globalIndex = getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, getScope()));
 		removeEntityAttributeLocaleInTargetIndex(locale, entitySchema, globalIndex, existingDataSupplierFactory);
+		// a reduced index created in this mutation holds the locales before it as well (see
+		// `ReferenceIndexMutator#getLocalesBeforeMutation`), so it loses the locale like any other
 		applyOnExistingReducedIndexes(
 			getScope(),
 			existingDataSupplierFactory.getReferenceSupplier(),
-			(referenceSchema, index) -> {
-				// removal mutations happen before indexes are created and thus the created indexes will not have
-				// the language set (entity already lacks the language) - so we cannot remove it for those indexes
-				final RepresentativeReferenceKey referenceKey = Objects.requireNonNull(
-					(RepresentativeReferenceKey) index.getIndexKey().discriminator()
-				);
-				if (this.createdReferences == null || !this.createdReferences.contains(referenceKey)) {
-					removeEntityAttributeLocaleInTargetIndex(locale, entitySchema, index, existingDataSupplierFactory);
-				}
-			}
+			(referenceSchema, index) ->
+				removeEntityAttributeLocaleInTargetIndex(locale, entitySchema, index, existingDataSupplierFactory)
 		);
 	}
 

@@ -89,6 +89,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -2937,7 +2938,7 @@ public interface ReferenceIndexMutator {
 		);
 		indexAllLocales(
 			ownerExecutor, ownerExecutor.getEntitySchema(), partitionIndex, representativeReferenceKey.referenceKey(),
-			ownerPrimaryKey, existingDataSupplierFactory
+			ownerPrimaryKey, false, existingDataSupplierFactory
 		);
 	}
 
@@ -2993,8 +2994,10 @@ public interface ReferenceIndexMutator {
 		// either accumulate the same record once (idempotent insert) and then collapse to zero on
 		// the first remove leaving subsequent references with a corrupt view
 		if (entityFirstIndexedInTargetIndex) {
+			// the end of the entity mutation moves the indexes of all references the entity has then to the locales
+			// it gained or lost - this index included, so it must start where the others are: at the locales before
 			indexAllLocales(
-				executor, entitySchema, targetIndex, referenceKey, entityPrimaryKey, existingDataSupplierFactory
+				executor, entitySchema, targetIndex, referenceKey, entityPrimaryKey, true, existingDataSupplierFactory
 			);
 
 			indexAllPrices(
@@ -3007,13 +3010,16 @@ public interface ReferenceIndexMutator {
 
 	/**
 	 * Indexes the owning entity's locales into `targetIndex`: the entity's language for every locale of its body, and
-	 * the sortable attribute compounds of every locale its attributes have.
+	 * the sortable attribute compounds of every locale its attributes have - either the locales the body has now, or
+	 * those it had before the running mutation (see {@link #getLocalesBeforeMutation}).
 	 *
 	 * @param executor                    the mutation executor
 	 * @param entitySchema                the entity schema of the owning entity
 	 * @param targetIndex                 the index the locales are written into
 	 * @param referenceKey                the reference key the index belongs to
 	 * @param entityPrimaryKey            the primary key of the owning entity
+	 * @param localesBeforeMutation       true to index the locales before the running mutation, false to index the
+	 *                                    locales the body has now
 	 * @param existingDataSupplierFactory factory that supplies the entity's current attributes
 	 */
 	private static void indexAllLocales(
@@ -3022,15 +3028,23 @@ public interface ReferenceIndexMutator {
 		@Nonnull EntityIndex targetIndex,
 		@Nonnull ReferenceKey referenceKey,
 		int entityPrimaryKey,
+		boolean localesBeforeMutation,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
-		final EntityBodyStoragePart entityCnt = executor.getContainerAccessor().getEntityStoragePart(
+		final WritableEntityStorageContainerAccessor containerAccessor = executor.getContainerAccessor();
+		final EntityBodyStoragePart entityCnt = containerAccessor.getEntityStoragePart(
 			entitySchema.getName(), entityPrimaryKey, EntityExistence.MUST_EXIST
 		);
-		for (Locale locale : entityCnt.getLocales()) {
+		final Set<Locale> entityLocales = localesBeforeMutation
+			? getLocalesBeforeMutation(containerAccessor, entityCnt.getLocales(), LocaleScope.ENTITY)
+			: entityCnt.getLocales();
+		final Set<Locale> attributeLocales = localesBeforeMutation
+			? getLocalesBeforeMutation(containerAccessor, entityCnt.getAttributeLocales(), LocaleScope.ATTRIBUTE)
+			: entityCnt.getAttributeLocales();
+		for (Locale locale : entityLocales) {
 			executor.upsertEntityLocaleInTargetIndex(locale, entitySchema, targetIndex, entityPrimaryKey);
 		}
-		for (Locale locale : entityCnt.getAttributeLocales()) {
+		for (Locale locale : attributeLocales) {
 			executor.upsertEntityAttributeLocaleInTargetIndex(
 				locale, entitySchema, targetIndex, referenceKey, existingDataSupplierFactory
 			);
@@ -3321,33 +3335,23 @@ public interface ReferenceIndexMutator {
 			final EntityBodyStoragePart entityCnt = containerAccessor.getEntityStoragePart(
 				entityType, entityPrimaryKey, EntityExistence.MUST_EXIST);
 
-			for (Locale locale : entityCnt.getLocales()) {
+			// the entity body changes its locales the moment their first or last value lands, while the indexes learn
+			// about it only at the end of the entity mutation - and that step visits the reduced indexes of the
+			// references the entity still has, which this one no longer is; so this index holds the locales before the
+			// mutation: a locale this mutation removed is still here, a locale it added has never arrived
+			for (Locale locale : getLocalesBeforeMutation(
+				containerAccessor, entityCnt.getLocales(), LocaleScope.ENTITY
+			)) {
 				executor.removeEntityLocaleInTargetIndex(
 					locale, entitySchema, targetIndex, entityPrimaryKey
 				);
 			}
-			for (Locale locale : entityCnt.getAttributeLocales()) {
+			for (Locale locale : getLocalesBeforeMutation(
+				containerAccessor, entityCnt.getAttributeLocales(), LocaleScope.ATTRIBUTE
+			)) {
 				executor.removeEntityAttributeLocaleInTargetIndex(
 					locale, entitySchema, targetIndex, referenceKey, existingDataSupplierFactory
 				);
-			}
-			// the entity body drops a locale the moment its last value goes, while the indexes learn about it only at
-			// the end of the entity mutation - and that step visits the reduced indexes of the references the entity
-			// still has, which this one no longer is; so the locales this mutation removed are still in this index and
-			// must go here (a locale the body still has was removed by the loops above already)
-			for (LocaleWithScope removedLocale : containerAccessor.getRemovedLocales()) {
-				final Locale locale = removedLocale.locale();
-				if (removedLocale.scope().contains(LocaleScope.ENTITY) && !entityCnt.getLocales().contains(locale)) {
-					executor.removeEntityLocaleInTargetIndex(
-						locale, entitySchema, targetIndex, entityPrimaryKey
-					);
-				}
-				if (removedLocale.scope().contains(LocaleScope.ATTRIBUTE) &&
-					!entityCnt.getAttributeLocales().contains(locale)) {
-					executor.removeEntityAttributeLocaleInTargetIndex(
-						locale, entitySchema, targetIndex, referenceKey, existingDataSupplierFactory
-					);
-				}
 			}
 
 			removeAllPrices(
@@ -3357,6 +3361,48 @@ public interface ReferenceIndexMutator {
 				executor, referenceSchema, targetIndex, referenceKey, existingDataSupplierFactory
 			);
 		}
+	}
+
+	/**
+	 * Returns the locales of one kind the entity had before its current mutation started - the locales its reduced
+	 * indexes hold until {@link EntityIndexLocalMutationExecutor#applyChanges()} moves the indexes of the references
+	 * the entity has then to the locales the mutation added or removed. The entity body, by contrast, changes its
+	 * locales the moment the first or the last localized value lands, so its current locales differ from those of the
+	 * indexes by exactly the locales added and removed so far.
+	 *
+	 * A reduced index the entity enters or leaves in the middle of the mutation must therefore be populated or cleared
+	 * with these locales, whichever order the mutation lists its local mutations in: an index cleared of the current
+	 * locales would be asked for a locale it never received, an index populated with them would receive a locale the
+	 * end of the mutation adds again, or keep a locale the end of the mutation does not remove.
+	 *
+	 * @param containerAccessor the accessor tracking the locales the mutation added and removed so far
+	 * @param currentLocales    the locales of the given kind the entity body has now
+	 * @param scope             the kind of locales - {@link LocaleScope#ENTITY} or {@link LocaleScope#ATTRIBUTE}
+	 * @return the locales of the given kind before the mutation, `currentLocales` itself when the mutation changed none
+	 */
+	@Nonnull
+	private static Set<Locale> getLocalesBeforeMutation(
+		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
+		@Nonnull Set<Locale> currentLocales,
+		@Nonnull LocaleScope scope
+	) {
+		final LocaleWithScope[] addedLocales = containerAccessor.getAddedLocales();
+		final LocaleWithScope[] removedLocales = containerAccessor.getRemovedLocales();
+		if (addedLocales.length == 0 && removedLocales.length == 0) {
+			return currentLocales;
+		}
+		final Set<Locale> localesBefore = new HashSet<>(currentLocales);
+		for (LocaleWithScope addedLocale : addedLocales) {
+			if (addedLocale.scope().contains(scope)) {
+				localesBefore.remove(addedLocale.locale());
+			}
+		}
+		for (LocaleWithScope removedLocale : removedLocales) {
+			if (removedLocale.scope().contains(scope)) {
+				localesBefore.add(removedLocale.locale());
+			}
+		}
+		return localesBefore;
 	}
 
 	/**

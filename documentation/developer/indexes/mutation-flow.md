@@ -136,7 +136,12 @@ Called once at the end of the mutation batch, for the work that can only be reso
 mutation for the entity has been applied. It:
 
 1. Processes locale additions and removals that were accumulated during the batch (via
-   `containerAccessor.getAddedLocales()` / `getRemovedLocales()`).
+   `containerAccessor.getAddedLocales()` / `getRemovedLocales()`) in the reduced indexes of every
+   reference the entity has at this point. Until then every reduced index holds the locales the entity
+   had *before* the batch -- also one the entity enters or leaves mid-batch, which
+   `indexAllExistingData` / `removeAllExistingData` populate or clear with those locales rather than
+   with the entity body's current ones -- so this step moves all of them alike, whichever order the
+   batch listed its mutations in.
 2. Removes the entity from the indexes if `containerAccessor.isEntityRemovedEntirely()`
    returns `true`.
 3. Iterates all `accessedIndexes`, records index-maintenance activity against each, and removes any
