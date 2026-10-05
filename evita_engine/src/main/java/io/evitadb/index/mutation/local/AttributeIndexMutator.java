@@ -191,18 +191,25 @@ public interface AttributeIndexMutator {
 			final int newPk = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_INDEX, Target.NEW);
 			final Optional<AttributeValue> priorValue = existingValueSupplier.getAttributeValue(attributeKey);
 			priorValue.ifPresent(
-				value -> indexForRemoval.removeAttribute(
-					referenceSchema, attributeDefinition, allowedLocales, scope, locale,
+				value -> {
 					// normalize the stored value to the schema scale so the removal targets the same
 					// index key the matching upsert produced (see `valueToInsert` above)
-					NumberUtils.normalizeForIndexing(
+					final Serializable valueToRemove = NumberUtils.normalizeForIndexing(
 						Objects.requireNonNull(value.value()), attributeDefinition.getIndexedDecimalPlaces()
-					),
-					existingPk
-				)
+					);
+					indexForRemoval.removeAttribute(
+						referenceSchema, attributeDefinition, allowedLocales, scope, locale, valueToRemove, existingPk
+					);
+					VirtualReferencePartitionWriter.attributeValueRemoved(
+						executor, referenceSchema, attributeDefinition, indexForRemoval, locale, valueToRemove
+					);
+				}
 			);
 			indexForUpsert.upsertAttribute(
 				referenceSchema, attributeDefinition, allowedLocales, scope, locale, valueToInsert, newPk
+			);
+			VirtualReferencePartitionWriter.attributeValueAdded(
+				executor, referenceSchema, attributeDefinition, indexForUpsert, locale, valueToInsert
 			);
 
 			if (updateGlobalIndex && attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
@@ -332,6 +339,9 @@ public interface AttributeIndexMutator {
 			indexForRemoval.removeAttribute(
 				referenceSchema, attributeDefinition, allowedLocales, scope, locale,
 				valueToRemoveSupplier.get(), existingPk
+			);
+			VirtualReferencePartitionWriter.attributeValueRemoved(
+				executor, referenceSchema, attributeDefinition, indexForRemoval, locale, valueToRemoveSupplier.get()
 			);
 			if (attributeDefinition.isUniqueInScope(scope)
 				&& updateGlobalIndex && attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema
@@ -468,6 +478,13 @@ public interface AttributeIndexMutator {
 			referenceSchema, attributeDefinition, allowedLocales, scope, locale,
 			valueToRemoveSupplier.get(), valueToUpdateSupplier.get(), recordId
 		);
+		// the delta replaced the value in the index it was applied to - the old one went, the new one came
+		VirtualReferencePartitionWriter.attributeValueRemoved(
+			executor, referenceSchema, attributeDefinition, indexForUpsert, locale, valueToRemoveSupplier.get()
+		);
+		VirtualReferencePartitionWriter.attributeValueAdded(
+			executor, referenceSchema, attributeDefinition, indexForUpsert, locale, valueToUpdateSupplier.get()
+		);
 		// now update the compounds
 		updateSortableAttributeCompounds(
 			executor, referenceSchema, attributeSchemaProvider, existingValueSupplier,
@@ -548,7 +565,7 @@ public interface AttributeIndexMutator {
 				attributeSchemaProvider.getContainerName(), compound.getName(), scope
 			);
 			insertNewCompound(
-				entityPrimaryKey, entityIndex, compound,
+				executor, entityPrimaryKey, entityIndex, compound,
 				null, null,
 				locale,
 				entitySchema,
@@ -622,7 +639,7 @@ public interface AttributeIndexMutator {
 				attributeSchemaProvider.getContainerName(), compound.getName(), scope
 			);
 			removeOldCompound(
-				entityPrimaryKey, entityIndex, compound,
+				executor, entityPrimaryKey, entityIndex, compound,
 				locale,
 				entitySchema,
 				referenceSchema,
@@ -781,13 +798,13 @@ public interface AttributeIndexMutator {
 			);
 
 			removeOldCompound(
-				executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX, Target.EXISTING),
+				executor, executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX, Target.EXISTING),
 				indexForRemoval, compound, locale,
 				entitySchema, referenceSchema, attributeElementValueProvider
 			);
 
 			insertNewCompound(
-				executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX, Target.NEW),
+				executor, executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX, Target.NEW),
 				indexForUpsert, compound, updatedAttributeName, valueToUpdate, locale,
 				entitySchema, referenceSchema, attributeSchemaProvider, attributeElementValueProvider
 			);
@@ -805,6 +822,7 @@ public interface AttributeIndexMutator {
 	 * If the resulting array is empty or all entries are `null`, the insertion is skipped — a compound index entry
 	 * is only meaningful when at least one component has a concrete value.
 	 *
+	 * @param executor                    the executor, whose write the registry of single-owner partitions mirrors
 	 * @param entityPrimaryKey            the entity primary key to associate with the compound sort entry
 	 * @param entityIndex                 the index into which the compound entry is inserted
 	 * @param compound                    the compound schema that defines the key structure
@@ -819,6 +837,7 @@ public interface AttributeIndexMutator {
 	 *                                    one being updated
 	 */
 	private static void insertNewCompound(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
 		int entityPrimaryKey,
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull SortableAttributeCompoundSchema compound,
@@ -842,14 +861,26 @@ public interface AttributeIndexMutator {
 		}
 
 		if (!ArrayUtils.isEmptyOrItsValuesNull(newCompoundValues)) {
+			final Function<String, Class<?>> attributeTypeProvider =
+				theAttributeName -> attributeSchemaProvider.getAttributeSchema(theAttributeName).getPlainType();
+			// the sort index normalizes the array in place, the registry of single-owner partitions takes it as it was
+			final Serializable[] mirroredValues = VirtualReferencePartitionWriter.copyIfMirrored(
+				executor, referenceSchema, entityIndex, newCompoundValues
+			);
 			entityIndex.insertSortAttributeCompound(
 				entitySchema,
 				referenceSchema,
 				compound,
-				theAttributeName -> attributeSchemaProvider.getAttributeSchema(theAttributeName).getPlainType(),
+				attributeTypeProvider,
 				locale,
 				newCompoundValues, entityPrimaryKey
 			);
+			if (mirroredValues != null) {
+				VirtualReferencePartitionWriter.compoundValueAdded(
+					executor, entitySchema, referenceSchema, compound, attributeTypeProvider, entityIndex, locale,
+					mirroredValues
+				);
+			}
 		}
 	}
 
@@ -860,6 +891,7 @@ public interface AttributeIndexMutator {
 	 * `attributeElementValueProvider`. If all resolved values are `null` the removal is skipped, because a
 	 * compound entry with all-null values was never inserted in the first place.
 	 *
+	 * @param executor                     the executor, whose write the registry of single-owner partitions mirrors
 	 * @param entityPrimaryKey             the entity primary key whose compound sort entry should be removed
 	 * @param entityIndex                  the index from which the compound entry is removed
 	 * @param compound                     the compound schema that defines the key structure
@@ -869,6 +901,7 @@ public interface AttributeIndexMutator {
 	 * @param attributeElementValueProvider resolves pre-mutation attribute values for each compound element
 	 */
 	private static void removeOldCompound(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
 		int entityPrimaryKey,
 		@Nonnull EntityIndex entityIndex,
 		@Nonnull SortableAttributeCompoundSchema compound,
@@ -884,9 +917,18 @@ public interface AttributeIndexMutator {
 		}
 
 		if (!ArrayUtils.isEmptyOrItsValuesNull(oldCompoundValues)) {
+			// the sort index normalizes the array in place, the registry of single-owner partitions takes it as it was
+			final Serializable[] mirroredValues = VirtualReferencePartitionWriter.copyIfMirrored(
+				executor, referenceSchema, entityIndex, oldCompoundValues
+			);
 			entityIndex.removeSortAttributeCompound(
 				entitySchema, referenceSchema, compound, locale, oldCompoundValues, entityPrimaryKey
 			);
+			if (mirroredValues != null) {
+				VirtualReferencePartitionWriter.compoundValueRemoved(
+					executor, entitySchema, referenceSchema, compound, entityIndex, locale, mirroredValues
+				);
+			}
 		}
 	}
 

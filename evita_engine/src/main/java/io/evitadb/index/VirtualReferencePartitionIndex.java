@@ -950,6 +950,42 @@ public class VirtualReferencePartitionIndex
 	}
 
 	/**
+	 * Returns TRUE when the partition has a sort value recorded for the sort key.
+	 *
+	 * @param attributeIndexKey   the sort key
+	 * @param partitionPrimaryKey the partition primary key, positive
+	 * @return TRUE when the key is declared and the partition has a sort value for it
+	 */
+	public boolean hasSortValue(@Nonnull AttributeIndexKey attributeIndexKey, int partitionPrimaryKey) {
+		final DeclaredSortKey sortKey = this.sortKeys.get(attributeIndexKey);
+		return sortKey != null &&
+			this.entries.getLongRecordEqualTo(key(sortKey.slotId(), partitionPrimaryKey)).isPresent();
+	}
+
+	/**
+	 * Returns TRUE when the partition has exactly the given sort value recorded for a declared sort key - the value is
+	 * normalized and compared as the slot's dictionary compares its values, so `1.0` and `1.00` of a compound element
+	 * are one value, as they are one block of the sort index.
+	 *
+	 * @param attributeIndexKey   the declared sort key
+	 * @param partitionPrimaryKey the partition primary key, positive
+	 * @param value               the attribute value of the type the key was declared with, or the values of the
+	 *                            compound elements in element order
+	 * @return TRUE when the partition holds the value
+	 */
+	public boolean hasSortValue(
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		int partitionPrimaryKey,
+		@Nonnull Serializable value
+	) {
+		final DeclaredSortKey sortKey = getDeclaredSortKey(attributeIndexKey);
+		final OptionalLong valueId = this.entries.getLongRecordEqualTo(key(sortKey.slotId(), partitionPrimaryKey));
+		return valueId.isPresent() &&
+			getSortValueEntry(sortKey.slotId(), (int) valueId.getAsLong()).key()
+				.equals(new SortValueKey(sortKey.slotId(), normalize(sortKey, value)));
+	}
+
+	/**
 	 * Returns the sort index of a sort key, its record ids being the primary keys of the partitions holding a sort value
 	 * for the key.
 	 *

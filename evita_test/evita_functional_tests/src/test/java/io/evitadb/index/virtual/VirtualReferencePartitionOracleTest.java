@@ -45,7 +45,6 @@ import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.attribute.OwnerSortIndex;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
-import io.evitadb.index.virtual.VirtualReferencePartitionOracle.Coverage;
 import io.evitadb.index.virtual.VirtualReferencePartitionOracle.ExpectedSortValue;
 import io.evitadb.index.virtual.VirtualReferencePartitionOracle.Finding;
 import io.evitadb.index.virtual.VirtualReferencePartitionOracle.FindingKind;
@@ -91,8 +90,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Proves that {@link VirtualReferencePartitionOracle} reports what it claims to. Rows, sort values and chain
- * predecessors are planted straight into the registry of a warming-up catalog - the writers that will maintain it do
- * not exist yet - and every kind of disagreement is planted once and must be reported, while a correctly planted
+ * predecessors are planted straight into the registry of a warming-up catalog that does not maintain it, and every
+ * kind of disagreement is planted once and must be reported, while a correctly planted
  * registry, a declared chain key emptied while its owners remain and a missing row of a partition awaiting its
  * demotion must not be. The expected single-owner partitions are counted from the entity bodies, independently of the
  * indexes the oracle reads.
@@ -243,11 +242,11 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 		);
 	}
 
-	// TODO JNO - remove at the end of #1615 (the whole test, with the coverage)
 	@Test
-	@DisplayName("the rows-only coverage ignores the keys of the partitions, but refuses a declared key")
-	void shouldCheckTheRowsOnlyUntilTheMirrorExists() {
-		// a catalog of its own, maintained from its first write, so the writers register every row
+	@DisplayName("a catalog maintained from its first write passes the full check, its sort values mirrored")
+	void shouldAcceptTheRegistryTheWritersMaintain() {
+		// a catalog of its own, maintained from its first write, so the writers register every row and mirror every
+		// sort value
 		final String maintained = CATALOG + "Maintained";
 		this.catalog = maintained;
 		this.evita.defineCatalog(maintained).updateViaNewSession(this.evita);
@@ -257,26 +256,20 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 		}
 		this.evita.updateCatalog(maintained, SingleOwnerPartitionFixture::setUp);
 
-		assertNoFindings(VirtualReferencePartitionOracle.inspect(product(), Set.of(), Coverage.ROWS_UNTIL_MIRROR));
-		// the full check sees the sort values of the order the rows-only one leaves aside
-		assertTrue(
-			VirtualReferencePartitionOracle.inspect(product(), Set.of(), Coverage.FULL).stream()
-				.anyMatch(it -> it.kind() == FindingKind.SORT_VALUE_MISMATCH),
-			"the registered category partitions hold an order the registry does not mirror yet"
-		);
+		assertNoFindings(VirtualReferencePartitionOracle.inspect(product()));
+		// not vacuous: the order of every single-owner category partition is in the registry
+		final OwnerSortIndex order = registryOf(REFERENCE_CATEGORIES).getSortIndex(ORDER_KEY);
+		assertNotNull(order, "the order of the category partitions must have been mirrored");
+		assertEquals(PRODUCT_COUNT, order.size(), "every product's own category is a single-owner partition");
 
-		registryOf(REFERENCE_CATEGORIES).declareSortKey(ORDER_KEY, INTEGER_BASE, 0);
-		final List<Finding> declared =
-			VirtualReferencePartitionOracle.inspect(product(), Set.of(), Coverage.ROWS_UNTIL_MIRROR);
-		assertTrue(
-			declared.stream().anyMatch(it -> it.kind() == FindingKind.KEY_BEFORE_MIRROR), declared::toString
-		);
-
-		registryOf(REFERENCE_CATEGORIES).putSortValue(ORDER_KEY, partitionOf(REFERENCE_CATEGORIES, 4), 4);
-		final List<Finding> counted =
-			VirtualReferencePartitionOracle.inspect(product(), Set.of(), Coverage.ROWS_UNTIL_MIRROR);
-		assertTrue(
-			counted.stream().anyMatch(it -> it.kind() == FindingKind.ENTRY_COUNT_MISMATCH), counted::toString
+		// and a single disagreement planted next to the mirrored values is still found - as the missing value and as
+		// the block the partition no longer has
+		registryOf(REFERENCE_CATEGORIES).removeSortValue(ORDER_KEY, partitionOf(REFERENCE_CATEGORIES, 4));
+		final List<Finding> findings = VirtualReferencePartitionOracle.inspect(product());
+		assertEquals(
+			Set.of(FindingKind.SORT_VALUE_MISMATCH, FindingKind.SORT_ORDER_MISMATCH),
+			findings.stream().map(Finding::kind).collect(Collectors.toSet()),
+			findings::toString
 		);
 	}
 

@@ -118,10 +118,6 @@ import static org.junit.jupiter.api.Assertions.fail;
  * Whatever it compares, the oracle reads the real partition through public reads of its own and never through a
  * production extractor, so a defect shared by the writer and an extractor cannot hide from it.
  *
- * Until the sort values and chain predecessors of the partitions are mirrored into the registry, the check runs with
- * {@link Coverage#ROWS_UNTIL_MIRROR}: the rows and tuples as above, no declared key at all, and an entry count of
- * exactly the rows and the tuples.
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 final class VirtualReferencePartitionOracle {
@@ -197,33 +193,7 @@ final class VirtualReferencePartitionOracle {
 		/**
 		 * The registry declares a key while it holds no owner row.
 		 */
-		KEYS_WITHOUT_OWNER,
-		// TODO JNO - remove at the end of #1615
-		/**
-		 * The registry declares a sort or chain key while the check covers the rows only - see
-		 * {@link Coverage#ROWS_UNTIL_MIRROR}.
-		 */
-		KEY_BEFORE_MIRROR
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * What the check covers.
-	 */
-	enum Coverage {
-		// TODO JNO - remove at the end of #1615
-		/**
-		 * The rows and the tuples only, for as long as nothing mirrors the sort values and chain predecessors of the
-		 * partitions into the registry: the registry must declare no key at all, and its entry count must equal its
-		 * rows and its tuples. The sort and chain keys the partitions hold are not looked at. Once the mirror exists,
-		 * the registry declares keys and every check made with this coverage fails - which is the reminder to switch
-		 * to {@link #FULL}.
-		 */
-		ROWS_UNTIL_MIRROR,
-		/**
-		 * Everything - the rows, the tuples and every sort and chain key, closed-world.
-		 */
-		FULL
+		KEYS_WITHOUT_OWNER
 	}
 
 	/**
@@ -309,29 +279,11 @@ final class VirtualReferencePartitionOracle {
 	 */
 	@Nonnull
 	static List<Finding> inspect(@Nonnull EntityCollection collection, @Nonnull Set<Integer> awaitingDemotion) {
-		return inspect(collection, awaitingDemotion, Coverage.FULL);
-	}
-
-	/**
-	 * Checks the registry of every reference of the collection in every scope against the partitions to the given
-	 * coverage, tolerating a missing row only for the named partitions.
-	 *
-	 * @param collection       the collection
-	 * @param awaitingDemotion primary keys of the partitions that may lack their row
-	 * @param coverage         what the check covers
-	 * @return every disagreement found; empty when the registry agrees with the partitions
-	 */
-	@Nonnull
-	static List<Finding> inspect(
-		@Nonnull EntityCollection collection,
-		@Nonnull Set<Integer> awaitingDemotion,
-		@Nonnull Coverage coverage
-	) {
 		final List<Finding> findings = new ArrayList<>(8);
 		forEachRegistry(
 			collection,
 			(referenceSchema, scope, typeIndex) ->
-				inspect(collection, referenceSchema, scope, typeIndex, awaitingDemotion, coverage, findings)
+				inspect(collection, referenceSchema, scope, typeIndex, awaitingDemotion, findings)
 		);
 		return findings;
 	}
@@ -360,25 +312,7 @@ final class VirtualReferencePartitionOracle {
 		@Nonnull EntityCollection collection,
 		@Nonnull Set<Integer> awaitingDemotion
 	) {
-		assertConsistent(label, collection, awaitingDemotion, Coverage.FULL);
-	}
-
-	/**
-	 * Fails when the registry of the collection disagrees with its partitions to the given coverage, listing every
-	 * disagreement. A missing row is tolerated only for the named partitions.
-	 *
-	 * @param label            names the checkpoint in the failure message
-	 * @param collection       the collection
-	 * @param awaitingDemotion primary keys of the partitions that may lack their row
-	 * @param coverage         what the check covers
-	 */
-	static void assertConsistent(
-		@Nonnull String label,
-		@Nonnull EntityCollection collection,
-		@Nonnull Set<Integer> awaitingDemotion,
-		@Nonnull Coverage coverage
-	) {
-		final List<Finding> findings = inspect(collection, awaitingDemotion, coverage);
+		final List<Finding> findings = inspect(collection, awaitingDemotion);
 		if (!findings.isEmpty()) {
 			fail(
 				label + ": the virtual reference partitions of `" + collection.getEntityType() + "` disagree with " +
@@ -547,7 +481,6 @@ final class VirtualReferencePartitionOracle {
 	 * @param scope            the scope
 	 * @param typeIndex        the referenced-type entity index carrying the registry
 	 * @param awaitingDemotion primary keys of the partitions that may lack their row
-	 * @param coverage         what the check covers
 	 * @param findings         receives the disagreements
 	 */
 	private static void inspect(
@@ -556,7 +489,6 @@ final class VirtualReferencePartitionOracle {
 		@Nonnull Scope scope,
 		@Nonnull ReferencedTypeEntityIndex typeIndex,
 		@Nonnull Set<Integer> awaitingDemotion,
-		@Nonnull Coverage coverage,
 		@Nonnull List<Finding> findings
 	) {
 		final String referenceName = referenceSchema.getName();
@@ -633,29 +565,6 @@ final class VirtualReferencePartitionOracle {
 			}
 		}
 
-		// TODO JNO - remove at the end of #1615 (the branch; the else body stays)
-		if (coverage == Coverage.ROWS_UNTIL_MIRROR) {
-			if (keysDeclared) {
-				findings.add(
-					new Finding(
-						referenceName, scope, NO_PARTITION, FindingKind.KEY_BEFORE_MIRROR,
-						"nothing mirrors the keys yet, but the registry declares sort keys " +
-							registry.getDeclaredSortKeys() + " and chain keys " + registry.getDeclaredChainKeys()
-					)
-				);
-			}
-			final int expectedCount = owned.size() + tupleCount[0];
-			if (registry.getEntryCount() != expectedCount) {
-				findings.add(
-					new Finding(
-						referenceName, scope, NO_PARTITION, FindingKind.ENTRY_COUNT_MISMATCH,
-						"the registry holds " + registry.getEntryCount() + " entries, " + owned.size() +
-							" owner rows and " + tupleCount[0] + " tuples account for " + expectedCount
-					)
-				);
-			}
-			return;
-		}
 		final int sortEntries = inspectSortKeys(referenceSchema, scope, registry, registered, findings);
 		final int chainEntries = inspectChainKeys(referenceSchema, scope, registry, registered, findings);
 		final int expectedCount = owned.size() + tupleCount[0] + sortEntries + chainEntries;

@@ -262,6 +262,13 @@ public final class VirtualReferencePartitionMaintenance {
 		 */
 		VACATED,
 		/**
+		 * A sort value or a chain predecessor of a partition of a shadowed reference was written into the partition
+		 * or removed from it, and the registry mirrored the change when the switch is on and the partition's row names
+		 * the mutated entity as its owner. Reported right after the mirror - and whether or not anything was mirrored,
+		 * so that an engine maintaining nothing reports it at the very same points.
+		 */
+		MIRRORED,
+		/**
 		 * A root entity mutation committed.
 		 */
 		ROOT_COMMITTED,
@@ -282,8 +289,8 @@ public final class VirtualReferencePartitionMaintenance {
 		/**
 		 * Reports a transition of a partition of a shadowed reference.
 		 *
-		 * @param stage               {@link TransitionStage#ENTERED}, {@link TransitionStage#SHARED} or
-		 *                            {@link TransitionStage#VACATED}
+		 * @param stage               {@link TransitionStage#ENTERED}, {@link TransitionStage#SHARED},
+		 *                            {@link TransitionStage#VACATED} or {@link TransitionStage#MIRRORED}
 		 * @param entityType          the entity type owning the reference
 		 * @param referenceName       the reference
 		 * @param scope               the scope of the partition

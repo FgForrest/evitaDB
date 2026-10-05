@@ -174,10 +174,7 @@ class VirtualReferencePartitionEnabledLoadTest implements EvitaTestSupport {
 	private void assertConsistent(@Nonnull String label) {
 		for (final String entityType : ENTITY_TYPES) {
 			// nothing the fixture does leaves a partition awaiting its demotion
-			VirtualReferencePartitionOracle.assertConsistent(
-				// TODO JNO - remove at the end of #1615 (the coverage; FULL once sort and chain keys are mirrored)
-				label, collectionOf(entityType), Set.of(), VirtualReferencePartitionOracle.Coverage.ROWS_UNTIL_MIRROR
-			);
+			VirtualReferencePartitionOracle.assertConsistent(label, collectionOf(entityType), Set.of());
 		}
 	}
 

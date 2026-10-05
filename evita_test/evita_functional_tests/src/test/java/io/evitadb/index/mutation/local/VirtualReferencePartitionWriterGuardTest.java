@@ -106,7 +106,7 @@ class VirtualReferencePartitionWriterGuardTest {
 	private static final Set<String> REGISTRY_MUTATORS = Set.of(
 		"putPartitionOwner", "removePartitionOwner", "removePartition", "retireAllKeysIfNoPartition",
 		"putRepresentativeTuple", "removeRepresentativeTuple",
-		"declareSortKey", "retireSortKey", "putSortValue", "removeSortValue",
+		"declareSortKey", "retireSortKey", "putSortValue", "putNormalizedSortValue", "removeSortValue",
 		"declareChainKey", "retireChainKey", "putChainPredecessor", "removeChainPredecessor"
 	);
 	/**
@@ -144,8 +144,8 @@ class VirtualReferencePartitionWriterGuardTest {
 			"Only " + scanner.scannedClasses + " classes were scanned in " + sources + " - the guard is reading the " +
 				"wrong code source and its green would be vacuous"
 		);
-		// the transitions decided by the reference index mutator reach the writer, and the writer the registry - a
-		// scan that does not see these sees nothing
+		// the transitions decided by the reference index mutator and the sort values the attribute index mutator
+		// writes reach the writer, and the writer the registry - a scan that does not see these sees nothing
 		assertTrue(
 			scanner.allowed.containsKey(
 				"io.evitadb.index.mutation.local.ReferenceIndexMutator#ownerAddedToPartition -> " +
@@ -153,6 +153,12 @@ class VirtualReferencePartitionWriterGuardTest {
 			) && scanner.allowed.containsKey(
 				"io.evitadb.index.mutation.local.VirtualReferencePartitionWriter#partitionEntered -> " +
 					"VirtualReferencePartitionIndex.putPartitionOwner"
+			) && scanner.allowed.containsKey(
+				"io.evitadb.index.mutation.local.AttributeIndexMutator#executeAttributeUpsert -> " +
+					"VirtualReferencePartitionWriter.attributeValueAdded"
+			) && scanner.allowed.containsKey(
+				"io.evitadb.index.mutation.local.VirtualReferencePartitionWriter#attributeValueAdded -> " +
+					"VirtualReferencePartitionIndex.putSortValue"
 			),
 			"The sentinel calls were not found - the scanner is broken: " + scanner.allowed.keySet()
 		);

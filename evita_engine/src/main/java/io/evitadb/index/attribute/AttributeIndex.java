@@ -403,7 +403,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 	 * @return the attribute key with the compound name and optional locale
 	 */
 	@Nonnull
-	private static AttributeIndexKey createAttributeKey(
+	public static AttributeIndexKey createAttributeKey(
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema,
@@ -419,6 +419,30 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 					attributeName -> referenceSchema.getAttribute(attributeName).orElse(null)
 			) ? locale : null
 		);
+	}
+
+	/**
+	 * Creates the comparator base the sort index of a sortable attribute compound orders its values by - one
+	 * descriptor per element, in element order, with the element attribute's type and the element's direction and
+	 * null behaviour.
+	 *
+	 * @param compoundSchema        the sortable attribute compound schema
+	 * @param attributeTypeProvider resolves the value type of each element attribute by name
+	 * @return the comparator base of the compound
+	 */
+	@Nonnull
+	public static ComparatorSource[] createComparatorBase(
+		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema,
+		@Nonnull Function<String, Class<?>> attributeTypeProvider
+	) {
+		return compoundSchema.getAttributeElements()
+			.stream()
+			.map(it -> new ComparatorSource(
+				attributeTypeProvider.apply(it.attributeName()),
+				it.direction(),
+				it.behaviour()
+			))
+			.toArray(ComparatorSource[]::new);
 	}
 
 	/**
@@ -1628,14 +1652,7 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 			lookupKey -> {
 				// a sortable attribute compound has no shared filter twin by construction, so it is always an owner
 				final SortIndex newSortIndex = new OwnerSortIndex(
-					compoundSchema.getAttributeElements()
-						.stream()
-						.map(it -> new ComparatorSource(
-							attributeTypeProvider.apply(it.attributeName()),
-							it.direction(),
-							it.behaviour()
-						))
-						.toArray(ComparatorSource[]::new),
+					createComparatorBase(compoundSchema, attributeTypeProvider),
 					this.referenceKey,
 					lookupKey
 				);

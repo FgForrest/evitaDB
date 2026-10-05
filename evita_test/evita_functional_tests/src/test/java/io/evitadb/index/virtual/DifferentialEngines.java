@@ -59,7 +59,6 @@ import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.virtual.TransitionHistory.InjectedTransitionFailure;
-import io.evitadb.index.virtual.VirtualReferencePartitionOracle.Coverage;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex.AttributeCardinalityKey;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.membership.ReducedIndexMembership;
@@ -941,10 +940,7 @@ final class DifferentialEngines implements AutoCloseable {
 			);
 			if (maintained) {
 				final Set<Integer> awaitingDemotion = this.maintainingHistory.awaitingDemotion(entityType, !committed);
-				VirtualReferencePartitionOracle.assertConsistent(
-					// TODO JNO - remove at the end of #1615 (the coverage; FULL once sort and chain keys are mirrored)
-					label, collection, awaitingDemotion, Coverage.ROWS_UNTIL_MIRROR
-				);
+				VirtualReferencePartitionOracle.assertConsistent(label, collection, awaitingDemotion);
 				for (final MaintainingEngineCheck check : this.maintainingEngineChecks) {
 					check.check(label, collection, awaitingDemotion);
 				}

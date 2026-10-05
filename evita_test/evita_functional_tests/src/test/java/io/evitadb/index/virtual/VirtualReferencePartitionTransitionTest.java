@@ -263,6 +263,8 @@ class VirtualReferencePartitionTransitionTest implements EvitaTestSupport {
 			.stream()
 			.filter(it -> it.entityType().equals(ENTITY_CATEGORY) && it.partitionPrimaryKey() == partition)
 			.map(Transition::stage)
+			// the order the leaving owner had is removed from the partition, which only the mirror is told about
+			.filter(it -> it != TransitionStage.MIRRORED)
 			.toList();
 		assertEquals(
 			List.of(TransitionStage.SHARED), passed,
@@ -318,8 +320,10 @@ class VirtualReferencePartitionTransitionTest implements EvitaTestSupport {
 			partitionOf(theEngines.getMaintaining(), ENTITY_CATEGORY, Scope.LIVE, product(NEW_PRODUCT + 1));
 		final List<TransitionStage> ofTwoCategories = new ArrayList<>(2);
 		for (final Transition transition : theEngines.getMaintainingHistory().getCommitted()) {
+			// the orders the categories have are written into the partition, which only the mirror is told about
 			if (transition.entityType().equals(ENTITY_CATEGORY) &&
-				transition.partitionPrimaryKey() == twoCategoriesPartition) {
+				transition.partitionPrimaryKey() == twoCategoriesPartition &&
+				transition.stage() != TransitionStage.MIRRORED) {
 				ofTwoCategories.add(transition.stage());
 			}
 		}
@@ -485,7 +489,10 @@ class VirtualReferencePartitionTransitionTest implements EvitaTestSupport {
 				TransitionStage.VACATED
 			),
 			theEngines.getMaintainingHistory().getRolledBack().stream()
-				.filter(it -> it.referenceName().equals(REFERENCE_CATEGORIES)).map(Transition::stage).toList(),
+				.filter(it -> it.referenceName().equals(REFERENCE_CATEGORIES)).map(Transition::stage)
+				// the order the leaving owner had is removed from the partition, which only the mirror is told about
+				.filter(it -> it != TransitionStage.MIRRORED)
+				.toList(),
 			"every injected failure must have struck after its transition, the second after two entries"
 		);
 

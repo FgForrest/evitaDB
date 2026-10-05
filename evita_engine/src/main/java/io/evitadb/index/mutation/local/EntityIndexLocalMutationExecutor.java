@@ -184,6 +184,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	private final LinkedList<ToIntBiFunction<IndexType, Target>> entityPrimaryKey = new LinkedList<>();
 	/**
+	 * The primary key of the entity this executor mutates - the owner of every reference it indexes. Unlike
+	 * {@link #getPrimaryKeyToIndex(IndexType, Target)}, it is never replaced by a primary key pushed for a nested
+	 * operation (see {@link #executeWithDifferentPrimaryKeyToIndex(ToIntBiFunction, Runnable)}).
+	 */
+	private final int ownerPrimaryKey;
+	/**
 	 * The accessor that allows to create or remove {@link CatalogIndex} instances.
 	 */
 	private final IndexMaintainer<CatalogIndexKey, CatalogIndex> catalogIndexCreatingAccessor;
@@ -445,6 +451,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	) {
 		this.containerAccessor = containerAccessor;
 		this.entityPrimaryKey.add((anyType, anyPurpose) -> entityPrimaryKey);
+		this.ownerPrimaryKey = entityPrimaryKey;
 		this.entityIndexCreatingAccessor = entityIndexCreatingAccessor;
 		this.catalogIndexCreatingAccessor = catalogIndexCreatingAccessor;
 		this.schemaAccessor = schemaAccessor;
@@ -473,6 +480,16 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	@Nonnull
 	MutationHandle getVirtualReferencePartitionMutation() {
 		return this.virtualReferencePartitionMutation;
+	}
+
+	/**
+	 * Returns the primary key of the entity this executor mutates - the owner of every reference it indexes - whatever
+	 * primary key the indexes are currently written with (see {@link #getPrimaryKeyToIndex(IndexType, Target)}).
+	 *
+	 * @return the primary key of the mutated entity
+	 */
+	int getOwnerPrimaryKey() {
+		return this.ownerPrimaryKey;
 	}
 
 	/**
@@ -1657,6 +1674,20 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	@Nullable
 	public EntityIndex getIndexIfExists(@Nonnull EntityIndexKey entityIndexKey) {
 		return this.entityIndexCreatingAccessor.getIndexIfExists(entityIndexKey);
+	}
+
+	/**
+	 * Returns the existing index for the given key registered for modification tracking, so that its changed storage
+	 * parts are persisted on flush, but - unlike {@link #getOrCreateIndex(EntityIndexKey)} - without adding it to the
+	 * indexes the end of the mutation inspects for emptiness. Meant for an index the mutation writes into on the side,
+	 * whose existence the mutation must not decide.
+	 *
+	 * @param entityIndexKey the key of an index known to exist
+	 * @return the existing index registered for modification
+	 */
+	@Nonnull
+	EntityIndex getIndexForSideWrite(@Nonnull EntityIndexKey entityIndexKey) {
+		return this.entityIndexCreatingAccessor.getOrCreateIndex(entityIndexKey);
 	}
 
 	/**
