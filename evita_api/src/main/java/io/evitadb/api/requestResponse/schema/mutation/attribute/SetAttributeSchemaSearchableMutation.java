@@ -6,7 +6,7 @@
  *             |  __/\ V /| | || (_| | |_| | |_) |
  *              \___| \_/ |_|\__\__,_|____/|____/
  *
- *   Copyright (c) 2023-2025
+ *   Copyright (c) 2026
  *
  *   Licensed under the Business Source License, Version 1.1 (the "License");
  *   you may not use this file except in compliance with the License.
@@ -23,25 +23,24 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.attribute;
 
-import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
-import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
-import io.evitadb.dataType.EvitaDataTypes;
+import io.evitadb.dataType.Scope;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -51,60 +50,97 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
-import java.io.Serializable;
+import java.util.Arrays;
+import java.util.EnumSet;
 
-import static java.util.Optional.ofNullable;
+import static io.evitadb.dataType.Scope.NO_SCOPE;
 
 /**
- * Mutation is responsible for setting value to a {@link AttributeSchemaContract#getType()}
+ * Mutation is responsible for setting value to a {@link AttributeSchemaContract#isSearchable()}
  * in {@link EntitySchemaContract}.
  * Mutation can be used for altering also the existing {@link AttributeSchemaContract} or
- * {@link GlobalAttributeSchemaContract} alone.
+ * {@link GlobalAttributeSchemaContract} alone, and a reference attribute through
+ * {@link ReferenceAttributeSchemaMutation}.
+ *
+ * The mutation is a **full statement of the searchability axis** - it names every scope the attribute should be
+ * searchable in once it is applied, and a scope it does not name ends up not searchable. It touches nothing else:
+ * searchability is independent of filterability, so the filterability and the accelerators of the attribute are
+ * carried through unchanged.
+ *
+ * The mutation refuses nothing. Whether the attribute can be searchable at all - a localized `String` or `String[]`
+ * - is checked by {@link AttributeSchemaContract#validate()} on the assembled schema, so that `searchable()`,
+ * `localized()` and a type change may be declared in any order. It is also never refused because the collection
+ * already holds entities: values stored before the attribute became searchable are not indexed retroactively, and
+ * a search over them returns incomplete results until they are written again.
+ *
  * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
  * if the mutation is placed twice in the mutation pipeline.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @ThreadSafe
 @Immutable
 @EqualsAndHashCode(callSuper = true)
-public class ModifyAttributeSchemaTypeMutation
+public class SetAttributeSchemaSearchableMutation
 	extends AbstractAttributeSchemaMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
-	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation {
-	@Serial private static final long serialVersionUID = -4704241145075202389L;
-	@Nonnull @Getter private final Class<? extends Serializable> type;
-	@Getter private final int indexedDecimalPlaces;
+	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation {
+	@Serial private static final long serialVersionUID = 2918246155260731470L;
 
-	public ModifyAttributeSchemaTypeMutation(
+	/**
+	 * The scopes the attribute should be searchable in. Never `null` after construction - an empty array states
+	 * "searchable nowhere".
+	 */
+	@Getter @Nonnull private final Scope[] searchableInScopes;
+
+	/**
+	 * Creates a mutation making the attribute searchable in the {@link Scope#DEFAULT_SCOPE default scope} only, or
+	 * searchable nowhere.
+	 *
+	 * @param name       name of the altered attribute
+	 * @param searchable true to make the attribute searchable in the default scope, false to make it searchable nowhere
+	 */
+	public SetAttributeSchemaSearchableMutation(@Nonnull String name, boolean searchable) {
+		this(
+			name,
+			searchable ? Scope.DEFAULT_SCOPES : NO_SCOPE
+		);
+	}
+
+	/**
+	 * Creates a mutation stating the scopes the attribute should be searchable in.
+	 *
+	 * @param name               name of the altered attribute
+	 * @param searchableInScopes the scopes the attribute should be searchable in; a scope not named here ends up not
+	 *                           searchable. May be `null`, which means "searchable nowhere"
+	 */
+	@SerializableCreator
+	public SetAttributeSchemaSearchableMutation(
 		@Nonnull String name,
-		@Nonnull Class<? extends Serializable> type,
-		int indexedDecimalPlaces
+		@Nullable Scope[] searchableInScopes
 	) {
 		super(name);
-		if (!EvitaDataTypes.isSupportedTypeOrItsArray(type)) {
-			throw new InvalidSchemaMutationException("The type `" + type + "` is not allowed in attributes!");
-		}
-		this.type = type;
-		this.indexedDecimalPlaces = indexedDecimalPlaces;
+		this.searchableInScopes = searchableInScopes == null ? NO_SCOPE : searchableInScopes;
+	}
+
+	/**
+	 * Whether this mutation makes the attribute searchable in at least one scope.
+	 *
+	 * @return true when at least one scope is named
+	 */
+	public boolean isSearchable() {
+		return !ArrayUtils.isEmptyOrItsValuesNull(this.searchableInScopes);
 	}
 
 	@Nullable
 	@Override
-	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
-		if (existingMutation instanceof AttributeSchemaMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
-			if (existingMutation instanceof ModifyAttributeSchemaTypeMutation) {
-				return new MutationCombinationResult<>(null, this);
-			} else if (
-				existingMutation instanceof SetAttributeSchemaFilterableMutation ||
-					existingMutation instanceof SetAttributeSchemaSearchableMutation ||
-					existingMutation instanceof SetAttributeSchemaSortableMutation
-			) {
-				// swap operations
-				return new MutationCombinationResult<>(this, existingMutation);
-			} else {
-				return null;
-			}
+	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(
+		@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation
+	) {
+		if (existingMutation instanceof SetAttributeSchemaSearchableMutation theExistingMutation &&
+			this.name.equals(theExistingMutation.getName())
+		) {
+			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
 		}
@@ -117,21 +153,10 @@ public class ModifyAttributeSchemaTypeMutation
 		@Nonnull EntitySchemaContract currentEntitySchema,
 		@Nonnull LocalEntitySchemaMutation existingMutation
 	) {
-		if (existingMutation instanceof AttributeSchemaMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
-			if (existingMutation instanceof ModifyAttributeSchemaTypeMutation) {
-				return new MutationCombinationResult<>(null, this);
-			} else if (
-				existingMutation instanceof SetAttributeSchemaFilterableMutation ||
-					existingMutation instanceof SetAttributeSchemaSearchableMutation ||
-					existingMutation instanceof SetAttributeSchemaSortableMutation ||
-					existingMutation instanceof SetAttributeSchemaUniqueMutation ||
-					existingMutation instanceof SetAttributeSchemaRepresentativeMutation
-			) {
-				// swap operations
-				return new MutationCombinationResult<>(this, existingMutation);
-			} else {
-				return null;
-			}
+		if (existingMutation instanceof SetAttributeSchemaSearchableMutation theExistingMutation &&
+			this.name.equals(theExistingMutation.getName())
+		) {
+			return new MutationCombinationResult<>(null, this);
 		} else {
 			return null;
 		}
@@ -139,21 +164,15 @@ public class ModifyAttributeSchemaTypeMutation
 
 	@Nonnull
 	@Override
-	public <S extends AttributeSchemaContract> S mutate(@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType) {
+	public <S extends AttributeSchemaContract> S mutate(
+		@Nullable CatalogSchemaContract catalogSchema, @Nullable S attributeSchema, @Nonnull Class<S> schemaType
+	) {
 		Assert.isPremiseValid(attributeSchema != null, "Attribute schema is mandatory!");
-		@SuppressWarnings("rawtypes")
-		final Class newType = EvitaDataTypes.toWrappedForm(this.type);
-		// the rebuild branches below carry the existing accelerators over verbatim, so the new type has to be checked
-		// against them here - otherwise changing a `String` attribute that declares SUBSTRING to `Integer` would
-		// silently produce a schema the accelerator's own contract forbids. The non-empty-collection refusal cannot
-		// catch this: it compares accelerator sets and sees nothing *added*.
-		verifyAcceleratorsApplicableToType(
-			this.name, newType, attributeSchema.getAcceleratorsInScopes()
-		);
-		if (newType.equals(attributeSchema.getType()) && this.indexedDecimalPlaces == attributeSchema.getIndexedDecimalPlaces()) {
+		final EnumSet<Scope> searchable = ArrayUtils.toEnumSet(Scope.class, this.searchableInScopes);
+		if (attributeSchema.getSearchableInScopes().equals(searchable)) {
 			return attributeSchema;
 		} else if (attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema) {
-			//noinspection unchecked
+			//noinspection unchecked,rawtypes
 			return (S) GlobalAttributeSchema._internalBuild(
 				this.name,
 				globalAttributeSchema.getNameVariants(),
@@ -163,20 +182,18 @@ public class ModifyAttributeSchemaTypeMutation
 				globalAttributeSchema.getGlobalUniquenessTypeInScopes(),
 				globalAttributeSchema.getFilterableInScopes(),
 				globalAttributeSchema.getAcceleratorsInScopes(),
-				globalAttributeSchema.getSearchableInScopes(),
+				searchable,
 				globalAttributeSchema.getSortableInScopes(),
 				globalAttributeSchema.isLocalized(),
 				globalAttributeSchema.isNullable(),
 				globalAttributeSchema.isRepresentative(),
-				newType,
-				ofNullable(globalAttributeSchema.getDefaultValue())
-					.map(it -> EvitaDataTypes.toTargetType(it, newType))
-					.orElse(null),
-				this.indexedDecimalPlaces,
+				(Class) globalAttributeSchema.getType(),
+				globalAttributeSchema.getDefaultValue(),
+				globalAttributeSchema.getIndexedDecimalPlaces(),
 				globalAttributeSchema.getConflictResolutionOverride()
 			);
 		} else if (attributeSchema instanceof EntityAttributeSchemaContract entityAttributeSchema) {
-			//noinspection unchecked
+			//noinspection unchecked,rawtypes
 			return (S) EntityAttributeSchema._internalBuild(
 				this.name,
 				entityAttributeSchema.getNameVariants(),
@@ -185,20 +202,18 @@ public class ModifyAttributeSchemaTypeMutation
 				entityAttributeSchema.getUniquenessTypeInScopes(),
 				entityAttributeSchema.getFilterableInScopes(),
 				entityAttributeSchema.getAcceleratorsInScopes(),
-				entityAttributeSchema.getSearchableInScopes(),
+				searchable,
 				entityAttributeSchema.getSortableInScopes(),
 				entityAttributeSchema.isLocalized(),
 				entityAttributeSchema.isNullable(),
 				entityAttributeSchema.isRepresentative(),
-				newType,
-				ofNullable(entityAttributeSchema.getDefaultValue())
-					.map(it -> EvitaDataTypes.toTargetType(it, newType))
-					.orElse(null),
-				this.indexedDecimalPlaces,
+				(Class) entityAttributeSchema.getType(),
+				entityAttributeSchema.getDefaultValue(),
+				entityAttributeSchema.getIndexedDecimalPlaces(),
 				entityAttributeSchema.getConflictResolutionOverride()
 			);
-		} else  {
-			//noinspection unchecked
+		} else {
+			//noinspection unchecked,rawtypes
 			return (S) AttributeSchema._internalBuild(
 				this.name,
 				attributeSchema.getNameVariants(),
@@ -207,16 +222,14 @@ public class ModifyAttributeSchemaTypeMutation
 				attributeSchema.getUniquenessTypeInScopes(),
 				attributeSchema.getFilterableInScopes(),
 				attributeSchema.getAcceleratorsInScopes(),
-				attributeSchema.getSearchableInScopes(),
+				searchable,
 				attributeSchema.getSortableInScopes(),
 				attributeSchema.isLocalized(),
 				attributeSchema.isNullable(),
 				attributeSchema.isRepresentative(),
-				newType,
-				ofNullable(attributeSchema.getDefaultValue())
-					.map(it -> EvitaDataTypes.toTargetType(it, newType))
-					.orElse(null),
-				this.indexedDecimalPlaces,
+				(Class) attributeSchema.getType(),
+				attributeSchema.getDefaultValue(),
+				attributeSchema.getIndexedDecimalPlaces(),
 				attributeSchema.getConflictResolutionOverride()
 			);
 		}
@@ -238,9 +251,8 @@ public class ModifyAttributeSchemaTypeMutation
 
 	@Override
 	public String toString() {
-		return "Modify attribute `" + this.name + "` schema: " +
-			"type=" + this.type +
-			", indexedDecimalPlaces=" + this.indexedDecimalPlaces;
+		return "Set attribute `" + this.name + "` schema: " +
+			"searchable=" + (isSearchable() ? "(in scopes: " + Arrays.toString(this.searchableInScopes) + ")" : "no");
 	}
 
 }

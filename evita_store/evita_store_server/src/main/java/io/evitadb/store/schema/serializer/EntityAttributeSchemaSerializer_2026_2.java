@@ -101,7 +101,7 @@ public class EntityAttributeSchemaSerializer_2026_2 extends Serializer<EntityAtt
 			kryo.readObject(input, ConflictResolutionOverride.class);
 		return EntityAttributeSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
-			unique, filterable, null, sortable, localized, nullable, representative,
+			unique, filterable, null, null, sortable, localized, nullable, representative,
 			type, (Serializable) defaultValue, indexedDecimalPlaces, conflictResolutionOverride
 		);
 	}

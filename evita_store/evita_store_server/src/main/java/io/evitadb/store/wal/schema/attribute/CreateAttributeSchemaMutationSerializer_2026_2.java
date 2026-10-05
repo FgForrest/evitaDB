@@ -90,7 +90,6 @@ public class CreateAttributeSchemaMutationSerializer_2026_2
 			deprecationNotice,
 			uniqueInScopes,
 			filterableInScopes,
-			null,
 			sortableInScopes,
 			localized,
 			nullable,

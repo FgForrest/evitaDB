@@ -716,7 +716,7 @@ class SharedRgeiMutationMatrixTest {
 		@Nonnull Class<? extends Serializable> type
 	) {
 		return AttributeSchema._internalBuild(
-			name, null, new Scope[]{Scope.LIVE}, null, null,
+			name, null, new Scope[]{Scope.LIVE}, null, null, null,
 			false, false, false, type, null,
 			ConflictResolutionOverride.INHERITED
 		);

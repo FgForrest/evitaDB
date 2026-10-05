@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder
 import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaTypeMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
 import io.evitadb.utils.NamingConvention;
@@ -54,6 +55,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.FULLTEXT;
 
 /**
  * Tests for {@link io.evitadb.api.requestResponse.schema.builder.AttributeSchemaBuilder},
@@ -747,6 +749,170 @@ class AttributeSchemaBuilderTest {
 		}
 
 		@Nested
+		@DisplayName("searchability")
+		@Tag(FULLTEXT)
+		class Searchability {
+
+			@Test
+			@DisplayName("should make a localized String attribute searchable in the default scope only")
+			void shouldMakeLocalizedStringAttributeSearchable() {
+				final EntityAttributeSchemaContract attr = createEntitySchemaBuilder()
+					.withAttribute("name", String.class, whichIs -> whichIs.localized().searchable())
+					.toInstance()
+					.getAttribute("name").orElseThrow();
+
+				assertTrue(attr.isSearchable());
+				assertTrue(attr.isSearchableInScope(Scope.LIVE));
+				assertFalse(attr.isSearchableInScope(Scope.ARCHIVED));
+				assertEquals(EnumSet.of(Scope.LIVE), attr.getSearchableInScopes());
+			}
+
+			@Test
+			@DisplayName("should not make the attribute filterable, nor need it to be")
+			void shouldKeepSearchabilityIndependentOfFilterability() {
+				final EntitySchemaContract schema = createEntitySchemaBuilder()
+					.withAttribute("description", String.class, whichIs -> whichIs.localized().searchable())
+					.withAttribute("code", String.class, whichIs -> whichIs.localized().filterable())
+					.toInstance();
+
+				final EntityAttributeSchemaContract description = schema.getAttribute("description").orElseThrow();
+				assertTrue(description.isSearchable());
+				assertFalse(description.isFilterableInAnyScope());
+
+				final EntityAttributeSchemaContract code = schema.getAttribute("code").orElseThrow();
+				assertTrue(code.isFilterable());
+				assertFalse(code.isSearchableInAnyScope());
+			}
+
+			@Test
+			@DisplayName("should state the searchable scopes in full")
+			void shouldStateSearchableScopesInFull() {
+				final EntityAttributeSchemaContract attr = createEntitySchemaBuilder()
+					.withAttribute(
+						"name", String.class,
+						whichIs -> whichIs.localized()
+							.searchableInScope(Scope.values())
+							.searchableInScope(Scope.ARCHIVED)
+					)
+					.toInstance()
+					.getAttribute("name").orElseThrow();
+
+				assertEquals(EnumSet.of(Scope.ARCHIVED), attr.getSearchableInScopes());
+			}
+
+			@Test
+			@DisplayName("should withdraw searchability from one scope and keep the other")
+			void shouldWithdrawSearchabilityFromOneScope() {
+				final EntityAttributeSchemaContract attr = createEntitySchemaBuilder()
+					.withAttribute(
+						"name", String.class,
+						whichIs -> whichIs.localized()
+							.searchableInScope(Scope.values())
+							.nonSearchableInScope(Scope.LIVE)
+					)
+					.toInstance()
+					.getAttribute("name").orElseThrow();
+
+				assertFalse(attr.isSearchableInScope(Scope.LIVE));
+				assertTrue(attr.isSearchableInScope(Scope.ARCHIVED));
+			}
+
+			@Test
+			@DisplayName("should withdraw searchability from every scope")
+			void shouldWithdrawSearchabilityFromEveryScope() {
+				final EntityAttributeSchemaContract attr = createEntitySchemaBuilder()
+					.withAttribute(
+						"name", String.class,
+						whichIs -> whichIs.localized().searchableInScope(Scope.values()).nonSearchable()
+					)
+					.toInstance()
+					.getAttribute("name").orElseThrow();
+
+				assertFalse(attr.isSearchableInAnyScope());
+			}
+
+			@Test
+			@DisplayName("should follow the decider")
+			void shouldFollowDecider() {
+				final EntitySchemaContract schema = createEntitySchemaBuilder()
+					.withAttribute("name", String.class, whichIs -> whichIs.localized().searchable(() -> true))
+					.withAttribute("title", String.class, whichIs -> whichIs.localized().searchable(() -> false))
+					.toInstance();
+
+				assertTrue(schema.getAttribute("name").orElseThrow().isSearchable());
+				assertFalse(schema.getAttribute("title").orElseThrow().isSearchableInAnyScope());
+			}
+
+			@Test
+			@DisplayName("should accept a localized String array attribute")
+			void shouldAcceptLocalizedStringArrayAttribute() {
+				final EntityAttributeSchemaContract attr = createEntitySchemaBuilder()
+					.withAttribute("tags", String[].class, whichIs -> whichIs.localized().searchable())
+					.toInstance()
+					.getAttribute("tags").orElseThrow();
+
+				assertTrue(attr.isSearchable());
+			}
+
+			@Test
+			@DisplayName("should accept the declaration in any order")
+			void shouldAcceptDeclarationInAnyOrder() {
+				// `searchable()` before `localized()` passes through a state that would be invalid on its own - the
+				// rule is checked on the assembled attribute, so the order of the calls must not matter
+				final EntityAttributeSchemaContract attr = createEntitySchemaBuilder()
+					.withAttribute("name", String.class, whichIs -> whichIs.searchable().localized())
+					.toInstance()
+					.getAttribute("name").orElseThrow();
+
+				assertTrue(attr.isSearchable());
+				assertTrue(attr.isLocalized());
+			}
+
+			@Test
+			@DisplayName("should refuse a searchable attribute that is not localized")
+			void shouldRefuseSearchableAttributeThatIsNotLocalized() {
+				final InvalidSchemaMutationException exception = assertThrows(
+					InvalidSchemaMutationException.class,
+					() -> createEntitySchemaBuilder()
+						.withAttribute("name", String.class, AttributeSchemaEditor::searchable)
+						.toInstance()
+				);
+				assertTrue(exception.getMessage().contains("localized"), exception.getMessage());
+			}
+
+			@Test
+			@DisplayName("should refuse a searchable attribute of another type than String")
+			void shouldRefuseSearchableAttributeOfAnotherType() {
+				final InvalidSchemaMutationException exception = assertThrows(
+					InvalidSchemaMutationException.class,
+					() -> createEntitySchemaBuilder()
+						.withAttribute("quantity", Integer.class, whichIs -> whichIs.localized().searchable())
+						.toInstance()
+				);
+				assertTrue(exception.getMessage().contains("String"), exception.getMessage());
+			}
+
+			@Test
+			@DisplayName("should report a type change that leaves a searchable attribute without a String type")
+			void shouldReportTypeChangeLeavingSearchableAttributeWithoutStringType() {
+				// a type change is a mutation of its own, applied without the attribute builder - the rule is caught
+				// by the validation of the assembled entity schema, which is what a session runs before it commits
+				final EntitySchemaContract searchable = createEntitySchemaBuilder()
+					.withAttribute("name", String.class, whichIs -> whichIs.localized().searchable())
+					.toInstance();
+				final CatalogSchema theCatalogSchema = AttributeSchemaBuilderTest.this.catalogSchema;
+				final EntitySchemaContract retyped = new ModifyAttributeSchemaTypeMutation("name", Integer.class, 0)
+					.mutate(theCatalogSchema, searchable);
+
+				final InvalidSchemaMutationException exception = assertThrows(
+					InvalidSchemaMutationException.class,
+					() -> retyped.validate(theCatalogSchema)
+				);
+				assertTrue(exception.getMessage().contains("String"), exception.getMessage());
+			}
+		}
+
+		@Nested
 		@DisplayName("sortability scope operations")
 		class SortabilityScope {
 
@@ -1255,6 +1421,35 @@ class AttributeSchemaBuilderTest {
 								AttributeFilterAccelerator.SUBSTRING_SEARCH
 							)
 						)
+						.toInstance()
+				);
+			}
+		}
+
+		@Nested
+		@DisplayName("searchability")
+		@Tag(FULLTEXT)
+		class GlobalSearchability {
+
+			@Test
+			@DisplayName("should make a localized String global attribute searchable")
+			void shouldMakeGlobalAttributeSearchable() {
+				final GlobalAttributeSchemaContract attr = createCatalogSchemaBuilder()
+					.withAttribute("title", String.class, whichIs -> whichIs.localized().searchable())
+					.toInstance()
+					.getAttribute("title").orElseThrow();
+
+				assertTrue(attr.isSearchable());
+				assertEquals(EnumSet.of(Scope.LIVE), attr.getSearchableInScopes());
+			}
+
+			@Test
+			@DisplayName("should refuse a searchable global attribute that is not localized")
+			void shouldRefuseSearchableGlobalAttributeThatIsNotLocalized() {
+				assertThrows(
+					InvalidSchemaMutationException.class,
+					() -> createCatalogSchemaBuilder()
+						.withAttribute("title", String.class, AttributeSchemaEditor::searchable)
 						.toInstance()
 				);
 			}
@@ -2180,6 +2375,54 @@ class AttributeSchemaBuilderTest {
 					.orElseThrow();
 
 			assertTrue(attr.isNullable());
+		}
+
+		@Test
+		@DisplayName(
+			"should make an attribute of a non-indexed reference searchable"
+		)
+		@Tag(FULLTEXT)
+		void shouldMakeAttributeOfNonIndexedReferenceSearchable() {
+			// unlike filterability, searchability needs no reference index - the entity is searchable by the union
+			// of the attribute's values over its references, which lives in the entity's global index
+			final EntitySchemaContract schema =
+				createEntitySchemaBuilder()
+					.withReferenceTo(
+						"brand", Entities.BRAND,
+						Cardinality.ZERO_OR_MORE,
+						ref -> ref.withAttribute(
+							"name", String.class,
+							whichIs -> whichIs.localized().searchable()
+						)
+					)
+					.toInstance();
+
+			final AttributeSchemaContract attr =
+				schema.getReference("brand").orElseThrow()
+					.getAttribute("name").orElseThrow();
+
+			assertTrue(attr.isSearchable());
+		}
+
+		@Test
+		@DisplayName(
+			"should refuse a searchable reference attribute that is not localized"
+		)
+		@Tag(FULLTEXT)
+		void shouldRefuseSearchableReferenceAttributeThatIsNotLocalized() {
+			assertThrows(
+				InvalidSchemaMutationException.class,
+				() -> createEntitySchemaBuilder()
+					.withReferenceTo(
+						"brand", Entities.BRAND,
+						Cardinality.ZERO_OR_MORE,
+						ref -> ref.withAttribute(
+							"name", String.class,
+							AttributeSchemaEditor::searchable
+						)
+					)
+					.toInstance()
+			);
 		}
 	}
 }

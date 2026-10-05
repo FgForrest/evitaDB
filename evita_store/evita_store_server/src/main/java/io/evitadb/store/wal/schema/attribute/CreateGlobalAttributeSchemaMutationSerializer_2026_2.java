@@ -94,7 +94,6 @@ public class CreateGlobalAttributeSchemaMutationSerializer_2026_2
 			deprecationNotice,
 			uniqueInScopes, uniqueGloballyInScopes,
 			filterableInScopes,
-			null,
 			sortableInScopes,
 			localized,
 			nullable,

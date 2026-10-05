@@ -98,6 +98,7 @@ public class EntityAttributeSchemaSerializer extends Serializer<EntityAttributeS
 		// appended last, mirroring how the conflict-resolution override was added - the release-2026.2 reader
 		// (EntityAttributeSchemaSerializer_2026_2) simply stops before this point
 		EntitySchemaSerializer.writeAccelerators(kryo, output, attributeSchema.getAcceleratorsInScopes());
+		EntitySchemaSerializer.writeScopeSet(kryo, output, attributeSchema.getSearchableInScopes());
 	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
@@ -135,9 +136,10 @@ public class EntityAttributeSchemaSerializer extends Serializer<EntityAttributeS
 		final ConflictResolutionOverride conflictResolutionOverride = kryo.readObject(input, ConflictResolutionOverride.class);
 		final Map<Scope, Set<AttributeFilterAccelerator>> accelerators =
 			EntitySchemaSerializer.readAccelerators(kryo, input);
+		final EnumSet<Scope> searchable = EntitySchemaSerializer.readScopeSet(kryo, input);
 		return EntityAttributeSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
-			unique, filterable, accelerators, sortable, localized, nullable, representative,
+			unique, filterable, accelerators, searchable, sortable, localized, nullable, representative,
 			type, (Serializable) defaultValue, indexedDecimalPlaces, conflictResolutionOverride
 		);
 	}

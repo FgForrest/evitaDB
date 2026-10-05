@@ -43,6 +43,8 @@ import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.HistogramIndexDefinition;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedGlobalAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSchemaIndexedMutation;
@@ -80,6 +82,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static io.evitadb.test.Assertions.assertExactlyEquals;
+import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.HISTOGRAM;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static io.evitadb.test.TestTags.STORAGE;
@@ -264,6 +267,74 @@ class SchemaSerializationServiceTest {
 		assertEquals(
 			Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
 			uniqueOnly.getAcceleratorsInScope(Scope.LIVE)
+		);
+	}
+
+	@Test
+	@DisplayName("should round-trip the searchable scopes through all three attribute schema serializers")
+	@Tag(FULLTEXT)
+	void shouldRoundTripSearchableScopes() {
+		// three distinct serializers carry the field - entity attribute, reference attribute and global attribute -
+		// and each appends it after the accelerators, so an accelerator is declared alongside to prove the two
+		// trailing sections do not overlap
+		final EntitySchemaContract createdSchema = createEntitySchemaBuilder()
+			.withAttribute(
+				"name", String.class,
+				whichIs -> whichIs.localized()
+					.filterable().acceleratedFor(AttributeFilterAccelerator.SUBSTRING_SEARCH)
+					.searchableInScope(Scope.LIVE, Scope.ARCHIVED)
+			)
+			.withAttribute("description", String.class, whichIs -> whichIs.localized().searchable())
+			.withReferenceToEntity(
+				Entities.BRAND, Entities.BRAND, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs.withAttribute(
+					"brandName", String[].class, thatIs -> thatIs.localized().searchable()
+				)
+			)
+			.toInstance();
+
+		final EntitySchema deserialized = roundTripEntitySchema(createKryo(), createdSchema);
+
+		assertEquals(createdSchema, deserialized);
+		assertExactlyEquals(createdSchema, deserialized);
+		// read explicitly - a writer and a reader that both dropped the field would still compare equal
+		final AttributeSchemaContract name = deserialized.getAttribute("name").orElseThrow();
+		assertEquals(EnumSet.of(Scope.LIVE, Scope.ARCHIVED), name.getSearchableInScopes());
+		assertEquals(Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH), name.getAcceleratorsInScope(Scope.LIVE));
+		assertEquals(
+			EnumSet.of(Scope.LIVE), deserialized.getAttribute("description").orElseThrow().getSearchableInScopes()
+		);
+		assertEquals(
+			EnumSet.of(Scope.LIVE),
+			deserialized.getReference(Entities.BRAND).orElseThrow()
+				.getAttribute("brandName").orElseThrow().getSearchableInScopes()
+		);
+
+		final GlobalAttributeSchema globalAttribute = GlobalAttributeSchema._internalBuild(
+			"title", null, null,
+			// the untyped nulls would leave the inherited AttributeSchema overload equally applicable
+			(ScopedAttributeUniquenessType[]) null, (ScopedGlobalAttributeUniquenessType[]) null,
+			Scope.NO_SCOPE, null, new Scope[]{Scope.ARCHIVED}, Scope.NO_SCOPE,
+			true, false, false,
+			String.class, null, 0,
+			ConflictResolutionOverride.INHERITED
+		);
+		final CatalogSchema createdCatalogSchema = CatalogSchema._internalBuild(
+			1,
+			TestConstants.TEST_CATALOG,
+			NamingConvention.generate(TestConstants.TEST_CATALOG),
+			null,
+			null,
+			EnumSet.allOf(CatalogEvolutionMode.class),
+			Map.of("title", globalAttribute),
+			EmptyEntitySchemaAccessor.INSTANCE
+		);
+
+		final CatalogSchema deserializedCatalogSchema = roundTripCatalogSchema(createKryo(), createdCatalogSchema);
+
+		assertEquals(
+			EnumSet.of(Scope.ARCHIVED),
+			deserializedCatalogSchema.getAttribute("title").orElseThrow().getSearchableInScopes()
 		);
 	}
 

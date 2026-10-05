@@ -302,6 +302,7 @@ class SetReferenceSchemaIndexedMutationTest {
 							},
 							new Scope[]{Scope.LIVE},
 							null,
+							null,
 							Scope.NO_SCOPE,
 							false, false, false,
 							Integer.class, null, 0,
@@ -377,6 +378,7 @@ class SetReferenceSchemaIndexedMutationTest {
 							},
 							new Scope[]{Scope.LIVE},
 							null,
+							null,
 							Scope.NO_SCOPE,
 							false, false, false,
 							Integer.class, null, 0,
@@ -449,6 +451,7 @@ class SetReferenceSchemaIndexedMutationTest {
 								)
 							},
 							new Scope[]{Scope.LIVE},
+							null,
 							null,
 							Scope.NO_SCOPE,
 							false, false, false,

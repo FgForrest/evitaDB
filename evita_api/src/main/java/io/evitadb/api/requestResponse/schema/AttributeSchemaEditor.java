@@ -223,6 +223,77 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	T nonAcceleratedForInScope(@Nonnull Scope scope, @Nonnull AttributeFilterAccelerator... accelerators);
 
 	/**
+	 * Makes the attribute searchable: its values are analyzed into words and indexed in the fulltext index of the
+	 * entity collection, one index per locale. Do not mark attribute as searchable unless you know that you'll search
+	 * entities by the words of this attribute. Each searchable attribute occupies (memory/disk) space in the fulltext
+	 * index, and maintaining it adds work to every write.
+	 *
+	 * Searchability is independent of {@link #filterable() filterability} - neither implies the other. Only a
+	 * {@link AttributeSchemaContract#isLocalized() localized} attribute of type {@link String} or `String[]` may be
+	 * searchable. Like the other cross-field rules, this is checked on the assembled attribute, so the order of the
+	 * builder calls does not matter.
+	 *
+	 * **On a reference attribute**, the entity is searchable by the **set union** of the attribute's values over all
+	 * of its references of that reference type. A change of a reference attribute that adds no value missing from that
+	 * union and removes no value no other reference still holds changes nothing in the fulltext index at all.
+	 *
+	 * This method makes attribute searchable only in the {@link Scope#DEFAULT_SCOPE} scope, archived entities will not
+	 * be searchable by this attribute unless explicitly set via {@link #searchableInScope(Scope...)}.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T searchable() {
+		return searchableInScope(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Makes the attribute searchable in exactly the specified scope(s) - see {@link #searchable()} for what
+	 * searchability means and which attributes may be searchable.
+	 *
+	 * This call is a **full statement** of the attribute's searchability, exactly as
+	 * {@link #filterableInScope(Scope...)} is of its filterability: a scope not listed here ends up not searchable.
+	 *
+	 * @param inScope one or more scopes in which the attribute should be searchable
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T searchableInScope(@Nonnull Scope... inScope);
+
+	/**
+	 * Makes the attribute searchable in the {@link Scope#DEFAULT_SCOPE} scope when the decider says so, and not
+	 * searchable in any scope when it does not - see {@link #searchable()} for what searchability means.
+	 *
+	 * @param decider returns true when attribute should be searchable
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T searchable(@Nonnull BooleanSupplier decider) {
+		return decider.getAsBoolean() ? searchable() : nonSearchable();
+	}
+
+	/**
+	 * Makes attribute not searchable in all scopes. This means it will not be possible to search entities by the
+	 * words of this attribute anymore.
+	 *
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	default T nonSearchable() {
+		return nonSearchableInScope(Scope.values());
+	}
+
+	/**
+	 * Makes attribute not searchable in specified scope(s), leaving the other scopes as they are. This means it will
+	 * not be possible to search entities by the words of this attribute in that scope anymore.
+	 *
+	 * @param inScope one or more scopes in which the attribute should not be searchable
+	 * @return builder to continue with configuration
+	 */
+	@Nonnull
+	T nonSearchableInScope(@Nonnull Scope... inScope);
+
+	/**
 	 * When attribute value is unique it is automatically filterable, and it is ensured there is exactly one single entity
 	 * having certain value of this attribute.
 	 *

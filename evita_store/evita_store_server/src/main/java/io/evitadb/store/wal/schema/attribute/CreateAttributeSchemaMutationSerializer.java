@@ -100,6 +100,7 @@ public class CreateAttributeSchemaMutationSerializer extends Serializer<CreateAt
 		// appended last - the release-2026.2 reader (CreateAttributeSchemaMutationSerializer_2026_2) stops before
 		// this point and never looks for the presence flag
 		writeScopedAcceleratorsArray(kryo, output, mutation.getAcceleratorsInScopes());
+		writeScopeArray(kryo, output, mutation.getSearchableInScopes());
 	}
 
 	@Override
@@ -124,6 +125,7 @@ public class CreateAttributeSchemaMutationSerializer extends Serializer<CreateAt
 			kryo.readObject(input, ConflictResolutionOverride.class);
 		final ScopedAttributeFilterAccelerators[] acceleratorsInScopes =
 			readScopedAcceleratorsArray(kryo, input);
+		final Scope[] searchableInScopes = readScopeArray(kryo, input);
 		return new CreateAttributeSchemaMutation(
 			name,
 			description,
@@ -131,6 +133,7 @@ public class CreateAttributeSchemaMutationSerializer extends Serializer<CreateAt
 			uniqueInScopes,
 			filterableInScopes,
 			acceleratorsInScopes,
+			searchableInScopes,
 			sortableInScopes,
 			localized,
 			nullable,

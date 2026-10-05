@@ -1568,6 +1568,13 @@ public sealed class ReferenceSchema implements ReferenceSchemaContract permits R
 				}
 			}
 		}
+		// the self-contained rules of an attribute, searchability among them - an inherited attribute of a reflected
+		// reference is skipped, because the reference it is inherited from already reports it
+		for (AttributeSchemaContract attribute : attributes.values()) {
+			if (shouldValidate(attribute)) {
+				attributeErrors = Stream.concat(attributeErrors, attribute.validate());
+			}
+		}
 		if (this.cardinality.allowsDuplicates()) {
 			int representativeAttributes = 0;
 			for (AttributeSchemaContract attribute : attributes.values()) {

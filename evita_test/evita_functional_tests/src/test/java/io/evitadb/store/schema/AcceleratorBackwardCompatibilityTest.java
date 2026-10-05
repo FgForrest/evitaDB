@@ -142,6 +142,7 @@ class AcceleratorBackwardCompatibilityTest {
 			(ScopedAttributeUniquenessType[]) null,
 			Scope.DEFAULT_SCOPES,
 			SUBSTRING_IN_LIVE,
+			null,
 			Scope.NO_SCOPE,
 			false, false, false,
 			String.class, null, 0,
@@ -173,6 +174,7 @@ class AcceleratorBackwardCompatibilityTest {
 			},
 			Scope.DEFAULT_SCOPES,
 			SUBSTRING_IN_LIVE,
+			null,
 			Scope.NO_SCOPE,
 			false, false, false,
 			String.class, null, 0,
@@ -199,6 +201,7 @@ class AcceleratorBackwardCompatibilityTest {
 			(ScopedAttributeUniquenessType[]) null,
 			Scope.DEFAULT_SCOPES,
 			SUBSTRING_IN_LIVE,
+			null,
 			Scope.NO_SCOPE,
 			false, false, false,
 			String.class, null, 0,
@@ -225,6 +228,7 @@ class AcceleratorBackwardCompatibilityTest {
 			null,
 			Scope.DEFAULT_SCOPES,
 			SUBSTRING_IN_LIVE,
+			null,
 			Scope.NO_SCOPE,
 			false, false, false,
 			String.class, null, 0,
@@ -244,6 +248,7 @@ class AcceleratorBackwardCompatibilityTest {
 		assertEquals(ConflictResolutionOverride.GRANULAR, deserialized.getConflictResolutionOverride());
 		assertArrayEquals(Scope.DEFAULT_SCOPES, deserialized.getFilterableInScopes());
 		assertEquals(0, deserialized.getAcceleratorsInScopes().length);
+		assertEquals(0, deserialized.getSearchableInScopes().length);
 	}
 
 	@Test
@@ -255,6 +260,7 @@ class AcceleratorBackwardCompatibilityTest {
 			null, null,
 			Scope.DEFAULT_SCOPES,
 			SUBSTRING_IN_LIVE,
+			null,
 			Scope.NO_SCOPE,
 			false, false, false,
 			String.class, null, 0,
@@ -273,6 +279,7 @@ class AcceleratorBackwardCompatibilityTest {
 		assertEquals(ConflictResolutionOverride.GRANULAR, deserialized.getConflictResolutionOverride());
 		assertArrayEquals(Scope.DEFAULT_SCOPES, deserialized.getFilterableInScopes());
 		assertEquals(0, deserialized.getAcceleratorsInScopes().length);
+		assertEquals(0, deserialized.getSearchableInScopes().length);
 	}
 
 	@Test
@@ -329,6 +336,8 @@ class AcceleratorBackwardCompatibilityTest {
 		assertTrue(deserialized.isFilterableInScope(Scope.LIVE), "the filterability itself must survive intact");
 		// … and the trailing capability section reads back as absent, which is what a plain `filterable()` means
 		assertTrue(deserialized.getAcceleratorsInScopes().isEmpty());
+		// the release format predates searchability too, so the attribute reads back searchable nowhere
+		assertTrue(deserialized.getSearchableInScopes().isEmpty());
 	}
 
 	/**

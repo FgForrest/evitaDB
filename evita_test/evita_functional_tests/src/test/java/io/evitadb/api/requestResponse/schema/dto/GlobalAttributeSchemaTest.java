@@ -85,6 +85,7 @@ class GlobalAttributeSchemaTest {
 				new Scope[]{Scope.LIVE},
 				null,
 				null,
+				null,
 				false, false, false,
 				String.class, null,
 				ConflictResolutionOverride.INHERITED
@@ -105,6 +106,7 @@ class GlobalAttributeSchemaTest {
 				null, null,
 				null, null,
 				EnumSet.noneOf(Scope.class),
+				null,
 				null,
 				EnumSet.noneOf(Scope.class),
 				false, false, false,
@@ -134,7 +136,7 @@ class GlobalAttributeSchemaTest {
 						Scope.LIVE, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG
 					)
 				},
-				null, null, null,
+				null, null, null, null,
 				false, false, false,
 				String.class, null,
 				ConflictResolutionOverride.INHERITED
@@ -159,7 +161,7 @@ class GlobalAttributeSchemaTest {
 						Scope.LIVE, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE
 					)
 				},
-				null, null, null,
+				null, null, null, null,
 				true, false, false,
 				String.class, null,
 				ConflictResolutionOverride.INHERITED
@@ -211,7 +213,7 @@ class GlobalAttributeSchemaTest {
 						Scope.LIVE, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG
 					)
 				},
-				null, null, null,
+				null, null, null, null,
 				false, false, false,
 				String.class, null,
 				ConflictResolutionOverride.INHERITED
@@ -232,7 +234,7 @@ class GlobalAttributeSchemaTest {
 						Scope.LIVE, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG_LOCALE
 					)
 				},
-				null, null, null,
+				null, null, null, null,
 				true, false, false,
 				String.class, null,
 				ConflictResolutionOverride.INHERITED
@@ -255,7 +257,7 @@ class GlobalAttributeSchemaTest {
 						Scope.LIVE, GlobalAttributeUniquenessType.UNIQUE_WITHIN_CATALOG
 					)
 				},
-				null, null, null,
+				null, null, null, null,
 				false, false, false,
 				String.class, null,
 				ConflictResolutionOverride.INHERITED
@@ -351,6 +353,7 @@ class GlobalAttributeSchemaTest {
 					)
 				},
 				new Scope[]{Scope.LIVE},
+				null,
 				null,
 				null,
 				false, false, false,

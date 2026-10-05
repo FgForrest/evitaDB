@@ -95,6 +95,11 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 	 * empty array, i.e. plain filterability.
 	 */
 	@Getter @Nonnull private final ScopedAttributeFilterAccelerators[] acceleratorsInScopes;
+	/**
+	 * The scopes in which the newly created attribute is searchable. Never `null` after construction - the field is
+	 * optional on the wire, and an older client that never sends it lands on the empty array, i.e. not searchable.
+	 */
+	@Getter @Nonnull private final Scope[] searchableInScopes;
 	@Getter @Nonnull private final Scope[] sortableInScopes;
 	@Getter private final boolean localized;
 	@Getter private final boolean nullable;
@@ -167,7 +172,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 	) {
 		this(
 			name, description, deprecationNotice,
-			uniqueInScopes, filterableInScopes, null, sortableInScopes,
+			uniqueInScopes, filterableInScopes, null, null, sortableInScopes,
 			localized, nullable, representative, type, defaultValue, indexedDecimalPlaces,
 			ConflictResolutionOverride.INHERITED
 		);
@@ -215,7 +220,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 	) {
 		this(
 			name, description, deprecationNotice,
-			uniqueInScopes, filterableInScopes, null, sortableInScopes,
+			uniqueInScopes, filterableInScopes, null, null, sortableInScopes,
 			localized, nullable, representative, type, defaultValue, indexedDecimalPlaces,
 			conflictResolutionOverride
 		);
@@ -230,6 +235,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 	 * @param uniqueInScopes             the scopes in which the attribute must be unique (may be `null`)
 	 * @param filterableInScopes         the scopes in which the attribute is filterable (may be `null`)
 	 * @param acceleratorsInScopes       the accelerator carriers the mutation transports (may be `null`)
+	 * @param searchableInScopes         the scopes in which the attribute is searchable (may be `null`)
 	 * @param sortableInScopes           the scopes in which the attribute is sortable (may be `null`)
 	 * @param localized                  whether the attribute values are locale-specific
 	 * @param nullable                   whether the attribute value can be null
@@ -257,6 +263,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
 		@Nullable Scope[] filterableInScopes,
 		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
+		@Nullable Scope[] searchableInScopes,
 		@Nullable Scope[] sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -288,6 +295,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 		verifyAcceleratorsApplicableToType(
 			this.name, type, AttributeSchema.toAcceleratorsEnumMap(this.acceleratorsInScopes)
 		);
+		this.searchableInScopes = searchableInScopes == null ? NO_SCOPE : searchableInScopes;
 		this.sortableInScopes = sortableInScopes == null ? NO_SCOPE : sortableInScopes;
 		this.localized = localized;
 		this.nullable = nullable;
@@ -309,6 +317,15 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 
 	public boolean isFilterable() {
 		return !ArrayUtils.isEmptyOrItsValuesNull(this.filterableInScopes);
+	}
+
+	/**
+	 * Whether the created attribute is searchable in at least one scope.
+	 *
+	 * @return true when at least one scope is named in {@link #getSearchableInScopes()}
+	 */
+	public boolean isSearchable() {
+		return !ArrayUtils.isEmptyOrItsValuesNull(this.searchableInScopes);
 	}
 
 	public boolean isSortable() {
@@ -383,6 +400,14 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 							AttributeSchemaContract.class,
 							createdVersion, existingSchema,
 							schema -> Arrays.stream(Scope.values())
+								.filter(schema::isSearchableInScope)
+								.toArray(Scope[]::new),
+							newValue -> new SetAttributeSchemaSearchableMutation(this.name, newValue)
+						),
+						makeMutationIfDifferent(
+							AttributeSchemaContract.class,
+							createdVersion, existingSchema,
+							schema -> Arrays.stream(Scope.values())
 								.map(scope -> new ScopedAttributeUniquenessType(scope, schema.getUniquenessType(scope)))
 								// filter out default values
 								.filter(it -> it.uniquenessType() != AttributeUniquenessType.NOT_UNIQUE)
@@ -438,7 +463,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 			//noinspection unchecked,rawtypes
 			return (S) EntityAttributeSchema._internalBuild(
 				this.name, this.description, this.deprecationNotice,
-				this.uniqueInScopes, this.filterableInScopes, this.acceleratorsInScopes, this.sortableInScopes,
+				this.uniqueInScopes, this.filterableInScopes, this.acceleratorsInScopes, this.searchableInScopes,
+				this.sortableInScopes,
 				this.localized, this.nullable, this.representative,
 				(Class) this.type, this.defaultValue,
 				this.indexedDecimalPlaces,
@@ -448,7 +474,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 			//noinspection unchecked,rawtypes
 			return (S) AttributeSchema._internalBuild(
 				this.name, this.description, this.deprecationNotice,
-				this.uniqueInScopes, this.filterableInScopes, this.acceleratorsInScopes, this.sortableInScopes,
+				this.uniqueInScopes, this.filterableInScopes, this.acceleratorsInScopes, this.searchableInScopes,
+				this.sortableInScopes,
 				this.localized, this.nullable, this.representative,
 				(Class) this.type, this.defaultValue,
 				this.indexedDecimalPlaces,
@@ -519,7 +546,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 		);
 		@SuppressWarnings({"unchecked", "rawtypes"}) final AttributeSchema newAttributeSchema = AttributeSchema._internalBuild(
 			this.name, this.description, this.deprecationNotice,
-			this.uniqueInScopes, this.filterableInScopes, this.acceleratorsInScopes, this.sortableInScopes,
+			this.uniqueInScopes, this.filterableInScopes, this.acceleratorsInScopes, this.searchableInScopes,
+			this.sortableInScopes,
 			this.localized, this.nullable, this.representative,
 			(Class) this.type, this.defaultValue,
 			this.indexedDecimalPlaces,
@@ -603,6 +631,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 			", filterable=" + (isFilterable() ? "(in scopes: " + Arrays.toString(this.filterableInScopes) + ")" : "no") +
 			(this.acceleratorsInScopes.length == 0 ?
 				"" : ", accelerators=(" + join(this.acceleratorsInScopes) + ")") +
+			", searchable=" +
+			(isSearchable() ? "(in scopes: " + Arrays.toString(this.searchableInScopes) + ")" : "no") +
 			", sortable=" + (isSortable() ? "(in scopes: " + Arrays.toString(this.sortableInScopes) + ")" : "no") +
 			", localized=" + this.localized +
 			", nullable=" + this.nullable +

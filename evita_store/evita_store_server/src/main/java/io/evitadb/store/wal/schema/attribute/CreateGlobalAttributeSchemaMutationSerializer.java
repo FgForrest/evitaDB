@@ -104,6 +104,7 @@ public class CreateGlobalAttributeSchemaMutationSerializer extends Serializer<Cr
 		// appended last - the release-2026.2 reader (CreateGlobalAttributeSchemaMutationSerializer_2026_2) stops
 		// before this point and never looks for the presence flag
 		writeScopedAcceleratorsArray(kryo, output, mutation.getAcceleratorsInScopes());
+		writeScopeArray(kryo, output, mutation.getSearchableInScopes());
 	}
 
 	@Override
@@ -129,6 +130,7 @@ public class CreateGlobalAttributeSchemaMutationSerializer extends Serializer<Cr
 			kryo.readObject(input, ConflictResolutionOverride.class);
 		final ScopedAttributeFilterAccelerators[] acceleratorsInScopes =
 			readScopedAcceleratorsArray(kryo, input);
+		final Scope[] searchableInScopes = readScopeArray(kryo, input);
 		return new CreateGlobalAttributeSchemaMutation(
 			name,
 			description,
@@ -136,6 +138,7 @@ public class CreateGlobalAttributeSchemaMutationSerializer extends Serializer<Cr
 			uniqueInScopes, uniqueGloballyInScopes,
 			filterableInScopes,
 			acceleratorsInScopes,
+			searchableInScopes,
 			sortableInScopes,
 			localized,
 			nullable,

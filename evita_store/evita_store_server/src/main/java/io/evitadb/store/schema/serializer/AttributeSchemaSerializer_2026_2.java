@@ -101,7 +101,7 @@ public class AttributeSchemaSerializer_2026_2 extends Serializer<AttributeSchema
 			kryo.readObject(input, ConflictResolutionOverride.class);
 		return AttributeSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
-			unique, filterable, null, sortable, localized, nullable, representative,
+			unique, filterable, null, null, sortable, localized, nullable, representative,
 			type, (Serializable) defaultValue, indexedDecimalPlaces, conflictResolutionOverride
 		);
 	}

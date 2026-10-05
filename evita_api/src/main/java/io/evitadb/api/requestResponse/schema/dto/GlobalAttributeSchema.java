@@ -112,6 +112,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			theGlobalUniquenessType,
 			theFilterableInScopes,
 			null,
+			null,
 			theSortableInScopes,
 			localized, false, false,
 			type, null,
@@ -133,6 +134,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nullable ScopedGlobalAttributeUniquenessType[] uniqueGlobally,
 		@Nullable Scope[] filterable,
 		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
+		@Nullable Scope[] searchableInScopes,
 		@Nullable Scope[] sortable,
 		boolean localized,
 		boolean nullable,
@@ -153,6 +155,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			theGlobalUniquenessType,
 			theFilterableInScopes,
 			toAcceleratorsEnumMap(acceleratorsInScopes),
+			ArrayUtils.toEnumSet(Scope.class, searchableInScopes),
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -176,6 +179,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nullable ScopedGlobalAttributeUniquenessType[] uniqueGlobally,
 		@Nullable Scope[] filterable,
 		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
+		@Nullable Scope[] searchableInScopes,
 		@Nullable Scope[] sortable,
 		boolean localized,
 		boolean nullable,
@@ -197,6 +201,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			theGlobalUniquenessType,
 			theFilterableInScopes,
 			toAcceleratorsEnumMap(acceleratorsInScopes),
+			ArrayUtils.toEnumSet(Scope.class, searchableInScopes),
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -220,6 +225,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nullable Map<Scope, GlobalAttributeUniquenessType> globalUniquenessTypeInScopes,
 		@Nonnull Set<Scope> filterableInScopes,
 		@Nullable Map<Scope, Set<AttributeFilterAccelerator>> acceleratorsInScopes,
+		@Nullable Set<Scope> searchableInScopes,
 		@Nonnull Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -236,6 +242,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			globalUniquenessTypeInScopes,
 			filterableInScopes,
 			acceleratorsInScopes,
+			searchableInScopes,
 			sortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -260,6 +267,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nullable Map<Scope, GlobalAttributeUniquenessType> globalUniquenessTypeInScopes,
 		@Nonnull Set<Scope> filterableInScopes,
 		@Nullable Map<Scope, Set<AttributeFilterAccelerator>> acceleratorsInScopes,
+		@Nullable Set<Scope> searchableInScopes,
 		@Nonnull Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -276,6 +284,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			globalUniquenessTypeInScopes,
 			filterableInScopes,
 			acceleratorsInScopes,
+			searchableInScopes,
 			sortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -300,6 +309,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nullable ScopedGlobalAttributeUniquenessType[] uniqueGlobally,
 		@Nullable Scope[] filterable,
 		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
+		@Nullable Scope[] searchableInScopes,
 		@Nullable Scope[] sortable,
 		boolean localized,
 		boolean nullable,
@@ -321,6 +331,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			theGlobalUniquenessType,
 			theFilterableInScopes,
 			toAcceleratorsEnumMap(acceleratorsInScopes),
+			ArrayUtils.toEnumSet(Scope.class, searchableInScopes),
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -338,6 +349,7 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		@Nullable Map<Scope, GlobalAttributeUniquenessType> globalUniquenessTypeInScopes,
 		@Nonnull Set<Scope> filterableInScopes,
 		@Nullable Map<Scope, Set<AttributeFilterAccelerator>> acceleratorsInScopes,
+		@Nullable Set<Scope> searchableInScopes,
 		@Nonnull Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -350,7 +362,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 		super(
 			name, nameVariants, description, deprecationNotice,
 			verifyAndAlterUniquenessTypes(uniqueInScopes, globalUniquenessTypeInScopes),
-			filterableInScopes, acceleratorsInScopes, sortableInScopes, localized, nullable, representative,
+			filterableInScopes, acceleratorsInScopes, searchableInScopes, sortableInScopes,
+			localized, nullable, representative,
 			type, defaultValue, indexedDecimalPlaces,
 			conflictResolutionOverride
 		);
@@ -448,6 +461,8 @@ public final class GlobalAttributeSchema extends AttributeSchema implements Glob
 			(this.filterableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.filterableInScopes) + ")") +
 			(this.acceleratorsInScopes.isEmpty() ?
 				"" : ", accelerators=(" + joinAccelerators(this.acceleratorsInScopes) + ")") +
+			", searchable=" +
+			(this.searchableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.searchableInScopes) + ")") +
 			", sortable=" +
 			(this.sortableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.sortableInScopes) + ")") +
 			", localized=" + this.localized +
