@@ -27,6 +27,7 @@ import com.github.javafaker.Faker;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.exception.EntityNotManagedException;
+import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.RequireConstraint;
@@ -2655,11 +2656,6 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				"managed group without entities, filterable attribute", REF_TAG, GROUPED_TAG,
 				facetGroupsNegation(REF_MARK, filterBy(attributeEquals(ATTRIBUTE_CODE, "anything"))),
 				shapedProductsWithTag(GROUPED_TAG)
-			),
-			Arguments.of(
-				"attribute filter of a reference the entity does not have", REF_TAG, GROUPED_TAG,
-				facetGroupsNegation("missingReference", filterBy(attributeEquals(ATTRIBUTE_CODE, "anything"))),
-				shapedProductsWithTag(GROUPED_TAG)
 			)
 		);
 	}
@@ -2718,6 +2714,87 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 							"the reference summary must count the products the option leaves in the result"
 						);
 					}
+				}
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Returns the rows of the facet relation constraints naming a reference the entity does not have, over the
+	 * {@link #FACET_RELATION_SHAPES} data set. Each row is a label, the relation requirement, whether the query selects
+	 * an option of {@link #REF_TAG} in `facetHaving`, and whether it requests the reference summary of
+	 * {@link #REF_TAG}.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> missingReferenceRelationRows() {
+		final String missingReference = "missingReference";
+		final FilterBy byCode = filterBy(attributeEquals(ATTRIBUTE_CODE, "anything"));
+		return Stream.<RequireConstraint>of(
+				facetGroupsConjunction(missingReference), facetGroupsConjunction(missingReference, byCode),
+				facetGroupsDisjunction(missingReference, WITH_DIFFERENT_GROUPS),
+				facetGroupsDisjunction(missingReference, WITH_DIFFERENT_GROUPS, byCode),
+				facetGroupsNegation(missingReference), facetGroupsNegation(missingReference, byCode),
+				facetGroupsExclusivity(missingReference), facetGroupsExclusivity(missingReference, byCode)
+			)
+			.flatMap(
+				relation -> Stream.of(
+					Arguments.of(relation + ", selection and summary", relation, true, true),
+					Arguments.of(relation + ", selection without summary", relation, true, false),
+					Arguments.of(relation + ", no selection and no summary", relation, false, false)
+				)
+			);
+	}
+
+	/**
+	 * Checks that a facet relation constraint naming a reference the entity does not have makes the query fail with
+	 * {@link ReferenceNotFoundException}, as `referenceContent` and `referenceSummaryOfReference` naming such
+	 * a reference do - with or without a group filter, and whether the query selects any option or requests
+	 * the reference summary or not.
+	 *
+	 * @param label       the row label, used in the test name only
+	 * @param relation    the relation requirement naming the missing reference
+	 * @param withOption  whether the query selects an option of {@link #REF_TAG} in `facetHaving`
+	 * @param withSummary whether the query requests the reference summary of {@link #REF_TAG}
+	 * @param evita       the engine instance provided by the test extension
+	 */
+	@DisplayName("Should refuse a facet relation constraint naming a reference the entity does not have")
+	@UseDataSet(FACET_RELATION_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("missingReferenceRelationRows")
+	void shouldRefuseRelationConstraintOfMissingReference(
+		@Nonnull String label,
+		@Nonnull RequireConstraint relation,
+		boolean withOption,
+		boolean withSummary,
+		Evita evita
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final ReferenceNotFoundException exception = assertThrowsExactly(
+					ReferenceNotFoundException.class,
+					() -> session.query(
+						query(
+							collection(ENTITY_SHAPED_PRODUCT),
+							withOption ?
+								filterBy(userFilter(facetHaving(REF_TAG, entityPrimaryKeyInSet(GROUPED_TAG)))) : null,
+							require(
+								page(1, SHAPED_PRODUCT_LABELS.length),
+								relation,
+								withSummary ? referenceSummaryOfReference(REF_TAG, FacetStatisticsDepth.COUNTS) : null
+							)
+						),
+						EntityReference.class
+					)
+				);
+				for (final String fragment : new String[]{"`missingReference`", "`" + ENTITY_SHAPED_PRODUCT + "`"}) {
+					assertTrue(
+						exception.getMessage().contains(fragment),
+						"the message `" + exception.getMessage() + "` must contain `" + fragment + "`"
+					);
 				}
 				return null;
 			}

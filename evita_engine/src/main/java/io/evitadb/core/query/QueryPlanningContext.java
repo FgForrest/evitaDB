@@ -27,6 +27,7 @@ import com.carrotsearch.hppc.IntObjectHashMap;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityCollectionRequiredException;
 import io.evitadb.api.exception.EntityNotManagedException;
+import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
@@ -1870,17 +1871,20 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Plans the group filter of every facet relation constraint the query declares, so that a filter which cannot be
-	 * evaluated fails the query whatever else the query asks for. A filter is otherwise planned only when something
-	 * asks about its relation - `facetHaving` asks about some relations of the references it selects, the reference
-	 * summary about others of the references it summarizes, and exclusivity is asked about only while impacts are
-	 * computed - so the same filter would fail one query and be silently ignored by another.
+	 * Checks the reference of every facet relation constraint the query declares and plans its group filter, so that
+	 * a constraint which cannot take effect fails the query whatever else the query asks for. A filter is otherwise
+	 * planned only when something asks about its relation - `facetHaving` asks about some relations of the references
+	 * it selects, the reference summary about others of the references it summarizes, and exclusivity is asked about
+	 * only while impacts are computed - so the same filter would fail one query and be silently ignored by another.
+	 * A constraint naming a reference the entity schema does not have would be ignored by every query, because
+	 * nothing in the query can ever ask about it, so it is refused as `referenceContent` and
+	 * `referenceSummaryOfReference` naming such a reference are.
 	 *
 	 * The predicates are planned through {@link #isFacetGroupRelationDeclaredAt} at the level each constraint declares,
 	 * so that a negation declared at each level has both of its filters planned, and stay memoized for the planning
-	 * that follows, so each filter is still planned once per query. A constraint naming a reference the entity schema
-	 * does not have is skipped, because nothing in the query can ever ask about it.
+	 * that follows, so each filter is still planned once per query.
 	 *
+	 * @throws ReferenceNotFoundException when a constraint names a reference the entity schema does not have
 	 * @throws io.evitadb.exception.EvitaInvalidUsageException when a group filter is declared for a reference without
 	 *                                                          a group type
 	 * @throws EntityNotManagedException when a group filter asks a group type not managed by evitaDB about anything
@@ -1888,13 +1892,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	public void assertFacetGroupFiltersEvaluable() {
 		if (!isEntityTypeKnown()) {
-			// without a target collection there is no reference schema to plan the filters against
+			// without a target collection there is no reference schema to check the constraints against
 			return;
 		}
 		final EntitySchema schema = getSchema();
 		for (final FacetGroupsConstraint constraint : QueryUtils.findRequires(this.evitaRequest.getQuery(), FacetGroupsConstraint.class)) {
-			final Optional<ReferenceSchemaContract> referenceSchema = schema.getReference(constraint.getReferenceName());
-			if (constraint.getFacetGroups().isPresent() && referenceSchema.isPresent()) {
+			final String referenceName = constraint.getReferenceName();
+			final ReferenceSchemaContract referenceSchema = schema.getReference(referenceName)
+				.orElseThrow(() -> new ReferenceNotFoundException(referenceName, schema));
+			if (constraint.getFacetGroups().isPresent()) {
 				// asking about a facet without a group plans the filter without testing any group against it
 				final FacetRelationType relationType = switch (constraint) {
 					case FacetGroupsConjunction ignored -> FacetRelationType.CONJUNCTION;
@@ -1904,7 +1910,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 					default -> throw new GenericEvitaInternalError("Unknown facet relation constraint: " + constraint);
 				};
 				isFacetGroupRelationDeclaredAt(
-					relationType, referenceSchema.get(), null, constraint.getFacetGroupRelationLevel()
+					relationType, referenceSchema, null, constraint.getFacetGroupRelationLevel()
 				);
 			}
 		}

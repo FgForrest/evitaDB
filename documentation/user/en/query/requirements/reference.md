@@ -63,7 +63,8 @@ You can change the default calculation relations with [`facetCalculationRules`](
 require part of the query. The historical `facet*` naming is kept on the four behaviour-altering constraints
 (`facetGroupsConjunction`, `facetGroupsDisjunction`, `facetGroupsNegation`, `facetGroupsExclusivity`,
 `facetCalculationRules`) for backwards compatibility — they apply to references regardless of the
-constraint's name.
+constraint's name. A `facetGroups*` constraint naming a reference that the queried entity type doesn't have makes
+the query fail.
 
 </Note>
 
