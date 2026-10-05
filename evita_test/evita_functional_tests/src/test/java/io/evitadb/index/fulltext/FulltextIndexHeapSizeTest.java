@@ -145,7 +145,7 @@ class FulltextIndexHeapSizeTest {
 
 	/**
 	 * Fills an index with two fields: enough terms for several dictionary leaves, single postings and postings shared
-	 * by several entities, a sparse length block in each field and a dense one in the body.
+	 * by several entities, a sparse length block in the title and a dense one in the body.
 	 *
 	 * @param index     the index
 	 * @param termCount how many terms to add
@@ -229,10 +229,10 @@ class FulltextIndexHeapSizeTest {
 		@Test
 		@DisplayName("an index with a retired field and its successor reports exactly what JOL finds")
 		void shouldPriceARetiredFieldExactly() {
-			final FulltextIndex index = newIndex();
-			fill(index, 600, "ž");
-			addSmallFields(index, 5);
 			final String stem = "ž";
+			final FulltextIndex index = newIndex();
+			fill(index, 600, stem);
+			addSmallFields(index, 5);
 			index.retireField(attribute(stem + "title"));
 			// a new key instance, as the write path makes one per write - one the retired field does not hold
 			final int successor = index.getOrAssignFieldId(attribute(stem + "title"));
@@ -244,7 +244,7 @@ class FulltextIndexHeapSizeTest {
 
 		@Test
 		@DisplayName("an index reloaded from its pages exceeds JOL by its field ids the walk shares with its live pages")
-		void shouldPriceAReloadedIndexExactly() {
+		void shouldPriceAReloadedIndexWithTheSharedFieldIdExcess() {
 			final FulltextIndex source = newIndex();
 			fill(source, 2_000, "ž");
 			addSmallFields(source, 5);

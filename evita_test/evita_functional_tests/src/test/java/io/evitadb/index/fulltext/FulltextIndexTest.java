@@ -196,6 +196,35 @@ class FulltextIndexTest {
 			assertEquals(FulltextIndex.MAX_FIELD_ID + 1, index.getFieldCount());
 		}
 
+		@Test
+		@DisplayName("A retired field keeps its id against the limit, and a transaction enforces the limit too")
+		@Tag(TRANSACTION)
+		void shouldCountRetiredFieldsAgainstTheIdLimitInsideATransaction() {
+			final FulltextIndex index = newIndex();
+			// every id but the last one, outside a transaction
+			for (int i = 0; i < FulltextIndex.MAX_FIELD_ID; i++) {
+				index.getOrAssignFieldId(attribute("field" + i));
+			}
+			assertStateAfterCommit(
+				index,
+				original -> {
+					assertTrue(original.retireField(attribute("field0")));
+					// the retired field keeps id 0, so its successor takes the last id there is
+					assertEquals(FulltextIndex.MAX_FIELD_ID, original.getOrAssignFieldId(attribute("field0")));
+					assertThrows(
+						GenericEvitaInternalError.class, () -> original.getOrAssignFieldId(attribute("oneTooMany"))
+					);
+					assertEquals(FulltextIndex.MAX_FIELD_ID + 1, original.getFieldCount());
+				},
+				(original, committed) -> {
+					assertEquals(FulltextIndex.MAX_FIELD_ID + 1, committed.getFieldCount());
+					assertTrue(committed.isFieldRetired(0));
+					assertEquals(FulltextIndex.MAX_FIELD_ID, committed.getFieldId(attribute("field0")));
+					assertEquals(FulltextIndex.UNKNOWN_FIELD_ID, committed.getFieldId(attribute("oneTooMany")));
+				}
+			);
+		}
+
 	}
 
 	@Nested

@@ -28,6 +28,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
+import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.bPlusTree.ImpactView;
 import io.evitadb.index.bPlusTree.OverflowRecords;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
@@ -36,7 +37,6 @@ import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.LeafPageHandle;
 import io.evitadb.index.bPlusTree.ValueColumnFactory;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
-import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.bool.TransactionalBoolean;
 import io.evitadb.index.fulltext.FieldLengthTable.LengthBlockEmission;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
@@ -165,12 +165,12 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	public static final double DEFAULT_LENGTH_PIVOT = 25.0;
 
 	/**
-	 * BM25's term-frequency saturation, `k1`. The customary value; nothing in P1 tuned it.
+	 * BM25's term-frequency saturation, `k1`. The customary value; it has not been tuned for evitaDB.
 	 */
 	public static final double BM25_K1 = 1.2;
 
 	/**
-	 * BM25's length normalization strength, `b`. The customary value; nothing in P1 tuned it.
+	 * BM25's length normalization strength, `b`. The customary value; it has not been tuned for evitaDB.
 	 */
 	public static final double BM25_B = 0.75;
 
@@ -180,8 +180,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	public static final int MAX_IMPACT = 255;
 
 	/**
-	 * Maximum number of buckets (terms) in a leaf of the dictionary. The value the P1 measurements were taken with,
-	 * and the one the inverted index uses for its own value trees.
+	 * Maximum number of buckets (terms) in a leaf of the dictionary. The value the index-core measurements of the
+	 * fulltext decision record were taken with, and the one the inverted index uses for its own value trees.
 	 */
 	private static final int VALUE_BLOCK_SIZE = 256;
 
@@ -229,9 +229,11 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	@Nonnull private final Map<FulltextFieldKey, Integer> fieldIds;
 
 	/**
-	 * Per-field state indexed by the field's id, for the same fields as {@link #fieldIds}. A transaction's own
-	 * registrations follow them, in its {@link FulltextIndexChanges}. Copy-on-write: a field is registered a handful of
-	 * times in the life of an index, so the array is replaced rather than grown, and its length is the field count.
+	 * Per-field state indexed by the field's id, for every field committed with this instance (and, outside a
+	 * transaction, registered since) - retired ones included, whereas {@link #fieldIds} drops them. A transaction's
+	 * own registrations follow them, in its {@link FulltextIndexChanges}. Copy-on-write: a field is registered a
+	 * handful of times in the life of an index, so the array is replaced rather than grown, and its length is the
+	 * field count.
 	 */
 	@Nonnull private Field[] fields;
 
@@ -376,7 +378,10 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * @param highWaterPageSequence the highest page sequence the dictionary ever allocated
 	 * @return the restored index, clean
 	 * @throws io.evitadb.exception.GenericEvitaInternalError when the pages do not match their list, overlap, or an
-	 *                                                        empty page is not the dictionary's only one
+	 *                                                        empty page is not the dictionary's only one; when the
+	 *                                                        default or any field's pivot is not positive and
+	 *                                                        finite; or when two fields of one key are persisted as
+	 *                                                        not retired
 	 */
 	@Nonnull
 	public static FulltextIndex fromPersistedPages(
@@ -512,6 +517,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 *
 	 * @param fieldKey identity of the searchable field
 	 * @return the field's id
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the field is new and the index already holds
+	 *                                                        {@link #MAX_FIELD_ID} + 1 fields
 	 */
 	public int getOrAssignFieldId(@Nonnull FulltextFieldKey fieldKey) {
 		final int existing = getFieldId(fieldKey);
@@ -525,10 +532,11 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * different pivot is refused. A key whose field was retired is new again, and gets a fresh id.
 	 *
 	 * @param fieldKey    identity of the searchable field
-	 * @param lengthPivot the field's length pivot; must be positive
+	 * @param lengthPivot the field's length pivot; must be positive and finite
 	 * @return the field's id
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the pivot differs from the registered one, or the
-	 *                                                        index already holds {@link #MAX_FIELD_ID} + 1 fields
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the pivot is not positive and finite, differs from
+	 *                                                        the registered one, or the field is new and the index
+	 *                                                        already holds {@link #MAX_FIELD_ID} + 1 fields
 	 */
 	public int getOrAssignFieldId(@Nonnull FulltextFieldKey fieldKey, double lengthPivot) {
 		assertPivotValid(lengthPivot);
@@ -742,7 +750,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * @param fieldKey   identity of the searchable field; registered with the default pivot when new
 	 * @param primaryKey primary key of the entity
 	 * @param values     the stored array
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the entity already has a value for the field
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the entity already has a value for the field, or
+	 *                                                        an element of the array is null
 	 */
 	public void addValue(@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull String[] values) {
 		indexValues(fieldKey, primaryKey, values);
@@ -774,6 +783,8 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * @param fieldKey   identity of the searchable field
 	 * @param primaryKey primary key of the entity
 	 * @param values     the array that was indexed
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key resolves to a field and an element of the
+	 *                                                        array is null
 	 */
 	public void removeValue(@Nonnull FulltextFieldKey fieldKey, int primaryKey, @Nonnull String[] values) {
 		unindexValues(fieldKey, primaryKey, values);
@@ -1098,6 +1109,10 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 
 	/**
 	 * Clears the dirty flag, once the flush has collected the changes.
+	 *
+	 * Inside a transaction, call it only on an index the same transaction wrote: the write created the index's
+	 * {@link FulltextIndexChanges} layer, and without it the commit merge carries the index forward unmerged and never
+	 * sweeps the flag's layer this call creates.
 	 */
 	public void resetDirty() {
 		this.dirty.setToFalse();
@@ -1116,7 +1131,9 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 * for why that is necessary. The dictionary is always written in pages, even when it fits one leaf: an index
 	 * holding a whole corpus's terms is never small, so an inline shape would only add a collapse path to maintain.
 	 *
-	 * The caller gates on {@link #isDirty()}; a clean index must not be collected.
+	 * The caller gates on {@link #isDirty()}; a clean index must not be collected. Inside a transaction, the index must
+	 * also have been written by the same transaction, for the reason {@link #resetDirty()} gives: the leaf flags this
+	 * walk clears live in layers only that transaction's merge of the index sweeps.
 	 *
 	 * @return the changed pages, the ordered live page sequences, the high-water and the freed page sequences
 	 */

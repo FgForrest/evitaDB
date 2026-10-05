@@ -37,17 +37,19 @@ import javax.annotation.Nonnull;
  * Marks a formula that can rank entities by fulltext relevance — the formula a fulltext condition translated into,
  * and every wrapper that can sit above one.
  *
- * It follows the two-phase pattern of {@link FilteredPriceRecordAccessor}: the planner finds the accessors in the
- * filter tree through {@link FormulaFinder#find} in {@link LookUp#SHALLOW} mode, and the sorter pulls the scores out
- * only when it orders the final result. The score is keyed by primary key, not read from the entity body, so the
- * same accessor serves the index path and the prefetch path alike.
+ * It follows the two-phase pattern of {@link FilteredPriceRecordAccessor}: the planner is to find the accessors in
+ * the filter tree through {@link FormulaFinder#find} in {@link LookUp#SHALLOW} mode, and the sorter to pull the
+ * scores out only when it orders the final result. Neither consumer exists yet — the query side of fulltext is still
+ * to come — so this is the contract they will be written against. The score is keyed by primary key, not read from
+ * the entity body, so the same accessor serves the index path and the prefetch path alike.
  *
  * **Every wrapper that can sit above a fulltext formula must implement this interface too.** A `SHALLOW` lookup
  * does not descend into a node it has matched, and with prefetch on the planner wraps translated formulas in
- * {@link SelectionFormula} and {@link EntityFilteringFormula} — both implement {@link FilteredPriceRecordAccessor},
- * so the lookup stops at them. A wrapper that did not delegate this interface inwards would hide the fulltext
- * formula, and relevance would silently degrade to no ordering exactly when the planner chose prefetch. A wrapper
- * implements it unconditionally and answers {@link #providesFulltextScores()} by what it actually wraps.
+ * {@link SelectionFormula} and {@link EntityFilteringFormula} — both implement this interface, so the lookup stops
+ * at them, as the price lookup stops at them because they implement {@link FilteredPriceRecordAccessor}. A wrapper
+ * that did not delegate this interface inwards would hide the fulltext formula, and relevance would silently degrade
+ * to no ordering exactly when the planner chose prefetch. A wrapper implements it unconditionally and answers
+ * {@link #providesFulltextScores()} by what it actually wraps.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -64,7 +66,9 @@ public interface FulltextScoreAccessor {
 
 	/**
 	 * Scores the candidates against the fulltext query this accessor represents and returns the top N, best first.
-	 * Candidates the query does not match are never selected.
+	 * A candidate is selected when it contains at least one query token — it need not be in the strict match set of
+	 * the fulltext formula, and ranks below the candidates matching more tokens. Candidates matching no token are
+	 * never selected.
 	 *
 	 * @param candidates primary keys of the entities to rank — typically the final result of the whole filter —
 	 *                   ascending and distinct

@@ -50,6 +50,7 @@ import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -499,6 +500,24 @@ class FieldLengthTablePagedEmissionTest {
 			final LengthBlockEmission emission = disk.apply(reloaded.collectChangedBlocks());
 			assertArrayEquals(new int[]{5}, changedKeys(emission));
 			assertArrayEquals(new int[]{2}, emission.removedBlockKeys(), "The reload restores the blocks on disk.");
+			disk.assertHolds(reloaded, touched);
+		}
+
+		@Test
+		@DisplayName("A block loads dense exactly when the runtime table would have promoted it")
+		void shouldLoadABlockDenseOnlyPastThePromotionSize() {
+			final FieldLengthTable table = new FieldLengthTable();
+			final Set<Integer> touched = new TreeSet<>();
+			final BlockDisk disk = new BlockDisk();
+			fill(table, 3, FieldLengthTable.DENSE_PROMOTION_SIZE, touched);
+			fill(table, 4, FieldLengthTable.DENSE_PROMOTION_SIZE + 1, touched);
+			assertFalse(table.isDenseBlock(pk(3, 0)), "The runtime table keeps a block at the size sparse.");
+			assertTrue(table.isDenseBlock(pk(4, 0)), "The runtime table promotes a block past the size.");
+			disk.apply(table.collectChangedBlocks());
+
+			final FieldLengthTable reloaded = disk.reload();
+			assertFalse(reloaded.isDenseBlock(pk(3, 0)), "A block at the promotion size loads sparse.");
+			assertTrue(reloaded.isDenseBlock(pk(4, 0)), "A block past the promotion size loads dense.");
 			disk.assertHolds(reloaded, touched);
 		}
 

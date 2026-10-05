@@ -61,8 +61,9 @@ import java.util.Comparator;
  *
  * {@link #getFulltextScores(int[], int)} runs {@link FulltextPhaseOneScorer} over the same terms and the impact bytes
  * aligned with their postings, for whatever candidates the caller passes - typically the final result of the whole
- * filter, which this formula's own result only bounds from above. A token counts once however many of its terms hit
- * a candidate, whichever field they came from.
+ * filter. Scoring is not bound to the strict match set: a candidate containing only some of the tokens is selected
+ * too, below the candidates containing more, and only one containing none is left out. A token counts once however
+ * many of its terms hit a candidate, whichever field they came from.
  *
  * ## Why it is never cached
  *
@@ -88,7 +89,8 @@ public class FulltextFormula extends AbstractFormula implements NonCacheableForm
 	 */
 	@Nonnull private final ExpandedTerm[][] tokens;
 	/**
-	 * The tokens in the shape the scorer reads, built on the first scoring request.
+	 * The tokens in the shape the scorer reads, built on the first scoring request. Not synchronised, like the memos
+	 * of {@link AbstractFormula}: a formula is evaluated by the one thread running its query.
 	 */
 	@Nullable private Expansion[][] memoizedExpansions;
 

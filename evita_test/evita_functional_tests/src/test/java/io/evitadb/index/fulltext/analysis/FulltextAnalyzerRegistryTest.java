@@ -328,14 +328,46 @@ class FulltextAnalyzerRegistryTest {
 		}
 
 		@Test
-		@DisplayName("An unknown name, a search-time chain and a closed registry are refused")
-		void shouldRefuseWhatTheIndexSlotCannotUse() {
+		@DisplayName("A registered analyzer resolves by its name, to one shared instance")
+		void shouldResolveARegisteredAnalyzerByName() {
+			final FulltextAnalyzerRegistry registry = createRegistry();
+			registry.register("mine", TokenizingAnalyzer::new);
+
+			final FulltextAnalyzer analyzer = registry.getIndexAnalyzerByName("mine");
+			assertEquals("mine", analyzer.getAnalyzerName());
+			assertSame(analyzer, registry.getIndexAnalyzerByName("mine"));
+		}
+
+		@Test
+		@DisplayName("An unknown name is refused")
+		void shouldRefuseAnUnknownName() {
 			final FulltextAnalyzerRegistry registry = createRegistry();
 			assertThrows(EvitaInvalidUsageException.class, () -> registry.getIndexAnalyzerByName("no-such-chain"));
+		}
+
+		@Test
+		@DisplayName("A built-in search-time chain is refused")
+		void shouldRefuseABuiltInSearchTimeChain() {
+			final FulltextAnalyzerRegistry registry = createRegistry();
 			assertThrows(
 				GenericEvitaInternalError.class,
 				() -> registry.getIndexAnalyzerByName(BuiltInAnalyzers.CZECH_SEARCH_ANALYZER_NAME)
 			);
+		}
+
+		@Test
+		@DisplayName("A chain registered search-time only is refused")
+		void shouldRefuseAChainRegisteredSearchTimeOnly() {
+			// the path of a persisted index naming a chain registered since with the opposite mode
+			final FulltextAnalyzerRegistry registry = createRegistry();
+			registry.register("query-only", TokenizingAnalyzer::new, AnalysisMode.SEARCH_TIME);
+			assertThrows(GenericEvitaInternalError.class, () -> registry.getIndexAnalyzerByName("query-only"));
+		}
+
+		@Test
+		@DisplayName("A closed registry is refused")
+		void shouldRefuseAClosedRegistry() {
+			final FulltextAnalyzerRegistry registry = createRegistry();
 			registry.close();
 			assertThrows(
 				EvitaInvalidUsageException.class,

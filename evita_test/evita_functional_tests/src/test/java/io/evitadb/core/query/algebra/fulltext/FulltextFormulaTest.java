@@ -40,6 +40,7 @@ import io.evitadb.index.bPlusTree.ImpactView;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
 import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Expansion;
@@ -259,6 +260,19 @@ class FulltextFormulaTest {
 			assertEquals(3, sampleQuery().getEstimatedCardinality());
 		}
 
+		@Test
+		@DisplayName("A token without terms makes the estimated cardinality zero")
+		void shouldEstimateZeroCardinalityWhenATokenHasNoTerm() {
+			assertEquals(0, query(token(term("a", 0, 1, 1)), token()).getEstimatedCardinality());
+		}
+
+		@Test
+		@DisplayName("The estimated cost counts every posting of every term once")
+		void shouldEstimateTheCostAsEveryPostingRead() {
+			// token 1 holds 3 + 1 postings, token 2 holds 3
+			assertEquals(7L, sampleQuery().getEstimatedCost());
+		}
+
 	}
 
 	@Nested
@@ -380,6 +394,20 @@ class FulltextFormulaTest {
 		}
 
 		@Test
+		@DisplayName("The most tokens and the largest edit distance the scorer can count are accepted")
+		void shouldAcceptTheLargestTokenCountAndDistance() {
+			final ExpandedTerm[][] tokens = new ExpandedTerm[FulltextPhaseOneScorer.MAX_QUERY_TOKENS][];
+			tokens[0] = token(term("far", FulltextPhaseOneScorer.MAX_DISTANCE, 1, 1));
+			for (int i = 1; i < tokens.length; i++) {
+				tokens[i] = token(term("t" + i, 0, 1, 1));
+			}
+			final FulltextFormula formula = new FulltextFormula(tokens);
+
+			assertArrayEquals(new int[]{1}, formula.compute().getArray());
+			assertArrayEquals(new int[]{1}, formula.getFulltextScores(new int[]{1}, 1).primaryKeys());
+		}
+
+		@Test
 		@DisplayName("A term whose impacts do not align with its postings is refused")
 		void shouldRefuseMisalignedImpacts() {
 			assertThrows(
@@ -438,6 +466,9 @@ class FulltextFormulaTest {
 				model.add(entityTerms);
 			}
 
+			// the oracle proves nothing over rounds that all match nothing, so the matching ones are counted
+			int matchingRounds = 0;
+			int matchingMultiWordRounds = 0;
 			for (int round = 0; round < 200; round++) {
 				final int wordCount = 1 + random.nextInt(3);
 				final List<Set<String>> queryWords = new ArrayList<>(wordCount);
@@ -461,12 +492,70 @@ class FulltextFormulaTest {
 					() -> "Round " + formula.toStringVerbose()
 				);
 				if (actual.length > 0) {
+					matchingRounds++;
+					if (wordCount >= 2) {
+						matchingMultiWordRounds++;
+					}
 					assertSameScores(
 						FulltextPhaseOneScorer.score(actual, expansionsOf(formula), actual.length),
 						formula.getFulltextScores(actual, actual.length)
 					);
 				}
 			}
+			assertTrue(matchingRounds > 0, "Some round must match an entity.");
+			assertTrue(matchingMultiWordRounds > 0, "Some round of several words must match an entity.");
+		}
+
+		@Test
+		@DisplayName("Postings past the sorted-array tier match and score like array-tier ones, and stay untouched")
+		void shouldMatchAndScoreOverBitmapTierPostings() {
+			final FulltextIndex index = new FulltextIndex(analyzer);
+			final int body = index.getOrAssignFieldId(attribute("body"));
+			final int title = index.getOrAssignFieldId(attribute("title"));
+			// two terms past the sorted-array tier, into bitmaps spanning three roaring containers, sharing every
+			// multiple of 97 * 89; and a term in the array tier on multiples of 89 alone
+			final TreeSet<Integer> kolo = new TreeSet<>();
+			final TreeSet<Integer> hrad = new TreeSet<>();
+			final TreeSet<Integer> kola = new TreeSet<>();
+			for (int primaryKey = 0; primaryKey <= 140_000; primaryKey += 97) {
+				index.addPosting(body, "kolo", primaryKey, 1 + primaryKey % 255);
+				kolo.add(primaryKey);
+			}
+			for (int primaryKey = 0; primaryKey <= 140_000; primaryKey += 89) {
+				index.addPosting(body, "hrad", primaryKey, 1 + primaryKey % 251);
+				hrad.add(primaryKey);
+			}
+			for (int multiple = 1; multiple <= 10; multiple++) {
+				index.addPosting(title, "kola", 89 * multiple, multiple);
+				kola.add(89 * multiple);
+			}
+			assertInstanceOf(TransactionalBitmap.class, index.getPostings(body, "kolo"), "The fixture needs a bitmap.");
+			assertInstanceOf(TransactionalBitmap.class, index.getPostings(body, "hrad"), "The fixture needs a bitmap.");
+			final int[] koloBefore = index.getPostings(body, "kolo").getArray();
+			final int[] hradBefore = index.getPostings(body, "hrad").getArray();
+
+			final String[] fields = {"body", "title"};
+			// a two-term token takes the union branch, a single-term one the branch adopting the posting bitmap
+			final FulltextFormula formula = new FulltextFormula(
+				new ExpandedTerm[][]{
+					expand(index, fields, Set.of("kolo", "kola")),
+					expand(index, fields, Set.of("hrad"))
+				}
+			);
+			final TreeSet<Integer> expected = new TreeSet<>(kolo);
+			expected.addAll(kola);
+			expected.retainAll(hrad);
+			final int[] actual = formula.compute().getArray();
+
+			assertArrayEquals(expected.stream().mapToInt(Integer::intValue).toArray(), actual);
+			assertTrue(actual.length > kola.size(), "Both tiers must contribute to the match.");
+			assertSameScores(
+				FulltextPhaseOneScorer.score(actual, expansionsOf(formula), actual.length),
+				formula.getFulltextScores(actual, actual.length)
+			);
+			// the formula reads the dictionary's own posting bitmaps, it must never write them
+			assertArrayEquals(koloBefore, index.getPostings(body, "kolo").getArray());
+			assertArrayEquals(hradBefore, index.getPostings(body, "hrad").getArray());
 		}
 
 		/**

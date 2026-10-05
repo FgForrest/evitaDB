@@ -176,7 +176,8 @@ public class FulltextAnalyzerRegistry implements Closeable {
 	 *
 	 * @param analyzerName name of the analyzer, built in or registered
 	 * @return shared analyzer instance for the indexing slot
-	 * @throws EvitaInvalidUsageException                    when the name is neither built in nor registered
+	 * @throws EvitaInvalidUsageException                    when the name is neither built in nor registered, or the
+	 *                                                       registry is closed
 	 * @throws io.evitadb.exception.GenericEvitaInternalError when the analyzer declares itself search-time only
 	 */
 	@Nonnull
@@ -308,15 +309,9 @@ public class FulltextAnalyzerRegistry implements Closeable {
 	}
 
 	/**
-	 * Resolves the analyzer for the given combination and slot, and lazily creates its instance.
-	 *
-	 * The mode is validated on every lookup rather than only when the instance is built — the same analyzer is
-	 * shared by every slot referring to it, so a search-time only chain that a query slot already instantiated
-	 * must still be refused when an indexing slot asks for it.
-	 *
-	 * The closed flag is checked twice, before and after the instance is published — see the class javadoc. A
-	 * lookup that loses the race releases the instance it just created, so that {@link #close()} never leaves a
-	 * chain behind whose stream components nothing will free.
+	 * Resolves the analyzer for the given combination and slot, and lazily creates its instance. It runs the first
+	 * closed-flag check; the mode check and the second closed-flag check are in
+	 * {@link #getAnalyzerInstance(String, AnalyzerSlot, Supplier)}.
 	 *
 	 * @param entityType entity collection the value / query text belongs to
 	 * @param locale     locale of the text
@@ -346,13 +341,22 @@ public class FulltextAnalyzerRegistry implements Closeable {
 
 	/**
 	 * Translates a resolved analyzer name into its shared instance for the slot, creating it lazily: validates the
-	 * name and the mode, and runs the second closed-flag check of {@link #getAnalyzer(String, Locale, AnalyzerSlot)}.
+	 * name and the mode, and runs the second closed-flag check — the caller has run the first.
+	 *
+	 * The mode is validated on every lookup rather than only when the instance is built — the same analyzer is
+	 * shared by every slot referring to it, so a search-time only chain that a query slot already instantiated
+	 * must still be refused when an indexing slot asks for it.
+	 *
+	 * The closed flag is checked twice, before and after the instance is published — see the class javadoc. A
+	 * lookup that loses the race releases the instance it just created, so that {@link #close()} never leaves a
+	 * chain behind whose stream components nothing will free.
 	 *
 	 * @param name           name of the analyzer
 	 * @param slot           slot the analyzer is needed for
 	 * @param unknownMessage message of the error an unknown name produces
 	 * @return shared analyzer instance
-	 * @throws EvitaInvalidUsageException                    when the name is neither built in nor registered
+	 * @throws EvitaInvalidUsageException                    when the name is neither built in nor registered, or the
+	 *                                                       registry was closed meanwhile
 	 * @throws io.evitadb.exception.GenericEvitaInternalError when the analyzer may not be used in the slot
 	 */
 	@Nonnull
