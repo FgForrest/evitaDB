@@ -36,15 +36,14 @@ import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.hierarchy.HierarchyFormula;
 import io.evitadb.core.query.algebra.locale.LocaleFormula;
 import io.evitadb.core.query.algebra.price.termination.PriceWrappingFormula;
-import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
+import io.evitadb.core.query.filter.SplitTargetPartitions;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.EntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
@@ -53,11 +52,9 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 
@@ -126,6 +123,10 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 	 * a hierarchy constraint nested in `or` or `not` always lands on the computed branch. Both branches must produce
 	 * the same formula, which is why the computed one resolves the reduced indexes exactly the way the index
 	 * selection does: from the queried entity schema and the reference the constraint itself names.
+	 *
+	 * Both branches read the partitions of the nodes split by representation (see {@link SplitTargetPartitions}): the
+	 * owners of the materialized partitions are OR'ed with one constant over the owners of all the registered
+	 * single-owner partitions of the nodes, which the query reads virtually when it reads the collection so.
 	 */
 	@Nonnull
 	protected static Formula createFormulaForReferencingEntities(
@@ -149,44 +150,21 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 				() -> "Hierarchy queries cannot be executed in multiple scopes (" +
 					scopes.stream().map(Scope::name).collect(Collectors.joining(", ")) + ") simultaneously."
 			);
-			return FormulaFactory.or(
-				StreamSupport.stream(hierarchyNodesFormula.compute().spliterator(), false)
-					.flatMap(
-						hierarchyNodeId -> filterByVisitor.getReferencedEntityIndexes(
-							entitySchema, referenceSchema, hierarchyNodeId
-						)
-					)
-					// FilterByVisitor#getReferencedEntityIndexes never yields a hole - a missing partition would be a
-					// lost node, not a node without owners
-					.map(AbstractHierarchyTranslator::requirePartitionIndex)
-					.map(EntityIndex::getAllPrimaryKeysFormula)
-					.toArray(Formula[]::new)
-			);
+			return filterByVisitor
+				.getReferencedEntityPartitions(entitySchema, referenceSchema, hierarchyNodesFormula.compute())
+				.createOwnersFormula(null);
 		} else {
-			// the exclusion was already evaluated when the target indexes were initialized
-			return FormulaFactory.or(
-				targetIndexes.getIndexes()
-					.stream()
-					.filter(Objects::nonNull)
-					.map(EntityIndex.class::cast)
-					.map(EntityIndex::getAllPrimaryKeysFormula)
-					.toArray(Formula[]::new)
+			// only the hierarchy option of index selection represents a hierarchy constraint, and it always carries the
+			// partitions of its nodes split by representation
+			final SplitTargetPartitions splitTargetPartitions = targetIndexes.getSplitTargetPartitions();
+			Assert.isPremiseValid(
+				splitTargetPartitions != null,
+				() -> "The target index set `" + targetIndexes + "` of `" + hierarchyWithinConstraint +
+					"` carries no split partitions of its hierarchy nodes!"
 			);
+			// the exclusion was already evaluated when the partitions of the nodes were split
+			return splitTargetPartitions.createOwnersFormula(null);
 		}
-	}
-
-	/**
-	 * Asserts that a resolved partition exists rather than being a hole.
-	 *
-	 * @param index the resolved partition
-	 * @param <T>   the type of the index
-	 * @return the same index
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the index is null
-	 */
-	@Nonnull
-	private static <T extends EntityIndex> T requirePartitionIndex(@Nullable T index) {
-		Assert.isPremiseValid(index != null, "No partition was resolved for a hierarchy node!");
-		return index;
 	}
 
 	/**

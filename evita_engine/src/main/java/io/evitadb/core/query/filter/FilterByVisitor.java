@@ -1396,10 +1396,35 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
+	 * Returns the partitions of the reference that point to any of the targets in each scope of the processing scope
+	 * (the default scope when none is set), split by representation - see
+	 * {@link QueryPlanningContext#resolvePartitionsOfTargetsForRead}. This is how a hierarchy constraint nested where
+	 * index selection does not reach finds the owners of its nodes: the registered single-owner partitions of the nodes
+	 * contribute their owners read out of the registry, the rest their index objects.
+	 *
+	 * @param entitySchema       the entity schema owning the reference
+	 * @param referenceSchema    the reference whose partitions of the targets are returned
+	 * @param targetPrimaryKeys  the primary keys of the target entities
+	 * @return the partitions of the targets split by representation
+	 * @throws io.evitadb.core.exception.ReferenceComponentNotIndexedException when a processing scope indexes the
+	 *         reference without the `REFERENCED_ENTITY` component
+	 */
+	@Nonnull
+	public SplitTargetPartitions getReferencedEntityPartitions(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Bitmap targetPrimaryKeys
+	) {
+		final Set<Scope> scopes = getProcessingScope().getScopes();
+		return getQueryContext().resolvePartitionsOfTargetsForRead(
+			entitySchema, referenceSchema, scopes.isEmpty() ? EnumSet.of(Scope.DEFAULT_SCOPE) : scopes,
+			targetPrimaryKeys
+		);
+	}
+
+	/**
 	 * Returns the target's partitions of the reference in each scope of the processing scope (the default scope
-	 * when none is set). The stream never contains `null` -
-	 * {@link io.evitadb.core.query.filter.translator.hierarchy.AbstractHierarchyTranslator#requirePartitionIndex}
-	 * relies on that.
+	 * when none is set), as index objects. The stream never contains `null`.
 	 *
 	 * @param entitySchema       the entity schema owning the reference
 	 * @param referenceSchema    the reference whose partitions of the target are returned

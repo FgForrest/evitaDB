@@ -46,11 +46,12 @@ import java.util.function.Supplier;
  */
 final class ReadRouteActivation {
 	/**
-	 * The query routes whose virtual reading has landed - those of steps 4b and 4c of #1615: every body of
+	 * The query routes whose virtual reading has landed - those of steps 4b, 4c and 4d of #1615: every body of
 	 * `referenceHaving` and of `referenceContent(filterBy)` - the row-exact ones answered from the candidate set, the
 	 * negations, `attributeIs`, `groupHaving`, `entityLocaleEquals` and `inScope` answered exactly - its target index
-	 * list, `entityHaving` / `entityPrimaryKeyInSet` in a body, the bidirectional rewrite and the translation of a
-	 * partition to its target.
+	 * list, `entityHaving` / `entityPrimaryKeyInSet` in a body, the bidirectional rewrite, the translation of a
+	 * partition to its target, and the hierarchy routes - `hierarchyWithin` / `hierarchyWithinRoot` of a reference and
+	 * the statistics of `hierarchyOfReference`.
 	 */
 	static final Set<ReadRoute> LANDED_ROUTES = EnumSet.of(
 		ReadRoute.REFERENCE_HAVING_BODY,
@@ -61,7 +62,9 @@ final class ReadRouteActivation {
 		ReadRoute.REFERENCED_ENTITY_IN_BODY,
 		ReadRoute.BIDIRECTIONAL_REWRITE,
 		ReadRoute.PARTITION_TO_TARGET,
-		ReadRoute.REFERENCE_CONTENT_FILTER
+		ReadRoute.REFERENCE_CONTENT_FILTER,
+		ReadRoute.HIERARCHY_WITHIN,
+		ReadRoute.HIERARCHY_STATISTICS
 	);
 	/**
 	 * The activation of an engine that maintains nothing, and so can never read virtually.
@@ -83,7 +86,7 @@ final class ReadRouteActivation {
 
 	/**
 	 * The query routes of the virtual reading, numbered as the read-route inventory of the phase-4 plan of #1615
-	 * numbers them. Only the routes a query line of the harness exercises are listed.
+	 * numbers them. Only the routes a query line of the harness or a read parity test exercises are listed.
 	 */
 	enum ReadRoute {
 		/**
@@ -123,6 +126,16 @@ final class ReadRouteActivation {
 		 * both representations and every examined scope.
 		 */
 		REFERENCE_CONTENT_FILTER,
+		/**
+		 * Route 10 - `hierarchyWithin` / `hierarchyWithinRoot` of a reference: the owners of the partitions of the
+		 * hierarchy nodes, exercised by `VirtualHierarchyParityTest`.
+		 */
+		HIERARCHY_WITHIN,
+		/**
+		 * Route 11 - the statistics of `hierarchyOfReference`: the owners of the partitions of each hierarchy node,
+		 * intersected with the statistics base, exercised by `VirtualHierarchyParityTest`.
+		 */
+		HIERARCHY_STATISTICS,
 		/**
 		 * Route 24 - facet summaries and histograms, which read the target index or the type index.
 		 */

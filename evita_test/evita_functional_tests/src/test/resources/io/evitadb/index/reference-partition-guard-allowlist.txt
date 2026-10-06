@@ -5,6 +5,7 @@
 # it vouches for as `Class#member (overloads desc1 desc2)`, and the overloads hit must be exactly those.
 R1 | io.evitadb.core.collection.EntityCollection#addIndex | physical load / WAL attach of both reduced index families
 R1 | io.evitadb.core.collection.EntityCollection$EntityIndexMaintainer#getOrCreateIndex | the collection maintainer constructs reduced entity indexes and mints their primary keys
+R1 | io.evitadb.core.query.QueryPlanningContext#resolvePartitionsOfTargetsForRead | materialized partitions of the hierarchy nodes, split from the virtual ones, entered into the query body channel
 R1 | io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor#createPrefetcherIfNeededOrWorthwhile | owners of the winning narrowed index set of the query body channel, premised to be partitioned
 R1 | io.evitadb.core.query.fetch.ReferencedEntityFetcher#computeResultWithPassedIndex | isolated body per partition entered under the class token of the query body channel
 R1 | io.evitadb.core.query.fetch.ReferencedEntityFetcher#getFilteredReferencedEntityIds | partitions of referenceContent(filterBy/orderBy) evaluated through the query body channel
@@ -16,8 +17,12 @@ R1 | io.evitadb.core.query.filter.FilterByVisitor$ReducedIndexCandidates#resolve
 R1 | io.evitadb.core.query.filter.FilterByVisitor$SplitReducedIndexCandidates#<init> | carrier of the materialized candidates of a split, resolved for the query body channel
 R1 | io.evitadb.core.query.filter.FilterByVisitor$SplitReducedIndexCandidates#field:materializedIndexes | carrier of the materialized candidates of a split, resolved for the query body channel
 R1 | io.evitadb.core.query.filter.FilterByVisitor$SplitReducedIndexCandidates#materializedIndexes | carrier of the materialized candidates of a split, resolved for the query body channel
+R1 | io.evitadb.core.query.filter.SplitTargetPartitions#<init> | carrier of the materialized partitions of the hierarchy nodes, resolved for the query body channel
+R1 | io.evitadb.core.query.filter.SplitTargetPartitions#createOwnersFormula | owners formula of the materialized partitions of the hierarchy nodes, from the query body channel
+R1 | io.evitadb.core.query.filter.SplitTargetPartitions#field:materializedIndexes | carrier of the materialized partitions of the hierarchy nodes, resolved for the query body channel
+R1 | io.evitadb.core.query.filter.SplitTargetPartitions#getOwnerRowCount | owner-row sum of the materialized partitions of the hierarchy nodes for the cardinality check of index selection
+R1 | io.evitadb.core.query.filter.SplitTargetPartitions#materializedIndexes | carrier of the materialized partitions of the hierarchy nodes, resolved for the query body channel
 R1 | io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyInSetTranslator#translate | partition-scoped body class token test and owners, from the query body channel
-R1 | io.evitadb.core.query.filter.translator.hierarchy.AbstractHierarchyTranslator#createFormulaForReferencingEntities | owners formula per hierarchy node, from the target indexes of the query body channel
 R1 | io.evitadb.core.query.filter.translator.reference.BidirectionalReferenceRewriter#allRowsOf | owners formula over the partitions of the query body channel
 R1 | io.evitadb.core.query.filter.translator.reference.BidirectionalReferenceRewriter#createMaterializedRowsFormula | owner's materialized partitions entered into the query body channel for an isolated body
 R1 | io.evitadb.core.query.filter.translator.reference.BidirectionalReferenceRewriter#createPerOwnerFormulas | owner's partitions split by representation, the materialized ones collected for the query body channel
@@ -30,6 +35,7 @@ R1 | io.evitadb.core.query.filter.translator.reference.ReferenceHavingTranslator
 R1 | io.evitadb.core.query.filter.translator.reference.ReferenceHavingTranslator#applySearchOnIndexes | body evaluation entry - supplier of partitions and class token of the query body channel
 R1 | io.evitadb.core.query.indexSelection.IndexSelectionVisitor#addHierarchyIndexOption | hierarchy target index set: partitions entered into the query body channel under their class token
 R1 | io.evitadb.core.query.indexSelection.IndexSelectionVisitor#addReferenceIndexOption | reference target index set: class token of the query body channel and owner-count sum
+R1 | io.evitadb.core.query.indexSelection.IndexSelectionVisitor#resolveAllPartitionsOfNodes | object-only list of a hierarchy target index set, resolved on demand into the query body channel
 R1 | io.evitadb.core.query.sort.OrderByVisitor#getIndexesForSort | sort index array of the query body channel handed to the sorters
 R1 | io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver#<init> | memoized planning partitions, which feed the sort index array of the query body channel
 R1 | io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver#field:memoizedPlanningIndexes | memoized planning partitions, which feed the sort index array of the query body channel
@@ -143,6 +149,7 @@ R4 | io.evitadb.core.query.QueryPlanningContext#getReducedGroupEntityIndexes | g
 R4 | io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceHistogramAccumulator#collectGroupedPending | group family: reduced group entity indexes have no partition handle (grouped histogram accumulation)
 R4 | io.evitadb.index.ReferencePartitions#resolveOfTarget (overloads (Ljava/util/function/Function;Ljava/util/function/IntFunction;Lio/evitadb/dataType/Scope;Ljava/lang/String;ZILjava/lang/String;)[Lio/evitadb/index/ReferencePartition;) | the partition resolver implementation itself
 R4 | io.evitadb.index.ReferencePartitions#resolveOfTargetForRead | read resolution of the partitions of one target enumerates the type index's family to tell virtual partitions from materialized ones
+R4 | io.evitadb.index.ReferencePartitions#splitOfTargetsForRead | read resolution of the partitions of the hierarchy nodes enumerates each target's family to split it against the registry
 R4 | io.evitadb.index.ReferencedTypeEntityIndex#getAllReferenceIndexes | type index declaration delegating the enumeration to its cardinality index
 R4 | io.evitadb.index.PartitionKeyMemo#buildFamily | the by-key read memo enumerates the family of a target once per query to find its registered partitions by tuple id
 R4 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#addFromReferenceAttributeForLocale | group family: reduced group entity indexes have no partition handle (histograms and group resolution of the cross-entity trigger)

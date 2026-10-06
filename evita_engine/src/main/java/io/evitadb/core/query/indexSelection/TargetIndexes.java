@@ -25,6 +25,7 @@ package io.evitadb.core.query.indexSelection;
 
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.core.query.filter.FilterByVisitor.ReducedIndexCandidates;
+import io.evitadb.core.query.filter.SplitTargetPartitions;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
@@ -112,6 +113,13 @@ public class TargetIndexes<T extends Index<?>> {
 	 * object-only resolution of every candidate for the consumers that need the objects.
 	 */
 	@Nullable private final ReducedIndexCandidates reducedIndexCandidates;
+	/**
+	 * The partitions of the nodes of a hierarchy option split by representation, `null` for any other option. The
+	 * translation of the hierarchy constraint reads them rather than {@link #getIndexes()}: the registered single-owner
+	 * partitions of the nodes contribute their owners read out of the registry, while {@link #getIndexes()} stays the
+	 * object-only resolution of every partition for the consumers that need the objects.
+	 */
+	@Nullable private final SplitTargetPartitions splitTargetPartitions;
 
 	public TargetIndexes(@Nonnull String indexDescription, @Nonnull Class<T> indexType, @Nonnull List<T> indexes) {
 		this.indexDescription = indexDescription;
@@ -122,6 +130,7 @@ public class TargetIndexes<T extends Index<?>> {
 		this.indexCount = indexes.size();
 		this.eligibilityObstacles = EnumSet.noneOf(EligibilityObstacle.class);
 		this.reducedIndexCandidates = null;
+		this.splitTargetPartitions = null;
 	}
 
 	public TargetIndexes(
@@ -162,6 +171,7 @@ public class TargetIndexes<T extends Index<?>> {
 		this.eligibilityObstacles = EnumSet.noneOf(EligibilityObstacle.class);
 		Collections.addAll(this.eligibilityObstacles, eligibilityObstacle);
 		this.reducedIndexCandidates = reducedIndexCandidates;
+		this.splitTargetPartitions = null;
 	}
 
 	/**
@@ -198,6 +208,40 @@ public class TargetIndexes<T extends Index<?>> {
 		this.eligibilityObstacles = EnumSet.noneOf(EligibilityObstacle.class);
 		Collections.addAll(this.eligibilityObstacles, eligibilityObstacle);
 		this.reducedIndexCandidates = reducedIndexCandidates;
+		this.splitTargetPartitions = null;
+	}
+
+	/**
+	 * Creates the set of a hierarchy option whose indexes are resolved only when they are first asked for, and which
+	 * keeps the partitions of its nodes split by representation - see {@link #splitTargetPartitions}.
+	 *
+	 * @param indexDescription      human readable description of the index set
+	 * @param representedConstraint the hierarchy constraint the indexes answer
+	 * @param indexType             type of the indexes the supplier will produce
+	 * @param indexCount            how many indexes the supplier will produce, known in advance
+	 * @param indexSupplier         resolves the indexes of every partition of the nodes on first demand
+	 * @param splitTargetPartitions the partitions of the nodes split by representation
+	 * @param eligibilityObstacle   obstacles that make this set ineligible for a separate query plan
+	 */
+	public TargetIndexes(
+		@Nonnull String indexDescription,
+		@Nonnull FilterConstraint representedConstraint,
+		@Nonnull Class<T> indexType,
+		int indexCount,
+		@Nonnull Supplier<List<T>> indexSupplier,
+		@Nonnull SplitTargetPartitions splitTargetPartitions,
+		@Nonnull EligibilityObstacle... eligibilityObstacle
+	) {
+		this.indexDescription = indexDescription;
+		this.representedConstraint = representedConstraint;
+		this.indexType = indexType;
+		this.indexes = null;
+		this.indexSupplier = indexSupplier;
+		this.indexCount = indexCount;
+		this.eligibilityObstacles = EnumSet.noneOf(EligibilityObstacle.class);
+		Collections.addAll(this.eligibilityObstacles, eligibilityObstacle);
+		this.reducedIndexCandidates = null;
+		this.splitTargetPartitions = splitTargetPartitions;
 	}
 
 	/**

@@ -38,6 +38,7 @@ import java.util.HashSet;
 import java.util.Locale;
 import java.util.Random;
 import java.util.Set;
+import java.util.stream.IntStream;
 
 /**
  * A generated catalog of the shape of a production `relatedProducts` reference: products referencing other products,
@@ -61,7 +62,13 @@ import java.util.Set;
  *   alone - single-owner partitions of `categories` - for `k` up to {@link #SINGLETON_CATEGORY_COUNT}, with a priority
  *   and a group other than those of their row of a popular category. Categories reflect the reference as `products`,
  *   inheriting its attributes, so a `referenceHaving` over the products of a category is answered from the product
- *   side by the bidirectional rewrite.
+ *   side by the bidirectional rewrite;
+ * - products sit in the hierarchical `section` collection through `sections` (indexed for filtering in both scopes,
+ *   hierarchy indexed in both scopes): live products in a tree of {@link #LIVE_SECTION_COUNT} live sections - each in
+ *   one of the popular leaves, products `10k + 3` additionally alone in a singleton leaf, one product alone in an inner
+ *   node and another alone in a root - and archived products in a tree of archived sections from
+ *   {@link #ARCHIVED_SECTION_ROOT} on, shaped the same way, so roughly half of the partitions of the hierarchy nodes
+ *   are single-owner in each scope (see {@link #sectionsOf(int)} and {@link #sectionParentOf(int)}).
  *
  * The generator is deterministic: the same seed builds the same catalog.
  *
@@ -70,10 +77,12 @@ import java.util.Set;
 final class RelatedProductsShapedFixture {
 	static final String ENTITY_PRODUCT = "product";
 	static final String ENTITY_CATEGORY = "category";
+	static final String ENTITY_SECTION = "section";
 	/**
 	 * Every entity type of the fixture.
 	 */
-	static final Set<String> ENTITY_TYPES = Set.of(ENTITY_PRODUCT, ENTITY_CATEGORY);
+	static final Set<String> ENTITY_TYPES = Set.of(ENTITY_PRODUCT, ENTITY_CATEGORY, ENTITY_SECTION);
+	static final String REFERENCE_SECTIONS = "sections";
 	static final String REFERENCE_CATEGORIES = "categories";
 	static final String REFERENCE_PRODUCTS = "products";
 	static final String ATTRIBUTE_PRIORITY = "priority";
@@ -120,6 +129,76 @@ final class RelatedProductsShapedFixture {
 	 */
 	static final int ARCHIVED_EVERY = 10;
 	/**
+	 * How many sections form the live tree: roots `1` and `2`, inner nodes `3` - `8` (three under each root) and leaves
+	 * `9` - `44` (six under each inner node, the first three popular, the other three singleton).
+	 */
+	static final int LIVE_SECTION_COUNT = 44;
+	/**
+	 * The root of the tree of sections archived once the catalog is live: inner nodes `51` - `53` under it and leaves
+	 * `54` - `62` (three under each inner node).
+	 */
+	static final int ARCHIVED_SECTION_ROOT = 50;
+	/**
+	 * The last section of the archived tree.
+	 */
+	static final int LAST_ARCHIVED_SECTION = 62;
+	/**
+	 * The inner live section held by every product `50k + 1` - a shared partition of an inner node.
+	 */
+	static final int SHARED_LIVE_INNER_SECTION = 4;
+	/**
+	 * The inner live section held by product {@link #SINGLETON_LIVE_INNER_OWNER} alone.
+	 */
+	static final int SINGLETON_LIVE_INNER_SECTION = 5;
+	/**
+	 * The only owner of {@link #SINGLETON_LIVE_INNER_SECTION}.
+	 */
+	static final int SINGLETON_LIVE_INNER_OWNER = 7;
+	/**
+	 * The live root held by product {@link #SINGLETON_LIVE_ROOT_OWNER} alone.
+	 */
+	static final int SINGLETON_LIVE_ROOT = 2;
+	/**
+	 * The only owner of {@link #SINGLETON_LIVE_ROOT}.
+	 */
+	static final int SINGLETON_LIVE_ROOT_OWNER = 17;
+	/**
+	 * The inner archived section held by every archived product `100k` - a shared partition of an inner node.
+	 */
+	static final int SHARED_ARCHIVED_INNER_SECTION = 52;
+	/**
+	 * The inner archived section held by product {@link #SINGLETON_ARCHIVED_INNER_OWNER} alone.
+	 */
+	static final int SINGLETON_ARCHIVED_INNER_SECTION = 51;
+	/**
+	 * The only owner of {@link #SINGLETON_ARCHIVED_INNER_SECTION}.
+	 */
+	static final int SINGLETON_ARCHIVED_INNER_OWNER = 40;
+	/**
+	 * The only owner of {@link #ARCHIVED_SECTION_ROOT}.
+	 */
+	static final int SINGLETON_ARCHIVED_ROOT_OWNER = 50;
+	/**
+	 * The popular leaves of the live tree - the first three leaves under each inner node.
+	 */
+	private static final int[] POPULAR_LIVE_LEAVES = IntStream.rangeClosed(9, LIVE_SECTION_COUNT)
+		.filter(it -> (it - 9) % 6 < 3)
+		.toArray();
+	/**
+	 * The singleton leaves of the live tree - the last three leaves under each inner node, each held by one product.
+	 */
+	private static final int[] SINGLETON_LIVE_LEAVES = IntStream.rangeClosed(9, LIVE_SECTION_COUNT)
+		.filter(it -> (it - 9) % 6 >= 3)
+		.toArray();
+	/**
+	 * The popular leaves of the archived tree - the first two leaves under each archived inner node.
+	 */
+	private static final int[] POPULAR_ARCHIVED_LEAVES = {54, 55, 57, 58, 60, 61};
+	/**
+	 * The singleton leaves of the archived tree, held by archived products `10`, `20` and `30` alone.
+	 */
+	private static final int[] SINGLETON_ARCHIVED_LEAVES = {56, 59, 62};
+	/**
 	 * The seed of the generator.
 	 */
 	private static final long SEED = 42L;
@@ -144,6 +223,10 @@ final class RelatedProductsShapedFixture {
 	 */
 	static void setUp(@Nonnull EvitaSessionContract session) {
 		session.defineEntitySchema(ENTITY_CATEGORY)
+			.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.filterableInScope(BOTH_SCOPES))
+			.updateVia(session);
+		session.defineEntitySchema(ENTITY_SECTION)
+			.withHierarchyIndexedInScope(BOTH_SCOPES)
 			.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.filterableInScope(BOTH_SCOPES))
 			.updateVia(session);
 		session.defineEntitySchema(ENTITY_PRODUCT)
@@ -202,6 +285,10 @@ final class RelatedProductsShapedFixture {
 					.withGroupTypeRelatedToEntity(ENTITY_CATEGORY)
 					.withAttribute(ATTRIBUTE_PRIORITY, Integer.class, thatIs -> thatIs.filterableInScope(Scope.LIVE))
 			)
+			.withReferenceToEntity(
+				REFERENCE_SECTIONS, ENTITY_SECTION, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs.indexedForFilteringInScope(BOTH_SCOPES)
+			)
 			.updateVia(session);
 		session.defineEntitySchema(ENTITY_CATEGORY)
 			.withReflectedReferenceToEntity(
@@ -215,6 +302,18 @@ final class RelatedProductsShapedFixture {
 		final int categoryCount = POPULAR_CATEGORY_COUNT + SINGLETON_CATEGORY_COUNT;
 		for (int pk = 1; pk <= categoryCount; pk++) {
 			session.upsertEntity(session.createNewEntity(ENTITY_CATEGORY, pk).setAttribute(ATTRIBUTE_CODE, "C" + pk));
+		}
+		// parents precede their children in both trees
+		for (int pk = 1; pk <= LAST_ARCHIVED_SECTION; pk++) {
+			if (pk <= LIVE_SECTION_COUNT || pk >= ARCHIVED_SECTION_ROOT) {
+				final EntityBuilder section = session.createNewEntity(ENTITY_SECTION, pk)
+					.setAttribute(ATTRIBUTE_CODE, "S" + pk);
+				final int parent = sectionParentOf(pk);
+				if (parent > 0) {
+					section.setParent(parent);
+				}
+				session.upsertEntity(section);
+			}
 		}
 		final Random random = new Random(SEED);
 		for (int pk = 1; pk <= PRODUCT_COUNT; pk++) {
@@ -234,13 +333,88 @@ final class RelatedProductsShapedFixture {
 	}
 
 	/**
-	 * Archives every {@link #ARCHIVED_EVERY}-th product - meant to run once the catalog is live.
+	 * Returns the parent of a section, or `0` for a root.
+	 *
+	 * @param sectionPrimaryKey the section primary key
+	 * @return the parent section, `0` for a root
+	 */
+	static int sectionParentOf(int sectionPrimaryKey) {
+		if (sectionPrimaryKey <= 2 || sectionPrimaryKey == ARCHIVED_SECTION_ROOT) {
+			return 0;
+		} else if (sectionPrimaryKey <= 8) {
+			return sectionPrimaryKey <= 5 ? 1 : 2;
+		} else if (sectionPrimaryKey <= LIVE_SECTION_COUNT) {
+			return 3 + (sectionPrimaryKey - 9) / 6;
+		} else if (sectionPrimaryKey <= 53) {
+			return ARCHIVED_SECTION_ROOT;
+		} else {
+			return 51 + (sectionPrimaryKey - 54) / 3;
+		}
+	}
+
+	/**
+	 * Returns the sections a product sits in: a live product in one popular live leaf, products `10k + 3` alone in a
+	 * singleton live leaf - for an odd `k` instead of a popular leaf, so they sit in the tree only through a single-owner
+	 * partition - products `50k + 1` in the shared inner node {@link #SHARED_LIVE_INNER_SECTION}, and the singleton inner
+	 * node and root their only owners, the root owner nowhere else; an archived product in one popular archived leaf,
+	 * the archived products `100k` in the shared inner node {@link #SHARED_ARCHIVED_INNER_SECTION}, and the archived
+	 * singleton leaves, inner node and root their only owners, product `20` and the root owner nowhere else.
+	 *
+	 * @param primaryKey the product primary key
+	 * @return the sections of the product
+	 */
+	@Nonnull
+	static int[] sectionsOf(int primaryKey) {
+		final IntStream.Builder sections = IntStream.builder();
+		if (isArchived(primaryKey)) {
+			final int k = primaryKey / ARCHIVED_EVERY;
+			if (k != 2 && primaryKey != SINGLETON_ARCHIVED_ROOT_OWNER) {
+				sections.add(POPULAR_ARCHIVED_LEAVES[k % POPULAR_ARCHIVED_LEAVES.length]);
+			}
+			if (k <= SINGLETON_ARCHIVED_LEAVES.length) {
+				sections.add(SINGLETON_ARCHIVED_LEAVES[k - 1]);
+			}
+			if (primaryKey % 100 == 0) {
+				sections.add(SHARED_ARCHIVED_INNER_SECTION);
+			}
+			if (primaryKey == SINGLETON_ARCHIVED_INNER_OWNER) {
+				sections.add(SINGLETON_ARCHIVED_INNER_SECTION);
+			} else if (primaryKey == SINGLETON_ARCHIVED_ROOT_OWNER) {
+				sections.add(ARCHIVED_SECTION_ROOT);
+			}
+		} else {
+			final int k = (primaryKey - 3) / 10;
+			final boolean singletonLeafOwner = primaryKey % 10 == 3 && k < SINGLETON_LIVE_LEAVES.length;
+			if ((!singletonLeafOwner || k % 2 == 0) && primaryKey != SINGLETON_LIVE_ROOT_OWNER) {
+				sections.add(POPULAR_LIVE_LEAVES[primaryKey % POPULAR_LIVE_LEAVES.length]);
+			}
+			if (singletonLeafOwner) {
+				sections.add(SINGLETON_LIVE_LEAVES[k]);
+			}
+			if (primaryKey % 50 == 1) {
+				sections.add(SHARED_LIVE_INNER_SECTION);
+			}
+			if (primaryKey == SINGLETON_LIVE_INNER_OWNER) {
+				sections.add(SINGLETON_LIVE_INNER_SECTION);
+			} else if (primaryKey == SINGLETON_LIVE_ROOT_OWNER) {
+				sections.add(SINGLETON_LIVE_ROOT);
+			}
+		}
+		return sections.build().toArray();
+	}
+
+	/**
+	 * Archives every {@link #ARCHIVED_EVERY}-th product and the tree of sections from {@link #ARCHIVED_SECTION_ROOT}
+	 * on, children before their parents - meant to run once the catalog is live.
 	 *
 	 * @param session the session to write in
 	 */
 	static void archive(@Nonnull EvitaSessionContract session) {
 		for (int pk = ARCHIVED_EVERY; pk <= PRODUCT_COUNT; pk += ARCHIVED_EVERY) {
 			session.archiveEntity(ENTITY_PRODUCT, pk);
+		}
+		for (int pk = LAST_ARCHIVED_SECTION; pk >= ARCHIVED_SECTION_ROOT; pk--) {
+			session.archiveEntity(ENTITY_SECTION, pk);
 		}
 	}
 
@@ -284,6 +458,9 @@ final class RelatedProductsShapedFixture {
 				REFERENCE_CATEGORIES, singletonCategory,
 				ref -> ref.setAttribute(ATTRIBUTE_PRIORITY, (k + 5) % 10).setGroup(1 + k % GROUP_COUNT)
 			);
+		}
+		for (final int section : sectionsOf(primaryKey)) {
+			product.setReference(REFERENCE_SECTIONS, section);
 		}
 		final int rowCount = 1 + random.nextInt(6);
 		final Set<String> taken = new HashSet<>(rowCount * 2);

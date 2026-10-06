@@ -64,6 +64,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.translator.reference.producer.FilteringFormulaPredicate;
+import io.evitadb.core.query.filter.SplitTargetPartitions;
 import io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper;
 import io.evitadb.core.query.policy.BitmapFavouringNoCachePolicy;
 import io.evitadb.core.query.policy.DefaultPolicy;
@@ -76,10 +77,13 @@ import io.evitadb.index.*;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.usage.SchemaCapabilityKey;
 import io.evitadb.index.usage.SchemaCapabilityUsage;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -87,6 +91,7 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.*;
+import java.util.PrimitiveIterator.OfInt;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -1243,6 +1248,115 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			getVirtualTypeIndex(entityType, scope, referenceName),
 			scope, referenceName, referenceSchema.getCardinality().allowsDuplicates(), targetPrimaryKey, entityType
 		);
+	}
+
+	/**
+	 * Returns every reference partition of the entity type holding rows of the reference that point to any of the
+	 * target entities in any of the scopes, for a read, split by representation - the hierarchy routes ask the
+	 * partitions of the nodes of a tree for their owners and nothing else (step 4d of #1615).
+	 *
+	 * In a scope the query does not read virtually the partitions are those
+	 * {@link #resolvePartitionsOfTarget(EntitySchemaContract, ReferenceSchemaContract, Scope, int)} returns, target by
+	 * target and scope by scope, all materialized. In a scope it does read virtually, the partitions of all the targets
+	 * are enumerated through the type index and split against its registry in one merge (see
+	 * {@link ReferencePartitions#splitOfTargetsForRead}): only the materialized ones are resolved to their index
+	 * objects, the registered single-owner ones contribute their owner read out of the registry row. The cost of a
+	 * scope read virtually is one copy of the partitions of each target, one merge with the registry and one bitmap
+	 * write per virtual partition - nothing proportional to the owners of the materialized ones.
+	 *
+	 * @param entitySchema      the entity type owning the reference
+	 * @param referenceSchema   the reference
+	 * @param scopes            the scopes of the partitions
+	 * @param targetPrimaryKeys the primary keys of the referenced entities
+	 * @return the partitions of the targets split by representation
+	 * @throws io.evitadb.core.exception.ReferenceComponentNotIndexedException when there is a target and the reference
+	 *         is indexed in one of the scopes without the `REFERENCED_ENTITY` component
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when a listed primary key names no partition
+	 */
+	@Nonnull
+	public SplitTargetPartitions resolvePartitionsOfTargetsForRead(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Collection<Scope> scopes,
+		@Nonnull Bitmap targetPrimaryKeys
+	) {
+		final String entityType = entitySchema.getName();
+		final String referenceName = referenceSchema.getName();
+		final List<ReducedEntityIndex> materializedIndexes =
+			new ArrayList<>(targetPrimaryKeys.size() * scopes.size());
+		ReferencedTypeEntityIndex[] virtualTypeIndexes = null;
+		int scopeIndex = 0;
+		for (final Scope scope : scopes) {
+			final ReferencedTypeEntityIndex virtualTypeIndex = getVirtualTypeIndex(entityType, scope, referenceName);
+			if (virtualTypeIndex != null) {
+				if (virtualTypeIndexes == null) {
+					virtualTypeIndexes = new ReferencedTypeEntityIndex[scopes.size()];
+				}
+				virtualTypeIndexes[scopeIndex] = virtualTypeIndex;
+			}
+			scopeIndex++;
+		}
+		// the scopes read through the index objects alone, target by target and scope by scope - the order the
+		// hierarchy routes have always listed the partitions in
+		final OfInt targetIt = targetPrimaryKeys.iterator();
+		while (targetIt.hasNext()) {
+			final int targetPrimaryKey = targetIt.nextInt();
+			scopeIndex = 0;
+			for (final Scope scope : scopes) {
+				if (virtualTypeIndexes == null || virtualTypeIndexes[scopeIndex] == null) {
+					for (final ReferencePartition partition :
+						resolvePartitionsOfTarget(entitySchema, referenceSchema, scope, targetPrimaryKey)) {
+						// the partitions are evaluated through the query body channel
+						materializedIndexes.add(ReferencePartitions.toReducedEntityIndex(partition));
+					}
+				}
+				scopeIndex++;
+			}
+		}
+		if (virtualTypeIndexes == null) {
+			return new SplitTargetPartitions(materializedIndexes, EmptyBitmap.INSTANCE, 0);
+		}
+		// the scopes read virtually - one split over the partitions of all the targets per scope
+		final IntFunction<Index<?>> indexByPrimaryKey = getIndexByPrimaryKeyReader(entityType);
+		final IntFunction<ReferencePartition> partitionByPrimaryKey =
+			partitionPrimaryKey -> ReferencePartitions.asPartition(indexByPrimaryKey.apply(partitionPrimaryKey));
+		final RoaringBitmapWriter<PersistentRoaringBitmap> ownerWriter = RoaringBitmapBackedBitmap.buildWriter();
+		int virtualCount = 0;
+		scopeIndex = 0;
+		for (final Scope scope : scopes) {
+			final ReferencedTypeEntityIndex virtualTypeIndex = virtualTypeIndexes[scopeIndex++];
+			if (virtualTypeIndex == null || targetPrimaryKeys.isEmpty()) {
+				continue;
+			}
+			// a scope indexed without the entity component builds no partitions - an empty answer would be
+			// indistinguishable from targets with no owners
+			HavingTranslatorHelper.assertEntityComponentIndexed(entitySchema, referenceSchema, scope, getScopes());
+			final ReferencePartitionSplit split = ReferencePartitions.splitOfTargetsForRead(
+				virtualTypeIndex, scope, referenceName, targetPrimaryKeys
+			);
+			final OfInt materializedIt = split.getMaterializedPrimaryKeys().iterator();
+			while (materializedIt.hasNext()) {
+				materializedIndexes.add(
+					ReferencePartitions.toReducedEntityIndex(
+						// no type index - the registry has already answered that it holds no row for the key
+						ReferencePartitions.resolveForRead(
+							partitionByPrimaryKey, null, scope, referenceName, materializedIt.nextInt(), entityType
+						)
+					)
+				);
+			}
+			final int scopeVirtualCount = split.getVirtualCount();
+			for (int i = 0; i < scopeVirtualCount; i++) {
+				ownerWriter.add(split.getVirtualOwnerPrimaryKey(i));
+			}
+			virtualCount += scopeVirtualCount;
+		}
+		if (virtualCount == 0) {
+			return new SplitTargetPartitions(materializedIndexes, EmptyBitmap.INSTANCE, 0);
+		}
+		// TODO JNO - remove at the end of #1615 (the non-vacuity probe of the read parity tests)
+		recordVirtualRowsRead(virtualCount);
+		return new SplitTargetPartitions(materializedIndexes, new BaseBitmap(ownerWriter.get()), virtualCount);
 	}
 
 	/**

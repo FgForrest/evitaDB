@@ -34,6 +34,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NumberUtils;
@@ -376,6 +377,42 @@ public final class ReferencePartitions {
 			);
 		}
 		return result;
+	}
+
+	/**
+	 * Splits every partition of several target entities of a reference in a scope by representation, for a query that
+	 * reads the collection virtually - see the class documentation on read resolution. The partitions of each target
+	 * are enumerated through the type index whatever the cardinality of the reference, as
+	 * {@link #resolveOfTargetForRead} enumerates them, and the primary keys of all targets are split in one merge with
+	 * the registry rows (see {@link #split(Bitmap, ReferencedTypeEntityIndex...)}) - no partition is resolved, neither
+	 * by its primary key nor by its key.
+	 *
+	 * @param typeIndex         the referenced-type entity index of the reference in the scope, whose registry is read
+	 * @param scope             the scope of the partitions
+	 * @param referenceName     the reference the partitions belong to
+	 * @param targetPrimaryKeys the primary keys of the target entities
+	 * @return the split of the partitions of all the targets
+	 */
+	@Nonnull
+	public static ReferencePartitionSplit splitOfTargetsForRead(
+		@Nonnull ReferencedTypeEntityIndex typeIndex,
+		@Nonnull Scope scope,
+		@Nonnull String referenceName,
+		@Nonnull Bitmap targetPrimaryKeys
+	) {
+		assertTypeIndexOf(typeIndex, scope, referenceName);
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		final OfInt it = targetPrimaryKeys.iterator();
+		while (it.hasNext()) {
+			// the partitions of distinct targets are distinct, so the writer only orders them
+			for (final int partitionPrimaryKey : typeIndex.getAllReferenceIndexes(it.nextInt())) {
+				writer.add(partitionPrimaryKey);
+			}
+		}
+		final PersistentRoaringBitmap partitionPrimaryKeys = writer.get();
+		return split(
+			partitionPrimaryKeys.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(partitionPrimaryKeys), typeIndex
+		);
 	}
 
 	/**

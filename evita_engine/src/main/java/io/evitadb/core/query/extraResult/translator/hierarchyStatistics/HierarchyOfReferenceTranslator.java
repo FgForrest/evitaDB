@@ -35,7 +35,6 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
@@ -46,11 +45,12 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.bitmap.SingleRecordBitmap;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -129,24 +129,14 @@ public class HierarchyOfReferenceTranslator
 						// same result regardless of how the index was carved up
 						final Formula cachedGlobal = extraResultPlanner
 							.getFilteringFormulaForStatisticsBase(statisticsBase, referenceSchema);
-						final ReferencePartition[] partitions = extraResultPlanner
+						// the partitions of the node split by representation - the registered single-owner ones join
+						// as one constant over their owners read out of the registry, intersected with the base once
+						return extraResultPlanner
 							.getQueryContext()
-							.resolvePartitionsOfTarget(entitySchema, referenceSchema, scope, nodeId);
-
-						final Formula[] formulas = new Formula[partitions.length];
-						if (cachedGlobal == null) {
-							for (int i = 0; i < partitions.length; i++) {
-								formulas[i] = partitions[i].getAllPrimaryKeysFormula();
-							}
-						} else {
-							for (int i = 0; i < partitions.length; i++) {
-								formulas[i] = FormulaFactory.and(
-									partitions[i].getAllPrimaryKeysFormula(),
-									cachedGlobal
-								);
-							}
-						}
-						return FormulaFactory.or(formulas);
+							.resolvePartitionsOfTargetsForRead(
+								entitySchema, referenceSchema, List.of(scope), new SingleRecordBitmap(nodeId)
+							)
+							.createOwnersFormula(cachedGlobal);
 					},
 					null,
 					hierarchyOfReference.getEmptyHierarchicalEntityBehaviour(),
