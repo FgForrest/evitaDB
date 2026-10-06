@@ -147,6 +147,13 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	private static final String ENTITY_TAG = "tag";
 	/** The reference of {@link #ENTITY_CATEGORY} to the tags; category 1 references tag 1. */
 	private static final String REFERENCE_TAGS = "tags";
+	/**
+	 * A type no entity of which exists; it references the categories by {@link #REFERENCE_CATEGORIES}, and
+	 * the products reference it by {@link #REFERENCE_BRAND}, which no product holds a row of.
+	 */
+	private static final String ENTITY_BRAND = "brand";
+	/** The reference of {@link #ENTITY_PRODUCT} to the brands, indexed in the live scope. */
+	private static final String REFERENCE_BRAND = "brand";
 	/** The attribute of the {@link #REFERENCE_TAGS} reference, filterable in the live scope. */
 	private static final String ATTRIBUTE_WEIGHT = "weight";
 	private static final String COMPOUND_CODE_WITH_PRIORITY = "codeWithPriority";
@@ -738,6 +745,36 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		}
 
 		@Test
+		@DisplayName("An entity filter nested in a checked entity filter counts the inner target's flag where it has data")
+		void shouldCountEntityFilterNestedInCheckedEntityFilter() {
+			// the brands hold no entity, so their filter is only checked and no nested query of the brands is planned -
+			// nor of the categories the brand filter nests, although the categories hold live data: the check is the
+			// only place the live flag of the category name is requested, and it must be counted once
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY,
+				Query.query(
+					collection(ENTITY_PRODUCT),
+					filterBy(
+						referenceHaving(
+							REFERENCE_BRAND,
+							entityHaving(
+								referenceHaving(
+									REFERENCE_CATEGORIES,
+									entityHaving(attributeEquals(ATTRIBUTE_CATEGORY_NAME, "category-1"))
+								)
+							)
+						)
+					)
+				)
+			);
+
+			assertEquals(
+				Map.of(categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L), requested,
+				"The filter of the categories nested in the checked filter of the brands must be counted once"
+			);
+		}
+
+		@Test
 		@DisplayName("A query refused over a scope without index counts nothing")
 		void shouldCountNothingWhenQueryOverScopeWithoutIndexIsRefused() {
 			// the catalog holds no index of the archived scope, and `code` is not filterable there - the query fails
@@ -1263,7 +1300,8 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	 * both ways, and a filterable attribute nothing ever names. The categories are live only, and the only stock is
 	 * archived and references a category - so a query over the archived categories, or a nested query of the archived
 	 * stock over them, matches nothing because the scope holds no data. The categories reference the tags, the first of
-	 * them tag 1 with the weight 1.
+	 * them tag 1 with the weight 1. The brands hold no entity at all; they reference the categories, and
+	 * the products reference them by a reference no product holds a row of.
 	 */
 	private void buildCatalog() {
 		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
@@ -1296,6 +1334,13 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 					session.createNewEntity(ENTITY_STOCK, ARCHIVED_STOCK).setReference(REFERENCE_CATEGORIES, 1)
 				);
 				session.archiveEntity(ENTITY_STOCK, ARCHIVED_STOCK);
+				session.defineEntitySchema(ENTITY_BRAND)
+					.withoutGeneratedPrimaryKey()
+					.withReferenceToEntity(
+						REFERENCE_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.indexedInScope(Scope.LIVE)
+					)
+					.updateVia(session);
 				session.defineEntitySchema(ENTITY_PRODUCT)
 					.withoutGeneratedPrimaryKey()
 					.withAttribute(
@@ -1324,6 +1369,10 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 								ATTRIBUTE_ORDER_IN_CATEGORY, Long.class,
 								thatIs -> thatIs.filterableInScope(Scope.LIVE).sortableInScope(Scope.LIVE)
 							)
+					)
+					.withReferenceToEntity(
+						REFERENCE_BRAND, ENTITY_BRAND, Cardinality.ZERO_OR_ONE,
+						whichIs -> whichIs.indexedInScope(Scope.LIVE)
 					)
 					.updateVia(session);
 				for (int i = 1; i <= CATEGORY_COUNT; i++) {

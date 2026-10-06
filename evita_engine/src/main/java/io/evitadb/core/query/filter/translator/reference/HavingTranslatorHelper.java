@@ -166,7 +166,11 @@ public class HavingTranslatorHelper {
 	 * A nested query planned over data counts the schema capabilities its filter requests when its plan is built. A
 	 * scope the target entity type holds no entity of gets no nested query - neither here nor when the references are
 	 * fetched - so the check of such a scope hands what it requested to the enclosing context, which counts it once.
-	 * The check of a scope holding data counts nothing: the nested query evaluating the filter there counts it.
+	 * The check of a scope holding data counts nothing: the nested query evaluating the filter there counts it. A filter
+	 * nested in a filter that is itself only checked ({@link FilterByVisitor#isNestedFilterCheck()}) gets no nested
+	 * query in any scope, whatever data its target entity type holds, because none is planned for the filter enclosing
+	 * it - its check hands everything it requested to the context of the enclosing check, which counts it exactly when
+	 * the enclosing check is counted.
 	 *
 	 * @param targetEntityType         the type of the target entity for which the nested query is being planned
 	 * @param filter                   the filter constraint that applies the necessary filtering logic
@@ -193,6 +197,15 @@ public class HavingTranslatorHelper {
 		);
 		if (filterByVisitor.isConstraintCheckOnly()) {
 			final Set<Scope> nestedQueryScopes = getNestedQueryScopes(nestedScope, processingScope.getScopes());
+			if (filterByVisitor.isNestedFilterCheck()) {
+				// the enclosing filter is only checked, so no nested query evaluates this filter in any scope, whatever
+				// data the target holds - all of it goes to the context of the enclosing check, which decides
+				checkNestedFilter(
+					targetEntityCollection, nestedFilterBy, nestedQueryScopes, filterByVisitor, taskDescriptionSupplier,
+					true
+				);
+				return List.of(new GlobalIndexAndFormula(null, EmptyFormula.INSTANCE));
+			}
 			final Set<Scope> scopesWithoutData = EnumSet.noneOf(Scope.class);
 			for (final Scope scope : nestedQueryScopes) {
 				if (targetEntityCollection.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope)) == null) {
