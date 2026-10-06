@@ -114,6 +114,8 @@ public class ReferenceSummaryTranslator
 	 * @param filterGroupBy              optional filter for reference groups
 	 * @param orderBy                    optional ordering for individual references
 	 * @param orderGroupBy               optional ordering for reference groups
+	 * @param referencesWithHistograms   names of the references the summary computes requested histograms for - see
+	 *                                   {@link #collectReferencesWithRequestedHistograms}; empty when it requests none
 	 * @param resultAdapter              adapter that decides which concrete DTO the producer emits — the deprecated
 	 *                                   {@link FacetSummary} or the
 	 *                                   canonical {@link ReferenceSummary}.
@@ -132,6 +134,7 @@ public class ReferenceSummaryTranslator
 		@Nullable FilterGroupBy filterGroupBy,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy orderGroupBy,
+		@Nonnull Set<String> referencesWithHistograms,
 		@Nonnull ReferenceSummaryResultAdapter<? extends ReferenceGroupStatistics> resultAdapter,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
 	) {
@@ -219,13 +222,13 @@ public class ReferenceSummaryTranslator
 		final Function<ReferenceSchemaContract, IntPredicate> facetPredicate = filterBy == null ?
 			null :
 			createPredicatesOfSummarizedReferences(
-				entitySchema, scopes, referencesDescribedBySpecificSummary,
+				entitySchema, scopes, referencesDescribedBySpecificSummary, referencesWithHistograms,
 				referenceSchema -> createFacetPredicate(extraResultPlanner, filterBy, referenceSchema, false)
 			);
 		final Function<ReferenceSchemaContract, IntPredicate> groupPredicate = filterGroupBy == null ?
 			null :
 			createPredicatesOfSummarizedReferences(
-				entitySchema, scopes, referencesDescribedBySpecificSummary,
+				entitySchema, scopes, referencesDescribedBySpecificSummary, referencesWithHistograms,
 				referenceSchema -> createFacetGroupPredicate(extraResultPlanner, filterGroupBy, referenceSchema, false)
 			);
 		referenceSummaryProducer.requireDefaultReferenceSummary(
@@ -254,9 +257,11 @@ public class ReferenceSummaryTranslator
 
 	/**
 	 * Creates the predicate of every reference the summary of all references covers - each reference faceted in one of
-	 * the processing scopes that no reference-specific summary claims, a reflection not attached yet excepted - right
-	 * away, and returns the function the producer resolves the predicate of a reference by when the summary is
-	 * computed.
+	 * the processing scopes or carrying a histogram the summary requests, that no reference-specific summary claims, a
+	 * reflection not attached yet excepted - right away, and returns the function the producer resolves the predicate
+	 * of a reference by when the summary is computed. A reference carrying a requested histogram is covered whether it
+	 * is faceted or not: the summary computes the histogram for its groups, and resolves the predicates of the
+	 * reference to do so.
 	 *
 	 * The filter of the summary is evaluated against the entity type each reference targets, and it is a part of the
 	 * query whether that reference holds an option to filter or not: creating the predicates while the query is
@@ -272,6 +277,7 @@ public class ReferenceSummaryTranslator
 	 * @param entitySchema                         the schema of the summarized entity type
 	 * @param scopes                               the processing scopes of the summary
 	 * @param referencesDescribedBySpecificSummary the references a reference-specific summary claims
+	 * @param referencesWithHistograms             the references the summary computes requested histograms for
 	 * @param predicateFactory                     creates the predicate of a reference, NULL when it has none
 	 * @return the function resolving the predicate created for a reference, NULL when the reference has none
 	 */
@@ -280,6 +286,7 @@ public class ReferenceSummaryTranslator
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Set<Scope> scopes,
 		@Nonnull Set<String> referencesDescribedBySpecificSummary,
+		@Nonnull Set<String> referencesWithHistograms,
 		@Nonnull Function<ReferenceSchemaContract, IntPredicate> predicateFactory
 	) {
 		final Map<String, IntPredicate> predicates = CollectionUtils.createHashMap(entitySchema.getReferences().size());
@@ -288,7 +295,8 @@ public class ReferenceSummaryTranslator
 			// filtered by - even when it states its own `faceted()` - see `isUnattachedReflection`
 			if (referencesDescribedBySpecificSummary.contains(referenceSchema.getName())
 				|| isUnattachedReflection(referenceSchema)
-				|| scopes.stream().noneMatch(referenceSchema::isFacetedInScope)
+				|| (!referencesWithHistograms.contains(referenceSchema.getName())
+				&& scopes.stream().noneMatch(referenceSchema::isFacetedInScope))
 			) {
 				continue;
 			}
@@ -453,6 +461,8 @@ public class ReferenceSummaryTranslator
 		@Nonnull ReferenceSummary referenceSummary,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
 	) {
+		final EntitySchemaContract schema = extraResultPlanner.getSchema();
+		final Set<Scope> scopes = extraResultPlanner.getProcessingScope().getScopes();
 		final ExtraResultProducer producer = createProducerInternal(
 			referenceSummary.getStatisticsDepth(),
 			referenceSummary.getReferenceEntityRequirement().orElse(null),
@@ -461,6 +471,7 @@ public class ReferenceSummaryTranslator
 			referenceSummary.getFilterGroupBy().orElse(null),
 			referenceSummary.getOrderBy().orElse(null),
 			referenceSummary.getOrderGroupBy().orElse(null),
+			collectReferencesWithRequestedHistograms(referenceSummary, schema, scopes),
 			ReferenceSummaryAdapter.INSTANCE,
 			extraResultPlanner
 		);
@@ -473,8 +484,6 @@ public class ReferenceSummaryTranslator
 		// form is applies-where-defined — references that do not declare a requested histogram in
 		// every active scope are silently skipped; only requested names declared on **no**
 		// reference in the schema raise EvitaInvalidUsageException (typo guard).
-		final EntitySchemaContract schema = extraResultPlanner.getSchema();
-		final Set<Scope> scopes = extraResultPlanner.getProcessingScope().getScopes();
 		for (final RequireConstraint child : referenceSummary.getChildren()) {
 			if (child instanceof ReferenceHistogramStatistics histogramConstraint) {
 				dispatchHistogramToMatchingReferences(
@@ -483,6 +492,46 @@ public class ReferenceSummaryTranslator
 			}
 		}
 		return producer;
+	}
+
+	/**
+	 * Collects the names of the references the histograms the summary of all references requests are computed for:
+	 * every reference declaring at least one of the requested histograms in every processing scope - exactly the
+	 * references {@link #dispatchHistogramToMatchingReferences} dispatches the requests to.
+	 *
+	 * The summary describes such a reference for its histograms whether the reference is faceted or not, and the
+	 * producer resolves the predicates the summary derives from its generic filters for it when it computes them - so
+	 * the predicates of these references have to be created while the query is planned too, see
+	 * {@link #createPredicatesOfSummarizedReferences}.
+	 *
+	 * @param referenceSummary the summary of all references
+	 * @param schema           the schema of the summarized entity type
+	 * @param scopes           the processing scopes of the summary
+	 * @return names of the references carrying a requested histogram, empty when the summary requests none
+	 */
+	@Nonnull
+	private static Set<String> collectReferencesWithRequestedHistograms(
+		@Nonnull ReferenceSummary referenceSummary,
+		@Nonnull EntitySchemaContract schema,
+		@Nonnull Set<Scope> scopes
+	) {
+		Set<String> referencesWithHistograms = null;
+		for (final RequireConstraint child : referenceSummary.getChildren()) {
+			if (child instanceof ReferenceHistogramStatistics histogramConstraint) {
+				for (final ReferenceSchemaContract referenceSchema : schema.getReferences().values()) {
+					for (final String name : histogramConstraint.getIndexNames()) {
+						if (isApplicableInAllScopes(referenceSchema, name, scopes)) {
+							if (referencesWithHistograms == null) {
+								referencesWithHistograms = CollectionUtils.createHashSet(schema.getReferences().size());
+							}
+							referencesWithHistograms.add(referenceSchema.getName());
+							break;
+						}
+					}
+				}
+			}
+		}
+		return referencesWithHistograms == null ? Set.of() : referencesWithHistograms;
 	}
 
 	/**

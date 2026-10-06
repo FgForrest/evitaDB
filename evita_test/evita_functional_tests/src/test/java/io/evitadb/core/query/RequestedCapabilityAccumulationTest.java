@@ -27,6 +27,7 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderDirection;
@@ -40,6 +41,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder;
@@ -90,6 +92,7 @@ import static io.evitadb.api.query.QueryConstraints.facetSummary;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.filterGroupBy;
 import static io.evitadb.api.query.QueryConstraints.hierarchyWithinSelf;
+import static io.evitadb.api.query.QueryConstraints.histogramStatistics;
 import static io.evitadb.api.query.QueryConstraints.or;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.api.query.QueryConstraints.referenceContent;
@@ -172,6 +175,14 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	 * the tags.
 	 */
 	private static final String REFERENCE_BRAND = "brand";
+	/**
+	 * The reference of {@link #ENTITY_PRODUCT} to the tags, indexed and bucketed in the live scope but not faceted, its
+	 * groups being the categories - a summary of all references describes it only for the histogram it requests. No
+	 * product holds a row of it - see {@link #addWeightedTagOfFirstProduct()} for the case adding one.
+	 */
+	private static final String REFERENCE_WEIGHTED_TAGS = "weightedTags";
+	/** The histogram {@link #REFERENCE_WEIGHTED_TAGS} maintains over the weight of the tag. */
+	private static final String HISTOGRAM_WEIGHT = "weightHistogram";
 	/**
 	 * The reflection of the products of the stocks a case declares on {@link #ENTITY_PRODUCT} - before the reference
 	 * {@link #REFERENCE_PRODUCTS} it mirrors exists, so it is not attached while the case queries.
@@ -1035,6 +1046,42 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		}
 
 		@Test
+		@DisplayName("The group filter of a summary of all references counts on a histogram-only reference once")
+		void shouldCountGroupFilterOfSummaryOfAllReferencesOnHistogramOnlyReferenceOnce() {
+			// the weighted tags are not faceted, so the summary of all references describes them only for the histogram
+			// it requests - computed for their groups, the categories, which the group filter narrows whether a product
+			// references a weighted tag or not; no other reference is grouped by the categories
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				require(
+					new ReferenceSummary(
+						FacetStatisticsDepth.COUNTS,
+						null,
+						filterGroupBy(attributeEquals(ATTRIBUTE_LABEL, "label-1")),
+						null,
+						null,
+						histogramStatistics(10, HISTOGRAM_WEIGHT)
+					)
+				)
+			);
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(labelKey(), 1L);
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_CATEGORY, query),
+				"The group filter must count the label of the categories once while no product references a " +
+					"weighted tag"
+			);
+
+			addWeightedTagOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_CATEGORY, query),
+				"The group filter must count the label of the categories once, now that a product references a " +
+					"weighted tag"
+			);
+		}
+
+		@Test
 		@DisplayName("A query refused over a scope without index counts nothing")
 		void shouldCountNothingWhenQueryOverScopeWithoutIndexIsRefused() {
 			// the catalog holds no index of the archived scope, and `code` is not filterable there - the query fails
@@ -1485,6 +1532,25 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Makes the first product reference the tag 1 by {@link #REFERENCE_WEIGHTED_TAGS} in the group of the category 1,
+	 * weighing 3 - after which the reference has a histogram to compute.
+	 */
+	private void addWeightedTagOfFirstProduct() {
+		this.evita.updateCatalog(
+			CATALOG,
+			session -> {
+				session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setReference(
+						REFERENCE_WEIGHTED_TAGS, 1, whichIs -> whichIs.setGroup(1).setAttribute(ATTRIBUTE_WEIGHT, 3L)
+					)
+					.upsertVia(session);
+			}
+		);
+	}
+
+	/**
 	 * Declares the reflection {@link #REFERENCE_REFLECTED_STOCKS} on the products before the reference of the stocks it
 	 * mirrors exists, runs the query in the same session - while the reflection is not attached - and asserts it is
 	 * answered. The reference the reflection mirrors is declared at last, so that the session closes over a valid
@@ -1815,7 +1881,9 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	 * them tag 1 with the weight 1. The hierarchical brands hold no entity at all; they reference the categories, and
 	 * the products reference them by a reference no product holds a row of, grouped by the tags - see
 	 * {@link #addBrandOfFirstProduct()} for the case adding one. The categories, the brands and the tags share the
-	 * filterable attribute {@link #ATTRIBUTE_LABEL}, which no entity sets.
+	 * filterable attribute {@link #ATTRIBUTE_LABEL}, which no entity sets. The products declare one more reference no
+	 * product holds a row of: {@link #REFERENCE_WEIGHTED_TAGS} to the tags grouped by the categories, bucketed but not
+	 * faceted.
 	 */
 	private void buildCatalog() {
 		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
@@ -1899,6 +1967,23 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 						whichIs -> whichIs.indexedInScope(Scope.LIVE)
 							.facetedInScope(Scope.LIVE)
 							.withGroupTypeRelatedToEntity(ENTITY_TAG)
+					)
+					.withReferenceToEntity(
+						REFERENCE_WEIGHTED_TAGS, ENTITY_TAG, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.indexedForFilteringAndPartitioningInScope(Scope.LIVE)
+							.indexedWithComponentsInScope(
+								Scope.LIVE,
+								ReferenceIndexedComponents.REFERENCED_ENTITY,
+								ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+							)
+							.withGroupTypeRelatedToEntity(ENTITY_CATEGORY)
+							.withAttribute(
+								ATTRIBUTE_WEIGHT, Long.class, thatIs -> thatIs.filterableInScope(Scope.LIVE).nullable()
+							)
+							.bucketed(
+								HISTOGRAM_WEIGHT,
+								ExpressionFactory.parse("$reference.attributes['" + ATTRIBUTE_WEIGHT + "']")
+							)
 					)
 					.updateVia(session);
 				for (int i = 1; i <= CATEGORY_COUNT; i++) {
