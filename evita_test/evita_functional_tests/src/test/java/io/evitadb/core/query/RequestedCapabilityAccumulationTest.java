@@ -75,16 +75,20 @@ import static io.evitadb.api.query.QueryConstraints.attributeNatural;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.debug;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
+import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.api.query.QueryConstraints.entityHaving;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.entityProperty;
 import static io.evitadb.api.query.QueryConstraints.facetHaving;
+import static io.evitadb.api.query.QueryConstraints.facetSummary;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.filterGroupBy;
 import static io.evitadb.api.query.QueryConstraints.hierarchyWithinSelf;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.api.query.QueryConstraints.referenceContent;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static io.evitadb.api.query.QueryConstraints.referenceProperty;
+import static io.evitadb.api.query.QueryConstraints.referenceSummary;
 import static io.evitadb.api.query.QueryConstraints.referenceSummaryOfReference;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
@@ -155,8 +159,22 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	 * the products reference it by {@link #REFERENCE_BRAND}, which no product holds a row of.
 	 */
 	private static final String ENTITY_BRAND = "brand";
-	/** The reference of {@link #ENTITY_PRODUCT} to the brands, indexed and faceted in the live scope. */
+	/**
+	 * The reference of {@link #ENTITY_PRODUCT} to the brands, indexed and faceted in the live scope, its groups being
+	 * the tags.
+	 */
 	private static final String REFERENCE_BRAND = "brand";
+	/**
+	 * The attribute the categories, the brands and the tags share, filterable in the live scope - the only kind of
+	 * attribute the filter of a summary of all references can name, because it is evaluated against every summarized
+	 * entity type and every group type.
+	 */
+	private static final String ATTRIBUTE_LABEL = "label";
+	/**
+	 * The types a summary of all references of the products filters by {@link #ATTRIBUTE_LABEL}: the categories and the
+	 * brands its options are, and the tags the groups of the brands are.
+	 */
+	private static final String[] SUMMARIZED_TYPES = {ENTITY_CATEGORY, ENTITY_BRAND, ENTITY_TAG};
 	/** The attribute of the {@link #REFERENCE_TAGS} reference, filterable in the live scope. */
 	private static final String ATTRIBUTE_WEIGHT = "weight";
 	private static final String COMPOUND_CODE_WITH_PRIORITY = "codeWithPriority";
@@ -828,6 +846,83 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		}
 
 		@Test
+		@DisplayName("The filters of a summary of all references count each target's flag once, with and without data")
+		void shouldCountFiltersOfSummaryOfAllReferencesOnceWithAndWithoutData() {
+			// the filter of the options is evaluated against the categories, which hold data, and against the brands,
+			// which hold none at first; the filter of the groups against the tags, the groups of the brands - each of
+			// them requests the label of its type, whether there is an option or a group to filter or not
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				require(
+					referenceSummary(
+						FacetStatisticsDepth.COUNTS,
+						filterBy(attributeEquals(ATTRIBUTE_LABEL, "label-1")),
+						filterGroupBy(attributeEquals(ATTRIBUTE_LABEL, "label-1"))
+					)
+				)
+			);
+
+			assertEquals(
+				labelRequestedOnEachSummarizedType(), capabilitiesRequestedOn(query, SUMMARIZED_TYPES),
+				"The filters of the summary must count the label of each summarized type once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				labelRequestedOnEachSummarizedType(), capabilitiesRequestedOn(query, SUMMARIZED_TYPES),
+				"The filters of the summary must count the label of each summarized type once, now that a brand exists"
+			);
+		}
+
+		@Test
+		@DisplayName("The filters of a summary of all references of a query matching nothing count each target's flag")
+		void shouldCountFiltersOfSummaryOfAllReferencesOfQueryMatchingNothing() {
+			// no product references the category, so the query is answered by the empty plan - there is no option to
+			// summarize, but the filters requested the label of every summarized type all the same
+			final Map<String, Map<SchemaCapabilityKey, Long>> requested = capabilitiesRequestedOn(
+				Query.query(
+					collection(ENTITY_PRODUCT),
+					filterBy(referenceHaving(REFERENCE_CATEGORIES, entityPrimaryKeyInSet(CATEGORY_COUNT + 1))),
+					require(
+						referenceSummary(
+							FacetStatisticsDepth.COUNTS,
+							filterBy(attributeEquals(ATTRIBUTE_LABEL, "label-1")),
+							filterGroupBy(attributeEquals(ATTRIBUTE_LABEL, "label-1"))
+						)
+					)
+				),
+				SUMMARIZED_TYPES
+			);
+
+			assertEquals(
+				labelRequestedOnEachSummarizedType(), requested,
+				"The filters of the summary of the query matching nothing must count the label of each type once"
+			);
+		}
+
+		@Test
+		@DisplayName("The filters of a facet summary of all references count each target's flag once")
+		void shouldCountFiltersOfFacetSummaryOfAllReferencesOnce() {
+			// the deprecated form shares the translation of the summary of all references
+			@SuppressWarnings("deprecation") final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				require(
+					facetSummary(
+						FacetStatisticsDepth.COUNTS,
+						filterBy(attributeEquals(ATTRIBUTE_LABEL, "label-1")),
+						filterGroupBy(attributeEquals(ATTRIBUTE_LABEL, "label-1"))
+					)
+				)
+			);
+
+			assertEquals(
+				labelRequestedOnEachSummarizedType(), capabilitiesRequestedOn(query, SUMMARIZED_TYPES),
+				"The filters of the facet summary must count the label of each summarized type once"
+			);
+		}
+
+		@Test
 		@DisplayName("A query refused over a scope without index counts nothing")
 		void shouldCountNothingWhenQueryOverScopeWithoutIndexIsRefused() {
 			// the catalog holds no index of the archived scope, and `code` is not filterable there - the query fails
@@ -1100,6 +1195,80 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Returns the key of the filterable label of the live scope - the same key on the registry of each type declaring
+	 * the label.
+	 *
+	 * @return the key
+	 */
+	@Nonnull
+	private static SchemaCapabilityKey labelKey() {
+		return SchemaCapabilityKey.entityAttribute(ATTRIBUTE_LABEL, Capability.FILTERABLE, Scope.LIVE);
+	}
+
+	/**
+	 * Returns what a query whose summary filters the options and the groups of all references by the label requests
+	 * on the summarized types: the label once on each of them.
+	 *
+	 * @return the requests, keyed by the type whose registry they land on
+	 */
+	@Nonnull
+	private static Map<String, Map<SchemaCapabilityKey, Long>> labelRequestedOnEachSummarizedType() {
+		final Map<String, Map<SchemaCapabilityKey, Long>> expected = new LinkedHashMap<>();
+		for (final String entityType : SUMMARIZED_TYPES) {
+			expected.put(entityType, Map.of(labelKey(), 1L));
+		}
+		return expected;
+	}
+
+	/**
+	 * Adds the brand 1, labelled `label-1`, and makes the first product reference it in the group of the tag 1 - after
+	 * which the brands hold data and the reference of the products to them has an option and a group to summarize.
+	 */
+	private void addBrandOfFirstProduct() {
+		this.evita.updateCatalog(
+			CATALOG,
+			session -> {
+				session.upsertEntity(session.createNewEntity(ENTITY_BRAND, 1).setAttribute(ATTRIBUTE_LABEL, "label-1"));
+				session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setReference(REFERENCE_BRAND, 1, whichIs -> whichIs.setGroup(1))
+					.upsertVia(session);
+			}
+		);
+	}
+
+	/**
+	 * Same reading as {@link #capabilitiesRequestedByFetching(String, Query)}, on the registries of several
+	 * collections at once.
+	 *
+	 * @param query       the query to execute
+	 * @param entityTypes the collections whose registries are read
+	 * @return the capabilities whose count the query moved on each registry, and by how much, keyed by the type
+	 */
+	@Nonnull
+	private Map<String, Map<SchemaCapabilityKey, Long>> capabilitiesRequestedOn(
+		@Nonnull Query query,
+		@Nonnull String... entityTypes
+	) {
+		final Map<String, Map<SchemaCapabilityKey, Long>> before = new LinkedHashMap<>();
+		for (final String entityType : entityTypes) {
+			before.put(entityType, requestedCounts(entityType));
+		}
+		this.evita.queryCatalog(
+			CATALOG,
+			session -> {
+				session.queryList(query, EntityClassifier.class);
+			}
+		);
+		final Map<String, Map<SchemaCapabilityKey, Long>> result = new LinkedHashMap<>();
+		for (final String entityType : entityTypes) {
+			result.put(entityType, requestedCountsSince(entityType, before.get(entityType)));
+		}
+		return result;
+	}
+
+	/**
 	 * Executes one query the way a client would.
 	 *
 	 * @param query the query to execute
@@ -1354,7 +1523,9 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	 * archived and references a category - so a query over the archived categories, or a nested query of the archived
 	 * stock over them, matches nothing because the scope holds no data. The categories reference the tags, the first of
 	 * them tag 1 with the weight 1. The hierarchical brands hold no entity at all; they reference the categories, and
-	 * the products reference them by a reference no product holds a row of.
+	 * the products reference them by a reference no product holds a row of, grouped by the tags - see
+	 * {@link #addBrandOfFirstProduct()} for the case adding one. The categories, the brands and the tags share the
+	 * filterable attribute {@link #ATTRIBUTE_LABEL}, which no entity sets.
 	 */
 	private void buildCatalog() {
 		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
@@ -1363,6 +1534,9 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 			session -> {
 				session.defineEntitySchema(ENTITY_TAG)
 					.withoutGeneratedPrimaryKey()
+					.withAttribute(
+						ATTRIBUTE_LABEL, String.class, thatIs -> thatIs.filterableInScope(Scope.LIVE).nullable()
+					)
 					.updateVia(session);
 				session.upsertEntity(session.createNewEntity(ENTITY_TAG, 1));
 				session.defineEntitySchema(ENTITY_CATEGORY)
@@ -1370,6 +1544,9 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 					.withAttribute(
 						ATTRIBUTE_CATEGORY_NAME, String.class,
 						thatIs -> thatIs.filterableInScope(Scope.values()).sortableInScope(Scope.values())
+					)
+					.withAttribute(
+						ATTRIBUTE_LABEL, String.class, thatIs -> thatIs.filterableInScope(Scope.LIVE).nullable()
 					)
 					.withReferenceToEntity(
 						REFERENCE_TAGS, ENTITY_TAG, Cardinality.ZERO_OR_MORE,
@@ -1390,6 +1567,9 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 				session.defineEntitySchema(ENTITY_BRAND)
 					.withoutGeneratedPrimaryKey()
 					.withHierarchy()
+					.withAttribute(
+						ATTRIBUTE_LABEL, String.class, thatIs -> thatIs.filterableInScope(Scope.LIVE).nullable()
+					)
 					.withReferenceToEntity(
 						REFERENCE_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs.indexedInScope(Scope.LIVE)
@@ -1426,7 +1606,9 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 					)
 					.withReferenceToEntity(
 						REFERENCE_BRAND, ENTITY_BRAND, Cardinality.ZERO_OR_ONE,
-						whichIs -> whichIs.indexedInScope(Scope.LIVE).facetedInScope(Scope.LIVE)
+						whichIs -> whichIs.indexedInScope(Scope.LIVE)
+							.facetedInScope(Scope.LIVE)
+							.withGroupTypeRelatedToEntity(ENTITY_TAG)
 					)
 					.updateVia(session);
 				for (int i = 1; i <= CATEGORY_COUNT; i++) {

@@ -62,6 +62,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.IntPredicate;
 import java.util.stream.Collectors;
 
 import static io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryOfReferenceTranslator.createFacetGroupPredicate;
@@ -213,14 +214,24 @@ public class ReferenceSummaryTranslator
 			)
 		);
 
+		// the predicates are created while the query is planned, for every reference the summary covers, so that their
+		// filters are checked and counted with the query whether the reference has an option to filter or not
+		final Function<ReferenceSchemaContract, IntPredicate> facetPredicate = filterBy == null ?
+			null :
+			createPredicatesOfSummarizedReferences(
+				entitySchema, scopes, referencesDescribedBySpecificSummary,
+				referenceSchema -> createFacetPredicate(extraResultPlanner, filterBy, referenceSchema, false)
+			);
+		final Function<ReferenceSchemaContract, IntPredicate> groupPredicate = filterGroupBy == null ?
+			null :
+			createPredicatesOfSummarizedReferences(
+				entitySchema, scopes, referencesDescribedBySpecificSummary,
+				referenceSchema -> createFacetGroupPredicate(extraResultPlanner, filterGroupBy, referenceSchema, false)
+			);
 		referenceSummaryProducer.requireDefaultReferenceSummary(
 			statisticsDepth,
-			referenceSchema -> filterBy != null
-				? createFacetPredicate(extraResultPlanner, filterBy, referenceSchema, false)
-				: null,
-			referenceSchema -> filterGroupBy != null
-				? createFacetGroupPredicate(extraResultPlanner, filterGroupBy, referenceSchema, false)
-				: null,
+			facetPredicate,
+			groupPredicate,
 			referenceSchema -> orderBy != null
 				?
 				createFacetSorter(
@@ -239,6 +250,56 @@ public class ReferenceSummaryTranslator
 			groupEntityReq
 		);
 		return referenceSummaryProducer;
+	}
+
+	/**
+	 * Creates the predicate of every reference the summary of all references covers - each reference faceted in one of
+	 * the processing scopes that no reference-specific summary claims - right away, and returns the function the
+	 * producer resolves the predicate of a reference by when the summary is computed.
+	 *
+	 * The filter of the summary is evaluated against the entity type each reference targets, and it is a part of the
+	 * query whether that reference holds an option to filter or not: creating the predicates while the query is
+	 * planned checks the filter against every such type - so the query fails or passes regardless of the data - and
+	 * hands the schema capabilities it requests to the planning context of the query, which counts them once with its
+	 * own before the plan is executed. A predicate created only when the summary is computed would do neither: it
+	 * would be created for the references holding an option only, and after the query had already counted what it
+	 * requested.
+	 *
+	 * The function falls back to creating the predicate of a reference outside that set, should the summary ever
+	 * reach one.
+	 *
+	 * @param entitySchema                         the schema of the summarized entity type
+	 * @param scopes                               the processing scopes of the summary
+	 * @param referencesDescribedBySpecificSummary the references a reference-specific summary claims
+	 * @param predicateFactory                     creates the predicate of a reference, NULL when it has none
+	 * @return the function resolving the predicate created for a reference, NULL when the reference has none
+	 */
+	@Nonnull
+	private static Function<ReferenceSchemaContract, IntPredicate> createPredicatesOfSummarizedReferences(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull Set<Scope> scopes,
+		@Nonnull Set<String> referencesDescribedBySpecificSummary,
+		@Nonnull Function<ReferenceSchemaContract, IntPredicate> predicateFactory
+	) {
+		final Map<String, IntPredicate> predicates = CollectionUtils.createHashMap(entitySchema.getReferences().size());
+		for (final ReferenceSchemaContract referenceSchema : entitySchema.getReferences().values()) {
+			// a reflected reference whose inherited `faceted()` cannot be determined yet holds no option - see the
+			// recording of the `faceted()` flag in `createProducerInternal`
+			if (referencesDescribedBySpecificSummary.contains(referenceSchema.getName())
+				|| (referenceSchema instanceof ReflectedReferenceSchemaContract reflectedReference
+				&& reflectedReference.isFacetedInherited()
+				&& !reflectedReference.isReflectedReferenceAvailable())
+				|| scopes.stream().noneMatch(referenceSchema::isFacetedInScope)
+			) {
+				continue;
+			}
+			predicates.put(referenceSchema.getName(), predicateFactory.apply(referenceSchema));
+		}
+		return referenceSchema -> {
+			final String referenceName = referenceSchema.getName();
+			return predicates.containsKey(referenceName) ?
+				predicates.get(referenceName) : predicateFactory.apply(referenceSchema);
+		};
 	}
 
 	/**
