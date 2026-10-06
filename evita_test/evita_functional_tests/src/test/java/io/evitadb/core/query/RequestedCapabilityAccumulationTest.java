@@ -32,6 +32,7 @@ import io.evitadb.api.query.Query;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.FilterGroupBy;
+import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.OrderGroupBy;
@@ -55,6 +56,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.exception.AttributeNotFilterableException;
+import io.evitadb.core.query.filter.translator.reference.BidirectionalReferenceRewriter;
 import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.query.indexSelection.IndexSelectionVisitor;
 import io.evitadb.core.session.EvitaSession;
@@ -77,6 +79,7 @@ import org.mockito.Mockito;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -1857,6 +1860,110 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 						.setReference(REFERENCE_BRAND, 1, whichIs -> whichIs.setGroup(1))
 						.upsertVia(session);
 				}
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("A reference filter answered from the other end of a reflected reference")
+	class CounterpartRewrite {
+		/**
+		 * The reflection of the references of the products to the categories the case declares on the categories.
+		 */
+		private static final String REFERENCE_PRODUCTS_OF_CATEGORY = "productsOfCategory";
+
+		@Test
+		@DisplayName("A reference attribute filter answered from the counterpart counts the owner's flags once")
+		void shouldCountReferenceAttributeFilterAnsweredFromCounterpartOnce() {
+			// the categories reflect the references of the products to them, one row per product, while the products
+			// hold one reduced index per category - few enough for the filter to be answered from the products' end,
+			// which resolves the attribute on the products' reference; the query named the categories' one
+			declareProductsOfCategories();
+			final ReferenceHaving constraint = referenceHaving(
+				REFERENCE_PRODUCTS_OF_CATEGORY, attributeEquals(ATTRIBUTE_ORDER_IN_CATEGORY, 3L)
+			);
+			final Query query = Query.query(collection(ENTITY_CATEGORY), filterBy(constraint));
+			final int reflectedRows = RequestedCapabilityAccumulationTest.this.evita.queryCatalog(
+				CATALOG,
+				session -> {
+					return session.getEntity(ENTITY_CATEGORY, 1, entityFetchAllContent())
+						.orElseThrow()
+						.getReferences(REFERENCE_PRODUCTS_OF_CATEGORY)
+						.size();
+				}
+			);
+			assertTrue(reflectedRows > 0, "The premise is a reflection holding rows of the products of the category");
+			assertTrue(
+				isAnsweredFromCounterpart(query, constraint),
+				"The premise is a filter the rewrite answers from the products' end of the reference"
+			);
+
+			assertEquals(
+				Map.of(
+					SchemaCapabilityKey.referenceAttribute(
+						REFERENCE_PRODUCTS_OF_CATEGORY, ATTRIBUTE_ORDER_IN_CATEGORY, Capability.FILTERABLE, Scope.LIVE
+					), 1L,
+					SchemaCapabilityKey.reference(REFERENCE_PRODUCTS_OF_CATEGORY, Capability.INDEXED, Scope.LIVE), 1L
+				),
+				capabilitiesRequestedByFetching(ENTITY_CATEGORY, query),
+				"The filter answered from the counterpart must count the attribute of the categories' reference once"
+			);
+		}
+
+		/**
+		 * Declares the reflection {@link #REFERENCE_PRODUCTS_OF_CATEGORY} of the references of the products to the
+		 * categories on the categories, inheriting the attributes of the reference it reflects, and adds as many
+		 * products again, each referencing a category - the rows of the reflection are those of the references written
+		 * after it was declared.
+		 */
+		private void declareProductsOfCategories() {
+			RequestedCapabilityAccumulationTest.this.evita.updateCatalog(
+				CATALOG,
+				session -> {
+					session.defineEntitySchema(ENTITY_CATEGORY)
+						.withReflectedReferenceToEntity(
+							REFERENCE_PRODUCTS_OF_CATEGORY, ENTITY_PRODUCT, REFERENCE_CATEGORIES,
+							whichIs -> whichIs.withAttributesInherited()
+						)
+						.updateVia(session);
+					for (int i = PRODUCT_COUNT + 1; i <= 2 * PRODUCT_COUNT; i++) {
+						final long order = i;
+						session.upsertEntity(
+							session.createNewEntity(ENTITY_PRODUCT, i)
+								.setAttribute(ATTRIBUTE_CODE, "product-" + i)
+								.setAttribute(ATTRIBUTE_PRIORITY, order)
+								.setAttribute(ATTRIBUTE_EAN, "ean-" + i)
+								.setReference(
+									REFERENCE_CATEGORIES, ((i - 1) % CATEGORY_COUNT) + 1,
+									whichIs -> whichIs.setAttribute(ATTRIBUTE_ORDER_IN_CATEGORY, order)
+								)
+						);
+					}
+				}
+			);
+		}
+
+		/**
+		 * Tells whether the reference filter of the query of the categories is answered from the counterpart end of the
+		 * reflected reference, asked the way the index selection asks it.
+		 *
+		 * @param query      the query of the categories
+		 * @param constraint its reference filter
+		 * @return true when the rewrite takes the filter over
+		 */
+		private boolean isAnsweredFromCounterpart(@Nonnull Query query, @Nonnull ReferenceHaving constraint) {
+			final EntityCollection categories = entityCollection(ENTITY_CATEGORY);
+			final QueryPlanningContext context = categories.createQueryContext(
+				new EvitaRequest(query.normalizeQuery(), OffsetDateTime.now(), EntityReference.class, null),
+				Mockito.mock(EvitaSession.class)
+			);
+			return BidirectionalReferenceRewriter.isApplicable(
+				context,
+				categories.getSchema(),
+				categories.getSchema().getReferenceOrThrowException(REFERENCE_PRODUCTS_OF_CATEGORY),
+				constraint,
+				EnumSet.of(Scope.LIVE)
 			);
 		}
 
