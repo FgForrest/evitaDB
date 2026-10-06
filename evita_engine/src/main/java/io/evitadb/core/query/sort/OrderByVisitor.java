@@ -67,6 +67,7 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.attribute.SortIndex;
+import io.evitadb.index.usage.SchemaCapabilityUsage;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
 import lombok.experimental.Delegate;
@@ -139,6 +140,14 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * in (referenced not queried) `entityCollection` in specified scopes. A scope the collection holds no entity of
 	 * contributes no sorter, but the ordering is translated over an empty index of that scope as well, so that it is
 	 * checked against the schema in every scope whether or not an entity happens to live there.
+	 *
+	 * The ordering is translated in a nested query context of `entityCollection`, which never builds a plan of its
+	 * own, so the schema capabilities the ordering requests there are handed to the passed `queryContext` before the
+	 * sorter is returned - the context the sorter was created for, which counts them with the logical query it belongs
+	 * to (see {@link QueryPlanningContext#drainRequestedCapabilitiesToCount()}). The hand-over is what makes the
+	 * ordering count at any depth: a sorter created while another sorter's ordering is translated - an ordering by a
+	 * property of an entity the ordered entity references - hands its requests to the nested context of the enclosing
+	 * sorter, which hands them on with its own.
 	 */
 	@Nonnull
 	public static NestedContextSorter createSorter(
@@ -190,6 +199,11 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 			final List<Sorter> sorters = entityIndexes.length == 0 ?
 				List.of() :
 				translateNestedOrderBy(orderBy, locale, entityCollection, nestedQueryContext, entityIndexes);
+			// the nested context is thrown away with its plan never built - what the ordering named is counted only
+			// when the context the sorter is created for takes it over
+			for (final SchemaCapabilityUsage requestedCapability : nestedQueryContext.drainRequestedCapabilities()) {
+				queryContext.registerRequestedCapability(requestedCapability);
+			}
 			return new NestedContextSorter(
 				nestedQueryContext.createExecutionContext(),
 				stepDescriptionSupplier,
@@ -205,8 +219,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * context created by `createSorter`.
 	 *
 	 * The schema capabilities the ordering names are recorded in the nested query context, whose collection declares
-	 * them. That context builds no plan, so they are counted only where its creator hands them over to the context of
-	 * the enclosing query - as the check of the ordering of the fetched references does.
+	 * them. That context builds no plan, so `createSorter` hands them over to the context it creates the sorter for.
 	 *
 	 * @param orderBy            the ordering to translate
 	 * @param locale             the locale of the ordering, NULL when there is none

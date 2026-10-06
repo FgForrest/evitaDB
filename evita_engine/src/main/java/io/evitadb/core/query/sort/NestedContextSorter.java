@@ -67,17 +67,6 @@ public class NestedContextSorter {
 	}
 
 	/**
-	 * Returns the planning context of the nested query the sorters were created in - the context of the entity type
-	 * they order.
-	 *
-	 * @return the planning context of the nested query
-	 */
-	@Nonnull
-	public QueryPlanningContext getQueryContext() {
-		return this.context.getQueryContext();
-	}
-
-	/**
 	 * Sorts and slices a set of non-sorted record IDs from the provided bitmap.
 	 * This method processes the input formula by applying a series of {@link Sorter} instances for sorting
 	 * and slicing, and if necessary, appends unsorted records to the output.

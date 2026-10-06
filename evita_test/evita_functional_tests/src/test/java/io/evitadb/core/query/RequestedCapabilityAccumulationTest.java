@@ -26,9 +26,11 @@ package io.evitadb.core.query;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
@@ -86,15 +88,21 @@ import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.api.query.QueryConstraints.entityGroupFetch;
 import static io.evitadb.api.query.QueryConstraints.entityHaving;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
+import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyNatural;
 import static io.evitadb.api.query.QueryConstraints.entityProperty;
 import static io.evitadb.api.query.QueryConstraints.facetHaving;
 import static io.evitadb.api.query.QueryConstraints.facetSummary;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.filterGroupBy;
+import static io.evitadb.api.query.QueryConstraints.fromRoot;
+import static io.evitadb.api.query.QueryConstraints.hierarchyOfReference;
+import static io.evitadb.api.query.QueryConstraints.hierarchyOfSelf;
 import static io.evitadb.api.query.QueryConstraints.hierarchyWithinSelf;
 import static io.evitadb.api.query.QueryConstraints.histogramStatistics;
 import static io.evitadb.api.query.QueryConstraints.or;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
+import static io.evitadb.api.query.QueryConstraints.orderGroupBy;
+import static io.evitadb.api.query.QueryConstraints.pickFirstByEntityProperty;
 import static io.evitadb.api.query.QueryConstraints.referenceContent;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static io.evitadb.api.query.QueryConstraints.referenceProperty;
@@ -102,6 +110,7 @@ import static io.evitadb.api.query.QueryConstraints.referenceSummary;
 import static io.evitadb.api.query.QueryConstraints.referenceSummaryOfReference;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
+import static io.evitadb.api.query.QueryConstraints.traverseByEntityProperty;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FACET;
@@ -208,6 +217,12 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	private static final String[] SUMMARIZED_TYPES = {ENTITY_CATEGORY, ENTITY_BRAND, ENTITY_TAG};
 	/** The attribute of the {@link #REFERENCE_TAGS} reference, filterable in the live scope. */
 	private static final String ATTRIBUTE_WEIGHT = "weight";
+	/**
+	 * The attribute the categories, the brands and the tags share, filterable and sortable in the live scope - the one
+	 * the orderings of the summaries and of the hierarchy statistics name, and the node filters of the brands besides
+	 * the label. No entity sets it.
+	 */
+	private static final String ATTRIBUTE_RANK = "rank";
 	private static final String COMPOUND_CODE_WITH_PRIORITY = "codeWithPriority";
 	private static final int CATEGORY_COUNT = 4;
 	private static final int PRODUCTS_PER_CATEGORY = 5;
@@ -1238,6 +1253,197 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 
 	}
 
+	@Nested
+	@DisplayName("An ordering planned in a sorter context of its own")
+	class SorterContexts {
+
+		@Test
+		@DisplayName("An ordering nested in the ordering of fetched references counts, with and without data")
+		void shouldCountOrderingNestedInOrderingOfFetchedReferencesWithAndWithoutData() {
+			// the fetched brands are ordered by the name of the first category each brand references - the check of the
+			// ordering plans a sorter over the brands, and translating its `referenceProperty` plans another one over
+			// the categories inside it, whose context is a child of the brand sorter's context
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(
+				categoryNameKey(Capability.SORTABLE, Scope.LIVE), 1L
+			);
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_CATEGORY, productWithBrandOrderedByCategoryName()),
+				"The query fetching a product without a brand must count the nested ordering once"
+			);
+
+			addBrandOfFirstProduct();
+			addCategoryOfFirstBrand();
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_CATEGORY, productWithBrandOrderedByCategoryName()),
+				"The query fetching a product whose brand references a category must count the nested ordering once"
+			);
+		}
+
+		@Test
+		@DisplayName("A pick-first ordering by the referenced entity counts, with and without rows to order by")
+		void shouldCountPickFirstOrderingByReferencedEntityWithAndWithoutRows() {
+			// the live products hold rows of the categories, the archive holds no product at all - either way the
+			// ordering plans a sorter over the categories in a context of its own
+			assertEquals(
+				Map.of(categoryNameKey(Capability.SORTABLE, Scope.LIVE), 1L),
+				capabilitiesRequestedByFetching(
+					ENTITY_CATEGORY,
+					productsOrderedByCategoryName(Scope.LIVE, pickFirstByEntityProperty(categoryNameOrdering()))
+				),
+				"The live query ordering by the first category must count its name once"
+			);
+			assertEquals(
+				Map.of(categoryNameKey(Capability.SORTABLE, Scope.ARCHIVED), 1L),
+				capabilitiesRequestedByFetching(
+					ENTITY_CATEGORY,
+					productsOrderedByCategoryName(Scope.ARCHIVED, pickFirstByEntityProperty(categoryNameOrdering()))
+				),
+				"The archive query, with no product to order, must count the name of the category once"
+			);
+		}
+
+		@Test
+		@DisplayName("A traversal ordering by the referenced entity counts with rows to order by")
+		void shouldCountTraversalOrderingByReferencedEntityWithRows() {
+			// the categories are not hierarchical, so the traversal orders the categories the live products reference
+			// by a sorter over the categories planned in a context of its own
+			assertEquals(
+				Map.of(categoryNameKey(Capability.SORTABLE, Scope.LIVE), 1L),
+				capabilitiesRequestedByFetching(
+					ENTITY_CATEGORY,
+					productsOrderedByCategoryName(Scope.LIVE, traverseByEntityProperty(categoryNameOrdering()))
+				),
+				"The live query traversing the categories by their name must count it once"
+			);
+		}
+
+		@Test
+		@DisplayName("The orderings of a summary of one reference count the target's flags, with and without data")
+		void shouldCountOrderingsOfReferenceSummaryWithAndWithoutData() {
+			// the options of the brands and their groups, the tags, are ordered by their rank - the sorters are planned
+			// while the query is planned, whether there is an option to order or not
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				require(
+					referenceSummaryOfReference(
+						REFERENCE_BRAND,
+						FacetStatisticsDepth.COUNTS,
+						(FilterGroupBy) null,
+						orderBy(attributeNatural(ATTRIBUTE_RANK)),
+						orderGroupBy(attributeNatural(ATTRIBUTE_RANK))
+					)
+				)
+			);
+			final Map<String, Map<SchemaCapabilityKey, Long>> expected = rankSortRequestedOn(ENTITY_BRAND, ENTITY_TAG);
+
+			assertEquals(
+				expected, capabilitiesRequestedOn(query, ENTITY_BRAND, ENTITY_TAG),
+				"The orderings of the summary must count the rank of the brands and of the tags once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedOn(query, ENTITY_BRAND, ENTITY_TAG),
+				"The orderings of the summary must count the rank of the brands and of the tags once, now that a " +
+					"brand exists"
+			);
+		}
+
+		@Test
+		@DisplayName("The ordering of the statistics of the queried hierarchy counts, with and without data")
+		void shouldCountOrderingOfHierarchyOfSelfWithAndWithoutData() {
+			final Query query = Query.query(
+				collection(ENTITY_BRAND),
+				require(hierarchyOfSelf(orderBy(attributeNatural(ATTRIBUTE_RANK)), fromRoot("tree")))
+			);
+
+			assertCountedOnce(
+				capabilitiesRequestedByFetching(ENTITY_BRAND, query), rankKey(Capability.SORTABLE),
+				"The statistics of the brands without any brand must count the ordering once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertCountedOnce(
+				capabilitiesRequestedByFetching(ENTITY_BRAND, query), rankKey(Capability.SORTABLE),
+				"The statistics of the brands must count the ordering once, now that a brand exists"
+			);
+		}
+
+		@Test
+		@DisplayName("The ordering of the statistics of a referenced hierarchy counts, with and without data")
+		void shouldCountOrderingOfHierarchyOfReferenceWithAndWithoutData() {
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				require(
+					hierarchyOfReference(REFERENCE_BRAND, orderBy(attributeNatural(ATTRIBUTE_RANK)), fromRoot("tree"))
+				)
+			);
+
+			assertCountedOnce(
+				capabilitiesRequestedByFetching(ENTITY_BRAND, query), rankKey(Capability.SORTABLE),
+				"The statistics of the brands of the products without any brand must count the ordering once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertCountedOnce(
+				capabilitiesRequestedByFetching(ENTITY_BRAND, query), rankKey(Capability.SORTABLE),
+				"The statistics of the brands of the products must count the ordering once, now that a brand exists"
+			);
+		}
+
+		/**
+		 * Builds the query fetching the first product with its brand ordered by the name of the first category the
+		 * brand references - an ordering of the fetched references whose own translation plans another ordering.
+		 *
+		 * @return the query
+		 */
+		@Nonnull
+		private static Query productWithBrandOrderedByCategoryName() {
+			return Query.query(
+				collection(ENTITY_PRODUCT),
+				filterBy(entityPrimaryKeyInSet(1)),
+				require(
+					entityFetch(
+						referenceContent(
+							REFERENCE_BRAND,
+							orderBy(
+								entityProperty(
+									referenceProperty(
+										REFERENCE_CATEGORIES,
+										pickFirstByEntityProperty(categoryNameOrdering()),
+										entityProperty(entityPrimaryKeyNatural(OrderDirection.ASC))
+									)
+								)
+							)
+						)
+					)
+				)
+			);
+		}
+
+		/**
+		 * Makes the brand 1 reference the category 1 - after which the brand holds a row to order it by.
+		 */
+		private void addCategoryOfFirstBrand() {
+			RequestedCapabilityAccumulationTest.this.evita.updateCatalog(
+				CATALOG,
+				session -> {
+					session.getEntity(ENTITY_BRAND, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setReference(REFERENCE_CATEGORIES, 1)
+						.upsertVia(session);
+				}
+			);
+		}
+
+	}
+
 	/**
 	 * Plans one query in a context of its own and reports the request counts it moved on the collection's registry.
 	 *
@@ -1502,6 +1708,63 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 			expected.put(entityType, Map.of(labelKey(), 1L));
 		}
 		return expected;
+	}
+
+	/**
+	 * Returns the key of the rank of the live scope - the same key on the registry of each type declaring the rank.
+	 *
+	 * @param capability the flag of the rank
+	 * @return the key
+	 */
+	@Nonnull
+	private static SchemaCapabilityKey rankKey(@Nonnull Capability capability) {
+		return SchemaCapabilityKey.entityAttribute(ATTRIBUTE_RANK, capability, Scope.LIVE);
+	}
+
+	/**
+	 * Returns what a query ordering the passed types by their rank requests on them: the sortable rank once on each.
+	 *
+	 * @param entityTypes the ordered types
+	 * @return the requests, keyed by the type whose registry they land on
+	 */
+	@Nonnull
+	private static Map<String, Map<SchemaCapabilityKey, Long>> rankSortRequestedOn(@Nonnull String... entityTypes) {
+		final Map<String, Map<SchemaCapabilityKey, Long>> expected = new LinkedHashMap<>();
+		for (final String entityType : entityTypes) {
+			expected.put(entityType, Map.of(rankKey(Capability.SORTABLE), 1L));
+		}
+		return expected;
+	}
+
+	/**
+	 * Returns the ordering of the categories by their name.
+	 *
+	 * @return the ordering
+	 */
+	@Nonnull
+	private static OrderConstraint categoryNameOrdering() {
+		return attributeNatural(ATTRIBUTE_CATEGORY_NAME, OrderDirection.ASC);
+	}
+
+	/**
+	 * Builds the query of the products of one scope ordered by the categories they reference, the categories ordered
+	 * among themselves by the passed specification.
+	 *
+	 * @param scope         the scope to query
+	 * @param specification the `pickFirstByEntityProperty` or `traverseByEntityProperty` ordering the categories
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query productsOrderedByCategoryName(@Nonnull Scope scope, @Nonnull OrderConstraint specification) {
+		return Query.query(
+			collection(ENTITY_PRODUCT),
+			filterBy(scope(scope)),
+			orderBy(
+				referenceProperty(
+					REFERENCE_CATEGORIES, specification, entityProperty(entityPrimaryKeyNatural(OrderDirection.ASC))
+				)
+			)
+		);
 	}
 
 	/**
@@ -1865,6 +2128,21 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Asserts one logical query moved the capability's request count by exactly one, whatever else it moved.
+	 *
+	 * @param requested what the query moved
+	 * @param key       the capability that must have moved
+	 * @param message   what it means if it did not
+	 */
+	private static void assertCountedOnce(
+		@Nonnull Map<SchemaCapabilityKey, Long> requested,
+		@Nonnull SchemaCapabilityKey key,
+		@Nonnull String message
+	) {
+		assertEquals(1L, (long) requested.getOrDefault(key, 0L), message + ": " + requested);
+	}
+
+	/**
 	 * Reads the holder the collection's registry keeps for the key, asserting on the way that the registry hands the
 	 * same instance back on every resolve - the identity the accumulator's deduplication rests on.
 	 *
@@ -1969,7 +2247,8 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	 * them tag 1 with the weight 1. The hierarchical brands hold no entity at all; they reference the categories, and
 	 * the products reference them by a reference no product holds a row of, grouped by the tags - see
 	 * {@link #addBrandOfFirstProduct()} for the case adding one. The categories, the brands and the tags share the
-	 * filterable attribute {@link #ATTRIBUTE_LABEL}, which no entity sets. The products declare two more references no
+	 * filterable attribute {@link #ATTRIBUTE_LABEL} and the filterable and sortable attribute {@link #ATTRIBUTE_RANK},
+	 * which no entity sets. The products declare two more references no
 	 * product holds a row of: {@link #REFERENCE_MAIN_CATEGORY} to the categories, and {@link #REFERENCE_WEIGHTED_TAGS}
 	 * to the tags grouped by the categories, bucketed but not faceted.
 	 */
@@ -1983,6 +2262,10 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 					.withAttribute(
 						ATTRIBUTE_LABEL, String.class, thatIs -> thatIs.filterableInScope(Scope.LIVE).nullable()
 					)
+					.withAttribute(
+						ATTRIBUTE_RANK, Long.class,
+						thatIs -> thatIs.filterableInScope(Scope.LIVE).sortableInScope(Scope.LIVE).nullable()
+					)
 					.updateVia(session);
 				session.upsertEntity(session.createNewEntity(ENTITY_TAG, 1));
 				session.defineEntitySchema(ENTITY_CATEGORY)
@@ -1993,6 +2276,10 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 					)
 					.withAttribute(
 						ATTRIBUTE_LABEL, String.class, thatIs -> thatIs.filterableInScope(Scope.LIVE).nullable()
+					)
+					.withAttribute(
+						ATTRIBUTE_RANK, Long.class,
+						thatIs -> thatIs.filterableInScope(Scope.LIVE).sortableInScope(Scope.LIVE).nullable()
 					)
 					.withReferenceToEntity(
 						REFERENCE_TAGS, ENTITY_TAG, Cardinality.ZERO_OR_MORE,
@@ -2015,6 +2302,10 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 					.withHierarchy()
 					.withAttribute(
 						ATTRIBUTE_LABEL, String.class, thatIs -> thatIs.filterableInScope(Scope.LIVE).nullable()
+					)
+					.withAttribute(
+						ATTRIBUTE_RANK, Long.class,
+						thatIs -> thatIs.filterableInScope(Scope.LIVE).sortableInScope(Scope.LIVE).nullable()
 					)
 					.withReferenceToEntity(
 						REFERENCE_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,

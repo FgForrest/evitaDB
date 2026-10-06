@@ -97,7 +97,6 @@ import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.NestedQueryRestriction;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.response.ServerEntityDecorator;
-import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor.OrderingDescriptor;
@@ -1063,9 +1062,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * capabilities of the entities an `entityHaving` or a `groupHaving` reaches are left to the nested queries of the
 	 * fetch, which count them - the check plans none of them. The ordering by the referenced entity or its group is
 	 * counted by the check instead: the comparators plan their queries over the referenced entities only when a fetched
-	 * entity holds a reference, so the requests of the sorter the check creates are handed to the context of the query,
-	 * and those queries, planned in contexts derived from it, skip what it counted - see
-	 * {@link #handOverRequestedCapabilities}.
+	 * entity holds a reference, so the requests of the sorter the check creates are handed to the context of the query
+	 * ({@link OrderByVisitor#createSorter} hands them to the context it creates the sorter for), and those queries,
+	 * planned in contexts derived from it, skip what it counted.
 	 *
 	 * @param queryContext    planning context of the query fetching the references
 	 * @param entitySchema    schema of the entity owning the references
@@ -1189,17 +1188,14 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				final EntityCollection targetEntityCollection = ownerQueryContext.getEntityCollectionOrThrowException(
 					referenceSchema.getReferencedEntityType(), "order references"
 				);
-				handOverRequestedCapabilities(
-					OrderByVisitor.createSorter(
-						entityOrderBy.orderBy(),
-						nestedQueryComparator.getLocale(),
-						targetEntityCollection,
-						() -> "checking ordering of reference `" + referenceSchema.getName() + "` by entity `" +
-							targetEntityCollection.getEntityType() + "`: " + entityOrderBy,
-						ownerQueryContext,
-						entityOrderBy.scopes()
-					),
-					ownerQueryContext
+				OrderByVisitor.createSorter(
+					entityOrderBy.orderBy(),
+					nestedQueryComparator.getLocale(),
+					targetEntityCollection,
+					() -> "checking ordering of reference `" + referenceSchema.getName() + "` by entity `" +
+						targetEntityCollection.getEntityType() + "`: " + entityOrderBy,
+					ownerQueryContext,
+					entityOrderBy.scopes()
 				);
 			}
 			final EntityGroupPropertyWithScopes entityGroupOrderBy = nestedQueryComparator.getGroupOrderBy();
@@ -1215,40 +1211,17 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					"The `entityGroupProperty` ordering is specified in the query but the reference `" +
 						referenceSchema.getName() + "` does not have managed entity group collection!"
 				);
-				handOverRequestedCapabilities(
-					OrderByVisitor.createSorter(
-						entityGroupOrderBy.orderBy(),
-						nestedQueryComparator.getLocale(),
-						targetEntityGroupCollection,
-						() -> "checking ordering of reference groups `" + referenceSchema.getName() +
-							"` by entity group `" + targetEntityGroupCollection.getEntityType() + "`: " +
-							entityGroupOrderBy,
-						ownerQueryContext,
-						entityGroupOrderBy.scopes()
-					),
-					ownerQueryContext
+				OrderByVisitor.createSorter(
+					entityGroupOrderBy.orderBy(),
+					nestedQueryComparator.getLocale(),
+					targetEntityGroupCollection,
+					() -> "checking ordering of reference groups `" + referenceSchema.getName() +
+						"` by entity group `" + targetEntityGroupCollection.getEntityType() + "`: " +
+						entityGroupOrderBy,
+					ownerQueryContext,
+					entityGroupOrderBy.scopes()
 				);
 			}
-		}
-	}
-
-	/**
-	 * Hands the schema capabilities the checked ordering requested in the context of the sorter over to the context of
-	 * the entity owning the references. That context is thrown away with the sorter and never builds a plan, so
-	 * nothing else would count what the ordering named - and the comparators plan their queries over the referenced
-	 * entities only when a fetched entity holds a reference, so without the hand-over the query would count the
-	 * ordering where there is data and not where there is none. The query counts the handed-over requests once with its
-	 * own, and the queries the comparators plan later skip them, because they are planned in contexts derived from it.
-	 *
-	 * @param sorter            the sorter the check created
-	 * @param ownerQueryContext planning context of the entity owning the references
-	 */
-	private static void handOverRequestedCapabilities(
-		@Nonnull NestedContextSorter sorter,
-		@Nonnull QueryPlanningContext ownerQueryContext
-	) {
-		for (SchemaCapabilityUsage requestedCapability : sorter.getQueryContext().drainRequestedCapabilities()) {
-			ownerQueryContext.registerRequestedCapability(requestedCapability);
 		}
 	}
 
