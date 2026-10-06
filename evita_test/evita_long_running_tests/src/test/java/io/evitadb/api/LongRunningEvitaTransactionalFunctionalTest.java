@@ -117,6 +117,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -124,8 +125,10 @@ import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.ZipFile;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.WAL_FILE_SUFFIX;
 import static io.evitadb.api.query.QueryConstraints.dataInLocales;
 import static io.evitadb.test.EvitaTestSupport.catalogDirectory;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -1028,14 +1031,32 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 
 		try {
 			final AtomicReference<CompletableFuture<FileForFetch>> lastBackupProcess = new AtomicReference<>();
+			// the version visible right before the backup is requested - the backup captures the version published
+			// when it starts, which can only be this one or a later one
+			final AtomicLong versionBeforeBackup = new AtomicLong(-1L);
 			final Set<PkWithCatalogVersion> insertedPrimaryKeysAndAssociatedTxs = automaticallyGenerateEntitiesInParallel(
 				evita, productSchema,
-				theEvita -> lastBackupProcess.set(theEvita.management().backupCatalog(TEST_CATALOG, null, null, false))
+				theEvita -> {
+					versionBeforeBackup.set(
+						theEvita.queryCatalog(TEST_CATALOG, EvitaSessionContract::getCatalogVersion)
+					);
+					lastBackupProcess.set(theEvita.management().backupCatalog(TEST_CATALOG, null, null, true));
+				}
 			);
 
-			final Path backupFilePath = lastBackupProcess.get().get().path(
+			final CompletableFuture<FileForFetch> fileForFetchCompletableFuture = lastBackupProcess.get();
+			assertNotNull(fileForFetchCompletableFuture, "No backup process was started!");
+			final Path backupFilePath = fileForFetchCompletableFuture.get().path(
 				((FileSystemExportOptions) evita.getConfiguration().export()).getDirectory());
 			assertTrue(backupFilePath.toFile().exists(), "Backup file does not exist!");
+			// this is what makes the test the WAL-including variant: the archive must carry the write-ahead log, so the
+			// restore below replays the transactions committed while the data files were being copied
+			try (final ZipFile backupArchive = new ZipFile(backupFilePath.toFile())) {
+				assertTrue(
+					backupArchive.stream().anyMatch(entry -> entry.getName().endsWith(WAL_FILE_SUFFIX)),
+					"Backup including WAL must contain at least one write-ahead log file!"
+				);
+			}
 
 			final String restoredCatalogName = TEST_CATALOG + "_restored";
 			final CompletableFuture<Void> restoreFuture = evita.management().restoreCatalog(
@@ -1056,6 +1077,18 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 				session -> {
 					final long restoredCatalogVersion = session.getCatalogVersion();
 					log.info("Restored catalog is version: " + restoredCatalogVersion);
+
+					// the replayed WAL may move the restored catalog past the version the data files were copied at,
+					// but never behind the version that was already visible when the backup was requested
+					assertTrue(
+						restoredCatalogVersion >= versionBeforeBackup.get(),
+						"Restored catalog version `" + restoredCatalogVersion + "` must not be lower than the version `" +
+							versionBeforeBackup.get() + "` visible when the backup was requested!"
+					);
+					assertTrue(
+						restoredCatalogVersion <= originalCatalogVersion,
+						"Restored catalog version must not exceed the original one!"
+					);
 
 					final AtomicInteger productCount = new AtomicInteger();
 					insertedPrimaryKeysAndAssociatedTxs

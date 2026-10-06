@@ -201,6 +201,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
@@ -500,11 +501,14 @@ public final class Catalog
 	 * @param evita                     reference to the main Evita instance
 	 * @param exportService             service used for handling file export operations
 	 * @param newCatalogVersionConsumer consumer to handle actions when a new catalog version is created
-	 * @param onSuccess                 callback function to be invoked upon successful catalog load, receiving the catalog name and loaded catalog
+	 * @param onSuccess                 callback invoked upon successful catalog load, receiving the catalog name
+	 *                                  and the catalog loaded at the version its bootstrap record published; it
+	 *                                  returns the instance the returned future completes with, which is the loaded
+	 *                                  one or the instance its write-ahead log was replayed to
 	 * @param onFailure                 callback function to be invoked upon failure, receiving the catalog name and the encountered exception
 	 * @param tracingContext            tracing context used for distributed tracing and monitoring
 	 * @return a {@link ProgressingFuture} object that tracks the progress of the catalog loading process and eventually
-	 * resolves to a {@link Catalog} instance
+	 * resolves to the {@link Catalog} instance `onSuccess` settled on
 	 */
 	@Nonnull
 	public static ProgressingFuture<Catalog> loadCatalog(
@@ -516,7 +520,7 @@ public final class Catalog
 		@Nonnull ExportService exportService,
 		@Nonnull FileManagementService fileManagementService,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
-		@Nonnull BiConsumer<String, Catalog> onSuccess,
+		@Nonnull BiFunction<String, Catalog, Catalog> onSuccess,
 		@Nonnull BiConsumer<String, Throwable> onFailure,
 		@Nonnull TracingContext tracingContext
 	) {
@@ -684,9 +688,11 @@ public final class Catalog
 				for (EntityCollection collection : initBulk.collections().values()) {
 					collection.rebuildReducedIndexMembership();
 				}
-				onSuccess.accept(catalogName, catalog);
+				// the callback may replay the write-ahead log beyond the loaded version, and the future has to
+				// yield the instance it settled on - the loaded one is superseded the moment a replay ran
+				final Catalog settledCatalog = onSuccess.apply(catalogName, catalog);
 				theFuture.updateProgress(1);
-				return catalog;
+				return settledCatalog;
 			},
 			(initBulk, exception) -> {
 				if (initBulk != null) {
