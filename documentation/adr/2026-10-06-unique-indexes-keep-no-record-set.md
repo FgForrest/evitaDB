@@ -1,11 +1,11 @@
 ---
 title: Unique indexes keep no record-id set, and a unique value occurs once whatever the locale
-date: 2026-09-30
-updated: 2026-09-30 15:25
+date: 2026-10-06
+updated: 2026-10-06 11:45
 status: accepted
 kind: refactor
 issues: [1658]
-prs: []
+prs: [1676]
 areas: [evita_engine/src/main/java/io/evitadb/index/attribute/OwnerUniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/GlobalUniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/UniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/AttributeIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/FilterIndex.java, evita_engine/src/main/java/io/evitadb/index/invertedIndex/InvertedIndex.java, evita_engine/src/main/java/io/evitadb/core/collection/IndexCardinalityProjection.java, evita_api/src/main/java/io/evitadb/api/statistics, evita_api/src/main/java/io/evitadb/api/exception/UniqueValueViolationException.java]
 supersedes: []
 superseded-by: []
