@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceI
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
+import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
 import io.evitadb.core.query.algebra.facet.FacetHavingFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
@@ -238,6 +239,119 @@ class ImpactFormulaGeneratorTest {
 			      [#3] FACET HAVING (FACET PARAMETER OR (8 - [10]):  ↦ [9]) → [9]
 			         [#4] FACET PARAMETER OR (8 - [10]):  ↦ [9]
 			      [#5] FACET BRAND OR (5 - [15]):  ↦ [8, 9, 10]
+			""",
+			PrettyPrintingFormulaVisitor.toStringVerbose(updatedFormula)
+		);
+	}
+
+	@Test
+	void shouldAddNewAndConstraintNextToConjunctiveSelectionOfItsReference() {
+		// group 5 is conjunctive to group 8 - narrowing the selection by it is the same set as narrowing the user filter
+		final ConstantFormula baseFormula = new ConstantFormula(new ArrayBitmap(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12));
+		final Formula updatedFormula = this.impactFormulaGenerator.generateFormula(
+			new AndFormula(
+				baseFormula,
+				new UserFilterFormula(
+					baseFormula,
+					new FacetHavingFormula(
+						Entities.BRAND,
+						new FacetGroupOrFormula(Entities.BRAND, 8, new ArrayBitmap(10), new ArrayBitmap(9))
+					)
+				)
+			),
+			baseFormula,
+			this.brandReference, 5, 15,
+			new Bitmap[]{new ArrayBitmap(8, 9, 10)}
+		);
+		assertArrayEquals(new int[]{9}, updatedFormula.compute().getArray());
+		assertEquals(
+			"""
+			[#0] AND → [9]
+			   [#1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+			   [#2] USER FILTER → [9]
+			      [Ref to #1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+			      [#3] FACET HAVING (FACET BRAND OR (8 - [10]):  ↦ [9]) → [9]
+			         [#4] FACET BRAND OR (8 - [10]):  ↦ [9]
+			      [#5] FACET BRAND OR (5 - [15]):  ↦ [8, 9, 10]
+			""",
+			PrettyPrintingFormulaVisitor.toStringVerbose(updatedFormula)
+		);
+	}
+
+	@Test
+	void shouldAddNewAndConstraintNextToConjunctiveSelectionWithNegatedGroupOfItsReference() {
+		// group 7 is negated, group 5 is conjunctive to group 8 - the selection and its negation stay intact
+		this.facetGroupNegation.add(new EntityReference(Entities.BRAND, 7));
+		final ConstantFormula baseFormula = new ConstantFormula(new ArrayBitmap(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12));
+		final Formula updatedFormula = this.impactFormulaGenerator.generateFormula(
+			new AndFormula(
+				baseFormula,
+				new UserFilterFormula(
+					baseFormula,
+					new FacetHavingFormula(
+						Entities.BRAND,
+						new NotFormula(
+							new FacetGroupOrFormula(Entities.BRAND, 7, new ArrayBitmap(11), new ArrayBitmap(8)),
+							new FacetGroupOrFormula(Entities.BRAND, 8, new ArrayBitmap(10), new ArrayBitmap(8, 9, 12))
+						)
+					)
+				)
+			),
+			baseFormula,
+			this.brandReference, 5, 15,
+			new Bitmap[]{new ArrayBitmap(8, 9, 10)}
+		);
+		assertArrayEquals(new int[]{9}, updatedFormula.compute().getArray());
+		assertEquals(
+			"""
+			[#0] AND → [9]
+			   [#1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+			   [#2] USER FILTER → [9]
+			      [Ref to #1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+			      [#3] FACET HAVING (NOT) → [9, 12]
+			         [#4] NOT → [9, 12]
+			            [#5] FACET BRAND OR (7 - [11]):  ↦ [8]
+			            [#6] FACET BRAND OR (8 - [10]):  ↦ [8, 9, 12]
+			      [#7] FACET BRAND OR (5 - [15]):  ↦ [8, 9, 10]
+			""",
+			PrettyPrintingFormulaVisitor.toStringVerbose(updatedFormula)
+		);
+	}
+
+	@Test
+	void shouldAddNewAndConstraintNextToNegatedOnlySelectionOfItsReference() {
+		// group 7 is negated and the only selected group - the user filter subtracts the selection from the rest of it,
+		// and narrowing that rest by the conjunctive group 5 is the same set as narrowing the user filter
+		this.facetGroupNegation.add(new EntityReference(Entities.BRAND, 7));
+		final ConstantFormula baseFormula = new ConstantFormula(new ArrayBitmap(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12));
+		final Formula updatedFormula = this.impactFormulaGenerator.generateFormula(
+			new AndFormula(
+				baseFormula,
+				new UserFilterFormula(
+					new NotFormula(
+						new FacetHavingFormula(
+							Entities.BRAND,
+							new FacetGroupOrFormula(Entities.BRAND, 7, new ArrayBitmap(11), new ArrayBitmap(8))
+						),
+						baseFormula
+					)
+				)
+			),
+			baseFormula,
+			this.brandReference, 5, 15,
+			new Bitmap[]{new ArrayBitmap(8, 9, 10)}
+		);
+		assertArrayEquals(new int[]{9, 10}, updatedFormula.compute().getArray());
+		assertEquals(
+			"""
+			[#0] AND → [9, 10]
+			   [#1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+			   [#2] USER FILTER → [9, 10]
+			      [#3] NOT → [1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12]
+			         [#4] FACET HAVING (FACET BRAND OR (7 - [11]):  ↦ [8]) → [8]
+			            [#5] FACET BRAND OR (7 - [11]):  ↦ [8]
+			         [Ref to #1] [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+			      [#6] FACET BRAND OR (5 - [15]):  ↦ [8, 9, 10]
 			""",
 			PrettyPrintingFormulaVisitor.toStringVerbose(updatedFormula)
 		);

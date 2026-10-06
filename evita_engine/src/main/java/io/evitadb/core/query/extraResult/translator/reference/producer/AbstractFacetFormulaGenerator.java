@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaVisitor;
+import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupAndFormula;
@@ -443,8 +444,16 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 			}
 			Formula[] children = updatedChildren;
 			if (!positiveFormulas.isEmpty()) {
-				// a positive facet joins the facet selection of its reference the way the result composes it
-				final Formula[] childrenWithFacetSelection = addNewFormulasToFacetSelection(positiveFormulas, children);
+				// a positive facet joins the facet selection of its reference the way the result composes it, unless
+				// joining the user filter as a conjunct of its own is the same set: for a conjunctive facet `g` and
+				// a selection without a disjunctive group `(C AND g) AND NOT N` = `(C AND NOT N) AND g`, and
+				// `(rest AND g) AND NOT N` = `(rest AND NOT N) AND g` for a NOT-only one, while conjunctions and
+				// superset parts of NOT pass the `AND g` up unchanged; with a disjunctive group `D`,
+				// `((C AND g) OR D)` differs from `(C OR D) AND g`; the conjunct keeps the selection and its NOT
+				// memoized for every facet the cached formula serves
+				final Formula[] childrenWithFacetSelection =
+					isFacetSelectionNarrowedByConjunction(positiveFormulas, children) ?
+						null : addNewFormulasToFacetSelection(positiveFormulas, children);
 				// when the user filter selects no facet of the reference, the facet joins the user filter itself -
 				// the relation between groups applies between the groups of one reference only, and the user filter
 				// combines its constraints, the facet selections of different references included, by conjunction
@@ -513,6 +522,91 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 			FacetHavingTranslator.composeFacetSelectionFormula(
 				this.referenceSchema.getName(), groupFormulas, this::getRelationBetweenGroups
 			);
+	}
+
+	/**
+	 * Returns true if the formulas of a positive facet narrow every facet selection of its reference that
+	 * {@link #addNewFormulasToFacetSelection} would compose them into by conjunction only, so that joining them to
+	 * the user filter as conjuncts of their own selects the same entities. That holds when:
+	 *
+	 * - every group of the facet relates to the other groups by conjunction
+	 * - no selection of the reference has a group related to the other groups by disjunction, which
+	 *   {@link FacetHavingTranslator} composes as a union with the conjunctive groups
+	 * - every selection of the reference, positive or subtracted as a whole, is reached from the user filter through
+	 *   {@link AndFormula conjunctions} and superset parts of {@link NotFormula} only - both pass a narrowing of their
+	 *   part on to their own result unchanged
+	 *
+	 * @param positiveFormulas the formulas of the facet being added, one for each of its groups not negated
+	 * @param children         the children of the user filter formula
+	 * @return true if the formulas may join the user filter as conjuncts of their own
+	 */
+	private boolean isFacetSelectionNarrowedByConjunction(
+		@Nonnull List<Formula> positiveFormulas,
+		@Nonnull Formula[] children
+	) {
+		for (final Formula positiveFormula : positiveFormulas) {
+			if (getRelationBetweenGroups(positiveFormula) != FacetRelationType.CONJUNCTION) {
+				return false;
+			}
+		}
+		final String referenceName = this.referenceSchema.getName();
+		for (final Formula child : children) {
+			if (!isFacetSelectionNarrowedByConjunction(child, referenceName, true)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Returns true if every facet selection of the reference in the passed formula that
+	 * {@link #addNewFormulasToFacetSelection} would compose a conjunctive facet into is narrowed by it the way
+	 * a conjunct of the passed formula narrows it - see {@link #isFacetSelectionNarrowedByConjunction(List, Formula[])}.
+	 *
+	 * @param formula             the examined part of the user filter
+	 * @param referenceName       the name of the reference of the facet being added
+	 * @param conjunctivePosition true if the part is reached from the user filter through conjunctions and superset
+	 *                            parts of {@link NotFormula} only
+	 * @return true if no selection of the reference in the part prevents the facet joining the user filter on its own
+	 */
+	private boolean isFacetSelectionNarrowedByConjunction(
+		@Nonnull Formula formula,
+		@Nonnull String referenceName,
+		boolean conjunctivePosition
+	) {
+		if (formula instanceof NotFormula notFormula &&
+			isNegatedFacetSelection(notFormula.getSubtractedFormula(), referenceName)) {
+			// the facet would join its superset part
+			return conjunctivePosition;
+		} else if (formula instanceof FacetHavingFormula facetHavingFormula &&
+			referenceName.equals(facetHavingFormula.getReferenceName())) {
+			if (isNegatedFacetSelection(facetHavingFormula, referenceName)) {
+				// the facet joins the NOT subtracting the selection, if any, never the selection itself
+				return true;
+			}
+			if (!conjunctivePosition) {
+				return false;
+			}
+			for (final Formula groupFormula : collectFacetGroupFormulas(facetHavingFormula)) {
+				if (getRelationBetweenGroups(groupFormula) == FacetRelationType.DISJUNCTION) {
+					return false;
+				}
+			}
+			return true;
+		} else if (formula instanceof NotFormula notFormula) {
+			return isFacetSelectionNarrowedByConjunction(notFormula.getSubtractedFormula(), referenceName, false) &&
+				isFacetSelectionNarrowedByConjunction(
+					notFormula.getSupersetFormula(), referenceName, conjunctivePosition
+				);
+		} else {
+			final boolean innerPosition = conjunctivePosition && formula instanceof AndFormula;
+			for (final Formula innerFormula : formula.getInnerFormulas()) {
+				if (!isFacetSelectionNarrowedByConjunction(innerFormula, referenceName, innerPosition)) {
+					return false;
+				}
+			}
+			return true;
+		}
 	}
 
 	/**

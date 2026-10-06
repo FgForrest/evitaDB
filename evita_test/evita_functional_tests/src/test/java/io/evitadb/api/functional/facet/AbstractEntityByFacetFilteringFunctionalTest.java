@@ -3110,6 +3110,156 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 		@Nonnull int[] expected,
 		Evita evita
 	) {
+		assertPredictedImpactOfOptionSelection(
+			relations, selection, referenceName, groupId, optionId, optionSelection, expected, evita
+		);
+	}
+
+	/**
+	 * Returns the rows of the witness of conjunctive options joining a facet selection of their reference, over the
+	 * {@link #FACET_RELATION_SHAPES} data set. The option joins the selection where the user placed it, so the
+	 * prediction is the result of the query whose selection holds the option as well. For a selection the user nested
+	 * into an `or` container that differs from narrowing the whole user filter by the option, because the other part
+	 * of the `or` is not narrowed; for a selection placed in the user filter itself, with a negated or an exclusive
+	 * group, it is the same set. Each row is a label, the relation requirements, the constraints of the user filter,
+	 * the reference, group and primary key of the option whose impact is predicted, the constraints of the user filter
+	 * of the query selecting the option, and the primary keys of the products that query returns, computed from the
+	 * fixture table.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> optionJoiningSelectionRows() {
+		final RequireConstraint[] negationOfGroupA = {
+			facetGroupsNegation(REF_LABEL, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_A)))
+		};
+		final FilterConstraint firstEightProducts = entityPrimaryKeyInSet(1, 2, 3, 4, 5, 6, 7, 8);
+		final FilterConstraint[] label1OrProduct9 = {
+			or(facetHaving(REF_LABEL, entityPrimaryKeyInSet(1)), entityPrimaryKeyInSet(9))
+		};
+		final FilterConstraint[] labels1And3OrProduct9 = {
+			or(facetHaving(REF_LABEL, entityPrimaryKeyInSet(1, 3)), entityPrimaryKeyInSet(9))
+		};
+		return Stream.of(
+			// product 9 references no label, the conjunctive option narrows the selection of label 1 only
+			Arguments.of(
+				"default conjunction between groups, an option joining a label selected in an or with a product",
+				new RequireConstraint[0], label1OrProduct9, REF_LABEL, LABEL_GROUP_B, 3, labels1And3OrProduct9,
+				IntStream.concat(IntStream.of(shapedProductsWithAllLabels(1, 3)), IntStream.of(9)).sorted().toArray()
+			),
+			// the negated label alone is subtracted from the rest of the `and` it is selected in, and the option
+			// joins that rest within the or only
+			Arguments.of(
+				"negation of group A, an option joining a negated label selected in an and nested in an or",
+				negationOfGroupA,
+				new FilterConstraint[]{
+					or(
+						and(facetHaving(REF_LABEL, entityPrimaryKeyInSet(1)), firstEightProducts),
+						entityPrimaryKeyInSet(9)
+					)
+				},
+				REF_LABEL, LABEL_GROUP_B, 3,
+				new FilterConstraint[]{
+					or(
+						and(facetHaving(REF_LABEL, entityPrimaryKeyInSet(1, 3)), firstEightProducts),
+						entityPrimaryKeyInSet(9)
+					)
+				},
+				IntStream.concat(IntStream.of(shapedProductsWithLabelsExcept(new int[]{3}, 1)), IntStream.of(9))
+					.sorted()
+					.toArray()
+			),
+			// the same selection placed in the user filter itself is narrowed by the option as a whole
+			Arguments.of(
+				"negation of group A, an option joining a negated label next to a source",
+				negationOfGroupA,
+				new FilterConstraint[]{
+					facetHaving(REF_LABEL, entityPrimaryKeyInSet(1)), facetHaving(REF_SOURCE, entityPrimaryKeyInSet(1))
+				},
+				REF_LABEL, LABEL_GROUP_B, 3,
+				new FilterConstraint[]{
+					facetHaving(REF_LABEL, entityPrimaryKeyInSet(1, 3)),
+					facetHaving(REF_SOURCE, entityPrimaryKeyInSet(1))
+				},
+				intersectionOf(shapedProductsWithLabelsExcept(new int[]{3}, 1), shapedProductsWithSources(true, 1))
+			),
+			// the result composes an exclusive group as a conjunctive one, the negated group is subtracted from both
+			Arguments.of(
+				"negation of group B, exclusivity of group A, an option without a group joining both",
+				new RequireConstraint[]{
+					facetGroupsNegation(REF_LABEL, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_B))),
+					facetGroupsExclusivity(
+						REF_LABEL, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_A))
+					)
+				},
+				new FilterConstraint[]{facetHaving(REF_LABEL, entityPrimaryKeyInSet(1, 3))},
+				REF_LABEL, null, 4,
+				new FilterConstraint[]{facetHaving(REF_LABEL, entityPrimaryKeyInSet(1, 3, 4))},
+				IntStream.of(shapedProductsWithAllLabels(1, 4))
+					.filter(pk -> ArrayUtils.indexOf(pk, shapedProductsWithLabels(true, 3)) < 0)
+					.toArray()
+			)
+		);
+	}
+
+	/**
+	 * Checks that the reference summary predicts the impact of a conjunctive option joining a facet selection of its
+	 * reference as the result of the query whose selection holds the option as well, wherever the user placed the
+	 * selection.
+	 *
+	 * @param label           the row label, used in the test name only
+	 * @param relations       the relation requirements
+	 * @param selection       the constraints of the user filter
+	 * @param referenceName   the reference of the option whose impact is predicted
+	 * @param groupId         the group of the option, NULL for an option without a group
+	 * @param optionId        the option whose impact is predicted
+	 * @param optionSelection the constraints of the user filter of the query selecting the option
+	 * @param expected        the primary keys of the products the query selecting the option returns, ascending
+	 * @param evita           the engine instance provided by the test extension
+	 */
+	@DisplayName("Should predict an option joining a selection of its reference where the user placed it")
+	@UseDataSet(FACET_RELATION_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("optionJoiningSelectionRows")
+	void shouldPredictOptionJoiningSelectionWhereUserPlacedIt(
+		@Nonnull String label,
+		@Nonnull RequireConstraint[] relations,
+		@Nonnull FilterConstraint[] selection,
+		@Nonnull String referenceName,
+		@Nullable Integer groupId,
+		int optionId,
+		@Nonnull FilterConstraint[] optionSelection,
+		@Nonnull int[] expected,
+		Evita evita
+	) {
+		assertPredictedImpactOfOptionSelection(
+			relations, selection, referenceName, groupId, optionId, optionSelection, expected, evita
+		);
+	}
+
+	/**
+	 * Asserts that the query selecting the option returns the expected products and that the reference summary of the
+	 * query without it predicts exactly that result as the impact of the option - both its size and the difference.
+	 *
+	 * @param relations       the relation requirements
+	 * @param selection       the constraints of the user filter
+	 * @param referenceName   the reference of the option whose impact is predicted
+	 * @param groupId         the group of the option, NULL for an option without a group
+	 * @param optionId        the option whose impact is predicted
+	 * @param optionSelection the constraints of the user filter of the query selecting the option
+	 * @param expected        the primary keys of the products the query selecting the option returns, ascending
+	 * @param evita           the engine instance
+	 */
+	private static void assertPredictedImpactOfOptionSelection(
+		@Nonnull RequireConstraint[] relations,
+		@Nonnull FilterConstraint[] selection,
+		@Nonnull String referenceName,
+		@Nullable Integer groupId,
+		int optionId,
+		@Nonnull FilterConstraint[] optionSelection,
+		@Nonnull int[] expected,
+		@Nonnull Evita evita
+	) {
 		assertTrue(expected.length > 0, "the selection of the option must keep some products");
 		evita.queryCatalog(
 			TEST_CATALOG,
