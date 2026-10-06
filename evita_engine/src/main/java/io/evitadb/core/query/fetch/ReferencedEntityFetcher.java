@@ -1059,12 +1059,15 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * The schema capabilities the check requests of the entity owning the references are counted once per query: the
 	 * check of a nested `referenceContent` runs in a context of the referenced collection, whose requests are handed to
 	 * the context of the query, and the fetch translates the constraints again only in contexts it never counts. The
-	 * capabilities of the entities an `entityHaving` or a `groupHaving` reaches are left to the nested queries of the
-	 * fetch, which count them - the check plans none of them. The ordering by the referenced entity or its group is
-	 * counted by the check instead: the comparators plan their queries over the referenced entities only when a fetched
-	 * entity holds a reference, so the requests of the sorter the check creates are handed to the context of the query
-	 * ({@link OrderByVisitor#createSorter} hands them to the context it creates the sorter for), and those queries,
-	 * planned in contexts derived from it, skip what it counted.
+	 * capabilities of the entities an `entityHaving` or a `groupHaving` reaches are counted by the check as well: the
+	 * fetch plans its nested queries over those entities only when a fetched entity holds a reference to filter, so
+	 * the check hands what it requested to the context of the query (see
+	 * {@link io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper#planNestedQuery}), and the nested
+	 * queries of the fetch, planned in contexts derived from it, skip what it counted. The ordering by the referenced
+	 * entity or its group is counted by the check for the same reason: the comparators plan their queries over the
+	 * referenced entities only when a fetched entity holds a reference, so the requests of the sorter the check creates
+	 * are handed to the context of the query ({@link OrderByVisitor#createSorter} hands them to the context it creates
+	 * the sorter for), and those queries, planned in contexts derived from it, skip what it counted.
 	 *
 	 * @param queryContext    planning context of the query fetching the references
 	 * @param entitySchema    schema of the entity owning the references

@@ -298,15 +298,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * reference constraints nested in it at any depth look into no index holding data either.
 	 */
 	@Getter private final boolean constraintCheckOnly;
-	/**
-	 * True when this visitor checks the filter an `entityHaving` or a `groupHaving` nests - see
-	 * {@link #createFormulaForTheFilter(QueryPlanningContext, Class, List, FilterBy, FilterBy, EntitySchemaContract,
-	 * Supplier, boolean)} - rather than a filter of the query or of the references it fetches. No nested query is
-	 * planned for a filter checked this way, so none is planned for the filters it nests either, at any depth and
-	 * whatever data their target entity types hold: their checks hand everything they request to the planning context
-	 * of this visitor, and the check that created it decides whether it is counted.
-	 */
-	@Getter private final boolean nestedFilterCheck;
 
 	/**
 	 * Method returns true for all {@link FilterConstraint} types that are conjunctive.
@@ -447,8 +438,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * constraint - see {@link #createFormulaForTheFilter(QueryPlanningContext, Class, List, FilterBy, FilterBy,
 	 * EntitySchemaContract, Supplier)} - by a visitor that only checks the filter when `constraintCheckOnly` is true
 	 * (see {@link #isConstraintCheckOnly()}). A check of a nested filter passes true, so that the check stays one
-	 * however deep the filter nests further reference constraints - its visitor is a nested filter check, see
-	 * {@link #isNestedFilterCheck()}.
+	 * however deep the filter nests further reference constraints.
 	 *
 	 * The schema capabilities the filter requests are recorded in the passed context, whether the filter is only checked
 	 * or evaluated, and whichever entity type it selects - the context counts each of them on the registry of the
@@ -492,7 +482,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				queryContext,
 				Collections.emptyList(),
 				TargetIndexes.EMPTY,
-				constraintCheckOnly,
 				constraintCheckOnly
 			);
 
@@ -560,8 +549,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			queryContext,
 			Collections.emptyList(),
 			TargetIndexes.EMPTY,
-			true,
-			false
+			true
 		);
 	}
 
@@ -596,7 +584,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull List<TargetIndexes<T>> targetIndexes,
 		@Nonnull TargetIndexes<T> indexSetToUse
 	) {
-		this(processingScope, queryContext, targetIndexes, indexSetToUse, false, false);
+		this(processingScope, queryContext, targetIndexes, indexSetToUse, false);
 	}
 
 	/**
@@ -607,16 +595,13 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * @param targetIndexes       all alternative index sets of the query
 	 * @param indexSetToUse       the index set the filter is translated over
 	 * @param constraintCheckOnly true when the visitor only checks the filters - see {@link #isConstraintCheckOnly()}
-	 * @param nestedFilterCheck   true when the visitor checks a filter an `entityHaving` or a `groupHaving` nests -
-	 *                            see {@link #isNestedFilterCheck()}
 	 */
 	private <T extends Index<?>> FilterByVisitor(
 		@Nonnull ProcessingScope<T> processingScope,
 		@Nonnull QueryPlanningContext queryContext,
 		@Nonnull List<TargetIndexes<T>> targetIndexes,
 		@Nonnull TargetIndexes<T> indexSetToUse,
-		boolean constraintCheckOnly,
-		boolean nestedFilterCheck
+		boolean constraintCheckOnly
 	) {
 		this.stack.push(new LinkedList<>());
 		this.postProcessors.push(new LinkedHashMap<>(16));
@@ -627,7 +612,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		this.targetIndexes = (List) targetIndexes;
 		this.indexSetToUse = indexSetToUse;
 		this.constraintCheckOnly = constraintCheckOnly;
-		this.nestedFilterCheck = nestedFilterCheck;
 	}
 
 	public <T extends Index<?>> FilterByVisitor(
@@ -636,7 +620,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull TargetIndexes<T> indexSetToUse
 	) {
 		this(
-			createRootProcessingScope(queryContext, indexSetToUse), queryContext, targetIndexes, indexSetToUse, false, false
+			createRootProcessingScope(queryContext, indexSetToUse), queryContext, targetIndexes, indexSetToUse, false
 		);
 	}
 

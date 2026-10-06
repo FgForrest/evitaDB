@@ -712,30 +712,60 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("An entity filter of the fetched references counts once on the referenced collection")
+		@DisplayName("An entity filter of the fetched references counts once on their collection, whatever is fetched")
 		void shouldCountEntityFilterOfFetchedReferencesOnceOnReferencedCollection() {
-			// the fetch plans the filter of the referenced categories as a nested query of their collection, which
-			// counts what it named there; the check made while the query is planned plans no nested query, so it must
-			// not add a second count
-			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByFetching(
-				ENTITY_CATEGORY,
-				Query.query(
-					collection(ENTITY_PRODUCT),
-					filterBy(entityPrimaryKeyInSet(1)),
-					require(
-						entityFetch(
-							referenceContent(
-								REFERENCE_CATEGORIES,
-								filterBy(entityHaving(attributeEquals(ATTRIBUTE_CATEGORY_NAME, "category-1")))
-							)
-						)
-					)
-				)
+			// the fetch plans the filter of the referenced categories as a nested query of their collection only when
+			// a fetched product references a category; the check made while the query is planned plans no nested
+			// query, so it counts what it named itself, and the nested query of the fetch skips what it counted
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(
+				categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L
 			);
 
 			assertEquals(
-				Map.of(categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L), requested,
-				"The filter of the referenced categories must be counted once on their collection"
+				expected,
+				capabilitiesRequestedByFetching(ENTITY_CATEGORY, productWithCategoriesFilteredByName(1, "category-1")),
+				"The query fetching a filtered category must count the filter of the categories once"
+			);
+			assertEquals(
+				expected,
+				capabilitiesRequestedByFetching(ENTITY_CATEGORY, productWithCategoriesFilteredByName(1, "missing")),
+				"The query fetching a product whose categories the filter refuses must count the filter once"
+			);
+			assertEquals(
+				expected,
+				capabilitiesRequestedByFetching(
+					ENTITY_CATEGORY, productWithCategoriesFilteredByName(PRODUCT_COUNT + 1, "category-1")
+				),
+				"The query fetching no product must count the filter of the categories once"
+			);
+		}
+
+		@Test
+		@DisplayName("A group filter of the fetched references counts once on their groups, whatever is fetched")
+		void shouldCountGroupFilterOfFetchedReferencesOnceOnGroupCollection() {
+			// the groups of the brands are the tags, which hold data - the fetch evaluates the group filter only when
+			// a fetched product references a brand, so the check counts it, whether or not there is one
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				filterBy(entityPrimaryKeyInSet(1)),
+				require(
+					entityFetch(
+						referenceContent(REFERENCE_BRAND, filterBy(groupHaving(attributeEquals(ATTRIBUTE_LABEL, "x"))))
+					)
+				)
+			);
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(labelKey(), 1L);
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_TAG, query),
+				"The query fetching a product without a brand must count the group filter once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_TAG, query),
+				"The query fetching a product with a brand must count the group filter once"
 			);
 		}
 
@@ -823,8 +853,12 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 				"The query fetching a product must count the flags the filter of its categories named once"
 			);
 			assertEquals(
-				1L, requestedWithoutProduct.get(categoryNameKey(Capability.FILTERABLE, Scope.ARCHIVED)),
-				"The query fetching no product must count the archived flag like its twin fetching one"
+				Map.of(
+					categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L,
+					categoryNameKey(Capability.FILTERABLE, Scope.ARCHIVED), 1L
+				),
+				requestedWithoutProduct,
+				"The query fetching no product must count the flags the filter of the categories named like its twin"
 			);
 		}
 
@@ -2254,6 +2288,30 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 					referenceContent(
 						REFERENCE_CATEGORIES,
 						filterBy(entityHaving(attributeEquals(ATTRIBUTE_CATEGORY_NAME, "category-1")))
+					)
+				)
+			)
+		);
+	}
+
+	/**
+	 * Builds the query fetching one product with its references to the categories filtered by the name of the
+	 * category.
+	 *
+	 * @param productPrimaryKey the product to fetch
+	 * @param categoryName      the name the referenced categories must have
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query productWithCategoriesFilteredByName(int productPrimaryKey, @Nonnull String categoryName) {
+		return Query.query(
+			collection(ENTITY_PRODUCT),
+			filterBy(entityPrimaryKeyInSet(productPrimaryKey)),
+			require(
+				entityFetch(
+					referenceContent(
+						REFERENCE_CATEGORIES,
+						filterBy(entityHaving(attributeEquals(ATTRIBUTE_CATEGORY_NAME, categoryName)))
 					)
 				)
 			)
