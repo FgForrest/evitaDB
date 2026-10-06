@@ -1,7 +1,7 @@
 ---
 title: Schema-capability usage is counted per schema element in a collection-carried registry, not per physical index
 date: 2026-08-19
-updated: 2026-10-06 07:45
+updated: 2026-10-06 11:45
 status: accepted
 kind: feature
 issues: [1429]
@@ -9,7 +9,7 @@ prs: [1430]
 areas: [evita_api/api/statistics, evita_engine/index/usage, evita_engine/index/mutation, evita_engine/core/query, evita_engine/core/collection, evita_engine/core/catalog, evita_external_api/evita_external_api_grpc, evita_test/evita_performance_tests]
 supersedes: []
 superseded-by: []
-relates: [2026-08-16-per-index-usage-statistics, 2026-08-23-usage-statistics-tracking-switch]
+relates: [2026-08-16-per-index-usage-statistics, 2026-08-23-usage-statistics-tracking-switch, 2026-10-06-scope-faithful-planning-and-facet-summary-parity]
 ---
 
 # Schema-capability usage is counted per schema element in a collection-carried registry, not per physical index
@@ -334,8 +334,9 @@ the `everRequested` fallback stays unimplemented.**
 - **Cross-collection trigger maintenance is not counted**, inherited from the per-index gap: index work
   dispatched through `IndexMutationExecutorRegistry` never reaches
   `EntityIndexLocalMutationExecutor`, so `updatedCount` is a floor. Same direction of error, same
-  documented-on-the-surface treatment. Referenced-entity cross-collection *query* attribution is
-  likewise a documented gap, not a wrong number.
+  documented-on-the-surface treatment. Referenced-entity cross-collection *query* attribution is not a
+  gap: a request about another collection's element is counted on that collection (see the attribution
+  bullet in *Key technical details* and `2026-10-06-scope-faithful-planning-and-facet-summary-parity`).
 - **A new copy site can silently reset the counters** — the same standing hazard the 2026-08-16 record
   carries for `IndexActivity`; extending the enumerated lifecycle tests is the check.
 - **No user-facing documentation page exists**, because the management surface it extends
@@ -348,6 +349,10 @@ the `everRequested` fallback stays unimplemented.**
   counters this surface complements; the holder-by-reference lifecycle discipline and the
   since-catalog-load contract were adopted from it, and the two surfaces are designed to be read side
   by side (physical earning vs. logical demand).
+- [2026-10-06-scope-faithful-planning-and-facet-summary-parity](2026-10-06-scope-faithful-planning-and-facet-summary-parity.md) — enforces this record's "once per logical query" unit across nested queries,
+  constraint checks, sorter contexts and fetch-time plans (root-context record
+  `QueryPlanningContext#countedCapabilities`), attributes requests on another collection's schema to that
+  collection, counts queries matching nothing, and records nothing on the write path.
 
 ## Timeline
 
