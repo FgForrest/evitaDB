@@ -324,15 +324,18 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	@Nullable
 	private Map<ScopedHierarchyFilter, Formula> rootHierarchyNodesFormula;
 	/**
-	 * The index contains rules for facet summary computation regarding the inter facet relation. The key in the index
-	 * is a tuple consisting of `referenceName`, `typeOfRule` and the {@link FacetGroupRelationLevel} the relation was
-	 * asked about, the value in the index is prepared predicate allowing to mark the group id involved in special
-	 * relation handling.
+	 * The predicates testing the facet groups against the group filters of the facet relation constraints, keyed by
+	 * the {@link FacetFilterBy} declaration the filter comes from - by its identity, not by equality. The request
+	 * creates one declaration for each constraint, which belongs to one reference, one relation type and the level the
+	 * constraint declares, so two references declaring equal filters over different group types never share
+	 * a predicate. A negation declared at one level only is served for both levels as the very same declaration (see
+	 * {@link EvitaRequest#getFacetGroupNegation}) and so is planned once, while a negation declared at each level
+	 * keeps a predicate for each of its two filters.
 	 *
 	 * The predicates are expensive - each of them plans and evaluates the group filter - and are asked about many
-	 * group ids in a row, hence the memoization. Lazily allocated by {@link #getFacetRelationTuples()}.
+	 * group ids in a row, hence the memoization. Lazily allocated by {@link #getFacetGroupPredicates()}.
 	 */
-	private Map<FacetRelationTuple, FilteringFormulaPredicate> facetRelationTuples;
+	private Map<FacetFilterBy, FilteringFormulaPredicate> facetGroupPredicates;
 	/**
 	 * Memoizes the facet relations resolved by {@link #getFacetRelationType} and {@link #isFacetGroupRelationType},
 	 * indexed by the reference name and then by the facet group - see {@link FacetGroupRelations} for why these two and
@@ -2256,7 +2259,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * - the query declares no such relation for the reference at the level - `false`
 	 * - the relation is declared **without** a filter - it applies to every group, hence `true`
 	 * - the relation is declared **with** a filter - the filter is planned into a predicate (memoized in
-	 *   {@link #facetRelationTuples}, since it is asked about many groups in a row) and the group is tested against
+	 *   {@link #facetGroupPredicates}, since it is asked about many groups in a row) and the group is tested against
 	 *   it; a facet with no group at all cannot match such a filter and gets `false`
 	 *
 	 * The filter is planned even when the asked facet has no group, so that a filter which cannot be evaluated fails
@@ -2297,10 +2300,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		// the filter is planned before the group is looked at: a filter that cannot be evaluated must fail the query
 		// even when only facets without a group ask about it, just as it fails the reference summary, which asks
 		// about every group of the reference
-		final FilteringFormulaPredicate groupPredicate = getFacetRelationTuples()
+		final FilteringFormulaPredicate groupPredicate = getFacetGroupPredicates()
 			.computeIfAbsent(
-				new FacetRelationTuple(referenceName, relationType, level),
-				tuple -> createFacetGroupPredicate(relationType, referenceSchema, facetFilterBy, filterBy)
+				facetFilterBy,
+				declaration -> createFacetGroupPredicate(relationType, referenceSchema, declaration, filterBy)
 			);
 		// a facet without a group cannot match a group filter
 		return groupId != null && groupPredicate.test(groupId);
@@ -2566,35 +2569,16 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Lazy initialization of the facet relation tuples.
+	 * Lazy initialization of {@link #facetGroupPredicates}, an identity map - see the field for why.
 	 *
-	 * @return facet relation tuples
+	 * @return the predicates of the group filters, keyed by their declarations
 	 */
 	@Nonnull
-	private Map<FacetRelationTuple, FilteringFormulaPredicate> getFacetRelationTuples() {
-		if (this.facetRelationTuples == null) {
-			this.facetRelationTuples = new HashMap<>();
+	private Map<FacetFilterBy, FilteringFormulaPredicate> getFacetGroupPredicates() {
+		if (this.facetGroupPredicates == null) {
+			this.facetGroupPredicates = new IdentityHashMap<>(4);
 		}
-		return this.facetRelationTuples;
-	}
-
-	/**
-	 * Tuple that wraps {@link ReferenceSchemaContract#getName()}, {@link FacetRelationType} and
-	 * {@link FacetGroupRelationLevel} into one object used as the {@link #facetRelationTuples} key. The level is
-	 * part of the key because the two levels are orthogonal and each carries its own filter, so a predicate
-	 * memoized for one must never be reused to answer the other.
-	 *
-	 * @param referenceName name of the reference the facet group belongs to
-	 * @param relation      relation type the memoized predicate decides about
-	 * @param level         the {@link FacetGroupRelationLevel} whose relation settings the predicate was planned
-	 *                      from (within group vs. between groups)
-	 */
-	private record FacetRelationTuple(
-		@Nonnull String referenceName,
-		@Nonnull FacetRelationType relation,
-		@Nonnull FacetGroupRelationLevel level
-	) {
-
+		return this.facetGroupPredicates;
 	}
 
 	/**
@@ -2642,7 +2626,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 *
 	 * - the declarations and the request-wide defaults come from {@link #evitaRequest}, which a context never replaces,
 	 *   and are looked up by the reference name - the reference schema contributes nothing else, since the group filter
-	 *   planned from it is memoized by the reference name in {@link #facetRelationTuples} as well
+	 *   planned from it is memoized by its declaration in {@link #facetGroupPredicates}, which belongs to the reference
+	 *   of that name
 	 * - the group filter is planned over all the scopes of the context and tests the group id only, so the relation of
 	 *   a group never differs from one scope to another
 	 * - a context derived from this one memoizes its own relations, it does not share these

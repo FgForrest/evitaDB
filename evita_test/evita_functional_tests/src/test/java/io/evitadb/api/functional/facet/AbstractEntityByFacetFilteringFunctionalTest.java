@@ -2185,6 +2185,78 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
+	 * Returns the rows of the witness of equal group filters declared for two references, over the
+	 * {@link #FACET_RELATION_SHAPES} data set. The filter selects group {@link #TAG_GROUP} of the managed tag groups and
+	 * group {@link #LABEL_GROUP_A} of the label groups evitaDB does not manage, so the same filter matches a different
+	 * group of each reference - and each of them in either order of the declarations. Each row is a label and the
+	 * relation requirements.
+	 *
+	 * @return the row arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> equalGroupFilterRows() {
+		final FilterBy tagGroupOrLabelGroupA = filterBy(entityPrimaryKeyInSet(TAG_GROUP, LABEL_GROUP_A));
+		final RequireConstraint labelNegation = facetGroupsNegation(REF_LABEL, tagGroupOrLabelGroupA);
+		final RequireConstraint tagNegation = facetGroupsNegation(REF_TAG, tagGroupOrLabelGroupA);
+		return Stream.of(
+			Arguments.of("labels declared first", new RequireConstraint[]{labelNegation, tagNegation}),
+			Arguments.of("tags declared first", new RequireConstraint[]{tagNegation, labelNegation})
+		);
+	}
+
+	/**
+	 * Checks that two references declaring equal group filters each test their own groups against the filter: the
+	 * filter is evaluated against the group type of the reference declaring it, so the declarations of two references
+	 * must never share the evaluated filter, whatever order they are planned in. Both selected options are negated,
+	 * so the query returns the products referencing neither of them.
+	 *
+	 * @param label     the row label, used in the test name only
+	 * @param relations the relation requirements
+	 * @param evita     the engine instance provided by the test extension
+	 */
+	@DisplayName("Should evaluate equal group filters of two references against the groups of each")
+	@UseDataSet(FACET_RELATION_SHAPES)
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("equalGroupFilterRows")
+	void shouldEvaluateEqualGroupFiltersOfTwoReferencesAgainstGroupsOfEach(
+		@Nonnull String label,
+		@Nonnull RequireConstraint[] relations,
+		Evita evita
+	) {
+		final int[] withTagOrLabel = IntStream.concat(
+				IntStream.of(shapedProductsWithTag(GROUPED_TAG)), IntStream.of(shapedProductsWithLabels(true, 1))
+			)
+			.toArray();
+		final int[] expected = IntStream.rangeClosed(1, SHAPED_PRODUCT_LABELS.length)
+			.filter(pk -> ArrayUtils.indexOf(pk, withTagOrLabel) < 0)
+			.toArray();
+		assertTrue(
+			expected.length > 0 && expected.length < SHAPED_PRODUCT_LABELS.length,
+			"the negations must exclude some products and keep others"
+		);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<EntityReference> result = session.query(
+					shapedFilterQuery(
+						new FilterConstraint[]{
+							facetHaving(REF_TAG, entityPrimaryKeyInSet(GROUPED_TAG)),
+							facetHaving(REF_LABEL, entityPrimaryKeyInSet(1))
+						},
+						relations
+					),
+					EntityReference.class
+				);
+				assertArrayEquals(
+					expected,
+					result.getRecordData().stream().mapToInt(EntityReference::getPrimaryKey).sorted().toArray()
+				);
+				return null;
+			}
+		);
+	}
+
+	/**
 	 * Returns the rows of the relation precedence witness over the {@link #FACET_RELATION_SHAPES} data set. Each row is
 	 * a label, the reference the options are selected in, the selected options, the relation requirements - the
 	 * request-wide defaults of `facetCalculationRules` and the relations declared for the reference - and the primary
