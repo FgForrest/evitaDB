@@ -275,6 +275,11 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 	 * has already cleared the engine state, which then holds nothing to withdraw, and any other failure is logged
 	 * so that the caller still terminates the instance.
 	 *
+	 * **Sessions are not closed here.** A session opened on the published instance before it is withdrawn keeps
+	 * referencing it, and its next use fails against the storage the caller is about to close. Closing them would
+	 * need the catalog's sessions suspended before the termination, as deactivation does with
+	 * `Evita#suspendCatalogSessions`; this path does not do that.
+	 *
 	 * @param evita                        the engine whose state is corrected
 	 * @param transactionId                id of the activation transaction
 	 * @param mutation                     the activation mutation that could not be recorded
