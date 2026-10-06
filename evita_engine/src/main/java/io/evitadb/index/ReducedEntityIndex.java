@@ -79,7 +79,8 @@ import java.util.function.Function;
  *
  * Every instance is the materialized form of a {@link ReferencePartition} - the class implements the handle
  * directly, so resolving a partition allocates nothing and keeps the object's identity. The class is `final`
- * because the sealed handle permits exactly this type.
+ * because the sealed handle permits exactly this type and {@link VirtualReferencePartition}, the form of a
+ * single-owner partition read out of the registry.
  *
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -376,12 +377,22 @@ public final class ReducedEntityIndex extends AbstractReducedEntityIndex impleme
 		delegateRemoveUniqueAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, value, recordId);
 	}
 
-	@Override
+	/**
+	 * Hands the key of every sort index the partition maintains over its owners - of reference attributes and sortable
+	 * attribute compounds alike, in every locale - to the consumer. The registry of single-owner partitions reads them
+	 * by key when it copies the values of a partition's only owner.
+	 *
+	 * @param consumer invoked once per key
+	 */
 	public void forEachSortIndexKey(@Nonnull Consumer<AttributeIndexKey> consumer) {
 		forEachAttributeIndexKey(AttributeIndexType.SORT, consumer);
 	}
 
-	@Override
+	/**
+	 * Hands the key of every chain index the partition maintains over its owners to the consumer.
+	 *
+	 * @param consumer invoked once per key
+	 */
 	public void forEachChainIndexKey(@Nonnull Consumer<AttributeIndexKey> consumer) {
 		forEachAttributeIndexKey(AttributeIndexType.CHAIN, consumer);
 	}

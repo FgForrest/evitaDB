@@ -1,4 +1,4 @@
-# Allow-list of ReferencePartitionAccessGuardTest - see its JavaDoc for the rules R1-R5.
+# Allow-list of ReferencePartitionAccessGuardTest - see its JavaDoc for the rules R1-R6.
 # Format: rule | Class#member | reason. Every entry is a place that reaches a reduced entity index directly on
 # purpose; the list only shrinks - an entry that is no longer hit fails the test. An entry vouches for the only
 # overload of a member that declares one; an entry of a member declaring several pins the descriptors of the overloads
@@ -41,6 +41,7 @@ R1 | io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator
 R1 | io.evitadb.index.ReferencePartitions#asPartition | the partition resolver implementation itself
 R1 | io.evitadb.index.ReferencePartitions#requirePartition | the partition resolver implementation itself
 R1 | io.evitadb.index.ReferencePartitions#toReducedEntityIndex | the single entry of a partition into the Index-bound query body channel
+R1 | io.evitadb.index.ReferencePartitions#toEntityIndex | the single entry of a partition into a query route reading it as an index object, rejecting a virtual one until the route reads virtual partitions
 R1 | io.evitadb.index.ReferencedTypeEntityIndex#<clinit> | throwing stub matcher of ReferencedTypeEntityIndex names AbstractReducedEntityIndex - not an access
 R1 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#applyOnExistingReducedIndexes | dispatch arm handing partitions of a target to the generic locale / price consumers; group half
 R1 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#insertInitialSuiteOfSortableAttributeCompounds (overloads (Ljava/util/Locale;Lio/evitadb/api/requestResponse/schema/dto/EntitySchema;Lio/evitadb/index/EntityIndex;Lio/evitadb/api/requestResponse/data/mutation/reference/ReferenceKey;Lio/evitadb/index/mutation/local/dataAccess/ExistingDataSupplierFactory;)V) | sortable compound suite dispatch over a generic EntityIndex fed by the locale fan-out
@@ -137,7 +138,9 @@ R4 | io.evitadb.core.collection.EntityCollection#rebuildReducedIndexMembership |
 R4 | io.evitadb.core.query.QueryPlanningContext#getReducedGroupEntityIndexes | group family: reduced group entity indexes have no partition handle (reduced group indexes of one group)
 R4 | io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceHistogramAccumulator#collectGroupedPending | group family: reduced group entity indexes have no partition handle (grouped histogram accumulation)
 R4 | io.evitadb.index.ReferencePartitions#resolveOfTarget (overloads (Ljava/util/function/Function;Ljava/util/function/IntFunction;Lio/evitadb/dataType/Scope;Ljava/lang/String;ZILjava/lang/String;)[Lio/evitadb/index/ReferencePartition;) | the partition resolver implementation itself
+R4 | io.evitadb.index.ReferencePartitions#resolveOfTargetForRead | read resolution of the partitions of one target enumerates the type index's family to tell virtual partitions from materialized ones
 R4 | io.evitadb.index.ReferencedTypeEntityIndex#getAllReferenceIndexes | type index declaration delegating the enumeration to its cardinality index
+R4 | io.evitadb.index.PartitionKeyMemo#buildFamily | the by-key read memo enumerates the family of a target once per query to find its registered partitions by tuple id
 R4 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#addFromReferenceAttributeForLocale | group family: reduced group entity indexes have no partition handle (histograms and group resolution of the cross-entity trigger)
 R4 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#applyFacetToReducedIndexFamily | facet decision into the mutated reference's reduced indexes, reached only for partitioned references
 R4 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#collectOwnersOfReducedIndexes | unaccelerated walk of a sibling reference's reduced indexes, reached only for partitioned references

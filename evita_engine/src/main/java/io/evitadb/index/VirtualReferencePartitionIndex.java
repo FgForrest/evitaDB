@@ -159,6 +159,11 @@ public class VirtualReferencePartitionIndex
 	 */
 	public static final int NO_TUPLE_ID = -1;
 	/**
+	 * Returned by {@link #getSortValueId(AttributeIndexKey, int)} when the partition holds no sort value for the key.
+	 * Value ids of a slot's dictionary are handed out from `1` up, so no id in use is ever negative.
+	 */
+	public static final int NO_SORT_VALUE_ID = -1;
+	/**
 	 * Block-size geometry of the entry tree - a 256-entry leaf with the matching minimum split thresholds (identical
 	 * to the reference-type cardinality tree).
 	 */
@@ -997,6 +1002,56 @@ public class VirtualReferencePartitionIndex
 	@Nullable
 	public OwnerSortIndex getSortIndex(@Nonnull AttributeIndexKey attributeIndexKey) {
 		return this.sortIndexes.get(attributeIndexKey);
+	}
+
+	/**
+	 * Returns the id the partition's sort value has in the value dictionary of the sort key - one lookup of the
+	 * partition's entry in the key's slot, `O(log n)` in the number of entries. The id names the value for as long as
+	 * any partition holds it; {@link #getNormalizedSortValue(AttributeIndexKey, int)} resolves it back to the value.
+	 *
+	 * @param attributeIndexKey   the sort key
+	 * @param partitionPrimaryKey the partition primary key, positive
+	 * @return the value id, or {@link #NO_SORT_VALUE_ID} when the key is not declared or the partition holds no value
+	 *         for it
+	 */
+	public int getSortValueId(@Nonnull AttributeIndexKey attributeIndexKey, int partitionPrimaryKey) {
+		final DeclaredSortKey sortKey = this.sortKeys.get(attributeIndexKey);
+		if (sortKey == null) {
+			return NO_SORT_VALUE_ID;
+		}
+		final OptionalLong valueId = this.entries.getLongRecordEqualTo(key(sortKey.slotId(), partitionPrimaryKey));
+		return valueId.isPresent() ? (int) valueId.getAsLong() : NO_SORT_VALUE_ID;
+	}
+
+	/**
+	 * Returns the sort value the value dictionary of a declared sort key keeps under the id, in the normalized form a
+	 * sort index stores and {@link SortIndex#getValueOfRecord(int)} reads back - a {@link ComparableArray} for a
+	 * sortable attribute compound. One hash lookup, whatever the number of partitions or values. The value is the
+	 * dictionary's own and must not be modified.
+	 *
+	 * @param attributeIndexKey the declared sort key
+	 * @param valueId           an id {@link #getSortValueId(AttributeIndexKey, int)} handed out
+	 * @return the normalized sort value
+	 * @throws GenericEvitaInternalError when the key is not declared or the id is not in use
+	 */
+	@Nonnull
+	public Serializable getNormalizedSortValue(@Nonnull AttributeIndexKey attributeIndexKey, int valueId) {
+		return getSortValueEntry(getDeclaredSortKey(attributeIndexKey).slotId(), valueId).key().value();
+	}
+
+	/**
+	 * Opens a forward cursor over the owner rows of the partitions, in ascending partition primary key order, starting
+	 * at the first partition whose primary key is greater than or equal to the given one. The cursor is positioned
+	 * before that row - {@link PartitionOwnerCursor#next()} or {@link PartitionOwnerCursor#advanceTo(int)} moves onto
+	 * it. It is the means of matching an ascending set of partition primary keys with the rows in one merge, rather
+	 * than with one lookup per key.
+	 *
+	 * @param fromPartitionPrimaryKey the smallest partition primary key of interest
+	 * @return the cursor
+	 */
+	@Nonnull
+	public PartitionOwnerCursor seekPartitionOwner(int fromPartitionPrimaryKey) {
+		return new PartitionOwnerCursor(this.entries, fromPartitionPrimaryKey);
 	}
 
 	/**
@@ -2201,6 +2256,128 @@ public class VirtualReferencePartitionIndex
 				return new LeafPage(pageSequence, pageKeys.toArray(), pagePayloads.toArray());
 			}
 		);
+	}
+
+	/**
+	 * A forward cursor over the {@link VirtualReferencePartitionSlot#PARTITION_OWNER} rows, in ascending partition
+	 * primary key order - see {@link #seekPartitionOwner(int)}. It reads the tree it was opened over and must not
+	 * outlive a change of it.
+	 *
+	 * Moving to a partition primary key that lies ahead ({@link #advanceTo(int)}) first steps along the rows a few
+	 * times and only then descends the tree from its root again, so a merge with a dense set of keys walks the rows
+	 * once, while a merge with a sparse set costs one descent per far jump - never one per key.
+	 */
+	public static final class PartitionOwnerCursor {
+		/**
+		 * How many rows {@link #advanceTo(int)} steps along before it descends the tree again.
+		 */
+		private static final int GALLOP_STEPS = 8;
+		/**
+		 * Id of the slot the cursor walks.
+		 */
+		private static final int SLOT_ID = VirtualReferencePartitionSlot.PARTITION_OWNER.getId();
+		/**
+		 * The entry tree of the index the cursor was opened over.
+		 */
+		@Nonnull private final LongPayloadBucketTree entries;
+		/**
+		 * The cursor of the tree positioned at the current row, replaced by every descent.
+		 */
+		@Nonnull private BucketCursor cursor;
+		/**
+		 * Primary key of the partition of the current row, `0` before the first move - no partition has it.
+		 */
+		private int partitionPrimaryKey;
+		/**
+		 * Payload of the current row, `pack(ownerPrimaryKey, targetPrimaryKey)`.
+		 */
+		private long ownerAndTarget;
+		/**
+		 * Whether the cursor moved past the last row of the slot.
+		 */
+		private boolean exhausted;
+
+		/**
+		 * Opens the cursor before the first row whose partition primary key is greater than or equal to the given one.
+		 *
+		 * @param entries                 the entry tree
+		 * @param fromPartitionPrimaryKey the smallest partition primary key of interest
+		 */
+		private PartitionOwnerCursor(@Nonnull LongPayloadBucketTree entries, int fromPartitionPrimaryKey) {
+			this.entries = entries;
+			// partition primary keys are positive, so a non-positive bound starts at the first row of the slot
+			this.cursor = entries.cursor(NumberUtils.pack(SLOT_ID, Math.max(fromPartitionPrimaryKey, 0)));
+		}
+
+		/**
+		 * Moves to the next row of the slot.
+		 *
+		 * @return true when the cursor is on a row, false when the slot holds no further one
+		 */
+		public boolean next() {
+			if (this.exhausted) {
+				return false;
+			}
+			if (this.cursor.next()) {
+				final long key = (Long) this.cursor.value();
+				// the rows of the slot are one contiguous key range - the first key of another slot ends it
+				if (NumberUtils.unpackHigh(key) == SLOT_ID) {
+					this.partitionPrimaryKey = NumberUtils.unpackLow(key);
+					this.ownerAndTarget = this.cursor.longRecordId();
+					return true;
+				}
+			}
+			this.exhausted = true;
+			return false;
+		}
+
+		/**
+		 * Moves to the first row whose partition primary key is greater than or equal to the given one. A cursor
+		 * already on such a row stays where it is; the cursor never moves back.
+		 *
+		 * @param targetPartitionPrimaryKey the partition primary key to reach
+		 * @return true when the cursor is on a row, false when the slot holds no row at or after the key
+		 */
+		public boolean advanceTo(int targetPartitionPrimaryKey) {
+			if (this.exhausted) {
+				return false;
+			}
+			if (this.partitionPrimaryKey >= targetPartitionPrimaryKey) {
+				return true;
+			}
+			// a near row is cheaper to reach by stepping than by a descent from the root
+			for (int i = 0; i < GALLOP_STEPS; i++) {
+				if (!next()) {
+					return false;
+				}
+				if (this.partitionPrimaryKey >= targetPartitionPrimaryKey) {
+					return true;
+				}
+			}
+			// a far row - descend once to the first key at or after it
+			this.cursor = this.entries.cursor(NumberUtils.pack(SLOT_ID, targetPartitionPrimaryKey));
+			return next();
+		}
+
+		/**
+		 * Returns the primary key of the partition of the current row. Valid only after a move that returned true.
+		 *
+		 * @return the partition primary key
+		 */
+		public int partitionPrimaryKey() {
+			return this.partitionPrimaryKey;
+		}
+
+		/**
+		 * Returns the payload of the current row, `pack(ownerPrimaryKey, targetPrimaryKey)` - see
+		 * {@link #getPartitionOwner(int)}. Valid only after a move that returned true.
+		 *
+		 * @return the packed owner and referenced entity
+		 */
+		public long ownerAndTarget() {
+			return this.ownerAndTarget;
+		}
+
 	}
 
 	/**

@@ -24,6 +24,7 @@
 package io.evitadb.index;
 
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.index.mutation.ReadResolverGuardFixture;
 import io.evitadb.store.catalog.DefaultEntityCollectionPersistenceService;
 import io.evitadb.utils.CollectionUtils;
 import net.bytebuddy.jar.asm.ClassReader;
@@ -109,6 +110,12 @@ import static org.junit.jupiter.api.Assertions.fail;
  *   a raw index, which a caller can read without naming its type, building the key by hand or resolving it by
  *   primary key. The resolver builds the key inside the methods that narrow its result to the handle, so that is the
  *   only place the factory may be called from.
+ * - **R6 read resolution on the write path**: calls and method references of a resolver that honours the read switch
+ *   of a collection - and may therefore answer a {@link VirtualReferencePartition} - from the write path (the
+ *   packages of the mutation executors, the buffers and the storage) or from the physical index inspection (the index
+ *   browse, detail and cardinality projections and the members of `EntityCollection` serving them and the membership
+ *   rebuild). A write reaches a partition only through its reduced entity index, and the inspection reports the
+ *   physical index while it exists. R6 has no legitimate site, so the allow-list carries no entry for it.
  *
  * The reduced index classes themselves are not scanned - their references to their own type are not accesses.
  *
@@ -185,6 +192,51 @@ class ReferencePartitionAccessGuardTest {
 	 * Internal name of the partition resolver, the only class allowed to call its key factory (rule R5).
 	 */
 	private static final String RESOLVER = "io/evitadb/index/ReferencePartitions";
+	/**
+	 * Internal-name prefixes of the classes of the write path, which must not resolve partitions for a read (rule R6).
+	 */
+	private static final List<String> WRITE_PATH_PACKAGES = List.of(
+		"io/evitadb/index/mutation/", "io/evitadb/core/buffer/", "io/evitadb/store/"
+	);
+	/**
+	 * Internal names of the physical index inspection classes, which must not resolve partitions for a read (rule R6)
+	 * - their nested classes included.
+	 */
+	private static final Set<String> PHYSICAL_INSPECTION_CLASSES = Set.of(
+		"io/evitadb/core/collection/IndexBrowseProjection",
+		"io/evitadb/core/collection/IndexDetailProjection",
+		"io/evitadb/core/collection/IndexCardinalityProjection"
+	);
+	/**
+	 * Members of `EntityCollection` serving the physical index inspection or the membership rebuild, which must not
+	 * resolve partitions for a read (rule R6).
+	 */
+	private static final Set<String> COLLECTION_WRITE_OR_INSPECTION_MEMBERS = Set.of(
+		"io.evitadb.core.collection.EntityCollection#browseIndexes",
+		"io.evitadb.core.collection.EntityCollection#describeIndex",
+		"io.evitadb.core.collection.EntityCollection#getStatistics",
+		"io.evitadb.core.collection.EntityCollection#registerPartition",
+		"io.evitadb.core.collection.EntityCollection#registerReducedIndex",
+		"io.evitadb.core.collection.EntityCollection#rebuildReducedIndexMembership"
+	);
+	/**
+	 * The read resolvers by the internal name of their owner, rule R6 - an empty set stands for every member of the
+	 * owner.
+	 */
+	private static final Map<String, Set<String>> READ_RESOLVERS = Map.of(
+		RESOLVER, Set.of(
+			"resolveVirtualIfExists", "resolveForReadIfExists", "resolveForRead", "resolveOfTargetForRead", "split",
+			"toVirtualPartition"
+		),
+		"io/evitadb/index/PartitionKeyMemo", Set.of(),
+		"io/evitadb/index/ReferencePartitionSplit", Set.of(),
+		"io/evitadb/index/VirtualReferencePartition", Set.of("<init>"),
+		"io/evitadb/core/query/QueryPlanningContext", Set.of(
+			"resolvePartitionForReadIfExists", "resolvePartitionForRead", "resolvePartitionsOfTargetForRead",
+			"splitPartitionsForRead", "isReadVirtually"
+		),
+		"io/evitadb/core/collection/EntityCollection", Set.of("resolvePartitionForReadIfExists")
+	);
 	/**
 	 * Matches the member of an allow-list entry, capturing `Class#member` and the space-separated descriptors of the
 	 * overloads it pins. No method descriptor contains a space or ends with `)`, so the closing parenthesis is
@@ -328,6 +380,57 @@ class ReferencePartitionAccessGuardTest {
 		assertMismatch(scanner, overloadShape, Set.of(), "pin them");
 		// a member declaring a single overload needs no pin
 		assertNull(overloadMismatch(scanner, "R1 " + fixture + "castShape", Set.of()));
+	}
+
+	/**
+	 * Scans the counterfactual fixture of rule R6, which lives in a package of the write path, and asserts that every
+	 * read resolution it carries is reported under R6 and attributed to its member - and the object-only resolution
+	 * next to them is not.
+	 */
+	@Test
+	@DisplayName("reports every read resolution of the write-path fixture and nothing else")
+	void shouldReportEveryReadResolutionOnTheWritePath() {
+		final Scanner scanner = new Scanner();
+		final String fixtureName = ReadResolverGuardFixture.class.getSimpleName();
+		final Path fixturePackage = codeSource(ReadResolverGuardFixture.class)
+			.resolve(ReadResolverGuardFixture.class.getPackageName().replace('.', '/'));
+		try (Stream<Path> files = Files.list(fixturePackage)) {
+			for (Path file : (Iterable<Path>) files::iterator) {
+				final String fileName = file.getFileName().toString();
+				if (fileName.equals(fixtureName + ".class") || fileName.startsWith(fixtureName + "$")) {
+					try (InputStream is = Files.newInputStream(file)) {
+						scanner.scanClass(is);
+					}
+				}
+			}
+		} catch (IOException e) {
+			throw new UncheckedIOException(e);
+		}
+		final String fixture = ReadResolverGuardFixture.class.getName() + "#";
+		final Map<String, String> expected = CollectionUtils.createLinkedHashMap(8);
+		expected.put(
+			"R6 " + fixture + "resolverReadShape", "call io/evitadb/index/ReferencePartitions.resolveVirtualIfExists"
+		);
+		expected.put("R6 " + fixture + "splitReferenceShape", "indy handle io/evitadb/index/ReferencePartitions.split");
+		expected.put("R6 " + fixture + "memoShape", "indy handle io/evitadb/index/PartitionKeyMemo.<init>");
+		expected.put(
+			"R6 " + fixture + "queryContextShape",
+			"call io/evitadb/core/query/QueryPlanningContext.resolvePartitionForReadIfExists"
+		);
+		expected.put(
+			"R6 " + fixture + "collectionShape",
+			"call io/evitadb/core/collection/EntityCollection.resolvePartitionForReadIfExists"
+		);
+		for (Map.Entry<String, String> shape : expected.entrySet()) {
+			final Set<String> evidence = scanner.hits.get(shape.getKey());
+			assertNotNull(evidence, "The guard does not report `" + shape.getKey() + "` - found only " + scanner.hits);
+			assertTrue(
+				evidence.stream().anyMatch(it -> it.contains(shape.getValue())),
+				"`" + shape.getKey() + "` was reported, but not through `" + shape.getValue() + "`: " + evidence
+			);
+		}
+		// the object-only resolution next to them is the sanctioned route of the write path
+		assertEquals(expected.size(), scanner.hits.size(), "Unexpected hits in the fixture: " + scanner.hits);
 	}
 
 	/**
@@ -715,6 +818,38 @@ class ReferencePartitionAccessGuardTest {
 		}
 
 		/**
+		 * Tells whether a method is a read resolver - one that honours the read switch of a collection (rule R6).
+		 *
+		 * @param owner the internal name of the owner of the method
+		 * @param name  the method name
+		 * @return true for a read resolver
+		 */
+		private static boolean isReadResolver(@Nonnull String owner, @Nonnull String name) {
+			final Set<String> names = READ_RESOLVERS.get(owner);
+			return names != null && (names.isEmpty() || names.contains(name));
+		}
+
+		/**
+		 * Tells whether a member belongs to the write path or to the physical index inspection, neither of which may
+		 * resolve partitions for a read (rule R6).
+		 *
+		 * @param internalName the internal name of the class declaring the member
+		 * @param site         `Class#member` of the member
+		 * @return true when the member must not call a read resolver
+		 */
+		private static boolean isWriteOrInspectionSite(@Nonnull String internalName, @Nonnull String site) {
+			for (final String writePathPackage : WRITE_PATH_PACKAGES) {
+				if (internalName.startsWith(writePathPackage)) {
+					return true;
+				}
+			}
+			final int nested = internalName.indexOf('$');
+			final String outerName = nested < 0 ? internalName : internalName.substring(0, nested);
+			return PHYSICAL_INSPECTION_CLASSES.contains(outerName) ||
+				COLLECTION_WRITE_OR_INSPECTION_MEMBERS.contains(site);
+		}
+
+		/**
 		 * Tells whether an internal name, possibly of an array type, names a reduced index type.
 		 *
 		 * @param internalName the internal name
@@ -1057,7 +1192,7 @@ class ReferencePartitionAccessGuardTest {
 			}
 
 			/**
-			 * Applies rules R1, R3, R4 and R5 to a called or referenced method.
+			 * Applies rules R1, R3, R4, R5 and R6 to a called or referenced method.
 			 *
 			 * @param owner      the owner of the method
 			 * @param name       the method name
@@ -1089,6 +1224,10 @@ class ReferencePartitionAccessGuardTest {
 						!RESOLVER.equals(this.classVisitor.internalName)
 				) {
 					bodyHit("R5", channel + " " + owner + "." + name);
+				}
+				// the write path and the physical inspection resolve partitions through the object-only resolvers
+				if (isReadResolver(owner, name) && isWriteOrInspectionSite(this.classVisitor.internalName, this.site)) {
+					bodyHit("R6", channel + " " + owner + "." + name);
 				}
 			}
 		}

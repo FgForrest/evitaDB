@@ -46,7 +46,8 @@ import java.util.function.Supplier;
  * a scanner that silently stopped seeing a shape fails here instead of passing everywhere else.
  *
  * The fixture also carries shapes the guard must not report - the group family, a key of another index type, a
- * by-key lookup, a resolution through the resolver and a read through the partition handle. The test expects exactly
+ * by-key lookup, a resolution through the resolver, a read resolution outside the write path and a read through the
+ * partition handle. The test expects exactly
  * the listed hits, so a scanner that started reporting one of these fails too.
  *
  * Nothing here is ever executed; the members only have to compile into the bytecode shape they are named after.
@@ -394,6 +395,18 @@ final class ReferencePartitionGuardFixture {
 			new RepresentativeReferenceKey(new ReferenceKey("any", 1))
 		);
 		return partition == null ? null : partition.getAllPrimaryKeys();
+	}
+
+	/**
+	 * A read resolution outside the write path, which is where it belongs - never reported (rule R6 concerns only the
+	 * write path and the physical index inspection).
+	 *
+	 * @param typeIndex any type index
+	 * @return the partition
+	 */
+	@Nullable
+	static ReferencePartition readResolverShape(@Nonnull ReferencedTypeEntityIndex typeIndex) {
+		return ReferencePartitions.resolveVirtualIfExists(typeIndex, 1);
 	}
 
 	/**

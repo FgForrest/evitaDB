@@ -130,6 +130,45 @@ class VirtualReferencePartitionMaintenanceTest implements EvitaTestSupport {
 	}
 
 	@Test
+	@DisplayName("the read switch is off until it is turned on, and only a maintained collection can be read virtually")
+	void shouldReadVirtuallyOnlyAMaintainedCollection() {
+		final EntityCollection products = collectionOf(CATALOG, ENTITY_PRODUCT);
+		assertFalse(products.isVirtualReferencePartitionsReadVirtually());
+		assertThrows(GenericEvitaInternalError.class, () -> products.setVirtualReferencePartitionsReadVirtually(true));
+		assertFalse(products.isVirtualReferencePartitionsReadVirtually());
+
+		products.setVirtualReferencePartitionsMaintained(true);
+		products.setVirtualReferencePartitionsReadVirtually(true);
+		assertTrue(products.isVirtualReferencePartitionsReadVirtually());
+		assertFalse(
+			collectionOf(CATALOG, ENTITY_CATEGORY).isVirtualReferencePartitionsReadVirtually(),
+			"The read switch belongs to one collection"
+		);
+		assertThrows(
+			GenericEvitaInternalError.class, () -> products.setVirtualReferencePartitionsMaintained(false),
+			"A collection read virtually must keep its registry up to date"
+		);
+		assertTrue(products.isVirtualReferencePartitionsMaintained());
+
+		products.setVirtualReferencePartitionsReadVirtually(false);
+		assertFalse(products.isVirtualReferencePartitionsReadVirtually());
+		products.setVirtualReferencePartitionsMaintained(false);
+		assertFalse(products.isVirtualReferencePartitionsMaintained());
+	}
+
+	@Test
+	@DisplayName("the read switch moves with a rename, together with the maintenance")
+	void shouldCarryTheReadSwitchOverARename() {
+		collectionOf(CATALOG, ENTITY_PRODUCT).setVirtualReferencePartitionsMaintained(true);
+		collectionOf(CATALOG, ENTITY_PRODUCT).setVirtualReferencePartitionsReadVirtually(true);
+		this.evita.updateCatalog(CATALOG, session -> {
+			session.renameCollection(ENTITY_PRODUCT, ENTITY_ITEM);
+		});
+		assertTrue(collectionOf(CATALOG, ENTITY_ITEM).isVirtualReferencePartitionsMaintained());
+		assertTrue(collectionOf(CATALOG, ENTITY_ITEM).isVirtualReferencePartitionsReadVirtually());
+	}
+
+	@Test
 	@DisplayName("the switch survives writes, going live, commits, a rename and a replacement")
 	void shouldSurviveEveryReInstantiationOfTheCollection() {
 		collectionOf(CATALOG, ENTITY_PRODUCT).setVirtualReferencePartitionsMaintained(true);

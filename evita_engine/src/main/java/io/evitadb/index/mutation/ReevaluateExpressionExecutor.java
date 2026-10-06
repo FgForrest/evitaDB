@@ -55,6 +55,7 @@ import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.HistogramIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -2314,7 +2315,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			final List<AffectedReferenceGroup> groups = new ArrayList<>(storagePKs.length);
 			for (int storagePK : storagePKs) {
 				// lenient - a partition the type index still advertises but the collection no longer holds is skipped
-				final ReferencePartition partition = target.resolvePartitionIfExists(storagePK);
+				final ReferencePartition partition = ReferencePartitions.requireMaterialized(
+					target.resolvePartitionIfExists(storagePK), "resolveForRefEntityAttrUngrouped"
+				);
 				if (partition != null) {
 					final Bitmap ownerPKs = partition.getAllPrimaryKeys();
 					if (!ownerPKs.isEmpty()) {
@@ -2480,7 +2483,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			final int[] storagePKs = rtei.getAllReferenceIndexes(refPK);
 			for (int storagePK : storagePKs) {
 				// lenient - a partition the type index still advertises but the collection no longer holds is skipped
-				final ReferencePartition partition = target.resolvePartitionIfExists(storagePK);
+				final ReferencePartition partition = ReferencePartitions.requireMaterialized(
+					target.resolvePartitionIfExists(storagePK), "resolveForParentUngrouped"
+				);
 				if (partition == null) {
 					continue;
 				}

@@ -728,6 +728,31 @@ public final class EntityCollection implements
 
 	// TODO JNO - remove at the end of #1615
 	/**
+	 * Returns TRUE when the queries over this collection read its registered single-owner partitions virtually. The
+	 * switch is held by the catalog under this collection's entity type name, exactly as the maintenance switch is.
+	 *
+	 * @return TRUE when the read switch is on for this collection
+	 */
+	// TODO JNO - remove at the end of #1615
+	public boolean isVirtualReferencePartitionsReadVirtually() {
+		return this.catalog.getVirtualReferencePartitionMaintenance().isReadVirtually(getEntityType());
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Turns the virtual reading of this collection's registered single-owner partitions on or off. Meant for tests
+	 * only, and only for a collection that is maintained - see
+	 * {@link #setVirtualReferencePartitionsMaintained(boolean)}.
+	 *
+	 * @param readVirtually TRUE to read the registered single-owner partitions virtually, FALSE to stop
+	 */
+	// TODO JNO - remove at the end of #1615
+	public void setVirtualReferencePartitionsReadVirtually(boolean readVirtually) {
+		this.catalog.getVirtualReferencePartitionMaintenance().setReadVirtually(getEntityType(), readVirtually);
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
 	 * Returns the keys of the indexes of this collection acquired for modification and not flushed yet - within a
 	 * transaction those the transaction acquired. Meant for tests comparing what two engines enroll.
 	 *
@@ -2000,7 +2025,9 @@ public final class EntityCollection implements
 		@Nonnull ReducedIndexMembership membership,
 		int partitionPk
 	) {
-		final ReferencePartition partition = resolvePartitionIfExists(partitionPk);
+		final ReferencePartition partition = ReferencePartitions.requireMaterialized(
+			resolvePartitionIfExists(partitionPk), "registerPartition"
+		);
 		if (partition == null) {
 			// advertised but not resolvable - see `registerReducedIndex`
 			membership.registerIndexAsResidual(partitionPk);
@@ -2174,6 +2201,42 @@ public final class EntityCollection implements
 	@Nullable
 	public ReferencePartition resolvePartitionIfExists(int partitionPrimaryKey) {
 		return ReferencePartitions.asPartition(getIndexByPrimaryKeyIfExists(partitionPrimaryKey));
+	}
+
+	/**
+	 * Returns the reference partition of this collection with the primary key, when it is a partition of the reference
+	 * in the scope, for a read by a query of another collection - see the read resolution of
+	 * {@link ReferencePartitions}. The indexes are read as {@link #getIndexByPrimaryKeyIfExists(int)} reads them. The
+	 * caller passes the read switch of this collection as its query captured it, so one query never mixes the two
+	 * readings.
+	 *
+	 * @param scope               the scope of the partition
+	 * @param referenceName       the reference the partition belongs to
+	 * @param partitionPrimaryKey the primary key of the partition in this collection
+	 * @param readVirtually       TRUE when the query reads this collection virtually
+	 * @return the virtual partition when the query reads this collection virtually and the registry holds the
+	 *         partition's row, its reduced entity index when it is a partition of the reference in the scope, `null`
+	 *         otherwise
+	 */
+	@Nullable
+	public ReferencePartition resolvePartitionForReadIfExists(
+		@Nonnull Scope scope,
+		@Nonnull String referenceName,
+		int partitionPrimaryKey,
+		boolean readVirtually
+	) {
+		ReferencedTypeEntityIndex virtualTypeIndex = null;
+		// TODO JNO - remove at the end of #1615 (the condition, its body stays)
+		if (readVirtually) {
+			final EntityIndex typeIndex = getIndexByKeyIfExists(
+				new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName)
+			);
+			virtualTypeIndex = typeIndex instanceof ReferencedTypeEntityIndex referencedTypeIndex ?
+				referencedTypeIndex : null;
+		}
+		return ReferencePartitions.resolveForReadIfExists(
+			this::resolvePartitionIfExists, virtualTypeIndex, scope, referenceName, partitionPrimaryKey
+		);
 	}
 
 	/**

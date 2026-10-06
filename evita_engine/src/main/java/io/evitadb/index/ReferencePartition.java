@@ -25,20 +25,10 @@ package io.evitadb.index;
 
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.index.attribute.ChainIndex;
-import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
-import java.util.Locale;
-import java.util.function.Consumer;
 
 /**
  * A reference partition is the rows of one `(scope, RepresentativeReferenceKey)` of a reference - the owners that
@@ -48,25 +38,32 @@ import java.util.function.Consumer;
  * {@link io.evitadb.api.requestResponse.schema.ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} indexing level: a
  * reference indexed only `FOR_FILTERING` has partitions too, and they are the ones this handle exists for.
  *
- * **This type is the only way code outside the index layer is meant to reach a partition.** Today every partition
- * is a materialized {@link ReducedEntityIndex}, which implements this interface directly, so a partition costs no
- * wrapper object and keeps its identity. The interface is sealed so that code which genuinely needs the object -
- * a write that goes through the generic {@link EntityIndex} write API, the query body channel that is bound to
- * {@link Index} (see {@link ReferencePartitions#toReducedEntityIndex}) - unwraps it in an exhaustive `switch`, and a
- * future non-materialized variant makes the compiler list every such place. Partitions are resolved through
- * {@link ReferencePartitions} and the resolver surfaces built on it;
- * a guard test in the functional test suite rejects new direct accesses to the reduced index family.
+ * **This type is the only way code outside the index layer is meant to reach a partition.** A partition has two
+ * representations:
  *
- * The read surface is deliberately narrow: identity (primary key, key, representative key, target), owners, and the
- * sort and chain structures the sort translators and the registry of single-owner partitions need - the latter reads
- * them by key, every key the partition holds, when it copies the values of a partition's only owner. Nothing
- * returning the partition's filter or attribute indexes belongs here.
+ * - a materialized {@link ReducedEntityIndex}, which implements this interface directly, so a partition costs no
+ *   wrapper object and keeps its identity - every partition has one, and every write reaches the partition through it;
+ * - a {@link VirtualReferencePartition}, a value read out of the registry of single-owner partitions, which only the
+ *   read resolvers honouring the collection's read switch hand out for a registered partition.
+ *
+ * The interface is sealed so that code which genuinely needs the object - a write that goes through the generic
+ * {@link EntityIndex} write API, the query body channel that is bound to {@link Index} (see
+ * {@link ReferencePartitions#toReducedEntityIndex}), a sort that reads the partition's sort or chain index - unwraps
+ * it in an exhaustive `switch`, and the compiler lists every such place: the virtual arm of a write path throws, and so
+ * does the virtual arm of a query route that does not read virtual partitions yet. Partitions are resolved through
+ * {@link ReferencePartitions} and the resolver surfaces built on it; a guard test in the functional test suite rejects
+ * new direct accesses to the reduced index family.
+ *
+ * The read surface is deliberately narrow: identity (primary key, key, representative key, target) and owners. The
+ * sort and chain structures of a partition are not part of it - a virtual partition has none of its own, its values
+ * live in the registry - so whoever reads them holds a {@link ReducedEntityIndex} and says so in its type. Nothing
+ * returning the partition's filter or attribute indexes belongs here either.
  *
  * The group family ({@link ReducedGroupEntityIndex}) is not a reference partition and never will be.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public sealed interface ReferencePartition permits ReducedEntityIndex {
+public sealed interface ReferencePartition permits ReducedEntityIndex, VirtualReferencePartition {
 
 	/**
 	 * Returns the primary key of the partition. It is unique within the entity collection that owns the partition
@@ -123,85 +120,5 @@ public sealed interface ReferencePartition permits ReducedEntityIndex {
 	 * @return the number of owners
 	 */
 	int size();
-
-	/**
-	 * Returns the sort index of a reference attribute over the partition's owners.
-	 *
-	 * @param referenceSchema the reference schema that holds the attribute
-	 * @param attributeSchema the attribute schema to find the index for
-	 * @param locale          might not be passed for language agnostic attributes
-	 * @return the sort index or `null` when the partition maintains none for the attribute
-	 */
-	@Nullable
-	SortIndex getSortIndex(
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull AttributeSchemaContract attributeSchema,
-		@Nullable Locale locale
-	);
-
-	/**
-	 * Returns the sort index of a sortable attribute compound over the partition's owners.
-	 *
-	 * @param entitySchema    the entity schema to which the reference belongs
-	 * @param referenceSchema the reference schema that holds the compound
-	 * @param compoundSchema  the compound schema to find the index for
-	 * @param locale          might not be passed for language agnostic compounds
-	 * @return the sort index or `null` when the partition maintains none for the compound
-	 */
-	@Nullable
-	SortIndex getSortIndex(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull SortableAttributeCompoundSchemaContract compoundSchema,
-		@Nullable Locale locale
-	);
-
-	/**
-	 * Returns the chain index of a predecessor reference attribute over the partition's owners.
-	 *
-	 * @param referenceSchema the reference schema that holds the attribute
-	 * @param attributeSchema the attribute schema to find the index for
-	 * @param locale          might not be passed for language agnostic attributes
-	 * @return the chain index or `null` when the partition maintains none for the attribute
-	 */
-	@Nullable
-	ChainIndex getChainIndex(
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull AttributeSchemaContract attributeSchema,
-		@Nullable Locale locale
-	);
-
-	/**
-	 * Hands the key of every sort index the partition maintains over its owners - of reference attributes and sortable
-	 * attribute compounds alike, in every locale - to the consumer.
-	 *
-	 * @param consumer invoked once per key
-	 */
-	void forEachSortIndexKey(@Nonnull Consumer<AttributeIndexKey> consumer);
-
-	/**
-	 * Hands the key of every chain index the partition maintains over its owners to the consumer.
-	 *
-	 * @param consumer invoked once per key
-	 */
-	void forEachChainIndexKey(@Nonnull Consumer<AttributeIndexKey> consumer);
-
-	/**
-	 * Returns the sort index of a key {@link #forEachSortIndexKey(Consumer)} reports.
-	 *
-	 * @param lookupKey the key of the reference attribute or sortable attribute compound, with its locale
-	 * @return the sort index or `null` when the partition maintains none for the key
-	 */
-	@Nullable
-	SortIndex getSortIndex(@Nonnull AttributeIndexKey lookupKey);
-
-	/**
-	 * Returns the chain index of a key {@link #forEachChainIndexKey(Consumer)} reports.
-	 *
-	 * @param lookupKey the key of the predecessor reference attribute, with its locale
-	 * @return the chain index or `null` when the partition maintains none for the key
-	 */
-	@Nullable
-	ChainIndex getChainIndex(@Nonnull AttributeIndexKey lookupKey);
 
 }

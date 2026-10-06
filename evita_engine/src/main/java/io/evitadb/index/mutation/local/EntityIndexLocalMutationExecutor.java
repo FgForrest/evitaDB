@@ -1843,7 +1843,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull RepresentativeReferenceKey representativeReferenceKey
 	) {
 		return Objects.requireNonNull(
-			ReferencePartitions.resolveIfExists(this::getOrCreateIndex, scope, representativeReferenceKey)
+			ReferencePartitions.requireMaterialized(
+				ReferencePartitions.resolveIfExists(this::getOrCreateIndex, scope, representativeReferenceKey),
+				"getOrCreatePartitionForWrite"
+			)
 		);
 	}
 
@@ -1866,11 +1869,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		int targetPrimaryKey,
 		@Nonnull Consumer<ReferencePartition> consumer
 	) {
-		final ReferencePartition[] partitions = ReferencePartitions.resolveOfTargetOrThrow(
-			this::getOrCreateIndex,
-			partitionPrimaryKey -> getIndexByPrimaryKey(partitionPrimaryKey).orElse(null),
-			scope, referenceSchema.getName(), referenceSchema.getCardinality().allowsDuplicates(), targetPrimaryKey,
-			getEntitySchema().getName()
+		final ReferencePartition[] partitions = ReferencePartitions.requireMaterialized(
+			ReferencePartitions.resolveOfTargetOrThrow(
+				this::getOrCreateIndex,
+				partitionPrimaryKey -> getIndexByPrimaryKey(partitionPrimaryKey).orElse(null),
+				scope, referenceSchema.getName(), referenceSchema.getCardinality().allowsDuplicates(),
+				targetPrimaryKey, getEntitySchema().getName()
+			),
+			"forEachPartitionOfTargetForWrite"
 		);
 		for (final ReferencePartition partition : partitions) {
 			consumer.accept(partition);
@@ -3362,6 +3368,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 								switch (partition) {
 									case ReducedEntityIndex reducedIndex ->
 										entityIndexConsumer.accept(partitionSchema, reducedIndex);
+									case VirtualReferencePartition virtual ->
+										throw ReferencePartitions.virtualPartitionOnWritePath(
+											virtual, "applyOnExistingReducedIndexes"
+										);
 								}
 							}
 						}
@@ -3496,6 +3506,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					mutation.getGroupPrimaryKey(),
 					this
 				);
+				case VirtualReferencePartition virtual ->
+					throw ReferencePartitions.virtualPartitionOnWritePath(virtual, "setFacetGroupInIndex");
 			}
 		}
 		// defer histogram group transfer while cardinality data is still present
@@ -3554,6 +3566,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					mutation.getReferenceKey(),
 					this
 				);
+				case VirtualReferencePartition virtual ->
+					throw ReferencePartitions.virtualPartitionOnWritePath(virtual, "removeFacetGroupInIndex");
 			}
 		}
 		// defer histogram group transfer while cardinality data is still present

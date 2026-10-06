@@ -51,6 +51,7 @@ import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
@@ -208,9 +209,10 @@ final class VirtualReferencePartitionWriter {
 		@Nonnull ReferencePartition partition
 	) {
 		final int partitionPrimaryKey = partition.getPrimaryKey();
-		final ReferencePartition current = ReferencePartitions.asPartition(
-			executor.getIndexIfExists(partition.getIndexKey())
-		);
+		// the index object itself - the extraction below reads the partition's own sort and chain indexes, which a
+		// partition has only as an index object
+		final EntityIndex currentIndex = executor.getIndexIfExists(partition.getIndexKey());
+		final ReferencePartition current = ReferencePartitions.asPartition(currentIndex);
 		// emptied or shared again since it was left with one owner - there is nothing to demote
 		if (current == null || current.getPrimaryKey() != partitionPrimaryKey || current.size() != 1) {
 			return;
@@ -243,7 +245,7 @@ final class VirtualReferencePartitionWriter {
 				final EntitySchemaContract entitySchema = executor.getEntitySchema();
 				extractValuesOfOwner(
 					registry, entitySchema, entitySchema.getReferenceOrThrowException(referenceName), current,
-					ownerPrimaryKey
+					currentIndex, ownerPrimaryKey
 				);
 			}
 		}
@@ -263,10 +265,14 @@ final class VirtualReferencePartitionWriter {
 	 * Only the keys of the partition's own reference are read; a partition of a reference indexed `FOR_FILTERING` holds
 	 * no other.
 	 *
+	 * The sort and chain indexes are read from the partition's index object: they are not part of the partition handle,
+	 * because a virtual partition has none of its own.
+	 *
 	 * @param registry        the registry, holding the partition's row and nothing else of it
 	 * @param entitySchema    the schema of the owner entity
 	 * @param referenceSchema the reference the partition belongs to
 	 * @param partition       the partition
+	 * @param partitionIndex  the index object of the partition, whose sort and chain indexes are read
 	 * @param ownerPrimaryKey the primary key of its only owner
 	 */
 	private static void extractValuesOfOwner(
@@ -274,18 +280,20 @@ final class VirtualReferencePartitionWriter {
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull ReferencePartition partition,
+		@Nonnull EntityIndex partitionIndex,
 		int ownerPrimaryKey
 	) {
 		final String referenceName = referenceSchema.getName();
 		final int partitionPrimaryKey = partition.getPrimaryKey();
 		final ReferenceSchemaAttributeAndCompoundSchemaProvider schemaProvider =
 			new ReferenceSchemaAttributeAndCompoundSchemaProvider(entitySchema, referenceSchema);
-		partition.forEachSortIndexKey(
+		partitionIndex.forEachAttributeIndexKey(
+			AttributeIndexType.SORT,
 			key -> {
 				if (!referenceName.equals(key.referenceName())) {
 					return;
 				}
-				final SortIndex sortIndex = partition.getSortIndex(key);
+				final SortIndex sortIndex = partitionIndex.getSortIndex(key);
 				final Optional<Serializable> value = sortIndex == null ?
 					Optional.empty() : sortIndex.getValueOfRecord(ownerPrimaryKey);
 				if (value.isPresent()) {
@@ -303,7 +311,8 @@ final class VirtualReferencePartitionWriter {
 				}
 			}
 		);
-		partition.forEachChainIndexKey(
+		partitionIndex.forEachAttributeIndexKey(
+			AttributeIndexType.CHAIN,
 			key -> {
 				if (!referenceName.equals(key.referenceName())) {
 					return;
@@ -312,7 +321,7 @@ final class VirtualReferencePartitionWriter {
 				final boolean keyedByReferencedEntity = ReferencedEntityPredecessor.class.isAssignableFrom(
 					schemaProvider.getAttributeSchema(key.attributeName()).getPlainType()
 				);
-				final ChainIndex chainIndex = partition.getChainIndex(key);
+				final ChainIndex chainIndex = partitionIndex.getChainIndex(key);
 				final OptionalInt predecessor = chainIndex == null ?
 					OptionalInt.empty() :
 					chainIndex.getPredecessorPrimaryKey(

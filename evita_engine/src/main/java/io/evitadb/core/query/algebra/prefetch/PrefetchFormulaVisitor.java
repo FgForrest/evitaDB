@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.algebra.prefetch;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetchRequire;
@@ -39,6 +40,8 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.AbstractReducedEntityIndex;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -195,6 +198,14 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 								() -> "Prefetch narrowed to reduced index `" + reducedIndex.getIndexKey() + "` of a " +
 									"reference that is not indexed for partitioning!"
 							);
+							// the registry of single-owner partitions keeps rows only for references indexed for
+							// filtering alone, so every partition of a narrowed set is read through its index object
+							// here - whether the query reads the collection virtually or not
+							Assert.isPremiseValid(
+								hasNoVirtualPartition(referenceName, scope),
+								() -> "Prefetch narrowed to reduced index `" + reducedIndex.getIndexKey() + "` of a " +
+									"reference whose single-owner partitions are registered as virtual ones!"
+							);
 							lastCheckedReferenceName = referenceName;
 							lastCheckedScope = scope;
 						}
@@ -312,6 +323,24 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	 */
 	private long getExpectedComputationalCosts() {
 		return this.expectedComputationalCosts;
+	}
+
+	/**
+	 * Returns TRUE when the registry of single-owner partitions of the reference in the scope holds nothing - which is
+	 * always the case for a reference indexed for partitioning, the only kind a narrowed index set is built for.
+	 *
+	 * @param referenceName the reference
+	 * @param scope         the scope
+	 * @return TRUE when no partition of the reference in the scope is registered as a virtual one
+	 */
+	private boolean hasNoVirtualPartition(@Nonnull String referenceName, @Nonnull Scope scope) {
+		return this.queryContext
+			.getIndexIfExists(
+				new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName),
+				ReferencedTypeEntityIndex.class
+			)
+			.map(typeIndex -> typeIndex.getVirtualReferencePartitionIndex().isEmpty())
+			.orElse(true);
 	}
 
 	/**

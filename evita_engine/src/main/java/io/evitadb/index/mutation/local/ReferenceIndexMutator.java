@@ -64,6 +64,7 @@ import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.facet.FacetGroupIndex;
@@ -350,6 +351,8 @@ public interface ReferenceIndexMutator {
 				switch (partition) {
 					case ReducedEntityIndex indexToUse ->
 						referenceIndexConsumer.accept(referenceSchema, indexToUse, indexToUse);
+					case VirtualReferencePartition virtual ->
+						throw ReferencePartitions.virtualPartitionOnWritePath(virtual, "forEachReferenceIndex");
 				}
 			}
 		}
@@ -676,8 +679,12 @@ public interface ReferenceIndexMutator {
 						referenceSchema, referenceKey, attributeMutation,
 						attributeSchemaProvider, existingValueAccessorFactory
 					);
+					case VirtualReferencePartition virtual ->
+						throw ReferencePartitions.virtualPartitionOnWritePath(virtual, "attributeUpdate");
 				}
 			}
+			case VirtualReferencePartition virtual ->
+				throw ReferencePartitions.virtualPartitionOnWritePath(virtual, "attributeUpdate");
 		}
 	}
 
@@ -900,6 +907,8 @@ public interface ReferenceIndexMutator {
 				}
 				yield firstIndexed;
 			}
+			case VirtualReferencePartition virtual ->
+				throw ReferencePartitions.virtualPartitionOnWritePath(virtual, "referenceInsertPerComponent");
 		};
 		// the owner-membership boundary the cross-entity facet trigger's reverse lookup is maintained from -
 		// exactly the 0 -> 1 transition, for both index families, and for no other event
@@ -1156,6 +1165,8 @@ public interface ReferenceIndexMutator {
 			case ReducedEntityIndex referenceIndex -> addFacetToIndex(
 				referenceIndex, referenceSchema, referenceKey, groupId, entityPrimaryKey, executor
 			);
+			case VirtualReferencePartition virtual ->
+				throw ReferencePartitions.virtualPartitionOnWritePath(virtual, "addFacetToPartition");
 		}
 	}
 
@@ -1230,6 +1241,8 @@ public interface ReferenceIndexMutator {
 				}
 				yield removed;
 			}
+			case VirtualReferencePartition virtual ->
+				throw ReferencePartitions.virtualPartitionOnWritePath(virtual, "referenceRemovalPerComponent");
 		};
 		// the symmetric 1 -> 0 boundary; see the insert counterpart
 		if (entityFullyRemovedFromTargetIndex) {

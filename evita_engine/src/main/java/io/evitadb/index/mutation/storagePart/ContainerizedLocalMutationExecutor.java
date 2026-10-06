@@ -346,11 +346,14 @@ public final class ContainerizedLocalMutationExecutor
 					// the reflected reference's cardinality decides the lookup
 					Collections.addAll(
 						partitions,
-						ReferencePartitions.resolveOfTarget(
-							dataStoreReader, counterpartScope,
-							referenceSchema.getReflectedReferenceName(),
-							referenceSchema.getCardinality().allowsDuplicates(),
-							this.entityPrimaryKey
+						ReferencePartitions.requireMaterialized(
+							ReferencePartitions.resolveOfTarget(
+								dataStoreReader, counterpartScope,
+								referenceSchema.getReflectedReferenceName(),
+								referenceSchema.getCardinality().allowsDuplicates(),
+								this.entityPrimaryKey
+							),
+							"createAndRegisterReferencePropagationMutation"
 						)
 					);
 				}
@@ -913,13 +916,16 @@ public final class ContainerizedLocalMutationExecutor
 			// the partition of the given entity primary key
 			return (epk, representativeAttributeValues) -> {
 				// a missing partition reads as "absent"
-				final ReferencePartition targetPartition = ReferencePartitions.resolveIfExists(
-					dataStoreReader,
-					usedScope,
-					new RepresentativeReferenceKey(
-						new ReferenceKey(referencedSchemaName, epk),
-						representativeAttributeValues
-					)
+				final ReferencePartition targetPartition = ReferencePartitions.requireMaterialized(
+					ReferencePartitions.resolveIfExists(
+						dataStoreReader,
+						usedScope,
+						new RepresentativeReferenceKey(
+							new ReferenceKey(referencedSchemaName, epk),
+							representativeAttributeValues
+						)
+					),
+					"createCounterpartPresencePredicate"
 				);
 				// always check this entity primary key
 				return targetPartition != null && targetPartition.getAllPrimaryKeys().contains(entityPrimaryKey);
@@ -928,13 +934,16 @@ public final class ContainerizedLocalMutationExecutor
 			// always the partition of this entity
 			return (epk, representativeAttributeValues) -> {
 				// a missing partition reads as "absent"
-				final ReferencePartition targetPartition = ReferencePartitions.resolveIfExists(
-					dataStoreReader,
-					usedScope,
-					new RepresentativeReferenceKey(
-						new ReferenceKey(referencedSchemaName, entityPrimaryKey),
-						representativeAttributeValues
-					)
+				final ReferencePartition targetPartition = ReferencePartitions.requireMaterialized(
+					ReferencePartitions.resolveIfExists(
+						dataStoreReader,
+						usedScope,
+						new RepresentativeReferenceKey(
+							new ReferenceKey(referencedSchemaName, entityPrimaryKey),
+							representativeAttributeValues
+						)
+					),
+					"createCounterpartPresencePredicate"
 				);
 				return targetPartition != null && targetPartition.getAllPrimaryKeys().contains(epk);
 			};
@@ -2609,12 +2618,15 @@ public final class ContainerizedLocalMutationExecutor
 									referenceSchema,
 									referencedSchemaName,
 									referencedEntityType,
-									epk -> ReferencePartitions.resolveOfTarget(
-										this.dataStoreReader,
-										targetEntityScope,
-										referenceName,
-										allowsDuplicates,
-										epk
+									epk -> ReferencePartitions.requireMaterialized(
+										ReferencePartitions.resolveOfTarget(
+											this.dataStoreReader,
+											targetEntityScope,
+											referenceName,
+											allowsDuplicates,
+											epk
+										),
+										"propagateReferenceModification"
 									),
 									referenceBlock.getAttributeSupplier(),
 									// we need to negate the predicate, because we want to insert missing references

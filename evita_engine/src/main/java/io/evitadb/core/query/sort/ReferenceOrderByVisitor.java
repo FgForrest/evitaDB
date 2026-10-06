@@ -70,6 +70,7 @@ import io.evitadb.core.query.sort.translator.OrderInScopeTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -101,6 +102,11 @@ import static java.util.Optional.ofNullable;
  */
 @RequiredArgsConstructor(access = AccessLevel.PRIVATE)
 public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirementCollector {
+	/**
+	 * Names the chain ordering of `referenceContent(orderBy)` in the error thrown when it meets a virtual reference
+	 * partition before it reads them.
+	 */
+	private static final String CHAIN_ROUTE = "referenceContent(orderBy) chain";
 	private static final Map<Class<? extends OrderConstraint>, ReferenceOrderingConstraintTranslator<? extends OrderConstraint>> TRANSLATORS;
 
 	/* initialize list of all OrderConstraints handlers once for a lifetime */
@@ -379,7 +385,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 						this.referenceSchema.getReferencedEntityType(), scope, theLookupReferenceKey
 					)
 				).map(
-					it -> it.getChainIndex(
+					it -> ReferencePartitions.toEntityIndex(it, CHAIN_ROUTE, "4g").getChainIndex(
 						targetReferenceSchema,
 						targetReferenceSchema.getAttribute(attributeKey.attributeName())
 							.orElseThrow(() -> new AttributeNotFoundException(attributeKey.attributeName(), this.referenceSchema, this.getSchema())),
@@ -419,7 +425,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 				final Optional<ChainIndex> chainIndex = Optional.ofNullable(
 					this.queryContext.resolvePartitionIfExists(scope, referenceKey)
 				).map(
-					it -> it.getChainIndex(
+					it -> ReferencePartitions.toEntityIndex(it, CHAIN_ROUTE, "4g").getChainIndex(
 						this.referenceSchema,
 						this.referenceSchema.getAttribute(attributeKey.attributeName())
 							.orElseThrow(() -> new AttributeNotFoundException(attributeKey.attributeName(), this.referenceSchema, this.getSchema())),

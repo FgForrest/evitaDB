@@ -55,6 +55,7 @@ import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
@@ -85,6 +86,11 @@ import static io.evitadb.index.attribute.SortIndex.createComparatorFor;
  */
 public class AttributeNaturalTranslator
 	implements OrderingConstraintTranslator<AttributeNatural>, ReferenceOrderingConstraintTranslator<AttributeNatural> {
+	/**
+	 * Names the pick-first sort route in the error thrown when it meets a virtual reference partition before it reads
+	 * them.
+	 */
+	private static final String PICK_FIRST_ROUTE = "pick-first sort provider";
 
 	/**
 	 * Combines a given attribute or compound name with the attribute names derived from the
@@ -422,7 +428,8 @@ public class AttributeNaturalTranslator
 			valueComparator = orderDirection == ASC ? naturalComparator : naturalComparator.reversed();
 			final EntitySchemaContract theEntitySchema = Objects.requireNonNull(entitySchema);
 			providerFactory = index -> {
-				final SortIndex sortIndex = index.getSortIndex(theEntitySchema, referenceSchema, compoundSchema, locale);
+				final SortIndex sortIndex = ReferencePartitions.toEntityIndex(index, PICK_FIRST_ROUTE, "4f")
+					.getSortIndex(theEntitySchema, referenceSchema, compoundSchema, locale);
 				return sortIndex == null ? null : () -> providerExtractor.apply(sortIndex);
 			};
 			// the compound being sortable is the whole contract - its elements need not be sortable themselves
@@ -440,7 +447,8 @@ public class AttributeNaturalTranslator
 				new ComparatorSource(attributeSchema.getPlainType(), orderDirection, OrderBehaviour.NULLS_LAST)
 			);
 			providerFactory = index -> {
-				final SortIndex sortIndex = index.getSortIndex(referenceSchema, attributeSchema, locale);
+				final SortIndex sortIndex = ReferencePartitions.toEntityIndex(index, PICK_FIRST_ROUTE, "4f")
+					.getSortIndex(referenceSchema, attributeSchema, locale);
 				return sortIndex == null ? null : () -> providerExtractor.apply(sortIndex);
 			};
 			entityComparator = new PickFirstReferenceAttributeComparator(

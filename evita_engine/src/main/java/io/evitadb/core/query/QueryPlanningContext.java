@@ -332,6 +332,19 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @see #computeOncePerKey(Object, Supplier) for the contract
 	 */
 	private Map<Object, Object> valueKeyedCache;
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * The read switch of every collection the query has asked about, captured on the first question - see
+	 * {@link #isReadVirtually(String)}. Held by the root context only, so the whole query, its nested contexts
+	 * included, reads every collection one way.
+	 */
+	@Nullable private Map<String, Boolean> readVirtually;
+	/**
+	 * The memo of the by-key partition resolutions of this context - see
+	 * {@link #resolvePartitionForReadIfExists(String, Scope, RepresentativeReferenceKey)}. Created on the first such
+	 * resolution and never shared with another context, so it never outlives the index snapshots this context reads.
+	 */
+	@Nullable private PartitionKeyMemo partitionKeyMemo;
 
 
 	/**
@@ -1064,6 +1077,227 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			scope, referenceSchema.getName(), referenceSchema.getCardinality().allowsDuplicates(), targetPrimaryKey,
 			entityType
 		);
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns TRUE when this query reads the registered single-owner partitions of the collection virtually - through
+	 * the registry of single-owner partitions instead of through their reduced entity indexes. The collection's read
+	 * switch (see {@link io.evitadb.core.catalog.VirtualReferencePartitionMaintenance#isReadVirtually(String)}) is
+	 * captured when the query first asks about the collection and the captured answer holds for the rest of the query
+	 * and all its nested contexts, so a switch turned mid-query never splits one query between the two readings.
+	 *
+	 * @param entityType the collection
+	 * @return TRUE when the query reads the collection virtually
+	 */
+	public boolean isReadVirtually(@Nonnull String entityType) {
+		if (this.parentContext != null) {
+			return this.parentContext.isReadVirtually(entityType);
+		}
+		if (this.readVirtually == null) {
+			this.readVirtually = CollectionUtils.createHashMap(4);
+		}
+		Boolean captured = this.readVirtually.get(entityType);
+		if (captured == null) {
+			captured = this.catalog.getVirtualReferencePartitionMaintenance().isReadVirtually(entityType);
+			this.readVirtually.put(entityType, captured);
+		}
+		return captured;
+	}
+
+	/**
+	 * Returns the reference partition of the named collection with the primary key, when it is a partition of the
+	 * reference in the scope, for a read - see the read resolution of {@link ReferencePartitions}. When the query
+	 * reads the collection virtually, a partition the registry holds a row for answers its
+	 * {@link VirtualReferencePartition}, read out of the row; any other one answers its reduced entity index. The
+	 * collection is read as {@link #resolvePartitionIfExists(String, Scope, RepresentativeReferenceKey)} reads it.
+	 *
+	 * @param entityType          the collection owning the partition
+	 * @param scope               the scope of the partition
+	 * @param referenceName       the reference the partition belongs to
+	 * @param partitionPrimaryKey the primary key of the partition
+	 * @return the partition, or `null` when the primary key names no partition of the reference in the scope
+	 */
+	@Nullable
+	public ReferencePartition resolvePartitionForReadIfExists(
+		@Nonnull String entityType,
+		@Nonnull Scope scope,
+		@Nonnull String referenceName,
+		int partitionPrimaryKey
+	) {
+		if (Objects.equals(this.entityType, entityType)) {
+			return ReferencePartitions.resolveForReadIfExists(
+				this::resolvePartitionIfExists, getVirtualTypeIndex(entityType, scope, referenceName),
+				scope, referenceName, partitionPrimaryKey
+			);
+		}
+		return getEntityCollectionOrThrowException(entityType, "access entity index")
+			.resolvePartitionForReadIfExists(scope, referenceName, partitionPrimaryKey, isReadVirtually(entityType));
+	}
+
+	/**
+	 * Returns the reference partition of the named collection with a primary key that must name a partition of the
+	 * reference in the scope, for a read - see
+	 * {@link #resolvePartitionForReadIfExists(String, Scope, String, int)}.
+	 *
+	 * @param entityType          the collection owning the partition
+	 * @param scope               the scope of the partition
+	 * @param referenceName       the reference the partition belongs to
+	 * @param partitionPrimaryKey the primary key of the partition
+	 * @return the partition
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the primary key names no partition of the reference
+	 *                                                         in the scope
+	 */
+	@Nonnull
+	public ReferencePartition resolvePartitionForRead(
+		@Nonnull String entityType,
+		@Nonnull Scope scope,
+		@Nonnull String referenceName,
+		int partitionPrimaryKey
+	) {
+		final ReferencePartition partition = resolvePartitionForReadIfExists(
+			entityType, scope, referenceName, partitionPrimaryKey
+		);
+		if (partition == null) {
+			throw new GenericEvitaInternalError(
+				"Expected a reference partition of `" + referenceName + "` in scope `" + scope + "` with primary key " +
+					partitionPrimaryKey + " in collection `" + entityType + "`, but found none!"
+			);
+		}
+		return partition;
+	}
+
+	/**
+	 * Returns the reference partition of the named collection holding the rows of the representative reference key in
+	 * the scope, for a read. When the query reads the collection virtually, a partition the registry holds a row for
+	 * answers its {@link VirtualReferencePartition}; the lookup goes through the memo of this context (see
+	 * {@link PartitionKeyMemo}), which builds the registered partitions of a target once per query, so a query
+	 * resolving the keys of many owners sharing one target costs one pass over the target's partitions. Any other key
+	 * answers its reduced entity index. The collection is read as
+	 * {@link #resolvePartitionIfExists(String, Scope, RepresentativeReferenceKey)} reads it.
+	 *
+	 * @param entityType                 the collection owning the partition
+	 * @param scope                      the scope of the partition
+	 * @param representativeReferenceKey the representative reference key of the partition
+	 * @return the partition or `null` when the collection holds none under the key
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key holds an index that is not a reference
+	 *                                                         partition
+	 */
+	@Nullable
+	public ReferencePartition resolvePartitionForReadIfExists(
+		@Nonnull String entityType,
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey
+	) {
+		if (this.partitionKeyMemo == null) {
+			this.partitionKeyMemo = new PartitionKeyMemo();
+		}
+		return this.partitionKeyMemo.resolveIfExists(
+			getIndexByKeyReader(entityType),
+			getVirtualTypeIndex(entityType, scope, representativeReferenceKey.referenceName()),
+			scope, representativeReferenceKey
+		);
+	}
+
+	/**
+	 * Returns every reference partition of the entity type holding rows of the reference that point to the target
+	 * entity in the scope, for a read - see
+	 * {@link #resolvePartitionsOfTarget(EntitySchemaContract, ReferenceSchemaContract, Scope, int)}, which this
+	 * answers identically when the query does not read the collection virtually. When it does, the partitions are
+	 * enumerated through the type index whatever the cardinality of the reference, and every one the registry holds a
+	 * row for answers its {@link VirtualReferencePartition}.
+	 *
+	 * @param entitySchema     the entity type owning the reference
+	 * @param referenceSchema  the reference
+	 * @param scope            the scope of the partitions
+	 * @param targetPrimaryKey the primary key of the referenced entity
+	 * @return the partitions of the target, possibly empty
+	 * @throws io.evitadb.core.exception.ReferenceComponentNotIndexedException when the reference is indexed in the
+	 *         scope without the `REFERENCED_ENTITY` component
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when a listed primary key names no partition
+	 */
+	@Nonnull
+	public ReferencePartition[] resolvePartitionsOfTargetForRead(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Scope scope,
+		int targetPrimaryKey
+	) {
+		HavingTranslatorHelper.assertEntityComponentIndexed(entitySchema, referenceSchema, scope, getScopes());
+		final String entityType = entitySchema.getName();
+		final String referenceName = referenceSchema.getName();
+		return ReferencePartitions.resolveOfTargetForRead(
+			getIndexByKeyReader(entityType), getIndexByPrimaryKeyReader(entityType),
+			getVirtualTypeIndex(entityType, scope, referenceName),
+			scope, referenceName, referenceSchema.getCardinality().allowsDuplicates(), targetPrimaryKey, entityType
+		);
+	}
+
+	/**
+	 * Splits candidate partition primary keys of a reference of the named collection by representation, for a read -
+	 * see {@link ReferencePartitions#split(Bitmap, ReferencedTypeEntityIndex...)}. When the query does not read the
+	 * collection virtually, every candidate is materialized.
+	 *
+	 * @param entityType    the collection owning the partitions
+	 * @param referenceName the reference the partitions belong to
+	 * @param candidates    the candidate partition primary keys
+	 * @param scopes        the scopes the candidates come from
+	 * @return the split
+	 */
+	@Nonnull
+	public ReferencePartitionSplit splitPartitionsForRead(
+		@Nonnull String entityType,
+		@Nonnull String referenceName,
+		@Nonnull Bitmap candidates,
+		@Nonnull Scope... scopes
+	) {
+		ReferencedTypeEntityIndex[] typeIndexes = new ReferencedTypeEntityIndex[scopes.length];
+		int count = 0;
+		for (final Scope scope : scopes) {
+			final ReferencedTypeEntityIndex typeIndex = getVirtualTypeIndex(entityType, scope, referenceName);
+			if (typeIndex != null) {
+				typeIndexes[count++] = typeIndex;
+			}
+		}
+		if (count < typeIndexes.length) {
+			typeIndexes = Arrays.copyOf(typeIndexes, count);
+		}
+		return ReferencePartitions.split(candidates, typeIndexes);
+	}
+
+	/**
+	 * Returns the referenced-type entity index whose registry a read resolver reads for the reference of the named
+	 * collection in the scope: the one the collection holds when the query reads the collection virtually, `null`
+	 * when it does not or when the collection holds none.
+	 *
+	 * @param entityType    the collection
+	 * @param scope         the scope of the reference
+	 * @param referenceName the reference
+	 * @return the referenced-type entity index, or `null` when nothing is read virtually
+	 */
+	@Nullable
+	private ReferencedTypeEntityIndex getVirtualTypeIndex(
+		@Nonnull String entityType,
+		@Nonnull Scope scope,
+		@Nonnull String referenceName
+	) {
+		// TODO JNO - remove at the end of #1615 (the condition, its body stays)
+		if (!isReadVirtually(entityType)) {
+			return null;
+		}
+		final EntityIndexKey typeIndexKey = new EntityIndexKey(
+			EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName
+		);
+		final Index<?> typeIndex = getIndexByKeyReader(entityType).apply(typeIndexKey);
+		if (typeIndex == null) {
+			return null;
+		}
+		Assert.isPremiseValid(
+			typeIndex instanceof ReferencedTypeEntityIndex,
+			() -> "Expected " + ReferencedTypeEntityIndex.class.getSimpleName() + " under `" + typeIndexKey +
+				"` but got " + typeIndex.getClass() + "!"
+		);
+		return (ReferencedTypeEntityIndex) typeIndex;
 	}
 
 	/**

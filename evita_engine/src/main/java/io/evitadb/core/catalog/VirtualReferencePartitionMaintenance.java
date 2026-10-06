@@ -25,6 +25,7 @@
 package io.evitadb.core.catalog;
 
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.ReferencePartition;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleWithScope;
@@ -64,6 +65,13 @@ import java.util.function.Supplier;
  * {@link #carryOver(String, String)}). A name is never turned off implicitly - a collection that is removed and
  * created again under the same name is maintained again.
  *
+ * The holder also carries a second switch per entity type - whether the queries over the collection **read** its
+ * registered single-owner partitions virtually, through the registry rather than through their reduced entity
+ * indexes (see {@link #isReadVirtually(String)}). It is meaningful only for a maintained collection, so it can be on
+ * only while the collection is maintained, and it does not touch the write path at all: a collection read virtually
+ * is written exactly as a merely maintained one. A query captures it once, when it first resolves a partition of the
+ * collection, so a query never mixes the two readings.
+ *
  * The holder also carries an optional {@link TransitionProbe} a test installs to observe the transitions of
  * single-owner partitions and the outcome of every root entity mutation, and to inject failures at them. The probe is
  * consulted whenever it is installed, with the switch on or off, so that two engines - one maintaining, one not - can
@@ -80,6 +88,12 @@ public final class VirtualReferencePartitionMaintenance {
 	 * holder is shared by every catalog version and read by every entity mutation, whichever thread runs it.
 	 */
 	private final Set<String> maintainedEntityTypes = ConcurrentHashMap.newKeySet();
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Names of the entity types whose collections are read virtually by queries - always a subset of
+	 * {@link #maintainedEntityTypes}. Concurrent for the same reason.
+	 */
+	private final Set<String> readVirtuallyEntityTypes = ConcurrentHashMap.newKeySet();
 	// TODO JNO - remove at the end of #1615
 	/**
 	 * How many entity mutations have been executed with the switch on since this holder was created - a probe that
@@ -203,25 +217,70 @@ public final class VirtualReferencePartitionMaintenance {
 	// TODO JNO - remove at the end of #1615
 	/**
 	 * Turns the switch on or off for the collection of the given entity type. The collection does not have to exist
-	 * yet.
+	 * yet. A collection that is read virtually must have that switch turned off first - its registry would stop
+	 * following its partitions while queries still read it.
 	 *
 	 * @param entityType the name of the entity type
 	 * @param maintained TRUE to maintain virtual reference partitions, FALSE to stop
+	 * @throws GenericEvitaInternalError when the maintenance is turned off while the collection is read virtually
 	 */
 	public void setMaintained(@Nonnull String entityType, boolean maintained) {
 		if (maintained) {
 			this.maintainedEntityTypes.add(entityType);
 		} else {
+			if (this.readVirtuallyEntityTypes.contains(entityType)) {
+				throw new GenericEvitaInternalError(
+					"Collection `" + entityType + "` is read virtually - turn that off before its maintenance!"
+				);
+			}
 			this.maintainedEntityTypes.remove(entityType);
 		}
 	}
 
 	// TODO JNO - remove at the end of #1615
 	/**
+	 * Returns TRUE when the queries over the collection of the given entity type read its registered single-owner
+	 * partitions virtually - through the registry of single-owner partitions instead of through their reduced entity
+	 * indexes, which still exist and still serve every write. Only the query routes that have been migrated to the
+	 * virtual reading consult it.
+	 *
+	 * @param entityType the name of the entity type
+	 * @return TRUE when the read switch is on for the entity type
+	 */
+	public boolean isReadVirtually(@Nonnull String entityType) {
+		// the empty check keeps the hash lookup off every query of a catalog no test has switched
+		return !this.readVirtuallyEntityTypes.isEmpty() && this.readVirtuallyEntityTypes.contains(entityType);
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Turns the virtual reading of the collection of the given entity type on or off. The collection does not have to
+	 * exist yet, but it must be maintained: a registry nobody keeps up to date cannot be read.
+	 *
+	 * @param entityType    the name of the entity type
+	 * @param readVirtually TRUE to read the registered single-owner partitions virtually, FALSE to stop
+	 * @throws GenericEvitaInternalError when the virtual reading is turned on for a collection that is not maintained
+	 */
+	public void setReadVirtually(@Nonnull String entityType, boolean readVirtually) {
+		if (readVirtually) {
+			if (!isMaintained(entityType)) {
+				throw new GenericEvitaInternalError(
+					"Collection `" + entityType + "` is not maintained - its virtual reference partitions cannot " +
+						"be read virtually!"
+				);
+			}
+			this.readVirtuallyEntityTypes.add(entityType);
+		} else {
+			this.readVirtuallyEntityTypes.remove(entityType);
+		}
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
 	 * Carries the switch of a collection that is being renamed, or that replaces another collection, to the name it
-	 * takes. The switch only ever moves towards *on* here: the source name keeps its own, because a commit replays the
-	 * rename once more onto the last finalized catalog and must find the source still switched on to carry it again,
-	 * and a target that was already on stays on.
+	 * takes - the maintenance and the virtual reading alike. The switch only ever moves towards *on* here: the source
+	 * name keeps its own, because a commit replays the rename once more onto the last finalized catalog and must find
+	 * the source still switched on to carry it again, and a target that was already on stays on.
 	 *
 	 * @param sourceEntityType the name the collection had
 	 * @param targetEntityType the name the collection takes
@@ -229,6 +288,9 @@ public final class VirtualReferencePartitionMaintenance {
 	public void carryOver(@Nonnull String sourceEntityType, @Nonnull String targetEntityType) {
 		if (isMaintained(sourceEntityType)) {
 			this.maintainedEntityTypes.add(targetEntityType);
+		}
+		if (isReadVirtually(sourceEntityType)) {
+			this.readVirtuallyEntityTypes.add(targetEntityType);
 		}
 	}
 

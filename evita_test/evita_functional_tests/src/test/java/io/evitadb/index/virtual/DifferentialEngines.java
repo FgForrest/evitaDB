@@ -58,6 +58,7 @@ import io.evitadb.index.attribute.OwnerUniqueIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.virtual.ReadRouteActivation.ReadRoute;
 import io.evitadb.index.virtual.TransitionHistory.InjectedTransitionFailure;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex.AttributeCardinalityKey;
 import io.evitadb.index.invertedIndex.ValueToRecord;
@@ -947,8 +948,15 @@ final class DifferentialEngines implements AutoCloseable {
 				}
 			}
 			final EntitySchemaContract schema = session.getEntitySchemaOrThrowException(entityType);
+			// the maintaining engine reads virtually on the query lines whose routes have landed, and only there
+			final ReadRouteActivation activation = maintained ?
+				new ReadRouteActivation(
+					catalog.getVirtualReferencePartitionMaintenance(), this.entityTypes,
+					ReadRouteActivation.LANDED_ROUTES
+				) :
+				ReadRouteActivation.OFF;
 			for (final Scope scope : Scope.values()) {
-				describeQueries(snapshot, session, schema, scope);
+				describeQueries(snapshot, session, schema, scope, activation);
 				describeIndexes(snapshot, collection, schema, scope);
 			}
 			if (committed) {
@@ -963,22 +971,29 @@ final class DifferentialEngines implements AutoCloseable {
 	/**
 	 * Adds the query-level lines of one collection and scope.
 	 *
-	 * @param snapshot the snapshot to add to
-	 * @param session  the session to query in
-	 * @param schema   the schema of the collection
-	 * @param scope    the scope to query
+	 * Each query line runs with the read switch the activation gives its routes - see {@link ReadRouteActivation}.
+	 *
+	 * @param snapshot   the snapshot to add to
+	 * @param session    the session to query in
+	 * @param schema     the schema of the collection
+	 * @param scope      the scope to query
+	 * @param activation decides the read switch of each query line
 	 */
 	private static void describeQueries(
 		@Nonnull Snapshot snapshot,
 		@Nonnull EvitaSessionContract session,
 		@Nonnull EntitySchemaContract schema,
-		@Nonnull Scope scope
+		@Nonnull Scope scope,
+		@Nonnull ReadRouteActivation activation
 	) {
 		final String entityType = schema.getName();
 		final String prefix = "query/" + entityType + "/" + scope + "/";
-		final EvitaResponse<SealedEntity> bodies = session.query(
-			query(collection(entityType), filterBy(scope(scope)), require(page(1, PAGE_SIZE), entityFetchAll())),
-			SealedEntity.class
+		final EvitaResponse<SealedEntity> bodies = activation.run(
+			EnumSet.of(ReadRoute.ENTITY_BODY),
+			() -> session.query(
+				query(collection(entityType), filterBy(scope(scope)), require(page(1, PAGE_SIZE), entityFetchAll())),
+				SealedEntity.class
+			)
 		);
 		final Map<String, Set<Integer>> targetsByReference = new TreeMap<>();
 		for (final SealedEntity entity : bodies.getRecordData()) {
@@ -1000,13 +1015,19 @@ final class DifferentialEngines implements AutoCloseable {
 			}
 			final String referenceName = referenceSchema.getName();
 			for (final Integer target : targetsByReference.getOrDefault(referenceName, Set.of())) {
-				final EvitaResponse<EntityReference> matching = session.query(
-					query(
-						collection(entityType),
-						filterBy(scope(scope), referenceHaving(referenceName, entityPrimaryKeyInSet(target))),
-						require(page(1, PAGE_SIZE))
+				final EvitaResponse<EntityReference> matching = activation.run(
+					EnumSet.of(
+						ReadRoute.REFERENCE_HAVING_BODY, ReadRoute.REFERENCE_HAVING_TARGET_INDEXES,
+						ReadRoute.REFERENCED_ENTITY_IN_BODY, ReadRoute.PARTITION_TO_TARGET
 					),
-					EntityReference.class
+					() -> session.query(
+						query(
+							collection(entityType),
+							filterBy(scope(scope), referenceHaving(referenceName, entityPrimaryKeyInSet(target))),
+							require(page(1, PAGE_SIZE))
+						),
+						EntityReference.class
+					)
 				);
 				snapshot.put(
 					prefix + "referenceHaving/" + referenceName + "/" + target,
@@ -1017,28 +1038,34 @@ final class DifferentialEngines implements AutoCloseable {
 		if (faceted) {
 			describeExtraResults(
 				snapshot, prefix + "facetSummary",
-				session.query(
-					query(collection(entityType), filterBy(scope(scope)), require(page(1, 1), facetSummary())),
-					EntityReference.class
+				activation.run(
+					EnumSet.of(ReadRoute.FACETS_AND_HISTOGRAMS),
+					() -> session.query(
+						query(collection(entityType), filterBy(scope(scope)), require(page(1, 1), facetSummary())),
+						EntityReference.class
+					)
 				)
 			);
 		}
 		if (!histogramNames.isEmpty()) {
 			describeExtraResults(
 				snapshot, prefix + "referenceHistograms",
-				session.query(
-					query(
-						collection(entityType),
-						filterBy(scope(scope)),
-						require(
-							page(1, 1),
-							referenceSummaryWithHistograms(
-								null, null, null,
-								histogramStatistics(10, histogramNames.toArray(String[]::new))
+				activation.run(
+					EnumSet.of(ReadRoute.FACETS_AND_HISTOGRAMS),
+					() -> session.query(
+						query(
+							collection(entityType),
+							filterBy(scope(scope)),
+							require(
+								page(1, 1),
+								referenceSummaryWithHistograms(
+									null, null, null,
+									histogramStatistics(10, histogramNames.toArray(String[]::new))
+								)
 							)
-						)
-					),
-					EntityReference.class
+						),
+						EntityReference.class
+					)
 				)
 			);
 		}
@@ -1051,13 +1078,16 @@ final class DifferentialEngines implements AutoCloseable {
 		if (numericAttributes.length > 0) {
 			describeExtraResults(
 				snapshot, prefix + "attributeHistograms",
-				session.query(
-					query(
-						collection(entityType),
-						filterBy(scope(scope)),
-						require(page(1, 1), attributeHistogram(10, numericAttributes))
-					),
-					EntityReference.class
+				activation.run(
+					EnumSet.of(ReadRoute.FACETS_AND_HISTOGRAMS),
+					() -> session.query(
+						query(
+							collection(entityType),
+							filterBy(scope(scope)),
+							require(page(1, 1), attributeHistogram(10, numericAttributes))
+						),
+						EntityReference.class
+					)
 				)
 			);
 		}
