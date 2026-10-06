@@ -83,6 +83,10 @@ class VirtualReferencePartitionIndexIdOverflowTest {
 	private static final AttributeIndexKey SECOND_CHAIN = new AttributeIndexKey(REFERENCE_NAME, "secondOrder", null);
 	private static final AttributeIndexKey THIRD_CHAIN = new AttributeIndexKey(REFERENCE_NAME, "thirdOrder", null);
 	private static final AttributeIndexKey SECOND_ORDER = new AttributeIndexKey(REFERENCE_NAME, "rank", null);
+	private static final String TUPLE_SPACE = "representative tuple ids";
+	private static final String PUBLIC_TUPLE_SPACE = "representative tuple ids of a reference partition index";
+	private static final String SORT_VALUE_SPACE = "sort value ids of sort key `" + ORDER + "`";
+	private static final String PUBLIC_SORT_VALUE_SPACE = "sort value ids of `" + ORDER + "`";
 
 	/**
 	 * Loads an index whose partition 1 holds the tuple `gallery` under the given tuple id.
@@ -133,20 +137,39 @@ class VirtualReferencePartitionIndexIdOverflowTest {
 	}
 
 	/**
-	 * Asserts the call is refused with an identifier overflow whose message names the exhausted id space.
+	 * Asserts the call is refused with an identifier overflow whose private message names the exhausted id space for
+	 * the server log and whose public message names it for the client together with what the operator can do: a
+	 * restart, which does not help for a slot id and helps for a dictionary id only after its top ids were released,
+	 * and the rebuild of the entity collection, which always helps.
 	 *
-	 * @param exhaustedSpace the part of the message naming the id space
-	 * @param call           the refused call
+	 * @param exhaustedSpace       the part of the private message naming the id space
+	 * @param publicExhaustedSpace the part of the public message naming the id space
+	 * @param call                 the refused call
 	 */
-	private static void assertOverflow(@Nonnull String exhaustedSpace, @Nonnull Executable call) {
+	private static void assertOverflow(
+		@Nonnull String exhaustedSpace,
+		@Nonnull String publicExhaustedSpace,
+		@Nonnull Executable call
+	) {
 		final IdentifierOverflowException exception = assertThrows(IdentifierOverflowException.class, call);
 		assertTrue(
 			exception.getPrivateMessage().contains(exhaustedSpace),
 			"The message must name the exhausted id space `" + exhaustedSpace + "`: " + exception.getPrivateMessage()
 		);
 		assertTrue(
-			exception.getPrivateMessage().contains("reindexed"),
+			exception.getPrivateMessage().contains("must be rebuilt"),
 			"The message must say what helps: " + exception.getPrivateMessage()
+		);
+		final String publicMessage = exception.getPublicMessage();
+		assertTrue(
+			publicMessage.contains(publicExhaustedSpace),
+			"The public message must name the exhausted id space `" + publicExhaustedSpace + "`: " + publicMessage
+		);
+		assertTrue(
+			publicMessage.contains("restart") &&
+				publicMessage.contains("rebuild the entity collection") &&
+				publicMessage.contains("`replaceCollection`"),
+			"The public message must say whether a restart helps and how to rebuild the collection: " + publicMessage
 		);
 	}
 
@@ -163,9 +186,9 @@ class VirtualReferencePartitionIndexIdOverflowTest {
 			assertEquals(LAST_ID, index.getRepresentativeTupleId(2));
 			index.resetDirty();
 
-			assertOverflow("representative tuple ids", () -> index.putRepresentativeTuple(3, POSTER));
+			assertOverflow(TUPLE_SPACE, PUBLIC_TUPLE_SPACE, () -> index.putRepresentativeTuple(3, POSTER));
 			// a partition holding a tuple keeps it when its replacement is refused
-			assertOverflow("representative tuple ids", () -> index.putRepresentativeTuple(2, POSTER));
+			assertOverflow(TUPLE_SPACE, PUBLIC_TUPLE_SPACE, () -> index.putRepresentativeTuple(2, POSTER));
 
 			assertEquals(NO_TUPLE_ID, index.getTupleId(POSTER));
 			assertEquals(NO_TUPLE_ID, index.getRepresentativeTupleId(3));
@@ -187,13 +210,13 @@ class VirtualReferencePartitionIndexIdOverflowTest {
 				index,
 				original -> {
 					original.putRepresentativeTuple(2, THUMBNAIL);
-					assertOverflow("representative tuple ids", () -> original.putRepresentativeTuple(3, POSTER));
+					assertOverflow(TUPLE_SPACE, PUBLIC_TUPLE_SPACE, () -> original.putRepresentativeTuple(3, POSTER));
 				},
 				(original, committed) -> {
 					assertEquals(LAST_ID, committed.getTupleId(THUMBNAIL));
 					assertEquals(NO_TUPLE_ID, committed.getTupleId(POSTER));
 					assertEquals(NO_TUPLE_ID, committed.getRepresentativeTupleId(3));
-					assertOverflow("representative tuple ids", () -> committed.putRepresentativeTuple(3, POSTER));
+					assertOverflow(TUPLE_SPACE, PUBLIC_TUPLE_SPACE, () -> committed.putRepresentativeTuple(3, POSTER));
 				}
 			);
 		}
@@ -204,7 +227,7 @@ class VirtualReferencePartitionIndexIdOverflowTest {
 			final VirtualReferencePartitionIndex index = loadWithTupleId(Integer.MAX_VALUE);
 			assertArrayEquals(GALLERY, index.getTuple(Integer.MAX_VALUE));
 
-			assertOverflow("representative tuple ids", () -> index.putRepresentativeTuple(2, THUMBNAIL));
+			assertOverflow(TUPLE_SPACE, PUBLIC_TUPLE_SPACE, () -> index.putRepresentativeTuple(2, THUMBNAIL));
 			assertEquals(NO_TUPLE_ID, index.getTupleId(THUMBNAIL));
 			assertEquals(NO_TUPLE_ID, index.getRepresentativeTupleId(2));
 		}
@@ -223,9 +246,9 @@ class VirtualReferencePartitionIndexIdOverflowTest {
 			index.resetDirty();
 			final SortSnapshot before = snapshotOf(index.getSortIndex(ORDER));
 
-			assertOverflow("sort value ids of sort key `" + ORDER + "`", () -> index.putSortValue(ORDER, 3, 9));
+			assertOverflow(SORT_VALUE_SPACE, PUBLIC_SORT_VALUE_SPACE, () -> index.putSortValue(ORDER, 3, 9));
 			// a partition holding a value keeps it when its replacement is refused
-			assertOverflow("sort value ids of sort key `" + ORDER + "`", () -> index.putSortValue(ORDER, 1, 9));
+			assertOverflow(SORT_VALUE_SPACE, PUBLIC_SORT_VALUE_SPACE, () -> index.putSortValue(ORDER, 1, 9));
 
 			assertEquals(NO_SORT_VALUE_ID, index.getSortValueId(ORDER, 3));
 			assertEquals(LAST_ID - 1, index.getSortValueId(ORDER, 1));
@@ -243,7 +266,7 @@ class VirtualReferencePartitionIndexIdOverflowTest {
 			final VirtualReferencePartitionIndex index = loadWithSortValueId(Integer.MAX_VALUE);
 			assertEquals(Integer.MAX_VALUE, index.getSortValueId(ORDER, 1));
 
-			assertOverflow("sort value ids of sort key `" + ORDER + "`", () -> index.putSortValue(ORDER, 2, 7));
+			assertOverflow(SORT_VALUE_SPACE, PUBLIC_SORT_VALUE_SPACE, () -> index.putSortValue(ORDER, 2, 7));
 			assertEquals(NO_SORT_VALUE_ID, index.getSortValueId(ORDER, 2));
 		}
 	}
@@ -263,10 +286,12 @@ class VirtualReferencePartitionIndexIdOverflowTest {
 			index.resetDirty();
 
 			assertOverflow(
-				"to declare `" + THIRD_CHAIN + "`", () -> index.declareChainKey(THIRD_CHAIN)
+				"to declare `" + THIRD_CHAIN + "`", "to declare `" + THIRD_CHAIN + "`",
+				() -> index.declareChainKey(THIRD_CHAIN)
 			);
 			assertOverflow(
-				"to declare `" + SECOND_ORDER + "`", () -> index.declareSortKey(SECOND_ORDER, INTEGER_ASC, 0)
+				"to declare `" + SECOND_ORDER + "`", "to declare `" + SECOND_ORDER + "`",
+				() -> index.declareSortKey(SECOND_ORDER, INTEGER_ASC, 0)
 			);
 
 			assertEquals(Set.of(CHAIN, SECOND_CHAIN), index.getDeclaredChainKeys());

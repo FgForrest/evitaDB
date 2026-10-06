@@ -1913,9 +1913,12 @@ public class VirtualReferencePartitionIndex
 			throw new IdentifierOverflowException(
 				"No declared slot id is left in a virtual reference partition index to declare `" + attributeIndexKey +
 					"`: slot id " + Integer.MAX_VALUE + " is in use and the next one would wrap into the negative " +
-					"range. Slot ids are computed from the slots in use, so a restart does not help - retiring the " +
-					"sort or chain key holding the largest slot id does, otherwise the entity collection must be " +
-					"reindexed."
+					"range. Slot ids are computed from the slots in use and a declared key is retired only once the " +
+					"index holds no partition, so a restart does not help - the entity collection must be rebuilt.",
+				"No slot id is left in a reference partition index to declare `" + attributeIndexKey + "` in. Slot " +
+					"ids are computed from the sort and chain keys declared in the index, so a restart does not " +
+					"help - rebuild the entity collection: insert its entities into a new collection and swap it in " +
+					"with `replaceCollection`."
 			);
 		}
 		return largestSlotId[0] + 1;
@@ -1998,7 +2001,12 @@ public class VirtualReferencePartitionIndex
 					") of a virtual reference partition index are exhausted: no id below " + EXHAUSTED_ID_SPACE +
 					" is left to hand out and ids are never reused while the index stays loaded. A restart helps " +
 					"only if the values holding the largest ids have been released since, because a load resumes " +
-					"one above the largest id still in use - otherwise the entity collection must be reindexed."
+					"one above the largest id still in use - otherwise the entity collection must be rebuilt.",
+				"The sort value ids of `" + sortKey.attributeIndexKey() + "` in a reference partition index are " +
+					"exhausted. A restart helps only if the values holding the largest ids have been released " +
+					"since, because the ids resume one above the largest one still in use - otherwise rebuild the " +
+					"entity collection: insert its entities into a new collection and swap it in with " +
+					"`replaceCollection`."
 			);
 		}
 		this.sortKeys.put(sortKey.attributeIndexKey(), sortKey.withNextValueId(valueId + 1));
@@ -2148,7 +2156,11 @@ public class VirtualReferencePartitionIndex
 					EXHAUSTED_ID_SPACE + " is left to hand out and ids are never reused while the index stays " +
 					"loaded. A restart helps only if the tuples holding the largest ids have been released since, " +
 					"because a load resumes one above the largest id still in use - otherwise the entity collection " +
-					"must be reindexed."
+					"must be rebuilt.",
+				"The representative tuple ids of a reference partition index are exhausted. A restart helps only if " +
+					"the tuples holding the largest ids have been released since, because the ids resume one above " +
+					"the largest one still in use - otherwise rebuild the entity collection: insert its entities " +
+					"into a new collection and swap it in with `replaceCollection`."
 			);
 		}
 		this.nextTupleId.set(tupleId + 1);
