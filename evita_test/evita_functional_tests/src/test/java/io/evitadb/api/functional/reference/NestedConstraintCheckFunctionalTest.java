@@ -27,7 +27,9 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
@@ -85,9 +87,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Pins the checks the planner makes of nested constraints before it knows whether there is any data to evaluate them
  * over - the filter of the references `referenceContent` fetches, the filter of a nested query planned in a scope the
- * target entity type holds no entity of, and the ordering by a reference no entity holds a row of. Such a check must
- * refuse what the schema refuses, accept what the query evaluated over data accepts - the same nested scope, the same
- * entity type the nested filter is resolved against - and evaluate nothing.
+ * target entity type holds no entity of, and the ordering by a reference no entity holds a row of - or, traversing a
+ * tree, none of whose referenced entities sits in a tree. Such a check must refuse what the schema refuses, accept what
+ * the query evaluated over data accepts - the same nested scope, the same entity type the nested filter is resolved
+ * against - and evaluate nothing.
  *
  * ## The fixture
  *
@@ -555,6 +558,152 @@ public class NestedConstraintCheckFunctionalTest {
 					)
 				)
 			);
+		}
+
+	}
+
+	/**
+	 * A `traverseByEntityProperty` ordering - the default of a reference to a hierarchical entity - sorts the owners
+	 * block by block of the referenced entities they hold rows of, and only by those sitting in a tree of the processed
+	 * scopes. An ordering with no block to sort - no owner holds a row of the reference, or none of the referenced
+	 * entities sits in a tree - sorts nothing, but the attribute it orders the blocks by is checked all the same.
+	 */
+	@DisplayName("Traversal ordering by a reference without rows")
+	@Nested
+	@Tag(ORDER)
+	class TraversalOrderingWithoutRows {
+
+		/**
+		 * Returns the rows of the traversal orderings the schema refuses. Each row is a label, the queried entity type,
+		 * the scope queried, the ordered reference, the ordered attribute and the exception the query must fail with.
+		 * The traversal of the brands is explicit - the brands are not hierarchical - and every row of
+		 * {@link #REF_FORMER_BRAND}, which has no rows, is paired with the same ordering by {@link #REF_BRAND}, which
+		 * has rows in both scopes. The tags the brands reference are hierarchical, so their traversal is the implicit
+		 * default: in the live scope the rows of the brands sit in the tree of the tags, in the archived scope the
+		 * archived brand holds a row of a tag, but the tags have no archived tree to sit in.
+		 *
+		 * @return the row arguments
+		 */
+		@Nonnull
+		static Stream<Arguments> refusedTraversalOrderingRows() {
+			final Stream<Arguments> brandRows = Stream.of(REF_FORMER_BRAND, REF_BRAND)
+				.flatMap(
+					referenceName -> Stream.of(
+						Arguments.of(
+							"missing attribute of " + referenceName + " in the live scope", ENTITY_PRODUCT, Scope.LIVE,
+							referenceName, ATTRIBUTE_MISSING, AttributeNotFoundException.class
+						),
+						Arguments.of(
+							"missing attribute of " + referenceName + " in the archived scope", ENTITY_PRODUCT,
+							Scope.ARCHIVED, referenceName, ATTRIBUTE_MISSING, AttributeNotFoundException.class
+						),
+						Arguments.of(
+							"attribute of " + referenceName + " sortable nowhere", ENTITY_PRODUCT, Scope.LIVE,
+							referenceName, ATTRIBUTE_NOTE, AttributeNotSortableException.class
+						),
+						Arguments.of(
+							"attribute of " + referenceName + " sortable in the live scope only, in the archived scope",
+							ENTITY_PRODUCT, Scope.ARCHIVED, referenceName, ATTRIBUTE_PRIORITY,
+							AttributeNotSortableException.class
+						)
+					)
+				);
+			final Stream<Arguments> tagRows = Stream.of(Scope.LIVE, Scope.ARCHIVED)
+				.flatMap(
+					scope -> Stream.of(
+						Arguments.of(
+							"missing attribute of " + REF_TAGS + " in the " + scope + " scope", ENTITY_BRAND, scope,
+							REF_TAGS, ATTRIBUTE_MISSING, AttributeNotFoundException.class
+						),
+						Arguments.of(
+							"attribute of " + REF_TAGS + " sortable nowhere, in the " + scope + " scope", ENTITY_BRAND,
+							scope, REF_TAGS, ATTRIBUTE_NOTE, AttributeNotSortableException.class
+						),
+						Arguments.of(
+							"attribute of " + REF_TAGS + " filterable only, in the " + scope + " scope", ENTITY_BRAND,
+							scope, REF_TAGS, ATTRIBUTE_WEIGHT, AttributeNotSortableException.class
+						)
+					)
+				);
+			return Stream.concat(brandRows, tagRows);
+		}
+
+		@DisplayName("Should fail the traversal ordering whose attribute the schema refuses, with or without blocks")
+		@UseDataSet(NESTED_CHECK)
+		@ParameterizedTest(name = "{0}")
+		@MethodSource("refusedTraversalOrderingRows")
+		void shouldFailTraversalOrderingWhoseAttributeSchemaRefuses(
+			@Nonnull String label,
+			@Nonnull String entityType,
+			@Nonnull Scope scope,
+			@Nonnull String referenceName,
+			@Nonnull String attributeName,
+			@Nonnull Class<? extends EvitaInvalidUsageException> expectedException,
+			Evita evita
+		) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final EvitaInvalidUsageException exception = assertThrowsExactly(
+						expectedException,
+						() -> session.queryList(
+							query(
+								collection(entityType),
+								filterBy(scope(scope)),
+								orderBy(traversalOrdering(entityType, referenceName, attributeName))
+							),
+							EntityClassifier.class
+						)
+					);
+					assertTrue(
+						exception.getMessage().contains("`" + attributeName + "`"),
+						"the message `" + exception.getMessage() + "` must name `" + attributeName + "`"
+					);
+					return null;
+				}
+			);
+		}
+
+		@DisplayName("Should accept the traversal ordering by an evaluable attribute of a reference without rows")
+		@UseDataSet(NESTED_CHECK)
+		@Test
+		void shouldAcceptTraversalOrderingByEvaluableAttributeOfReferenceWithoutRows(Evita evita) {
+			assertEquals(
+				List.of(1),
+				queriedPrimaryKeys(
+					evita,
+					query(
+						collection(ENTITY_PRODUCT),
+						filterBy(scope(Scope.LIVE)),
+						orderBy(traversalOrdering(ENTITY_PRODUCT, REF_FORMER_BRAND, ATTRIBUTE_PRIORITY))
+					)
+				)
+			);
+		}
+
+		/**
+		 * Returns the traversal ordering by the attribute of the reference: the explicit traversal of the referenced
+		 * entities by their primary key for the references of the products, whose brands are not hierarchical, and the
+		 * implicit default for the references of the brands, whose tags are.
+		 *
+		 * @param entityType    the queried entity type
+		 * @param referenceName the ordered reference
+		 * @param attributeName the ordered attribute
+		 * @return the ordering
+		 */
+		@Nonnull
+		private static OrderConstraint traversalOrdering(
+			@Nonnull String entityType,
+			@Nonnull String referenceName,
+			@Nonnull String attributeName
+		) {
+			return ENTITY_PRODUCT.equals(entityType) ?
+				referenceProperty(
+					referenceName,
+					traverseByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
+					attributeNatural(attributeName)
+				) :
+				referenceProperty(referenceName, attributeNatural(attributeName));
 		}
 
 	}

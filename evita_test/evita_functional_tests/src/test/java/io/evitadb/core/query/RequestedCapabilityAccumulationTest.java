@@ -1775,6 +1775,10 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	@Nested
 	@DisplayName("A traversal ordering with nothing to traverse")
 	class TraversalWithoutRows {
+		/**
+		 * An attribute of the references of the products to the brands the case declares, sortable in the live scope.
+		 */
+		private static final String ATTRIBUTE_BRAND_ORDER = "brandOrder";
 
 		@Test
 		@DisplayName("A traversal ordering by the referenced entity counts without rows to order by")
@@ -1844,6 +1848,65 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 					"The traversal by an attribute the categories cannot sort by must be refused in scope " + scope
 				);
 			}
+		}
+
+		@Test
+		@DisplayName("An attribute ordering traversed blocks counts with no row, a row of no entity and of an entity")
+		void shouldCountReferenceAttributeOfTraversalOrderingWhateverTheData() {
+			// the brands are hierarchical, so the products are ordered by the order of the brand traversing the tree of
+			// the brands - which needs a row of a product, and the tree of the brands to sit in, to have a block to
+			// sort
+			declareOrderOfBrand();
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				orderBy(referenceProperty(REFERENCE_BRAND, attributeNatural(ATTRIBUTE_BRAND_ORDER, OrderDirection.ASC)))
+			);
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(
+				SchemaCapabilityKey.referenceAttribute(
+					REFERENCE_BRAND, ATTRIBUTE_BRAND_ORDER, Capability.SORTABLE, Scope.LIVE
+				), 1L,
+				SchemaCapabilityKey.reference(REFERENCE_BRAND, Capability.INDEXED, Scope.LIVE), 1L
+			);
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_PRODUCT, query),
+				"The query of products holding no brand must count the order of the brand once"
+			);
+
+			addMissingBrandOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_PRODUCT, query),
+				"The query of a product referencing a brand that does not exist must count the order once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_PRODUCT, query),
+				"The query of a product referencing an existing brand must count the order once"
+			);
+		}
+
+		/**
+		 * Declares {@link #ATTRIBUTE_BRAND_ORDER} on the references of the products to the brands, sortable in the live
+		 * scope.
+		 */
+		private void declareOrderOfBrand() {
+			RequestedCapabilityAccumulationTest.this.evita.updateCatalog(
+				CATALOG,
+				session -> {
+					session.defineEntitySchema(ENTITY_PRODUCT)
+						.withReferenceToEntity(
+							REFERENCE_BRAND, ENTITY_BRAND, Cardinality.ZERO_OR_ONE,
+							whichIs -> whichIs.withAttribute(
+								ATTRIBUTE_BRAND_ORDER, Long.class,
+								thatIs -> thatIs.sortableInScope(Scope.LIVE).nullable()
+							)
+						)
+						.updateVia(session);
+				}
+			);
 		}
 
 		/**

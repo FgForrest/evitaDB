@@ -451,8 +451,8 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	/**
 	 * Refuses an ordering constraint {@link #traverseChildConstraints} cannot translate - an {@link EntityProperty}
 	 * other than the one ordering by the primary key alone, and an {@link EntityGroupProperty}, at any depth. The
-	 * child constraints are translated only when there is a reduced index of the reference to sort, so the query is
-	 * checked up front, whether or not there is any data to order.
+	 * query is checked up front, before any child constraint is translated, so that it fails with this message whether
+	 * or not there is any data to order.
 	 *
 	 * @param referenceProperty the ordering whose child constraints are checked
 	 * @throws EvitaInvalidUsageException when a child constraint cannot be used within `referenceProperty`
@@ -513,29 +513,32 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	}
 
 	/**
-	 * Translates the child constraints of a pick-first ordering by a reference no owner of the processed scopes holds a
-	 * row of, only to check them against the schemas in every processed scope, and throws the sorters away - so that
-	 * the query does not fail or pass depending on whether there are any rows to order by.
+	 * Translates the child constraints of an ordering by a reference that has no rows to order by, only to check them
+	 * against the schemas in every processed scope, and throws the sorters away - so that the query does not fail or
+	 * pass depending on whether there are any rows to order by. A pick-first ordering has no rows when no owner of the
+	 * processed scopes holds a row of the reference, a traversal ordering also when the referenced entities the owners
+	 * hold rows of sit in no tree of the processed scopes.
 	 *
 	 * The constraints are translated exactly as the ordering with rows translates them, with two differences that keep
-	 * the translation from depending on the data: the resolver of the pick-first indexes offers a single empty reduced
-	 * index of the reference to the translators asking for the indexes at planning time - one index, as the rows of
-	 * one referenced entity would - and the sorters are collected in isolation, so that none joins the sorters of the
-	 * query: an owner without a row stays unsorted by the reference. The requirements to prefetch the translators
-	 * register are thrown away as well, so that the check neither widens the prefetch of the query nor changes the
-	 * cost it is chosen by.
+	 * the translation from depending on the data: the translators are offered a single empty reduced index of the
+	 * reference - one index, as the rows of one referenced entity would be - the pick-first ordering through the
+	 * resolver of its indexes at planning time, the traversal ordering as the block it sorts; and the sorters are
+	 * collected in isolation, so that none joins the sorters of the query: an owner without a row stays unsorted by
+	 * the reference. The requirements to prefetch the translators register are thrown away as well, so that the check
+	 * neither widens the prefetch of the query nor changes the cost it is chosen by.
 	 *
 	 * @param referenceProperty         the ordering whose child constraints are checked
 	 * @param orderByVisitor            the visitor of the planned query
 	 * @param referenceSchema           the reference being ordered by
-	 * @param pickFirstByEntityProperty the ordering of the targets
-	 * @param implicit                  true when the pick-first specification is the implicit default of the reference
+	 * @param pickFirstByEntityProperty the ordering of the targets of a pick-first ordering, NULL for a traversal
+	 *                                  ordering
+	 * @param implicit                  true when the ordering specification is the implicit default of the reference
 	 */
 	private static void checkChildConstraintsWithoutRows(
 		@Nonnull ReferenceProperty referenceProperty,
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull ReferenceSchema referenceSchema,
-		@Nonnull PickFirstByEntityProperty pickFirstByEntityProperty,
+		@Nullable PickFirstByEntityProperty pickFirstByEntityProperty,
 		boolean implicit
 	) {
 		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
@@ -553,14 +556,18 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		};
 		orderByVisitor.getQueryContext().executeDiscardingRequirementsToPrefetch(
 			() -> orderByVisitor.executeInContext(
-				EMPTY_REDUCED_INDEXES,
+				pickFirstByEntityProperty == null ? emptyIndexes : EMPTY_REDUCED_INDEXES,
 				referenceSchema,
 				null,
 				processingScope.withReferenceSchemaAccessor(referenceName),
-				new MergeModeDefinition(MergeMode.APPEND_FIRST, implicit),
-				createPickFirstIndexResolver(
-					orderByVisitor, referenceSchema, pickFirstByEntityProperty.getChildren(), () -> emptyIndexes
+				new MergeModeDefinition(
+					pickFirstByEntityProperty == null ? MergeMode.APPEND_ALL : MergeMode.APPEND_FIRST, implicit
 				),
+				pickFirstByEntityProperty == null ?
+					null :
+					createPickFirstIndexResolver(
+						orderByVisitor, referenceSchema, pickFirstByEntityProperty.getChildren(), () -> emptyIndexes
+					),
 				() -> orderByVisitor.collectIsolatedSorters(
 					() -> traverseChildConstraints(referenceProperty, orderByVisitor)
 				)
@@ -772,6 +779,12 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 				getSortedReducedIndexPrimaryKeys(traversalOrdering, traversalSorter, referenceIndexIds)
 		);
 		if (sortedReducedIndexes.length == 0) {
+			// no owner has a row of this reference in the processed scopes, or none of the referenced entities sits in
+			// a tree of them - there is nothing to sort by, but the nested constraints are checked against the schemas
+			// all the same
+			checkChildConstraintsWithoutRows(
+				referenceProperty, orderByVisitor, referenceSchema, null, orderingSpecificationRef.isEmpty()
+			);
 			return Stream.empty();
 		}
 
