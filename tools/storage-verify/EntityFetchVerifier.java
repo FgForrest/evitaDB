@@ -189,20 +189,13 @@ public class EntityFetchVerifier {
 		final long waitStart = System.currentTimeMillis();
 		CatalogState state = evita.getCatalogState(catalogName).orElse(null);
 		while (
-			state != null && isTransitional(state) &&
+			state != null && state.isTransitional() &&
 				System.currentTimeMillis() - waitStart < ACTIVATION_TIMEOUT_MILLIS
 		) {
 			Thread.sleep(200);
 			state = evita.getCatalogState(catalogName).orElse(null);
 		}
 		return state;
-	}
-
-	/**
-	 * @return true for the states a catalog only passes through
-	 */
-	private static boolean isTransitional(@Nonnull CatalogState state) {
-		return state == CatalogState.GOING_ALIVE || state.name().startsWith("BEING_");
 	}
 
 	/**

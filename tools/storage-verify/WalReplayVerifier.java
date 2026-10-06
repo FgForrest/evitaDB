@@ -32,20 +32,30 @@ import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutatio
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.wal.VersionSource;
+import io.evitadb.spi.store.engine.EnginePersistenceService;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.store.shared.kryo.KryoFactory;
+import io.evitadb.store.wal.AbstractMutationLog;
 import io.evitadb.store.wal.CatalogWriteAheadLog;
 import io.evitadb.store.wal.WalKryoConfigurer;
+import io.evitadb.utils.FileUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.stream.Stream;
+
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.WAL_FILE_SUFFIX;
 
 /**
  * Replays a catalog's write-ahead log through the production reader, {@link CatalogWriteAheadLog}, with full Kryo
@@ -58,11 +68,16 @@ import java.util.stream.Stream;
  * complete when it delivers every version from its start to the last version of the log, each transaction with
  * exactly the mutations it declares.
  *
- * **Run it on a copy of the WAL folder.** Opening the log checks the active file and truncates a torn tail.
+ * Every catalog WAL under the storage root is found and its files are told apart by the engine's own naming -
+ * {@link AbstractMutationLog#getIndexFromWalFileName} and {@link CatalogPersistenceService#getWalFileName} - so the
+ * tool never restates the file-name format. A `.wal` file whose name the engine would not have written fails the run
+ * rather than being skipped. The engine's own log has a different reader and is left to the record verifier.
  *
- * Usage: `WalReplayVerifier <storage prefix> <WAL folder copy> <first WAL index> <start points>`. The storage prefix
- * is the part of the WAL file name before `_<index>.wal`. The process exits with `0` when every replay was complete,
- * `1` when any was not, and `2` on a usage error.
+ * Opening a log checks its active file and truncates a torn tail, so every log is replayed from a copy in the work
+ * directory, never in place; the copy is deleted afterwards.
+ *
+ * Usage: `WalReplayVerifier <storage root> <work dir> <start points>`. The process exits with `0` when every replay
+ * was complete, `1` when any was not, and `2` on a usage error.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -84,22 +99,138 @@ public class WalReplayVerifier {
 	}
 
 	/**
+	 * One catalog WAL found under the storage root.
+	 *
+	 * @param folder        folder holding the log's files
+	 * @param storagePrefix the part of the file names that the engine's naming puts before the file index
+	 * @param indexes       indexes of the log's files, ascending
+	 */
+	private record WalLog(@Nonnull Path folder, @Nonnull String storagePrefix, @Nonnull TreeSet<Integer> indexes) {
+	}
+
+	/**
 	 * Entry point - see the class documentation for the arguments.
 	 *
-	 * @param args storage prefix, WAL folder copy, first WAL index, start points
+	 * @param args storage root, work directory, start points
 	 */
-	public static void main(@Nonnull String[] args) {
-		if (args.length != 4) {
-			System.err.println(
-				"usage: WalReplayVerifier <storage prefix> <WAL folder copy> <first WAL index> <start points>"
-			);
+	public static void main(@Nonnull String[] args) throws IOException {
+		if (args.length != 3) {
+			System.err.println("usage: WalReplayVerifier <storage root> <work dir> <start points>");
 			System.exit(2);
 		}
-		final String storagePrefix = args[0];
-		final Path folder = Path.of(args[1]);
-		final int firstIndex = Integer.parseInt(args[2]);
-		final int startPoints = Integer.parseInt(args[3]);
+		final Path root = Path.of(args[0]);
+		final Path work = Path.of(args[1]);
+		final int startPoints = Integer.parseInt(args[2]);
 
+		final List<String> unrecognized = new ArrayList<>(4);
+		final List<WalLog> logs = findLogs(root, unrecognized);
+		boolean ok = true;
+		for (String file : unrecognized) {
+			System.out.printf("# SUMMARY wal %s: status=FAILED failure=not a WAL file name the engine writes%n", file);
+			ok = false;
+		}
+		for (WalLog log : logs) {
+			final Path copy = work.resolve(log.storagePrefix());
+			FileUtils.deleteDirectory(copy);
+			Files.createDirectories(copy);
+			try {
+				for (int index : log.indexes()) {
+					final String fileName = CatalogPersistenceService.getWalFileName(log.storagePrefix(), index);
+					Files.copy(log.folder().resolve(fileName), copy.resolve(fileName));
+				}
+				ok &= verifyLog(log.storagePrefix(), copy, log.indexes().first(), startPoints);
+			} finally {
+				FileUtils.deleteDirectory(copy);
+			}
+		}
+		System.exit(ok ? 0 : 1);
+	}
+
+	/**
+	 * Finds every catalog WAL under the root and groups its files by folder and storage prefix.
+	 *
+	 * @param root         storage root to search
+	 * @param unrecognized collects `.wal` files whose names the engine would not have written
+	 * @return the logs, in folder and prefix order
+	 */
+	@Nonnull
+	private static List<WalLog> findLogs(@Nonnull Path root, @Nonnull List<String> unrecognized) throws IOException {
+		final List<Path> files;
+		try (Stream<Path> walk = Files.walk(root)) {
+			files = walk.filter(Files::isRegularFile).toList();
+		}
+		final Map<Path, WalLog> logs = new TreeMap<>();
+		for (Path file : files) {
+			final String name = file.getFileName().toString();
+			if (!name.endsWith(WAL_FILE_SUFFIX)) {
+				continue;
+			}
+			final int index = indexOf(name);
+			if (index >= 0 && name.equals(EnginePersistenceService.getWalFileName(index))) {
+				// the engine's own log has a different reader - the record verifier covers it
+				continue;
+			}
+			final String prefix = index >= 0 ? storagePrefixOf(name, index) : null;
+			if (prefix == null) {
+				unrecognized.add(file.toString());
+				continue;
+			}
+			logs.computeIfAbsent(
+				file.getParent().resolve(prefix),
+				key -> new WalLog(file.getParent(), prefix, new TreeSet<>())
+			).indexes().add(index);
+		}
+		return new ArrayList<>(logs.values());
+	}
+
+	/**
+	 * Reads the file index from a WAL file name with the engine's own parser.
+	 *
+	 * @param name WAL file name
+	 * @return the index, or -1 when the name carries none
+	 */
+	private static int indexOf(@Nonnull String name) {
+		try {
+			return AbstractMutationLog.getIndexFromWalFileName(name);
+		} catch (RuntimeException ex) {
+			// the engine's parser refuses a name with no digits before the suffix
+			return -1;
+		}
+	}
+
+	/**
+	 * Returns the storage prefix a catalog WAL file name was built from, verified by building the name again.
+	 *
+	 * @param name  WAL file name
+	 * @param index file index read from the name
+	 * @return the prefix, or null when the engine's naming would not produce this name
+	 */
+	@Nullable
+	private static String storagePrefixOf(@Nonnull String name, int index) {
+		// what the engine's naming appends to a prefix for this index, so the prefix is all that precedes it
+		final int prefixLength = name.length() - CatalogPersistenceService.getWalFileName("", index).length();
+		if (prefixLength <= 0) {
+			return null;
+		}
+		final String prefix = name.substring(0, prefixLength);
+		return CatalogPersistenceService.getWalFileName(prefix, index).equals(name) ? prefix : null;
+	}
+
+	/**
+	 * Replays one log from many start versions and prints one line per replay and a summary.
+	 *
+	 * @param storagePrefix storage prefix of the log's files
+	 * @param folder        folder holding a copy of the log's files
+	 * @param firstIndex    index of the log's oldest file
+	 * @param startPoints   start versions to replay from, besides the first one
+	 * @return true when every replay was complete
+	 */
+	private static boolean verifyLog(
+		@Nonnull String storagePrefix,
+		@Nonnull Path folder,
+		int firstIndex,
+		int startPoints
+	) {
 		final Pool<Kryo> kryoPool = new Pool<>(true, false, 16) {
 			@Override
 			protected Kryo create() {
@@ -108,7 +239,7 @@ public class WalReplayVerifier {
 		};
 		final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(2);
 		final List<Replay> replays = new ArrayList<>(startPoints * 2 + 2);
-		int exit = 0;
+		boolean verified = false;
 		try (
 			final CatalogWriteAheadLog wal = new CatalogWriteAheadLog(
 				0L,
@@ -156,14 +287,13 @@ public class WalReplayVerifier {
 				storagePrefix, firstVersion, lastVersion, replays.size(), mutations, incomplete,
 				incomplete == 0 ? "OK" : "FAILED"
 			);
-			exit = incomplete == 0 ? 0 : 1;
+			verified = incomplete == 0;
 		} catch (Throwable ex) {
 			System.out.printf("# SUMMARY wal %s: status=FAILED failure=%s%n", storagePrefix, describe(ex));
-			exit = 1;
 		} finally {
 			executor.shutdownNow();
 		}
-		System.exit(exit);
+		return verified;
 	}
 
 	/**

@@ -25,9 +25,11 @@ package io.evitadb.tools.storage;
 
 import io.evitadb.store.checksum.Crc32CChecksumFactory;
 import io.evitadb.store.kryo.ObservableInput;
+import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.stream.RandomAccessFileInputStream;
+import io.evitadb.utils.BitUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -53,6 +55,19 @@ import java.util.zip.CRC32C;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.CATALOG_FILE_SUFFIX;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX;
+import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.WAL_FILE_SUFFIX;
+import static io.evitadb.store.offsetIndex.model.StorageRecord.COMPRESSION_BIT;
+import static io.evitadb.store.offsetIndex.model.StorageRecord.CONTINUATION_BIT;
+import static io.evitadb.store.offsetIndex.model.StorageRecord.CRC32_BIT;
+import static io.evitadb.store.offsetIndex.model.StorageRecord.CRC_NOT_COVERED_HEAD;
+import static io.evitadb.store.offsetIndex.model.StorageRecord.OVERHEAD_SIZE;
+import static io.evitadb.store.offsetIndex.model.StorageRecord.RECORD_LENGTH_CONTROL_SIZE;
+import static io.evitadb.store.wal.AbstractMutationLog.CUMULATIVE_CRC32_SIZE;
+import static io.evitadb.store.wal.AbstractMutationLog.TRANSACTION_PREFIX_SIZE;
+import static io.evitadb.store.wal.AbstractMutationLog.WAL_TAIL_LENGTH;
+
 /**
  * Reads every record of every WAL (`.wal`) and data file (`.collection`, `.catalog`) under the given storage roots
  * twice, and compares the two reads record by record.
@@ -71,6 +86,11 @@ import java.util.zip.Inflater;
  * which is the premise the WAL supplier checks. Each file is verified once per buffer size, because the buffer size
  * decides where records straddle the reader's buffer edges.
  *
+ * The oracle parses with its own code, but takes every number describing the format - record overhead, control-byte
+ * bits, WAL framing sizes, file suffixes - from the production constants the writer uses. Those numbers define the
+ * format rather than the reader's logic, so a copy could only go stale: the oracle would then reject correct files,
+ * or accept a reader that agrees with it on an outdated layout.
+ *
  * Payloads are read in a deterministic mix of small and large reads, but never across the split point of a record
  * chained over several physical records - the writer splits between two values, so no serializer read crosses it
  * either. `-Dunaligned=true` drops that clipping; with it the reader misaligns on chained records by design.
@@ -83,30 +103,9 @@ import java.util.zip.Inflater;
  */
 public class StorageRecordVerifier {
 	/**
-	 * Bytes of a record that are not payload: the length (4), the control byte (1), the generation id (8) and
-	 * the CRC32C tail (8).
+	 * Offset of the control byte in a record: it closes the head made of the record length and the control byte.
 	 */
-	private static final int OVERHEAD = 4 + 1 + 8 + 8;
-	/**
-	 * Bit of the control byte marking a record whose payload continues in the next physical record.
-	 */
-	private static final int CONTINUATION_BIT = 2;
-	/**
-	 * Bit of the control byte marking a record carrying a CRC32C checksum.
-	 */
-	private static final int CRC32_BIT = 3;
-	/**
-	 * Bit of the control byte marking a record with a deflated payload.
-	 */
-	private static final int COMPRESSION_BIT = 4;
-	/**
-	 * Length of the tail a finished WAL file ends with: first version, last version and the file checksum.
-	 */
-	private static final int WAL_TAIL_LENGTH = 24;
-	/**
-	 * Size of the cumulative checksum that opens a WAL file and closes every transaction in it.
-	 */
-	private static final int CUMULATIVE_CHECKSUM_SIZE = 8;
+	private static final int CONTROL_BYTE_OFFSET = RECORD_LENGTH_CONTROL_SIZE - 1;
 	/**
 	 * When false, payload reads are clipped at the split points of chained records.
 	 */
@@ -195,7 +194,8 @@ public class StorageRecordVerifier {
 	 */
 	private static boolean isVerifiedFile(@Nonnull Path path) {
 		final String name = path.getFileName().toString();
-		return name.endsWith(".wal") || name.endsWith(".collection") || name.endsWith(".catalog");
+		return name.endsWith(WAL_FILE_SUFFIX) || name.endsWith(ENTITY_COLLECTION_FILE_SUFFIX) ||
+			name.endsWith(CATALOG_FILE_SUFFIX);
 	}
 
 	/**
@@ -208,7 +208,7 @@ public class StorageRecordVerifier {
 	@Nonnull
 	private static List<FileResult> verifyFile(@Nonnull Path file, int bufferSize) throws IOException {
 		final List<FileResult> results = new ArrayList<>(2);
-		if (file.getFileName().toString().endsWith(".wal")) {
+		if (file.getFileName().toString().endsWith(WAL_FILE_SUFFIX)) {
 			try (RecordSource source = new RecordSource(file)) {
 				results.add(verifyWal(file, source, bufferSize));
 			}
@@ -254,22 +254,25 @@ public class StorageRecordVerifier {
 		final FileResult result = new FileResult(file.toString(), "wal-seq", bufferSize);
 		final long fileLength = source.size();
 		final Random random = new Random(file.getFileName().toString().hashCode() * 31L + bufferSize);
-		long position = CUMULATIVE_CHECKSUM_SIZE;
+		long position = CUMULATIVE_CRC32_SIZE;
 		try (ObservableInput<RandomAccessFileInputStream> input = openReader(file.toFile(), bufferSize)) {
 			input.seekWithUnknownLength(0);
 			input.simpleLongRead();
-			result.checkOffset(input, CUMULATIVE_CHECKSUM_SIZE, "after the seed checksum");
+			result.checkOffset(input, CUMULATIVE_CRC32_SIZE, "after the seed checksum");
 			// the same end-of-data rule the supplier applies: the finished file ends with its tail
 			while (fileLength > position + WAL_TAIL_LENGTH) {
 				final int contentLength = source.getInt(position);
-				if (contentLength <= 0 || position + 4 + contentLength + CUMULATIVE_CHECKSUM_SIZE > fileLength) {
+				if (
+				contentLength <= 0 ||
+					position + TRANSACTION_PREFIX_SIZE + contentLength + CUMULATIVE_CRC32_SIZE > fileLength
+			) {
 					result.tornTail = "incomplete transaction at " + position + " (declared content " +
 						contentLength + " B, " + (fileLength - position) + " B left)";
 					break;
 				}
-				final long contentEnd = position + 4 + contentLength;
+				final long contentEnd = position + TRANSACTION_PREFIX_SIZE + contentLength;
 				final List<OracleChain> chains = new ArrayList<>(16);
-				long recordPosition = position + 4;
+				long recordPosition = position + TRANSACTION_PREFIX_SIZE;
 				while (recordPosition < contentEnd) {
 					final OracleChain chain = OracleChain.read(source, recordPosition);
 					chains.add(chain);
@@ -292,7 +295,7 @@ public class StorageRecordVerifier {
 					StorageRecord.readWithChecksum(input, (in, length) -> readPayload(in, chain, random));
 					if (leading) {
 						// the framing premise of the WAL supplier: the leading record measured from the length prefix
-						if (input.total() - totalBefore != 4 + (chain.end() - chain.start())) {
+						if (input.total() - totalBefore != TRANSACTION_PREFIX_SIZE + (chain.end() - chain.start())) {
 							result.framingMismatches++;
 						}
 						leading = false;
@@ -306,9 +309,9 @@ public class StorageRecordVerifier {
 						"cumulative checksum read at " + contentEnd + " differs from the file"
 					);
 				}
-				result.checkOffset(input, contentEnd + CUMULATIVE_CHECKSUM_SIZE, "after the checksum at " + contentEnd);
+				result.checkOffset(input, contentEnd + CUMULATIVE_CRC32_SIZE, "after the checksum at " + contentEnd);
 				result.transactions++;
-				position = contentEnd + CUMULATIVE_CHECKSUM_SIZE;
+				position = contentEnd + CUMULATIVE_CRC32_SIZE;
 			}
 		} catch (OracleException ex) {
 			result.classifyOracleFailure(ex, position, fileLength);
@@ -522,12 +525,12 @@ public class StorageRecordVerifier {
 		}
 
 		int getInt(long position) {
-			final int index = locate(position, 4);
+			final int index = locate(position, Integer.BYTES);
 			return this.window.getInt(index);
 		}
 
 		long getLong(long position) {
-			final int index = locate(position, 8);
+			final int index = locate(position, Long.BYTES);
 			return this.window.getLong(index);
 		}
 
@@ -573,13 +576,13 @@ public class StorageRecordVerifier {
 			int compressed = 0;
 			byte control;
 			do {
-				if (recordPosition + OVERHEAD > source.size()) {
+				if (recordPosition + OVERHEAD_SIZE > source.size()) {
 					throw new OracleException(
 						"a record header at " + recordPosition + " runs past the end of the file"
 					);
 				}
 				final int length = source.getInt(recordPosition);
-				if (length < OVERHEAD) {
+				if (length < OVERHEAD_SIZE) {
 					throw new OracleException(
 						"a record at " + recordPosition + " declares an impossible length " + length
 					);
@@ -589,27 +592,29 @@ public class StorageRecordVerifier {
 						"a record at " + recordPosition + " of " + length + " B runs past the end of the file"
 					);
 				}
-				control = source.get(recordPosition + 4);
-				final byte[] raw = new byte[length - OVERHEAD];
-				source.get(recordPosition + 13, raw);
-				if (isBitSet(control, CRC32_BIT)) {
+				control = source.get(recordPosition + CONTROL_BYTE_OFFSET);
+				final byte[] raw = new byte[length - OVERHEAD_SIZE];
+				source.get(recordPosition + CRC_NOT_COVERED_HEAD, raw);
+				if (BitUtils.isBitSet(control, CRC32_BIT)) {
 					final CRC32C crc = new CRC32C();
 					crc.update(raw);
 					crc.update(control);
-					if (crc.getValue() != source.getLong(recordPosition + length - 8)) {
+					final long storedCrc =
+						source.getLong(recordPosition + length - ObservableOutput.TAIL_MANDATORY_SPACE);
+					if (crc.getValue() != storedCrc) {
 						throw new OracleException(
 							"the checksum of the record at " + recordPosition + " does not match"
 						);
 					}
 				}
-				if (isBitSet(control, COMPRESSION_BIT)) {
+				if (BitUtils.isBitSet(control, COMPRESSION_BIT)) {
 					compressed++;
 					parts.add(inflate(raw, recordPosition));
 				} else {
 					parts.add(raw);
 				}
 				recordPosition += length;
-			} while (isBitSet(control, CONTINUATION_BIT));
+			} while (BitUtils.isBitSet(control, CONTINUATION_BIT));
 
 			final int[] partLengths = new int[parts.size()];
 			int total = 0;
@@ -673,10 +678,6 @@ public class StorageRecordVerifier {
 				inflater.end();
 			}
 			return out.toByteArray();
-		}
-
-		private static boolean isBitSet(byte value, int bit) {
-			return ((value & 0xff) & (1 << bit)) != 0;
 		}
 	}
 

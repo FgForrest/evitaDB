@@ -192,23 +192,9 @@ fi
 if $RUN_WAL; then
 	echo
 	echo "=== wal: $STORAGE"
-	# every folder holding WAL files of a catalog; the engine's own log (evitaDB_<n>.wal) has a different reader and
-	# is verified by --records only
-	while IFS= read -r folder; do
-		for prefix in $(find "$folder" -maxdepth 1 -name '*.wal' -printf '%f\n' \
-			| sed -E 's/_[0-9]+\.wal$//' | sort -u); do
-			[[ "$prefix" == "evitaDB" ]] && continue
-			copy="$WORK/wal/$prefix"
-			rm -rf "$copy"
-			mkdir -p "$copy"
-			cp "$folder/$prefix"_*.wal "$copy/"
-			first_index="$(find "$copy" -name "${prefix}_*.wal" -printf '%f\n' \
-				| sed -E "s/^${prefix}_([0-9]+)\.wal$/\1/" | sort -n | head -1)"
-			java "-Xmx$HEAP" -cp "$CLASSPATH" "$TOOL_PACKAGE.WalReplayVerifier" \
-				"$prefix" "$copy" "$first_index" "$WAL_START_POINTS" || FAILED=true
-			rm -rf "$copy"
-		done
-	done < <(find "$STORAGE" -name '*.wal' -printf '%h\n' | sort -u)
+	# the verifier finds the catalog WALs itself, by the engine's own file naming, and replays each from a copy
+	java "-Xmx$HEAP" -cp "$CLASSPATH" "$TOOL_PACKAGE.WalReplayVerifier" \
+		"$STORAGE" "$WORK/wal" "$WAL_START_POINTS" || FAILED=true
 fi
 
 if $RUN_ENTITIES; then

@@ -28,7 +28,9 @@ Each level exercises a layer the one below it cannot reach.
 `StorageRecordVerifier` reads every `.wal`, `.collection` and `.catalog` file twice.
 
 - **The oracle** parses the record framing byte by byte and checks every CRC32C. It inflates compressed payloads with
-  its own `Inflater`. None of the engine's reading code is involved.
+  its own `Inflater`. None of the engine's reading code is involved. The numbers that define the format (record
+  overhead, control-byte bits, WAL framing sizes, file suffixes) come from the production constants the writer uses,
+  so the oracle cannot drift from the format it checks.
 - **The reader under test** is `ObservableInput` with `StorageRecord`, in the access patterns the engine uses:
 
 | Pattern | What it is | Where the engine does it |
