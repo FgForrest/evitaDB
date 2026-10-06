@@ -1,7 +1,7 @@
 ---
 title: Schema-capability usage is counted per schema element in a collection-carried registry, not per physical index
 date: 2026-08-19
-updated: 2026-10-05 21:20
+updated: 2026-10-06 07:45
 status: accepted
 kind: feature
 issues: [1429]
@@ -153,11 +153,22 @@ side.
   catalog row with requests against an update count that is zero *by construction* — a sortable global
   attribute's sort index lives in every collection declaring it, never in the catalog — which reads as
   *"nothing maintains this flag, drop it"* about a flag that is actively maintained. The request is
-  dropped rather than re-attributed, the same trade-off `recordRequestedCapability` makes for a filter
-  evaluated against another collection's structures: a number attributed to the wrong owner is worse
+  dropped rather than re-attributed: a collection-less query names no collection whose sort index it
+  used, so there is no right owner to give it to, and a number attributed to the wrong owner is worse
   than one missing. A query that **names** its collection is unaffected and records the `SORTABLE` there,
   which is also where its maintenance is counted. Pinned by
   `CatalogUsageRegistryTest.Attribution#shouldNotCountSortOnTheCatalog`.
+- **A request about another collection's element is counted on that collection, not dropped.** A
+  constraint translated in the queried collection's planning context may name an element of another
+  schema — the parent filter of a `hierarchyWithin` of a reference, the node filters of hierarchy
+  statistics of a reference, the group selector of `histogramHaving`, an ordering by a property of a
+  referenced entity. `QueryPlanningContext#recordRequestedCapability` resolves the holder in the
+  registry of the collection whose schema declares the element (its `owner`), whichever context records
+  it; nested contexts that build no plan of their own (sorter contexts, checks of nested filters) hand
+  their requests to the context they serve. Unlike the catalog case above, here the right owner is
+  known, so re-attribution protects the right flag. Pinned by
+  `RequestedCapabilityAccumulationTest.ConstraintsOfAnotherSchema` and
+  `ReferenceAndEntityCapabilityRequestTest#shouldRecordHierarchyIndexedOnTheCollectionOwningTheTree`.
 - **Holders are seeded eagerly, and seeding is deliberately narrower than dropping.** `alignWith` both
   mints and drops, so `observedSince` is literally the instant the capability was declared and an
   untouched flag is reported with honest zeros instead of being absent — an absence an operator cannot
