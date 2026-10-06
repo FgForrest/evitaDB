@@ -58,10 +58,19 @@ import static io.evitadb.api.query.require.FacetGroupRelationLevel.WITH_DIFFEREN
 @NotThreadSafe
 public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 	/**
-	 * Contains cache for already generated formulas indexed by a {@link CacheKey} that distinguishes the key
-	 * situations where the formulas have to have different shape and structure.
+	 * The number of the relation types, the number of the slots of one relation within the group in the arrays of
+	 * {@link #cache}.
 	 */
-	private final Map<CacheKey, Formula> cache = CollectionUtils.createHashMap(64);
+	private static final int RELATION_TYPE_COUNT = FacetRelationType.values().length;
+	/**
+	 * Contains cache for already generated formulas. The key is the name of the faceted reference - the calculator
+	 * serves the summaries of all the requested references, and the relations are resolved for a group of one
+	 * reference, so the reference pins them together with the relations. The value holds a slot for each combination
+	 * of the relation of the facets within their group and the relation of the group to the other groups - see
+	 * {@link #getCacheSlot}: the shape of the formula depends on both, so two groups whose facets share a relation
+	 * may still differ in the other one, and must not share one formula.
+	 */
+	private final Map<String, Formula[]> cache = CollectionUtils.createHashMap(16);
 
 	public FacetFormulaGenerator(
 		@Nonnull FacetRelationTypeResolver facetRelationType,
@@ -70,6 +79,30 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 		@Nonnull FacetGroupRelationTypeResolver isFacetGroupExclusive
 	) {
 		super(facetRelationType, isFacetGroupConjunction, isFacetGroupNegation, isFacetGroupExclusive);
+	}
+
+	/**
+	 * Generates the count formula of the facet in its group. The formula of the first facet of the same reference and
+	 * relations is generated and cached, every other one replaces the facet in it - so the groups the facet is
+	 * referenced under, which only the generation reads, are created for the first facet only.
+	 */
+	@Nonnull
+	@Override
+	public Formula generateFormula(
+		@Nonnull Formula baseFormula,
+		@Nonnull Formula baseFormulaWithoutUserFilter,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer facetGroupId,
+		int facetId,
+		@Nonnull Bitmap[] facetEntityIds
+	) {
+		final Formula formula = getCachedFormula(referenceSchema, facetGroupId);
+		return formula == null ?
+			generateFormula(
+				baseFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds,
+				FacetGroupOccurrences.singleGroup(facetGroupId, getBaseEntityIds(facetEntityIds))
+			) :
+			replaceFacet(formula, referenceSchema, facetGroupId, facetId, getBaseEntityIds(facetEntityIds));
 	}
 
 	@Nonnull
@@ -88,42 +121,83 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 		Assert.isPremiseValid(
 			facetGroupOccurrences.isSingleGroup(), "The count of a facet is computed for a single group of it!"
 		);
-		// the shape of the formula depends on the relation of the group to the other groups as well - two groups whose
-		// facets share a relation may still differ in it, and must not share one formula
-		final CacheKey key = new CacheKey(
-			referenceSchema.getName(),
-			this.facetRelationType.resolve(referenceSchema, facetGroupId, WITH_DIFFERENT_FACETS_IN_GROUP),
-			this.facetRelationType.resolve(referenceSchema, facetGroupId, WITH_DIFFERENT_GROUPS)
+		final Formula formula = getCachedFormula(referenceSchema, facetGroupId);
+		if (formula == null) {
+			// the count drops the whole user filter - a user filter inside a scope container restricts only that scope,
+			// and a negated user filter is subtracted, and so would be the facet replacing its contents, so the facet
+			// goes to an empty user filter over the formula without the user filter instead, the same as when there is
+			// none
+			final Formula countedFormula = isUserFilterScoped(baseFormula) || isUserFilterNegated(baseFormula) ?
+				FilterFormulaFacetOptimizeVisitor.optimize(baseFormulaWithoutUserFilter) : baseFormula;
+			final Formula generatedFormula = super.generateFormula(
+				countedFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId,
+				facetEntityIds, facetGroupOccurrences
+			);
+			this.cache.computeIfAbsent(
+				referenceSchema.getName(), referenceName -> new Formula[RELATION_TYPE_COUNT * RELATION_TYPE_COUNT]
+			)[getCacheSlot(referenceSchema, facetGroupId)] = generatedFormula;
+			return generatedFormula;
+		} else {
+			return replaceFacet(
+				formula, referenceSchema, facetGroupId, facetId, facetGroupOccurrences.getEntityIds(facetGroupId)
+			);
+		}
+	}
+
+	/**
+	 * Returns the cached count formula of the reference and relations of the passed group.
+	 *
+	 * @param referenceSchema the schema of the faceted reference
+	 * @param facetGroupId    the group, NULL for the facets without a group
+	 * @return the cached formula, NULL when none has been generated yet
+	 */
+	@Nullable
+	private Formula getCachedFormula(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer facetGroupId) {
+		final Formula[] formulasOfReference = this.cache.get(referenceSchema.getName());
+		return formulasOfReference == null ? null : formulasOfReference[getCacheSlot(referenceSchema, facetGroupId)];
+	}
+
+	/**
+	 * Returns the slot of the formula of the passed group in the array of its reference in {@link #cache} - one for
+	 * each combination of the relation of the facets within the group and the relation of the group to the other
+	 * groups.
+	 *
+	 * @param referenceSchema the schema of the faceted reference
+	 * @param facetGroupId    the group, NULL for the facets without a group
+	 * @return the slot
+	 */
+	private int getCacheSlot(@Nonnull ReferenceSchemaContract referenceSchema, @Nullable Integer facetGroupId) {
+		return this.facetRelationType.resolve(referenceSchema, facetGroupId, WITH_DIFFERENT_FACETS_IN_GROUP).ordinal() *
+			RELATION_TYPE_COUNT +
+			this.facetRelationType.resolve(referenceSchema, facetGroupId, WITH_DIFFERENT_GROUPS).ordinal();
+	}
+
+	/**
+	 * Replaces the facet in the cached count formula with the passed one.
+	 *
+	 * @param formula         the cached count formula of the reference and relations of the facet
+	 * @param referenceSchema the schema of the faceted reference
+	 * @param facetGroupId    the group of the facet, NULL for the facets without a group
+	 * @param facetId         the facet
+	 * @param entityIds       the entities referencing the facet under the group
+	 * @return the passed formula with the facet replaced
+	 */
+	@Nonnull
+	private Formula replaceFacet(
+		@Nonnull Formula formula,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer facetGroupId,
+		int facetId,
+		@Nonnull Bitmap entityIds
+	) {
+		final MutableFormulaFinderAndReplacer mutableFormulaFinderAndReplacer = new MutableFormulaFinderAndReplacer(
+			mutableFormula -> createFacetGroupFormula(referenceSchema, facetGroupId, facetId, entityIds, false)
 		);
-		return this.cache.compute(
-			key,
-			(cacheKey, formula) -> {
-				if (formula == null) {
-					// the count drops the whole user filter - a user filter inside a scope container restricts only
-					// that scope, and a negated user filter is subtracted, and so would be the facet replacing its
-					// contents, so the facet goes to an empty user filter over the formula without the user filter
-					// instead, the same as when there is none
-					final Formula countedFormula = isUserFilterScoped(baseFormula) || isUserFilterNegated(baseFormula) ?
-						FilterFormulaFacetOptimizeVisitor.optimize(baseFormulaWithoutUserFilter) : baseFormula;
-					return super.generateFormula(
-						countedFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId,
-						facetEntityIds, facetGroupOccurrences
-					);
-				} else {
-					final MutableFormulaFinderAndReplacer mutableFormulaFinderAndReplacer = new MutableFormulaFinderAndReplacer(
-						mutableFormula -> createFacetGroupFormula(
-							referenceSchema, facetGroupId, facetId, facetGroupOccurrences.getEntityIds(facetGroupId),
-							false
-						)
-					);
-					formula.accept(mutableFormulaFinderAndReplacer);
-					Assert.isPremiseValid(
-						mutableFormulaFinderAndReplacer.isTargetFound(), "Expected a MutableFormula in the formula tree!"
-					);
-					return formula;
-				}
-			}
+		formula.accept(mutableFormulaFinderAndReplacer);
+		Assert.isPremiseValid(
+			mutableFormulaFinderAndReplacer.isTargetFound(), "Expected a MutableFormula in the formula tree!"
 		);
+		return formula;
 	}
 
 	/**
@@ -169,23 +243,6 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 			// output changed - just propagate it
 			return this.result;
 		}
-	}
-
-	/**
-	 * Key of the {@link #cache}: the relations that decide the shape of the generated formula. The calculator serves
-	 * the summaries of all the requested references, and the relations are resolved for a group of one reference, so
-	 * the reference pins them together with the relations.
-	 *
-	 * @param referenceName     the name of the faceted reference
-	 * @param facetRelationType the relation of the facets within their group
-	 * @param groupRelationType the relation of the group to the other groups
-	 */
-	private record CacheKey(
-		@Nonnull String referenceName,
-		@Nonnull FacetRelationType facetRelationType,
-		@Nonnull FacetRelationType groupRelationType
-	) {
-
 	}
 
 }

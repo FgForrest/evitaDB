@@ -33,9 +33,9 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 /**
@@ -72,9 +72,16 @@ public final class FacetGroupOccurrences {
 	@Nonnull private final List<Integer> groupsInQuery;
 	/**
 	 * The entities referencing the facet under each of its groups, the NULL key standing for the references without
-	 * a group.
+	 * a group; NULL for the occurrences of {@link #singleGroup}, which keep the entities of their only group in
+	 * {@link #singleGroupEntityIds}.
 	 */
-	@Nonnull private final Map<Integer, Bitmap> entityIdsByGroup;
+	@Nullable private final Map<Integer, Bitmap> entityIdsByGroup;
+	/**
+	 * The entities referencing the facet under its only group, for the occurrences of {@link #singleGroup} - a facet
+	 * of the reference summary has a single group as a rule, and the map of {@link #entityIdsByGroup} would cost an
+	 * allocation of its own for each of them.
+	 */
+	@Nullable private final Bitmap singleGroupEntityIds;
 	/**
 	 * The impact of adding the facet to the selection, shared by all the entries of the facet; valid only when
 	 * {@link #impactComputed} is true - the impact is NULL when it is not requested.
@@ -94,9 +101,7 @@ public final class FacetGroupOccurrences {
 	 */
 	@Nonnull
 	public static FacetGroupOccurrences singleGroup(@Nullable Integer groupId, @Nonnull Bitmap entityIds) {
-		final Map<Integer, Bitmap> entityIdsByGroup = new HashMap<>(2);
-		entityIdsByGroup.put(groupId, entityIds);
-		return new FacetGroupOccurrences(null, Collections.singletonList(groupId), entityIdsByGroup);
+		return new FacetGroupOccurrences(Collections.singletonList(groupId), entityIds);
 	}
 
 	/**
@@ -116,6 +121,20 @@ public final class FacetGroupOccurrences {
 		this.groupsByScope = groupsByScope;
 		this.groupsInQuery = groupsInQuery;
 		this.entityIdsByGroup = entityIdsByGroup;
+		this.singleGroupEntityIds = null;
+	}
+
+	/**
+	 * Creates the occurrences of a facet referenced under the only group of the passed list in every scope of the query.
+	 *
+	 * @param groupsInQuery the list holding the only group of the facet, NULL for the facets without a group
+	 * @param entityIds     the entities referencing the facet under the group
+	 */
+	private FacetGroupOccurrences(@Nonnull List<Integer> groupsInQuery, @Nonnull Bitmap entityIds) {
+		this.groupsByScope = null;
+		this.groupsInQuery = groupsInQuery;
+		this.entityIdsByGroup = null;
+		this.singleGroupEntityIds = entityIds;
 	}
 
 	/**
@@ -150,7 +169,12 @@ public final class FacetGroupOccurrences {
 	 */
 	@Nonnull
 	public Bitmap getEntityIds(@Nullable Integer groupId) {
-		final Bitmap entityIds = this.entityIdsByGroup.get(groupId);
+		final Bitmap entityIds;
+		if (this.entityIdsByGroup == null) {
+			entityIds = Objects.equals(this.groupsInQuery.get(0), groupId) ? this.singleGroupEntityIds : null;
+		} else {
+			entityIds = this.entityIdsByGroup.get(groupId);
+		}
 		return entityIds == null ? EmptyBitmap.INSTANCE : entityIds;
 	}
 
