@@ -1153,6 +1153,35 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Returns the reference partition of the **queried** collection with the primary key, when it is a partition of the
+	 * reference of the type index in the type index's scope, for a read - see the read resolution of
+	 * {@link ReferencePartitions}. The type index must be the queried collection's own, as
+	 * {@link #getIndexIfExists(io.evitadb.index.IndexKey, Class)} returns it: when the query reads the collection
+	 * virtually, a partition its registry holds a row for answers its {@link VirtualReferencePartition}, read out of the
+	 * row with one registry lookup; any other one answers its reduced entity index.
+	 *
+	 * @param typeIndex           the referenced-type entity index of the reference in the scope, of the queried
+	 *                            collection
+	 * @param partitionPrimaryKey the primary key of the partition
+	 * @return the partition, or `null` when the primary key names no partition of the reference in the scope
+	 */
+	@Nullable
+	public ReferencePartition resolvePartitionForReadIfExists(
+		@Nonnull ReferencedTypeEntityIndex typeIndex,
+		int partitionPrimaryKey
+	) {
+		final EntityIndexKey typeIndexKey = typeIndex.getIndexKey();
+		// a planning context created without a collection names the queried one by the request only
+		final String queriedEntityType = this.entityType == null ? this.evitaRequest.getEntityType() : this.entityType;
+		return ReferencePartitions.resolveForReadIfExists(
+			this::resolvePartitionIfExists,
+			// TODO JNO - remove at the end of #1615 (the condition, the type index stays)
+			queriedEntityType != null && isReadVirtually(queriedEntityType) ? typeIndex : null,
+			typeIndexKey.scope(), typeIndex.getReferenceName(), partitionPrimaryKey
+		);
+	}
+
+	/**
 	 * Returns the reference partition of the named collection with a primary key that must name a partition of the
 	 * reference in the scope, for a read - see
 	 * {@link #resolvePartitionForReadIfExists(String, Scope, String, int)}.

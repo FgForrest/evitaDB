@@ -48,6 +48,7 @@ import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeM
 import io.evitadb.core.query.sort.generic.PrefetchedRecordsSorter;
 import io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver;
 import io.evitadb.core.query.sort.reference.sorter.PickFirstReferenceSorter;
+import io.evitadb.core.query.sort.reference.sorter.PickFirstVirtualSortValues;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
 import io.evitadb.dataType.Predecessor;
@@ -56,6 +57,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReferencePartitions;
+import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
@@ -87,8 +89,8 @@ import static io.evitadb.index.attribute.SortIndex.createComparatorFor;
 public class AttributeNaturalTranslator
 	implements OrderingConstraintTranslator<AttributeNatural>, ReferenceOrderingConstraintTranslator<AttributeNatural> {
 	/**
-	 * Names the pick-first sort route in the error thrown when it meets a virtual reference partition before it reads
-	 * them.
+	 * Names the pick-first sort provider in the error thrown should a virtual reference partition ever reach it - the
+	 * sorter reads virtual partitions through their registry and hands the provider materialized ones only.
 	 */
 	private static final String PICK_FIRST_ROUTE = "pick-first sort provider";
 
@@ -411,6 +413,9 @@ public class AttributeNaturalTranslator
 		// the sort index lookup decides whether an index holds any value; the provider itself - which creates its value
 		// seeker eagerly - is built only when the sorter finds an unclaimed owner in the index
 		final Function<ReferencePartition, Supplier<SortedRecordsProvider>> providerFactory;
+		// the virtual partitions keep their values in the registry of single-owner partitions, under the very sort key
+		// their reduced indexes keep a sort index of
+		final PickFirstVirtualSortValues virtualValues;
 		final EntityComparator entityComparator;
 		if (attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract compoundSchema) {
 			final Comparator<ComparableArray> naturalComparator = createCombinedComparatorFor(
@@ -428,10 +433,13 @@ public class AttributeNaturalTranslator
 			valueComparator = orderDirection == ASC ? naturalComparator : naturalComparator.reversed();
 			final EntitySchemaContract theEntitySchema = Objects.requireNonNull(entitySchema);
 			providerFactory = index -> {
-				final SortIndex sortIndex = ReferencePartitions.toEntityIndex(index, PICK_FIRST_ROUTE, "4f")
+				final SortIndex sortIndex = ReferencePartitions.toMaterializedEntityIndex(index, PICK_FIRST_ROUTE)
 					.getSortIndex(theEntitySchema, referenceSchema, compoundSchema, locale);
 				return sortIndex == null ? null : () -> providerExtractor.apply(sortIndex);
 			};
+			virtualValues = PickFirstVirtualSortValues.ofSortKey(
+				AttributeIndex.createAttributeKey(theEntitySchema, referenceSchema, compoundSchema, locale)
+			);
 			// the compound being sortable is the whole contract - its elements need not be sortable themselves
 			entityComparator = new PickFirstReferenceCompoundAttributeComparator(
 				compoundSchema,
@@ -447,10 +455,13 @@ public class AttributeNaturalTranslator
 				new ComparatorSource(attributeSchema.getPlainType(), orderDirection, OrderBehaviour.NULLS_LAST)
 			);
 			providerFactory = index -> {
-				final SortIndex sortIndex = ReferencePartitions.toEntityIndex(index, PICK_FIRST_ROUTE, "4f")
+				final SortIndex sortIndex = ReferencePartitions.toMaterializedEntityIndex(index, PICK_FIRST_ROUTE)
 					.getSortIndex(referenceSchema, attributeSchema, locale);
 				return sortIndex == null ? null : () -> providerExtractor.apply(sortIndex);
 			};
+			virtualValues = PickFirstVirtualSortValues.ofSortKey(
+				AttributeIndex.createAttributeKey(referenceSchema, attributeSchema, locale)
+			);
 			entityComparator = new PickFirstReferenceAttributeComparator(
 				attributeSchema.getName(),
 				attributeSchema.getPlainType(),
@@ -469,7 +480,7 @@ public class AttributeNaturalTranslator
 
 		return Stream.of(
 			new PrefetchedRecordsSorter(entityComparator),
-			new PickFirstReferenceSorter(indexResolver, providerFactory, valueComparator, orderDirection)
+			new PickFirstReferenceSorter(indexResolver, providerFactory, virtualValues, valueComparator, orderDirection)
 		);
 	}
 

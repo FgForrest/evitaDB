@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.sort.NestedContextSorter;
@@ -42,6 +43,7 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.utils.ArrayUtils;
 
@@ -60,6 +62,7 @@ import java.util.function.Supplier;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  * Real reduced indexes, type indexes, global indexes and memberships of one reference, served to a
@@ -115,12 +118,16 @@ final class PickFirstReducedIndexFixture {
 	 */
 	private final CountingIndexMap<EntityIndexKey> countedIndexesByKey = new CountingIndexMap<>(this.indexesByKey);
 	/**
+	 * The switch holder of the virtual reading the planning context consults, off until {@link #readVirtually()}.
+	 */
+	private final VirtualReferencePartitionMaintenance maintenance = new VirtualReferencePartitionMaintenance();
+	/**
 	 * The planning context of a query over the owners, built without a session the way an index-only evaluation is.
-	 * Its catalog is the only mock: {@link Catalog} cannot be built outside a running engine, and none of the lookups
-	 * the resolver makes reads it.
+	 * Its catalog is the only mock: {@link Catalog} cannot be built outside a running engine, and the only thing the
+	 * resolver reads from it is the switch holder of the virtual reading, which is a real one.
 	 */
 	@Nonnull final QueryPlanningContext queryContext = new QueryPlanningContext(
-		mock(Catalog.class),
+		createCatalog(this.maintenance),
 		null,
 		null,
 		new EvitaRequest(query(collection(OWNER_TYPE)), OffsetDateTime.now(), EntityReference.class, null),
@@ -140,6 +147,64 @@ final class PickFirstReducedIndexFixture {
 	 * Primary key of the next type or global index.
 	 */
 	private int nextInfrastructurePrimaryKey = INFRASTRUCTURE_PRIMARY_KEY_BASE;
+
+	/**
+	 * Creates the mocked catalog answering the switch holder of the virtual reading.
+	 *
+	 * @param maintenance the switch holder
+	 * @return the catalog
+	 */
+	@Nonnull
+	private static Catalog createCatalog(@Nonnull VirtualReferencePartitionMaintenance maintenance) {
+		final Catalog catalog = mock(Catalog.class);
+		when(catalog.getVirtualReferencePartitionMaintenance()).thenReturn(maintenance);
+		return catalog;
+	}
+
+	/**
+	 * Turns the virtual reading of the owner collection on - for the planning context's first question about it,
+	 * which captures the answer for the rest of the query.
+	 */
+	void readVirtually() {
+		this.maintenance.setMaintained(OWNER_TYPE, true);
+		this.maintenance.setReadVirtually(OWNER_TYPE, true);
+	}
+
+	/**
+	 * Returns how many virtual rows the planning context reported as read.
+	 *
+	 * @return the number of virtual rows read
+	 */
+	long virtualRowsRead() {
+		return this.maintenance.getVirtualRowsRead();
+	}
+
+	/**
+	 * Registers a single-owner partition of {@link #REFERENCE_NAME} without representative values in the registry of
+	 * the type index of its scope, and lists it in the type index - a partition that exists only as a registry row,
+	 * which the read resolvers answer with a virtual handle once the owner collection is read virtually.
+	 *
+	 * @param scope      the scope of the partition
+	 * @param primaryKey primary key of the partition
+	 * @param target     primary key of the referenced entity
+	 * @param owner      the only owner of the partition
+	 */
+	void addVirtualPartition(@Nonnull Scope scope, int primaryKey, int target, int owner) {
+		final ReferencedTypeEntityIndex typeIndex = getOrCreateTypeIndex(scope);
+		typeIndex.insertPrimaryKeyIfMissing(primaryKey, target);
+		typeIndex.getVirtualReferencePartitionIndex().putPartitionOwner(primaryKey, owner, target);
+	}
+
+	/**
+	 * Returns the registry of single-owner partitions of the type index of the scope.
+	 *
+	 * @param scope the scope
+	 * @return the registry
+	 */
+	@Nonnull
+	VirtualReferencePartitionIndex registry(@Nonnull Scope scope) {
+		return getOrCreateTypeIndex(scope).getVirtualReferencePartitionIndex();
+	}
 
 	/**
 	 * Adds a reduced index of {@link #REFERENCE_NAME} without representative values and lists it in the type index

@@ -24,6 +24,7 @@
 package io.evitadb.core.query.sort.reference.sorter;
 
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.response.ServerEntityDecorator;
@@ -32,16 +33,26 @@ import io.evitadb.core.query.sort.Sorter.SortingContext;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.VirtualReferencePartition;
+import io.evitadb.index.VirtualReferencePartitionIndex;
+import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.index.attribute.SortedRecordsSupplier;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -50,10 +61,13 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.ORDER;
@@ -61,6 +75,7 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies the index route of a `pickFirst` reference ordering, {@link PickFirstReferenceSorter}, around the page and
@@ -82,6 +97,12 @@ import static org.junit.jupiter.api.Assertions.assertSame;
  * Owner 5 has no row at all. Ascending, the owners are claimed as 7 (1), 2, 6, 9 (20), 1 (30), 3 (50), 8 (60) and
  * 10 (70), and owners 4 and 5 stay unclaimed.
  *
+ * The virtual cases (step 4f of #1615) read single-owner partitions out of the registry of the type index: a generated
+ * mix of materialized and virtual partitions checked against a brute-force oracle in every page window and both
+ * directions, with the claimed values both dense and sparse; the cursor gate - one selected owner holding the largest
+ * of `D` values reads one value id and walks nothing, whatever `D`; and an unselected owner of a virtual partition the
+ * gather hands over is never claimed.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Pick-first reference sorter")
@@ -100,6 +121,19 @@ class PickFirstReferenceSorterTest {
 	 * Value marking an owner held by an index that has no value for it.
 	 */
 	private static final int NO_VALUE = Integer.MIN_VALUE;
+	/**
+	 * The sort key the registry keeps the values of the virtual partitions under.
+	 */
+	private static final AttributeIndexKey VALUE_KEY =
+		new AttributeIndexKey(PickFirstReducedIndexFixture.REFERENCE_NAME, "value", null);
+	/**
+	 * The values of the virtual partitions, read out of the registry under {@link #VALUE_KEY}.
+	 */
+	private static final PickFirstVirtualSortValues VALUE_SORT_VALUES = PickFirstVirtualSortValues.ofSortKey(VALUE_KEY);
+	/**
+	 * The value source of the cases without any virtual partition.
+	 */
+	private static final PickFirstVirtualSortValues NO_VIRTUAL_VALUES = VALUE_SORT_VALUES;
 
 	/**
 	 * Creates a provider holding the passed owners with their values in the ordering direction: ascending by value
@@ -292,7 +326,7 @@ class PickFirstReferenceSorterTest {
 		final PickFirstReferenceSorter sorter = new PickFirstReferenceSorter(
 			fixture.resolver,
 			index -> index.getPrimaryKey() == 101 ? null : lazy(fixture.provider(OrderDirection.ASC, index)),
-			Comparator.naturalOrder(),
+			NO_VIRTUAL_VALUES, Comparator.naturalOrder(),
 			OrderDirection.ASC
 		);
 
@@ -374,7 +408,7 @@ class PickFirstReferenceSorterTest {
 					return provider;
 				};
 			},
-			Comparator.naturalOrder(),
+			NO_VIRTUAL_VALUES, Comparator.naturalOrder(),
 			OrderDirection.ASC
 		);
 		final SortResult sorted = sort(
@@ -410,7 +444,7 @@ class PickFirstReferenceSorterTest {
 		final PickFirstReferenceSorter sorter = new PickFirstReferenceSorter(
 			indexFixture.resolver(false, Scope.LIVE),
 			index -> lazy(index.getPrimaryKey() == 201 ? largeProvider : smallProvider),
-			Comparator.naturalOrder(),
+			NO_VIRTUAL_VALUES, Comparator.naturalOrder(),
 			OrderDirection.ASC
 		);
 
@@ -451,7 +485,7 @@ class PickFirstReferenceSorterTest {
 				builtProviders.add(index.getPrimaryKey());
 				return index.getPrimaryKey() == 201 ? largeProvider : smallProvider;
 			},
-			Comparator.naturalOrder(),
+			NO_VIRTUAL_VALUES, Comparator.naturalOrder(),
 			OrderDirection.ASC
 		);
 
@@ -499,7 +533,8 @@ class PickFirstReferenceSorterTest {
 		}
 		final SortedRecordsSupplier provider = createProvider(index, OrderDirection.ASC, ownerValues);
 		final PickFirstReferenceSorter sorter = new PickFirstReferenceSorter(
-			indexFixture.resolver(false, Scope.LIVE), theIndex -> lazy(provider), Comparator.naturalOrder(), OrderDirection.ASC
+			indexFixture.resolver(false, Scope.LIVE), theIndex -> lazy(provider), NO_VIRTUAL_VALUES,
+			Comparator.naturalOrder(), OrderDirection.ASC
 		);
 
 		final SortResult sorted = sort(
@@ -512,6 +547,404 @@ class PickFirstReferenceSorterTest {
 			IntStream.rangeClosed(1, ownerCount).map(it -> ownerCount + 1 - it).toArray(),
 			sorted.written()
 		);
+	}
+
+	@ParameterizedTest(name = "{0}, values 1..{1}")
+	@MethodSource("virtualRunCases")
+	@DisplayName("should merge the virtual run with the materialized runs in every page window")
+	void shouldMergeVirtualRunInEveryPageWindow(@Nonnull OrderDirection direction, int valueRange) {
+		final VirtualRowsFixture fixture = new VirtualRowsFixture(valueRange);
+		final int[] expected = fixture.expectedOrder(direction);
+		final int[] expectedUnclaimed = fixture.expectedUnclaimed();
+		assertTrue(expected.length > 10, "The fixture must claim a sizeable part of the selection.");
+
+		for (int start = 0; start <= expected.length; start++) {
+			for (int end = start + 1; end <= expected.length + 1; end++) {
+				final SortResult sorted = sort(
+					fixture.sorter(direction, new CountingVirtualValues(VALUE_SORT_VALUES)),
+					new SortingContext(fixture.indexFixture.createExecutionContext(), fixture.selection(), start, end, 0, 0),
+					end - start
+				);
+				final int[] expectedPage = Arrays.copyOfRange(expected, start, Math.min(end, expected.length));
+				final int theStart = start;
+				final int theEnd = end;
+				assertArrayEquals(expectedPage, sorted.written(), () -> "Window " + theStart + ".." + theEnd + " differs.");
+				assertArrayEquals(Arrays.copyOfRange(expected, 0, start), sorted.skipped());
+				assertArrayEquals(expectedUnclaimed, content(sorted.output().nonSortedKeys()));
+			}
+		}
+		assertTrue(fixture.indexFixture.virtualRowsRead() > 0, "The virtual partitions must have been read.");
+	}
+
+	@ParameterizedTest(name = "{0}, values 1..{1}")
+	@MethodSource("virtualRunCases")
+	@DisplayName("should order the virtual run by the walk exactly when sorting the claimed values costs more")
+	void shouldChooseThePreparationByTheClaimedValueCount(@Nonnull OrderDirection direction, int valueRange) {
+		final VirtualRowsFixture fixture = new VirtualRowsFixture(valueRange);
+		final CountingVirtualValues values = new CountingVirtualValues(VALUE_SORT_VALUES);
+
+		sort(
+			fixture.sorter(direction, values),
+			new SortingContext(fixture.indexFixture.createExecutionContext(), fixture.selection(), 0, 1, 0, 0),
+			1
+		);
+
+		final int groupCount = fixture.claimedVirtualValueCount(direction);
+		final boolean dense = PickFirstReferenceSorter.isDense(
+			groupCount, fixture.indexFixture.registry(Scope.LIVE).getDistinctSortValueCount(VALUE_KEY)
+		);
+		// the small range makes the claimed values dense, the large one sparse
+		assertEquals(valueRange < 100, dense);
+		if (dense) {
+			assertTrue(values.walkSteps > 0, "The dense preparation walks the values of the registry.");
+		} else {
+			assertEquals(0, values.walkSteps, "The sparse preparation must not walk the values of the registry.");
+		}
+	}
+
+	@ParameterizedTest(name = "D = {0}")
+	@ValueSource(ints = {1, 1_000, 100_000})
+	@DisplayName("should read one value and walk nothing for one claimed owner holding the largest of D values")
+	void shouldReadOneValueForOneClaimedOwner(int distinctValueCount) {
+		final PickFirstReducedIndexFixture indexFixture = new PickFirstReducedIndexFixture();
+		final VirtualReferencePartitionIndex registry = indexFixture.registry(Scope.LIVE);
+		declareValueKey(registry);
+		// the selected owner 1 holds the largest value on the first target and a smaller one on the last target
+		indexFixture.addVirtualPartition(Scope.LIVE, 1, 1, 1);
+		registry.putSortValue(VALUE_KEY, 1, distinctValueCount);
+		// the other values are held by unselected owners, one virtual partition each
+		for (int i = 1; i < distinctValueCount; i++) {
+			indexFixture.addVirtualPartition(Scope.LIVE, i + 1, i + 1, i + 1);
+			registry.putSortValue(VALUE_KEY, i + 1, i);
+		}
+		indexFixture.addVirtualPartition(Scope.LIVE, distinctValueCount + 1, distinctValueCount + 1, 1);
+		registry.putSortValue(VALUE_KEY, distinctValueCount + 1, 0);
+		assertEquals(distinctValueCount + 1, registry.getDistinctSortValueCount(VALUE_KEY));
+		indexFixture.readVirtually();
+
+		for (OrderDirection direction : OrderDirection.values()) {
+			final CountingVirtualValues values = new CountingVirtualValues(VALUE_SORT_VALUES);
+			final PickFirstReferenceSorter sorter = new PickFirstReferenceSorter(
+				indexFixture.resolver(false, Scope.LIVE),
+				index -> {
+					throw new AssertionError("No materialized partition exists.");
+				},
+				values,
+				direction == OrderDirection.ASC ? Comparator.naturalOrder() : Comparator.reverseOrder(),
+				direction
+			);
+
+			final SortResult sorted = sort(
+				sorter, new SortingContext(indexFixture.createExecutionContext(), new BaseBitmap(1), 0, 20, 0, 0), 20
+			);
+
+			assertAll(
+				() -> assertArrayEquals(new int[]{1}, sorted.written()),
+				() -> assertEquals(1, values.valueIdReads, "Only the claimed row may have its value id read."),
+				() -> assertEquals(1, values.valueReads, "Only the claimed value may be read."),
+				() -> assertEquals(0, values.walkSteps, "No value of the registry may be walked.")
+			);
+		}
+	}
+
+	@Test
+	@DisplayName("should never claim an unselected owner of a virtual partition the gather handed over")
+	void shouldRejectUnselectedOwnerOfVirtualPartition() {
+		final PickFirstReducedIndexFixture indexFixture = new PickFirstReducedIndexFixture();
+		final VirtualReferencePartitionIndex registry = indexFixture.registry(Scope.LIVE);
+		declareValueKey(registry);
+		// selected owners 1 and 2 share the materialized partition of target 20
+		final ReducedEntityIndex shared = indexFixture.addIndex(Scope.LIVE, 120, 20, 1, 2);
+		// unselected owner 3 holds the lowest value of all in the virtual partition of target 10
+		indexFixture.addVirtualPartition(Scope.LIVE, 110, 10, 3);
+		registry.putSortValue(VALUE_KEY, 110, -100);
+		indexFixture.readVirtually();
+		final SortedRecordsSupplier provider = createProvider(shared, OrderDirection.ASC, 1, 20, 2, 10);
+		final CountingVirtualValues values = new CountingVirtualValues(VALUE_SORT_VALUES);
+		final PickFirstReferenceSorter sorter = new PickFirstReferenceSorter(
+			indexFixture.resolver(false, Scope.LIVE), index -> lazy(provider), values, Comparator.naturalOrder(),
+			OrderDirection.ASC
+		);
+
+		final SortResult sorted = sort(
+			sorter, new SortingContext(indexFixture.createExecutionContext(), new BaseBitmap(1, 2), 0, 2, 0, 0), 2
+		);
+
+		assertAll(
+			() -> assertArrayEquals(new int[]{2, 1}, sorted.written()),
+			() -> assertEquals(0, values.valueIdReads, "The unselected owner's row must not be read."),
+			() -> assertTrue(indexFixture.virtualRowsRead() > 0, "The virtual partition must have been handed over.")
+		);
+	}
+
+	/**
+	 * Returns the directions and value ranges of the virtual run cases: a range of four values makes the claimed values
+	 * dense, a range of a thousand sparse.
+	 *
+	 * @return the arguments
+	 */
+	@Nonnull
+	static Stream<Arguments> virtualRunCases() {
+		return Stream.of(
+			Arguments.of(OrderDirection.ASC, 4),
+			Arguments.of(OrderDirection.DESC, 4),
+			Arguments.of(OrderDirection.ASC, 1_000),
+			Arguments.of(OrderDirection.DESC, 1_000)
+		);
+	}
+
+	/**
+	 * Declares the sort key {@link #VALUE_KEY} in the registry.
+	 *
+	 * @param registry the registry
+	 */
+	private static void declareValueKey(@Nonnull VirtualReferencePartitionIndex registry) {
+		registry.declareSortKey(
+			VALUE_KEY,
+			new ComparatorSource[]{new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)},
+			0
+		);
+	}
+
+	/**
+	 * A generated mix of materialized and virtual partitions of one reference, with a brute-force oracle of the
+	 * pick-first order: per selected owner the value of its first row in target order carrying one, then the owners by
+	 * value and primary key in the ordering direction.
+	 *
+	 * Targets are shared by one to three owners; a target held by one owner is a virtual partition three times out of
+	 * four. One row in five carries no value, and every seventh owner is left out of the selection although its rows -
+	 * virtual ones included - are handed over by the gather, which lists the whole family. Virtual partition primary
+	 * keys fall as the owner rises, so an emission in partition order would reverse every tie.
+	 */
+	private static final class VirtualRowsFixture {
+		/**
+		 * The owners of the fixture, 1 to this number.
+		 */
+		private static final int OWNER_COUNT = 40;
+		/**
+		 * The targets of the fixture, 1 to this number.
+		 */
+		private static final int TARGET_COUNT = 30;
+		/**
+		 * The value range from which the fixture adds a large family of virtual rows of unselected owners.
+		 */
+		private static final int SPARSE_VALUE_RANGE = 100;
+		/**
+		 * The number of virtual rows of unselected owners added for a sparse value range.
+		 */
+		private static final int UNSELECTED_FAMILY_SIZE = 2_000;
+		/**
+		 * The first owner of the virtual rows nobody selects.
+		 */
+		private static final int UNSELECTED_OWNER_BASE = 10_000;
+		/**
+		 * The indexes and the registry.
+		 */
+		@Nonnull final PickFirstReducedIndexFixture indexFixture = new PickFirstReducedIndexFixture();
+		/**
+		 * The rows of every owner: `{target, value}` with {@link #NO_VALUE} for a row without one.
+		 */
+		@Nonnull private final Map<Integer, List<int[]>> rowsByOwner = new HashMap<>(64);
+		/**
+		 * The providers of the materialized indexes per ordering direction, keyed by index primary key.
+		 */
+		@Nonnull private final Map<OrderDirection, Map<Integer, SortedRecordsProvider>> providers =
+			new EnumMap<>(OrderDirection.class);
+
+		VirtualRowsFixture(int valueRange) {
+			final Random random = new Random(42L);
+			final VirtualReferencePartitionIndex registry = this.indexFixture.registry(Scope.LIVE);
+			declareValueKey(registry);
+			for (int target = 1; target <= TARGET_COUNT; target++) {
+				final int ownerCount = new int[]{1, 1, 1, 2, 3}[random.nextInt(5)];
+				final TreeSet<Integer> owners = new TreeSet<>();
+				while (owners.size() < ownerCount) {
+					owners.add(1 + random.nextInt(OWNER_COUNT));
+				}
+				final int[] ownerValues = new int[ownerCount * 2];
+				int i = 0;
+				for (int owner : owners) {
+					final int value = random.nextInt(5) == 0 ? NO_VALUE : 1 + random.nextInt(valueRange);
+					ownerValues[i++] = owner;
+					ownerValues[i++] = value;
+					this.rowsByOwner.computeIfAbsent(owner, it -> new ArrayList<>(4)).add(new int[]{target, value});
+				}
+				if (ownerCount == 1 && random.nextInt(4) != 0) {
+					final int owner = owners.first();
+					final int primaryKey = 5_000 - (owner * (TARGET_COUNT + 1) + target);
+					this.indexFixture.addVirtualPartition(Scope.LIVE, primaryKey, target, owner);
+					if (ownerValues[1] != NO_VALUE) {
+						registry.putSortValue(VALUE_KEY, primaryKey, ownerValues[1]);
+					}
+				} else {
+					final ReducedEntityIndex index = this.indexFixture.addIndex(
+						Scope.LIVE, 100 + target, target,
+						owners.stream().mapToInt(Integer::intValue).toArray()
+					);
+					for (OrderDirection direction : OrderDirection.values()) {
+						final SortedRecordsSupplier provider = createProvider(index, direction, ownerValues);
+						if (provider != null) {
+							this.providers.computeIfAbsent(direction, it -> new HashMap<>(32))
+								.put(index.getPrimaryKey(), provider);
+						}
+					}
+				}
+			}
+			if (valueRange >= SPARSE_VALUE_RANGE) {
+				// a large family of values nobody selected keeps the claimed values sparse
+				for (int i = 0; i < UNSELECTED_FAMILY_SIZE; i++) {
+					final int primaryKey = 6_000 + i;
+					this.indexFixture.addVirtualPartition(
+						Scope.LIVE, primaryKey, TARGET_COUNT + 1 + i, UNSELECTED_OWNER_BASE + i
+					);
+					registry.putSortValue(VALUE_KEY, primaryKey, 1 + random.nextInt(valueRange));
+				}
+			}
+			this.indexFixture.readVirtually();
+		}
+
+		/**
+		 * Returns a fresh bitmap of the selected owners - every owner but each seventh.
+		 */
+		@Nonnull
+		Bitmap selection() {
+			return new BaseBitmap(IntStream.rangeClosed(1, OWNER_COUNT).filter(it -> it % 7 != 0).toArray());
+		}
+
+		/**
+		 * Returns the selected owners in the pick-first order of the direction.
+		 */
+		@Nonnull
+		int[] expectedOrder(@Nonnull OrderDirection direction) {
+			final List<int[]> claimed = new ArrayList<>(OWNER_COUNT);
+			for (int owner : selection().getArray()) {
+				final int value = firstValue(owner);
+				if (value != NO_VALUE) {
+					claimed.add(new int[]{owner, value});
+				}
+			}
+			Comparator<int[]> order = Comparator.<int[]>comparingInt(it -> it[1]).thenComparingInt(it -> it[0]);
+			if (direction == OrderDirection.DESC) {
+				order = order.reversed();
+			}
+			claimed.sort(order);
+			return claimed.stream().mapToInt(it -> it[0]).toArray();
+		}
+
+		/**
+		 * Returns the selected owners without any valued row.
+		 */
+		@Nonnull
+		int[] expectedUnclaimed() {
+			return Arrays.stream(selection().getArray()).filter(it -> firstValue(it) == NO_VALUE).toArray();
+		}
+
+		/**
+		 * Returns how many distinct values the virtual partitions claim.
+		 */
+		int claimedVirtualValueCount(@Nonnull OrderDirection direction) {
+			final Set<Integer> values = new TreeSet<>();
+			for (int owner : selection().getArray()) {
+				final int[] first = firstValuedRowOf(owner);
+				if (first != null && this.providers.getOrDefault(direction, Map.of()).get(100 + first[0]) == null) {
+					values.add(first[1]);
+				}
+			}
+			return values.size();
+		}
+
+		/**
+		 * Returns the value of the first valued row of the owner in target order, or {@link #NO_VALUE}.
+		 */
+		private int firstValue(int owner) {
+			final int[] first = firstValuedRowOf(owner);
+			return first == null ? NO_VALUE : first[1];
+		}
+
+		/**
+		 * Returns the first valued row `{target, value}` of the owner in target order, or `null`.
+		 */
+		@Nullable
+		private int[] firstValuedRowOf(int owner) {
+			return this.rowsByOwner.getOrDefault(owner, List.of()).stream()
+				.sorted(Comparator.comparingInt(it -> it[0]))
+				.filter(it -> it[1] != NO_VALUE)
+				.findFirst()
+				.orElse(null);
+		}
+
+		/**
+		 * Creates the sorter in the ordering direction.
+		 */
+		@Nonnull
+		PickFirstReferenceSorter sorter(@Nonnull OrderDirection direction, @Nonnull PickFirstVirtualSortValues values) {
+			return new PickFirstReferenceSorter(
+				this.indexFixture.resolver(false, Scope.LIVE),
+				index -> lazy(this.providers.getOrDefault(direction, Map.of()).get(index.getPrimaryKey())),
+				values,
+				direction == OrderDirection.ASC ? Comparator.naturalOrder() : Comparator.reverseOrder(),
+				direction
+			);
+		}
+	}
+
+	/**
+	 * Counts what the sorter asks of the registry values: value id reads, value reads and steps of the ordered walk.
+	 */
+	private static final class CountingVirtualValues implements PickFirstVirtualSortValues {
+		/**
+		 * The real source the counts are taken over.
+		 */
+		@Nonnull private final PickFirstVirtualSortValues delegate;
+		/**
+		 * Number of value id reads.
+		 */
+		int valueIdReads;
+		/**
+		 * Number of value reads.
+		 */
+		int valueReads;
+		/**
+		 * Number of value ids the ordered walks passed.
+		 */
+		int walkSteps;
+
+		CountingVirtualValues(@Nonnull PickFirstVirtualSortValues delegate) {
+			this.delegate = delegate;
+		}
+
+		@Override
+		public int getValueId(@Nonnull VirtualReferencePartition partition) {
+			this.valueIdReads++;
+			return this.delegate.getValueId(partition);
+		}
+
+		@Nonnull
+		@Override
+		public Serializable getValue(@Nonnull ReferencedTypeEntityIndex typeIndex, int valueId) {
+			this.valueReads++;
+			return this.delegate.getValue(typeIndex, valueId);
+		}
+
+		@Override
+		public int getDistinctValueCount(@Nonnull ReferencedTypeEntityIndex typeIndex) {
+			return this.delegate.getDistinctValueCount(typeIndex);
+		}
+
+		@Override
+		public void forEachValueId(
+			@Nonnull ReferencedTypeEntityIndex typeIndex,
+			boolean descending,
+			@Nonnull IntPredicate consumer
+		) {
+			this.delegate.forEachValueId(
+				typeIndex, descending,
+				valueId -> {
+					this.walkSteps++;
+					return consumer.test(valueId);
+				}
+			);
+		}
 	}
 
 	/**
@@ -608,6 +1041,7 @@ class PickFirstReferenceSorterTest {
 			return new PickFirstReferenceSorter(
 				this.resolver,
 				index -> lazy(provider(direction, index)),
+				NO_VIRTUAL_VALUES,
 				direction == OrderDirection.ASC ? Comparator.naturalOrder() : Comparator.reverseOrder(),
 				direction
 			);

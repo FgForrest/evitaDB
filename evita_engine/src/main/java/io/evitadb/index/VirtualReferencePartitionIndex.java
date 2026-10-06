@@ -71,6 +71,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -79,6 +80,7 @@ import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.IntPredicate;
 import java.util.function.UnaryOperator;
 
 /**
@@ -1072,6 +1074,54 @@ public class VirtualReferencePartitionIndex
 	@Nonnull
 	public Serializable getNormalizedSortValue(@Nonnull AttributeIndexKey attributeIndexKey, int valueId) {
 		return getSortValueEntry(getDeclaredSortKey(attributeIndexKey).slotId(), valueId).key().value();
+	}
+
+	/**
+	 * Walks the ids of the distinct sort values of a sort key in the value order of its sort index - ascending, or
+	 * descending when asked - until the consumer declines to continue. Every step reads one value of the sort index
+	 * and one hash lookup of its id in the value dictionary, so a walk stopped after `k` values costs `O(k)` whatever
+	 * the number of partitions. A key that is not declared walks nothing.
+	 *
+	 * @param attributeIndexKey the sort key
+	 * @param descending        TRUE to walk from the largest value down
+	 * @param consumer          receives the value ids in order, returns FALSE to stop the walk
+	 */
+	public void forEachSortValueId(
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		boolean descending,
+		@Nonnull IntPredicate consumer
+	) {
+		final DeclaredSortKey sortKey = this.sortKeys.get(attributeIndexKey);
+		if (sortKey == null) {
+			return;
+		}
+		final Iterator<Serializable> values = getSortIndexOfDeclaredKey(attributeIndexKey)
+			.getDistinctValueIterator(descending);
+		while (values.hasNext()) {
+			final SortValueKey valueKey = new SortValueKey(sortKey.slotId(), values.next());
+			final Integer valueId = this.sortValueIds.get(valueKey);
+			if (valueId == null) {
+				throw new GenericEvitaInternalError(
+					"Value `" + valueKey.value() + "` of the sort index of `" + attributeIndexKey +
+						"` is missing in its value dictionary!"
+				);
+			}
+			if (!consumer.test(valueId)) {
+				return;
+			}
+		}
+	}
+
+	/**
+	 * Returns the number of distinct sort values of a sort key - the length of a full
+	 * {@link #forEachSortValueId(AttributeIndexKey, boolean, IntPredicate)} walk. `O(1)`.
+	 *
+	 * @param attributeIndexKey the sort key
+	 * @return the number of distinct values, `0` when the key is not declared
+	 */
+	public int getDistinctSortValueCount(@Nonnull AttributeIndexKey attributeIndexKey) {
+		final OwnerSortIndex sortIndex = this.sortIndexes.get(attributeIndexKey);
+		return sortIndex == null ? 0 : sortIndex.getDistinctValueCount();
 	}
 
 	/**

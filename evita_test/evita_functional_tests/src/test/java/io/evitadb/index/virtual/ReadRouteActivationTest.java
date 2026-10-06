@@ -53,14 +53,16 @@ class ReadRouteActivationTest {
 	private static final String ENTITY_TYPE = "product";
 
 	@Test
-	@DisplayName("the routes of steps 4b to 4d have landed, the facet and entity body lines still read the objects")
-	void shouldLandTheRoutesOfStep4d() {
+	@DisplayName("the routes of steps 4b to 4f have landed, the facet and entity body lines still read the objects")
+	void shouldLandTheRoutesOfStep4f() {
 		assertEquals(
 			EnumSet.of(
 				ReadRoute.REFERENCE_HAVING_BODY, ReadRoute.REFERENCE_HAVING_TARGET_INDEXES,
 				ReadRoute.NEGATION_IN_BODY, ReadRoute.GROUP_IN_BODY, ReadRoute.LOCALE_IN_BODY,
 				ReadRoute.REFERENCED_ENTITY_IN_BODY, ReadRoute.BIDIRECTIONAL_REWRITE, ReadRoute.PARTITION_TO_TARGET,
-				ReadRoute.REFERENCE_CONTENT_FILTER, ReadRoute.HIERARCHY_WITHIN, ReadRoute.HIERARCHY_STATISTICS
+				ReadRoute.REFERENCE_CONTENT_FILTER, ReadRoute.HIERARCHY_WITHIN, ReadRoute.HIERARCHY_STATISTICS,
+				ReadRoute.PICK_FIRST_GATHER, ReadRoute.PICK_FIRST_CLAIM, ReadRoute.PICK_FIRST_VALUE,
+				ReadRoute.PICK_FIRST_REFERENCED_PRIMARY_KEY, ReadRoute.PICK_FIRST_TARGET_RANK
 			),
 			ReadRouteActivation.LANDED_ROUTES
 		);

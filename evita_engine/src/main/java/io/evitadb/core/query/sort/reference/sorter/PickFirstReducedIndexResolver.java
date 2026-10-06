@@ -35,8 +35,8 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencePartition;
-import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -93,6 +93,14 @@ import java.util.function.Supplier;
  *
  * When the selection holds more covered owners than the reference has reduced indexes, the whole family is walked
  * instead: the gather would not visit fewer indexes and would cost more lookups.
+ *
+ * Every candidate is resolved by the scoped read resolver of the query
+ * ({@link QueryPlanningContext#resolvePartitionForReadIfExists(ReferencedTypeEntityIndex, int)}): when the query reads
+ * the collection virtually, a registered single-owner partition is handed over as its {@link VirtualReferencePartition}
+ * - one registry lookup, the index object is never touched - and takes part in the target order exactly like a
+ * materialized one. A virtual candidate of an unselected owner may be handed over too (under the plain primary key
+ * order nothing is probed, and the whole-family fallback lists every owner's partitions);
+ * {@link PickFirstReferenceSorter} admits a virtual partition only through the unclaimed rest of the selection.
  *
  * # Target order
  *
@@ -216,6 +224,7 @@ public final class PickFirstReducedIndexResolver {
 		}
 		final PersistentRoaringBitmap selected = RoaringBitmapBackedBitmap.getRoaringBitmap(selection);
 		final List<ReferencePartition> found = new ArrayList<>(64);
+		int virtualCount = 0;
 		if (!selected.isEmpty()) {
 			for (Scope scope : this.scopes) {
 				final ReferencedTypeEntityIndex typeIndex = getTypeIndex(scope);
@@ -223,18 +232,23 @@ public final class PickFirstReducedIndexResolver {
 					final Bitmap candidates = selectCandidates(scope, typeIndex, selected);
 					final OfInt it = candidates.iterator();
 					while (it.hasNext()) {
-						final ReferencePartition partition = resolvePartitionOfScope(it.nextInt(), scope);
-						if (
-							partition != null &&
-								(this.targetSorter == null || PersistentRoaringBitmap.intersects(
-									RoaringBitmapBackedBitmap.getRoaringBitmap(partition.getAllPrimaryKeys()), selected
-								))
-						) {
+						// the scoped read resolver answers a registered single-owner partition with its virtual handle
+						// when the query reads the collection virtually, without touching the index object
+						final ReferencePartition partition =
+							this.queryContext.resolvePartitionForReadIfExists(typeIndex, it.nextInt());
+						if (partition != null && (this.targetSorter == null || holdsSelectedOwner(partition, selected))) {
 							found.add(partition);
+							if (partition instanceof VirtualReferencePartition) {
+								virtualCount++;
+							}
 						}
 					}
 				}
 			}
+		}
+		if (virtualCount > 0) {
+			// TODO JNO - remove at the end of #1615 (the non-vacuity probe of the read parity tests)
+			this.queryContext.recordVirtualRowsRead(virtualCount);
 		}
 		final ResolvedReducedIndexes result = order(found);
 		this.memoizedSelection = selection;
@@ -332,18 +346,22 @@ public final class PickFirstReducedIndexResolver {
 	}
 
 	/**
-	 * Resolves a candidate primary key to a partition of this reference in the scope, tolerating keys that name
-	 * nothing or an index of another family.
+	 * Returns true when the partition holds a row of a selected owner. A virtual partition is answered by its only
+	 * owner, read out of the handle, a materialized one by intersecting its owners with the selection.
 	 *
-	 * @param indexPrimaryKey primary key of the candidate index
-	 * @param scope           the scope the candidate was found in
-	 * @return the partition or `null` when the key does not name one of this reference in the scope
+	 * @param partition the partition
+	 * @param selected  the selected owners
+	 * @return true if one of the partition's owners is selected
 	 */
-	@Nullable
-	private ReferencePartition resolvePartitionOfScope(int indexPrimaryKey, @Nonnull Scope scope) {
-		final ReferencePartition partition = this.queryContext.resolvePartitionIfExists(indexPrimaryKey);
-		return partition != null && ReferencePartitions.belongsTo(partition, scope, this.referenceSchema.getName()) ?
-			partition : null;
+	private static boolean holdsSelectedOwner(
+		@Nonnull ReferencePartition partition,
+		@Nonnull PersistentRoaringBitmap selected
+	) {
+		return partition instanceof VirtualReferencePartition virtual ?
+			selected.contains(virtual.ownerPrimaryKey()) :
+			PersistentRoaringBitmap.intersects(
+				RoaringBitmapBackedBitmap.getRoaringBitmap(partition.getAllPrimaryKeys()), selected
+			);
 	}
 
 	/**

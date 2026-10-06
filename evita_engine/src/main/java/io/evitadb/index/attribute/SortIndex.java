@@ -794,6 +794,35 @@ public abstract sealed class SortIndex
 	}
 
 	/**
+	 * Returns a lazy iterator over the distinct values of this index in its value order - ascending, or descending when
+	 * asked - normalized exactly as the index stores them (see {@link #getValueOfRecord(int)}). Every step reads one
+	 * bucket of the value tree and nothing is materialized up front, so a walk stopped early costs only the values it
+	 * passed.
+	 *
+	 * @param descending TRUE to walk from the largest value down
+	 * @return the iterator, empty when the index holds no value
+	 */
+	@Nonnull
+	public Iterator<Serializable> getDistinctValueIterator(boolean descending) {
+		final InvertedIndex tree = valueTreeOrNull();
+		if (tree == null) {
+			return Collections.emptyIterator();
+		}
+		final Iterator<ValueToRecord> it = descending ? tree.getValueReverseIterator() : tree.getValueIterator();
+		return new Iterator<>() {
+			@Override
+			public boolean hasNext() {
+				return it.hasNext();
+			}
+
+			@Override
+			public Serializable next() {
+				return it.next().getValue();
+			}
+		};
+	}
+
+	/**
 	 * Returns the value the record is ordered by, exactly as this index stores it - the normalized form, so a
 	 * `Locale` comes back as a {@link ComparableLocale}, a temporal value as its `Instant` and a compound as the
 	 * {@link ComparableArray} of its normalized elements. The value is the one of the block the record occupies, read

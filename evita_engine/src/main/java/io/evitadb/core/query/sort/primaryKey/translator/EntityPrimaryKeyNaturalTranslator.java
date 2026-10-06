@@ -49,6 +49,7 @@ import io.evitadb.core.query.sort.primaryKey.comparator.ReferencePrimaryKeyCompa
 import io.evitadb.core.query.sort.primaryKey.sorter.ReversedPrimaryKeySorter;
 import io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver;
 import io.evitadb.core.query.sort.reference.sorter.PickFirstReferenceSorter;
+import io.evitadb.core.query.sort.reference.sorter.PickFirstVirtualSortValues;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
 import io.evitadb.dataType.array.CompositeObjectArray;
@@ -120,6 +121,7 @@ public class EntityPrimaryKeyNaturalTranslator
 				new PickFirstReferenceSorter(
 					pickFirstIndexResolver,
 					index -> () -> createReferencedPrimaryKeyProvider(index, orderDirection),
+					PickFirstVirtualSortValues.ofReferencedPrimaryKey(),
 					orderDirection == OrderDirection.DESC ? Comparator.naturalOrder().reversed() : Comparator.naturalOrder(),
 					orderDirection
 				)

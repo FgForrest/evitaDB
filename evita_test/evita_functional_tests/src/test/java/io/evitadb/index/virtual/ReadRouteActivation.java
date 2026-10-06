@@ -51,7 +51,8 @@ final class ReadRouteActivation {
 	 * negations, `attributeIs`, `groupHaving`, `entityLocaleEquals` and `inScope` answered exactly - its target index
 	 * list, `entityHaving` / `entityPrimaryKeyInSet` in a body, the bidirectional rewrite, the translation of a
 	 * partition to its target, and the hierarchy routes - `hierarchyWithin` / `hierarchyWithinRoot` of a reference and
-	 * the statistics of `hierarchyOfReference`.
+	 * the statistics of `hierarchyOfReference` - and the `pickFirst` orderings of step 4f: the gather, the claims, the
+	 * value of a partition, the referenced primary key and the target rank of the prefetch route.
 	 */
 	static final Set<ReadRoute> LANDED_ROUTES = EnumSet.of(
 		ReadRoute.REFERENCE_HAVING_BODY,
@@ -64,7 +65,12 @@ final class ReadRouteActivation {
 		ReadRoute.PARTITION_TO_TARGET,
 		ReadRoute.REFERENCE_CONTENT_FILTER,
 		ReadRoute.HIERARCHY_WITHIN,
-		ReadRoute.HIERARCHY_STATISTICS
+		ReadRoute.HIERARCHY_STATISTICS,
+		ReadRoute.PICK_FIRST_GATHER,
+		ReadRoute.PICK_FIRST_CLAIM,
+		ReadRoute.PICK_FIRST_VALUE,
+		ReadRoute.PICK_FIRST_REFERENCED_PRIMARY_KEY,
+		ReadRoute.PICK_FIRST_TARGET_RANK
 	);
 	/**
 	 * The activation of an engine that maintains nothing, and so can never read virtually.
@@ -136,6 +142,27 @@ final class ReadRouteActivation {
 		 * intersected with the statistics base, exercised by `VirtualHierarchyParityTest`.
 		 */
 		HIERARCHY_STATISTICS,
+		/**
+		 * Route 12 - the gather of the partitions a `pickFirst` ordering walks and their target order, exercised by
+		 * `VirtualPickFirstParityTest`.
+		 */
+		PICK_FIRST_GATHER,
+		/**
+		 * Route 13 - the claims of a `pickFirst` ordering and the merge of their sorted runs.
+		 */
+		PICK_FIRST_CLAIM,
+		/**
+		 * Route 14 - the sorted value of a partition in a `pickFirst` ordering by a reference attribute or compound.
+		 */
+		PICK_FIRST_VALUE,
+		/**
+		 * Route 15 - a `pickFirst` ordering by the referenced primary key.
+		 */
+		PICK_FIRST_REFERENCED_PRIMARY_KEY,
+		/**
+		 * Route 16 - the target rank the prefetch route of a `pickFirst` ordering picks the row by.
+		 */
+		PICK_FIRST_TARGET_RANK,
 		/**
 		 * Route 24 - facet summaries and histograms, which read the target index or the type index.
 		 */

@@ -157,6 +157,28 @@ public final class ReferencePartitions {
 	}
 
 	/**
+	 * Hands a partition to a query route that reads virtual partitions through their registry and the materialized
+	 * ones through their own sort or chain index, via the generic {@link EntityIndex} API - the route splits its
+	 * virtual partitions off before it reads an index object, so only a materialized partition may arrive here.
+	 *
+	 * @param partition the materialized partition
+	 * @param route     names the query route, for the error message
+	 * @return the index object the partition is
+	 * @throws GenericEvitaInternalError when the partition is virtual - the route failed to split it off
+	 */
+	@Nonnull
+	public static EntityIndex toMaterializedEntityIndex(@Nonnull ReferencePartition partition, @Nonnull String route) {
+		return switch (partition) {
+			case ReducedEntityIndex index -> index;
+			case VirtualReferencePartition virtual -> throw new GenericEvitaInternalError(
+				"The query route `" + route + "` met virtual reference partition " + virtual.getPrimaryKey() +
+					" (`" + virtual.getIndexKey() + "`) where it reads index objects only - it must split its " +
+					"virtual partitions off before this point!"
+			);
+		};
+	}
+
+	/**
 	 * Asserts that a partition a write path holds is not virtual. A write reaches a partition only through its
 	 * reduced entity index, and the object-only resolvers the write path uses never answer with anything else - a
 	 * virtual partition here means a read resolver leaked into the write path, which this rejects before anything is
