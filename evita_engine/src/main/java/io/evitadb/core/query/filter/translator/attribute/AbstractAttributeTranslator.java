@@ -38,6 +38,9 @@ import io.evitadb.index.Index;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -177,6 +180,26 @@ class AbstractAttributeTranslator {
 		return attributeSchema.isUniqueInScope(scope) ||
 			attributeSchema instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
 				globalAttributeSchema.isUniqueGloballyInScope(scope);
+	}
+
+	/**
+	 * Tells whether a unique index is probed with the value as the client wrote it (converted to the attribute type)
+	 * rather than with the filter normalizer's output. A standalone unique index - the catalog's `GlobalUniqueIndex`
+	 * and a collection's `OwnerUniqueIndex` - runs no normalizer: it stores the value it was given and compares it in
+	 * natural order (see `UniqueIndexBPlusTreeSupport` and the ADR `2026-09-04-millisecond-temporal-precision`). For
+	 * these types the normalizer produces a key of another representation, which the stored values never equal or
+	 * cannot even be compared with: a scaled `Integer` instead of an exact `BigDecimal`, an `Instant` instead of an
+	 * `OffsetDateTime` or `LocalDateTime`. A unique view folded onto the filter tree normalizes the probe itself
+	 * ({@link io.evitadb.index.attribute.FilterIndex#getRecordsEqualTo}), so the raw value serves it equally well.
+	 *
+	 * Every other type keeps the normalized probe it has always used; moving one over needs its own evidence - a
+	 * `BigDecimalNumberRange` unique lookup, for one, matches only in the normalized form.
+	 *
+	 * @param plainType the plain (array-unwrapped) attribute type
+	 * @return true when the unique index is probed with the raw target-typed value
+	 */
+	protected static boolean isUniqueIndexProbedWithRawValue(@Nonnull Class<?> plainType) {
+		return plainType == BigDecimal.class || plainType == OffsetDateTime.class || plainType == LocalDateTime.class;
 	}
 
 	/**

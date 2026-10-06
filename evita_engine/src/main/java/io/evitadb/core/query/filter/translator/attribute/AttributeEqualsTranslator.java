@@ -48,7 +48,6 @@ import io.evitadb.index.bitmap.ArrayBitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.math.BigDecimal;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -172,11 +171,11 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 			final Serializable comparedValue = normalizer.apply(targetValue);
 
 			if (scopes.stream().anyMatch(scope -> isUniqueInScope(attributeSchema, scope))) {
-				// uniqueness stays exact BigDecimal: the unique index never scales its keys, so a BigDecimal attribute is
-				// probed with the exact value; other types share the canonical (NFD/instant) form used by the unique index
+				// a standalone unique index keeps the raw value, so some types must be probed with it rather than with
+				// the normalized form (an exact BigDecimal, the declared temporal type instead of an Instant)
 				return createUniqueAttributeFormula(
 					filterByVisitor, processingScope.getReferenceSchema(), attributeSchema, attributeKey,
-					plainType == BigDecimal.class ? targetValue : comparedValue
+					isUniqueIndexProbedWithRawValue(plainType) ? targetValue : comparedValue
 				);
 			} else {
 				return createFilterableAttributeFormula(
