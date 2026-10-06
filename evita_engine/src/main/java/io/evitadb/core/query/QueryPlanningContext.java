@@ -560,6 +560,23 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Returns true if the referenced entity may be part of the result of this query - always when the query names no
+	 * collection, otherwise only when the entity belongs to the queried one.
+	 *
+	 * A lookup in a catalog-wide structure (the unique index of a globally unique attribute) answers with the entity
+	 * of whichever collection holds the value. A query naming a collection must drop a holder of another collection
+	 * **before** it reaches {@link #translateEntityReference(EntityReferenceContract...)}, because a known entity type
+	 * leaves the primary key unmasked - the holder's key would then stand for the entity of the queried collection
+	 * that shares it, or for one that does not exist at all.
+	 *
+	 * @param entityReference the referenced entity
+	 * @return true if the entity belongs to the queried collection or the query names none
+	 */
+	public boolean isOfQueriedEntityType(@Nonnull EntityReferenceContract entityReference) {
+		return this.entityType == null || this.entityType.equals(entityReference.getType());
+	}
+
+	/**
 	 * Records that this query asked for one capability of one schema element - `filterable()` on `ean`, `sortable()` on
 	 * a compound, and so on - at the moment a translator was handed the schema it needs to build its part of the plan.
 	 *
@@ -2040,6 +2057,13 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	int getOrRegisterEntityReferenceMaskId(@Nonnull EntityReferenceContract entityReference) {
 		if (this.isEntityTypeKnown()) {
+			// the unmasked key carries no entity type - a reference of another collection would turn into the entity
+			// of the queried collection sharing its key, so callers must filter by `isOfQueriedEntityType` first
+			Assert.isPremiseValid(
+				isOfQueriedEntityType(entityReference),
+				() -> "Entity reference `" + entityReference + "` does not belong to the queried collection `" +
+					this.entityType + "`!"
+			);
 			// it the entity type is passed in the query, we don't need to mask anything - all entities will share
 			// same primary key sequence
 			this.entityReferencePkIndex.put(entityReference.getPrimaryKey(), entityReference);

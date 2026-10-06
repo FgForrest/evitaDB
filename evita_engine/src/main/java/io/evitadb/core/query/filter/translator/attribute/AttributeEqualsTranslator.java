@@ -99,6 +99,8 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 				index -> index.getEntityReferenceByUniqueValue(
 						comparedValue, attributeKey.locale(), filterByVisitor.getEntityTypeClassifierResolver()
 					)
+					// the catalog-wide index answers for every collection - keep only a holder of the queried one
+					.filter(filterByVisitor::isOfQueriedEntityType)
 					.map(
 						it -> (Formula) new MultipleEntityFormula(
 							new long[]{index.getId()},
