@@ -204,6 +204,10 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * Translates the ordering of the entities of `entityCollection` over the passed indexes in the nested query
 	 * context created by `createSorter`.
 	 *
+	 * The schema capabilities the ordering names are recorded in the nested query context, whose collection declares
+	 * them. That context builds no plan, so they are counted only where its creator hands them over to the context of
+	 * the enclosing query - as the check of the ordering of the fetched references does.
+	 *
 	 * @param orderBy            the ordering to translate
 	 * @param locale             the locale of the ordering, NULL when there is none
 	 * @param entityCollection   the collection of the entities to order
@@ -226,7 +230,9 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 			entityIndexes,
 			entityCollection.getEntityType(),
 			locale,
-			new AttributeSchemaAccessor(nestedQueryContext.getCatalogSchema(), entityCollection.getSchema()),
+			new AttributeSchemaAccessor(
+				nestedQueryContext.getCatalogSchema(), entityCollection.getSchema(), null, nestedQueryContext
+			),
 			() -> {
 				for (OrderConstraint innerConstraint : orderBy.getChildren()) {
 					innerConstraint.accept(orderByVisitor);

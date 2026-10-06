@@ -176,6 +176,11 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	 */
 	private static final String REFERENCE_BRAND = "brand";
 	/**
+	 * The second reference of {@link #ENTITY_PRODUCT} to the categories, which no product holds a row of - see
+	 * {@link #addMainCategoryOfFirstProduct()} for the case adding one.
+	 */
+	private static final String REFERENCE_MAIN_CATEGORY = "mainCategory";
+	/**
 	 * The reference of {@link #ENTITY_PRODUCT} to the tags, indexed and bucketed in the live scope but not faceted, its
 	 * groups being the categories - a summary of all references describes it only for the histogram it requests. No
 	 * product holds a row of it - see {@link #addWeightedTagOfFirstProduct()} for the case adding one.
@@ -1082,6 +1087,45 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		}
 
 		@Test
+		@DisplayName("An ordering of the fetched references by an attribute of their target counts without data")
+		void shouldCountOrderingOfFetchedReferencesByTargetAttributeWithoutData() {
+			// no product is fetched, so no comparator orders a reference and no query over the categories is planned -
+			// the ordering is only checked while the query is planned, and the query named the name of the category to
+			// order by all the same
+			assertEquals(
+				Map.of(categoryNameKey(Capability.SORTABLE, Scope.LIVE), 1L),
+				capabilitiesRequestedByFetching(
+					ENTITY_CATEGORY, productWithBothCategoryReferencesOrderedByName(PRODUCT_COUNT + 1)
+				),
+				"The query fetching no product must count the ordering of the categories once"
+			);
+		}
+
+		@Test
+		@DisplayName("Two fetched references ordered by the same attribute of their target count it once")
+		void shouldCountOrderingOfTwoFetchedReferencesByTheSameTargetAttributeOnce() {
+			// the comparator of each fetched reference holding a row plans a query over the categories to order them -
+			// the query asked for the name of the category to order by once, whichever of its references hold a row
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(
+				categoryNameKey(Capability.SORTABLE, Scope.LIVE), 1L
+			);
+
+			assertEquals(
+				expected,
+				capabilitiesRequestedByFetching(ENTITY_CATEGORY, productWithBothCategoryReferencesOrderedByName(1)),
+				"The query fetching a product holding a row of one of the references must count the ordering once"
+			);
+
+			addMainCategoryOfFirstProduct();
+
+			assertEquals(
+				expected,
+				capabilitiesRequestedByFetching(ENTITY_CATEGORY, productWithBothCategoryReferencesOrderedByName(1)),
+				"The query fetching a product holding a row of both references must count the ordering once"
+			);
+		}
+
+		@Test
 		@DisplayName("A query refused over a scope without index counts nothing")
 		void shouldCountNothingWhenQueryOverScopeWithoutIndexIsRefused() {
 			// the catalog holds no index of the archived scope, and `code` is not filterable there - the query fails
@@ -1297,6 +1341,33 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 				entityFetch(
 					referenceContent(
 						REFERENCE_CATEGORIES,
+						orderBy(entityProperty(attributeNatural(ATTRIBUTE_CATEGORY_NAME, OrderDirection.ASC)))
+					)
+				)
+			)
+		);
+	}
+
+	/**
+	 * Builds the query fetching one product with both its references to the categories, each ordered by the name of the
+	 * category.
+	 *
+	 * @param productPrimaryKey the product to fetch
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query productWithBothCategoryReferencesOrderedByName(int productPrimaryKey) {
+		return Query.query(
+			collection(ENTITY_PRODUCT),
+			filterBy(entityPrimaryKeyInSet(productPrimaryKey)),
+			require(
+				entityFetch(
+					referenceContent(
+						REFERENCE_CATEGORIES,
+						orderBy(entityProperty(attributeNatural(ATTRIBUTE_CATEGORY_NAME, OrderDirection.ASC)))
+					),
+					referenceContent(
+						REFERENCE_MAIN_CATEGORY,
 						orderBy(entityProperty(attributeNatural(ATTRIBUTE_CATEGORY_NAME, OrderDirection.ASC)))
 					)
 				)
@@ -1526,6 +1597,23 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 					.orElseThrow()
 					.openForWrite()
 					.setReference(REFERENCE_BRAND, 1, whichIs -> whichIs.setGroup(1))
+					.upsertVia(session);
+			}
+		);
+	}
+
+	/**
+	 * Makes the first product reference the category 1 by {@link #REFERENCE_MAIN_CATEGORY} - after which the product
+	 * holds a row of both its references to the categories.
+	 */
+	private void addMainCategoryOfFirstProduct() {
+		this.evita.updateCatalog(
+			CATALOG,
+			session -> {
+				session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setReference(REFERENCE_MAIN_CATEGORY, 1)
 					.upsertVia(session);
 			}
 		);
@@ -1881,9 +1969,9 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	 * them tag 1 with the weight 1. The hierarchical brands hold no entity at all; they reference the categories, and
 	 * the products reference them by a reference no product holds a row of, grouped by the tags - see
 	 * {@link #addBrandOfFirstProduct()} for the case adding one. The categories, the brands and the tags share the
-	 * filterable attribute {@link #ATTRIBUTE_LABEL}, which no entity sets. The products declare one more reference no
-	 * product holds a row of: {@link #REFERENCE_WEIGHTED_TAGS} to the tags grouped by the categories, bucketed but not
-	 * faceted.
+	 * filterable attribute {@link #ATTRIBUTE_LABEL}, which no entity sets. The products declare two more references no
+	 * product holds a row of: {@link #REFERENCE_MAIN_CATEGORY} to the categories, and {@link #REFERENCE_WEIGHTED_TAGS}
+	 * to the tags grouped by the categories, bucketed but not faceted.
 	 */
 	private void buildCatalog() {
 		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
@@ -1968,6 +2056,7 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 							.facetedInScope(Scope.LIVE)
 							.withGroupTypeRelatedToEntity(ENTITY_TAG)
 					)
+					.withReferenceToEntity(REFERENCE_MAIN_CATEGORY, ENTITY_CATEGORY, Cardinality.ZERO_OR_ONE)
 					.withReferenceToEntity(
 						REFERENCE_WEIGHTED_TAGS, ENTITY_TAG, Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs.indexedForFilteringAndPartitioningInScope(Scope.LIVE)
