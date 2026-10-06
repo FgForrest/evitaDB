@@ -416,8 +416,8 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 *
 	 * The facet joins the user filter in every group it is referenced under in the scope the user filter restricts
 	 * (see {@link FacetGroupOccurrences}): the positive groups join the facet selection of its reference, the negated
-	 * ones subtract the facet from the user filter, and a group exclusive with the other groups replaces the
-	 * selection of the reference.
+	 * ones subtract the facet from the selection of its reference - from the whole user filter where that is the same
+	 * set - and a group exclusive with the other groups replaces the selection of the reference.
 	 */
 	protected boolean handleUserFilter(@Nonnull Formula formula, @Nonnull Formula[] updatedChildren) {
 		// the facet takes part in every group the scope of the user filter gives it, each with a formula of its own
@@ -464,14 +464,18 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 					childrenWithFacetSelection;
 			}
 			if (!negatedFormulas.isEmpty()) {
-				// a negated group subtracts the facet from the whole user filter, which is the same set as subtracting
-				// it from the facet selection of its reference
-				children = addNewFormulaAsNegation(
-					negatedFormulas.size() == 1 ?
-						negatedFormulas.get(0) : FormulaFactory.or(negatedFormulas.toArray(Formula[]::new)),
-					children,
-					this.baseFormulaWithoutUserFilter
-				);
+				// a negated group subtracts the facet from the facet selection of its reference, which is the same set
+				// as subtracting it from the whole user filter when every selection of the reference is reached through
+				// conjunctions and superset parts of NOT only - the user filter selecting no facet of the reference
+				// included - and the whole user filter keeps the selection and its NOT memoized
+				children = isFacetSelectionNarrowedByConjunction(children, true) ?
+					addNewFormulaAsNegation(
+						negatedFormulas.size() == 1 ?
+							negatedFormulas.get(0) : FormulaFactory.or(negatedFormulas.toArray(Formula[]::new)),
+						children,
+						this.baseFormulaWithoutUserFilter
+					) :
+					addNegatedFormulasToFacetSelection(negatedFormulas, children);
 			}
 			alteredChildren = children;
 		}
@@ -532,9 +536,9 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * - every group of the facet relates to the other groups by conjunction
 	 * - no selection of the reference has a group related to the other groups by disjunction, which
 	 *   {@link FacetHavingTranslator} composes as a union with the conjunctive groups
-	 * - every selection of the reference, positive or subtracted as a whole, is reached from the user filter through
-	 *   {@link AndFormula conjunctions} and superset parts of {@link NotFormula} only - both pass a narrowing of their
-	 *   part on to their own result unchanged
+	 * - every selection of the reference is positive or subtracted as a whole by a {@link NotFormula} of its own, and
+	 *   is reached from the user filter through {@link AndFormula conjunctions} and superset parts of
+	 *   {@link NotFormula} only - both pass a narrowing of their part on to their own result unchanged
 	 *
 	 * @param positiveFormulas the formulas of the facet being added, one for each of its groups not negated
 	 * @param children         the children of the user filter formula
@@ -549,9 +553,28 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 				return false;
 			}
 		}
+		return isFacetSelectionNarrowedByConjunction(children, false);
+	}
+
+	/**
+	 * Returns true if every facet selection of the facet's reference in the children of the user filter is narrowed by
+	 * a conjunct of the user filter the way it is narrowed by a conjunctive facet joining it, or by a negated facet
+	 * subtracted from it - see {@link #isFacetSelectionNarrowedByConjunction(List, Formula[])} for the conditions.
+	 * A negated facet subtracted from a selection with a disjunctive group narrows it the same way as when subtracted
+	 * from the whole user filter: `((C OR D) AND NOT N) AND NOT f` = `(C OR D) AND NOT (N OR f)`.
+	 *
+	 * @param children                 the children of the user filter formula
+	 * @param disjunctiveGroupsNarrowed true if a selection with a disjunctive group is narrowed too - for a negated
+	 *                                 facet
+	 * @return true if every selection of the reference is narrowed by a conjunct of the user filter
+	 */
+	private boolean isFacetSelectionNarrowedByConjunction(
+		@Nonnull Formula[] children,
+		boolean disjunctiveGroupsNarrowed
+	) {
 		final String referenceName = this.referenceSchema.getName();
 		for (final Formula child : children) {
-			if (!isFacetSelectionNarrowedByConjunction(child, referenceName, true)) {
+			if (!isFacetSelectionNarrowedByConjunction(child, referenceName, true, disjunctiveGroupsNarrowed)) {
 				return false;
 			}
 		}
@@ -563,16 +586,19 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 * {@link #addNewFormulasToFacetSelection} would compose a conjunctive facet into is narrowed by it the way
 	 * a conjunct of the passed formula narrows it - see {@link #isFacetSelectionNarrowedByConjunction(List, Formula[])}.
 	 *
-	 * @param formula             the examined part of the user filter
-	 * @param referenceName       the name of the reference of the facet being added
-	 * @param conjunctivePosition true if the part is reached from the user filter through conjunctions and superset
-	 *                            parts of {@link NotFormula} only
+	 * @param formula                   the examined part of the user filter
+	 * @param referenceName             the name of the reference of the facet being added
+	 * @param conjunctivePosition       true if the part is reached from the user filter through conjunctions and
+	 *                                  superset parts of {@link NotFormula} only
+	 * @param disjunctiveGroupsNarrowed true if a selection with a disjunctive group is narrowed too - for a negated
+	 *                                  facet
 	 * @return true if no selection of the reference in the part prevents the facet joining the user filter on its own
 	 */
 	private boolean isFacetSelectionNarrowedByConjunction(
 		@Nonnull Formula formula,
 		@Nonnull String referenceName,
-		boolean conjunctivePosition
+		boolean conjunctivePosition,
+		boolean disjunctiveGroupsNarrowed
 	) {
 		if (formula instanceof NotFormula notFormula &&
 			isNegatedFacetSelection(notFormula.getSubtractedFormula(), referenceName)) {
@@ -581,11 +607,16 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 		} else if (formula instanceof FacetHavingFormula facetHavingFormula &&
 			referenceName.equals(facetHavingFormula.getReferenceName())) {
 			if (isNegatedFacetSelection(facetHavingFormula, referenceName)) {
-				// the facet joins the NOT subtracting the selection, if any, never the selection itself
-				return true;
+				// a selection with only negated groups subtracted by a NOT of its own is caught by the first branch, so
+				// this one sits elsewhere - in the superset part of the NOT the post-processing of a disjunction
+				// creates - and the facet takes its place, see `addNewFormulasToFacetSelection`
+				return false;
 			}
 			if (!conjunctivePosition) {
 				return false;
+			}
+			if (disjunctiveGroupsNarrowed) {
+				return true;
 			}
 			for (final Formula groupFormula : collectFacetGroupFormulas(facetHavingFormula)) {
 				if (getRelationBetweenGroups(groupFormula) == FacetRelationType.DISJUNCTION) {
@@ -594,14 +625,18 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 			}
 			return true;
 		} else if (formula instanceof NotFormula notFormula) {
-			return isFacetSelectionNarrowedByConjunction(notFormula.getSubtractedFormula(), referenceName, false) &&
+			return isFacetSelectionNarrowedByConjunction(
+				notFormula.getSubtractedFormula(), referenceName, false, disjunctiveGroupsNarrowed
+			) &&
 				isFacetSelectionNarrowedByConjunction(
-					notFormula.getSupersetFormula(), referenceName, conjunctivePosition
+					notFormula.getSupersetFormula(), referenceName, conjunctivePosition, disjunctiveGroupsNarrowed
 				);
 		} else {
 			final boolean innerPosition = conjunctivePosition && formula instanceof AndFormula;
 			for (final Formula innerFormula : formula.getInnerFormulas()) {
-				if (!isFacetSelectionNarrowedByConjunction(innerFormula, referenceName, innerPosition)) {
+				if (!isFacetSelectionNarrowedByConjunction(
+					innerFormula, referenceName, innerPosition, disjunctiveGroupsNarrowed
+				)) {
 					return false;
 				}
 			}
@@ -626,6 +661,11 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	 *   subtracts from the rest of the user filter - `NOT(negated, rest)` - and the result selecting a positive facet
 	 *   along with it is `rest AND (facet AND NOT negated)`, which is the same set as `NOT(negated, rest AND facet)`,
 	 *   so the new formula joins the superset part of the enclosing {@link NotFormula}
+	 * - a {@link FacetHavingFormula} with only negated groups anywhere else stands for the complement of the
+	 *   selection, too - the selection `NOT negated` the user nested in an `or` with `P` is post-processed into
+	 *   `NOT(NOT(P, negated), superset)` - and the selection holding the positive facet as well is
+	 *   `facet AND NOT negated`, whose complement is `negated OR NOT facet`, so that formula takes its place; the facet
+	 *   is complemented within the base formula without the user filter, which the user filter is a part of
 	 *
 	 * Every occurrence is altered, because the scope post-processing copies the user filter into the
 	 * {@link ScopeContainerFormula} of every scope.
@@ -653,8 +693,16 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 							FormulaFactory.and(notFormula.getSupersetFormula(), composeFacetSelection(newFormulas))
 						);
 					} else if (examinedFormula instanceof FacetHavingFormula facetHavingFormula &&
-						referenceName.equals(facetHavingFormula.getReferenceName()) &&
-						!isNegatedFacetSelection(facetHavingFormula, referenceName)) {
+						referenceName.equals(facetHavingFormula.getReferenceName())) {
+						if (isNegatedFacetSelection(facetHavingFormula, referenceName)) {
+							// not subtracted by a NOT of its own - the formula is the complement of the selection
+							return FormulaFactory.or(
+								facetHavingFormula,
+								FormulaFactory.not(
+									composeFacetSelection(newFormulas), this.baseFormulaWithoutUserFilter
+								)
+							);
+						}
 						final List<Formula> groupFormulas = collectFacetGroupFormulas(facetHavingFormula);
 						groupFormulas.addAll(newFormulas);
 						return FacetHavingTranslator.composeFacetSelectionFormula(
@@ -671,12 +719,68 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	}
 
 	/**
+	 * Subtracts the formulas of a negated facet - one for each of its negated groups - from every facet selection the
+	 * user filter holds for the facet's reference, so that the prediction has exactly the shape of the result selecting
+	 * the facet along with the others. It is used when some selection is not narrowed by a conjunct of the user filter
+	 * - see {@link #isFacetSelectionNarrowedByConjunction(Formula[], boolean)} - where subtracting the facet from the
+	 * whole user filter would subtract it from the parts the user placed next to the selection in an `or` as well.
+	 *
+	 * - a {@link FacetHavingFormula} with a positive group is composed anew from its group formulas and the new ones by
+	 *   {@link FacetHavingTranslator#composeFacetSelectionFormula(String, java.util.Collection,
+	 *   java.util.function.Function)}, which subtracts the negated groups
+	 * - a {@link FacetHavingFormula} with only negated groups stands for the complement of the selection wherever it
+	 *   is placed - see {@link #addNewFormulasToFacetSelection} - and the selection subtracting the facet as well is
+	 *   `NOT (negated OR facet)`, so the union of the two takes its place
+	 *
+	 * Every occurrence is altered, because the scope post-processing copies the user filter into the
+	 * {@link ScopeContainerFormula} of every scope.
+	 *
+	 * @param negatedFormulas the formulas of the facet being added, one for each of its negated groups
+	 * @param children        the children of the user filter formula
+	 * @return the altered children
+	 */
+	@Nonnull
+	private Formula[] addNegatedFormulasToFacetSelection(
+		@Nonnull List<Formula> negatedFormulas,
+		@Nonnull Formula[] children
+	) {
+		final String referenceName = this.referenceSchema.getName();
+		final Formula[] alteredChildren = new Formula[children.length];
+		for (int i = 0; i < children.length; i++) {
+			alteredChildren[i] = FormulaCloner.clone(
+				children[i],
+				examinedFormula -> {
+					if (examinedFormula instanceof FacetHavingFormula facetHavingFormula &&
+						referenceName.equals(facetHavingFormula.getReferenceName())) {
+						if (isNegatedFacetSelection(facetHavingFormula, referenceName)) {
+							final Formula[] negatedSelections = new Formula[negatedFormulas.size() + 1];
+							negatedSelections[0] = facetHavingFormula;
+							for (int j = 0; j < negatedFormulas.size(); j++) {
+								negatedSelections[j + 1] = negatedFormulas.get(j);
+							}
+							return FormulaFactory.or(negatedSelections);
+						}
+						final List<Formula> groupFormulas = collectFacetGroupFormulas(facetHavingFormula);
+						groupFormulas.addAll(negatedFormulas);
+						return FacetHavingTranslator.composeFacetSelectionFormula(
+							referenceName, groupFormulas, this::getRelationBetweenGroups
+						);
+					} else {
+						return examinedFormula;
+					}
+				}
+			);
+		}
+		return alteredChildren;
+	}
+
+	/**
 	 * Replaces the facet selection the user filter holds for the facet's reference with the formula of a facet whose
 	 * group is exclusive with the other groups. Selecting such a facet deselects the facets of the other groups of its
 	 * reference, but neither the selections of other references nor the other constraints of the user filter, which
 	 * the user filter keeps combining by conjunction.
 	 *
-	 * The selection of the reference takes one of the two places {@link #addNewFormulaToFacetSelection} describes:
+	 * The selection of the reference takes one of the two places {@link #addNewFormulasToFacetSelection} describes:
 	 *
 	 * - a {@link FacetHavingFormula} with at least one positive group is replaced by the selection of the facet - alone,
 	 *   or joined with the other facets of its groups the user filter already selects, whose group formulas the

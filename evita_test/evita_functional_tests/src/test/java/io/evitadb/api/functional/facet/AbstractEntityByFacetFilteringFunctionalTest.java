@@ -3188,15 +3188,16 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	}
 
 	/**
-	 * Returns the rows of the witness of conjunctive options joining a facet selection of their reference, over the
+	 * Returns the rows of the witness of options joining a facet selection of their reference, over the
 	 * {@link #FACET_RELATION_SHAPES} data set. The option joins the selection where the user placed it, so the
 	 * prediction is the result of the query whose selection holds the option as well. For a selection the user nested
-	 * into an `or` container that differs from narrowing the whole user filter by the option, because the other part
-	 * of the `or` is not narrowed; for a selection placed in the user filter itself, with a negated or an exclusive
-	 * group, it is the same set. Each row is a label, the relation requirements, the constraints of the user filter,
-	 * the reference, group and primary key of the option whose impact is predicted, the constraints of the user filter
-	 * of the query selecting the option, and the primary keys of the products that query returns, computed from the
-	 * fixture table.
+	 * into an `or` container that differs from narrowing the whole user filter by the option - or, for a negated
+	 * option, from subtracting it from the whole user filter - because the other part of the `or` is not narrowed;
+	 * this holds for a selection with only negated groups, which the `or` turns into the complement of its part, too.
+	 * For a selection placed in the user filter itself, with a negated or an exclusive group, it is the same set. Each
+	 * row is a label, the relation requirements, the constraints of the user filter, the reference, group and primary
+	 * key of the option whose impact is predicted, the constraints of the user filter of the query selecting the
+	 * option, and the primary keys of the products that query returns, computed from the fixture table.
 	 *
 	 * @return the row arguments
 	 */
@@ -3269,6 +3270,56 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				new FilterConstraint[]{facetHaving(REF_LABEL, entityPrimaryKeyInSet(1, 3, 4))},
 				IntStream.of(shapedProductsWithAllLabels(1, 4))
 					.filter(pk -> ArrayUtils.indexOf(pk, shapedProductsWithLabels(true, 3)) < 0)
+					.toArray()
+			),
+			// the negated label alone, selected in an or with product 9, is the whole first part of the or - the option
+			// joins that part only, and product 9, referencing no label, stays in the result
+			Arguments.of(
+				"negation of group A, an option of group B joining a negated label selected in an or with a product",
+				negationOfGroupA, label1OrProduct9, REF_LABEL, LABEL_GROUP_B, 3, labels1And3OrProduct9,
+				IntStream.concat(IntStream.of(shapedProductsWithLabelsExcept(new int[]{3}, 1)), IntStream.of(9))
+					.sorted()
+					.toArray()
+			),
+			// the same with group B disjunctive - a disjunctive group of the selection composes the same way
+			Arguments.of(
+				"negation of group A, disjunction of group B, an option of group B joining a negated label selected " +
+					"in an or with a product",
+				new RequireConstraint[]{
+					facetGroupsNegation(REF_LABEL, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_A))),
+					facetGroupsDisjunction(
+						REF_LABEL, WITH_DIFFERENT_GROUPS, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_B))
+					)
+				},
+				label1OrProduct9, REF_LABEL, LABEL_GROUP_B, 3, labels1And3OrProduct9,
+				IntStream.concat(IntStream.of(shapedProductsWithLabelsExcept(new int[]{3}, 1)), IntStream.of(9))
+					.sorted()
+					.toArray()
+			),
+			// an option without a group joins the negated label the same way
+			Arguments.of(
+				"negation of group A, an option without a group joining a negated label selected in an or with " +
+					"a product",
+				negationOfGroupA, label1OrProduct9, REF_LABEL, null, 4,
+				new FilterConstraint[]{
+					or(facetHaving(REF_LABEL, entityPrimaryKeyInSet(1, 4)), entityPrimaryKeyInSet(9))
+				},
+				IntStream.concat(IntStream.of(shapedProductsWithLabelsExcept(new int[]{4}, 1)), IntStream.of(9))
+					.sorted()
+					.toArray()
+			),
+			// a negated option is subtracted from the selection of label 1 only - product 4, selected next to it in
+			// the or, references the option and stays in the result
+			Arguments.of(
+				"negation of group B, a negated option joining a label selected in an or with a product referencing it",
+				new RequireConstraint[]{facetGroupsNegation(REF_LABEL, filterBy(entityPrimaryKeyInSet(LABEL_GROUP_B)))},
+				new FilterConstraint[]{or(facetHaving(REF_LABEL, entityPrimaryKeyInSet(1)), entityPrimaryKeyInSet(4))},
+				REF_LABEL, LABEL_GROUP_B, 3,
+				new FilterConstraint[]{
+					or(facetHaving(REF_LABEL, entityPrimaryKeyInSet(1, 3)), entityPrimaryKeyInSet(4))
+				},
+				IntStream.concat(IntStream.of(shapedProductsWithLabelsExcept(new int[]{1}, 3)), IntStream.of(4))
+					.sorted()
 					.toArray()
 			)
 		);
