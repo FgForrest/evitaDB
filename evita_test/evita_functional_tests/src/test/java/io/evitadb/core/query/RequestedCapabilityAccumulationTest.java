@@ -114,6 +114,7 @@ import static io.evitadb.api.query.QueryConstraints.histogramStatistics;
 import static io.evitadb.api.query.QueryConstraints.node;
 import static io.evitadb.api.query.QueryConstraints.or;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
+import static io.evitadb.api.query.QueryConstraints.page;
 import static io.evitadb.api.query.QueryConstraints.orderGroupBy;
 import static io.evitadb.api.query.QueryConstraints.pickFirstByEntityProperty;
 import static io.evitadb.api.query.QueryConstraints.referenceContent;
@@ -127,6 +128,7 @@ import static io.evitadb.api.query.QueryConstraints.segment;
 import static io.evitadb.api.query.QueryConstraints.segments;
 import static io.evitadb.api.query.QueryConstraints.stopAt;
 import static io.evitadb.api.query.QueryConstraints.traverseByEntityProperty;
+import static io.evitadb.api.query.QueryConstraints.userFilter;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FACET;
@@ -1956,6 +1958,95 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 						.openForWrite()
 						.setReference(REFERENCE_BRAND, 1, whichIs -> whichIs.setGroup(1))
 						.upsertVia(session);
+				}
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("A write evaluating a conditional expression")
+	class WriteEvaluation {
+
+		@Test
+		@DisplayName("A write re-evaluating a conditional facet expression counts no request")
+		void shouldCountNoRequestWhenWriteReevaluatesConditionalFacetExpression() {
+			// the categories are faceted only while their name is `category-1` - renaming the category makes the
+			// write re-evaluate the expression of every product referencing it through the query engine, which plans
+			// the filter of the referenced categories as a nested query; the write is no query and asks for nothing
+			declareCategoriesFacetedByName();
+			assertEquals(
+				PRODUCTS_PER_CATEGORY, productsFacetedByFirstCategory(),
+				"The premise is a facet of the first category held by each of its products"
+			);
+			final Map<SchemaCapabilityKey, Long> productsBefore = requestedCounts(ENTITY_PRODUCT);
+			final Map<SchemaCapabilityKey, Long> categoriesBefore = requestedCounts(ENTITY_CATEGORY);
+
+			RequestedCapabilityAccumulationTest.this.evita.updateCatalog(
+				CATALOG,
+				session -> {
+					session.getEntity(ENTITY_CATEGORY, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTRIBUTE_CATEGORY_NAME, "renamed")
+						.upsertVia(session);
+				}
+			);
+
+			final Map<SchemaCapabilityKey, Long> requestedOnProducts = requestedCountsSince(
+				ENTITY_PRODUCT, productsBefore
+			);
+			final Map<SchemaCapabilityKey, Long> requestedOnCategories = requestedCountsSince(
+				ENTITY_CATEGORY, categoriesBefore
+			);
+			assertEquals(
+				0, productsFacetedByFirstCategory(),
+				"The premise is a write that re-evaluated the expression and took the facet of the first category away"
+			);
+			assertEquals(Map.of(), requestedOnProducts, "The write must count no request on the products");
+			assertEquals(Map.of(), requestedOnCategories, "The write must count no request on the categories");
+		}
+
+		/**
+		 * Makes the references of the products to the categories faceted only while the name of the referenced
+		 * category is `category-1`.
+		 */
+		private void declareCategoriesFacetedByName() {
+			RequestedCapabilityAccumulationTest.this.evita.updateCatalog(
+				CATALOG,
+				session -> {
+					session.defineEntitySchema(ENTITY_PRODUCT)
+						.withReferenceToEntity(
+							REFERENCE_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
+							whichIs -> whichIs.facetedPartially(
+								ExpressionFactory.parse(
+									"($reference.referencedEntity.attributes['" + ATTRIBUTE_CATEGORY_NAME +
+										"'] ?? '') == 'category-1'"
+								)
+							)
+						)
+						.updateVia(session);
+				}
+			);
+		}
+
+		/**
+		 * Counts the products the facet of the first category selects.
+		 *
+		 * @return the number of the products
+		 */
+		private int productsFacetedByFirstCategory() {
+			return RequestedCapabilityAccumulationTest.this.evita.queryCatalog(
+				CATALOG,
+				session -> {
+					return session.queryList(
+						Query.query(
+							collection(ENTITY_PRODUCT),
+							filterBy(userFilter(facetHaving(REFERENCE_CATEGORIES, entityPrimaryKeyInSet(1)))),
+							require(page(1, PRODUCT_COUNT))
+						),
+						EntityClassifier.class
+					).size();
 				}
 			);
 		}

@@ -4598,7 +4598,9 @@ public final class EntityCollection implements
 				EntityReference.class,
 				null
 			);
-			// use session-optional QueryPlanningContext — session may be null during WAL replay
+			// use session-optional QueryPlanningContext — session may be null during WAL replay; the evaluation is
+			// a part of the write, not a query, so neither the context nor its nested queries record any schema
+			// capability request
 			final QueryPlanningContext queryContext = new QueryPlanningContext(
 				EntityCollection.this.catalog,
 				EntityCollection.this,

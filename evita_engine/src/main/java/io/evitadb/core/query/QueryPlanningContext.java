@@ -257,6 +257,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	private final boolean prefetchPossible;
 	/**
+	 * False for the context of an internal evaluation a write makes - the condition of a conditional facet or histogram
+	 * expression a mutation, or the replay of the write-ahead log, re-evaluates through the query engine (see the
+	 * session-optional constructor) - and for every context derived from it. Such an evaluation is no query: nothing it
+	 * names is asked for by anybody, so it records no schema capability at all - it neither mints the keys nor
+	 * resolves the holders, and the plans of the nested queries it builds count nothing. The value is inherited by the
+	 * derived contexts, so the decision is made once, where the evaluation starts, and no translator has to know.
+	 */
+	private final boolean recordingRequestedCapabilities;
+	/**
 	 * Internal execution context used for execution of formulas evaluated in planning phase.
 	 *
 	 * Planning is supposed to be cheap, but a few decisions have to compute a formula eagerly to be made at all -
@@ -424,7 +433,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 				catalog.getName(),
 				entityCollection == null ? null : entityCollection.getEntityType(),
 				evitaRequest.getLabels()
-			)
+			),
+			true
 		);
 		Assert.isPremiseValid(evitaSession instanceof EvitaSession, "The session must be an instance of EvitaSession!");
 	}
@@ -462,7 +472,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		this(
 			parentQueryContext, catalog, entityCollection,
 			evitaSession, evitaRequest, telemetry, indexes, indexesByPk,
-			cacheSupervisor, null
+			cacheSupervisor, null, true
 		);
 		// guard only when session is expected — nested contexts during session-less evaluation
 		// (WAL replay) inherit the null session from the parent and should not assert
@@ -478,7 +488,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * construction) work normally.
 	 *
 	 * No telemetry is collected by such a context - there is no client to report it to - and no {@link FinishedEvent}
-	 * is emitted, because this evaluation is not a client query.
+	 * is emitted, because this evaluation is not a client query. For the same reason neither this context nor any
+	 * context derived from it records a schema capability request - see {@link #recordingRequestedCapabilities}.
 	 *
 	 * The raw `Map` parameters are deliberate: the caller of this path holds the indexes in a differently
 	 * parameterized map and the generic signature of the sibling constructors would force an unchecked cast on
@@ -504,7 +515,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull Map indexesByPk,
 		@Nonnull CacheSupervisor cacheSupervisor
 	) {
-		this(null, catalog, entityCollection, evitaSession, evitaRequest, null, indexes, indexesByPk, cacheSupervisor, null);
+		this(
+			null, catalog, entityCollection, evitaSession, evitaRequest, null, indexes, indexesByPk, cacheSupervisor,
+			null, false
+		);
 	}
 
 	/**
@@ -529,6 +543,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @param cacheSupervisor    supervisor deciding which formulas get their results memoized
 	 * @param event              metric event to be completed when the query finishes, NULL for nested and
 	 *                           internal evaluations that must not be reported as client queries
+	 * @param recordingRequestedCapabilities false for the context of an internal evaluation a write makes, which
+	 *                           records no schema capability request - ignored for a nested context, which inherits
+	 *                           the value of its parent, see {@link #recordingRequestedCapabilities}
 	 */
 	private <S extends IndexKey, T extends Index<S>> QueryPlanningContext(
 		@Nullable QueryPlanningContext parentQueryContext,
@@ -540,7 +557,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull Map<S, T> indexes,
 		@Nonnull Map<Integer, T> indexesByPk,
 		@Nonnull CacheSupervisor cacheSupervisor,
-		@Nullable FinishedEvent event
+		@Nullable FinishedEvent event,
+		boolean recordingRequestedCapabilities
 	) {
 		this.parentContext = parentQueryContext;
 		this.catalog = catalog;
@@ -560,9 +578,11 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 				|| isDebugModeEnabled(DebugMode.PREFER_INDEX_SCAN) ?
 				BitmapFavouringNoCachePolicy.INSTANCE : DefaultPolicy.INSTANCE;
 			this.prefetchPossible = true;
+			this.recordingRequestedCapabilities = recordingRequestedCapabilities;
 		} else {
 			this.planningPolicy = parentQueryContext.planningPolicy;
 			this.prefetchPossible = false;
+			this.recordingRequestedCapabilities = parentQueryContext.recordingRequestedCapabilities;
 		}
 		this.telemetryStack = new ArrayDeque<>(16);
 		ofNullable(telemetry).ifPresent(this.telemetryStack::push);
@@ -681,8 +701,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	) {
 		// bail before the key is minted: the planner translates the filter once per candidate index set, so this runs
 		// N times per logical query and each run would otherwise allocate a `SchemaCapabilityKey` and hash it into the
-		// registry. That is the per-query cost `server.usageStatisticsTracking: false` exists to remove
-		if (!this.catalog.isUsageStatisticsTracked()) {
+		// registry. That is the per-query cost `server.usageStatisticsTracking: false` exists to remove - and the cost
+		// an internal evaluation of a write must not pay at all, since it is no query
+		if (!this.recordingRequestedCapabilities || !this.catalog.isUsageStatisticsTracked()) {
 			return;
 		}
 		final String ownerType = owner.getName();
@@ -784,8 +805,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull Capability capability,
 		@Nonnull Scope scope
 	) {
-		// same bail as the collection-level path, and for the same per-candidate-plan reason
-		if (!this.catalog.isUsageStatisticsTracked()) {
+		// same bail as the collection-level path, and for the same reasons
+		if (!this.recordingRequestedCapabilities || !this.catalog.isUsageStatisticsTracked()) {
 			return;
 		}
 		registerRequestedCapability(
