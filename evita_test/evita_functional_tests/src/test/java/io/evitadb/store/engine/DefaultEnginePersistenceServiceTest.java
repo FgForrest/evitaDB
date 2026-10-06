@@ -34,16 +34,20 @@ import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutatio
 import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.spi.store.catalog.exception.CatalogWriteAheadLastTransactionMismatchException;
 import io.evitadb.spi.store.catalog.shared.model.TransactionMutationWithWalReference;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.spi.store.engine.model.AdoptableCatalogFolder;
 import io.evitadb.spi.store.engine.model.CatalogFolderBinding;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.EngineState;
 import io.evitadb.spi.store.engine.model.CatalogInventoryDivergence;
 import io.evitadb.spi.store.engine.model.RetiredFolder;
+import io.evitadb.spi.store.engine.EnginePersistenceService;
 import io.evitadb.spi.store.engine.model.UnprocessedTransactionRecord;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.model.reference.TransactionMutationWithWalFileReference;
+import io.evitadb.store.wal.AbstractMutationLog;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -54,6 +58,7 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
@@ -839,6 +844,517 @@ class DefaultEnginePersistenceServiceTest implements EvitaTestSupport {
 			);
 			assertEquals(1L, DefaultEnginePersistenceServiceTest.this.service.getVersion());
 			assertEquals(0L, DefaultEnginePersistenceServiceTest.this.service.getLastVersionInMutationStream());
+		}
+
+		/**
+		 * A rolled-back append must leave the WAL readable. The transactions committed before it are still on disk
+		 * and published, and the system change capture reads them while catching a lagging subscriber up - it bounds
+		 * the read by the last version in the mutation stream and reads it through the live stream. Answering both
+		 * as if no WAL existed until the next append re-opens the log stalls such a subscriber silently.
+		 */
+		@Test
+		@DisplayName("should keep serving the WAL after an append was rolled back")
+		void shouldKeepServingTheWalAfterARolledBackAppend() {
+			final long firstVersion = DefaultEnginePersistenceServiceTest.this.service.getVersion() + 1;
+			final long lastCommittedVersion = firstVersion + 3;
+			for (long version = firstVersion; version <= lastCommittedVersion; version++) {
+				final long committedVersion = version;
+				DefaultEnginePersistenceServiceTest.this.service.appendWalAndStoreState(
+					committedVersion, UUID.randomUUID(), createTestEngineMutation("catalog" + committedVersion),
+					txRef -> minimalEngineState(committedVersion, txRef)
+				);
+			}
+			final RuntimeException simulated = new RuntimeException("simulated failure");
+			final RuntimeException thrown = assertThrows(
+				RuntimeException.class,
+				() -> DefaultEnginePersistenceServiceTest.this.service.appendWalAndStoreState(
+					lastCommittedVersion + 1, UUID.randomUUID(), createTestEngineMutation("rolledBack"),
+					txRef -> {
+						throw simulated;
+					}
+				)
+			);
+			assertSame(simulated, thrown);
+
+			assertEquals(
+				lastCommittedVersion,
+				DefaultEnginePersistenceServiceTest.this.service.getLastVersionInMutationStream(),
+				"Versions " + firstVersion + " to " + lastCommittedVersion + " are committed and on disk - the " +
+					"rollback removed only the transaction after them, so the WAL must not read as missing."
+			);
+			final long transactionCount;
+			try (
+				final Stream<EngineMutation<?>> stream = DefaultEnginePersistenceServiceTest.this.service
+					.getCommittedLiveMutationStream(firstVersion, lastCommittedVersion, VersionSource.INTERNAL)
+			) {
+				transactionCount = stream.filter(TransactionMutation.class::isInstance).count();
+			}
+			assertEquals(
+				lastCommittedVersion - firstVersion + 1,
+				transactionCount,
+				"Every committed transaction must still be readable right after a rolled-back append, not only " +
+					"once a later append happens to re-open the log."
+			);
+		}
+
+	}
+
+	/**
+	 * Tests for an engine WAL that rotates into a new file.
+	 *
+	 * Rotation runs inside the append that does not fit the current file any more: it finalizes the current file with
+	 * its trailer, creates the next one holding only its cumulative checksum header, and only then appends. A crash in
+	 * between leaves a WAL whose active file holds no transaction while every committed one sits in the finalized file
+	 * before it. The tests produce that state from a real rotation: the append that rotated is written through the
+	 * test-only {@link DefaultEnginePersistenceService#appendWal} - so the engine state stays one version behind, as
+	 * the crash left it - and the new file is cut back to its header.
+	 */
+	@Nested
+	@DisplayName("WAL rotation")
+	class WalRotation {
+		/**
+		 * Size an engine WAL file may reach before it is rotated away - a handful of engine mutations fill it.
+		 */
+		private static final long ROTATING_WAL_FILE_SIZE_BYTES = 1_024L;
+		/**
+		 * Upper bound of the versions appended while waiting for the WAL to rotate.
+		 */
+		private static final long MAX_VERSION_BEFORE_ROTATION = 1_000L;
+
+		/**
+		 * Restarts the service with a WAL file size small enough to rotate.
+		 */
+		@BeforeEach
+		void useRotatingWal() {
+			DefaultEnginePersistenceServiceTest.this.service.close();
+			DefaultEnginePersistenceServiceTest.this.transactionOptions = TransactionOptions
+				.builder(DefaultEnginePersistenceServiceTest.this.transactionOptions)
+				.walFileSizeBytes(ROTATING_WAL_FILE_SIZE_BYTES)
+				.build();
+			DefaultEnginePersistenceServiceTest.this.service = reopenService();
+		}
+
+		@Test
+		@DisplayName("should boot when the WAL rotated and the process crashed before the first append to the new file")
+		void shouldBootWhenTheWalRotatedAndCrashedBeforeTheFirstAppend() throws IOException {
+			final long crashedVersion = appendUntilTheWalRotates();
+			final long lastCommittedVersion = crashedVersion - 1;
+			crashBeforeTheFirstAppendIntoTheRotatedFile();
+
+			DefaultEnginePersistenceServiceTest.this.service = assertDoesNotThrow(
+				this::reopenService,
+				"The engine state and the WAL agree on version " + lastCommittedVersion + " - it is the last version " +
+					"of the finalized WAL file before the empty active one. Startup must compare the state with the " +
+					"last version of the whole WAL, not with the active file that holds nothing yet."
+			);
+			assertEquals(lastCommittedVersion, DefaultEnginePersistenceServiceTest.this.service.getVersion());
+			assertEquals(
+				lastCommittedVersion,
+				DefaultEnginePersistenceServiceTest.this.service.getLastVersionInMutationStream()
+			);
+		}
+
+		@Test
+		@DisplayName("should refuse an append that repeats a version of the finalized WAL file")
+		void shouldRefuseAnAppendThatRepeatsAVersionOfTheFinalizedWalFile() throws IOException {
+			final long crashedVersion = appendUntilTheWalRotates();
+			final long lastCommittedVersion = crashedVersion - 1;
+			crashBeforeTheFirstAppendIntoTheRotatedFile();
+			DefaultEnginePersistenceServiceTest.this.service = reopenService();
+
+			assertThrows(
+				CatalogWriteAheadLastTransactionMismatchException.class,
+				() -> DefaultEnginePersistenceServiceTest.this.service.appendWal(
+					lastCommittedVersion, UUID.randomUUID(), createTestEngineMutation("repeated")
+				),
+				"Version " + lastCommittedVersion + " is already in the finalized WAL file. The empty active file " +
+					"continues it, so an append there must carry the next version - accepting a repeated one leaves " +
+					"two files that do not continue one another, which the next startup refuses to open."
+			);
+		}
+
+		@Test
+		@DisplayName("should keep the finalized WAL file intact when startup discards an unfinished tail")
+		void shouldKeepTheFinalizedWalFileIntactWhenStartupDiscardsAnUnfinishedTail() throws IOException {
+			final long crashedVersion = appendUntilTheWalRotates();
+			crashBeforeTheFirstAppendIntoTheRotatedFile();
+			DefaultEnginePersistenceServiceTest.this.service = reopenService();
+
+			// what `EngineTransactionManager` does on every startup that replays nothing: the engine state references
+			// the last transaction of the finalized file, and only its trailer follows it there
+			DefaultEnginePersistenceServiceTest.this.service.truncateWriteAheadLog(
+				DefaultEnginePersistenceServiceTest.this.service.getEngineState().walReference()
+			);
+			DefaultEnginePersistenceServiceTest.this.service.appendWalAndStoreState(
+				crashedVersion, UUID.randomUUID(), createTestEngineMutation("afterCrash"),
+				txRef -> minimalEngineState(crashedVersion, txRef)
+			);
+			DefaultEnginePersistenceServiceTest.this.service.close();
+
+			DefaultEnginePersistenceServiceTest.this.service = assertDoesNotThrow(
+				this::reopenService,
+				"The bytes following the engine state's WAL reference in a finalized file are that file's trailer, " +
+					"not an unfinished transaction. Cutting them off makes the next startup read the tail of a " +
+					"transaction as the file's version range."
+			);
+			assertEquals(crashedVersion, DefaultEnginePersistenceServiceTest.this.service.getVersion());
+			assertEquals(crashedVersion, DefaultEnginePersistenceServiceTest.this.service.getLastVersionInMutationStream());
+		}
+
+		@Test
+		@DisplayName("should roll back an append that rotated the WAL to exactly the WAL before the append")
+		void shouldRollBackAnAppendThatRotatedTheWal() {
+			final String rotatedMessage = "the append rotated the WAL";
+			long rolledBackVersion = -1L;
+			for (long version = DefaultEnginePersistenceServiceTest.this.service.getVersion() + 1;
+			     version <= MAX_VERSION_BEFORE_ROTATION && rolledBackVersion == -1L; version++) {
+				final long appendedVersion = version;
+				try {
+					DefaultEnginePersistenceServiceTest.this.service.appendWalAndStoreState(
+						appendedVersion, UUID.randomUUID(), createTestEngineMutation("catalog" + appendedVersion),
+						txRef -> {
+							if (((LogFileRecordReference) txRef.walReference()).fileIndex() > 0) {
+								throw new IllegalStateException(rotatedMessage);
+							}
+							return minimalEngineState(appendedVersion, txRef);
+						}
+					);
+				} catch (IllegalStateException ex) {
+					assertEquals(rotatedMessage, ex.getMessage());
+					rolledBackVersion = appendedVersion;
+				}
+			}
+			assertTrue(rolledBackVersion > 0L, "The WAL never rotated - lower ROTATING_WAL_FILE_SIZE_BYTES.");
+			assertEquals(rolledBackVersion - 1, DefaultEnginePersistenceServiceTest.this.service.getVersion());
+			assertFalse(
+				walFilePath(1).toFile().exists(),
+				"The WAL file the rolled-back append rotated into holds nothing but that transaction."
+			);
+
+			// the version that was rolled back is free again, and the WAL it is appended to must reopen
+			final long retriedVersion = rolledBackVersion;
+			DefaultEnginePersistenceServiceTest.this.service.appendWalAndStoreState(
+				retriedVersion, UUID.randomUUID(), createTestEngineMutation("retried"),
+				txRef -> minimalEngineState(retriedVersion, txRef)
+			);
+			DefaultEnginePersistenceServiceTest.this.service.close();
+			DefaultEnginePersistenceServiceTest.this.service = assertDoesNotThrow(
+				this::reopenService,
+				"A rollback that leaves the rolled-back transaction in the next WAL file, after a predecessor whose " +
+					"trailer it cut off, leaves a WAL whose files do not continue one another."
+			);
+			assertEquals(retriedVersion, DefaultEnginePersistenceServiceTest.this.service.getVersion());
+			assertEquals(retriedVersion, DefaultEnginePersistenceServiceTest.this.service.getLastVersionInMutationStream());
+		}
+
+		/**
+		 * Once the bootstrap record names a transaction, rolling its WAL append back removes bytes a published record
+		 * reaches. What the publish triggers afterwards - reporting the version as processed, which schedules the
+		 * removal of rotated WAL files - is housekeeping, and its failure must not reach the rollback. The test makes
+		 * it fail the way an abruptly shut down scheduler does: the append that rotates queues a removal the retention
+		 * cannot run yet, and the scheduler goes away between that append and its publish.
+		 */
+		@Test
+		@DisplayName("should keep a published append when the removal of rotated WAL files cannot be scheduled")
+		void shouldKeepAPublishedAppendWhenTheRemovalOfRotatedWalFilesCannotBeScheduled() {
+			DefaultEnginePersistenceServiceTest.this.service.close();
+			// one kept file, so the very first rotation queues the removal of the file before it
+			DefaultEnginePersistenceServiceTest.this.transactionOptions = TransactionOptions
+				.builder(DefaultEnginePersistenceServiceTest.this.transactionOptions)
+				.walFileCountKept(1)
+				.build();
+			final ImmediateScheduledThreadPoolExecutor executor = new ImmediateScheduledThreadPoolExecutor();
+			DefaultEnginePersistenceServiceTest.this.scheduler = new Scheduler(executor);
+			DefaultEnginePersistenceServiceTest.this.service = reopenService();
+
+			long publishedVersion = -1L;
+			for (long version = DefaultEnginePersistenceServiceTest.this.service.getVersion() + 1;
+			     version <= MAX_VERSION_BEFORE_ROTATION && publishedVersion == -1L; version++) {
+				final long appendedVersion = version;
+				final boolean[] rotated = {false};
+				assertDoesNotThrow(
+					() -> DefaultEnginePersistenceServiceTest.this.service.appendWalAndStoreState(
+						appendedVersion, UUID.randomUUID(), createTestEngineMutation("catalog" + appendedVersion),
+						txRef -> {
+							if (((LogFileRecordReference) txRef.walReference()).fileIndex() > 0) {
+								rotated[0] = true;
+								executor.shutdownNow();
+							}
+							return minimalEngineState(appendedVersion, txRef);
+						}
+					),
+					"Version " + appendedVersion + " was published by the bootstrap record before scheduling the " +
+						"removal of rotated WAL files failed. A failure after the publish must not roll back an " +
+						"append the published record already references."
+				);
+				if (rotated[0]) {
+					publishedVersion = appendedVersion;
+				}
+			}
+			assertTrue(publishedVersion > 0L, "The WAL never rotated - lower ROTATING_WAL_FILE_SIZE_BYTES.");
+			assertEquals(publishedVersion, DefaultEnginePersistenceServiceTest.this.service.getVersion());
+			assertEquals(
+				publishedVersion, DefaultEnginePersistenceServiceTest.this.service.getLastVersionInMutationStream()
+			);
+
+			DefaultEnginePersistenceServiceTest.this.service.close();
+			DefaultEnginePersistenceServiceTest.this.scheduler = new Scheduler(new ImmediateScheduledThreadPoolExecutor());
+			DefaultEnginePersistenceServiceTest.this.service = assertDoesNotThrow(this::reopenService);
+			assertEquals(publishedVersion, DefaultEnginePersistenceServiceTest.this.service.getVersion());
+			assertEquals(
+				publishedVersion, DefaultEnginePersistenceServiceTest.this.service.getLastVersionInMutationStream()
+			);
+		}
+
+		/**
+		 * After a crash between rotation and the first append, the published engine state references the last
+		 * transaction of the finalized file while appends land in the empty file after it. A rolled-back append
+		 * there has to be removed from the file it landed in - the file the published reference points into ends
+		 * with its trailer and has nothing to give back. Leaving the transaction behind makes every retry of the
+		 * version fail, and a restart replays a mutation its caller was told had failed.
+		 */
+		@Test
+		@DisplayName("should roll back an append into the WAL file a crash after rotation left without a transaction")
+		void shouldRollBackAnAppendIntoAWalFileLeftEmptyByACrashAfterRotation() throws IOException {
+			final long crashedVersion = appendUntilTheWalRotates();
+			crashBeforeTheFirstAppendIntoTheRotatedFile();
+			DefaultEnginePersistenceServiceTest.this.service = reopenService();
+
+			final String failureMessage = "the engine state could not be built";
+			final IllegalStateException failure = assertThrows(
+				IllegalStateException.class,
+				() -> DefaultEnginePersistenceServiceTest.this.service.appendWalAndStoreState(
+					crashedVersion, UUID.randomUUID(), createTestEngineMutation("rolledBack"),
+					txRef -> {
+						throw new IllegalStateException(failureMessage);
+					}
+				)
+			);
+			assertEquals(failureMessage, failure.getMessage());
+			assertEquals(
+				AbstractMutationLog.CUMULATIVE_CRC32_SIZE,
+				walFilePath(1).toFile().length(),
+				"The WAL file the rolled-back append landed in held only its header before the append, and must " +
+					"hold only its header after the rollback."
+			);
+
+			assertDoesNotThrow(
+				() -> DefaultEnginePersistenceServiceTest.this.service.appendWalAndStoreState(
+					crashedVersion, UUID.randomUUID(), createTestEngineMutation("retried"),
+					txRef -> minimalEngineState(crashedVersion, txRef)
+				),
+				"Version " + crashedVersion + " was rolled back, so it is free to be committed again."
+			);
+			DefaultEnginePersistenceServiceTest.this.service.close();
+			DefaultEnginePersistenceServiceTest.this.service = reopenService();
+			assertEquals(crashedVersion, DefaultEnginePersistenceServiceTest.this.service.getVersion());
+			assertEquals(
+				crashedVersion, DefaultEnginePersistenceServiceTest.this.service.getLastVersionInMutationStream()
+			);
+		}
+
+		/**
+		 * The engine reports every published version to its WAL as processed, so the retention removes the WAL files
+		 * holding nothing newer - file `0` included, while the engine runs or at the latest when its log closes, and
+		 * a restart then opens the log from the published reference. A rolled-back append must leave the log
+		 * able to take the next append: a log re-opened from the first WAL file instead of from the published
+		 * reference refuses to start from a file that is gone, and every later engine mutation fails until restart.
+		 */
+		@Test
+		@DisplayName("should accept appends after a rolled-back append once the retention removed the first WAL file")
+		void shouldAcceptAppendsAfterARolledBackAppendOnceRetentionRemovedTheFirstWalFile() {
+			DefaultEnginePersistenceServiceTest.this.service.close();
+			DefaultEnginePersistenceServiceTest.this.transactionOptions = TransactionOptions
+				.builder(DefaultEnginePersistenceServiceTest.this.transactionOptions)
+				.walFileCountKept(1)
+				.build();
+			DefaultEnginePersistenceServiceTest.this.service = reopenService();
+
+			long version = DefaultEnginePersistenceServiceTest.this.service.getVersion() + 1;
+			for (; version <= MAX_VERSION_BEFORE_ROTATION && !walFilePath(1).toFile().exists(); version++) {
+				final long committedVersion = version;
+				DefaultEnginePersistenceServiceTest.this.service.appendWalAndStoreState(
+					committedVersion, UUID.randomUUID(), createTestEngineMutation("catalog" + committedVersion),
+					txRef -> minimalEngineState(committedVersion, txRef)
+				);
+			}
+			assertTrue(walFilePath(1).toFile().exists(), "The WAL never rotated - lower ROTATING_WAL_FILE_SIZE_BYTES.");
+			// the removal the rotation queued is due once its version is published, and closing the log drains it
+			// deterministically - the scheduler runs it with a delay otherwise
+			DefaultEnginePersistenceServiceTest.this.service.close();
+			DefaultEnginePersistenceServiceTest.this.service = reopenService();
+			assertFalse(
+				walFilePath(0).toFile().exists(),
+				"precondition: the retention removed the first WAL file once the rotating append was published"
+			);
+
+			final long failedVersion = version;
+			final RuntimeException simulated = new RuntimeException("simulated failure");
+			assertSame(
+				simulated,
+				assertThrows(
+					RuntimeException.class,
+					() -> DefaultEnginePersistenceServiceTest.this.service.appendWalAndStoreState(
+						failedVersion, UUID.randomUUID(), createTestEngineMutation("rolledBack"),
+						txRef -> {
+							throw simulated;
+						}
+					)
+				)
+			);
+
+			assertDoesNotThrow(
+				() -> DefaultEnginePersistenceServiceTest.this.service.appendWalAndStoreState(
+					failedVersion, UUID.randomUUID(), createTestEngineMutation("retried"),
+					txRef -> minimalEngineState(failedVersion, txRef)
+				),
+				"One failed engine commit must not wedge every later one - the log has to continue from the " +
+					"published reference, which points into a WAL file that still exists."
+			);
+			DefaultEnginePersistenceServiceTest.this.service.close();
+			DefaultEnginePersistenceServiceTest.this.service = reopenService();
+			assertEquals(failedVersion, DefaultEnginePersistenceServiceTest.this.service.getVersion());
+			assertEquals(
+				failedVersion, DefaultEnginePersistenceServiceTest.this.service.getLastVersionInMutationStream()
+			);
+		}
+
+		/**
+		 * A transaction sized close to the WAL file size limit fits the limit but not together with the header an
+		 * empty file starts with. Appending it to such a file used to rotate that file - which holds no transaction,
+		 * so rotation has no version range to finalize it with and fails - instead of appending it. An empty active
+		 * file is a fresh log, or one left by a crash between rotation and the first append into the new file; both
+		 * are exercised.
+		 */
+		@Test
+		@DisplayName("should append a transaction of the full WAL file size to a WAL file that holds no transaction yet")
+		void shouldAppendAFullSizeTransactionToAWalFileThatHoldsNoTransactionYet() throws IOException {
+			final String catalogName = "fullSize";
+			final long transactionSize = measureTransactionSize(catalogName);
+			// the limit equals the transaction - it fits, but not after the 8-byte header and the 4-byte prefix
+			DefaultEnginePersistenceServiceTest.this.service.close();
+			DefaultEnginePersistenceServiceTest.this.transactionOptions = TransactionOptions
+				.builder(DefaultEnginePersistenceServiceTest.this.transactionOptions)
+				.walFileSizeBytes(transactionSize)
+				.build();
+			DefaultEnginePersistenceServiceTest.this.service = reopenService();
+
+			// a fresh log: its first file is created holding only its header
+			final long firstVersion = DefaultEnginePersistenceServiceTest.this.service.getVersion() + 1;
+			assertDoesNotThrow(
+				() -> DefaultEnginePersistenceServiceTest.this.service.appendWalAndStoreState(
+					firstVersion, UUID.randomUUID(), createTestEngineMutation(catalogName),
+					txRef -> minimalEngineState(firstVersion, txRef)
+				),
+				"A transaction of " + transactionSize + " bytes fits a WAL file size limit of the same size and has to " +
+					"be appended to the empty first file - rotating that file is impossible and pointless."
+			);
+
+			// the next one rotates the file holding the first transaction away; a crash before it lands leaves the
+			// file it rotated into empty
+			final long secondVersion = firstVersion + 1;
+			final TransactionMutationWithWalFileReference rotatedAppend = DefaultEnginePersistenceServiceTest.this.service
+				.appendWal(secondVersion, UUID.randomUUID(), createTestEngineMutation(catalogName));
+			assertEquals(1, rotatedAppend.walReference().fileIndex(), "precondition: the second append must rotate");
+			crashBeforeTheFirstAppendIntoTheRotatedFile();
+			DefaultEnginePersistenceServiceTest.this.service = reopenService();
+			assertDoesNotThrow(
+				() -> DefaultEnginePersistenceServiceTest.this.service.appendWalAndStoreState(
+					secondVersion, UUID.randomUUID(), createTestEngineMutation(catalogName),
+					txRef -> minimalEngineState(secondVersion, txRef)
+				),
+				"The same transaction has to be appended to the empty file a rotation left behind as well."
+			);
+
+			DefaultEnginePersistenceServiceTest.this.service.close();
+			DefaultEnginePersistenceServiceTest.this.service = assertDoesNotThrow(this::reopenService);
+			assertEquals(secondVersion, DefaultEnginePersistenceServiceTest.this.service.getVersion());
+			assertEquals(secondVersion, DefaultEnginePersistenceServiceTest.this.service.getLastVersionInMutationStream());
+		}
+
+		/**
+		 * Measures the WAL size of an engine mutation creating a catalog of the passed name, in a storage of its own.
+		 * The size depends only on the name, so the same mutation has the same size in the storage under test.
+		 *
+		 * @param catalogName the name of the catalog the measured mutation creates
+		 * @return the size the mutation occupies in the WAL, which is what the WAL file size limit is compared with
+		 */
+		private long measureTransactionSize(@Nonnull String catalogName) throws IOException {
+			final String probeDirectoryName = DefaultEnginePersistenceServiceTest.class.getSimpleName() + "Probe";
+			cleanTestSubDirectory(probeDirectoryName);
+			final Path probeDirectory = Files.createDirectories(getPathInTargetDirectory(probeDirectoryName));
+			final DefaultEnginePersistenceService probe = new DefaultEnginePersistenceService(
+				StorageOptions.builder().storageDirectory(probeDirectory).build(),
+				DefaultEnginePersistenceServiceTest.this.transactionOptions,
+				DefaultEnginePersistenceServiceTest.this.scheduler
+			);
+			try {
+				return probe.appendWal(probe.getVersion() + 1, UUID.randomUUID(), createTestEngineMutation(catalogName))
+					.transactionMutation()
+					.getWalSizeInBytes();
+			} finally {
+				probe.close();
+				cleanTestSubDirectory(probeDirectoryName);
+			}
+		}
+
+		/**
+		 * Commits one engine mutation per version until an append rotates the WAL. The append that rotated is left
+		 * without its engine state, as a crash right after it would leave it.
+		 *
+		 * @return the version whose append rotated the WAL - the engine state is one version behind it
+		 */
+		private long appendUntilTheWalRotates() {
+			for (long version = DefaultEnginePersistenceServiceTest.this.service.getVersion() + 1;
+			     version <= MAX_VERSION_BEFORE_ROTATION; version++) {
+				final TransactionMutationWithWalFileReference txRef = DefaultEnginePersistenceServiceTest.this.service
+					.appendWal(version, UUID.randomUUID(), createTestEngineMutation("catalog" + version));
+				if (txRef.walReference().fileIndex() > 0) {
+					assertEquals(version - 1, DefaultEnginePersistenceServiceTest.this.service.getVersion());
+					return version;
+				}
+				DefaultEnginePersistenceServiceTest.this.service.rewriteEngineStateAtNextVersion(
+					minimalEngineState(version, txRef)
+				);
+			}
+			throw new AssertionError("The WAL never rotated - lower ROTATING_WAL_FILE_SIZE_BYTES.");
+		}
+
+		/**
+		 * Stops the service and cuts the WAL file the last append rotated into back to the header rotation wrote -
+		 * the state of a crash before that append landed.
+		 */
+		private void crashBeforeTheFirstAppendIntoTheRotatedFile() throws IOException {
+			DefaultEnginePersistenceServiceTest.this.service.close();
+			try (final RandomAccessFile raf = new RandomAccessFile(walFilePath(1).toFile(), "rw")) {
+				raf.setLength(AbstractMutationLog.CUMULATIVE_CRC32_SIZE);
+			}
+		}
+
+		/**
+		 * Resolves the engine WAL file with the passed index.
+		 *
+		 * @param walFileIndex index of the file
+		 * @return the path of the file
+		 */
+		@Nonnull
+		private Path walFilePath(int walFileIndex) {
+			return DefaultEnginePersistenceServiceTest.this.storageOptions.storageDirectory()
+				.resolve(EnginePersistenceService.getWalFileName(walFileIndex));
+		}
+
+		/**
+		 * Starts a new service over the test storage with the current options.
+		 *
+		 * @return the started service
+		 */
+		@Nonnull
+		private DefaultEnginePersistenceService reopenService() {
+			return new DefaultEnginePersistenceService(
+				DefaultEnginePersistenceServiceTest.this.storageOptions,
+				DefaultEnginePersistenceServiceTest.this.transactionOptions,
+				DefaultEnginePersistenceServiceTest.this.scheduler
+			);
 		}
 
 	}

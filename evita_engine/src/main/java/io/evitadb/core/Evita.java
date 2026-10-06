@@ -108,6 +108,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.roaringbitmap.RoaringKernels;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.spi.store.engine.EnginePersistenceService;
 import io.evitadb.spi.store.engine.EnginePersistenceServiceFactory;
 import io.evitadb.spi.store.engine.model.AdoptableCatalogFolder;
@@ -1205,6 +1206,44 @@ public final class Evita implements EvitaContract {
 
 	/**
 	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
+	 * the engine to `startVersion`, for a WAL that is being appended to while it is read. A failure to reach
+	 * `requestedVersion` surfaces as an exception instead of an exhausted stream, and no transaction past it is
+	 * delivered.
+	 *
+	 * BEWARE! Stream implements {@link java.io.Closeable} and needs to be closed to release resources.
+	 *
+	 * @param startVersion     version of the engine to start the stream with
+	 * @param requestedVersion the version the stream must reach, and does not pass
+	 * @param versionSource    who chose those versions
+	 * @return a stream containing committed mutations
+	 */
+	@Nonnull
+	public Stream<EngineMutation<?>> getCommittedLiveMutationStream(
+		long startVersion, long requestedVersion, @Nonnull VersionSource versionSource
+	) {
+		return this.engineTransactionManager.getCommittedLiveMutationStream(startVersion, requestedVersion, versionSource);
+	}
+
+	/**
+	 * Retrieves the last engine version written in the WAL.
+	 *
+	 * @return the last engine version written in the WAL
+	 */
+	public long getLastVersionInMutationStream() {
+		return this.engineTransactionManager.getLastVersionInMutationStream();
+	}
+
+	/**
+	 * Retrieves the first engine version the WAL can still replay once retention has removed older WAL files.
+	 *
+	 * @return the first replayable engine version, or `-1` when retention has not removed any WAL file
+	 */
+	public long getFirstReplayableVersion() {
+		return this.engineTransactionManager.getFirstReplayableVersion();
+	}
+
+	/**
+	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
 	 * the engine to the given version. The stream goes through all the mutations in this transaction from last to
 	 * first one and continues backward with previous transaction after that until the beginning of the WAL.
 	 *
@@ -1362,9 +1401,15 @@ public final class Evita implements EvitaContract {
 	 * side-effect when the retry succeeds. The first-attempt future still completes exceptionally, but boot continues
 	 * normally because the retry runs in the background and does not block `fullyInitialized`.
 	 *
+	 * **The future yields the instance the write-ahead log was replayed to**, not the one loaded at the version the
+	 * catalog's bootstrap record published. The success callback replays the log beyond that version and installs
+	 * the result into the engine state itself; a caller that installs the future's result as well - the activation
+	 * does - must install that same replayed instance, or it rolls the catalog back to the published version while
+	 * its transaction manager already stands at the head of the log.
+	 *
 	 * @param catalogName name of the catalog
 	 * @param readOnly    when {@code true} the catalog is opened in read-only mode
-	 * @return future that completes with the loaded {@link Catalog} instance
+	 * @return future that completes with the loaded {@link Catalog} instance its write-ahead log was replayed to
 	 */
 	@Nonnull
 	public ProgressingFuture<Catalog> loadCatalogInternal(@Nonnull String catalogName, boolean readOnly) {
@@ -1382,7 +1427,7 @@ public final class Evita implements EvitaContract {
 	 * @param mode        load mode — {@link LoadMode#INITIAL} for first attempts (auto-upgrade
 	 *                    enabled), {@link LoadMode#RETRY_AFTER_UPGRADE} for the post-upgrade retry
 	 *                    (auto-upgrade disabled)
-	 * @return future that completes with the loaded {@link Catalog} instance
+	 * @return future that completes with the loaded {@link Catalog} instance its write-ahead log was replayed to
 	 */
 	@Nonnull
 	private ProgressingFuture<Catalog> loadCatalogInternal(
@@ -1400,8 +1445,20 @@ public final class Evita implements EvitaContract {
 			this::replaceCatalogReference,
 			(cn, catalog) -> {
 				log.info("Catalog {} fully loaded in: {}", catalogName, StringUtils.formatNano(System.nanoTime() - start));
+				// The instance the future completes with. It starts as the one loaded at the published version and
+				// moves to the replayed one below, so whoever installs the future's result - the activation does -
+				// installs the state the write-ahead log reached, without reading it back from the engine state.
+				// Reading it back is not reliable: the install below is not taken under the engine state lock, so a
+				// concurrent engine mutation publishing a state it read before this install loses it. The consumer
+				// is skipped only when the replay reports no result, which `processEntireWriteAheadLog` does for a
+				// transaction manager that is suspended or already past the log - neither of which a catalog loaded
+				// a moment ago can be. Nothing was replayed onto the loaded instance then, so it stays the answer.
+				final AtomicReference<Catalog> settledCatalog = new AtomicReference<>(catalog);
 				catalog.processWriteAheadLog(
 					updatedCatalog -> {
+						if (updatedCatalog instanceof Catalog replayedCatalog) {
+							settledCatalog.set(replayedCatalog);
+						}
 						final ExpandedEngineState afterReplay = this.engineState.updateAndGet(
 							existingState -> {
 								if (existingState == null) {
@@ -1435,6 +1492,7 @@ public final class Evita implements EvitaContract {
 					}
 				);
 				this.emitCatalogStatistics(catalogName);
+				return settledCatalog.get();
 			},
 			(cn, exception) -> {
 				final Throwable cause = ExceptionUtils.unwrapCompletionWrappers(exception);

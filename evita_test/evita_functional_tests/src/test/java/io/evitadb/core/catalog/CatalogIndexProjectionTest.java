@@ -481,6 +481,30 @@ class CatalogIndexProjectionTest {
 			assertEquals(2, code.recordsCovered());
 		}
 
+		@Test
+		@DisplayName("reports the records a global unique index covers, not the values it holds")
+		void shouldCountRecordsNotValuesOfAGlobalUniqueIndex() {
+			// a localized `uniqueGlobally` attribute keys one locale-less index, so entity 1 owns one value per
+			// locale there - the only shape in which the records covered fall below the values held
+			final AttributeKey attributeKey = new AttributeKey("code");
+			final GlobalUniqueIndex uniqueIndex = new GlobalUniqueIndex(Scope.LIVE, attributeKey, String.class);
+			uniqueIndex.registerUniqueKey("en-x", ENTITY_TYPE, Locale.ENGLISH, 1, RESOLVER);
+			uniqueIndex.registerUniqueKey("de-x", ENTITY_TYPE, Locale.GERMAN, 1, RESOLVER);
+			uniqueIndex.registerUniqueKey("en-y", ENTITY_TYPE, Locale.ENGLISH, 2, RESOLVER);
+			final Map<AttributeKey, GlobalUniqueIndex> uniqueIndexes = new HashMap<>();
+			uniqueIndexes.put(attributeKey, uniqueIndex);
+			final CatalogIndex index = new CatalogIndex(
+				1, new CatalogIndexKey(Scope.LIVE), uniqueIndexes, new IndexActivity()
+			);
+
+			final AttributeCardinality[] attributes = CatalogIndexProjection.describe(index).cardinality().attributes();
+
+			assertEquals(1, attributes.length);
+			final AttributeCardinality code = readingOf(attributes, "code");
+			assertEquals(3, code.distinctValueCount());
+			assertEquals(2, code.recordsCovered());
+		}
+
 		/**
 		 * Picks the reading of one attribute out of a detail response.
 		 *

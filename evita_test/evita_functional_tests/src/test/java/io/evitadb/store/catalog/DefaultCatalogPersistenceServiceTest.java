@@ -95,6 +95,7 @@ import io.evitadb.store.exception.DirectoryNotEmptyException;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.model.header.CollectionFileReference;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
+import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
 import io.evitadb.store.offsetIndex.io.OffHeapWithFileBackupReference;
 import io.evitadb.store.offsetIndex.io.ReadOnlyFileHandle;
@@ -110,6 +111,7 @@ import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.TestConstants;
 import io.evitadb.test.generator.DataGenerator;
 import io.evitadb.test.utils.ReflectionUtils;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import io.evitadb.utils.UUIDUtil;
 import org.junit.jupiter.api.AfterEach;
@@ -2697,6 +2699,127 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				.resolve(getCatalogBootstrapFileName(TEST_CATALOG))
 				.toFile()
 				.length();
+		}
+	}
+
+	/**
+	 * Verifies that the catalog header is resolved for the version it is asked for.
+	 *
+	 * The persistence service caches the newest header it has written, and a reader that holds an older version - a
+	 * backup copying the published state while transactions keep committing - must not be handed that newest header:
+	 * it would pair the collection set, WAL pointer and counters of a newer catalog with the data it reads at its own
+	 * version. Both versions here are served by one shared catalog data file, which is the arrangement in which the
+	 * cached header and the requested version can disagree.
+	 */
+	@Nested
+	@DisplayName("Catalog header resolution by version")
+	class CatalogHeaderByVersionTest {
+
+		@Test
+		@DisplayName("should return the header of an older version, not the newest one written")
+		void shouldReturnTheHeaderOfTheRequestedVersion() {
+			try (
+				final DefaultCatalogPersistenceService ioService = new DefaultCatalogPersistenceService(
+					TEST_CATALOG,
+					new CatalogFolderId(TEST_CATALOG),
+					// never compacting, so both versions are served by one shared offset index and one cached header
+					StorageOptions.builder()
+						.storageDirectory(getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST))
+						.workDirectory(getTestDirectory().resolve(DIR_DEFAULT_CATALOG_PERSISTENCE_SERVICE_TEST))
+						.computeCRC32(true)
+						.build(),
+					eagerCheckpointTransactionOptions(),
+					Mockito.mock(Scheduler.class),
+					Mockito.mock(ExportFileService.class)
+				)
+			) {
+				final UUID theCatalogId = UUIDUtil.randomUUID();
+				// the first round transitions the catalog to ALIVE and lands on version 1 internally
+				storeRound(ioService, theCatalogId, 0L, List.of(new EntityCollectionFileHeader(Entities.BRAND, 1, 0)));
+				final long olderVersion = 1L;
+				final long newerVersion = 2L;
+				// the newer version moves the brand collection to another data file and adds a collection
+				storeRound(
+					ioService, theCatalogId, newerVersion,
+					List.of(
+						new EntityCollectionFileHeader(Entities.BRAND, 1, 1),
+						new EntityCollectionFileHeader(Entities.PRODUCT, 2, 0)
+					)
+				);
+				// precondition - one shared service, otherwise each version has a cached header of its own and the
+				// assertions below hold vacuously
+				final CatalogOffsetIndexStoragePartPersistenceService sharedService =
+					ioService.getStoragePartPersistenceService(olderVersion);
+				assertSame(sharedService, ioService.getStoragePartPersistenceService(newerVersion));
+
+				final CatalogHeader<LogFileRecordReference, CollectionFileReference> olderHeader =
+					ioService.getCatalogHeader(olderVersion);
+				assertEquals(
+					olderVersion, olderHeader.version(),
+					"the header of the requested version must be returned, not the newest one written"
+				);
+				assertEquals(
+					Map.of(Entities.BRAND, 0),
+					fileIndexesOf(olderHeader),
+					"the older version must list only its own collections, addressing their files of that version"
+				);
+
+				final CatalogHeader<LogFileRecordReference, CollectionFileReference> newerHeader =
+					ioService.getCatalogHeader(newerVersion);
+				assertEquals(newerVersion, newerHeader.version());
+				assertEquals(Map.of(Entities.BRAND, 1, Entities.PRODUCT, 0), fileIndexesOf(newerHeader));
+				// and a version past the newest written one is still answered by the newest header
+				assertEquals(newerVersion, ioService.getCatalogHeader(newerVersion + 10L).version());
+				// asking for the older version must not have displaced the cached newest header
+				assertSame(newerHeader, sharedService.getCatalogHeader(newerVersion));
+			}
+		}
+
+		/**
+		 * Stores one round of catalog header with the given collection headers.
+		 *
+		 * @param ioService      the service under test
+		 * @param catalogId      identity of the catalog
+		 * @param catalogVersion catalog version of the round
+		 * @param entityHeaders  collection headers the round publishes
+		 */
+		private static void storeRound(
+			@Nonnull DefaultCatalogPersistenceService ioService,
+			@Nonnull UUID catalogId,
+			long catalogVersion,
+			@Nonnull List<EntityCollectionFileHeader> entityHeaders
+		) {
+			final CatalogOffsetIndexStoragePartPersistenceService service =
+				ioService.getStoragePartPersistenceService(catalogVersion);
+			service.putStoragePart(catalogVersion, new CatalogSchemaStoragePart(CATALOG_SCHEMA));
+			ioService.storeHeader(
+				catalogId,
+				CatalogState.ALIVE,
+				catalogVersion,
+				entityHeaders.size(),
+				null,
+				entityHeaders,
+				new WarmUpDataStoreMemoryBuffer(service)
+			);
+		}
+
+		/**
+		 * Projects the collections a catalog header lists to the data file index each of them addresses.
+		 *
+		 * @param catalogHeader the header to project
+		 * @return entity type to data file index
+		 */
+		@Nonnull
+		private static Map<String, Integer> fileIndexesOf(
+			@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader
+		) {
+			final Map<String, Integer> result = CollectionUtils.createHashMap(
+				catalogHeader.collectionFileIndex().size()
+			);
+			for (final CollectionFileReference reference : catalogHeader.getEntityTypeFileIndexes()) {
+				result.put(reference.entityType(), reference.fileIndex());
+			}
+			return result;
 		}
 	}
 

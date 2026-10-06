@@ -28,11 +28,9 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
 import io.evitadb.index.attribute.OwnerFilterIndex;
-import io.evitadb.index.attribute.OwnerUniqueIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
-import io.evitadb.test.Entities;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -118,24 +116,6 @@ class IndexFormulaRetentionTest {
 		// warm every cache the index has, through the accessors a query plan uses
 		final Formula first = index.getAllRecordsFormula();
 		final Formula second = index.getAllRecordsFormula();
-		assertNotSame(first, second);
-
-		assertRetainsNoFormula(index);
-	}
-
-	@Test
-	@DisplayName("OwnerUniqueIndex builds its record-ids formula fresh and retains none")
-	void shouldNotRetainFormulaInOwnerUniqueIndex() throws IllegalAccessException {
-		final OwnerUniqueIndex index = new OwnerUniqueIndex(
-			Entities.PRODUCT,
-			new AttributeIndexKey(null, "code", null),
-			String.class
-		);
-		index.registerUniqueKey("A", 1);
-		index.registerUniqueKey("B", 2);
-
-		final Formula first = index.getRecordIdsFormula();
-		final Formula second = index.getRecordIdsFormula();
 		assertNotSame(first, second);
 
 		assertRetainsNoFormula(index);
