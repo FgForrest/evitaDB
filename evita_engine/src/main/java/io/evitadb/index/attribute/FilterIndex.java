@@ -611,16 +611,16 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	}
 
 	/**
-	 * Verifies that the provided value is an array of Serializable objects and
-	 * returns it as an array of Comparable objects. If the elements in the value array
-	 * are not Comparable, they are converted to a String representation and
-	 * returned as a String array.
+	 * Verifies that the provided value is an array of Serializable objects and returns it as an array of Comparable
+	 * objects. An array whose element type is not Comparable on its own - `Currency[]`, `Locale[]` - has every element
+	 * converted to its index key by {@link #normalizer} (the comparable wrapper), which is the very key the scalar path,
+	 * every lookup probe and the uniqueness check use; the Comparable contract is checked on that key.
 	 *
 	 * @param value the object to be verified and converted
-	 * @return an array of Comparable objects or a String array if elements are not Comparable
+	 * @return the array itself when its elements are Comparable, otherwise the array of their index keys
 	 */
 	@Nonnull
-	private static Comparable[] verifyValueArray(@Nonnull Object value) {
+	private Comparable[] verifyValueArray(@Nonnull Object value) {
 		isTrue(
 			Serializable.class.isAssignableFrom(value.getClass().getComponentType()),
 			"Value `" + unknownToString(value) + "` is expected to be Serializable, but it is not!"
@@ -629,11 +629,16 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 			return (Comparable[]) value;
 		} else {
 			final int arraySize = Array.getLength(value);
-			final String[] valuesAsString = new String[arraySize];
+			final Comparable[] keys = new Comparable[arraySize];
 			for (int i = 0; i < arraySize; i++) {
-				valuesAsString[i] = String.valueOf(Array.get(value, i));
+				final Serializable key = this.normalizer.apply(Array.get(value, i));
+				isTrue(
+					key instanceof Comparable,
+					"Value `" + unknownToString(value) + "` is expected to be Comparable, but it is not!"
+				);
+				keys[i] = (Comparable) key;
 			}
-			return valuesAsString;
+			return keys;
 		}
 	}
 
