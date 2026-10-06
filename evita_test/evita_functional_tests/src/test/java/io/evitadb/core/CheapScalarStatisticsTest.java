@@ -65,9 +65,12 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
 import java.util.EnumSet;
+import java.util.Locale;
 import java.util.concurrent.TimeUnit;
 import java.util.Set;
 
+import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
+import static io.evitadb.api.query.QueryConstraints.dataInLocalesAll;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.awaitility.Awaitility.await;
@@ -598,6 +601,112 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 			"`availability` holds three values across fifty products - the low-selectivity case this component " +
 				"exists to expose - but its distinct-value count does not say so"
 		);
+	}
+
+	@Test
+	@DisplayName("A unique index counts a record for as long as the record holds any value in it")
+	void shouldCountUniqueRecordsExactlyAfterOneOfTheirValuesIsRemoved() {
+		// a localized attribute unique across locales keys one locale-less index, so a record owns a value per locale
+		// in it - and the type-level reference index keys the referenced entity's partition, which every owner
+		// referencing it contributes values to. Removing one of those values must not uncount a record that still
+		// holds another one
+		final String uniqueCatalog = CATALOG + "Unique";
+		this.evita.defineCatalog(uniqueCatalog).updateViaNewSession(this.evita);
+		this.evita.updateCatalog(
+			uniqueCatalog,
+			session -> {
+				session.defineEntitySchema(ENTITY_CATEGORY).withoutGeneratedPrimaryKey().updateVia(session);
+				session.defineEntitySchema(ENTITY_PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withLocale(Locale.ENGLISH, Locale.GERMAN)
+					.withAttribute("code", String.class, whichIs -> whichIs.localized().unique().nullable())
+					.withReferenceToEntity(
+						"categories", ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs
+							.indexedForFilteringAndPartitioning()
+							.withAttribute("slot", String.class, thatIs -> thatIs.localized().unique().nullable())
+					)
+					.updateVia(session);
+				session.upsertEntity(session.createNewEntity(ENTITY_CATEGORY, 10));
+				session.upsertEntity(
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setAttribute("code", Locale.ENGLISH, "one-en")
+						.setAttribute("code", Locale.GERMAN, "one-de")
+						.setReference("categories", 10, whichIs -> whichIs.setAttribute("slot", Locale.ENGLISH, "a"))
+				);
+				session.upsertEntity(
+					session.createNewEntity(ENTITY_PRODUCT, 2)
+						.setAttribute("code", Locale.ENGLISH, "two-en")
+						.setReference("categories", 10, whichIs -> whichIs.setAttribute("slot", Locale.ENGLISH, "b"))
+				);
+			}
+		);
+
+		final CollectionIndexCardinality before = cardinalityOf(uniqueCatalog, ENTITY_PRODUCT);
+		assertEquals(2, uniqueCardinalityOf(before, EntityIndexType.GLOBAL, "code").recordsCovered());
+		assertEquals(3, uniqueCardinalityOf(before, EntityIndexType.GLOBAL, "code").distinctValueCount());
+		assertEquals(1, uniqueCardinalityOf(before, EntityIndexType.REFERENCED_ENTITY_TYPE, "slot").recordsCovered());
+
+		this.evita.updateCatalog(
+			uniqueCatalog,
+			session -> {
+				session.getEntity(ENTITY_PRODUCT, 1, attributeContentAll(), dataInLocalesAll())
+					.orElseThrow()
+					.openForWrite()
+					.removeAttribute("code", Locale.ENGLISH)
+					.upsertVia(session);
+				session.archiveEntity(ENTITY_PRODUCT, 2);
+			}
+		);
+
+		final CollectionIndexCardinality after = cardinalityOf(uniqueCatalog, ENTITY_PRODUCT);
+		final AttributeCardinality code = uniqueCardinalityOf(after, EntityIndexType.GLOBAL, "code");
+		assertEquals(1, code.distinctValueCount(), "only `one-de` is left in the live index");
+		assertEquals(1, code.recordsCovered(), "product 1 still holds `one-de` and must still be counted");
+		final AttributeCardinality slot = uniqueCardinalityOf(after, EntityIndexType.REFERENCED_ENTITY_TYPE, "slot");
+		assertEquals(1, slot.distinctValueCount(), "only product 1's `a` is left in the live type-level index");
+		assertEquals(
+			1, slot.recordsCovered(),
+			"category 10's partition still holds product 1's `a` after product 2 was archived"
+		);
+	}
+
+	@Test
+	@DisplayName("An array attribute counts its record once however many elements it holds")
+	void shouldCountRecordOnceAcrossTheElementsOfAnArrayAttribute() {
+		// an array attribute puts its owner in one bucket per element - of the shared filter tree for a filterable
+		// one, and of the same tree for a non-localized unique one, which folds onto it - so summing the buckets
+		// would count product 1 once per element
+		final String arrayCatalog = CATALOG + "Array";
+		this.evita.defineCatalog(arrayCatalog).updateViaNewSession(this.evita);
+		this.evita.updateCatalog(
+			arrayCatalog,
+			session -> {
+				session.defineEntitySchema(ENTITY_PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withAttribute("codes", String[].class, AttributeSchemaEditor::unique)
+					.withAttribute("tags", String[].class, AttributeSchemaEditor::filterable)
+					.updateVia(session);
+				session.upsertEntity(
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setAttribute("codes", new String[]{"a", "b", "c"})
+						.setAttribute("tags", new String[]{"x", "y"})
+				);
+				session.upsertEntity(
+					session.createNewEntity(ENTITY_PRODUCT, 2)
+						.setAttribute("codes", new String[]{"d"})
+						.setAttribute("tags", new String[]{"y"})
+				);
+			}
+		);
+
+		final CollectionIndexCardinality cardinality = cardinalityOf(arrayCatalog, ENTITY_PRODUCT);
+		final AttributeCardinality unique = uniqueCardinalityOf(cardinality, EntityIndexType.GLOBAL, "codes");
+		assertEquals(4, unique.distinctValueCount());
+		assertEquals(2, unique.recordsCovered(), "two products hold the four codes between them");
+		final AttributeCardinality filter = filterCardinalityOf(cardinality, "tags");
+		assertEquals(2, filter.distinctValueCount());
+		assertEquals(2, filter.recordsCovered(), "two products hold the two tags between them");
 	}
 
 	@Test
@@ -1167,6 +1276,31 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 		}
 		throw new AssertionError(
 			"The global index reports no filter index over `" + attributeName + "`: " + global
+		);
+	}
+
+	/**
+	 * Picks the readings of one unique index out of the single described index of the given kind.
+	 *
+	 * @param cardinality   the delivered component
+	 * @param indexType     kind of the index holding the unique index
+	 * @param attributeName attribute whose unique index is wanted
+	 * @return its readings
+	 */
+	@Nonnull
+	private static AttributeCardinality uniqueCardinalityOf(
+		@Nonnull CollectionIndexCardinality cardinality,
+		@Nonnull EntityIndexType indexType,
+		@Nonnull String attributeName
+	) {
+		final IndexCardinality index = indexOfKind(cardinality, indexType);
+		for (final AttributeCardinality attribute : index.attributes()) {
+			if (attribute.indexType() == AttributeIndexType.UNIQUE && attributeName.equals(attribute.attributeName())) {
+				return attribute;
+			}
+		}
+		throw new AssertionError(
+			"The " + indexType + " index reports no unique index over `" + attributeName + "`: " + index
 		);
 	}
 

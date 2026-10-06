@@ -102,8 +102,8 @@ class LeafIndexHeapSizeTest {
 	 *
 	 * A global unique index takes this as a **method parameter** rather than holding it, so it never appears in a
 	 * heap walk and needs no exclusion. The primary key it hands back clears {@link #AUTOBOX_CACHE_CEILING} for the
-	 * reason spelled out there: a global unique index boxes it as a map key, and inside the cache that box is the
-	 * JVM's rather than the index's — which shifted the reported figure by 16 bytes and nothing else.
+	 * reason spelled out there, so that should the index ever box it, the box is the index's rather than the JVM's;
+	 * today it only packs it into the value tree's `long` payloads.
 	 */
 	private static final EntityTypeClassifierResolver RESOLVER = new EntityTypeClassifierResolver() {
 		@Override
@@ -808,8 +808,7 @@ class LeafIndexHeapSizeTest {
 		 */
 		private static final String[] GLOBAL_EXCLUSIONS = {
 			"attributeKey", "comparator", "pageStreamRegistry", "scope",
-			"tree.valueColumnFactory", "tree.recordColumnFactory",
-			"entitiesPerType.transactionalLayerWrapper"
+			"tree.valueColumnFactory", "tree.recordColumnFactory"
 		};
 
 		/**
@@ -844,31 +843,45 @@ class LeafIndexHeapSizeTest {
 		}
 
 		@Test
-		void shouldNotGrowAtAllWhenTheRecordIdsFormulaIsRequested() {
+		void shouldNotGrowAtAllWhenTheRecordCountIsRequested() {
 			final OwnerUniqueIndex index = ownerUniqueIndex(200);
 			final long cold = index.getHeapSizeInBytes();
 			assertMatchesMeasuredHeap(cold, index, OWNER_EXCLUSIONS);
 
-			index.getRecordIdsFormula();
+			index.size();
 
-			// This index memoizes NOTHING for a formula request: `getRecordIdsFormula` wraps the record set it
-			// already holds in a fresh ConstantFormula that dies with the query it served. Answering a query must
-			// therefore leave the footprint untouched - and the measurement exact, because there is no retained
-			// scaffolding to price at an upper bound.
-			//
-			// This is the accounting face of a previously fixed leak: a formula node carries the execution context
-			// of the first query to initialize it, so an index that kept one pinned that query's session and its
-			// whole catalog generation. A step up here would mean a memo came back.
+			// This index memoizes NOTHING for a record count: `size()` walks the value tree into a bitmap that dies
+			// with the call. Answering the statistics must therefore leave the footprint untouched - and the
+			// measurement exact, because there is no retained scaffolding to price at an upper bound. A step up here
+			// would mean a memo, or a record-id set kept beside the tree, came back.
 			final long warm = index.getHeapSizeInBytes();
-			assertEquals(cold, warm, "asking for the record-ids formula must not change the footprint");
+			assertEquals(cold, warm, "asking for the record count must not change the footprint");
 			assertMatchesMeasuredHeap(warm, index, OWNER_EXCLUSIONS);
 
 			// and it must hold however large the index grows - both fixtures stay inside one leaf block, so neither
 			// carries the separate separator-key over-report
 			final OwnerUniqueIndex larger = ownerUniqueIndex(250);
-			larger.getRecordIdsFormula();
+			larger.size();
 			assertDivergenceDoesNotGrowWithTheData(
 				warm, index, larger.getHeapSizeInBytes(), larger, OWNER_EXCLUSIONS
+			);
+		}
+
+		@Test
+		void shouldNotGrowAtAllWhenTheGlobalRecordCountIsRequested() {
+			final GlobalUniqueIndex index = seededGlobal(200);
+			final long cold = index.getHeapSizeInBytes();
+			final long coldMeasured = measuredHeapOf(index, GLOBAL_EXCLUSIONS);
+
+			index.getRecordCount();
+
+			// The global mirror of the owner case above: `getRecordCount()` walks the value tree into per-type
+			// bitmaps that die with the call, so neither the charged nor the reachable footprint may move. A step up
+			// in either would mean a memo, or a per-type record set kept beside the tree, came back.
+			assertEquals(cold, index.getHeapSizeInBytes(), "asking for the record count must not change the footprint");
+			assertEquals(
+				coldMeasured, measuredHeapOf(index, GLOBAL_EXCLUSIONS),
+				"asking for the record count must not leave anything reachable behind"
 			);
 		}
 

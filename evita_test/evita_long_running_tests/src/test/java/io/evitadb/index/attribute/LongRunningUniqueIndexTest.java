@@ -99,9 +99,9 @@ class LongRunningUniqueIndexTest implements TimeBoundedTestSupport {
 						final int[] expected = currentRecordSet.stream().mapToInt(it -> it).sorted().toArray();
 						assertArrayEquals(
 							expected,
-							committed.getRecordIds().getArray(),
+							UniqueIndexTestSupport.ownerRecordIds(committed),
 							"\nExpected: " + Arrays.toString(expected) + "\n" +
-								"Actual:  " + Arrays.toString(committed.getRecordIds().getArray()) + "\n\n" +
+								"Actual:  " + Arrays.toString(UniqueIndexTestSupport.ownerRecordIds(committed)) + "\n\n" +
 								codeBuffer
 						);
 
