@@ -53,9 +53,15 @@ class ReadRouteActivationTest {
 	private static final String ENTITY_TYPE = "product";
 
 	@Test
-	@DisplayName("no route has landed yet, so every query line of the harness reads the objects")
-	void shouldLandNoRouteYet() {
-		assertEquals(Set.of(), ReadRouteActivation.LANDED_ROUTES);
+	@DisplayName("the routes of step 4b have landed, and the facet and entity body lines still read the objects")
+	void shouldLandTheRoutesOfStep4b() {
+		assertEquals(
+			EnumSet.of(
+				ReadRoute.REFERENCE_HAVING_BODY, ReadRoute.REFERENCE_HAVING_TARGET_INDEXES,
+				ReadRoute.REFERENCED_ENTITY_IN_BODY, ReadRoute.PARTITION_TO_TARGET, ReadRoute.REFERENCE_CONTENT_FILTER
+			),
+			ReadRouteActivation.LANDED_ROUTES
+		);
 	}
 
 	@Test

@@ -102,12 +102,14 @@ import java.util.stream.Stream;
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.attributeHistogram;
 import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAll;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.facetSummary;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.histogramStatistics;
 import static io.evitadb.api.query.QueryConstraints.page;
+import static io.evitadb.api.query.QueryConstraints.referenceContentWithAttributes;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static io.evitadb.api.query.QueryConstraints.referenceSummaryWithHistograms;
 import static io.evitadb.api.query.QueryConstraints.require;
@@ -1034,6 +1036,10 @@ final class DifferentialEngines implements AutoCloseable {
 					String.valueOf(primaryKeysOf(matching.getRecordData()))
 				);
 			}
+			describeFilteredReferenceContent(
+				snapshot, session, entityType, scope, referenceName,
+				targetsByReference.getOrDefault(referenceName, Set.of()), activation, prefix
+			);
 		}
 		if (faceted) {
 			describeExtraResults(
@@ -1089,6 +1095,71 @@ final class DifferentialEngines implements AutoCloseable {
 						EntityReference.class
 					)
 				)
+			);
+		}
+	}
+
+	/**
+	 * Adds one line per entity of the collection in the scope with the references `referenceContent(filterBy)` keeps
+	 * when it asks for every other target of the reference - so the answer holds kept and dropped rows of the same
+	 * owners, and a row read virtually has to be united with the other rows of its key exactly as an index object's
+	 * owners are.
+	 *
+	 * @param snapshot      the snapshot to add to
+	 * @param session       the session to query in
+	 * @param entityType    the collection
+	 * @param scope         the scope to query
+	 * @param referenceName the reference
+	 * @param targets       the targets the entities of the collection reference, ascending
+	 * @param activation    decides the read switch of the line
+	 * @param prefix        the path prefix of the lines
+	 */
+	private static void describeFilteredReferenceContent(
+		@Nonnull Snapshot snapshot,
+		@Nonnull EvitaSessionContract session,
+		@Nonnull String entityType,
+		@Nonnull Scope scope,
+		@Nonnull String referenceName,
+		@Nonnull Set<Integer> targets,
+		@Nonnull ReadRouteActivation activation,
+		@Nonnull String prefix
+	) {
+		if (targets.isEmpty()) {
+			return;
+		}
+		final List<Integer> everyOther = new ArrayList<>((targets.size() + 1) / 2);
+		int index = 0;
+		for (final Integer target : targets) {
+			if (index++ % 2 == 0) {
+				everyOther.add(target);
+			}
+		}
+		final EvitaResponse<SealedEntity> filtered = activation.run(
+			EnumSet.of(ReadRoute.REFERENCE_CONTENT_FILTER, ReadRoute.REFERENCED_ENTITY_IN_BODY),
+			() -> session.query(
+				query(
+					collection(entityType),
+					filterBy(scope(scope)),
+					require(
+						page(1, PAGE_SIZE),
+						entityFetch(
+							referenceContentWithAttributes(
+								referenceName, filterBy(entityPrimaryKeyInSet(everyOther.toArray(Integer[]::new)))
+							)
+						)
+					)
+				),
+				SealedEntity.class
+			)
+		);
+		for (final SealedEntity entity : filtered.getRecordData()) {
+			snapshot.put(
+				prefix + "referenceContent/" + referenceName + "/" + entity.getPrimaryKeyOrThrowException(),
+				entity.getReferences(referenceName).stream()
+					.map(it -> it.getReferenceKey() + " " + it.getAttributeValues())
+					.sorted()
+					.toList()
+					.toString()
 			);
 		}
 	}

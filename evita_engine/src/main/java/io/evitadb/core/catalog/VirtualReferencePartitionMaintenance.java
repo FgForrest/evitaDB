@@ -103,6 +103,12 @@ public final class VirtualReferencePartitionMaintenance {
 	private final AtomicLong maintainedMutationCount = new AtomicLong();
 	// TODO JNO - remove at the end of #1615
 	/**
+	 * How many rows of registered single-owner partitions queries have answered virtually since this holder was
+	 * created - see {@link #recordVirtualRowsRead(int)}.
+	 */
+	private final AtomicLong virtualRowsRead = new AtomicLong();
+	// TODO JNO - remove at the end of #1615
+	/**
 	 * The probe a test installed, `null` when none is. Volatile, because a test installs it on its own thread while
 	 * mutations - the trunk replay of a commit among them - run on others.
 	 */
@@ -212,6 +218,29 @@ public final class VirtualReferencePartitionMaintenance {
 	 */
 	public long getMaintainedMutationCount() {
 		return this.maintainedMutationCount.get();
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Records that a query answered rows of registered single-owner partitions virtually - from the registry rather than
+	 * from their reduced entity indexes. The count is the non-vacuity probe of the read parity tests: a parity case
+	 * whose read-on arm read no virtual row compared the object reading with itself.
+	 *
+	 * @param rowCount how many virtual rows the query answered at one site, positive
+	 */
+	public void recordVirtualRowsRead(int rowCount) {
+		this.virtualRowsRead.addAndGet(rowCount);
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns how many rows of registered single-owner partitions queries have answered virtually since this holder was
+	 * created - see {@link #recordVirtualRowsRead(int)}.
+	 *
+	 * @return the number of virtual rows read
+	 */
+	public long getVirtualRowsRead() {
+		return this.virtualRowsRead.get();
 	}
 
 	// TODO JNO - remove at the end of #1615

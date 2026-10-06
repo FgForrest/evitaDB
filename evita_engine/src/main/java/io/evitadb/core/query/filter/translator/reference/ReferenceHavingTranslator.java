@@ -32,15 +32,21 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
+import io.evitadb.core.query.filter.FilterByVisitor.ReducedIndexCandidates;
+import io.evitadb.core.query.filter.FilterByVisitor.SplitReducedIndexCandidates;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.Index;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencePartitionSplit;
+import io.evitadb.index.ReferencePartitions;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -136,21 +142,38 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 		}
 	}
 
+	/**
+	 * Returns the candidate partitions of the `referenceHaving` split by representation - those index selection already
+	 * discovered when it registered the constraint as a target index option, otherwise discovered now.
+	 *
+	 * @param filterByVisitor the visitor translating the constraint
+	 * @param referenceHaving the constraint
+	 * @param scopes          the scopes the constraint is evaluated in
+	 * @return the candidates read through their reduced entity indexes, resolved, and the split carrying the ones read
+	 *         virtually
+	 */
 	@Nonnull
-	private static List<ReducedEntityIndex> getTargetIndexes(
+	private static SplitReducedIndexCandidates getTargetIndexes(
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull ReferenceHaving referenceHaving,
 		@Nonnull Set<Scope> scopes
 	) {
 		final TargetIndexes<?> targetIndexes = filterByVisitor.findTargetIndexSet(referenceHaving);
-		final List<ReducedEntityIndex> referencedEntityIndexes;
-		if (targetIndexes == null) {
-			referencedEntityIndexes = filterByVisitor.getReferencedRecordEntityIndexes(referenceHaving, scopes);
-		} else {
+		final ReducedIndexCandidates candidates = targetIndexes == null ? null : targetIndexes.getReducedIndexCandidates();
+		if (candidates != null) {
+			// without a virtual candidate the option's own memoized index objects are the answer
 			//noinspection unchecked
-			referencedEntityIndexes = (List<ReducedEntityIndex>) targetIndexes.getIndexes();
+			return candidates.resolveSplit(() -> (List<ReducedEntityIndex>) targetIndexes.getIndexes());
+		} else if (targetIndexes == null) {
+			return filterByVisitor.getReferencedRecordEntityIndexCandidates(referenceHaving, scopes).resolveSplit();
+		} else {
+			// an option registered without its candidates reads the index objects alone - every candidate is one
+			//noinspection unchecked
+			return new SplitReducedIndexCandidates(
+				(List<ReducedEntityIndex>) targetIndexes.getIndexes(),
+				ReferencePartitions.split(EmptyBitmap.INSTANCE)
+			);
 		}
-		return referencedEntityIndexes;
 	}
 
 	@Nonnull
@@ -168,10 +191,6 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 		final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName)
 			.orElseThrow(() -> new ReferenceNotFoundException(referenceName, entitySchema));
 
-		final Supplier<List<ReducedEntityIndex>> referencedEntityIndexesSupplier = () -> getTargetIndexes(
-			filterByVisitor, referenceHaving, processingScope.getScopes()
-		);
-
 		// the reference content needs to be prefetched in order to bea able to apply the filter on prefetched data
 		// i.e. access the reference attributes
 		filterByVisitor.addRequirementToPrefetch(referenceContent(referenceName));
@@ -182,13 +201,67 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 		final Optional<Formula> rewritten = BidirectionalReferenceRewriter.tryRewrite(
 			referenceHaving, filterByVisitor, entitySchema, referenceSchema, processingScope
 		);
-		return rewritten
-			.orElseGet(
-				() -> applySearchOnIndexes(
-					referenceHaving, filterByVisitor, entitySchema, referenceSchema,
-					processingScope, referencedEntityIndexesSupplier
-				)
+		return rewritten.orElseGet(
+			() -> applySearchOnCandidates(
+				referenceHaving, filterByVisitor, entitySchema, referenceSchema, processingScope,
+				getTargetIndexes(filterByVisitor, referenceHaving, processingScope.getScopes())
+			)
+		);
+	}
+
+	/**
+	 * Answers the `referenceHaving` over its candidate partitions. The candidates read through their reduced entity
+	 * indexes are evaluated as they always were - the body against each index, rebuilt one reference row at a time by
+	 * {@link ReferenceBodyTransposer}. The candidates read virtually are answered from the candidate set alone (see
+	 * {@link VirtualPartitionBodyEvaluator}): the body must be row-exact, which is asserted before anything is
+	 * evaluated, and their owners join the answer as one content-keyed constant OR'ed outside the transposed body, so
+	 * no index tag of the body ever meets a virtual row.
+	 *
+	 * The virtual part costs one pass over the virtual candidates per query, on top of the split; the materialized part
+	 * costs what the whole evaluation cost before, minus the virtual candidates.
+	 *
+	 * @param referenceHaving the constraint
+	 * @param filterByVisitor the visitor translating the constraint
+	 * @param entitySchema    the schema of the entity owning the reference
+	 * @param referenceSchema the reference
+	 * @param processingScope the processing scope the constraint is translated in
+	 * @param candidates      the candidate partitions split by representation
+	 * @return the formula computing the owners satisfying the constraint
+	 */
+	@Nonnull
+	private static Formula applySearchOnCandidates(
+		@Nonnull ReferenceHaving referenceHaving,
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ProcessingScope<?> processingScope,
+		@Nonnull SplitReducedIndexCandidates candidates
+	) {
+		final ReferencePartitionSplit split = candidates.split();
+		final List<ReducedEntityIndex> materializedIndexes = candidates.materializedIndexes();
+		if (split.getVirtualCount() == 0) {
+			return applySearchOnIndexes(
+				referenceHaving, filterByVisitor, entitySchema, referenceSchema, processingScope,
+				() -> materializedIndexes
 			);
+		}
+		// refused before any part of the answer is built - a body that is not row-exact is never answered partially
+		VirtualPartitionBodyEvaluator.assertRowExact(
+			getFilterByFormula(referenceHaving).orElse(null), split, referenceSchema.getName()
+		);
+		// TODO JNO - remove at the end of #1615 (the non-vacuity probe of the read parity tests)
+		filterByVisitor.recordVirtualRowsRead(split.getVirtualCount());
+		final Formula virtualOwners = VirtualPartitionBodyEvaluator.getOwnersFormula(split);
+		if (materializedIndexes.isEmpty()) {
+			return virtualOwners;
+		}
+		return FormulaFactory.or(
+			applySearchOnIndexes(
+				referenceHaving, filterByVisitor, entitySchema, referenceSchema, processingScope,
+				() -> materializedIndexes
+			),
+			virtualOwners
+		);
 	}
 
 }

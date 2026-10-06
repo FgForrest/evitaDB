@@ -1,0 +1,453 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2026
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.index.virtual;
+
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.require.ChunkingRequireConstraint;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.core.Evita;
+import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
+import io.evitadb.dataType.DataChunk;
+import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.virtual.VirtualReadParity.Comparison;
+import io.evitadb.test.EvitaTestSupport;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.TestInstance.Lifecycle;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.function.Consumer;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
+import java.util.stream.Stream;
+
+import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REFERENCE;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Verifies that `referenceContent(filterBy)` keeps the same rows of every owner with the read switch on as with it off,
+ * on the same engine and the same data. The rows of one representative reference key may be held by a partition read
+ * virtually and by a reduced entity index - in one scope or in two - and the owners matching each must be united before
+ * the key is restricted, exactly once: restricting it once per partition keeps only the owners of the last one.
+ *
+ * Two catalogs, each maintained from its first write: {@link CrossScopeSingletonFixture} for the hand-built shapes of
+ * one key in both scopes, with the expected rows spelled out, and {@link RelatedProductsShapedFixture} for thousands of
+ * generated owners, chunked.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+ */
+@DisplayName("Read parity of referenceContent(filterBy) over virtual reference partitions")
+@Tag(ENGINE)
+@Tag(QUERY)
+@Tag(REFERENCE)
+@TestInstance(Lifecycle.PER_CLASS)
+class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
+	private static final String CATALOG_CROSS_SCOPE = "virtualContentParityCrossScope";
+	private static final String CATALOG_RELATED = "virtualContentParityRelated";
+	private static final Scope[] LIVE = {Scope.LIVE};
+	private static final Scope[] ARCHIVED = {Scope.ARCHIVED};
+	private static final Scope[] BOTH = {Scope.LIVE, Scope.ARCHIVED};
+	private static final Scope[][] EVERY_SCOPE_SET = {LIVE, ARCHIVED, BOTH};
+	private static final int PAGE_SIZE = 100_000;
+
+	private TestPaths paths;
+	private Evita evita;
+
+	/**
+	 * A parity case of the generated catalog - one reference filter, optionally chunked.
+	 *
+	 * @param name   the name of the case
+	 * @param filter the reference filter
+	 * @param chunk  the chunk of the references of each owner, `null` for all of them
+	 */
+	private record ParityCase(
+		@Nonnull String name,
+		@Nonnull FilterConstraint filter,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+
+		@Nonnull
+		@Override
+		public String toString() {
+			return this.name;
+		}
+
+	}
+
+	@BeforeAll
+	void setUp() {
+		this.paths = createTestPaths("VirtualReferenceContentFilterParityTest");
+		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
+		build(
+			CATALOG_CROSS_SCOPE, CrossScopeSingletonFixture.ENTITY_TYPES,
+			CrossScopeSingletonFixture::setUp, CrossScopeSingletonFixture::archive
+		);
+		build(
+			CATALOG_RELATED, Set.of(RelatedProductsShapedFixture.ENTITY_PRODUCT),
+			RelatedProductsShapedFixture::setUp, RelatedProductsShapedFixture::archive
+		);
+	}
+
+	@AfterAll
+	void tearDown() {
+		this.evita.close();
+		cleanupTestPaths(this.paths);
+	}
+
+	@Test
+	@DisplayName("two virtual singletons of one key in two scopes keep the reference of both owners")
+	void shouldKeepTheKeyOfTwoVirtualSingletonsInTwoScopes() {
+		final Map<Integer, List<String>> expected = new TreeMap<>();
+		expected.put(1, List.of(String.valueOf(CrossScopeSingletonFixture.TARGET_TWO_SINGLETONS)));
+		expected.put(2, List.of(String.valueOf(CrossScopeSingletonFixture.TARGET_TWO_SINGLETONS)));
+		// a virtual singleton of the archive next to a shared live partition of the same key
+		expected.put(3, List.of(String.valueOf(CrossScopeSingletonFixture.TARGET_SHARED_AND_SINGLETON)));
+		expected.put(4, List.of(String.valueOf(CrossScopeSingletonFixture.TARGET_SHARED_AND_SINGLETON)));
+		expected.put(5, List.of(String.valueOf(CrossScopeSingletonFixture.TARGET_SHARED_AND_SINGLETON)));
+		expected.put(6, List.of());
+		expected.put(7, List.of());
+		assertCrossScopeRows(CrossScopeSingletonFixture.REFERENCE_ITEMS, expected);
+	}
+
+	@Test
+	@DisplayName("duplicates of one target in two scopes keep exactly the matching roles of both owners")
+	void shouldKeepTheDuplicatesOfOneTargetInTwoScopes() {
+		final Map<Integer, List<String>> expected = new TreeMap<>();
+		final int both = CrossScopeSingletonFixture.MEDIA_BOTH_SCOPES;
+		final int duplicates = CrossScopeSingletonFixture.MEDIA_DUPLICATES;
+		expected.put(
+			1, List.of(both + "/" + CrossScopeSingletonFixture.ROLE_A, both + "/" + CrossScopeSingletonFixture.ROLE_B)
+		);
+		expected.put(2, List.of(both + "/" + CrossScopeSingletonFixture.ROLE_A));
+		expected.put(3, List.of());
+		expected.put(4, List.of());
+		expected.put(5, List.of());
+		expected.put(6, List.of(duplicates + "/" + CrossScopeSingletonFixture.ROLE_A));
+		expected.put(7, List.of(duplicates + "/" + CrossScopeSingletonFixture.ROLE_A));
+		assertCrossScopeRows(CrossScopeSingletonFixture.REFERENCE_MEDIA, expected);
+	}
+
+	@Test
+	@DisplayName("the hand-built shapes keep the same rows in every scope set with the read switch on")
+	void shouldKeepTheSameCrossScopeRowsInEveryScopeSet() {
+		long virtualRowsRead = 0;
+		for (final String referenceName : new String[]{
+			CrossScopeSingletonFixture.REFERENCE_ITEMS, CrossScopeSingletonFixture.REFERENCE_MEDIA,
+			CrossScopeSingletonFixture.REFERENCE_SOLO
+		}) {
+			for (final Scope[] scopes : EVERY_SCOPE_SET) {
+				final FilterConstraint filter = CrossScopeSingletonFixture.REFERENCE_SOLO.equals(referenceName) ?
+					entityPrimaryKeyInSet(101, 102, 103, 105) :
+					attributeGreaterThan(CrossScopeSingletonFixture.ATTRIBUTE_WEIGHT, 0);
+				final Comparison<Map<Integer, List<String>>> comparison = VirtualReadParity.compare(
+					maintenance(CATALOG_CROSS_SCOPE), CrossScopeSingletonFixture.ENTITY_TYPES,
+					() -> queryRows(
+						CATALOG_CROSS_SCOPE, CrossScopeSingletonFixture.ENTITY_OWNER, scopes, referenceName,
+						roleOf(referenceName), filter, null
+					)
+				);
+				assertEquals(
+					comparison.objectReading(), comparison.virtualReading().answer(),
+					referenceName + " in " + Arrays.toString(scopes)
+				);
+				virtualRowsRead += comparison.virtualReading().virtualRowsRead();
+			}
+		}
+		assertTrue(virtualRowsRead > 0, "The cases must read virtual rows");
+	}
+
+	/**
+	 * Returns the parity cases of the generated catalog.
+	 *
+	 * @return the cases
+	 */
+	@Nonnull
+	static Stream<ParityCase> relatedProductsCases() {
+		final String relationType = RelatedProductsShapedFixture.ATTRIBUTE_RELATION_TYPE;
+		final FilterConstraint accessories = attributeEquals(relationType, RelatedProductsShapedFixture.TYPE_ACCESSORY);
+		return Stream.of(
+			new ParityCase("attributeEquals", accessories, null),
+			new ParityCase("attributeEquals, first page of two", accessories, page(1, 2)),
+			new ParityCase("attributeEquals, second page of two", accessories, page(2, 2)),
+			new ParityCase("attributeEquals, strip from the second", accessories, strip(1, 2)),
+			new ParityCase(
+				"and across the rows of a mixed owner",
+				and(accessories, attributeGreaterThanEquals(RelatedProductsShapedFixture.ATTRIBUTE_ORDER, 50)),
+				null
+			),
+			new ParityCase(
+				"entityHaving",
+				entityHaving(attributeLessThan(RelatedProductsShapedFixture.ATTRIBUTE_RANK, 3_000)),
+				page(1, 3)
+			),
+			new ParityCase(
+				"entityPrimaryKeyInSet with missing targets",
+				entityPrimaryKeyInSet(
+					Stream.concat(
+						IntStream.rangeClosed(1, 60).boxed(),
+						IntStream.rangeClosed(
+							RelatedProductsShapedFixture.PRODUCT_COUNT + 1,
+							RelatedProductsShapedFixture.PRODUCT_COUNT + RelatedProductsShapedFixture.MISSING_TARGET_COUNT
+						).boxed()
+					).toArray(Integer[]::new)
+				),
+				null
+			),
+			new ParityCase(
+				"or",
+				or(
+					attributeEquals(relationType, RelatedProductsShapedFixture.TYPE_SPARE),
+					attributeLessThan(RelatedProductsShapedFixture.ATTRIBUTE_ORDER, 5)
+				),
+				strip(0, 3)
+			)
+		);
+	}
+
+	@DisplayName("the generated catalog keeps the same rows of every owner with the read switch on")
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("relatedProductsCases")
+	void shouldKeepTheSameRowsOfTheGeneratedCatalog(@Nonnull ParityCase parityCase) {
+		long virtualRowsRead = 0;
+		for (final Scope[] scopes : EVERY_SCOPE_SET) {
+			final Comparison<Map<Integer, List<String>>> comparison = VirtualReadParity.compare(
+				maintenance(CATALOG_RELATED), Set.of(RelatedProductsShapedFixture.ENTITY_PRODUCT),
+				() -> queryRows(
+					CATALOG_RELATED, RelatedProductsShapedFixture.ENTITY_PRODUCT, scopes,
+					RelatedProductsShapedFixture.REFERENCE_RELATED, RelatedProductsShapedFixture.ATTRIBUTE_RELATION_TYPE,
+					parityCase.filter(), parityCase.chunk()
+				)
+			);
+			assertEquals(
+				comparison.objectReading(), comparison.virtualReading().answer(),
+				parityCase + " in " + Arrays.toString(scopes)
+			);
+			assertTrue(
+				comparison.objectReading().values().stream().anyMatch(it -> !it.isEmpty()),
+				"The premise of the case: some owner keeps a row in " + Arrays.toString(scopes)
+			);
+			virtualRowsRead += comparison.virtualReading().virtualRowsRead();
+		}
+		assertTrue(virtualRowsRead > 0, parityCase + " must read virtual rows");
+	}
+
+	@Test
+	@DisplayName("a reference filter that is not row-exact is refused with the read switch on, never answered")
+	void shouldRefuseAReferenceFilterThatIsNotRowExact() {
+		final FilterConstraint negated = not(
+			attributeEquals(
+				RelatedProductsShapedFixture.ATTRIBUTE_RELATION_TYPE, RelatedProductsShapedFixture.TYPE_ACCESSORY
+			)
+		);
+		final GenericEvitaInternalError refusal = assertThrows(
+			GenericEvitaInternalError.class,
+			() -> VirtualReadParity.readVirtually(
+				maintenance(CATALOG_RELATED), Set.of(RelatedProductsShapedFixture.ENTITY_PRODUCT),
+				() -> queryRows(
+					CATALOG_RELATED, RelatedProductsShapedFixture.ENTITY_PRODUCT, BOTH,
+					RelatedProductsShapedFixture.REFERENCE_RELATED, RelatedProductsShapedFixture.ATTRIBUTE_RELATION_TYPE,
+					negated, null
+				)
+			)
+		);
+		assertTrue(refusal.getPrivateMessage().contains("Virtual read of `Not` lands in 4c"), refusal.getPrivateMessage());
+	}
+
+	/**
+	 * Asserts the rows `referenceContent(filterBy(attributeGreaterThan(weight, 0)))` keeps of every owner of the
+	 * hand-built catalog, read over both scopes with the read switch off and on, and that the read-on run read virtual
+	 * rows.
+	 *
+	 * @param referenceName the reference
+	 * @param expected      the kept rows of every owner, `target` or `target/role`
+	 */
+	private void assertCrossScopeRows(@Nonnull String referenceName, @Nonnull Map<Integer, List<String>> expected) {
+		final Comparison<Map<Integer, List<String>>> comparison = VirtualReadParity.compare(
+			maintenance(CATALOG_CROSS_SCOPE), CrossScopeSingletonFixture.ENTITY_TYPES,
+			() -> queryRows(
+				CATALOG_CROSS_SCOPE, CrossScopeSingletonFixture.ENTITY_OWNER, BOTH, referenceName, roleOf(referenceName),
+				attributeGreaterThan(CrossScopeSingletonFixture.ATTRIBUTE_WEIGHT, 0), null
+			)
+		);
+		assertEquals(expected, sorted(comparison.objectReading()), "The index objects must keep the expected rows");
+		assertEquals(
+			comparison.objectReading(), comparison.virtualReading().answer(),
+			"The virtual reading must keep the same rows, in the same order"
+		);
+		assertTrue(comparison.virtualReading().virtualRowsRead() > 0, "The read-on run must read virtual rows");
+	}
+
+	/**
+	 * Returns the kept rows of every entity sorted, for a comparison with expected rows that does not depend on the
+	 * order an entity returns its references in.
+	 *
+	 * @param rows the kept rows by entity primary key
+	 * @return the same rows, each list sorted
+	 */
+	@Nonnull
+	private static Map<Integer, List<String>> sorted(@Nonnull Map<Integer, List<String>> rows) {
+		final Map<Integer, List<String>> result = new TreeMap<>();
+		rows.forEach((owner, kept) -> result.put(owner, kept.stream().sorted().toList()));
+		return result;
+	}
+
+	/**
+	 * Fetches every entity of a collection in the scopes with the references a filter keeps, and describes the kept
+	 * rows of every entity - `target` for a reference without a representative attribute, `target/role` for one with - in the order the entity returns them, followed by the total of a chunk.
+	 *
+	 * @param catalog       the catalog
+	 * @param entityType    the collection
+	 * @param scopes        the scopes
+	 * @param referenceName the reference
+	 * @param roleAttribute the representative attribute of the reference, `null` for a reference without one
+	 * @param filter        the reference filter
+	 * @param chunk         the chunk of the references of each entity, `null` for all of them
+	 * @return the kept rows by entity primary key
+	 */
+	@Nonnull
+	private Map<Integer, List<String>> queryRows(
+		@Nonnull String catalog,
+		@Nonnull String entityType,
+		@Nonnull Scope[] scopes,
+		@Nonnull String referenceName,
+		@Nullable String roleAttribute,
+		@Nonnull FilterConstraint filter,
+		@Nullable ChunkingRequireConstraint chunk
+	) {
+		return this.evita.queryCatalog(
+			catalog,
+			session -> {
+				final List<SealedEntity> entities = session.query(
+					query(
+						collection(entityType),
+						filterBy(scope(scopes)),
+						require(
+							page(1, PAGE_SIZE),
+							entityFetch(referenceContentWithAttributes(referenceName, filterBy(filter), chunk))
+						)
+					),
+					SealedEntity.class
+				).getRecordData();
+				final Map<Integer, List<String>> rows = new TreeMap<>();
+				for (final SealedEntity entity : entities) {
+					final List<String> kept = entity.getReferences(referenceName).stream()
+						.map(it -> describe(it, roleAttribute))
+						.collect(Collectors.toCollection(ArrayList::new));
+					if (chunk != null) {
+						final DataChunk<ReferenceContract> referenceChunk = entity.getReferenceChunk(referenceName);
+						kept.add("total " + referenceChunk.getTotalRecordCount());
+					}
+					rows.put(entity.getPrimaryKeyOrThrowException(), kept);
+				}
+				return rows;
+			}
+		);
+	}
+
+	/**
+	 * Returns the representative attribute of a reference of the hand-built catalog.
+	 *
+	 * @param referenceName the reference
+	 * @return the role attribute of `media`, `null` for the other references
+	 */
+	@Nullable
+	private static String roleOf(@Nonnull String referenceName) {
+		return CrossScopeSingletonFixture.REFERENCE_MEDIA.equals(referenceName) ?
+			CrossScopeSingletonFixture.ATTRIBUTE_ROLE : null;
+	}
+
+	/**
+	 * Describes one kept reference row.
+	 *
+	 * @param reference     the reference
+	 * @param roleAttribute the representative attribute telling duplicates apart, `null` for a reference without one
+	 * @return `target`, or `target/role` for a reference with a representative attribute
+	 */
+	@Nonnull
+	private static String describe(@Nonnull ReferenceContract reference, @Nullable String roleAttribute) {
+		return roleAttribute == null ?
+			String.valueOf(reference.getReferencedPrimaryKey()) :
+			reference.getReferencedPrimaryKey() + "/" + reference.getAttribute(roleAttribute);
+	}
+
+	/**
+	 * Creates a catalog maintained from its first write, fills it in warm-up, takes it live and then applies the
+	 * changes of the live catalog.
+	 *
+	 * @param catalog     the catalog
+	 * @param entityTypes its collections, all maintained
+	 * @param warmUp      fills the catalog in warm-up
+	 * @param live        changes the live catalog
+	 */
+	private void build(
+		@Nonnull String catalog,
+		@Nonnull Set<String> entityTypes,
+		@Nonnull Consumer<EvitaSessionContract> warmUp,
+		@Nonnull Consumer<EvitaSessionContract> live
+	) {
+		this.evita.defineCatalog(catalog).updateViaNewSession(this.evita);
+		for (final String entityType : entityTypes) {
+			maintenance(catalog).setMaintained(entityType, true);
+		}
+		this.evita.updateCatalog(catalog, warmUp);
+		this.evita.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
+		this.evita.updateCatalog(catalog, live);
+	}
+
+	/**
+	 * Returns the switch holder of a catalog.
+	 *
+	 * @param catalog the catalog
+	 * @return the switch holder
+	 */
+	@Nonnull
+	private VirtualReferencePartitionMaintenance maintenance(@Nonnull String catalog) {
+		return ((Catalog) this.evita.getCatalogInstance(catalog).orElseThrow())
+			.getVirtualReferencePartitionMaintenance();
+	}
+
+}

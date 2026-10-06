@@ -109,6 +109,7 @@ import io.evitadb.index.Index;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.ReferencePartitionSplit;
 import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.attribute.FilterIndex;
@@ -816,65 +817,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
-	 * Method returns all {@link EntityIndex} that contain subset of data that satisfy the passed filtering constraint.
-	 *
-	 * @return entity indexes that contains parts of indexed data
-	 */
-	@Nonnull
-	public List<ReducedEntityIndex> getReferencedRecordEntityIndexes(
-		@Nonnull ReferenceHaving referenceHaving,
-		@Nonnull Set<Scope> scopes
-	) {
-		return getReferencedRecordEntityIndexes(
-			referenceHaving,
-			scopes,
-			THROWING_MISSING_RTEI_SUPPLIER
-		);
-	}
-
-	/**
-	 * Method returns all {@link EntityIndex} that contain subset of data that satisfy the passed filtering constraint.
-	 *
-	 * @return entity indexes that contains parts of indexed data
-	 */
-	@Nonnull
-	public List<ReducedEntityIndex> getReferencedRecordEntityIndexes(
-		@Nonnull ReferenceHaving referenceHaving,
-		@Nonnull Set<Scope> scope,
-		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex> missingReferencedIndexSupplier
-	) {
-		return getReferencedRecordEntityIndexes(
-			referenceHaving,
-			scope,
-			missingReferencedIndexSupplier,
-			null
-		);
-	}
-
-	/**
-	 * Method returns all {@link EntityIndex} that contain subset of data that satisfy the passed filtering constraint.
-	 *
-	 * @param nestedQueryRestriction optional narrowing applied to the filter of a nested query planned for an
-	 *                               {@link EntityHaving} inside `referenceHaving`. Pass the key set the result is
-	 *                               intersected with anyway to keep the nested query from being evaluated over the
-	 *                               whole referenced collection - see
-	 *                               {@code ProcessingScope#getNestedQueryRestriction()}.
-	 * @return entity indexes that contains parts of indexed data
-	 */
-	@Nonnull
-	public List<ReducedEntityIndex> getReferencedRecordEntityIndexes(
-		@Nonnull ReferenceHaving referenceHaving,
-		@Nonnull Set<Scope> scope,
-		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex>
-			missingReferencedIndexSupplier,
-		@Nullable NestedQueryRestriction nestedQueryRestriction
-	) {
-		return getReferencedRecordEntityIndexCandidates(
-			referenceHaving, scope, missingReferencedIndexSupplier, nestedQueryRestriction
-		).resolve();
-	}
-
-	/**
 	 * Discovers the candidate reduced indexes for the passed `referenceHaving` without resolving them, raising
 	 * when a referenced type index is missing.
 	 *
@@ -896,21 +838,25 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * Discovers which reduced indexes could answer the passed `referenceHaving` WITHOUT resolving them into
 	 * index objects.
 	 *
-	 * This is the same discovery {@link #getReferencedRecordEntityIndexes} performs, stopped one step short.
-	 * The expensive half is the resolution: one index object per partition the reference advertises, which on a
-	 * production catalog runs to six figures and dominates the cost of planning a bare `referenceHaving`. The
-	 * cheap half - computing which partition primary keys qualify - is a single formula evaluation, and it is
-	 * enough to answer how many candidates there are, which is what index selection needs to decide whether the
-	 * candidate is worth planning at all.
+	 * The expensive half of answering a `referenceHaving` is the resolution: one index object per partition the
+	 * reference advertises, which on a production catalog runs to six figures and dominates the cost of planning a
+	 * bare `referenceHaving`. The cheap half - computing which partition primary keys qualify - is a single formula
+	 * evaluation, and it is enough to answer how many candidates there are, which is what index selection needs to
+	 * decide whether the candidate is worth planning at all.
 	 *
-	 * The split exists so a candidate that is going to be rejected never pays the resolution. Everything that
-	 * genuinely needs the objects calls {@link ReducedIndexCandidates#resolve()} and gets exactly the list this
-	 * method's eager counterpart would have returned.
+	 * The split exists so a candidate that is going to be rejected never pays the resolution. A route that reads the
+	 * candidates calls {@link ReducedIndexCandidates#resolveSplit()}, which reads the registered single-owner
+	 * partitions virtually when the query reads the collection so; a route that needs the index objects of every
+	 * candidate calls {@link ReducedIndexCandidates#resolve()}.
 	 *
 	 * @param referenceHaving              the constraint whose reference is being discovered
 	 * @param scope                        scopes to discover in
 	 * @param missingReferencedIndexSupplier resolves a type index that does not exist yet
-	 * @param nestedQueryRestriction       optional narrowing for a nested `entityHaving` query
+	 * @param nestedQueryRestriction       optional narrowing applied to the filter of a nested query planned for an
+	 *                                     {@link EntityHaving} inside `referenceHaving`. Pass the key set the result
+	 *                                     is intersected with anyway to keep the nested query from being evaluated
+	 *                                     over the whole referenced collection - see
+	 *                                     {@code ProcessingScope#getNestedQueryRestriction()}.
 	 * @return the candidate partitions and the means to resolve them
 	 */
 	@Nonnull
@@ -953,23 +899,35 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			);
 			partitionAccessor = targetCollection::resolvePartitionIfExists;
 		}
+		// the split reads the collection the candidates come from in every scope they were discovered in; the query
+		// context is the one of this visitor, so the read switch it captured holds for the split too
+		final String entityType = entitySchema.getName();
+		final String referenceName = referenceSchema.getName();
+		final Scope[] scopes = scope.toArray(Scope[]::new);
+		final QueryPlanningContext theQueryContext = this.queryContext;
+		final Function<Bitmap, ReferencePartitionSplit> splitter =
+			candidates -> theQueryContext.splitPartitionsForRead(entityType, referenceName, candidates, scopes);
 
-		return new ReducedIndexCandidates(reducedIndexPksFormula.compute(), partitionAccessor);
+		return new ReducedIndexCandidates(reducedIndexPksFormula.compute(), partitionAccessor, splitter);
 	}
 
 	/**
 	 * The reduced indexes that could answer one `referenceHaving`, named but not yet resolved.
 	 *
-	 * Both members are immutable and are captured at discovery time, which is what makes deferring the
-	 * resolution safe: {@link #resolve()} reads nothing that could have moved on since, so a caller that
-	 * resolves later in the same query gets the list discovery would have produced.
+	 * Every member is immutable and is captured at discovery time, which is what makes deferring the resolution safe:
+	 * {@link #resolve()} reads nothing that could have moved on since, so a caller that resolves later in the same query
+	 * gets the list discovery would have produced, and {@link #resolveSplit()} reads the registry of the query's own
+	 * snapshot.
 	 *
 	 * @param primaryKeys       primary keys of the candidate reduced indexes
-	 * @param partitionAccessor resolves one candidate primary key into its partition
+	 * @param partitionAccessor resolves one candidate primary key into its partition, as an index object
+	 * @param splitter          splits candidate primary keys by representation - see
+	 *                          {@link QueryPlanningContext#splitPartitionsForRead}
 	 */
 	public record ReducedIndexCandidates(
 		@Nonnull Bitmap primaryKeys,
-		@Nonnull IntFunction<ReferencePartition> partitionAccessor
+		@Nonnull IntFunction<ReferencePartition> partitionAccessor,
+		@Nonnull Function<Bitmap, ReferencePartitionSplit> splitter
 	) {
 
 		/**
@@ -982,15 +940,63 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		}
 
 		/**
-		 * Resolves every candidate into the index object the query body channel consumes.
+		 * Resolves every candidate into the index object the query body channel consumes - for the routes that need
+		 * the object of every candidate. A route that reads virtual partitions calls {@link #resolveSplit()} instead.
 		 *
 		 * @return the resolved indexes, in candidate primary key order
 		 * @throws io.evitadb.exception.GenericEvitaInternalError when a candidate primary key resolves to no partition
 		 */
 		@Nonnull
 		public List<ReducedEntityIndex> resolve() {
-			final List<ReducedEntityIndex> result = new ArrayList<>(this.primaryKeys.size());
-			final OfInt it = this.primaryKeys.iterator();
+			return resolve(this.primaryKeys);
+		}
+
+		/**
+		 * Splits the candidates by representation and resolves only those read through their reduced entity indexes.
+		 * When the query reads the collection virtually, every candidate the registry of single-owner partitions holds
+		 * a row for stays a row of the split and is never resolved to its index object; otherwise the split holds no
+		 * virtual candidate and the indexes are those {@link #resolve()} returns.
+		 *
+		 * The split costs one merge of the candidates with the registry rows (see
+		 * {@link io.evitadb.index.ReferencePartitions#split}); the resolution costs what {@link #resolve()} costs for
+		 * the materialized candidates alone.
+		 *
+		 * @return the materialized candidates resolved and the split carrying the virtual ones
+		 * @throws io.evitadb.exception.GenericEvitaInternalError when a materialized candidate resolves to no partition
+		 */
+		@Nonnull
+		public SplitReducedIndexCandidates resolveSplit() {
+			return resolveSplit(this::resolve);
+		}
+
+		/**
+		 * Splits the candidates by representation as {@link #resolveSplit()} does, taking the index objects of all
+		 * candidates from the given supplier when no candidate is read virtually - so a caller already holding them,
+		 * memoized in a {@link io.evitadb.core.query.indexSelection.TargetIndexes}, does not resolve them twice.
+		 *
+		 * @param allIndexes supplies the resolved indexes of every candidate, as {@link #resolve()} returns them
+		 * @return the materialized candidates resolved and the split carrying the virtual ones
+		 * @throws io.evitadb.exception.GenericEvitaInternalError when a materialized candidate resolves to no partition
+		 */
+		@Nonnull
+		public SplitReducedIndexCandidates resolveSplit(@Nonnull Supplier<List<ReducedEntityIndex>> allIndexes) {
+			final ReferencePartitionSplit split = this.splitter.apply(this.primaryKeys);
+			return new SplitReducedIndexCandidates(
+				split.getVirtualCount() == 0 ? allIndexes.get() : resolve(split.getMaterializedPrimaryKeys()),
+				split
+			);
+		}
+
+		/**
+		 * Resolves the given candidates into the index objects the query body channel consumes.
+		 *
+		 * @param candidates the candidate primary keys to resolve
+		 * @return the resolved indexes, in candidate primary key order
+		 */
+		@Nonnull
+		private List<ReducedEntityIndex> resolve(@Nonnull Bitmap candidates) {
+			final List<ReducedEntityIndex> result = new ArrayList<>(candidates.size());
+			final OfInt it = candidates.iterator();
 			while (it.hasNext()) {
 				final int partitionPk = it.nextInt();
 				final ReferencePartition partition = this.partitionAccessor.apply(partitionPk);
@@ -1005,6 +1011,21 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			return result;
 		}
 
+	}
+
+	/**
+	 * The candidates of one `referenceHaving` split by representation - see
+	 * {@link ReducedIndexCandidates#resolveSplit()}.
+	 *
+	 * @param materializedIndexes the candidates read through their reduced entity indexes, resolved, in candidate
+	 *                            primary key order
+	 * @param split               the split the virtual candidates are read from; its virtual candidates are absent
+	 *                            from `materializedIndexes`
+	 */
+	public record SplitReducedIndexCandidates(
+		@Nonnull List<ReducedEntityIndex> materializedIndexes,
+		@Nonnull ReferencePartitionSplit split
+	) {
 	}
 
 	/**
@@ -1108,10 +1129,24 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			// entity primary keys, with nothing re-examining the rows afterwards
 			NegationResolution.IN_PLACE
 		);
-		// we need to translate entity index primary keys to referenced entity primary keys
+		// we need to translate entity index primary keys to referenced entity primary keys - a partition read
+		// virtually names its target in its registry row, so only the others are resolved to their index objects
+		final ReferencePartitionSplit split = splitPartitionsForRead(
+			entitySchema.getName(), referenceSchema.getName(), reducedEntityIndexPrimaryKeys.compute(),
+			getProcessingScope().getScopes().toArray(Scope[]::new)
+		);
 		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-		for (Integer indexPk : reducedEntityIndexPrimaryKeys.compute()) {
-			writer.add(resolvePartition(indexPk).getReferenceKey().primaryKey());
+		final OfInt it = split.getMaterializedPrimaryKeys().iterator();
+		while (it.hasNext()) {
+			writer.add(resolvePartition(it.nextInt()).getReferenceKey().primaryKey());
+		}
+		final int virtualCount = split.getVirtualCount();
+		if (virtualCount > 0) {
+			for (int i = 0; i < virtualCount; i++) {
+				writer.add(split.getVirtualTargetPrimaryKey(i));
+			}
+			// TODO JNO - remove at the end of #1615 (the non-vacuity probe of the read parity tests)
+			recordVirtualRowsRead(virtualCount);
 		}
 		final PersistentRoaringBitmap bitmap = writer.get();
 		return bitmap.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(bitmap));

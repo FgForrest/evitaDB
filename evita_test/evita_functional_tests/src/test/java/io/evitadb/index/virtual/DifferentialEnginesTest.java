@@ -26,6 +26,7 @@ package io.evitadb.index.virtual;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.index.virtual.DifferentialEngines.Divergence;
 import io.evitadb.test.EvitaTestSupport;
@@ -138,6 +139,8 @@ class DifferentialEnginesTest implements EvitaTestSupport {
 		assertContains(snapshot, "query/product/LIVE/entity/1");
 		assertContains(snapshot, "query/product/ARCHIVED/entity/5");
 		assertContains(snapshot, "query/product/LIVE/referenceHaving/categories/11");
+		assertContains(snapshot, "query/product/LIVE/referenceContent/gallery/1");
+		assertContains(snapshot, "query/product/ARCHIVED/referenceContent/categories/5");
 		assertContains(snapshot, "query/product/LIVE/facetSummary/");
 		assertContains(snapshot, "query/product/LIVE/attributeHistograms/");
 		assertContains(snapshot, "query/product/LIVE/referenceHistograms/");
@@ -150,6 +153,14 @@ class DifferentialEnginesTest implements EvitaTestSupport {
 		assertContains(snapshot, "index/product/LIVE/REFERENCED_ENTITY_TYPE/categories/cardinality/attribute/");
 		assertContains(snapshot, "storage/product/part/");
 		assertContains(snapshot, "storage/product/population");
+		// the landed query lines of the maintaining engine read virtual rows - since its restart, which starts the count
+		// afresh - rather than comparing the object reading with itself
+		assertTrue(
+			((Catalog) this.engines.getMaintaining().getCatalogInstance(DifferentialEngines.CATALOG).orElseThrow())
+				.getVirtualReferencePartitionMaintenance()
+				.getVirtualRowsRead() > 0,
+			"The maintaining engine must read virtual rows on the landed query lines"
+		);
 	}
 
 	@ParameterizedTest(name = "{0}")

@@ -312,6 +312,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 						ReducedEntityIndex.class,
 						candidateCount,
 						candidates::resolve,
+						candidates,
 						Stream.of(
 								partitioned ? null : EligibilityObstacle.NOT_PARTITIONED_INDEX,
 								countSettlesCardinality ? EligibilityObstacle.HIGH_CARDINALITY : null
@@ -334,6 +335,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 						constraint,
 						ReducedEntityIndex.class,
 						theTargetIndexes,
+						candidates,
 						ownerRows <= cardinalityLimit
 							? new EligibilityObstacle[0]
 							: new EligibilityObstacle[]{EligibilityObstacle.HIGH_CARDINALITY}

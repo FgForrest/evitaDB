@@ -24,6 +24,7 @@
 package io.evitadb.core.query.indexSelection;
 
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.core.query.filter.FilterByVisitor.ReducedIndexCandidates;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
@@ -104,6 +105,13 @@ public class TargetIndexes<T extends Index<?>> {
 	 * The set of obstacles that prevent the index from being eligible for separate query plan.
 	 */
 	private final EnumSet<EligibilityObstacle> eligibilityObstacles;
+	/**
+	 * The candidate partitions of a `referenceHaving` option as discovery named them, `null` for any other option. The
+	 * translation of the constraint reads them rather than {@link #getIndexes()}: it splits them by representation and
+	 * resolves to index objects only the partitions not read virtually, while {@link #getIndexes()} stays the
+	 * object-only resolution of every candidate for the consumers that need the objects.
+	 */
+	@Nullable private final ReducedIndexCandidates reducedIndexCandidates;
 
 	public TargetIndexes(@Nonnull String indexDescription, @Nonnull Class<T> indexType, @Nonnull List<T> indexes) {
 		this.indexDescription = indexDescription;
@@ -113,6 +121,7 @@ public class TargetIndexes<T extends Index<?>> {
 		this.indexSupplier = null;
 		this.indexCount = indexes.size();
 		this.eligibilityObstacles = EnumSet.noneOf(EligibilityObstacle.class);
+		this.reducedIndexCandidates = null;
 	}
 
 	public TargetIndexes(
@@ -120,6 +129,28 @@ public class TargetIndexes<T extends Index<?>> {
 		@Nonnull FilterConstraint representedConstraint,
 		@Nonnull Class<T> indexType,
 		@Nonnull List<T> indexes,
+		@Nonnull EligibilityObstacle... eligibilityObstacle
+	) {
+		this(indexDescription, representedConstraint, indexType, indexes, null, eligibilityObstacle);
+	}
+
+	/**
+	 * Creates a set of already resolved indexes of a `referenceHaving` option that also keeps the candidates discovery
+	 * named - see {@link #reducedIndexCandidates}.
+	 *
+	 * @param indexDescription       human readable description of the index set
+	 * @param representedConstraint  the constraint the indexes answer
+	 * @param indexType              type of the indexes
+	 * @param indexes                the resolved indexes
+	 * @param reducedIndexCandidates the candidates the indexes were resolved from, `null` for an option of another kind
+	 * @param eligibilityObstacle    obstacles that make this set ineligible for a separate query plan
+	 */
+	public TargetIndexes(
+		@Nonnull String indexDescription,
+		@Nonnull FilterConstraint representedConstraint,
+		@Nonnull Class<T> indexType,
+		@Nonnull List<T> indexes,
+		@Nullable ReducedIndexCandidates reducedIndexCandidates,
 		@Nonnull EligibilityObstacle... eligibilityObstacle
 	) {
 		this.indexDescription = indexDescription;
@@ -130,6 +161,7 @@ public class TargetIndexes<T extends Index<?>> {
 		this.indexCount = indexes.size();
 		this.eligibilityObstacles = EnumSet.noneOf(EligibilityObstacle.class);
 		Collections.addAll(this.eligibilityObstacles, eligibilityObstacle);
+		this.reducedIndexCandidates = reducedIndexCandidates;
 	}
 
 	/**
@@ -144,6 +176,8 @@ public class TargetIndexes<T extends Index<?>> {
 	 * @param indexType             type of the indexes the supplier will produce
 	 * @param indexCount            how many indexes the supplier will produce, known in advance
 	 * @param indexSupplier         resolves the indexes on first demand
+	 * @param reducedIndexCandidates the candidates the supplier resolves, `null` for an option of another kind - see
+	 *                               {@link #reducedIndexCandidates}
 	 * @param eligibilityObstacle   obstacles that make this set ineligible for a separate query plan
 	 */
 	public TargetIndexes(
@@ -152,6 +186,7 @@ public class TargetIndexes<T extends Index<?>> {
 		@Nonnull Class<T> indexType,
 		int indexCount,
 		@Nonnull Supplier<List<T>> indexSupplier,
+		@Nullable ReducedIndexCandidates reducedIndexCandidates,
 		@Nonnull EligibilityObstacle... eligibilityObstacle
 	) {
 		this.indexDescription = indexDescription;
@@ -162,6 +197,7 @@ public class TargetIndexes<T extends Index<?>> {
 		this.indexCount = indexCount;
 		this.eligibilityObstacles = EnumSet.noneOf(EligibilityObstacle.class);
 		Collections.addAll(this.eligibilityObstacles, eligibilityObstacle);
+		this.reducedIndexCandidates = reducedIndexCandidates;
 	}
 
 	/**

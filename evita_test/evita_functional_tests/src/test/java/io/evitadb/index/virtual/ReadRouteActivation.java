@@ -46,9 +46,19 @@ import java.util.function.Supplier;
  */
 final class ReadRouteActivation {
 	/**
-	 * The query routes whose virtual reading has landed. None has yet: every query line runs with the read switch off.
+	 * The query routes whose virtual reading has landed - those of step 4b of #1615: the positive bodies of
+	 * `referenceHaving`, its target index list, `entityHaving` / `entityPrimaryKeyInSet` in a positive body, the
+	 * translation of a partition to its target and the positive bodies of `referenceContent(filterBy)`. A body that is
+	 * not row-exact is refused while a candidate is read virtually, so a line with one would fail loudly rather than
+	 * compare a wrong answer.
 	 */
-	static final Set<ReadRoute> LANDED_ROUTES = EnumSet.noneOf(ReadRoute.class);
+	static final Set<ReadRoute> LANDED_ROUTES = EnumSet.of(
+		ReadRoute.REFERENCE_HAVING_BODY,
+		ReadRoute.REFERENCE_HAVING_TARGET_INDEXES,
+		ReadRoute.REFERENCED_ENTITY_IN_BODY,
+		ReadRoute.PARTITION_TO_TARGET,
+		ReadRoute.REFERENCE_CONTENT_FILTER
+	);
 	/**
 	 * The activation of an engine that maintains nothing, and so can never read virtually.
 	 */
@@ -88,6 +98,11 @@ final class ReadRouteActivation {
 		 * Route 8 - the translation of a partition primary key to the primary key of the entity it references.
 		 */
 		PARTITION_TO_TARGET,
+		/**
+		 * Route 9 - the rows `referenceContent(filterBy)` keeps, aggregated per representative reference key across
+		 * both representations and every examined scope.
+		 */
+		REFERENCE_CONTENT_FILTER,
 		/**
 		 * Route 24 - facet summaries and histograms, which read the target index or the type index.
 		 */

@@ -94,7 +94,9 @@ import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.AbstractHierarchyTranslator.TraversalDirection;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
+import io.evitadb.core.query.filter.FilterByVisitor.SplitReducedIndexCandidates;
 import io.evitadb.core.query.filter.NestedQueryRestriction;
+import io.evitadb.core.query.filter.translator.reference.VirtualPartitionBodyEvaluator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
@@ -116,6 +118,8 @@ import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.ReferencePartitionSplit;
+import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -876,30 +880,40 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 								? new FilterConstraint[]{pkConstraint}
 								: ArrayUtils.mergeArrays(new FilterConstraint[]{pkConstraint}, entityLevelChildren);
 
-							final List<ReducedEntityIndex> referencedEntityIndexes = allReferencedEntityPks.isEmpty() ?
+							// the body each candidate's rows are evaluated against
+							final FilterBy rowFilterBy = entityLevelFilterBy != null ? entityLevelFilterBy : filterBy;
+							final List<? extends ReferencePartition> referencedPartitions = allReferencedEntityPks.isEmpty() ?
 								Collections.emptyList() :
-								theFilterByVisitor.getReferencedRecordEntityIndexes(
-									new ReferenceHaving(
-										referenceSchema.getName(),
-										and(havingChildren)
-									),
-									examinedScopes,
-									(es, eik) -> null,
-									// the same restriction `computeResultWithPassedIndex` gets: without it this pass
-									// plans the nested `entityHaving` against the referenced collection's GLOBAL index
-									// and evaluates it over every entity there, only to intersect the result with
-									// `pkConstraint` - which is already a sibling conjunct - a few operations later.
-									nestedQueryPkRestriction
+								getReferencedPartitions(
+									theFilterByVisitor,
+									theFilterByVisitor.getReferencedRecordEntityIndexCandidates(
+										new ReferenceHaving(
+											referenceSchema.getName(),
+											and(havingChildren)
+										),
+										examinedScopes,
+										(es, eik) -> null,
+										// the same restriction `computeResultWithPassedIndex` gets: without it this
+										// pass plans the nested `entityHaving` against the referenced collection's
+										// GLOBAL index and evaluates it over every entity there, only to intersect the
+										// result with `pkConstraint` - which is already a sibling conjunct - a few
+										// operations later.
+										nestedQueryPkRestriction
+									).resolveSplit(),
+									rowFilterBy,
+									referenceSchema.getName()
 								);
 							// pre-filter by group constraint before sorting to reduce sort size
-							if (allowedByGroupFilter != null && !referencedEntityIndexes.isEmpty()) {
-								referencedEntityIndexes.removeIf(idx -> {
-									final RepresentativeReferenceKey key = idx.getRepresentativeReferenceKey();
+							if (allowedByGroupFilter != null && !referencedPartitions.isEmpty()) {
+								referencedPartitions.removeIf(partition -> {
+									final RepresentativeReferenceKey key = partition.getRepresentativeReferenceKey();
 									return !allowedByGroupFilter.contains(key.primaryKey());
 								});
 							}
-							if (!referencedEntityIndexes.isEmpty()) {
-								referencedEntityIndexes.sort(BY_DISCRIMINATOR);
+							if (!referencedPartitions.isEmpty()) {
+								// both representations of one key - and its partitions of every examined scope - end up
+								// next to each other, so the loop below restricts each key exactly once
+								referencedPartitions.sort(BY_DISCRIMINATOR);
 							}
 							// we need to identify which scopes are not indexed for this reference
 							final EnumSet<Scope> nonIndexedScopes = EnumSet.noneOf(Scope.class);
@@ -916,23 +930,28 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 								Formula lastIndexFormula = null;
 								RepresentativeReferenceKey lastDiscriminator = null;
 
-								for (ReducedEntityIndex referencedEntityIndex : referencedEntityIndexes) {
-									final EntityIndexKey indexKey = referencedEntityIndex.getIndexKey();
-									final RepresentativeReferenceKey discriminator = Objects.requireNonNull(
-										(RepresentativeReferenceKey) indexKey.discriminator()
-									);
+								for (ReferencePartition referencedPartition : referencedPartitions) {
+									final RepresentativeReferenceKey discriminator =
+										referencedPartition.getRepresentativeReferenceKey();
 
 									foundReferencedIds.add(discriminator.primaryKey());
 
-									final Formula resultFormula = computeResultWithPassedIndex(
-										referencedEntityIndex,
-										entitySchema,
-										referenceSchema,
-										theFilterByVisitor,
-										entityLevelFilterBy != null ? entityLevelFilterBy : filterBy,
-										entityNestedQueryComparator,
-										nestedQueryPkRestriction
-									);
+									final Formula resultFormula = switch (referencedPartition) {
+										case ReducedEntityIndex referencedEntityIndex -> computeResultWithPassedIndex(
+											referencedEntityIndex,
+											entitySchema,
+											referenceSchema,
+											theFilterByVisitor,
+											rowFilterBy,
+											entityNestedQueryComparator,
+											nestedQueryPkRestriction
+										);
+										// a partition read virtually is a candidate only when its single row satisfies
+										// the row-exact body (see `VirtualPartitionBodyEvaluator`), so its owner is the
+										// answer - united with the other partitions of the key like any other result
+										case VirtualReferencePartition virtualPartition ->
+											virtualPartition.getAllPrimaryKeysFormula();
+									};
 
 									if (lastDiscriminator == null) {
 										lastDiscriminator = discriminator;
@@ -1028,6 +1047,45 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			}
 		}
 
+		return result;
+	}
+
+	/**
+	 * Returns the candidate partitions of a reference filter in one list - the materialized ones as their reduced entity
+	 * indexes, the ones read virtually as their handles - so the caller can group both representations of one key, in
+	 * every examined scope, and restrict the key once. A body that is not row-exact is refused before anything is
+	 * evaluated when a candidate is read virtually (see {@link VirtualPartitionBodyEvaluator#assertRowExact}).
+	 *
+	 * The handles cost one registry read of the representative tuple each, `O(log n)`, which is far below the body
+	 * evaluation a materialized candidate costs.
+	 *
+	 * @param filterByVisitor the visitor of the query, for the non-vacuity probe
+	 * @param candidates      the candidates split by representation
+	 * @param rowFilterBy     the body evaluated against each reference row
+	 * @param referenceName   the reference, for the error message
+	 * @return the candidate partitions, mutable, in no particular order
+	 */
+	@Nonnull
+	private static List<? extends ReferencePartition> getReferencedPartitions(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull SplitReducedIndexCandidates candidates,
+		@Nonnull FilterBy rowFilterBy,
+		@Nonnull String referenceName
+	) {
+		final ReferencePartitionSplit split = candidates.split();
+		final int virtualCount = split.getVirtualCount();
+		if (virtualCount == 0) {
+			return candidates.materializedIndexes();
+		}
+		VirtualPartitionBodyEvaluator.assertRowExact(rowFilterBy, split, referenceName);
+		// TODO JNO - remove at the end of #1615 (the non-vacuity probe of the read parity tests)
+		filterByVisitor.recordVirtualRowsRead(virtualCount);
+		final List<ReducedEntityIndex> materializedIndexes = candidates.materializedIndexes();
+		final List<ReferencePartition> result = new ArrayList<>(materializedIndexes.size() + virtualCount);
+		result.addAll(materializedIndexes);
+		for (int i = 0; i < virtualCount; i++) {
+			result.add(split.getVirtualPartition(i));
+		}
 		return result;
 	}
 

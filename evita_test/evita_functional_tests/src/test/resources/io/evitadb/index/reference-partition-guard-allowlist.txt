@@ -8,10 +8,14 @@ R1 | io.evitadb.core.collection.EntityCollection$EntityIndexMaintainer#getOrCrea
 R1 | io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor#createPrefetcherIfNeededOrWorthwhile | owners of the winning narrowed index set of the query body channel, premised to be partitioned
 R1 | io.evitadb.core.query.fetch.ReferencedEntityFetcher#computeResultWithPassedIndex | isolated body per partition entered under the class token of the query body channel
 R1 | io.evitadb.core.query.fetch.ReferencedEntityFetcher#getFilteredReferencedEntityIds | partitions of referenceContent(filterBy/orderBy) evaluated through the query body channel
+R1 | io.evitadb.core.query.fetch.ReferencedEntityFetcher#getReferencedPartitions | materialized candidates of referenceContent(filterBy) joined with the virtual ones, for the query body channel
 R1 | io.evitadb.core.query.filter.FilterByVisitor#getReferencedEntityIndexes | partitions of one target handed to the shared entity/group owner lookup of the having translators
 R1 | io.evitadb.core.query.filter.FilterByVisitor#getReferencedGroupEntityIndexes | group family: reduced group entity indexes have no partition handle (reduced group indexes of one group)
-R1 | io.evitadb.core.query.filter.FilterByVisitor#getReferencedRecordEntityIndexes (overloads (Lio/evitadb/api/query/filter/ReferenceHaving;Ljava/util/Set;)Ljava/util/List; (Lio/evitadb/api/query/filter/ReferenceHaving;Ljava/util/Set;Ljava/util/function/BiFunction;)Ljava/util/List; (Lio/evitadb/api/query/filter/ReferenceHaving;Ljava/util/Set;Ljava/util/function/BiFunction;Lio/evitadb/core/query/filter/NestedQueryRestriction;)Ljava/util/List;) | typed list of partitions handed to the query body channel
-R1 | io.evitadb.core.query.filter.FilterByVisitor$ReducedIndexCandidates#resolve | resolves the candidate partitions into the query body channel
+R1 | io.evitadb.core.query.filter.FilterByVisitor$ReducedIndexCandidates#resolve (overloads ()Ljava/util/List; (Lio/evitadb/index/bitmap/Bitmap;)Ljava/util/List;) | resolves the candidate partitions into the query body channel - all of them, or the materialized ones of a split
+R1 | io.evitadb.core.query.filter.FilterByVisitor$ReducedIndexCandidates#resolveSplit (overloads (Ljava/util/function/Supplier;)Lio/evitadb/core/query/filter/FilterByVisitor$SplitReducedIndexCandidates;) | hands the materialized candidates of a split, resolved, to the query body channel
+R1 | io.evitadb.core.query.filter.FilterByVisitor$SplitReducedIndexCandidates#<init> | carrier of the materialized candidates of a split, resolved for the query body channel
+R1 | io.evitadb.core.query.filter.FilterByVisitor$SplitReducedIndexCandidates#field:materializedIndexes | carrier of the materialized candidates of a split, resolved for the query body channel
+R1 | io.evitadb.core.query.filter.FilterByVisitor$SplitReducedIndexCandidates#materializedIndexes | carrier of the materialized candidates of a split, resolved for the query body channel
 R1 | io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyInSetTranslator#translate | partition-scoped body class token test and owners, from the query body channel
 R1 | io.evitadb.core.query.filter.translator.hierarchy.AbstractHierarchyTranslator#createFormulaForReferencingEntities | owners formula per hierarchy node, from the target indexes of the query body channel
 R1 | io.evitadb.core.query.filter.translator.reference.BidirectionalReferenceRewriter#allRowsOf | owners formula over the partitions of the query body channel
@@ -21,9 +25,8 @@ R1 | io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper#tr
 R1 | io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper$GroupBucketKey#of | representative values of a reduced index of either family
 R1 | io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper$GroupRowLookup#build | group branch of the having translator, evaluating body indexes of the query body channel
 R1 | io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper$GroupRowLookup#createIndexLocalGroupFormula | group branch of the having translator, evaluating body indexes of the query body channel
+R1 | io.evitadb.core.query.filter.translator.reference.ReferenceHavingTranslator#applySearchOnCandidates | materialized candidates of a split handed to the body evaluation of the query body channel
 R1 | io.evitadb.core.query.filter.translator.reference.ReferenceHavingTranslator#applySearchOnIndexes | body evaluation entry - supplier of partitions and class token of the query body channel
-R1 | io.evitadb.core.query.filter.translator.reference.ReferenceHavingTranslator#getTargetIndexes | reuses the selected target indexes of the query body channel
-R1 | io.evitadb.core.query.filter.translator.reference.ReferenceHavingTranslator#translate | typed partition list feeding the query body channel
 R1 | io.evitadb.core.query.indexSelection.IndexSelectionVisitor#addHierarchyIndexOption | hierarchy target index set: partitions entered into the query body channel under their class token
 R1 | io.evitadb.core.query.indexSelection.IndexSelectionVisitor#addReferenceIndexOption | reference target index set: class token of the query body channel and owner-count sum
 R1 | io.evitadb.core.query.sort.OrderByVisitor#getIndexesForSort | sort index array of the query body channel handed to the sorters

@@ -1105,6 +1105,18 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		return captured;
 	}
 
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Records that this query answered rows of registered single-owner partitions virtually - the non-vacuity probe
+	 * of the read parity tests, see
+	 * {@link io.evitadb.core.catalog.VirtualReferencePartitionMaintenance#recordVirtualRowsRead(int)}.
+	 *
+	 * @param rowCount how many virtual rows were answered at one site, positive
+	 */
+	public void recordVirtualRowsRead(int rowCount) {
+		this.catalog.getVirtualReferencePartitionMaintenance().recordVirtualRowsRead(rowCount);
+	}
+
 	/**
 	 * Returns the reference partition of the named collection with the primary key, when it is a partition of the
 	 * reference in the scope, for a read - see the read resolution of {@link ReferencePartitions}. When the query
