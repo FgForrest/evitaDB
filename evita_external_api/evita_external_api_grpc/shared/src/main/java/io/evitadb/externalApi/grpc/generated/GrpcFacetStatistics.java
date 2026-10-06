@@ -162,7 +162,10 @@ private static final long serialVersionUID = 0L;
   private int count_ = 0;
   /**
    * <pre>
-   * Contains number of distinct entities in the response that possess of this reference.
+   * Contains number of distinct entities of the query result, filtered without its user filter part, that possess
+   * this reference under the group of the statistics - or, when the query negates the group, that do not possess it
+   * under that group. A facet referenced under several groups is listed in each of them, and each entry counts only
+   * the entities referencing the facet (or, in a negated group, not referencing it) under its own group.
    * </pre>
    *
    * <code>int32 count = 4;</code>
@@ -1167,7 +1170,10 @@ private static final long serialVersionUID = 0L;
     private int count_ ;
     /**
      * <pre>
-     * Contains number of distinct entities in the response that possess of this reference.
+     * Contains number of distinct entities of the query result, filtered without its user filter part, that possess
+     * this reference under the group of the statistics - or, when the query negates the group, that do not possess it
+     * under that group. A facet referenced under several groups is listed in each of them, and each entry counts only
+     * the entities referencing the facet (or, in a negated group, not referencing it) under its own group.
      * </pre>
      *
      * <code>int32 count = 4;</code>
@@ -1179,7 +1185,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains number of distinct entities in the response that possess of this reference.
+     * Contains number of distinct entities of the query result, filtered without its user filter part, that possess
+     * this reference under the group of the statistics - or, when the query negates the group, that do not possess it
+     * under that group. A facet referenced under several groups is listed in each of them, and each entry counts only
+     * the entities referencing the facet (or, in a negated group, not referencing it) under its own group.
      * </pre>
      *
      * <code>int32 count = 4;</code>
@@ -1195,7 +1204,10 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Contains number of distinct entities in the response that possess of this reference.
+     * Contains number of distinct entities of the query result, filtered without its user filter part, that possess
+     * this reference under the group of the statistics - or, when the query negates the group, that do not possess it
+     * under that group. A facet referenced under several groups is listed in each of them, and each entry counts only
+     * the entities referencing the facet (or, in a negated group, not referencing it) under its own group.
      * </pre>
      *
      * <code>int32 count = 4;</code>
