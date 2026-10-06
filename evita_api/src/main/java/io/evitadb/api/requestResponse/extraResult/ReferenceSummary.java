@@ -434,9 +434,9 @@ public class ReferenceSummary implements EvitaResponseExtraResult, PrettyPrintab
 		 */
 		@Getter private final boolean requested;
 		/**
-		 * Contains number of distinct entities in the response that possess of this reference under the group of the
-		 * statistics. A facet referenced under several groups is listed in each of them, and each entry counts only
-		 * the entities referencing the facet under its own group.
+		 * Contains number of distinct entities of the query result, filtered without its {@link UserFilter} part, that
+		 * possess this reference under the group of the statistics. A facet referenced under several groups is listed in
+		 * each of them, and each entry counts only the entities referencing the facet under its own group.
 		 */
 		@Getter private final int count;
 		/**
@@ -512,7 +512,8 @@ public class ReferenceSummary implements EvitaResponseExtraResult, PrettyPrintab
 		@Nullable
 		private final EntityClassifier groupEntity;
 		/**
-		 * Contains number of distinct entities in the response that possess any reference in this group.
+		 * Contains number of distinct entities of the query result, filtered without its {@link UserFilter} part, that
+		 * possess any reference in this group.
 		 */
 		@Getter
 		private final int count;

@@ -48,8 +48,8 @@ import java.util.Optional;
  * The `facetSummary` requirement triggers the calculation of the
  * {@link io.evitadb.api.requestResponse.extraResult.FacetSummary} extra result, which contains facet statistics for
  * all entity references that are marked as **faceted** in the entity schema. The facet summary is computed as a side
- * effect of the main entity query and always reflects the same filtering scope — it only counts entities that would
- * actually be returned by the current query.
+ * effect of the main entity query and always reflects the same filtering scope except the `userFilter` part — it
+ * counts only entities the current query would return if its `userFilter` part were left out.
  *
  * ## Result structure
  *

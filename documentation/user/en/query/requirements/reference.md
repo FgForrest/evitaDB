@@ -96,7 +96,8 @@ referenceSummary(
         <p>optional argument of type <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetStatisticsDepth.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/FacetStatisticsDepth.cs</SourceClass></LS>
             controlling how deep the per-option statistics go:</p>
         <p>
-        - **COUNTS** *(default, implicit)*: each option carries only the number of returned entities that contain it
+        - **COUNTS** *(default, implicit)*: each option carries only the number of entities that contain it, out of
+            the entities the query returns without its [`userFilter`](../filtering/behavioral.md#user-filter) part
         - **IMPACT**: each non-selected option additionally carries an impact prediction (`matchCount`,
             `difference`, `hasSense`) showing what would happen if the user selected it; affected by
             [conjunction](#facet-groups-conjunction), [disjunction](#facet-groups-disjunction),
@@ -250,8 +251,9 @@ groups (the reference lacks group information), the summary contains a single gr
 #### 2nd tier: reference group
 
 A reference group lists every [reference option](#3rd-tier-reference-option) available for the given group /
-reference combination. It also carries a `count` of all entities in the current query result that match at least
-one option in the group / reference.
+reference combination. It also carries a `count` of all entities in the current query result, excluding the effect
+of the [`userFilter`](../filtering/behavioral.md#user-filter) part, that match at least one option in the group /
+reference.
 <LS to="e,j,c,r">
 Optionally, it includes the body of the group entity if the [`entityGroupFetch`](#entity-group-fetch) requirement
 is specified.
@@ -282,8 +284,9 @@ A reference option contains the per-option statistics:
 <dl>
   <dt>count</dt>
   <dd>
-    The number of entities in the current query result (including user-filter constraints) that have this option
-    (i.e. reference an entity with this primary key).
+    The number of entities in the current query result, excluding the effect of the
+    [`userFilter`](../filtering/behavioral.md#user-filter) part, that have this option (i.e. reference an entity
+    with this primary key).
   </dd>
   <dt>requested</dt>
   <dd>
