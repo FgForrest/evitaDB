@@ -9,7 +9,7 @@ prs: [1664]
 areas: [evita_engine/src/main/java/io/evitadb/core/query/filter/translator/attribute, evita_query/src/main/java/io/evitadb/api/query/filter/EntityScope.java, evita_api/src/main/java/io/evitadb/api/requestResponse/EvitaRequest.java, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/reference/ReferenceBodyTransposer.java, evita_engine/src/main/java/io/evitadb/core/query/filter/FilterByVisitor.java, evita_engine/src/main/java/io/evitadb/index/cardinality/ReferenceTypeCardinalityIndex.java]
 supersedes: []
 superseded-by: []
-relates: [2026-09-17-row-scoped-reference-having-body, 2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-09-30-unique-indexes-keep-no-record-set]
+relates: [2026-09-17-row-scoped-reference-having-body, 2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-10-06-unique-indexes-keep-no-record-set]
 ---
 
 # `attributeIsNull` inside `referenceHaving` widens candidate discovery and is answered one reference row at a time
@@ -301,13 +301,13 @@ Unique lookups (`UniqueAttributeLookupBenchmark`, results in its `.md`) are flat
   right. No query reads that bitmap any more; `IndexCardinalityProjection` still reports its size. It is never
   persisted - the storage part carries (value, record id) pairs and both load paths rebuild the bitmap from them -
   so a restart repairs it, and until then every commit carries it forward. Removed by #1658 together with
-  `UniqueIndex#getRecordIds` / `#getRecordIdsFormula` - see `2026-09-30-unique-indexes-keep-no-record-set`.
+  `UniqueIndex#getRecordIds` / `#getRecordIdsFormula` - see `2026-10-06-unique-indexes-keep-no-record-set`.
 - **`GlobalUniqueIndex#entitiesPerType` has the same eager removal**, and unlike the bitmap above it was still
   read - by the null and not-null tests of a catalog attribute, on `dev` too. That read is gone (see Key technical
   details); `GlobalUniqueIndex#getRecordIds` / `#getRecordIdsFormula` now have no production caller, and the
   bitmap feeds only `GlobalUniqueIndex#getRecordCount` in the catalog statistics, which it undercounts in the same
   way. Removed by #1658 as well, the record count now read off the value tree - see
-  `2026-09-30-unique-indexes-keep-no-record-set`.
+  `2026-10-06-unique-indexes-keep-no-record-set`.
 - **An `AttributeFormula` over a read that ignores the query locale must say so.** The constructors default
   `localeImplied` to true, and a wrong true is silent: it drops `entityLocaleEquals` on prefetch-capable plans
   only, so the index-scan plan keeps answering correctly. Every translator building a localized formula over the
@@ -336,4 +336,4 @@ Unique lookups (`UniqueAttributeLookupBenchmark`, results in its `.md`) are flat
 - **2026-09-28** — the null tests of a catalog attribute moved from the catalog's per-entity-type bitmap to the
   collection's filter indexes after an entity that removed one locale's value read as null
 - **2026-09-29** — the later fixes re-measured against the build of 2026-09-25: flat, unique lookups included
-- **2026-09-30** — both undercounting record sets removed by #1658 (`2026-09-30-unique-indexes-keep-no-record-set`)
+- **2026-09-30** — both undercounting record sets removed by #1658 (`2026-10-06-unique-indexes-keep-no-record-set`)
