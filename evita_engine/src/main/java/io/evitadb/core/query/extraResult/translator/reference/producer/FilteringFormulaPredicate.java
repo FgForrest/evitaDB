@@ -34,6 +34,7 @@ import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.usage.SchemaCapabilityUsage;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
@@ -44,11 +45,16 @@ import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 
 import static io.evitadb.core.query.filter.FilterByVisitor.createFormulaForTheFilter;
+import static io.evitadb.core.query.filter.FilterByVisitor.createFormulaForTheFilterRecordingCapabilities;
 
 /**
  * The predicate evaluates the nested query filter function to get the {@link Bitmap} of all hierarchy entity primary
  * keys that match the passed filtering constraint. It uses the result bitmap to resolve to decide output of the
  * predicate test method - for each key matching the computed result returns true, otherwise false.
+ *
+ * The filter is evaluated by no query plan of its own, so the schema capabilities it requests are counted with the
+ * enclosing query: they are handed to its planning context, which counts them once when its plan is built - the
+ * predicates are created while the query is planned, before that.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
@@ -70,11 +76,14 @@ public class FilteringFormulaPredicate implements IntPredicate {
 		@Nonnull Supplier<String> stepDescriptionSupplier
 	) {
 		this.filterBy = filterBy;
+		final QueryPlanningContext targetQueryContext = createTargetQueryContext(
+			queryContext, requestedScopes, filterBy, entityType
+		);
 		// create a deferred formula that will log the execution time to query telemetry
 		this.filteringFormula = new DeferredFormula(
 			new FormulaWrapper(
-				createFormulaForTheFilter(
-					createTargetQueryContext(queryContext, requestedScopes, filterBy, entityType),
+				createFormulaForTheFilterRecordingCapabilities(
+					targetQueryContext,
 					requestedScopes,
 					filterBy,
 					entityType,
@@ -92,6 +101,13 @@ public class FilteringFormulaPredicate implements IntPredicate {
 		);
 		// we need to initialize formula immediately with new execution context - the results are needed in planning phase already
 		this.filteringFormula.initialize(queryContext.getInternalExecutionContext());
+		// the context of the target collection never builds a plan, so what the filter requested there is handed to the
+		// enclosing context, which counts it with the query
+		if (targetQueryContext != queryContext) {
+			for (final SchemaCapabilityUsage requestedCapability : targetQueryContext.drainRequestedCapabilities()) {
+				queryContext.registerRequestedCapability(requestedCapability);
+			}
+		}
 	}
 
 	/**

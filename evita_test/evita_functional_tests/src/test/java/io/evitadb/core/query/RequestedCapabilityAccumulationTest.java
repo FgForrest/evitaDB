@@ -31,6 +31,7 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -79,10 +80,12 @@ import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.entityProperty;
 import static io.evitadb.api.query.QueryConstraints.facetHaving;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.hierarchyWithinSelf;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.api.query.QueryConstraints.referenceContent;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static io.evitadb.api.query.QueryConstraints.referenceProperty;
+import static io.evitadb.api.query.QueryConstraints.referenceSummaryOfReference;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
@@ -148,11 +151,11 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	/** The reference of {@link #ENTITY_CATEGORY} to the tags; category 1 references tag 1. */
 	private static final String REFERENCE_TAGS = "tags";
 	/**
-	 * A type no entity of which exists; it references the categories by {@link #REFERENCE_CATEGORIES}, and
+	 * A hierarchical type no entity of which exists; it references the categories by {@link #REFERENCE_CATEGORIES}, and
 	 * the products reference it by {@link #REFERENCE_BRAND}, which no product holds a row of.
 	 */
 	private static final String ENTITY_BRAND = "brand";
-	/** The reference of {@link #ENTITY_PRODUCT} to the brands, indexed in the live scope. */
+	/** The reference of {@link #ENTITY_PRODUCT} to the brands, indexed and faceted in the live scope. */
 	private static final String REFERENCE_BRAND = "brand";
 	/** The attribute of the {@link #REFERENCE_TAGS} reference, filterable in the live scope. */
 	private static final String ATTRIBUTE_WEIGHT = "weight";
@@ -775,6 +778,56 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		}
 
 		@Test
+		@DisplayName("The filter of the options of a reference summary counts the target's flag once")
+		void shouldCountFilterOfReferenceSummaryOptionsOnce() {
+			// the filter of the summarized categories is planned in a context of the category collection while the
+			// query is planned, and that context builds no plan of its own - the query counts what it requested
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY,
+				Query.query(
+					collection(ENTITY_PRODUCT),
+					require(
+						referenceSummaryOfReference(
+							REFERENCE_CATEGORIES,
+							FacetStatisticsDepth.COUNTS,
+							filterBy(attributeEquals(ATTRIBUTE_CATEGORY_NAME, "category-1"))
+						)
+					)
+				)
+			);
+
+			assertEquals(
+				Map.of(categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L), requested,
+				"The filter of the summarized categories must be counted once on their collection"
+			);
+		}
+
+		@Test
+		@DisplayName("A hierarchy filter of the options of a reference summary counts the target's hierarchy flag once")
+		void shouldCountHierarchyFilterOfReferenceSummaryOptionsOnce() {
+			// `hierarchyWithinSelf` resolves against the tree of the summarized brands and requests their hierarchy
+			// flag in the context it is planned in - the query must count it once
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByFetching(
+				ENTITY_BRAND,
+				Query.query(
+					collection(ENTITY_PRODUCT),
+					require(
+						referenceSummaryOfReference(
+							REFERENCE_BRAND,
+							FacetStatisticsDepth.COUNTS,
+							filterBy(hierarchyWithinSelf(entityPrimaryKeyInSet(1)))
+						)
+					)
+				)
+			);
+
+			assertEquals(
+				Map.of(SchemaCapabilityKey.entity(ENTITY_BRAND, Capability.HIERARCHICAL, Scope.LIVE), 1L), requested,
+				"The hierarchy filter of the summarized brands must be counted once on their collection"
+			);
+		}
+
+		@Test
 		@DisplayName("A query refused over a scope without index counts nothing")
 		void shouldCountNothingWhenQueryOverScopeWithoutIndexIsRefused() {
 			// the catalog holds no index of the archived scope, and `code` is not filterable there - the query fails
@@ -1300,7 +1353,7 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	 * both ways, and a filterable attribute nothing ever names. The categories are live only, and the only stock is
 	 * archived and references a category - so a query over the archived categories, or a nested query of the archived
 	 * stock over them, matches nothing because the scope holds no data. The categories reference the tags, the first of
-	 * them tag 1 with the weight 1. The brands hold no entity at all; they reference the categories, and
+	 * them tag 1 with the weight 1. The hierarchical brands hold no entity at all; they reference the categories, and
 	 * the products reference them by a reference no product holds a row of.
 	 */
 	private void buildCatalog() {
@@ -1336,6 +1389,7 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 				session.archiveEntity(ENTITY_STOCK, ARCHIVED_STOCK);
 				session.defineEntitySchema(ENTITY_BRAND)
 					.withoutGeneratedPrimaryKey()
+					.withHierarchy()
 					.withReferenceToEntity(
 						REFERENCE_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs.indexedInScope(Scope.LIVE)
@@ -1372,7 +1426,7 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 					)
 					.withReferenceToEntity(
 						REFERENCE_BRAND, ENTITY_BRAND, Cardinality.ZERO_OR_ONE,
-						whichIs -> whichIs.indexedInScope(Scope.LIVE)
+						whichIs -> whichIs.indexedInScope(Scope.LIVE).facetedInScope(Scope.LIVE)
 					)
 					.updateVia(session);
 				for (int i = 1; i <= CATEGORY_COUNT; i++) {
