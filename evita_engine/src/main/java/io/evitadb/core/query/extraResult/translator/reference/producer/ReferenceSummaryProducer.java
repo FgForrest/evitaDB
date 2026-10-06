@@ -504,9 +504,14 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			final Map<String, FacetReferenceIndex> globalFacetIndex = globalFacetIndexes.get(scope);
 			final FacetReferenceIndex facetReferenceIndex = globalFacetIndex == null ?
 				null : globalFacetIndex.get(referenceName);
+			if (groupsByScope == null && facetReferenceIndex != null &&
+				facetReferenceIndex.isReferencedOnlyUnder(facetId, facetGroupId)) {
+				// the scope gives the facet the group of the entry, the same as all the scopes before it
+				continue;
+			}
 			final List<Integer> groups = facetReferenceIndex == null ?
 				List.of() : facetReferenceIndex.getGroupsOfFacet(facetId);
-			if (groupsByScope == null && !(groups.size() == 1 && Objects.equals(groups.get(0), facetGroupId))) {
+			if (groupsByScope == null) {
 				groupsByScope = new EnumMap<>(Scope.class);
 				for (final Scope previousScope : scopes) {
 					if (previousScope == scope) {
@@ -515,9 +520,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 					groupsByScope.put(previousScope, Collections.singletonList(facetGroupId));
 				}
 			}
-			if (groupsByScope != null) {
-				groupsByScope.put(scope, groups);
-			}
+			groupsByScope.put(scope, groups);
 		}
 		if (groupsByScope == null) {
 			return FacetGroupOccurrences.singleGroup(facetGroupId, facetEntityIds);

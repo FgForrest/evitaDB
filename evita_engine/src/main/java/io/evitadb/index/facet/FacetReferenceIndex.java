@@ -482,6 +482,26 @@ public class FacetReferenceIndex implements TransactionalLayerProducer<FacetEnti
 	}
 
 	/**
+	 * Returns true if every reference to the facet indexed here is filed under the passed group, and at least one is -
+	 * i.e. {@link #getGroupsOfFacet(int)} lists that group alone. Unlike that method it allocates nothing, so that it
+	 * can be asked about every facet of the reference summary, the most of which have a single group.
+	 *
+	 * @param facetId the primary key of the facet
+	 * @param groupId the group, NULL for the references without a group
+	 * @return true if the facet is referenced under the passed group only
+	 */
+	public boolean isReferencedOnlyUnder(int facetId, @Nullable Integer groupId) {
+		final int[] groupIds = this.facetToGroupIndex.get(facetId);
+		final int groupCount = groupIds == null ? 0 : groupIds.length;
+		final FacetGroupIndex notGroupedFacetIndex = this.notGroupedFacets.get();
+		final boolean referencedWithoutGroup = notGroupedFacetIndex != null &&
+			notGroupedFacetIndex.getFacetIdIndex(facetId) != null;
+		return groupId == null ?
+			groupCount == 0 && referencedWithoutGroup :
+			groupCount == 1 && groupIds[0] == groupId && !referencedWithoutGroup;
+	}
+
+	/**
 	 * Method returns true if facet id is part of the passed group id for specified `entityType`.
 	 */
 	public boolean isFacetInGroup(int groupId, int facetId) {

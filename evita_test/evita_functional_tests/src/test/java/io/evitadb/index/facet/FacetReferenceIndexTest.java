@@ -37,6 +37,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.lang.management.ManagementFactory;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
@@ -896,6 +897,42 @@ class FacetReferenceIndexTest {
 			assertEquals(Arrays.asList(5, 7, null), index.getGroupsOfFacet(10));
 			assertEquals(List.of(5), index.getGroupsOfFacet(11));
 			assertEquals(List.of(), index.getGroupsOfFacet(999));
+		}
+
+		@Test
+		@DisplayName("a facet is referenced only under a group exactly when its groups list that group alone")
+		void shouldTellFacetReferencedOnlyUnderGroupAsItsGroupsDo() {
+			final FacetReferenceIndex index = new FacetReferenceIndex(REFERENCE_NAME);
+			// facet 10 in two groups and without one, 11 in group 5 only, 12 without a group only, 13 in group 5 and
+			// without one
+			index.addFacet(10, null, 100);
+			index.addFacet(10, 7, 200);
+			index.addFacet(10, 5, 300);
+			index.addFacet(11, 5, 400);
+			index.addFacet(12, null, 500);
+			index.addFacet(13, 5, 600);
+			index.addFacet(13, null, 700);
+
+			assertTrue(index.isReferencedOnlyUnder(11, 5));
+			assertTrue(index.isReferencedOnlyUnder(12, null));
+			assertFalse(index.isReferencedOnlyUnder(10, 5));
+			assertFalse(index.isReferencedOnlyUnder(10, null));
+			assertFalse(index.isReferencedOnlyUnder(11, 7));
+			assertFalse(index.isReferencedOnlyUnder(11, null));
+			assertFalse(index.isReferencedOnlyUnder(12, 5));
+			assertFalse(index.isReferencedOnlyUnder(13, 5));
+			assertFalse(index.isReferencedOnlyUnder(13, null));
+			assertFalse(index.isReferencedOnlyUnder(999, 5));
+			assertFalse(index.isReferencedOnlyUnder(999, null));
+			for (final int facetId : new int[]{10, 11, 12, 13, 999}) {
+				for (final Integer groupId : Arrays.asList(5, 7, null)) {
+					assertEquals(
+						index.getGroupsOfFacet(facetId).equals(Collections.singletonList(groupId)),
+						index.isReferencedOnlyUnder(facetId, groupId),
+						"facet " + facetId + ", group " + groupId
+					);
+				}
+			}
 		}
 	}
 }
