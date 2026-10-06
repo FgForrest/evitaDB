@@ -32,6 +32,7 @@ import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
+import io.evitadb.api.query.require.ReferenceSummary;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -39,6 +40,9 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.core.Evita;
@@ -68,6 +72,7 @@ import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static io.evitadb.api.query.QueryConstraints.and;
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
@@ -76,6 +81,7 @@ import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.debug;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
+import static io.evitadb.api.query.QueryConstraints.entityGroupFetch;
 import static io.evitadb.api.query.QueryConstraints.entityHaving;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.entityProperty;
@@ -98,6 +104,7 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FACET;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.REFERENCE;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -165,6 +172,13 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	 * the tags.
 	 */
 	private static final String REFERENCE_BRAND = "brand";
+	/**
+	 * The reflection of the products of the stocks a case declares on {@link #ENTITY_PRODUCT} - before the reference
+	 * {@link #REFERENCE_PRODUCTS} it mirrors exists, so it is not attached while the case queries.
+	 */
+	private static final String REFERENCE_REFLECTED_STOCKS = "reflectedStocks";
+	/** The reference of {@link #ENTITY_STOCK} to the products, declared only to attach the reflection of it. */
+	private static final String REFERENCE_PRODUCTS = "products";
 	/**
 	 * The attribute the categories, the brands and the tags share, filterable in the live scope - the only kind of
 	 * attribute the filter of a summary of all references can name, because it is evaluated against every summarized
@@ -1079,6 +1093,60 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 
 	}
 
+	@Nested
+	@DisplayName("A reflected reference not attached yet")
+	class UnattachedReflection {
+
+		@Test
+		@DisplayName("A summary of all references filtering groups is answered past a faceted unattached reflection")
+		void shouldAnswerGroupFilterOfSummaryOfAllReferencesPastUnattachedFacetedReflection() {
+			// the reflection states its own `faceted()`, so the summary of all references covers it - but the group
+			// type of a reflection is the one of the reference it mirrors, which does not exist yet, and a reflection
+			// asked for it throws; the reflection holds no option, so its groups have nothing to filter
+			assertAnsweredWhileReflectionIsNotAttached(
+				whichIs -> whichIs.indexedInScope(Scope.LIVE).facetedInScope(Scope.LIVE),
+				Query.query(
+					collection(ENTITY_PRODUCT),
+					require(
+						new ReferenceSummary(
+							FacetStatisticsDepth.COUNTS, null, filterGroupBy(entityPrimaryKeyInSet(1)), null, null
+						)
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("A summary of all references fetching its groups is answered past a faceted unattached reflection")
+		void shouldAnswerGroupFetchOfSummaryOfAllReferencesPastUnattachedFacetedReflection() {
+			// the fetch of the groups is checked against the group type of every summarized reference, and the
+			// reflection cannot tell whether its group type is managed before it is attached
+			assertAnsweredWhileReflectionIsNotAttached(
+				whichIs -> whichIs.indexedInScope(Scope.LIVE).facetedInScope(Scope.LIVE),
+				Query.query(
+					collection(ENTITY_PRODUCT),
+					require(new ReferenceSummary(FacetStatisticsDepth.COUNTS, entityGroupFetch()))
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("A summary of all references fetching its options is answered past an unattached reflection")
+		void shouldAnswerFetchOfSummaryOfAllReferencesPastUnattachedReflectionInheritingFaceting() {
+			// the reflection inherits its `faceted()`, which it cannot tell before it is attached - the fetch of the
+			// options must step over it as the recording of the flag does, rather than ask
+			assertAnsweredWhileReflectionIsNotAttached(
+				whichIs -> {
+				},
+				Query.query(
+					collection(ENTITY_PRODUCT),
+					require(new ReferenceSummary(FacetStatisticsDepth.COUNTS, entityFetch()))
+				)
+			);
+		}
+
+	}
+
 	/**
 	 * Plans one query in a context of its own and reports the request counts it moved on the collection's registry.
 	 *
@@ -1412,6 +1480,50 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 					.openForWrite()
 					.setReference(REFERENCE_BRAND, 1, whichIs -> whichIs.setGroup(1))
 					.upsertVia(session);
+			}
+		);
+	}
+
+	/**
+	 * Declares the reflection {@link #REFERENCE_REFLECTED_STOCKS} on the products before the reference of the stocks it
+	 * mirrors exists, runs the query in the same session - while the reflection is not attached - and asserts it is
+	 * answered. The reference the reflection mirrors is declared at last, so that the session closes over a valid
+	 * schema.
+	 *
+	 * @param reflection what the reflection states on its own rather than inherits
+	 * @param query      the query that must be answered
+	 */
+	private void assertAnsweredWhileReflectionIsNotAttached(
+		@Nonnull Consumer<ReflectedReferenceSchemaBuilder> reflection,
+		@Nonnull Query query
+	) {
+		this.evita.updateCatalog(
+			CATALOG,
+			session -> {
+				session.defineEntitySchema(ENTITY_PRODUCT)
+					.withReflectedReferenceToEntity(
+						REFERENCE_REFLECTED_STOCKS, ENTITY_STOCK, REFERENCE_PRODUCTS, reflection
+					)
+					.updateVia(session);
+				final ReferenceSchemaContract reflected = session.getEntitySchemaOrThrowException(ENTITY_PRODUCT)
+					.getReferenceOrThrowException(REFERENCE_REFLECTED_STOCKS);
+				assertTrue(
+					reflected instanceof ReflectedReferenceSchemaContract reflectedReference
+						&& !reflectedReference.isReflectedReferenceAvailable(),
+					"The premise is a reflection not attached yet"
+				);
+
+				assertDoesNotThrow(
+					() -> session.queryList(query, EntityReference.class),
+					"A valid query must be answered while a reflection of the queried type is not attached yet"
+				);
+
+				session.defineEntitySchema(ENTITY_STOCK)
+					.withReferenceToEntity(
+						REFERENCE_PRODUCTS, ENTITY_PRODUCT, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.indexedInScope(Scope.LIVE)
+					)
+					.updateVia(session);
 			}
 		);
 	}

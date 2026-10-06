@@ -254,8 +254,9 @@ public class ReferenceSummaryTranslator
 
 	/**
 	 * Creates the predicate of every reference the summary of all references covers - each reference faceted in one of
-	 * the processing scopes that no reference-specific summary claims - right away, and returns the function the
-	 * producer resolves the predicate of a reference by when the summary is computed.
+	 * the processing scopes that no reference-specific summary claims, a reflection not attached yet excepted - right
+	 * away, and returns the function the producer resolves the predicate of a reference by when the summary is
+	 * computed.
 	 *
 	 * The filter of the summary is evaluated against the entity type each reference targets, and it is a part of the
 	 * query whether that reference holds an option to filter or not: creating the predicates while the query is
@@ -283,12 +284,10 @@ public class ReferenceSummaryTranslator
 	) {
 		final Map<String, IntPredicate> predicates = CollectionUtils.createHashMap(entitySchema.getReferences().size());
 		for (final ReferenceSchemaContract referenceSchema : entitySchema.getReferences().values()) {
-			// a reflected reference whose inherited `faceted()` cannot be determined yet holds no option - see the
-			// recording of the `faceted()` flag in `createProducerInternal`
+			// a reflection not attached yet holds no option, and it cannot name the group type its groups would be
+			// filtered by - even when it states its own `faceted()` - see `isUnattachedReflection`
 			if (referencesDescribedBySpecificSummary.contains(referenceSchema.getName())
-				|| (referenceSchema instanceof ReflectedReferenceSchemaContract reflectedReference
-				&& reflectedReference.isFacetedInherited()
-				&& !reflectedReference.isReflectedReferenceAvailable())
+				|| isUnattachedReflection(referenceSchema)
 				|| scopes.stream().noneMatch(referenceSchema::isFacetedInScope)
 			) {
 				continue;
@@ -300,6 +299,24 @@ public class ReferenceSummaryTranslator
 			return predicates.containsKey(referenceName) ?
 				predicates.get(referenceName) : predicateFactory.apply(referenceSchema);
 		};
+	}
+
+	/**
+	 * Returns true for a reflected reference not attached to the reference it mirrors yet - a legal state of a schema
+	 * being built, in which the reflection may be declared before the reference it mirrors exists. Such a reflection
+	 * holds no data, so a summary has no option of it to describe, and it cannot answer anything it inherits: neither
+	 * an inherited `faceted()` nor its group type, which is always the one of the reference it mirrors, and asking
+	 * for either throws. The summary of all references therefore steps over it rather than fails a valid query.
+	 *
+	 * The recording of the `faceted()` flag in {@link #createProducerInternal} deliberately skips only the reflections
+	 * inheriting the flag: a reflection stating its own `faceted()` answers it fine while not attached.
+	 *
+	 * @param referenceSchema the reference schema to test
+	 * @return true when the reference is a reflection not attached yet
+	 */
+	private static boolean isUnattachedReflection(@Nonnull ReferenceSchemaContract referenceSchema) {
+		return referenceSchema instanceof ReflectedReferenceSchemaContract reflectedReference
+			&& !reflectedReference.isReflectedReferenceAvailable();
 	}
 
 	/**
@@ -353,6 +370,9 @@ public class ReferenceSummaryTranslator
 			// its requirements must not be validated against that reference's schema either - a fetch that is valid
 			// only for the references the generic form actually governs would otherwise be refused
 			.filter(referenceSchema -> !referencesDescribedBySpecificSummary.contains(referenceSchema.getName()))
+			// a reflection not attached yet holds no option and can tell neither whether it is faceted when it
+			// inherits the flag, nor whether its group type is managed - see `isUnattachedReflection`
+			.filter(referenceSchema -> !isUnattachedReflection(referenceSchema))
 			.filter(
 				referenceSchema -> extraResultPlanner
 					.getEvitaRequest()
