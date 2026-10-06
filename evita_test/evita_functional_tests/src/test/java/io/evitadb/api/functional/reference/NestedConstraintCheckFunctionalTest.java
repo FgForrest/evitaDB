@@ -28,15 +28,21 @@ import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.require.EntityContentRequire;
+import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.exception.AttributeNotFilterableException;
 import io.evitadb.core.exception.AttributeNotSortableException;
+import io.evitadb.core.query.QueryPlanner;
+import io.evitadb.core.query.QueryPlanningContext;
+import io.evitadb.core.session.EvitaSession;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
@@ -53,8 +59,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -508,6 +518,45 @@ public class NestedConstraintCheckFunctionalTest {
 			);
 		}
 
+		@DisplayName("Should prefetch nothing for the ordering by a reference without rows")
+		@UseDataSet(NESTED_CHECK)
+		@Test
+		void shouldPrefetchNothingForOrderingByReferenceWithoutRows(Evita evita) {
+			final Query unordered = query(collection(ENTITY_PRODUCT), filterBy(scope(Scope.LIVE)));
+			final List<String> unorderedRequirements = plannedRequirementsToPrefetch(evita, unordered);
+			// the ordering by the brands, which have rows, prefetches the sorted attribute of the brand references -
+			// the reading below sees the requirements an ordering registers, so an equal reading is not vacuous
+			final List<String> requirementsOfOrderingWithRows = plannedRequirementsToPrefetch(
+				evita,
+				query(
+					collection(ENTITY_PRODUCT),
+					filterBy(scope(Scope.LIVE)),
+					orderBy(referenceProperty(REF_BRAND, attributeNatural(ATTRIBUTE_PRIORITY)))
+				)
+			);
+			final List<String> addedByOrderingWithRows = new ArrayList<>(requirementsOfOrderingWithRows);
+			addedByOrderingWithRows.removeAll(unorderedRequirements);
+			assertEquals(
+				List.of(referenceContentWithAttributes(REF_BRAND, ATTRIBUTE_PRIORITY).forPrefetch().toString()),
+				addedByOrderingWithRows,
+				"the ordering by the reference with rows must prefetch its sorted attribute"
+			);
+
+			// the ordering by the former brands, which no product holds a row of, sorts nothing - checking its
+			// attribute must not widen what the query prefetches
+			assertEquals(
+				unorderedRequirements,
+				plannedRequirementsToPrefetch(
+					evita,
+					query(
+						collection(ENTITY_PRODUCT),
+						filterBy(scope(Scope.LIVE)),
+						orderBy(referenceProperty(REF_FORMER_BRAND, attributeNatural(ATTRIBUTE_PRIORITY)))
+					)
+				)
+			);
+		}
+
 	}
 
 	/**
@@ -549,6 +598,33 @@ public class NestedConstraintCheckFunctionalTest {
 					.toList();
 			}
 		);
+	}
+
+	/**
+	 * Plans the query in a planning context of its own, against the real product collection, and returns what the
+	 * planned query prefetches - the requirements the translators of its constraints registered on the context.
+	 *
+	 * The session is the only mock: the planning context accepts the session class itself, while the engine hands its
+	 * clients a proxy of it, and the planning of these queries touches the session only through paths that degrade
+	 * gracefully without one.
+	 *
+	 * @param evita the engine instance
+	 * @param query the query to plan
+	 * @return the requirements to prefetch, as their textual form
+	 */
+	@Nonnull
+	private static List<String> plannedRequirementsToPrefetch(@Nonnull Evita evita, @Nonnull Query query) {
+		final QueryPlanningContext queryContext = ((Catalog) evita.getCatalogInstanceOrThrowException(TEST_CATALOG))
+			.getCollectionForEntityInternal(ENTITY_PRODUCT)
+			.orElseThrow()
+			.createQueryContext(
+				new EvitaRequest(query.normalizeQuery(), OffsetDateTime.now(), EntityReference.class, null),
+				Mockito.mock(EvitaSession.class)
+			);
+		QueryPlanner.planQuery(queryContext);
+		return Arrays.stream(queryContext.getRequirementsToPrefetch())
+			.map(EntityContentRequire::toString)
+			.toList();
 	}
 
 	/**

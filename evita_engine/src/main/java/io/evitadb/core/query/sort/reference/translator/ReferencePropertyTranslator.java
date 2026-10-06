@@ -447,7 +447,9 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	 * the translation from depending on the data: the resolver of the pick-first indexes offers a single empty reduced
 	 * index of the reference to the translators asking for the indexes at planning time - one index, as the rows of
 	 * one referenced entity would - and the sorters are collected in isolation, so that none joins the sorters of the
-	 * query: an owner without a row stays unsorted by the reference.
+	 * query: an owner without a row stays unsorted by the reference. The requirements to prefetch the translators
+	 * register are thrown away as well, so that the check neither widens the prefetch of the query nor changes the
+	 * cost it is chosen by.
 	 *
 	 * @param referenceProperty         the ordering whose child constraints are checked
 	 * @param orderByVisitor            the visitor of the planned query
@@ -475,17 +477,19 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 				)
 			)
 		};
-		orderByVisitor.executeInContext(
-			EMPTY_REDUCED_INDEXES,
-			referenceSchema,
-			null,
-			processingScope.withReferenceSchemaAccessor(referenceName),
-			new MergeModeDefinition(MergeMode.APPEND_FIRST, implicit),
-			createPickFirstIndexResolver(
-				orderByVisitor, referenceSchema, pickFirstByEntityProperty.getChildren(), () -> emptyIndexes
-			),
-			() -> orderByVisitor.collectIsolatedSorters(
-				() -> traverseChildConstraints(referenceProperty, orderByVisitor)
+		orderByVisitor.getQueryContext().executeDiscardingRequirementsToPrefetch(
+			() -> orderByVisitor.executeInContext(
+				EMPTY_REDUCED_INDEXES,
+				referenceSchema,
+				null,
+				processingScope.withReferenceSchemaAccessor(referenceName),
+				new MergeModeDefinition(MergeMode.APPEND_FIRST, implicit),
+				createPickFirstIndexResolver(
+					orderByVisitor, referenceSchema, pickFirstByEntityProperty.getChildren(), () -> emptyIndexes
+				),
+				() -> orderByVisitor.collectIsolatedSorters(
+					() -> traverseChildConstraints(referenceProperty, orderByVisitor)
+				)
 			)
 		);
 	}

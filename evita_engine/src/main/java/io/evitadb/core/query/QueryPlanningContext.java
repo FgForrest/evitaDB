@@ -167,9 +167,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 *
 	 * Translators register here the {@link EntityContentRequire} they will need on a prefetched entity body, so that
 	 * a single prefetch can satisfy all of them at once instead of each translator fetching on its own.
+	 *
+	 * Replaced by a collector that is thrown away while constraints are translated only to be checked - see
+	 * {@link #executeDiscardingRequirementsToPrefetch(Supplier)}.
 	 */
 	@Nonnull @Getter
-	private final FetchRequirementCollector fetchRequirementCollector = new DefaultPrefetchRequirementCollector();
+	private FetchRequirementCollector fetchRequirementCollector = new DefaultPrefetchRequirementCollector();
 	/**
 	 * Contains reference to the policy that controls the interaction with cache and drives the query planning strategy.
 	 * It is picked once for the outer query (debug modes may force a non-caching variant) and inherited unchanged by
@@ -568,6 +571,26 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	public void addRequirementToPrefetch(@Nonnull EntityContentRequire... require) {
 		this.fetchRequirementCollector.addRequirementsToPrefetch(require);
+	}
+
+	/**
+	 * Executes the lambda with the requirements to prefetch it registers collected apart from those of the query and
+	 * thrown away afterwards. A constraint translated only to be checked against the schemas contributes nothing to
+	 * the plan - an ordering by a reference no entity holds a row of sorts nothing - so whatever its translators ask to
+	 * prefetch must not widen the prefetch of the query, nor change the cost the prefetch is chosen by.
+	 *
+	 * @param lambda the translation whose requirements to prefetch are discarded
+	 * @param <T>    the type of the result of the lambda
+	 * @return the result of the lambda
+	 */
+	public <T> T executeDiscardingRequirementsToPrefetch(@Nonnull Supplier<T> lambda) {
+		final FetchRequirementCollector queryRequirementCollector = this.fetchRequirementCollector;
+		this.fetchRequirementCollector = new DefaultPrefetchRequirementCollector();
+		try {
+			return lambda.get();
+		} finally {
+			this.fetchRequirementCollector = queryRequirementCollector;
+		}
 	}
 
 	/**
