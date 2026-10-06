@@ -45,6 +45,7 @@ import io.evitadb.index.map.PersistentTransactionalMap;
 import io.evitadb.index.map.PersistentTransactionalProducerMap;
 import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.page.PageStreamRegistry;
+import io.evitadb.index.reference.TransactionalReference;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexLeafPageRemoval;
@@ -218,6 +219,12 @@ public class VirtualReferencePartitionIndex
 	 */
 	@Nonnull private final PersistentTransactionalMap<Integer, DictionaryEntry> tuples;
 	/**
+	 * The id the next tuple added to the dictionary gets - the box it is handed out in is the very one both dictionary
+	 * maps then hold. Ids are handed out in ascending order and never twice in the lifetime of the loaded index; a
+	 * load starts one above the largest persisted id, so the counter itself is never persisted.
+	 */
+	@Nonnull private final TransactionalReference<Integer> nextTupleId;
+	/**
 	 * The declared sort keys - the slot of each and what it sorts by.
 	 */
 	@Nonnull private final PersistentTransactionalMap<AttributeIndexKey, DeclaredSortKey> sortKeys;
@@ -338,6 +345,7 @@ public class VirtualReferencePartitionIndex
 		this.pageStreamRegistry = new PageStreamRegistry();
 		this.tupleIds = new PersistentTransactionalMap<>(CollectionUtils.createHashMap(4));
 		this.tuples = new PersistentTransactionalMap<>(CollectionUtils.createHashMap(4));
+		this.nextTupleId = new TransactionalReference<>(1);
 		this.sortKeys = new PersistentTransactionalMap<>(CollectionUtils.createHashMap(4));
 		this.sortValueIds = new PersistentTransactionalMap<>(CollectionUtils.createHashMap(16));
 		this.sortValues = new PersistentTransactionalMap<>(CollectionUtils.createHashMap(16));
@@ -434,8 +442,10 @@ public class VirtualReferencePartitionIndex
 
 		final Map<ComparableArray, Integer> tupleIdIndex = CollectionUtils.createHashMap(tupleIds.length);
 		final Map<Integer, DictionaryEntry> tupleIndex = CollectionUtils.createHashMap(tupleIds.length);
+		int largestTupleId = 0;
 		for (int i = 0; i < tupleIds.length; i++) {
 			final int tupleId = tupleIds[i];
+			largestTupleId = Math.max(largestTupleId, tupleId);
 			final int userCount = userCounts.get(tupleId)[0];
 			Assert.isPremiseValid(
 				userCount > 0,
@@ -461,6 +471,7 @@ public class VirtualReferencePartitionIndex
 		}
 		this.tupleIds = new PersistentTransactionalMap<>(tupleIdIndex);
 		this.tuples = new PersistentTransactionalMap<>(tupleIndex);
+		this.nextTupleId = new TransactionalReference<>(largestTupleId + 1);
 
 		final int[] chainSlotIds = new int[chainSlots.length];
 		final Map<AttributeIndexKey, Integer> chainKeyIndex = CollectionUtils.createHashMap(chainSlots.length);
@@ -499,6 +510,7 @@ public class VirtualReferencePartitionIndex
 	 * @param pageStreamRegistry the page bookkeeping, carried by reference
 	 * @param tupleIds           the committed `tuple -> id` map
 	 * @param tuples             the committed `id -> entry` map
+	 * @param nextTupleId        the committed id the next tuple gets
 	 * @param sortKeys           the committed declared sort keys
 	 * @param sortValueIds       the committed `(slot, value) -> id` map
 	 * @param sortValues         the committed `pack(slot, id) -> entry` map
@@ -510,6 +522,7 @@ public class VirtualReferencePartitionIndex
 		@Nonnull PageStreamRegistry pageStreamRegistry,
 		@Nonnull Map<ComparableArray, Integer> tupleIds,
 		@Nonnull Map<Integer, DictionaryEntry> tuples,
+		@Nonnull Integer nextTupleId,
 		@Nonnull Map<AttributeIndexKey, DeclaredSortKey> sortKeys,
 		@Nonnull Map<SortValueKey, Integer> sortValueIds,
 		@Nonnull Map<Long, SortValueEntry> sortValues,
@@ -522,6 +535,7 @@ public class VirtualReferencePartitionIndex
 		this.pageStreamRegistry = pageStreamRegistry;
 		this.tupleIds = new PersistentTransactionalMap<>(tupleIds);
 		this.tuples = new PersistentTransactionalMap<>(tuples);
+		this.nextTupleId = new TransactionalReference<>(nextTupleId);
 		this.sortKeys = new PersistentTransactionalMap<>(sortKeys);
 		this.sortValueIds = new PersistentTransactionalMap<>(sortValueIds);
 		this.sortValues = new PersistentTransactionalMap<>(sortValues);
@@ -1278,14 +1292,15 @@ public class VirtualReferencePartitionIndex
 		// the key, the id box and the user count
 		final long sortValueEntry = layout.sizeOfObject(2L * layout.referenceSize() + Integer.BYTES);
 		final long boxedLong = layout.sizeOfObject(Long.BYTES);
-		// the dirty / dictionaryDirty / entries / pageStreamRegistry / tupleIds / tuples / sortKeys / sortValueIds /
-		// sortValues / sortIndexes / chainKeys slots
-		return layout.sizeOfObject(11L * layout.referenceSize())
+		// the dirty / dictionaryDirty / entries / pageStreamRegistry / tupleIds / tuples / nextTupleId / sortKeys /
+		// sortValueIds / sortValues / sortIndexes / chainKeys slots
+		return layout.sizeOfObject(12L * layout.referenceSize())
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.dictionaryDirty.getHeapSizeInBytes()
 			+ this.entries.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER)
 			+ this.tupleIds.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER, tupleId -> boxedInteger)
 			+ this.tuples.getHeapSizeInBytes(tupleId -> 0L, entry -> dictionaryEntry)
+			+ this.nextTupleId.getHeapSizeInBytes(tupleId -> boxedInteger)
 			+ this.sortKeys.getHeapSizeInBytes(attributeIndexKey -> 0L, DeclaredSortKey::getHeapSizeInBytes)
 			+ this.sortValueIds.getHeapSizeInBytes(
 				key -> sortValueKey + IndexHeapSize.OWNED_KEY_SIZER.applyAsLong(key.value()), valueId -> boxedInteger
@@ -1304,6 +1319,7 @@ public class VirtualReferencePartitionIndex
 		this.entries.removeLayer(transactionalLayer);
 		this.tupleIds.removeLayer(transactionalLayer);
 		this.tuples.removeLayer(transactionalLayer);
+		this.nextTupleId.removeLayer(transactionalLayer);
 		this.sortKeys.removeLayer(transactionalLayer);
 		this.sortValueIds.removeLayer(transactionalLayer);
 		this.sortValues.removeLayer(transactionalLayer);
@@ -1333,6 +1349,7 @@ public class VirtualReferencePartitionIndex
 				this.pageStreamRegistry,
 				transactionalLayer.getStateCopyWithCommittedChanges(this.tupleIds),
 				transactionalLayer.getStateCopyWithCommittedChanges(this.tuples),
+				transactionalLayer.getStateCopyWithCommittedChanges(this.nextTupleId).orElseThrow(),
 				transactionalLayer.getStateCopyWithCommittedChanges(this.sortKeys),
 				transactionalLayer.getStateCopyWithCommittedChanges(this.sortValueIds),
 				transactionalLayer.getStateCopyWithCommittedChanges(this.sortValues),
@@ -2073,16 +2090,15 @@ public class VirtualReferencePartitionIndex
 	}
 
 	/**
-	 * Adds a tuple the dictionary does not know yet, with one user, under an id one above the largest id in use.
+	 * Adds a tuple the dictionary does not know yet, with one user, under the next tuple id.
 	 *
 	 * @param tuple the representative attribute values, copied into the dictionary
 	 * @return the new tuple id
 	 */
 	private int addTuple(@Nonnull Serializable[] tuple) {
-		final int[] largestTupleId = {0};
-		this.tuples.forEach((tupleId, entry) -> largestTupleId[0] = Math.max(largestTupleId[0], tupleId));
 		// one box shared by both maps, see DictionaryEntry
-		final Integer tupleId = largestTupleId[0] + 1;
+		final Integer tupleId = this.nextTupleId.get();
+		this.nextTupleId.set(tupleId + 1);
 		final ComparableArray ownTuple = new ComparableArray(Arrays.copyOf(tuple, tuple.length));
 		this.tupleIds.put(ownTuple, tupleId);
 		this.tuples.put(tupleId, new DictionaryEntry(ownTuple, tupleId, 1));

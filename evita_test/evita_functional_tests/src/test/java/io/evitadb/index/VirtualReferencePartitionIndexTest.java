@@ -25,6 +25,7 @@ package io.evitadb.index;
 
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
@@ -40,6 +41,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -64,6 +66,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -323,7 +326,7 @@ class VirtualReferencePartitionIndexTest {
 		}
 
 		@Test
-		@DisplayName("an id is reused only after nothing refers to it")
+		@DisplayName("an id stays with its tuple while anything refers to it")
 		void shouldReuseIdOnlyAfterRelease() {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
 			index.putRepresentativeTuple(1, GALLERY);
@@ -338,12 +341,204 @@ class VirtualReferencePartitionIndexTest {
 			assertNotEquals(galleryId, compoundId);
 			assertNotEquals(thumbnailId, compoundId);
 
-			// after the largest id is released, a new tuple may take it, and the remaining tuples keep theirs
+			// after the largest id is released, the remaining tuples keep theirs
 			index.removeRepresentativeTuple(3);
 			index.putRepresentativeTuple(4, new Serializable[]{"poster"});
 			assertEquals(galleryId, index.getTupleId(GALLERY));
 			assertEquals(thumbnailId, index.getTupleId(THUMBNAIL));
 			assertArrayEquals(new Serializable[]{"poster"}, index.getTuple(index.getRepresentativeTupleId(4)));
+		}
+	}
+
+	@Nested
+	@DisplayName("Tuple id allocation")
+	class TupleIdAllocation {
+		private static final Serializable[] POSTER = {"poster"};
+		private static final Serializable[] BANNER = {"banner"};
+
+		@Test
+		@DisplayName("a released id is never handed out again, not even to the tuple that held it")
+		void shouldNotHandOutAReleasedIdAgain() {
+			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
+			index.putRepresentativeTuple(1, GALLERY);
+			index.putRepresentativeTuple(2, THUMBNAIL);
+			final int galleryId = index.getTupleId(GALLERY);
+			final int thumbnailId = index.getTupleId(THUMBNAIL);
+
+			// releasing the largest id in use leaves a dictionary whose largest id is smaller than one already issued
+			index.removeRepresentativeTuple(2);
+			index.putRepresentativeTuple(3, POSTER);
+			final int posterId = index.getTupleId(POSTER);
+			index.putRepresentativeTuple(4, THUMBNAIL);
+			final int readdedThumbnailId = index.getTupleId(THUMBNAIL);
+
+			assertEquals(thumbnailId + 1, posterId, "The next id follows the last one issued, not the dictionary");
+			assertEquals(posterId + 1, readdedThumbnailId, "A re-added tuple takes a fresh id");
+			assertEquals(galleryId, index.getTupleId(GALLERY));
+			assertArrayEquals(GALLERY, index.getTuple(galleryId));
+			assertArrayEquals(POSTER, index.getTuple(posterId));
+			assertArrayEquals(THUMBNAIL, index.getTuple(readdedThumbnailId));
+			assertNull(index.getTuple(thumbnailId), "Nothing refers to the released id");
+		}
+
+		/**
+		 * Allocating an id by a walk over the dictionary costs `O(T)` per new tuple, so building `N` distinct tuples
+		 * costs `O(N²)` - around 2·10¹⁰ map visits here, which takes minutes. An `O(1)` allocation builds them in well
+		 * under a second, so the bound sits more than an order of magnitude away from both. There is no seam to count
+		 * the visits through, hence the wall-clock bound.
+		 */
+		@Test
+		@DisplayName("builds many distinct tuples in linear time")
+		void shouldBuildManyDistinctTuplesInLinearTime() {
+			final int tupleCount = 200_000;
+			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
+			assertTimeoutPreemptively(
+				Duration.ofSeconds(10),
+				() -> {
+					for (int partition = 1; partition <= tupleCount; partition++) {
+						index.putRepresentativeTuple(partition, new Serializable[]{partition});
+					}
+				},
+				"Building distinct tuples must not walk the dictionary per new tuple"
+			);
+			assertEquals(tupleCount, index.getTupleId(new Serializable[]{tupleCount}));
+		}
+
+		@Test
+		@DisplayName("a transaction rollback restores the next id")
+		void shouldRestoreTheNextIdOnTransactionRollback() {
+			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
+			index.putRepresentativeTuple(1, GALLERY);
+			index.resetDirty();
+			final int galleryId = index.getTupleId(GALLERY);
+
+			assertStateAfterRollback(
+				index,
+				original -> {
+					original.putRepresentativeTuple(2, THUMBNAIL);
+					original.putRepresentativeTuple(3, COMPOUND);
+				},
+				(original, committed) -> assertNull(committed)
+			);
+
+			index.putRepresentativeTuple(4, POSTER);
+			assertEquals(galleryId + 1, index.getTupleId(POSTER), "The rolled-back ids must be issued again");
+		}
+
+		@Test
+		@DisplayName("a commit carries the next id into the new instance and leaves the original's untouched")
+		void shouldCarryTheNextIdAcrossCommit() {
+			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
+			index.putRepresentativeTuple(1, GALLERY);
+			index.resetDirty();
+			final int galleryId = index.getTupleId(GALLERY);
+
+			final VirtualReferencePartitionIndex[] committed = new VirtualReferencePartitionIndex[1];
+			assertStateAfterCommit(
+				index,
+				original -> {
+					original.putRepresentativeTuple(2, THUMBNAIL);
+					// a tuple acquired and released within the transaction still consumes its id
+					original.putRepresentativeTuple(3, COMPOUND);
+					original.removeRepresentativeTuple(3);
+				},
+				(original, result) -> committed[0] = result
+			);
+
+			committed[0].putRepresentativeTuple(4, POSTER);
+			assertEquals(galleryId + 3, committed[0].getTupleId(POSTER));
+			index.putRepresentativeTuple(4, POSTER);
+			assertEquals(galleryId + 1, index.getTupleId(POSTER), "The original must not see the committed next id");
+		}
+
+		@Test
+		@DisplayName("a savepoint rollback restores the next id the transaction advanced before the savepoint")
+		void shouldRestoreTheNextIdOnSavepointRollback() {
+			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
+			index.putRepresentativeTuple(1, GALLERY);
+			index.resetDirty();
+			final int galleryId = index.getTupleId(GALLERY);
+
+			assertStateAfterCommit(
+				index,
+				original -> {
+					// the transaction touches the next id before the savepoint, so the rollback restores its layer
+					original.putRepresentativeTuple(2, THUMBNAIL);
+					final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+					final TransactionalLayerMaintainer.Savepoint savepoint = maintainer.openSavepoint();
+					original.putRepresentativeTuple(3, COMPOUND);
+					original.putRepresentativeTuple(4, POSTER);
+					maintainer.rollbackSavepoint(savepoint);
+
+					original.putRepresentativeTuple(5, BANNER);
+					assertEquals(galleryId + 2, original.getTupleId(BANNER), "The rolled-back ids must be issued again");
+				},
+				(original, committed) -> assertEquals(galleryId + 2, committed.getTupleId(BANNER))
+			);
+		}
+
+		@Test
+		@DisplayName("a savepoint rollback restores the next id the transaction first advanced inside the savepoint")
+		void shouldRestoreTheNextIdFirstTouchedInsideTheSavepoint() {
+			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
+			index.putRepresentativeTuple(1, GALLERY);
+			index.resetDirty();
+			final int galleryId = index.getTupleId(GALLERY);
+
+			assertStateAfterCommit(
+				index,
+				original -> {
+					final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+					final TransactionalLayerMaintainer.Savepoint savepoint = maintainer.openSavepoint();
+					original.putRepresentativeTuple(2, THUMBNAIL);
+					maintainer.rollbackSavepoint(savepoint);
+
+					original.putRepresentativeTuple(3, POSTER);
+					assertEquals(galleryId + 1, original.getTupleId(POSTER), "The rolled-back id must be issued again");
+				},
+				(original, committed) -> assertEquals(galleryId + 1, committed.getTupleId(POSTER))
+			);
+		}
+
+		@Test
+		@DisplayName("a warm-up savepoint rollback restores the next id")
+		void shouldRestoreTheNextIdOnWarmUpSavepointRollback() {
+			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
+			index.putRepresentativeTuple(1, GALLERY);
+			final int galleryId = index.getTupleId(GALLERY);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			index.putRepresentativeTuple(2, THUMBNAIL);
+			index.putRepresentativeTuple(3, COMPOUND);
+			savepoint.rollback();
+
+			index.putRepresentativeTuple(4, POSTER);
+			assertEquals(galleryId + 1, index.getTupleId(POSTER), "The rolled-back ids must be issued again");
+		}
+
+		@Test
+		@DisplayName("a reloaded index continues allocating above every persisted id")
+		void shouldContinueAllocationAfterReload() {
+			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
+			index.putRepresentativeTuple(1, GALLERY);
+			index.putRepresentativeTuple(2, THUMBNAIL);
+			index.putRepresentativeTuple(3, COMPOUND);
+			// a hole below the largest persisted id
+			index.removeRepresentativeTuple(2);
+			final VirtualReferencePartitionIndexStoragePart root = rootOf(flush(index));
+			final int[] persistedIds = root.getTupleIds();
+
+			final VirtualReferencePartitionIndex reloaded = new VirtualReferencePartitionIndex(
+				REFERENCE_NAME, root.getKeys(), root.getPayloads(), persistedIds, root.getTuples(),
+				root.getSortValueSlots(), root.getChainPredecessorSlots()
+			);
+			reloaded.putRepresentativeTuple(4, POSTER);
+
+			final int posterId = reloaded.getTupleId(POSTER);
+			assertEquals(Arrays.stream(persistedIds).max().orElseThrow() + 1, posterId);
+			assertArrayEquals(GALLERY, reloaded.getTuple(index.getTupleId(GALLERY)));
+			assertArrayEquals(COMPOUND, reloaded.getTuple(index.getTupleId(COMPOUND)));
+			assertArrayEquals(POSTER, reloaded.getTuple(posterId));
 		}
 	}
 
