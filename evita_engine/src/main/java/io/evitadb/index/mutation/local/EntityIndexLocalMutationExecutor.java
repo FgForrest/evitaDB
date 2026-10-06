@@ -1907,7 +1907,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			final Number attributeValue = applyDeltaAttributeMutation.getAttributeValue();
 			AttributeIndexMutator.executeAttributeDelta(
 				this, referenceSchema, attributeSchemaProvider, existingValueSupplier,
-				indexForRemoval, indexForUpsert, affectedAttribute, attributeValue
+				indexForRemoval, indexForUpsert, affectedAttribute, attributeValue, updateGlobalIndex
 			);
 		} else {
 			// SHOULD NOT EVER HAPPEN

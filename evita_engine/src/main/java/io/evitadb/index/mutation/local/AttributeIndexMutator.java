@@ -384,12 +384,12 @@ public interface AttributeIndexMutator {
 	 *   separately filterable (in which case the filterable path handles that).
 	 * - **Filter index** — old value removed, new value inserted.
 	 * - **Sort index** — old value removed, new value inserted.
+	 * - **Catalog global unique index** — when `updateGlobalIndex` is `true` and the attribute is a globally-unique
+	 *   {@link io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema}, the catalog-level entry of the old
+	 *   value is replaced by the new value, exactly as `executeAttributeUpsert` replaces it.
 	 * - **Sortable attribute compounds** — all compound sort schemas that reference this attribute are rebuilt
 	 *   with the new attribute value. Unlike `executeAttributeUpsert`, compound updates are always performed
 	 *   (there is no `updateCompounds` flag on this method).
-	 *
-	 * Note that `executeAttributeDelta` does **not** update the catalog-level global unique index. Delta mutations
-	 * are not permitted on globally-unique attributes by schema validation, so that path is intentionally omitted.
 	 *
 	 * @param executor                the executor that owns the target indexes and provides schema / primary-key context
 	 * @param referenceSchema         the reference schema when the attribute belongs to a reference, `null` for entity
@@ -403,10 +403,13 @@ public interface AttributeIndexMutator {
 	 * @param attributeKey            identifies the attribute by name and optional locale
 	 * @param delta                   the amount to add to the current value; may be negative for a decrement;
 	 *                                will be converted to the attribute's declared numeric type before summing
+	 * @param updateGlobalIndex       when `true`, the catalog-level global unique index is updated for globally-unique
+	 *                                attributes; pass `false` for the reduced indexes the same mutation fans out to,
+	 *                                so the catalog-level entry is replaced once per mutation
 	 * @throws io.evitadb.exception.GenericEvitaInternalError if the existing attribute value is not found or is not
 	 *                                a numeric type
 	 * @throws io.evitadb.api.exception.UniqueValueViolationException if inserting the computed new value would violate
-	 *                                a unique constraint
+	 *                                a unique or global-unique constraint
 	 */
 	static <T extends Serializable & Comparable<T>> void executeAttributeDelta(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -416,7 +419,8 @@ public interface AttributeIndexMutator {
 		@Nonnull EntityIndex indexForRemoval,
 		@Nonnull EntityIndex indexForUpsert,
 		@Nonnull AttributeKey attributeKey,
-		@Nonnull Number delta
+		@Nonnull Number delta,
+		boolean updateGlobalIndex
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
 		final String attributeName = attributeKey.attributeName();
@@ -488,6 +492,23 @@ public interface AttributeIndexMutator {
 		VirtualReferencePartitionWriter.attributeValueAdded(
 			executor, referenceSchema, attributeDefinition, indexForUpsert, locale, addedValue
 		);
+		if (updateGlobalIndex && attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
+			globalAttributeSchema.isUniqueGloballyInScope(scope)) {
+			// the catalog-level global-unique index is a separate index object, so the delta moves its key there too;
+			// the old key is normalized as the upsert that stored it normalized it, `addedValue` already is
+			final CatalogIndex catalogIndex = executor.getCatalogIndex(scope);
+			catalogIndex.removeUniqueAttribute(
+				entitySchema, globalAttributeSchema, allowedLocales, locale,
+				NumberUtils.normalizeForIndexing(removedValue, attributeDefinition.getIndexedDecimalPlaces()),
+				executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX, Target.EXISTING),
+				executor.getEntityTypeClassifierResolver()
+			);
+			catalogIndex.insertUniqueAttribute(
+				entitySchema, globalAttributeSchema, allowedLocales, locale, addedValue,
+				executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_UNIQUE_INDEX, Target.NEW),
+				executor.getEntityTypeClassifierResolver()
+			);
+		}
 		// now update the compounds
 		updateSortableAttributeCompounds(
 			executor, referenceSchema, attributeSchemaProvider, existingValueSupplier,
