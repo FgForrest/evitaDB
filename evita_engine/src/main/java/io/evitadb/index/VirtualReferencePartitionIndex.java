@@ -24,6 +24,7 @@
 package io.evitadb.index;
 
 import com.carrotsearch.hppc.IntIntHashMap;
+import io.evitadb.api.exception.IdentifierOverflowException;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
@@ -165,6 +166,13 @@ public class VirtualReferencePartitionIndex
 	 */
 	public static final int NO_SORT_VALUE_ID = -1;
 	/**
+	 * The counter value of an exhausted tuple id space or sort value id space. A counter holds the id it hands out
+	 * next, so this value itself is never handed out: a counter past it would wrap into the negative range, where sort
+	 * value ids no longer order as `pack(slotId, id)` assumes and both kinds of id eventually reach the
+	 * {@link #NO_TUPLE_ID} and {@link #NO_SORT_VALUE_ID} markers.
+	 */
+	private static final int EXHAUSTED_ID_SPACE = Integer.MAX_VALUE;
+	/**
 	 * Block-size geometry of the entry tree - a 256-entry leaf with the matching minimum split thresholds (identical
 	 * to the reference-type cardinality tree).
 	 */
@@ -221,7 +229,8 @@ public class VirtualReferencePartitionIndex
 	/**
 	 * The id the next tuple added to the dictionary gets - the box it is handed out in is the very one both dictionary
 	 * maps then hold. Ids are handed out in ascending order and never twice in the lifetime of the loaded index; a
-	 * load starts one above the largest persisted id, so the counter itself is never persisted.
+	 * load starts one above the largest persisted id, so the counter itself is never persisted. Once the counter
+	 * reaches {@link #EXHAUSTED_ID_SPACE}, a new tuple is refused with an {@link IdentifierOverflowException}.
 	 */
 	@Nonnull private final TransactionalReference<Integer> nextTupleId;
 	/**
@@ -471,7 +480,7 @@ public class VirtualReferencePartitionIndex
 		}
 		this.tupleIds = new PersistentTransactionalMap<>(tupleIdIndex);
 		this.tuples = new PersistentTransactionalMap<>(tupleIndex);
-		this.nextTupleId = new TransactionalReference<>(largestTupleId + 1);
+		this.nextTupleId = new TransactionalReference<>(nextIdAfterLoad(largestTupleId));
 
 		final int[] chainSlotIds = new int[chainSlots.length];
 		final Map<AttributeIndexKey, Integer> chainKeyIndex = CollectionUtils.createHashMap(chainSlots.length);
@@ -558,6 +567,18 @@ public class VirtualReferencePartitionIndex
 			tree.addLongRecord(keys[i], payloads[i]);
 		}
 		return tree;
+	}
+
+	/**
+	 * Returns the id a tuple or sort value dictionary hands out next after a load whose largest persisted id is
+	 * `largestId` - one above it. No allocation hands out {@link #EXHAUSTED_ID_SPACE}, but should one be persisted, the
+	 * dictionary resumes exhausted rather than wrapping its counter into the negative range.
+	 *
+	 * @param largestId the largest persisted id of the dictionary, `0` when it is empty
+	 * @return the id the dictionary hands out next
+	 */
+	private static int nextIdAfterLoad(int largestId) {
+		return largestId == EXHAUSTED_ID_SPACE ? EXHAUSTED_ID_SPACE : largestId + 1;
 	}
 
 	/**
@@ -835,8 +856,8 @@ public class VirtualReferencePartitionIndex
 			return;
 		}
 		final DeclaredSortKey sortKey = DeclaredSortKey.of(
-			nextDeclaredSlotId(), attributeIndexKey, Arrays.copyOf(comparatorBase, comparatorBase.length),
-			indexedDecimalPlaces, 1
+			nextDeclaredSlotId(attributeIndexKey), attributeIndexKey,
+			Arrays.copyOf(comparatorBase, comparatorBase.length), indexedDecimalPlaces, 1
 		);
 		this.sortKeys.put(attributeIndexKey, sortKey);
 		this.sortIndexes.put(attributeIndexKey, createSortIndex(sortKey, new int[0], new Serializable[0], Map.of()));
@@ -1083,7 +1104,7 @@ public class VirtualReferencePartitionIndex
 		if (this.chainKeys.containsKey(attributeIndexKey)) {
 			return;
 		}
-		this.chainKeys.put(attributeIndexKey, nextDeclaredSlotId());
+		this.chainKeys.put(attributeIndexKey, nextDeclaredSlotId(attributeIndexKey));
 		this.dictionaryDirty.setToTrue();
 		this.dirty.setToTrue();
 	}
@@ -1554,7 +1575,7 @@ public class VirtualReferencePartitionIndex
 			}
 			final DeclaredSortKey sortKey = DeclaredSortKey.of(
 				slotId, slot.attributeIndexKey(), slot.comparatorBase(), slot.indexedDecimalPlaces(),
-				largestValueId + 1
+				nextIdAfterLoad(largestValueId)
 			);
 			sortKeys.put(slot.attributeIndexKey(), sortKey);
 			sortIndexes.put(
@@ -1856,8 +1877,9 @@ public class VirtualReferencePartitionIndex
 			return;
 		}
 		final OwnerSortIndex sortIndex = getSortIndexOfDeclaredKey(attributeIndexKey);
-		this.sortIndexes.markValueMutated(attributeIndexKey);
+		// the value id is acquired first, so an exhausted id space refuses the value before anything changes
 		final int valueId = knownValueId == null ? addSortValue(sortKey, valueKey) : retainSortValue(slotId, knownValueId);
+		this.sortIndexes.markValueMutated(attributeIndexKey);
 		if (previousValueId.isPresent()) {
 			this.entries.removeLongRecord(key);
 			final Serializable previousValue = releaseSortValue(slotId, (int) previousValueId.getAsLong());
@@ -1879,12 +1901,23 @@ public class VirtualReferencePartitionIndex
 	 * {@link VirtualReferencePartitionSlot#FIRST_DECLARED_SLOT_ID}. A slot id is reused only after its key was retired
 	 * together with all its entries.
 	 *
+	 * @param attributeIndexKey the sort or chain key the slot is declared for, named when no slot id is left
 	 * @return the next declared slot id
+	 * @throws IdentifierOverflowException when the largest declared slot id in use is `Integer.MAX_VALUE`
 	 */
-	private int nextDeclaredSlotId() {
+	private int nextDeclaredSlotId(@Nonnull AttributeIndexKey attributeIndexKey) {
 		final int[] largestSlotId = {VirtualReferencePartitionSlot.FIRST_DECLARED_SLOT_ID - 1};
 		this.sortKeys.forEach((key, sortKey) -> largestSlotId[0] = Math.max(largestSlotId[0], sortKey.slotId()));
 		this.chainKeys.forEach((key, slotId) -> largestSlotId[0] = Math.max(largestSlotId[0], slotId));
+		if (largestSlotId[0] == Integer.MAX_VALUE) {
+			throw new IdentifierOverflowException(
+				"No declared slot id is left in a virtual reference partition index to declare `" + attributeIndexKey +
+					"`: slot id " + Integer.MAX_VALUE + " is in use and the next one would wrap into the negative " +
+					"range. Slot ids are computed from the slots in use, so a restart does not help - retiring the " +
+					"sort or chain key holding the largest slot id does, otherwise the entity collection must be " +
+					"reindexed."
+			);
+		}
 		return largestSlotId[0] + 1;
 	}
 
@@ -1954,10 +1987,20 @@ public class VirtualReferencePartitionIndex
 	 * @param sortKey  the declared sort key
 	 * @param valueKey the slot and the normalized value, which the dictionary then owns
 	 * @return the new value id
+	 * @throws IdentifierOverflowException when the slot's value id space is exhausted, before anything changes
 	 */
 	private int addSortValue(@Nonnull DeclaredSortKey sortKey, @Nonnull SortValueKey valueKey) {
 		// one box shared by both maps, see SortValueEntry
 		final Integer valueId = sortKey.nextValueId();
+		if (valueId == EXHAUSTED_ID_SPACE) {
+			throw new IdentifierOverflowException(
+				"The sort value ids of sort key `" + sortKey.attributeIndexKey() + "` (slot " + sortKey.slotId() +
+					") of a virtual reference partition index are exhausted: no id below " + EXHAUSTED_ID_SPACE +
+					" is left to hand out and ids are never reused while the index stays loaded. A restart helps " +
+					"only if the values holding the largest ids have been released since, because a load resumes " +
+					"one above the largest id still in use - otherwise the entity collection must be reindexed."
+			);
+		}
 		this.sortKeys.put(sortKey.attributeIndexKey(), sortKey.withNextValueId(valueId + 1));
 		this.sortValueIds.put(valueKey, valueId);
 		this.sortValues.put(NumberUtils.pack(sortKey.slotId(), valueId), new SortValueEntry(valueKey, valueId, 1));
@@ -2094,10 +2137,20 @@ public class VirtualReferencePartitionIndex
 	 *
 	 * @param tuple the representative attribute values, copied into the dictionary
 	 * @return the new tuple id
+	 * @throws IdentifierOverflowException when the tuple id space is exhausted, before anything changes
 	 */
 	private int addTuple(@Nonnull Serializable[] tuple) {
 		// one box shared by both maps, see DictionaryEntry
 		final Integer tupleId = this.nextTupleId.get();
+		if (tupleId == EXHAUSTED_ID_SPACE) {
+			throw new IdentifierOverflowException(
+				"The representative tuple ids of a virtual reference partition index are exhausted: no id below " +
+					EXHAUSTED_ID_SPACE + " is left to hand out and ids are never reused while the index stays " +
+					"loaded. A restart helps only if the tuples holding the largest ids have been released since, " +
+					"because a load resumes one above the largest id still in use - otherwise the entity collection " +
+					"must be reindexed."
+			);
+		}
 		this.nextTupleId.set(tupleId + 1);
 		final ComparableArray ownTuple = new ComparableArray(Arrays.copyOf(tuple, tuple.length));
 		this.tupleIds.put(ownTuple, tupleId);
@@ -2446,7 +2499,9 @@ public class VirtualReferencePartitionIndex
 
 	/**
 	 * A declared sort key: the slot its sort values live in, what it sorts by, and the next id its value dictionary
-	 * hands out. Ids are handed out in ascending order and never twice while the key stays declared.
+	 * hands out. Ids are handed out in ascending order and never twice while the key stays declared; once the next id
+	 * reaches {@link VirtualReferencePartitionIndex#EXHAUSTED_ID_SPACE}, a new value is refused with an
+	 * {@link IdentifierOverflowException}.
 	 *
 	 * @param slotId               the id of the slot, the high half of every key of its entries
 	 * @param attributeIndexKey    the attribute or compound, with its locale, the partitions are sorted by
