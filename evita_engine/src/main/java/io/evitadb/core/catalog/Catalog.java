@@ -3406,6 +3406,8 @@ public final class Catalog
 	 * @param createEntitySchemaMutation The mutation used to create the entity schema.
 	 * @param catalogSchema              The catalog schema to add the new entity schema to.
 	 * @return The updated catalog schema.
+	 * @throws io.evitadb.api.exception.IdentifierOverflowException when the entity collection primary keys of the
+	 *                                                              catalog are exhausted, before anything changes
 	 */
 	@Nonnull
 	private CatalogSchema createEntitySchema(
@@ -3419,7 +3421,10 @@ public final class Catalog
 			entityType
 		);
 		final long catalogVersion = this.getVersion();
-		final int entityTypePrimaryKey = this.entityTypeSequence.incrementAndGet();
+		final int entityTypePrimaryKey = SequenceService.nextValueOrExhausted(this.entityTypeSequence);
+		if (entityTypePrimaryKey == SequenceService.EXHAUSTED) {
+			throw SequenceService.exhausted(SequenceType.ENTITY_COLLECTION, getName(), null);
+		}
 		final EntityCollectionPersistenceService<StorageDescriptor, EntityCollectionHeader> entityCollectionPersistenceService = this.persistenceService
 			.getOrCreateEntityCollectionPersistenceService(
 				catalogVersion, entityType, entityTypePrimaryKey

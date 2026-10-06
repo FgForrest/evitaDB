@@ -44,6 +44,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.exception.EntityMissingException;
+import io.evitadb.api.exception.IdentifierOverflowException;
 import io.evitadb.api.exception.IndexNotFoundException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
@@ -3596,13 +3597,45 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Generates new UNIQUE primary key for the entity. Calling this
+	 * Generates new UNIQUE primary key for the entity. Only keys the engine generates come from here - a key the
+	 * client supplies never touches the sequence.
 	 *
 	 * @return new unique primary key
+	 * @throws IdentifierOverflowException when the sequence has handed out its last key, before it changes
 	 */
 	private int getNextPrimaryKey() {
-		// atomic integer takes care of concurrent access and producing unique monotonic sequence of numbers
-		return this.pkSequence.incrementAndGet();
+		// the draw takes care of concurrent access and refuses to wrap into the negative range
+		final int primaryKey = SequenceService.nextValueOrExhausted(this.pkSequence);
+		if (primaryKey == SequenceService.EXHAUSTED) {
+			throw exhaustedSequence(SequenceType.ENTITY);
+		}
+		return primaryKey;
+	}
+
+	/**
+	 * Generates new UNIQUE primary key for an entity index of this collection.
+	 *
+	 * @return new unique primary key
+	 * @throws IdentifierOverflowException when the sequence has handed out its last key, before it changes
+	 */
+	private int getNextIndexPrimaryKey() {
+		final int indexPrimaryKey = SequenceService.nextValueOrExhausted(this.indexPkSequence);
+		if (indexPrimaryKey == SequenceService.EXHAUSTED) {
+			throw exhaustedSequence(SequenceType.INDEX);
+		}
+		return indexPrimaryKey;
+	}
+
+	/**
+	 * Builds the refusal for an exhausted sequence of this collection. Kept apart from the draws so that the names the
+	 * refusal carries are resolved only when it is built.
+	 *
+	 * @param sequenceType type of the exhausted sequence
+	 * @return the exception to throw
+	 */
+	@Nonnull
+	private IdentifierOverflowException exhaustedSequence(@Nonnull SequenceType sequenceType) {
+		return SequenceService.exhausted(sequenceType, this.catalog.getName(), getEntityType());
 	}
 
 	/**
@@ -3969,9 +4002,15 @@ public final class EntityCollection implements
 	/**
 	 * Returns new, unique {@link PriceInternalIdContainer#getInternalPriceId()} from the sequence.
 	 * See {@link PriceInternalIdContainer} to see the reasons behind it.
+	 *
+	 * @throws IdentifierOverflowException when the sequence has handed out its last id, before it changes
 	 */
 	private int nextInternalPriceId() {
-		return this.pricePkSequence.incrementAndGet();
+		final int internalPriceId = SequenceService.nextValueOrExhausted(this.pricePkSequence);
+		if (internalPriceId == SequenceService.EXHAUSTED) {
+			throw exhaustedSequence(SequenceType.PRICE);
+		}
+		return internalPriceId;
 	}
 
 	/**
@@ -4546,7 +4585,7 @@ public final class EntityCollection implements
 							// if index doesn't exist even there create new one
 							if (eikAgain.type() == EntityIndexType.GLOBAL) {
 								entityIndex = new GlobalEntityIndex(
-									EntityCollection.this.indexPkSequence.incrementAndGet(),
+									EntityCollection.this.getNextIndexPrimaryKey(),
 									EntityCollection.this.getEntityType(),
 									eikAgain,
 									tracked
@@ -4559,7 +4598,7 @@ public final class EntityCollection implements
 									((String) Objects.requireNonNull(eikAgain.discriminator()))
 								);
 								entityIndex = new ReferencedTypeEntityIndex(
-									EntityCollection.this.indexPkSequence.incrementAndGet(),
+									EntityCollection.this.getNextIndexPrimaryKey(),
 									EntityCollection.this.getEntityType(),
 									eikAgain,
 									tracked
@@ -4570,7 +4609,7 @@ public final class EntityCollection implements
 										.referenceName()
 								);
 								entityIndex = new ReducedEntityIndex(
-									EntityCollection.this.indexPkSequence.incrementAndGet(),
+									EntityCollection.this.getNextIndexPrimaryKey(),
 									EntityCollection.this.getEntityType(),
 									eikAgain,
 									tracked
@@ -4581,7 +4620,7 @@ public final class EntityCollection implements
 										.referenceName()
 								);
 								entityIndex = new ReducedGroupEntityIndex(
-									EntityCollection.this.indexPkSequence.incrementAndGet(),
+									EntityCollection.this.getNextIndexPrimaryKey(),
 									EntityCollection.this.getEntityType(),
 									eikAgain,
 									tracked

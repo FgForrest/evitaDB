@@ -26,6 +26,7 @@ package io.evitadb.index.bPlusTree;
 
 import com.carrotsearch.hppc.LongLongHashMap;
 import com.carrotsearch.hppc.LongObjectHashMap;
+import io.evitadb.api.exception.IdentifierOverflowException;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.DirtyScopeValidator;
 import io.evitadb.core.transaction.memory.Snapshotable;
@@ -201,6 +202,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * Isolates the slot out of a packed `(leafId << 32) | slot` directory entry.
 	 */
 	private static final long SLOT_MASK = 0xFFFF_FFFFL;
+	/**
+	 * The largest leaf id the directory can pack into the high half of an entry - the leaf after it is refused.
+	 */
+	private static final long LAST_LEAF_ID = 0xFFFF_FFFFL;
 	/**
 	 * The empty leaf-version table a first rebuild probes against, so it needs no null branch. Shared and never
 	 * written: a rebuild only ever READS the previous version's table and publishes a freshly built one beside it.
@@ -1380,15 +1385,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			? new long[64] : Arrays.copyOf(previous.valueIdLocations(), previous.valueIdLocations().length);
 		for (final BPlusLeafTreeNode<K> leaf : leaves) {
 			if (leaf.getLeafId() == UNASSIGNED_LEAF_ID) {
+				if (this.nextLeafId > LAST_LEAF_ID) {
+					throw leafIdsExhausted();
+				}
 				leaf.assignLeafId(this.nextLeafId++);
 			}
 			final long leafId = leaf.getLeafId();
-			Assert.isPremiseValid(
-				leafId <= 0xFFFF_FFFFL,
-				"The leaf id space of this shared value tree is exhausted - the directory packs a leaf id and a slot " +
-					"into one long. Leaf ids are runtime-only and restart on load, so only an extraordinarily " +
-					"long-lived process can reach this; a generation-scoped compaction resets them."
-			);
 			rebuiltLeafById.put(leafId, leaf);
 			rebuiltVersions.put(leafId, leaf.getId());
 			// `indexOf`/`indexExists`/`indexGet` rather than `get` with a sentinel: a leaf version token of 0 is not
@@ -1635,6 +1637,23 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 */
 	public long getNextLeafId() {
 		return this.nextLeafId;
+	}
+
+	/**
+	 * Builds the refusal of a directory rebuild that would have to give a leaf an id past {@link #LAST_LEAF_ID}.
+	 *
+	 * @return the exception to throw
+	 */
+	@Nonnull
+	private static IdentifierOverflowException leafIdsExhausted() {
+		return new IdentifierOverflowException(
+			"The leaf id space of this shared value tree is exhausted - the directory packs a leaf id and a slot " +
+				"into one long, and leaf id " + LAST_LEAF_ID + " has been handed out. Leaf ids are runtime-only and " +
+				"restart on load, so only an extraordinarily long-lived process can reach this; a restart, or a " +
+				"generation-scoped compaction, resets them.",
+			"The leaf ids of an attribute value index are exhausted. They live in memory only and are numbered " +
+				"from the beginning when the index is loaded - restart the evitaDB server to continue."
+		);
 	}
 
 	/**
