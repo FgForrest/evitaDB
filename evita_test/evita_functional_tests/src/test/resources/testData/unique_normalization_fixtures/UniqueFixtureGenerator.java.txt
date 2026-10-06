@@ -1,0 +1,67 @@
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.core.Evita;
+
+import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.text.Normalizer;
+import java.util.Locale;
+
+public class UniqueFixtureGenerator {
+	static String nfc(String s) { return Normalizer.normalize(s, Normalizer.Form.NFC); }
+	static String nfd(String s) { return Normalizer.normalize(s, Normalizer.Form.NFD); }
+
+	public static void main(String[] args) throws Exception {
+		final Path out = Path.of(args[0]);
+		final String name = args[1];
+		Files.createDirectories(out.resolve("storage"));
+		Files.createDirectories(out.resolve("work"));
+		final Evita evita = new Evita(
+			EvitaConfiguration.builder()
+				.server(ServerOptions.builder().closeSessionsAfterSecondsOfInactivity(-1).build())
+				.storage(StorageOptions.builder().storageDirectory(out.resolve("storage")).workDirectory(out.resolve("work")).build())
+				.build()
+		);
+		evita.defineCatalog(name);
+		try (EvitaSessionContract session = evita.createReadWriteSession(name)) {
+			session.getCatalogSchema().openForWrite()
+				.withAttribute("code", String.class, a -> a.uniqueGlobally().nullable())
+				.withAttribute("price", BigDecimal.class, a -> a.uniqueGlobally().nullable().indexDecimalPlaces(2))
+				.updateVia(session);
+			session.defineEntitySchema("product").withoutGeneratedPrimaryKey().withLocale(Locale.ENGLISH, Locale.GERMAN)
+				.withGlobalAttribute("code").withGlobalAttribute("price")
+				.withAttribute("url", String.class, a -> a.localized().unique().nullable())
+				.updateVia(session);
+			session.defineEntitySchema("category").withoutGeneratedPrimaryKey().withLocale(Locale.ENGLISH)
+				.withGlobalAttribute("code").withGlobalAttribute("price")
+				.updateVia(session);
+			if ("unique_raw_keys".equals(name)) {
+				session.createNewEntity("product", 1).setAttribute("code", nfc("čaj"))
+					.setAttribute("price", new BigDecimal("1.235")).setAttribute("url", Locale.ENGLISH, nfc("/čaj")).upsertVia(session);
+				session.createNewEntity("product", 2).setAttribute("code", "tea")
+					.setAttribute("price", new BigDecimal("2.5")).setAttribute("url", Locale.ENGLISH, "/tea").upsertVia(session);
+				for (int i = 3; i <= 302; i++) {
+					session.createNewEntity("product", i).setAttribute("code", nfc("ž-" + i))
+						.setAttribute("url", Locale.GERMAN, nfc("/řeka-" + i)).upsertVia(session);
+				}
+				session.createNewEntity("category", 1).setAttribute("code", nfc("kategorie-ř")).upsertVia(session);
+			} else if ("unique_collisions".equals(name)) {
+				// two owners whose values are one value once compared like filtered values
+				session.createNewEntity("product", 1).setAttribute("code", nfc("čaj"))
+					.setAttribute("price", new BigDecimal("1.235")).setAttribute("url", Locale.ENGLISH, nfc("/čaj")).upsertVia(session);
+				session.createNewEntity("product", 2).setAttribute("url", Locale.ENGLISH, nfd("/čaj")).upsertVia(session);
+				session.createNewEntity("category", 1).setAttribute("code", nfd("čaj"))
+					.setAttribute("price", new BigDecimal("1.236")).upsertVia(session);
+			} else {
+				throw new IllegalArgumentException(name);
+			}
+			session.goLiveAndClose();
+		}
+		evita.close();
+		System.out.println("written " + name);
+		System.exit(0);
+	}
+}
