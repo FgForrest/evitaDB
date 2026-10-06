@@ -49,9 +49,20 @@ class CurrentMutationLogFile implements Closeable {
 	private final AtomicLong firstVersionOfCurrentWalFile = new AtomicLong(-1L);
 	/**
 	 * This field contains the version of the last fully written transaction in the WAL file.
-	 * The value `0` means there are no valid transactions in the WAL file.
+	 * The value `-1` means there are no valid transactions in the WAL file.
 	 */
 	private final AtomicLong lastWrittenVersion = new AtomicLong();
+	/**
+	 * Version of the last transaction of the newest finalized (rotated away) WAL file preceding this one, or `-1`
+	 * when this is the first file of the log or nothing about its predecessor is known.
+	 *
+	 * This file alone cannot say what the log's last written version is while it holds no transaction yet - and it
+	 * holds none for a while after every rotation: briefly inside the append that rotated, and indefinitely when the
+	 * process crashed between rotation creating this file (with only its cumulative checksum header) and the first
+	 * append landing in it. The predecessor's last version is the answer for that whole stretch, so it travels with
+	 * the file rather than living in a separate field that a reader could observe out of step with the file swap.
+	 */
+	private final long lastVersionOfPreviousWalFile;
 	/**
 	 * The index of the WAL file incremented each time the WAL file is rotated.
 	 */
@@ -82,22 +93,25 @@ class CurrentMutationLogFile implements Closeable {
 	 */
 	private boolean closed = false;
 
+	/**
+	 * Creates the record of the WAL file the log appends to.
+	 *
+	 * @param walFileIndex                 index of the WAL file
+	 * @param firstCatalogVersion          version of the first transaction in the file, or `-1` when it holds none
+	 * @param lastCatalogVersion           version of the last transaction in the file, or `-1` when it holds none
+	 * @param lastVersionOfPreviousWalFile version of the last transaction of the newest finalized file before this
+	 *                                     one, or `-1` when there is none - see {@link #lastVersionOfPreviousWalFile}
+	 * @param walFilePath                  path of the WAL file
+	 * @param walFileChannel               channel the transactions are appended through
+	 * @param output                       output the transaction mutations are serialized into
+	 * @param size                         current size of the file in bytes
+	 * @param initialCumulativeChecksum    cumulative checksum the file currently stands at
+	 */
 	public CurrentMutationLogFile(
 		int walFileIndex,
 		long firstCatalogVersion,
 		long lastCatalogVersion,
-		@Nonnull Path walFilePath,
-		@Nonnull FileChannel walFileChannel,
-		@Nonnull ObservableOutput<ByteArrayOutputStream> output,
-		long size
-	) {
-		this(walFileIndex, firstCatalogVersion, lastCatalogVersion, walFilePath, walFileChannel, output, size, 0L);
-	}
-
-	public CurrentMutationLogFile(
-		int walFileIndex,
-		long firstCatalogVersion,
-		long lastCatalogVersion,
+		long lastVersionOfPreviousWalFile,
 		@Nonnull Path walFilePath,
 		@Nonnull FileChannel walFileChannel,
 		@Nonnull ObservableOutput<ByteArrayOutputStream> output,
@@ -107,6 +121,7 @@ class CurrentMutationLogFile implements Closeable {
 		this.walFileIndex = walFileIndex;
 		this.firstVersionOfCurrentWalFile.set(firstCatalogVersion);
 		this.lastWrittenVersion.set(lastCatalogVersion);
+		this.lastVersionOfPreviousWalFile = lastVersionOfPreviousWalFile;
 		this.walFilePath = walFilePath;
 		this.walFileChannel = walFileChannel;
 		this.output = output;
@@ -177,6 +192,17 @@ class CurrentMutationLogFile implements Closeable {
 	}
 
 	/**
+	 * Retrieves the version of the last transaction written to the whole log this file belongs to - the last version
+	 * in this file, or, while this file holds no transaction yet, the last version of the finalized file before it.
+	 *
+	 * @return the last version written to the log, or `-1` when the log holds no transaction at all
+	 */
+	public long getLastWrittenVersionInLog() {
+		final long lastVersionInThisFile = this.lastWrittenVersion.get();
+		return lastVersionInThisFile == -1L ? this.lastVersionOfPreviousWalFile : lastVersionInThisFile;
+	}
+
+	/**
 	 * Initializes the first catalog version of the current WAL file if it is not set yet and runs the given action.
 	 *
 	 * @param catalogVersion the catalog version to set
@@ -208,13 +234,18 @@ class CurrentMutationLogFile implements Closeable {
 	 * Checks if the next catalog version matches the expected order.
 	 *
 	 * The method validates that the provided catalog version is either the start of a new sequence
-	 * (when the current last catalog version is -1) or the subsequent version of the last written one.
+	 * (when the log holds no transaction at all) or the subsequent version of the last one written to the log.
 	 * It throws a {@link GenericEvitaInternalError} if this condition is not met.
+	 *
+	 * The comparison is made against the whole log, not this file alone: a file that holds no transaction yet
+	 * continues the finalized file before it, so its first transaction must follow that file's last one. Accepting any
+	 * version there would let an append re-use a version the previous file already holds - which the log's own
+	 * startup verification then rejects as a gap between files, leaving the log unopenable.
 	 *
 	 * @param version the catalog version to verify against the expected sequence
 	 */
 	public void checkNextVersionMatch(long version) {
-		final long currentLastCatalogVersion = this.lastWrittenVersion.get();
+		final long currentLastCatalogVersion = getLastWrittenVersionInLog();
 		Assert.isPremiseValid(
 			currentLastCatalogVersion == -1 || currentLastCatalogVersion + 1 == version,
 			() -> new CatalogWriteAheadLastTransactionMismatchException(

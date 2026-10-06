@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutatio
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.catalog.shared.model.TransactionMutationWithWalReference;
+import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.spi.store.engine.model.CatalogInventoryDivergence;
 import io.evitadb.spi.store.engine.model.EngineState;
@@ -206,6 +207,24 @@ public non-sealed interface EnginePersistenceService<T extends LogRecordReferenc
 
 	/**
 	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
+	 * the engine to `startVersion`, for a WAL that is being appended to while it is read. `requestedVersion` is an
+	 * assertion rather than a filter: the caller states that the transaction carrying it is already written, so an
+	 * inability to reach it surfaces as an exception instead of an exhausted stream. It is also an upper bound -
+	 * later transactions are not delivered.
+	 *
+	 * @param startVersion     version of the engine to start the stream with
+	 * @param requestedVersion the version the stream must reach, and does not pass
+	 * @param versionSource    who chose those versions - decides whether a version that cannot be found is damage
+	 *                         or a bad argument
+	 * @return a stream containing committed mutations
+	 */
+	@Nonnull
+	Stream<EngineMutation<?>> getCommittedLiveMutationStream(
+		long startVersion, long requestedVersion, @Nonnull VersionSource versionSource
+	);
+
+	/**
+	 * Retrieves a stream of committed mutations starting with a {@link TransactionMutation} that will transition
 	 * the engine state to the given version. The stream goes through all the mutations in this transaction from last to
 	 * first one and continues backward with previous transaction after that until the beginning of the WAL.
 	 *
@@ -284,6 +303,14 @@ public non-sealed interface EnginePersistenceService<T extends LogRecordReferenc
 	 * @return the last engine state version written in the WAL stream
 	 */
 	long getLastVersionInMutationStream();
+
+	/**
+	 * Retrieves the first engine version the WAL can still replay once retention has removed older WAL files -
+	 * the version a reader positioned below it can no longer be served from.
+	 *
+	 * @return the first replayable engine version, or `-1` when retention has not removed any WAL file
+	 */
+	long getFirstReplayableVersion();
 
 	/**
 	 * Method closes this persistence service.
