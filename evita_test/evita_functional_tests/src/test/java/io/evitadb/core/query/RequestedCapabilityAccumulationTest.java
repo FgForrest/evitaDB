@@ -55,6 +55,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.exception.AttributeNotFilterableException;
+import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.query.indexSelection.IndexSelectionVisitor;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.dataType.Scope;
@@ -1763,6 +1764,99 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 				AttributeNotFoundException.class,
 				() -> executeQuery(query),
 				"The ordering naming an attribute the brands lack must be refused once a brand exists"
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("A traversal ordering with nothing to traverse")
+	class TraversalWithoutRows {
+
+		@Test
+		@DisplayName("A traversal ordering by the referenced entity counts without rows to order by")
+		void shouldCountTraversalOrderingByReferencedEntityWithoutRows() {
+			// the archive holds no product, hence no row of the categories to order - the ordering of the categories is
+			// named all the same
+			assertEquals(
+				Map.of(categoryNameKey(Capability.SORTABLE, Scope.ARCHIVED), 1L),
+				capabilitiesRequestedByFetching(
+					ENTITY_CATEGORY,
+					productsOrderedByCategoryName(Scope.ARCHIVED, traverseByEntityProperty(categoryNameOrdering()))
+				),
+				"The archive query, with no product to order, must count the name of the category once"
+			);
+		}
+
+		@Test
+		@DisplayName("A traversal of a referenced tree counts with no row, a row of no entity and a row of an entity")
+		void shouldCountTraversalOfReferencedHierarchyWhateverTheData() {
+			// the brands are hierarchical, so their tree is traversed level by level - which needs a row of a product
+			// to traverse, and the tree of the brands in the scope to traverse it in
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				orderBy(
+					referenceProperty(
+						REFERENCE_BRAND,
+						traverseByEntityProperty(attributeNatural(ATTRIBUTE_RANK, OrderDirection.ASC)),
+						entityProperty(entityPrimaryKeyNatural(OrderDirection.ASC))
+					)
+				)
+			);
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(rankKey(Capability.SORTABLE), 1L);
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_BRAND, query),
+				"The query of products holding no brand must count the ordering of the brands once"
+			);
+
+			addMissingBrandOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_BRAND, query),
+				"The query of a product referencing a brand that does not exist must count the ordering once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_BRAND, query),
+				"The query of a product referencing an existing brand must count the ordering once"
+			);
+		}
+
+		@Test
+		@DisplayName("A traversal ordering the referenced entity cannot sort by fails with and without rows")
+		void shouldRefuseTraversalOrderingByUnsortableAttributeWithAndWithoutRows() {
+			// the label of the categories is not sortable - the live products hold rows of the categories to order, the
+			// archive holds none, and the query is refused in both
+			for (final Scope scope : new Scope[]{Scope.LIVE, Scope.ARCHIVED}) {
+				assertThrows(
+					AttributeNotSortableException.class,
+					() -> executeQuery(
+						productsOrderedByCategoryName(
+							scope, traverseByEntityProperty(attributeNatural(ATTRIBUTE_LABEL, OrderDirection.ASC))
+						)
+					),
+					"The traversal by an attribute the categories cannot sort by must be refused in scope " + scope
+				);
+			}
+		}
+
+		/**
+		 * Makes the first product reference the brand 1 in the group of the tag 1 without the brand itself existing -
+		 * after which the reference has a row whose target has no tree to sit in.
+		 */
+		private void addMissingBrandOfFirstProduct() {
+			RequestedCapabilityAccumulationTest.this.evita.updateCatalog(
+				CATALOG,
+				session -> {
+					session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setReference(REFERENCE_BRAND, 1, whichIs -> whichIs.setGroup(1))
+						.upsertVia(session);
+				}
 			);
 		}
 
