@@ -25,6 +25,7 @@ package io.evitadb.core.query;
 
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
@@ -33,6 +34,7 @@ import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.ReferenceSummary;
@@ -130,6 +132,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -1692,6 +1695,74 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 						)
 					)
 				)
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("The orderings of a summary of all references")
+	class SummaryOfAllReferencesOrderings {
+
+		@Test
+		@DisplayName("The orderings of a summary of all references count each target's flag, with and without data")
+		void shouldCountOrderingsOfSummaryOfAllReferencesOnceWithAndWithoutData() {
+			// the options are ordered by the rank of the categories, which hold data, and of the brands, which hold
+			// none at first; the groups by the rank of the tags, the groups of the brands - each of the orderings
+			// requests the rank of its type, whether there is an option or a group to order or not
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				require(
+					referenceSummary(
+						FacetStatisticsDepth.COUNTS,
+						orderBy(attributeNatural(ATTRIBUTE_RANK)),
+						orderGroupBy(attributeNatural(ATTRIBUTE_RANK))
+					)
+				)
+			);
+			final Map<String, Map<SchemaCapabilityKey, Long>> expected = rankSortRequestedOn(SUMMARIZED_TYPES);
+
+			assertEquals(
+				expected, capabilitiesRequestedOn(query, SUMMARIZED_TYPES),
+				"The orderings of the summary must count the rank of each summarized type once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedOn(query, SUMMARIZED_TYPES),
+				"The orderings of the summary must count the rank of each summarized type once, now that a brand exists"
+			);
+		}
+
+		@Test
+		@DisplayName("An ordering of a summary of all references one target type cannot evaluate fails without data")
+		void shouldRefuseOrderingOfSummaryOfAllReferencesNamingAttributeOneTargetLacksWithAndWithoutData() {
+			// the name orders the categories, but the brands declare no such attribute - the summary of all references
+			// orders the options of both, so the query is refused whether a brand option exists to order or not
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				require(
+					referenceSummary(
+						FacetStatisticsDepth.COUNTS,
+						orderBy(attributeNatural(ATTRIBUTE_CATEGORY_NAME)),
+						(OrderGroupBy) null
+					)
+				)
+			);
+
+			assertThrows(
+				AttributeNotFoundException.class,
+				() -> executeQuery(query),
+				"The ordering naming an attribute the brands lack must be refused before any brand exists"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertThrows(
+				AttributeNotFoundException.class,
+				() -> executeQuery(query),
+				"The ordering naming an attribute the brands lack must be refused once a brand exists"
 			);
 		}
 
