@@ -1,11 +1,11 @@
 ---
 title: Standalone unique indexes key every value exactly as the filter index does
 date: 2026-10-06
-updated: 2026-10-06 14:50
+updated: 2026-10-06 20:55
 status: accepted
 kind: fix
 issues: [1712, 1713]
-prs: []
+prs: [1722]
 areas: [evita_engine/src/main/java/io/evitadb/index/attribute/UniqueIndexBPlusTreeSupport.java, evita_engine/src/main/java/io/evitadb/index/attribute/OwnerUniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/GlobalUniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/UniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/FilterIndex.java, evita_engine/src/main/java/io/evitadb/index/bPlusTree/ValueColumnFactory.java, evita_engine/src/main/java/io/evitadb/index/component/loader/AttributeIndexLoader.java, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/attribute, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog/Migration_2026_3.java, evita_store/evita_store_server/src/main/java/io/evitadb/store/index/serializer/ComparableLocaleSerializer.java]
 supersedes: []
 superseded-by: []
@@ -148,11 +148,17 @@ decimal places (both `1.24`, `HALF_UP`). That is how the filter index and the fo
   `UniqueStringAttributeCanonicalLookupFunctionalTest`, `ComparableWrapperArrayFilterFunctionalTest`.
 - `Migration_2026_3_UniqueRekeyTest`: canonical parts untouched, each type rewritten, collisions reported, global
   same-entry fold versus owner refusal.
-- `UniqueIndexReleaseUpgradeTest` over two catalogs written by v2026.2.18 (`testData/unique_normalization_fixtures`,
-  generator kept beside them): NFC texts and finer decimals in inline and paged catalog and collection trees are found
-  by every spelling after the upgrade and after a second boot; a catalog with three colliding pairs (`code`, `price`,
-  `url`) is refused with all three named and its files byte-identical. With the migration's canonicalizer disabled the
-  first test fails to load (`Bulk-loaded keys must be strictly ascending`) and the second does not refuse.
+- `Migration_2026_3_UniqueUpgradeRoundTripTest` (4 cases) runs the real boot-time v6→v7 upgrade over a protocol-6
+  catalog built in code - no release-written binaries are kept in git. The current engine writes the data; offline,
+  every standalone unique part is rewritten into the raw spellings and the order 2026.2 kept, the catalog header is
+  stamped with protocol 6 and published by a new bootstrap record. Inline and paged, for `String`, `BigDecimal` and
+  `OffsetDateTime` in the catalog file (`uniqueGlobally`) and in a collection file (localized, unique across
+  locales): every equivalent spelling finds the value and is refused for another owner after the upgrade, every
+  persisted key is canonical, and a second boot answers the same. A catalog with six colliding pairs (three per file) is refused with every pair
+  named and its files byte-identical. With the identity canonicalizer in the migration all 4 cases fail (raw
+  `1.235` left in the catalog `price` part; the paged catalog fails to load with `Bulk-loaded keys must be strictly
+  ascending`; both collision catalogs reach the engine's load-time refusal instead of the migration's). With the
+  collision pre-pass disabled both collision cases fail: the upgrade completes without complaint.
 - Counterfactuals, each run red and reverted: no key conversion in `UniqueIndexBPlusTreeSupport#toKey` (32 of 48
   functional cases red), persisting raw keys instead of declared values (5 functional, 28 unit red), no bucket-count
   check in `OwnerUniqueIndex#seedTree` (6 load-refusal cases red), identity canonicalizer in the migration (3 of 4
