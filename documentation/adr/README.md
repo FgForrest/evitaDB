@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-10-06 | [Standalone unique indexes key every value exactly as the filter index does](2026-10-06-unique-indexes-normalize-like-filter-indexes.md) | fix | accepted | #1712, #1713 |
 | 2026-10-01 | [A CDC subscriber catching up from the WAL is served everything it is owed or told why not](2026-10-01-cdc-catch-up-delivers-everything-owed-or-fails.md) | fix | accepted | #1687, #1446, #1690, PR #1688 |
 | 2026-09-30 | [Unique indexes keep no record-id set, and a unique value occurs once whatever the locale](2026-09-30-unique-indexes-keep-no-record-set.md) | refactor | accepted | #1658 |
 | 2026-09-28 | [Every scope a reference is indexed in must carry REFERENCED_ENTITY; a stored catalog lacking it loads, and every query and schema change over it refuses loudly](2026-09-28-indexed-reference-scope-requires-entity-component.md) | fix | accepted | #1601, #1583, PR #1657 |

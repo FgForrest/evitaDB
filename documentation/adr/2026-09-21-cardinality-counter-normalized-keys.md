@@ -1,7 +1,7 @@
 ---
 title: One filter-index entry has one identity, and everything that describes an entry now uses it
 date: 2026-09-21
-updated: 2026-09-21 16:45
+updated: 2026-10-06 13:45
 status: accepted
 kind: fix
 issues: [1620]
@@ -9,7 +9,7 @@ prs: [1621]
 areas: [evita_engine/src/main/java/io/evitadb/index/cardinality, evita_engine/src/main/java/io/evitadb/index/attribute, evita_common/src/main/java/io/evitadb/comparator, evita_common/src/main/java/io/evitadb/dataType, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog, evita_store/evita_store_server/src/main/java/io/evitadb/store/index/serializer]
 supersedes: []
 superseded-by: []
-relates: [2026-08-10-stored-value-normalization-split, 2026-09-04-millisecond-temporal-precision]
+relates: [2026-08-10-stored-value-normalization-split, 2026-09-04-millisecond-temporal-precision, 2026-10-06-unique-indexes-normalize-like-filter-indexes]
 ---
 
 # One filter-index entry has one identity, and everything that describes an entry now uses it

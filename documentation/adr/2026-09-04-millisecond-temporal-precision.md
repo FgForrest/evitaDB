@@ -1,7 +1,7 @@
 ---
 title: Cut every temporal value to whole milliseconds as it enters, and carry every temporal index key in one long column
 date: 2026-09-04
-updated: 2026-09-21 16:15
+updated: 2026-10-06 13:45
 status: accepted
 kind: feature
 issues: [1486]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_common/src/main/java/io/evitadb/dataType, evita_api/src/main/java/io/evitadb/api/query, evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure, evita_engine/src/main/java/io/evitadb/index/bPlusTree, evita_engine/src/main/java/io/evitadb/index/attribute, evita_engine/src/main/java/io/evitadb/index/range, evita_engine/src/main/java/io/evitadb/index/invertedIndex, evita_store/evita_store_server/src/main/java/io/evitadb/store/index, evita_external_api/evita_external_api_grpc, documentation/user]
 supersedes: []
 superseded-by: []
-relates: [2026-09-03-content-sized-value-tree-columns, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-05-schema-handling-write-path-optimizations, 2026-09-21-cardinality-counter-normalized-keys]
+relates: [2026-09-03-content-sized-value-tree-columns, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-05-schema-handling-write-path-optimizations, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-06-unique-indexes-normalize-like-filter-indexes]
 ---
 
 # Temporal precision is millisecond, stated once and enforced at the boundary
@@ -148,7 +148,10 @@ REST and EvitaQL — at which point the guarantee would be real and worth its tw
   belongs in `forFilterKey` **only** — in `forKey` it hands a unique index a column keyed by a class its
   values are never converted to. A unique temporal attribute therefore keeps a boxed column and forgoes
   the eight-byte representation; that is correct, not regrettable, because the tree really does hold
-  `OffsetDateTime` values.
+  `OffsetDateTime` values. **Superseded on 2026-10-06** for the unique trees: they now key every value
+  through the filter normalizer and take their column from `forFilterKey` - see
+  [2026-10-06-unique-indexes-normalize-like-filter-indexes](2026-10-06-unique-indexes-normalize-like-filter-indexes.md).
+  The split itself stands for `forKey`'s remaining raw-key caller.
 - **Range sentinels are now `Long.MIN_VALUE` / `Long.MAX_VALUE`**, the same constants all five `NumberRange`
   subtypes and `addValidity`'s always-valid price already use. `toComparableLong` saturates one step inside
   them, so an extreme *closed* bound (`OffsetDateTime.MAX` is legal) can never be read back as an open one.
@@ -229,7 +232,9 @@ catalog a test reads was written by the current writer.
   equality and `hashCode` derive from the comparison longs, so two ranges less than a second apart used to
   compare equal and no longer do — strictly more precise, but it is a behaviour change.
 - **Decided not to fix — legacy `unique` / `uniqueGlobally` temporal values are never retroactively
-  truncated.** Unique indexes store raw values and `AttributeValueSerializer` reads them verbatim, so a value
+  truncated.** *(Superseded on 2026-10-06: the unique trees now normalize every value, `Migration_2026_3`
+  re-keys the persisted ones, and a colliding pair refuses the upgrade loudly instead of last-wins - see
+  [2026-10-06-unique-indexes-normalize-like-filter-indexes](2026-10-06-unique-indexes-normalize-like-filter-indexes.md).)* Unique indexes store raw values and `AttributeValueSerializer` reads them verbatim, so a value
   written before this change keeps its sub-millisecond digits while every probe against it is cut to
   milliseconds. A new write landing in the same millisecond therefore does **not** collide, and the unique
   index durably holds two entries that this record's own rule says are one value. The damage, should it ever
