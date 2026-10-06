@@ -26,6 +26,7 @@ package io.evitadb.index.virtual;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
+import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
@@ -657,7 +658,10 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 										collection(RelatedProductsShapedFixture.ENTITY_PRODUCT),
 										filterBy(scope(BOTH), referenceHaving),
 										orderBy(attributeNatural(RelatedProductsShapedFixture.ATTRIBUTE_RANK)),
-										require(page(pageNumber, 97))
+										require(
+											page(pageNumber, 97),
+											debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+										)
 									),
 									EntityReference.class
 								).getRecordData().stream().map(EntityReference::getPrimaryKey).toList();
@@ -745,7 +749,12 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 			catalog,
 			session -> {
 				return session.query(
-						query(collection(entityType), filterBy(filter), require(page(1, PAGE_SIZE))),
+						query(
+							collection(entityType),
+							filterBy(filter),
+							// every alternative index set and every cacheable subtree must answer the same
+							require(page(1, PAGE_SIZE), debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES))
+						),
 						EntityReference.class
 					)
 					.getRecordData()

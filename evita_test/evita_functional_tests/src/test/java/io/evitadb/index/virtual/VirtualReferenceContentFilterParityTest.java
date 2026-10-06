@@ -27,6 +27,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.require.ChunkingRequireConstraint;
+import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.core.Evita;
@@ -441,7 +442,9 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 						filterBy(scope(scopes)),
 						require(
 							page(1, PAGE_SIZE),
-							entityFetch(referenceContentWithAttributes(referenceName, filterBy(filter), chunk))
+							entityFetch(referenceContentWithAttributes(referenceName, filterBy(filter), chunk)),
+							// every alternative index set and every cacheable subtree must answer the same
+							debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
 						)
 					),
 					SealedEntity.class

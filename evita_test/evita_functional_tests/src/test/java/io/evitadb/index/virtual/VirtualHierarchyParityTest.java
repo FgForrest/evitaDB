@@ -29,6 +29,7 @@ import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
+import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
@@ -460,7 +461,10 @@ class VirtualHierarchyParityTest implements EvitaTestSupport {
 					query(
 						collection(RelatedProductsShapedFixture.ENTITY_PRODUCT),
 						filterBy(filter),
-						require == null ? require(page(1, PAGE_SIZE)) : require(page(1, PAGE_SIZE), require)
+						// every alternative index set and every cacheable subtree must answer the same
+						require == null ?
+							require(page(1, PAGE_SIZE), debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)) :
+							require(page(1, PAGE_SIZE), require, debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES))
 					),
 					EntityReference.class
 				);
