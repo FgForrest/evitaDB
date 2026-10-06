@@ -75,7 +75,7 @@ class OwnerUniqueIndexWarmUpFlushMergeTest {
 	@Test
 	@DisplayName("should free the merged-away leaf page and re-emit the PAGED root after a second warm-up flush merges a leaf")
 	void shouldFreeStalePageAndReemitRootAfterWarmUpFlushMerge() {
-		final OwnerUniqueIndex index = new OwnerUniqueIndex(ENTITY_TYPE, CODE_KEY, Integer.class);
+		final OwnerUniqueIndex index = new OwnerUniqueIndex(ENTITY_TYPE, CODE_KEY, Integer.class, 0);
 		for (int i = 1; i <= VALUE_COUNT; i++) {
 			index.registerUniqueKey(i, recordId(i));
 		}

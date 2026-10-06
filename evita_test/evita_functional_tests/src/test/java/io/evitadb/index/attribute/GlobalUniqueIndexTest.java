@@ -45,6 +45,10 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.time.LocalDateTime;
+import java.io.Serializable;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexStoragePart;
+import io.evitadb.core.buffer.TrappedChanges;
 
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
@@ -90,7 +94,7 @@ class GlobalUniqueIndexTest {
 	private final EntityReferenceWithLocale localizedProduct3Ref = new EntityReferenceWithLocale(Entities.PRODUCT, 3, Locale.ENGLISH);
 	private final GlobalUniqueIndex tested = new GlobalUniqueIndex(
 		Scope.LIVE, new AttributeKey("whatever"), String.class
-	);
+	, 0);
 
 	/**
 	 * Creates a resolver translating between the entity type names and compact primary keys of `entityTypes`, and
@@ -281,7 +285,7 @@ class GlobalUniqueIndexTest {
 		// the locale - `uniqueGloballyWithinLocale` gets one index per locale instead and never meets this case
 		final GlobalUniqueIndex localized = new GlobalUniqueIndex(
 			Scope.LIVE, new AttributeKey("localizedCode"), String.class
-		);
+		, 0);
 		localized.registerUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 2, this.classifierResolver);
 
 		assertThrows(
@@ -314,7 +318,7 @@ class GlobalUniqueIndexTest {
 	void shouldNotAssignLocaleIdWhenLookingUpUnseenLocale() {
 		final GlobalUniqueIndex localized = new GlobalUniqueIndex(
 			Scope.LIVE, new AttributeKey("localizedCode"), String.class
-		);
+		, 0);
 		localized.registerUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 1, this.classifierResolver);
 		assertEquals(1, localized.getLocaleIndex().size());
 
@@ -330,7 +334,7 @@ class GlobalUniqueIndexTest {
 	void shouldNotAssignLocaleIdWhenUnregisteringUnderUnseenLocale() {
 		final GlobalUniqueIndex localized = new GlobalUniqueIndex(
 			Scope.LIVE, new AttributeKey("localizedCode"), String.class
-		);
+		, 0);
 		localized.registerUniqueKey("A", Entities.PRODUCT, Locale.ENGLISH, 1, this.classifierResolver);
 
 		// no tuple carries a locale the index has never seen, so the ownership check refuses the removal
@@ -373,7 +377,7 @@ class GlobalUniqueIndexTest {
 		// rebuild the index from its persisted inline columns, exactly as a load from disk does
 		final GlobalUniqueIndex.InlineSnapshot snapshot = localized.inlineSnapshot();
 		final GlobalUniqueIndex restored = new GlobalUniqueIndex(
-			Scope.LIVE, localized.getAttributeKey(), localized.getType(),
+			Scope.LIVE, localized.getAttributeKey(), localized.getType(), 0,
 			snapshot.values(), snapshot.payloads(), new HashMap<>(localized.getLocaleIndex())
 		);
 
@@ -392,7 +396,7 @@ class GlobalUniqueIndexTest {
 	private GlobalUniqueIndex createLocalizedIndexWithEnglishAndFrench() {
 		final GlobalUniqueIndex localized = new GlobalUniqueIndex(
 			Scope.LIVE, new AttributeKey("localizedCode", Locale.ENGLISH), String.class
-		);
+		, 0);
 		localized.registerUniqueKey("en-value", Entities.PRODUCT, Locale.ENGLISH, 1, this.classifierResolver);
 		localized.registerUniqueKey("fr-value", Entities.PRODUCT, Locale.FRENCH, 2, this.classifierResolver);
 		assertEquals(Locale.ENGLISH, localized.getLocaleIndex().get(1));
@@ -718,14 +722,14 @@ class GlobalUniqueIndexTest {
 	 */
 	@Nonnull
 	private static GlobalUniqueIndex createIndex() {
-		return new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("code"), String.class);
+		return new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("code"), String.class, 0);
 	}
 
 	/**
 	 * A globally-unique temporal attribute. `GlobalUniqueIndex` is created unconditionally for a `uniqueGlobally`
 	 * attribute — unlike `OwnerUniqueIndex` there is no folding into the shared filter tree — so this is the shortest
-	 * path from a schema to the raw-valued unique tree, and it is where selecting the `Instant`-keyed leaf column
-	 * threw a `ClassCastException`. See {@code ValueColumnFactory#forKey}.
+	 * path from a schema to a standalone unique tree. The tree keys a temporal value by its millisecond `Instant`, so
+	 * the same instant is one catalog-wide unique value whatever offset each collection writes it with.
 	 */
 	@Nested
 	@DisplayName("Temporal unique attributes")
@@ -747,7 +751,7 @@ class GlobalUniqueIndexTest {
 		void shouldRegisterAndRetrieveAnOffsetDateTimeValue() {
 			final GlobalUniqueIndex index = new GlobalUniqueIndex(
 				Scope.LIVE, new AttributeKey("validFrom"), OffsetDateTime.class
-			);
+			, 0);
 			index.registerUniqueKey(NOON, Entities.PRODUCT, null, 1, GlobalUniqueIndexTest.this.classifierResolver);
 			index.registerUniqueKey(
 				NOON_PLUS_ONE_MILLI, Entities.PRODUCT, null, 2, GlobalUniqueIndexTest.this.classifierResolver
@@ -776,7 +780,7 @@ class GlobalUniqueIndexTest {
 		void shouldRefuseADuplicateOffsetDateTimeValue() {
 			final GlobalUniqueIndex index = new GlobalUniqueIndex(
 				Scope.LIVE, new AttributeKey("validFrom"), OffsetDateTime.class
-			);
+			, 0);
 			index.registerUniqueKey(NOON, Entities.PRODUCT, null, 1, GlobalUniqueIndexTest.this.classifierResolver);
 
 			assertThrows(
@@ -788,29 +792,121 @@ class GlobalUniqueIndexTest {
 		}
 
 		@Test
-		@DisplayName("two offsets naming the same instant stay two distinct unique keys")
-		void shouldKeepTwoOffsetsOfOneInstantDistinct() {
-			// an index whose leaf column reduced its keys to `Instant` would raise a uniqueness violation here
+		@DisplayName("the same instant at another offset is refused for another collection and found by any offset")
+		void shouldRefuseTheSameInstantAtAnotherOffset() {
+			// the discriminating case: NOON and NOON_AT_PLUS_TWO are the same epoch-millisecond, yet distinct under
+			// OffsetDateTime.compareTo - only an index keyed by the instant enforces uniqueGlobally across them
 			assertEquals(NOON.toInstant(), NOON_AT_PLUS_TWO.toInstant());
 
 			final GlobalUniqueIndex index = new GlobalUniqueIndex(
 				Scope.LIVE, new AttributeKey("validFrom"), OffsetDateTime.class
-			);
-			index.registerUniqueKey(NOON, Entities.PRODUCT, null, 1, GlobalUniqueIndexTest.this.classifierResolver);
-			index.registerUniqueKey(
-				NOON_AT_PLUS_TWO, Entities.PRODUCT, null, 2, GlobalUniqueIndexTest.this.classifierResolver
-			);
+			, 0);
+			index.registerUniqueKey(NOON, Entities.PRODUCT, null, 1, PRODUCT_AND_CATEGORY);
 
+			assertThrows(
+				UniqueValueViolationException.class,
+				() -> index.registerUniqueKey(NOON_AT_PLUS_TWO, Entities.CATEGORY, null, 7, PRODUCT_AND_CATEGORY)
+			);
+			assertEquals(1, index.size());
 			assertEquals(
 				new EntityReferenceWithLocale(Entities.PRODUCT, 1, null),
-				index.getEntityReferenceByUniqueValue(NOON, null, GlobalUniqueIndexTest.this.classifierResolver)
-					.orElse(null)
+				index.getEntityReferenceByUniqueValue(NOON_AT_PLUS_TWO, null, PRODUCT_AND_CATEGORY).orElse(null)
+			);
+
+			// unregistering by yet another offset of the instant releases it for the other collection
+			assertNotNull(
+				index.unregisterUniqueKey(
+					NOON.withOffsetSameInstant(ZoneOffset.ofHours(-5)), Entities.PRODUCT, null, 1, PRODUCT_AND_CATEGORY
+				)
+			);
+			index.registerUniqueKey(NOON_AT_PLUS_TWO, Entities.CATEGORY, null, 7, PRODUCT_AND_CATEGORY);
+			assertEquals(
+				new EntityReferenceWithLocale(Entities.CATEGORY, 7, null),
+				index.getEntityReferenceByUniqueValue(NOON, null, PRODUCT_AND_CATEGORY).orElse(null)
+			);
+		}
+
+		@Test
+		@DisplayName("a LocalDateTime value is refused for a second record and keyed like the filter tree keys it")
+		void shouldRefuseADuplicateLocalDateTime() {
+			final GlobalUniqueIndex index = new GlobalUniqueIndex(
+				Scope.LIVE, new AttributeKey("validFrom"), LocalDateTime.class
+			, 0);
+			final LocalDateTime value = LocalDateTime.of(2026, 5, 20, 12, 19, 26, 123_000_000);
+			index.registerUniqueKey(value.plusNanos(456_789), Entities.PRODUCT, null, 1, PRODUCT_AND_CATEGORY);
+
+			assertThrows(
+				UniqueValueViolationException.class,
+				() -> index.registerUniqueKey(value, Entities.CATEGORY, null, 7, PRODUCT_AND_CATEGORY)
 			);
 			assertEquals(
-				new EntityReferenceWithLocale(Entities.PRODUCT, 2, null),
-				index.getEntityReferenceByUniqueValue(
-					NOON_AT_PLUS_TWO, null, GlobalUniqueIndexTest.this.classifierResolver
-				).orElse(null)
+				new EntityReferenceWithLocale(Entities.PRODUCT, 1, null),
+				index.getEntityReferenceByUniqueValue(value, null, PRODUCT_AND_CATEGORY).orElse(null)
+			);
+		}
+
+		@Test
+		@DisplayName("the keys are held as compactly as Long keys")
+		void shouldHoldTemporalKeysAsCompactlyAsLongKeys() {
+			// a temporal key rides in the same single-`long` leaf column a `Long` key does, so two indexes holding the
+			// same number of values must occupy exactly the same heap; a boxed column would charge every
+			// OffsetDateTime with its own object graph
+			final GlobalUniqueIndex temporal = new GlobalUniqueIndex(
+				Scope.LIVE, new AttributeKey("validFrom"), OffsetDateTime.class
+			, 0);
+			final GlobalUniqueIndex longs = new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("id"), Long.class, 0);
+			for (int i = 0; i < 300; i++) {
+				temporal.registerUniqueKey(NOON.plusSeconds(i), Entities.PRODUCT, null, i + 1, PRODUCT_AND_CATEGORY);
+				longs.registerUniqueKey((long) i, Entities.PRODUCT, null, i + 1, PRODUCT_AND_CATEGORY);
+			}
+
+			assertEquals(longs.getHeapSizeInBytes(), temporal.getHeapSizeInBytes());
+		}
+
+		@Test
+		@DisplayName("values are persisted in the declared type at UTC and found by any offset after a reload")
+		void shouldPersistTheDeclaredTypeAtUtcAndReloadIt() {
+			final GlobalUniqueIndex index = new GlobalUniqueIndex(
+				Scope.LIVE, new AttributeKey("validFrom"), OffsetDateTime.class
+			, 0);
+			index.registerUniqueKey(NOON_AT_PLUS_TWO, Entities.PRODUCT, null, 1, PRODUCT_AND_CATEGORY);
+
+			final TrappedChanges sink = new TrappedChanges();
+			index.appendStorageParts(index.getAttributeKey(), sink);
+			final GlobalUniqueIndexStoragePart part =
+				(GlobalUniqueIndexStoragePart) sink.getTrappedChangesIterator().next();
+			final Serializable[] values = Objects.requireNonNull(part.getValues());
+			// the serializer reads the value back as the declared type, so the part must not carry the Instant key
+			assertArrayEquals(new Serializable[]{NOON}, values);
+			assertEquals(ZoneOffset.UTC, ((OffsetDateTime) values[0]).getOffset());
+
+			final GlobalUniqueIndex reloaded = new GlobalUniqueIndex(
+				Scope.LIVE, part.getAttributeKey(), part.getType(), 0, values,
+				Objects.requireNonNull(part.getPayloads()), new HashMap<>(part.getLocaleIndex())
+			);
+			assertEquals(
+				new EntityReferenceWithLocale(Entities.PRODUCT, 1, null),
+				reloaded.getEntityReferenceByUniqueValue(NOON_AT_PLUS_TWO, null, PRODUCT_AND_CATEGORY).orElse(null)
+			);
+		}
+
+		@Test
+		@DisplayName("a persisted pair naming one instant refuses to load")
+		void shouldRefuseToLoadTwoPersistedValuesOfOneInstant() {
+			// only a part written before the index keyed by instant can hold such a pair
+			final GlobalUniqueIndex source = new GlobalUniqueIndex(
+				Scope.LIVE, new AttributeKey("validFrom"), Long.class
+			, 0);
+			source.registerUniqueKey(1L, Entities.PRODUCT, null, 1, PRODUCT_AND_CATEGORY);
+			source.registerUniqueKey(2L, Entities.CATEGORY, null, 7, PRODUCT_AND_CATEGORY);
+			final long[] payloads = source.inlineSnapshot().payloads();
+
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new GlobalUniqueIndex(
+					Scope.LIVE, new AttributeKey("validFrom"), OffsetDateTime.class, 0,
+					new Serializable[]{NOON, NOON_AT_PLUS_TWO}, payloads, new HashMap<>()
+				)
 			);
 		}
 	}

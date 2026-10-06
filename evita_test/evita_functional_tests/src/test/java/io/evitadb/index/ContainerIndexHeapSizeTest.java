@@ -184,14 +184,14 @@ class ContainerIndexHeapSizeTest {
 			"pageStreamRegistry", "successorsByPredecessor.transactionalLayerWrapper"
 		};
 		/**
-		 * A unique index likewise comes in two shapes: only the standalone owner has a value tree and a comparator of
+		 * A unique index likewise comes in two shapes: only the standalone owner has a value tree and a normalizer of
 		 * its own, while a folded view holds nothing but a pointer at the filter view above it.
 		 */
 		private static final String[] UNIQUE_EXCLUSIONS = {
 			"entityType"
 		};
 		private static final String[] OWNER_UNIQUE_EXCLUSIONS = {
-			"comparator", "pageStreamRegistry",
+			"normalizer", "pageStreamRegistry",
 			"tree.valueColumnFactory", "tree.recordColumnFactory"
 		};
 		/**

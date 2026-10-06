@@ -47,7 +47,6 @@ import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
-import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -167,27 +166,20 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
 
 			final Class<? extends Serializable> plainType = attributeSchema.getPlainType();
-			// scaled-int normalizer for the filter value tree (NFD strings / instant-folded OffsetDateTime / scaled-int
-			// BigDecimal); the filter index re-normalizes idempotently so the already-scaled probe flows through safely
+			// the filter normalizer (NFD strings / instant-folded OffsetDateTime / scaled-int BigDecimal) yields the form
+			// every value tree of the attribute stores - the filter tree and the standalone unique trees alike; each
+			// index re-normalizes idempotently, so the already-normalized probe flows through safely
 			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(
 				plainType, attributeSchema.getIndexedDecimalPlaces()
 			);
-
-			// the exact (un-scaled) target values feed the unique path, which keeps BigDecimal exact
-			final List<? extends Serializable> targetValues = Arrays.stream(comparedValues)
+			final List<? extends Serializable> theComparedValues = Arrays.stream(comparedValues)
 				.map(it -> EvitaDataTypes.toTargetType(it, plainType))
-				.toList();
-			final List<? extends Serializable> theComparedValues = targetValues.stream()
 				.map(normalizer)
 				.toList();
-			// uniqueness stays exact BigDecimal: probe the unique index with the exact values for BigDecimal attributes;
-			// for every other type the canonical (NFD/instant) form matches what the unique index stored
-			final List<? extends Serializable> uniqueComparedValues =
-				plainType == BigDecimal.class ? targetValues : theComparedValues;
 
 			if (scopes.stream().anyMatch(scope -> isUniqueInScope(attributeSchema, scope))) {
 				return createUniqueAttributeFormula(
-					filterByVisitor, attributeSchema, attributeKey, uniqueComparedValues
+					filterByVisitor, attributeSchema, attributeKey, theComparedValues
 				);
 			} else {
 				return createFilterableAttributeFormula(

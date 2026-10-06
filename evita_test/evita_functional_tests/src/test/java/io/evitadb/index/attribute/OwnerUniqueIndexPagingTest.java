@@ -39,6 +39,7 @@ import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -101,7 +102,7 @@ class OwnerUniqueIndexPagingTest {
 	 */
 	@Nonnull
 	private static OwnerUniqueIndex buildLargeIndex() {
-		final OwnerUniqueIndex index = new OwnerUniqueIndex(ENTITY_TYPE, ATTRIBUTE_KEY, String.class);
+		final OwnerUniqueIndex index = new OwnerUniqueIndex(ENTITY_TYPE, ATTRIBUTE_KEY, String.class, 0);
 		for (int i = 1; i <= VALUE_COUNT; i++) {
 			index.registerUniqueKey(slug(i), i);
 		}
@@ -153,6 +154,24 @@ class OwnerUniqueIndexPagingTest {
 		@Nonnull List<StoragePart> parts,
 		@Nonnull Class<? extends Serializable> attributeType
 	) {
+		return reassemble(parts, attributeType, 0);
+	}
+
+	/**
+	 * Reassembles an owner unique index like {@link #reassemble(List, Class)}, keyed at the passed scale - the
+	 * `indexedDecimalPlaces` the loader reads from the attribute schema.
+	 *
+	 * @param parts                the emitted storage parts
+	 * @param attributeType        the declared attribute type the index was built with
+	 * @param indexedDecimalPlaces the scale `BigDecimal` values are keyed at
+	 * @return the reassembled owner unique index
+	 */
+	@Nonnull
+	private static OwnerUniqueIndex reassemble(
+		@Nonnull List<StoragePart> parts,
+		@Nonnull Class<? extends Serializable> attributeType,
+		int indexedDecimalPlaces
+	) {
 		UniqueIndexStoragePart root = null;
 		final Map<Integer, UniqueIndexLeafPagePart> leafByPageSequence = new HashMap<>();
 		for (final StoragePart part : parts) {
@@ -175,7 +194,7 @@ class OwnerUniqueIndexPagingTest {
 			perPageRecordIds[i] = leaf.getRecordIds();
 		}
 		return OwnerUniqueIndex.fromPersistedPages(
-			ENTITY_TYPE, ATTRIBUTE_KEY, attributeType,
+			ENTITY_TYPE, ATTRIBUTE_KEY, attributeType, indexedDecimalPlaces,
 			orderedPageSequences, perPageValues, perPageRecordIds, root.getHighWaterPageSequence()
 		);
 	}
@@ -267,7 +286,7 @@ class OwnerUniqueIndexPagingTest {
 	@Test
 	@DisplayName("a small unique index stays SINGLE (inline) and is not paged")
 	void shouldStaySingleForSmallIndex() {
-		final OwnerUniqueIndex index = new OwnerUniqueIndex(ENTITY_TYPE, ATTRIBUTE_KEY, String.class);
+		final OwnerUniqueIndex index = new OwnerUniqueIndex(ENTITY_TYPE, ATTRIBUTE_KEY, String.class, 0);
 		for (int i = 1; i <= 10; i++) {
 			index.registerUniqueKey(slug(i), i);
 		}
@@ -286,23 +305,25 @@ class OwnerUniqueIndexPagingTest {
 		ADDITIONAL HELPERS
 	 */
 
-	/** Distinct-scale BigDecimal value count used to span more than one leaf in the paged-reload scenario. */
+	/** Distinct BigDecimal value count used to span more than one leaf in the paged-reload scenario. */
 	private static final int DECIMAL_VALUE_COUNT = 300;
+	/** The indexed decimal places the BigDecimal scenarios key their values at. */
+	private static final int DECIMAL_PLACES = 2;
 	/** Record count for the array-typed scenario; multiplied by {@link #ARRAY_ELEMENTS_PER_RECORD} exceeds one leaf. */
 	private static final int ARRAY_RECORD_COUNT = 130;
 	/** Distinct array elements per record — every element is its own unique key inside the index. */
 	private static final int ARRAY_ELEMENTS_PER_RECORD = 5;
 
 	/**
-	 * Produces an exact-scale {@link BigDecimal} key for the given record (`"1.0"`, `"2.0"`, …). The fixed scale of 1
-	 * keeps every key numerically distinct so the exact value+scale order assigns each its own leaf slot.
+	 * Produces a {@link BigDecimal} value for the given record (`"1.235"`, `"2.235"`, …), one digit finer than
+	 * {@link #DECIMAL_PLACES}, so every value is keyed at the indexed scale (`1.24`, `2.24`, …) and stays distinct.
 	 *
 	 * @param recordId the owning record id (also the integral part of the value)
-	 * @return the BigDecimal unique key
+	 * @return the BigDecimal unique value
 	 */
 	@Nonnull
 	private static BigDecimal decimalKey(int recordId) {
-		return new BigDecimal(recordId).setScale(1);
+		return new BigDecimal(recordId + ".235");
 	}
 
 	/**
@@ -319,20 +340,17 @@ class OwnerUniqueIndexPagingTest {
 	}
 
 	/**
-	 * Builds a standalone BigDecimal unique index of {@link #DECIMAL_VALUE_COUNT} distinct-scale values plus one extra
-	 * value (`"1.00"`) that shares the numeric value of record 1 but carries a longer scale, so it must stay a distinct
-	 * unique key. The total comfortably exceeds one leaf, forcing the PAGED shape.
+	 * Builds a standalone BigDecimal unique index of {@link #DECIMAL_VALUE_COUNT} values keyed at
+	 * {@link #DECIMAL_PLACES}. The total comfortably exceeds one leaf, forcing the PAGED shape.
 	 *
 	 * @return the populated BigDecimal owner unique index
 	 */
 	@Nonnull
 	private static OwnerUniqueIndex buildLargeDecimalIndex() {
-		final OwnerUniqueIndex index = new OwnerUniqueIndex(ENTITY_TYPE, ATTRIBUTE_KEY, BigDecimal.class);
+		final OwnerUniqueIndex index = new OwnerUniqueIndex(ENTITY_TYPE, ATTRIBUTE_KEY, BigDecimal.class, DECIMAL_PLACES);
 		for (int i = 1; i <= DECIMAL_VALUE_COUNT; i++) {
 			index.registerUniqueKey(decimalKey(i), i);
 		}
-		// a longer-scale sibling of record 1's value must remain a distinct unique key
-		index.registerUniqueKey(new BigDecimal("1.00"), DECIMAL_VALUE_COUNT + 1);
 		return index;
 	}
 
@@ -345,7 +363,7 @@ class OwnerUniqueIndexPagingTest {
 	 */
 	@Nonnull
 	private static OwnerUniqueIndex buildLargeArrayIndex() {
-		final OwnerUniqueIndex index = new OwnerUniqueIndex(ENTITY_TYPE, ATTRIBUTE_KEY, String[].class);
+		final OwnerUniqueIndex index = new OwnerUniqueIndex(ENTITY_TYPE, ATTRIBUTE_KEY, String[].class, 0);
 		for (int record = 1; record <= ARRAY_RECORD_COUNT; record++) {
 			final String[] elements = new String[ARRAY_ELEMENTS_PER_RECORD];
 			for (int k = 0; k < ARRAY_ELEMENTS_PER_RECORD; k++) {
@@ -357,40 +375,51 @@ class OwnerUniqueIndexPagingTest {
 	}
 
 	@Nested
-	@DisplayName("BigDecimal exact value+scale uniqueness")
+	@DisplayName("BigDecimal uniqueness at the indexed decimal places")
 	class BigDecimalUniquenessTest {
 
 		@Test
-		@DisplayName("values equal in number but different in scale stay distinct unique keys")
+		@DisplayName("values equal at the indexed decimal places are one unique key, whatever their scale")
 		@Tag(INDEXING)
 		@Tag(ATTRIBUTE)
-		void shouldKeepBigDecimalScalesDistinct() {
-			final OwnerUniqueIndex index = new OwnerUniqueIndex(ENTITY_TYPE, ATTRIBUTE_KEY, BigDecimal.class);
+		void shouldTreatValuesEqualAtIndexedScaleAsOneKey() {
+			final OwnerUniqueIndex index = new OwnerUniqueIndex(ENTITY_TYPE, ATTRIBUTE_KEY, BigDecimal.class, DECIMAL_PLACES);
 
 			index.registerUniqueKey(new BigDecimal("1.0"), 1);
-			index.registerUniqueKey(new BigDecimal("1.00"), 2);
+			index.registerUniqueKey(new BigDecimal("1.235"), 2);
 
-			assertEquals(Integer.valueOf(1), index.getRecordIdByUniqueValue(new BigDecimal("1.0")), "`1.0` resolves to its own record");
-			assertEquals(Integer.valueOf(2), index.getRecordIdByUniqueValue(new BigDecimal("1.00")), "`1.00` resolves to its own record");
-			assertEquals(2, index.size(), "the two distinct-scale values are two distinct keys");
-			// claiming `1.0` for a different record must violate uniqueness — it is already owned by record 1
+			assertEquals(Integer.valueOf(1), index.getRecordIdByUniqueValue(new BigDecimal("1.00")), "`1.00` is `1.0`");
+			assertEquals(Integer.valueOf(2), index.getRecordIdByUniqueValue(new BigDecimal("1.236")), "`1.236` is `1.24`");
+			assertEquals(2, index.getDistinctValueCount(), "two values at the indexed scale are two keys");
+			// claiming a value equal at the indexed scale for a different record must violate uniqueness
 			assertThrows(
 				UniqueValueViolationException.class,
-				() -> index.registerUniqueKey(new BigDecimal("1.0"), 3),
-				"re-registering an owned value for a different record must be rejected"
+				() -> index.registerUniqueKey(new BigDecimal("1.000"), 3),
+				"`1.000` is the value record 1 owns"
+			);
+			assertThrows(
+				UniqueValueViolationException.class,
+				() -> index.registerUniqueKey(new BigDecimal("1.2449"), 3),
+				"`1.2449` is the value record 2 owns"
 			);
 		}
 
 		@Test
-		@DisplayName("distinct BigDecimal scales survive a paged flush and reload")
+		@DisplayName("BigDecimal keys survive a paged flush and reload at the indexed decimal places")
 		@Tag(INDEXING)
 		@Tag(ATTRIBUTE)
 		@Tag(STORAGE)
-		void shouldPreserveBigDecimalScalesAcrossPagedReload() {
+		void shouldPreserveBigDecimalKeysAcrossPagedReload() {
 			final OwnerUniqueIndex original = buildLargeDecimalIndex();
-			assertTrue(original.isPaged(), DECIMAL_VALUE_COUNT + 1 + " values must span multiple leaves → PAGED");
+			assertTrue(original.isPaged(), DECIMAL_VALUE_COUNT + " values must span multiple leaves → PAGED");
 
-			final OwnerUniqueIndex reloaded = reassemble(flush(original), BigDecimal.class);
+			final List<StoragePart> parts = flush(original);
+			// the leaf pages carry the declared type at the indexed scale, never the scaled int the tree keys by
+			parts.stream()
+				.filter(UniqueIndexLeafPagePart.class::isInstance)
+				.flatMap(part -> Arrays.stream(((UniqueIndexLeafPagePart) part).getValues()))
+				.forEach(value -> assertEquals(DECIMAL_PLACES, ((BigDecimal) value).scale(), "persisted " + value));
+			final OwnerUniqueIndex reloaded = reassemble(parts, BigDecimal.class, DECIMAL_PLACES);
 
 			assertTrue(reloaded.isPaged(), "the reassembled BigDecimal index must still be PAGED");
 			assertEquals(original.size(), reloaded.size(), "size must match");
@@ -402,12 +431,9 @@ class OwnerUniqueIndexPagingTest {
 			for (int i = 1; i <= DECIMAL_VALUE_COUNT; i++) {
 				assertEquals(Integer.valueOf(i), reloaded.getRecordIdByUniqueValue(decimalKey(i)), "point lookup for record " + i);
 			}
-			// the x.0 / x.00 pair must still resolve to two different records after the round-trip
-			assertEquals(Integer.valueOf(1), reloaded.getRecordIdByUniqueValue(new BigDecimal("1.0")), "`1.0` resolves to record 1");
-			assertEquals(
-				Integer.valueOf(DECIMAL_VALUE_COUNT + 1), reloaded.getRecordIdByUniqueValue(new BigDecimal("1.00")),
-				"`1.00` resolves to its own record"
-			);
+			// any spelling equal at the indexed scale still resolves to the owner after the round-trip
+			assertEquals(Integer.valueOf(1), reloaded.getRecordIdByUniqueValue(new BigDecimal("1.24")), "`1.24` resolves to record 1");
+			assertEquals(Integer.valueOf(1), reloaded.getRecordIdByUniqueValue(new BigDecimal("1.2449")), "`1.2449` resolves to record 1");
 		}
 
 	}
@@ -472,7 +498,7 @@ class OwnerUniqueIndexPagingTest {
 		@Tag(INDEXING)
 		@Tag(ATTRIBUTE)
 		void shouldDropOnlyTheRecordWhoseWholeArrayIsUnregistered() {
-			final OwnerUniqueIndex index = new OwnerUniqueIndex(ENTITY_TYPE, ATTRIBUTE_KEY, String[].class);
+			final OwnerUniqueIndex index = new OwnerUniqueIndex(ENTITY_TYPE, ATTRIBUTE_KEY, String[].class, 0);
 			index.registerUniqueKey(new String[] {"a", "b"}, 5);
 			index.registerUniqueKey(new String[] {"c", "d"}, 6);
 			assertArrayEquals(
@@ -507,7 +533,7 @@ class OwnerUniqueIndexPagingTest {
 		@Tag(INDEXING)
 		@Tag(ATTRIBUTE)
 		void shouldKeepRecordWhenArrayValueReplacedThroughWholeValueRemoveThenAdd() {
-			final OwnerUniqueIndex index = new OwnerUniqueIndex(ENTITY_TYPE, ATTRIBUTE_KEY, String[].class);
+			final OwnerUniqueIndex index = new OwnerUniqueIndex(ENTITY_TYPE, ATTRIBUTE_KEY, String[].class, 0);
 			index.registerUniqueKey(new String[] {"a", "b"}, 5);
 
 			// executeAttributeUpsert replaces an array value by removing the whole old array and inserting the whole new
@@ -534,7 +560,7 @@ class OwnerUniqueIndexPagingTest {
 		@Tag(INDEXING)
 		@Tag(ATTRIBUTE)
 		void shouldEmptyIndexWhenSoleOwnersWholeArrayUnregistered() {
-			final OwnerUniqueIndex index = new OwnerUniqueIndex(ENTITY_TYPE, ATTRIBUTE_KEY, String[].class);
+			final OwnerUniqueIndex index = new OwnerUniqueIndex(ENTITY_TYPE, ATTRIBUTE_KEY, String[].class, 0);
 			index.registerUniqueKey(new String[] {"a", "b"}, 5);
 
 			index.unregisterUniqueKey(new String[] {"a", "b"}, 5);

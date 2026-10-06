@@ -148,7 +148,7 @@ class WarmUpSavepointGlobalUniqueIndexConsistencyTest {
 	@Test
 	@DisplayName("Rolling back a localized registration leaves no tuple pointing at a rewound locale id")
 	void shouldLeaveNoOrphanedLocaleReferenceAfterRollback() {
-		final GlobalUniqueIndex index = new GlobalUniqueIndex(Scope.LIVE, URL_KEY, String.class);
+		final GlobalUniqueIndex index = new GlobalUniqueIndex(Scope.LIVE, URL_KEY, String.class, 0);
 		index.registerUniqueKey("A", Entities.PRODUCT, null, 1, this.classifierResolver);
 
 		final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
@@ -191,7 +191,7 @@ class WarmUpSavepointGlobalUniqueIndexConsistencyTest {
 	@Test
 	@DisplayName("Rolling back a burst that paged the value tree restores the inline shape")
 	void shouldRestoreValueTreeShapeAfterPagingBurst() {
-		final GlobalUniqueIndex index = new GlobalUniqueIndex(Scope.LIVE, URL_KEY, Integer.class);
+		final GlobalUniqueIndex index = new GlobalUniqueIndex(Scope.LIVE, URL_KEY, Integer.class, 0);
 		for (int i = 1; i <= 20; i++) {
 			index.registerUniqueKey(i, Entities.PRODUCT, null, i, this.classifierResolver);
 		}
@@ -222,7 +222,7 @@ class WarmUpSavepointGlobalUniqueIndexConsistencyTest {
 	@Test
 	@DisplayName("Committing keeps the localized registration and its locale id")
 	void shouldKeepLocalizedRegistrationOnCommit() {
-		final GlobalUniqueIndex index = new GlobalUniqueIndex(Scope.LIVE, URL_KEY, String.class);
+		final GlobalUniqueIndex index = new GlobalUniqueIndex(Scope.LIVE, URL_KEY, String.class, 0);
 		index.registerUniqueKey("A", Entities.PRODUCT, null, 1, this.classifierResolver);
 
 		final WarmUpSavepoint savepoint = WarmUpSavepoint.open();

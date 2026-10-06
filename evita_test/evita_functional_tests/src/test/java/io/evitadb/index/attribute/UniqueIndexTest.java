@@ -25,6 +25,7 @@ package io.evitadb.index.attribute;
 
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
@@ -39,8 +40,10 @@ import javax.annotation.Nonnull;
 import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
@@ -57,7 +60,7 @@ import static io.evitadb.test.TestTags.ATTRIBUTE;
 @Tag(INDEXING)
 @Tag(ATTRIBUTE)
 class UniqueIndexTest {
-	private final UniqueIndex tested = new OwnerUniqueIndex(Entities.PRODUCT, new AttributeIndexKey(null, "whatever", null), String.class);
+	private final UniqueIndex tested = new OwnerUniqueIndex(Entities.PRODUCT, new AttributeIndexKey(null, "whatever", null), String.class, 0);
 
 	@Test
 	void shouldRegisterUniqueValueAndRetrieveItBack() {
@@ -124,12 +127,12 @@ class UniqueIndexTest {
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
-			);
+			, 0);
 			final UniqueIndex second = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
-			);
+			, 0);
 
 			// stable — same value on repeated calls
 			assertEquals(first.getId(), first.getId());
@@ -144,7 +147,7 @@ class UniqueIndexTest {
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
-			);
+			, 0);
 			index.registerUniqueKey("pre-existing", 100);
 
 			assertStateAfterCommit(
@@ -174,7 +177,7 @@ class UniqueIndexTest {
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
-			);
+			, 0);
 			index.registerUniqueKey("A", 1);
 
 			// rollback implicitly calls removeLayer on nested producers
@@ -201,7 +204,7 @@ class UniqueIndexTest {
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
-			);
+			, 0);
 
 			assertStateAfterCommit(
 				index,
@@ -229,7 +232,7 @@ class UniqueIndexTest {
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
-			);
+			, 0);
 
 			assertStateAfterCommit(
 				index,
@@ -245,7 +248,7 @@ class UniqueIndexTest {
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
-			);
+			, 0);
 
 			assertStateAfterCommit(
 				index,
@@ -263,7 +266,7 @@ class UniqueIndexTest {
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
-			);
+			, 0);
 
 			final AtomicReference<UniqueIndex> committedRef = new AtomicReference<>();
 
@@ -296,7 +299,7 @@ class UniqueIndexTest {
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
-			);
+			, 0);
 			index.registerUniqueKey("X", 10);
 			index.registerUniqueKey("Y", 20);
 
@@ -339,7 +342,7 @@ class UniqueIndexTest {
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
-			);
+			, 0);
 			// the key carries no locale, so record 1 owns its english and its german value in this one index
 			index.registerUniqueKey("en-A", 1);
 			index.registerUniqueKey("de-A", 1);
@@ -356,7 +359,7 @@ class UniqueIndexTest {
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
-			);
+			, 0);
 			// the same shape as a type-level index, whose record is a partition several owners' values map to
 			index.registerUniqueKey("en-A", 1);
 			index.registerUniqueKey("de-A", 1);
@@ -378,7 +381,7 @@ class UniqueIndexTest {
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
-			);
+			, 0);
 			index.registerUniqueKey("en-A", 1);
 			index.registerUniqueKey("de-A", 1);
 
@@ -438,7 +441,7 @@ class UniqueIndexTest {
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
-			);
+			, 0);
 			// an owner index also serves type-level indexes whose record is not an entity primary key, so every int is
 			// a legitimate record id
 			index.registerUniqueKey("min", Integer.MIN_VALUE);
@@ -462,7 +465,7 @@ class UniqueIndexTest {
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
-			);
+			, 0);
 			index.registerUniqueKey("en-A", 1);
 			index.registerUniqueKey("de-A", 1);
 
@@ -485,7 +488,7 @@ class UniqueIndexTest {
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
-			);
+			, 0);
 			index.registerUniqueKey("en-A", 1);
 			index.registerUniqueKey("de-A", 1);
 			index.registerUniqueKey("en-B", 2);
@@ -509,7 +512,7 @@ class UniqueIndexTest {
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
-			);
+			, 0);
 
 			assertTrue(index.isEmpty());
 			assertEquals(0, index.size());
@@ -522,7 +525,7 @@ class UniqueIndexTest {
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
-			);
+			, 0);
 
 			final TrappedChanges sink = new TrappedChanges();
 			index.appendStorageParts(1, sink);
@@ -536,7 +539,7 @@ class UniqueIndexTest {
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
-			);
+			, 0);
 			index.registerUniqueKey("A", 1);
 
 			final TrappedChanges sink = new TrappedChanges();
@@ -562,7 +565,7 @@ class UniqueIndexTest {
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
-			);
+			, 0);
 			index.registerUniqueKey("A", 1);
 
 			// dirty — a part is emitted
@@ -586,7 +589,7 @@ class UniqueIndexTest {
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
-			);
+			, 0);
 			// register "B" owned by record 99
 			index.registerUniqueKey("B", 99);
 
@@ -610,7 +613,7 @@ class UniqueIndexTest {
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
-			);
+			, 0);
 			index.registerUniqueKey("B", 1);
 
 			// the same record claiming "B" a second time is a second occurrence of the value, exactly as another
@@ -634,7 +637,7 @@ class UniqueIndexTest {
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
-			);
+			, 0);
 			index.registerUniqueKey("A", 1);
 
 			final UniqueIndex.InlineSnapshot snapshot = index.inlineSnapshot();
@@ -651,7 +654,7 @@ class UniqueIndexTest {
 			final UniqueIndex index = new OwnerUniqueIndex(
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
-				String.class,
+				String.class, 0,
 				values,
 				recordIds
 			);
@@ -673,7 +676,7 @@ class UniqueIndexTest {
 				Entities.PRODUCT,
 				new AttributeIndexKey(null, "code", null),
 				String.class
-			);
+			, 0);
 			index.registerUniqueKey(new String[]{"A", "B"}, 1);
 
 			// try to unregister with wrong owner — should throw before any removal
@@ -711,25 +714,15 @@ class UniqueIndexTest {
 				() -> UniqueIndex.verifyValue(notComparable)
 			);
 		}
-
-		@Test
-		@DisplayName("verifyValueArray rejects array of non-Serializable components")
-		void shouldRejectNonSerializableArrayValue() {
-			final Object[] notSerializableArray = new Object[]{"A", "B"};
-			assertThrows(
-				IllegalArgumentException.class,
-				() -> UniqueIndex.verifyValueArray(notSerializableArray)
-			);
-		}
 	}
 
 
 	/**
-	 * A unique index over a temporal attribute. These indexes keep their values **raw** — `OwnerUniqueIndex`'s own
-	 * javadoc says so — which makes the leaf column choice a correctness matter rather than a memory one: the
-	 * `Instant`-keyed primitive column casts every key it is handed to {@link java.time.Instant}, so selecting it
-	 * for a declared `OffsetDateTime` threw a `ClassCastException` on the first write. See
-	 * {@code ValueColumnFactory#forKey} for the key-space split that keeps such an index on the boxed column.
+	 * A unique index over a temporal attribute. The index keys an `OffsetDateTime` / `LocalDateTime` value by its
+	 * millisecond `Instant` (a `LocalDateTime` anchored at UTC) and a `LocalTime` by its millisecond-truncated self -
+	 * the filter normalizer's key space - so the same instant written at any offset is one unique value, and the keys
+	 * ride in the single-`long` leaf column rather than as boxed objects. Every entry point normalizes: register,
+	 * unregister, lookup and the restore constructors.
 	 */
 	@Nested
 	@DisplayName("Temporal unique attributes")
@@ -744,8 +737,7 @@ class UniqueIndexTest {
 			OffsetDateTime.of(2026, 5, 20, 12, 19, 26, 124_000_000, ZoneOffset.UTC);
 		/**
 		 * The very same instant as {@link #NOON}, written at a different offset. `OffsetDateTime.compareTo` breaks
-		 * the instant tie on the local date-time, so these two are **distinct** keys — an index that reduced its
-		 * keys to epoch-milliseconds would fold them into one.
+		 * the instant tie on the local date-time, so only an index keyed by the instant treats the two as one value.
 		 */
 		private static final OffsetDateTime NOON_AT_PLUS_TWO =
 			OffsetDateTime.of(2026, 5, 20, 14, 19, 26, 123_000_000, ZoneOffset.ofHours(2));
@@ -760,7 +752,7 @@ class UniqueIndexTest {
 		private UniqueIndex temporalIndex(@Nonnull Class<? extends Serializable> attributeType) {
 			return new OwnerUniqueIndex(
 				Entities.PRODUCT, new AttributeIndexKey(null, "validFrom", null), attributeType
-			);
+			, 0);
 		}
 
 		@Test
@@ -792,22 +784,134 @@ class UniqueIndexTest {
 		}
 
 		@Test
-		@DisplayName("two offsets naming the same instant stay two distinct unique keys")
-		void shouldKeepTwoOffsetsOfOneInstantDistinct() {
-			// the discriminating case: NOON and NOON_AT_PLUS_TWO are the SAME epoch-millisecond, so an index whose
-			// leaf column reduced its keys to `Instant` would report a uniqueness violation here instead of storing
-			// two records — a raw-valued index must keep them apart, exactly as OffsetDateTime.compareTo does
+		@DisplayName("two offsets naming the same instant are one unique value")
+		void shouldTreatTwoOffsetsOfOneInstantAsOneValue() {
+			// the discriminating case: NOON and NOON_AT_PLUS_TWO are the SAME epoch-millisecond, yet distinct under
+			// OffsetDateTime.compareTo - only an index keyed by the instant refuses the second one
 			assertEquals(NOON.toInstant(), NOON_AT_PLUS_TWO.toInstant());
 			assertNotEquals(0, NOON.compareTo(NOON_AT_PLUS_TWO));
 
 			final UniqueIndex index = temporalIndex(OffsetDateTime.class);
 			index.registerUniqueKey(NOON, 1);
+
+			assertThrows(UniqueValueViolationException.class, () -> index.registerUniqueKey(NOON_AT_PLUS_TWO, 2));
+			assertEquals(1, index.getDistinctValueCount());
+			assertEquals(1, index.getRecordIdByUniqueValue(NOON));
+			assertEquals(1, index.getRecordIdByUniqueValue(NOON_AT_PLUS_TWO));
+		}
+
+		@Test
+		@DisplayName("a value is unregistered by the same instant written at another offset")
+		void shouldUnregisterByAnotherOffsetOfTheInstant() {
+			final UniqueIndex index = temporalIndex(OffsetDateTime.class);
+			index.registerUniqueKey(NOON_AT_PLUS_TWO, 1);
+
+			assertEquals(1, index.unregisterUniqueKey(NOON, 1));
+			assertTrue(index.isEmpty());
+			// the instant is free again, for any offset
 			index.registerUniqueKey(NOON_AT_PLUS_TWO, 2);
+			assertEquals(2, index.getRecordIdByUniqueValue(NOON));
+		}
+
+		@Test
+		@DisplayName("sub-millisecond digits are cut off at the index boundary")
+		void shouldTruncateSubMillisecondDigits() {
+			final UniqueIndex index = temporalIndex(OffsetDateTime.class);
+			index.registerUniqueKey(NOON.plusNanos(456_789), 1);
+
+			assertEquals(1, index.getRecordIdByUniqueValue(NOON));
+			assertEquals(1, index.getRecordIdByUniqueValue(NOON.plusNanos(1)));
+			assertNull(index.getRecordIdByUniqueValue(NOON_PLUS_ONE_MILLI));
+		}
+
+		@Test
+		@DisplayName("a LocalTime value is keyed by its millisecond")
+		void shouldKeyALocalTimeByItsMillisecond() {
+			final UniqueIndex index = temporalIndex(LocalTime.class);
+			final LocalTime time = LocalTime.of(12, 19, 26, 123_000_000);
+			index.registerUniqueKey(time.plusNanos(456_789), 1);
+
+			assertEquals(1, index.getRecordIdByUniqueValue(time));
+			assertThrows(UniqueValueViolationException.class, () -> index.registerUniqueKey(time, 2));
+		}
+
+		@Test
+		@DisplayName("an array repeating one instant at two offsets occupies one key")
+		void shouldFoldAnArrayRepeatingOneInstantAtTwoOffsets() {
+			final UniqueIndex index = temporalIndex(OffsetDateTime[].class);
+			index.registerUniqueKey(new OffsetDateTime[]{NOON, NOON_AT_PLUS_TWO, NOON_PLUS_ONE_MILLI}, 1);
 
 			assertEquals(2, index.getDistinctValueCount());
-			assertEquals(2, index.size());
-			assertEquals(1, index.getRecordIdByUniqueValue(NOON));
-			assertEquals(2, index.getRecordIdByUniqueValue(NOON_AT_PLUS_TWO));
+			assertEquals(1, index.getRecordIdByUniqueValue(NOON_AT_PLUS_TWO));
+
+			index.unregisterUniqueKey(new OffsetDateTime[]{NOON_AT_PLUS_TWO, NOON, NOON_PLUS_ONE_MILLI}, 1);
+			assertTrue(index.isEmpty());
+		}
+
+		@Test
+		@DisplayName("the keys are held as compactly as Long keys")
+		void shouldHoldTemporalKeysAsCompactlyAsLongKeys() {
+			// a temporal key rides in the same single-`long` leaf column a `Long` key does, so two indexes holding the
+			// same number of values must occupy exactly the same heap; a boxed column would charge every
+			// OffsetDateTime with its own object graph
+			final UniqueIndex temporal = temporalIndex(OffsetDateTime.class);
+			final UniqueIndex longs = temporalIndex(Long.class);
+			for (int i = 0; i < 300; i++) {
+				temporal.registerUniqueKey(NOON.plusSeconds(i), i + 1);
+				longs.registerUniqueKey((long) i, i + 1);
+			}
+
+			assertEquals(longs.getHeapSizeInBytes(), temporal.getHeapSizeInBytes());
+		}
+
+		@Test
+		@DisplayName("values are persisted in the declared type at UTC and found by any offset after a reload")
+		void shouldPersistTheDeclaredTypeAtUtcAndReloadIt() {
+			final UniqueIndex index = temporalIndex(OffsetDateTime.class);
+			index.registerUniqueKey(NOON_AT_PLUS_TWO, 1);
+
+			final TrappedChanges sink = new TrappedChanges();
+			index.appendStorageParts(1, sink);
+			final UniqueIndexStoragePart part = (UniqueIndexStoragePart) sink.getTrappedChangesIterator().next();
+			final Serializable[] values = Objects.requireNonNull(part.getValues());
+			// the serializer reads the value back as the declared type, so the part must not carry the Instant key
+			assertArrayEquals(new Serializable[]{NOON}, values);
+			assertEquals(ZoneOffset.UTC, ((OffsetDateTime) values[0]).getOffset());
+
+			final UniqueIndex reloaded = new OwnerUniqueIndex(
+				Entities.PRODUCT, part.getAttributeIndexKey(), part.getType(), 0, values,
+				Objects.requireNonNull(part.getRecordIds())
+			);
+			assertEquals(1, reloaded.getRecordIdByUniqueValue(NOON_AT_PLUS_TWO));
+		}
+
+		@Test
+		@DisplayName("a value persisted at another offset is found after a reload")
+		void shouldFindAValuePersistedAtAnotherOffset() {
+			// a part written before the index keyed by instant holds the value exactly as it was written
+			final UniqueIndex reloaded = new OwnerUniqueIndex(
+				Entities.PRODUCT, new AttributeIndexKey(null, "validFrom", null), OffsetDateTime.class, 0,
+				new Serializable[]{NOON_AT_PLUS_TWO, NOON_PLUS_ONE_MILLI}, new int[]{1, 2}
+			);
+
+			assertEquals(1, reloaded.getRecordIdByUniqueValue(NOON));
+			assertEquals(2, reloaded.getRecordIdByUniqueValue(NOON_PLUS_ONE_MILLI));
+		}
+
+		@Test
+		@DisplayName("a persisted pair naming one instant refuses to load, naming the attribute and both records")
+		void shouldRefuseToLoadTwoPersistedValuesOfOneInstant() {
+			// only a part written before the index keyed by instant can hold such a pair; it must fail the load
+			// loudly rather than leave two records in one bucket
+			final GenericEvitaInternalError ex = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new OwnerUniqueIndex(
+					Entities.PRODUCT, new AttributeIndexKey(null, "validFrom", null), OffsetDateTime.class, 0,
+					new Serializable[]{NOON, NOON_AT_PLUS_TWO}, new int[]{1, 2}
+				)
+			);
+			assertTrue(ex.getMessage().contains("`validFrom`"), ex.getMessage());
+			assertTrue(ex.getMessage().contains("`1`") && ex.getMessage().contains("`2`"), ex.getMessage());
 		}
 
 		@Test

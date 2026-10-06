@@ -106,7 +106,7 @@ class CatalogIndexHeapSizeTest {
 	 * attribute short of the reported figure - a shortfall that would look exactly like an under-charge.
 	 */
 	private static final String[] CHILD_EXCLUSIONS = {
-		"comparator", "pageStreamRegistry", "scope",
+		"normalizer", "pageStreamRegistry", "scope",
 		"tree.valueColumnFactory", "tree.recordColumnFactory"
 	};
 
@@ -233,7 +233,7 @@ class CatalogIndexHeapSizeTest {
 				new AttributeKey("url", Locale.ENGLISH) : new AttributeKey("code-" + attribute);
 			final GlobalUniqueIndex globalUniqueIndex = new GlobalUniqueIndex(
 				Scope.LIVE, attributeKey, String.class
-			);
+			, 0);
 			for (int value = 0; value < values; value++) {
 				globalUniqueIndex.registerUniqueKey(
 					String.format("value-%d-%05d", attribute, value),

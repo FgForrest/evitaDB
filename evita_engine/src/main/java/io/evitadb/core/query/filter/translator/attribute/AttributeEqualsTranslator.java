@@ -48,7 +48,6 @@ import io.evitadb.index.bitmap.ArrayBitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.math.BigDecimal;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -161,8 +160,9 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 
 			final Class<? extends Serializable> plainType = attributeSchema.getPlainType();
 			// Normalize the probe with the filter normalizer (NFD strings, instant-folded OffsetDateTime, scaled-int
-			// BigDecimal). The scaled-int form is what the filter value tree stores, and because that normalizer is
-			// idempotent the filter index re-normalizes the already-scaled Integer without a ClassCastException.
+			// BigDecimal). That form is what every value tree of the attribute stores - the filter tree and the
+			// standalone unique trees alike - and because the normalizer is idempotent each index re-normalizes the
+			// already-normalized probe without a ClassCastException.
 			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(
 				plainType, attributeSchema.getIndexedDecimalPlaces()
 			);
@@ -172,11 +172,8 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 			final Serializable comparedValue = normalizer.apply(targetValue);
 
 			if (scopes.stream().anyMatch(scope -> isUniqueInScope(attributeSchema, scope))) {
-				// uniqueness stays exact BigDecimal: the unique index never scales its keys, so a BigDecimal attribute is
-				// probed with the exact value; other types share the canonical (NFD/instant) form used by the unique index
 				return createUniqueAttributeFormula(
-					filterByVisitor, processingScope.getReferenceSchema(), attributeSchema, attributeKey,
-					plainType == BigDecimal.class ? targetValue : comparedValue
+					filterByVisitor, processingScope.getReferenceSchema(), attributeSchema, attributeKey, comparedValue
 				);
 			} else {
 				return createFilterableAttributeFormula(

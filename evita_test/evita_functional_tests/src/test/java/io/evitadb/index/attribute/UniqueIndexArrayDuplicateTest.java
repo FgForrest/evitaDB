@@ -167,7 +167,7 @@ class UniqueIndexArrayDuplicateTest {
 	void shouldUnregisterARepeatedValueFromTheGlobalIndex() {
 		final GlobalUniqueIndex index = new GlobalUniqueIndex(
 			Scope.LIVE, new AttributeKey("whatever"), String.class
-		);
+		, 0);
 		index.registerUniqueKey(
 			new String[]{DUPLICATED, DUPLICATED}, Entities.PRODUCT, null, RECORD, this.classifierResolver
 		);
@@ -182,7 +182,7 @@ class UniqueIndexArrayDuplicateTest {
 
 	@Nonnull
 	private static UniqueIndex ownerIndex() {
-		return new OwnerUniqueIndex(Entities.PRODUCT, new AttributeIndexKey(null, "code", null), String.class);
+		return new OwnerUniqueIndex(Entities.PRODUCT, new AttributeIndexKey(null, "code", null), String.class, 0);
 	}
 
 }

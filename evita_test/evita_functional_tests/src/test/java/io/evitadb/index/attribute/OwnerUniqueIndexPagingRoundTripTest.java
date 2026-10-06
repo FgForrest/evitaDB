@@ -171,7 +171,7 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 	@DisplayName("A multi-leaf owner unique index pages out and reloads identically through the OffsetIndex")
 	void shouldRoundTripPagedOwnerUniqueIndexThroughOffsetIndex() {
 		final AttributeIndexKey attributeIndexKey = new AttributeIndexKey(null, "url", Locale.ENGLISH);
-		final OwnerUniqueIndex source = new OwnerUniqueIndex(ENTITY_TYPE, attributeIndexKey, String.class);
+		final OwnerUniqueIndex source = new OwnerUniqueIndex(ENTITY_TYPE, attributeIndexKey, String.class, 0);
 		// register enough distinct URL-slug keys (sharing a long common prefix → the front-coded leaf column win) to
 		// force the value tree to span many leaves
 		for (int i = 0; i < KEY_COUNT; i++) {
@@ -227,7 +227,7 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 			}
 
 			final OwnerUniqueIndex restored = OwnerUniqueIndex.fromPersistedPages(
-				ENTITY_TYPE, attributeIndexKey, String.class,
+				ENTITY_TYPE, attributeIndexKey, String.class, 0,
 				orderedPageSequences, perPageValues, perPageRecordIds, root.getHighWaterPageSequence()
 			);
 
@@ -277,7 +277,7 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 			assertNotNull(root.getValues(), "a SINGLE root carries the value column inline");
 
 			final OwnerUniqueIndex restored = new OwnerUniqueIndex(
-				ENTITY_TYPE, attributeIndexKey, String.class, root.getValues(), root.getRecordIds()
+				ENTITY_TYPE, attributeIndexKey, String.class, 0, root.getValues(), root.getRecordIds()
 			);
 			assertFalse(restored.isPaged(), "a small inline index reloads as SINGLE (not paged)");
 			assertEquals(3, restored.size(), "the record count must be read off the inline columns");
@@ -299,7 +299,7 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 	@DisplayName("A leaf merge after a paged flush frees its dropped leaf pages and removes them on the next flush")
 	void shouldRemoveFreedLeafPagesWhenLeavesMergeOnReflush() {
 		final AttributeIndexKey attributeIndexKey = new AttributeIndexKey(null, "url", Locale.ENGLISH);
-		final OwnerUniqueIndex source = new OwnerUniqueIndex(ENTITY_TYPE, attributeIndexKey, String.class);
+		final OwnerUniqueIndex source = new OwnerUniqueIndex(ENTITY_TYPE, attributeIndexKey, String.class, 0);
 		// span several leaves so a later contiguous removal can merge and free a leaf while the index stays paged
 		for (int i = 0; i < MERGE_KEY_COUNT; i++) {
 			source.registerUniqueKey(keyForIndex(i), i + 1);
@@ -402,7 +402,7 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 			final OwnerUniqueIndex reloaded = loadPagedIndex(reopened, SECOND_VERSION, attributeIndexKey, streamId, finalRoot);
 
 			// an index built directly from only the surviving values is the oracle
-			final OwnerUniqueIndex expected = new OwnerUniqueIndex(ENTITY_TYPE, attributeIndexKey, String.class);
+			final OwnerUniqueIndex expected = new OwnerUniqueIndex(ENTITY_TYPE, attributeIndexKey, String.class, 0);
 			for (int i = 0; i < MERGE_KEY_COUNT; i++) {
 				if (i < MERGE_REMOVE_FROM || i >= MERGE_REMOVE_TO) {
 					expected.registerUniqueKey(keyForIndex(i), i + 1);
@@ -448,7 +448,7 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 		// PUBLISHED — so its collapse must reclaim against the set the previous flush STAGED, not the published one, which
 		// stays empty for the whole warm-up and would silently reclaim NOTHING.
 		final AttributeIndexKey attributeIndexKey = new AttributeIndexKey(null, "url", Locale.ENGLISH);
-		final OwnerUniqueIndex index = new OwnerUniqueIndex(ENTITY_TYPE, attributeIndexKey, String.class);
+		final OwnerUniqueIndex index = new OwnerUniqueIndex(ENTITY_TYPE, attributeIndexKey, String.class, 0);
 		for (int i = 0; i < COLLAPSE_KEY_COUNT; i++) {
 			index.registerUniqueKey(keyForIndex(i), i + 1);
 		}
@@ -614,7 +614,7 @@ class OwnerUniqueIndexPagingRoundTripTest implements EvitaTestSupport {
 			perPageRecordIds[i] = leafPage.getRecordIds();
 		}
 		return OwnerUniqueIndex.fromPersistedPages(
-			ENTITY_TYPE, attributeIndexKey, String.class,
+			ENTITY_TYPE, attributeIndexKey, String.class, 0,
 			orderedPageSequences, perPageValues, perPageRecordIds, root.getHighWaterPageSequence()
 		);
 	}

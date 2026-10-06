@@ -1119,13 +1119,23 @@ public abstract sealed class AttributeIndex implements AttributeIndexContract,
 				final UniqueIndex newUniqueIndex = new OwnerUniqueIndex(
 					this.entityType,
 					ownerKey,
-					attributeSchema.getType()
+					attributeSchema.getType(),
+					attributeSchema.getIndexedDecimalPlaces()
 				);
 				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newUniqueIndex));
 				return newUniqueIndex;
 			}
 		);
+		// a pre-existing unique index froze its BigDecimal scale at creation; refuse to add a value keyed at a drifted
+		// schema scale rather than silently mix two scales (no-op for non-BigDecimal and for a just-created index)
+		if (theUniqueIndex instanceof OwnerUniqueIndex ownerUniqueIndex) {
+			FilterIndex.assertIndexedDecimalPlacesUnchanged(
+				ownerUniqueIndex.getIndexedDecimalPlaces(),
+				attributeSchema.getIndexedDecimalPlaces(),
+				attributeSchema.getName()
+			);
+		}
 		// registerUniqueKey mutates the standalone unique index in place — declare it for the O(Δ) commit walk (the
 		// folded case writes through the shared filter tree, which the filter-insert path already marks)
 		uniqueIndexes.markValueMutated(lookupKey);
