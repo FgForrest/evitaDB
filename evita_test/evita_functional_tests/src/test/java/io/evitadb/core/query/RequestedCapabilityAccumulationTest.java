@@ -84,6 +84,7 @@ import static io.evitadb.api.query.QueryConstraints.facetSummary;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.filterGroupBy;
 import static io.evitadb.api.query.QueryConstraints.hierarchyWithinSelf;
+import static io.evitadb.api.query.QueryConstraints.or;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.api.query.QueryConstraints.referenceContent;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
@@ -923,6 +924,103 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		}
 
 		@Test
+		@DisplayName("The filter of summarized options an entity filter also names counts once, with and without data")
+		void shouldCountFilterOfSummarizedOptionsAlsoNamedByEntityFilterOnce() {
+			// the categories hold data, so their entity filter is evaluated by a nested query, which builds a plan of
+			// its own; the summary of the same reference names the same flag - the query asked for it once
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY,
+				productsFilteredAndSummarizedByTarget(REFERENCE_CATEGORIES, ATTRIBUTE_CATEGORY_NAME, "category-1")
+			);
+			assertEquals(
+				Map.of(categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L), requested,
+				"The name of the category named by both the entity filter and the summary must be counted once"
+			);
+
+			// the brands hold no entity at first, so their entity filter is only checked, and then one, so it is
+			// evaluated by a nested query - the count must not tell the two apart
+			final Query brandQuery = productsFilteredAndSummarizedByTarget(REFERENCE_BRAND, ATTRIBUTE_LABEL, "label-1");
+			final Map<SchemaCapabilityKey, Long> expectedOnBrand = Map.of(labelKey(), 1L);
+			assertEquals(
+				expectedOnBrand, capabilitiesRequestedByFetching(ENTITY_BRAND, brandQuery),
+				"The label of the brand named by both the entity filter and the summary must be counted once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				expectedOnBrand, capabilitiesRequestedByFetching(ENTITY_BRAND, brandQuery),
+				"The label of the brand named by both the entity filter and the summary must be counted once, now " +
+					"that a brand exists"
+			);
+		}
+
+		@Test
+		@DisplayName("An attribute two entity filters name counts once, with and without data")
+		void shouldCountAttributeNamedByTwoEntityFiltersOnce() {
+			// each entity filter of the categories is evaluated by a nested query of its own, which builds a plan of
+			// its own - the query asked for the name of the category once
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY,
+				productsFilteredTwiceByTarget(REFERENCE_CATEGORIES, ATTRIBUTE_CATEGORY_NAME, "category-1", "category-2")
+			);
+			assertEquals(
+				Map.of(categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L), requested,
+				"The name of the category named by two entity filters must be counted once"
+			);
+
+			// the brands hold no entity at first, so their entity filters are only checked, and then one, so they are
+			// evaluated by nested queries - the count must not tell the two apart
+			final Query brandQuery = productsFilteredTwiceByTarget(REFERENCE_BRAND, ATTRIBUTE_LABEL, "label-1", "label-2");
+			final Map<SchemaCapabilityKey, Long> expectedOnBrand = Map.of(labelKey(), 1L);
+			assertEquals(
+				expectedOnBrand, capabilitiesRequestedByFetching(ENTITY_BRAND, brandQuery),
+				"The label of the brand named by two entity filters must be counted once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				expectedOnBrand, capabilitiesRequestedByFetching(ENTITY_BRAND, brandQuery),
+				"The label of the brand named by two entity filters must be counted once, now that a brand exists"
+			);
+		}
+
+		@Test
+		@DisplayName("An attribute an entity filter and the filter of the fetched references name counts once")
+		void shouldCountAttributeNamedByEntityFilterAndFilterOfFetchedReferencesOnce() {
+			// the entity filter of the categories is evaluated by a nested query planned with the query, the filter of
+			// the fetched categories by another one the fetch plans - the query asked for the name of the category once
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY,
+				productsFilteredAndFetchedByTarget(REFERENCE_CATEGORIES, ATTRIBUTE_CATEGORY_NAME, "category-1")
+			);
+			assertEquals(
+				Map.of(categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L), requested,
+				"The name of the category named by the entity filter and the filter of the fetched references must " +
+					"be counted once"
+			);
+
+			// the brands hold no entity at first, so both filters are only checked, and then one, so they are evaluated
+			// by nested queries - the count must not tell the two apart
+			final Query brandQuery = productsFilteredAndFetchedByTarget(REFERENCE_BRAND, ATTRIBUTE_LABEL, "label-1");
+			final Map<SchemaCapabilityKey, Long> expectedOnBrand = Map.of(labelKey(), 1L);
+			assertEquals(
+				expectedOnBrand, capabilitiesRequestedByFetching(ENTITY_BRAND, brandQuery),
+				"The label of the brand named by the entity filter and the filter of the fetched references must be " +
+					"counted once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				expectedOnBrand, capabilitiesRequestedByFetching(ENTITY_BRAND, brandQuery),
+				"The label of the brand named by the entity filter and the filter of the fetched references must be " +
+					"counted once, now that a brand exists"
+			);
+		}
+
+		@Test
 		@DisplayName("A query refused over a scope without index counts nothing")
 		void shouldCountNothingWhenQueryOverScopeWithoutIndexIsRefused() {
 			// the catalog holds no index of the archived scope, and `code` is not filterable there - the query fails
@@ -1218,6 +1316,86 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 			expected.put(entityType, Map.of(labelKey(), 1L));
 		}
 		return expected;
+	}
+
+	/**
+	 * Builds the query of the products filtered by an entity filter of a reference, summarizing the options of the same
+	 * reference filtered by the same attribute of the referenced entity.
+	 *
+	 * @param referenceName the reference of the product
+	 * @param attributeName the attribute of the referenced entity
+	 * @param value         the value of the attribute
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query productsFilteredAndSummarizedByTarget(
+		@Nonnull String referenceName,
+		@Nonnull String attributeName,
+		@Nonnull String value
+	) {
+		return Query.query(
+			collection(ENTITY_PRODUCT),
+			filterBy(referenceHaving(referenceName, entityHaving(attributeEquals(attributeName, value)))),
+			require(
+				referenceSummaryOfReference(
+					referenceName, FacetStatisticsDepth.COUNTS, filterBy(attributeEquals(attributeName, value))
+				)
+			)
+		);
+	}
+
+	/**
+	 * Builds the query of the products filtered by an entity filter of a reference, fetching the references filtered by
+	 * the same entity filter.
+	 *
+	 * @param referenceName the reference of the product
+	 * @param attributeName the attribute of the referenced entity
+	 * @param value         the value of the attribute
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query productsFilteredAndFetchedByTarget(
+		@Nonnull String referenceName,
+		@Nonnull String attributeName,
+		@Nonnull String value
+	) {
+		return Query.query(
+			collection(ENTITY_PRODUCT),
+			filterBy(referenceHaving(referenceName, entityHaving(attributeEquals(attributeName, value)))),
+			require(
+				entityFetch(
+					referenceContent(referenceName, filterBy(entityHaving(attributeEquals(attributeName, value))))
+				)
+			)
+		);
+	}
+
+	/**
+	 * Builds the query of the products filtered by two entity filters of a reference naming the same attribute of the
+	 * referenced entity with different values.
+	 *
+	 * @param referenceName the reference of the product
+	 * @param attributeName the attribute of the referenced entity
+	 * @param value         the value of the attribute the first filter asks for
+	 * @param otherValue    the value of the attribute the second filter asks for
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query productsFilteredTwiceByTarget(
+		@Nonnull String referenceName,
+		@Nonnull String attributeName,
+		@Nonnull String value,
+		@Nonnull String otherValue
+	) {
+		return Query.query(
+			collection(ENTITY_PRODUCT),
+			filterBy(
+				or(
+					referenceHaving(referenceName, entityHaving(attributeEquals(attributeName, value))),
+					referenceHaving(referenceName, entityHaving(attributeEquals(attributeName, otherValue)))
+				)
+			)
+		);
 	}
 
 	/**

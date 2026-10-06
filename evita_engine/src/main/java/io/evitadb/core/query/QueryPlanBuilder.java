@@ -108,14 +108,15 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	 * {@link QueryPlanner#planOverEmptyIndexes} exactly as they are translated where the entities exist, and dropping
 	 * any flag they needed would break the query.
 	 * The drain counts them once per logical query, the same as {@link #build()} does - a query is answered either by
-	 * this plan or by a built one, never by both.
+	 * this plan or by a built one, never by both, and what a plan of a nested query counted already is not counted
+	 * again (see {@link QueryPlanningContext#drainRequestedCapabilitiesToCount()}).
 	 *
 	 * @param queryContext planning context of the query, holding the capabilities its check accumulated
 	 * @return the plan producing no entity
 	 */
 	@Nonnull
 	public static QueryPlan empty(@Nonnull QueryPlanningContext queryContext) {
-		final List<SchemaCapabilityUsage> requestedCapabilities = queryContext.drainRequestedCapabilities();
+		final List<SchemaCapabilityUsage> requestedCapabilities = queryContext.drainRequestedCapabilitiesToCount();
 		if (!requestedCapabilities.isEmpty()) {
 			final long now = System.currentTimeMillis();
 			for (SchemaCapabilityUsage requestedCapability : requestedCapabilities) {
@@ -220,8 +221,10 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 	 * This is also where the schema capabilities the query asked for are counted as **requested**
 	 * ({@link SchemaCapabilityUsage}), and the two readings deliberately behave differently under those debug modes.
 	 * The capability side counts **once per logical query regardless**, because
-	 * {@link QueryPlanningContext#drainRequestedCapabilities()} hands the accumulator over and leaves the context
-	 * holding nothing - every further build of that same query finds an empty list. That difference is not an
+	 * {@link QueryPlanningContext#drainRequestedCapabilitiesToCount()} hands the accumulator over and leaves the
+	 * context holding nothing - every further build of that same query finds an empty list - and leaves out what
+	 * another plan of the same logical query, a nested query planned with it or by its fetch, counted already. That
+	 * difference is not an
 	 * inconsistency: an index counts a physical read that genuinely happened again, while a capability counts a
 	 * question the query asked, and asking it a second time to verify the answer does not make it a second question.
 	 * The empty-plan short-circuit {@link #empty(QueryPlanningContext)} counts the capabilities but no index. It is
@@ -238,7 +241,7 @@ public class QueryPlanBuilder implements FetchRequirementCollector {
 		ofNullable(this.queryContext.getQueryFinishedEvent())
 			.ifPresent(FinishedEvent::startExecuting);
 		final List<? extends Index<?>> winningIndexes = this.targetIndexes.getIndexes();
-		final List<SchemaCapabilityUsage> requestedCapabilities = this.queryContext.drainRequestedCapabilities();
+		final List<SchemaCapabilityUsage> requestedCapabilities = this.queryContext.drainRequestedCapabilitiesToCount();
 		if (!winningIndexes.isEmpty() || !requestedCapabilities.isEmpty()) {
 			// one instant for both readings, so a single query cannot stamp them with two different moments
 			final long now = System.currentTimeMillis();

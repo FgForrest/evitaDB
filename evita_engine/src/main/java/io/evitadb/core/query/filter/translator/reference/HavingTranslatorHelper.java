@@ -163,14 +163,15 @@ public class HavingTranslatorHelper {
 	 * `scope(...)` of the filter names, which the nested query honours whatever the enclosing query processes, see
 	 * {@link #getNestedQueryScopes} - so that it refuses nothing the nested query evaluated over data accepts.
 	 *
-	 * A nested query planned over data counts the schema capabilities its filter requests when its plan is built. A
-	 * scope the target entity type holds no entity of gets no nested query - neither here nor when the references are
-	 * fetched - so the check of such a scope hands what it requested to the enclosing context, which counts it once.
-	 * The check of a scope holding data counts nothing: the nested query evaluating the filter there counts it. A filter
-	 * nested in a filter that is itself only checked ({@link FilterByVisitor#isNestedFilterCheck()}) gets no nested
-	 * query in any scope, whatever data its target entity type holds, because none is planned for the filter enclosing
-	 * it - its check hands everything it requested to the context of the enclosing check, which counts it exactly when
-	 * the enclosing check is counted.
+	 * A nested query planned over data counts the schema capabilities its filter requests when its plan is built -
+	 * those the logical query it belongs to has not counted yet, see
+	 * {@link QueryPlanningContext#drainRequestedCapabilitiesToCount()}. A scope the target entity type holds no entity
+	 * of gets no nested query - neither here nor when the references are fetched - so the check of such a scope hands
+	 * what it requested to the enclosing context, which counts it once. The check of a scope holding data counts
+	 * nothing: the nested query evaluating the filter there counts it. A filter nested in a filter that is itself only
+	 * checked ({@link FilterByVisitor#isNestedFilterCheck()}) gets no nested query in any scope, whatever data its
+	 * target entity type holds, because none is planned for the filter enclosing it - its check hands everything it
+	 * requested to the context of the enclosing check, which counts it exactly when the enclosing check is counted.
 	 *
 	 * @param targetEntityType         the type of the target entity for which the nested query is being planned
 	 * @param filter                   the filter constraint that applies the necessary filtering logic

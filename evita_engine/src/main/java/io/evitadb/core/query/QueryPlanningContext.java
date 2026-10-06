@@ -353,6 +353,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nullable private List<SchemaCapabilityUsage> requestedCapabilities;
 	/**
+	 * The schema capabilities this **logical query** has counted so far, as the holders counting them - kept on the
+	 * root context only, because every plan of the query counts against the same record: the query itself, the nested
+	 * queries planned with it and those its fetch plans. See {@link #drainRequestedCapabilitiesToCount()}.
+	 *
+	 * Left NULL until the query first counts something; the first drain adopts the list it drained rather than copying
+	 * it, so a query building one plan allocates nothing for it.
+	 */
+	@Nullable private List<SchemaCapabilityUsage> countedCapabilities;
+	/**
 	 * Memoized results of per-constraint planning decisions that are asked for twice in a single plan - once while
 	 * index selection decides which indexes it must discover, and again while the filter translator builds the
 	 * formula.
@@ -811,24 +820,25 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * the list behind would count that query twice. Because the accumulator is handed over rather than copied, the
 	 * second drain finds nothing and the second build counts nothing.
 	 *
+	 * This method only moves what was requested - into the context of an enclosing query, when the context is one of a
+	 * nested filter that is only checked and never builds a plan. What a built plan counts goes through
+	 * {@link #drainRequestedCapabilitiesToCount()}, which also leaves out what another plan of the same logical query
+	 * counted already.
+	 *
 	 * # What that leaves standing, and why it is the honest reading
 	 *
-	 * The emptying makes the count *once per drain of what had been accumulated by then*, not *once per context*: a
-	 * capability registered **after** a build has already drained would be counted again by the next build on the same
-	 * context. Nothing a production session does can reach that, because everything that consults the schema runs
-	 * before the single build that ends {@link QueryPlanner#planQuery}. One debug-only path could:
+	 * A capability registered **after** a build has already drained is counted by the next build on the same context
+	 * only when the logical query has not counted it yet. One debug-only path registers such capabilities:
 	 * {@link io.evitadb.api.query.require.DebugMode#VERIFY_POSSIBLE_CACHING_TREES} equips each cacheable variant of
 	 * the formula with a sorter of its own *after* the preferred plan was built, and planning an ordering re-registers
-	 * what it names.
+	 * what it names - which the record of the counted capabilities keeps from being counted twice.
 	 *
-	 * Suppressing that with a one-way "already flushed" latch was deliberately not done, and the asymmetry is the
-	 * reason: this count exists to answer *"would dropping this flag break a query?"*, where an over-count merely
-	 * protects a flag a little too eagerly, while an under-count makes a used flag look dead and invites somebody to
-	 * drop it. A latch buys exactness under a debug mode that already multiplies every per-index reading, at the price
-	 * of silently discarding the requests of any future caller that legitimately plans further work on a context whose
-	 * plan is already built - trading a debug-only over-count for an under-count nobody would notice. The caveat
-	 * therefore reads exactly like {@link io.evitadb.index.IndexActivity}'s: exact arithmetic on these readings
-	 * requires a session with no verification debug mode enabled.
+	 * Suppressing everything registered after the first build with a one-way "already flushed" latch was deliberately
+	 * not done, and the asymmetry is the reason: this count exists to answer *"would dropping this flag break a
+	 * query?"*, where an over-count merely protects a flag a little too eagerly, while an under-count makes a used flag
+	 * look dead and invites somebody to drop it. A latch would silently discard the requests of any future caller that
+	 * legitimately plans further work on a context whose plan is already built; the record of the counted capabilities
+	 * discards only the repetition of a request the query has already counted.
 	 *
 	 * @return the distinct holders this query requested, in registration order; empty when it requested none
 	 */
@@ -840,6 +850,71 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		}
 		this.requestedCapabilities = null;
 		return accumulated;
+	}
+
+	/**
+	 * Hands over what this context requested that the **logical query** it belongs to has not counted yet, and records
+	 * it as counted - the drain a built plan counts its requests by ({@link QueryPlanBuilder#build()},
+	 * {@link QueryPlanBuilder#empty(QueryPlanningContext)}).
+	 *
+	 * A logical query builds several plans: its own, one for every nested query its filter plans over data, and those
+	 * its fetch plans for the filters of the fetched references. Each of them asks the schema for what its constraints
+	 * name, and two of them may well name the same capability - an entity filter of a reference and the filter of the
+	 * summarized options of the same reference, two entity filters naming one attribute of the referenced entity, or
+	 * an entity filter and the filter of the fetched references. Counting each plan on its own would count such a
+	 * capability once per plan, but only where its target holds data: a filter whose target holds no entity of the
+	 * scope builds no plan, it is only checked, and the check hands what it requested to the context of the enclosing
+	 * query, which deduplicates it with everything else the query requested. The record kept on the root context makes
+	 * every plan of the logical query count against the same set, so a capability is counted once per logical query -
+	 * by whichever of its plans is built first - with and without data.
+	 *
+	 * A plan planned in a context derived from no other one - a separate root - is a logical query of its own and
+	 * counts on its own.
+	 *
+	 * The list returned is the caller's to iterate right away, not to keep: the first drain of the logical query
+	 * adopts the drained list as its record instead of copying it, and later drains add to it.
+	 *
+	 * @return the distinct holders to count, in registration order; empty when there is nothing the logical query has
+	 *         not counted yet
+	 */
+	@Nonnull
+	public List<SchemaCapabilityUsage> drainRequestedCapabilitiesToCount() {
+		final List<SchemaCapabilityUsage> requested = drainRequestedCapabilities();
+		if (requested.isEmpty()) {
+			return requested;
+		}
+		QueryPlanningContext rootContext = this;
+		while (rootContext.parentContext != null) {
+			rootContext = rootContext.parentContext;
+		}
+		final List<SchemaCapabilityUsage> counted = rootContext.countedCapabilities;
+		if (counted == null) {
+			// the drained list is distinct already and nobody else holds it, so it becomes the record as it is
+			rootContext.countedCapabilities = requested;
+			return requested;
+		}
+		List<SchemaCapabilityUsage> toCount = null;
+		for (final SchemaCapabilityUsage holder : requested) {
+			// identity, for the same reason the accumulator compares by it - see `registerRequestedCapability`
+			boolean alreadyCounted = false;
+			for (final SchemaCapabilityUsage countedHolder : counted) {
+				if (countedHolder == holder) {
+					alreadyCounted = true;
+					break;
+				}
+			}
+			if (!alreadyCounted) {
+				if (toCount == null) {
+					toCount = new ArrayList<>(requested.size());
+				}
+				toCount.add(holder);
+			}
+		}
+		if (toCount == null) {
+			return List.of();
+		}
+		counted.addAll(toCount);
+		return toCount;
 	}
 
 	/**
