@@ -182,11 +182,6 @@ Then **aggregate** the two outputs into a single release notes body following th
      --title "Release {version}" \
      --body "<release notes body>"
    ```
-   Then request Copilot review:
-   ```shell
-   gh api --method POST /repos/FgForrest/evitaDB/pulls/{PR_NUMBER}/requested_reviewers \
-     -f 'reviewers[]=copilot-pull-request-reviewer[bot]'
-   ```
 3. **If PR exists**: update its title and body:
    ```shell
    gh pr edit {PR_NUMBER} --repo FgForrest/evitaDB \
