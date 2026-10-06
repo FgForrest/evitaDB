@@ -1969,7 +1969,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 *
 	 * When the entity type **is** known there is nothing to disambiguate, so the real primary key is returned
 	 * unchanged and {@link #entityReferencePkSequence} stays at zero - which is exactly how the rest of the class
-	 * recognizes that no translation back is needed.
+	 * recognizes that no translation back is needed. That holds only for a reference to an entity of the queried
+	 * collection: the key of any other entity would be read as a key of the queried collection, so the caller must
+	 * drop such a reference first, and passing one is refused.
 	 *
 	 * **Reachable only through {@link #translateEntityReference(EntityReferenceContract...)}**, which is what
 	 * allocates the two reference indexes; calling it on a context where that never happened would hit a NULL
@@ -1983,6 +1985,11 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		if (this.isEntityTypeKnown()) {
 			// it the entity type is passed in the query, we don't need to mask anything - all entities will share
 			// same primary key sequence
+			Assert.isPremiseValid(
+				this.entityType.equals(entityReference.getType()),
+				() -> "Entity reference `" + entityReference + "` does not belong to the queried collection `" +
+					this.entityType + "`!"
+			);
 			this.entityReferencePkIndex.put(entityReference.getPrimaryKey(), entityReference);
 			return entityReference.getPrimaryKey();
 		} else {
