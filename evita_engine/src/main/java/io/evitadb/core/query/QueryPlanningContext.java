@@ -334,6 +334,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	private Map<FacetRelationTuple, FilteringFormulaPredicate> facetRelationTuples;
 	/**
+	 * Memoizes the facet relations resolved by {@link #getFacetRelationType} and {@link #isFacetGroupRelationType},
+	 * indexed by the reference name and then by the facet group - see {@link FacetGroupRelations} for why these two and
+	 * the asked level and relation are the whole key. The reference summary asks about the relations of a group once
+	 * for every facet of it, and each resolution otherwise walks the precedence of the declared relations through
+	 * several look-ups of the request. Lazily allocated by {@link #getFacetGroupRelations}.
+	 */
+	@Nullable
+	private Map<String, FacetGroupRelationsOfReference> facetGroupRelations;
+	/**
 	 * Internal cache that serves for caching the computed formulas of nested queries.
 	 *
 	 * Only the root context ever allocates it - nested contexts delegate to their parent - so a formula computed
@@ -2082,8 +2091,16 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nullable Integer groupId,
 		@Nonnull FacetGroupRelationLevel level
 	) {
+		final FacetGroupRelations relations = getFacetGroupRelations(referenceSchema, groupId);
+		final FacetRelationType memoized = relations.getRelationType(level);
+		if (memoized != null) {
+			return memoized;
+		}
 		final FacetRelationType declared = getDeclaredFacetRelationType(referenceSchema, groupId, level);
-		return declared == null ? getDefaultFacetRelationType(referenceSchema, groupId, level) : declared;
+		final FacetRelationType resolved = declared == null ?
+			getDefaultFacetRelationType(referenceSchema, groupId, level) : declared;
+		relations.setRelationType(level, resolved);
+		return resolved;
 	}
 
 	/**
@@ -2109,9 +2126,37 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nullable Integer groupId,
 		@Nonnull FacetGroupRelationLevel level
 	) {
-		return isFacetGroupRelationDeclared(relationType, referenceSchema, groupId, level) ||
+		final FacetGroupRelations relations = getFacetGroupRelations(referenceSchema, groupId);
+		final int relationBit = FacetGroupRelations.getRelationBit(relationType, level);
+		if (relations.isApplicationResolved(relationBit)) {
+			return relations.isApplying(relationBit);
+		}
+		final boolean applying = isFacetGroupRelationDeclared(relationType, referenceSchema, groupId, level) ||
 			(getDefaultFacetRelationType(referenceSchema, groupId, level) == relationType &&
 				getDeclaredFacetRelationType(referenceSchema, groupId, level) == null);
+		relations.setApplication(relationBit, applying);
+		return applying;
+	}
+
+	/**
+	 * Returns the memoized relations of the passed facet group of the passed reference, creating an empty record on
+	 * the first ask - see {@link #facetGroupRelations}.
+	 *
+	 * @param referenceSchema the schema of the reference to which the facet group belongs
+	 * @param groupId         the identifier of the group; NULL for the facets without a group
+	 * @return the memoized relations of the group
+	 */
+	@Nonnull
+	private FacetGroupRelations getFacetGroupRelations(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId
+	) {
+		if (this.facetGroupRelations == null) {
+			this.facetGroupRelations = new HashMap<>(8);
+		}
+		return this.facetGroupRelations
+			.computeIfAbsent(referenceSchema.getName(), referenceName -> new FacetGroupRelationsOfReference())
+			.get(groupId);
 	}
 
 	/**
@@ -2549,6 +2594,155 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull FacetRelationType relation,
 		@Nonnull FacetGroupRelationLevel level
 	) {
+
+	}
+
+	/**
+	 * The memoized {@link FacetGroupRelations} of the facet groups of one reference - see {@link #facetGroupRelations}.
+	 * The facets without a group have a slot of their own, so that no group id stands in for them.
+	 */
+	private static final class FacetGroupRelationsOfReference {
+		/**
+		 * The relations of the facet groups, indexed by the group id.
+		 */
+		private final IntObjectHashMap<FacetGroupRelations> groups = new IntObjectHashMap<>(16);
+		/**
+		 * The relations of the facets without a group, NULL until asked about.
+		 */
+		@Nullable private FacetGroupRelations withoutGroup;
+
+		/**
+		 * Returns the relations of the passed group, creating an empty record on the first ask.
+		 *
+		 * @param groupId the identifier of the group; NULL for the facets without a group
+		 * @return the memoized relations of the group
+		 */
+		@Nonnull
+		FacetGroupRelations get(@Nullable Integer groupId) {
+			if (groupId == null) {
+				if (this.withoutGroup == null) {
+					this.withoutGroup = new FacetGroupRelations();
+				}
+				return this.withoutGroup;
+			}
+			FacetGroupRelations relations = this.groups.get(groupId);
+			if (relations == null) {
+				relations = new FacetGroupRelations();
+				this.groups.put(groupId, relations);
+			}
+			return relations;
+		}
+
+	}
+
+	/**
+	 * The relations resolved for the facets of one facet group, each memoized once it has been resolved for the first
+	 * time. The relations are a function of the group, the level and the relation asked about, given the reference name
+	 * and the context, and of nothing else:
+	 *
+	 * - the declarations and the request-wide defaults come from {@link #evitaRequest}, which a context never replaces,
+	 *   and are looked up by the reference name - the reference schema contributes nothing else, since the group filter
+	 *   planned from it is memoized by the reference name in {@link #facetRelationTuples} as well
+	 * - the group filter is planned over all the scopes of the context and tests the group id only, so the relation of
+	 *   a group never differs from one scope to another
+	 * - a context derived from this one memoizes its own relations, it does not share these
+	 *
+	 * A resolution that fails - a group filter that cannot be evaluated - memoizes nothing, so it fails again when asked
+	 * again.
+	 */
+	private static final class FacetGroupRelations {
+		/**
+		 * The number of the relation types, the width of the block of bits of one level in the bit masks.
+		 */
+		private static final int RELATION_TYPE_COUNT = FacetRelationType.values().length;
+		/**
+		 * The relation resolved by {@link #getFacetRelationType} for the facets within the group, NULL until resolved.
+		 */
+		@Nullable private FacetRelationType withinGroup;
+		/**
+		 * The relation resolved by {@link #getFacetRelationType} between the group and the other groups, NULL until
+		 * resolved.
+		 */
+		@Nullable private FacetRelationType betweenGroups;
+		/**
+		 * The bits of the relations {@link #isFacetGroupRelationType} has decided about, see {@link #getRelationBit}.
+		 */
+		private int resolvedApplications;
+		/**
+		 * The bits of the relations {@link #isFacetGroupRelationType} has decided to apply, see {@link #getRelationBit}.
+		 */
+		private int applyingRelations;
+
+		/**
+		 * Returns the bit standing for the passed relation at the passed level in {@link #resolvedApplications} and
+		 * {@link #applyingRelations}.
+		 *
+		 * @param relationType the relation type
+		 * @param level        the level of the facet group relation
+		 * @return the bit
+		 */
+		static int getRelationBit(@Nonnull FacetRelationType relationType, @Nonnull FacetGroupRelationLevel level) {
+			return 1 << (level.ordinal() * RELATION_TYPE_COUNT + relationType.ordinal());
+		}
+
+		/**
+		 * Returns the memoized relation of the facets of the group at the passed level.
+		 *
+		 * @param level the level of the facet group relation
+		 * @return the relation, NULL when not resolved yet
+		 */
+		@Nullable
+		FacetRelationType getRelationType(@Nonnull FacetGroupRelationLevel level) {
+			return level == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP ?
+				this.withinGroup : this.betweenGroups;
+		}
+
+		/**
+		 * Memoizes the relation of the facets of the group at the passed level.
+		 *
+		 * @param level        the level of the facet group relation
+		 * @param relationType the resolved relation
+		 */
+		void setRelationType(@Nonnull FacetGroupRelationLevel level, @Nonnull FacetRelationType relationType) {
+			if (level == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP) {
+				this.withinGroup = relationType;
+			} else {
+				this.betweenGroups = relationType;
+			}
+		}
+
+		/**
+		 * Returns true if it has been decided whether the relation of the passed bit applies to the group.
+		 *
+		 * @param relationBit the bit of the relation, see {@link #getRelationBit}
+		 * @return true if the decision is memoized
+		 */
+		boolean isApplicationResolved(int relationBit) {
+			return (this.resolvedApplications & relationBit) != 0;
+		}
+
+		/**
+		 * Returns the memoized decision whether the relation of the passed bit applies to the group.
+		 *
+		 * @param relationBit the bit of the relation, see {@link #getRelationBit}
+		 * @return true if the relation applies
+		 */
+		boolean isApplying(int relationBit) {
+			return (this.applyingRelations & relationBit) != 0;
+		}
+
+		/**
+		 * Memoizes the decision whether the relation of the passed bit applies to the group.
+		 *
+		 * @param relationBit the bit of the relation, see {@link #getRelationBit}
+		 * @param applying    true if the relation applies
+		 */
+		void setApplication(int relationBit, boolean applying) {
+			this.resolvedApplications |= relationBit;
+			if (applying) {
+				this.applyingRelations |= relationBit;
+			}
+		}
 
 	}
 
