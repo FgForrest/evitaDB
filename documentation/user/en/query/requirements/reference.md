@@ -98,6 +98,7 @@ referenceSummary(
         <p>
         - **COUNTS** *(default, implicit)*: each option carries only the number of entities that contain it, out of
             the entities the query returns without its [`userFilter`](../filtering/behavioral.md#user-filter) part
+            (the number of entities that don't contain it, in a [negated](#facet-groups-negation) group)
         - **IMPACT**: each non-selected option additionally carries an impact prediction (`matchCount`,
             `difference`, `hasSense`) showing what would happen if the user selected it; affected by
             [conjunction](#facet-groups-conjunction), [disjunction](#facet-groups-disjunction),
@@ -272,8 +273,8 @@ This group is returned as a single group inside the reference.
 
 The group belongs to the reference, not to the option: an option referenced under several groups — or under a group
 by some entities and without one by others — is listed in each of these groups. Each of these entries counts the
-entities referencing the option under its own group, so the entries of one option may show different counts, and an
-entry whose count is zero is left out. Selecting the option selects it in all of its groups (see
+entities referencing the option under its own group (in a negated group, the entities that don't reference it under
+that group), so the entries of one option may show different counts, and an entry whose count is zero is left out. Selecting the option selects it in all of its groups (see
 [facet groups belong to references](../filtering/references.md#facet-groups-belong-to-references)), so the impact of
 every entry predicts the same selection.
 
@@ -287,6 +288,10 @@ A reference option contains the per-option statistics:
     The number of entities in the current query result, excluding the effect of the
     [`userFilter`](../filtering/behavioral.md#user-filter) part, that have this option (i.e. reference an entity
     with this primary key).
+
+    In a group the query negates — by [`facetGroupsNegation`](#facet-groups-negation) at either level, or by
+    NEGATION set as the default in [`facetCalculationRules`](#facet-calculation-rules) — the count is the number of
+    those entities that **don't** have the option.
   </dd>
   <dt>requested</dt>
   <dd>

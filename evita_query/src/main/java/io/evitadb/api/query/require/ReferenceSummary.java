@@ -73,9 +73,10 @@ import java.util.Optional;
  * `COUNTS` is the implicit default and is omitted from the EvitaQL string representation.
  *
  * The group belongs to the reference, not to the option, so an option referenced under several groups is listed in each
- * of them. Each of these entries counts the entities referencing the option under its own group - the entries of one
- * option may count differently, and an entry counting no entity is left out - while the impact of every entry predicts
- * the same selection, because selecting the option selects it in all of its groups.
+ * of them. Each of these entries counts the entities referencing the option under its own group - or, in a group the
+ * query negates, the entities not referencing it under that group - so the entries of one option may count differently,
+ * and an entry counting no entity is left out, while the impact of every entry predicts the same selection, because
+ * selecting the option selects it in all of its groups.
  *
  * ## Default reference calculation rules
  *
