@@ -347,10 +347,13 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 						null,
 						null,
 						null,
+						// the node filter is a part of the query, so it records what it names - the context of the
+						// query counts it on the registry of the hierarchy entity, whichever entity that is
 						new AttributeSchemaAccessor(
 							queryContext.getCatalogSchema(),
 							entitySchema,
-							null
+							null,
+							queryContext
 						),
 						(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),
 						() -> {

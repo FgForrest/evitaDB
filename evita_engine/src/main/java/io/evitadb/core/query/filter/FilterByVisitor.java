@@ -319,7 +319,13 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * Method creates a new formula that looks for entity primary keys in global index of `entityType` collection that
 	 * match the `filterBy` constraint.
 	 *
-	 * @param queryContext            used for accessing global index, global cache and recording query telemetry
+	 * The schema capabilities the filter requests are recorded in the passed context - see
+	 * {@link #createFormulaForTheFilter(QueryPlanningContext, Class, List, FilterBy, FilterBy, EntitySchemaContract,
+	 * Supplier, boolean)}.
+	 *
+	 * @param queryContext            used for accessing global index, global cache, recording query telemetry and the
+	 *                                capabilities the filter requests
+	 * @param requestedScopes         the scopes the filter is planned in
 	 * @param filterBy                the filter constraints the entities must match
 	 * @param entityType              the entity type of the entity that is looked up
 	 * @param stepDescriptionSupplier the message supplier for the query telemetry
@@ -383,43 +389,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
-	 * Method creates a new formula that looks for entity primary keys in global index of `entityType` collection that
-	 * match the `filterBy` constraint, planned in every requested scope - see
-	 * {@link #createFormulaForTheFilter(QueryPlanningContext, Set, FilterBy, String, Supplier)} - and records the
-	 * attribute capabilities the filter requests in the passed context, as a nested query planned there over data
-	 * records them. It suits a filter that no plan of its own evaluates: the caller hands what the context accumulated
-	 * to the query the filter belongs to, which counts it.
-	 *
-	 * @param queryContext            used for accessing global index, global cache, recording query telemetry and the
-	 *                                capabilities the filter requests
-	 * @param requestedScopes         the scopes the filter is planned in
-	 * @param filterBy                the filter constraints the entities must match
-	 * @param entityType              the entity type of the entity that is looked up
-	 * @param stepDescriptionSupplier the message supplier for the query telemetry
-	 * @return output {@link Formula} that is able to produce the matching entity primary keys
-	 */
-	@Nonnull
-	public static Formula createFormulaForTheFilterRecordingCapabilities(
-		@Nonnull QueryPlanningContext queryContext,
-		@Nonnull Set<Scope> requestedScopes,
-		@Nonnull FilterBy filterBy,
-		@Nonnull String entityType,
-		@Nonnull Supplier<String> stepDescriptionSupplier
-	) {
-		return createFormulaForTheFilter(
-			queryContext,
-			GlobalEntityIndex.class,
-			getGlobalIndexesOrEmpty(queryContext, requestedScopes, entityType),
-			filterBy,
-			null,
-			queryContext.getSchema(entityType),
-			stepDescriptionSupplier,
-			false,
-			true
-		);
-	}
-
-	/**
 	 * Returns the global index of the entity type in every requested scope, or an empty one in a scope the entity type
 	 * holds no entity of - see {@link #createFormulaForTheFilter(QueryPlanningContext, Set, FilterBy, FilterBy, String,
 	 * Supplier)} for why a scope without data is planned as well.
@@ -479,9 +448,15 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * EntitySchemaContract, Supplier)} - by a visitor that only checks the filter when `constraintCheckOnly` is true
 	 * (see {@link #isConstraintCheckOnly()}). A check of a nested filter passes true, so that the check stays one
 	 * however deep the filter nests further reference constraints - its visitor is a nested filter check, see
-	 * {@link #isNestedFilterCheck()}. Such a check records the attribute capabilities the filter requests in the
-	 * passed context, as the nested query planned there over data does; any other call leaves them unrecorded, except
-	 * {@link #createFormulaForTheFilterRecordingCapabilities}.
+	 * {@link #isNestedFilterCheck()}.
+	 *
+	 * The schema capabilities the filter requests are recorded in the passed context, whether the filter is only checked
+	 * or evaluated, and whichever entity type it selects - the context counts each of them on the registry of the
+	 * collection declaring it. The context counts them when it builds a plan; a caller translating a filter in a context
+	 * that builds none - a check, or a filter no plan of its own evaluates - hands what the context accumulated to the
+	 * query the filter belongs to. A filter translated in the context of the query itself (the parent filter of a
+	 * `hierarchyWithin`, the filter of a segment, the group selector of a `histogramHaving`) needs no hand-over: the
+	 * query counts it with the rest of its plan.
 	 *
 	 * @param queryContext            used for accessing global index, global cache and recording query telemetry
 	 * @param indexType               the type of the indexes to use
@@ -504,43 +479,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nullable EntitySchemaContract entitySchema,
 		@Nonnull Supplier<String> stepDescriptionSupplier,
 		boolean constraintCheckOnly
-	) {
-		return createFormulaForTheFilter(
-			queryContext, indexType, indexesToUse, filterBy, rootFilterBy, entitySchema, stepDescriptionSupplier,
-			constraintCheckOnly, constraintCheckOnly
-		);
-	}
-
-	/**
-	 * Method creates a new formula that looks for entity primary keys in the passed indexes that match the `filterBy`
-	 * constraint - see {@link #createFormulaForTheFilter(QueryPlanningContext, Class, List, FilterBy, FilterBy,
-	 * EntitySchemaContract, Supplier, boolean)} - recording the attribute capabilities the filter requests in the
-	 * passed context when `recordRequestedCapabilities` is true.
-	 *
-	 * @param queryContext                used for accessing global index, global cache and recording query telemetry
-	 * @param indexType                   the type of the indexes to use
-	 * @param indexesToUse                the indexes the filter is translated over
-	 * @param filterBy                    the filter constraints the entities must match
-	 * @param rootFilterBy                the filter of the enclosing query, NULL when there is none
-	 * @param entitySchema                the entity schema of the entity that is looked up
-	 * @param stepDescriptionSupplier     the message supplier for the query telemetry
-	 * @param constraintCheckOnly         true when the filter is translated only to be checked and its formula is
-	 *                                    thrown away
-	 * @param recordRequestedCapabilities true when the attribute capabilities the filter requests are recorded in the
-	 *                                    passed context
-	 * @return output {@link Formula} that is able to produce the matching entity primary keys
-	 */
-	@Nonnull
-	private static <T extends EntityIndex> Formula createFormulaForTheFilter(
-		@Nonnull QueryPlanningContext queryContext,
-		@Nonnull Class<T> indexType,
-		@Nonnull List<T> indexesToUse,
-		@Nonnull FilterBy filterBy,
-		@Nullable FilterBy rootFilterBy,
-		@Nullable EntitySchemaContract entitySchema,
-		@Nonnull Supplier<String> stepDescriptionSupplier,
-		boolean constraintCheckOnly,
-		boolean recordRequestedCapabilities
 	) {
 		final Formula theFormula;
 		try {
@@ -580,12 +518,10 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 							null,
 							null,
 							null,
-							// a check stands for the nested query planned in the same context over data, so it records the
-							// capabilities that query would - whether they are counted is up to the caller of the check, as
-							// it is up to the caller of a recording translation of a filter no plan of its own evaluates
+							// the filter is a part of the query whichever plan evaluates it, so it records what it names -
+							// whether the context counts it or hands it over is up to the caller
 							new AttributeSchemaAccessor(
-								queryContext.getCatalogSchema(), entitySchema, null,
-								recordRequestedCapabilities ? queryContext : null
+								queryContext.getCatalogSchema(), entitySchema, null, queryContext
 							),
 							(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),
 							() -> {

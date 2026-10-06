@@ -72,6 +72,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -94,11 +95,17 @@ import static io.evitadb.api.query.QueryConstraints.facetHaving;
 import static io.evitadb.api.query.QueryConstraints.facetSummary;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.filterGroupBy;
+import static io.evitadb.api.query.QueryConstraints.fromNode;
 import static io.evitadb.api.query.QueryConstraints.fromRoot;
+import static io.evitadb.api.query.QueryConstraints.groupHaving;
+import static io.evitadb.api.query.QueryConstraints.having;
 import static io.evitadb.api.query.QueryConstraints.hierarchyOfReference;
 import static io.evitadb.api.query.QueryConstraints.hierarchyOfSelf;
+import static io.evitadb.api.query.QueryConstraints.hierarchyWithin;
 import static io.evitadb.api.query.QueryConstraints.hierarchyWithinSelf;
+import static io.evitadb.api.query.QueryConstraints.histogramHaving;
 import static io.evitadb.api.query.QueryConstraints.histogramStatistics;
+import static io.evitadb.api.query.QueryConstraints.node;
 import static io.evitadb.api.query.QueryConstraints.or;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.api.query.QueryConstraints.orderGroupBy;
@@ -110,6 +117,9 @@ import static io.evitadb.api.query.QueryConstraints.referenceSummary;
 import static io.evitadb.api.query.QueryConstraints.referenceSummaryOfReference;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
+import static io.evitadb.api.query.QueryConstraints.segment;
+import static io.evitadb.api.query.QueryConstraints.segments;
+import static io.evitadb.api.query.QueryConstraints.stopAt;
 import static io.evitadb.api.query.QueryConstraints.traverseByEntityProperty;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.ENGINE;
@@ -1439,6 +1449,249 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 						.setReference(REFERENCE_CATEGORIES, 1)
 						.upsertVia(session);
 				}
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("A constraint translated in the context of the query against the schema of another entity")
+	class ConstraintsOfAnotherSchema {
+
+		@Test
+		@DisplayName("The parent filter of a referenced hierarchy counts on the referenced type, with and without data")
+		void shouldCountParentFilterOfHierarchyWithinReferenceWithAndWithoutData() {
+			// the parent filter selects among the brands, in the context of the query of the products - the label and
+			// the tree it depends on are declared by the brands, and they are counted there whether a brand exists or
+			// not
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				filterBy(hierarchyWithin(REFERENCE_BRAND, attributeEquals(ATTRIBUTE_LABEL, "label-1")))
+			);
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(labelKey(), 1L, brandHierarchicalKey(), 1L);
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_BRAND, query),
+				"The query of the products without any brand must count the parent filter and the tree once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_BRAND, query),
+				"The query of the products must count the parent filter and the tree once, now that a brand exists"
+			);
+		}
+
+		@Test
+		@DisplayName("The parent filter of the queried hierarchy counts, with and without data")
+		void shouldCountParentFilterOfHierarchyWithinSelfWithAndWithoutData() {
+			final Query query = Query.query(
+				collection(ENTITY_BRAND),
+				filterBy(hierarchyWithinSelf(attributeEquals(ATTRIBUTE_LABEL, "label-1")))
+			);
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(labelKey(), 1L, brandHierarchicalKey(), 1L);
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_BRAND, query),
+				"The query of the brands without any brand must count the parent filter and the tree once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_BRAND, query),
+				"The query of the brands must count the parent filter and the tree once, now that a brand exists"
+			);
+		}
+
+		@Test
+		@DisplayName("The node filter of a referenced hierarchy counts on the referenced type, with and without data")
+		void shouldCountHavingFilterOfHierarchyWithinReferenceWithAndWithoutData() {
+			// the `having` filter selects the nodes of the tree of the brands the products may sit in
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				filterBy(
+					hierarchyWithin(
+						REFERENCE_BRAND, entityPrimaryKeyInSet(1), having(attributeEquals(ATTRIBUTE_RANK, 1L))
+					)
+				)
+			);
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(
+				rankKey(Capability.FILTERABLE), 1L, brandHierarchicalKey(), 1L
+			);
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_BRAND, query),
+				"The query of the products without any brand must count the node filter and the tree once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_BRAND, query),
+				"The query of the products must count the node filter and the tree once, now that a brand exists"
+			);
+		}
+
+		@Test
+		@DisplayName("The node filters of the statistics of a referenced hierarchy count, with and without data")
+		void shouldCountNodeFiltersOfHierarchyOfReferenceWithAndWithoutData() {
+			// the statistics start at the brand the `fromNode` filter selects and stop at those the `stopAt` filter
+			// selects - both filters select among the brands, and both are planned while the query is planned
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				require(
+					hierarchyOfReference(
+						REFERENCE_BRAND,
+						fromNode(
+							"tree",
+							node(filterBy(attributeEquals(ATTRIBUTE_LABEL, "label-1"))),
+							stopAt(node(filterBy(attributeEquals(ATTRIBUTE_RANK, 1L))))
+						)
+					)
+				)
+			);
+
+			final Map<SchemaCapabilityKey, Long> withoutBrand = capabilitiesRequestedByFetching(ENTITY_BRAND, query);
+			assertCountedOnce(withoutBrand, labelKey(), "The `fromNode` filter without any brand must count once");
+			assertCountedOnce(
+				withoutBrand, rankKey(Capability.FILTERABLE), "The `stopAt` filter without any brand must count once"
+			);
+
+			addBrandOfFirstProduct();
+
+			final Map<SchemaCapabilityKey, Long> withBrand = capabilitiesRequestedByFetching(ENTITY_BRAND, query);
+			assertCountedOnce(withBrand, labelKey(), "The `fromNode` filter must count once, now that a brand exists");
+			assertCountedOnce(
+				withBrand, rankKey(Capability.FILTERABLE),
+				"The `stopAt` filter must count once, now that a brand exists"
+			);
+		}
+
+		@Test
+		@DisplayName("The entity filter of a segment counts, with and without data")
+		void shouldCountEntityFilterOfSegmentWithAndWithoutData() {
+			// the segment selects the products it orders by `code` - the filter of the query matching nothing leaves
+			// the segment no product to select, and the query is answered by the empty plan
+			assertCountedOnce(
+				capabilitiesRequestedByFetching(ENTITY_PRODUCT, productsInSegmentOfCode(null)), CODE_FILTER,
+				"The query of all products must count the filter of the segment once"
+			);
+			assertCountedOnce(
+				capabilitiesRequestedByFetching(
+					ENTITY_PRODUCT,
+					productsInSegmentOfCode(
+						filterBy(referenceHaving(REFERENCE_CATEGORIES, entityPrimaryKeyInSet(CATEGORY_COUNT + 1)))
+					)
+				),
+				CODE_FILTER,
+				"The query matching no product must count the filter of the segment once"
+			);
+		}
+
+		@Test
+		@DisplayName("The group selector of a histogram filter counts on the group type, with and without rows")
+		void shouldCountGroupSelectorOfHistogramHavingWithAndWithoutRows() {
+			// the group selector picks the category the histogram of the weighted tags is narrowed to - it is
+			// resolved among the categories while the query is planned, whether a product holds a row of the reference
+			// or not
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				filterBy(
+					histogramHaving(
+						REFERENCE_WEIGHTED_TAGS, HISTOGRAM_WEIGHT, 0L, 10L,
+						groupHaving(attributeEquals(ATTRIBUTE_CATEGORY_NAME, "category-1"))
+					)
+				)
+			);
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(
+				categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L
+			);
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_CATEGORY, query),
+				"The query without any weighted tag must count the group selector once"
+			);
+
+			addWeightedTagOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_CATEGORY, query),
+				"The query must count the group selector once, now that a product holds a weighted tag"
+			);
+		}
+
+		@Test
+		@DisplayName("An ordering of the fetched references by their own attribute counts, with and without data")
+		void shouldCountOrderingOfFetchedReferencesByReferenceAttributeWithAndWithoutData() {
+			assertCountedOnce(
+				capabilitiesRequestedByFetching(ENTITY_PRODUCT, productWithCategoriesOrderedByOrder(1)),
+				ORDER_IN_CATEGORY_SORT,
+				"The query fetching a product must count the ordering of its categories once"
+			);
+			assertCountedOnce(
+				capabilitiesRequestedByFetching(
+					ENTITY_PRODUCT, productWithCategoriesOrderedByOrder(PRODUCT_COUNT + 1)
+				),
+				ORDER_IN_CATEGORY_SORT,
+				"The query fetching no product must count the ordering of the categories once"
+			);
+		}
+
+		/**
+		 * Returns the key of the hierarchy of the brands, indexed in the live scope.
+		 *
+		 * @return the key
+		 */
+		@Nonnull
+		private static SchemaCapabilityKey brandHierarchicalKey() {
+			return SchemaCapabilityKey.entity(ENTITY_BRAND, Capability.HIERARCHICAL, Scope.LIVE);
+		}
+
+		/**
+		 * Builds the query of the products ordered by a segment of the products of one code, ordered by their
+		 * priority.
+		 *
+		 * @param filterBy the filter of the query, NULL for none
+		 * @return the query
+		 */
+		@Nonnull
+		private static Query productsInSegmentOfCode(@Nullable FilterBy filterBy) {
+			return Query.query(
+				collection(ENTITY_PRODUCT),
+				filterBy,
+				orderBy(
+					segments(
+						segment(
+							entityHaving(attributeEquals(ATTRIBUTE_CODE, "product-1")),
+							orderBy(attributeNatural(ATTRIBUTE_PRIORITY, OrderDirection.DESC))
+						)
+					)
+				)
+			);
+		}
+
+		/**
+		 * Builds the query fetching one product with its references to the categories ordered by the order of the
+		 * product in the category.
+		 *
+		 * @param productPrimaryKey the product to fetch
+		 * @return the query
+		 */
+		@Nonnull
+		private static Query productWithCategoriesOrderedByOrder(int productPrimaryKey) {
+			return Query.query(
+				collection(ENTITY_PRODUCT),
+				filterBy(entityPrimaryKeyInSet(productPrimaryKey)),
+				require(
+					entityFetch(
+						referenceContent(
+							REFERENCE_CATEGORIES,
+							orderBy(attributeNatural(ATTRIBUTE_ORDER_IN_CATEGORY, OrderDirection.ASC))
+						)
+					)
+				)
 			);
 		}
 

@@ -634,22 +634,25 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * the one {@link io.evitadb.index.IndexActivity} answers, and {@link SchemaCapabilityUsage} states the difference
 	 * in full.
 	 *
-	 * # Attribution, and the case this deliberately drops
+	 * # Attribution follows the owner, not the context
 	 *
-	 * Only elements of **this context's own collection** are recorded, which is what `owner` is checked for. A lookup
-	 * that resolved against the catalog schema alone belongs elsewhere and has its own method -
-	 * {@link #recordRequestedGlobalCapability(String, Capability, Scope)} - so one call site is left passing through
-	 * without recording anything, and it is a known gap rather than an oversight: **a filter or an ordering evaluated
-	 * against another collection's structures** (a nested query behind `referenceHaving`, an ordering by a referenced
-	 * entity's property) would have to count against *that* collection's registry, and the context that owns it is not
-	 * the one whose plan gets built.
+	 * The holder is resolved in the registry of **the collection whose schema declares the element** - `owner` -
+	 * whichever context records it. Most requests name an element of this context's own collection, but a constraint
+	 * translated here may well name another collection's element: the parent filter of a `hierarchyWithin` of a
+	 * reference, its `having` / `excluding` filters, the node filters of the hierarchy statistics of a reference, the
+	 * group selector of a `histogramHaving` - all evaluated in the context of the queried entity against the schema of
+	 * the entity they select. Such a request is counted on the registry of that entity, because that is the schema
+	 * declaring the flag and the schema mutation that would drop it. Attributing it to this context's collection would
+	 * protect the wrong flag while leaving the right one looking dead, and dropping it - as this method once did - would
+	 * leave the right one looking dead all the same; the holder is what the accumulator keeps, so where it was resolved
+	 * is the only thing the owner changes.
 	 *
-	 * Counting it here would attribute the request to the wrong schema, which is worse than not counting it: the
-	 * number exists to decide whether a flag can be dropped, and a request attributed to the wrong element protects
-	 * the wrong flag while leaving the right one looking dead.
+	 * A lookup that resolved against the catalog schema alone has its own method -
+	 * {@link #recordRequestedGlobalCapability(String, Capability, Scope)}. An owner whose collection the catalog does
+	 * not hold records nothing.
 	 *
-	 * @param owner         the entity schema declaring the element, as the caller resolved it - a schema of another
-	 *                      collection is silently ignored
+	 * @param owner         the entity schema declaring the element, as the caller resolved it - the request is counted
+	 *                      on the registry of its collection
 	 * @param containerName name of the reference declaring the element, or NULL when the entity declares it directly
 	 * @param elementKind   whether the element is an attribute or a sortable attribute compound
 	 * @param elementName   name of the element, canonical as the schema spells it
@@ -664,14 +667,17 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull Capability capability,
 		@Nonnull Scope scope
 	) {
-		final EntityCollection collection = this.entityCollection;
-		if (collection == null || !owner.getName().equals(this.entityType)) {
-			return;
-		}
 		// bail before the key is minted: the planner translates the filter once per candidate index set, so this runs
 		// N times per logical query and each run would otherwise allocate a `SchemaCapabilityKey` and hash it into the
 		// registry. That is the per-query cost `server.usageStatisticsTracking: false` exists to remove
 		if (!this.catalog.isUsageStatisticsTracked()) {
+			return;
+		}
+		final String ownerType = owner.getName();
+		final EntityCollection collection = ownerType.equals(this.entityType) ?
+			this.entityCollection :
+			getEntityCollection(ownerType).orElse(null);
+		if (collection == null) {
 			return;
 		}
 		registerRequestedCapability(
@@ -694,8 +700,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * winning plan is built, never once per candidate plan the planner weighed. See
 	 * {@link #registerRequestedCapability}.
 	 *
-	 * @param owner      the entity schema the flag was verified against - a lookup that resolved against another
-	 *                   collection records nothing, exactly as a filter evaluated against another collection does
+	 * @param owner      the entity schema the flag was verified against - the request is counted on the registry of
+	 *                   its collection, whichever collection this context queries (a `hierarchyWithin` of a reference
+	 *                   depends on the tree of the referenced entity)
 	 * @param capability the flag the query needed - `HIERARCHY_INDEXED` or `PRICE_INDEXED`
 	 * @param scopes     the scopes the query asked for
 	 */
@@ -718,8 +725,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * opposite arrangement from a request about an attribute *of* the reference, which names it as the container;
 	 * see {@link io.evitadb.index.usage.SchemaCapabilityKey#reference}.
 	 *
-	 * @param owner         the entity schema declaring the reference - see {@link #recordRequestedEntityCapability}
-	 *                      for why a foreign owner records nothing
+	 * @param owner         the entity schema declaring the reference - the request is counted on the registry of its
+	 *                      collection, see {@link #recordRequestedCapability}
 	 * @param referenceName name of the reference the query named
 	 * @param capability    the flag the query needed - `INDEXED`, `FACETED` or `BUCKETED`
 	 * @param scopes        the scopes the query asked for

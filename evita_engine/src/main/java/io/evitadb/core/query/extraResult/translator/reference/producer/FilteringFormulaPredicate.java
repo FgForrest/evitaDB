@@ -45,7 +45,6 @@ import java.util.function.IntPredicate;
 import java.util.function.Supplier;
 
 import static io.evitadb.core.query.filter.FilterByVisitor.createFormulaForTheFilter;
-import static io.evitadb.core.query.filter.FilterByVisitor.createFormulaForTheFilterRecordingCapabilities;
 
 /**
  * The predicate evaluates the nested query filter function to get the {@link Bitmap} of all hierarchy entity primary
@@ -82,7 +81,7 @@ public class FilteringFormulaPredicate implements IntPredicate {
 		// create a deferred formula that will log the execution time to query telemetry
 		this.filteringFormula = new DeferredFormula(
 			new FormulaWrapper(
-				createFormulaForTheFilterRecordingCapabilities(
+				createFormulaForTheFilter(
 					targetQueryContext,
 					requestedScopes,
 					filterBy,

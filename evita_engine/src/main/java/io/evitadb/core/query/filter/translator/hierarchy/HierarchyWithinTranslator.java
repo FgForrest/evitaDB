@@ -222,9 +222,9 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 			() -> new HierarchyNotIndexedException(targetEntitySchema, scope)
 		);
 
-		// past the assertion on purpose - the count has to mean "a query depended on this flag being on".
-		// A `hierarchyWithin` naming another collection's entity records nothing here, the same way a filter
-		// evaluated against another collection does
+		// past the assertion on purpose - the count has to mean "a query depended on this flag being on". A
+		// `hierarchyWithin` of a reference depends on the tree of the referenced entity, so it is counted on the
+		// registry of that entity's collection
 		queryContext.recordRequestedEntityCapability(targetEntitySchema, Capability.HIERARCHICAL, scopeToLookup);
 	}
 

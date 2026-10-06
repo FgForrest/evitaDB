@@ -69,8 +69,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * These reach the accumulator from translators of their own rather than from the one attribute accessor, and the
  * hazard is correspondingly different: not deduplication, which is already established one level down, but **whose
  * flag a query actually depended on**. Two of the sites make a claim about that in a comment and nothing else checks
- * it - a `hierarchyWithin` naming another collection's tree records against no registry at all, and a price histogram
- * counts the flag on its own, so a catalog whose only price usage is the histogram does not report it as unused.
+ * it - a `hierarchyWithin` naming another collection's tree counts on the registry of the collection owning the tree,
+ * and a price histogram counts the flag on its own, so a catalog whose only price usage is the histogram does not
+ * report it as unused.
  *
  * Every case reads the **difference** one query made to a registry, exactly as the sibling class does, so that neither
  * the fixture's own writes nor an earlier case can be mistaken for the query under test. Where a capability could
@@ -371,11 +372,11 @@ class ReferenceAndEntityCapabilityRequestTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("Filtering within another collection's tree counts nothing, on either registry")
-		void shouldNotRecordHierarchyIndexedWhenTheTreeBelongsToAnotherCollection() {
-			// the attribution rule the site states in a comment and nothing else checks: the flag verified belongs to
-			// the *target* schema, and a request is only ever filed against the collection being queried - so this
-			// query, which depends on `category`'s hierarchy while querying `product`, files against neither
+		@DisplayName("Filtering within another collection's tree counts on that collection's registry only")
+		void shouldRecordHierarchyIndexedOnTheCollectionOwningTheTree() {
+			// the attribution rule: the flag verified belongs to the *target* schema, which declares it and whose
+			// schema mutation would drop it - so this query, which depends on `category`'s hierarchy while querying
+			// `product`, files the request against the categories, and never credits the queried collection
 			final Map<SchemaCapabilityKey, Long> productsBefore = requestedCounts(ENTITY_PRODUCT);
 			final Map<SchemaCapabilityKey, Long> categoriesBefore = requestedCounts(ENTITY_CATEGORY);
 
@@ -390,10 +391,7 @@ class ReferenceAndEntityCapabilityRequestTest implements EvitaTestSupport {
 				requestedCountsSince(ENTITY_PRODUCT, productsBefore), PRODUCT_HIERARCHY_INDEXED,
 				"The queried collection was credited with a hierarchy flag it does not even declare"
 			);
-			assertNotRequested(
-				requestedCountsSince(ENTITY_CATEGORY, categoriesBefore), CATEGORY_HIERARCHY_INDEXED,
-				"A query against `" + ENTITY_PRODUCT + "` filed a request against another collection's registry"
-			);
+			assertRequested(requestedCountsSince(ENTITY_CATEGORY, categoriesBefore), CATEGORY_HIERARCHY_INDEXED);
 		}
 
 		@Test
