@@ -1153,6 +1153,83 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
+	 * Answers a reference body exactly for rows of registered single-owner partitions of one scope (step 4c of #1615)
+	 * and returns the partition primary keys of the rows that satisfy it.
+	 *
+	 * The body is evaluated once against the referenced-type entity index holding the rows, with the rows installed on
+	 * its processing scope (see {@link VirtualPartitionRows}) and every negation settled in place
+	 * ({@link NegationResolution#IN_PLACE}). A single-owner partition holds exactly one row, so the type-level answer
+	 * of the attribute comparisons, of `attributeIs`, of `entityHaving` and of a subtraction is the per-partition one;
+	 * the leaves where the two differ answer the installed rows instead. Intersected with the rows, the result is the
+	 * set of partitions whose single row satisfies the body - the answer their reduced entity indexes give.
+	 *
+	 * Costs one evaluation of the body against the referenced-type entity index - the evaluation the candidate
+	 * discovery already performs, settled in place - plus the leaf overrides, each one pass over the rows at most.
+	 *
+	 * @param entitySchema            the schema of the entity owning the reference
+	 * @param referenceSchema         the reference
+	 * @param filterBy                the body
+	 * @param rows                    the rows the body is answered for
+	 * @param attributeSchemaAccessor resolves the attributes of the body - those of the reference
+	 * @param nestedQueryRestriction  the narrowing of a nested `entityHaving` query, as the candidate discovery got it
+	 * @return the partition primary keys of the rows satisfying the body, possibly empty
+	 */
+	@Nonnull
+	public Bitmap getMatchingVirtualPartitions(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull FilterBy filterBy,
+		@Nonnull VirtualPartitionRows rows,
+		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
+		@Nullable NestedQueryRestriction nestedQueryRestriction
+	) {
+		// only `facetHaving` sets the expansion function, and it never reads virtual rows - a set one here would
+		// widen the type-level answer the rows are read from
+		Assert.isPremiseValid(
+			getProcessingScope().getReferencedEntityExpansionFunction() == null,
+			"Virtual partition rows cannot be answered with a referenced entity expansion function!"
+		);
+		final String referenceName = referenceSchema.getName();
+		final ReferencedTypeEntityIndex typeIndex = rows.getTypeIndex();
+		final Formula matching = executeInContextAndIsolatedFormulaStack(
+			ReferencedTypeEntityIndex.class,
+			() -> Collections.singletonList(typeIndex),
+			ReferenceContent.ALL_REFERENCES,
+			entitySchema,
+			referenceSchema,
+			nestedQueryRestriction,
+			// the formula is the answer for every row - nothing re-examines the rows afterwards
+			NegationResolution.IN_PLACE,
+			null,
+			attributeSchemaAccessor,
+			(theEntity, attributeName, locale) ->
+				theEntity.getReferences(referenceName)
+					.stream()
+					.map(it -> it.getAttributeValue(attributeName, locale)),
+			() -> getProcessingScope().doWithVirtualPartitionRows(
+				rows,
+				() -> {
+					filterBy.accept(this);
+					return getFormulaAndClear();
+				}
+			),
+			FacetIncludingChildren.class,
+			FacetIncludingChildrenExcept.class
+		);
+		matching.initialize(this.getInternalExecutionContext());
+		final Bitmap matchingPartitions = matching.compute();
+		if (matchingPartitions.isEmpty()) {
+			return EmptyBitmap.INSTANCE;
+		}
+		// the complement of a negation spans every partition of the type index, so only the rows are kept
+		final PersistentRoaringBitmap result = PersistentRoaringBitmap.and(
+			RoaringBitmapBackedBitmap.getRoaringBitmap(matchingPartitions),
+			RoaringBitmapBackedBitmap.getRoaringBitmap(rows.getPartitionPrimaryKeys())
+		);
+		return result.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(result);
+	}
+
+	/**
 	 * Shared implementation for evaluating a filter against a reference type-level index. The `indexType`
 	 * parameter controls whether entity-level ({@link EntityIndexType#REFERENCED_ENTITY_TYPE}) or
 	 * group-level ({@link EntityIndexType#REFERENCED_GROUP_ENTITY_TYPE}) indexes are used.
@@ -1968,6 +2045,14 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		 */
 		@Nullable
 		@Getter private UnaryOperator<Bitmap> referencedEntityExpansionFunction;
+		/**
+		 * The rows of registered single-owner partitions the body translated in this scope is answered for exactly, or
+		 * `null` - see {@link VirtualPartitionRows}. Installed only on the scope of a referenced-type entity index by
+		 * {@link #doWithVirtualPartitionRows} and never inherited by a scope pushed inside it, so a nested query
+		 * planned below - the one of `entityHaving` or `groupHaving` - reads its own collection as it always does.
+		 */
+		@Nullable
+		@Getter private VirtualPartitionRows virtualPartitionRows;
 
 		/**
 		 * Recursively examines all children of the specified parent constraint using the provided lambda function.
@@ -2330,6 +2415,32 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				return lambda.get();
 			} finally {
 				this.referencedEntityExpansionFunction = null;
+			}
+		}
+
+		/**
+		 * Executes the given supplier with the rows of registered single-owner partitions installed on this scope, so
+		 * that the leaves translated meanwhile answer them exactly - see {@link VirtualPartitionRows}. The rows are
+		 * removed again afterwards.
+		 *
+		 * @param virtualPartitionRows the rows the body is answered for
+		 * @param lambda               the supplier translating the body
+		 * @param <S>                  type of result returned by the supplier
+		 * @return the result produced by the supplier
+		 */
+		public <S> S doWithVirtualPartitionRows(
+			@Nonnull VirtualPartitionRows virtualPartitionRows,
+			@Nonnull Supplier<S> lambda
+		) {
+			Assert.isPremiseValid(
+				this.virtualPartitionRows == null,
+				"Virtual partition rows are already installed!"
+			);
+			try {
+				this.virtualPartitionRows = virtualPartitionRows;
+				return lambda.get();
+			} finally {
+				this.virtualPartitionRows = null;
 			}
 		}
 

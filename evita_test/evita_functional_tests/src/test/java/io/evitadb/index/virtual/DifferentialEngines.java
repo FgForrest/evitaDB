@@ -106,6 +106,7 @@ import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAll;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.facetSummary;
+import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.histogramStatistics;
 import static io.evitadb.api.query.QueryConstraints.page;
@@ -1036,6 +1037,10 @@ final class DifferentialEngines implements AutoCloseable {
 					String.valueOf(primaryKeysOf(matching.getRecordData()))
 				);
 			}
+			describeNegatedReferenceHaving(
+				snapshot, session, entityType, scope, referenceName,
+				targetsByReference.getOrDefault(referenceName, Set.of()), activation, prefix
+			);
 			describeFilteredReferenceContent(
 				snapshot, session, entityType, scope, referenceName,
 				targetsByReference.getOrDefault(referenceName, Set.of()), activation, prefix
@@ -1097,6 +1102,63 @@ final class DifferentialEngines implements AutoCloseable {
 				)
 			);
 		}
+	}
+
+	/**
+	 * Adds one line with the owners `referenceHaving` matches when its body negates every other target of the
+	 * reference - a negation settled per row, which a row read virtually has to answer exactly: an owner holding a
+	 * negated row and another one matches, an owner holding negated rows only does not.
+	 *
+	 * @param snapshot      the snapshot to add to
+	 * @param session       the session to query in
+	 * @param entityType    the collection
+	 * @param scope         the scope to query
+	 * @param referenceName the reference
+	 * @param targets       the targets the entities of the collection reference, ascending
+	 * @param activation    decides the read switch of the line
+	 * @param prefix        the path prefix of the lines
+	 */
+	private static void describeNegatedReferenceHaving(
+		@Nonnull Snapshot snapshot,
+		@Nonnull EvitaSessionContract session,
+		@Nonnull String entityType,
+		@Nonnull Scope scope,
+		@Nonnull String referenceName,
+		@Nonnull Set<Integer> targets,
+		@Nonnull ReadRouteActivation activation,
+		@Nonnull String prefix
+	) {
+		if (targets.isEmpty()) {
+			return;
+		}
+		final List<Integer> everyOther = new ArrayList<>((targets.size() + 1) / 2);
+		int index = 0;
+		for (final Integer target : targets) {
+			if (index++ % 2 == 0) {
+				everyOther.add(target);
+			}
+		}
+		final EvitaResponse<EntityReference> matching = activation.run(
+			EnumSet.of(
+				ReadRoute.REFERENCE_HAVING_BODY, ReadRoute.REFERENCE_HAVING_TARGET_INDEXES,
+				ReadRoute.REFERENCED_ENTITY_IN_BODY, ReadRoute.NEGATION_IN_BODY
+			),
+			() -> session.query(
+				query(
+					collection(entityType),
+					filterBy(
+						scope(scope),
+						referenceHaving(referenceName, not(entityPrimaryKeyInSet(everyOther.toArray(Integer[]::new))))
+					),
+					require(page(1, PAGE_SIZE))
+				),
+				EntityReference.class
+			)
+		);
+		snapshot.put(
+			prefix + "referenceHaving/" + referenceName + "/not",
+			String.valueOf(primaryKeysOf(matching.getRecordData()))
+		);
 	}
 
 	/**

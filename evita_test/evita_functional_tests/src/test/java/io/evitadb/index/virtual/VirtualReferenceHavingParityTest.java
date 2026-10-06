@@ -33,7 +33,6 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.ReferencedTypeEntityIndex;
@@ -67,26 +66,28 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies that `referenceHaving` - and the translation of partitions to their targets behind `facetHaving` - answers
  * the same with the read switch on as with it off, on the same engine and the same data: the virtual reading of the
- * registered single-owner partitions (step 4b of #1615) must be indistinguishable from the reading of their reduced
- * entity indexes for every positive body, and must refuse loudly every body it cannot answer yet.
+ * registered single-owner partitions must be indistinguishable from the reading of their reduced entity indexes for
+ * every body - the positive bodies answered from the candidate set (step 4b of #1615) and the bodies answered exactly
+ * (step 4c): negations, `attributeIs`, `entityPrimaryKeyInSet` under a negation including missing managed targets,
+ * `groupHaving`, `entityLocaleEquals` and `inScope` - and for a `referenceHaving` the bidirectional rewrite answers
+ * from the counterpart's registered partitions.
  *
  * Three catalogs, each maintained from its first write so every single-owner partition has its row:
  *
  * - {@link RelatedProductsShapedFixture} - thousands of generated owners mixing single-owner and shared partitions,
- *   duplicates, value-less rows, missing managed targets, both scopes;
+ *   duplicates, value-less rows, missing managed targets, groups, both scopes, and categories reflecting the products
+ *   they hold, some of them through single-owner partitions of the product side;
  * - {@link SingleOwnerPartitionFixture} with the reflected `Category.products` reference and one archived product;
  * - {@link CrossScopeSingletonFixture} - one key held by partitions of both scopes, and a reference whose partitions
  *   are all single-owner.
  *
- * Every positive case runs in the live scope, the archive and both, and must read virtual rows in at least one of them
- * - an equal answer of a run that read nothing virtually would compare the object reading with itself.
+ * Every case runs in the scope sets its constraints admit, and must read virtual rows in at least one of them - an
+ * equal answer of a run that read nothing virtually would compare the object reading with itself.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -143,7 +144,7 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 		this.paths = createTestPaths("VirtualReferenceHavingParityTest");
 		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
 		build(
-			CATALOG_RELATED, Set.of(RelatedProductsShapedFixture.ENTITY_PRODUCT),
+			CATALOG_RELATED, RelatedProductsShapedFixture.ENTITY_TYPES,
 			RelatedProductsShapedFixture::setUp, RelatedProductsShapedFixture::archive
 		);
 		build(
@@ -355,47 +356,268 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Returns the bodies the virtual reading of step 4b refuses - each holds a constraint whose answer for the
-	 * referenced-type entity index differs from the answer per partition.
+	 * Returns the parity cases whose body is answered exactly (step 4c of #1615) - each holds a constraint whose answer
+	 * for the referenced-type entity index differs from the answer per partition.
 	 *
-	 * @return the refused bodies with the constraint each is refused for
+	 * @return the cases
 	 */
 	@Nonnull
-	static Stream<Object[]> refusedBodies() {
+	static Stream<ParityCase> exactCases() {
 		final String related = RelatedProductsShapedFixture.REFERENCE_RELATED;
+		final String relatedProduct = RelatedProductsShapedFixture.ENTITY_PRODUCT;
 		final String relationType = RelatedProductsShapedFixture.ATTRIBUTE_RELATION_TYPE;
+		final String order = RelatedProductsShapedFixture.ATTRIBUTE_ORDER;
+		final FilterConstraint accessories = attributeEquals(relationType, RelatedProductsShapedFixture.TYPE_ACCESSORY);
+		final FilterConstraint spares = attributeEquals(relationType, RelatedProductsShapedFixture.TYPE_SPARE);
+		final Integer[] missingOnly = IntStream.rangeClosed(
+			RelatedProductsShapedFixture.PRODUCT_COUNT + 1,
+			RelatedProductsShapedFixture.PRODUCT_COUNT + RelatedProductsShapedFixture.MISSING_TARGET_COUNT
+		).boxed().toArray(Integer[]::new);
+		final String categories = RelatedProductsShapedFixture.REFERENCE_CATEGORIES;
+		// the categories held by one product each - every partition of theirs is read virtually
+		final Integer[] singletonCategories = IntStream.rangeClosed(
+			RelatedProductsShapedFixture.POPULAR_CATEGORY_COUNT + 1,
+			RelatedProductsShapedFixture.POPULAR_CATEGORY_COUNT + RelatedProductsShapedFixture.SINGLETON_CATEGORY_COUNT
+		).boxed().toArray(Integer[]::new);
+		final String priority = RelatedProductsShapedFixture.ATTRIBUTE_PRIORITY;
+		final Scope[][] liveAndBoth = {LIVE, BOTH};
+		final Scope[][] archivedAndBoth = {ARCHIVED, BOTH};
 		return Stream.of(
-			new Object[]{
-				"Not",
-				referenceHaving(related, not(attributeEquals(relationType, RelatedProductsShapedFixture.TYPE_ACCESSORY)))
-			},
-			new Object[]{
-				"AttributeIs",
-				referenceHaving(related, attributeIs(RelatedProductsShapedFixture.ATTRIBUTE_ORDER, AttributeSpecialValue.NULL))
-			},
-			new Object[]{
-				"EntityLocaleEquals",
-				referenceHaving(related, entityLocaleEquals(RelatedProductsShapedFixture.LOCALE_DE))
-			},
-			new Object[]{
-				"FilterInScope",
+			// negations and attributeIs
+			new ParityCase(
+				"related: not", CATALOG_RELATED, relatedProduct, EVERY_SCOPE_SET, true,
+				referenceHaving(related, not(accessories))
+			),
+			new ParityCase(
+				"related: and with a negated sibling", CATALOG_RELATED, relatedProduct, EVERY_SCOPE_SET, true,
+				referenceHaving(related, spares, not(attributeLessThan(order, 50)))
+			),
+			new ParityCase(
+				"related: not of or", CATALOG_RELATED, relatedProduct, EVERY_SCOPE_SET, true,
+				referenceHaving(related, not(or(accessories, attributeGreaterThan(order, 80))))
+			),
+			new ParityCase(
+				"related: attributeIs NULL on value-less rows", CATALOG_RELATED, relatedProduct, EVERY_SCOPE_SET,
+				true,
+				referenceHaving(related, attributeIs(order, AttributeSpecialValue.NULL))
+			),
+			new ParityCase(
+				"related: attributeIs NOT_NULL", CATALOG_RELATED, relatedProduct, EVERY_SCOPE_SET, true,
+				referenceHaving(related, attributeIs(order, AttributeSpecialValue.NOT_NULL), accessories)
+			),
+			new ParityCase(
+				"related: nested not(referenceHaving) of a negated body", CATALOG_RELATED, relatedProduct,
+				EVERY_SCOPE_SET, true,
+				not(referenceHaving(related, not(accessories)))
+			),
+			// entityPrimaryKeyInSet of missing managed targets under a negation
+			new ParityCase(
+				"related: not entityPrimaryKeyInSet of missing targets", CATALOG_RELATED, relatedProduct,
+				EVERY_SCOPE_SET, true,
+				referenceHaving(related, not(entityPrimaryKeyInSet(missingOnly)))
+			),
+			new ParityCase(
+				"related: not of or with entityPrimaryKeyInSet of missing targets", CATALOG_RELATED, relatedProduct,
+				EVERY_SCOPE_SET, true,
+				referenceHaving(related, not(or(entityPrimaryKeyInSet(missingOnly), accessories)))
+			),
+			new ParityCase(
+				"related: and with not entityPrimaryKeyInSet of missing targets", CATALOG_RELATED, relatedProduct,
+				EVERY_SCOPE_SET, true,
+				referenceHaving(related, and(not(entityPrimaryKeyInSet(missingOnly)), spares))
+			),
+			// groupHaving - over `categories`, indexed in the live scope only, whose singleton categories are read
+			// virtually; a product's singleton row is in another group and has another priority than its row of a
+			// popular category, so a cross-row reading of the conjunction would differ
+			new ParityCase(
+				"categories: groupHaving", CATALOG_RELATED, relatedProduct, new Scope[][]{LIVE}, true,
 				referenceHaving(
-					related,
-					inScope(Scope.LIVE, attributeEquals(relationType, RelatedProductsShapedFixture.TYPE_SPARE))
+					categories, groupHaving(attributeEquals(RelatedProductsShapedFixture.ATTRIBUTE_CODE, "C2"))
 				)
-			}
+			),
+			new ParityCase(
+				"categories: groupHaving and an attribute of the same row", CATALOG_RELATED, relatedProduct,
+				new Scope[][]{LIVE}, true,
+				referenceHaving(categories, groupHaving(entityPrimaryKeyInSet(2, 3)), attributeEquals(priority, 6))
+			),
+			new ParityCase(
+				"categories: not groupHaving", CATALOG_RELATED, relatedProduct, new Scope[][]{LIVE}, true,
+				referenceHaving(categories, not(groupHaving(entityPrimaryKeyInSet(1, 3, 5))))
+			),
+			new ParityCase(
+				"categories: groupHaving of the singleton rows", CATALOG_RELATED, relatedProduct, new Scope[][]{LIVE},
+				true,
+				referenceHaving(
+					categories, entityPrimaryKeyInSet(singletonCategories), groupHaving(entityPrimaryKeyInSet(2, 3))
+				)
+			),
+			new ParityCase(
+				"categories: not groupHaving of the singleton rows", CATALOG_RELATED, relatedProduct,
+				new Scope[][]{LIVE}, true,
+				referenceHaving(
+					categories, entityPrimaryKeyInSet(singletonCategories), not(groupHaving(entityPrimaryKeyInSet(2)))
+				)
+			),
+			new ParityCase(
+				"categories: groupHaving inside or", CATALOG_RELATED, relatedProduct, new Scope[][]{LIVE}, true,
+				referenceHaving(categories, or(groupHaving(entityPrimaryKeyInSet(4)), attributeEquals(priority, 0)))
+			),
+			// entityLocaleEquals - not in the live scope alone, where the reduced entity indexes of `relatedProducts`
+			// keep the locale of an archived owner of a sibling partition and so answer it (see the parked defect of
+			// step 4c of #1615); the archive and both scopes answer every owner by a partition of its own
+			new ParityCase(
+				"related: entityLocaleEquals of a locale half the owners have", CATALOG_RELATED, relatedProduct,
+				archivedAndBoth, true,
+				referenceHaving(related, entityLocaleEquals(RelatedProductsShapedFixture.LOCALE_DE))
+			),
+			new ParityCase(
+				"related: entityLocaleEquals of a locale every owner has", CATALOG_RELATED, relatedProduct,
+				archivedAndBoth, true,
+				referenceHaving(related, entityLocaleEquals(RelatedProductsShapedFixture.LOCALE_EN), spares)
+			),
+			new ParityCase(
+				"related: entityLocaleEquals and an attribute", CATALOG_RELATED, relatedProduct, archivedAndBoth, true,
+				referenceHaving(related, entityLocaleEquals(RelatedProductsShapedFixture.LOCALE_DE), spares)
+			),
+			new ParityCase(
+				"related: entityLocaleEquals inside or", CATALOG_RELATED, relatedProduct, archivedAndBoth, true,
+				referenceHaving(
+					related, or(entityLocaleEquals(RelatedProductsShapedFixture.LOCALE_DE), attributeLessThan(order, 3))
+				)
+			),
+			// inScope
+			new ParityCase(
+				"related: inScope of the live scope", CATALOG_RELATED, relatedProduct, liveAndBoth, true,
+				referenceHaving(related, inScope(Scope.LIVE, spares))
+			),
+			new ParityCase(
+				"related: inScope of the archive", CATALOG_RELATED, relatedProduct, archivedAndBoth, true,
+				referenceHaving(related, inScope(Scope.ARCHIVED, spares))
+			),
+			new ParityCase(
+				"related: not inScope of the live scope", CATALOG_RELATED, relatedProduct, liveAndBoth, true,
+				referenceHaving(related, not(inScope(Scope.LIVE, spares)))
+			),
+			new ParityCase(
+				"related: inScope of each scope inside or", CATALOG_RELATED, relatedProduct, new Scope[][]{BOTH}, true,
+				referenceHaving(
+					related, or(inScope(Scope.LIVE, spares), inScope(Scope.ARCHIVED, attributeLessThan(order, 10)))
+				)
+			),
+			// the small catalogs
+			new ParityCase(
+				"single owner: gallery without the shared thumbnail", CATALOG_SINGLE_OWNER,
+				SingleOwnerPartitionFixture.ENTITY_PRODUCT, EVERY_SCOPE_SET, true,
+				referenceHaving(
+					SingleOwnerPartitionFixture.REFERENCE_GALLERY,
+					not(entityPrimaryKeyInSet(SingleOwnerPartitionFixture.SHARED_MEDIA))
+				)
+			),
+			new ParityCase(
+				"cross scope: items not of weight zero", CATALOG_CROSS_SCOPE, CrossScopeSingletonFixture.ENTITY_OWNER,
+				EVERY_SCOPE_SET, true,
+				referenceHaving(
+					CrossScopeSingletonFixture.REFERENCE_ITEMS,
+					not(attributeEquals(CrossScopeSingletonFixture.ATTRIBUTE_WEIGHT, 0))
+				)
+			)
 		);
 	}
 
-	@DisplayName("a positive body answers the same with the read switch on")
+	/**
+	 * Returns the parity cases of a `referenceHaving` over the categories, which the bidirectional rewrite answers from
+	 * the product side - the products' `categories`, some partitions of which are single-owner and read virtually. Only
+	 * the product collection is read virtually, so every virtual row a case reads is read by the rewrite.
+	 *
+	 * @return the cases
+	 */
+	@Nonnull
+	static Stream<ParityCase> bidirectionalCases() {
+		final String products = RelatedProductsShapedFixture.REFERENCE_PRODUCTS;
+		final String category = RelatedProductsShapedFixture.ENTITY_CATEGORY;
+		final String priority = RelatedProductsShapedFixture.ATTRIBUTE_PRIORITY;
+		final String rank = RelatedProductsShapedFixture.ATTRIBUTE_RANK;
+		final Scope[][] live = {LIVE};
+		return Stream.of(
+			new ParityCase(
+				"bidirectional: bare", CATALOG_RELATED, category, live, true, referenceHaving(products)
+			),
+			new ParityCase(
+				"bidirectional: attribute", CATALOG_RELATED, category, live, true,
+				referenceHaving(products, attributeEquals(priority, 3))
+			),
+			new ParityCase(
+				"bidirectional: or of attributes", CATALOG_RELATED, category, live, true,
+				referenceHaving(products, or(attributeEquals(priority, 1), attributeEquals(priority, 7)))
+			),
+			new ParityCase(
+				"bidirectional: negated attribute", CATALOG_RELATED, category, live, true,
+				referenceHaving(products, not(attributeLessThan(priority, 5)))
+			),
+			new ParityCase(
+				"bidirectional: entityHaving", CATALOG_RELATED, category, live, true,
+				referenceHaving(products, entityHaving(attributeLessThan(rank, 2_000)))
+			),
+			new ParityCase(
+				"bidirectional: entityHaving and an attribute", CATALOG_RELATED, category, live, true,
+				referenceHaving(
+					products, entityHaving(attributeLessThan(rank, 5_000)), attributeGreaterThan(priority, 4)
+				)
+			)
+		);
+	}
+
+	@DisplayName("a body answers the same with the read switch on")
 	@ParameterizedTest(name = "{0}")
-	@MethodSource("positiveCases")
-	void shouldAnswerAPositiveBodyAsTheIndexObjectsDo(@Nonnull ParityCase parityCase) {
+	@MethodSource({"positiveCases", "exactCases"})
+	void shouldAnswerABodyAsTheIndexObjectsDo(@Nonnull ParityCase parityCase) {
+		assertParity(parityCase, entityTypesOf(parityCase.catalog()));
+	}
+
+	@DisplayName("the bidirectional rewrite answers the same with the counterpart read virtually")
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("bidirectionalCases")
+	void shouldAnswerABidirectionalRewriteAsTheIndexObjectsDo(@Nonnull ParityCase parityCase) {
+		// the category side is read through its index objects, so the virtual rows are the rewrite's alone
+		assertParity(parityCase, Set.of(RelatedProductsShapedFixture.ENTITY_PRODUCT));
+	}
+
+	@Test
+	@DisplayName("the bidirectional rewrite reaches the categories held only by single-owner partitions")
+	void shouldReachTheSingletonCategoriesThroughTheRewrite() {
+		final Comparison<List<Integer>> comparison = VirtualReadParity.compare(
+			maintenance(CATALOG_RELATED), Set.of(RelatedProductsShapedFixture.ENTITY_PRODUCT),
+			() -> queryPrimaryKeys(
+				CATALOG_RELATED, RelatedProductsShapedFixture.ENTITY_CATEGORY, LIVE,
+				referenceHaving(RelatedProductsShapedFixture.REFERENCE_PRODUCTS)
+			)
+		);
+		final List<Integer> singletonCategories = IntStream.rangeClosed(
+			RelatedProductsShapedFixture.POPULAR_CATEGORY_COUNT + 1,
+			RelatedProductsShapedFixture.POPULAR_CATEGORY_COUNT + RelatedProductsShapedFixture.SINGLETON_CATEGORY_COUNT
+		).boxed().toList();
+		assertTrue(comparison.objectReading().containsAll(singletonCategories), comparison.objectReading().toString());
+		assertEquals(comparison.objectReading(), comparison.virtualReading().answer());
+		// one virtual row per singleton category at least - the rows the rewrite reads virtually
+		assertTrue(
+			comparison.virtualReading().virtualRowsRead() >= singletonCategories.size(),
+			"The rewrite must read the singleton rows virtually: " + comparison.virtualReading().virtualRowsRead()
+		);
+	}
+
+	/**
+	 * Asserts a case answers the same read-off and read-on in each of its scope sets, and - when it must - that the
+	 * read-on run read virtual rows and some scope set matched an owner.
+	 *
+	 * @param parityCase  the case
+	 * @param entityTypes the collections read virtually in the read-on run
+	 */
+	private void assertParity(@Nonnull ParityCase parityCase, @Nonnull Set<String> entityTypes) {
 		long virtualRowsRead = 0;
 		boolean matchedAny = false;
 		for (final Scope[] scopes : parityCase.scopeSets()) {
 			final Comparison<List<Integer>> comparison = VirtualReadParity.compare(
-				maintenance(parityCase.catalog()), entityTypesOf(parityCase.catalog()),
+				maintenance(parityCase.catalog()), entityTypes,
 				() -> queryPrimaryKeys(parityCase.catalog(), parityCase.entityType(), scopes, parityCase.constraints())
 			);
 			assertEquals(
@@ -409,27 +631,6 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 			assertTrue(virtualRowsRead > 0, parityCase + " must read virtual rows in at least one scope set");
 			assertTrue(matchedAny, parityCase + " must match an owner in at least one scope set");
 		}
-	}
-
-	@DisplayName("a body that is not row-exact is refused with the read switch on, never answered")
-	@ParameterizedTest(name = "{0}")
-	@MethodSource("refusedBodies")
-	void shouldRefuseABodyThatIsNotRowExact(@Nonnull String constraintName, @Nonnull FilterConstraint referenceHaving) {
-		final String entityType = RelatedProductsShapedFixture.ENTITY_PRODUCT;
-		// the object reading answers it, so the refusal is the virtual reading's alone
-		final List<Integer> objectReading = queryPrimaryKeys(CATALOG_RELATED, entityType, BOTH, referenceHaving);
-		assertFalse(objectReading.isEmpty(), "The premise of the case: the object reading matches some owner");
-		final GenericEvitaInternalError refusal = assertThrows(
-			GenericEvitaInternalError.class,
-			() -> VirtualReadParity.readVirtually(
-				maintenance(CATALOG_RELATED), entityTypesOf(CATALOG_RELATED),
-				() -> queryPrimaryKeys(CATALOG_RELATED, entityType, BOTH, referenceHaving)
-			)
-		);
-		assertTrue(
-			refusal.getPrivateMessage().contains("Virtual read of `" + constraintName + "` lands in 4c"),
-			refusal.getPrivateMessage()
-		);
 	}
 
 	@Test
@@ -595,7 +796,7 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 	@Nonnull
 	private static Set<String> entityTypesOf(@Nonnull String catalog) {
 		return switch (catalog) {
-			case CATALOG_RELATED -> Set.of(RelatedProductsShapedFixture.ENTITY_PRODUCT);
+			case CATALOG_RELATED -> RelatedProductsShapedFixture.ENTITY_TYPES;
 			case CATALOG_SINGLE_OWNER -> SingleOwnerPartitionFixture.ENTITY_TYPES;
 			case CATALOG_CROSS_SCOPE -> CrossScopeSingletonFixture.ENTITY_TYPES;
 			default -> throw new IllegalArgumentException(catalog);

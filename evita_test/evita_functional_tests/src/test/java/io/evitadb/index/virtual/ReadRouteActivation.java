@@ -46,16 +46,20 @@ import java.util.function.Supplier;
  */
 final class ReadRouteActivation {
 	/**
-	 * The query routes whose virtual reading has landed - those of step 4b of #1615: the positive bodies of
-	 * `referenceHaving`, its target index list, `entityHaving` / `entityPrimaryKeyInSet` in a positive body, the
-	 * translation of a partition to its target and the positive bodies of `referenceContent(filterBy)`. A body that is
-	 * not row-exact is refused while a candidate is read virtually, so a line with one would fail loudly rather than
-	 * compare a wrong answer.
+	 * The query routes whose virtual reading has landed - those of steps 4b and 4c of #1615: every body of
+	 * `referenceHaving` and of `referenceContent(filterBy)` - the row-exact ones answered from the candidate set, the
+	 * negations, `attributeIs`, `groupHaving`, `entityLocaleEquals` and `inScope` answered exactly - its target index
+	 * list, `entityHaving` / `entityPrimaryKeyInSet` in a body, the bidirectional rewrite and the translation of a
+	 * partition to its target.
 	 */
 	static final Set<ReadRoute> LANDED_ROUTES = EnumSet.of(
 		ReadRoute.REFERENCE_HAVING_BODY,
 		ReadRoute.REFERENCE_HAVING_TARGET_INDEXES,
+		ReadRoute.NEGATION_IN_BODY,
+		ReadRoute.GROUP_IN_BODY,
+		ReadRoute.LOCALE_IN_BODY,
 		ReadRoute.REFERENCED_ENTITY_IN_BODY,
+		ReadRoute.BIDIRECTIONAL_REWRITE,
 		ReadRoute.PARTITION_TO_TARGET,
 		ReadRoute.REFERENCE_CONTENT_FILTER
 	);
@@ -91,9 +95,25 @@ final class ReadRouteActivation {
 		 */
 		REFERENCE_HAVING_TARGET_INDEXES,
 		/**
+		 * Route 3 - a negation or `attributeIs` inside a reference body.
+		 */
+		NEGATION_IN_BODY,
+		/**
+		 * Route 4 - `groupHaving` inside a reference body.
+		 */
+		GROUP_IN_BODY,
+		/**
+		 * Route 5 - `entityLocaleEquals` inside a reference body.
+		 */
+		LOCALE_IN_BODY,
+		/**
 		 * Route 6 - `entityHaving` / `entityPrimaryKeyInSet` inside a `referenceHaving` body.
 		 */
 		REFERENCED_ENTITY_IN_BODY,
+		/**
+		 * Route 7 - a `referenceHaving` answered from the counterpart of a bidirectional reference pair.
+		 */
+		BIDIRECTIONAL_REWRITE,
 		/**
 		 * Route 8 - the translation of a partition primary key to the primary key of the entity it references.
 		 */

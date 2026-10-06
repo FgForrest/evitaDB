@@ -30,6 +30,7 @@ import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.Not;
 import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.query.filter.ReferenceHaving;
@@ -44,6 +45,7 @@ import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
@@ -51,6 +53,8 @@ import io.evitadb.core.query.algebra.reference.ReferencedOwnerExistenceFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
+import io.evitadb.core.query.filter.VirtualPartitionRows;
+import io.evitadb.core.query.filter.VirtualPartitionRows.InScopeReading;
 import io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper.GlobalIndexAndFormula;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.dataType.Scope;
@@ -58,18 +62,24 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencePartition;
-import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.VirtualReferencePartition;
+import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 
@@ -109,6 +119,13 @@ public class BidirectionalReferenceRewriter {
 	 * Absolute ceiling on the number of per-owner formulas built at planning time, regardless of the ratio.
 	 */
 	private static final int MAX_CANDIDATE_OWNERS = 10_000;
+	/**
+	 * Orders counterpart partitions read virtually by their scope and then by their primary key, so the rows of one
+	 * referenced-type entity index form one ascending run.
+	 */
+	private static final Comparator<VirtualReferencePartition> BY_SCOPE_AND_PRIMARY_KEY = Comparator
+		.comparing((VirtualReferencePartition it) -> it.getIndexKey().scope())
+		.thenComparingInt(VirtualReferencePartition::primaryKey);
 
 	private BidirectionalReferenceRewriter() {
 		throw new UnsupportedOperationException("This class cannot be instantiated!");
@@ -897,6 +914,15 @@ public class BidirectionalReferenceRewriter {
 	 * the set of referenced entities the owner reaches through a row that fails the constraint - the row-scoped
 	 * reading, computed without leaving the owner. The superset is the same union the no-constraint branch uses.
 	 *
+	 * When the query reads the counterpart collection virtually, the counterpart partitions the registry of
+	 * single-owner partitions holds a row for are read as {@link VirtualReferencePartition}s (step 4c of #1615). Their
+	 * single row names the referenced entity - its only owner - outright, and the attribute constraint is answered for
+	 * the rows of **all** candidate owners at once, by one evaluation against the counterpart's referenced-type entity
+	 * index per requested scope ({@link FilterByVisitor#getMatchingVirtualPartitions}), instead of once per owner. A
+	 * row of a scope the query does not request is never matched, exactly as the visitor never reads the index of
+	 * such a partition. The rows of an owner join its formula as a constant over the referenced entities they name, so
+	 * the per-owner formula carries its content, never an identity of the registry.
+	 *
 	 * @param negatedAttribute TRUE to complement the translated constraint against the owner's own rows
 	 * @return formulas positionally paired with `candidateOwners`
 	 */
@@ -924,59 +950,233 @@ public class BidirectionalReferenceRewriter {
 			!negatedAttribute || attributeConstraint != null,
 			"A negated reference attribute constraint must carry the constraint it negates!"
 		);
-		final Formula[] result = new Formula[candidateOwners.length];
-		final List<ReducedEntityIndex> reusableIndexes = new ArrayList<>(counterpartScopes.size());
-		for (int i = 0; i < candidateOwners.length; i++) {
-			final int ownerPrimaryKey = candidateOwners[i];
-			reusableIndexes.clear();
+		// the counterpart partitions of every owner are resolved first, so the rows read virtually can be answered for
+		// all owners in one evaluation
+		final List<List<ReducedEntityIndex>> materializedPerOwner = new ArrayList<>(candidateOwners.length);
+		final List<List<VirtualReferencePartition>> virtualPerOwner = new ArrayList<>(candidateOwners.length);
+		int virtualCount = 0;
+		for (final int ownerPrimaryKey : candidateOwners) {
+			List<ReducedEntityIndex> materialized = Collections.emptyList();
+			List<VirtualReferencePartition> virtual = Collections.emptyList();
 			// the counterpart's reduced index for an owner lives in the scope of the *target* rows it holds, which is
 			// not necessarily one of the requested scopes - see `counterpartScopes`
 			for (final Scope scope : counterpartScopes) {
-				final ReferencePartition[] partitions = queryContext.resolvePartitionsOfTarget(
+				final ReferencePartition[] partitions = queryContext.resolvePartitionsOfTargetForRead(
 					targetEntitySchema, counterpart, scope, ownerPrimaryKey
 				);
 				for (final ReferencePartition partition : partitions) {
-					// the owner's rows are evaluated through the query body channel
-					reusableIndexes.add(ReferencePartitions.toReducedEntityIndex(partition));
+					switch (partition) {
+						// the owner's rows are evaluated through the query body channel
+						case ReducedEntityIndex reducedEntityIndex -> {
+							if (materialized.isEmpty()) {
+								materialized = new ArrayList<>(counterpartScopes.size());
+							}
+							materialized.add(reducedEntityIndex);
+						}
+						case VirtualReferencePartition virtualPartition -> {
+							if (virtual.isEmpty()) {
+								virtual = new ArrayList<>(counterpartScopes.size());
+							}
+							virtual.add(virtualPartition);
+						}
+					}
 				}
 			}
-			if (reusableIndexes.isEmpty()) {
-				// the owner was announced by the type-level index but carries no reduced index - treat as no match
-				result[i] = EmptyFormula.INSTANCE;
-				continue;
-			}
-			final List<ReducedEntityIndex> ownerIndexes = List.copyOf(reusableIndexes);
-			if (attributeConstraint == null) {
-				result[i] = allRowsOf(ownerIndexes);
-			} else {
-				final Formula matchingRows = filterByVisitor.executeInContextAndIsolatedFormulaStack(
-					ReducedEntityIndex.class,
-					() -> ownerIndexes,
-					ReferenceContent.ALL_REFERENCES,
-					targetEntitySchema,
-					counterpart,
-					processingScope.getNestedQueryRestriction(),
-					null,
-					attributeSchemaAccessor,
-					(entityContract, attributeName, locale) -> entityContract.getReferences(counterpartName)
-						.stream()
-						.map(it -> it.getAttributeValue(attributeName, locale)),
-					() -> {
-						attributeConstraint.accept(filterByVisitor);
-						final Formula[] collectedFormulas = filterByVisitor.getCollectedFormulasOnCurrentLevel();
-						return switch (collectedFormulas.length) {
-							case 0 -> EmptyFormula.INSTANCE;
-							case 1 -> collectedFormulas[0];
-							default -> FormulaFactory.and(collectedFormulas);
-						};
-					},
-					EntityPrimaryKeyInSet.class
+			materializedPerOwner.add(materialized);
+			virtualPerOwner.add(virtual);
+			virtualCount += virtual.size();
+		}
+		final Bitmap matchingVirtualPartitions;
+		if (virtualCount == 0) {
+			matchingVirtualPartitions = null;
+		} else {
+			// TODO JNO - remove at the end of #1615 (the non-vacuity probe of the read parity tests)
+			filterByVisitor.recordVirtualRowsRead(virtualCount);
+			matchingVirtualPartitions = attributeConstraint == null ?
+				null :
+				getMatchingVirtualPartitions(
+					filterByVisitor, targetEntitySchema, counterpart, processingScope, attributeConstraint,
+					attributeSchemaAccessor, virtualPerOwner, virtualCount
 				);
-				result[i] = negatedAttribute ?
-					FormulaFactory.not(matchingRows, allRowsOf(ownerIndexes)) : matchingRows;
+		}
+
+		final Formula[] result = new Formula[candidateOwners.length];
+		for (int i = 0; i < candidateOwners.length; i++) {
+			final Formula materializedRows = createMaterializedRowsFormula(
+				filterByVisitor, targetEntitySchema, counterpart, processingScope, attributeConstraint,
+				negatedAttribute, attributeSchemaAccessor, materializedPerOwner.get(i)
+			);
+			final Formula virtualRows = createVirtualRowsFormula(
+				virtualPerOwner.get(i), attributeConstraint == null, negatedAttribute, matchingVirtualPartitions
+			);
+			if (virtualRows instanceof EmptyFormula) {
+				result[i] = materializedRows;
+			} else if (materializedRows instanceof EmptyFormula) {
+				result[i] = virtualRows;
+			} else {
+				result[i] = FormulaFactory.or(materializedRows, virtualRows);
 			}
 		}
 		return result;
+	}
+
+	/**
+	 * Builds the formula of one owner over the counterpart partitions read through their reduced entity indexes - the
+	 * referenced entities the owner reaches through a row satisfying the attribute constraint, or through any row when
+	 * there is none.
+	 *
+	 * @param filterByVisitor         the visitor translating the constraint
+	 * @param targetEntitySchema      the schema of the entity the owner reference points at
+	 * @param counterpart             the reference on the other end of the pair
+	 * @param processingScope         the processing scope the `referenceHaving` is translated in
+	 * @param attributeConstraint     the attribute constraint, `null` when there is none
+	 * @param negatedAttribute        TRUE to complement the translated constraint against the owner's own rows
+	 * @param attributeSchemaAccessor resolves the attributes of the counterpart
+	 * @param ownerIndexes            the counterpart reduced indexes of the owner
+	 * @return the formula, or {@link EmptyFormula#INSTANCE} when the owner has no such partition
+	 */
+	@Nonnull
+	private static Formula createMaterializedRowsFormula(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull EntitySchemaContract targetEntitySchema,
+		@Nonnull ReferenceSchemaContract counterpart,
+		@Nonnull ProcessingScope<?> processingScope,
+		@Nullable FilterConstraint attributeConstraint,
+		boolean negatedAttribute,
+		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
+		@Nonnull List<ReducedEntityIndex> ownerIndexes
+	) {
+		if (ownerIndexes.isEmpty()) {
+			// the owner was announced by the type-level index but carries no reduced index - treat as no match
+			return EmptyFormula.INSTANCE;
+		}
+		if (attributeConstraint == null) {
+			return allRowsOf(ownerIndexes);
+		}
+		final String counterpartName = counterpart.getName();
+		final Formula matchingRows = filterByVisitor.executeInContextAndIsolatedFormulaStack(
+			ReducedEntityIndex.class,
+			() -> ownerIndexes,
+			ReferenceContent.ALL_REFERENCES,
+			targetEntitySchema,
+			counterpart,
+			processingScope.getNestedQueryRestriction(),
+			null,
+			attributeSchemaAccessor,
+			(entityContract, attributeName, locale) -> entityContract.getReferences(counterpartName)
+				.stream()
+				.map(it -> it.getAttributeValue(attributeName, locale)),
+			() -> {
+				attributeConstraint.accept(filterByVisitor);
+				final Formula[] collectedFormulas = filterByVisitor.getCollectedFormulasOnCurrentLevel();
+				return switch (collectedFormulas.length) {
+					case 0 -> EmptyFormula.INSTANCE;
+					case 1 -> collectedFormulas[0];
+					default -> FormulaFactory.and(collectedFormulas);
+				};
+			},
+			EntityPrimaryKeyInSet.class
+		);
+		return negatedAttribute ? FormulaFactory.not(matchingRows, allRowsOf(ownerIndexes)) : matchingRows;
+	}
+
+	/**
+	 * Answers the attribute constraint for the counterpart rows read virtually of every candidate owner at once: one
+	 * evaluation against the counterpart's referenced-type entity index per requested scope holding such rows. Rows of
+	 * the scopes the query does not request are left out, so they never match - the visitor never reads the reduced
+	 * entity index of such a partition either.
+	 *
+	 * @param filterByVisitor         the visitor translating the constraint
+	 * @param targetEntitySchema      the schema of the entity the owner reference points at
+	 * @param counterpart             the reference on the other end of the pair
+	 * @param processingScope         the processing scope the `referenceHaving` is translated in
+	 * @param attributeConstraint     the attribute constraint
+	 * @param attributeSchemaAccessor resolves the attributes of the counterpart
+	 * @param virtualPerOwner         the counterpart partitions read virtually, per owner
+	 * @param virtualCount            how many there are in total
+	 * @return the primary keys of the virtual partitions whose row satisfies the constraint
+	 */
+	@Nonnull
+	private static Bitmap getMatchingVirtualPartitions(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull EntitySchemaContract targetEntitySchema,
+		@Nonnull ReferenceSchemaContract counterpart,
+		@Nonnull ProcessingScope<?> processingScope,
+		@Nonnull FilterConstraint attributeConstraint,
+		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
+		@Nonnull List<List<VirtualReferencePartition>> virtualPerOwner,
+		int virtualCount
+	) {
+		// group the rows by the type index holding them - one per scope - in ascending partition order
+		final List<VirtualReferencePartition> allVirtual = new ArrayList<>(virtualCount);
+		for (final List<VirtualReferencePartition> ownerVirtual : virtualPerOwner) {
+			allVirtual.addAll(ownerVirtual);
+		}
+		allVirtual.sort(BY_SCOPE_AND_PRIMARY_KEY);
+		final Set<Scope> requestedScopes = processingScope.getScopes();
+		final FilterBy body = new FilterBy(attributeConstraint);
+		PersistentRoaringBitmap result = null;
+		int from = 0;
+		while (from < allVirtual.size()) {
+			final ReferencedTypeEntityIndex typeIndex = allVirtual.get(from).typeIndex();
+			int to = from + 1;
+			while (to < allVirtual.size() && allVirtual.get(to).typeIndex() == typeIndex) {
+				to++;
+			}
+			if (requestedScopes.contains(typeIndex.getIndexKey().scope())) {
+				final Bitmap matching = filterByVisitor.getMatchingVirtualPartitions(
+					targetEntitySchema, counterpart, body,
+					VirtualPartitionRows.of(
+						typeIndex, allVirtual.subList(from, to).toArray(VirtualReferencePartition[]::new),
+						// the split admits only reference-attribute constraints, never `inScope`
+						InScopeReading.OTHER_SCOPES_UNMET
+					),
+					attributeSchemaAccessor, processingScope.getNestedQueryRestriction()
+				);
+				if (!matching.isEmpty()) {
+					final PersistentRoaringBitmap matchingBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(matching);
+					result = result == null ? matchingBitmap : PersistentRoaringBitmap.or(result, matchingBitmap);
+				}
+			}
+			from = to;
+		}
+		return result == null ? EmptyBitmap.INSTANCE : new BaseBitmap(result);
+	}
+
+	/**
+	 * Builds the formula of one owner over its counterpart partitions read virtually - a constant over the referenced
+	 * entities whose single row is selected: every row without an attribute constraint, the rows satisfying it, or -
+	 * when the body negated it - the rows that do not.
+	 *
+	 * @param ownerVirtual              the counterpart partitions of the owner read virtually
+	 * @param everyRow                  TRUE when there is no attribute constraint
+	 * @param negatedAttribute          TRUE when the body negated the attribute constraint
+	 * @param matchingVirtualPartitions the primary keys of the virtual partitions satisfying the attribute constraint,
+	 *                                  `null` when there is none
+	 * @return the constant, or {@link EmptyFormula#INSTANCE} when no row is selected
+	 */
+	@Nonnull
+	private static Formula createVirtualRowsFormula(
+		@Nonnull List<VirtualReferencePartition> ownerVirtual,
+		boolean everyRow,
+		boolean negatedAttribute,
+		@Nullable Bitmap matchingVirtualPartitions
+	) {
+		if (ownerVirtual.isEmpty()) {
+			return EmptyFormula.INSTANCE;
+		}
+		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
+		for (final VirtualReferencePartition partition : ownerVirtual) {
+			final boolean selected = everyRow ||
+				Objects.requireNonNull(matchingVirtualPartitions).contains(partition.primaryKey()) != negatedAttribute;
+			if (selected) {
+				// the only owner of the counterpart row is the entity the queried owner references
+				writer.add(partition.ownerPrimaryKey());
+			}
+		}
+		final PersistentRoaringBitmap referencedEntities = writer.get();
+		return referencedEntities.isEmpty() ?
+			EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(referencedEntities));
 	}
 
 	/**

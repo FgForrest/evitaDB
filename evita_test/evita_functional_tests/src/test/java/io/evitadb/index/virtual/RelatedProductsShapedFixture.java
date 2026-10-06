@@ -28,6 +28,7 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Functions;
@@ -53,7 +54,14 @@ import java.util.Set;
  *   neither value (value-less rows);
  * - every product has an English name, every other one a German one too, and the label of a row is set in the locales
  *   its owner has;
- * - every tenth product is archived after the catalog goes live, so both scopes hold rows of both kinds.
+ * - every tenth product is archived after the catalog goes live, so both scopes hold rows of both kinds;
+ * - every product sits in one of the first {@link #POPULAR_CATEGORY_COUNT} categories through `categories` (indexed for
+ *   filtering in the live scope, with a filterable `priority` and a group - one of the first {@link #GROUP_COUNT}
+ *   categories - whose index is kept), and products `10k + 1` sit additionally in category `POPULAR_CATEGORY_COUNT + k`
+ *   alone - single-owner partitions of `categories` - for `k` up to {@link #SINGLETON_CATEGORY_COUNT}, with a priority
+ *   and a group other than those of their row of a popular category. Categories reflect the reference as `products`,
+ *   inheriting its attributes, so a `referenceHaving` over the products of a category is answered from the product
+ *   side by the bidirectional rewrite.
  *
  * The generator is deterministic: the same seed builds the same catalog.
  *
@@ -61,6 +69,14 @@ import java.util.Set;
  */
 final class RelatedProductsShapedFixture {
 	static final String ENTITY_PRODUCT = "product";
+	static final String ENTITY_CATEGORY = "category";
+	/**
+	 * Every entity type of the fixture.
+	 */
+	static final Set<String> ENTITY_TYPES = Set.of(ENTITY_PRODUCT, ENTITY_CATEGORY);
+	static final String REFERENCE_CATEGORIES = "categories";
+	static final String REFERENCE_PRODUCTS = "products";
+	static final String ATTRIBUTE_PRIORITY = "priority";
 	static final String REFERENCE_RELATED = "relatedProducts";
 	static final String ATTRIBUTE_CODE = "code";
 	static final String ATTRIBUTE_RANK = "rank";
@@ -87,6 +103,18 @@ final class RelatedProductsShapedFixture {
 	 * How many primary keys past the last product rows reference - targets the managed collection never holds.
 	 */
 	static final int MISSING_TARGET_COUNT = 50;
+	/**
+	 * How many categories serve as the groups of the rows of `categories`.
+	 */
+	static final int GROUP_COUNT = 6;
+	/**
+	 * How many categories every product is spread over.
+	 */
+	static final int POPULAR_CATEGORY_COUNT = 40;
+	/**
+	 * How many categories hold a single product each.
+	 */
+	static final int SINGLETON_CATEGORY_COUNT = 20;
 	/**
 	 * Every product whose primary key is divisible by this is archived.
 	 */
@@ -115,6 +143,9 @@ final class RelatedProductsShapedFixture {
 	 * @param session the session to write in
 	 */
 	static void setUp(@Nonnull EvitaSessionContract session) {
+		session.defineEntitySchema(ENTITY_CATEGORY)
+			.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.filterableInScope(BOTH_SCOPES))
+			.updateVia(session);
 		session.defineEntitySchema(ENTITY_PRODUCT)
 			.withLocale(LOCALE_EN, LOCALE_DE)
 			.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.filterableInScope(BOTH_SCOPES))
@@ -160,11 +191,46 @@ final class RelatedProductsShapedFixture {
 						thatIs -> thatIs.indexedInScope(BOTH_SCOPES)
 					)
 			)
+			.withReferenceToEntity(
+				REFERENCE_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs
+					.indexedForFilteringInScope(Scope.LIVE)
+					.indexedWithComponentsInScope(
+						Scope.LIVE,
+						ReferenceIndexedComponents.REFERENCED_ENTITY, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+					.withGroupTypeRelatedToEntity(ENTITY_CATEGORY)
+					.withAttribute(ATTRIBUTE_PRIORITY, Integer.class, thatIs -> thatIs.filterableInScope(Scope.LIVE))
+			)
 			.updateVia(session);
+		session.defineEntitySchema(ENTITY_CATEGORY)
+			.withReflectedReferenceToEntity(
+				REFERENCE_PRODUCTS, ENTITY_PRODUCT, REFERENCE_CATEGORIES,
+				whichIs -> whichIs
+					.withCardinality(Cardinality.ZERO_OR_MORE)
+					.withAttributesInherited()
+					.indexedForFilteringInScope(Scope.LIVE)
+			)
+			.updateVia(session);
+		final int categoryCount = POPULAR_CATEGORY_COUNT + SINGLETON_CATEGORY_COUNT;
+		for (int pk = 1; pk <= categoryCount; pk++) {
+			session.upsertEntity(session.createNewEntity(ENTITY_CATEGORY, pk).setAttribute(ATTRIBUTE_CODE, "C" + pk));
+		}
 		final Random random = new Random(SEED);
 		for (int pk = 1; pk <= PRODUCT_COUNT; pk++) {
 			session.upsertEntity(newProduct(session, pk, random));
 		}
+	}
+
+	/**
+	 * Returns the category product `10k + 1` sits in alone, or `0` for every other product.
+	 *
+	 * @param primaryKey the product primary key
+	 * @return the singleton category, `0` when there is none
+	 */
+	static int singletonCategoryOf(int primaryKey) {
+		final int k = (primaryKey - 1) / 10;
+		return primaryKey % 10 == 1 && k >= 1 && k <= SINGLETON_CATEGORY_COUNT ? POPULAR_CATEGORY_COUNT + k : 0;
 	}
 
 	/**
@@ -206,6 +272,18 @@ final class RelatedProductsShapedFixture {
 			.setAttribute(ATTRIBUTE_NAME, LOCALE_EN, "product " + primaryKey);
 		if (german) {
 			product.setAttribute(ATTRIBUTE_NAME, LOCALE_DE, "Produkt " + primaryKey);
+		}
+		product.setReference(
+			REFERENCE_CATEGORIES, 1 + (primaryKey - 1) % POPULAR_CATEGORY_COUNT,
+			ref -> ref.setAttribute(ATTRIBUTE_PRIORITY, primaryKey % 10).setGroup(1 + primaryKey % GROUP_COUNT)
+		);
+		final int singletonCategory = singletonCategoryOf(primaryKey);
+		if (singletonCategory > 0) {
+			final int k = singletonCategory - POPULAR_CATEGORY_COUNT;
+			product.setReference(
+				REFERENCE_CATEGORIES, singletonCategory,
+				ref -> ref.setAttribute(ATTRIBUTE_PRIORITY, (k + 5) % 10).setGroup(1 + k % GROUP_COUNT)
+			);
 		}
 		final int rowCount = 1 + random.nextInt(6);
 		final Set<String> taken = new HashSet<>(rowCount * 2);

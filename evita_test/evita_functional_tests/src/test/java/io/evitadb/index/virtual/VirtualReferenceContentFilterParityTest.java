@@ -25,6 +25,7 @@ package io.evitadb.index.virtual;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.require.ChunkingRequireConstraint;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -33,7 +34,6 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.Scope;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.virtual.VirtualReadParity.Comparison;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterAll;
@@ -44,6 +44,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
@@ -65,14 +66,16 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies that `referenceContent(filterBy)` keeps the same rows of every owner with the read switch on as with it off,
  * on the same engine and the same data. The rows of one representative reference key may be held by a partition read
  * virtually and by a reduced entity index - in one scope or in two - and the owners matching each must be united before
- * the key is restricted, exactly once: restricting it once per partition keeps only the owners of the last one.
+ * the key is restricted, exactly once: restricting it once per partition keeps only the owners of the last one. A
+ * partition read virtually contributes its owner only when its single row satisfies the body - from the candidate set
+ * for a row-exact body, by the exact evaluation for a negation, `attributeIs`, `groupHaving` or `inScope`, the last
+ * read as this route reads it, one copy of the body per requested scope (step 4c of #1615).
  *
  * Two catalogs, each maintained from its first write: {@link CrossScopeSingletonFixture} for the hand-built shapes of
  * one key in both scopes, with the expected rows spelled out, and {@link RelatedProductsShapedFixture} for thousands of
@@ -100,15 +103,28 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 	/**
 	 * A parity case of the generated catalog - one reference filter, optionally chunked.
 	 *
-	 * @param name   the name of the case
-	 * @param filter the reference filter
-	 * @param chunk  the chunk of the references of each owner, `null` for all of them
+	 * @param name      the name of the case
+	 * @param filter    the reference filter
+	 * @param chunk     the chunk of the references of each owner, `null` for all of them
+	 * @param scopeSets the scope sets the case runs in
 	 */
 	private record ParityCase(
 		@Nonnull String name,
 		@Nonnull FilterConstraint filter,
-		@Nullable ChunkingRequireConstraint chunk
+		@Nullable ChunkingRequireConstraint chunk,
+		@Nonnull Scope[][] scopeSets
 	) {
+
+		/**
+		 * Creates a case run in the live scope, the archive and both.
+		 *
+		 * @param name   the name of the case
+		 * @param filter the reference filter
+		 * @param chunk  the chunk of the references of each owner, `null` for all of them
+		 */
+		ParityCase(@Nonnull String name, @Nonnull FilterConstraint filter, @Nullable ChunkingRequireConstraint chunk) {
+			this(name, filter, chunk, EVERY_SCOPE_SET);
+		}
 
 		@Nonnull
 		@Override
@@ -127,7 +143,7 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 			CrossScopeSingletonFixture::setUp, CrossScopeSingletonFixture::archive
 		);
 		build(
-			CATALOG_RELATED, Set.of(RelatedProductsShapedFixture.ENTITY_PRODUCT),
+			CATALOG_RELATED, RelatedProductsShapedFixture.ENTITY_TYPES,
 			RelatedProductsShapedFixture::setUp, RelatedProductsShapedFixture::archive
 		);
 	}
@@ -244,6 +260,33 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 					attributeLessThan(RelatedProductsShapedFixture.ATTRIBUTE_ORDER, 5)
 				),
 				strip(0, 3)
+			),
+			// bodies answered exactly (step 4c)
+			new ParityCase("not", not(accessories), null),
+			new ParityCase("not, second page of two", not(accessories), page(2, 2)),
+			new ParityCase(
+				"attributeIs NULL on value-less rows",
+				attributeIs(RelatedProductsShapedFixture.ATTRIBUTE_ORDER, AttributeSpecialValue.NULL),
+				null
+			),
+			new ParityCase(
+				"not entityPrimaryKeyInSet of missing targets",
+				not(entityPrimaryKeyInSet(missingTargets())),
+				null
+			),
+			new ParityCase(
+				"and with not entityPrimaryKeyInSet of missing targets",
+				and(not(entityPrimaryKeyInSet(missingTargets())), accessories),
+				null
+			),
+			new ParityCase(
+				"inScope of the live scope", inScope(Scope.LIVE, accessories), null, new Scope[][]{LIVE, BOTH}
+			),
+			new ParityCase(
+				"inScope of the archive", inScope(Scope.ARCHIVED, accessories), null, new Scope[][]{ARCHIVED, BOTH}
+			),
+			new ParityCase(
+				"not inScope of the live scope", not(inScope(Scope.LIVE, accessories)), null, new Scope[][]{LIVE, BOTH}
 			)
 		);
 	}
@@ -253,7 +296,8 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 	@MethodSource("relatedProductsCases")
 	void shouldKeepTheSameRowsOfTheGeneratedCatalog(@Nonnull ParityCase parityCase) {
 		long virtualRowsRead = 0;
-		for (final Scope[] scopes : EVERY_SCOPE_SET) {
+		boolean keptAny = false;
+		for (final Scope[] scopes : parityCase.scopeSets()) {
 			final Comparison<Map<Integer, List<String>>> comparison = VirtualReadParity.compare(
 				maintenance(CATALOG_RELATED), Set.of(RelatedProductsShapedFixture.ENTITY_PRODUCT),
 				() -> queryRows(
@@ -266,35 +310,65 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 				comparison.objectReading(), comparison.virtualReading().answer(),
 				parityCase + " in " + Arrays.toString(scopes)
 			);
-			assertTrue(
-				comparison.objectReading().values().stream().anyMatch(it -> !it.isEmpty()),
-				"The premise of the case: some owner keeps a row in " + Arrays.toString(scopes)
-			);
+			keptAny |= comparison.objectReading().values().stream().anyMatch(it -> !it.isEmpty());
 			virtualRowsRead += comparison.virtualReading().virtualRowsRead();
 		}
+		assertTrue(keptAny, "The premise of the case: some owner keeps a row in some scope set");
 		assertTrue(virtualRowsRead > 0, parityCase + " must read virtual rows");
 	}
 
-	@Test
-	@DisplayName("a reference filter that is not row-exact is refused with the read switch on, never answered")
-	void shouldRefuseAReferenceFilterThatIsNotRowExact() {
-		final FilterConstraint negated = not(
-			attributeEquals(
-				RelatedProductsShapedFixture.ATTRIBUTE_RELATION_TYPE, RelatedProductsShapedFixture.TYPE_ACCESSORY
+	@DisplayName("the categories of every product keep the same rows under a group filter with the read switch on")
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("groupFilters")
+	void shouldKeepTheSameCategoryRowsUnderAGroupFilter(@Nonnull String name, @Nonnull FilterConstraint filter) {
+		// `categories` is indexed in the live scope only - its singleton categories are the rows read virtually
+		final Comparison<Map<Integer, List<String>>> comparison = VirtualReadParity.compare(
+			maintenance(CATALOG_RELATED), Set.of(RelatedProductsShapedFixture.ENTITY_PRODUCT),
+			() -> queryRows(
+				CATALOG_RELATED, RelatedProductsShapedFixture.ENTITY_PRODUCT, LIVE,
+				RelatedProductsShapedFixture.REFERENCE_CATEGORIES, null, filter, null
 			)
 		);
-		final GenericEvitaInternalError refusal = assertThrows(
-			GenericEvitaInternalError.class,
-			() -> VirtualReadParity.readVirtually(
-				maintenance(CATALOG_RELATED), Set.of(RelatedProductsShapedFixture.ENTITY_PRODUCT),
-				() -> queryRows(
-					CATALOG_RELATED, RelatedProductsShapedFixture.ENTITY_PRODUCT, BOTH,
-					RelatedProductsShapedFixture.REFERENCE_RELATED, RelatedProductsShapedFixture.ATTRIBUTE_RELATION_TYPE,
-					negated, null
-				)
+		assertEquals(comparison.objectReading(), comparison.virtualReading().answer(), name);
+		assertTrue(
+			comparison.objectReading().values().stream().anyMatch(it -> !it.isEmpty()),
+			"The premise of the case: some owner keeps a row"
+		);
+		assertTrue(comparison.virtualReading().virtualRowsRead() > 0, name + " must read virtual rows");
+	}
+
+	/**
+	 * Returns the group filters of `categories` - each keeps `groupHaving` in the body of the reference filter, where
+	 * it is evaluated per row rather than separated out as a pre-filter of the targets.
+	 *
+	 * @return the name and the filter of each case
+	 */
+	@Nonnull
+	static Stream<Arguments> groupFilters() {
+		final String priority = RelatedProductsShapedFixture.ATTRIBUTE_PRIORITY;
+		return Stream.of(
+			Arguments.of(
+				"groupHaving inside or", or(groupHaving(entityPrimaryKeyInSet(2)), attributeEquals(priority, 0))
+			),
+			Arguments.of("not groupHaving", not(groupHaving(entityPrimaryKeyInSet(1, 2, 3)))),
+			Arguments.of(
+				"groupHaving and an attribute of the same row",
+				and(groupHaving(entityPrimaryKeyInSet(2, 4, 6)), not(attributeEquals(priority, 1)))
 			)
 		);
-		assertTrue(refusal.getPrivateMessage().contains("Virtual read of `Not` lands in 4c"), refusal.getPrivateMessage());
+	}
+
+	/**
+	 * Returns the primary keys past the last product rows reference - targets the managed collection never holds.
+	 *
+	 * @return the missing targets
+	 */
+	@Nonnull
+	private static Integer[] missingTargets() {
+		return IntStream.rangeClosed(
+			RelatedProductsShapedFixture.PRODUCT_COUNT + 1,
+			RelatedProductsShapedFixture.PRODUCT_COUNT + RelatedProductsShapedFixture.MISSING_TARGET_COUNT
+		).boxed().toArray(Integer[]::new);
 	}
 
 	/**

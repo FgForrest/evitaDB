@@ -19,7 +19,8 @@ R1 | io.evitadb.core.query.filter.FilterByVisitor$SplitReducedIndexCandidates#ma
 R1 | io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyInSetTranslator#translate | partition-scoped body class token test and owners, from the query body channel
 R1 | io.evitadb.core.query.filter.translator.hierarchy.AbstractHierarchyTranslator#createFormulaForReferencingEntities | owners formula per hierarchy node, from the target indexes of the query body channel
 R1 | io.evitadb.core.query.filter.translator.reference.BidirectionalReferenceRewriter#allRowsOf | owners formula over the partitions of the query body channel
-R1 | io.evitadb.core.query.filter.translator.reference.BidirectionalReferenceRewriter#createPerOwnerFormulas | owner's partitions entered into the query body channel for an isolated body
+R1 | io.evitadb.core.query.filter.translator.reference.BidirectionalReferenceRewriter#createMaterializedRowsFormula | owner's materialized partitions entered into the query body channel for an isolated body
+R1 | io.evitadb.core.query.filter.translator.reference.BidirectionalReferenceRewriter#createPerOwnerFormulas | owner's partitions split by representation, the materialized ones collected for the query body channel
 R1 | io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper#createIndexLocalTargetFormula | owners of a body index tagged by its primary key, from the query body channel
 R1 | io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper#translateHavingConstraint | class tests and casts of the body indexes the query body channel carries
 R1 | io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper$GroupBucketKey#of | representative values of a reduced index of either family

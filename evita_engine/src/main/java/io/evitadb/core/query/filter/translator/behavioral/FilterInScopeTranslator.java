@@ -25,14 +25,19 @@ package io.evitadb.core.query.filter.translator.behavioral;
 
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.FilterInScope;
+import io.evitadb.core.query.QueryPlanner.EnclosingContainerRelation;
+import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.VirtualPartitionRows;
+import io.evitadb.core.query.filter.VirtualPartitionRows.InScopeReading;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyInSetTranslator;
 import io.evitadb.dataType.Scope;
@@ -62,6 +67,12 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 			"Scope `" + scopeToUse + "` used in `inScope` filter container was not requested by `scope` constraint!"
 		);
 
+		final VirtualPartitionRows virtualPartitionRows =
+			filterByVisitor.getProcessingScope().getVirtualPartitionRows();
+		if (virtualPartitionRows != null) {
+			return translateForVirtualPartitionRows(inScope, virtualPartitionRows, filterByVisitor);
+		}
+
 		filterByVisitor.registerFormulaPostProcessorBefore(
 			InScopeFormulaPostProcessor.class,
 			() -> new InScopeFormulaPostProcessor(requestedScopes, filterByVisitor::getSuperSetFormula),
@@ -79,6 +90,55 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 						scopeToUse,
 						filterByVisitor.getCollectedFormulasOnCurrentLevel()
 					);
+				}
+			);
+	}
+
+	/**
+	 * Answers the container for rows of registered single-owner partitions of one scope - see
+	 * {@link VirtualPartitionRows}. Every row lives in the scope of its partition, so the container is decided for all
+	 * of them at once, without the post-processor, which would read the type-level index of the rows' scope as the
+	 * whole answer and fill the other requested scopes with records of another kind:
+	 *
+	 * - naming the scope of the rows, the container is its children, translated in that scope, unless the route reads
+	 *   every `inScope` as unmet;
+	 * - naming another scope, it is what the route the rows are answered for makes of a constraint confined to another
+	 *   scope - every row, or none (see {@link VirtualPartitionRows.InScopeReading}).
+	 *
+	 * @param inScope         the container
+	 * @param rows            the rows answered
+	 * @param filterByVisitor the visitor translating the body
+	 * @return the formula over the partition primary keys of the rows satisfying the container
+	 */
+	@Nonnull
+	private static Formula translateForVirtualPartitionRows(
+		@Nonnull FilterInScope inScope,
+		@Nonnull VirtualPartitionRows rows,
+		@Nonnull FilterByVisitor filterByVisitor
+	) {
+		final Scope scopeToUse = inScope.getScope();
+		final InScopeReading inScopeReading = rows.getInScopeReading();
+		if (inScopeReading == InScopeReading.ALL_SCOPES_UNMET) {
+			return EmptyFormula.INSTANCE;
+		}
+		if (scopeToUse != rows.getScope()) {
+			return inScopeReading == InScopeReading.OTHER_SCOPES_MET ?
+				filterByVisitor.getSuperSetFormula() : EmptyFormula.INSTANCE;
+		}
+		return filterByVisitor.getProcessingScope()
+			.doWithScope(
+				EnumSet.of(scopeToUse),
+				() -> {
+					for (FilterConstraint innerConstraint : inScope.getChildren()) {
+						innerConstraint.accept(filterByVisitor);
+					}
+					final Formula[] innerFormulas = filterByVisitor.getCollectedFormulasOnCurrentLevel();
+					// the children are a conjunction, settled against the type-level index as any other level is
+					return innerFormulas.length == 0 ?
+						filterByVisitor.getSuperSetFormula() :
+						FutureNotFormula.postProcess(
+							innerFormulas, EnclosingContainerRelation.CONJUNCTION, filterByVisitor::getSuperSetFormula
+						);
 				}
 			);
 	}

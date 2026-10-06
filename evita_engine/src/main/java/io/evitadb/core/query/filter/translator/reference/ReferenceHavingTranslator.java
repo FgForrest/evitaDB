@@ -26,6 +26,7 @@ package io.evitadb.core.query.filter.translator.reference;
 import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.And;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -38,6 +39,7 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.FilterByVisitor.ReducedIndexCandidates;
 import io.evitadb.core.query.filter.FilterByVisitor.SplitReducedIndexCandidates;
+import io.evitadb.core.query.filter.VirtualPartitionRows.InScopeReading;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.dataType.Scope;
@@ -212,13 +214,14 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 	/**
 	 * Answers the `referenceHaving` over its candidate partitions. The candidates read through their reduced entity
 	 * indexes are evaluated as they always were - the body against each index, rebuilt one reference row at a time by
-	 * {@link ReferenceBodyTransposer}. The candidates read virtually are answered from the candidate set alone (see
-	 * {@link VirtualPartitionBodyEvaluator}): the body must be row-exact, which is asserted before anything is
-	 * evaluated, and their owners join the answer as one content-keyed constant OR'ed outside the transposed body, so
-	 * no index tag of the body ever meets a virtual row.
+	 * {@link ReferenceBodyTransposer}. The candidates read virtually are answered by
+	 * {@link VirtualPartitionBodyEvaluator}: from the candidate set alone when the body is row-exact, otherwise by one
+	 * exact evaluation of the body per scope holding virtual candidates. Either way their owners join the answer as one
+	 * content-keyed constant OR'ed outside the transposed body, so no index tag of the body ever meets a virtual row.
 	 *
-	 * The virtual part costs one pass over the virtual candidates per query, on top of the split; the materialized part
-	 * costs what the whole evaluation cost before, minus the virtual candidates.
+	 * The virtual part costs one pass over the virtual candidates per query, on top of the split, and for a body that
+	 * is not row-exact one evaluation of the body against the referenced-type entity index per scope; the materialized
+	 * part costs what the whole evaluation cost before, minus the virtual candidates.
 	 *
 	 * @param referenceHaving the constraint
 	 * @param filterByVisitor the visitor translating the constraint
@@ -245,13 +248,24 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 				() -> materializedIndexes
 			);
 		}
-		// refused before any part of the answer is built - a body that is not row-exact is never answered partially
-		VirtualPartitionBodyEvaluator.assertRowExact(
-			getFilterByFormula(referenceHaving).orElse(null), split, referenceSchema.getName()
+		// a body with no virtual reading is refused before any part of the answer is built - never answered partially
+		final boolean rowExact = VirtualPartitionBodyEvaluator.isRowExact(
+			getFilterByFormula(referenceHaving).orElse(null), referenceSchema.getName()
 		);
 		// TODO JNO - remove at the end of #1615 (the non-vacuity probe of the read parity tests)
 		filterByVisitor.recordVirtualRowsRead(split.getVirtualCount());
-		final Formula virtualOwners = VirtualPartitionBodyEvaluator.getOwnersFormula(split);
+		final Formula virtualOwners = rowExact ?
+			VirtualPartitionBodyEvaluator.getOwnersFormula(split) :
+			VirtualPartitionBodyEvaluator.getOwnersFormula(
+				split,
+				VirtualPartitionBodyEvaluator.getMatchingPartitions(
+					filterByVisitor, entitySchema, referenceSchema, new FilterBy(referenceHaving.getChildren()), split,
+					// the transposed body never runs the post-processor of `inScope`, so a constraint confined to
+					// another scope contributes nothing for a partition
+					InScopeReading.OTHER_SCOPES_UNMET,
+					processingScope.getNestedQueryRestriction()
+				)
+			);
 		if (materializedIndexes.isEmpty()) {
 			return virtualOwners;
 		}

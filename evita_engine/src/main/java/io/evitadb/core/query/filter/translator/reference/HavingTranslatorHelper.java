@@ -29,6 +29,7 @@ import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
@@ -48,6 +49,7 @@ import io.evitadb.core.query.algebra.reference.ReferencedEntityIndexPrimaryKeyTr
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
+import io.evitadb.core.query.filter.VirtualPartitionRows;
 import io.evitadb.core.query.filter.NegationResolution;
 import io.evitadb.core.query.filter.NestedQueryRestriction;
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
@@ -574,23 +576,29 @@ public class HavingTranslatorHelper {
 							// and a far smaller one than the whole family, which every later per-index step
 							// multiplies. When the returned set IS the answer (strict mode), the unrestricted set
 							// is kept, exactly as before.
-							case REFERENCED_GROUP_ENTITY_TYPE -> FormulaFactory.or(
-								processingScope
-									.getIndexStream()
-									.filter(it -> processingScope.getScopes().contains(it.getIndexKey().scope()))
-									.map(ReferencedTypeEntityIndex.class::cast)
-									.map(
-										it -> processingScope.getNegationResolution() == NegationResolution.PER_ROW ?
-											groupNarrowedReducedIndexPksFormula(
-												it,
-												getGroupRowLookup(
-													filterByVisitor, entitySchema, referenceSchema, nestedResult
-												)
-											) :
-											allReducedIndexPksFormula(it)
-									)
-									.toArray(Formula[]::new)
-							);
+							case REFERENCED_GROUP_ENTITY_TYPE -> processingScope.getVirtualPartitionRows() != null ?
+								// rows of single-owner partitions answered exactly - each looked up among the reduced
+								// group indexes of the matching groups, as its reduced entity index would be
+								getGroupRowLookup(filterByVisitor, entitySchema, referenceSchema, nestedResult)
+									.selectMatchingRows(processingScope.getVirtualPartitionRows()) :
+								FormulaFactory.or(
+									processingScope
+										.getIndexStream()
+										.filter(it -> processingScope.getScopes().contains(it.getIndexKey().scope()))
+										.map(ReferencedTypeEntityIndex.class::cast)
+										.map(
+											it -> processingScope.getNegationResolution() ==
+												NegationResolution.PER_ROW ?
+												groupNarrowedReducedIndexPksFormula(
+													it,
+													getGroupRowLookup(
+														filterByVisitor, entitySchema, referenceSchema, nestedResult
+													)
+												) :
+												allReducedIndexPksFormula(it)
+										)
+										.toArray(Formula[]::new)
+								);
 							case REFERENCED_ENTITY_TYPE -> FormulaFactory.or(
 								processingScope
 									.getIndexStream()
@@ -1056,6 +1064,58 @@ public class HavingTranslatorHelper {
 					return writer.get();
 				}
 			);
+		}
+
+		/**
+		 * Selects the rows of registered single-owner partitions that belong to one of the matching groups - the answer
+		 * {@link #createIndexLocalGroupFormula(ReducedEntityIndex)} gives for the reduced entity index of each
+		 * partition: the bucket of the row's scope and representative values is looked up, and the row matches when a
+		 * group index there lists its only owner for its target.
+		 *
+		 * Costs one pass over the rows: a registry read of the representative values and a hash lookup each, plus one
+		 * bitmap lookup per group index in the bucket - one for the single group a `histogramHaving` selects.
+		 *
+		 * @param rows the rows answered
+		 * @return the constant over the partition primary keys of the matching rows, or {@link EmptyFormula#INSTANCE}
+		 */
+		@Nonnull
+		Formula selectMatchingRows(@Nonnull VirtualPartitionRows rows) {
+			if (this.buckets.isEmpty()) {
+				return EmptyFormula.INSTANCE;
+			}
+			final Scope scope = rows.getScope();
+			return rows.select(row -> matchesVirtualRow(
+				scope, rows.getRepresentativeReferenceKey(row), rows.getOwnerPrimaryKey(row)
+			));
+		}
+
+		/**
+		 * Tells whether the row of a single-owner partition belongs to one of the matching groups.
+		 *
+		 * @param scope                      the scope of the row
+		 * @param representativeReferenceKey the representative reference key of the row's partition
+		 * @param ownerPrimaryKey            the only owner of the row
+		 * @return TRUE when a group index of the row's bucket lists the owner for the row's target
+		 */
+		boolean matchesVirtualRow(
+			@Nonnull Scope scope,
+			@Nonnull RepresentativeReferenceKey representativeReferenceKey,
+			int ownerPrimaryKey
+		) {
+			final List<ReducedGroupEntityIndex> bucket = this.buckets.get(
+				new GroupBucketKey(scope, Arrays.asList(representativeReferenceKey.representativeAttributeValues()))
+			);
+			if (bucket == null) {
+				return false;
+			}
+			final int targetPrimaryKey = representativeReferenceKey.primaryKey();
+			for (final ReducedGroupEntityIndex groupIndex : bucket) {
+				final Bitmap groupOwners = groupIndex.getOwnerPKsForReferencedEntity(targetPrimaryKey);
+				if (groupOwners != null && groupOwners.contains(ownerPrimaryKey)) {
+					return true;
+				}
+			}
+			return false;
 		}
 
 		/**

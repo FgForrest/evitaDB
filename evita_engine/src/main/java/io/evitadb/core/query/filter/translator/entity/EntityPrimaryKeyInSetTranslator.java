@@ -39,6 +39,7 @@ import io.evitadb.core.query.algebra.reference.ReferencedEntityIndexPrimaryKeyTr
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
+import io.evitadb.core.query.filter.VirtualPartitionRows;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.behavioral.FilterInScopeTranslator;
 import io.evitadb.dataType.Scope;
@@ -48,6 +49,8 @@ import io.evitadb.index.Index;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
@@ -90,6 +93,13 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 		// runtime filter below, not by the declared type.
 		final boolean referencedEntityConstraint = AbstractReducedEntityIndex.class.isAssignableFrom(indexType) &&
 			processingScope.getReferenceSchema() != null;
+		final VirtualPartitionRows virtualPartitionRows = processingScope.getVirtualPartitionRows();
+		if (virtualPartitionRows != null) {
+			// rows of single-owner partitions answered exactly: the reduced entity index of such a partition compares
+			// the target it stores, whether or not the managed target exists, so the rows are compared the same way -
+			// the type-level answer below drops a missing target and would turn `not(...)` of it into a match
+			return translateForVirtualPartitionRows(entityPrimaryKeyInSet.getPrimaryKeys(), virtualPartitionRows);
+		}
 		// inside that body the post processor would never run: `ReferenceHavingTranslator` rebuilds the body
 		// from the formulas collected on its isolated level and never calls `getFormulaAndClear()`, so the map
 		// this registers into is discarded together with the scope. Nor would it have anything to correct there -
@@ -175,6 +185,37 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 				return standardResult;
 			}
 		}
+	}
+
+	/**
+	 * Selects the rows of registered single-owner partitions whose target is one of the requested primary keys - the
+	 * answer the reduced entity index of each partition gives, which compares the target it stores. Iterates the
+	 * smaller side: the rows, each looked up in the requested keys, or the requested keys, each translated into the
+	 * partitions of its target by the type index and intersected with the rows.
+	 *
+	 * @param requestedPrimaryKeys the requested target primary keys
+	 * @param rows                 the rows answered
+	 * @return the constant over the partition primary keys of the matching rows, or {@link EmptyFormula#INSTANCE}
+	 */
+	@Nonnull
+	private static Formula translateForVirtualPartitionRows(
+		@Nonnull int[] requestedPrimaryKeys,
+		@Nonnull VirtualPartitionRows rows
+	) {
+		if (ArrayUtils.isEmpty(requestedPrimaryKeys)) {
+			return EmptyFormula.INSTANCE;
+		}
+		final PersistentRoaringBitmap requested = PersistentRoaringBitmap.bitmapOf(requestedPrimaryKeys);
+		if (requested.getCardinality() < rows.size()) {
+			// few requested targets - their partitions come from the type index, which holds every partition of
+			// a target
+			final PersistentRoaringBitmap matching = PersistentRoaringBitmap.and(
+				RoaringBitmapBackedBitmap.getRoaringBitmap(rows.getTypeIndex().getIndexPrimaryKeys(requested)),
+				RoaringBitmapBackedBitmap.getRoaringBitmap(rows.getPartitionPrimaryKeys())
+			);
+			return matching.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(matching));
+		}
+		return rows.select(row -> requested.contains(rows.getTargetPrimaryKey(row)));
 	}
 
 	/**
