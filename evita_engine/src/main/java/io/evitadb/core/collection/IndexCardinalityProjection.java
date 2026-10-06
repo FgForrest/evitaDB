@@ -71,6 +71,12 @@ import java.util.function.BiConsumer;
  * what was found. The cost is therefore proportional to the **schema**, not to the data: a collection with two
  * indexes and one with two million pay the same.
  *
+ * One reading within a described index is the exception: the records an index covers (`recordsCovered`) are counted
+ * by a walk of its value tree - see `FilterIndex#size` and `OwnerUniqueIndex#size`. A record can hold several values,
+ * one per array element or, in a standalone unique index, one per locale, and no per-record set is kept to read the
+ * count from. That is `O(values)`, which is acceptable only because this component is requested explicitly and never
+ * polled.
+ *
  * A consequence worth knowing: an index whose reference name is no longer in the schema - a reference dropped whose
  * index has not been reclaimed yet - is counted as omitted rather than described. That is the accurate reading; it is
  * not a live part of the schema any more.
@@ -187,12 +193,9 @@ final class IndexCardinalityProjection {
 			describeFamily(entityIndex, AttributeIndexStoragePart.AttributeIndexType.UNIQUE, (key, readings) -> {
 				final UniqueIndex uniqueIndex = entityIndex.getUniqueIndex(key);
 				if (uniqueIndex != null) {
-					// `size()` is the membership bitmap, which under-counts a record owning several values in one
-					// index - a localized attribute that is also unique globally has one locale-less key, and the
-					// bitmap drops the record on the first of its values removed. Reported anyway, and documented
-					// on `AttributeCardinality`: this bitmap is what the engine queries the index through, so
-					// substituting a separately-computed count here would describe an index the engine does not
-					// have
+					// `size()` is the exact number of records holding a value here, which for a standalone index
+					// (a localized attribute unique across locales) is counted by a walk of its value tree - the one
+					// reading of this projection that grows with the data, see the class javadoc
 					readings.add(
 						toAttributeCardinality(
 							key, AttributeIndexType.UNIQUE, uniqueIndex.getDistinctValueCount(), uniqueIndex.size()

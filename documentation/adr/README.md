@@ -34,6 +34,7 @@ filename date that disagrees with `date:`.
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
 | 2026-10-01 | [A CDC subscriber catching up from the WAL is served everything it is owed or told why not](2026-10-01-cdc-catch-up-delivers-everything-owed-or-fails.md) | fix | accepted | #1687, #1446, #1690, PR #1688 |
+| 2026-09-30 | [Unique indexes keep no record-id set, and a unique value occurs once whatever the locale](2026-09-30-unique-indexes-keep-no-record-set.md) | refactor | accepted | #1658 |
 | 2026-09-28 | [Every scope a reference is indexed in must carry REFERENCED_ENTITY; a stored catalog lacking it loads, and every query and schema change over it refuses loudly](2026-09-28-indexed-reference-scope-requires-entity-component.md) | fix | accepted | #1601, #1583, PR #1657 |
 | 2026-09-25 | [attributeIsNull inside referenceHaving widens candidate discovery and is answered one reference row at a time](2026-09-25-attribute-is-null-in-reference-having.md) | fix | accepted | #1584, PR #1664 |
 | 2026-09-23 | [Mark members that are public only for cross-module reach with @Internal, and enforce it from bytecode](2026-09-23-internal-member-annotation.md) | infrastructure | accepted | #1640, PR #1642 |
