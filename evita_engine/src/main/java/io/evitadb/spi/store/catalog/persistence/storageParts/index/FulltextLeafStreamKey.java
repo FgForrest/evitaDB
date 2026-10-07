@@ -31,10 +31,11 @@ import java.io.Serializable;
 import java.util.Locale;
 
 /**
- * Identity of one page stream of a fulltext index, registered in the catalog header's {@link KeyCompressor}: the
- * compressed id of this key is the `streamId` half of every page's primary key `pack(streamId, pageSequence)`.
+ * Identity of one page stream of a fulltext index, registered in the {@link KeyCompressor} of the entity collection
+ * whose data store holds the pages: the compressed id of this key is the `streamId` half of every page's primary key
+ * `pack(streamId, pageSequence)`.
  *
- * The owning entity index's primary key is part of the identity because a stream id is catalog-wide while the same
+ * The owning entity index's primary key is part of the identity because a stream id is collection-wide while the same
  * locale has a fulltext index in many entity indexes; the {@link StreamKind} tells apart the streams one index writes,
  * whose page sequences would otherwise collide.
  *

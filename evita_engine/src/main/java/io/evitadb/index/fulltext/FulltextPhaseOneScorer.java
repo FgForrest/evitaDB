@@ -59,7 +59,7 @@ import java.util.Arrays;
  * **A query token counts once however many of its expansions hit a candidate**, and the lanes it contributes are the
  * best across those expansions. Counting expansions instead would rank a document higher for containing two stem
  * variants of one word than for containing two different words of the query. The rule is implemented by merging each
- * token's expansions into per-token lanes before they reach the accumulators (`p1-index-core.md` §5.3, step 3).
+ * token's expansions into per-token lanes before they reach the accumulators.
  *
  * ## The merge, and why the impact offset stays free
  *
@@ -69,8 +69,9 @@ import java.util.Arrays;
  * one by one, never going back** - each stops early only once the candidates run out - so the posting index is always
  * the offset of its impact byte — no rank computation is ever needed, and the impact reader only ever moves forward,
  * crossing each chunk boundary of a chunked bucket at most once. The
- * galloping strategy is what lets a short posting list against a large candidate set stay within the phase-1 budget
- * (`p1-index-core-measurements.md`, part 3: 25 → 32 of 36 grid cells, up to 45× on the widest).
+ * galloping strategy is what lets a short posting list against a large candidate set stay within the phase-1 budget:
+ * it lifted the cells meeting the budget from 25 to 32 of 36 in the index-core measurements of the fulltext decision
+ * record, up to 45× faster on the widest.
  *
  * The accumulators are allocated per call, beside the candidate array; the scorer holds no state between calls and
  * is safe to use from any number of threads.

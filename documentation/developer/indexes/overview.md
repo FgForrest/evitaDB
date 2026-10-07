@@ -363,6 +363,7 @@ See [schema-settings.md](schema-settings.md#reference-index-type) for the full i
 | [Index Hierarchy](index-hierarchy.md) | `EntityIndexType`, <Term name="Entity Index Key">`EntityIndexKey`</Term>, and the three concrete index classes |
 | [Data Structures](data-structures.md) | Attribute, price, hierarchy, facet, and cardinality indexes |
 | [B+ Trees & Bucket Store](bplus-tree-bucket-store.md) | The transactional B+ tree family, columnar value columns, and scaled-int decimal keys that back the attribute indexes |
+| [B+ Tree Persistence](bplus-tree-persistence.md) | How paged trees are written as leaf-page records and reloaded, including the fulltext dictionary and field length tables |
 | [Schema Settings](schema-settings.md) | How schema configuration controls index creation and lifecycle |
 | [Mutation Flow](mutation-flow.md) | How entity mutations propagate into index updates |
 | [Query Mapping](query-mapping.md) | Which EvitaQL constraints read from which indexes |

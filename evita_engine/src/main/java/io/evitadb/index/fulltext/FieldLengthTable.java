@@ -179,7 +179,8 @@ public class FieldLengthTable implements TransactionalLayerProducer<FieldLengthT
 	 * @param lows     low 16 bits of the primary keys, strictly ascending
 	 * @param lengths  the encoded lengths, parallel to `lows`, never `0`
 	 */
-	public record LengthBlock(int blockKey, @Nonnull char[] lows, @Nonnull byte[] lengths) {
+	public record LengthBlock(int blockKey, @Nonnull char[] lows, @Nonnull byte[] lengths) implements Serializable {
+		@Serial private static final long serialVersionUID = 4948225412202134449L;
 
 		/**
 		 * Verifies the block is non-empty, ordered and holds only real lengths.
