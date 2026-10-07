@@ -26,11 +26,17 @@ package io.evitadb.index;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
+import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.AbstractSavepointFuzzTest;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.LongRunningGlobalEntityIndexTest.GlobalSnapshot;
+import io.evitadb.index.fulltext.FulltextIndexModel;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 
@@ -54,7 +60,8 @@ import static org.mockito.Mockito.when;
  * per-entity savepoint (Ref: #1252). Because the index is a
  * {@link io.evitadb.core.transaction.memory.TransactionalLayerProducer} whose transactional changes are `Snapshotable`,
  * the proof drives the parent {@link GlobalEntityIndex} directly and asserts its logical content (primary keys and
- * per-locale record ids, read via the sibling {@link LongRunningGlobalEntityIndexTest#snapshot(GlobalEntityIndex)}).
+ * per-locale record ids and the content of every per-locale fulltext index, read via the sibling
+ * {@link LongRunningGlobalEntityIndexTest#snapshot(GlobalEntityIndex)}).
  *
  * Each generation seeds a fresh random non-empty index outside any transaction, then within one real transaction
  * applies a random baseline batch of mutations (standing for *prior* entities in the same transaction — these must
@@ -81,6 +88,26 @@ class LongRunningSavepointGlobalEntityIndexTest extends AbstractSavepointFuzzTes
 	private static final int INDEX_PK = 1;
 	private static final int MAX_OPS = 10;
 
+	/**
+	 * Registry providing the analyzers of the fulltext locales.
+	 */
+	private static FulltextAnalyzerRegistry registry;
+	/**
+	 * The index-slot analyzer of every fulltext locale.
+	 */
+	private static Map<Locale, FulltextAnalyzer> analyzers;
+
+	@BeforeAll
+	static void setUpAnalyzers() {
+		registry = new FulltextAnalyzerRegistry();
+		analyzers = LongRunningGlobalEntityIndexTest.indexAnalyzersOf(registry);
+	}
+
+	@AfterAll
+	static void closeRegistry() {
+		registry.close();
+	}
+
 	@Nonnull
 	@Override
 	protected FuzzGeneration<GlobalSnapshot> newGeneration(@Nonnull Random random) {
@@ -101,8 +128,9 @@ class LongRunningSavepointGlobalEntityIndexTest extends AbstractSavepointFuzzTes
 	}
 
 	/**
-	 * A {@link GlobalEntityIndex} paired with an in-test model of its logical content (primary keys plus a locale → PK
-	 * mapping) so randomized mutations can be generated that keep the model and index in lockstep. The initial non-empty
+	 * A {@link GlobalEntityIndex} paired with an in-test model of its logical content (primary keys, a locale → PK
+	 * mapping and a model of every fulltext index) so randomized mutations can be generated that keep the model and
+	 * index in lockstep. The initial non-empty
 	 * index is seeded outside any transaction; mutations are applied to the index (and mirrored in the model) within the
 	 * framework's transaction.
 	 */
@@ -120,6 +148,7 @@ class LongRunningSavepointGlobalEntityIndexTest extends AbstractSavepointFuzzTes
 		);
 		private final Set<Integer> pks = new HashSet<>();
 		private final Map<Locale, Set<Integer>> locales = new HashMap<>();
+		private final Map<Locale, FulltextIndexModel> fulltext = new HashMap<>();
 		// reserved PK sequence for guaranteed-new forced mutations, kept clear of the 1..MAX_PK random range
 		private int forcedPkSeq = 1000;
 
@@ -128,6 +157,11 @@ class LongRunningSavepointGlobalEntityIndexTest extends AbstractSavepointFuzzTes
 			for (int i = 0; i < seedOperations; i++) {
 				applyRandomMutation(random);
 			}
+			// the seed is the warm-up load, and the go-live operator flushes it before the catalog turns
+			// transactional. Without that flush a fulltext index the seed left dirty would be collected by the
+			// baseline capture of the first commit merge, inside the commit, which no catalog ever does
+			this.index.getModifiedStorageParts(new TrappedChanges());
+			this.index.notifyFlushed();
 		}
 
 		@Nonnull
@@ -174,10 +208,11 @@ class LongRunningSavepointGlobalEntityIndexTest extends AbstractSavepointFuzzTes
 		}
 
 		/**
-		 * Applies a single random operation (PK insert/remove, locale upsert/remove), mirrored into the model.
+		 * Applies a single random operation (PK insert/remove, locale upsert/remove, fulltext write/drop), mirrored
+		 * into the model.
 		 */
 		private void applyRandomMutation(@Nonnull Random random) {
-			final int operation = random.nextInt(4);
+			final int operation = random.nextInt(6);
 			final int pk = random.nextInt(MAX_PK) + 1;
 			switch (operation) {
 				case 0 -> {
@@ -214,6 +249,8 @@ class LongRunningSavepointGlobalEntityIndexTest extends AbstractSavepointFuzzTes
 						}
 					}
 				}
+				case 4 -> LongRunningGlobalEntityIndexTest.writeFulltext(random, this.index, this.fulltext, analyzers);
+				case 5 -> LongRunningGlobalEntityIndexTest.dropFulltext(random, this.index, this.fulltext);
 				default -> throw new GenericEvitaInternalError(
 					"Unexpected random operation: " + operation
 				);

@@ -49,6 +49,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * Verifies {@link FieldLengthTable}: the length quantization, the per-entity operations, the per-block choice
  * between the sparse and the dense layout, including its hysteresis, and the transactional contract.
  *
+ * The time-bounded generational proof, which steers one block across both layout thresholds for the whole run, is
+ * `LongRunningFieldLengthTableTest` in the long-running test module.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Tag(INDEXING)

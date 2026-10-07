@@ -71,6 +71,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * isolation of fields sharing one dictionary, the analyzing write path, and the transactional contract — the last two
  * against an index rebuilt from scratch, the strongest oracle available.
  *
+ * The randomized tests here are bounded and seeded. The time-bounded generational proofs - chained commits, warm-up
+ * churn, and savepoint rollback and commit in both phases - are `LongRunningFulltextIndexTest` and
+ * `LongRunningSavepointFulltextIndexTest` in the long-running test module.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Tag(INDEXING)
