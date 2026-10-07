@@ -39,6 +39,8 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
+import java.io.Serial;
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -52,8 +54,8 @@ import java.util.List;
  *
  * The impact byte stored with every posting already folds the field length in, so ranking never reads this table.
  * It is kept because storing only that product would make two later things impossible without a reindex: changing
- * the schema's length pivot, and a BM25F that needs term frequency and field length as separate factors
- * (`p1-index-core.md` §4.4). At one byte per (field, entity) it is a fraction of a per cent of the index.
+ * the schema's length pivot, and a BM25F that needs term frequency and field length as separate factors. At one byte
+ * per (field, entity) it is a fraction of a per cent of the index.
  *
  * ## The quantization
  *
@@ -71,9 +73,9 @@ import java.util.List;
  *
  * A single table-wide choice was the alternative, and it was measured wrong in both directions: the CMS corpus keeps
  * 972,611 documents in a 972,611-slot span, where dense is ideal, while the e-commerce corpus spreads 118,772 products
- * over a 1.4M-slot span, where a dense table pays about twelve times what the data needs
- * (`p1-index-core-measurements.md`, part 8). Deciding per block serves both, and keeps an insert's array copy bounded
- * by one block however large the table grows.
+ * over a 1.4M-slot span, where a dense table pays about twelve times what the data needs (the index-core
+ * measurements of the fulltext decision record). Deciding per block serves both, and keeps an insert's array copy
+ * bounded by one block however large the table grows.
  *
  * A sparse block becomes dense once it holds more than {@link #DENSE_PROMOTION_SIZE} entities — the point at which
  * the dense form gets smaller — and a dense block returns to sparse only below half of that, so a block hovering at
@@ -505,9 +507,11 @@ public class FieldLengthTable implements TransactionalLayerProducer<FieldLengthT
 			// which come in block order because both walks ascend
 			Arrays.fill(slots, (byte) 0);
 			copyBlockInto(blockKey, slots);
-			while (overrideIndex < overriddenKeys.length && overriddenKeys[overrideIndex] >>> 16 == blockKey) {
-				final int primaryKey = overriddenKeys[overrideIndex++];
-				slots[primaryKey & 0xFFFF] = (byte) layer.getEncoded(primaryKey);
+			if (layer != null) {
+				while (overrideIndex < overriddenKeys.length && overriddenKeys[overrideIndex] >>> 16 == blockKey) {
+					final int primaryKey = overriddenKeys[overrideIndex++];
+					slots[primaryKey & 0xFFFF] = (byte) layer.getEncoded(primaryKey);
+				}
 			}
 			final LengthBlock block = LengthBlock.fromSlots(blockKey, slots);
 			if (block != null) {
