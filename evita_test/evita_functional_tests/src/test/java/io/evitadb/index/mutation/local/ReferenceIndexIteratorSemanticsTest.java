@@ -58,6 +58,7 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntFunction;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
@@ -1178,6 +1179,21 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		@Override
 		public void removeIndex(@Nonnull EntityIndexKey entityIndexKey) {
 			this.indexes.remove(entityIndexKey);
+		}
+
+		@Nonnull
+		@Override
+		public EntityIndex installIndex(
+			@Nonnull EntityIndexKey indexKey,
+			int primaryKey,
+			@Nonnull IntFunction<EntityIndex> factory
+		) {
+			throw new UnsupportedOperationException("The test fixture does not install indexes");
+		}
+
+		@Override
+		public int allocatePartitionPrimaryKey() {
+			throw new UnsupportedOperationException("The test fixture does not allocate primary keys");
 		}
 
 		/**

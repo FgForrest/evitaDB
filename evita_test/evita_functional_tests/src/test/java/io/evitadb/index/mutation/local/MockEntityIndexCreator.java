@@ -32,6 +32,7 @@ import lombok.RequiredArgsConstructor;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Map;
+import java.util.function.IntFunction;
 
 /**
  * This mock object is used in tests to provide entity index without necessity to load it from persistent data storage.
@@ -93,6 +94,17 @@ class MockEntityIndexCreator<K extends IndexKey, T extends Index<K>> implements 
 
 	@Override
 	public void removeIndex(@Nonnull K entityIndexKey) {
+		throw new UnsupportedOperationException("Method not supported.");
+	}
+
+	@Nonnull
+	@Override
+	public T installIndex(@Nonnull K indexKey, int primaryKey, @Nonnull IntFunction<T> factory) {
+		throw new UnsupportedOperationException("Method not supported.");
+	}
+
+	@Override
+	public int allocatePartitionPrimaryKey() {
 		throw new UnsupportedOperationException("Method not supported.");
 	}
 }

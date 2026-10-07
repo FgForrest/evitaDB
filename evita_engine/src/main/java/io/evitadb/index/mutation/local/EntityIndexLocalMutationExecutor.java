@@ -122,6 +122,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.function.IntSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -4347,6 +4348,17 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Override
 		public void removeIndex(@Nonnull K entityIndexKey) {
 			throw refusal(entityIndexKey);
+		}
+
+		@Nonnull
+		@Override
+		public T installIndex(@Nonnull K indexKey, int primaryKey, @Nonnull IntFunction<T> factory) {
+			throw refusal(indexKey);
+		}
+
+		@Override
+		public int allocatePartitionPrimaryKey() {
+			throw refusal("a newly allocated primary key");
 		}
 
 		/**

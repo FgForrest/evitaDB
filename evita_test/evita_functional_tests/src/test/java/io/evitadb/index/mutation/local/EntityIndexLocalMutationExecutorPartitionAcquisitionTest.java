@@ -61,6 +61,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntFunction;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
@@ -649,6 +650,21 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 			if (removed != null) {
 				this.indexesByPrimaryKey.remove(removed.getPrimaryKey());
 			}
+		}
+
+		@Nonnull
+		@Override
+		public EntityIndex installIndex(
+			@Nonnull EntityIndexKey indexKey,
+			int primaryKey,
+			@Nonnull IntFunction<EntityIndex> factory
+		) {
+			throw new UnsupportedOperationException("The test maintainer does not install indexes");
+		}
+
+		@Override
+		public int allocatePartitionPrimaryKey() {
+			throw new UnsupportedOperationException("The test maintainer does not allocate primary keys");
 		}
 
 		/**

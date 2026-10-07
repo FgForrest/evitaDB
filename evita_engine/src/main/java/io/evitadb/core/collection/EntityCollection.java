@@ -689,6 +689,18 @@ public final class EntityCollection implements
 	}
 
 	/**
+	 * Returns the maintainer of this collection's entity indexes - the very instance every entity index mutation
+	 * executor of this collection creates, installs, retires and looks up the indexes through. Exposed to this package
+	 * for the tests of the index lifecycle those executors drive.
+	 *
+	 * @return the maintainer of this collection's entity indexes
+	 */
+	@Nonnull
+	IndexMaintainer<EntityIndexKey, EntityIndex> getEntityIndexMaintainer() {
+		return this.entityIndexCreator;
+	}
+
+	/**
 	 * The per-capability usage counters of this collection - see {@link #usageRegistry} for what they mean and how long
 	 * they live. The registry is the same instance for every catalog version of one logical collection, so a caller may
 	 * hold on to it across a commit; what it must not do is assume the numbers relate to a particular catalog version,
@@ -4725,6 +4737,88 @@ public final class EntityCollection implements
 				ofNullable(getTransactionalLayerMaintainer())
 					.ifPresent(removedIndex::removeTransactionalMemoryOfReferencedProducers);
 			}
+		}
+
+		/**
+		 * Installs the index under a primary key the index sequence of this collection has already handed out. The
+		 * registration is the one {@link #getOrCreateIndex(EntityIndexKey)} performs for a newly created index - the
+		 * dirty buffer, both index maps and, outside a transaction, the index counts - so the warm-up savepoint and the
+		 * transactional diff layers revert it, and the commit merge derives the counts of a transaction from the key
+		 * delta, exactly as they do for a minted index.
+		 *
+		 * The primary key may be one whose index was retired by {@link #removeIndex(EntityIndexKey)} in the same flush
+		 * window: the retirement has already dropped it from both maps and both dirty maps, and the flush emits the
+		 * removals reclaiming the retired footprint before the parts of the installed index.
+		 *
+		 * @throws GenericEvitaInternalError when a premise of {@link IndexMaintainer#installIndex} is violated
+		 */
+		@Nonnull
+		@Override
+		public EntityIndex installIndex(
+			@Nonnull EntityIndexKey entityIndexKey,
+			int primaryKey,
+			@Nonnull IntFunction<EntityIndex> factory
+		) {
+			final int lastAssignedPrimaryKey = EntityCollection.this.indexPkSequence.get();
+			Assert.isPremiseValid(
+				primaryKey > 0 && primaryKey <= lastAssignedPrimaryKey,
+				() -> new GenericEvitaInternalError(
+					"Entity index `" + entityIndexKey + "` cannot be installed under primary key " + primaryKey +
+						" in collection `" + getEntityType() + "` - the index sequence has handed out primary keys " +
+						"up to " + lastAssignedPrimaryKey + " only!"
+				)
+			);
+			Assert.isPremiseValid(
+				EntityCollection.this.getIndexByKeyIfExists(entityIndexKey) == null,
+				() -> new GenericEvitaInternalError(
+					"Entity index `" + entityIndexKey + "` cannot be installed under primary key " + primaryKey +
+						" in collection `" + getEntityType() + "` - an index is already registered under its key!"
+				)
+			);
+			final EntityIndex indexUnderPrimaryKey = EntityCollection.this.getIndexByPrimaryKeyIfExists(primaryKey);
+			Assert.isPremiseValid(
+				indexUnderPrimaryKey == null,
+				() -> new GenericEvitaInternalError(
+					"Entity index `" + entityIndexKey + "` cannot be installed under primary key " + primaryKey +
+						" in collection `" + getEntityType() + "` - index `" +
+						Objects.requireNonNull(indexUnderPrimaryKey).getIndexKey() + "` is already registered under " +
+						"that primary key!"
+				)
+			);
+			return EntityCollection.this.dataStoreBuffer.getOrCreateIndexForModification(
+				entityIndexKey,
+				eik -> {
+					final EntityIndex entityIndex = factory.apply(primaryKey);
+					Assert.isPremiseValid(
+						entityIndex.getPrimaryKey() == primaryKey && eik.equals(entityIndex.getIndexKey()),
+						() -> new GenericEvitaInternalError(
+							"Entity index `" + eik + "` cannot be installed under primary key " + primaryKey +
+								" in collection `" + getEntityType() + "` - the factory created index `" +
+								entityIndex.getIndexKey() + "` with primary key " + entityIndex.getPrimaryKey() + "!"
+						)
+					);
+					// both absences were verified above, so these puts register the index rather than replace one
+					EntityCollection.this.indexes.put(eik, entityIndex);
+					EntityCollection.this.indexesByPrimaryKey.put(primaryKey, entityIndex);
+					// counted inline outside a transaction only, for the reason `getOrCreateIndex` gives
+					if (!Transaction.isTransactionAvailable()) {
+						EntityCollection.this.indexPopulation.recordCreated(eik);
+					}
+					return entityIndex;
+				}
+			);
+		}
+
+		/**
+		 * Hands out the next primary key of the index sequence of this collection - the very sequence
+		 * {@link #getOrCreateIndex(EntityIndexKey)} mints from, so a partition keeps the primary key it gets here when
+		 * an index object is installed for it later.
+		 *
+		 * @throws IdentifierOverflowException when the index sequence has handed out its last primary key
+		 */
+		@Override
+		public int allocatePartitionPrimaryKey() {
+			return EntityCollection.this.getNextIndexPrimaryKey();
 		}
 
 		/**
