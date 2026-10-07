@@ -116,6 +116,7 @@ R3 | io.evitadb.core.collection.EntityCollection#resolvePartitionIfExists | part
 R3 | io.evitadb.core.collection.EntityCollection$DataStoreReaderBridge#getIndexIfExists (overloads (ILjava/util/function/IntFunction;)Lio/evitadb/index/Index;) | dirty-buffer layering (DataStoreReaderBridge) every write-path reader relies on
 R3 | io.evitadb.core.collection.EntityCollection$EntityIndexMaintainer#getIndexByPrimaryKeyIfExists | the collection maintainer's by-pk read and write implementation of IndexProvider
 R3 | io.evitadb.core.collection.EntityCollection$EntityIndexMaintainer#getOrCreateIndexByPrimaryKey | the collection maintainer's by-pk read and write implementation of IndexProvider
+R3 | io.evitadb.core.collection.EntityCollection$EntityIndexMaintainer#installIndex | the collection maintainer's premise that the primary key an index is installed under is not taken by another index
 R3 | io.evitadb.core.query.QueryPlanningContext#getIndexByPrimaryKeyOf | the planning context's by-pk lookup that the partition resolvers read through
 R3 | io.evitadb.core.query.QueryPlanningContext#getIndexByPrimaryKeyReader | partition resolver surface over the collection's or the query's indexes
 R3 | io.evitadb.index.IndexMaintainer#getIndexByPrimaryKey | generic throwing by-pk default of IndexMaintainer
