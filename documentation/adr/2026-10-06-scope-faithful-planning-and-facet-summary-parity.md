@@ -1,7 +1,7 @@
 ---
 title: Every requested scope is planned, checked and counted as if it were queried alone, and the facet summary predicts exactly what facetHaving selects
 date: 2026-10-06
-updated: 2026-10-06 12:00
+updated: 2026-10-07 05:40
 status: accepted
 kind: fix
 issues: [1681, 1686, 1695]
@@ -22,7 +22,7 @@ disagreement forced the facet selection semantics to be written down. Its review
 classes of defect: constraints whose validity depended on whether the scope held data, and schema-capability
 counts that depended on it too. This record keeps the forks of all of it: the planner rule, the per-scope
 hierarchy semantics, the facet-composition and summary rules the owner decided, the "valid regardless of the data"
-rule, the counting unit, and the performance regression the facet changes caused and its measured repair.
+rule, the counting unit, and the performance regression the facet changes caused and how far its repair measured.
 
 Upgrade notes with the user-visible consequences are on the issues themselves (`[!IMPORTANT]` blocks of #1681 and
 #1695). This record does not repeat them line by line.
@@ -99,7 +99,7 @@ Upgrade notes with the user-visible consequences are on the issues themselves (`
 | 2026-10-05 / 06 | Capability statistics count a **valid query that matches nothing** like the same query over data (owner) | Otherwise a flag only such queries use looks dead, and dropping it breaks them | `QueryPlanBuilder.empty` drains |
 | 2026-10-06 | **The counting unit is once per logical query**, across nested queries, checks, sorter contexts and fetch-time plans. The root context keeps the record of what was counted | ADR 2026-08-19 defines that unit and nothing makes a nested plan a unit of its own. Per-plan counting differed with and without data (2 / 1) | `QueryPlanningContext#drainRequestedCapabilitiesToCount`, `#countedCapabilities` |
 | 2026-10-06 | A context that builds no plan hands its requests to the context it serves. A request about another collection's element counts on that collection's registry. A write that re-evaluates an expression records nothing | Each of these was a place where a request was recorded but never counted, or counted on a write | `OrderByVisitor#createSorter`, `HavingTranslatorHelper#checkNestedFilter`, `QueryPlanningContext#recordRequestedCapability`, `#recordingRequestedCapabilities` |
-| 2026-10-06 | The facet-summary regression is repaired by memoizing relations per query, creating occurrences only on a cache miss, placing a conjunctive option next to the selection where that is algebraically equal, and a non-allocating single-group check (H1–H5) | Counted, not guessed. See *Performance* | `QueryPlanningContext#facetGroupRelations`, `FacetFormulaGenerator`, `AbstractFacetFormulaGenerator#isFacetSelectionNarrowedByConjunction`, `FacetReferenceIndex#isReferencedOnlyUnder`, `QueryPlanningContext#facetGroupPredicates` |
+| 2026-10-06 | The facet-summary regression is reduced by memoizing relations per query, creating occurrences only on a cache miss, placing a conjunctive option next to the selection where that is algebraically equal, and a non-allocating single-group check (H1–H5). The selection shapes time at parity with dev; the two no-selection shapes remain about 5 % slower | Counted, not guessed. See *Performance* | `QueryPlanningContext#facetGroupRelations`, `FacetFormulaGenerator`, `AbstractFacetFormulaGenerator#isFacetSelectionNarrowedByConjunction`, `FacetReferenceIndex#isReferencedOnlyUnder`, `QueryPlanningContext#facetGroupPredicates` |
 
 ### Facet semantics in one place
 
@@ -377,8 +377,28 @@ The counts hold on the final tree: a jar of `ef50708e84` (after the `or`-nested 
 touches the impact composition) counts the same in all six shapes as `e9e0d3a14d`, within 14 invocations per query,
 and answers every shape identically to dev.
 
-**Timed A/B of the final tree against dev: pending.** It is to be run in a negotiated quiet window, with the
-numbers recorded here.
+**Timed A/B of the final tree against dev.** Run on 2026-10-07 from 03:59 to 05:26 CEST in a quiet window: dev
+`096dda1094` against branch `1562eecdca`, the merge of that dev into this branch, so the arms differ by this work
+only. Same corpus, query and harness as above, with `@Fork(3)`: two interleaved rounds (dev then branch, then branch
+then dev), 6 forks per arm in total, 0 failures. Load 1.6 at start, no other build or test process. Before the run,
+both jars answered all six shapes with identical summary fingerprints.
+
+Means of the 6 fork means per arm, µs/op, with the sd across forks and a Welch t over the fork means:
+
+| shape | dev | branch | delta | t |
+|---|---:|---:|---:|---:|
+| COUNT_NO_SELECTION | 57,629 (sd 1,814) | 60,674 (sd 1,419) | **+5.3 %** | 3.2 |
+| COUNT_OR_GROUP_SELECTION | 50,165 (sd 839) | 49,009 (sd 1,140) | −2.3 % | −2.0 |
+| COUNT_NEGATED_OR_EXCLUSIVE_GROUP | 50,517 (sd 789) | 49,696 (sd 1,051) | −1.6 % | −1.5 |
+| IMPACT_NO_SELECTION | 67,809 (sd 2,086) | 71,487 (sd 2,135) | **+5.4 %** | 3.0 |
+| IMPACT_OR_GROUP_SELECTION | 73,045 (sd 437) | 72,635 (sd 1,060) | −0.6 % | −0.9 |
+| IMPACT_NEGATED_OR_EXCLUSIVE_GROUP | 73,379 (sd 1,583) | 73,462 (sd 739) | +0.1 % | 0.1 |
+
+H1–H5 removed the regression of the four selection shapes, which now time at parity with dev or slightly below it
+(IMPACT_NEGATED went from +6.2 % to +0.1 %). **The two NO_SELECTION shapes are still about 5 % (3.0–3.7 ms) slower,
+beyond the noise**, against +6.3 / +6.4 % before the fixes. The counts above do not explain it:
+COUNT_NO_SELECTION does 1,082 relation look-ups against dev's 65,958, and the two shapes allocate +0.4 % / +0.8 %.
+The remaining time is not yet attributed; see *Consequences*.
 
 **Costs this work adds deliberately, none benchmarked:**
 
@@ -420,8 +440,12 @@ numbers recorded here.
     shrink any per-count-formula cost 4.7×.
   - `MutableFormulaFinderAndReplacer` walks the whole cached tree for every option: about 1.35 M visits per
     COUNT_NO query. Caching the path to the `MutableFormula`s at cache-miss time would reduce that to a few nodes.
-- **Residual allocation.** NO_SELECTION allocates +0.8 MB (COUNT) and +2.1 MB (IMPACT) per query over dev. Not
-  investigated.
+- **The NO_SELECTION shapes remain about 5 % slower than dev** (+3.0 ms COUNT, +3.7 ms IMPACT on the production
+  retail corpus; see *Performance*). Invocation counts and allocation do not explain it, so the next step is a
+  profile of both arms, not another counting pass. These are the shapes that build 16,487 count formulas for 3,524
+  listed facets, so a remaining per-count-formula cost of about 200 ns would account for it; the `intersects`
+  prefilter above would shrink any such cost 4.7×. They also allocate +0.8 MB (COUNT) and +2.1 MB (IMPACT) per
+  query over dev.
 - **Checks that still read data, or resolve in the wrong context** (reported, no witness):
   - A `hierarchyWithin` inside a checked nested filter still reads the real hierarchy while planning. The result
     is correct, but the check is not evaluation-free.
@@ -469,6 +493,8 @@ numbers recorded here.
   ungrouped ("d", "A"). Groups belong to the reference ("R"). Per-entry counts ("b"). Validity made independent of
   data. Capability counting for queries matching nothing.
 - **2026-10-06** — Inverse count in negated groups confirmed. Counting unit enforced across contexts and owners.
-  JMH A/B 05:26–06:24 CEST; regression explained by counting and fixed (H1–H5). #1711 filed. Final narrow review
+  JMH A/B 05:26–06:24 CEST; regression explained by counting and reduced (H1–H5). #1711 filed. Final narrow review
   approved. The documentation run on the demo dataset showed "R" disabling three colors shared by two groups; the
-  owner kept "R" and the example output was updated. Timed A/B of the final tree pending.
+  owner kept "R" and the example output was updated. PR #1720 opened; dev merged in.
+- **2026-10-07** — Timed A/B of the final tree against dev, 03:59–05:26 CEST: selection shapes at parity, the two
+  NO_SELECTION shapes still about 5 % slower.
