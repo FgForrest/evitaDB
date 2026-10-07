@@ -66,7 +66,6 @@ import io.evitadb.index.trigram.TrigramIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.PriceListAndCurrencySuperIndexStoragePart;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.MemoryMeasuringConstants;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
@@ -576,24 +575,24 @@ public class GlobalEntityIndex extends EntityIndex
 
 	/**
 	 * Returns the fulltext index of the passed locale partition, creating an empty one built with the passed analyzer
-	 * when there is none. An existing index must have been built with the same analyzer: one index never holds the
-	 * terms of two analyzers, which no query could tokenize consistently.
+	 * when there is none.
+	 *
+	 * An existing index is returned as it is, even when it was built with a different analyzer than the passed one -
+	 * which happens when the analyzer assigned to the locale changed after the index was built, and the index was
+	 * reloaded with the analyzer it persisted. The index keeps analyzing every value it adds or removes with its own
+	 * analyzer, so it never holds the terms of two analyzers, and removing a value always finds the postings adding it
+	 * produced. The newly assigned analyzer applies only to an index built anew: the mismatch degrades the index to
+	 * its old analysis, it never refuses the write.
 	 *
 	 * @param locale        the locale of the partition
-	 * @param indexAnalyzer analyzer of the index slot of the locale
+	 * @param indexAnalyzer analyzer of the index slot of the locale, used only when the index is created
 	 * @return the fulltext index, never `null`
-	 * @throws GenericEvitaInternalError when the existing index was built with a different analyzer
 	 */
 	@Nonnull
 	public FulltextIndex getOrCreateFulltextIndex(@Nonnull Locale locale, @Nonnull FulltextAnalyzer indexAnalyzer) {
 		final FulltextIndex existing = this.fulltextIndexes.get(locale);
 		if (existing != null) {
-			Assert.isPremiseValid(
-				existing.getAnalyzerName().equals(indexAnalyzer.getAnalyzerName()),
-				() -> "The fulltext index of locale `" + locale + "` was built with analyzer `" +
-					existing.getAnalyzerName() + "`, it cannot be written with `" + indexAnalyzer.getAnalyzerName() +
-					"`!"
-			);
+			// TOBEDONE JNO #409 - rebuild an index whose analyzer differs from the one the locale is assigned now
 			return existing;
 		}
 		final FulltextIndex created = new FulltextIndex(indexAnalyzer);

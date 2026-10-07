@@ -109,8 +109,10 @@ import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -472,14 +474,45 @@ class GlobalEntityIndexFulltextPersistenceTest {
 		}
 
 		@Test
-		@DisplayName("an existing index refuses to be obtained with another analyzer")
-		void shouldRefuseAnotherAnalyzerForAnExistingIndex() {
+		@DisplayName("an existing index obtained with another analyzer keeps analyzing with its own")
+		void shouldKeepTheOwnAnalyzerOfAnExistingIndex() {
 			final GlobalEntityIndex index = newGlobalIndex();
-			index.getOrCreateFulltextIndex(CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH));
-			assertThrows(
-				GenericEvitaInternalError.class,
-				() -> index.getOrCreateFulltextIndex(CZECH, registry.getIndexAnalyzerByName("english"))
+			final FulltextIndex czech = index.getOrCreateFulltextIndex(
+				CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH)
 			);
+
+			// the locale resolves to another analyzer now, yet the existing index is returned, with its own analyzer
+			final FulltextIndex obtained = index.getOrCreateFulltextIndex(
+				CZECH, registry.getIndexAnalyzerByName("english")
+			);
+			assertSame(czech, obtained);
+			assertEquals("czech", obtained.getAnalyzerName());
+
+			// a value written through it gets the terms of a Czech-built index, not those of an English-built one ...
+			final String value = "černé čaje";
+			obtained.addValue(attribute("title"), 1, value);
+			final FulltextIndex czechReference = new FulltextIndex(registry.getIndexAnalyzerByName("czech"));
+			czechReference.addValue(attribute("title"), 1, value);
+			final FulltextIndex englishReference = new FulltextIndex(registry.getIndexAnalyzerByName("english"));
+			englishReference.addValue(attribute("title"), 1, value);
+			assertNotEquals(
+				titleTermsOf(czechReference), titleTermsOf(englishReference), "the value must tell the analyzers apart"
+			);
+			assertEquals(titleTermsOf(czechReference), titleTermsOf(obtained));
+
+			// ... and removing it finds every posting the write produced
+			obtained.removeValue(attribute("title"), 1, value);
+			assertTrue(titleTermsOf(obtained).isEmpty());
+		}
+
+		/**
+		 * Returns the terms the `title` field holds in the index, in dictionary order.
+		 */
+		@Nonnull
+		private static List<String> titleTermsOf(@Nonnull FulltextIndex index) {
+			final List<String> terms = new ArrayList<>(8);
+			index.forEachTerm(index.getFieldId(attribute("title")), "", (term, postings, impacts) -> terms.add(term));
+			return terms;
 		}
 
 		@Test

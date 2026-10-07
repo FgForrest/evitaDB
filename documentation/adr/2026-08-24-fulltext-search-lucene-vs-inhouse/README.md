@@ -884,15 +884,16 @@ rather than a tuning one. Both are open items below.
   also make its definition available before the indexes load (persisted with the catalog, or supplied by
   configuration at start-up), and belongs with the analyzer fingerprint, which pins what an analyzer *does* under
   its name.
-- **A persisted analyzer or pivot that disagrees with the schema degrades, it is never refused (decided
-  2026-10-05).** Until F1 moves them into the schema, each fulltext index persists the analyzer that built its terms
-  and every field's length pivot (the `TODO JNO … #258` sites). When the schema later says otherwise, the catalog
-  still loads and the index keeps serving - consistent with the rule that no schema change is refused for stored
-  data. The rebuild that would reconcile the two is #409's, and the site carries `TOBEDONE JNO #409`. Degrading
-  safely has one condition: an index must keep using the analyzer and pivots it was built with until it is
-  rebuilt. Removing a value re-analyzes its text to find the postings to drop, so removing with a different
-  analyzer than the one that indexed it would leave stale postings behind - phantom hits, the one outcome the rule
-  forbids.
+- **A persisted analyzer or pivot that disagrees with the schema degrades, it is never refused (decided 2026-10-05).**
+  Until F1 moves them into the schema, each fulltext index persists the analyzer that built its terms and every field's
+  length pivot (the `TODO JNO … #258` sites). When the schema later says otherwise, the catalog still loads and the
+  index keeps serving - consistent with the rule that no schema change is refused for stored data. The rebuild that
+  would reconcile the two is #409's, and the site where an index reloaded with its persisted analyzer meets the newly
+  assigned one - `GlobalEntityIndex#getOrCreateFulltextIndex`, which hands out the existing index unchanged - carries
+  `TOBEDONE JNO #409`. Degrading safely has one condition: an index must keep using the analyzer and pivots it was built
+  with until it is rebuilt. Removing a value re-analyzes its text to find the postings to drop, so removing with a
+  different analyzer than the one that indexed it would leave stale postings behind - phantom hits, the one outcome the
+  rule forbids.
 - **P5 merged on 2026-09-24 (PR #1453); the 2026-09-02 blockers are closed.** The two red tests
   asserted accent-stripped recall the index chain alone could not deliver; the asymmetric M7 analyzer
   pairs that graduated on 2026-09-15 deliver it on the search side, and `CzechAccentTypingTest` was
