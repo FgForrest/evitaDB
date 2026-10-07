@@ -385,8 +385,11 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 				);
 				// get the partition from the referenced entity collection using inverted key specification - read as
 				// that collection's own read switch says, through the memo of the query
-				final AttributeSchemaContract targetAttributeSchema = targetReferenceSchema.getAttribute(attributeKey.attributeName())
-					.orElseThrow(() -> new AttributeNotFoundException(attributeKey.attributeName(), this.referenceSchema, this.getSchema()));
+				final AttributeSchemaContract targetAttributeSchema = targetReferenceSchema
+					.getAttribute(attributeKey.attributeName())
+					.orElseThrow(() -> new AttributeNotFoundException(
+						attributeKey.attributeName(), this.referenceSchema, this.getSchema()
+					));
 				final Optional<SortedRecordsSupplierFactory> chainIndex = Optional.ofNullable(
 					this.queryContext.resolvePartitionForReadIfExists(
 						this.referenceSchema.getReferencedEntityType(), scope, theLookupReferenceKey
@@ -424,8 +427,11 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 					this.getSchema(), this.referenceSchema, scope, EnumSet.of(scope)
 				);
 				// get the partition from this entity collection using the reference key, through the memo of the query
-				final AttributeSchemaContract attributeSchema = this.referenceSchema.getAttribute(attributeKey.attributeName())
-					.orElseThrow(() -> new AttributeNotFoundException(attributeKey.attributeName(), this.referenceSchema, this.getSchema()));
+				final AttributeSchemaContract attributeSchema = this.referenceSchema
+					.getAttribute(attributeKey.attributeName())
+					.orElseThrow(() -> new AttributeNotFoundException(
+						attributeKey.attributeName(), this.referenceSchema, this.getSchema()
+					));
 				final String entityType = this.queryContext.getEntityType();
 				final Optional<SortedRecordsSupplierFactory> chainIndex = Optional.ofNullable(
 					entityType == null ?

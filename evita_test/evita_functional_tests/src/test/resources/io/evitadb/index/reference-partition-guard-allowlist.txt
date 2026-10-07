@@ -45,7 +45,6 @@ R1 | io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyNaturalTra
 R1 | io.evitadb.index.ReferencePartitions#asPartition | the partition resolver implementation itself
 R1 | io.evitadb.index.ReferencePartitions#requirePartition | the partition resolver implementation itself
 R1 | io.evitadb.index.ReferencePartitions#toReducedEntityIndex | the single entry of a partition into the Index-bound query body channel
-R1 | io.evitadb.index.ReferencePartitions#toEntityIndex | the single entry of a partition into a query route reading it as an index object, rejecting a virtual one until the route reads virtual partitions
 R1 | io.evitadb.index.ReferencePartitions#toMaterializedEntityIndex | the single entry of a materialized partition into a query route that reads virtual partitions through their registry, rejecting a virtual one the route failed to split off
 R1 | io.evitadb.index.ReferencedTypeEntityIndex#<clinit> | throwing stub matcher of ReferencedTypeEntityIndex names AbstractReducedEntityIndex - not an access
 R1 | io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor#applyOnExistingReducedIndexes | dispatch arm handing partitions of a target to the generic locale / price consumers; group half

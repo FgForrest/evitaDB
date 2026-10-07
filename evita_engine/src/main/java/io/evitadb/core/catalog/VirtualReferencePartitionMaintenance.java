@@ -153,7 +153,6 @@ public final class VirtualReferencePartitionMaintenance {
 	 */
 	private static volatile boolean forcedQueryReached;
 
-
 	// TODO JNO - remove at the end of #1615
 	/**
 	 * Names of the entity types whose collections maintain virtual reference partitions. Concurrent, because the

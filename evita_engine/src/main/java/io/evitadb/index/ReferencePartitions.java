@@ -115,10 +115,11 @@ public final class ReferencePartitions {
 	 * family and the sort index arrays - which is bound to {@link Index} and so accepts only a partition that is an
 	 * index object. This is the single entry into that channel: every partition the query side resolves through the
 	 * handle and then evaluates a body or a sorter against passes here. A partition that is not an index object has
-	 * to be split off before this point - its arm will be missing here and the compiler will say so.
+	 * to be split off before this point - reaching here virtual throws instead of being handed to the channel.
 	 *
 	 * @param partition the partition
 	 * @return the index object the partition is
+	 * @throws GenericEvitaInternalError when the partition is virtual - the query route failed to split it off
 	 */
 	@Nonnull
 	public static ReducedEntityIndex toReducedEntityIndex(@Nonnull ReferencePartition partition) {
@@ -129,31 +130,6 @@ public final class ReferencePartitions {
 					"reached the index-bound query body channel - the query route that resolved it must split its " +
 					"virtual partitions off before this point!"
 			);
-		};
-	}
-
-	/**
-	 * Hands a partition to a query route that reads it as an index object and does not read virtual partitions yet -
-	 * a sort reading the partition's own sort or chain index through the generic {@link EntityIndex} API. Such a route
-	 * resolves its partitions through the object-only resolvers, so a virtual partition cannot reach it until the
-	 * route switches to a read resolver, which it does in the step named; until then the virtual arm throws.
-	 *
-	 * @param partition   the partition
-	 * @param route       names the query route, for the error message
-	 * @param landingStep the step of #1615 that teaches the route to read virtual partitions
-	 * @return the index object the partition is
-	 * @throws GenericEvitaInternalError when the partition is virtual
-	 */
-	@Nonnull
-	public static EntityIndex toEntityIndex(
-		@Nonnull ReferencePartition partition,
-		@Nonnull String route,
-		@Nonnull String landingStep
-	) {
-		return switch (partition) {
-			case ReducedEntityIndex index -> index;
-			case VirtualReferencePartition virtual ->
-				throw virtualPartitionOnUnmigratedRoute(virtual, route, landingStep);
 		};
 	}
 
@@ -237,29 +213,6 @@ public final class ReferencePartitions {
 			"The write path `" + writeSite + "` met virtual reference partition " + partition.getPrimaryKey() +
 				" (`" + partition.getIndexKey() + "`) - a write reaches a partition only through its reduced entity " +
 				"index, and a read resolver must not be used to find it!"
-		);
-	}
-
-	/**
-	 * Creates the error the virtual arm of an exhaustive `switch` over a partition on a query route throws while the
-	 * route does not read virtual partitions yet. Such a route resolves partitions through the object-only resolvers,
-	 * so the arm is unreachable until the route switches to a read resolver - which it does in the step named.
-	 *
-	 * @param partition    the virtual partition the route met
-	 * @param route        names the query route, for the error message
-	 * @param landingStep  the step of #1615 that teaches the route to read virtual partitions
-	 * @return the error to throw
-	 */
-	@Nonnull
-	public static GenericEvitaInternalError virtualPartitionOnUnmigratedRoute(
-		@Nonnull VirtualReferencePartition partition,
-		@Nonnull String route,
-		@Nonnull String landingStep
-	) {
-		return new GenericEvitaInternalError(
-			"The query route `" + route + "` met virtual reference partition " + partition.getPrimaryKey() +
-				" (`" + partition.getIndexKey() + "`), but it reads virtual partitions only from step " + landingStep +
-				" of #1615 on!"
 		);
 	}
 

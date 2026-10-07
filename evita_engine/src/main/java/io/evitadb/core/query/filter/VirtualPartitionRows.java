@@ -43,7 +43,7 @@ import java.util.function.IntPredicate;
 
 /**
  * The rows of registered single-owner partitions of one reference in one scope that a reference body is evaluated
- * exactly for - the universe `U` of the virtual reading (step 4c of #1615). It is installed on the processing scope of
+ * exactly for - the universe `U` of the virtual reading. It is installed on the processing scope of
  * the referenced-type entity index evaluating the body (see
  * {@link FilterByVisitor.ProcessingScope#doWithVirtualPartitionRows}), and every leaf whose type-level answer differs
  * from its answer per partition reads it to answer the rows exactly:
@@ -301,7 +301,10 @@ public final class VirtualPartitionRows {
 	}
 
 	/**
-	 * Returns the representative reference key of a row - a registry lookup of its tuple, `O(log n)`.
+	 * Returns the representative reference key of a row. The cost depends on which factory built this instance:
+	 * rows from {@link #of(ReferencePartitionSplit, InScopeReading)} resolve the tuple through the registry on
+	 * every call, `O(log n)`; rows from {@link #of(ReferencedTypeEntityIndex, VirtualReferencePartition[], InScopeReading)}
+	 * read it off an already-resolved {@link VirtualReferencePartition}, a plain field read, `O(1)`.
 	 *
 	 * @param row the position of the row
 	 * @return the representative reference key

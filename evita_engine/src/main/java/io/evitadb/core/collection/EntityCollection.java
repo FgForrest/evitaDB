@@ -4568,6 +4568,11 @@ public final class EntityCollection implements
 
 		/**
 		 * Returns entity index by its key. If such index doesn't exist, it is automatically created.
+		 *
+		 * @param entityIndexKey the key of the index to look up or create
+		 * @return the index the key names, existing or newly created
+		 * @throws IdentifierOverflowException when the index did not exist and the collection's index sequence has
+		 *                                     handed out its last primary key
 		 */
 		@Nonnull
 		@Override

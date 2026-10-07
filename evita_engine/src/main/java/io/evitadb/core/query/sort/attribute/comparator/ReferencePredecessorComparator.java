@@ -239,7 +239,9 @@ public class ReferencePredecessorComparator implements ReferenceComparator, Refe
 		final int pkToLookup = this.primaryKeyResolver.applyAsInt(this.entityPrimaryKey, representativeReferenceKey.referenceKey());
 		final int position = this.pkToRecordPositionCache.getOrDefault(pkToLookup, -1);
 		if (position == -1) {
-			final SortedRecordsSupplierFactory chainIndex = this.referenceOrderByVisitor.getChainIndex(this.entityPrimaryKey, representativeReferenceKey, this.attributeKey).orElse(null);
+			final SortedRecordsSupplierFactory chainIndex = this.referenceOrderByVisitor.getChainIndex(
+				this.entityPrimaryKey, representativeReferenceKey, this.attributeKey
+			).orElse(null);
 			final SortedRecordsProvider sortedRecordsSupplier = chainIndex == null ? SortedRecordsProvider.EMPTY : this.sortedRecordsSupplierProvider.apply(chainIndex);
 			// resolve the position directly (tree-direct or array-backed); -1 (not cached) is reserved by this cache,
 			// so an absent record (POSITION_NOT_FOUND == -1) is stored as -2

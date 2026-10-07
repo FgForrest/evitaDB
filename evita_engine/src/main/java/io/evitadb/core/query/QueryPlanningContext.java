@@ -1313,7 +1313,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	/**
 	 * Returns every reference partition of the entity type holding rows of the reference that point to any of the
 	 * target entities in any of the scopes, for a read, split by representation - the hierarchy routes ask the
-	 * partitions of the nodes of a tree for their owners and nothing else (step 4d of #1615).
+	 * partitions of the nodes of a tree for their owners and nothing else.
 	 *
 	 * In a scope the query does not read virtually the partitions are those
 	 * {@link #resolvePartitionsOfTarget(EntitySchemaContract, ReferenceSchemaContract, Scope, int)} returns, target by

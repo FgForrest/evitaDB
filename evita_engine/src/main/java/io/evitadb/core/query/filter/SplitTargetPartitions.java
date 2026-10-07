@@ -40,7 +40,7 @@ import java.util.List;
 /**
  * The reference partitions of a set of target entities - the hierarchy nodes a hierarchy constraint or a hierarchy
  * statistics node names - split by representation: those read through their reduced entity indexes, resolved, and
- * those of registered single-owner partitions read virtually, of which only the owners are kept (step 4d of #1615).
+ * those of registered single-owner partitions read virtually, of which only the owners are kept.
  * Produced by {@link io.evitadb.core.query.QueryPlanningContext#resolvePartitionsOfTargetsForRead}.
  *
  * A hierarchy route asks a partition for nothing but its owners, and a single-owner partition has exactly one, so the
