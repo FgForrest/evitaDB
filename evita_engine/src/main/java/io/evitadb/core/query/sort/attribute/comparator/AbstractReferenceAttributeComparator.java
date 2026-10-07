@@ -46,6 +46,7 @@ import java.io.Serial;
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Currency;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
@@ -126,7 +127,9 @@ public abstract class AbstractReferenceAttributeComparator implements EntityComp
 		final UnaryOperator<Serializable> normalizer;
 		//noinspection rawtypes
 		final Comparator valueComparator;
-		if (Comparable.class.isAssignableFrom(type)) {
+		// a `Currency` or `Locale` is not `Comparable` itself, but the normalizer turns it into its comparable form, so
+		// it is compared by its value exactly as the sort index orders it; only the chain types are ordered otherwise
+		if (Comparable.class.isAssignableFrom(type) || Currency.class.equals(type) || Locale.class.equals(type)) {
 			final ComparatorSource comparatorSource = new ComparatorSource(
 				type, orderDirection, OrderBehaviour.NULLS_LAST
 			);
