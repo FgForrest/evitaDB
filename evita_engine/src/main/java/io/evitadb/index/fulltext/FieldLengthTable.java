@@ -32,9 +32,9 @@ import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.NumberUtils;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
-import org.apache.lucene.util.SmallFloat;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -57,7 +57,7 @@ import java.util.List;
  *
  * ## The quantization
  *
- * Lengths go through Lucene's `SmallFloat#intToByte4`, the encoding Lucene uses for its own length norm: exact for
+ * Lengths go through {@link NumberUtils#intToByte4(int)}, the encoding Lucene uses for its own length norm: exact for
  * short fields, logarithmic beyond, and monotone throughout, so a longer field never decodes shorter than a shorter
  * one. The encoded value `0` stands for "no length": a field whose value produced no token is not recorded at all.
  *
@@ -341,7 +341,7 @@ public class FieldLengthTable implements TransactionalLayerProducer<FieldLengthT
 	 */
 	public static int encode(int length) {
 		Assert.isPremiseValid(length >= 0, () -> "A field length cannot be negative: " + length + "!");
-		return Byte.toUnsignedInt(SmallFloat.intToByte4(length));
+		return Byte.toUnsignedInt(NumberUtils.intToByte4(length));
 	}
 
 	/**
@@ -351,7 +351,7 @@ public class FieldLengthTable implements TransactionalLayerProducer<FieldLengthT
 	 * @return the length the byte stands for
 	 */
 	public static int decode(int encoded) {
-		return SmallFloat.byte4ToInt((byte) encoded);
+		return NumberUtils.byte4ToInt((byte) encoded);
 	}
 
 	/**
