@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.sort.reference.sorter;
 
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.core.query.QueryExecutionContext;
@@ -31,6 +32,8 @@ import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.Sorter.SortingContext;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReferencedTypeEntityIndex;
@@ -74,7 +77,9 @@ import static io.evitadb.test.TestTags.ORDER;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -97,11 +102,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Owner 5 has no row at all. Ascending, the owners are claimed as 7 (1), 2, 6, 9 (20), 1 (30), 3 (50), 8 (60) and
  * 10 (70), and owners 4 and 5 stay unclaimed.
  *
- * The virtual cases (step 4f of #1615) read single-owner partitions out of the registry of the type index: a generated
- * mix of materialized and virtual partitions checked against a brute-force oracle in every page window and both
- * directions, with the claimed values both dense and sparse; the cursor gate - one selected owner holding the largest
- * of `D` values reads one value id and walks nothing, whatever `D`; and an unselected owner of a virtual partition the
- * gather hands over is never claimed.
+ * The virtual cases read single-owner partitions out of the registry of the type index: a generated mix of
+ * materialized and virtual partitions checked against a brute-force oracle in every page window and both directions,
+ * with the claimed values both dense and sparse; the cursor gate - one selected owner holding the largest of `D` values
+ * reads one value id and walks nothing, whatever `D`; an unselected owner of a virtual partition the gather hands over
+ * is never claimed; and two distinct values the comparator finds equal share one ordering position, their owners in
+ * primary key order.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -674,6 +680,91 @@ class PickFirstReferenceSorterTest {
 			() -> assertArrayEquals(new int[]{2, 1}, sorted.written()),
 			() -> assertEquals(0, values.valueIdReads, "The unselected owner's row must not be read."),
 			() -> assertTrue(indexFixture.virtualRowsRead() > 0, "The virtual partition must have been handed over.")
+		);
+	}
+
+	@ParameterizedTest(name = "{0}, values 1..{1}")
+	@MethodSource("virtualRunCases")
+	@DisplayName("should merge virtual value groups the comparator finds equal, owners in primary key order")
+	void shouldMergeVirtualValueGroupsTheComparatorFindsEqual(@Nonnull OrderDirection direction, int valueRange) {
+		final PickFirstReducedIndexFixture indexFixture = new PickFirstReducedIndexFixture();
+		final VirtualReferencePartitionIndex registry = indexFixture.registry(Scope.LIVE);
+		declareValueKey(registry);
+		// owner: value - 2 and 3 are distinct values the comparator below finds equal, as a collator equates two
+		// distinct strings; their owners lie against the order of the values, so only a merge of the two groups
+		// orders them by primary key
+		final int[][] ownerValues = {{9, 0}, {8, 2}, {4, 3}, {1, 5}};
+		for (int[] ownerValue : ownerValues) {
+			final int primaryKey = 100 + ownerValue[0];
+			indexFixture.addVirtualPartition(Scope.LIVE, primaryKey, ownerValue[0], ownerValue[0]);
+			registry.putSortValue(VALUE_KEY, primaryKey, ownerValue[1]);
+		}
+		final boolean sparse = valueRange >= 100;
+		if (sparse) {
+			// values nobody selected keep the four claimed values sparse
+			for (int i = 0; i < valueRange; i++) {
+				indexFixture.addVirtualPartition(Scope.LIVE, 1_000 + i, 1_000 + i, 1_000 + i);
+				registry.putSortValue(VALUE_KEY, 1_000 + i, 100 + i);
+			}
+		}
+		indexFixture.readVirtually();
+		assertEquals(
+			!sparse, PickFirstReferenceSorter.isDense(ownerValues.length, registry.getDistinctSortValueCount(VALUE_KEY)),
+			"The premise of the case: the claimed values are dense exactly when no unselected value is added"
+		);
+		final Comparator<Serializable> halves = Comparator.comparingInt(value -> (Integer) value / 2);
+		final CountingVirtualValues values = new CountingVirtualValues(VALUE_SORT_VALUES);
+		final PickFirstReferenceSorter sorter = new PickFirstReferenceSorter(
+			indexFixture.resolver(false, Scope.LIVE),
+			index -> {
+				throw new AssertionError("No materialized partition exists.");
+			},
+			values,
+			direction == OrderDirection.ASC ? halves : halves.reversed(),
+			direction
+		);
+
+		final SortResult sorted = sort(
+			sorter, new SortingContext(indexFixture.createExecutionContext(), new BaseBitmap(1, 4, 8, 9), 0, 10, 0, 0),
+			10
+		);
+
+		// the owners 4 and 8 share one ordering position, so they follow in the primary key order of the direction
+		assertArrayEquals(
+			direction == OrderDirection.ASC ? new int[]{9, 4, 8, 1} : new int[]{1, 8, 4, 9},
+			sorted.written()
+		);
+		assertEquals(!sparse, values.walkSteps > 0, "The dense preparation walks, the sparse one sorts");
+	}
+
+	@Test
+	@DisplayName("should never pick the dense walk for a source without an ordered walk, however large the claim")
+	void shouldNeverPickTheDenseWalkForASourceWithoutAWalk() {
+		final PickFirstVirtualSortValues referencedPrimaryKeys = PickFirstVirtualSortValues.ofReferencedPrimaryKey();
+		final ReferencedTypeEntityIndex typeIndex = new ReferencedTypeEntityIndex(
+			1, PickFirstReducedIndexFixture.OWNER_TYPE,
+			new EntityIndexKey(
+				EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, PickFirstReducedIndexFixture.REFERENCE_NAME
+			)
+		);
+		final int distinctValueCount = referencedPrimaryKeys.getDistinctValueCount(typeIndex);
+		assertEquals(
+			PickFirstVirtualSortValues.NO_ORDERED_WALK, distinctValueCount,
+			"The source reports that it offers no ordered walk"
+		);
+		assertThrows(
+			GenericEvitaInternalError.class,
+			() -> referencedPrimaryKeys.forEachValueId(typeIndex, false, valueId -> true),
+			"The premise of the case: the dense walk would fail for the source"
+		);
+
+		// a pick-first `entityPrimaryKeyNatural` ordering claiming about 80 M distinct virtual targets - past the
+		// group count at which `g * ceil(log2 g)` exceeds any value count an `int` holds
+		assertFalse(PickFirstReferenceSorter.isDense(80_000_000, distinctValueCount));
+		assertFalse(PickFirstReferenceSorter.isDense(Integer.MAX_VALUE, distinctValueCount));
+		assertTrue(
+			PickFirstReferenceSorter.isDense(80_000_000, Integer.MAX_VALUE - 1),
+			"A source with a walk over that many values still walks"
 		);
 	}
 

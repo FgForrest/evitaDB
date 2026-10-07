@@ -164,13 +164,18 @@ public final class PickFirstReferenceSorter implements Sorter {
 	/**
 	 * Decides how the virtual run of `groupCount` claimed value groups out of `distinctValueCount` distinct values of
 	 * one registry is ordered: by sorting the claimed values, `O(g log g)`, unless that costs more than one walk over
-	 * all the values of the registry, `O(D)`.
+	 * all the values of the registry, `O(D)`. A source without an ordered walk is always sorted.
 	 *
 	 * @param groupCount         the number of claimed value groups `g`, positive
-	 * @param distinctValueCount the number of distinct values of the registry `D`
+	 * @param distinctValueCount the number of distinct values of the registry `D`, or
+	 *                           {@link PickFirstVirtualSortValues#NO_ORDERED_WALK} when there is no walk
 	 * @return TRUE when the run is ordered by the walk over the registry's values
 	 */
 	static boolean isDense(int groupCount, int distinctValueCount) {
+		if (distinctValueCount == PickFirstVirtualSortValues.NO_ORDERED_WALK) {
+			// the sentinel is not a value count - from about 80 M groups on, `g * ceil(log2 g)` would exceed it
+			return false;
+		}
 		// ceil(log2(g)) - zero for a single group, which therefore never walks
 		final int log2 = 32 - Integer.numberOfLeadingZeros(groupCount - 1);
 		return (long) groupCount * log2 > distinctValueCount;
@@ -232,12 +237,12 @@ public final class PickFirstReferenceSorter implements Sorter {
 	 * no value: an index contributes the positions of its claimed owners in its sorted provider, and the owners leave
 	 * the unclaimed rest in one bitmap operation.
 	 *
-	 * @param queryContext the context of the executed query
-	 * @param selection    the owners being sorted
 	 * A virtual partition claims its owner only when the owner is still in the unclaimed rest - the bitmap initialized
 	 * to the selection that the materialized claims shrink too - and its row carries a value; see the class
 	 * documentation.
 	 *
+	 * @param queryContext the context of the executed query
+	 * @param selection    the owners being sorted
 	 * @param indexes      the partitions that may hold a row of the selection, in target order
 	 * @return one sorted run per index that claimed an owner, the claimed value groups of the virtual partitions, and
 	 *         the owners nothing claimed

@@ -52,6 +52,11 @@ public interface PickFirstVirtualSortValues {
 	 * Returned by {@link #getValueId(VirtualReferencePartition)} for a partition whose row carries no sorted value.
 	 */
 	int NO_VALUE = VirtualReferencePartitionIndex.NO_SORT_VALUE_ID;
+	/**
+	 * Returned by {@link #getDistinctValueCount(ReferencedTypeEntityIndex)} of a source that offers no ordered walk
+	 * over its values - its virtual run is always prepared by sorting the claimed values.
+	 */
+	int NO_ORDERED_WALK = Integer.MAX_VALUE;
 
 	/**
 	 * Returns the values of a sortable attribute or sortable attribute compound of the reference, read out of the
@@ -99,7 +104,7 @@ public interface PickFirstVirtualSortValues {
 
 	/**
 	 * Returns the number of distinct values of the registry of the type index - the length of a full
-	 * {@link #forEachValueId(ReferencedTypeEntityIndex, boolean, IntPredicate)} walk - or {@link Integer#MAX_VALUE}
+	 * {@link #forEachValueId(ReferencedTypeEntityIndex, boolean, IntPredicate)} walk - or {@link #NO_ORDERED_WALK}
 	 * when the source offers no ordered walk.
 	 *
 	 * @param typeIndex the referenced-type entity index
@@ -182,7 +187,7 @@ public interface PickFirstVirtualSortValues {
 
 		@Override
 		public int getDistinctValueCount(@Nonnull ReferencedTypeEntityIndex typeIndex) {
-			return Integer.MAX_VALUE;
+			return NO_ORDERED_WALK;
 		}
 
 		@Override
