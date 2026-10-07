@@ -492,8 +492,8 @@ public final class ReferencePartitions {
 				}
 			}
 			if (countBefore > 0 && count > countBefore) {
-				// the rows of a second registry interleave with those of the first - restore the ascending order
-				sortByPrimaryKey(primaryKeys, ownersAndTargets, holders, count);
+				// the rows of a second registry interleave with those of the first - merge the two ascending runs
+				mergeByPrimaryKey(primaryKeys, ownersAndTargets, holders, countBefore, count);
 			}
 		}
 		if (count == 0) {
@@ -610,42 +610,62 @@ public final class ReferencePartitions {
 	}
 
 	/**
-	 * Sorts the first `count` entries of the aligned columns of a split by partition primary key. Only a split over
-	 * several registries needs it, and the columns are short - an insertion sort keeps them aligned without boxing.
+	 * Merges two ascending runs of the aligned columns of a split - `[0, firstEnd)` and `[firstEnd, count)`, each
+	 * strictly ascending by partition primary key - into one ascending run in place. Only a split over several
+	 * registries needs it, and the runs may be long and interleaved (the partitions of both scopes of one reference),
+	 * so the merge is linear: the second run is copied aside and the two are merged from their ends backwards, which
+	 * never overwrites an entry of the first run that has not been moved yet. A second run starting after the end of
+	 * the first is already in place and moves nothing.
 	 *
 	 * @param primaryKeys      the partition primary keys
 	 * @param ownersAndTargets the rows, aligned with `primaryKeys`
 	 * @param holders          the type indexes holding the rows, aligned with `primaryKeys`
-	 * @param count            the number of entries to sort
+	 * @param firstEnd         the end of the first run and the start of the second one, positive
+	 * @param count            the end of the second run
+	 * @return how many entries were written - at most `count + (count - firstEnd)`, the operation count the tests bound
 	 * @throws GenericEvitaInternalError when two registries hold a row for one partition
 	 */
-	private static void sortByPrimaryKey(
+	static int mergeByPrimaryKey(
 		@Nonnull int[] primaryKeys,
 		@Nonnull long[] ownersAndTargets,
 		@Nonnull ReferencedTypeEntityIndex[] holders,
+		int firstEnd,
 		int count
 	) {
-		for (int i = 1; i < count; i++) {
-			final int primaryKey = primaryKeys[i];
-			final long ownerAndTarget = ownersAndTargets[i];
-			final ReferencedTypeEntityIndex holder = holders[i];
-			int j = i - 1;
-			while (j >= 0 && primaryKeys[j] > primaryKey) {
-				primaryKeys[j + 1] = primaryKeys[j];
-				ownersAndTargets[j + 1] = ownersAndTargets[j];
-				holders[j + 1] = holders[j];
-				j--;
-			}
-			if (j >= 0 && primaryKeys[j] == primaryKey) {
-				throw new GenericEvitaInternalError(
-					"Partition " + primaryKey + " has a row in the registries of both `" + holders[j].getIndexKey() +
-						"` and `" + holder.getIndexKey() + "`!"
-				);
-			}
-			primaryKeys[j + 1] = primaryKey;
-			ownersAndTargets[j + 1] = ownerAndTarget;
-			holders[j + 1] = holder;
+		if (primaryKeys[firstEnd - 1] < primaryKeys[firstEnd]) {
+			// the runs do not interleave - an equal pair must still reach the merge below, which rejects it
+			return 0;
 		}
+		final int secondLength = count - firstEnd;
+		final int[] secondPrimaryKeys = Arrays.copyOfRange(primaryKeys, firstEnd, count);
+		final long[] secondOwnersAndTargets = Arrays.copyOfRange(ownersAndTargets, firstEnd, count);
+		final ReferencedTypeEntityIndex[] secondHolders = Arrays.copyOfRange(holders, firstEnd, count);
+		int writes = secondLength;
+		int first = firstEnd - 1;
+		int second = secondLength - 1;
+		// the second run is exhausted first or last - once it is, the rest of the first run is already in place
+		for (int target = count - 1; second >= 0; target--) {
+			final int secondPrimaryKey = secondPrimaryKeys[second];
+			if (first >= 0 && primaryKeys[first] >= secondPrimaryKey) {
+				if (primaryKeys[first] == secondPrimaryKey) {
+					throw new GenericEvitaInternalError(
+						"Partition " + secondPrimaryKey + " has a row in the registries of both `" +
+							holders[first].getIndexKey() + "` and `" + secondHolders[second].getIndexKey() + "`!"
+					);
+				}
+				primaryKeys[target] = primaryKeys[first];
+				ownersAndTargets[target] = ownersAndTargets[first];
+				holders[target] = holders[first];
+				first--;
+			} else {
+				primaryKeys[target] = secondPrimaryKey;
+				ownersAndTargets[target] = secondOwnersAndTargets[second];
+				holders[target] = secondHolders[second];
+				second--;
+			}
+			writes++;
+		}
+		return writes;
 	}
 
 	/**

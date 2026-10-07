@@ -30,6 +30,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.utils.NumberUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -45,6 +46,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies {@link ReferencePartitions#split(io.evitadb.index.bitmap.Bitmap, ReferencedTypeEntityIndex...)}: candidate
@@ -61,6 +63,10 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 @Tag(REFERENCE)
 class ReferencePartitionSplitTest {
 	private static final String REFERENCE_NAME = "media";
+	/**
+	 * How many partitions each of the two long interleaved runs holds.
+	 */
+	private static final int LONG_RUN_LENGTH = 50_000;
 
 	@Test
 	@DisplayName("no candidate splits into nothing")
@@ -150,6 +156,122 @@ class ReferencePartitionSplitTest {
 	}
 
 	@Test
+	@DisplayName("long interleaved runs of both scopes merge into one ascending split")
+	void shouldSplitLongInterleavedRunsOfBothScopes() {
+		// the even partitions are LIVE, the odd ones ARCHIVED - every row of one registry falls between two rows of
+		// the other
+		final ReferencedTypeEntityIndex live = typeIndexWithRows(
+			Scope.LIVE, IntStream.rangeClosed(1, LONG_RUN_LENGTH).map(it -> it * 2).toArray()
+		);
+		final ReferencedTypeEntityIndex archived = typeIndexWithRows(
+			Scope.ARCHIVED, IntStream.rangeClosed(1, LONG_RUN_LENGTH).map(it -> it * 2 - 1).toArray()
+		);
+		final ReferencePartitionSplit split = ReferencePartitions.split(
+			new BaseBitmap(IntStream.rangeClosed(1, 2 * LONG_RUN_LENGTH).toArray()), live, archived
+		);
+
+		assertEquals(2 * LONG_RUN_LENGTH, split.getVirtualCount());
+		for (int i = 0; i < split.getVirtualCount(); i++) {
+			final int partition = i + 1;
+			assertEquals(partition, split.getVirtualPrimaryKey(i));
+			assertSame(partition % 2 == 0 ? live : archived, split.getVirtualTypeIndex(i));
+			assertEquals(ownerOf(partition), split.getVirtualOwnerPrimaryKey(i));
+			assertEquals(targetOf(partition), split.getVirtualTargetPrimaryKey(i));
+		}
+		assertEquals(0, split.getMaterializedPrimaryKeys().size());
+	}
+
+	@Test
+	@DisplayName("two long interleaved runs merge with a number of writes linear in their length")
+	void shouldMergeInterleavedRunsInLinearWrites() {
+		final ReferencedTypeEntityIndex live = typeIndexWithRows(Scope.LIVE);
+		final ReferencedTypeEntityIndex archived = typeIndexWithRows(Scope.ARCHIVED);
+		final int count = 2 * LONG_RUN_LENGTH;
+		final int[] primaryKeys = new int[count];
+		final long[] ownersAndTargets = new long[count];
+		final ReferencedTypeEntityIndex[] holders = new ReferencedTypeEntityIndex[count];
+		// the first run holds the even partitions of LIVE, the second the odd ones of ARCHIVED
+		for (int i = 0; i < LONG_RUN_LENGTH; i++) {
+			fillEntry(primaryKeys, ownersAndTargets, holders, i, 2 * (i + 1), live);
+			fillEntry(primaryKeys, ownersAndTargets, holders, LONG_RUN_LENGTH + i, 2 * i + 1, archived);
+		}
+
+		final int writes = ReferencePartitions.mergeByPrimaryKey(
+			primaryKeys, ownersAndTargets, holders, LONG_RUN_LENGTH, count
+		);
+
+		// the copy of the second run plus one write per merged entry - an insertion sort would shift ~1.25e9 entries
+		assertTrue(
+			writes <= count + LONG_RUN_LENGTH,
+			"The merge must write each entry a bounded number of times, but wrote " + writes + " for " + count +
+				" entries"
+		);
+		for (int i = 0; i < count; i++) {
+			final int partition = i + 1;
+			assertEquals(partition, primaryKeys[i]);
+			assertEquals(ownerAndTargetOf(partition), ownersAndTargets[i]);
+			assertSame(partition % 2 == 0 ? live : archived, holders[i]);
+		}
+	}
+
+	@Test
+	@DisplayName("a second run after the first, or wholly before it, merges correctly")
+	void shouldMergeRunsThatDoNotInterleave() {
+		final ReferencedTypeEntityIndex live = typeIndexWithRows(Scope.LIVE);
+		final ReferencedTypeEntityIndex archived = typeIndexWithRows(Scope.ARCHIVED);
+		final int[] primaryKeys = new int[5];
+		final long[] ownersAndTargets = new long[5];
+		final ReferencedTypeEntityIndex[] holders = new ReferencedTypeEntityIndex[5];
+
+		// the second run follows the first - nothing moves
+		fillEntry(primaryKeys, ownersAndTargets, holders, 0, 1, live);
+		fillEntry(primaryKeys, ownersAndTargets, holders, 1, 2, live);
+		fillEntry(primaryKeys, ownersAndTargets, holders, 2, 3, archived);
+		fillEntry(primaryKeys, ownersAndTargets, holders, 3, 4, archived);
+		fillEntry(primaryKeys, ownersAndTargets, holders, 4, 5, archived);
+		assertEquals(0, ReferencePartitions.mergeByPrimaryKey(primaryKeys, ownersAndTargets, holders, 2, 5));
+		assertArrayEquals(new int[]{1, 2, 3, 4, 5}, primaryKeys);
+
+		// the second run precedes the whole first one
+		fillEntry(primaryKeys, ownersAndTargets, holders, 0, 4, live);
+		fillEntry(primaryKeys, ownersAndTargets, holders, 1, 5, live);
+		fillEntry(primaryKeys, ownersAndTargets, holders, 2, 1, archived);
+		fillEntry(primaryKeys, ownersAndTargets, holders, 3, 2, archived);
+		fillEntry(primaryKeys, ownersAndTargets, holders, 4, 3, archived);
+		ReferencePartitions.mergeByPrimaryKey(primaryKeys, ownersAndTargets, holders, 2, 5);
+		assertArrayEquals(new int[]{1, 2, 3, 4, 5}, primaryKeys);
+		assertArrayEquals(
+			new ReferencedTypeEntityIndex[]{archived, archived, archived, live, live}, holders
+		);
+		for (int i = 0; i < 5; i++) {
+			assertEquals(ownerAndTargetOf(i + 1), ownersAndTargets[i]);
+		}
+	}
+
+	@Test
+	@DisplayName("a partition both runs of a merge hold is rejected, however deep in the runs it lies")
+	void shouldRejectAPartitionInBothRunsOfAMerge() {
+		final ReferencedTypeEntityIndex live = typeIndexWithRows(Scope.LIVE);
+		final ReferencedTypeEntityIndex archived = typeIndexWithRows(Scope.ARCHIVED);
+		final int[] primaryKeys = new int[6];
+		final long[] ownersAndTargets = new long[6];
+		final ReferencedTypeEntityIndex[] holders = new ReferencedTypeEntityIndex[6];
+		// 3 is in both runs, with larger entries interleaved after it on both sides
+		fillEntry(primaryKeys, ownersAndTargets, holders, 0, 1, live);
+		fillEntry(primaryKeys, ownersAndTargets, holders, 1, 3, live);
+		fillEntry(primaryKeys, ownersAndTargets, holders, 2, 6, live);
+		fillEntry(primaryKeys, ownersAndTargets, holders, 3, 3, archived);
+		fillEntry(primaryKeys, ownersAndTargets, holders, 4, 4, archived);
+		fillEntry(primaryKeys, ownersAndTargets, holders, 5, 7, archived);
+
+		final GenericEvitaInternalError error = assertThrows(
+			GenericEvitaInternalError.class,
+			() -> ReferencePartitions.mergeByPrimaryKey(primaryKeys, ownersAndTargets, holders, 3, 6)
+		);
+		assertTrue(error.getMessage().contains("Partition 3 "), error.getMessage());
+	}
+
+	@Test
 	@DisplayName("a candidate both registries hold a row for is rejected")
 	void shouldRejectARowInBothRegistries() {
 		final ReferencedTypeEntityIndex live = typeIndexWithRows(Scope.LIVE, 2, 4);
@@ -221,6 +343,39 @@ class ReferencePartitionSplitTest {
 			registry.putRepresentativeTuple(partition, new Serializable[]{"role"});
 		}
 		return typeIndex;
+	}
+
+	/**
+	 * Fills one entry of the aligned columns of a split with the row the fixture gives a partition.
+	 *
+	 * @param primaryKeys      the partition primary keys
+	 * @param ownersAndTargets the rows
+	 * @param holders          the type indexes holding the rows
+	 * @param index            the entry to fill
+	 * @param partition        the partition primary key
+	 * @param holder           the type index holding the row
+	 */
+	private static void fillEntry(
+		@Nonnull int[] primaryKeys,
+		@Nonnull long[] ownersAndTargets,
+		@Nonnull ReferencedTypeEntityIndex[] holders,
+		int index,
+		int partition,
+		@Nonnull ReferencedTypeEntityIndex holder
+	) {
+		primaryKeys[index] = partition;
+		ownersAndTargets[index] = ownerAndTargetOf(partition);
+		holders[index] = holder;
+	}
+
+	/**
+	 * Returns the row the fixture gives a partition, packed as the registry packs it.
+	 *
+	 * @param partition the partition primary key
+	 * @return `pack(owner, target)`
+	 */
+	private static long ownerAndTargetOf(int partition) {
+		return NumberUtils.pack(ownerOf(partition), targetOf(partition));
 	}
 
 	/**
