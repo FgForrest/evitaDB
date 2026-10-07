@@ -27,8 +27,10 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.VirtualRowConsumer;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.index.virtual.DifferentialEngines.Divergence;
+import io.evitadb.index.virtual.ReadRouteActivation.LineConsumption;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,6 +41,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.SortedMap;
@@ -49,6 +52,7 @@ import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.TEST_HARNESS;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -190,7 +194,7 @@ class DifferentialEnginesTest implements EvitaTestSupport {
 
 	@ParameterizedTest(name = "{0}")
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
-	@DisplayName("every query line of a route of the virtual reading reads virtual rows and leaves the engines equal")
+	@DisplayName("every route line reads virtual rows at every consuming stage it declares and leaves the engines equal")
 	void shouldReadVirtualRowsOnEveryRouteLine(CatalogState state) {
 		this.engines = new DifferentialEngines(this, "everyRoute", EVERY_ROUTE_ENTITY_TYPES);
 		this.engines.prepare(state, SingleOwnerPartitionFixture::setUpWithEveryReadRoute);
@@ -232,6 +236,29 @@ class DifferentialEnginesTest implements EvitaTestSupport {
 			unread.isEmpty(),
 			"Every route line must read virtual rows in the maintaining engine, these read none: " + unread +
 				" (all lines: " + rowsPerLine + ")"
+		);
+		// the aggregate count of a line is earned by its first virtual stage alone - a gather reading partitions
+		// virtually earns it even when the claims, values or providers consuming them resolve their objects again - so
+		// every consuming stage a declared route of a line is counted by must have answered virtual rows itself
+		final SortedMap<String, LineConsumption> consumptionPerLine = this.engines.getConsumptionPerLine();
+		final EnumSet<VirtualRowConsumer> asserted = EnumSet.noneOf(VirtualRowConsumer.class);
+		final List<String> idle = new ArrayList<>(VIRTUAL_LINES.size());
+		for (final String line : VIRTUAL_LINES) {
+			final LineConsumption consumption = consumptionPerLine.get(line);
+			assertNotNull(consumption, "The line `" + line + "` never ran");
+			asserted.addAll(consumption.getRequiredConsumers());
+			if (!consumption.getIdleConsumers().isEmpty()) {
+				idle.add(line + " " + consumption.getIdleConsumers());
+			}
+		}
+		assertTrue(
+			idle.isEmpty(),
+			"Every consuming stage of a declared route must answer virtual rows in the maintaining engine, these " +
+				"answered none: " + idle + " (all lines: " + consumptionPerLine + ")"
+		);
+		assertEquals(
+			EnumSet.allOf(VirtualRowConsumer.class), asserted,
+			"Every consuming stage must be asserted by a line of a route it counts"
 		);
 	}
 

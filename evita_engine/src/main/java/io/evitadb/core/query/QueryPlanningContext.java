@@ -59,6 +59,7 @@ import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.VirtualRowConsumer;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
@@ -1128,6 +1129,19 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	public void recordVirtualRowsRead(int rowCount) {
 		this.catalog.getVirtualReferencePartitionMaintenance().recordVirtualRowsRead(rowCount);
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Records that a consuming stage of an ordering route of this query answered virtual rows - the per-stage
+	 * non-vacuity probe of the read parity tests, see
+	 * {@link VirtualReferencePartitionMaintenance#recordVirtualRowsConsumed(VirtualRowConsumer, int)}.
+	 *
+	 * @param consumer the consuming stage
+	 * @param rowCount how many virtual rows the stage answered at one site, positive
+	 */
+	public void recordVirtualRowsConsumed(@Nonnull VirtualRowConsumer consumer, int rowCount) {
+		this.catalog.getVirtualReferencePartitionMaintenance().recordVirtualRowsConsumed(consumer, rowCount);
 	}
 
 	/**

@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.VirtualRowConsumer;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.OrderByVisitor.MergeModeDefinition;
@@ -648,8 +649,11 @@ public class AttributeNaturalTranslator
 					}
 				}
 				if (virtualCount > 0) {
-					// TODO JNO - remove at the end of #1615 (the non-vacuity probe of the read parity tests)
+					// TODO JNO - remove at the end of #1615 (the non-vacuity probes of the read parity tests)
 					this.orderByVisitor.recordVirtualRowsRead(virtualCount);
+					this.orderByVisitor.recordVirtualRowsConsumed(
+						VirtualRowConsumer.BLOCK_ATTRIBUTE_PROVIDER, virtualCount
+					);
 				}
 				sortedRecordsProvider = providers.toArray(SortedRecordsProvider[]::new);
 			}

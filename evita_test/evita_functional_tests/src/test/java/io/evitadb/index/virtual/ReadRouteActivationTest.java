@@ -25,6 +25,8 @@
 package io.evitadb.index.virtual;
 
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.VirtualRowConsumer;
+import io.evitadb.index.virtual.ReadRouteActivation.LineConsumption;
 import io.evitadb.index.virtual.ReadRouteActivation.ReadRoute;
 import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +34,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -44,7 +47,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Verifies how {@link ReadRouteActivation} sets the read switch of a query line of the differential harness: on for
  * the line alone when every route of the line has landed, off for any other line, and never for an engine that
- * maintains nothing.
+ * maintains nothing - and how it counts, per named line, the virtual rows read and what each consuming stage of the
+ * declared routes answered.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -66,7 +70,7 @@ class ReadRouteActivationTest {
 		final VirtualReferencePartitionMaintenance maintenance = maintained();
 		final Map<String, Long> rowsPerLine = CollectionUtils.createHashMap(4);
 		final ReadRouteActivation activation = new ReadRouteActivation(
-			maintenance, Set.of(ENTITY_TYPE), ReadRouteActivation.LANDED_ROUTES, rowsPerLine
+			maintenance, Set.of(ENTITY_TYPE), ReadRouteActivation.LANDED_ROUTES, rowsPerLine, null
 		);
 
 		activation.run("line", EnumSet.of(ReadRoute.REFERENCE_HAVING_BODY), () -> {
@@ -86,6 +90,58 @@ class ReadRouteActivationTest {
 			"A line reads virtually only the collections it names"
 		);
 		assertEquals(0L, rowsPerLine.get("other"));
+	}
+
+	@Test
+	@DisplayName("a named line counts what each consuming stage of its routes answered and names the idle ones")
+	void shouldCountTheConsumptionOfANamedLine() {
+		final VirtualReferencePartitionMaintenance maintenance = maintained();
+		final Map<String, LineConsumption> consumptionPerLine = CollectionUtils.createHashMap(4);
+		final ReadRouteActivation activation = new ReadRouteActivation(
+			maintenance, Set.of(ENTITY_TYPE), ReadRouteActivation.LANDED_ROUTES, null, consumptionPerLine
+		);
+
+		// the claims are consumed virtually, the values never are - only the aggregate count is earned for them
+		activation.run("pickFirst", EnumSet.of(ReadRoute.PICK_FIRST_GATHER, ReadRoute.PICK_FIRST_CLAIM), () -> {
+			maintenance.recordVirtualRowsRead(4);
+			maintenance.recordVirtualRowsConsumed(VirtualRowConsumer.PICK_FIRST_CLAIM_WALK, 2);
+			return null;
+		});
+		activation.run("pickFirst", EnumSet.of(ReadRoute.PICK_FIRST_VALUE), () -> {
+			maintenance.recordVirtualRowsRead(1);
+			return null;
+		});
+		// another line's consumption is not this line's
+		activation.run("other", EnumSet.of(ReadRoute.BLOCK_PROVIDERS), () -> {
+			maintenance.recordVirtualRowsConsumed(VirtualRowConsumer.PICK_FIRST_VIRTUAL_RUN, 3);
+			return null;
+		});
+
+		final LineConsumption pickFirst = consumptionPerLine.get("pickFirst");
+		assertEquals(
+			EnumSet.of(ReadRoute.PICK_FIRST_GATHER, ReadRoute.PICK_FIRST_CLAIM, ReadRoute.PICK_FIRST_VALUE),
+			pickFirst.getRoutes()
+		);
+		assertEquals(2L, pickFirst.getRowsConsumed(VirtualRowConsumer.PICK_FIRST_CLAIM_WALK));
+		assertEquals(0L, pickFirst.getRowsConsumed(VirtualRowConsumer.PICK_FIRST_VIRTUAL_RUN));
+		assertEquals(
+			EnumSet.of(VirtualRowConsumer.PICK_FIRST_CLAIM_WALK, VirtualRowConsumer.PICK_FIRST_VIRTUAL_RUN),
+			pickFirst.getRequiredConsumers()
+		);
+		assertEquals(List.of(VirtualRowConsumer.PICK_FIRST_VIRTUAL_RUN), pickFirst.getIdleConsumers());
+		assertEquals(
+			List.of(VirtualRowConsumer.BLOCK_ATTRIBUTE_PROVIDER), consumptionPerLine.get("other").getIdleConsumers()
+		);
+	}
+
+	@Test
+	@DisplayName("every consuming stage is counted by a route")
+	void shouldCountEveryConsumingStageByARoute() {
+		final EnumSet<VirtualRowConsumer> counted = EnumSet.noneOf(VirtualRowConsumer.class);
+		for (final ReadRoute route : ReadRoute.values()) {
+			counted.addAll(route.getConsumers());
+		}
+		assertEquals(EnumSet.allOf(VirtualRowConsumer.class), counted);
 	}
 
 	@Test

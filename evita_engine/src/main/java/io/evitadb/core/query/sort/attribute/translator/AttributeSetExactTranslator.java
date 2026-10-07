@@ -26,6 +26,7 @@ package io.evitadb.core.query.sort.attribute.translator;
 import io.evitadb.api.query.order.AttributeSetExact;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.VirtualRowConsumer;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
@@ -120,8 +121,9 @@ public class AttributeSetExactTranslator implements OrderingConstraintTranslator
 				case ReducedEntityIndex reducedEntityIndex ->
 					getRecordsEqualToOfIndex(reducedEntityIndex, referenceSchema, attributeSchema, locale);
 				case VirtualReferencePartition virtualPartition -> {
-					// TODO JNO - remove at the end of #1615 (the non-vacuity probe of the read parity tests)
+					// TODO JNO - remove at the end of #1615 (the non-vacuity probes of the read parity tests)
 					orderByVisitor.recordVirtualRowsRead(1);
+					orderByVisitor.recordVirtualRowsConsumed(VirtualRowConsumer.BLOCK_EXACT_SET_LOOKUP, 1);
 					final AttributeIndexKey key = AttributeIndex.createAttributeKey(
 						referenceSchema, attributeSchema, locale
 					);

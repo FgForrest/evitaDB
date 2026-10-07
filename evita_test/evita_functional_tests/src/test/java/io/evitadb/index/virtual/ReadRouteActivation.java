@@ -25,11 +25,14 @@
 package io.evitadb.index.virtual;
 
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.VirtualRowConsumer;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
@@ -58,7 +61,7 @@ final class ReadRouteActivation {
 	/**
 	 * The activation of an engine that maintains nothing, and so can never read virtually.
 	 */
-	static final ReadRouteActivation OFF = new ReadRouteActivation(null, Set.of(), Set.of(), null);
+	static final ReadRouteActivation OFF = new ReadRouteActivation(null, Set.of(), Set.of(), null, null);
 
 	/**
 	 * The switch holder of the engine's catalog, `null` for an engine that maintains nothing.
@@ -76,6 +79,11 @@ final class ReadRouteActivation {
 	 * Receives the virtual rows each named line read, summed per line name; `null` when nobody counts them.
 	 */
 	@Nullable private final Map<String, Long> virtualRowsPerLine;
+	/**
+	 * Receives what the consuming stages of each named line answered virtually and the routes the line declared,
+	 * per line name; `null` when nobody counts them.
+	 */
+	@Nullable private final Map<String, LineConsumption> consumptionPerLine;
 
 	/**
 	 * The query routes of the virtual reading, numbered as the read-route inventory of the phase-4 plan of #1615
@@ -137,15 +145,18 @@ final class ReadRouteActivation {
 		/**
 		 * Route 13 - the claims of a `pickFirst` ordering and the merge of their sorted runs.
 		 */
-		PICK_FIRST_CLAIM,
+		PICK_FIRST_CLAIM(VirtualRowConsumer.PICK_FIRST_CLAIM_WALK),
 		/**
 		 * Route 14 - the sorted value of a partition in a `pickFirst` ordering by a reference attribute or compound.
 		 */
-		PICK_FIRST_VALUE,
+		PICK_FIRST_VALUE(VirtualRowConsumer.PICK_FIRST_VIRTUAL_RUN),
 		/**
-		 * Route 15 - a `pickFirst` ordering by the referenced primary key.
+		 * Route 15 - a `pickFirst` ordering by the referenced primary key, which claims and orders the virtual
+		 * partitions by the referenced primary key read out of their rows.
 		 */
-		PICK_FIRST_REFERENCED_PRIMARY_KEY,
+		PICK_FIRST_REFERENCED_PRIMARY_KEY(
+			VirtualRowConsumer.PICK_FIRST_CLAIM_WALK, VirtualRowConsumer.PICK_FIRST_VIRTUAL_RUN
+		),
 		/**
 		 * Route 16 - the target rank the prefetch route of a `pickFirst` ordering picks the row by.
 		 */
@@ -162,15 +173,15 @@ final class ReadRouteActivation {
 		/**
 		 * Route 19 - the attribute, compound and chain providers of a block.
 		 */
-		BLOCK_PROVIDERS,
+		BLOCK_PROVIDERS(VirtualRowConsumer.BLOCK_ATTRIBUTE_PROVIDER),
 		/**
 		 * Route 20 - `entityPrimaryKeyNatural` in a block-by-block reference ordering.
 		 */
-		BLOCK_REFERENCED_PRIMARY_KEY,
+		BLOCK_REFERENCED_PRIMARY_KEY(VirtualRowConsumer.BLOCK_REFERENCED_KEY_PROVIDER),
 		/**
 		 * Route 21 - `attributeSetExact` / `attributeSetInFilter` in a reference block of one partition.
 		 */
-		BLOCK_EXACT_ATTRIBUTE_SET,
+		BLOCK_EXACT_ATTRIBUTE_SET(VirtualRowConsumer.BLOCK_EXACT_SET_LOOKUP),
 		/**
 		 * Route 22 - the chains of `referenceContent(orderBy)`, original and reflected, resolved by key.
 		 */
@@ -182,7 +193,115 @@ final class ReadRouteActivation {
 		/**
 		 * Route 25 - entity bodies and plain `referenceContent`, read from storage parts.
 		 */
-		ENTITY_BODY
+		ENTITY_BODY;
+
+		/**
+		 * The consuming stages that count the virtual rows the route answers on their own - a line declaring the
+		 * route must see each of them answer some (see {@link LineConsumption#getIdleConsumers()}). Empty for a
+		 * route whose virtual reading only the aggregate count of virtual rows witnesses.
+		 */
+		@Nonnull private final Set<VirtualRowConsumer> consumers;
+
+		/**
+		 * Creates a route counted by the given consuming stages.
+		 *
+		 * @param consumers the consuming stages of the route, none for a route only the aggregate count witnesses
+		 */
+		ReadRoute(@Nonnull VirtualRowConsumer... consumers) {
+			final EnumSet<VirtualRowConsumer> theConsumers = EnumSet.noneOf(VirtualRowConsumer.class);
+			Collections.addAll(theConsumers, consumers);
+			this.consumers = Collections.unmodifiableSet(theConsumers);
+		}
+
+		/**
+		 * Returns the consuming stages that count the virtual rows the route answers on their own.
+		 *
+		 * @return the consuming stages, possibly empty
+		 */
+		@Nonnull
+		Set<VirtualRowConsumer> getConsumers() {
+			return this.consumers;
+		}
+	}
+
+	/**
+	 * What the consuming stages of one named line answered virtually, summed over every run of the line, and the
+	 * routes the line declared over those runs. A line declaring a route counted by a consuming stage must see that
+	 * stage answer virtual rows - the aggregate count of the line alone cannot tell a route whose gather reads
+	 * partitions virtually but whose consumer resolves them to their objects again from one that reads them virtually
+	 * throughout.
+	 */
+	static final class LineConsumption {
+		/**
+		 * The routes the line declared, over every run.
+		 */
+		@Nonnull private final EnumSet<ReadRoute> routes = EnumSet.noneOf(ReadRoute.class);
+		/**
+		 * The virtual rows each consuming stage answered, indexed by {@link VirtualRowConsumer#ordinal()}.
+		 */
+		@Nonnull private final long[] rowsConsumed = new long[VirtualRowConsumer.values().length];
+
+		/**
+		 * Returns the routes the line declared.
+		 *
+		 * @return the routes
+		 */
+		@Nonnull
+		Set<ReadRoute> getRoutes() {
+			return Collections.unmodifiableSet(this.routes);
+		}
+
+		/**
+		 * Returns how many virtual rows the consuming stage answered in the line.
+		 *
+		 * @param consumer the consuming stage
+		 * @return the virtual rows it answered
+		 */
+		long getRowsConsumed(@Nonnull VirtualRowConsumer consumer) {
+			return this.rowsConsumed[consumer.ordinal()];
+		}
+
+		/**
+		 * Returns the consuming stages the declared routes of the line are counted by.
+		 *
+		 * @return the consuming stages, possibly empty
+		 */
+		@Nonnull
+		Set<VirtualRowConsumer> getRequiredConsumers() {
+			final EnumSet<VirtualRowConsumer> result = EnumSet.noneOf(VirtualRowConsumer.class);
+			for (final ReadRoute route : this.routes) {
+				result.addAll(route.getConsumers());
+			}
+			return result;
+		}
+
+		/**
+		 * Returns the consuming stages a declared route of the line is counted by that answered no virtual row.
+		 *
+		 * @return the idle consuming stages, empty when every one answered some
+		 */
+		@Nonnull
+		List<VirtualRowConsumer> getIdleConsumers() {
+			final List<VirtualRowConsumer> result = new ArrayList<>(VirtualRowConsumer.values().length);
+			for (final VirtualRowConsumer consumer : getRequiredConsumers()) {
+				if (this.rowsConsumed[consumer.ordinal()] <= 0L) {
+					result.add(consumer);
+				}
+			}
+			return result;
+		}
+
+		@Override
+		public String toString() {
+			final StringBuilder result = new StringBuilder(64 * VirtualRowConsumer.values().length);
+			result.append(this.routes).append(" consumed {");
+			for (final VirtualRowConsumer consumer : VirtualRowConsumer.values()) {
+				if (this.rowsConsumed[consumer.ordinal()] > 0L) {
+					result.append(consumer).append('=').append(this.rowsConsumed[consumer.ordinal()]).append(' ');
+				}
+			}
+			return result.append('}').toString();
+		}
 	}
 
 	/**
@@ -197,7 +316,7 @@ final class ReadRouteActivation {
 		@Nonnull Set<String> entityTypes,
 		@Nonnull Set<ReadRoute> landedRoutes
 	) {
-		this(maintenance, entityTypes, landedRoutes, null);
+		this(maintenance, entityTypes, landedRoutes, null, null);
 	}
 
 	/**
@@ -209,17 +328,21 @@ final class ReadRouteActivation {
 	 * @param landedRoutes       the routes that have landed
 	 * @param virtualRowsPerLine receives the virtual rows each named line reads, summed per line name; `null` to count
 	 *                           nothing
+	 * @param consumptionPerLine receives what the consuming stages of each named line answer virtually and the routes
+	 *                           the line declares, per line name; `null` to count nothing
 	 */
 	ReadRouteActivation(
 		@Nullable VirtualReferencePartitionMaintenance maintenance,
 		@Nonnull Set<String> entityTypes,
 		@Nonnull Set<ReadRoute> landedRoutes,
-		@Nullable Map<String, Long> virtualRowsPerLine
+		@Nullable Map<String, Long> virtualRowsPerLine,
+		@Nullable Map<String, LineConsumption> consumptionPerLine
 	) {
 		this.maintenance = maintenance;
 		this.entityTypes = Set.copyOf(entityTypes);
 		this.landedRoutes = Set.copyOf(landedRoutes);
 		this.virtualRowsPerLine = virtualRowsPerLine;
+		this.consumptionPerLine = consumptionPerLine;
 	}
 
 	/**
@@ -251,7 +374,8 @@ final class ReadRouteActivation {
 	/**
 	 * Runs one query line: with the read switch of the given maintained collections on when every route of the line
 	 * has landed and the engine maintains its collections, with the switch off otherwise. The switch is off again when
-	 * the line returns. A named line adds the virtual rows it read to the count of its name.
+	 * the line returns. A named line adds the virtual rows it read to the count of its name, and the virtual rows each
+	 * consuming stage answered and the routes it declares to the consumption of its name.
 	 *
 	 * @param line      the name the virtual rows of the line are counted under, `null` for an uncounted line
 	 * @param routes    the routes the line exercises
@@ -270,6 +394,7 @@ final class ReadRouteActivation {
 			return query.get();
 		}
 		final long rowsBefore = this.maintenance.getVirtualRowsRead();
+		final long[] consumedBefore = consumedRows(this.maintenance);
 		final Set<String> switched = new TreeSet<>(readTypes);
 		switched.retainAll(this.entityTypes);
 		for (final String entityType : switched) {
@@ -284,7 +409,32 @@ final class ReadRouteActivation {
 			if (line != null && this.virtualRowsPerLine != null) {
 				this.virtualRowsPerLine.merge(line, this.maintenance.getVirtualRowsRead() - rowsBefore, Long::sum);
 			}
+			if (line != null && this.consumptionPerLine != null) {
+				final LineConsumption consumption =
+					this.consumptionPerLine.computeIfAbsent(line, __ -> new LineConsumption());
+				consumption.routes.addAll(routes);
+				final long[] consumedAfter = consumedRows(this.maintenance);
+				for (int i = 0; i < consumedAfter.length; i++) {
+					consumption.rowsConsumed[i] += consumedAfter[i] - consumedBefore[i];
+				}
+			}
 		}
+	}
+
+	/**
+	 * Returns how many virtual rows each consuming stage has answered in the holder so far.
+	 *
+	 * @param maintenance the switch holder
+	 * @return the counts, indexed by {@link VirtualRowConsumer#ordinal()}
+	 */
+	@Nonnull
+	private static long[] consumedRows(@Nonnull VirtualReferencePartitionMaintenance maintenance) {
+		final VirtualRowConsumer[] consumers = VirtualRowConsumer.values();
+		final long[] result = new long[consumers.length];
+		for (final VirtualRowConsumer consumer : consumers) {
+			result[consumer.ordinal()] = maintenance.getVirtualRowsConsumed(consumer);
+		}
+		return result;
 	}
 
 }

@@ -41,6 +41,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.function.Supplier;
 
 // TODO JNO - remove at the end of #1615
@@ -178,6 +179,12 @@ public final class VirtualReferencePartitionMaintenance {
 	 * created - see {@link #recordVirtualRowsRead(int)}.
 	 */
 	private final AtomicLong virtualRowsRead = new AtomicLong();
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * How many virtual rows each consuming stage of the ordering routes has answered since this holder was created,
+	 * indexed by {@link VirtualRowConsumer#ordinal()} - see {@link #recordVirtualRowsConsumed(VirtualRowConsumer, int)}.
+	 */
+	private final AtomicLongArray virtualRowsConsumed = new AtomicLongArray(VirtualRowConsumer.values().length);
 	// TODO JNO - remove at the end of #1615
 	/**
 	 * How many target families the by-key memos of queries have built since this holder was created - see
@@ -385,6 +392,34 @@ public final class VirtualReferencePartitionMaintenance {
 	 */
 	public long getVirtualRowsRead() {
 		return this.virtualRowsRead.get();
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Records that a consuming stage of an ordering route answered virtual rows - read a value, a claim or a provider
+	 * out of the registry rather than out of the reduced entity index of the partition. Unlike
+	 * {@link #recordVirtualRowsRead(int)}, which every site adds to, it tells the stages apart: a route whose gather
+	 * reads partitions virtually but whose consumer resolves them to their objects again reads virtual rows, yet its
+	 * consumer records nothing here. Called only with a positive count, so a query reading nothing virtually never
+	 * reaches it.
+	 *
+	 * @param consumer the consuming stage
+	 * @param rowCount how many virtual rows the stage answered at one site, positive
+	 */
+	public void recordVirtualRowsConsumed(@Nonnull VirtualRowConsumer consumer, int rowCount) {
+		this.virtualRowsConsumed.addAndGet(consumer.ordinal(), rowCount);
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns how many virtual rows the consuming stage has answered since this holder was created - see
+	 * {@link #recordVirtualRowsConsumed(VirtualRowConsumer, int)}.
+	 *
+	 * @param consumer the consuming stage
+	 * @return the number of virtual rows the stage answered
+	 */
+	public long getVirtualRowsConsumed(@Nonnull VirtualRowConsumer consumer) {
+		return this.virtualRowsConsumed.get(consumer.ordinal());
 	}
 
 	// TODO JNO - remove at the end of #1615
@@ -679,6 +714,41 @@ public final class VirtualReferencePartitionMaintenance {
 	 */
 	public static long getForcedIneligibleLoads() {
 		return FORCED_INELIGIBLE_LOADS.get();
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * The consuming stages of the ordering routes that count the virtual rows they answer on their own - see
+	 * {@link #recordVirtualRowsConsumed(VirtualRowConsumer, int)}. Each names the code that consumes a virtual partition
+	 * instead of its reduced entity index; the read-route inventory of the differential harness maps its routes onto
+	 * them.
+	 */
+	public enum VirtualRowConsumer {
+		/**
+		 * The claim walk of a `pickFirst` ordering: a virtual partition claimed an unclaimed owner by the value id of
+		 * its registry row (`PickFirstReferenceSorter#claim`).
+		 */
+		PICK_FIRST_CLAIM_WALK,
+		/**
+		 * The virtual runs of a `pickFirst` ordering: the claimed value groups of virtual partitions ordered by values
+		 * read out of the registry (`PickFirstReferenceSorter#createVirtualRuns`).
+		 */
+		PICK_FIRST_VIRTUAL_RUN,
+		/**
+		 * The attribute, compound and chain providers of the partitions of a reference ordering: the singleton provider
+		 * of a virtual partition read out of its registry row (`AttributeNaturalTranslator`).
+		 */
+		BLOCK_ATTRIBUTE_PROVIDER,
+		/**
+		 * The referenced primary key providers of the partitions of a block-by-block ordering: the singleton provider of
+		 * a virtual partition (`EntityPrimaryKeyNaturalTranslator`).
+		 */
+		BLOCK_REFERENCED_KEY_PROVIDER,
+		/**
+		 * The lookup of `attributeSetExact` / `attributeSetInFilter` in a block of one virtual partition, answered out
+		 * of its registry row (`AttributeSetExactTranslator`).
+		 */
+		BLOCK_EXACT_SET_LOOKUP
 	}
 
 	// TODO JNO - remove at the end of #1615

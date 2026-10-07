@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.comparator.IntComparator;
 import io.evitadb.comparator.IntComparator.IntAscendingComparator;
 import io.evitadb.comparator.IntComparator.IntDescendingComparator;
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.VirtualRowConsumer;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.EntityReferenceSensitiveComparator;
 import io.evitadb.core.query.sort.OrderByVisitor;
@@ -211,8 +212,9 @@ public class EntityPrimaryKeyNaturalTranslator
 			}
 		}
 		if (virtualCount > 0) {
-			// TODO JNO - remove at the end of #1615 (the non-vacuity probe of the read parity tests)
+			// TODO JNO - remove at the end of #1615 (the non-vacuity probes of the read parity tests)
 			orderByVisitor.recordVirtualRowsRead(virtualCount);
+			orderByVisitor.recordVirtualRowsConsumed(VirtualRowConsumer.BLOCK_REFERENCED_KEY_PROVIDER, virtualCount);
 		}
 		return providers.toArray(SortedRecordsProvider[]::new);
 	}

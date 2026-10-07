@@ -71,6 +71,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex.AttributeCardinalityKey;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.membership.ReducedIndexMembership;
+import io.evitadb.index.virtual.ReadRouteActivation.LineConsumption;
 import io.evitadb.index.virtual.ReadRouteActivation.ReadRoute;
 import io.evitadb.index.virtual.TransitionHistory.InjectedTransitionFailure;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -431,6 +432,11 @@ final class DifferentialEngines implements AutoCloseable {
 	 */
 	private final SortedMap<String, Long> virtualRowsPerLine = new TreeMap<>();
 	/**
+	 * What the consuming stages of the query lines of the maintaining engine answered virtually and the routes the lines
+	 * declared, per line name over every checkpoint - see {@link #getConsumptionPerLine()}.
+	 */
+	private final SortedMap<String, LineConsumption> consumptionPerLine = new TreeMap<>();
+	/**
 	 * The engine with the switch off.
 	 */
 	private Evita reference;
@@ -734,6 +740,18 @@ final class DifferentialEngines implements AutoCloseable {
 	@Nonnull
 	SortedMap<String, Long> getVirtualRowsReadPerLine() {
 		return Collections.unmodifiableSortedMap(this.virtualRowsPerLine);
+	}
+
+	/**
+	 * Returns what the consuming stages of the query lines of the maintaining engine answered virtually and which routes
+	 * the lines declared, per line name (the `LINE_*` constants) over every checkpoint so far - see
+	 * {@link LineConsumption}. A line that never ran is absent.
+	 *
+	 * @return the consumption per line name
+	 */
+	@Nonnull
+	SortedMap<String, LineConsumption> getConsumptionPerLine() {
+		return Collections.unmodifiableSortedMap(this.consumptionPerLine);
 	}
 
 	/**
@@ -1130,7 +1148,7 @@ final class DifferentialEngines implements AutoCloseable {
 			final ReadRouteActivation activation = maintained ?
 				new ReadRouteActivation(
 					catalog.getVirtualReferencePartitionMaintenance(), this.entityTypes,
-					ReadRouteActivation.LANDED_ROUTES, this.virtualRowsPerLine
+					ReadRouteActivation.LANDED_ROUTES, this.virtualRowsPerLine, this.consumptionPerLine
 				) :
 				ReadRouteActivation.OFF;
 			for (final Scope scope : Scope.values()) {
