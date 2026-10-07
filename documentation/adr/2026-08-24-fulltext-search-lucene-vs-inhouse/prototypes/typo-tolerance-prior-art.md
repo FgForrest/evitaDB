@@ -123,7 +123,7 @@ how a fuzzy match affects ranking. The file paths are in the local checkouts.
   counted in code points of the *analyzed* term.
 - **Completion suggester fuzzy options:** edits 1, min length 3, frozen prefix 1, transpositions on,
   `unicode_aware` false (edits counted in UTF-8 bytes unless switched on — the same byte-vs-code-point
-  trap `typo-tolerance-fulltext-dictionary.md` §2 mentions).
+  trap `typo-tolerance-fulltext-dictionary.md` §3.1 mentions).
 - **Term suggester:** max edits 2, prefix 1, min word length 4, accuracy 0.5, only suggests terms rarer
   than 1 % of documents and only for query words *not* in the index by default
   (`search/suggest/DirectSpellcheckerSettings.java:24-34`).
@@ -259,4 +259,4 @@ And the one thing the table cannot show:
   3–5 / 6–9, a frozen first letter or a penalty for it, transpositions on, an expansion cap, and opt-outs
   for numeric and code-like tokens. The engines disagree only on the exact numbers (§3.8).
 - What none of them answers — how thresholds apply on a **stemmed** dictionary — is fulltext-specific and
-  is taken up in `typo-tolerance-fulltext-dictionary.md` §3 and §7.1.
+  is taken up in `typo-tolerance-fulltext-dictionary.md` §7.3.

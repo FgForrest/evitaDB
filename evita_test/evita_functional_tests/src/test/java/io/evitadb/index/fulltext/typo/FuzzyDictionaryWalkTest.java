@@ -152,6 +152,55 @@ class FuzzyDictionaryWalkTest {
 	}
 
 	@Nested
+	@DisplayName("Open-ended walk for a mistyped, unfinished word")
+	class OpenEnded {
+
+		@ParameterizedTest(name = "`{0}` maxEdits={1} frozenPrefix={2}")
+		@CsvSource({
+			"kalht, 1, 1",
+			"kalho, 1, 1",
+			"bnud, 1, 1",
+			"cern, 2, 1",
+			"mikna, 1, 0",
+			"xqzv, 1, 1"
+		})
+		@DisplayName("The open-ended walk returns exactly the set the open-ended acceptor accepts on a full scan")
+		void shouldReturnExactlyTheScannedSetWhenOpenEnded(String query, int maxEdits, int frozenPrefix) {
+			final LevenshteinDictionaryWalker walker =
+				new LevenshteinDictionaryWalker(query, maxEdits, frozenPrefix, 0, true);
+			final List<String> expected = walker.scan(dictionary);
+			final List<String> actual = walker.walk(dictionary).stream().map(Hit::term).toList();
+			assertEquals(expected, actual);
+		}
+
+		@Test
+		@DisplayName("A transposed, unfinished word reaches its intended word through the open end")
+		void shouldFindUnfinishedWordWithTypo() {
+			// `kalht` is `kalhot…` with the `o` left out: one edit from the prefix `kalhot` of `kalhoty`
+			final List<Hit> hits = new LevenshteinDictionaryWalker("kalht", 1, 1, 0, true).walk(dictionary);
+			assertTrue(
+				hits.stream().anyMatch(hit -> hit.term().equals("kalhoty") && hit.distance() == 1),
+				"expected `kalhoty` at distance 1 among the first hits " + hits.subList(0, Math.min(20, hits.size()))
+			);
+			// the finite walk does not find it: the whole word is three edits away
+			final List<Hit> finite = new LevenshteinDictionaryWalker("kalht", 1, 1).walk(dictionary);
+			assertTrue(finite.stream().noneMatch(hit -> hit.term().equals("kalhoty")));
+		}
+
+		@Test
+		@DisplayName("The distance of an open-ended hit is the smallest distance of any of its prefixes")
+		void shouldReportSmallestPrefixDistance() {
+			for (final Hit hit : new LevenshteinDictionaryWalker("kalhot", 2, 1, 0, true).walk(dictionary)) {
+				int smallest = Integer.MAX_VALUE;
+				for (int end = 0; end <= hit.term().length(); end++) {
+					smallest = Math.min(smallest, EditDistances.osaDistance("kalhot", hit.term().substring(0, end)));
+				}
+				assertEquals(smallest, hit.distance(), "distance of `" + hit.term() + "`");
+			}
+		}
+	}
+
+	@Nested
 	@DisplayName("Cost of the walk")
 	class Cost {
 

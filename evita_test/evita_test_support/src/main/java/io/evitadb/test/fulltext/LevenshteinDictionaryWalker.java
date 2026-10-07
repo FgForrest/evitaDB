@@ -63,6 +63,11 @@ public final class LevenshteinDictionaryWalker {
 	private int seekLength;
 	private int[] savedStates = new int[17];
 	private final int readAhead;
+	/**
+	 * Whether the language is open-ended: a key is accepted when **some prefix** of it is within the distance, which
+	 * is what an unfinished query word needs (see the five-argument constructor).
+	 */
+	private final boolean openEnd;
 	private long reads;
 	private long seeks;
 	private long readAheadHits;
@@ -100,7 +105,31 @@ public final class LevenshteinDictionaryWalker {
 	 * @param readAhead maximum sequential reads before falling back to a seek; 0 disables the read-ahead
 	 */
 	public LevenshteinDictionaryWalker(@Nonnull String query, int maxEdits, int nonFuzzyPrefix, int readAhead) {
+		this(query, maxEdits, nonFuzzyPrefix, readAhead, false);
+	}
+
+	/**
+	 * Builds the walker for a query word, optionally **open-ended**: then a key is accepted when some prefix of it is
+	 * within `maxEdits` of the query — the language `L · Σ*` where `L` is the Levenshtein language of the query.
+	 * That is search-as-you-type over a mistyped, unfinished word (`blakc` reaching `blackberry`). The reported
+	 * distance is the smallest distance of any prefix.
+	 *
+	 * The seek logic is unchanged and stays exact: for a rejected key `k`, every open-ended match `s > k` starts with
+	 * a match `p` of `L` that is not a prefix of `k` (otherwise `k` itself would match), so `p > k`, and the smallest
+	 * such `p` is exactly the next string of `L` the finite walk seeks to. The open end only changes the acceptance
+	 * test — a key is stepped through the automaton and accepted at the first accepting state.
+	 *
+	 * @param query          the query word, already in the dictionary's normalization space
+	 * @param maxEdits       0, 1 or 2
+	 * @param nonFuzzyPrefix number of leading characters in which no edit is permitted
+	 * @param readAhead      maximum sequential reads before falling back to a seek; 0 disables the read-ahead
+	 * @param openEnd        whether any continuation of a match is a match too
+	 */
+	public LevenshteinDictionaryWalker(
+		@Nonnull String query, int maxEdits, int nonFuzzyPrefix, int readAhead, boolean openEnd
+	) {
 		this.readAhead = readAhead;
+		this.openEnd = openEnd;
 		final int prefixLength = Math.min(nonFuzzyPrefix, query.length());
 		final String prefix = query.substring(0, prefixLength);
 		final int[] suffix = query.substring(prefixLength).codePoints().toArray();
@@ -151,7 +180,7 @@ public final class LevenshteinDictionaryWalker {
 			} else {
 				break;
 			}
-			if (widest.run(key)) {
+			if (accepts(widest, key)) {
 				hits.add(new Hit(key, classify(key), cursor.isSingle() ? 1 : -1));
 				continue;
 			}
@@ -205,7 +234,7 @@ public final class LevenshteinDictionaryWalker {
 		final BucketCursor<String> cursor = tree.cursor();
 		while (cursor.next()) {
 			final String key = cursor.value();
-			if (widest.run(key)) {
+			if (accepts(widest, key)) {
 				hits.add(key);
 			}
 		}
@@ -239,10 +268,40 @@ public final class LevenshteinDictionaryWalker {
 	 */
 	private int classify(@Nonnull String term) {
 		int distance = this.acceptorsByDistance.length - 1;
-		while (distance > 0 && this.acceptorsByDistance[distance - 1].run(term)) {
+		while (distance > 0 && accepts(this.acceptorsByDistance[distance - 1], term)) {
 			distance--;
 		}
 		return distance;
+	}
+
+	/**
+	 * Tests a key against an acceptor: the whole key for the finite language, any prefix of it when the walker is
+	 * open-ended.
+	 *
+	 * @param acceptor the acceptor of one distance
+	 * @param key      the dictionary key
+	 * @return whether the key is accepted
+	 */
+	private boolean accepts(@Nonnull CharacterRunAutomaton acceptor, @Nonnull String key) {
+		if (!this.openEnd) {
+			return acceptor.run(key);
+		}
+		int state = 0;
+		if (acceptor.isAccept(state)) {
+			return true;
+		}
+		for (int i = 0; i < key.length(); ) {
+			final int codePoint = key.codePointAt(i);
+			state = acceptor.step(state, codePoint);
+			if (state == -1) {
+				return false;
+			}
+			if (acceptor.isAccept(state)) {
+				return true;
+			}
+			i += Character.charCount(codePoint);
+		}
+		return false;
 	}
 
 	private void setSeek(@Nonnull String key) {
