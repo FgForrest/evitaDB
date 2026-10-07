@@ -845,9 +845,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * decide whether the candidate is worth planning at all.
 	 *
 	 * The split exists so a candidate that is going to be rejected never pays the resolution. A route that reads the
-	 * candidates calls {@link ReducedIndexCandidates#resolveSplit()}, which reads the registered single-owner
-	 * partitions virtually when the query reads the collection so; a route that needs the index objects of every
-	 * candidate calls {@link ReducedIndexCandidates#resolve()}.
+	 * candidates calls {@link ReducedIndexCandidates#resolveSplit()}, which keeps a registered single-owner
+	 * partition as a row of the split instead of resolving it whenever the query reads the collection virtually;
+	 * a route that needs the index objects of every candidate calls {@link ReducedIndexCandidates#resolve()} instead.
 	 *
 	 * @param referenceHaving              the constraint whose reference is being discovered
 	 * @param scope                        scopes to discover in
@@ -1153,8 +1153,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
-	 * Answers a reference body exactly for rows of registered single-owner partitions of one scope (step 4c of #1615)
-	 * and returns the partition primary keys of the rows that satisfy it.
+	 * Answers a reference body exactly for rows of registered single-owner partitions of one scope and returns the
+	 * partition primary keys of the rows that satisfy it.
 	 *
 	 * The body is evaluated once against the referenced-type entity index holding the rows, with the rows installed on
 	 * its processing scope (see {@link VirtualPartitionRows}) and every negation settled in place
@@ -1172,6 +1172,10 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * @param rows                    the rows the body is answered for
 	 * @param attributeSchemaAccessor resolves the attributes of the body - those of the reference
 	 * @param nestedQueryRestriction  the narrowing of a nested `entityHaving` query, as the candidate discovery got it
+	 * @param entityNestedQueryComparator the comparator the route installs when it evaluates the body against a
+	 *                                    materialized partition - `entityLocaleEquals` in the body hands it its locale
+	 *                                    and a nested `entityHaving` query takes its locale and scopes from it; NULL
+	 *                                    when the route installs none
 	 * @return the partition primary keys of the rows satisfying the body, possibly empty
 	 */
 	@Nonnull
@@ -1181,7 +1185,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull FilterBy filterBy,
 		@Nonnull VirtualPartitionRows rows,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
-		@Nullable NestedQueryRestriction nestedQueryRestriction
+		@Nullable NestedQueryRestriction nestedQueryRestriction,
+		@Nullable EntityNestedQueryComparator entityNestedQueryComparator
 	) {
 		// only `facetHaving` sets the expansion function, and it never reads virtual rows - a set one here would
 		// widen the type-level answer the rows are read from
@@ -1200,7 +1205,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			nestedQueryRestriction,
 			// the formula is the answer for every row - nothing re-examines the rows afterwards
 			NegationResolution.IN_PLACE,
-			null,
+			entityNestedQueryComparator,
 			attributeSchemaAccessor,
 			(theEntity, attributeName, locale) ->
 				theEntity.getReferences(referenceName)

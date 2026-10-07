@@ -915,7 +915,7 @@ public class BidirectionalReferenceRewriter {
 	 * reading, computed without leaving the owner. The superset is the same union the no-constraint branch uses.
 	 *
 	 * When the query reads the counterpart collection virtually, the counterpart partitions the registry of
-	 * single-owner partitions holds a row for are read as {@link VirtualReferencePartition}s (step 4c of #1615). Their
+	 * single-owner partitions holds a row for are read as {@link VirtualReferencePartition}s. Their
 	 * single row names the referenced entity - its only owner - outright, and the attribute constraint is answered for
 	 * the rows of **all** candidate owners at once, by one evaluation against the counterpart's referenced-type entity
 	 * index per requested scope ({@link FilterByVisitor#getMatchingVirtualPartitions}), instead of once per owner. A
@@ -1131,7 +1131,9 @@ public class BidirectionalReferenceRewriter {
 						// the split admits only reference-attribute constraints, never `inScope`
 						InScopeReading.OTHER_SCOPES_UNMET
 					),
-					attributeSchemaAccessor, processingScope.getNestedQueryRestriction()
+					attributeSchemaAccessor, processingScope.getNestedQueryRestriction(),
+					// the materialized partitions of the counterpart are evaluated without a comparator too
+					null
 				);
 				if (!matching.isEmpty()) {
 					final PersistentRoaringBitmap matchingBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(matching);

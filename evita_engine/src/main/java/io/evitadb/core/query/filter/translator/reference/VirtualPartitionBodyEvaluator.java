@@ -55,6 +55,7 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.NestedQueryRestriction;
 import io.evitadb.core.query.filter.VirtualPartitionRows;
 import io.evitadb.core.query.filter.VirtualPartitionRows.InScopeReading;
+import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.ReferencePartitionSplit;
@@ -81,7 +82,7 @@ import java.util.Set;
  * of their rows there. A single-owner partition holds exactly one row, so for the leaves whose type-level answer is the
  * per-partition answer - the **row-exact** leaves - being a candidate already means the row satisfies the body. For a
  * body made of them alone the virtual part of the answer is `E = C ∩ V`, translated to the owners of `E`, without
- * re-evaluating anything (step 4b of #1615): the split carries the owner of every virtual candidate.
+ * re-evaluating anything: the split carries the owner of every virtual candidate.
  *
  * Row-exact: `and`, `or`, the attribute comparisons, `entityHaving` (the nested result holds only existing targets, so
  * the type-level existence intersection is a no-op) and a positive `entityPrimaryKeyInSet` (the type-level existence
@@ -89,7 +90,7 @@ import java.util.Set;
  * drop it alike).
  *
  * The other leaves admitted in a reference body - `not`, `attributeIs`, `groupHaving`, `entityLocaleEquals` and
- * `inScope` - answer differently at the two levels, so a body holding one is **answered exactly** instead (step 4c):
+ * `inScope` - answer differently at the two levels, so a body holding one is **answered exactly** instead:
  * the body is evaluated once more against the referenced-type entity index of every scope holding virtual
  * candidates, with every negation settled in place and the candidates of that scope - the universe `U` - installed as
  * {@link VirtualPartitionRows}, which every leaf differing between the levels reads to answer the rows exactly (see
@@ -196,13 +197,16 @@ public final class VirtualPartitionBodyEvaluator {
 	 * candidates, with those candidates installed as the universe of the evaluation (see
 	 * {@link FilterByVisitor#getMatchingVirtualPartitions}).
 	 *
-	 * @param filterByVisitor         the visitor translating the reference filter
-	 * @param entitySchema            the schema of the entity owning the reference
-	 * @param referenceSchema         the reference
-	 * @param body                    the body
-	 * @param split                   the split of the candidates
-	 * @param inScopeReading          how the route being answered reads `inScope` - see {@link InScopeReading}
-	 * @param nestedQueryRestriction  the narrowing of a nested `entityHaving` query, as the candidate discovery got it
+	 * @param filterByVisitor             the visitor translating the reference filter
+	 * @param entitySchema                the schema of the entity owning the reference
+	 * @param referenceSchema             the reference
+	 * @param body                        the body
+	 * @param split                       the split of the candidates
+	 * @param inScopeReading              how the route being answered reads `inScope` - see {@link InScopeReading}
+	 * @param nestedQueryRestriction      the narrowing of a nested `entityHaving` query, as the candidate discovery
+	 *                                    got it
+	 * @param entityNestedQueryComparator the comparator the route evaluates the body of a materialized partition
+	 *                                    with, NULL when it uses none
 	 * @return the primary keys of the virtual candidates satisfying the body, possibly empty
 	 */
 	@Nonnull
@@ -213,7 +217,8 @@ public final class VirtualPartitionBodyEvaluator {
 		@Nonnull FilterBy body,
 		@Nonnull ReferencePartitionSplit split,
 		@Nonnull InScopeReading inScopeReading,
-		@Nullable NestedQueryRestriction nestedQueryRestriction
+		@Nullable NestedQueryRestriction nestedQueryRestriction,
+		@Nullable EntityNestedQueryComparator entityNestedQueryComparator
 	) {
 		final VirtualPartitionRows[] rowsPerScope = VirtualPartitionRows.of(split, inScopeReading);
 		final AttributeSchemaAccessor attributeSchemaAccessor =
@@ -221,7 +226,8 @@ public final class VirtualPartitionBodyEvaluator {
 		PersistentRoaringBitmap result = null;
 		for (final VirtualPartitionRows rows : rowsPerScope) {
 			final Bitmap matching = filterByVisitor.getMatchingVirtualPartitions(
-				entitySchema, referenceSchema, body, rows, attributeSchemaAccessor, nestedQueryRestriction
+				entitySchema, referenceSchema, body, rows, attributeSchemaAccessor, nestedQueryRestriction,
+				entityNestedQueryComparator
 			);
 			if (!matching.isEmpty()) {
 				final PersistentRoaringBitmap matchingBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(matching);
@@ -239,12 +245,16 @@ public final class VirtualPartitionBodyEvaluator {
 	 * when the query requests another scope too, the copy in which every `inScope` is unmet
 	 * ({@link InScopeReading#ALL_SCOPES_UNMET}). A body without `inScope` has no copies, and is evaluated once.
 	 *
-	 * @param filterByVisitor        the visitor translating the reference filter
-	 * @param entitySchema           the schema of the entity owning the reference
-	 * @param referenceSchema        the reference
-	 * @param body                   the body
-	 * @param split                  the split of the candidates
-	 * @param nestedQueryRestriction the narrowing of a nested `entityHaving` query, as the candidate discovery got it
+	 * @param filterByVisitor             the visitor translating the reference filter
+	 * @param entitySchema                the schema of the entity owning the reference
+	 * @param referenceSchema             the reference
+	 * @param body                        the body
+	 * @param split                       the split of the candidates
+	 * @param nestedQueryRestriction      the narrowing of a nested `entityHaving` query, as the candidate discovery
+	 *                                    got it
+	 * @param entityNestedQueryComparator the comparator of the ordering of the fetched references, which the route
+	 *                                    evaluates the body of a materialized partition with - the body's
+	 *                                    `entityLocaleEquals` hands it its locale; NULL when no ordering is requested
 	 * @return the primary keys of the virtual candidates satisfying the body, possibly empty
 	 */
 	@Nonnull
@@ -254,11 +264,12 @@ public final class VirtualPartitionBodyEvaluator {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterBy body,
 		@Nonnull ReferencePartitionSplit split,
-		@Nullable NestedQueryRestriction nestedQueryRestriction
+		@Nullable NestedQueryRestriction nestedQueryRestriction,
+		@Nullable EntityNestedQueryComparator entityNestedQueryComparator
 	) {
 		final Bitmap ownScopeCopy = getMatchingPartitions(
 			filterByVisitor, entitySchema, referenceSchema, body, split, InScopeReading.OTHER_SCOPES_MET,
-			nestedQueryRestriction
+			nestedQueryRestriction, entityNestedQueryComparator
 		);
 		final Set<Scope> requestedScopes = filterByVisitor.getScopes();
 		if (requestedScopes.size() < 2 || !containsInScope(body)) {
@@ -267,7 +278,7 @@ public final class VirtualPartitionBodyEvaluator {
 		// every partition lives in one of the requested scopes, so with two of them each has the copy of the other
 		final Bitmap otherScopeCopy = getMatchingPartitions(
 			filterByVisitor, entitySchema, referenceSchema, body, split, InScopeReading.ALL_SCOPES_UNMET,
-			nestedQueryRestriction
+			nestedQueryRestriction, entityNestedQueryComparator
 		);
 		if (otherScopeCopy.isEmpty()) {
 			return ownScopeCopy;

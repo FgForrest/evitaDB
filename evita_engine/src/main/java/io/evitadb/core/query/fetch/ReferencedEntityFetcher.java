@@ -882,8 +882,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 							// the body each candidate's rows are evaluated against
 							final FilterBy rowFilterBy = entityLevelFilterBy != null ? entityLevelFilterBy : filterBy;
-							final ReferencedPartitions candidatePartitions = allReferencedEntityPks.isEmpty() ?
-								ReferencedPartitions.EMPTY :
+							final CandidatePartitions candidatePartitions = allReferencedEntityPks.isEmpty() ?
+								CandidatePartitions.EMPTY :
 								getReferencedPartitions(
 									theFilterByVisitor,
 									entitySchema,
@@ -903,7 +903,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 										nestedQueryPkRestriction
 									).resolveSplit(),
 									rowFilterBy,
-									nestedQueryPkRestriction
+									nestedQueryPkRestriction,
+									entityNestedQueryComparator
 								);
 							final List<? extends ReferencePartition> referencedPartitions =
 								candidatePartitions.partitions();
@@ -1072,23 +1073,29 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param entitySchema           the schema of the entity owning the reference
 	 * @param referenceSchema        the reference
 	 * @param candidates             the candidates split by representation
-	 * @param rowFilterBy            the body evaluated against each reference row
-	 * @param nestedQueryRestriction the narrowing of a nested `entityHaving` query, as the candidate discovery got it
+	 * @param rowFilterBy                 the body evaluated against each reference row
+	 * @param nestedQueryRestriction      the narrowing of a nested `entityHaving` query, as the candidate discovery
+	 *                                    got it
+	 * @param entityNestedQueryComparator the comparator `computeResultWithPassedIndex` evaluates the body of a
+	 *                                    materialized candidate with - the body of a virtual one must hand it its
+	 *                                    locale too, or the ordering of the references loses it when every candidate
+	 *                                    is virtual
 	 * @return the candidate partitions, mutable, in no particular order, and the verdict for the virtual ones
 	 */
 	@Nonnull
-	private static ReferencedPartitions getReferencedPartitions(
+	private static CandidatePartitions getReferencedPartitions(
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull SplitReducedIndexCandidates candidates,
 		@Nonnull FilterBy rowFilterBy,
-		@Nullable NestedQueryRestriction nestedQueryRestriction
+		@Nullable NestedQueryRestriction nestedQueryRestriction,
+		@Nullable EntityNestedQueryComparator entityNestedQueryComparator
 	) {
 		final ReferencePartitionSplit split = candidates.split();
 		final int virtualCount = split.getVirtualCount();
 		if (virtualCount == 0) {
-			return new ReferencedPartitions(candidates.materializedIndexes(), null);
+			return new CandidatePartitions(candidates.materializedIndexes(), null);
 		}
 		final Bitmap matchingVirtualPartitions = VirtualPartitionBodyEvaluator.isRowExact(
 			rowFilterBy, referenceSchema.getName()
@@ -1096,7 +1103,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			null :
 			// each partition is evaluated on its own here, with the post-processor of `inScope` running
 			VirtualPartitionBodyEvaluator.getMatchingPartitionsPerRow(
-				filterByVisitor, entitySchema, referenceSchema, rowFilterBy, split, nestedQueryRestriction
+				filterByVisitor, entitySchema, referenceSchema, rowFilterBy, split, nestedQueryRestriction,
+				entityNestedQueryComparator
 			);
 		// TODO JNO - remove at the end of #1615 (the non-vacuity probe of the read parity tests)
 		filterByVisitor.recordVirtualRowsRead(virtualCount);
@@ -1106,7 +1114,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		for (int i = 0; i < virtualCount; i++) {
 			result.add(split.getVirtualPartition(i));
 		}
-		return new ReferencedPartitions(result, matchingVirtualPartitions);
+		return new CandidatePartitions(result, matchingVirtualPartitions);
 	}
 
 	/**
@@ -1116,14 +1124,14 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param matchingVirtualPartitions the primary keys of the virtual candidates whose row satisfies the body, `null`
 	 *                                  when every one does - the body is row-exact or nothing is read virtually
 	 */
-	private record ReferencedPartitions(
+	private record CandidatePartitions(
 		@Nonnull List<? extends ReferencePartition> partitions,
 		@Nullable Bitmap matchingVirtualPartitions
 	) {
 		/**
 		 * No candidate at all.
 		 */
-		static final ReferencedPartitions EMPTY = new ReferencedPartitions(Collections.emptyList(), null);
+		static final CandidatePartitions EMPTY = new CandidatePartitions(Collections.emptyList(), null);
 	}
 
 	/**

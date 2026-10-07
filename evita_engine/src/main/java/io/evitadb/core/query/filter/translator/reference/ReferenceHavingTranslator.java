@@ -263,7 +263,9 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 					// the transposed body never runs the post-processor of `inScope`, so a constraint confined to
 					// another scope contributes nothing for a partition
 					InScopeReading.OTHER_SCOPES_UNMET,
-					processingScope.getNestedQueryRestriction()
+					processingScope.getNestedQueryRestriction(),
+					// the comparator the materialized candidates are evaluated with, see `applySearchOnIndexes`
+					processingScope.getEntityNestedQueryComparator()
 				)
 			);
 		if (materializedIndexes.isEmpty()) {

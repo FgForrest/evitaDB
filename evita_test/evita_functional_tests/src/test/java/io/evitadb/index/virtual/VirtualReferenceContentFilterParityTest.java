@@ -26,10 +26,12 @@ package io.evitadb.index.virtual;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.ChunkingRequireConstraint;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
@@ -53,6 +55,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -76,7 +79,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the key is restricted, exactly once: restricting it once per partition keeps only the owners of the last one. A
  * partition read virtually contributes its owner only when its single row satisfies the body - from the candidate set
  * for a row-exact body, by the exact evaluation for a negation, `attributeIs`, `groupHaving` or `inScope`, the last
- * read as this route reads it, one copy of the body per requested scope (step 4c of #1615).
+ * read as this route reads it, one copy of the body per requested scope.
  *
  * Two catalogs, each maintained from its first write: {@link CrossScopeSingletonFixture} for the hand-built shapes of
  * one key in both scopes, with the expected rows spelled out, and {@link RelatedProductsShapedFixture} for thousands of
@@ -92,6 +95,25 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 	private static final String CATALOG_CROSS_SCOPE = "virtualContentParityCrossScope";
 	private static final String CATALOG_RELATED = "virtualContentParityRelated";
+	private static final String CATALOG_LOCALIZED_TARGETS = "virtualContentParityLocalizedTargets";
+	private static final String ENTITY_PRODUCT = "product";
+	private static final String ENTITY_BRAND = "brand";
+	/**
+	 * The collections of {@link #CATALOG_LOCALIZED_TARGETS}.
+	 */
+	private static final Set<String> LOCALIZED_TARGET_ENTITY_TYPES = Set.of(ENTITY_PRODUCT, ENTITY_BRAND);
+	private static final String REFERENCE_BRANDS = "brands";
+	private static final String ATTRIBUTE_NAME = "name";
+	private static final String ATTRIBUTE_LABEL = "label";
+	private static final Locale CZECH = Locale.forLanguageTag("cs");
+	/**
+	 * The names of brands 1 to 3 in English, ascending in brand order.
+	 */
+	private static final String[] ENGLISH_NAMES = {"Apple", "Banana", "Cherry"};
+	/**
+	 * The names of brands 1 to 3 in Czech, descending in brand order.
+	 */
+	private static final String[] CZECH_NAMES = {"Zelí", "Mrkev", "Ananas"};
 	private static final Scope[] LIVE = {Scope.LIVE};
 	private static final Scope[] ARCHIVED = {Scope.ARCHIVED};
 	private static final Scope[] BOTH = {Scope.LIVE, Scope.ARCHIVED};
@@ -146,6 +168,11 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 		build(
 			CATALOG_RELATED, RelatedProductsShapedFixture.ENTITY_TYPES,
 			RelatedProductsShapedFixture::setUp, RelatedProductsShapedFixture::archive
+		);
+		build(
+			CATALOG_LOCALIZED_TARGETS, LOCALIZED_TARGET_ENTITY_TYPES,
+			VirtualReferenceContentFilterParityTest::setUpLocalizedTargets, session -> {
+			}
 		);
 	}
 
@@ -262,7 +289,7 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 				),
 				strip(0, 3)
 			),
-			// bodies answered exactly (step 4c)
+			// bodies answered exactly
 			new ParityCase("not", not(accessories), null),
 			new ParityCase("not, second page of two", not(accessories), page(2, 2)),
 			new ParityCase(
@@ -359,6 +386,38 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 		);
 	}
 
+	@Test
+	@DisplayName("a filter locale orders the references by the localized attribute of their entities")
+	void shouldOrderTheReferencesByTheFilterLocale() {
+		final VirtualReferencePartitionMaintenance maintenance = maintenance(CATALOG_LOCALIZED_TARGETS);
+		// without a locale of the query itself, the filter locale is the only one the ordering can use
+		final Comparison<List<Integer>> withoutQueryLocale = VirtualReadParity.compare(
+			maintenance, Set.of(ENTITY_PRODUCT), () -> queryBrandOrder(null)
+		);
+		assertEquals(List.of(3, 2, 1), withoutQueryLocale.objectReading(), "The index objects order by Czech names");
+		assertEquals(
+			withoutQueryLocale.objectReading(), withoutQueryLocale.virtualReading().answer(),
+			"The virtual reading must order by the filter locale too"
+		);
+		assertTrue(
+			withoutQueryLocale.virtualReading().virtualRowsRead() > 0,
+			"Every brand partition is single-owner, so the fetch must read virtual rows"
+		);
+
+		final Comparison<List<Integer>> withQueryLocale = VirtualReadParity.compare(
+			maintenance, Set.of(ENTITY_PRODUCT), () -> queryBrandOrder(Locale.ENGLISH)
+		);
+		assertEquals(List.of(3, 2, 1), withQueryLocale.objectReading(), "The filter locale wins over the query one");
+		assertEquals(
+			withQueryLocale.objectReading(), withQueryLocale.virtualReading().answer(),
+			"The virtual reading must order by the filter locale too"
+		);
+		assertTrue(
+			withQueryLocale.virtualReading().virtualRowsRead() > 0,
+			"Every brand partition is single-owner, so the fetch must read virtual rows"
+		);
+	}
+
 	/**
 	 * Returns the primary keys past the last product rows reference - targets the managed collection never holds.
 	 *
@@ -412,7 +471,8 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 
 	/**
 	 * Fetches every entity of a collection in the scopes with the references a filter keeps, and describes the kept
-	 * rows of every entity - `target` for a reference without a representative attribute, `target/role` for one with - in the order the entity returns them, followed by the total of a chunk.
+	 * rows of every entity - `target` for a reference without a representative attribute, `target/role` for one
+	 * with - in the order the entity returns them, followed by the total of a chunk.
 	 *
 	 * @param catalog       the catalog
 	 * @param entityType    the collection
@@ -489,6 +549,77 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 		return roleAttribute == null ?
 			String.valueOf(reference.getReferencedPrimaryKey()) :
 			reference.getReferencedPrimaryKey() + "/" + reference.getAttribute(roleAttribute);
+	}
+
+	/**
+	 * Defines the catalog of {@link #CATALOG_LOCALIZED_TARGETS}: brands 1 to 3 with a localized sortable name whose
+	 * Czech order is the reverse of the English one, and product 1 with a label in both languages referencing all three
+	 * brands - each brand by this product alone, so every partition of `brands` is single-owner.
+	 *
+	 * @param session the session to write in
+	 */
+	private static void setUpLocalizedTargets(@Nonnull EvitaSessionContract session) {
+		session.defineEntitySchema(ENTITY_BRAND)
+			.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().sortable().nullable())
+			.updateVia(session);
+		session.defineEntitySchema(ENTITY_PRODUCT)
+			.withAttribute(ATTRIBUTE_LABEL, String.class, whichIs -> whichIs.localized().nullable())
+			.withReferenceToEntity(
+				REFERENCE_BRANDS, ENTITY_BRAND, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs.indexedForFilteringInScope(Scope.LIVE)
+			)
+			.updateVia(session);
+		for (int pk = 1; pk <= ENGLISH_NAMES.length; pk++) {
+			session.upsertEntity(
+				session.createNewEntity(ENTITY_BRAND, pk)
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, ENGLISH_NAMES[pk - 1])
+					.setAttribute(ATTRIBUTE_NAME, CZECH, CZECH_NAMES[pk - 1])
+			);
+		}
+		session.upsertEntity(
+			session.createNewEntity(ENTITY_PRODUCT, 1)
+				.setAttribute(ATTRIBUTE_LABEL, Locale.ENGLISH, "Fruit")
+				.setAttribute(ATTRIBUTE_LABEL, CZECH, "Ovoce")
+				.setReference(REFERENCE_BRANDS, 1)
+				.setReference(REFERENCE_BRANDS, 2)
+				.setReference(REFERENCE_BRANDS, 3)
+		);
+	}
+
+	/**
+	 * Fetches product 1 of {@link #CATALOG_LOCALIZED_TARGETS} with its brands filtered by the Czech locale and ordered
+	 * by their localized name, and returns the brands in the order the product returns them.
+	 *
+	 * @param queryLocale the locale of the query itself, `null` for none
+	 * @return the brand primary keys in reference order
+	 */
+	@Nonnull
+	private List<Integer> queryBrandOrder(@Nullable Locale queryLocale) {
+		return this.evita.queryCatalog(
+			CATALOG_LOCALIZED_TARGETS,
+			session -> {
+				final SealedEntity product = session.queryOne(
+					query(
+						collection(ENTITY_PRODUCT),
+						filterBy(entityPrimaryKeyInSet(1), queryLocale == null ? null : entityLocaleEquals(queryLocale)),
+						require(
+							entityFetch(
+								referenceContent(
+									REFERENCE_BRANDS,
+									filterBy(entityLocaleEquals(CZECH)),
+									orderBy(entityProperty(attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC))),
+									entityFetch()
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				).orElseThrow();
+				return product.getReferences(REFERENCE_BRANDS).stream()
+					.map(ReferenceContract::getReferencedPrimaryKey)
+					.toList();
+			}
+		);
 	}
 
 	/**
