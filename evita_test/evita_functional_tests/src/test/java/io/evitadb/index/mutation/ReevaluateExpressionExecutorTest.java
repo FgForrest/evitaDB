@@ -1406,9 +1406,9 @@ class ReevaluateExpressionExecutorTest {
 	// -- target factory methods --
 
 	/**
-	 * Creates the mock {@link IndexMutationTarget} every factory below starts from. The partition resolver is a
-	 * default method of the interface built on the stubbed by-primary-key lookup, so the mock runs the real one -
-	 * stubbing it separately would let the two disagree.
+	 * Creates the mock {@link IndexMutationTarget} every factory below starts from. The partition resolvers are
+	 * default methods of the interface built on the stubbed by-primary-key lookup, so the mock runs the real ones -
+	 * stubbing them separately would let them disagree.
 	 *
 	 * @return the mock target
 	 */
@@ -1416,6 +1416,7 @@ class ReevaluateExpressionExecutorTest {
 	private static IndexMutationTarget mockTarget() {
 		final IndexMutationTarget target = mock(IndexMutationTarget.class);
 		when(target.resolvePartitionIfExists(anyInt())).thenCallRealMethod();
+		when(target.resolvePartitionForOwnerReadIfExists(any(), anyInt())).thenCallRealMethod();
 		return target;
 	}
 

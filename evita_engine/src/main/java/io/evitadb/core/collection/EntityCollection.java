@@ -2004,6 +2004,8 @@ public final class EntityCollection implements
 				}
 				final ReducedIndexMembership membership =
 					typedGlobalIndex.getOrCreateReducedIndexMembership(referenceSchema.getName());
+				// TODO JNO - remove at the end of #1615 (the variable, the virtual catalog is the only one left)
+				final boolean virtualCatalog = this.catalog.getVirtualReferencePartitionMaintenance().isVirtual();
 				for (final EntityIndexType family : ReducedIndexMembership.REFERENCED_TYPE_INDEX_FAMILIES) {
 					final EntityIndexKey typeIndexKey = new EntityIndexKey(family, scope, referenceSchema.getName());
 					final ReferencedTypeEntityIndex typedTypeIndex = asReferencedTypeEntityIndexIfExists(
@@ -2013,8 +2015,10 @@ public final class EntityCollection implements
 						continue;
 					}
 					if (family == EntityIndexType.REFERENCED_ENTITY_TYPE) {
+						// the type index listing the partitions carries their registry - no other one is read
+						final ReferencedTypeEntityIndex registryTypeIndex = virtualCatalog ? typedTypeIndex : null;
 						typedTypeIndex.forEachReferenceIndexPrimaryKey(
-							partitionPk -> registerPartition(membership, partitionPk)
+							partitionPk -> registerPartition(membership, registryTypeIndex, partitionPk)
 						);
 					} else {
 						typedTypeIndex.forEachReferenceIndexPrimaryKey(
@@ -2031,15 +2035,23 @@ public final class EntityCollection implements
 	 * {@link #registerReducedIndex(ReducedIndexMembership, int)}, whose reasoning applies unchanged: a partition
 	 * advertised but not resolvable is recorded as residual, a repeat surfaces as a programming error.
 	 *
-	 * @param membership  the lookup being built
-	 * @param partitionPk primary key of the advertised partition
+	 * Only the owners of the partition are read, so a partition the registry of the given type index holds a row for
+	 * is registered from its row - covered, with its only owner - whether or not it has an index object, which a
+	 * catalog representing its single-owner partitions virtually need not have. It is never recorded as residual for
+	 * want of one.
+	 *
+	 * @param membership        the lookup being built
+	 * @param registryTypeIndex the referenced-type entity index listing the partition, whose registry is read, when
+	 *                          the catalog represents its single-owner partitions virtually, `null` when it does not
+	 * @param partitionPk       primary key of the advertised partition
 	 */
 	private void registerPartition(
 		@Nonnull ReducedIndexMembership membership,
+		@Nullable ReferencedTypeEntityIndex registryTypeIndex,
 		int partitionPk
 	) {
-		final ReferencePartition partition = ReferencePartitions.requireMaterialized(
-			resolvePartitionIfExists(partitionPk), "registerPartition"
+		final ReferencePartition partition = ReferencePartitions.resolveForOwnerReadIfExists(
+			this::resolvePartitionIfExists, registryTypeIndex, partitionPk
 		);
 		if (partition == null) {
 			// advertised but not resolvable - see `registerReducedIndex`
@@ -3963,7 +3975,9 @@ public final class EntityCollection implements
 			// mutate in other collections as well
 			localMutationExecutorCollector::findInFlightAccessor,
 			this::nextInternalPriceId,
-			entityMutation instanceof EntityRemoveMutation
+			entityMutation instanceof EntityRemoveMutation,
+			// TODO JNO - remove at the end of #1615
+			this.catalog.getVirtualReferencePartitionMaintenance().isVirtual()
 		);
 		final String entityType = getInternalSchema().getName();
 		final EntityIndexLocalMutationExecutor entityIndexUpdater = new EntityIndexLocalMutationExecutor(
@@ -4948,6 +4962,15 @@ public final class EntityCollection implements
 			final EntityCollection sourceCollection = EntityCollection.this.catalog
 				.getCollectionForEntityOrThrowException(entityType);
 			return sourceCollection.getInternalSchema().getLocales();
+		}
+
+		// TODO JNO - remove at the end of #1615
+		/**
+		 * Returns TRUE when the catalog of this collection represents its single-owner reference partitions virtually.
+		 */
+		@Override
+		public boolean isInVirtualCatalog() {
+			return EntityCollection.this.catalog.getVirtualReferencePartitionMaintenance().isVirtual();
 		}
 
 		/**

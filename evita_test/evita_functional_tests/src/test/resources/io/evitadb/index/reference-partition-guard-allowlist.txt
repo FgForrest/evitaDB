@@ -1,4 +1,4 @@
-# Allow-list of ReferencePartitionAccessGuardTest - see its JavaDoc for the rules R1-R6.
+# Allow-list of ReferencePartitionAccessGuardTest - see its JavaDoc for the rules R1-R7.
 # Format: rule | Class#member | reason. Every entry is a place that reaches a reduced entity index directly on
 # purpose; the list only shrinks - an entry that is no longer hit fails the test. An entry vouches for the only
 # overload of a member that declares one; an entry of a member declaring several pins the descriptors of the overloads
@@ -121,6 +121,7 @@ R3 | io.evitadb.core.query.QueryPlanningContext#getIndexByPrimaryKeyOf | the pla
 R3 | io.evitadb.core.query.QueryPlanningContext#getIndexByPrimaryKeyReader | partition resolver surface over the collection's or the query's indexes
 R3 | io.evitadb.index.IndexMaintainer#getIndexByPrimaryKey | generic throwing by-pk default of IndexMaintainer
 R3 | io.evitadb.index.ReferencePartitions#resolveOfTarget (overloads (Lio/evitadb/core/buffer/DataStoreReader;Lio/evitadb/dataType/Scope;Ljava/lang/String;ZI)[Lio/evitadb/index/ReferencePartition;) | the partition resolver implementation itself
+R3 | io.evitadb.index.ReferencePartitions#resolveOfTargetForOwnerRead | the partition resolver implementation itself - the owner read compares a registered partition with its index object
 R3 | io.evitadb.index.mutation.IndexMutationTarget#resolvePartitionIfExists | partition resolver surface of IndexMutationTarget for cross-entity maintenance
 R3 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#addFromReferenceAttributeForLocale | group family: reduced group entity indexes have no partition handle (histograms and group resolution of the cross-entity trigger)
 R3 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#applyFacetToReducedIndexFamily | facet decision into the mutated reference's reduced indexes, reached only for partitioned references
@@ -143,7 +144,9 @@ R4 | io.evitadb.core.collection.EntityCollection#rebuildReducedIndexMembership |
 R4 | io.evitadb.core.query.QueryPlanningContext#getReducedGroupEntityIndexes | group family: reduced group entity indexes have no partition handle (reduced group indexes of one group)
 R4 | io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceHistogramAccumulator#collectGroupedPending | group family: reduced group entity indexes have no partition handle (grouped histogram accumulation)
 R4 | io.evitadb.index.ReferencePartitions#resolveOfTarget (overloads (Ljava/util/function/Function;Ljava/util/function/IntFunction;Lio/evitadb/dataType/Scope;Ljava/lang/String;ZILjava/lang/String;)[Lio/evitadb/index/ReferencePartition;) | the partition resolver implementation itself
+R4 | io.evitadb.index.ReferencePartitions#buildRegisteredFamily | the by-key owner read enumerates the family of a target once per pass to find its registered partitions by tuple id
 R4 | io.evitadb.index.ReferencePartitions#resolveOfTargetForRead | read resolution of the partitions of one target enumerates the type index's family to tell virtual partitions from materialized ones
+R4 | io.evitadb.index.ReferencePartitions#resolveOfTargetForOwnerRead | the owner read of the partitions of one target enumerates the type index's family to find registered partitions without an index object
 R4 | io.evitadb.index.ReferencePartitions#splitOfTargetsForRead | read resolution of the partitions of the hierarchy nodes enumerates each target's family to split it against the registry
 R4 | io.evitadb.index.ReferencedTypeEntityIndex#getAllReferenceIndexes | type index declaration delegating the enumeration to its cardinality index
 R4 | io.evitadb.index.PartitionKeyMemo#buildFamily | the by-key read memo enumerates the family of a target once per query to find its registered partitions by tuple id
@@ -164,3 +167,10 @@ R4 | io.evitadb.index.mutation.local.ReferenceIndexMutator#insertSingleHistogram
 R4 | io.evitadb.index.mutation.local.ReferenceIndexMutator#removeHistogramValuesWithGuard | group family: reduced group entity indexes have no partition handle (group histograms by primary key)
 R4 | io.evitadb.index.mutation.local.ReferenceIndexMutator#removeSingleHistogramValue | group family: reduced group entity indexes have no partition handle (group histograms by primary key)
 R4 | io.evitadb.index.mutation.local.ReferenceIndexMutator#seedFromAdvertisedIndexes | lazy membership seeding enumerates advertised partition primary keys (pk only)
+R7 | io.evitadb.core.collection.EntityCollection#registerPartition | membership rebuild at load reads the owners of a registered partition from its row
+R7 | io.evitadb.index.mutation.IndexMutationTarget#resolvePartitionForOwnerReadIfExists | owner read surface of IndexMutationTarget for cross-entity maintenance
+R7 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#resolveForParentUngrouped | owners of the partitions of a reference re-evaluated for a parent mutation
+R7 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#resolveForRefEntityAttrUngrouped | owners of the partitions of a target re-evaluated for a referenced entity mutation
+R7 | io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor#createAndRegisterReferencePropagationMutation | owners and keys of the counterpart partitions a reflected reference is propagated from
+R7 | io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor#createCounterpartPresencePredicate | owners of the counterpart partition tested for the presence of the counterpart reference
+R7 | io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor#propagateReferenceModification | keys of the own partitions of a counterpart target a reflected reference is generated for

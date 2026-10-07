@@ -116,6 +116,10 @@ import static org.junit.jupiter.api.Assertions.fail;
  *   browse, detail and cardinality projections and the members of `EntityCollection` serving them and the membership
  *   rebuild). A write reaches a partition only through its reduced entity index, and the inspection reports the
  *   physical index while it exists. R6 has no legitimate site, so the allow-list carries no entry for it.
+ * - **R7 owner read resolution**: calls and method references of an owner read resolver - one that answers a partition
+ *   the registry holds a row for with its read-only virtual handle in a catalog representing its single-owner
+ *   partitions virtually - outside {@link ReferencePartitions} itself, wherever they are. Only the few places that read
+ *   nothing but the owners and the key of a partition may hold such a handle, and each of them is on the allow-list.
  *
  * The reduced index classes themselves are not scanned - their references to their own type are not accesses.
  *
@@ -236,6 +240,13 @@ class ReferencePartitionAccessGuardTest {
 			"splitPartitionsForRead", "isReadVirtually"
 		),
 		"io/evitadb/core/collection/EntityCollection", Set.of("resolvePartitionForReadIfExists")
+	);
+	/**
+	 * The owner read resolvers by the internal name of their owner, rule R7.
+	 */
+	private static final Map<String, Set<String>> OWNER_READ_RESOLVERS = Map.of(
+		RESOLVER, Set.of("resolveForOwnerReadIfExists", "resolveOfTargetForOwnerRead", "resolverByKeyForOwnerRead"),
+		"io/evitadb/index/mutation/IndexMutationTarget", Set.of("resolvePartitionForOwnerReadIfExists")
 	);
 	/**
 	 * Matches the member of an allow-list entry, capturing `Class#member` and the space-separated descriptors of the
@@ -383,12 +394,12 @@ class ReferencePartitionAccessGuardTest {
 	}
 
 	/**
-	 * Scans the counterfactual fixture of rule R6, which lives in a package of the write path, and asserts that every
-	 * read resolution it carries is reported under R6 and attributed to its member - and the object-only resolution
-	 * next to them is not.
+	 * Scans the counterfactual fixture of rules R6 and R7, which lives in a package of the write path, and asserts that
+	 * every read resolution it carries is reported under R6 and every owner read under R7, each attributed to its member
+	 * - and the object-only resolution next to them is not.
 	 */
 	@Test
-	@DisplayName("reports every read resolution of the write-path fixture and nothing else")
+	@DisplayName("reports every read resolution and owner read of the write-path fixture and nothing else")
 	void shouldReportEveryReadResolutionOnTheWritePath() {
 		final Scanner scanner = new Scanner();
 		final String fixtureName = ReadResolverGuardFixture.class.getSimpleName();
@@ -420,6 +431,14 @@ class ReferencePartitionAccessGuardTest {
 		expected.put(
 			"R6 " + fixture + "collectionShape",
 			"call io/evitadb/core/collection/EntityCollection.resolvePartitionForReadIfExists"
+		);
+		expected.put(
+			"R7 " + fixture + "ownerReadShape",
+			"call io/evitadb/index/mutation/IndexMutationTarget.resolvePartitionForOwnerReadIfExists"
+		);
+		expected.put(
+			"R7 " + fixture + "ownerReadByKeyShape",
+			"call io/evitadb/index/ReferencePartitions.resolverByKeyForOwnerRead"
 		);
 		for (Map.Entry<String, String> shape : expected.entrySet()) {
 			final Set<String> evidence = scanner.hits.get(shape.getKey());
@@ -830,6 +849,18 @@ class ReferencePartitionAccessGuardTest {
 		}
 
 		/**
+		 * Tells whether a method is an owner read resolver (rule R7).
+		 *
+		 * @param owner the internal name of the owner of the method
+		 * @param name  the method name
+		 * @return true for an owner read resolver
+		 */
+		private static boolean isOwnerReadResolver(@Nonnull String owner, @Nonnull String name) {
+			final Set<String> names = OWNER_READ_RESOLVERS.get(owner);
+			return names != null && names.contains(name);
+		}
+
+		/**
 		 * Tells whether a member belongs to the write path or to the physical index inspection, neither of which may
 		 * resolve partitions for a read (rule R6).
 		 *
@@ -1192,7 +1223,7 @@ class ReferencePartitionAccessGuardTest {
 			}
 
 			/**
-			 * Applies rules R1, R3, R4, R5 and R6 to a called or referenced method.
+			 * Applies rules R1, R3, R4, R5, R6 and R7 to a called or referenced method.
 			 *
 			 * @param owner      the owner of the method
 			 * @param name       the method name
@@ -1228,6 +1259,10 @@ class ReferencePartitionAccessGuardTest {
 				// the write path and the physical inspection resolve partitions through the object-only resolvers
 				if (isReadResolver(owner, name) && isWriteOrInspectionSite(this.classVisitor.internalName, this.site)) {
 					bodyHit("R6", channel + " " + owner + "." + name);
+				}
+				// the owner reads are confined to the places the allow-list names
+				if (isOwnerReadResolver(owner, name) && !RESOLVER.equals(this.classVisitor.internalName)) {
+					bodyHit("R7", channel + " " + owner + "." + name);
 				}
 			}
 		}

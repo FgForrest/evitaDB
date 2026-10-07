@@ -180,6 +180,13 @@ public final class ContainerizedLocalMutationExecutor
 	@Nonnull private final InFlightEntityAccessorLookup inFlightAccessorLookup;
 	@Nonnull private final IntSupplier priceInternalIdSupplier;
 	@Getter private final boolean entityRemovedEntirely;
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * TRUE when the catalog represents its single-owner reference partitions virtually - the owner reads of the
+	 * partitions of other entities then answer a partition the registry holds a row for from that row (see
+	 * {@link ReferencePartitions}).
+	 */
+	private final boolean virtualCatalog;
 	private final DataStoreMemoryBuffer dataStoreUpdater;
 	@Getter @Setter private boolean trapChanges;
 	private Scope initialEntityScope;
@@ -344,16 +351,15 @@ public final class ContainerizedLocalMutationExecutor
 			for (Scope counterpartScope : Scope.values()) {
 				if (isRelationMaintained(referenceSchema, counterpartSchema, scope, counterpartScope)) {
 					// the reflected reference's cardinality decides the lookup
+					// only the owners and the keys of the partitions are read
 					Collections.addAll(
 						partitions,
-						ReferencePartitions.requireMaterialized(
-							ReferencePartitions.resolveOfTarget(
-								dataStoreReader, counterpartScope,
-								referenceSchema.getReflectedReferenceName(),
-								referenceSchema.getCardinality().allowsDuplicates(),
-								this.entityPrimaryKey
-							),
-							"createAndRegisterReferencePropagationMutation"
+						ReferencePartitions.resolveOfTargetForOwnerRead(
+							dataStoreReader, counterpartScope,
+							referenceSchema.getReflectedReferenceName(),
+							referenceSchema.getCardinality().allowsDuplicates(),
+							this.entityPrimaryKey,
+							this.virtualCatalog
 						)
 					);
 				}
@@ -895,13 +901,15 @@ public final class ContainerizedLocalMutationExecutor
 	 * Creates a predicate testing whether the counterpart side of the relation is already established in the
 	 * partition of the referenced collection in the given scope. The partitions follow the scope of the entity they
 	 * index, so the check must always be performed in the scope the counterpart entity currently lives in. A missing
-	 * partition reads as "absent".
+	 * partition reads as "absent". Only the owners of the partition are read, so the partition is resolved for an
+	 * owner read - one the registry holds a row for answers from its row (see {@link ReferencePartitions}).
 	 *
 	 * @param hardReference        true when the reference name equals the counterpart schema name
 	 * @param dataStoreReader      reader of the referenced entity collection
 	 * @param referencedSchemaName name of the counterpart reference schema
 	 * @param entityPrimaryKey     primary key of the currently mutated entity
 	 * @param usedScope            scope the counterpart entity lives in
+	 * @param virtualCatalog       true when the catalog represents its single-owner reference partitions virtually
 	 * @return predicate testing counterpart reduced index membership
 	 */
 	@Nonnull
@@ -910,22 +918,22 @@ public final class ContainerizedLocalMutationExecutor
 		@Nonnull DataStoreReader dataStoreReader,
 		@Nonnull String referencedSchemaName,
 		int entityPrimaryKey,
-		@Nonnull Scope usedScope
+		@Nonnull Scope usedScope,
+		boolean virtualCatalog
 	) {
+		final Function<RepresentativeReferenceKey, ReferencePartition> partitionByKey =
+			ReferencePartitions.resolverByKeyForOwnerRead(
+				dataStoreReader, usedScope, referencedSchemaName, virtualCatalog
+			);
 		if (hardReference) {
 			// the partition of the given entity primary key
 			return (epk, representativeAttributeValues) -> {
 				// a missing partition reads as "absent"
-				final ReferencePartition targetPartition = ReferencePartitions.requireMaterialized(
-					ReferencePartitions.resolveIfExists(
-						dataStoreReader,
-						usedScope,
-						new RepresentativeReferenceKey(
-							new ReferenceKey(referencedSchemaName, epk),
-							representativeAttributeValues
-						)
-					),
-					"createCounterpartPresencePredicate"
+				final ReferencePartition targetPartition = partitionByKey.apply(
+					new RepresentativeReferenceKey(
+						new ReferenceKey(referencedSchemaName, epk),
+						representativeAttributeValues
+					)
 				);
 				// always check this entity primary key
 				return targetPartition != null && targetPartition.getAllPrimaryKeys().contains(entityPrimaryKey);
@@ -934,16 +942,11 @@ public final class ContainerizedLocalMutationExecutor
 			// always the partition of this entity
 			return (epk, representativeAttributeValues) -> {
 				// a missing partition reads as "absent"
-				final ReferencePartition targetPartition = ReferencePartitions.requireMaterialized(
-					ReferencePartitions.resolveIfExists(
-						dataStoreReader,
-						usedScope,
-						new RepresentativeReferenceKey(
-							new ReferenceKey(referencedSchemaName, entityPrimaryKey),
-							representativeAttributeValues
-						)
-					),
-					"createCounterpartPresencePredicate"
+				final ReferencePartition targetPartition = partitionByKey.apply(
+					new RepresentativeReferenceKey(
+						new ReferenceKey(referencedSchemaName, entityPrimaryKey),
+						representativeAttributeValues
+					)
 				);
 				return targetPartition != null && targetPartition.getAllPrimaryKeys().contains(epk);
 			};
@@ -1042,6 +1045,7 @@ public final class ContainerizedLocalMutationExecutor
 	 * @param inFlightAccessorLookup  finds the executors of other entities mutated within the same root mutation
 	 * @param priceInternalIdSupplier supplier of new internal price ids
 	 * @param entityRemovedEntirely   true when the mutation removes the entity
+	 * @param virtualCatalog          true when the catalog represents its single-owner reference partitions virtually
 	 */
 	public ContainerizedLocalMutationExecutor(
 		@Nonnull DataStoreMemoryBuffer dataStoreUpdater,
@@ -1054,7 +1058,8 @@ public final class ContainerizedLocalMutationExecutor
 		@Nonnull Function<String, DataStoreReader> dataStoreReaderAccessor,
 		@Nonnull InFlightEntityAccessorLookup inFlightAccessorLookup,
 		@Nonnull IntSupplier priceInternalIdSupplier,
-		boolean entityRemovedEntirely
+		boolean entityRemovedEntirely,
+		boolean virtualCatalog
 	) {
 		this.catalogVersion = catalogVersion;
 		this.dataStoreReader = dataStoreReader;
@@ -1070,6 +1075,7 @@ public final class ContainerizedLocalMutationExecutor
 		this.initialEntityScope = this.entityContainer.getScope();
 		this.requiresExisting = requiresExisting;
 		this.entityRemovedEntirely = entityRemovedEntirely;
+		this.virtualCatalog = virtualCatalog;
 	}
 
 	/**
@@ -2618,20 +2624,20 @@ public final class ContainerizedLocalMutationExecutor
 									referenceSchema,
 									referencedSchemaName,
 									referencedEntityType,
-									epk -> ReferencePartitions.requireMaterialized(
-										ReferencePartitions.resolveOfTarget(
-											this.dataStoreReader,
-											targetEntityScope,
-											referenceName,
-											allowsDuplicates,
-											epk
-										),
-										"propagateReferenceModification"
+									// only the keys of the partitions are read
+									epk -> ReferencePartitions.resolveOfTargetForOwnerRead(
+										this.dataStoreReader,
+										targetEntityScope,
+										referenceName,
+										allowsDuplicates,
+										epk,
+										this.virtualCatalog
 									),
 									referenceBlock.getAttributeSupplier(),
 									// we need to negate the predicate, because we want to insert missing references
 									createCounterpartPresencePredicate(
-										hardReference, dataStoreReader, referencedSchemaName, entityPrimaryKey, counterpartScope
+										hardReference, dataStoreReader, referencedSchemaName, entityPrimaryKey, counterpartScope,
+										this.virtualCatalog
 									).negate(),
 									// we need to take into account references removed in this turn
 									getReferenceKeyManager()::isRepresentativeReferenceKeyRemoved,
@@ -2669,7 +2675,8 @@ public final class ContainerizedLocalMutationExecutor
 										referencedSchemaName,
 										referencedEntityType,
 										createCounterpartPresencePredicate(
-											hardReference, dataStoreReader, referencedSchemaName, entityPrimaryKey, counterpartScope
+											hardReference, dataStoreReader, referencedSchemaName, entityPrimaryKey, counterpartScope,
+											this.virtualCatalog
 										),
 										Droppable::exists
 									);
@@ -2691,7 +2698,8 @@ public final class ContainerizedLocalMutationExecutor
 									referencedSchemaName,
 									referencedEntityType,
 									createCounterpartPresencePredicate(
-										hardReference, dataStoreReader, referencedSchemaName, entityPrimaryKey, counterpartScope
+										hardReference, dataStoreReader, referencedSchemaName, entityPrimaryKey, counterpartScope,
+										this.virtualCatalog
 									),
 									Droppable::dropped
 								);

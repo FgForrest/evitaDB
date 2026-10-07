@@ -23,6 +23,8 @@
 
 package io.evitadb.index;
 
+import com.carrotsearch.hppc.IntLongHashMap;
+import com.carrotsearch.hppc.IntObjectHashMap;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
@@ -83,6 +85,19 @@ import java.util.function.IntFunction;
  * back to the object for every other key; given `null`, they answer exactly as the object-only resolvers do. A write
  * path must not call them - every place on it that holds a partition asserts it is not virtual (see
  * {@link #requireMaterialized}), and a guard test rejects a call of a read resolver from the write path's packages.
+ *
+ * ## Owner reads
+ *
+ * A few places on the write path and at load only ask a partition who its owners are and which representative
+ * reference key it has - the propagation of reflected references, the re-evaluation of conditional facets and
+ * histograms, and the rebuild of the reduced index membership. In a catalog representing its single-owner partitions
+ * virtually such a partition may have no index object to ask, so the **owner read resolvers** (`…ForOwnerRead…`)
+ * answer a primary key the registry holds a row for with a virtual handle read out of that row, and every other one
+ * with its index object, exactly as the object-only resolvers do. Unlike the read resolvers they do not follow the
+ * read switch of a collection but the representation of its catalog, and they are not meant for a query. Their
+ * handle is read only - it carries the owner and the key of the partition and is never handed to a writer, which
+ * would reject it (see {@link #requireMaterialized}); a guard test admits a call of an owner read resolver only from
+ * the places listed on its allow-list.
  *
  * ## Primary keys are per collection
  *
@@ -486,6 +501,29 @@ public final class ReferencePartitions {
 		int partitionPrimaryKey,
 		long ownerAndTarget
 	) {
+		return toVirtualPartition(
+			typeIndex, partitionPrimaryKey, NumberUtils.unpackHigh(ownerAndTarget),
+			readRepresentativeReferenceKey(typeIndex, partitionPrimaryKey, ownerAndTarget)
+		);
+	}
+
+	/**
+	 * Reads the representative reference key of a partition out of its registry row - the representative attribute
+	 * values are read from the registry's tuple dictionary, the empty tuple standing for a partition that has none
+	 * recorded.
+	 *
+	 * @param typeIndex           the referenced-type entity index whose registry holds the row
+	 * @param partitionPrimaryKey the primary key of the partition
+	 * @param ownerAndTarget      the row, `pack(ownerPrimaryKey, targetPrimaryKey)`
+	 * @return the representative reference key of the partition
+	 * @throws GenericEvitaInternalError when the row refers to a tuple the registry lacks
+	 */
+	@Nonnull
+	private static RepresentativeReferenceKey readRepresentativeReferenceKey(
+		@Nonnull ReferencedTypeEntityIndex typeIndex,
+		int partitionPrimaryKey,
+		long ownerAndTarget
+	) {
 		final VirtualReferencePartitionIndex registry = typeIndex.getVirtualReferencePartitionIndex();
 		final int tupleId = registry.getRepresentativeTupleId(partitionPrimaryKey);
 		final Serializable[] tuple;
@@ -502,11 +540,8 @@ public final class ReferencePartitions {
 				);
 			}
 		}
-		final RepresentativeReferenceKey representativeReferenceKey = new RepresentativeReferenceKey(
+		return new RepresentativeReferenceKey(
 			new ReferenceKey(typeIndex.getReferenceName(), NumberUtils.unpackLow(ownerAndTarget)), tuple
-		);
-		return toVirtualPartition(
-			typeIndex, partitionPrimaryKey, NumberUtils.unpackHigh(ownerAndTarget), representativeReferenceKey
 		);
 	}
 
@@ -793,6 +828,326 @@ public final class ReferencePartitions {
 			partitionPrimaryKey -> dataStoreReader.getIndexIfExists(partitionPrimaryKey, __ -> null),
 			scope, referenceName, allowsDuplicates, targetPrimaryKey, null
 		);
+	}
+
+	/**
+	 * Resolves a partition by its primary key for an owner read, leniently - see the class documentation on owner
+	 * reads. A primary key the registry of the given type index holds a row for answers its virtual handle, read out
+	 * of the row in two registry lookups, `O(log n)` each; any other one answers whatever the object-only resolution
+	 * answers.
+	 *
+	 * @param partitionByPrimaryKey the lenient object-only resolution of the collection's partitions by primary key,
+	 *                              answering `null` when the primary key names no partition
+	 * @param registryTypeIndex     the referenced-type entity index listing the primary key, whose registry is read,
+	 *                              when the catalog represents its single-owner partitions virtually, `null` when it
+	 *                              does not
+	 * @param partitionPrimaryKey   the primary key of the partition
+	 * @return the virtual partition when the registry holds the partition's row, the partition the object-only
+	 *         resolution answers otherwise, `null` when there is none
+	 * @throws GenericEvitaInternalError when the registry and the index object of the partition disagree about its
+	 *                                   owner or its key
+	 */
+	@Nullable
+	public static ReferencePartition resolveForOwnerReadIfExists(
+		@Nonnull IntFunction<? extends ReferencePartition> partitionByPrimaryKey,
+		@Nullable ReferencedTypeEntityIndex registryTypeIndex,
+		int partitionPrimaryKey
+	) {
+		if (registryTypeIndex != null) {
+			final OptionalLong row = registryTypeIndex.getVirtualReferencePartitionIndex()
+				.getPartitionOwner(partitionPrimaryKey);
+			if (row.isPresent()) {
+				final long ownerAndTarget = row.getAsLong();
+				final VirtualReferencePartition partition = toOwnerReadPartition(
+					registryTypeIndex, partitionPrimaryKey, NumberUtils.unpackHigh(ownerAndTarget),
+					readRepresentativeReferenceKey(registryTypeIndex, partitionPrimaryKey, ownerAndTarget)
+				);
+				// TODO JNO - remove at the end of #1615
+				assertOwnerReadParity(partition, partitionByPrimaryKey.apply(partitionPrimaryKey));
+				return partition;
+			}
+		}
+		return partitionByPrimaryKey.apply(partitionPrimaryKey);
+	}
+
+	/**
+	 * Resolves every partition of one target entity through another collection's data store reader for an owner read,
+	 * leniently - see the class documentation on owner reads. The partitions the object-only resolution
+	 * ({@link #resolveOfTarget(DataStoreReader, Scope, String, boolean, int)}) finds are answered as it answers them,
+	 * except those the registry holds a row for, which answer their virtual handle; a registered partition without an
+	 * index object, which a by-key lookup cannot find, is found through the type index, whatever the cardinality of
+	 * the reference. The type index lists the partitions of one target only, so the cost is that of the object-only
+	 * resolution plus one registry lookup per partition of the target.
+	 *
+	 * @param dataStoreReader  the reader of the collection owning the partitions
+	 * @param scope            the scope of the partitions
+	 * @param referenceName    the reference the partitions belong to
+	 * @param allowsDuplicates whether the reference allows duplicate references to one target
+	 * @param targetPrimaryKey the primary key of the target entity
+	 * @param virtualCatalog   TRUE when the catalog represents its single-owner partitions virtually
+	 * @return the partitions of the target, possibly empty
+	 * @throws GenericEvitaInternalError when a key or a listed primary key names an index that is not a partition of
+	 *                                   the reference in the scope, or the registry and the index object of a
+	 *                                   partition disagree about its owner or its key
+	 */
+	@Nonnull
+	public static ReferencePartition[] resolveOfTargetForOwnerRead(
+		@Nonnull DataStoreReader dataStoreReader,
+		@Nonnull Scope scope,
+		@Nonnull String referenceName,
+		boolean allowsDuplicates,
+		int targetPrimaryKey,
+		boolean virtualCatalog
+	) {
+		final ReferencePartition[] objects = resolveOfTarget(
+			dataStoreReader, scope, referenceName, allowsDuplicates, targetPrimaryKey
+		);
+		final ReferencedTypeEntityIndex typeIndex = virtualCatalog ?
+			typeIndexIfExists(indexByKey(dataStoreReader), scope, referenceName) : null;
+		if (typeIndex == null || typeIndex.getVirtualReferencePartitionIndex().isEmpty()) {
+			return objects;
+		}
+		final VirtualReferencePartitionIndex registry = typeIndex.getVirtualReferencePartitionIndex();
+		final int[] partitionPrimaryKeys = typeIndex.getAllReferenceIndexes(targetPrimaryKey);
+		final ReferencePartition[] result = new ReferencePartition[partitionPrimaryKeys.length + objects.length];
+		int count = 0;
+		// the objects are found in the order the type index lists them - but a partition that has just lost its
+		// last owner is no longer listed while its index object may still be found by its key, so it is kept last
+		int objectIndex = 0;
+		for (final int partitionPrimaryKey : partitionPrimaryKeys) {
+			ReferencePartition object = null;
+			if (objectIndex < objects.length && objects[objectIndex].getPrimaryKey() == partitionPrimaryKey) {
+				object = objects[objectIndex++];
+			}
+			final OptionalLong row = registry.getPartitionOwner(partitionPrimaryKey);
+			if (row.isPresent()) {
+				final long ownerAndTarget = row.getAsLong();
+				final VirtualReferencePartition partition = toOwnerReadPartition(
+					typeIndex, partitionPrimaryKey, NumberUtils.unpackHigh(ownerAndTarget),
+					readRepresentativeReferenceKey(typeIndex, partitionPrimaryKey, ownerAndTarget)
+				);
+				// TODO JNO - remove at the end of #1615
+				assertOwnerReadParity(
+					partition, asPartition(dataStoreReader.getIndexIfExists(partitionPrimaryKey, __ -> null))
+				);
+				result[count++] = partition;
+			} else if (object != null) {
+				result[count++] = object;
+			}
+		}
+		while (objectIndex < objects.length) {
+			result[count++] = objects[objectIndex++];
+		}
+		return count == 0 ? EMPTY_PARTITIONS : count == result.length ? result : Arrays.copyOf(result, count);
+	}
+
+	/**
+	 * Creates the resolution of the partitions of one reference in one scope of another collection by their
+	 * representative reference keys for owner reads, leniently - see the class documentation on owner reads. Every key
+	 * is resolved by the object-only by-key lookup
+	 * ({@link #resolveIfExists(DataStoreReader, Scope, RepresentativeReferenceKey)}), except a key whose partition the
+	 * registry holds a row for, which answers the partition's virtual handle.
+	 *
+	 * The registry has no `(target, representative values) -> partition` structure, so the resolution finds a
+	 * registered partition among the partitions of its target and remembers, **once per target**, the map from the
+	 * registry's tuple id to the registered partition of that tuple - one copy of the target's family from the type
+	 * index and two registry lookups per member. A lookup is then one dictionary probe for the tuple id and one hash
+	 * probe, so a caller resolving the keys of many owners sharing one target pays for the family once. The resolution
+	 * remembers what it read, so it must not outlive the state of the collection it was created for - it is meant for
+	 * one pass over keys that changes nothing in that collection, and it is not thread-safe.
+	 *
+	 * @param dataStoreReader the reader of the collection owning the partitions
+	 * @param scope           the scope of the partitions
+	 * @param referenceName   the reference the partitions belong to
+	 * @param virtualCatalog  TRUE when the catalog represents its single-owner partitions virtually
+	 * @return the resolution, answering `null` for a key that names no partition
+	 */
+	@Nonnull
+	public static Function<RepresentativeReferenceKey, ReferencePartition> resolverByKeyForOwnerRead(
+		@Nonnull DataStoreReader dataStoreReader,
+		@Nonnull Scope scope,
+		@Nonnull String referenceName,
+		boolean virtualCatalog
+	) {
+		final Function<EntityIndexKey, Index<?>> indexByKey = indexByKey(dataStoreReader);
+		final ReferencedTypeEntityIndex typeIndex = virtualCatalog ?
+			typeIndexIfExists(indexByKey, scope, referenceName) : null;
+		if (typeIndex == null || typeIndex.getVirtualReferencePartitionIndex().isEmpty()) {
+			return representativeReferenceKey -> resolveIfExists(indexByKey, scope, representativeReferenceKey);
+		}
+		final VirtualReferencePartitionIndex registry = typeIndex.getVirtualReferencePartitionIndex();
+		final IntObjectHashMap<IntLongHashMap> families = new IntObjectHashMap<>(16);
+		return representativeReferenceKey -> {
+			Assert.isPremiseValid(
+				referenceName.equals(representativeReferenceKey.referenceName()),
+				() -> "The owner read of `" + referenceName + "` cannot resolve key `" + representativeReferenceKey +
+					"`!"
+			);
+			final ReferencePartition object = resolveIfExists(indexByKey, scope, representativeReferenceKey);
+			final Serializable[] tuple = representativeReferenceKey.representativeAttributeValues();
+			// the empty tuple is never in the dictionary - the registry stands for it by the absence of a tuple id
+			final int tupleId = tuple.length == 0 ?
+				VirtualReferencePartitionIndex.NO_TUPLE_ID : registry.getTupleId(tuple);
+			if (tuple.length > 0 && tupleId == VirtualReferencePartitionIndex.NO_TUPLE_ID) {
+				// no registered partition holds the tuple
+				return object;
+			}
+			final int targetPrimaryKey = representativeReferenceKey.primaryKey();
+			IntLongHashMap family = families.get(targetPrimaryKey);
+			if (family == null) {
+				family = buildRegisteredFamily(typeIndex, targetPrimaryKey);
+				families.put(targetPrimaryKey, family);
+			}
+			final int slot = family.indexOf(tupleId);
+			if (!family.indexExists(slot)) {
+				return object;
+			}
+			final long partitionAndOwner = family.indexGet(slot);
+			final VirtualReferencePartition partition = toOwnerReadPartition(
+				typeIndex, NumberUtils.unpackHigh(partitionAndOwner), NumberUtils.unpackLow(partitionAndOwner),
+				representativeReferenceKey
+			);
+			// TODO JNO - remove at the end of #1615
+			assertOwnerReadParity(partition, object);
+			return partition;
+		};
+	}
+
+	/**
+	 * Builds the registered partitions of a target by the tuple id of their representative values from one copy of the
+	 * target's family - the by-key half of the owner reads.
+	 *
+	 * @param typeIndex        the referenced-type entity index of the reference in the scope
+	 * @param targetPrimaryKey the primary key of the target entity
+	 * @return the registered partitions of the target by tuple id, each as `pack(partitionPrimaryKey, ownerPrimaryKey)`
+	 * @throws GenericEvitaInternalError when a row names another target, or two registered partitions of the target
+	 *                                   share their representative values
+	 */
+	@Nonnull
+	private static IntLongHashMap buildRegisteredFamily(
+		@Nonnull ReferencedTypeEntityIndex typeIndex,
+		int targetPrimaryKey
+	) {
+		final VirtualReferencePartitionIndex registry = typeIndex.getVirtualReferencePartitionIndex();
+		final int[] partitionPrimaryKeys = typeIndex.getAllReferenceIndexes(targetPrimaryKey);
+		final IntLongHashMap family = new IntLongHashMap(partitionPrimaryKeys.length);
+		for (final int partitionPrimaryKey : partitionPrimaryKeys) {
+			final OptionalLong row = registry.getPartitionOwner(partitionPrimaryKey);
+			if (row.isEmpty()) {
+				// a partition with several owners - its index object answers it
+				continue;
+			}
+			final long ownerAndTarget = row.getAsLong();
+			if (NumberUtils.unpackLow(ownerAndTarget) != targetPrimaryKey) {
+				throw new GenericEvitaInternalError(
+					"Type index `" + typeIndex.getIndexKey() + "` lists partition " + partitionPrimaryKey +
+						" for target " + targetPrimaryKey + ", but its registry row names target " +
+						NumberUtils.unpackLow(ownerAndTarget) + "!"
+				);
+			}
+			final int tupleId = registry.getRepresentativeTupleId(partitionPrimaryKey);
+			final int slot = family.indexOf(tupleId);
+			if (family.indexExists(slot)) {
+				throw new GenericEvitaInternalError(
+					"Partitions " + NumberUtils.unpackHigh(family.indexGet(slot)) + " and " + partitionPrimaryKey +
+						" of target " + targetPrimaryKey + " in `" + typeIndex.getIndexKey() + "` share tuple id " +
+						tupleId + "!"
+				);
+			}
+			family.indexInsert(
+				slot, tupleId, NumberUtils.pack(partitionPrimaryKey, NumberUtils.unpackHigh(ownerAndTarget))
+			);
+		}
+		return family;
+	}
+
+	/**
+	 * Builds the read-only handle of a registered partition an owner read answers. Unlike the handles of the read
+	 * resolvers it is not counted as resolved by a query.
+	 *
+	 * @param typeIndex                  the referenced-type entity index whose registry holds the partition's row
+	 * @param partitionPrimaryKey        the primary key of the partition
+	 * @param ownerPrimaryKey            the primary key of its only owner
+	 * @param representativeReferenceKey the representative reference key of the partition
+	 * @return the virtual partition
+	 */
+	@Nonnull
+	private static VirtualReferencePartition toOwnerReadPartition(
+		@Nonnull ReferencedTypeEntityIndex typeIndex,
+		int partitionPrimaryKey,
+		int ownerPrimaryKey,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey
+	) {
+		return new VirtualReferencePartition(
+			partitionPrimaryKey,
+			createKey(typeIndex.getIndexKey().scope(), representativeReferenceKey),
+			representativeReferenceKey,
+			ownerPrimaryKey,
+			typeIndex
+		);
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Asserts that the registry and the index object of a partition, while both exist, agree on everything an owner
+	 * read answers - the primary key, the key and the only owner. The registry is the representation a catalog
+	 * representing its single-owner partitions virtually is left with, so this compares the answer an owner read gives
+	 * with the one the object it replaces would have given, on every owner read that finds both.
+	 *
+	 * @param registered the partition as the registry describes it
+	 * @param object     the index object of the partition, `null` when there is none
+	 * @throws GenericEvitaInternalError when the two disagree
+	 */
+	private static void assertOwnerReadParity(
+		@Nonnull VirtualReferencePartition registered,
+		@Nullable ReferencePartition object
+	) {
+		if (object == null) {
+			return;
+		}
+		final Bitmap owners = object.getAllPrimaryKeys();
+		if (
+			object.getPrimaryKey() != registered.getPrimaryKey() ||
+				!object.getIndexKey().equals(registered.getIndexKey()) ||
+				owners.size() != 1 || !owners.contains(registered.ownerPrimaryKey())
+		) {
+			throw new GenericEvitaInternalError(
+				"The registry describes partition " + registered.getPrimaryKey() + " as `" +
+					registered.getIndexKey() + "` owned by " + registered.ownerPrimaryKey() + " only, but its index " +
+					"object is partition " + object.getPrimaryKey() + " `" + object.getIndexKey() + "` owned by " +
+					owners + "!"
+			);
+		}
+	}
+
+	/**
+	 * Resolves the referenced-type entity index of a reference in a scope.
+	 *
+	 * @param indexByKey    lookup of the collection's indexes by key, answering `null` when absent
+	 * @param scope         the scope
+	 * @param referenceName the reference
+	 * @return the type index or `null` when the collection holds none
+	 * @throws GenericEvitaInternalError when the key holds an index that is not a referenced-type entity index
+	 */
+	@Nullable
+	private static ReferencedTypeEntityIndex typeIndexIfExists(
+		@Nonnull Function<EntityIndexKey, ? extends Index<?>> indexByKey,
+		@Nonnull Scope scope,
+		@Nonnull String referenceName
+	) {
+		final EntityIndexKey typeIndexKey = new EntityIndexKey(
+			EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName
+		);
+		final Index<?> typeIndex = indexByKey.apply(typeIndexKey);
+		if (typeIndex == null) {
+			return null;
+		}
+		Assert.isPremiseValid(
+			typeIndex instanceof ReferencedTypeEntityIndex,
+			() -> "Expected " + ReferencedTypeEntityIndex.class.getSimpleName() + " under `" + typeIndexKey +
+				"` but got " + typeIndex.getClass() + "!"
+		);
+		return (ReferencedTypeEntityIndex) typeIndex;
 	}
 
 	/**

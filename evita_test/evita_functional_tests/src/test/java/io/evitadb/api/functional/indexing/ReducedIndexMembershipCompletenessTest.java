@@ -49,12 +49,14 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.VirtualReferencePartitionSlot;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ExceptionUtils;
+import io.evitadb.utils.NumberUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -71,6 +73,7 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -716,6 +719,91 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 
 		assertMembershipMatchesIndexes();
 		assertMembershipEngaged(REF_CATEGORIES);
+	}
+
+	// TODO JNO - remove at the end of #1615 (the creation switch; the test stays)
+	@Test
+	@DisplayName("a reloaded catalog with virtual partitions registers each single-owner partition as covered by its owner")
+	void reloadOfVirtualCatalogRegistersSingleOwnerPartitionsAsCovered() {
+		// the catalog the set-up defined is created with objects unless the forced mode says otherwise - replace it
+		// by one representing its single-owner partitions virtually, persisted under the virtual storage protocol
+		this.evita.deleteCatalogIfExists(TEST_CATALOG);
+		this.evita.createCatalogWithVirtualReferencePartitions(TEST_CATALOG, true);
+		this.evita.defineCatalog(TEST_CATALOG);
+		prepare(CatalogState.ALIVE, "CHECKBOX");
+		tx(session -> session.createNewEntity(ENTITY_BRAND, SECOND_BRAND_PK).upsertVia(session));
+		// each brand is referenced by one product alone - two single-owner partitions of the `brand` reference
+		upsertProducts(1, 1, 1, BRAND_PK);
+		upsertProducts(2, 2, 1, SECOND_BRAND_PK);
+		// the second product moves its single-owner partition to the archive
+		tx(session -> session.archiveEntity(ENTITY_PRODUCT, 2));
+
+		this.evita.close();
+		this.evita = new Evita(getEvitaConfiguration());
+		awaitCatalogLoaded();
+
+		final EntityCollection collection = (EntityCollection) getProductCollection();
+		int registeredPartitions = 0;
+		for (final Scope scope : Scope.values()) {
+			final EntityIndex typeIndex = collection.getIndexByKeyIfExists(
+				new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, REF_BRAND)
+			);
+			assertNotNull(typeIndex, "reference `" + REF_BRAND + "` must have partitions in scope " + scope);
+			final Map<Integer, Integer> ownerByPartition = registeredOwners((ReferencedTypeEntityIndex) typeIndex);
+			assertEquals(
+				1, ownerByPartition.size(),
+				"scope " + scope + ": exactly one single-owner partition of `" + REF_BRAND + "` must be registered"
+			);
+			final ReducedIndexMembership membership = membershipOf(REF_BRAND, scope);
+			assertNotNull(membership, "scope " + scope + ": the reloaded catalog must rebuild the lookup of `" +
+				REF_BRAND + "`");
+			final Set<Integer> covered = toSet(membership.getCoveredIndexPrimaryKeys());
+			final Set<Integer> residual = toSet(membership.getResidualIndexPrimaryKeys());
+			for (final Map.Entry<Integer, Integer> registered : ownerByPartition.entrySet()) {
+				final int partitionPk = registered.getKey();
+				final int owner = registered.getValue();
+				assertTrue(
+					covered.contains(partitionPk),
+					"scope " + scope + ": registered partition " + partitionPk + " must be covered - its owner is " +
+						"known from its row - but the lookup covers " + covered + " and leaves " + residual +
+						" residual"
+				);
+				assertFalse(
+					residual.contains(partitionPk),
+					"scope " + scope + ": registered partition " + partitionPk + " must not be residual"
+				);
+				assertEquals(
+					Set.of(owner), toSet(membership.getCoveredOwners()),
+					"scope " + scope + ": the only covered owner of `" + REF_BRAND + "` is the owner of its row"
+				);
+				assertEquals(
+					Set.of(partitionPk), toSet(membership.getIndexPrimaryKeys(owner)),
+					"scope " + scope + ": owner " + owner + " must name exactly its registered partition"
+				);
+				registeredPartitions++;
+			}
+		}
+		assertEquals(2, registeredPartitions, "one registered partition per scope must have been checked");
+		// the index objects still exist, so the lookup must agree with them as well
+		assertMembershipMatchesIndexes();
+	}
+
+	/**
+	 * Reads the registered single-owner partitions of a type index out of its registry, by partition primary key.
+	 *
+	 * @param typeIndex the referenced-type entity index
+	 * @return the owner of each registered partition, by the partition's primary key
+	 */
+	@Nonnull
+	private static Map<Integer, Integer> registeredOwners(@Nonnull ReferencedTypeEntityIndex typeIndex) {
+		final Map<Integer, Integer> result = new TreeMap<>();
+		typeIndex.getVirtualReferencePartitionIndex().forEachEntry(
+			VirtualReferencePartitionSlot.PARTITION_OWNER,
+			(partitionPrimaryKey, ownerAndTarget) -> result.put(
+				partitionPrimaryKey, NumberUtils.unpackHigh(ownerAndTarget)
+			)
+		);
+		return result;
 	}
 
 	@Test
