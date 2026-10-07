@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-10-05 18:47
+updated: 2026-10-07 14:05
 status: partially-implemented
 kind: feature
 issues: [258, 1454]
@@ -215,6 +215,7 @@ dearer than linear costing suggests and the gate should be tighter.
 | A dedicated `session.suggest(...)` method | Does not escape the must-match filter (a suggestion has to be intersected with it), forces two round trips per keystroke for a rich dropdown, and no engine has one at API level | P3 measures the query-pipeline overhead as fatal against the 5 ms budget — then it is added *beside* the require form as an optimisation, never instead of it |
 | `float[]` added to `EvitaDataTypes` for embeddings | Breaches the principle that keeps floating-point out of indexes wholesale, not just for vectors; a dedicated `VectorEmbedding` type without `Comparable` cannot be marked filterable/sortable and skips the eight-layer schema-change cost | The vector branch needs values that must also be filterable or sortable in their own right |
 | A string mini-grammar for match strictness (`"3<90%"`, Lucene syntax in the query argument) | The engine parsing its own grammar out of a user-supplied string is exactly how the old solution leaked Lucene syntax into a public HTTP API, complete with its failure modes | Never; a typed shape (enumeration or child constraints) carries the same expressiveness |
+| **P1** — one catalog-wide term dictionary instead of one per (collection, locale, scope) | Only the term *strings* could be shared: postings name primary keys, which every collection numbers on its own, so a shared tree still holds one posting list per (collection, field, term). The strings are a small part of the index. On the CMS corpus the dictionary with its postings weighs 477 MB of the index's 700 MB (measurements part 2.4). Its 1.14M front-coded keys are estimated, not measured, at 10–15 MB, about 2 % of the index. Only the vocabulary the collections have in common could be saved, and in both measured corpora one collection holds nearly all of it. Against that saving: the key order (field, term) that makes a prefix expansion one contiguous cursor walk does not survive a collection component in the key, and a catalog-wide string → id table with per-collection postings turns that walk into a walk plus a probe per collection and adds an id → string directory of its own. Every fulltext write of every collection would land in one shared transactional structure, the one-namespace contention the catalog-wide value-ids analysis already declined. Dropping a collection would need a cleanup pass with per-term reference counts, where today it drops the collection's own pages. Each (collection, locale) index keeps its own analyzer under the mismatch policy, and one shared term space would tie collections to a single analyzer per locale | A catalog appears with several collections of comparable size and a largely shared vocabulary, **and** a measurement of the key column, not this estimate, puts the shared share at a level that matters. The heap is in the postings and impacts: the markup tokens of the CMS bodies and the surface-form dictionary mode (+717 MB) are the bigger levers |
 | **P8** — persist the trigram postings as paged leaf pages, at any granularity (leaf page / one record per key / hash shards) | Measured, not argued: all three rewrite *whole postings*, and the postings a write touches are the big ones — a touched key carries **30.7×** the bytes of an average key. One new `article/title/cs` value touches ~86 keys and rewrites **~4.8 MB** at the per-key floor, **4 285×** what a delta journal would append; at the current 512-key block, **94.1 % of every byte written is a bystander**, and no block size ≥ 8 comes within 2× of the floor. Granularity only sets the constant above a floor that is a fixed *share* of the whole index and grows with the corpus | The real fork is whole-posting rewrite versus delta journal, not granularity — so revisit only with a journal design, never with a different block size |
 | **P8** — a delta journal for the postings | Not rejected on its numbers (it is the only scale-free row in the write-amplification table, flat at ~1.1 kB per new value at every batch size) but on what it would be: a second write-ahead structure inside an engine that already treats a flush failure between durability and merge as unrecoverable-by-retry, whose central parameter would be compaction cadence, because folding a journal into a base snapshot is a whole-index rewrite by construction. The bulk rebuild then removed the reason to persist anything at all | Catalog open becomes rebuild-dominated again — a much wider opt-in attribute set, or many collections carrying one — and the ~4 s bulk figure stops being affordable |
 | **P8** — a flat open-addressing `long[]`/`Object[]` posting table | This is the spike's own §35.2 winner (1.1–1.6 ns/lookup against 4.5–28 ns boxed, 40–60× against binary search) and it still lost: an immutable published table clones both spine arrays on every commit that touches one posting, and the probe advantage is worth under a microsecond on a query whose verification phase runs tens to hundreds of microseconds | Never for the persisted/transactional structure. A flat table remains right for a **rebuilt-on-load, read-only** derived cache, which is what the spike actually measured |
@@ -948,6 +949,24 @@ rather than a tuning one. Both are open items below.
   special cases (`ß→ss`, `æ→ae`); we build on evitaDB's NFD normalisation. Results agree in most
   cases but not all, and migrating an existing site means a change in search results that has to be
   flagged in advance. P5 §7 has to verify the produced terms.
+- **`TransactionalBucketBPlusTree` carries two optional leaf columns as runtime modes, and should carry them behind a
+  seam (open question, 2026-10-06).** The impact column (`enableImpacts`, fulltext) and the value-id column
+  (`installValueIdMinter`, P8 trigram) are both switches inside one general-purpose tree: the tree knows two
+  index-specific concepts, and an impact-carrying tree refuses the plain `addRecord(value, pk)` family with a runtime
+  assertion while every other tree refuses `addRecord(value, pk, impact)`, so the type does not tell a caller which API
+  applies. Both columns are driven through every structural operation of `BPlusLeafTreeNode` - insert and remove shifts,
+  split, merge, borrowing, copy-on-write, commit merge, savepoint rollback, bulk load and heap size - and the impact
+  tiers follow the record tiers of `ImpactRecords` step by step. A typed subclass (`ImpactBucketBPlusTree` exposing only
+  the impact API, with a factory hook so commit copies keep their type) was considered and declined: it would still have
+  to override the inherited plain inserts to throw, which moves the refusal rather than removing it, and it cannot
+  express the value-id column at all, because that mode changes over the life of one tree - installed when the first
+  accelerator attaches, over a populated tree on load, again on the surviving tree at commit, and removed when the last
+  one detaches. The fix that removes both is a parallel-leaf-column seam: an interface the leaf drives through each of
+  the operations above, with value ids and impacts as two implementations and each owning index exposing its own typed
+  API, so the base tree knows neither. Revisit after F1 as a dedicated change: it rewrites the most
+  transaction-sensitive code of a 9,243-line class plus value-id code already in `dev`, so it needs the long-running B+
+  tree suites and a JMH run of `BucketBPlusTreePayloadBenchmark`, because the seam adds virtual calls to the leaf hot
+  path.
 
 ### Open items — the trigram substring index
 
@@ -1205,6 +1224,9 @@ rather than a tuning one. Both are open items below.
 - **2026-10-05** — the write path: entity, global and reference attributes declared `searchable()` are indexed into
   the global index's fulltext index of their locale on every entity mutation, scope changes move them, and a write to
   a withdrawn attribute retires its field - the end of P1's S8b
+- **2026-10-07** — a catalog-wide term dictionary declined: its only saving is the term strings, an estimated ~2 % of
+  the index, against the per-field prefix walk, per-collection write isolation and collection-drop lifecycle (see
+  *Rejected outright*)
 
 ## Supporting material
 
