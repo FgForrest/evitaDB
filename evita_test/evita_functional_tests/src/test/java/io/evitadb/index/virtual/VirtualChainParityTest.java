@@ -41,6 +41,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.virtual.VirtualReadParity.Comparison;
 import io.evitadb.index.virtual.VirtualReadParity.VirtualReading;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.Functions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -53,7 +54,6 @@ import org.junit.jupiter.api.TestInstance.Lifecycle;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -70,7 +70,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies that the chains of `Predecessor` and `ReferencedEntityPredecessor` reference attributes answer the same with
- * the read switch on as with it off, on the same engine and the same data (step 4g of #1615): a single-owner partition
+ * the read switch on as with it off, on the same engine and the same data: a single-owner partition
  * read virtually is a singleton chain read out of its registry row - on the block route of an entity ordering, and on
  * the by-key route of `referenceContent(orderBy)`, for the original reference and for its reflection, whose chain is
  * read in the other collection, through that collection's registry and read switch.
@@ -396,7 +396,7 @@ class VirtualChainParityTest implements EvitaTestSupport {
 		return this.evita.queryCatalog(
 			catalog,
 			(Function<EvitaSessionContract, Map<Integer, List<Integer>>>) session -> {
-				final Map<Integer, List<Integer>> result = new LinkedHashMap<>(64);
+				final Map<Integer, List<Integer>> result = CollectionUtils.createLinkedHashMap(64);
 				for (SealedEntity entity : session.queryList(
 					query(
 						collection(entityType),

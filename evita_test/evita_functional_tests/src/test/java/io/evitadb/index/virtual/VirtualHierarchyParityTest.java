@@ -67,7 +67,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies that the hierarchy routes of a reference answer the same with the read switch on as with it off, on the
- * same engine and the same data (step 4d of #1615): `hierarchyWithin` / `hierarchyWithinRoot` of a reference - both the
+ * same engine and the same data: `hierarchyWithin` / `hierarchyWithinRoot` of a reference - both the
  * branch index selection prepares and the one computed when the constraint is nested where index selection does not
  * reach - and the statistics `hierarchyOfReference` counts per node. With the switch on, the registered single-owner
  * partitions of the hierarchy nodes contribute their owners read out of the registry rather than through their reduced
@@ -463,8 +463,14 @@ class VirtualHierarchyParityTest implements EvitaTestSupport {
 						filterBy(filter),
 						// every alternative index set and every cacheable subtree must answer the same
 						require == null ?
-							require(page(1, PAGE_SIZE), debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)) :
-							require(page(1, PAGE_SIZE), require, debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES))
+							require(
+								page(1, PAGE_SIZE),
+								debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+							) :
+							require(
+								page(1, PAGE_SIZE), require,
+								debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+							)
 					),
 					EntityReference.class
 				);

@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.VirtualRowConsumer;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.dataType.Scope;
@@ -57,6 +58,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -72,9 +74,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Verifies that the block-by-block orderings by a reference - `traverseByEntityProperty` over the partitions of the
  * reference, each block sorted by an attribute, a compound or the referenced primary key - answer the same with the
- * read switch on as with it off, on the same engine and the same data (step 4g of #1615): with the switch on, the
- * planning set of the ordering carries the registered single-owner partitions as virtual handles and every block
- * provider of a virtual partition is the singleton read out of its registry row.
+ * read switch on as with it off, on the same engine and the same data: with the switch on, the planning set of the
+ * ordering - the candidates of a `referenceHaving`, or the partitions of the nodes of a hierarchy filter - carries the
+ * registered single-owner partitions as virtual handles and every block provider of a virtual partition is the
+ * singleton read out of its registry row.
  *
  * Two catalogs, each maintained from its first write so every single-owner partition has its row:
  *
@@ -279,6 +282,60 @@ class VirtualTraverseParityTest implements EvitaTestSupport {
 							assertFalse(comparison.objectReading().isEmpty(), "The selection must not be empty.");
 						}
 					}
+				}
+			}
+		}
+		assertTrue(differences.isEmpty(), () -> differences.size() + " differences: " + differences);
+		assertTrue(virtualRowsRead > 0, "The ordering must have read virtual rows.");
+	}
+
+	@Test
+	@DisplayName("should traverse identically when a hierarchy filter supplies the planning set")
+	void shouldTraverseIdenticallyWithHierarchyOptionPlanningSet() {
+		final FilterConstraint hierarchy = hierarchyWithinRoot(RelatedProductsShapedFixture.REFERENCE_SECTIONS);
+		final List<OrderingCase> cases = orderingCases()
+			.filter(it -> it.name().startsWith("hierarchical target"))
+			.collect(Collectors.toCollection(ArrayList::new));
+		// an ordering by another reference than the hierarchy filter names finds no planning set of its own
+		cases.add(orderingCases().findFirst().orElseThrow());
+		final List<String> differences = new ArrayList<>(16);
+		long virtualRowsRead = 0;
+		for (OrderingCase orderingCase : cases) {
+			for (Scope[] scopes : new Scope[][]{LIVE, ARCHIVED, BOTH}) {
+				final long consumedBefore = maintenance(CATALOG_RELATED).getVirtualRowsConsumed(
+					VirtualRowConsumer.HIERARCHY_OPTION_PARTITIONS
+				);
+				for (OrderDirection direction : OrderDirection.values()) {
+					final OrderConstraint ordering = orderingCase.ordering().apply(direction);
+					for (int[] window : WINDOWS) {
+						final Comparison<List<Integer>> comparison = VirtualReadParity.compare(
+							maintenance(CATALOG_RELATED), RelatedProductsShapedFixture.ENTITY_TYPES,
+							() -> queryPrimaryKeys(
+								CATALOG_RELATED, RelatedProductsShapedFixture.ENTITY_PRODUCT, scopes,
+								orderingCase.localized(), hierarchy, ordering, window
+							)
+						);
+						if (!comparison.objectReading().equals(comparison.virtualReading().answer())) {
+							differences.add(
+								orderingCase + " " + scopes.length + " scope(s) " + direction + " page " + window[0] +
+									"/" + window[1] + ": " + comparison.objectReading() + " vs " +
+									comparison.virtualReading().answer()
+							);
+						}
+						virtualRowsRead += comparison.virtualReading().virtualRowsRead();
+						if (window[1] == PAGE_SIZE) {
+							assertFalse(comparison.objectReading().isEmpty(), "The selection must not be empty.");
+						}
+					}
+				}
+				if (scopes == BOTH && orderingCase.name().startsWith("hierarchical target")) {
+					// the partitions of both scopes reach the ordering through the hierarchy option - the one route
+					// on which the splits of two scopes are merged into one list
+					assertTrue(
+						maintenance(CATALOG_RELATED).getVirtualRowsConsumed(VirtualRowConsumer.HIERARCHY_OPTION_PARTITIONS) >
+							consumedBefore,
+						orderingCase + " over both scopes must hand the virtual partitions of the hierarchy option over"
+					);
 				}
 			}
 		}

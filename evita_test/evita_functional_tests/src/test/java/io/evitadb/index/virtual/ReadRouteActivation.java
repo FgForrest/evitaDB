@@ -41,8 +41,8 @@ import java.util.function.Supplier;
 /**
  * Decides with which read switch a query line of {@link DifferentialEngines} runs. Every query line carries the query
  * routes it exercises; a line runs with the read switch of every collection of the engine on only when every one of its
- * routes has **landed** - when the step of #1615 that teaches the route to read virtual partitions is in - and with the
- * switch off otherwise, on the same engine and the same snapshot. Adding a route to {@link #LANDED_ROUTES} is how a
+ * routes has **landed** - when the route reads virtual partitions - and with the switch off otherwise, on the same
+ * engine and the same snapshot. Adding a route to {@link #LANDED_ROUTES} is how a
  * step makes the harness compare the virtual reading of its routes with the reference engine's object reading.
  *
  * The switch is turned on just for the query and off again after it, so the writes of the harness never run with it -
@@ -52,10 +52,10 @@ import java.util.function.Supplier;
  */
 final class ReadRouteActivation {
 	/**
-	 * The query routes whose virtual reading has landed - every route of the read-route inventory of #1615 since step
-	 * 4h: steps 4b to 4g taught the reference bodies, the bidirectional rewrite, the hierarchy routes, the `pickFirst`
-	 * orderings, the block-by-block orderings and the chains to read virtual partitions, and the facet, histogram and
-	 * entity body lines read nothing a virtual partition answers differently, so they run with the switch on too.
+	 * The query routes whose virtual reading has landed - every route of the read-route inventory below: the reference
+	 * bodies, the bidirectional rewrite, the hierarchy routes, the `pickFirst` orderings, the block-by-block orderings
+	 * and the chains all read virtual partitions, and the facet, histogram and entity body lines read nothing a
+	 * virtual partition answers differently, so they run with the switch on too.
 	 */
 	static final Set<ReadRoute> LANDED_ROUTES = Collections.unmodifiableSet(EnumSet.allOf(ReadRoute.class));
 	/**
@@ -86,8 +86,8 @@ final class ReadRouteActivation {
 	@Nullable private final Map<String, LineConsumption> consumptionPerLine;
 
 	/**
-	 * The query routes of the virtual reading, numbered as the read-route inventory of the phase-4 plan of #1615
-	 * numbers them. Only the routes a query line of the harness or a read parity test exercises are listed.
+	 * The query routes of the virtual reading, numbered as the read-route inventory below numbers them. Only the
+	 * routes a query line of the harness or a read parity test exercises are listed.
 	 */
 	enum ReadRoute {
 		/**

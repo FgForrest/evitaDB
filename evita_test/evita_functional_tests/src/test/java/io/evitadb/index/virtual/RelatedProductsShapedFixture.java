@@ -437,7 +437,9 @@ final class RelatedProductsShapedFixture {
 	 * @return the entity builder
 	 */
 	@Nonnull
-	private static EntityBuilder newProduct(@Nonnull EvitaSessionContract session, int primaryKey, @Nonnull Random random) {
+	private static EntityBuilder newProduct(
+		@Nonnull EvitaSessionContract session, int primaryKey, @Nonnull Random random
+	) {
 		final boolean german = primaryKey % 2 == 0;
 		final EntityBuilder product = session
 			.createNewEntity(ENTITY_PRODUCT, primaryKey)

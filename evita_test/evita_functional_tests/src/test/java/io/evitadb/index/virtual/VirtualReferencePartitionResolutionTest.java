@@ -36,6 +36,7 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.query.QueryPlanningContext;
+import io.evitadb.core.session.EvitaSession;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
@@ -429,6 +430,31 @@ class VirtualReferencePartitionResolutionTest implements EvitaTestSupport {
 							ENTITY_PRODUCT, Scope.LIVE, REFERENCE_CATEGORIES, partitionPrimaryKey
 						)
 					);
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("a nested context answers the read switch its root query captured")
+		void shouldAnswerTheRootQuerysReadSwitchInANestedContext() {
+			this.inSession(
+				session -> {
+					final QueryPlanningContext root = newQueryContext(session);
+					assertTrue(root.isReadVirtually(ENTITY_PRODUCT));
+					maintenance().setReadVirtually(ENTITY_PRODUCT, false);
+					final QueryPlanningContext nested = collectionOf(ENTITY_PRODUCT).createQueryContext(
+						root,
+						new EvitaRequest(
+							query(collection(ENTITY_PRODUCT), filterBy(scope(Scope.LIVE))),
+							OffsetDateTime.now(), EntityReference.class, null
+						),
+						(EvitaSession) session
+					);
+					assertTrue(
+						nested.isReadVirtually(ENTITY_PRODUCT),
+						"A nested context must answer the switch its root captured, not the switch as it is now"
+					);
+					assertFalse(newQueryContext(session).isReadVirtually(ENTITY_PRODUCT), "A new root captures it anew");
 				}
 			);
 		}

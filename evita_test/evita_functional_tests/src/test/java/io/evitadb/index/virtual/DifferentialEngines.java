@@ -233,14 +233,13 @@ import static org.junit.jupiter.api.Assertions.fail;
  * left out, and nothing virtual is lost by it - each is a pre-existing defect of the object reading:
  *
  * - the block-by-block ordering by the referenced primary key over a reference allowing duplicates (a stale read of a
- *   scratch buffer in the merge walk of `SortedRecordsSupplierFactory`, fixed on the unmerged #1670 branch);
+ *   scratch buffer in the merge walk of `SortedRecordsSupplierFactory`);
  * - `attributeSetExact` in a block-by-block ordering over several partitions, or over a partition holding no value of
- *   the attribute - the line narrows the owners to those of one target whose row carries a value;
- * - the `pickFirst` ordering through the prefetch route by an attribute whose type is not `Comparable` (`Currency`,
- *   `Locale`), which compares the values with the comparator of the entities.
+ *   the attribute - the line narrows the owners to those of one target whose row carries a value.
  *
  * Archiving the second owner of a shared partition carrying a `ReferencedEntityPredecessor` fails with the switch off
- * as well (#1691), so a history must not do it.
+ * as well - every owner of the partition writes the same chain element, and the first removal drops it - so a history
+ * must not do it.
  *
  * # Accepted differences
  *

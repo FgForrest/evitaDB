@@ -32,7 +32,11 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC;
 import static io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.ORDER;
@@ -50,8 +54,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies the members of {@link VirtualReferencePartitionIndex} a query reads a virtual partition through: the value
- * id of a partition's sort value and the value it names, and the cursor over the owner rows a split of candidate
- * partitions merges with.
+ * id of a partition's sort value and the value it names, the walk over the ids of a key's distinct values in value
+ * order, and the cursor over the owner rows a split of candidate partitions merges with.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -134,6 +138,84 @@ class VirtualReferencePartitionIndexQueryReadTest {
 					assertEquals(9, committed.getNormalizedSortValue(ORDER, committed.getSortValueId(ORDER, 2)));
 				}
 			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("sort value walk")
+	class SortValueWalk {
+
+		/**
+		 * Creates an index declaring {@link VirtualReferencePartitionIndexSortValueTest#ORDER} whose partitions 1 to 5
+		 * hold the values 7, 3, 7, 9 and 3 - three distinct values, two of them shared.
+		 *
+		 * @return the index
+		 */
+		private static VirtualReferencePartitionIndex indexWithValues() {
+			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
+			index.declareSortKey(ORDER, INTEGER_ASC, 0);
+			final int[] values = {7, 3, 7, 9, 3};
+			for (int i = 0; i < values.length; i++) {
+				index.putSortValue(ORDER, i + 1, values[i]);
+			}
+			return index;
+		}
+
+		/**
+		 * Walks the whole sort index of {@link VirtualReferencePartitionIndexSortValueTest#ORDER} and returns the values
+		 * the visited ids name, in the order of the walk.
+		 *
+		 * @param index      the index
+		 * @param descending TRUE to walk from the largest value down
+		 * @return the values in walk order
+		 */
+		private static List<Serializable> walk(@Nonnull VirtualReferencePartitionIndex index, boolean descending) {
+			final List<Serializable> values = new ArrayList<>(4);
+			index.forEachSortValueId(
+				ORDER, descending, valueId -> values.add(index.getNormalizedSortValue(ORDER, valueId))
+			);
+			return values;
+		}
+
+		@Test
+		@DisplayName("the ids of the distinct values are visited once each, in value order in both directions")
+		void shouldVisitEachDistinctValueOnceInValueOrder() {
+			final VirtualReferencePartitionIndex index = indexWithValues();
+
+			assertEquals(List.of(3, 7, 9), walk(index, false));
+			assertEquals(List.of(9, 7, 3), walk(index, true));
+			assertEquals(3, index.getDistinctSortValueCount(ORDER), "The count is the length of a full walk");
+		}
+
+		@Test
+		@DisplayName("the walk stops at the first value the consumer declines")
+		void shouldStopAtTheFirstDeclinedValue() {
+			final VirtualReferencePartitionIndex index = indexWithValues();
+			final int seven = index.getSortValueId(ORDER, 1);
+			final AtomicInteger calls = new AtomicInteger();
+
+			index.forEachSortValueId(
+				ORDER, false,
+				valueId -> {
+					calls.incrementAndGet();
+					return valueId != seven;
+				}
+			);
+
+			assertEquals(2, calls.get(), "The walk must stop at the second value, 7");
+		}
+
+		@Test
+		@DisplayName("a key not declared walks nothing and counts no value")
+		void shouldWalkNothingForAnUndeclaredKey() {
+			final VirtualReferencePartitionIndex index = indexWithValues();
+			final AtomicInteger calls = new AtomicInteger();
+
+			index.forEachSortValueId(UNDECLARED, false, valueId -> calls.incrementAndGet() > 0);
+
+			assertEquals(0, calls.get());
+			assertEquals(0, index.getDistinctSortValueCount(UNDECLARED));
 		}
 
 	}

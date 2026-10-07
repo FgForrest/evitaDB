@@ -98,8 +98,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies how the formula cache treats the virtual part of a `referenceHaving` - the owners of the registered
- * single-owner partitions, which the read switch turns into one content-keyed {@link ConstantFormula} built at planning
- * (step 4e of #1615). A constant is not a {@link CacheableFormula}, so it is never cached itself; what is cached is its
+ * single-owner partitions, which the read switch turns into one content-keyed {@link ConstantFormula} built at planning.
+ * A constant is not a {@link CacheableFormula}, so it is never cached itself; what is cached is its
  * cacheable ancestor, which inherits the constant's content hash and content staleness token. Every case therefore
  * names that ancestor - the {@link AndFormula} of `and(<owner attribute>, referenceHaving(...))` - warms it, and
  * asserts that the record of **this subtree's hash** is in the {@link CacheEden} and is substituted on the next query,

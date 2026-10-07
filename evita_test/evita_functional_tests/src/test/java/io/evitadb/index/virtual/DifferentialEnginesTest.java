@@ -211,7 +211,7 @@ class DifferentialEnginesTest implements EvitaTestSupport {
 			updateProduct(6, it -> it.setReference(REFERENCE_CATEGORIES, 11))
 		);
 		// product 5 shares no chained partition - archiving the second owner of a shared partition carrying a
-		// `ReferencedEntityPredecessor` fails with the switch off as well (#1691)
+		// `ReferencedEntityPredecessor` fails with the switch off as well
 		this.engines.step("a product moves to the archive", session -> session.archiveEntity(ENTITY_PRODUCT, 5));
 		this.engines.restart();
 

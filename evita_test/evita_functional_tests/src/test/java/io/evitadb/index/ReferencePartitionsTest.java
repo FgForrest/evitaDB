@@ -52,6 +52,8 @@ import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -60,7 +62,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Pins the resolution rules of {@link ReferencePartitions} over one collection's indexes held in plain maps: which
  * objects are reference partitions at all, which belong to a scope and a reference, the lenient and strict answers
- * to a primary key that names nothing, and the two ways the partitions of one target are found.
+ * to a primary key that names nothing, the two ways the partitions of one target are found, and the guards that keep a
+ * virtual partition - one the registry of single-owner partitions holds a row for - off the routes and write paths
+ * that read index objects only.
  *
  * The maps stand in for the lookups the resolver surfaces pass in (a collection's buffer and maps, a query snapshot,
  * a data store reader - {@link MapDataStoreReader} adapts them to the last); those surfaces and their layering are
@@ -394,6 +398,178 @@ class ReferencePartitionsTest {
 			final ReducedEntityIndex archived = addPartition(1, Scope.ARCHIVED, REFERENCE_NAME, TARGET_PK);
 			assertSame(ReferencePartitions.EMPTY_PARTITIONS, ofTarget(false));
 			assertArrayEquals(new ReferencePartition[]{archived}, ofTarget(Scope.ARCHIVED, false));
+		}
+	}
+
+	@Nested
+	@DisplayName("guarding the virtual partition boundary")
+	class VirtualBoundary {
+		/**
+		 * The registered single-owner partition of the fixture's type index.
+		 */
+		private static final int VIRTUAL_PK = 5;
+		/**
+		 * The only owner of {@link #VIRTUAL_PK}.
+		 */
+		private static final int VIRTUAL_OWNER = 50;
+
+		/**
+		 * Registers the type index of {@link #REFERENCE_NAME} in the scope with one registered single-owner partition
+		 * of {@link #TARGET_PK}, listed by the type index as the registry writer lists it.
+		 *
+		 * @param scope the scope
+		 * @return the type index
+		 */
+		@Nonnull
+		private ReferencedTypeEntityIndex typeIndexWithVirtualPartition(@Nonnull Scope scope) {
+			final ReferencedTypeEntityIndex typeIndex = addTypeIndex(scope, TARGET_PK, VIRTUAL_PK);
+			typeIndex.getVirtualReferencePartitionIndex().putPartitionOwner(VIRTUAL_PK, VIRTUAL_OWNER, TARGET_PK);
+			return typeIndex;
+		}
+
+		/**
+		 * Returns the virtual handle of {@link #VIRTUAL_PK}.
+		 *
+		 * @param typeIndex the type index holding its row
+		 * @return the handle
+		 */
+		@Nonnull
+		private static VirtualReferencePartition virtualOf(@Nonnull ReferencedTypeEntityIndex typeIndex) {
+			final VirtualReferencePartition virtual = ReferencePartitions.resolveVirtualIfExists(typeIndex, VIRTUAL_PK);
+			assertNotNull(virtual, "The registry row must answer a virtual handle");
+			return virtual;
+		}
+
+		@Test
+		@DisplayName("refuses a virtual partition on the index-bound query body channel")
+		void shouldRefuseAVirtualPartitionOnTheQueryBodyChannel() {
+			final VirtualReferencePartition virtual = virtualOf(typeIndexWithVirtualPartition(Scope.LIVE));
+
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class, () -> ReferencePartitions.toReducedEntityIndex(virtual)
+			);
+			assertTrue(error.getPrivateMessage().contains(String.valueOf(VIRTUAL_PK)), error.getPrivateMessage());
+		}
+
+		@Test
+		@DisplayName("hands a materialized partition to a route reading index objects, and refuses a virtual one by route")
+		void shouldRefuseAVirtualPartitionOnARouteReadingIndexObjects() {
+			final ReducedEntityIndex materialized = addPartition(1, Scope.LIVE, REFERENCE_NAME, TARGET_PK);
+			final VirtualReferencePartition virtual = virtualOf(typeIndexWithVirtualPartition(Scope.LIVE));
+
+			assertSame(materialized, ReferencePartitions.toMaterializedEntityIndex(materialized, "sortRoute"));
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class, () -> ReferencePartitions.toMaterializedEntityIndex(virtual, "sortRoute")
+			);
+			assertTrue(error.getPrivateMessage().contains("`sortRoute`"), error.getPrivateMessage());
+		}
+
+		@Test
+		@DisplayName("lets a write path hold nothing or a reduced entity index, and refuses a virtual one by write site")
+		void shouldRefuseAVirtualPartitionOnAWritePath() {
+			final ReducedEntityIndex materialized = addPartition(1, Scope.LIVE, REFERENCE_NAME, TARGET_PK);
+			final VirtualReferencePartition virtual = virtualOf(typeIndexWithVirtualPartition(Scope.LIVE));
+			final ReferencePartition[] allMaterialized = {materialized};
+			final ReferencePartition[] withVirtual = {materialized, virtual};
+
+			assertNull(ReferencePartitions.requireMaterialized((ReferencePartition) null, "upsert"));
+			assertSame(materialized, ReferencePartitions.requireMaterialized(materialized, "upsert"));
+			assertSame(allMaterialized, ReferencePartitions.requireMaterialized(allMaterialized, "upsert"));
+			final GenericEvitaInternalError single = assertThrows(
+				GenericEvitaInternalError.class, () -> ReferencePartitions.requireMaterialized(virtual, "upsert")
+			);
+			assertTrue(single.getPrivateMessage().contains("`upsert`"), single.getPrivateMessage());
+			final GenericEvitaInternalError array = assertThrows(
+				GenericEvitaInternalError.class, () -> ReferencePartitions.requireMaterialized(withVirtual, "remove")
+			);
+			assertTrue(array.getPrivateMessage().contains("`remove`"), array.getPrivateMessage());
+		}
+
+		@Test
+		@DisplayName("resolves a registered partition to its handle and any other to its index object, for a query")
+		void shouldResolveARegisteredPartitionToItsHandleForRead() {
+			final ReducedEntityIndex materialized = addPartition(1, Scope.LIVE, REFERENCE_NAME, TARGET_PK);
+			final ReferencedTypeEntityIndex typeIndex = typeIndexWithVirtualPartition(Scope.LIVE);
+			final Map<Integer, EntityIndex> byPrimaryKey = ReferencePartitionsTest.this.indexesByPrimaryKey;
+
+			final VirtualReferencePartition virtual = assertInstanceOf(
+				VirtualReferencePartition.class,
+				ReferencePartitions.resolveForReadIfExists(
+					pk -> ReferencePartitions.asPartition(byPrimaryKey.get(pk)), typeIndex, Scope.LIVE,
+					REFERENCE_NAME, VIRTUAL_PK
+				)
+			);
+			assertEquals(VIRTUAL_OWNER, virtual.ownerPrimaryKey());
+			assertSame(
+				materialized,
+				ReferencePartitions.resolveForReadIfExists(
+					pk -> ReferencePartitions.asPartition(byPrimaryKey.get(pk)), typeIndex, Scope.LIVE,
+					REFERENCE_NAME, 1
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("refuses a type index of another scope or another reference on a read resolver")
+		void shouldRefuseATypeIndexOfAnotherScopeOrReference() {
+			final ReferencedTypeEntityIndex archived = typeIndexWithVirtualPartition(Scope.ARCHIVED);
+			final ReferencedTypeEntityIndex otherReference = new ReferencedTypeEntityIndex(
+				2_000, ENTITY_TYPE,
+				new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, OTHER_REFERENCE_NAME)
+			);
+
+			final GenericEvitaInternalError otherScope = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> ReferencePartitions.resolveForReadIfExists(
+					pk -> null, archived, Scope.LIVE, REFERENCE_NAME, VIRTUAL_PK
+				)
+			);
+			assertTrue(otherScope.getPrivateMessage().contains("`" + REFERENCE_NAME + "`"), otherScope.getPrivateMessage());
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> ReferencePartitions.resolveForReadIfExists(
+					pk -> null, otherReference, Scope.LIVE, REFERENCE_NAME, VIRTUAL_PK
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("refuses a primary key naming no partition, naming the collection, when one must exist")
+		void shouldRefuseAPrimaryKeyNamingNoPartitionForRead() {
+			final ReferencedTypeEntityIndex typeIndex = typeIndexWithVirtualPartition(Scope.LIVE);
+
+			assertNull(
+				ReferencePartitions.resolveForReadIfExists(pk -> null, typeIndex, Scope.LIVE, REFERENCE_NAME, 42)
+			);
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> ReferencePartitions.resolveForRead(
+					pk -> null, typeIndex, Scope.LIVE, REFERENCE_NAME, 42, ENTITY_TYPE
+				)
+			);
+			assertTrue(error.getPrivateMessage().contains("42"), error.getPrivateMessage());
+			assertTrue(error.getPrivateMessage().contains("`" + ENTITY_TYPE + "`"), error.getPrivateMessage());
+		}
+
+		@Test
+		@DisplayName("answers the shared empty array for a target the type index lists nothing for, for a query")
+		void shouldAnswerEmptyForATargetWithoutPartitionsForRead() {
+			final ReferencedTypeEntityIndex typeIndex = typeIndexWithVirtualPartition(Scope.LIVE);
+			final Map<EntityIndexKey, EntityIndex> byKey = ReferencePartitionsTest.this.indexesByKey;
+			final Map<Integer, EntityIndex> byPrimaryKey = ReferencePartitionsTest.this.indexesByPrimaryKey;
+
+			assertSame(
+				ReferencePartitions.EMPTY_PARTITIONS,
+				ReferencePartitions.resolveOfTargetForRead(
+					byKey::get, byPrimaryKey::get, typeIndex, Scope.LIVE, REFERENCE_NAME, false, TARGET_PK + 1,
+					ENTITY_TYPE
+				)
+			);
+			final ReferencePartition[] ofTarget = ReferencePartitions.resolveOfTargetForRead(
+				byKey::get, byPrimaryKey::get, typeIndex, Scope.LIVE, REFERENCE_NAME, false, TARGET_PK, ENTITY_TYPE
+			);
+			assertEquals(1, ofTarget.length);
+			assertEquals(VIRTUAL_OWNER, assertInstanceOf(VirtualReferencePartition.class, ofTarget[0]).ownerPrimaryKey());
 		}
 	}
 

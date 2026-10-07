@@ -69,7 +69,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Verifies {@link VirtualPartitionBodyEvaluator}: which reference bodies are answered for the virtual candidates of a
  * split from the candidate set alone, which are answered exactly, that every constraint a reference body admits has
- * one of the two readings - so the refusal of step 4b of #1615 never fires - and the owners the virtual part of the
+ * one of the two readings - so the refusal never fires - and the owners the virtual part of the
  * answer consists of.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -119,7 +119,7 @@ class VirtualPartitionBodyEvaluatorTest {
 	}
 
 	@Test
-	@DisplayName("every constraint a reference body admits has a virtual reading - the refusal of 4b never fires")
+	@DisplayName("every constraint a reference body admits has a virtual reading - the refusal never fires")
 	void shouldReadEveryConstraintAReferenceBodyAdmits() {
 		final Set<Class<?>> admitted = new HashSet<>(32);
 		for (final ConstraintDescriptor descriptor : ConstraintDescriptorProvider.getAllConstraints()) {

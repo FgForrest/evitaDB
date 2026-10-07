@@ -35,7 +35,7 @@ import java.util.Set;
 
 /**
  * A generated catalog shaped like the parameter values of a production e-commerce catalog, for the read parity tests of
- * the block-by-block orderings and chains (step 4g of #1615): the parameter values reference their products, the
+ * the block-by-block orderings and chains: the parameter values reference their products, the
  * products reflect the reference, and nearly every partition of the reflected side is single-owner - a parameter value
  * is held by one product - while every product holds hundreds of rows.
  *
@@ -53,7 +53,7 @@ import java.util.Set;
  *   and product `1` - a single-owner and a shared partition of the original side in one entity.
  *
  * Every entity stays live: archiving a product whose reflected rows carry the chains fails in the engine with
- * "Chain index for attribute `position` not found!" (pre-existing, parked in step 4g of #1615), so the scope parity
+ * "Chain index for attribute `position` not found!" (a pre-existing defect), so the scope parity
  * of the block routes is covered by {@link RelatedProductsShapedFixture}.
  *
  * Primary keys of products and parameter values never coincide, so an owner primary key mistaken for a target one

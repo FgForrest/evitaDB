@@ -73,19 +73,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Verifies that `referenceHaving` - and the translation of partitions to their targets behind `facetHaving` - answers
  * the same with the read switch on as with it off, on the same engine and the same data: the virtual reading of the
  * registered single-owner partitions must be indistinguishable from the reading of their reduced entity indexes for
- * every body - the positive bodies answered from the candidate set (step 4b of #1615) and the bodies answered exactly
- * (step 4c): negations, `attributeIs`, `entityPrimaryKeyInSet` under a negation including missing managed targets,
+ * every body - the positive bodies answered from the candidate set and the bodies answered exactly:
+ * negations, `attributeIs`, `entityPrimaryKeyInSet` under a negation including missing managed targets,
  * `groupHaving`, `entityLocaleEquals` and `inScope` - and for a `referenceHaving` the bidirectional rewrite answers
  * from the counterpart's registered partitions.
  *
- * Three catalogs, each maintained from its first write so every single-owner partition has its row:
+ * Four catalogs, each maintained from its first write so every single-owner partition has its row:
  *
  * - {@link RelatedProductsShapedFixture} - thousands of generated owners mixing single-owner and shared partitions,
  *   duplicates, value-less rows, missing managed targets, groups, both scopes, and categories reflecting the products
  *   they hold, some of them through single-owner partitions of the product side;
  * - {@link SingleOwnerPartitionFixture} with the reflected `Category.products` reference and one archived product;
  * - {@link CrossScopeSingletonFixture} - one key held by partitions of both scopes, and a reference whose partitions
- *   are all single-owner.
+ *   are all single-owner;
+ * - {@link SingleOwnerPartitionFixture} extended for every read route, with one product of the shared category alone
+ *   archived - so the bidirectional rewrite reaches the shared category through a shared live partition and a
+ *   single-owner archived one at once.
  *
  * Every case runs in the scope sets its constraints admit, and must read virtual rows in at least one of them - an
  * equal answer of a run that read nothing virtually would compare the object reading with itself.
@@ -101,6 +104,7 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 	private static final String CATALOG_RELATED = "virtualHavingParityRelated";
 	private static final String CATALOG_SINGLE_OWNER = "virtualHavingParitySingleOwner";
 	private static final String CATALOG_CROSS_SCOPE = "virtualHavingParityCrossScope";
+	private static final String CATALOG_EVERY_ROUTE = "virtualHavingParityEveryRoute";
 	private static final Scope[] LIVE = {Scope.LIVE};
 	private static final Scope[] ARCHIVED = {Scope.ARCHIVED};
 	private static final Scope[] BOTH = {Scope.LIVE, Scope.ARCHIVED};
@@ -156,6 +160,15 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 		build(
 			CATALOG_CROSS_SCOPE, CrossScopeSingletonFixture.ENTITY_TYPES,
 			CrossScopeSingletonFixture::setUp, CrossScopeSingletonFixture::archive
+		);
+		// the first filler product, held by the shared category alone, moves to the archive - the shared category is
+		// then reached through a shared live partition of `categories` and a single-owner archived one at once
+		build(
+			CATALOG_EVERY_ROUTE, SingleOwnerPartitionFixture.EVERY_ROUTE_ENTITY_TYPES,
+			SingleOwnerPartitionFixture::setUpWithEveryReadRoute,
+			session -> session.archiveEntity(
+				SingleOwnerPartitionFixture.ENTITY_PRODUCT, SingleOwnerPartitionFixture.FIRST_FILLER_PRODUCT
+			)
 		);
 	}
 
@@ -357,7 +370,7 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Returns the parity cases whose body is answered exactly (step 4c of #1615) - each holds a constraint whose answer
+	 * Returns the parity cases whose body is answered exactly - each holds a constraint whose answer
 	 * for the referenced-type entity index differs from the answer per partition.
 	 *
 	 * @return the cases
@@ -464,8 +477,8 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 				referenceHaving(categories, or(groupHaving(entityPrimaryKeyInSet(4)), attributeEquals(priority, 0)))
 			),
 			// entityLocaleEquals - not in the live scope alone, where the reduced entity indexes of `relatedProducts`
-			// keep the locale of an archived owner of a sibling partition and so answer it (see the parked defect of
-			// step 4c of #1615); the archive and both scopes answer every owner by a partition of its own
+			// keep the locale of an archived owner of a sibling partition and so answer it (a pre-existing defect); the
+			// archive and both scopes answer every owner by a partition of its own
 			new ParityCase(
 				"related: entityLocaleEquals of a locale half the owners have", CATALOG_RELATED, relatedProduct,
 				archivedAndBoth, true,
@@ -538,6 +551,7 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 		final String category = RelatedProductsShapedFixture.ENTITY_CATEGORY;
 		final String priority = RelatedProductsShapedFixture.ATTRIBUTE_PRIORITY;
 		final String rank = RelatedProductsShapedFixture.ATTRIBUTE_RANK;
+		// `products` is indexed in the live scope only - no scope set holding the archive admits it
 		final Scope[][] live = {LIVE};
 		return Stream.of(
 			new ParityCase(
@@ -604,6 +618,33 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 			comparison.virtualReading().virtualRowsRead() >= singletonCategories.size(),
 			"The rewrite must read the singleton rows virtually: " + comparison.virtualReading().virtualRowsRead()
 		);
+	}
+
+	@Test
+	@DisplayName("the bidirectional rewrite unites the rows of an owner reached through both representations at once")
+	void shouldUniteTheMaterializedAndTheVirtualRowsOfOneOwner() {
+		final FilterConstraint referenceHaving = referenceHaving(SingleOwnerPartitionFixture.REFERENCE_PRODUCTS);
+		long virtualRowsRead = 0;
+		for (final Scope[] scopes : new Scope[][]{LIVE, BOTH}) {
+			final Comparison<List<Integer>> comparison = VirtualReadParity.compare(
+				maintenance(CATALOG_EVERY_ROUTE), Set.of(SingleOwnerPartitionFixture.ENTITY_PRODUCT),
+				() -> queryPrimaryKeys(
+					CATALOG_EVERY_ROUTE, SingleOwnerPartitionFixture.ENTITY_CATEGORY, scopes, referenceHaving
+				)
+			);
+			assertEquals(
+				comparison.objectReading(), comparison.virtualReading().answer(),
+				referenceHaving + " in " + Arrays.toString(scopes)
+			);
+			// the shared category is the owner holding a shared live partition and a single-owner archived one
+			assertTrue(
+				comparison.objectReading().contains(SingleOwnerPartitionFixture.SHARED_CATEGORY),
+				comparison.objectReading().toString()
+			);
+			virtualRowsRead += comparison.virtualReading().virtualRowsRead();
+		}
+		// only the product side is read virtually, so the virtual rows are the rewrite's alone
+		assertTrue(virtualRowsRead > 0, "The rewrite must read the counterpart rows virtually");
 	}
 
 	/**
@@ -753,7 +794,10 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 							collection(entityType),
 							filterBy(filter),
 							// every alternative index set and every cacheable subtree must answer the same
-							require(page(1, PAGE_SIZE), debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES))
+							require(
+								page(1, PAGE_SIZE),
+								debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+							)
 						),
 						EntityReference.class
 					)
@@ -808,6 +852,7 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 			case CATALOG_RELATED -> RelatedProductsShapedFixture.ENTITY_TYPES;
 			case CATALOG_SINGLE_OWNER -> SingleOwnerPartitionFixture.ENTITY_TYPES;
 			case CATALOG_CROSS_SCOPE -> CrossScopeSingletonFixture.ENTITY_TYPES;
+			case CATALOG_EVERY_ROUTE -> SingleOwnerPartitionFixture.EVERY_ROUTE_ENTITY_TYPES;
 			default -> throw new IllegalArgumentException(catalog);
 		};
 	}

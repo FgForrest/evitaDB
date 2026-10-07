@@ -73,7 +73,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Proves that the write path never reaches a virtual reference partition: every collection is maintained and read
- * virtually from its first write on, and the writes of every phase-3 transition driver - owner counts going 0 -> 1 ->
+ * virtually from its first write on, and the writes of every transition driver - owner counts going 0 -> 1 ->
  * 2 -> 1 -> 0, churns within one mutation, reflected partitions including two new categories of one product, a
  * relocation, a replacement while empty, a scope move, an entity removal, the mirror of every sortable type and of both
  * kinds of chain, a demotion by extraction, a mutation failing on its own and failures injected right after every kind

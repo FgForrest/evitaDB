@@ -52,12 +52,14 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies {@link PartitionKeyMemo}, the query-local memo of the by-key read resolution: it answers a key the registry
  * of single-owner partitions holds with the virtual partition of exactly that key, falls through to the index object
  * for any other key, and - the reason it exists - builds the registered partitions of a target once per memo, so
- * resolving the keys of `N` owners sharing one target visits the target's family once rather than once per key.
+ * resolving the keys of `N` owners sharing one target visits the target's family once rather than once per key. A
+ * family whose registry rows contradict the type index is rejected rather than answered.
  *
  * The type index and its registry are real, filled the way the registry writer fills them; no index object exists for
  * a registered partition, so a resolution that reached for one would find nothing.
@@ -210,6 +212,38 @@ class PartitionKeyMemoTest {
 				GenericEvitaInternalError.class,
 				() -> memo.resolveIfExists(NO_OBJECTS, typeIndex, Scope.LIVE, keyOf(TARGET, "gallery"))
 			);
+		}
+
+		@Test
+		@DisplayName("a registry row naming another target than the type index lists is rejected")
+		void shouldRejectARowNamingAnotherTarget() {
+			final ReferencedTypeEntityIndex typeIndex = newTypeIndex(Scope.LIVE);
+			// the type index lists partition 3 for TARGET, but its registry row names TARGET + 1
+			typeIndex.insertPrimaryKeyIfMissing(3, TARGET);
+			typeIndex.getVirtualReferencePartitionIndex().putPartitionOwner(3, 30, TARGET + 1);
+			typeIndex.getVirtualReferencePartitionIndex().putRepresentativeTuple(3, new Serializable[]{"gallery"});
+			final PartitionKeyMemo memo = new PartitionKeyMemo();
+
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> memo.resolveIfExists(NO_OBJECTS, typeIndex, Scope.LIVE, keyOf(TARGET, "gallery"))
+			);
+			assertTrue(error.getPrivateMessage().contains("partition 3"), error.getPrivateMessage());
+		}
+
+		@Test
+		@DisplayName("two registered partitions of one target sharing representative values are rejected")
+		void shouldRejectTwoPartitionsOfOneTargetSharingTheirTuple() {
+			final ReferencedTypeEntityIndex typeIndex = newTypeIndex(Scope.LIVE);
+			register(typeIndex, 3, 30, TARGET, "gallery");
+			register(typeIndex, 4, 40, TARGET, "gallery");
+			final PartitionKeyMemo memo = new PartitionKeyMemo();
+
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> memo.resolveIfExists(NO_OBJECTS, typeIndex, Scope.LIVE, keyOf(TARGET, "gallery"))
+			);
+			assertTrue(error.getPrivateMessage().contains("Partitions 3 and 4"), error.getPrivateMessage());
 		}
 
 		/**

@@ -72,7 +72,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Verifies that a `pickFirst` ordering by a reference - the index route resolving its partitions at execution time and
  * the prefetch route ranking the targets the same way - answers the same with the read switch on as with it off, on the
- * same engine and the same data (step 4f of #1615): with the switch on, the registered single-owner partitions are
+ * same engine and the same data: with the switch on, the registered single-owner partitions are
  * gathered as virtual handles, ranked among the materialized ones, and claim their owners through the registry.
  *
  * Two catalogs, each maintained from its first write so every single-owner partition has its row:

@@ -42,7 +42,8 @@ import java.util.Set;
  *   single-owner partition); target {@link #TARGET_WEIGHTLESS} by owner 3 alone with weight 0;
  * - `media` (duplicates told apart by the representative `role`, filterable `weight`): target
  *   {@link #MEDIA_BOTH_SCOPES} in role `a` by live owner 1 and archived owner 2 and in role `b` by owner 1; target
- *   {@link #MEDIA_DUPLICATES} in role `a` by live owner 6 and archived owner 7 and in role `b` by owner 6 with weight 0;
+ *   {@link #MEDIA_DUPLICATES} in role `a` by live owner 6 and archived owner 7 and in role `b` by owner 6 with
+ *   weight 0;
  * - `solo` (no duplicates): owner `n` references target `100 + n` alone - every partition is single-owner.
  *
  * Owners 2, 5 and 7 are archived once the catalog is live; every reference is indexed for filtering in both scopes.
