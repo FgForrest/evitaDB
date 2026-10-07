@@ -261,6 +261,14 @@ public class VirtualReferencePartitionIndex
 	 * the family of the reference. Belongs to this instance only, a copy starts from zero.
 	 */
 	private final AtomicInteger sortValueWalkCount = new AtomicInteger();
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * How many times {@link #getSortIndex} has handed out a sort index of this instance - the operation-count probe
+	 * proving that the exact-value test of one partition reads the partition's own row rather than the value bucket of
+	 * the key's sort index, which holds every partition of the family sharing the value. Belongs to this instance only,
+	 * a copy starts from zero.
+	 */
+	private final AtomicInteger sortIndexReadCount = new AtomicInteger();
 	/**
 	 * The declared chain keys - the chained attribute, with its locale, mapped to the id of its slot.
 	 */
@@ -1057,6 +1065,8 @@ public class VirtualReferencePartitionIndex
 	 */
 	@Nullable
 	public OwnerSortIndex getSortIndex(@Nonnull AttributeIndexKey attributeIndexKey) {
+		// TODO JNO - remove at the end of #1615 (the operation-count probe)
+		this.sortIndexReadCount.incrementAndGet();
 		return this.sortIndexes.get(attributeIndexKey);
 	}
 
@@ -1154,6 +1164,16 @@ public class VirtualReferencePartitionIndex
 	 */
 	public int getSortValueWalkCount() {
 		return this.sortValueWalkCount.get();
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns how many times {@link #getSortIndex(AttributeIndexKey)} has handed out a sort index of this instance.
+	 *
+	 * @return the number of sort index reads
+	 */
+	public int getSortIndexReadCount() {
+		return this.sortIndexReadCount.get();
 	}
 
 	/**
@@ -1396,10 +1416,10 @@ public class VirtualReferencePartitionIndex
 		final long sortValueEntry = layout.sizeOfObject(2L * layout.referenceSize() + Integer.BYTES);
 		final long boxedLong = layout.sizeOfObject(Long.BYTES);
 		// the dirty / dictionaryDirty / entries / pageStreamRegistry / tupleIds / tuples / nextTupleId / sortKeys /
-		// sortValueIds / sortValues / sortIndexes / chainKeys / sortValueWalkCount slots
-		return layout.sizeOfObject(13L * layout.referenceSize())
-			// TODO JNO - remove at the end of #1615 (the walk counter of the operation-count probe)
-			+ layout.sizeOfObject(Integer.BYTES)
+		// sortValueIds / sortValues / sortIndexes / chainKeys / sortValueWalkCount / sortIndexReadCount slots
+		return layout.sizeOfObject(14L * layout.referenceSize())
+			// TODO JNO - remove at the end of #1615 (the two counters of the operation-count probes)
+			+ 2L * layout.sizeOfObject(Integer.BYTES)
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.dictionaryDirty.getHeapSizeInBytes()
 			+ this.entries.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER)

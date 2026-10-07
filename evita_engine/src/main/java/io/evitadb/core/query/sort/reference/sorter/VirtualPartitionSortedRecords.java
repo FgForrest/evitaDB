@@ -29,7 +29,6 @@ import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.VirtualReferencePartitionIndex;
-import io.evitadb.index.attribute.OwnerSortIndex;
 import io.evitadb.index.attribute.ReferenceSortedRecordsProvider;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -91,8 +90,11 @@ public final class VirtualPartitionSortedRecords {
 	/**
 	 * Returns the records of the partition whose sort value of a sort key equals the given value - the counterpart of
 	 * {@link io.evitadb.index.attribute.SortIndex#getRecordsEqualTo(Serializable)} on the partition's own sort index:
-	 * the owner when its value equals, nothing otherwise. The value is normalized by the registry's sort index of the
-	 * key, the one that normalized the stored value, and looked up there - one `O(log n)` descent, no walk.
+	 * the owner when its value equals, nothing otherwise. The partition's own row is read and its value compared with
+	 * the given one normalized as the key's sort index normalizes it, in the equality the buckets of that sort index
+	 * follow (see {@link VirtualReferencePartitionIndex#hasSortValue(AttributeIndexKey, int, Serializable)}) - two
+	 * `O(log n)` lookups of the row. The value bucket of the sort index is never read: it holds every partition of the
+	 * family sharing the value.
 	 *
 	 * @param partition the virtual partition
 	 * @param sortKey   the sort key - the attribute with its locale
@@ -105,8 +107,11 @@ public final class VirtualPartitionSortedRecords {
 		@Nonnull AttributeIndexKey sortKey,
 		@Nonnull Serializable value
 	) {
-		final OwnerSortIndex sortIndex = partition.typeIndex().getVirtualReferencePartitionIndex().getSortIndex(sortKey);
-		return sortIndex != null && sortIndex.getRecordsEqualTo(value).contains(partition.primaryKey()) ?
+		final VirtualReferencePartitionIndex registry = partition.typeIndex().getVirtualReferencePartitionIndex();
+		final int partitionPrimaryKey = partition.primaryKey();
+		// the first test answers FALSE for a key that is not declared, which the value comparison refuses
+		return registry.hasSortValue(sortKey, partitionPrimaryKey) &&
+			registry.hasSortValue(sortKey, partitionPrimaryKey, value) ?
 			new BaseBitmap(partition.ownerPrimaryKey()) : EmptyBitmap.INSTANCE;
 	}
 
