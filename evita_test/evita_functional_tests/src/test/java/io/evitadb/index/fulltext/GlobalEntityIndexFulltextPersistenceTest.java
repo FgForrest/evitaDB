@@ -115,6 +115,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * The fulltext indexes attached to a {@link GlobalEntityIndex}, persisted and read back the way a catalog does it: the
@@ -788,6 +789,48 @@ class GlobalEntityIndexFulltextPersistenceTest {
 					}
 				);
 			}
+		}
+
+		@Test
+		@DisplayName("a commit refuses to carry an unflushed index forward, and commits once it is flushed")
+		void shouldRefuseToCarryForwardAnUnflushedIndex() {
+			final GlobalEntityIndex index = newGlobalIndex();
+			// written outside a transaction, as warm-up writes, and not flushed - the state go-live never hands over
+			index.getOrCreateFulltextIndex(CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH))
+				.addValue(attribute("title"), 1, "rozepsaný titulek");
+
+			// the transaction writes the global index elsewhere, so the commit merge builds a copy carrying the
+			// untouched fulltext index forward
+			final Exception refusal = assertThrows(
+				Exception.class,
+				() -> assertStateAfterCommit(
+					index,
+					original -> original.insertPrimaryKeyIfMissing(1),
+					(original, committed) -> fail("The commit must not publish a copy over an unflushed index.")
+				)
+			);
+			Throwable cause = refusal;
+			while (cause != null && !(cause instanceof GenericEvitaInternalError)) {
+				cause = cause.getCause();
+			}
+			assertNotNull(cause, "The refusal is an internal error: " + refusal);
+			assertTrue(
+				cause.getMessage().contains("locale `cs` has changes no flush has collected"),
+				"The refusal names the locale and the cause: " + cause.getMessage()
+			);
+
+			flush(index);
+			assertStateAfterCommit(
+				index,
+				original -> original.insertPrimaryKeyIfMissing(1),
+				(original, committed) -> {
+					assertNotNull(committed);
+					assertEquals(
+						index.getFulltextIndex(CZECH).getTermCount(), committed.getFulltextIndex(CZECH).getTermCount(),
+						"The flushed index is carried forward."
+					);
+				}
+			);
 		}
 
 	}

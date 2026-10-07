@@ -332,6 +332,8 @@ class FulltextIndexHeapSizeTest {
 			final TransactionalMap<Locale, FulltextIndex> map = new TransactionalMap<>(
 				new HashMap<>(), FulltextIndex.class, Function.identity()
 			);
+			// built over the empty map, as a new global index builds it - the component refuses unflushed indexes
+			final FulltextIndexMapComponent component = new FulltextIndexMapComponent(map);
 			final List<FulltextIndex> indexes = new ArrayList<>(LOCALES.size());
 			for (int i = 0; i < LOCALES.size(); i++) {
 				final Locale locale = LOCALES.get(i);
@@ -340,7 +342,6 @@ class FulltextIndexHeapSizeTest {
 				map.put(locale, index);
 				indexes.add(index);
 			}
-			final FulltextIndexMapComponent component = new FulltextIndexMapComponent(map);
 			// a flush is what fills the snapshot
 			component.collectModifiedStorageParts(7, new EntityIndexManifest(), new TrappedChanges());
 
