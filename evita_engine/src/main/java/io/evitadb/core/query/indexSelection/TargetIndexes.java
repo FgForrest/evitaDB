@@ -116,8 +116,9 @@ public class TargetIndexes<T extends Index<?>> {
 	/**
 	 * The partitions of the nodes of a hierarchy option split by representation, `null` for any other option. The
 	 * translation of the hierarchy constraint reads them rather than {@link #getIndexes()}: the registered single-owner
-	 * partitions of the nodes contribute their owners read out of the registry, while {@link #getIndexes()} stays the
-	 * object-only resolution of every partition for the consumers that need the objects.
+	 * partitions of the nodes contribute their owners read out of the registry, and a block-by-block ordering narrowed
+	 * by the option walks them as their virtual handles, while {@link #getIndexes()} stays the object-only resolution
+	 * of every partition for the consumers that need the objects.
 	 */
 	@Nullable private final SplitTargetPartitions splitTargetPartitions;
 

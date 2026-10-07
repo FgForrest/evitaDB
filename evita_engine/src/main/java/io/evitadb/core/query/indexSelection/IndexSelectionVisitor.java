@@ -252,7 +252,8 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 	/**
 	 * Resolves the index object of every partition of the hierarchy nodes in every scope, node by node and scope by
 	 * scope - the object-only list of a hierarchy option, which reads no partition virtually. Only the consumers that
-	 * need the object of every partition ask for it; the translation of the hierarchy constraint reads the split.
+	 * need the object of every partition ask for it; the translation of the hierarchy constraint and the block-by-block
+	 * orderings narrowed by the option read the split.
 	 *
 	 * @param entitySchema    the queried entity schema
 	 * @param referenceSchema the reference the hierarchy constraint names

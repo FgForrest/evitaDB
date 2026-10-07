@@ -17,7 +17,7 @@ R1 | io.evitadb.core.query.filter.FilterByVisitor$ReducedIndexCandidates#resolve
 R1 | io.evitadb.core.query.filter.FilterByVisitor$SplitReducedIndexCandidates#<init> | carrier of the materialized candidates of a split, resolved for the query body channel
 R1 | io.evitadb.core.query.filter.FilterByVisitor$SplitReducedIndexCandidates#field:materializedIndexes | carrier of the materialized candidates of a split, resolved for the query body channel
 R1 | io.evitadb.core.query.filter.FilterByVisitor$SplitReducedIndexCandidates#materializedIndexes | carrier of the materialized candidates of a split, resolved for the query body channel
-R1 | io.evitadb.core.query.filter.SplitTargetPartitions#<init> | carrier of the materialized partitions of the hierarchy nodes, resolved for the query body channel
+R1 | io.evitadb.core.query.filter.SplitTargetPartitions#<init> (overloads (Ljava/util/List;Lio/evitadb/index/bitmap/Bitmap;I)V (Ljava/util/List;Lio/evitadb/index/bitmap/Bitmap;I[Lio/evitadb/index/ReferencePartitionSplit;[I)V) | carrier of the materialized partitions of the hierarchy nodes, resolved for the query body channel
 R1 | io.evitadb.core.query.filter.SplitTargetPartitions#createOwnersFormula | owners formula of the materialized partitions of the hierarchy nodes, from the query body channel
 R1 | io.evitadb.core.query.filter.SplitTargetPartitions#field:materializedIndexes | carrier of the materialized partitions of the hierarchy nodes, resolved for the query body channel
 R1 | io.evitadb.core.query.filter.SplitTargetPartitions#getOwnerRowCount | owner-row sum of the materialized partitions of the hierarchy nodes for the cardinality check of index selection

@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.VirtualRowConsumer;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -51,6 +52,7 @@ import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor.ReducedIndexCandidates;
 import io.evitadb.core.query.filter.FilterByVisitor.SplitReducedIndexCandidates;
+import io.evitadb.core.query.filter.SplitTargetPartitions;
 import io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper;
 import io.evitadb.core.query.indexSelection.IndexSelectionVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
@@ -121,8 +123,10 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	 * The candidates of a `referenceHaving` are split by representation: when the query reads the collection
 	 * virtually, the registered single-owner partitions among them answer their {@link VirtualReferencePartition}
 	 * handles and only the rest is resolved to index objects - one merge of the candidates with the registry rows, no
-	 * index object per virtual candidate. The partitions of a hierarchy option are the index objects of every node
-	 * partition (see {@link TargetIndexes#getIndexes()}).
+	 * index object per virtual candidate. The partitions of a hierarchy option keep the split the option was built
+	 * with (see {@link SplitTargetPartitions#getPartitions()}): when the query reads the collection virtually, the
+	 * registered single-owner partitions of the nodes answer their virtual handles; otherwise every partition is the
+	 * index object of {@link TargetIndexes#getIndexes()}.
 	 *
 	 * @param orderByVisitor the visitor of the planned query
 	 * @param referenceName  the reference being ordered by
@@ -143,16 +147,26 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 					namesReference(targetIndex.getRepresentedConstraint(), referenceName)
 			) {
 				final ReducedIndexCandidates candidates = targetIndex.getReducedIndexCandidates();
+				final SplitTargetPartitions nodePartitions = targetIndex.getSplitTargetPartitions();
 				final List<? extends ReferencePartition> partitions;
-				if (candidates == null) {
-					//noinspection unchecked
-					partitions = (List<? extends ReferencePartition>) targetIndex.getIndexes();
-				} else {
+				if (candidates != null) {
 					//noinspection unchecked
 					final SplitReducedIndexCandidates split = candidates.resolveSplit(
 						() -> (List<ReducedEntityIndex>) targetIndex.getIndexes()
 					);
 					partitions = mergeByPrimaryKey(orderByVisitor, split.materializedIndexes(), split.split());
+				} else if (nodePartitions != null && nodePartitions.virtualCount() > 0) {
+					// the partitions of the nodes of a hierarchy option keep their split - the registered
+					// single-owner ones are handed over as their virtual handles, never resolved to their objects
+					partitions = nodePartitions.getPartitions();
+					// TODO JNO - remove at the end of #1615 (the non-vacuity probes of the read parity tests)
+					orderByVisitor.recordVirtualRowsRead(nodePartitions.virtualCount());
+					orderByVisitor.recordVirtualRowsConsumed(
+						VirtualRowConsumer.HIERARCHY_OPTION_PARTITIONS, nodePartitions.virtualCount()
+					);
+				} else {
+					//noinspection unchecked
+					partitions = (List<? extends ReferencePartition>) targetIndex.getIndexes();
 				}
 				if (
 					!partitions.isEmpty() &&

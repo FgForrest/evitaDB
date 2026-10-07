@@ -375,6 +375,11 @@ final class DifferentialEngines implements AutoCloseable {
 	 */
 	static final String LINE_TRAVERSE_ATTRIBUTE_SET_EXACT = "traverse/attributeSetExact";
 	/**
+	 * The lines of the block-by-block ordering by one sortable attribute narrowed by `hierarchyWithinRoot`, whose
+	 * planning set comes from the hierarchy option of index selection.
+	 */
+	static final String LINE_HIERARCHY_TRAVERSE = "hierarchyWithinRoot/traverse/attribute";
+	/**
 	 * The line of the facet summary.
 	 */
 	static final String LINE_FACET_SUMMARY = "facetSummary";
@@ -1255,11 +1260,13 @@ final class DifferentialEngines implements AutoCloseable {
 				snapshot, session, schema, scope, referenceSchema, sample, activation, prefix
 			);
 			final boolean hierarchical = isReferenceToHierarchy(session, referenceSchema, null);
-			if (isReferenceToHierarchy(session, referenceSchema, scope)) {
+			final boolean hierarchyIndexed = isReferenceToHierarchy(session, referenceSchema, scope);
+			if (hierarchyIndexed) {
 				describeHierarchy(snapshot, session, entityType, scope, referenceName, targets, activation, prefix);
 			}
 			describeOrderings(
-				snapshot, session, entityType, scope, referenceSchema, hierarchical, sample, activation, prefix
+				snapshot, session, entityType, scope, referenceSchema, hierarchical, hierarchyIndexed, sample,
+				activation, prefix
 			);
 		}
 		if (faceted) {
@@ -1652,22 +1659,26 @@ final class DifferentialEngines implements AutoCloseable {
 	 *   descending primary key order, and through the prefetch route over every other owner with the targets in a
 	 *   seeded random order - the prefetch route answers the plain primary key order without any partition, and it
 	 *   runs for a `Comparable` attribute type only, because it fails for the others with the switch off as well;
-	 * - the block-by-block orderings by every sortable attribute, chained ones included, and - for a reference not
-	 *   allowing duplicates - by the referenced primary key and by `attributeSetExact` of every sortable numeric or
-	 *   string attribute, the latter over the owners of one target whose row carries a value, referenced by a single
-	 *   owner where there is one: it sorts by the sort index of the only partition the ordering plans over and fails
-	 *   over several partitions and over a partition holding no value, with the switch off as well;
+	 * - the block-by-block orderings by every sortable attribute, chained ones included, and - for a reference to an
+	 *   entity whose hierarchy is indexed in the scope - by every sortable non-chained attribute narrowed by
+	 *   `hierarchyWithinRoot`, whose planning set the hierarchy option of index selection supplies, and - for a
+	 *   reference not allowing duplicates - by the referenced primary key and by `attributeSetExact` of every sortable
+	 *   numeric or string attribute, the latter over the owners of one target whose row carries a value, referenced
+	 *   by a single owner where there is one: it sorts by the sort index of the only partition the ordering plans over
+	 *   and fails over several partitions and over a partition holding no value, with the switch off as well;
 	 * - `referenceContent(orderBy)` of every sortable chained attribute, one line per owner.
 	 *
-	 * @param snapshot        the snapshot to add to
-	 * @param session         the session to query in
-	 * @param entityType      the collection
-	 * @param scope           the scope to query
-	 * @param referenceSchema the reference
-	 * @param hierarchical    TRUE when the reference targets a hierarchical entity, which admits no `pickFirst`
-	 * @param sample          what the entity bodies of the collection hold
-	 * @param activation      decides the read switch of the lines
-	 * @param prefix          the path prefix of the lines
+	 * @param snapshot         the snapshot to add to
+	 * @param session          the session to query in
+	 * @param entityType       the collection
+	 * @param scope            the scope to query
+	 * @param referenceSchema  the reference
+	 * @param hierarchical     TRUE when the reference targets a hierarchical entity, which admits no `pickFirst`
+	 * @param hierarchyIndexed TRUE when the hierarchy of the referenced entity is indexed in the scope, which admits
+	 *                         `hierarchyWithinRoot`
+	 * @param sample           what the entity bodies of the collection hold
+	 * @param activation       decides the read switch of the lines
+	 * @param prefix           the path prefix of the lines
 	 */
 	private static void describeOrderings(
 		@Nonnull Snapshot snapshot,
@@ -1676,6 +1687,7 @@ final class DifferentialEngines implements AutoCloseable {
 		@Nonnull Scope scope,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		boolean hierarchical,
+		boolean hierarchyIndexed,
 		@Nonnull ReferenceSample sample,
 		@Nonnull ReadRouteActivation activation,
 		@Nonnull String prefix
@@ -1742,6 +1754,27 @@ final class DifferentialEngines implements AutoCloseable {
 					DebugMode.PREFER_INDEX_SCAN
 				)
 			);
+			if (!chained && hierarchyIndexed) {
+				// the hierarchy option of index selection supplies the planning set of the ordering - the partitions
+				// of the nodes, read virtually as handles
+				putOrder(
+					snapshot, orderPrefix + "hierarchyWithinRoot/traverse/" + attributeName, activation,
+					LINE_HIERARCHY_TRAVERSE,
+					EnumSet.of(
+						ReadRoute.HIERARCHY_WITHIN, ReadRoute.HIERARCHY_TRAVERSE_PLANNING_SET,
+						ReadRoute.SEQUENTIAL_BLOCKS, ReadRoute.BLOCK_PROVIDERS
+					),
+					() -> queryOrder(
+						session, entityType, scope, hierarchyWithinRoot(referenceName),
+						referenceProperty(
+							referenceName,
+							traverseByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
+							attributeNatural(attributeName, OrderDirection.ASC)
+						),
+						DebugMode.PREFER_INDEX_SCAN
+					)
+				);
+			}
 			if (chained) {
 				final EvitaResponse<SealedEntity> chainedContent = activation.run(
 					LINE_REFERENCE_CONTENT_CHAIN,

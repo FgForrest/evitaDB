@@ -111,7 +111,8 @@ class DifferentialEnginesTest implements EvitaTestSupport {
 		DifferentialEngines.LINE_TRAVERSE_ATTRIBUTE,
 		DifferentialEngines.LINE_TRAVERSE_CHAIN,
 		DifferentialEngines.LINE_TRAVERSE_REFERENCED_KEY,
-		DifferentialEngines.LINE_TRAVERSE_ATTRIBUTE_SET_EXACT
+		DifferentialEngines.LINE_TRAVERSE_ATTRIBUTE_SET_EXACT,
+		DifferentialEngines.LINE_HIERARCHY_TRAVERSE
 	);
 
 	private DifferentialEngines engines;
@@ -223,6 +224,9 @@ class DifferentialEnginesTest implements EvitaTestSupport {
 		assertContains(snapshot, "query/product/LIVE/order/categories/pickFirst/" + ATTRIBUTE_ORDER + "/prefetch");
 		assertContains(snapshot, "query/product/LIVE/order/sections/traverse/" + ATTRIBUTE_POSITION);
 		assertContains(snapshot, "query/product/LIVE/referenceContent/sections/chain/" + ATTRIBUTE_SEQUENCE + "/");
+		assertContains(
+			snapshot, "query/product/LIVE/order/sections/hierarchyWithinRoot/traverse/" + ATTRIBUTE_PRIORITY
+		);
 		// every line of a route that answers virtual partitions must have read some of them - the entity bodies, the
 		// facet summary and the histograms read nothing a virtual partition answers
 		final SortedMap<String, Long> rowsPerLine = this.engines.getVirtualRowsReadPerLine();

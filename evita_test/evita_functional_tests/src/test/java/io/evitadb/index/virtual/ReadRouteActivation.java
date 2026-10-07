@@ -167,6 +167,11 @@ final class ReadRouteActivation {
 		 */
 		TRAVERSE_PLANNING_SET,
 		/**
+		 * Route 17 narrowed by a hierarchy constraint - the planning set of a block-by-block reference ordering taken
+		 * from the hierarchy option of index selection: the partitions of the nodes, the virtual ones as handles.
+		 */
+		HIERARCHY_TRAVERSE_PLANNING_SET(VirtualRowConsumer.HIERARCHY_OPTION_PARTITIONS),
+		/**
 		 * Route 18 - the sequential sorter walking the blocks, the owners of a virtual partition a singleton.
 		 */
 		SEQUENTIAL_BLOCKS,

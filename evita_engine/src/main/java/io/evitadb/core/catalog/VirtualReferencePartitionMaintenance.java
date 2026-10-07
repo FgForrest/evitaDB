@@ -748,7 +748,12 @@ public final class VirtualReferencePartitionMaintenance {
 		 * The lookup of `attributeSetExact` / `attributeSetInFilter` in a block of one virtual partition, answered out
 		 * of its registry row (`AttributeSetExactTranslator`).
 		 */
-		BLOCK_EXACT_SET_LOOKUP
+		BLOCK_EXACT_SET_LOOKUP,
+		/**
+		 * The planning set of a block-by-block ordering narrowed by a hierarchy option: the partitions of its nodes
+		 * read virtually, handed over as their virtual handles (`ReferencePropertyTranslator`).
+		 */
+		HIERARCHY_OPTION_PARTITIONS
 	}
 
 	// TODO JNO - remove at the end of #1615

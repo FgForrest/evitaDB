@@ -1382,6 +1382,11 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			partitionPrimaryKey -> ReferencePartitions.asPartition(indexByPrimaryKey.apply(partitionPrimaryKey));
 		final RoaringBitmapWriter<PersistentRoaringBitmap> ownerWriter = RoaringBitmapBackedBitmap.buildWriter();
 		int virtualCount = 0;
+		// the split of each scope read virtually and where its materialized partitions start - kept so that a
+		// block-by-block ordering narrowed by the hierarchy option can build the virtual handles on demand
+		final ReferencePartitionSplit[] scopeSplits = new ReferencePartitionSplit[scopes.size()];
+		final int[] scopeMaterializedStarts = new int[scopes.size()];
+		int scopeSplitCount = 0;
 		scopeIndex = 0;
 		for (final Scope scope : scopes) {
 			final ReferencedTypeEntityIndex virtualTypeIndex = virtualTypeIndexes[scopeIndex++];
@@ -1394,6 +1399,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			final ReferencePartitionSplit split = ReferencePartitions.splitOfTargetsForRead(
 				virtualTypeIndex, scope, referenceName, targetPrimaryKeys
 			);
+			scopeSplits[scopeSplitCount] = split;
+			scopeMaterializedStarts[scopeSplitCount++] = materializedIndexes.size();
 			final OfInt materializedIt = split.getMaterializedPrimaryKeys().iterator();
 			while (materializedIt.hasNext()) {
 				materializedIndexes.add(
@@ -1416,7 +1423,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		}
 		// TODO JNO - remove at the end of #1615 (the non-vacuity probe of the read parity tests)
 		recordVirtualRowsRead(virtualCount);
-		return new SplitTargetPartitions(materializedIndexes, new BaseBitmap(ownerWriter.get()), virtualCount);
+		return new SplitTargetPartitions(
+			materializedIndexes, new BaseBitmap(ownerWriter.get()), virtualCount,
+			scopeSplitCount == scopeSplits.length ? scopeSplits : Arrays.copyOf(scopeSplits, scopeSplitCount),
+			scopeSplitCount == scopeMaterializedStarts.length ?
+				scopeMaterializedStarts : Arrays.copyOf(scopeMaterializedStarts, scopeSplitCount)
+		);
 	}
 
 	/**
