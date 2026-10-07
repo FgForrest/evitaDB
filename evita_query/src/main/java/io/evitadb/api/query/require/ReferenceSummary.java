@@ -84,7 +84,8 @@ import java.util.Optional;
  * ({@link FacetGroupsConjunction}, {@link FacetGroupsDisjunction}, {@link FacetGroupsNegation},
  * {@link FacetGroupsExclusivity}), the following rules apply:
  *
- * 1. The reference summary covers only entities returned in the current query result.
+ * 1. The reference summary counts only entities the current query would return if its `userFilter` part were left
+ *    out.
  * 2. Filter constraints placed **outside** `userFilter` are always respected and cannot be overridden by reference
  *    selection.
  * 3. References **within the same group** are combined with logical OR (disjunction) — selecting blue OR red.
