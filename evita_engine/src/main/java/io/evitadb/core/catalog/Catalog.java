@@ -775,7 +775,7 @@ public final class Catalog
 		this.usageRegistry = new SchemaCapabilityUsageRegistry();
 		this.usageRegistry.alignWith(internalCatalogSchema);
 		// TODO JNO - remove at the end of #1615
-		this.virtualReferencePartitionMaintenance = new VirtualReferencePartitionMaintenance();
+		this.virtualReferencePartitionMaintenance = VirtualReferencePartitionMaintenance.forNewCatalog(this.catalogId);
 		this.proxyFactory = proxyFactory;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = internalCatalogSchema.version();
@@ -868,9 +868,11 @@ public final class Catalog
 		this.usageRegistry.alignWith(catalogSchema);
 		// the switch is not persisted, so a catalog read back from disk maintains only what the engine was told to
 		// before loading began - seeded here, before any collection is attached and before the write-ahead log is
-		// replayed onto this catalog, so the replayed mutations are maintained as well
+		// replayed onto this catalog, so the replayed mutations are maintained as well - or, in the forced test mode,
+		// what the forced default says for a catalog this JVM maintained from its birth
 		// TODO JNO - remove at the end of #1615
-		this.virtualReferencePartitionMaintenance = new VirtualReferencePartitionMaintenance(
+		this.virtualReferencePartitionMaintenance = VirtualReferencePartitionMaintenance.forLoadedCatalog(
+			this.catalogId,
 			evita.getEntityTypesMaintainingVirtualReferencePartitionsOnLoad(catalogName),
 			evita.getVirtualReferencePartitionProbeOnLoad(catalogName)
 		);

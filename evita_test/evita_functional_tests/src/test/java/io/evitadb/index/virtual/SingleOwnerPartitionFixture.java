@@ -27,10 +27,14 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
+import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -53,6 +57,11 @@ import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
  *
  * Products also carry a unique `code` and a numeric, filterable and sortable `rank`.
  *
+ * {@link #setUpWithEveryReadRoute(EvitaSessionContract)} extends the fixture so that every query route of the
+ * virtual reading has something to read in the query lines of {@link DifferentialEngines}: owner locales, a
+ * hierarchical and grouped `sections` reference with a sortable and a chained attribute, and enough products in
+ * the shared category for the bidirectional rewrite to answer `categories`' reflection from its counterpart.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 final class SingleOwnerPartitionFixture {
@@ -64,6 +73,40 @@ final class SingleOwnerPartitionFixture {
 	 * Every entity type of the fixture.
 	 */
 	static final Set<String> ENTITY_TYPES = Set.of(ENTITY_PRODUCT, ENTITY_CATEGORY, ENTITY_MEDIA, ENTITY_BRAND);
+	static final String ENTITY_SECTION = "section";
+	/**
+	 * Every entity type of the fixture extended by {@link #setUpWithEveryReadRoute(EvitaSessionContract)}.
+	 */
+	static final Set<String> EVERY_ROUTE_ENTITY_TYPES = Set.of(
+		ENTITY_PRODUCT, ENTITY_CATEGORY, ENTITY_MEDIA, ENTITY_BRAND, ENTITY_SECTION
+	);
+	static final String REFERENCE_SECTIONS = "sections";
+	static final String ATTRIBUTE_NAME = "name";
+	static final String ATTRIBUTE_PRIORITY = "priority";
+	static final String ATTRIBUTE_POSITION = "position";
+	static final String ATTRIBUTE_SEQUENCE = "sequence";
+	/**
+	 * The section the first three products share; the sections of the products are its children and the children of
+	 * {@link #SECOND_SECTION_ROOT}.
+	 */
+	static final int SHARED_SECTION = 10;
+	/**
+	 * The root of the hierarchy of sections holding the shared section and the sections of products 1 to 3.
+	 */
+	static final int FIRST_SECTION_ROOT = 20;
+	/**
+	 * The root of the hierarchy of sections holding the sections of products 4 to 6.
+	 */
+	static final int SECOND_SECTION_ROOT = 21;
+	/**
+	 * The primary key of the first product that belongs to the shared category only.
+	 */
+	static final int FIRST_FILLER_PRODUCT = 201;
+	/**
+	 * How many products belong to the shared category only - enough for the counterpart of `categories` to hold four
+	 * times fewer partitions than the reflection, which is when the bidirectional rewrite answers the reflection.
+	 */
+	static final int FILLER_PRODUCT_COUNT = 40;
 	static final String REFERENCE_CATEGORIES = "categories";
 	static final String REFERENCE_GALLERY = "gallery";
 	static final String REFERENCE_BRAND = "brand";
@@ -132,6 +175,111 @@ final class SingleOwnerPartitionFixture {
 	 */
 	static void setUpWithReflectedProducts(@Nonnull EvitaSessionContract session) {
 		setUp(session, categories -> { }, true);
+	}
+
+	/**
+	 * Defines the schema with the reflected `products` reference on the category and everything the query lines of
+	 * {@link DifferentialEngines} need to exercise every query route of the virtual reading, and the data:
+	 *
+	 * - products carry a localized `name` - every product in English, the even ones in German too;
+	 * - `sections` references the hierarchical `section` entity, indexed for filtering in both scopes, with a sortable
+	 *   `priority`, a `position` chaining the products of a section and a `sequence` chaining the sections of a product,
+	 *   and grouped by brand. Product `n` alone is in section `n` of brand
+	 *   `1 + n % 2`, a child of root {@link #FIRST_SECTION_ROOT} for products 1 to 3 and of root
+	 *   {@link #SECOND_SECTION_ROOT} for the others, and products 1 to 3 share {@link #SHARED_SECTION} of brand 1,
+	 *   chained in that order and each sequenced after its own section;
+	 * - {@link #FILLER_PRODUCT_COUNT} products from {@link #FIRST_FILLER_PRODUCT} on belong to the shared category
+	 *   only.
+	 *
+	 * @param session the session to write in
+	 */
+	static void setUpWithEveryReadRoute(@Nonnull EvitaSessionContract session) {
+		setUpWithReflectedProducts(session);
+		session.defineEntitySchema(ENTITY_SECTION)
+			.withHierarchyIndexedInScope(Scope.LIVE, Scope.ARCHIVED)
+			.updateVia(session);
+		session.defineEntitySchema(ENTITY_PRODUCT)
+			.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().nullable())
+			.withReferenceToEntity(
+				REFERENCE_SECTIONS, ENTITY_SECTION, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs
+					.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
+					.indexedWithComponentsInScope(
+						Scope.LIVE,
+						ReferenceIndexedComponents.REFERENCED_ENTITY, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+					.indexedWithComponentsInScope(
+						Scope.ARCHIVED,
+						ReferenceIndexedComponents.REFERENCED_ENTITY, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+					.withGroupTypeRelatedToEntity(ENTITY_BRAND)
+					.withAttribute(
+						ATTRIBUTE_PRIORITY, Integer.class,
+						thatIs -> thatIs.filterableInScope(Scope.LIVE, Scope.ARCHIVED)
+							.sortableInScope(Scope.LIVE, Scope.ARCHIVED).nullable()
+					)
+					.withAttribute(
+						ATTRIBUTE_POSITION, Predecessor.class,
+						thatIs -> thatIs.sortableInScope(Scope.LIVE, Scope.ARCHIVED).nullable()
+					)
+					.withAttribute(
+						ATTRIBUTE_SEQUENCE, ReferencedEntityPredecessor.class,
+						thatIs -> thatIs.sortableInScope(Scope.LIVE, Scope.ARCHIVED).nullable()
+					)
+			)
+			.updateVia(session);
+		session.upsertEntity(session.createNewEntity(ENTITY_BRAND, BRAND_PK + 1));
+		session.upsertEntity(session.createNewEntity(ENTITY_SECTION, FIRST_SECTION_ROOT));
+		session.upsertEntity(session.createNewEntity(ENTITY_SECTION, SECOND_SECTION_ROOT));
+		session.upsertEntity(session.createNewEntity(ENTITY_SECTION, SHARED_SECTION).setParent(FIRST_SECTION_ROOT));
+		for (int pk = 1; pk <= PRODUCT_COUNT; pk++) {
+			session.upsertEntity(
+				session.createNewEntity(ENTITY_SECTION, pk)
+					.setParent(pk <= 3 ? FIRST_SECTION_ROOT : SECOND_SECTION_ROOT)
+			);
+		}
+		for (int pk = 1; pk <= PRODUCT_COUNT; pk++) {
+			final int product = pk;
+			updateProduct(
+				product,
+				it -> {
+					it.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Product " + product);
+					if (product % 2 == 0) {
+						it.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Produkt " + product);
+					}
+					it.setReference(
+						REFERENCE_SECTIONS, product,
+						ref -> ref.setGroup(BRAND_PK + product % 2)
+							.setAttribute(ATTRIBUTE_PRIORITY, product)
+							.setAttribute(ATTRIBUTE_POSITION, Predecessor.HEAD)
+							.setAttribute(ATTRIBUTE_SEQUENCE, ReferencedEntityPredecessor.HEAD)
+					);
+					if (product <= 3) {
+						it.setReference(
+							REFERENCE_SECTIONS, SHARED_SECTION,
+							ref -> ref.setGroup(BRAND_PK)
+								.setAttribute(ATTRIBUTE_PRIORITY, 10 + product)
+								.setAttribute(
+									ATTRIBUTE_POSITION, product == 1 ? Predecessor.HEAD : new Predecessor(product - 1)
+								)
+								.setAttribute(ATTRIBUTE_SEQUENCE, new ReferencedEntityPredecessor(product))
+						);
+					}
+				}
+			).accept(session);
+		}
+		for (int pk = FIRST_FILLER_PRODUCT; pk < FIRST_FILLER_PRODUCT + FILLER_PRODUCT_COUNT; pk++) {
+			final int product = pk;
+			session.upsertEntity(
+				session.createNewEntity(ENTITY_PRODUCT, product)
+					.setAttribute(ATTRIBUTE_CODE, "F" + product)
+					.setAttribute(ATTRIBUTE_RANK, product)
+					.setReference(
+						REFERENCE_CATEGORIES, SHARED_CATEGORY,
+						ref -> ref.setAttribute(ATTRIBUTE_ORDER, product)
+					)
+			);
+		}
 	}
 
 	/**

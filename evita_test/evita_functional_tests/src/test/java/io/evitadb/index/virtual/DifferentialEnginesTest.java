@@ -38,6 +38,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import javax.annotation.Nonnull;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.SortedMap;
@@ -84,6 +85,30 @@ class DifferentialEnginesTest implements EvitaTestSupport {
 	 * A product primary key no product of the fixture has.
 	 */
 	private static final int MISSING_PRODUCT = 99;
+	/**
+	 * The query lines of {@link DifferentialEngines} whose routes answer virtual partitions - each must read virtual
+	 * rows over the fixture of every read route.
+	 */
+	private static final List<String> VIRTUAL_LINES = List.of(
+		DifferentialEngines.LINE_REFERENCE_HAVING_TARGET,
+		DifferentialEngines.LINE_REFERENCE_HAVING_NOT,
+		DifferentialEngines.LINE_REFERENCE_HAVING_GROUP,
+		DifferentialEngines.LINE_REFERENCE_HAVING_LOCALE,
+		DifferentialEngines.LINE_REFERENCE_HAVING_ATTRIBUTE,
+		DifferentialEngines.LINE_BIDIRECTIONAL,
+		DifferentialEngines.LINE_REFERENCE_CONTENT_FILTER,
+		DifferentialEngines.LINE_REFERENCE_CONTENT_CHAIN,
+		DifferentialEngines.LINE_HIERARCHY_WITHIN,
+		DifferentialEngines.LINE_HIERARCHY_WITHIN_ROOT,
+		DifferentialEngines.LINE_HIERARCHY_STATISTICS,
+		DifferentialEngines.LINE_PICK_FIRST_INDEX,
+		DifferentialEngines.LINE_PICK_FIRST_PREFETCH,
+		DifferentialEngines.LINE_PICK_FIRST_REFERENCED_KEY,
+		DifferentialEngines.LINE_TRAVERSE_ATTRIBUTE,
+		DifferentialEngines.LINE_TRAVERSE_CHAIN,
+		DifferentialEngines.LINE_TRAVERSE_REFERENCED_KEY,
+		DifferentialEngines.LINE_TRAVERSE_ATTRIBUTE_SET_EXACT
+	);
 
 	private DifferentialEngines engines;
 
@@ -160,6 +185,53 @@ class DifferentialEnginesTest implements EvitaTestSupport {
 				.getVirtualReferencePartitionMaintenance()
 				.getVirtualRowsRead() > 0,
 			"The maintaining engine must read virtual rows on the landed query lines"
+		);
+	}
+
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("every query line of a route of the virtual reading reads virtual rows and leaves the engines equal")
+	void shouldReadVirtualRowsOnEveryRouteLine(CatalogState state) {
+		this.engines = new DifferentialEngines(this, "everyRoute", EVERY_ROUTE_ENTITY_TYPES);
+		this.engines.prepare(state, SingleOwnerPartitionFixture::setUpWithEveryReadRoute);
+
+		// a new single-owner partition, a second owner joining it, an archived owner and a restart - every checkpoint
+		// runs every query line on both engines
+		this.engines.step(
+			"a product joins a new category",
+			updateProduct(4, it -> it.setReference(REFERENCE_CATEGORIES, 11))
+		);
+		this.engines.step(
+			"a second product joins it",
+			updateProduct(6, it -> it.setReference(REFERENCE_CATEGORIES, 11))
+		);
+		// product 5 shares no chained partition - archiving the second owner of a shared partition carrying a
+		// `ReferencedEntityPredecessor` fails with the switch off as well (#1691)
+		this.engines.step("a product moves to the archive", session -> session.archiveEntity(ENTITY_PRODUCT, 5));
+		this.engines.restart();
+
+		final SortedMap<String, String> snapshot = this.engines.referenceSnapshot();
+		assertContains(snapshot, "query/product/LIVE/referenceHaving/sections/groupHaving");
+		assertContains(snapshot, "query/product/LIVE/referenceHaving/categories/locale/de");
+		assertContains(snapshot, "query/category/LIVE/bidirectional/products/" + ATTRIBUTE_ORDER);
+		assertContains(snapshot, "query/product/LIVE/hierarchyWithin/sections/" + SHARED_SECTION);
+		assertContains(snapshot, "query/product/LIVE/hierarchyStatistics/sections/");
+		assertContains(snapshot, "query/product/LIVE/order/categories/pickFirst/" + ATTRIBUTE_ORDER + "/prefetch");
+		assertContains(snapshot, "query/product/LIVE/order/sections/traverse/" + ATTRIBUTE_POSITION);
+		assertContains(snapshot, "query/product/LIVE/referenceContent/sections/chain/" + ATTRIBUTE_SEQUENCE + "/");
+		// every line of a route that answers virtual partitions must have read some of them - the entity bodies, the
+		// facet summary and the histograms read nothing a virtual partition answers
+		final SortedMap<String, Long> rowsPerLine = this.engines.getVirtualRowsReadPerLine();
+		final List<String> unread = new ArrayList<>(VIRTUAL_LINES.size());
+		for (final String line : VIRTUAL_LINES) {
+			if (rowsPerLine.getOrDefault(line, 0L) <= 0L) {
+				unread.add(line);
+			}
+		}
+		assertTrue(
+			unread.isEmpty(),
+			"Every route line must read virtual rows in the maintaining engine, these read none: " + unread +
+				" (all lines: " + rowsPerLine + ")"
 		);
 	}
 

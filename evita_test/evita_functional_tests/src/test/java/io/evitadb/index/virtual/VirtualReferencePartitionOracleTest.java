@@ -220,6 +220,8 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 				.build()
 		);
 		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
+		// the oracle is tried against a registry nobody maintains, in the forced test mode too
+		leaveForcedDefault(CATALOG);
 		this.evita.updateCatalog(CATALOG, SingleOwnerPartitionFixture::setUp);
 	}
 
@@ -227,6 +229,19 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 	void tearDown() {
 		this.evita.close();
 		cleanupTestPaths(this.paths);
+	}
+
+	/**
+	 * Takes the holder of the switch of a brand-new catalog out of the forced default of the forced test mode (see
+	 * {@link io.evitadb.core.catalog.VirtualReferencePartitionMaintenance}), so the catalog maintains nothing until the
+	 * test turns the switch on - a no-op outside the forced mode.
+	 *
+	 * @param catalogName the catalog
+	 */
+	private void leaveForcedDefault(@Nonnull String catalogName) {
+		((Catalog) this.evita.getCatalogInstance(catalogName).orElseThrow())
+			.getVirtualReferencePartitionMaintenance()
+			.leaveForcedDefault();
 	}
 
 	@Test
@@ -514,6 +529,7 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 			VirtualReferencePartitionOracleTest.this.catalog = CATALOG_WITH_KEYS;
 			VirtualReferencePartitionOracleTest.this.evita.defineCatalog(CATALOG_WITH_KEYS)
 				.updateViaNewSession(VirtualReferencePartitionOracleTest.this.evita);
+			leaveForcedDefault(CATALOG_WITH_KEYS);
 			VirtualReferencePartitionOracleTest.this.evita.updateCatalog(
 				CATALOG_WITH_KEYS,
 				session -> {

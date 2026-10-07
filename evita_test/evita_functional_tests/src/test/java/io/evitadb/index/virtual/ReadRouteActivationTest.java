@@ -26,11 +26,13 @@ package io.evitadb.index.virtual;
 
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
 import io.evitadb.index.virtual.ReadRouteActivation.ReadRoute;
+import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.Set;
 
 import static io.evitadb.test.TestTags.QUERY;
@@ -53,22 +55,37 @@ class ReadRouteActivationTest {
 	private static final String ENTITY_TYPE = "product";
 
 	@Test
-	@DisplayName("the routes of steps 4b to 4g have landed, the facet and entity body lines still read the objects")
-	void shouldLandTheRoutesOfStep4g() {
-		assertEquals(
-			EnumSet.of(
-				ReadRoute.REFERENCE_HAVING_BODY, ReadRoute.REFERENCE_HAVING_TARGET_INDEXES,
-				ReadRoute.NEGATION_IN_BODY, ReadRoute.GROUP_IN_BODY, ReadRoute.LOCALE_IN_BODY,
-				ReadRoute.REFERENCED_ENTITY_IN_BODY, ReadRoute.BIDIRECTIONAL_REWRITE, ReadRoute.PARTITION_TO_TARGET,
-				ReadRoute.REFERENCE_CONTENT_FILTER, ReadRoute.HIERARCHY_WITHIN, ReadRoute.HIERARCHY_STATISTICS,
-				ReadRoute.PICK_FIRST_GATHER, ReadRoute.PICK_FIRST_CLAIM, ReadRoute.PICK_FIRST_VALUE,
-				ReadRoute.PICK_FIRST_REFERENCED_PRIMARY_KEY, ReadRoute.PICK_FIRST_TARGET_RANK,
-				ReadRoute.TRAVERSE_PLANNING_SET, ReadRoute.SEQUENTIAL_BLOCKS, ReadRoute.BLOCK_PROVIDERS,
-				ReadRoute.BLOCK_REFERENCED_PRIMARY_KEY, ReadRoute.BLOCK_EXACT_ATTRIBUTE_SET,
-				ReadRoute.REFERENCE_CONTENT_CHAIN
-			),
-			ReadRouteActivation.LANDED_ROUTES
+	@DisplayName("every route has landed, the facet and entity body lines included")
+	void shouldLandEveryRoute() {
+		assertEquals(EnumSet.allOf(ReadRoute.class), ReadRouteActivation.LANDED_ROUTES);
+	}
+
+	@Test
+	@DisplayName("a named line counts the virtual rows it read and switches only the collections it names")
+	void shouldCountTheVirtualRowsOfANamedLine() {
+		final VirtualReferencePartitionMaintenance maintenance = maintained();
+		final Map<String, Long> rowsPerLine = CollectionUtils.createHashMap(4);
+		final ReadRouteActivation activation = new ReadRouteActivation(
+			maintenance, Set.of(ENTITY_TYPE), ReadRouteActivation.LANDED_ROUTES, rowsPerLine
 		);
+
+		activation.run("line", EnumSet.of(ReadRoute.REFERENCE_HAVING_BODY), () -> {
+			maintenance.recordVirtualRowsRead(3);
+			return null;
+		});
+		activation.run("line", EnumSet.of(ReadRoute.REFERENCE_HAVING_BODY), () -> {
+			maintenance.recordVirtualRowsRead(2);
+			return null;
+		});
+		assertEquals(Map.of("line", 5L), rowsPerLine);
+		assertFalse(
+			activation.run(
+				"other", EnumSet.of(ReadRoute.BIDIRECTIONAL_REWRITE), Set.of("category"),
+				() -> maintenance.isReadVirtually(ENTITY_TYPE)
+			),
+			"A line reads virtually only the collections it names"
+		);
+		assertEquals(0L, rowsPerLine.get("other"));
 	}
 
 	@Test

@@ -31,14 +31,22 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
+import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.StoragePartUsage;
@@ -46,6 +54,8 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.TransitionStage;
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -58,11 +68,11 @@ import io.evitadb.index.attribute.OwnerUniqueIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.virtual.ReadRouteActivation.ReadRoute;
-import io.evitadb.index.virtual.TransitionHistory.InjectedTransitionFailure;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex.AttributeCardinalityKey;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.membership.ReducedIndexMembership;
+import io.evitadb.index.virtual.ReadRouteActivation.ReadRoute;
+import io.evitadb.index.virtual.TransitionHistory.InjectedTransitionFailure;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexLeafPagePart;
@@ -70,51 +80,73 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualRefere
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.settings.StorageSettings;
-import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.EvitaTestSupport.TestPaths;
+import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ExceptionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Map;
 import java.util.OptionalInt;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.attributeHistogram;
+import static io.evitadb.api.query.QueryConstraints.attributeLessThanEquals;
+import static io.evitadb.api.query.QueryConstraints.attributeNatural;
+import static io.evitadb.api.query.QueryConstraints.attributeSetExact;
 import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.debug;
 import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAll;
+import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
+import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyNatural;
 import static io.evitadb.api.query.QueryConstraints.facetSummary;
-import static io.evitadb.api.query.QueryConstraints.not;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.fromRoot;
+import static io.evitadb.api.query.QueryConstraints.groupHaving;
+import static io.evitadb.api.query.QueryConstraints.hierarchyOfReference;
+import static io.evitadb.api.query.QueryConstraints.hierarchyWithin;
+import static io.evitadb.api.query.QueryConstraints.hierarchyWithinRoot;
 import static io.evitadb.api.query.QueryConstraints.histogramStatistics;
+import static io.evitadb.api.query.QueryConstraints.not;
+import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.api.query.QueryConstraints.page;
+import static io.evitadb.api.query.QueryConstraints.pickFirstByEntityProperty;
+import static io.evitadb.api.query.QueryConstraints.randomWithSeed;
 import static io.evitadb.api.query.QueryConstraints.referenceContentWithAttributes;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
+import static io.evitadb.api.query.QueryConstraints.referenceProperty;
 import static io.evitadb.api.query.QueryConstraints.referenceSummaryWithHistograms;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
+import static io.evitadb.api.query.QueryConstraints.statistics;
+import static io.evitadb.api.query.QueryConstraints.traverseByEntityProperty;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -147,8 +179,12 @@ import static org.junit.jupiter.api.Assertions.fail;
  * Each checkpoint reduces each engine to a sorted map of `path -> value` lines, and the two maps must be equal:
  *
  * - **query level** - every entity body in both scopes, the facet summary, the attribute histograms of numeric
- *   filterable attributes, the reference histograms, and the entities `referenceHaving` matches per referenced
- *   entity;
+ *   filterable attributes, the reference histograms, and per reference a line of every query route of the virtual
+ *   reading its schema admits (see {@link #describeQueries}): `referenceHaving` of targets, negations, groups,
+ *   locales and attribute bounds, the bidirectional rewrite, `referenceContent` filtered and chained, the hierarchy
+ *   filters and statistics, the `pickFirst` orderings through both routes and the block-by-block orderings. The
+ *   maintaining engine runs every line with its collections read virtually and counts the virtual rows each line
+ *   reads (see {@link #getVirtualRowsReadPerLine()});
  * - **index level** (the indexes maintaining the partitions must not notice the registry) - the global index's
  *   members and attribute indexes, every referenced-type index's advertised partitions per referenced entity, its
  *   filter values with their complete value-to-record mappings and its registration counts, every advertised
@@ -189,6 +225,21 @@ import static org.junit.jupiter.api.Assertions.fail;
  * Failures can be injected right after a transition, in both engines at once (see
  * {@link #failingStepAfter(String, TransitionStage, String, int, Consumer)}): the engine that maintains nothing passes
  * the very same transitions, so both fail at the same point of the same mutation and must end in the same state.
+ *
+ * # Shapes left out
+ *
+ * A few query shapes fail with the switch off as well, so a line built on them would compare two failures. They are
+ * left out, and nothing virtual is lost by it - each is a pre-existing defect of the object reading:
+ *
+ * - the block-by-block ordering by the referenced primary key over a reference allowing duplicates (a stale read of a
+ *   scratch buffer in the merge walk of `SortedRecordsSupplierFactory`, fixed on the unmerged #1670 branch);
+ * - `attributeSetExact` in a block-by-block ordering over several partitions, or over a partition holding no value of
+ *   the attribute - the line narrows the owners to those of one target whose row carries a value;
+ * - the `pickFirst` ordering through the prefetch route by an attribute whose type is not `Comparable` (`Currency`,
+ *   `Locale`), which compares the values with the comparator of the entities.
+ *
+ * Archiving the second owner of a shared partition carrying a `ReferencedEntityPredecessor` fails with the switch off
+ * as well (#1691), so a history must not do it.
  *
  * # Accepted differences
  *
@@ -242,6 +293,98 @@ final class DifferentialEngines implements AutoCloseable {
 	 * How many differences a failure message lists before it is cut short.
 	 */
 	private static final int REPORTED_DIFFERENCES = 40;
+	/**
+	 * The seed of the random target order of the `pickFirst` lines of the prefetch route.
+	 */
+	private static final long SEED = 42L;
+	/**
+	 * The line fetching every entity body of a scope.
+	 */
+	static final String LINE_ENTITY_BODIES = "entityBodies";
+	/**
+	 * The lines of `referenceHaving` asking for one target.
+	 */
+	static final String LINE_REFERENCE_HAVING_TARGET = "referenceHaving/entityPrimaryKeyInSet";
+	/**
+	 * The line of `referenceHaving` negating every other target.
+	 */
+	static final String LINE_REFERENCE_HAVING_NOT = "referenceHaving/not";
+	/**
+	 * The line of `referenceHaving` asking for every other group.
+	 */
+	static final String LINE_REFERENCE_HAVING_GROUP = "referenceHaving/groupHaving";
+	/**
+	 * The lines of `referenceHaving` asking for one owner locale.
+	 */
+	static final String LINE_REFERENCE_HAVING_LOCALE = "referenceHaving/entityLocaleEquals";
+	/**
+	 * The lines of `referenceHaving` bounding one attribute, every collection read virtually.
+	 */
+	static final String LINE_REFERENCE_HAVING_ATTRIBUTE = "referenceHaving/attribute";
+	/**
+	 * The lines of `referenceHaving` bounding one attribute, only the counterpart's collection read virtually.
+	 */
+	static final String LINE_BIDIRECTIONAL = "bidirectional";
+	/**
+	 * The line of `referenceContent(filterBy)` asking for every other target.
+	 */
+	static final String LINE_REFERENCE_CONTENT_FILTER = "referenceContent/filterBy";
+	/**
+	 * The lines of `referenceContent(orderBy)` by one chained attribute.
+	 */
+	static final String LINE_REFERENCE_CONTENT_CHAIN = "referenceContent/orderByChain";
+	/**
+	 * The lines of `hierarchyWithin` of one target.
+	 */
+	static final String LINE_HIERARCHY_WITHIN = "hierarchyWithin";
+	/**
+	 * The line of `hierarchyWithinRoot`.
+	 */
+	static final String LINE_HIERARCHY_WITHIN_ROOT = "hierarchyWithinRoot";
+	/**
+	 * The line of the `hierarchyOfReference` statistics.
+	 */
+	static final String LINE_HIERARCHY_STATISTICS = "hierarchyStatistics";
+	/**
+	 * The lines of the `pickFirst` ordering by one attribute through the index route.
+	 */
+	static final String LINE_PICK_FIRST_INDEX = "pickFirst/attribute/index";
+	/**
+	 * The lines of the `pickFirst` orderings through the prefetch route.
+	 */
+	static final String LINE_PICK_FIRST_PREFETCH = "pickFirst/prefetch";
+	/**
+	 * The line of the `pickFirst` ordering by the referenced primary key through the index route.
+	 */
+	static final String LINE_PICK_FIRST_REFERENCED_KEY = "pickFirst/referencedPrimaryKey/index";
+	/**
+	 * The lines of the block-by-block ordering by one sortable attribute.
+	 */
+	static final String LINE_TRAVERSE_ATTRIBUTE = "traverse/attribute";
+	/**
+	 * The lines of the block-by-block ordering by one chained attribute.
+	 */
+	static final String LINE_TRAVERSE_CHAIN = "traverse/chain";
+	/**
+	 * The line of the block-by-block ordering by the referenced primary key.
+	 */
+	static final String LINE_TRAVERSE_REFERENCED_KEY = "traverse/referencedPrimaryKey";
+	/**
+	 * The lines of the block-by-block ordering by `attributeSetExact` of one attribute.
+	 */
+	static final String LINE_TRAVERSE_ATTRIBUTE_SET_EXACT = "traverse/attributeSetExact";
+	/**
+	 * The line of the facet summary.
+	 */
+	static final String LINE_FACET_SUMMARY = "facetSummary";
+	/**
+	 * The line of the reference histograms.
+	 */
+	static final String LINE_REFERENCE_HISTOGRAMS = "referenceHistograms";
+	/**
+	 * The line of the attribute histograms.
+	 */
+	static final String LINE_ATTRIBUTE_HISTOGRAMS = "attributeHistograms";
 
 	/**
 	 * The test owning the engines, used for their directories and configuration.
@@ -282,6 +425,11 @@ final class DifferentialEngines implements AutoCloseable {
 	 * The transitions the maintaining engine passed.
 	 */
 	private final TransitionHistory maintainingHistory = new TransitionHistory();
+	/**
+	 * The virtual rows the query lines of the maintaining engine read, summed per line name over every checkpoint -
+	 * see {@link #getVirtualRowsReadPerLine()}.
+	 */
+	private final SortedMap<String, Long> virtualRowsPerLine = new TreeMap<>();
 	/**
 	 * The engine with the switch off.
 	 */
@@ -344,6 +492,7 @@ final class DifferentialEngines implements AutoCloseable {
 		this.maintaining.defineCatalog(CATALOG).updateViaNewSession(this.maintaining);
 		catalogOf(this.reference).getVirtualReferencePartitionMaintenance().setProbe(this.referenceHistory);
 		catalogOf(this.maintaining).getVirtualReferencePartitionMaintenance().setProbe(this.maintainingHistory);
+		switchReferenceEngineOff();
 		switchMaintainingEngineOn();
 		step("setup", setup);
 		if (state == CatalogState.ALIVE) {
@@ -573,6 +722,18 @@ final class DifferentialEngines implements AutoCloseable {
 	@Nonnull
 	Evita getMaintaining() {
 		return this.maintaining;
+	}
+
+	/**
+	 * Returns how many virtual rows the query lines of the maintaining engine read, summed per line name (the `LINE_*`
+	 * constants) over every checkpoint so far. A line that never ran is absent; a line that ran without reading a
+	 * virtual row maps to zero.
+	 *
+	 * @return the virtual rows read per line name
+	 */
+	@Nonnull
+	SortedMap<String, Long> getVirtualRowsReadPerLine() {
+		return Collections.unmodifiableSortedMap(this.virtualRowsPerLine);
 	}
 
 	/**
@@ -837,6 +998,20 @@ final class DifferentialEngines implements AutoCloseable {
 	}
 
 	/**
+	 * Switches the reference engine off for every entity type the history uses. A no-op unless the JVM runs in the
+	 * forced mode of the virtual reference partitions, where a brand-new catalog is maintained and read virtually by
+	 * default (see {@link io.evitadb.core.catalog.VirtualReferencePartitionMaintenance}) and the reference engine would
+	 * otherwise become a second maintaining engine.
+	 */
+	private void switchReferenceEngineOff() {
+		final Catalog catalog = catalogOf(this.reference);
+		for (final String entityType : this.entityTypes) {
+			catalog.getVirtualReferencePartitionMaintenance().setReadVirtually(entityType, false);
+			catalog.getVirtualReferencePartitionMaintenance().setMaintained(entityType, false);
+		}
+	}
+
+	/**
 	 * Switches the maintaining engine on for every entity type the history uses, whether its collection exists yet or
 	 * not.
 	 */
@@ -955,7 +1130,7 @@ final class DifferentialEngines implements AutoCloseable {
 			final ReadRouteActivation activation = maintained ?
 				new ReadRouteActivation(
 					catalog.getVirtualReferencePartitionMaintenance(), this.entityTypes,
-					ReadRouteActivation.LANDED_ROUTES
+					ReadRouteActivation.LANDED_ROUTES, this.virtualRowsPerLine
 				) :
 				ReadRouteActivation.OFF;
 			for (final Scope scope : Scope.values()) {
@@ -974,7 +1149,26 @@ final class DifferentialEngines implements AutoCloseable {
 	/**
 	 * Adds the query-level lines of one collection and scope.
 	 *
-	 * Each query line runs with the read switch the activation gives its routes - see {@link ReadRouteActivation}.
+	 * Each query line runs with the read switch the activation gives its routes - see {@link ReadRouteActivation} - and
+	 * counts the virtual rows it reads under its line name (the `LINE_*` constants). Besides the entity bodies, the
+	 * facet summary and the histograms, every reference indexed in the scope gets the lines of every query route of the
+	 * virtual reading its schema admits:
+	 *
+	 * - `referenceHaving` of every target, of the negation of every other target, of every other group
+	 *   (`groupHaving`), of every owner locale (`entityLocaleEquals`) and of an upper bound of every comparable
+	 *   filterable attribute - the last also answered by the bidirectional rewrite when the reference has a
+	 *   counterpart, on a line that reads only the counterpart's collection virtually;
+	 * - `referenceContent(filterBy)` of every other target and `referenceContent(orderBy)` of every chained attribute;
+	 * - `hierarchyWithinRoot`, `hierarchyWithin` of every target and the `hierarchyOfReference` statistics of a
+	 *   reference to a hierarchical entity;
+	 * - the `pickFirst` orderings of a reference to a non-hierarchical entity - by every sortable attribute and by the
+	 *   referenced primary key, through the index route and through the prefetch route;
+	 * - the block-by-block orderings - `traverseByEntityProperty` by every sortable and every chained attribute, by
+	 *   `attributeSetExact` of a filterable attribute and by the referenced primary key.
+	 *
+	 * Two block-by-block shapes are left out for a reference allowing duplicates, because pre-existing defects make
+	 * them fail with the switch off as well (see the class documentation): the referenced primary key and
+	 * `attributeSetExact`.
 	 *
 	 * @param snapshot   the snapshot to add to
 	 * @param session    the session to query in
@@ -992,20 +1186,17 @@ final class DifferentialEngines implements AutoCloseable {
 		final String entityType = schema.getName();
 		final String prefix = "query/" + entityType + "/" + scope + "/";
 		final EvitaResponse<SealedEntity> bodies = activation.run(
+			LINE_ENTITY_BODIES,
 			EnumSet.of(ReadRoute.ENTITY_BODY),
 			() -> session.query(
 				query(collection(entityType), filterBy(scope(scope)), require(page(1, PAGE_SIZE), entityFetchAll())),
 				SealedEntity.class
 			)
 		);
-		final Map<String, Set<Integer>> targetsByReference = new TreeMap<>();
+		final ReferenceSample sample = new ReferenceSample();
 		for (final SealedEntity entity : bodies.getRecordData()) {
 			snapshot.put(prefix + "entity/" + entity.getPrimaryKeyOrThrowException(), entity.toString());
-			for (final ReferenceContract reference : entity.getReferences()) {
-				targetsByReference
-					.computeIfAbsent(reference.getReferenceName(), __ -> new TreeSet<>())
-					.add(reference.getReferencedPrimaryKey());
-			}
+			sample.addOwner(entity);
 		}
 
 		boolean faceted = false;
@@ -1017,19 +1208,16 @@ final class DifferentialEngines implements AutoCloseable {
 				continue;
 			}
 			final String referenceName = referenceSchema.getName();
-			for (final Integer target : targetsByReference.getOrDefault(referenceName, Set.of())) {
+			final Set<Integer> targets = sample.getTargets(referenceName);
+			for (final Integer target : targets) {
 				final EvitaResponse<EntityReference> matching = activation.run(
+					LINE_REFERENCE_HAVING_TARGET,
 					EnumSet.of(
 						ReadRoute.REFERENCE_HAVING_BODY, ReadRoute.REFERENCE_HAVING_TARGET_INDEXES,
 						ReadRoute.REFERENCED_ENTITY_IN_BODY, ReadRoute.PARTITION_TO_TARGET
 					),
-					() -> session.query(
-						query(
-							collection(entityType),
-							filterBy(scope(scope), referenceHaving(referenceName, entityPrimaryKeyInSet(target))),
-							require(page(1, PAGE_SIZE))
-						),
-						EntityReference.class
+					() -> queryOwners(
+						session, entityType, scope, referenceHaving(referenceName, entityPrimaryKeyInSet(target))
 					)
 				);
 				snapshot.put(
@@ -1038,18 +1226,29 @@ final class DifferentialEngines implements AutoCloseable {
 				);
 			}
 			describeNegatedReferenceHaving(
-				snapshot, session, entityType, scope, referenceName,
-				targetsByReference.getOrDefault(referenceName, Set.of()), activation, prefix
+				snapshot, session, entityType, scope, referenceName, targets, activation, prefix
 			);
 			describeFilteredReferenceContent(
-				snapshot, session, entityType, scope, referenceName,
-				targetsByReference.getOrDefault(referenceName, Set.of()), activation, prefix
+				snapshot, session, entityType, scope, referenceName, targets, activation, prefix
+			);
+			describeGroupHaving(snapshot, session, entityType, scope, referenceSchema, sample, activation, prefix);
+			describeLocaleHaving(snapshot, session, entityType, scope, referenceName, sample, activation, prefix);
+			describeAttributeHaving(
+				snapshot, session, schema, scope, referenceSchema, sample, activation, prefix
+			);
+			final boolean hierarchical = isReferenceToHierarchy(session, referenceSchema, null);
+			if (isReferenceToHierarchy(session, referenceSchema, scope)) {
+				describeHierarchy(snapshot, session, entityType, scope, referenceName, targets, activation, prefix);
+			}
+			describeOrderings(
+				snapshot, session, entityType, scope, referenceSchema, hierarchical, sample, activation, prefix
 			);
 		}
 		if (faceted) {
 			describeExtraResults(
 				snapshot, prefix + "facetSummary",
 				activation.run(
+					LINE_FACET_SUMMARY,
 					EnumSet.of(ReadRoute.FACETS_AND_HISTOGRAMS),
 					() -> session.query(
 						query(collection(entityType), filterBy(scope(scope)), require(page(1, 1), facetSummary())),
@@ -1062,6 +1261,7 @@ final class DifferentialEngines implements AutoCloseable {
 			describeExtraResults(
 				snapshot, prefix + "referenceHistograms",
 				activation.run(
+					LINE_REFERENCE_HISTOGRAMS,
 					EnumSet.of(ReadRoute.FACETS_AND_HISTOGRAMS),
 					() -> session.query(
 						query(
@@ -1090,6 +1290,7 @@ final class DifferentialEngines implements AutoCloseable {
 			describeExtraResults(
 				snapshot, prefix + "attributeHistograms",
 				activation.run(
+					LINE_ATTRIBUTE_HISTOGRAMS,
 					EnumSet.of(ReadRoute.FACETS_AND_HISTOGRAMS),
 					() -> session.query(
 						query(
@@ -1131,28 +1332,15 @@ final class DifferentialEngines implements AutoCloseable {
 		if (targets.isEmpty()) {
 			return;
 		}
-		final List<Integer> everyOther = new ArrayList<>((targets.size() + 1) / 2);
-		int index = 0;
-		for (final Integer target : targets) {
-			if (index++ % 2 == 0) {
-				everyOther.add(target);
-			}
-		}
+		final Integer[] everyOther = everyOther(targets);
 		final EvitaResponse<EntityReference> matching = activation.run(
+			LINE_REFERENCE_HAVING_NOT,
 			EnumSet.of(
 				ReadRoute.REFERENCE_HAVING_BODY, ReadRoute.REFERENCE_HAVING_TARGET_INDEXES,
 				ReadRoute.REFERENCED_ENTITY_IN_BODY, ReadRoute.NEGATION_IN_BODY
 			),
-			() -> session.query(
-				query(
-					collection(entityType),
-					filterBy(
-						scope(scope),
-						referenceHaving(referenceName, not(entityPrimaryKeyInSet(everyOther.toArray(Integer[]::new))))
-					),
-					require(page(1, PAGE_SIZE))
-				),
-				EntityReference.class
+			() -> queryOwners(
+				session, entityType, scope, referenceHaving(referenceName, not(entityPrimaryKeyInSet(everyOther)))
 			)
 		);
 		snapshot.put(
@@ -1189,14 +1377,9 @@ final class DifferentialEngines implements AutoCloseable {
 		if (targets.isEmpty()) {
 			return;
 		}
-		final List<Integer> everyOther = new ArrayList<>((targets.size() + 1) / 2);
-		int index = 0;
-		for (final Integer target : targets) {
-			if (index++ % 2 == 0) {
-				everyOther.add(target);
-			}
-		}
+		final Integer[] everyOther = everyOther(targets);
 		final EvitaResponse<SealedEntity> filtered = activation.run(
+			LINE_REFERENCE_CONTENT_FILTER,
 			EnumSet.of(ReadRoute.REFERENCE_CONTENT_FILTER, ReadRoute.REFERENCED_ENTITY_IN_BODY),
 			() -> session.query(
 				query(
@@ -1205,25 +1388,635 @@ final class DifferentialEngines implements AutoCloseable {
 					require(
 						page(1, PAGE_SIZE),
 						entityFetch(
-							referenceContentWithAttributes(
-								referenceName, filterBy(entityPrimaryKeyInSet(everyOther.toArray(Integer[]::new)))
-							)
+							referenceContentWithAttributes(referenceName, filterBy(entityPrimaryKeyInSet(everyOther)))
 						)
 					)
 				),
 				SealedEntity.class
 			)
 		);
-		for (final SealedEntity entity : filtered.getRecordData()) {
+		putReferences(snapshot, prefix + "referenceContent/" + referenceName + "/", referenceName, filtered, false);
+	}
+
+	/**
+	 * Adds one line with the owners `referenceHaving` matches when its body asks for every other group the rows of
+	 * the reference belong to - a group leaf, which a row read virtually answers from the group of its own row only.
+	 * Only a group entity managed by evitaDB can be asked for.
+	 *
+	 * @param snapshot        the snapshot to add to
+	 * @param session         the session to query in
+	 * @param entityType      the collection
+	 * @param scope           the scope to query
+	 * @param referenceSchema the reference
+	 * @param sample          what the entity bodies of the collection hold
+	 * @param activation      decides the read switch of the line
+	 * @param prefix          the path prefix of the lines
+	 */
+	private static void describeGroupHaving(
+		@Nonnull Snapshot snapshot,
+		@Nonnull EvitaSessionContract session,
+		@Nonnull String entityType,
+		@Nonnull Scope scope,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceSample sample,
+		@Nonnull ReadRouteActivation activation,
+		@Nonnull String prefix
+	) {
+		final String referenceName = referenceSchema.getName();
+		final Set<Integer> groups = sample.getGroups(referenceName);
+		if (
+			referenceSchema.getReferencedGroupType() == null || !referenceSchema.isReferencedGroupTypeManaged() ||
+				groups.isEmpty()
+		) {
+			return;
+		}
+		final Integer[] everyOther = everyOther(groups);
+		final EvitaResponse<EntityReference> matching = activation.run(
+			LINE_REFERENCE_HAVING_GROUP,
+			EnumSet.of(
+				ReadRoute.REFERENCE_HAVING_BODY, ReadRoute.REFERENCE_HAVING_TARGET_INDEXES, ReadRoute.GROUP_IN_BODY
+			),
+			() -> queryOwners(
+				session, entityType, scope,
+				referenceHaving(referenceName, groupHaving(entityPrimaryKeyInSet(everyOther)))
+			)
+		);
+		snapshot.put(
+			prefix + "referenceHaving/" + referenceName + "/groupHaving",
+			String.valueOf(primaryKeysOf(matching.getRecordData()))
+		);
+	}
+
+	/**
+	 * Adds one line per locale the owners of the collection hold with the owners `referenceHaving` matches when its
+	 * body asks for that locale - a locale leaf, which a row read virtually answers from the locales of its owner.
+	 *
+	 * @param snapshot      the snapshot to add to
+	 * @param session       the session to query in
+	 * @param entityType    the collection
+	 * @param scope         the scope to query
+	 * @param referenceName the reference
+	 * @param sample        what the entity bodies of the collection hold
+	 * @param activation    decides the read switch of the line
+	 * @param prefix        the path prefix of the lines
+	 */
+	private static void describeLocaleHaving(
+		@Nonnull Snapshot snapshot,
+		@Nonnull EvitaSessionContract session,
+		@Nonnull String entityType,
+		@Nonnull Scope scope,
+		@Nonnull String referenceName,
+		@Nonnull ReferenceSample sample,
+		@Nonnull ReadRouteActivation activation,
+		@Nonnull String prefix
+	) {
+		if (sample.getTargets(referenceName).isEmpty()) {
+			return;
+		}
+		for (final Locale locale : sample.getLocales()) {
+			final EvitaResponse<EntityReference> matching = activation.run(
+				LINE_REFERENCE_HAVING_LOCALE,
+				EnumSet.of(
+					ReadRoute.REFERENCE_HAVING_BODY, ReadRoute.REFERENCE_HAVING_TARGET_INDEXES, ReadRoute.LOCALE_IN_BODY
+				),
+				() -> queryOwners(
+					session, entityType, scope, referenceHaving(referenceName, entityLocaleEquals(locale))
+				)
+			);
 			snapshot.put(
-				prefix + "referenceContent/" + referenceName + "/" + entity.getPrimaryKeyOrThrowException(),
-				entity.getReferences(referenceName).stream()
-					.map(it -> it.getReferenceKey() + " " + it.getAttributeValues())
-					.sorted()
-					.toList()
-					.toString()
+				prefix + "referenceHaving/" + referenceName + "/locale/" + locale.toLanguageTag(),
+				String.valueOf(primaryKeysOf(matching.getRecordData()))
 			);
 		}
+	}
+
+	/**
+	 * Adds, for every filterable non-localized numeric or string attribute of the reference the rows of the
+	 * collection carry, one line with the owners `referenceHaving` matches when its body bounds the attribute by the
+	 * median of its values - a row-exact body - and, when the reference has a counterpart, one more line answering the
+	 * very same query with only the counterpart's collection read virtually, so whatever it reads virtually is read by
+	 * the bidirectional rewrite.
+	 *
+	 * @param snapshot        the snapshot to add to
+	 * @param session         the session to query in
+	 * @param schema          the schema of the collection
+	 * @param scope           the scope to query
+	 * @param referenceSchema the reference
+	 * @param sample          what the entity bodies of the collection hold
+	 * @param activation      decides the read switch of the lines
+	 * @param prefix          the path prefix of the lines
+	 */
+	private static void describeAttributeHaving(
+		@Nonnull Snapshot snapshot,
+		@Nonnull EvitaSessionContract session,
+		@Nonnull EntitySchemaContract schema,
+		@Nonnull Scope scope,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceSample sample,
+		@Nonnull ReadRouteActivation activation,
+		@Nonnull String prefix
+	) {
+		final String entityType = schema.getName();
+		final String referenceName = referenceSchema.getName();
+		final boolean counterpart = hasCounterpart(session, schema, referenceSchema);
+		for (final AttributeSchemaContract attributeSchema : referenceSchema.getAttributes().values()) {
+			final String attributeName = attributeSchema.getName();
+			final List<Serializable> values = sample.getAttributeValues(referenceName, attributeName);
+			if (
+				!attributeSchema.isFilterableInScope(scope) || attributeSchema.isLocalized() ||
+					!isComparablePlainType(attributeSchema.getPlainType()) || values.isEmpty()
+			) {
+				continue;
+			}
+			final Serializable median = values.get(values.size() / 2);
+			final FilterConstraint body = referenceHaving(
+				referenceName, attributeLessThanEquals(attributeName, median)
+			);
+			final EvitaResponse<EntityReference> matching = activation.run(
+				LINE_REFERENCE_HAVING_ATTRIBUTE,
+				EnumSet.of(ReadRoute.REFERENCE_HAVING_BODY, ReadRoute.REFERENCE_HAVING_TARGET_INDEXES),
+				() -> queryOwners(session, entityType, scope, body)
+			);
+			snapshot.put(
+				prefix + "referenceHaving/" + referenceName + "/attribute/" + attributeName,
+				String.valueOf(primaryKeysOf(matching.getRecordData()))
+			);
+			if (counterpart) {
+				final EvitaResponse<EntityReference> rewritten = activation.run(
+					LINE_BIDIRECTIONAL,
+					EnumSet.of(ReadRoute.BIDIRECTIONAL_REWRITE),
+					Set.of(referenceSchema.getReferencedEntityType()),
+					() -> queryOwners(session, entityType, scope, body)
+				);
+				snapshot.put(
+					prefix + "bidirectional/" + referenceName + "/" + attributeName,
+					String.valueOf(primaryKeysOf(rewritten.getRecordData()))
+				);
+			}
+		}
+	}
+
+	/**
+	 * Adds the hierarchy lines of a reference to a hierarchical entity: the owners `hierarchyWithinRoot` matches, the
+	 * owners `hierarchyWithin` matches for every target, and the `hierarchyOfReference` statistics from the root.
+	 *
+	 * @param snapshot      the snapshot to add to
+	 * @param session       the session to query in
+	 * @param entityType    the collection
+	 * @param scope         the scope to query
+	 * @param referenceName the reference
+	 * @param targets       the targets the entities of the collection reference, ascending
+	 * @param activation    decides the read switch of the lines
+	 * @param prefix        the path prefix of the lines
+	 */
+	private static void describeHierarchy(
+		@Nonnull Snapshot snapshot,
+		@Nonnull EvitaSessionContract session,
+		@Nonnull String entityType,
+		@Nonnull Scope scope,
+		@Nonnull String referenceName,
+		@Nonnull Set<Integer> targets,
+		@Nonnull ReadRouteActivation activation,
+		@Nonnull String prefix
+	) {
+		final EvitaResponse<EntityReference> withinRoot = activation.run(
+			LINE_HIERARCHY_WITHIN_ROOT,
+			EnumSet.of(ReadRoute.HIERARCHY_WITHIN),
+			() -> queryOwners(session, entityType, scope, hierarchyWithinRoot(referenceName))
+		);
+		snapshot.put(
+			prefix + "hierarchyWithinRoot/" + referenceName, String.valueOf(primaryKeysOf(withinRoot.getRecordData()))
+		);
+		for (final Integer target : targets) {
+			final EvitaResponse<EntityReference> within = activation.run(
+				LINE_HIERARCHY_WITHIN,
+				EnumSet.of(ReadRoute.HIERARCHY_WITHIN),
+				() -> queryOwners(
+					session, entityType, scope, hierarchyWithin(referenceName, entityPrimaryKeyInSet(target))
+				)
+			);
+			snapshot.put(
+				prefix + "hierarchyWithin/" + referenceName + "/" + target,
+				String.valueOf(primaryKeysOf(within.getRecordData()))
+			);
+		}
+		describeExtraResults(
+			snapshot, prefix + "hierarchyStatistics/" + referenceName,
+			activation.run(
+				LINE_HIERARCHY_STATISTICS,
+				EnumSet.of(ReadRoute.HIERARCHY_STATISTICS),
+				() -> session.query(
+					query(
+						collection(entityType),
+						filterBy(scope(scope)),
+						require(
+							page(1, 1),
+							hierarchyOfReference(
+								referenceName, EmptyHierarchicalEntityBehaviour.LEAVE_EMPTY,
+								fromRoot(
+									"tree",
+									statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
+								)
+							)
+						)
+					),
+					EntityReference.class
+				)
+			)
+		);
+	}
+
+	/**
+	 * Adds the ordering lines of a reference - each the owners of the collection in the order the ordering sorts them:
+	 *
+	 * - for a reference to a non-hierarchical entity, the `pickFirst` orderings by every sortable non-chained attribute
+	 *   and by the referenced primary key, each through the index route over every owner with the targets in
+	 *   descending primary key order, and through the prefetch route over every other owner with the targets in a
+	 *   seeded random order - the prefetch route answers the plain primary key order without any partition, and it
+	 *   runs for a `Comparable` attribute type only, because it fails for the others with the switch off as well;
+	 * - the block-by-block orderings by every sortable attribute, chained ones included, and - for a reference not
+	 *   allowing duplicates - by the referenced primary key and by `attributeSetExact` of every sortable numeric or
+	 *   string attribute, the latter over the owners of one target whose row carries a value, referenced by a single
+	 *   owner where there is one: it sorts by the sort index of the only partition the ordering plans over and fails
+	 *   over several partitions and over a partition holding no value, with the switch off as well;
+	 * - `referenceContent(orderBy)` of every sortable chained attribute, one line per owner.
+	 *
+	 * @param snapshot        the snapshot to add to
+	 * @param session         the session to query in
+	 * @param entityType      the collection
+	 * @param scope           the scope to query
+	 * @param referenceSchema the reference
+	 * @param hierarchical    TRUE when the reference targets a hierarchical entity, which admits no `pickFirst`
+	 * @param sample          what the entity bodies of the collection hold
+	 * @param activation      decides the read switch of the lines
+	 * @param prefix          the path prefix of the lines
+	 */
+	private static void describeOrderings(
+		@Nonnull Snapshot snapshot,
+		@Nonnull EvitaSessionContract session,
+		@Nonnull String entityType,
+		@Nonnull Scope scope,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		boolean hierarchical,
+		@Nonnull ReferenceSample sample,
+		@Nonnull ReadRouteActivation activation,
+		@Nonnull String prefix
+	) {
+		final String referenceName = referenceSchema.getName();
+		final List<Integer> owners = sample.getOwners();
+		if (sample.getTargets(referenceName).isEmpty()) {
+			return;
+		}
+		final FilterConstraint everyOtherOwner = entityPrimaryKeyInSet(everyOther(owners));
+		final boolean duplicates = referenceSchema.getCardinality().allowsDuplicates();
+		final String orderPrefix = prefix + "order/" + referenceName + "/";
+		for (final AttributeSchemaContract attributeSchema : new TreeMap<>(referenceSchema.getAttributes()).values()) {
+			if (!attributeSchema.isSortableInScope(scope) || attributeSchema.isLocalized()) {
+				continue;
+			}
+			final String attributeName = attributeSchema.getName();
+			final boolean chained = Predecessor.class.equals(attributeSchema.getPlainType()) ||
+				ReferencedEntityPredecessor.class.equals(attributeSchema.getPlainType());
+			// the prefetch route compares the values of a type that is not `Comparable` with the comparator of the
+			// entities and fails with the switch off as well, so it runs for comparable types only
+			final boolean prefetchable = Comparable.class.isAssignableFrom(attributeSchema.getPlainType());
+			if (!chained && !hierarchical) {
+				final OrderConstraint pickFirst = referenceProperty(
+					referenceName,
+					pickFirstByEntityProperty(entityPrimaryKeyNatural(OrderDirection.DESC)),
+					attributeNatural(attributeName, OrderDirection.ASC)
+				);
+				putOrder(
+					snapshot, orderPrefix + "pickFirst/" + attributeName + "/index", activation, LINE_PICK_FIRST_INDEX,
+					EnumSet.of(ReadRoute.PICK_FIRST_GATHER, ReadRoute.PICK_FIRST_CLAIM, ReadRoute.PICK_FIRST_VALUE),
+					() -> queryOrder(session, entityType, scope, null, pickFirst, DebugMode.PREFER_INDEX_SCAN)
+				);
+			}
+			if (!chained && !hierarchical && prefetchable) {
+				// the prefetch route ranks the targets through the partitions only for an order other than the plain
+				// primary key one, which it answers without touching any partition
+				putOrder(
+					snapshot, orderPrefix + "pickFirst/" + attributeName + "/prefetch", activation,
+					LINE_PICK_FIRST_PREFETCH,
+					EnumSet.of(ReadRoute.PICK_FIRST_GATHER, ReadRoute.PICK_FIRST_TARGET_RANK),
+					() -> queryOrder(
+						session, entityType, scope, everyOtherOwner,
+						referenceProperty(
+							referenceName,
+							pickFirstByEntityProperty(randomWithSeed(SEED)),
+							attributeNatural(attributeName, OrderDirection.ASC)
+						),
+						DebugMode.PREFER_PREFETCHING
+					)
+				);
+			}
+			putOrder(
+				snapshot, orderPrefix + "traverse/" + attributeName, activation,
+				chained ? LINE_TRAVERSE_CHAIN : LINE_TRAVERSE_ATTRIBUTE,
+				EnumSet.of(ReadRoute.TRAVERSE_PLANNING_SET, ReadRoute.SEQUENTIAL_BLOCKS, ReadRoute.BLOCK_PROVIDERS),
+				() -> queryOrder(
+					session, entityType, scope, null,
+					referenceProperty(
+						referenceName,
+						traverseByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
+						attributeNatural(attributeName, OrderDirection.ASC)
+					),
+					DebugMode.PREFER_INDEX_SCAN
+				)
+			);
+			if (chained) {
+				final EvitaResponse<SealedEntity> chainedContent = activation.run(
+					LINE_REFERENCE_CONTENT_CHAIN,
+					EnumSet.of(ReadRoute.REFERENCE_CONTENT_CHAIN),
+					() -> session.query(
+						query(
+							collection(entityType),
+							filterBy(scope(scope)),
+							require(
+								page(1, PAGE_SIZE),
+								entityFetch(
+									referenceContentWithAttributes(
+										referenceName, orderBy(attributeNatural(attributeName, OrderDirection.ASC))
+									)
+								)
+							)
+						),
+						SealedEntity.class
+					)
+				);
+				putReferences(
+					snapshot, prefix + "referenceContent/" + referenceName + "/chain/" + attributeName + "/",
+					referenceName, chainedContent, true
+				);
+			}
+		}
+		if (!hierarchical) {
+			final OrderConstraint byReferencedKey = referenceProperty(
+				referenceName, entityPrimaryKeyNatural(OrderDirection.ASC)
+			);
+			putOrder(
+				snapshot, orderPrefix + "pickFirst/referencedPrimaryKey/index", activation,
+				LINE_PICK_FIRST_REFERENCED_KEY,
+				EnumSet.of(ReadRoute.PICK_FIRST_GATHER, ReadRoute.PICK_FIRST_REFERENCED_PRIMARY_KEY),
+				() -> queryOrder(session, entityType, scope, null, byReferencedKey, DebugMode.PREFER_INDEX_SCAN)
+			);
+			putOrder(
+				snapshot, orderPrefix + "pickFirst/referencedPrimaryKey/prefetch", activation,
+				LINE_PICK_FIRST_PREFETCH,
+				EnumSet.of(ReadRoute.PICK_FIRST_GATHER, ReadRoute.PICK_FIRST_TARGET_RANK),
+				() -> queryOrder(
+					session, entityType, scope, everyOtherOwner,
+					referenceProperty(
+						referenceName,
+						pickFirstByEntityProperty(randomWithSeed(SEED)),
+						entityPrimaryKeyNatural(OrderDirection.ASC)
+					),
+					DebugMode.PREFER_PREFETCHING
+				)
+			);
+		}
+		if (duplicates) {
+			return;
+		}
+		putOrder(
+			snapshot, orderPrefix + "traverse/referencedPrimaryKey", activation, LINE_TRAVERSE_REFERENCED_KEY,
+			EnumSet.of(
+				ReadRoute.TRAVERSE_PLANNING_SET, ReadRoute.SEQUENTIAL_BLOCKS, ReadRoute.BLOCK_REFERENCED_PRIMARY_KEY
+			),
+			() -> queryOrder(
+				session, entityType, scope, null,
+				referenceProperty(
+					referenceName,
+					traverseByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
+					entityPrimaryKeyNatural(OrderDirection.DESC)
+				),
+				DebugMode.PREFER_INDEX_SCAN
+			)
+		);
+		for (final AttributeSchemaContract attributeSchema : new TreeMap<>(referenceSchema.getAttributes()).values()) {
+			final String attributeName = attributeSchema.getName();
+			final List<Serializable> values = sample.getAttributeValues(referenceName, attributeName);
+			// `attributeSetExact` sorts by the sort index of the only partition the ordering plans over, and fails with
+			// the switch off as well over several partitions and over a partition holding no value of the attribute -
+			// so the line narrows the owners to those of one target whose row carries a value
+			final Integer exactTarget = sample.getTargetWithValue(referenceName, attributeName);
+			if (
+				!attributeSchema.isSortableInScope(scope) || attributeSchema.isLocalized() ||
+					!isComparablePlainType(attributeSchema.getPlainType()) || values.isEmpty() || exactTarget == null
+			) {
+				continue;
+			}
+			final FilterConstraint ownersOfExactTarget = referenceHaving(
+				referenceName, entityPrimaryKeyInSet(exactTarget)
+			);
+			// the last value first, so the exact order differs from the natural one
+			final Serializable[] exactOrder = values.size() == 1 ?
+				new Serializable[]{values.get(0)} :
+				new Serializable[]{values.get(values.size() - 1), values.get(0)};
+			putOrder(
+				snapshot, orderPrefix + "traverse/attributeSetExact/" + attributeName, activation,
+				LINE_TRAVERSE_ATTRIBUTE_SET_EXACT,
+				EnumSet.of(
+					ReadRoute.TRAVERSE_PLANNING_SET, ReadRoute.SEQUENTIAL_BLOCKS, ReadRoute.BLOCK_EXACT_ATTRIBUTE_SET
+				),
+				() -> queryOrder(
+					session, entityType, scope, ownersOfExactTarget,
+					referenceProperty(
+						referenceName,
+						traverseByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
+						attributeSetExact(attributeName, exactOrder)
+					),
+					DebugMode.PREFER_INDEX_SCAN
+				)
+			);
+		}
+	}
+
+	/**
+	 * Runs one ordering line and adds the owners it returned, in its order.
+	 *
+	 * @param snapshot   the snapshot to add to
+	 * @param path       the path of the line
+	 * @param activation decides the read switch of the line
+	 * @param line       the name the virtual rows of the line are counted under
+	 * @param routes     the routes the line exercises
+	 * @param query      the ordering query
+	 */
+	private static void putOrder(
+		@Nonnull Snapshot snapshot,
+		@Nonnull String path,
+		@Nonnull ReadRouteActivation activation,
+		@Nonnull String line,
+		@Nonnull Set<ReadRoute> routes,
+		@Nonnull Supplier<EvitaResponse<EntityReference>> query
+	) {
+		final EvitaResponse<EntityReference> ordered = activation.run(line, routes, query);
+		final List<Integer> primaryKeys = new ArrayList<>(ordered.getRecordData().size());
+		for (final EntityReference reference : ordered.getRecordData()) {
+			primaryKeys.add(reference.getPrimaryKey());
+		}
+		snapshot.put(path, primaryKeys.toString());
+	}
+
+	/**
+	 * Adds one line per fetched entity with its references of the reference - sorted, or in the order the response
+	 * holds them when that order is what the line compares.
+	 *
+	 * @param snapshot      the snapshot to add to
+	 * @param pathPrefix    the path prefix of the lines, completed by the entity primary key
+	 * @param referenceName the reference
+	 * @param response      the response holding the entities
+	 * @param keepOrder     TRUE to keep the order of the response, FALSE to sort the references
+	 */
+	private static void putReferences(
+		@Nonnull Snapshot snapshot,
+		@Nonnull String pathPrefix,
+		@Nonnull String referenceName,
+		@Nonnull EvitaResponse<SealedEntity> response,
+		boolean keepOrder
+	) {
+		for (final SealedEntity entity : response.getRecordData()) {
+			final List<String> references = new ArrayList<>(entity.getReferences(referenceName).size());
+			for (final ReferenceContract reference : entity.getReferences(referenceName)) {
+				references.add(reference.getReferenceKey() + " " + reference.getAttributeValues());
+			}
+			if (!keepOrder) {
+				Collections.sort(references);
+			}
+			snapshot.put(pathPrefix + entity.getPrimaryKeyOrThrowException(), references.toString());
+		}
+	}
+
+	/**
+	 * Queries the owners of the collection in the scope matching the filter.
+	 *
+	 * @param session    the session to query in
+	 * @param entityType the collection
+	 * @param scope      the scope to query
+	 * @param filter     the filter beside the scope
+	 * @return the response
+	 */
+	@Nonnull
+	private static EvitaResponse<EntityReference> queryOwners(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull String entityType,
+		@Nonnull Scope scope,
+		@Nonnull FilterConstraint filter
+	) {
+		return session.query(
+			query(collection(entityType), filterBy(scope(scope), filter), require(page(1, PAGE_SIZE))),
+			EntityReference.class
+		);
+	}
+
+	/**
+	 * Queries the owners of the collection in the scope in the order of the ordering.
+	 *
+	 * @param session    the session to query in
+	 * @param entityType the collection
+	 * @param scope      the scope to query
+	 * @param selection  the filter beside the scope, `null` for every owner
+	 * @param ordering   the ordering
+	 * @param debugMode  the debug mode forcing the route of the ordering
+	 * @return the response
+	 */
+	@Nonnull
+	private static EvitaResponse<EntityReference> queryOrder(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull String entityType,
+		@Nonnull Scope scope,
+		@Nullable FilterConstraint selection,
+		@Nonnull OrderConstraint ordering,
+		@Nonnull DebugMode debugMode
+	) {
+		return session.query(
+			query(
+				collection(entityType),
+				filterBy(scope(scope), selection),
+				orderBy(ordering),
+				require(page(1, PAGE_SIZE), debug(debugMode))
+			),
+			EntityReference.class
+		);
+	}
+
+	/**
+	 * Returns every other element of an ascending collection, starting with the first.
+	 *
+	 * @param elements the elements, ascending
+	 * @return every other element
+	 */
+	@Nonnull
+	private static Integer[] everyOther(@Nonnull Collection<Integer> elements) {
+		final List<Integer> everyOther = new ArrayList<>((elements.size() + 1) / 2);
+		int index = 0;
+		for (final Integer element : elements) {
+			if (index++ % 2 == 0) {
+				everyOther.add(element);
+			}
+		}
+		return everyOther.toArray(Integer[]::new);
+	}
+
+	/**
+	 * Returns TRUE for the attribute types whose values the bounded and exact lines can name - numbers and strings.
+	 *
+	 * @param plainType the plain type of the attribute
+	 * @return TRUE when the type is comparable by value
+	 */
+	private static boolean isComparablePlainType(@Nonnull Class<?> plainType) {
+		return String.class.equals(plainType) || Number.class.isAssignableFrom(plainType);
+	}
+
+	/**
+	 * Returns TRUE when the reference targets a managed hierarchical entity - whose hierarchy is indexed in the scope,
+	 * when one is given.
+	 *
+	 * @param session         the session reading the schemas
+	 * @param referenceSchema the reference
+	 * @param scope           the scope the hierarchy must be indexed in, `null` for any
+	 * @return TRUE when the reference targets a hierarchy
+	 */
+	private static boolean isReferenceToHierarchy(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Scope scope
+	) {
+		return referenceSchema.isReferencedEntityTypeManaged() &&
+			session.getEntitySchema(referenceSchema.getReferencedEntityType())
+				.map(it -> it.isWithHierarchy() && (scope == null || it.isHierarchyIndexedInScope(scope)))
+				.orElse(false);
+	}
+
+	/**
+	 * Returns TRUE when the reference has a counterpart the bidirectional rewrite could answer it from - it is a
+	 * reflected reference, or the referenced entity reflects it.
+	 *
+	 * @param session         the session reading the schemas
+	 * @param schema          the schema of the collection owning the reference
+	 * @param referenceSchema the reference
+	 * @return TRUE when the reference has a counterpart
+	 */
+	private static boolean hasCounterpart(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull EntitySchemaContract schema,
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		if (referenceSchema instanceof ReflectedReferenceSchemaContract) {
+			return true;
+		}
+		if (!referenceSchema.isReferencedEntityTypeManaged()) {
+			return false;
+		}
+		return session.getEntitySchema(referenceSchema.getReferencedEntityType())
+			.map(
+				target -> target.getReferences().values().stream().anyMatch(
+					it -> it instanceof final ReflectedReferenceSchemaContract reflected &&
+						schema.getName().equals(reflected.getReferencedEntityType()) &&
+						referenceSchema.getName().equals(reflected.getReflectedReferenceName())
+				)
+			)
+			.orElse(false);
 	}
 
 	/**
@@ -1666,9 +2459,6 @@ final class DifferentialEngines implements AutoCloseable {
 	}
 
 	/**
-	 * One engine reduced to sorted `path -> value` lines.
-	 */
-	/**
 	 * A check run on every collection of the maintaining engine at every checkpoint.
 	 */
 	@FunctionalInterface
@@ -1683,6 +2473,169 @@ final class DifferentialEngines implements AutoCloseable {
 		void check(@Nonnull String label, @Nonnull EntityCollection collection);
 	}
 
+	/**
+	 * What the entity bodies of one collection in one scope hold that the query lines are built from: the owners, their
+	 * locales, and per reference the targets, the groups and the values of every non-localized numeric or string
+	 * attribute of its rows.
+	 */
+	private static final class ReferenceSample {
+		/**
+		 * The owner primary keys, ascending.
+		 */
+		private final SortedSet<Integer> owners = new TreeSet<>();
+		/**
+		 * The locales of the owners, by language tag.
+		 */
+		private final SortedMap<String, Locale> locales = new TreeMap<>();
+		/**
+		 * The referenced primary keys per reference, ascending.
+		 */
+		private final Map<String, SortedSet<Integer>> targets = new TreeMap<>();
+		/**
+		 * How many owners reference each target, per reference.
+		 */
+		private final Map<String, Map<Integer, Integer>> ownersPerTarget = new TreeMap<>();
+		/**
+		 * The group primary keys per reference, ascending.
+		 */
+		private final Map<String, SortedSet<Integer>> groups = new TreeMap<>();
+		/**
+		 * The targets whose row carries a value of the attribute, per reference and attribute name.
+		 */
+		private final Map<String, SortedSet<Integer>> targetsWithValue = new TreeMap<>();
+		/**
+		 * The distinct values per reference and attribute name, ascending.
+		 */
+		private final Map<String, SortedSet<Comparable<Object>>> attributeValues = new TreeMap<>();
+
+		/**
+		 * Adds what one owner's body holds.
+		 *
+		 * @param entity the owner
+		 */
+		@SuppressWarnings("unchecked")
+		void addOwner(@Nonnull SealedEntity entity) {
+			this.owners.add(entity.getPrimaryKeyOrThrowException());
+			for (final Locale locale : entity.getAllLocales()) {
+				this.locales.put(locale.toLanguageTag(), locale);
+			}
+			final Set<String> ownTargets = CollectionUtils.createHashSet(entity.getReferences().size());
+			for (final ReferenceContract reference : entity.getReferences()) {
+				final String referenceName = reference.getReferenceName();
+				this.targets.computeIfAbsent(referenceName, __ -> new TreeSet<>())
+					.add(reference.getReferencedPrimaryKey());
+				// an owner of a reference allowing duplicates is counted once per target
+				if (ownTargets.add(referenceName + "/" + reference.getReferencedPrimaryKey())) {
+					this.ownersPerTarget.computeIfAbsent(referenceName, __ -> new TreeMap<>())
+						.merge(reference.getReferencedPrimaryKey(), 1, Integer::sum);
+				}
+				reference.getGroup().ifPresent(
+					group -> this.groups.computeIfAbsent(referenceName, __ -> new TreeSet<>())
+						.add(group.getPrimaryKey())
+				);
+				for (final AttributeValue attributeValue : reference.getAttributeValues()) {
+					final Serializable value = attributeValue.value();
+					if (
+						attributeValue.key().locale() == null &&
+							(value instanceof String || value instanceof Number) && value instanceof Comparable<?>
+					) {
+						final String key = referenceName + "/" + attributeValue.key().attributeName();
+						this.attributeValues.computeIfAbsent(key, __ -> new TreeSet<>()).add((Comparable<Object>) value);
+						this.targetsWithValue.computeIfAbsent(key, __ -> new TreeSet<>())
+							.add(reference.getReferencedPrimaryKey());
+					}
+				}
+			}
+		}
+
+		/**
+		 * Returns a target of the reference whose row carries a value of the attribute - one exactly one owner
+		 * references when there is such a target.
+		 *
+		 * @param referenceName the reference
+		 * @param attributeName the attribute
+		 * @return the target, `null` when no row of the reference carries a value of the attribute
+		 */
+		@Nullable
+		Integer getTargetWithValue(@Nonnull String referenceName, @Nonnull String attributeName) {
+			final SortedSet<Integer> withValue = this.targetsWithValue.get(referenceName + "/" + attributeName);
+			if (withValue == null || withValue.isEmpty()) {
+				return null;
+			}
+			final Map<Integer, Integer> counts = this.ownersPerTarget.getOrDefault(referenceName, Map.of());
+			for (final Integer target : withValue) {
+				if (counts.getOrDefault(target, 0) == 1) {
+					return target;
+				}
+			}
+			return withValue.first();
+		}
+
+		/**
+		 * Returns the owner primary keys.
+		 *
+		 * @return the owners, ascending
+		 */
+		@Nonnull
+		List<Integer> getOwners() {
+			return new ArrayList<>(this.owners);
+		}
+
+		/**
+		 * Returns the locales of the owners.
+		 *
+		 * @return the locales, by language tag
+		 */
+		@Nonnull
+		Collection<Locale> getLocales() {
+			return this.locales.values();
+		}
+
+		/**
+		 * Returns the targets of a reference.
+		 *
+		 * @param referenceName the reference
+		 * @return the referenced primary keys, ascending
+		 */
+		@Nonnull
+		Set<Integer> getTargets(@Nonnull String referenceName) {
+			return this.targets.getOrDefault(referenceName, Collections.emptySortedSet());
+		}
+
+		/**
+		 * Returns the groups of a reference.
+		 *
+		 * @param referenceName the reference
+		 * @return the group primary keys, ascending
+		 */
+		@Nonnull
+		Set<Integer> getGroups(@Nonnull String referenceName) {
+			return this.groups.getOrDefault(referenceName, Collections.emptySortedSet());
+		}
+
+		/**
+		 * Returns the distinct values of an attribute of a reference.
+		 *
+		 * @param referenceName the reference
+		 * @param attributeName the attribute
+		 * @return the values, ascending
+		 */
+		@Nonnull
+		List<Serializable> getAttributeValues(@Nonnull String referenceName, @Nonnull String attributeName) {
+			final SortedSet<Comparable<Object>> values = this.attributeValues.get(referenceName + "/" + attributeName);
+			final List<Serializable> result = new ArrayList<>(values == null ? 0 : values.size());
+			if (values != null) {
+				for (final Comparable<Object> value : values) {
+					result.add((Serializable) value);
+				}
+			}
+			return result;
+		}
+	}
+
+	/**
+	 * One engine reduced to sorted `path -> value` lines.
+	 */
 	private static final class Snapshot {
 		/**
 		 * The lines, sorted by path.

@@ -28,8 +28,11 @@ import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Supplier;
 
 /**
@@ -46,43 +49,16 @@ import java.util.function.Supplier;
  */
 final class ReadRouteActivation {
 	/**
-	 * The query routes whose virtual reading has landed - those of steps 4b, 4c and 4d of #1615: every body of
-	 * `referenceHaving` and of `referenceContent(filterBy)` - the row-exact ones answered from the candidate set, the
-	 * negations, `attributeIs`, `groupHaving`, `entityLocaleEquals` and `inScope` answered exactly - its target index
-	 * list, `entityHaving` / `entityPrimaryKeyInSet` in a body, the bidirectional rewrite, the translation of a
-	 * partition to its target, and the hierarchy routes - `hierarchyWithin` / `hierarchyWithinRoot` of a reference and
-	 * the statistics of `hierarchyOfReference` - the `pickFirst` orderings of step 4f: the gather, the claims, the
-	 * value of a partition, the referenced primary key and the target rank of the prefetch route - and the
-	 * block-by-block orderings and chains of step 4g.
+	 * The query routes whose virtual reading has landed - every route of the read-route inventory of #1615 since step
+	 * 4h: steps 4b to 4g taught the reference bodies, the bidirectional rewrite, the hierarchy routes, the `pickFirst`
+	 * orderings, the block-by-block orderings and the chains to read virtual partitions, and the facet, histogram and
+	 * entity body lines read nothing a virtual partition answers differently, so they run with the switch on too.
 	 */
-	static final Set<ReadRoute> LANDED_ROUTES = EnumSet.of(
-		ReadRoute.REFERENCE_HAVING_BODY,
-		ReadRoute.REFERENCE_HAVING_TARGET_INDEXES,
-		ReadRoute.NEGATION_IN_BODY,
-		ReadRoute.GROUP_IN_BODY,
-		ReadRoute.LOCALE_IN_BODY,
-		ReadRoute.REFERENCED_ENTITY_IN_BODY,
-		ReadRoute.BIDIRECTIONAL_REWRITE,
-		ReadRoute.PARTITION_TO_TARGET,
-		ReadRoute.REFERENCE_CONTENT_FILTER,
-		ReadRoute.HIERARCHY_WITHIN,
-		ReadRoute.HIERARCHY_STATISTICS,
-		ReadRoute.PICK_FIRST_GATHER,
-		ReadRoute.PICK_FIRST_CLAIM,
-		ReadRoute.PICK_FIRST_VALUE,
-		ReadRoute.PICK_FIRST_REFERENCED_PRIMARY_KEY,
-		ReadRoute.PICK_FIRST_TARGET_RANK,
-		ReadRoute.TRAVERSE_PLANNING_SET,
-		ReadRoute.SEQUENTIAL_BLOCKS,
-		ReadRoute.BLOCK_PROVIDERS,
-		ReadRoute.BLOCK_REFERENCED_PRIMARY_KEY,
-		ReadRoute.BLOCK_EXACT_ATTRIBUTE_SET,
-		ReadRoute.REFERENCE_CONTENT_CHAIN
-	);
+	static final Set<ReadRoute> LANDED_ROUTES = Collections.unmodifiableSet(EnumSet.allOf(ReadRoute.class));
 	/**
 	 * The activation of an engine that maintains nothing, and so can never read virtually.
 	 */
-	static final ReadRouteActivation OFF = new ReadRouteActivation(null, Set.of(), Set.of());
+	static final ReadRouteActivation OFF = new ReadRouteActivation(null, Set.of(), Set.of(), null);
 
 	/**
 	 * The switch holder of the engine's catalog, `null` for an engine that maintains nothing.
@@ -96,6 +72,10 @@ final class ReadRouteActivation {
 	 * The routes that have landed.
 	 */
 	@Nonnull private final Set<ReadRoute> landedRoutes;
+	/**
+	 * Receives the virtual rows each named line read, summed per line name; `null` when nobody counts them.
+	 */
+	@Nullable private final Map<String, Long> virtualRowsPerLine;
 
 	/**
 	 * The query routes of the virtual reading, numbered as the read-route inventory of the phase-4 plan of #1615
@@ -206,7 +186,7 @@ final class ReadRouteActivation {
 	}
 
 	/**
-	 * Creates the activation of an engine.
+	 * Creates the activation of an engine that counts no virtual rows per line.
 	 *
 	 * @param maintenance  the switch holder of the engine's catalog, `null` for an engine that maintains nothing
 	 * @param entityTypes  the entity types the engine maintains
@@ -217,15 +197,34 @@ final class ReadRouteActivation {
 		@Nonnull Set<String> entityTypes,
 		@Nonnull Set<ReadRoute> landedRoutes
 	) {
-		this.maintenance = maintenance;
-		this.entityTypes = Set.copyOf(entityTypes);
-		this.landedRoutes = Set.copyOf(landedRoutes);
+		this(maintenance, entityTypes, landedRoutes, null);
 	}
 
 	/**
-	 * Runs one query line: with the read switch of every maintained collection on when every route of the line has
-	 * landed and the engine maintains its collections, with the switch off otherwise. The switch is off again when the
-	 * line returns.
+	 * Creates the activation of an engine.
+	 *
+	 * @param maintenance        the switch holder of the engine's catalog, `null` for an engine that maintains
+	 *                           nothing
+	 * @param entityTypes        the entity types the engine maintains
+	 * @param landedRoutes       the routes that have landed
+	 * @param virtualRowsPerLine receives the virtual rows each named line reads, summed per line name; `null` to count
+	 *                           nothing
+	 */
+	ReadRouteActivation(
+		@Nullable VirtualReferencePartitionMaintenance maintenance,
+		@Nonnull Set<String> entityTypes,
+		@Nonnull Set<ReadRoute> landedRoutes,
+		@Nullable Map<String, Long> virtualRowsPerLine
+	) {
+		this.maintenance = maintenance;
+		this.entityTypes = Set.copyOf(entityTypes);
+		this.landedRoutes = Set.copyOf(landedRoutes);
+		this.virtualRowsPerLine = virtualRowsPerLine;
+	}
+
+	/**
+	 * Runs one unnamed query line reading every maintained collection - see
+	 * {@link #run(String, Set, Set, Supplier)}.
 	 *
 	 * @param routes the routes the line exercises
 	 * @param query  the query of the line
@@ -233,17 +232,57 @@ final class ReadRouteActivation {
 	 * @return the query result
 	 */
 	<T> T run(@Nonnull Set<ReadRoute> routes, @Nonnull Supplier<T> query) {
+		return run(null, routes, this.entityTypes, query);
+	}
+
+	/**
+	 * Runs one named query line reading every maintained collection - see {@link #run(String, Set, Set, Supplier)}.
+	 *
+	 * @param line   the name the virtual rows of the line are counted under
+	 * @param routes the routes the line exercises
+	 * @param query  the query of the line
+	 * @param <T>    the type of the query result
+	 * @return the query result
+	 */
+	<T> T run(@Nonnull String line, @Nonnull Set<ReadRoute> routes, @Nonnull Supplier<T> query) {
+		return run(line, routes, this.entityTypes, query);
+	}
+
+	/**
+	 * Runs one query line: with the read switch of the given maintained collections on when every route of the line
+	 * has landed and the engine maintains its collections, with the switch off otherwise. The switch is off again when
+	 * the line returns. A named line adds the virtual rows it read to the count of its name.
+	 *
+	 * @param line      the name the virtual rows of the line are counted under, `null` for an uncounted line
+	 * @param routes    the routes the line exercises
+	 * @param readTypes the entity types the line reads virtually - only those the engine maintains are switched
+	 * @param query     the query of the line
+	 * @param <T>       the type of the query result
+	 * @return the query result
+	 */
+	<T> T run(
+		@Nullable String line,
+		@Nonnull Set<ReadRoute> routes,
+		@Nonnull Set<String> readTypes,
+		@Nonnull Supplier<T> query
+	) {
 		if (this.maintenance == null || !this.landedRoutes.containsAll(routes)) {
 			return query.get();
 		}
-		for (final String entityType : this.entityTypes) {
+		final long rowsBefore = this.maintenance.getVirtualRowsRead();
+		final Set<String> switched = new TreeSet<>(readTypes);
+		switched.retainAll(this.entityTypes);
+		for (final String entityType : switched) {
 			this.maintenance.setReadVirtually(entityType, true);
 		}
 		try {
 			return query.get();
 		} finally {
-			for (final String entityType : this.entityTypes) {
+			for (final String entityType : switched) {
 				this.maintenance.setReadVirtually(entityType, false);
+			}
+			if (line != null && this.virtualRowsPerLine != null) {
+				this.virtualRowsPerLine.merge(line, this.maintenance.getVirtualRowsRead() - rowsBefore, Long::sum);
 			}
 		}
 	}

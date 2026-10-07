@@ -27,6 +27,7 @@ import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.buffer.DataStoreReader;
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -572,6 +573,8 @@ public final class ReferencePartitions {
 		int ownerPrimaryKey,
 		@Nonnull RepresentativeReferenceKey representativeReferenceKey
 	) {
+		// TODO JNO - remove at the end of #1615
+		VirtualReferencePartitionMaintenance.recordForcedHandleResolved();
 		return new VirtualReferencePartition(
 			partitionPrimaryKey,
 			createKey(typeIndex.getIndexKey().scope(), representativeReferenceKey),

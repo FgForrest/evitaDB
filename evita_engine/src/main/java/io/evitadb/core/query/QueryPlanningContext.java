@@ -58,6 +58,7 @@ import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
@@ -535,6 +536,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		this.cacheSupervisor = cacheSupervisor;
 		this.queryFinishedEvent = event;
 		this.internalExecutionContext = createExecutionContext();
+		// TODO JNO - remove at the end of #1615
+		if (VirtualReferencePartitionMaintenance.FORCED && parentQueryContext == null) {
+			VirtualReferencePartitionMaintenance.recordForcedQuery(catalog);
+		}
 	}
 
 	/**
@@ -1106,6 +1111,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		if (captured == null) {
 			captured = this.catalog.getVirtualReferencePartitionMaintenance().isReadVirtually(entityType);
 			this.readVirtually.put(entityType, captured);
+			if (VirtualReferencePartitionMaintenance.FORCED && captured) {
+				VirtualReferencePartitionMaintenance.recordForcedReach(this.catalog, entityType);
+			}
 		}
 		return captured;
 	}

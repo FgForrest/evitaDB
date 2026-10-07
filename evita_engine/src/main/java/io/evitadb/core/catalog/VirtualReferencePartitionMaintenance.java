@@ -24,15 +24,21 @@
 // TODO JNO - remove at the end of #1615 (the whole file)
 package io.evitadb.core.catalog;
 
+import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleWithScope;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
@@ -78,9 +84,74 @@ import java.util.function.Supplier;
  * be made to fail at the very same point of one mutation; without a probe nothing is reported and nothing is allocated
  * per mutation (see {@link MutationHandle}).
  *
+ * # Forced mode
+ *
+ * When the JVM runs with the system property {@link #FORCE_PROPERTY} set to `true`, the holder of every catalog the
+ * engine creates follows a forced default: every collection of the catalog is maintained **and** read virtually from
+ * the moment the catalog exists - the whole functional suite then reads every registered single-owner partition
+ * through the registry. A holder leaves the forced default the first time a test sets either switch of it explicitly
+ * ({@link #setMaintained(String, boolean)}, {@link #setReadVirtually(String, boolean)}) and from then on holds exactly
+ * what the test sets, starting from nothing - so the tests that drive the switch themselves see the holder they
+ * expect. Holders created by the public constructors never follow the forced default.
+ *
+ * The registry is persisted, but the switch is not, so a registry read back from disk is complete only when every
+ * mutation of the catalog's history was maintained. The forced mode knows that only for catalogs born in this JVM
+ * under the forced default and never taken out of it - their identifiers are remembered - and a catalog loaded from
+ * disk follows the forced default only when it is one of them and the engine was not told anything else about it
+ * before the load (see {@link #forLoadedCatalog(UUID, Set, TransitionProbe)}). Any other catalog loaded from disk is
+ * **not eligible**: it is neither maintained nor read virtually, so no query ever reads its possibly incomplete
+ * registry, and the load is counted (see {@link #getForcedIneligibleLoads()}).
+ *
+ * With the property absent {@link #FORCED} is a constant `false` and every forced branch folds away.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public final class VirtualReferencePartitionMaintenance {
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * The system property turning the forced mode on - see the class documentation.
+	 */
+	public static final String FORCE_PROPERTY = "evitadb.test.forceVirtualReferencePartitions";
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * TRUE when the JVM runs in the forced mode - read once, so that a run without the property pays nothing.
+	 */
+	public static final boolean FORCED = Boolean.getBoolean(FORCE_PROPERTY);
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Identifiers of the catalogs born in this JVM under the forced default whose holder never left it - the only
+	 * catalogs whose persisted registry is known to be complete when they are loaded from disk again.
+	 */
+	private static final Set<UUID> FORCED_CATALOG_IDS = ConcurrentHashMap.newKeySet();
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * How many virtual partition handles queries have resolved in this JVM - counted in the forced mode only.
+	 */
+	private static final AtomicLong FORCED_HANDLES_RESOLVED = new AtomicLong();
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * How many virtual rows queries have read in this JVM, over every holder - counted in the forced mode only.
+	 */
+	private static final AtomicLong FORCED_ROWS_READ = new AtomicLong();
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * How many catalogs were loaded from disk in this JVM without being eligible for the forced mode - counted in the
+	 * forced mode only.
+	 */
+	private static final AtomicLong FORCED_INELIGIBLE_LOADS = new AtomicLong();
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * TRUE once a query planned since the last {@link #resetForcedQueryEligibility()} ran over a catalog holding
+	 * registered single-owner partitions of a collection read virtually - set in the forced mode only.
+	 */
+	private static volatile boolean forcedQueryEligible;
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * TRUE once a query planned since the last {@link #resetForcedQueryEligibility()} resolved partitions of a
+	 * collection read virtually that holds registered single-owner partitions - set in the forced mode only.
+	 */
+	private static volatile boolean forcedQueryReached;
+
 
 	// TODO JNO - remove at the end of #1615
 	/**
@@ -125,6 +196,12 @@ public final class VirtualReferencePartitionMaintenance {
 	 * mutations - the trunk replay of a commit among them - run on others.
 	 */
 	@Nullable private volatile TransitionProbe probe;
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * The identifier of the catalog while the holder follows the forced default, `null` when it does not - always
+	 * `null` outside the forced mode.
+	 */
+	@Nullable private volatile UUID forcedCatalogId;
 
 	// TODO JNO - remove at the end of #1615
 	/**
@@ -152,12 +229,64 @@ public final class VirtualReferencePartitionMaintenance {
 
 	// TODO JNO - remove at the end of #1615
 	/**
+	 * Creates the holder of a brand-new catalog: switched off for every collection, unless the JVM runs in the forced
+	 * mode, in which case the holder follows the forced default and the catalog is remembered as one whose registry
+	 * is maintained from its birth.
+	 *
+	 * @param catalogId the identifier of the new catalog
+	 * @return the holder
+	 */
+	@Nonnull
+	public static VirtualReferencePartitionMaintenance forNewCatalog(@Nonnull UUID catalogId) {
+		final VirtualReferencePartitionMaintenance holder = new VirtualReferencePartitionMaintenance();
+		if (FORCED) {
+			FORCED_CATALOG_IDS.add(catalogId);
+			holder.forcedCatalogId = catalogId;
+		}
+		return holder;
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Creates the holder of a catalog loaded from disk, seeded as the engine was told before the load. In the forced
+	 * mode a catalog the engine was told nothing about - no entity types and no probe - follows the forced default when
+	 * it was born in this JVM under the forced default and never left it; any other such catalog is not eligible: it
+	 * maintains and reads nothing, and the load is counted.
+	 *
+	 * @param catalogId             the identifier of the loaded catalog
+	 * @param maintainedEntityTypes the entity types the engine was told to maintain from the load on
+	 * @param probe                 the probe the engine was told to install, `null` for none
+	 * @return the holder
+	 */
+	@Nonnull
+	public static VirtualReferencePartitionMaintenance forLoadedCatalog(
+		@Nonnull UUID catalogId,
+		@Nonnull Set<String> maintainedEntityTypes,
+		@Nullable TransitionProbe probe
+	) {
+		final VirtualReferencePartitionMaintenance holder =
+			new VirtualReferencePartitionMaintenance(maintainedEntityTypes, probe);
+		if (FORCED && maintainedEntityTypes.isEmpty() && probe == null) {
+			if (FORCED_CATALOG_IDS.contains(catalogId)) {
+				holder.forcedCatalogId = catalogId;
+			} else {
+				FORCED_INELIGIBLE_LOADS.incrementAndGet();
+			}
+		}
+		return holder;
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
 	 * Returns TRUE when the collection of the given entity type maintains virtual reference partitions.
 	 *
 	 * @param entityType the name of the entity type
 	 * @return TRUE when the switch is on for the entity type
 	 */
 	public boolean isMaintained(@Nonnull String entityType) {
+		if (FORCED && this.forcedCatalogId != null) {
+			return true;
+		}
 		// the empty check keeps the hash lookup off every entity mutation of a catalog no test has switched
 		return !this.maintainedEntityTypes.isEmpty() && this.maintainedEntityTypes.contains(entityType);
 	}
@@ -242,6 +371,9 @@ public final class VirtualReferencePartitionMaintenance {
 	 */
 	public void recordVirtualRowsRead(int rowCount) {
 		this.virtualRowsRead.addAndGet(rowCount);
+		if (FORCED) {
+			FORCED_ROWS_READ.addAndGet(rowCount);
+		}
 	}
 
 	// TODO JNO - remove at the end of #1615
@@ -303,6 +435,7 @@ public final class VirtualReferencePartitionMaintenance {
 	 * @throws GenericEvitaInternalError when the maintenance is turned off while the collection is read virtually
 	 */
 	public void setMaintained(@Nonnull String entityType, boolean maintained) {
+		leaveForcedDefault();
 		if (maintained) {
 			this.maintainedEntityTypes.add(entityType);
 		} else {
@@ -326,6 +459,9 @@ public final class VirtualReferencePartitionMaintenance {
 	 * @return TRUE when the read switch is on for the entity type
 	 */
 	public boolean isReadVirtually(@Nonnull String entityType) {
+		if (FORCED && this.forcedCatalogId != null) {
+			return true;
+		}
 		// the empty check keeps the hash lookup off every query of a catalog no test has switched
 		return !this.readVirtuallyEntityTypes.isEmpty() && this.readVirtuallyEntityTypes.contains(entityType);
 	}
@@ -340,6 +476,7 @@ public final class VirtualReferencePartitionMaintenance {
 	 * @throws GenericEvitaInternalError when the virtual reading is turned on for a collection that is not maintained
 	 */
 	public void setReadVirtually(@Nonnull String entityType, boolean readVirtually) {
+		leaveForcedDefault();
 		if (readVirtually) {
 			if (!isMaintained(entityType)) {
 				throw new GenericEvitaInternalError(
@@ -364,12 +501,184 @@ public final class VirtualReferencePartitionMaintenance {
 	 * @param targetEntityType the name the collection takes
 	 */
 	public void carryOver(@Nonnull String sourceEntityType, @Nonnull String targetEntityType) {
+		if (FORCED && this.forcedCatalogId != null) {
+			// the forced default covers every name already
+			return;
+		}
 		if (isMaintained(sourceEntityType)) {
 			this.maintainedEntityTypes.add(targetEntityType);
 		}
 		if (isReadVirtually(sourceEntityType)) {
 			this.readVirtuallyEntityTypes.add(targetEntityType);
 		}
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns TRUE while the holder follows the forced default - see the class documentation.
+	 *
+	 * @return TRUE when every collection is maintained and read virtually by the forced default
+	 */
+	public boolean isForcedDefault() {
+		return FORCED && this.forcedCatalogId != null;
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Takes the holder out of the forced default - called before a test sets a switch of it explicitly, and by a test
+	 * that verifies the default of the switch itself before the catalog holds anything: the holder then holds exactly
+	 * what the test sets, starting from nothing, and its catalog is no longer known to have been maintained throughout
+	 * - a later load of it is not eligible. Does nothing outside the forced mode or once the holder left it.
+	 */
+	public void leaveForcedDefault() {
+		if (FORCED) {
+			final UUID catalogId = this.forcedCatalogId;
+			if (catalogId != null) {
+				this.forcedCatalogId = null;
+				FORCED_CATALOG_IDS.remove(catalogId);
+			}
+		}
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Records that a query resolved one virtual partition handle - counted in the forced mode only.
+	 */
+	public static void recordForcedHandleResolved() {
+		if (FORCED) {
+			FORCED_HANDLES_RESOLVED.incrementAndGet();
+		}
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Records, in the forced mode, whether a query planned over the catalog could read registered single-owner
+	 * partitions virtually: TRUE when a collection of the catalog read virtually holds at least one registered
+	 * partition in the registry of any of its referenced-type entity indexes. Once that is known for the current test
+	 * nothing is inspected any more until the next {@link #resetForcedQueryEligibility()}.
+	 *
+	 * @param catalog the catalog the query is planned over
+	 */
+	public static void recordForcedQuery(@Nonnull Catalog catalog) {
+		if (!FORCED || forcedQueryEligible) {
+			return;
+		}
+		for (final String entityType : catalog.getEntityTypes()) {
+			if (holdsRegisteredPartitions(catalog, entityType)) {
+				forcedQueryEligible = true;
+				return;
+			}
+		}
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Records, in the forced mode, that a query resolves partitions of the collection read virtually: when the
+	 * collection holds registered single-owner partitions, the current test reached them - see
+	 * {@link #isForcedQueryReached()}.
+	 *
+	 * @param catalog    the catalog the query is planned over
+	 * @param entityType the collection whose partitions the query resolves
+	 */
+	public static void recordForcedReach(@Nonnull Catalog catalog, @Nonnull String entityType) {
+		if (FORCED && !forcedQueryReached && holdsRegisteredPartitions(catalog, entityType)) {
+			forcedQueryReached = true;
+		}
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns TRUE when the collection is read virtually and holds at least one registered partition in the registry
+	 * of any of its referenced-type entity indexes.
+	 *
+	 * @param catalog    the catalog
+	 * @param entityType the collection
+	 * @return TRUE when a query could read registered partitions of the collection virtually
+	 */
+	private static boolean holdsRegisteredPartitions(@Nonnull Catalog catalog, @Nonnull String entityType) {
+		if (!catalog.getVirtualReferencePartitionMaintenance().isReadVirtually(entityType)) {
+			return false;
+		}
+		final EntityCollection collection = (EntityCollection) catalog.getCollectionForEntity(entityType).orElse(null);
+		if (collection == null) {
+			return false;
+		}
+		for (final ReferenceSchemaContract referenceSchema : collection.getInternalSchema().getReferences().values()) {
+			for (final Scope scope : Scope.values()) {
+				final EntityIndex typeIndex = collection.getIndexByKeyIfExists(
+					new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceSchema.getName())
+				);
+				if (
+					typeIndex instanceof final ReferencedTypeEntityIndex referencedTypeIndex &&
+						referencedTypeIndex.getVirtualReferencePartitionIndex().getEntryCount() > 0
+				) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns TRUE when a query planned since the last {@link #resetForcedQueryEligibility()} could read registered
+	 * single-owner partitions virtually - see {@link #recordForcedQuery(Catalog)}.
+	 *
+	 * @return TRUE when an eligible query ran
+	 */
+	public static boolean isForcedQueryEligible() {
+		return forcedQueryEligible;
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns TRUE when a query planned since the last {@link #resetForcedQueryEligibility()} resolved partitions of
+	 * a collection read virtually that holds registered single-owner partitions - see
+	 * {@link #recordForcedReach(Catalog, String)}.
+	 *
+	 * @return TRUE when a query reached a collection holding registered partitions
+	 */
+	public static boolean isForcedQueryReached() {
+		return forcedQueryReached;
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Forgets the eligibility and reach recorded so far - called by the non-vacuity listener when a test starts.
+	 */
+	public static void resetForcedQueryEligibility() {
+		forcedQueryEligible = false;
+		forcedQueryReached = false;
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns how many virtual partition handles queries have resolved in this JVM in the forced mode.
+	 *
+	 * @return the number of virtual handles resolved
+	 */
+	public static long getForcedHandlesResolved() {
+		return FORCED_HANDLES_RESOLVED.get();
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns how many virtual rows queries have read in this JVM in the forced mode, over every holder.
+	 *
+	 * @return the number of virtual rows read
+	 */
+	public static long getForcedRowsRead() {
+		return FORCED_ROWS_READ.get();
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns how many catalogs were loaded from disk in this JVM in the forced mode without being eligible for it.
+	 *
+	 * @return the number of ineligible loads
+	 */
+	public static long getForcedIneligibleLoads() {
+		return FORCED_INELIGIBLE_LOADS.get();
 	}
 
 	// TODO JNO - remove at the end of #1615
