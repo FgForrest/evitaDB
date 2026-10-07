@@ -179,6 +179,8 @@ class VirtualPartitionWriteIsolationTest implements EvitaTestSupport {
 		@Nonnull ReadSwitchProbe probe,
 		@Nonnull Consumer<EvitaSessionContract> setup
 	) {
+		// TODO JNO - remove at the end of #1615
+		this.evita.createCatalogWithVirtualReferencePartitions(catalog, false);
 		this.evita.defineCatalog(catalog).updateViaNewSession(this.evita);
 		final VirtualReferencePartitionMaintenance maintenance =
 			((Catalog) this.evita.getCatalogInstance(catalog).orElseThrow()).getVirtualReferencePartitionMaintenance();

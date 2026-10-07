@@ -99,6 +99,8 @@ class VirtualReferencePartitionMaintenanceTest implements EvitaTestSupport {
 	void setUp() {
 		this.paths = createTestPaths("VirtualReferencePartitionMaintenanceTest");
 		this.evita = newEvita();
+		// TODO JNO - remove at the end of #1615
+		this.evita.createCatalogWithVirtualReferencePartitions(CATALOG, false);
 		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
 		// the test verifies the default of the switch, in the forced test mode too
 		maintenanceOf(CATALOG).leaveForcedDefault();
@@ -283,6 +285,8 @@ class VirtualReferencePartitionMaintenanceTest implements EvitaTestSupport {
 	@Test
 	@DisplayName("the switch of one catalog does not reach a collection of the same name in another catalog")
 	void shouldBelongToOneCatalog() {
+		// TODO JNO - remove at the end of #1615
+		this.evita.createCatalogWithVirtualReferencePartitions(OTHER_CATALOG, false);
 		this.evita.defineCatalog(OTHER_CATALOG).updateViaNewSession(this.evita);
 		maintenanceOf(OTHER_CATALOG).leaveForcedDefault();
 		this.evita.updateCatalog(OTHER_CATALOG, session -> {

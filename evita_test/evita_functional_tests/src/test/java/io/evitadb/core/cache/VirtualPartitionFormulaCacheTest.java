@@ -1298,6 +1298,8 @@ class VirtualPartitionFormulaCacheTest implements EvitaTestSupport {
 	 * @param catalogName the catalog
 	 */
 	private void buildCatalog(@Nonnull String catalogName) {
+		// TODO JNO - remove at the end of #1615
+		this.evita.createCatalogWithVirtualReferencePartitions(catalogName, false);
 		this.evita.defineCatalog(catalogName).updateViaNewSession(this.evita);
 		final VirtualReferencePartitionMaintenance maintenance =
 			((Catalog) this.evita.getCatalogInstance(catalogName).orElseThrow()).getVirtualReferencePartitionMaintenance();

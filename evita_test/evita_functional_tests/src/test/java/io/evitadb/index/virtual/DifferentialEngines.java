@@ -498,7 +498,11 @@ final class DifferentialEngines implements AutoCloseable {
 	 * @param setup the schema and the initial data
 	 */
 	void prepare(@Nonnull CatalogState state, @Nonnull Consumer<EvitaSessionContract> setup) {
+		// TODO JNO - remove at the end of #1615
+		this.reference.createCatalogWithVirtualReferencePartitions(CATALOG, false);
 		this.reference.defineCatalog(CATALOG).updateViaNewSession(this.reference);
+		// TODO JNO - remove at the end of #1615
+		this.maintaining.createCatalogWithVirtualReferencePartitions(CATALOG, false);
 		this.maintaining.defineCatalog(CATALOG).updateViaNewSession(this.maintaining);
 		catalogOf(this.reference).getVirtualReferencePartitionMaintenance().setProbe(this.referenceHistory);
 		catalogOf(this.maintaining).getVirtualReferencePartitionMaintenance().setProbe(this.maintainingHistory);

@@ -132,6 +132,8 @@ class VirtualReferencePartitionResolutionTest implements EvitaTestSupport {
 	void setUp() {
 		this.paths = createTestPaths("VirtualReferencePartitionResolutionTest");
 		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
+		// TODO JNO - remove at the end of #1615
+		this.evita.createCatalogWithVirtualReferencePartitions(CATALOG, false);
 		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
 		// maintained from the first write, so every single-owner partition has its row
 		for (final String entityType : ENTITY_TYPES) {

@@ -494,11 +494,18 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 				final OrderConstraint ordering =
 					createOrdering(referenceName, targetOrder, valueOrdering(sortedValue, direction));
 				final int[] actual;
-				maintenance.setReadVirtually(ENTITY_OWNER, true);
+				// a catalog representing its partitions virtually - as the forced test mode creates it - is read
+				// virtually for good and refuses the switch to be turned off
+				final boolean switched = !maintenance.isVirtual();
+				if (switched) {
+					maintenance.setReadVirtually(ENTITY_OWNER, true);
+				}
 				try {
 					actual = queryOrder(session, route, selection, referenceName, ordering);
 				} finally {
-					maintenance.setReadVirtually(ENTITY_OWNER, false);
+					if (switched) {
+						maintenance.setReadVirtually(ENTITY_OWNER, false);
+					}
 				}
 				assertions.add(
 					() -> assertArrayEquals(

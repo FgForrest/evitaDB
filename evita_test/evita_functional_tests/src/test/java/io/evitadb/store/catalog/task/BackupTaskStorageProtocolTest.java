@@ -125,6 +125,8 @@ class BackupTaskStorageProtocolTest implements EvitaTestSupport {
 	void setUp() throws InterruptedException {
 		this.paths = createTestPaths(BackupTaskStorageProtocolTest.class.getSimpleName());
 		this.evita = new Evita(getEvitaConfiguration());
+		// TODO JNO - remove at the end of #1615
+		this.evita.createCatalogWithVirtualReferencePartitions(TEST_CATALOG, false);
 		this.evita.defineCatalog(TEST_CATALOG);
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema(Entities.BRAND);

@@ -165,6 +165,7 @@ import io.evitadb.spi.store.catalog.persistence.CatalogHandoverFailedException;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.DurabilitySnapshot;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory;
+import io.evitadb.spi.store.catalog.persistence.PersistenceService;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory.CatalogFolderAllocator;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceServiceFactory.FileIdCarrier;
 import io.evitadb.spi.store.catalog.persistence.CatalogStorageFootprint;
@@ -732,6 +733,12 @@ public final class Catalog
 			getEntitySchemaAccessor()
 		);
 		this.schema = new TransactionalReference<>(new CatalogSchemaDecorator(internalCatalogSchema));
+		// the representation of the single-owner reference partitions is decided here, once - the very first header
+		// the persistence service writes for the new catalog carries it, and every later one keeps it
+		// TODO JNO - remove at the end of #1615
+		final boolean virtualReferencePartitions = VirtualReferencePartitionMaintenance.isNewCatalogVirtual(
+			evita.getVirtualReferencePartitionsOnCatalogCreation(catalogName)
+		);
 		//noinspection unchecked
 		this.persistenceService = (CatalogPersistenceService<LogRecordReference, CollectionReference, EntityCollectionHeader>)
 			ServiceLoader.load(CatalogPersistenceServiceFactory.class)
@@ -745,7 +752,11 @@ public final class Catalog
 						this.evitaConfiguration.storage(),
 						this.evitaConfiguration.transaction(),
 						this.scheduler,
-						exportService
+						exportService,
+						// TODO JNO - remove at the end of #1615
+						virtualReferencePartitions ?
+							PersistenceService.VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION :
+							PersistenceService.STORAGE_PROTOCOL_VERSION
 					)
 				)
 				.orElseThrow(StorageImplementationNotFoundException::new);
@@ -776,7 +787,9 @@ public final class Catalog
 		this.usageRegistry = new SchemaCapabilityUsageRegistry();
 		this.usageRegistry.alignWith(internalCatalogSchema);
 		// TODO JNO - remove at the end of #1615
-		this.virtualReferencePartitionMaintenance = VirtualReferencePartitionMaintenance.forNewCatalog(this.catalogId);
+		this.virtualReferencePartitionMaintenance = VirtualReferencePartitionMaintenance.forNewCatalog(
+			this.catalogId, virtualReferencePartitions
+		);
 		this.proxyFactory = proxyFactory;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = internalCatalogSchema.version();
@@ -867,13 +880,17 @@ public final class Catalog
 		// has its row before the first query arrives rather than from whenever one first names it
 		this.usageRegistry = new SchemaCapabilityUsageRegistry();
 		this.usageRegistry.alignWith(catalogSchema);
-		// the switch is not persisted, so a catalog read back from disk maintains only what the engine was told to
-		// before loading began - seeded here, before any collection is attached and before the write-ahead log is
-		// replayed onto this catalog, so the replayed mutations are maintained as well - or, in the forced test mode,
-		// what the forced default says for a catalog this JVM maintained from its birth
+		// the representation of the single-owner reference partitions is the storage protocol of the header: a virtual
+		// catalog maintains and reads virtually every collection for good. The switch of any other catalog is not
+		// persisted, so it maintains only what the engine was told to before loading began - or, in the forced test
+		// mode, what the forced default says for a catalog this JVM maintained from its birth. Either is decided here,
+		// before any collection is attached and before the write-ahead log is replayed onto this catalog, so the
+		// replayed mutations - those creating a collection among them - see it as well
 		// TODO JNO - remove at the end of #1615
 		this.virtualReferencePartitionMaintenance = VirtualReferencePartitionMaintenance.forLoadedCatalog(
 			this.catalogId,
+			catalogHeader.storageProtocolVersion() ==
+				PersistenceService.VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION,
 			evita.getEntityTypesMaintainingVirtualReferencePartitionsOnLoad(catalogName),
 			evita.getVirtualReferencePartitionProbeOnLoad(catalogName)
 		);

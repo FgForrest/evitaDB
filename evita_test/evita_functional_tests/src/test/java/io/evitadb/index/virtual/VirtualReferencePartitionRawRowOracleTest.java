@@ -119,6 +119,8 @@ class VirtualReferencePartitionRawRowOracleTest implements EvitaTestSupport {
 				.server(ServerOptions.builder().closeSessionsAfterSecondsOfInactivity(-1).build())
 				.build()
 		);
+		// TODO JNO - remove at the end of #1615
+		this.evita.createCatalogWithVirtualReferencePartitions(CATALOG, false);
 		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
 		final Catalog catalog = (Catalog) this.evita.getCatalogInstance(CATALOG).orElseThrow();
 		for (final String entityType : ENTITY_TYPES) {

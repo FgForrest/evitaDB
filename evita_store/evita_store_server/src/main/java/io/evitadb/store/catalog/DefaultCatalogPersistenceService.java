@@ -1617,6 +1617,36 @@ public class DefaultCatalogPersistenceService
 		@Nonnull Scheduler scheduler,
 		@Nonnull ExportService exportService
 	) {
+		this(
+			STORAGE_PROTOCOL_VERSION, catalogName, catalogFolderId, storageOptions, transactionOptions, scheduler,
+			exportService
+		);
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Same as {@link #DefaultCatalogPersistenceService(String, CatalogFolderId, StorageOptions, TransactionOptions,
+	 * Scheduler, ExportService)}, for a brand-new catalog created under the given storage protocol - the very first
+	 * header the catalog writes carries it, and every later one keeps it.
+	 *
+	 * @param storageProtocolVersion the storage protocol of the new catalog, one of the current ones (see
+	 *                               {@link PersistenceService#isCurrentStorageProtocolVersion(int)})
+	 * @param catalogName            the name of the catalog to load
+	 * @param catalogFolderId        token identifying the folder the catalog's files live in
+	 * @param storageOptions         storage configuration including checksum and compression settings
+	 * @param transactionOptions     transaction configuration for memory buffers and WAL settings
+	 * @param scheduler              scheduler for background tasks
+	 * @param exportService          service for exporting catalog data
+	 */
+	public DefaultCatalogPersistenceService(
+		int storageProtocolVersion,
+		@Nonnull String catalogName,
+		@Nonnull CatalogFolderId catalogFolderId,
+		@Nonnull StorageOptions storageOptions,
+		@Nonnull TransactionOptions transactionOptions,
+		@Nonnull Scheduler scheduler,
+		@Nonnull ExportService exportService
+	) {
 		this.storageSettings = new StorageSettings(storageOptions, transactionOptions);
 		this.bootstrapStorageSettings = this.storageSettings.modifyForBootstrapFile();
 		this.scheduler = scheduler;
@@ -1672,6 +1702,8 @@ public class DefaultCatalogPersistenceService
 		this.catalogStoragePartPersistenceService.put(
 			catalogVersion,
 			CatalogOffsetIndexStoragePartPersistenceService.create(
+				// TODO JNO - remove at the end of #1615
+				storageProtocolVersion,
 				this.catalogName,
 				catalogFilePath,
 				this.storageSettings,
@@ -1745,7 +1777,8 @@ public class DefaultCatalogPersistenceService
 			// ctor already ran the v4→v5 migration inline — try-with-resources releases handles.
 			// The body deliberately has no content; the work is a side effect of construction.
 			Assert.isPremiseValid(
-				svc.bootstrapUsed.storageProtocolVersion() == STORAGE_PROTOCOL_VERSION,
+				// TODO JNO - remove at the end of #1615
+				PersistenceService.isCurrentStorageProtocolVersion(svc.bootstrapUsed.storageProtocolVersion()),
 				"Upgrade for catalog `" + catalogName + "` completed but bootstrap still reports " +
 					"storage protocol version " + svc.bootstrapUsed.storageProtocolVersion() +
 					" (expected " + STORAGE_PROTOCOL_VERSION + ")."
@@ -1902,7 +1935,8 @@ public class DefaultCatalogPersistenceService
 			throw t;
 		}
 
-		if (this.bootstrapUsed.storageProtocolVersion() != STORAGE_PROTOCOL_VERSION) {
+		// TODO JNO - remove at the end of #1615
+		if (!PersistenceService.isCurrentStorageProtocolVersion(this.bootstrapUsed.storageProtocolVersion())) {
 			closeOnConstructorFailure();
 			IOUtils.closeQuietly(catalogStoragePartPersistenceService::close);
 			throw new StoredProtocolVersionNotSupportedException(
@@ -2066,7 +2100,8 @@ public class DefaultCatalogPersistenceService
 			false
 		);
 
-		if (this.bootstrapUsed.storageProtocolVersion() != STORAGE_PROTOCOL_VERSION) {
+		// TODO JNO - remove at the end of #1615
+		if (!PersistenceService.isCurrentStorageProtocolVersion(this.bootstrapUsed.storageProtocolVersion())) {
 			throw new StoredProtocolVersionNotSupportedException(
 				this.bootstrapUsed.storageProtocolVersion(), STORAGE_PROTOCOL_VERSION
 			);
@@ -2372,7 +2407,8 @@ public class DefaultCatalogPersistenceService
 			}
 
 			storagePartPersistenceService.writeCatalogHeader(
-				STORAGE_PROTOCOL_VERSION,
+				// TODO JNO - remove at the end of #1615
+				storageProtocolVersionKeptBy(currentCatalogHeader),
 				catalogVersion,
 				this.catalogStoragePath,
 				ofNullable(this.catalogWal)
@@ -2686,7 +2722,8 @@ public class DefaultCatalogPersistenceService
 		);
 
 		storagePartPersistenceService.writeCatalogHeader(
-			STORAGE_PROTOCOL_VERSION,
+			// TODO JNO - remove at the end of #1615
+			storageProtocolVersionKeptBy(currentCatalogHeader),
 			catalogVersion,
 			this.catalogStoragePath,
 			currentCatalogHeader.walFileReference(),
@@ -2749,7 +2786,8 @@ public class DefaultCatalogPersistenceService
 					)
 				);
 			storagePartPersistenceService.writeCatalogHeader(
-				STORAGE_PROTOCOL_VERSION,
+				// TODO JNO - remove at the end of #1615
+				storageProtocolVersionKeptBy(currentCatalogHeader),
 				currentCatalogHeader.version(),
 				this.catalogStoragePath,
 				currentCatalogHeader.walFileReference(),
@@ -2962,7 +3000,8 @@ public class DefaultCatalogPersistenceService
 		// stop compensating when it sees the marker and declare the catalog unusable until a restart.
 		try {
 			storagePartPersistenceService.writeCatalogHeader(
-				STORAGE_PROTOCOL_VERSION,
+				// TODO JNO - remove at the end of #1615
+				storageProtocolVersionKeptBy(catalogHeader),
 				newCatalogVersion,
 				this.catalogStoragePath,
 				catalogHeader.walFileReference(),
@@ -5155,7 +5194,8 @@ public class DefaultCatalogPersistenceService
 			}
 			// update name in the catalog header
 			storagePartPersistenceService.writeCatalogHeader(
-				STORAGE_PROTOCOL_VERSION,
+				// TODO JNO - remove at the end of #1615
+				storageProtocolVersionKeptBy(catalogHeader),
 				catalogVersion,
 				this.catalogStoragePath,
 				ofNullable(catalogHeader.walFileReference())
@@ -5362,7 +5402,8 @@ public class DefaultCatalogPersistenceService
 		CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = storagePartPersistenceFactory.get();
 		CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = storagePartPersistenceService.getCatalogHeader(
 			catalogVersion);
-		if (catalogHeader.storageProtocolVersion() == PersistenceService.STORAGE_PROTOCOL_VERSION) {
+		// TODO JNO - remove at the end of #1615
+		if (PersistenceService.isCurrentStorageProtocolVersion(catalogHeader.storageProtocolVersion())) {
 			return storagePartPersistenceService;
 		} else {
 			CatalogOffsetIndexStoragePartPersistenceService currentService = storagePartPersistenceService;
@@ -5444,6 +5485,23 @@ public class DefaultCatalogPersistenceService
 
 			return storagePartPersistenceService;
 		}
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns the storage protocol a rewrite of the given catalog header is written under. The header of a catalog
+	 * representing its single-owner reference partitions virtually keeps
+	 * {@link PersistenceService#VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION} for the life of the catalog;
+	 * any other header is written under {@link PersistenceService#STORAGE_PROTOCOL_VERSION}, as every header was
+	 * before the virtual representation existed. Only the protocol migrations write a header under another protocol,
+	 * and they do it explicitly.
+	 *
+	 * @param catalogHeader the header being rewritten
+	 * @return the storage protocol the rewritten header carries
+	 */
+	private static int storageProtocolVersionKeptBy(@Nonnull CatalogHeader<?, ?> catalogHeader) {
+		return catalogHeader.storageProtocolVersion() == VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION ?
+			VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION : STORAGE_PROTOCOL_VERSION;
 	}
 
 	/**

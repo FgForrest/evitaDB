@@ -83,6 +83,8 @@ class VirtualReferencePartitionEnabledLoadTest implements EvitaTestSupport {
 	void setUp() {
 		this.paths = createTestPaths("VirtualReferencePartitionEnabledLoadTest");
 		this.evita = new Evita(configuration());
+		// TODO JNO - remove at the end of #1615
+		this.evita.createCatalogWithVirtualReferencePartitions(CATALOG, false);
 		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
 		final TransitionHistory history = new TransitionHistory();
 		final Catalog catalog = (Catalog) this.evita.getCatalogInstance(CATALOG).orElseThrow();

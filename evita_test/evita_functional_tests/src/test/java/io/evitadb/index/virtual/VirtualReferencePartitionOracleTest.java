@@ -219,6 +219,8 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 				.server(ServerOptions.builder().closeSessionsAfterSecondsOfInactivity(-1).build())
 				.build()
 		);
+		// TODO JNO - remove at the end of #1615
+		this.evita.createCatalogWithVirtualReferencePartitions(CATALOG, false);
 		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
 		// the oracle is tried against a registry nobody maintains, in the forced test mode too
 		leaveForcedDefault(CATALOG);
@@ -285,6 +287,8 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 		// sort value
 		final String maintained = CATALOG + "Maintained";
 		this.catalog = maintained;
+		// TODO JNO - remove at the end of #1615
+		this.evita.createCatalogWithVirtualReferencePartitions(maintained, false);
 		this.evita.defineCatalog(maintained).updateViaNewSession(this.evita);
 		final Catalog theCatalog = (Catalog) this.evita.getCatalogInstance(maintained).orElseThrow();
 		for (final String entityType : ENTITY_TYPES) {
@@ -316,6 +320,8 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 		// with ranges the index finds equal - the same instants at other offsets, decimals rounded onto the same bounds
 		final String maintained = CATALOG + "Ranges";
 		this.catalog = maintained;
+		// TODO JNO - remove at the end of #1615
+		this.evita.createCatalogWithVirtualReferencePartitions(maintained, false);
 		this.evita.defineCatalog(maintained).updateViaNewSession(this.evita);
 		final Catalog theCatalog = (Catalog) this.evita.getCatalogInstance(maintained).orElseThrow();
 		for (final String entityType : ENTITY_TYPES) {
@@ -527,6 +533,10 @@ class VirtualReferencePartitionOracleTest implements EvitaTestSupport {
 		void setUpKeys() {
 			// a catalog of its own, whose category reference has the extra keys before the first product is written
 			VirtualReferencePartitionOracleTest.this.catalog = CATALOG_WITH_KEYS;
+			// TODO JNO - remove at the end of #1615
+			VirtualReferencePartitionOracleTest.this.evita.createCatalogWithVirtualReferencePartitions(
+				CATALOG_WITH_KEYS, false
+			);
 			VirtualReferencePartitionOracleTest.this.evita.defineCatalog(CATALOG_WITH_KEYS)
 				.updateViaNewSession(VirtualReferencePartitionOracleTest.this.evita);
 			leaveForcedDefault(CATALOG_WITH_KEYS);

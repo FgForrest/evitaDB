@@ -702,6 +702,8 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 		@Nonnull Consumer<EvitaSessionContract> warmUp,
 		@Nonnull Consumer<EvitaSessionContract> live
 	) {
+		// TODO JNO - remove at the end of #1615
+		this.evita.createCatalogWithVirtualReferencePartitions(catalog, false);
 		this.evita.defineCatalog(catalog).updateViaNewSession(this.evita);
 		for (final String entityType : entityTypes) {
 			maintenance(catalog).setMaintained(entityType, true);

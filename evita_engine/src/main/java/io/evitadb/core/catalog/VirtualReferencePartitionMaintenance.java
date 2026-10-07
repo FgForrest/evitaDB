@@ -33,6 +33,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.spi.store.catalog.persistence.PersistenceService;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleWithScope;
 
 import javax.annotation.Nonnull;
@@ -87,23 +88,39 @@ import java.util.function.Supplier;
  *
  * # Forced mode
  *
- * When the JVM runs with the system property {@link #FORCE_PROPERTY} set to `true`, the holder of every catalog the
- * engine creates follows a forced default: every collection of the catalog is maintained **and** read virtually from
- * the moment the catalog exists - the whole functional suite then reads every registered single-owner partition
- * through the registry. A holder leaves the forced default the first time a test sets either switch of it explicitly
- * ({@link #setMaintained(String, boolean)}, {@link #setReadVirtually(String, boolean)}) and from then on holds exactly
- * what the test sets, starting from nothing - so the tests that drive the switch themselves see the holder they
- * expect. Holders created by the public constructors never follow the forced default.
+ * When the JVM runs with the system property {@link #FORCE_PROPERTY} set to `true`, every catalog the engine creates
+ * is created virtual (see the next section) unless the engine was told to create it with objects - the whole functional
+ * suite then reads every registered single-owner partition through the registry. The holder of a catalog created with
+ * objects in the forced mode follows a forced default: every collection of the catalog is maintained **and** read
+ * virtually from the moment the catalog exists. A holder leaves the forced default the first time a test sets either
+ * switch of it explicitly ({@link #setMaintained(String, boolean)}, {@link #setReadVirtually(String, boolean)}) and
+ * from then on holds exactly what the test sets, starting from nothing - so the tests that drive the switch themselves
+ * see the holder they expect. Holders created by the public constructors never follow the forced default.
  *
  * The registry is persisted, but the switch is not, so a registry read back from disk is complete only when every
  * mutation of the catalog's history was maintained. The forced mode knows that only for catalogs born in this JVM
  * under the forced default and never taken out of it - their identifiers are remembered - and a catalog loaded from
  * disk follows the forced default only when it is one of them and the engine was not told anything else about it
- * before the load (see {@link #forLoadedCatalog(UUID, Set, TransitionProbe)}). Any other catalog loaded from disk is
- * **not eligible**: it is neither maintained nor read virtually, so no query ever reads its possibly incomplete
- * registry, and the load is counted (see {@link #getForcedIneligibleLoads()}).
+ * before the load (see {@link #forLoadedCatalog(UUID, boolean, Set, TransitionProbe)}). Any other catalog with
+ * objects loaded from disk is **not eligible**: it is neither maintained nor read virtually, so no query ever reads
+ * its possibly incomplete registry, and the load is counted (see {@link #getForcedIneligibleLoads()}).
  *
  * With the property absent {@link #FORCED} is a constant `false` and every forced branch folds away.
+ *
+ * # Virtual catalogs
+ *
+ * A catalog may also represent its single-owner partitions **virtually** for good: its catalog header carries the
+ * storage protocol {@link PersistenceService#VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION} instead of
+ * {@link PersistenceService#STORAGE_PROTOCOL_VERSION}. Which one is decided once, when the catalog is created (see
+ * {@link #isNewCatalogVirtual(Boolean)}), and never changes - the store refuses to rewrite the header under the other
+ * protocol. The holder of a virtual catalog (see
+ * {@link #isVirtual()}) maintains **and** reads virtually every collection of the catalog, those created later
+ * included, and refuses to be switched off for any of them: once the registry is the only representation of a
+ * single-owner partition, a collection that stopped maintaining it would lose the partition, and one that stopped
+ * reading it would read a partition that is not there. A catalog loaded from disk takes its representation from its
+ * header before any of its collections is constructed and before the write-ahead log is replayed onto it, so the
+ * replayed mutations - those creating a collection among them - are virtual as well. Everything above about the
+ * switch and the forced default concerns the other catalogs only.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -208,12 +225,19 @@ public final class VirtualReferencePartitionMaintenance {
 	 * `null` outside the forced mode.
 	 */
 	@Nullable private volatile UUID forcedCatalogId;
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * TRUE when the catalog represents its single-owner partitions virtually - see the class documentation. Fixed for
+	 * the life of the holder, as the representation is for the life of the catalog.
+	 */
+	private final boolean virtual;
 
 	// TODO JNO - remove at the end of #1615
 	/**
 	 * Creates a holder with the switch off for every collection.
 	 */
 	public VirtualReferencePartitionMaintenance() {
+		this.virtual = false;
 	}
 
 	// TODO JNO - remove at the end of #1615
@@ -229,21 +253,58 @@ public final class VirtualReferencePartitionMaintenance {
 		@Nonnull Set<String> maintainedEntityTypes,
 		@Nullable TransitionProbe probe
 	) {
+		this(false, maintainedEntityTypes, probe);
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Creates a holder of the given representation, with the switch on for the collections of the given entity types
+	 * and the given probe installed.
+	 *
+	 * @param virtual               TRUE for the holder of a catalog representing its single-owner partitions virtually
+	 * @param maintainedEntityTypes the names of the entity types to maintain - meaningless for a virtual catalog
+	 * @param probe                 the probe to install, `null` for none
+	 */
+	private VirtualReferencePartitionMaintenance(
+		boolean virtual,
+		@Nonnull Set<String> maintainedEntityTypes,
+		@Nullable TransitionProbe probe
+	) {
+		this.virtual = virtual;
 		this.maintainedEntityTypes.addAll(maintainedEntityTypes);
 		this.probe = probe;
 	}
 
 	// TODO JNO - remove at the end of #1615
 	/**
-	 * Creates the holder of a brand-new catalog: switched off for every collection, unless the JVM runs in the forced
+	 * Decides the representation of a catalog about to be created: virtual when the engine was told so for the
+	 * catalog, objects when it was told that, and otherwise virtual exactly in the forced mode. Decided before the
+	 * catalog writes its first header, which carries the decision for the rest of the catalog's life.
+	 *
+	 * @param requested the representation the engine was told to create the catalog in - TRUE for virtual, FALSE for
+	 *                  objects - or `null` when it was told nothing
+	 * @return TRUE when the catalog is created virtual
+	 */
+	public static boolean isNewCatalogVirtual(@Nullable Boolean requested) {
+		return requested == null ? FORCED : requested;
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Creates the holder of a brand-new catalog. The holder of a virtual catalog maintains and reads virtually every
+	 * collection for good. Any other holder is switched off for every collection, unless the JVM runs in the forced
 	 * mode, in which case the holder follows the forced default and the catalog is remembered as one whose registry
 	 * is maintained from its birth.
 	 *
 	 * @param catalogId the identifier of the new catalog
+	 * @param virtual   TRUE when the catalog is created virtual - see {@link #isNewCatalogVirtual(Boolean)}
 	 * @return the holder
 	 */
 	@Nonnull
-	public static VirtualReferencePartitionMaintenance forNewCatalog(@Nonnull UUID catalogId) {
+	public static VirtualReferencePartitionMaintenance forNewCatalog(@Nonnull UUID catalogId, boolean virtual) {
+		if (virtual) {
+			return new VirtualReferencePartitionMaintenance(true, Set.of(), null);
+		}
 		final VirtualReferencePartitionMaintenance holder = new VirtualReferencePartitionMaintenance();
 		if (FORCED) {
 			FORCED_CATALOG_IDS.add(catalogId);
@@ -254,12 +315,15 @@ public final class VirtualReferencePartitionMaintenance {
 
 	// TODO JNO - remove at the end of #1615
 	/**
-	 * Creates the holder of a catalog loaded from disk, seeded as the engine was told before the load. In the forced
-	 * mode a catalog the engine was told nothing about - no entity types and no probe - follows the forced default when
-	 * it was born in this JVM under the forced default and never left it; any other such catalog is not eligible: it
-	 * maintains and reads nothing, and the load is counted.
+	 * Creates the holder of a catalog loaded from disk. The holder of a virtual catalog - one whose header carries the
+	 * virtual storage protocol - maintains and reads virtually every collection for good, whatever the engine was told
+	 * about the entity types, and only installs the probe. Any other holder is seeded as the engine was told before
+	 * the load. In the forced mode a catalog the engine was told nothing about - no entity types and no probe -
+	 * follows the forced default when it was born in this JVM under the forced default and never left it; any other
+	 * such catalog is not eligible: it maintains and reads nothing, and the load is counted.
 	 *
 	 * @param catalogId             the identifier of the loaded catalog
+	 * @param virtual               TRUE when the header of the catalog carries the virtual storage protocol
 	 * @param maintainedEntityTypes the entity types the engine was told to maintain from the load on
 	 * @param probe                 the probe the engine was told to install, `null` for none
 	 * @return the holder
@@ -267,9 +331,13 @@ public final class VirtualReferencePartitionMaintenance {
 	@Nonnull
 	public static VirtualReferencePartitionMaintenance forLoadedCatalog(
 		@Nonnull UUID catalogId,
+		boolean virtual,
 		@Nonnull Set<String> maintainedEntityTypes,
 		@Nullable TransitionProbe probe
 	) {
+		if (virtual) {
+			return new VirtualReferencePartitionMaintenance(true, Set.of(), probe);
+		}
 		final VirtualReferencePartitionMaintenance holder =
 			new VirtualReferencePartitionMaintenance(maintainedEntityTypes, probe);
 		if (FORCED && maintainedEntityTypes.isEmpty() && probe == null) {
@@ -290,7 +358,7 @@ public final class VirtualReferencePartitionMaintenance {
 	 * @return TRUE when the switch is on for the entity type
 	 */
 	public boolean isMaintained(@Nonnull String entityType) {
-		if (FORCED && this.forcedCatalogId != null) {
+		if (this.virtual || (FORCED && this.forcedCatalogId != null)) {
 			return true;
 		}
 		// the empty check keeps the hash lookup off every entity mutation of a catalog no test has switched
@@ -462,13 +530,19 @@ public final class VirtualReferencePartitionMaintenance {
 	/**
 	 * Turns the switch on or off for the collection of the given entity type. The collection does not have to exist
 	 * yet. A collection that is read virtually must have that switch turned off first - its registry would stop
-	 * following its partitions while queries still read it.
+	 * following its partitions while queries still read it. In a virtual catalog every collection is maintained for
+	 * good: turning the switch on changes nothing there, and turning it off is refused.
 	 *
 	 * @param entityType the name of the entity type
 	 * @param maintained TRUE to maintain virtual reference partitions, FALSE to stop
-	 * @throws GenericEvitaInternalError when the maintenance is turned off while the collection is read virtually
+	 * @throws GenericEvitaInternalError when the maintenance is turned off while the collection is read virtually, or
+	 *                                   in a virtual catalog
 	 */
 	public void setMaintained(@Nonnull String entityType, boolean maintained) {
+		if (this.virtual) {
+			assertVirtualSwitchOn(entityType, maintained, "maintained");
+			return;
+		}
 		leaveForcedDefault();
 		if (maintained) {
 			this.maintainedEntityTypes.add(entityType);
@@ -493,7 +567,7 @@ public final class VirtualReferencePartitionMaintenance {
 	 * @return TRUE when the read switch is on for the entity type
 	 */
 	public boolean isReadVirtually(@Nonnull String entityType) {
-		if (FORCED && this.forcedCatalogId != null) {
+		if (this.virtual || (FORCED && this.forcedCatalogId != null)) {
 			return true;
 		}
 		// the empty check keeps the hash lookup off every query of a catalog no test has switched
@@ -503,13 +577,20 @@ public final class VirtualReferencePartitionMaintenance {
 	// TODO JNO - remove at the end of #1615
 	/**
 	 * Turns the virtual reading of the collection of the given entity type on or off. The collection does not have to
-	 * exist yet, but it must be maintained: a registry nobody keeps up to date cannot be read.
+	 * exist yet, but it must be maintained: a registry nobody keeps up to date cannot be read. In a virtual catalog
+	 * every collection is read virtually for good: turning the reading on changes nothing there, and turning it off is
+	 * refused.
 	 *
 	 * @param entityType    the name of the entity type
 	 * @param readVirtually TRUE to read the registered single-owner partitions virtually, FALSE to stop
-	 * @throws GenericEvitaInternalError when the virtual reading is turned on for a collection that is not maintained
+	 * @throws GenericEvitaInternalError when the virtual reading is turned on for a collection that is not maintained,
+	 *                                   or off in a virtual catalog
 	 */
 	public void setReadVirtually(@Nonnull String entityType, boolean readVirtually) {
+		if (this.virtual) {
+			assertVirtualSwitchOn(entityType, readVirtually, "read virtually");
+			return;
+		}
 		leaveForcedDefault();
 		if (readVirtually) {
 			if (!isMaintained(entityType)) {
@@ -535,8 +616,8 @@ public final class VirtualReferencePartitionMaintenance {
 	 * @param targetEntityType the name the collection takes
 	 */
 	public void carryOver(@Nonnull String sourceEntityType, @Nonnull String targetEntityType) {
-		if (FORCED && this.forcedCatalogId != null) {
-			// the forced default covers every name already
+		if (this.virtual || (FORCED && this.forcedCatalogId != null)) {
+			// the representation of a virtual catalog and the forced default cover every name already
 			return;
 		}
 		if (isMaintained(sourceEntityType)) {
@@ -544,6 +625,36 @@ public final class VirtualReferencePartitionMaintenance {
 		}
 		if (isReadVirtually(sourceEntityType)) {
 			this.readVirtuallyEntityTypes.add(targetEntityType);
+		}
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns TRUE when the catalog represents its single-owner reference partitions virtually - when its header
+	 * carries the virtual storage protocol. Every collection of such a catalog is maintained and read virtually, and
+	 * the holder refuses to be switched off for any of them.
+	 *
+	 * @return TRUE for the holder of a virtual catalog
+	 */
+	public boolean isVirtual() {
+		return this.virtual;
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Refuses to turn a switch of a virtual catalog off - see {@link #isVirtual()}.
+	 *
+	 * @param entityType the name of the entity type the switch is set for
+	 * @param on         the value the switch is set to
+	 * @param switchName names the switch in the error message
+	 * @throws GenericEvitaInternalError when the switch is turned off
+	 */
+	private static void assertVirtualSwitchOn(@Nonnull String entityType, boolean on, @Nonnull String switchName) {
+		if (!on) {
+			throw new GenericEvitaInternalError(
+				"Collection `" + entityType + "` belongs to a catalog representing its single-owner reference " +
+					"partitions virtually - it is " + switchName + " for good!"
+			);
 		}
 	}
 
@@ -563,8 +674,16 @@ public final class VirtualReferencePartitionMaintenance {
 	 * that verifies the default of the switch itself before the catalog holds anything: the holder then holds exactly
 	 * what the test sets, starting from nothing, and its catalog is no longer known to have been maintained throughout
 	 * - a later load of it is not eligible. Does nothing outside the forced mode or once the holder left it.
+	 *
+	 * @throws GenericEvitaInternalError when the catalog is virtual - its holder can never start from nothing
 	 */
 	public void leaveForcedDefault() {
+		if (this.virtual) {
+			throw new GenericEvitaInternalError(
+				"The catalog represents its single-owner reference partitions virtually - its holder cannot start " +
+					"from nothing!"
+			);
+		}
 		if (FORCED) {
 			final UUID catalogId = this.forcedCatalogId;
 			if (catalogId != null) {

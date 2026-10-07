@@ -138,6 +138,8 @@ class VirtualHierarchyParityTest implements EvitaTestSupport {
 	void setUp() {
 		this.paths = createTestPaths("VirtualHierarchyParityTest");
 		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
+		// TODO JNO - remove at the end of #1615
+		this.evita.createCatalogWithVirtualReferencePartitions(CATALOG, false);
 		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
 		for (final String entityType : RelatedProductsShapedFixture.ENTITY_TYPES) {
 			maintenance().setMaintained(entityType, true);

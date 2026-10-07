@@ -71,6 +71,9 @@ public interface CatalogPersistenceServiceFactory {
 	 * @param transactionOptions transaction configuration options
 	 * @param scheduler scheduler for background tasks
 	 * @param exportService service for handling file exports
+	 * @param storageProtocolVersion the storage protocol the new catalog is created under and keeps for the rest of
+	 *                               its life - one of the current ones, see
+	 *                               {@link PersistenceService#isCurrentStorageProtocolVersion(int)}
 	 * @return new catalog persistence service instance
 	 */
 	@Nonnull
@@ -81,7 +84,9 @@ public interface CatalogPersistenceServiceFactory {
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
-		@Nonnull ExportService exportService
+		@Nonnull ExportService exportService,
+		// TODO JNO - remove at the end of #1615
+		int storageProtocolVersion
 	);
 
 	/**
