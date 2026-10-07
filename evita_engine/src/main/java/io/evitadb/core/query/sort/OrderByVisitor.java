@@ -66,6 +66,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -89,6 +90,10 @@ import static java.util.Optional.ofNullable;
  */
 public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	private static final Map<Class<? extends OrderConstraint>, OrderingConstraintTranslator<? extends OrderConstraint>> TRANSLATORS;
+	/**
+	 * The entity indexes of a reference ordering, whose sort data live in the partitions of the reference instead.
+	 */
+	private static final EntityIndex[] EMPTY_ENTITY_INDEXES = new EntityIndex[0];
 
 	/* initialize list of all FilterableConstraint handlers once for a lifetime */
 	static {
@@ -245,6 +250,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 					.filter(Optional::isPresent)
 					.map(Optional::get)
 					.toArray(EntityIndex[]::new),
+				null,
 				this.queryContext.isEntityTypeKnown() ?
 					this.queryContext.getSchema().getName() : null,
 				null,
@@ -302,6 +308,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 					// the requested scopes never change
 					requestedScopes,
 					currentScope.entityIndex(),
+					currentScope.referencePartitions(),
 					currentScope.entityType(),
 					currentScope.referenceSchema(),
 					currentScope.locale(),
@@ -336,6 +343,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 				new ProcessingScope(
 					requestedScopes,
 					entityIndex,
+					null,
 					entityType,
 					null,
 					locale,
@@ -352,11 +360,10 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	}
 
 	/**
-	 * Sets different {@link EntityIndex} to be used in scope of lambda, which orders entities by a reference.
+	 * Sets the partitions of a reference to be used in scope of lambda, which orders entities by the reference.
 	 *
-	 * @param entityIndex             reduced indexes of the reference, used by consumers that need them at planning
-	 *                                time; ignored in favour of the resolver's planning indexes when a resolver is
-	 *                                passed
+	 * @param referencePartitions     partitions of the reference, used by consumers that need them at planning time;
+	 *                                ignored in favour of the resolver's planning partitions when a resolver is passed
 	 * @param referenceSchema         the reference the entities are ordered by
 	 * @param locale                  locale of the ordering or `null` for the locale of the query
 	 * @param attributeSchemaAccessor accessor of the reference attribute schemas
@@ -366,7 +373,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * @return the result of the lambda
 	 */
 	public final <T> T executeInContext(
-		@Nonnull EntityIndex[] entityIndex,
+		@Nonnull ReferencePartition[] referencePartitions,
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
@@ -381,7 +388,8 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 			this.scope.push(
 				new ProcessingScope(
 					requestedScopes,
-					entityIndex,
+					EMPTY_ENTITY_INDEXES,
+					referencePartitions,
 					referenceSchema.getReferencedEntityType(),
 					referenceSchema,
 					locale,
@@ -410,18 +418,47 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	}
 
 	/**
-	 * Returns index which is best suited for supplying {@link SortIndex}.
+	 * Returns index which is best suited for supplying {@link SortIndex} of the ordered entities themselves. Within a
+	 * reference ordering the sort data live in the partitions of the reference - see {@link #getPartitionsForSort()}.
 	 *
-	 * Within a `pickFirst` reference ordering the indexes depend on the selection and are resolved at execution time
-	 * by {@link ProcessingScope#pickFirstIndexResolver()}; a consumer asking for them at planning time gets
-	 * {@link PickFirstReducedIndexResolver#getPlanningIndexes()}.
+	 * @return the indexes of the ordered entities
+	 * @throws GenericEvitaInternalError when called within a reference ordering
 	 */
 	@Nonnull
 	public EntityIndex[] getIndexesForSort() {
 		final ProcessingScope theScope = this.scope.peek();
 		isPremiseValid(theScope != null, "Scope is unexpectedly empty!");
+		isPremiseValid(
+			theScope.referenceSchema() == null,
+			"Within a reference ordering the sort data must be read from the reference partitions!"
+		);
+		return theScope.entityIndex();
+	}
+
+	/**
+	 * Returns the partitions of the reference the current reference ordering sorts by - materialized
+	 * {@link io.evitadb.index.ReducedEntityIndex reduced entity indexes} and, when the query reads the collection
+	 * virtually, {@link io.evitadb.index.VirtualReferencePartition virtual partitions} of the registered single-owner
+	 * partitions, which have no sort or chain index of their own and are answered from the registry row.
+	 *
+	 * Within a `pickFirst` reference ordering the partitions depend on the selection and are resolved at execution time
+	 * by {@link ProcessingScope#pickFirstIndexResolver()}; a consumer asking for them at planning time gets
+	 * {@link PickFirstReducedIndexResolver#getPlanningIndexes()}.
+	 *
+	 * @return the partitions in target order
+	 * @throws GenericEvitaInternalError when called outside a reference ordering
+	 */
+	@Nonnull
+	public ReferencePartition[] getPartitionsForSort() {
+		final ProcessingScope theScope = this.scope.peek();
+		isPremiseValid(theScope != null, "Scope is unexpectedly empty!");
 		final PickFirstReducedIndexResolver resolver = theScope.pickFirstIndexResolver();
-		return resolver == null ? theScope.entityIndex() : resolver.getPlanningIndexes();
+		if (resolver != null) {
+			return resolver.getPlanningIndexes();
+		}
+		final ReferencePartition[] partitions = theScope.referencePartitions();
+		isPremiseValid(partitions != null, "Reference partitions are available only within a reference ordering!");
+		return partitions;
 	}
 
 	/**
@@ -507,7 +544,10 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * attribute schema information.
 	 *
 	 * @param requiredScopes          contains set of scopes that are requested in input query
-	 * @param entityIndex             contains index, that should be used for accessing {@link SortIndex}.
+	 * @param entityIndex             contains index, that should be used for accessing {@link SortIndex} of the ordered
+	 *                                entities, empty within a reference ordering
+	 * @param referencePartitions     contains the partitions of the reference a reference ordering sorts by, `null`
+	 *                                outside of such ordering
 	 * @param entityType              contains entity type the context refers to
 	 * @param referenceSchema         contains reference schema the scope relates to
 	 * @param locale                  contains locale the context refers to
@@ -520,6 +560,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	public record ProcessingScope(
 		@Nonnull Deque<Set<Scope>> requiredScopes,
 		@Nonnull EntityIndex[] entityIndex,
+		@Nullable ReferencePartition[] referencePartitions,
 		@Nullable String entityType,
 		@Nullable ReferenceSchema referenceSchema,
 		@Nullable Locale locale,

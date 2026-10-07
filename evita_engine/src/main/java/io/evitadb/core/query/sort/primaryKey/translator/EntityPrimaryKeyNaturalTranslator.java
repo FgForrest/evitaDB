@@ -50,13 +50,16 @@ import io.evitadb.core.query.sort.primaryKey.sorter.ReversedPrimaryKeySorter;
 import io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver;
 import io.evitadb.core.query.sort.reference.sorter.PickFirstReferenceSorter;
 import io.evitadb.core.query.sort.reference.sorter.PickFirstVirtualSortValues;
+import io.evitadb.core.query.sort.reference.sorter.VirtualPartitionSortedRecords;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
 import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.dataType.iterator.EmptyIterator;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.EntityIndex;
+import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.attribute.ReferenceSortedRecordsProvider;
 import io.evitadb.index.attribute.SortedRecordsSupplier;
 import io.evitadb.index.bitmap.Bitmap;
@@ -67,11 +70,9 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.Serializable;
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.referenceContent;
@@ -127,7 +128,7 @@ public class EntityPrimaryKeyNaturalTranslator
 				)
 			);
 		} else {
-			final EntityIndex[] entityIndices = processingScope.entityIndex();
+			final ReferencePartition[] partitions = orderByVisitor.getPartitionsForSort();
 			return Stream.of(
 				new PreSortedRecordsSorter(
 					ofNullable(processingScope.mergeModeDefinition())
@@ -135,35 +136,7 @@ public class EntityPrimaryKeyNaturalTranslator
 						.orElse(MergeMode.APPEND_FIRST),
 					orderDirection == OrderDirection.DESC ? Comparator.naturalOrder().reversed() : Comparator.naturalOrder(),
 					orderDirection,
-					() -> Arrays.stream(entityIndices)
-						.map(
-							entityIndex -> {
-								final Serializable discriminator = entityIndex.getIndexKey().discriminator();
-								final Bitmap bitmap = entityIndex.getAllPrimaryKeys();
-								final int[] pkArray = bitmap.getArray();
-								if (pkArray.length == 0) {
-									return null;
-								} else if (bitmap instanceof TransactionalBitmap txBitmap) {
-									if (discriminator instanceof RepresentativeReferenceKey rrk) {
-										return new ReferenceSortedRecordsProvider(
-											txBitmap.getId(), pkArray, createPositionArray(bitmap.size()), bitmap,
-											position -> rrk.primaryKey(),
-											rrk
-										);
-									} else {
-										throw new GenericEvitaInternalError(
-											"Entity index " + entityIndex + " is expected to be ReducedEntityIndex with ReferenceKey as discriminator!"
-										);
-									}
-								} else {
-									throw new GenericEvitaInternalError(
-										"Bitmap " + bitmap + " is not transactional and cannot be used for sorting!"
-									);
-								}
-							}
-						)
-						.filter(Objects::nonNull)
-						.toArray(SortedRecordsSupplier[]::new)
+					() -> createReferencedPrimaryKeyProviders(partitions, orderByVisitor)
 				),
 				new PrefetchedRecordsSorter(
 					new ReferencePrimaryKeyEntityComparator(
@@ -190,6 +163,58 @@ public class EntityPrimaryKeyNaturalTranslator
 
 		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
 		orderByVisitor.addComparator(comparator);
+	}
+
+	/**
+	 * Creates the providers of the partitions of a block-by-block reference ordering by the referenced primary key:
+	 * every owner of a partition carries the primary key of the partition's referenced entity. A materialized
+	 * partition hands out its owners in their primary key order, a virtual one the singleton of its only owner (see
+	 * {@link VirtualPartitionSortedRecords#ofReferencedPrimaryKey(VirtualReferencePartition)}) - no registry lookup.
+	 *
+	 * @param partitions     the partitions of the reference in target order
+	 * @param orderByVisitor the visitor of the planned query
+	 * @return the providers in the order of the partitions, without the partitions holding no owner
+	 */
+	@Nonnull
+	private static SortedRecordsProvider[] createReferencedPrimaryKeyProviders(
+		@Nonnull ReferencePartition[] partitions,
+		@Nonnull OrderByVisitor orderByVisitor
+	) {
+		final List<SortedRecordsProvider> providers = new ArrayList<>(partitions.length);
+		int virtualCount = 0;
+		for (final ReferencePartition partition : partitions) {
+			switch (partition) {
+				case ReducedEntityIndex reducedEntityIndex -> {
+					final RepresentativeReferenceKey rrk = reducedEntityIndex.getRepresentativeReferenceKey();
+					final Bitmap bitmap = reducedEntityIndex.getAllPrimaryKeys();
+					final int[] pkArray = bitmap.getArray();
+					if (pkArray.length == 0) {
+						continue;
+					} else if (bitmap instanceof TransactionalBitmap txBitmap) {
+						providers.add(
+							new ReferenceSortedRecordsProvider(
+								txBitmap.getId(), pkArray, createPositionArray(bitmap.size()), bitmap,
+								position -> rrk.primaryKey(),
+								rrk
+							)
+						);
+					} else {
+						throw new GenericEvitaInternalError(
+							"Bitmap " + bitmap + " is not transactional and cannot be used for sorting!"
+						);
+					}
+				}
+				case VirtualReferencePartition virtualPartition -> {
+					virtualCount++;
+					providers.add(VirtualPartitionSortedRecords.ofReferencedPrimaryKey(virtualPartition));
+				}
+			}
+		}
+		if (virtualCount > 0) {
+			// TODO JNO - remove at the end of #1615 (the non-vacuity probe of the read parity tests)
+			orderByVisitor.recordVirtualRowsRead(virtualCount);
+		}
+		return providers.toArray(SortedRecordsProvider[]::new);
 	}
 
 	/**

@@ -36,18 +36,12 @@ R1 | io.evitadb.core.query.filter.translator.reference.ReferenceHavingTranslator
 R1 | io.evitadb.core.query.indexSelection.IndexSelectionVisitor#addHierarchyIndexOption | hierarchy target index set: partitions entered into the query body channel under their class token
 R1 | io.evitadb.core.query.indexSelection.IndexSelectionVisitor#addReferenceIndexOption | reference target index set: class token of the query body channel and owner-count sum
 R1 | io.evitadb.core.query.indexSelection.IndexSelectionVisitor#resolveAllPartitionsOfNodes | object-only list of a hierarchy target index set, resolved on demand into the query body channel
-R1 | io.evitadb.core.query.sort.OrderByVisitor#getIndexesForSort | sort index array of the query body channel handed to the sorters
-R1 | io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver#<init> | memoized planning partitions, which feed the sort index array of the query body channel
-R1 | io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver#field:memoizedPlanningIndexes | memoized planning partitions, which feed the sort index array of the query body channel
-R1 | io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver#field:planningIndexes | memoized planning partitions, which feed the sort index array of the query body channel
-R1 | io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver#getPlanningIndexes | memoized planning partitions, which feed the sort index array of the query body channel
-R1 | io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator#<clinit> | reuses the filter's partitions from the query body channel under their class token
-R1 | io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator#createPickFirstIndexResolver | supplier of planning partitions, which feed the sort index array of the query body channel
-R1 | io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator#createSorter | traverse blocks of the planning partitions of the query body channel
-R1 | io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator#field:EMPTY_REDUCED_INDEXES | reuses the filter's partitions from the query body channel under their class token
 R1 | io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator#selectFullEntityIndexSet | whole family of the reference resolved into the query body channel
-R1 | io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator#selectPlanningReducedIndexes | target order of the planning partitions of the query body channel
 R1 | io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator#selectReducedEntityIndexSet | reuses the filter's partitions from the query body channel under their class token
+R1 | io.evitadb.core.query.sort.ReferenceOrderByVisitor#getChainOfPartition | materialized arm of the exhaustive switch reading the partition's own chain index; the virtual arm reads the registry
+R1 | io.evitadb.core.query.sort.attribute.translator.AttributeNaturalTranslator$AttributeSortedRecordsProviderSupplier#get | materialized arm of the exhaustive switch reading the partition's own sort or chain index; the virtual arm reads the registry
+R1 | io.evitadb.core.query.sort.attribute.translator.AttributeSetExactTranslator#getRecordsEqualTo | materialized arm of the exhaustive switch reading the partition's own sort index; the virtual arm reads the registry
+R1 | io.evitadb.core.query.sort.primaryKey.translator.EntityPrimaryKeyNaturalTranslator#createReferencedPrimaryKeyProviders | materialized arm of the exhaustive switch reading the partition's transactional owner bitmap; the virtual arm is a singleton
 R1 | io.evitadb.index.ReferencePartitions#asPartition | the partition resolver implementation itself
 R1 | io.evitadb.index.ReferencePartitions#requirePartition | the partition resolver implementation itself
 R1 | io.evitadb.index.ReferencePartitions#toReducedEntityIndex | the single entry of a partition into the Index-bound query body channel

@@ -80,6 +80,7 @@ import java.util.OptionalInt;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntPredicate;
 import java.util.function.UnaryOperator;
 
@@ -253,6 +254,13 @@ public class VirtualReferencePartitionIndex
 	 * The sort index of each declared sort key, holding the partition primary keys of the slot's entries.
 	 */
 	@Nonnull private final PersistentTransactionalProducerMap<AttributeIndexKey, OwnerSortIndex> sortIndexes;
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * How many walks over the values of a sort index of this instance {@link #forEachSortValueId} has started - the
+	 * operation-count probe proving that the block-by-block orderings read single-owner partitions without walking
+	 * the family of the reference. Belongs to this instance only, a copy starts from zero.
+	 */
+	private final AtomicInteger sortValueWalkCount = new AtomicInteger();
 	/**
 	 * The declared chain keys - the chained attribute, with its locale, mapped to the id of its slot.
 	 */
@@ -650,6 +658,17 @@ public class VirtualReferencePartitionIndex
 	@Nonnull
 	public Set<AttributeIndexKey> getDeclaredChainKeys() {
 		return Set.copyOf(this.chainKeys.keySet());
+	}
+
+	/**
+	 * Returns TRUE when the chain key is declared - when {@link #getChainPredecessor(AttributeIndexKey, int)} may be
+	 * asked about it. One hash lookup, no copy of the declared keys.
+	 *
+	 * @param attributeIndexKey the chained attribute, with its locale
+	 * @return TRUE when the key is declared
+	 */
+	public boolean isChainKeyDeclared(@Nonnull AttributeIndexKey attributeIndexKey) {
+		return this.chainKeys.containsKey(attributeIndexKey);
 	}
 
 	/**
@@ -1095,6 +1114,8 @@ public class VirtualReferencePartitionIndex
 		if (sortKey == null) {
 			return;
 		}
+		// TODO JNO - remove at the end of #1615 (the operation-count probe)
+		this.sortValueWalkCount.incrementAndGet();
 		final Iterator<Serializable> values = getSortIndexOfDeclaredKey(attributeIndexKey)
 			.getDistinctValueIterator(descending);
 		while (values.hasNext()) {
@@ -1122,6 +1143,17 @@ public class VirtualReferencePartitionIndex
 	public int getDistinctSortValueCount(@Nonnull AttributeIndexKey attributeIndexKey) {
 		final OwnerSortIndex sortIndex = this.sortIndexes.get(attributeIndexKey);
 		return sortIndex == null ? 0 : sortIndex.getDistinctValueCount();
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns how many walks over the values of a sort index of this instance
+	 * {@link #forEachSortValueId(AttributeIndexKey, boolean, IntPredicate)} has started.
+	 *
+	 * @return the number of walks
+	 */
+	public int getSortValueWalkCount() {
+		return this.sortValueWalkCount.get();
 	}
 
 	/**
@@ -1364,8 +1396,10 @@ public class VirtualReferencePartitionIndex
 		final long sortValueEntry = layout.sizeOfObject(2L * layout.referenceSize() + Integer.BYTES);
 		final long boxedLong = layout.sizeOfObject(Long.BYTES);
 		// the dirty / dictionaryDirty / entries / pageStreamRegistry / tupleIds / tuples / nextTupleId / sortKeys /
-		// sortValueIds / sortValues / sortIndexes / chainKeys slots
-		return layout.sizeOfObject(12L * layout.referenceSize())
+		// sortValueIds / sortValues / sortIndexes / chainKeys / sortValueWalkCount slots
+		return layout.sizeOfObject(13L * layout.referenceSize())
+			// TODO JNO - remove at the end of #1615 (the walk counter of the operation-count probe)
+			+ layout.sizeOfObject(Integer.BYTES)
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.dictionaryDirty.getHeapSizeInBytes()
 			+ this.entries.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER)

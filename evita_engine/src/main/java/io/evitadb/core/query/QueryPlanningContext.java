@@ -1238,11 +1238,20 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		if (this.partitionKeyMemo == null) {
 			this.partitionKeyMemo = new PartitionKeyMemo();
 		}
-		return this.partitionKeyMemo.resolveIfExists(
+		final PartitionKeyMemo memo = this.partitionKeyMemo;
+		// TODO JNO - remove at the end of #1615 (the operation-count probe of the chain tests)
+		final int familyBuilds = memo.getFamilyBuildCount();
+		final int visitedEntries = memo.getVisitedEntryCount();
+		final ReferencePartition partition = memo.resolveIfExists(
 			getIndexByKeyReader(entityType),
 			getVirtualTypeIndex(entityType, scope, representativeReferenceKey.referenceName()),
 			scope, representativeReferenceKey
 		);
+		// TODO JNO - remove at the end of #1615 (the operation-count probe of the chain tests)
+		this.catalog.getVirtualReferencePartitionMaintenance().recordPartitionKeyMemoWork(
+			memo.getFamilyBuildCount() - familyBuilds, memo.getVisitedEntryCount() - visitedEntries
+		);
+		return partition;
 	}
 
 	/**

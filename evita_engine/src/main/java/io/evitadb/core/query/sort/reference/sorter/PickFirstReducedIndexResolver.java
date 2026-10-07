@@ -33,7 +33,6 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartition;
@@ -152,11 +151,11 @@ public final class PickFirstReducedIndexResolver {
 	/**
 	 * Supplier of the planning-time reduced indexes, see {@link #getPlanningIndexes()}.
 	 */
-	@Nonnull private final Supplier<ReducedEntityIndex[]> planningIndexes;
+	@Nonnull private final Supplier<ReferencePartition[]> planningIndexes;
 	/**
 	 * Memoized result of {@link #planningIndexes}.
 	 */
-	@Nullable private ReducedEntityIndex[] memoizedPlanningIndexes;
+	@Nullable private ReferencePartition[] memoizedPlanningIndexes;
 
 	/**
 	 * Creates a resolver.
@@ -174,7 +173,7 @@ public final class PickFirstReducedIndexResolver {
 		@Nonnull Scope[] scopes,
 		@Nullable NestedContextSorter targetSorter,
 		boolean targetsDescending,
-		@Nonnull Supplier<ReducedEntityIndex[]> planningIndexes
+		@Nonnull Supplier<ReferencePartition[]> planningIndexes
 	) {
 		this.queryContext = queryContext;
 		this.referenceSchema = referenceSchema;
@@ -271,15 +270,16 @@ public final class PickFirstReducedIndexResolver {
 	}
 
 	/**
-	 * Returns the reduced indexes for the consumers that need an index array at planning time, before any selection
+	 * Returns the partitions for the consumers that need a partition array at planning time, before any selection
 	 * exists - the block-by-block orderings of chain attributes and the single-index orderings - which therefore keep
 	 * the planning-time index set of the block orderings: the candidates of a `referenceHaving` on the same reference
 	 * when there are any, the whole family otherwise. Resolved once per instance, and only when asked for.
 	 *
-	 * @return the planning-time reduced indexes in target order
+	 * @return the planning-time partitions in target order - reduced entity indexes and, when the query reads the
+	 *         collection virtually, virtual partitions
 	 */
 	@Nonnull
-	public ReducedEntityIndex[] getPlanningIndexes() {
+	public ReferencePartition[] getPlanningIndexes() {
 		if (this.memoizedPlanningIndexes == null) {
 			this.memoizedPlanningIndexes = this.planningIndexes.get();
 		}

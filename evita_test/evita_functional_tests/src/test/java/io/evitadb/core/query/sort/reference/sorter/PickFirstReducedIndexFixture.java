@@ -406,7 +406,7 @@ final class PickFirstReducedIndexFixture {
 		@Nonnull Scope... scopes
 	) {
 		return new PickFirstReducedIndexResolver(
-			this.queryContext, this.referenceSchema, scopes, targetSorter, false, planningIndexes
+			this.queryContext, this.referenceSchema, scopes, targetSorter, false, planningIndexes::get
 		);
 	}
 

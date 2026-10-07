@@ -36,8 +36,7 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
-import io.evitadb.index.attribute.ChainIndex;
-import io.evitadb.index.attribute.SortedRecordsSupplier;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -72,7 +71,7 @@ public class ReferencePredecessorComparator implements ReferenceComparator, Refe
 	/**
 	 * The supplier used to provide sorted records for a given chain index.
 	 */
-	private final Function<ChainIndex, SortedRecordsSupplier> sortedRecordsSupplierProvider;
+	private final Function<SortedRecordsSupplierFactory, SortedRecordsProvider> sortedRecordsSupplierProvider;
 	/**
 	 * The predicate used to resolve the comparability of two reference keys.
 	 */
@@ -99,7 +98,7 @@ public class ReferencePredecessorComparator implements ReferenceComparator, Refe
 		@Nonnull String attributeName,
 		@Nullable Locale locale,
 		@Nonnull ReferenceOrderByVisitor referenceOrderByVisitor,
-		@Nonnull Function<ChainIndex, SortedRecordsSupplier> sortedRecordsSupplierProvider,
+		@Nonnull Function<SortedRecordsSupplierFactory, SortedRecordsProvider> sortedRecordsSupplierProvider,
 		@Nonnull BiPredicate<RepresentativeReferenceKey, RepresentativeReferenceKey> comparabilityResolver,
 		@Nonnull ToIntBiFunction<Integer, ReferenceKey> primaryKeyResolver
 	) {
@@ -124,7 +123,7 @@ public class ReferencePredecessorComparator implements ReferenceComparator, Refe
 		@Nullable ReferenceComparator nextComparator,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull ReferenceOrderByVisitor referenceOrderByVisitor,
-		@Nonnull Function<ChainIndex, SortedRecordsSupplier> sortedRecordsSupplierProvider,
+		@Nonnull Function<SortedRecordsSupplierFactory, SortedRecordsProvider> sortedRecordsSupplierProvider,
 		@Nonnull BiPredicate<RepresentativeReferenceKey, RepresentativeReferenceKey> comparabilityResolver,
 		@Nonnull ToIntBiFunction<Integer, ReferenceKey> primaryKeyResolver
 	) {
@@ -240,7 +239,7 @@ public class ReferencePredecessorComparator implements ReferenceComparator, Refe
 		final int pkToLookup = this.primaryKeyResolver.applyAsInt(this.entityPrimaryKey, representativeReferenceKey.referenceKey());
 		final int position = this.pkToRecordPositionCache.getOrDefault(pkToLookup, -1);
 		if (position == -1) {
-			final ChainIndex chainIndex = this.referenceOrderByVisitor.getChainIndex(this.entityPrimaryKey, representativeReferenceKey, this.attributeKey).orElse(null);
+			final SortedRecordsSupplierFactory chainIndex = this.referenceOrderByVisitor.getChainIndex(this.entityPrimaryKey, representativeReferenceKey, this.attributeKey).orElse(null);
 			final SortedRecordsProvider sortedRecordsSupplier = chainIndex == null ? SortedRecordsProvider.EMPTY : this.sortedRecordsSupplierProvider.apply(chainIndex);
 			// resolve the position directly (tree-direct or array-backed); -1 (not cached) is reserved by this cache,
 			// so an absent record (POSITION_NOT_FOUND == -1) is stored as -2

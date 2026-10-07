@@ -109,6 +109,18 @@ public final class VirtualReferencePartitionMaintenance {
 	private final AtomicLong virtualRowsRead = new AtomicLong();
 	// TODO JNO - remove at the end of #1615
 	/**
+	 * How many target families the by-key memos of queries have built since this holder was created - see
+	 * {@link #recordPartitionKeyMemoWork(int, int)}.
+	 */
+	private final AtomicLong partitionKeyFamilyBuilds = new AtomicLong();
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * How many family members the by-key memos of queries have visited since this holder was created - see
+	 * {@link #recordPartitionKeyMemoWork(int, int)}.
+	 */
+	private final AtomicLong partitionKeyVisitedEntries = new AtomicLong();
+	// TODO JNO - remove at the end of #1615
+	/**
 	 * The probe a test installed, `null` when none is. Volatile, because a test installs it on its own thread while
 	 * mutations - the trunk replay of a commit among them - run on others.
 	 */
@@ -241,6 +253,43 @@ public final class VirtualReferencePartitionMaintenance {
 	 */
 	public long getVirtualRowsRead() {
 		return this.virtualRowsRead.get();
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Records the work the by-key memo of a query did resolving one key - the operation-count probe of the chain
+	 * tests, see {@link io.evitadb.index.PartitionKeyMemo}.
+	 *
+	 * @param familyBuilds   how many target families the resolution built, zero or more
+	 * @param visitedEntries how many family members the resolution visited, zero or more
+	 */
+	public void recordPartitionKeyMemoWork(int familyBuilds, int visitedEntries) {
+		if (familyBuilds > 0) {
+			this.partitionKeyFamilyBuilds.addAndGet(familyBuilds);
+		}
+		if (visitedEntries > 0) {
+			this.partitionKeyVisitedEntries.addAndGet(visitedEntries);
+		}
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns how many target families the by-key memos of queries have built since this holder was created.
+	 *
+	 * @return the number of family builds
+	 */
+	public long getPartitionKeyFamilyBuilds() {
+		return this.partitionKeyFamilyBuilds.get();
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns how many family members the by-key memos of queries have visited since this holder was created.
+	 *
+	 * @return the number of visited family members
+	 */
+	public long getPartitionKeyVisitedEntries() {
+		return this.partitionKeyVisitedEntries.get();
 	}
 
 	// TODO JNO - remove at the end of #1615

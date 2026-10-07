@@ -54,7 +54,12 @@ import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslat
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.core.query.sort.SortedRecordsSupplierFactory;
+import io.evitadb.core.query.sort.reference.sorter.VirtualPartitionSortedRecords;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.VirtualReferencePartition;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.attribute.AttributeIndex;
@@ -66,6 +71,7 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -190,7 +196,10 @@ public class AttributeNaturalTranslator
 		}
 
 		final Supplier<SortedRecordsProvider[]> sortedRecordsSupplier;
-		final EntityIndex[] indexesForSort = orderByVisitor.getIndexesForSort();
+		// an ordering by a reference attribute reads the partitions of the reference, the virtual ones included
+		final EntityIndex[] indexesForSort = referenceSchema == null ? orderByVisitor.getIndexesForSort() : null;
+		final ReferencePartition[] partitionsForSort = referenceSchema == null ?
+			null : orderByVisitor.getPartitionsForSort();
 		if (orderDirection == ASC) {
 			sortedRecordsSupplier = new AttributeSortedRecordsProviderSupplier(
 				SortIndex::getAscendingOrderRecordsSupplier,
@@ -199,6 +208,7 @@ public class AttributeNaturalTranslator
 				referenceSchema,
 				attributeOrCompoundSchema,
 				indexesForSort,
+				partitionsForSort,
 				orderByVisitor, locale
 			);
 		} else {
@@ -209,6 +219,7 @@ public class AttributeNaturalTranslator
 				referenceSchema,
 				attributeOrCompoundSchema,
 				indexesForSort,
+				partitionsForSort,
 				orderByVisitor, locale
 			);
 		}
@@ -504,7 +515,7 @@ public class AttributeNaturalTranslator
 					attributeOrCompoundName,
 					attributeSchema.isLocalized() ? locale : null,
 					orderByVisitor,
-					ChainIndex::getAscendingOrderRecordsSupplier,
+					SortedRecordsSupplierFactory::getAscendingOrderRecordsSupplier,
 					(ref1, ref2) -> ref1.primaryKey() == ref2.primaryKey(),
 					(epk, referenceKey) -> epk
 				);
@@ -514,7 +525,7 @@ public class AttributeNaturalTranslator
 					attributeOrCompoundName,
 					attributeSchema.isLocalized() ? locale : null,
 					orderByVisitor,
-					ChainIndex::getDescendingOrderRecordsSupplier,
+					SortedRecordsSupplierFactory::getDescendingOrderRecordsSupplier,
 					(ref1, ref2) -> ref1.primaryKey() == ref2.primaryKey(),
 					(epk, referenceKey) -> epk
 				);
@@ -528,7 +539,7 @@ public class AttributeNaturalTranslator
 					attributeOrCompoundName,
 					attributeSchema.isLocalized() ? locale : null,
 					orderByVisitor,
-					ChainIndex::getAscendingOrderRecordsSupplier,
+					SortedRecordsSupplierFactory::getAscendingOrderRecordsSupplier,
 					(ref1, ref2) -> true,
 					(epk, referenceKey) -> referenceKey.primaryKey()
 				);
@@ -538,7 +549,7 @@ public class AttributeNaturalTranslator
 					attributeOrCompoundName,
 					attributeSchema.isLocalized() ? locale : null,
 					orderByVisitor,
-					ChainIndex::getDescendingOrderRecordsSupplier,
+					SortedRecordsSupplierFactory::getDescendingOrderRecordsSupplier,
 					(ref1, ref2) -> true,
 					(epk, referenceKey) -> referenceKey.primaryKey()
 				);
@@ -584,6 +595,21 @@ public class AttributeNaturalTranslator
 	 * The behavior is influenced by the specific schema type (e.g., {@link AttributeSchemaContract}), and it
 	 * applies extraction and filtering logic to produce the sorted record providers. Additionally, it supports an
 	 * optional locale parameter to target locale-specific indexes.
+	 *
+	 * Within a reference ordering the providers come from the partitions of the reference: a materialized partition
+	 * hands out the provider of its own sort or chain index, a virtual one the singleton provider read out of its
+	 * registry row (see {@link VirtualPartitionSortedRecords}) - `O(log n)` per virtual partition, never a walk of
+	 * the registry's sort index of the key.
+	 *
+	 * @param sortIndexExtractor        extracts the provider of the direction from a sort index
+	 * @param chainIndexExtractor       extracts the provider of the direction from a chain index
+	 * @param entitySchema              the schema of the sorted entities, required for a compound
+	 * @param referenceSchema           the reference the attribute belongs to, `null` for an entity attribute
+	 * @param attributeOrCompoundSchema the sorted attribute or compound
+	 * @param targetIndex               the indexes of the sorted entities, `null` within a reference ordering
+	 * @param partitions                the partitions of the reference, `null` outside a reference ordering
+	 * @param orderByVisitor            the visitor of the planned query
+	 * @param locale                    the locale of the ordering
 	 */
 	private record AttributeSortedRecordsProviderSupplier(
 		@Nonnull Function<SortIndex, SortedRecordsProvider> sortIndexExtractor,
@@ -591,7 +617,8 @@ public class AttributeNaturalTranslator
 		@Nullable EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull NamedSchemaContract attributeOrCompoundSchema,
-		@Nonnull EntityIndex[] targetIndex,
+		@Nullable EntityIndex[] targetIndex,
+		@Nullable ReferencePartition[] partitions,
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nullable Locale locale
 	) implements Supplier<SortedRecordsProvider[]> {
@@ -600,40 +627,99 @@ public class AttributeNaturalTranslator
 		@Override
 		public SortedRecordsProvider[] get() {
 			final SortedRecordsProvider[] sortedRecordsProvider;
+			if (this.partitions == null) {
+				sortedRecordsProvider = Arrays.stream(Objects.requireNonNull(this.targetIndex))
+					.map(this::getProvider)
+					.filter(Objects::nonNull)
+					.toArray(SortedRecordsProvider[]::new);
+			} else {
+				final List<SortedRecordsProvider> providers = new ArrayList<>(this.partitions.length);
+				int virtualCount = 0;
+				for (final ReferencePartition partition : this.partitions) {
+					final SortedRecordsProvider provider = switch (partition) {
+						case ReducedEntityIndex reducedEntityIndex -> getProvider(reducedEntityIndex);
+						case VirtualReferencePartition virtualPartition -> {
+							virtualCount++;
+							yield getProvider(virtualPartition);
+						}
+					};
+					if (provider != null) {
+						providers.add(provider);
+					}
+				}
+				if (virtualCount > 0) {
+					// TODO JNO - remove at the end of #1615 (the non-vacuity probe of the read parity tests)
+					this.orderByVisitor.recordVirtualRowsRead(virtualCount);
+				}
+				sortedRecordsProvider = providers.toArray(SortedRecordsProvider[]::new);
+			}
+
+			return sortedRecordsProvider.length == 0 ?
+				EMPTY_PROVIDERS : sortedRecordsProvider;
+		}
+
+		/**
+		 * Returns the provider of the sort or chain index of the attribute or compound the index keeps.
+		 *
+		 * @param index the index of the sorted entities or a materialized partition of the reference
+		 * @return the provider, or `null` when the index keeps no sort or chain index of the attribute or compound
+		 */
+		@Nullable
+		private SortedRecordsProvider getProvider(@Nonnull EntityIndex index) {
 			if (this.attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema) {
-				if (Predecessor.class.equals(attributeSchema.getPlainType())) {
-					sortedRecordsProvider = Arrays.stream(this.targetIndex)
-						.map(it -> it.getChainIndex(this.referenceSchema, attributeSchema, this.locale))
-						.filter(Objects::nonNull)
-						.map(this.chainIndexExtractor)
-						.toArray(SortedRecordsProvider[]::new);
-				}  else if (ReferencedEntityPredecessor.class.equals(attributeSchema.getPlainType())) {
-					sortedRecordsProvider = Arrays.stream(this.targetIndex)
-						.map(it -> it.getChainIndex(this.referenceSchema, attributeSchema, this.locale))
-						.filter(Objects::nonNull)
-						.map(this.chainIndexExtractor)
-						.toArray(SortedRecordsProvider[]::new);
+				if (isChainAttribute(attributeSchema)) {
+					final ChainIndex chainIndex = index.getChainIndex(this.referenceSchema, attributeSchema, this.locale);
+					return chainIndex == null ? null : this.chainIndexExtractor.apply(chainIndex);
 				} else {
-					sortedRecordsProvider = Arrays.stream(this.targetIndex)
-						.map(it -> it.getSortIndex(this.referenceSchema, attributeSchema, this.locale))
-						.filter(Objects::nonNull)
-						.map(this.sortIndexExtractor)
-						.toArray(SortedRecordsProvider[]::new);
+					final SortIndex sortIndex = index.getSortIndex(this.referenceSchema, attributeSchema, this.locale);
+					return sortIndex == null ? null : this.sortIndexExtractor.apply(sortIndex);
 				}
 			} else if (this.attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract compoundSchema) {
-				sortedRecordsProvider = Arrays.stream(this.targetIndex)
-					.map(it -> it.getSortIndex(Objects.requireNonNull(this.entitySchema), this.referenceSchema, compoundSchema, this.locale))
-					.filter(Objects::nonNull)
-					.map(this.sortIndexExtractor)
-					.toArray(SortedRecordsProvider[]::new);
+				final SortIndex sortIndex = index.getSortIndex(
+					Objects.requireNonNull(this.entitySchema), this.referenceSchema, compoundSchema, this.locale
+				);
+				return sortIndex == null ? null : this.sortIndexExtractor.apply(sortIndex);
 			} else {
 				throw new GenericEvitaInternalError(
 					"Unsupported attribute schema type: " + this.attributeOrCompoundSchema.getClass()
 				);
 			}
+		}
 
-			return sortedRecordsProvider.length == 0 ?
-				EMPTY_PROVIDERS : sortedRecordsProvider;
+		/**
+		 * Returns the singleton provider of a virtual partition - the counterpart of {@link #getProvider(EntityIndex)}
+		 * on the partition's reduced entity index, read out of the registry row of the partition.
+		 *
+		 * @param partition the virtual partition
+		 * @return the provider, or `null` when the row carries no value (no predecessor) of the attribute or compound
+		 */
+		@Nullable
+		private SortedRecordsProvider getProvider(@Nonnull VirtualReferencePartition partition) {
+			if (this.attributeOrCompoundSchema instanceof AttributeSchemaContract attributeSchema) {
+				final AttributeIndexKey key = AttributeIndex.createAttributeKey(
+					this.referenceSchema, attributeSchema, this.locale
+				);
+				if (isChainAttribute(attributeSchema)) {
+					// the chain index of a partition is keyed by the referenced entity for the type this collection's
+					// reference declares - which reflection may have inverted from the source's
+					return VirtualPartitionSortedRecords.ofChain(
+						partition, key, ReferencedEntityPredecessor.class.equals(attributeSchema.getPlainType())
+					);
+				} else {
+					return VirtualPartitionSortedRecords.ofSortValue(partition, key);
+				}
+			} else if (this.attributeOrCompoundSchema instanceof SortableAttributeCompoundSchemaContract compoundSchema) {
+				return VirtualPartitionSortedRecords.ofSortValue(
+					partition,
+					AttributeIndex.createAttributeKey(
+						Objects.requireNonNull(this.entitySchema), this.referenceSchema, compoundSchema, this.locale
+					)
+				);
+			} else {
+				throw new GenericEvitaInternalError(
+					"Unsupported attribute schema type: " + this.attributeOrCompoundSchema.getClass()
+				);
+			}
 		}
 	}
 }

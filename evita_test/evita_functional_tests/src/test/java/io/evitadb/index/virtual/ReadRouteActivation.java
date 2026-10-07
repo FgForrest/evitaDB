@@ -51,8 +51,9 @@ final class ReadRouteActivation {
 	 * negations, `attributeIs`, `groupHaving`, `entityLocaleEquals` and `inScope` answered exactly - its target index
 	 * list, `entityHaving` / `entityPrimaryKeyInSet` in a body, the bidirectional rewrite, the translation of a
 	 * partition to its target, and the hierarchy routes - `hierarchyWithin` / `hierarchyWithinRoot` of a reference and
-	 * the statistics of `hierarchyOfReference` - and the `pickFirst` orderings of step 4f: the gather, the claims, the
-	 * value of a partition, the referenced primary key and the target rank of the prefetch route.
+	 * the statistics of `hierarchyOfReference` - the `pickFirst` orderings of step 4f: the gather, the claims, the
+	 * value of a partition, the referenced primary key and the target rank of the prefetch route - and the
+	 * block-by-block orderings and chains of step 4g.
 	 */
 	static final Set<ReadRoute> LANDED_ROUTES = EnumSet.of(
 		ReadRoute.REFERENCE_HAVING_BODY,
@@ -70,7 +71,13 @@ final class ReadRouteActivation {
 		ReadRoute.PICK_FIRST_CLAIM,
 		ReadRoute.PICK_FIRST_VALUE,
 		ReadRoute.PICK_FIRST_REFERENCED_PRIMARY_KEY,
-		ReadRoute.PICK_FIRST_TARGET_RANK
+		ReadRoute.PICK_FIRST_TARGET_RANK,
+		ReadRoute.TRAVERSE_PLANNING_SET,
+		ReadRoute.SEQUENTIAL_BLOCKS,
+		ReadRoute.BLOCK_PROVIDERS,
+		ReadRoute.BLOCK_REFERENCED_PRIMARY_KEY,
+		ReadRoute.BLOCK_EXACT_ATTRIBUTE_SET,
+		ReadRoute.REFERENCE_CONTENT_CHAIN
 	);
 	/**
 	 * The activation of an engine that maintains nothing, and so can never read virtually.
@@ -163,6 +170,31 @@ final class ReadRouteActivation {
 		 * Route 16 - the target rank the prefetch route of a `pickFirst` ordering picks the row by.
 		 */
 		PICK_FIRST_TARGET_RANK,
+		/**
+		 * Route 17 - the planning set of a block-by-block reference ordering: the partitions in target order, split
+		 * into the blocks of one target each.
+		 */
+		TRAVERSE_PLANNING_SET,
+		/**
+		 * Route 18 - the sequential sorter walking the blocks, the owners of a virtual partition a singleton.
+		 */
+		SEQUENTIAL_BLOCKS,
+		/**
+		 * Route 19 - the attribute, compound and chain providers of a block.
+		 */
+		BLOCK_PROVIDERS,
+		/**
+		 * Route 20 - `entityPrimaryKeyNatural` in a block-by-block reference ordering.
+		 */
+		BLOCK_REFERENCED_PRIMARY_KEY,
+		/**
+		 * Route 21 - `attributeSetExact` / `attributeSetInFilter` in a reference block of one partition.
+		 */
+		BLOCK_EXACT_ATTRIBUTE_SET,
+		/**
+		 * Route 22 - the chains of `referenceContent(orderBy)`, original and reflected, resolved by key.
+		 */
+		REFERENCE_CONTENT_CHAIN,
 		/**
 		 * Route 24 - facet summaries and histograms, which read the target index or the type index.
 		 */
