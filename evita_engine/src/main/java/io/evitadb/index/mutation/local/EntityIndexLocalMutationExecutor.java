@@ -1476,86 +1476,90 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Updates or inserts (upserts) the specified entity attribute locale into the target index.
+	 * Updates or inserts (upserts) the specified entity attribute locale into the target - an index object, or a
+	 * virtual partition the registry of single-owner partitions alone receives the locale's compounds for.
 	 *
 	 * @param locale                      the locale information that needs to be updated or inserted
 	 * @param entitySchema                the schema of the entity the locale information belongs to
-	 * @param targetIndex                 the target index where the locale data should be upserted
+	 * @param target                      the target where the locale data should be upserted
 	 * @param existingDataSupplierFactory the factory supplying existing data supplier methods for lookups
 	 */
 	public void upsertEntityAttributeLocaleInTargetIndex(
 		@Nonnull Locale locale,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull EntityIndex targetIndex,
+		@Nonnull IndexWriteTarget target,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		insertInitialSuiteOfSortableAttributeCompounds(
-			locale, entitySchema, targetIndex, existingDataSupplierFactory
+			locale, entitySchema, target, existingDataSupplierFactory
 		);
 	}
 
 	/**
-	 * Updates or inserts (upserts) the specified entity attribute locale into the target index,
+	 * Updates or inserts (upserts) the specified entity attribute locale into the target,
 	 * using an explicit reference key. This overload is used when the index discriminator may not
 	 * contain the correct reference key (e.g. for group-level reduced indexes).
 	 *
 	 * @param locale                      the locale information that needs to be updated or inserted
 	 * @param entitySchema                the schema of the entity the locale information belongs to
-	 * @param targetIndex                 the target index where the locale data should be upserted
+	 * @param target                      the target where the locale data should be upserted - an index object, or
+	 *                                    a virtual partition
 	 * @param referenceKey                the explicit reference key to use instead of extracting from the index discriminator
 	 * @param existingDataSupplierFactory the factory supplying existing data supplier methods for lookups
 	 */
 	public void upsertEntityAttributeLocaleInTargetIndex(
 		@Nonnull Locale locale,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull EntityIndex targetIndex,
+		@Nonnull IndexWriteTarget target,
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		insertInitialSuiteOfSortableAttributeCompounds(
-			locale, entitySchema, targetIndex, referenceKey, existingDataSupplierFactory
+			locale, entitySchema, target, referenceKey, existingDataSupplierFactory
 		);
 	}
 
 	/**
-	 * Removes a specific locale's data from the target entity index.
+	 * Removes a specific locale's data from the target - an index object, or a virtual partition the registry of
+	 * single-owner partitions alone holds the locale's compounds for.
 	 *
-	 * @param locale                      the locale that should be removed from the target index
+	 * @param locale                      the locale that should be removed from the target
 	 * @param entitySchema                the schema of the entity defining its structure and constraints
-	 * @param targetIndex                 the target index from which the locale data should be removed
+	 * @param target                      the target from which the locale data should be removed
 	 * @param existingDataSupplierFactory a factory for supplying existing data related to the entity
 	 */
 	public void removeEntityAttributeLocaleInTargetIndex(
 		@Nonnull Locale locale,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull EntityIndex targetIndex,
+		@Nonnull IndexWriteTarget target,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		removeEntireSuiteOfSortableAttributeCompounds(
-			locale, entitySchema, targetIndex, existingDataSupplierFactory
+			locale, entitySchema, target, existingDataSupplierFactory
 		);
 	}
 
 	/**
-	 * Removes a specific locale's data from the target entity index, using an explicit reference key.
+	 * Removes a specific locale's data from the target, using an explicit reference key.
 	 * This overload is used when the index discriminator may not contain the correct reference key
 	 * (e.g. for group-level reduced indexes).
 	 *
-	 * @param locale                      the locale that should be removed from the target index
+	 * @param locale                      the locale that should be removed from the target
 	 * @param entitySchema                the schema of the entity defining its structure and constraints
-	 * @param targetIndex                 the target index from which the locale data should be removed
+	 * @param target                      the target from which the locale data should be removed - an index object,
+	 *                                    or a virtual partition
 	 * @param referenceKey                the explicit reference key to use instead of extracting from the index discriminator
 	 * @param existingDataSupplierFactory a factory for supplying existing data related to the entity
 	 */
 	public void removeEntityAttributeLocaleInTargetIndex(
 		@Nonnull Locale locale,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull EntityIndex targetIndex,
+		@Nonnull IndexWriteTarget target,
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		removeEntireSuiteOfSortableAttributeCompounds(
-			locale, entitySchema, targetIndex, referenceKey, existingDataSupplierFactory
+			locale, entitySchema, target, referenceKey, existingDataSupplierFactory
 		);
 	}
 
@@ -1885,15 +1889,17 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Method processes all mutations that targets entity attributes - e.g. {@link AttributeMutation}.
+	 * Method processes all mutations that targets entity attributes - e.g. {@link AttributeMutation}. The targets are
+	 * index objects, or virtual partitions the registry of single-owner partitions alone receives the values for -
+	 * see {@link AttributeIndexMutator}.
 	 */
 	public void updateAttribute(
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeMutation attributeMutation,
 		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
 		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
-		@Nonnull EntityIndex indexForRemoval,
-		@Nonnull EntityIndex indexForUpsert,
+		@Nonnull IndexWriteTarget targetForRemoval,
+		@Nonnull IndexWriteTarget targetForUpsert,
 		boolean updateGlobalIndex,
 		boolean updateCompounds
 	) {
@@ -1903,18 +1909,18 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			final Serializable attributeValue = ((UpsertAttributeMutation) attributeMutation).getAttributeValue();
 			AttributeIndexMutator.executeAttributeUpsert(
 				this, referenceSchema, attributeSchemaProvider, existingValueSupplier,
-				indexForRemoval, indexForUpsert, affectedAttribute, attributeValue, updateGlobalIndex, updateCompounds
+				targetForRemoval, targetForUpsert, affectedAttribute, attributeValue, updateGlobalIndex, updateCompounds
 			);
 		} else if (attributeMutation instanceof RemoveAttributeMutation) {
 			AttributeIndexMutator.executeAttributeRemoval(
 				this, referenceSchema, attributeSchemaProvider, existingValueSupplier,
-				indexForRemoval, indexForUpsert, affectedAttribute, updateGlobalIndex, updateCompounds
+				targetForRemoval, targetForUpsert, affectedAttribute, updateGlobalIndex, updateCompounds
 			);
 		} else if (attributeMutation instanceof ApplyDeltaAttributeMutation<?> applyDeltaAttributeMutation) {
 			final Number attributeValue = applyDeltaAttributeMutation.getAttributeValue();
 			AttributeIndexMutator.executeAttributeDelta(
 				this, referenceSchema, attributeSchemaProvider, existingValueSupplier,
-				indexForRemoval, indexForUpsert, affectedAttribute, attributeValue, updateGlobalIndex
+				targetForRemoval, targetForUpsert, affectedAttribute, attributeValue, updateGlobalIndex
 			);
 		} else {
 			// SHOULD NOT EVER HAPPEN
@@ -2562,19 +2568,19 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 *
 	 * @param locale                      the locale context for the operation, which may be null;
 	 *                                    if null, the operation is performed without locale-specific considerations
-	 * @param targetIndex                 the target entity index where the sortable attribute compounds will be inserted;
-	 *                                    it must not be null
+	 * @param target                      the target where the sortable attribute compounds will be inserted; it
+	 *                                    must not be null
 	 * @param existingDataSupplierFactory the factory to create suppliers that provide existing
 	 *                                    data used during the insert; it must not be null
 	 */
 	private void insertInitialSuiteOfSortableAttributeCompounds(
 		@Nullable Locale locale,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull EntityIndex targetIndex,
+		@Nonnull IndexWriteTarget target,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		insertInitialSuiteOfSortableAttributeCompounds(
-			locale, entitySchema, targetIndex, null, existingDataSupplierFactory
+			locale, entitySchema, target, null, existingDataSupplierFactory
 		);
 	}
 
@@ -2586,9 +2592,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 *
 	 * @param locale                      the locale context for the operation, which may be null;
 	 *                                    if null, the operation is performed without locale-specific considerations
-	 * @param entitySchema                the entity schema the target index belongs to
-	 * @param targetIndex                 the target entity index where the sortable attribute compounds will be inserted;
-	 *                                    it must not be null
+	 * A virtual partition receives the compounds of its own reference only, see
+	 * {@link ReferenceIndexMutator#applyVirtualPartitionCompoundSuite}.
+	 *
+	 * @param entitySchema                the entity schema the target belongs to
+	 * @param target                      the target where the sortable attribute compounds will be inserted; it
+	 *                                    must not be null
 	 * @param referenceKey                the explicit reference key to use for the reduced entity index lookup;
 	 *                                    when non-null it overrides the key extracted from the index discriminator
 	 * @param existingDataSupplierFactory the factory to create suppliers that provide existing
@@ -2597,12 +2606,24 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	private void insertInitialSuiteOfSortableAttributeCompounds(
 		@Nullable Locale locale,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull EntityIndex targetIndex,
+		@Nonnull IndexWriteTarget target,
 		@Nullable ReferenceKey referenceKey,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
-		if (targetIndex instanceof AbstractReducedEntityIndex reducedEntityIndex &&
-			targetIndex.getIndexKey().discriminator() instanceof RepresentativeReferenceKey representativeKey) {
+		if (target instanceof VirtualReferencePartition partition) {
+			final ReferenceKey effectiveReferenceKey =
+				referenceKey != null ? referenceKey : partition.getReferenceKey();
+			ReferenceIndexMutator.applyVirtualPartitionCompoundSuite(
+				this,
+				entitySchema.getReferenceOrThrowException(effectiveReferenceKey.referenceName()),
+				partition,
+				effectiveReferenceKey,
+				locale,
+				existingDataSupplierFactory,
+				AttributeIndexMutator::insertInitialSuiteOfSortableAttributeCompounds
+			);
+		} else if (target instanceof AbstractReducedEntityIndex reducedEntityIndex &&
+			target.getIndexKey().discriminator() instanceof RepresentativeReferenceKey representativeKey) {
 			final ReferenceKey effectiveReferenceKey = referenceKey != null
 				? referenceKey : representativeKey.referenceKey();
 			final ReferenceSchemaContract referenceSchema = entitySchema
@@ -2621,7 +2642,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
 				this,
 				null,
-				targetIndex,
+				target,
 				locale,
 				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
 				entitySchema,
@@ -2635,8 +2656,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 *
 	 * @param locale                      The locale for which the attribute compounds should be removed.
 	 *                                    This may be null if locale-specific processing is not required.
-	 * @param targetIndex                 The target entity index from which the sortable attribute
-	 *                                    compounds will be removed. Must not be null.
+	 * @param target                      The target from which the sortable attribute compounds will be removed.
+	 *                                    Must not be null.
 	 * @param existingDataSupplierFactory A factory for creating suppliers of existing data
 	 *                                    that may be used to assist in the removal process.
 	 *                                    Must not be null.
@@ -2644,11 +2665,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	private void removeEntireSuiteOfSortableAttributeCompounds(
 		@Nullable Locale locale,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull EntityIndex targetIndex,
+		@Nonnull IndexWriteTarget target,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		removeEntireSuiteOfSortableAttributeCompounds(
-			locale, entitySchema, targetIndex, null, existingDataSupplierFactory
+			locale, entitySchema, target, null, existingDataSupplierFactory
 		);
 	}
 
@@ -2660,9 +2681,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 *
 	 * @param locale                      the locale for which the attribute compounds should be removed;
 	 *                                    this may be null if locale-specific processing is not required
-	 * @param entitySchema                the entity schema the target index belongs to
-	 * @param targetIndex                 the target entity index from which the sortable attribute
-	 *                                    compounds will be removed; must not be null
+	 * A virtual partition holds the compounds of its own reference only, see
+	 * {@link ReferenceIndexMutator#applyVirtualPartitionCompoundSuite}.
+	 *
+	 * @param entitySchema                the entity schema the target belongs to
+	 * @param target                      the target from which the sortable attribute compounds will be removed;
+	 *                                    must not be null
 	 * @param referenceKey                the explicit reference key to use for the reduced entity index lookup;
 	 *                                    when non-null it overrides the key extracted from the index discriminator
 	 * @param existingDataSupplierFactory a factory for creating suppliers of existing data
@@ -2672,13 +2696,25 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	private void removeEntireSuiteOfSortableAttributeCompounds(
 		@Nullable Locale locale,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull EntityIndex targetIndex,
+		@Nonnull IndexWriteTarget target,
 		@Nullable ReferenceKey referenceKey,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		ReferenceSchemaContract referenceSchema = null;
-		if (targetIndex instanceof AbstractReducedEntityIndex reducedEntityIndex &&
-			targetIndex.getIndexKey().discriminator() instanceof RepresentativeReferenceKey representativeKey) {
+		if (target instanceof VirtualReferencePartition partition) {
+			final ReferenceKey effectiveReferenceKey =
+				referenceKey != null ? referenceKey : partition.getReferenceKey();
+			ReferenceIndexMutator.applyVirtualPartitionCompoundSuite(
+				this,
+				entitySchema.getReferenceOrThrowException(effectiveReferenceKey.referenceName()),
+				partition,
+				effectiveReferenceKey,
+				locale,
+				existingDataSupplierFactory,
+				AttributeIndexMutator::removeEntireSuiteOfSortableAttributeCompounds
+			);
+		} else if (target instanceof AbstractReducedEntityIndex reducedEntityIndex &&
+			target.getIndexKey().discriminator() instanceof RepresentativeReferenceKey representativeKey) {
 			final ReferenceKey effectiveReferenceKey = referenceKey != null
 				? referenceKey : representativeKey.referenceKey();
 			final String referenceName = effectiveReferenceKey.referenceName();
@@ -2696,7 +2732,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
 				this,
 				referenceSchema,
-				targetIndex,
+				target,
 				locale,
 				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
 				entitySchema,

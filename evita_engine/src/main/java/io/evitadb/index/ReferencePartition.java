@@ -59,11 +59,16 @@ import javax.annotation.Nonnull;
  * live in the registry - so whoever reads them holds a {@link ReducedEntityIndex} and says so in its type. Nothing
  * returning the partition's filter or attribute indexes belongs here either.
  *
+ * A partition is an {@link IndexWriteTarget}, so the attribute index mutator takes either representation as it is:
+ * a write directed at the index object reaches the object and the registry mirrors it, a write directed at the virtual
+ * handle reaches the registry only.
+ *
  * The group family ({@link ReducedGroupEntityIndex}) is not a reference partition and never will be.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public sealed interface ReferencePartition permits ReducedEntityIndex, VirtualReferencePartition {
+public sealed interface ReferencePartition extends IndexWriteTarget
+	permits ReducedEntityIndex, VirtualReferencePartition {
 
 	/**
 	 * Returns the primary key of the partition. It is unique within the entity collection that owns the partition

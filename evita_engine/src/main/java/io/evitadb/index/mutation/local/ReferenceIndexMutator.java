@@ -59,6 +59,7 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.HistogramCapableEntityIndex;
 import io.evitadb.index.HistogramIndex;
+import io.evitadb.index.IndexWriteTarget;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencePartition;
@@ -2826,7 +2827,9 @@ public interface ReferenceIndexMutator {
 	 *
 	 * @param executor                    the mutation executor
 	 * @param referenceSchema             the schema describing the reference
-	 * @param targetIndex                 the index the compounds are written into or removed from
+	 * @param target                      the target the compounds are written into or removed from - an index object,
+	 *                                    or a virtual partition the registry of single-owner partitions alone
+	 *                                    receives them for
 	 * @param representativeReferenceKey  the reference whose attribute values build the compounds, with the
 	 *                                    representative attribute values of the index it belongs to
 	 * @param locale                      if non-null, restrict the operation to compounds for this locale
@@ -2836,7 +2839,7 @@ public interface ReferenceIndexMutator {
 	private static void applyReferenceSortableAttributeCompoundSuite(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull EntityIndex targetIndex,
+		@Nonnull IndexWriteTarget target,
 		@Nonnull RepresentativeReferenceKey representativeReferenceKey,
 		@Nullable Locale locale,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
@@ -2848,8 +2851,48 @@ public interface ReferenceIndexMutator {
 			existingDataSupplierFactory.getNormalizedReferenceAttributeValueSupplier(representativeReferenceKey);
 
 		primaryOp.apply(
-			executor, referenceSchema, targetIndex, locale, referenceSchemaAttributeProvider,
+			executor, referenceSchema, target, locale, referenceSchemaAttributeProvider,
 			referenceSchema, referenceAttributeValueSupplier
+		);
+	}
+
+	/**
+	 * Applies `primaryOp` to the sortable attribute compounds a virtual partition holds for its owner - the
+	 * counterpart of {@link #insertInitialSuiteOfSortableAttributeCompounds} and
+	 * {@link #removeEntireSuiteOfSortableAttributeCompounds} for a partition without an index object. A partition may
+	 * be virtual only for a reference indexed for filtering, so only the reference-level half of the suite applies: the
+	 * entity-level compounds are indexed in the partitions of references indexed for partitioning only.
+	 *
+	 * @param executor                    the mutation executor writing as the partition's owner
+	 * @param referenceSchema             the schema describing the reference
+	 * @param partition                   the virtual partition the compounds are written into or removed from
+	 * @param referenceKey                the reference whose attribute values build the compounds
+	 * @param locale                      if non-null, restrict the operation to compounds for this locale
+	 * @param existingDataSupplierFactory factory for reading existing attribute values from storage
+	 * @param primaryOp                   the insertion or the removal of the compounds
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the partition is not one of the reference, or the
+	 *                                                         reference's partitions may not be virtual in its scope
+	 */
+	static void applyVirtualPartitionCompoundSuite(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull VirtualReferencePartition partition,
+		@Nonnull ReferenceKey referenceKey,
+		@Nullable Locale locale,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory,
+		@Nonnull SortableCompoundOperation primaryOp
+	) {
+		final RepresentativeReferenceKey partitionKey = partition.getRepresentativeReferenceKey();
+		isPremiseValid(
+			referenceSchema.getName().equals(partitionKey.referenceName()) &&
+				VirtualReferencePartitionWriter.isShadowed(referenceSchema, partition.getIndexKey().scope()),
+			() -> "Virtual partition `" + partition.getIndexKey() + "` is not a partition of `" +
+				referenceSchema.getName() + "` that may be virtual!"
+		);
+		applyReferenceSortableAttributeCompoundSuite(
+			executor, referenceSchema, partition,
+			new RepresentativeReferenceKey(referenceKey, partitionKey.representativeAttributeValues()),
+			locale, existingDataSupplierFactory, primaryOp
 		);
 	}
 
@@ -3022,13 +3065,16 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Indexes the owning entity's locales into `targetIndex`: the entity's language for every locale of its body, and
+	 * Indexes the owning entity's locales into `target`: the entity's language for every locale of its body, and
 	 * the sortable attribute compounds of every locale its attributes have - either the locales the body has now, or
 	 * those it had before the running mutation (see {@link #getLocalesBeforeMutation}).
 	 *
+	 * A virtual partition receives the compounds only: it keeps no language records - the locales of its only owner
+	 * are those of the owner's entity in the global index.
+	 *
 	 * @param executor                    the mutation executor
 	 * @param entitySchema                the entity schema of the owning entity
-	 * @param targetIndex                 the index the locales are written into
+	 * @param target                      the target the locales are written into
 	 * @param referenceKey                the reference key the index belongs to
 	 * @param entityPrimaryKey            the primary key of the owning entity
 	 * @param localesBeforeMutation       true to index the locales before the running mutation, false to index the
@@ -3038,7 +3084,7 @@ public interface ReferenceIndexMutator {
 	private static void indexAllLocales(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull EntityIndex targetIndex,
+		@Nonnull IndexWriteTarget target,
 		@Nonnull ReferenceKey referenceKey,
 		int entityPrimaryKey,
 		boolean localesBeforeMutation,
@@ -3054,12 +3100,14 @@ public interface ReferenceIndexMutator {
 		final Set<Locale> attributeLocales = localesBeforeMutation
 			? getLocalesBeforeMutation(containerAccessor, entityCnt.getAttributeLocales(), LocaleScope.ATTRIBUTE)
 			: entityCnt.getAttributeLocales();
-		for (Locale locale : entityLocales) {
-			executor.upsertEntityLocaleInTargetIndex(locale, entitySchema, targetIndex, entityPrimaryKey);
+		if (target instanceof EntityIndex targetIndex) {
+			for (Locale locale : entityLocales) {
+				executor.upsertEntityLocaleInTargetIndex(locale, entitySchema, targetIndex, entityPrimaryKey);
+			}
 		}
 		for (Locale locale : attributeLocales) {
 			executor.upsertEntityAttributeLocaleInTargetIndex(
-				locale, entitySchema, targetIndex, referenceKey, existingDataSupplierFactory
+				locale, entitySchema, target, referenceKey, existingDataSupplierFactory
 			);
 		}
 	}
@@ -3249,12 +3297,13 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Indexes the attributes of the reference the representative reference key identifies into `targetIndex`, each
+	 * Indexes the attributes of the reference the representative reference key identifies into `target`, each
 	 * keyed by the primary key the attribute's type is indexed under (see {@link #executeWithProperPrimaryKey}).
 	 *
 	 * @param executor                    the mutation executor
 	 * @param referenceSchema             the schema of the reference
-	 * @param targetIndex                 the index the attributes are written into
+	 * @param target                      the target the attributes are written into - an index object, or a virtual
+	 *                                    partition the registry of single-owner partitions alone receives them for
 	 * @param representativeReferenceKey  the reference whose attributes are indexed, with the representative attribute
 	 *                                    values of the index it belongs to
 	 * @param existingDataSupplierFactory factory that supplies the entity's current reference attributes
@@ -3262,7 +3311,7 @@ public interface ReferenceIndexMutator {
 	private static void indexReferenceAttributes(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull EntityIndex targetIndex,
+		@Nonnull IndexWriteTarget target,
 		@Nonnull RepresentativeReferenceKey representativeReferenceKey,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
@@ -3282,8 +3331,8 @@ public interface ReferenceIndexMutator {
 						         referenceSchema,
 						         referenceSchemaAttributeProvider,
 						         NO_EXISTING_VALUE_SUPPLIER,
-						         targetIndex,
-						         targetIndex,
+						         target,
+						         target,
 						         attribute.key(),
 						         Objects.requireNonNull(attribute.value()),
 						         false,
@@ -4094,7 +4143,8 @@ public interface ReferenceIndexMutator {
 		 * @param executor                the mutation executor coordinating index operations
 		 * @param referenceSchema         the reference schema providing the indexing context, or `null` for entity-only
 		 *                                operations
-		 * @param entityIndex             the target index (always an {@link AbstractReducedEntityIndex} in practice)
+		 * @param target                  the target - an {@link AbstractReducedEntityIndex}, or a virtual partition
+		 *                                standing in for a {@link ReducedEntityIndex}
 		 * @param locale                  if non-null, restrict the operation to compounds for this locale
 		 * @param attributeSchemaProvider provides attribute and compound schemas for the relevant scope
 		 * @param compoundProvider        provides the sortable attribute compound schemas to operate on
@@ -4103,7 +4153,7 @@ public interface ReferenceIndexMutator {
 		void apply(
 			@Nonnull EntityIndexLocalMutationExecutor executor,
 			@Nullable ReferenceSchemaContract referenceSchema,
-			@Nonnull EntityIndex entityIndex,
+			@Nonnull IndexWriteTarget target,
 			@Nullable Locale locale,
 			@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
 			@Nonnull SortableAttributeCompoundSchemaProvider<?, ? extends SortableAttributeCompoundSchemaContract> compoundProvider,

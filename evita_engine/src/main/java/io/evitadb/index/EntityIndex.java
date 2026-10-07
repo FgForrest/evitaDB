@@ -107,12 +107,13 @@ import static java.util.Optional.ofNullable;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
-public abstract class EntityIndex implements
+public abstract non-sealed class EntityIndex implements
 	Index<EntityIndexKey>,
 	AttributeIndexEditorContract,
 	PriceIndexContract,
 	Versioned,
-	IndexDataStructure
+	IndexDataStructure,
+	IndexWriteTarget
 {
 	/**
 	 * Capacity the {@link #components} list is pre-sized to — chosen to hold the three intrinsic components plus

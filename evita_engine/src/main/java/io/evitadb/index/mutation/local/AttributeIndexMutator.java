@@ -43,6 +43,9 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.IndexType;
+import io.evitadb.index.IndexWriteTarget;
+import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor.Target;
 import io.evitadb.index.mutation.local.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.utils.ArrayUtils;
@@ -86,11 +89,22 @@ import java.util.function.Supplier;
  * - **Catalog-level global unique index** — enforces cross-entity-type uniqueness for
  *   {@link io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema} attributes marked as globally unique
  *
+ * ## Write targets
+ *
+ * Every operation writes into an {@link IndexWriteTarget}. An {@link EntityIndex} receives the values into the
+ * structures above, and when it is a reference partition the registry of single-owner partitions mirrors the sort
+ * values and chain predecessors it received (see {@link VirtualReferencePartitionWriter}). A
+ * {@link VirtualReferencePartition} has no index object: the values are computed exactly as for an index object - the
+ * normalization, the rescaling to the indexed decimal places, the compound assembly and the locale selection are the
+ * same - and the mirror is their only writer. A virtual partition keeps sort values and chain predecessors only, so
+ * the filter and unique entries an index object would receive are not written for it.
+ *
  * ## Scope awareness
  *
  * Attribute indexing is scope-aware: an attribute that is filterable only in `LIVE` scope will not be indexed
- * in an `ARCHIVE` scope index. The active scope is derived from the `indexForRemoval` / `indexForUpsert`
- * pair at call time, and both indices must agree on their scope — a mismatch is treated as an internal error.
+ * in an `ARCHIVE` scope index. The active scope is derived from the `targetForRemoval` / `targetForUpsert`
+ * pair at call time - for a virtual partition from the key of its handle - and both targets must agree on their
+ * scope — a mismatch is treated as an internal error.
  *
  * ## Usage
  *
@@ -132,9 +146,9 @@ public interface AttributeIndexMutator {
 	 *                                for the attribute being upserted, as well as compound schemas that reference it
 	 * @param existingValueSupplier   provides the attribute's current (pre-mutation) value; used to remove the old
 	 *                                entry from each index before inserting the new one
-	 * @param indexForRemoval         the {@link EntityIndex} from which the old attribute value is removed; typically
-	 *                                the same instance as `indexForUpsert` but may differ during entity scope transitions
-	 * @param indexForUpsert          the {@link EntityIndex} into which the new attribute value is inserted
+	 * @param targetForRemoval        the target from which the old attribute value is removed; typically the same
+	 *                                instance as `targetForUpsert` but may differ during entity scope transitions
+	 * @param targetForUpsert         the target into which the new attribute value is inserted
 	 * @param attributeKey            identifies the attribute by name and optional locale
 	 * @param attributeValue          the raw new value — will be converted to the schema-declared type automatically
 	 * @param updateGlobalIndex       when `true`, the catalog-level global unique index is updated for globally-unique
@@ -145,7 +159,7 @@ public interface AttributeIndexMutator {
 	 * @throws io.evitadb.exception.EvitaInvalidUsageException if the attribute is not defined in the schema
 	 * @throws io.evitadb.api.exception.UniqueValueViolationException if inserting the new value would violate a
 	 *                                unique or global-unique constraint
-	 * @throws io.evitadb.exception.GenericEvitaInternalError if `indexForRemoval` and `indexForUpsert` belong to
+	 * @throws io.evitadb.exception.GenericEvitaInternalError if `targetForRemoval` and `targetForUpsert` belong to
 	 *                                different scopes
 	 */
 	static void executeAttributeUpsert(
@@ -153,8 +167,8 @@ public interface AttributeIndexMutator {
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
 		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
-		@Nonnull EntityIndex indexForRemoval,
-		@Nonnull EntityIndex indexForUpsert,
+		@Nonnull IndexWriteTarget targetForRemoval,
+		@Nonnull IndexWriteTarget targetForUpsert,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Serializable attributeValue,
 		boolean updateGlobalIndex,
@@ -172,7 +186,7 @@ public interface AttributeIndexMutator {
 			attributeDefinition.getIndexedDecimalPlaces()
 		);
 
-		final Scope scope = getIndexedScope(indexForRemoval, indexForUpsert);
+		final Scope scope = getIndexedScope(targetForRemoval, targetForUpsert);
 		if (
 			attributeDefinition.isUniqueInScope(scope) ||
 				attributeDefinition.isFilterableInScope(scope) ||
@@ -197,19 +211,25 @@ public interface AttributeIndexMutator {
 					final Serializable valueToRemove = NumberUtils.normalizeForIndexing(
 						Objects.requireNonNull(value.value()), attributeDefinition.getIndexedDecimalPlaces()
 					);
-					indexForRemoval.removeAttribute(
-						referenceSchema, attributeDefinition, allowedLocales, scope, locale, valueToRemove, existingPk
-					);
+					if (targetForRemoval instanceof EntityIndex indexForRemoval) {
+						indexForRemoval.removeAttribute(
+							referenceSchema, attributeDefinition, allowedLocales, scope, locale, valueToRemove,
+							existingPk
+						);
+					}
 					VirtualReferencePartitionWriter.attributeValueRemoved(
-						executor, referenceSchema, attributeDefinition, indexForRemoval, locale, valueToRemove
+						executor, referenceSchema, attributeDefinition, asPartition(targetForRemoval), locale,
+						valueToRemove
 					);
 				}
 			);
-			indexForUpsert.upsertAttribute(
-				referenceSchema, attributeDefinition, allowedLocales, scope, locale, valueToInsert, newPk
-			);
+			if (targetForUpsert instanceof EntityIndex indexForUpsert) {
+				indexForUpsert.upsertAttribute(
+					referenceSchema, attributeDefinition, allowedLocales, scope, locale, valueToInsert, newPk
+				);
+			}
 			VirtualReferencePartitionWriter.attributeValueAdded(
-				executor, referenceSchema, attributeDefinition, indexForUpsert, locale, valueToInsert
+				executor, referenceSchema, attributeDefinition, asPartition(targetForUpsert), locale, valueToInsert
 			);
 
 			if (updateGlobalIndex && attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
@@ -246,7 +266,7 @@ public interface AttributeIndexMutator {
 		if (updateCompounds) {
 			updateSortableAttributeCompounds(
 				executor, referenceSchema, attributeSchemaProvider, existingValueSupplier,
-				indexForRemoval, indexForUpsert,
+				targetForRemoval, targetForUpsert,
 				valueToInsert, attributeKey.locale(), attributeDefinition.getName()
 			);
 		}
@@ -277,9 +297,9 @@ public interface AttributeIndexMutator {
 	 * @param existingValueSupplier   provides the attribute's current (pre-mutation) value; the value is mandatory —
 	 *                                its absence causes an internal error because removal of a non-existent value
 	 *                                signals index corruption
-	 * @param indexForRemoval         the {@link EntityIndex} from which the attribute value is removed
-	 * @param indexForUpsert          the {@link EntityIndex} used when rebuilding compound sort keys (may equal
-	 *                                `indexForRemoval`)
+	 * @param targetForRemoval        the target from which the attribute value is removed
+	 * @param targetForUpsert         the target used when rebuilding compound sort keys (may equal
+	 *                                `targetForRemoval`)
 	 * @param attributeKey            identifies the attribute by name and optional locale
 	 * @param updateGlobalIndex       when `true`, the catalog-level global unique index is updated for globally-unique
 	 *                                attributes
@@ -294,8 +314,8 @@ public interface AttributeIndexMutator {
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
 		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
-		@Nonnull EntityIndex indexForRemoval,
-		@Nonnull EntityIndex indexForUpsert,
+		@Nonnull IndexWriteTarget targetForRemoval,
+		@Nonnull IndexWriteTarget targetForUpsert,
 		@Nonnull AttributeKey attributeKey,
 		boolean updateGlobalIndex,
 		boolean updateCompounds
@@ -328,7 +348,7 @@ public interface AttributeIndexMutator {
 			}
 		});
 
-		final Scope scope = indexForRemoval.getIndexKey().scope();
+		final Scope scope = targetForRemoval.getIndexKey().scope();
 		if (attributeDefinition.isUniqueInScope(scope) || attributeDefinition.isFilterableInScope(
 			scope) || attributeDefinition.isSortableInScope(scope)) {
 			// a removal maintains the same indexes an upsert does, and is counted the same way
@@ -338,11 +358,14 @@ public interface AttributeIndexMutator {
 			final int existingPk = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_INDEX, Target.EXISTING);
 			// resolved once and handed to the mirror too, so the mirror costs no extra atomic read when it is off
 			final T theValueToRemove = valueToRemoveSupplier.get();
-			indexForRemoval.removeAttribute(
-				referenceSchema, attributeDefinition, allowedLocales, scope, locale, theValueToRemove, existingPk
-			);
+			if (targetForRemoval instanceof EntityIndex indexForRemoval) {
+				indexForRemoval.removeAttribute(
+					referenceSchema, attributeDefinition, allowedLocales, scope, locale, theValueToRemove, existingPk
+				);
+			}
 			VirtualReferencePartitionWriter.attributeValueRemoved(
-				executor, referenceSchema, attributeDefinition, indexForRemoval, locale, theValueToRemove
+				executor, referenceSchema, attributeDefinition, asPartition(targetForRemoval), locale,
+				theValueToRemove
 			);
 			if (attributeDefinition.isUniqueInScope(scope)
 				&& updateGlobalIndex && attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema
@@ -361,7 +384,7 @@ public interface AttributeIndexMutator {
 		if (updateCompounds) {
 			updateSortableAttributeCompounds(
 				executor, referenceSchema, attributeSchemaProvider, existingValueSupplier,
-				indexForRemoval, indexForUpsert, null, locale, attributeName
+				targetForRemoval, targetForUpsert, null, locale, attributeName
 			);
 		}
 	}
@@ -398,8 +421,8 @@ public interface AttributeIndexMutator {
 	 *                                for the attribute being modified, as well as compound schemas that reference it
 	 * @param existingValueSupplier   provides the attribute's current (pre-mutation) value; the value is mandatory —
 	 *                                its absence causes an internal error
-	 * @param indexForRemoval         the {@link EntityIndex} from which the old numeric value is removed
-	 * @param indexForUpsert          the {@link EntityIndex} into which the new numeric value is inserted
+	 * @param targetForRemoval        the target from which the old compound keys are removed
+	 * @param targetForUpsert         the target in which the old numeric value is replaced by the new one
 	 * @param attributeKey            identifies the attribute by name and optional locale
 	 * @param delta                   the amount to add to the current value; may be negative for a decrement;
 	 *                                will be converted to the attribute's declared numeric type before summing
@@ -416,8 +439,8 @@ public interface AttributeIndexMutator {
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
 		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
-		@Nonnull EntityIndex indexForRemoval,
-		@Nonnull EntityIndex indexForUpsert,
+		@Nonnull IndexWriteTarget targetForRemoval,
+		@Nonnull IndexWriteTarget targetForUpsert,
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull Number delta,
 		boolean updateGlobalIndex
@@ -473,7 +496,7 @@ public interface AttributeIndexMutator {
 				}
 			});
 
-		final Scope scope = getIndexedScope(indexForRemoval, indexForUpsert);
+		final Scope scope = getIndexedScope(targetForRemoval, targetForUpsert);
 
 		// a delta rewrites whatever the value is indexed in, so it maintains the same capabilities an upsert does
 		executor.reportAttributeTouched(attributeSchemaProvider.getContainerName(), attributeDefinition, scope);
@@ -482,15 +505,18 @@ public interface AttributeIndexMutator {
 		// resolved once and handed to the mirror too, so the mirror costs no extra atomic read when it is off
 		final T removedValue = valueToRemoveSupplier.get();
 		final T addedValue = valueToUpdateSupplier.get();
-		indexForUpsert.applyAttributeDelta(
-			referenceSchema, attributeDefinition, allowedLocales, scope, locale, removedValue, addedValue, recordId
-		);
-		// the delta replaced the value in the index it was applied to - the old one went, the new one came
+		if (targetForUpsert instanceof EntityIndex indexForUpsert) {
+			indexForUpsert.applyAttributeDelta(
+				referenceSchema, attributeDefinition, allowedLocales, scope, locale, removedValue, addedValue, recordId
+			);
+		}
+		// the delta replaced the value in the target it was applied to - the old one went, the new one came
+		final ReferencePartition partitionForUpsert = asPartition(targetForUpsert);
 		VirtualReferencePartitionWriter.attributeValueRemoved(
-			executor, referenceSchema, attributeDefinition, indexForUpsert, locale, removedValue
+			executor, referenceSchema, attributeDefinition, partitionForUpsert, locale, removedValue
 		);
 		VirtualReferencePartitionWriter.attributeValueAdded(
-			executor, referenceSchema, attributeDefinition, indexForUpsert, locale, addedValue
+			executor, referenceSchema, attributeDefinition, partitionForUpsert, locale, addedValue
 		);
 		if (updateGlobalIndex && attributeDefinition instanceof GlobalAttributeSchema globalAttributeSchema &&
 			globalAttributeSchema.isUniqueGloballyInScope(scope)) {
@@ -512,12 +538,12 @@ public interface AttributeIndexMutator {
 		// now update the compounds
 		updateSortableAttributeCompounds(
 			executor, referenceSchema, attributeSchemaProvider, existingValueSupplier,
-			indexForRemoval, indexForUpsert, addedValue, locale, attributeName
+			targetForRemoval, targetForUpsert, addedValue, locale, attributeName
 		);
 	}
 
 	/**
-	 * Bootstraps the complete set of sortable attribute compound entries for an entity in the given `entityIndex`.
+	 * Bootstraps the complete set of sortable attribute compound entries for an entity in the given `target`.
 	 *
 	 * A **sortable attribute compound** is a multi-attribute sort key defined in the schema. This method inserts one
 	 * compound entry per matching compound schema so that the entity is immediately sortable by those compound keys
@@ -532,7 +558,7 @@ public interface AttributeIndexMutator {
 	 *   attribute) are inserted, using the specified locale. This path is taken when a new locale is added to an
 	 *   entity.
 	 *
-	 * Only compound schemas that are indexed in the active scope (derived from `entityIndex`) are considered.
+	 * Only compound schemas that are indexed in the active scope (derived from `target`) are considered.
 	 *
 	 * This method is designed to be called exactly once per lifecycle event:
 	 * - entity creation (locale = null)
@@ -542,7 +568,7 @@ public interface AttributeIndexMutator {
 	 * @param executor                      the executor that provides schema and primary-key context
 	 * @param referenceSchema               the reference schema when the compound belongs to a reference, `null` for
 	 *                                      entity-level compounds
-	 * @param entityIndex                   the index into which compound sort entries are inserted; its scope
+	 * @param target                        the target into which compound sort entries are inserted; its scope
 	 *                                      determines which compound schemas are eligible
 	 * @param locale                        when non-null, only localized compounds for this locale are created;
 	 *                                      when null, only non-localized compounds are created
@@ -554,7 +580,7 @@ public interface AttributeIndexMutator {
 	static void insertInitialSuiteOfSortableAttributeCompounds(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull IndexWriteTarget target,
 		@Nullable Locale locale,
 		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
 		@Nonnull SortableAttributeCompoundSchemaProvider<?, ? extends SortableAttributeCompoundSchemaContract> compoundProvider,
@@ -566,7 +592,7 @@ public interface AttributeIndexMutator {
 		}
 
 		final EntitySchema entitySchema = executor.getEntitySchema();
-		final Scope scope = entityIndex.getIndexKey().scope();
+		final Scope scope = target.getIndexKey().scope();
 		final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX, Target.NEW);
 		// schema resolver and value provider are loop invariant - allocate them once instead of per compound
 		final Function<String, ? extends AttributeSchemaContract> schemaResolver = attributeSchemaProvider::getAttributeSchema;
@@ -589,7 +615,7 @@ public interface AttributeIndexMutator {
 				attributeSchemaProvider.getContainerName(), compound.getName(), scope
 			);
 			insertNewCompound(
-				executor, entityPrimaryKey, entityIndex, compound,
+				executor, entityPrimaryKey, target, compound,
 				null, null,
 				locale,
 				entitySchema,
@@ -601,7 +627,7 @@ public interface AttributeIndexMutator {
 	}
 
 	/**
-	 * Removes the complete set of sortable attribute compound entries for an entity from the given `entityIndex`.
+	 * Removes the complete set of sortable attribute compound entries for an entity from the given `target`.
 	 *
 	 * This is the inverse of {@link #insertInitialSuiteOfSortableAttributeCompounds}: it reconstructs each compound
 	 * key from the entity's current attribute values and removes it from the sort compound index. Compound entries
@@ -611,7 +637,7 @@ public interface AttributeIndexMutator {
 	 * - When `locale` is `null` — only **non-localized** compounds are removed.
 	 * - When `locale` is non-null — only **localized** compounds for that locale are removed.
 	 *
-	 * Only compound schemas that are indexed in the active scope (derived from `entityIndex`) are considered.
+	 * Only compound schemas that are indexed in the active scope (derived from `target`) are considered.
 	 *
 	 * This method is designed to be called exactly once per lifecycle event:
 	 * - entity removal (locale = null, removes all non-localized compounds)
@@ -621,7 +647,7 @@ public interface AttributeIndexMutator {
 	 * @param executor                      the executor that provides schema and primary-key context
 	 * @param referenceSchema               the reference schema when the compound belongs to a reference, `null` for
 	 *                                      entity-level compounds
-	 * @param entityIndex                   the index from which compound sort entries are removed; its scope
+	 * @param target                        the target from which compound sort entries are removed; its scope
 	 *                                      determines which compound schemas are eligible
 	 * @param locale                        when non-null, only localized compounds for this locale are removed;
 	 *                                      when null, only non-localized compounds are removed
@@ -634,14 +660,14 @@ public interface AttributeIndexMutator {
 	static void removeEntireSuiteOfSortableAttributeCompounds(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull IndexWriteTarget target,
 		@Nullable Locale locale,
 		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
 		@Nonnull SortableAttributeCompoundSchemaProvider<?, ? extends SortableAttributeCompoundSchemaContract> compoundProvider,
 		@Nonnull ExistingAttributeValueSupplier entityAttributeValueSupplier
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
-		final Scope scope = entityIndex.getIndexKey().scope();
+		final Scope scope = target.getIndexKey().scope();
 		final int entityPrimaryKey = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX, Target.EXISTING);
 		// schema resolver and value provider are loop invariant - allocate them once instead of per compound
 		final Function<String, ? extends AttributeSchemaContract> schemaResolver = attributeSchemaProvider::getAttributeSchema;
@@ -663,7 +689,7 @@ public interface AttributeIndexMutator {
 				attributeSchemaProvider.getContainerName(), compound.getName(), scope
 			);
 			removeOldCompound(
-				executor, entityPrimaryKey, entityIndex, compound,
+				executor, entityPrimaryKey, target, compound,
 				locale,
 				entitySchema,
 				referenceSchema,
@@ -673,25 +699,42 @@ public interface AttributeIndexMutator {
 	}
 
 	/**
-	 * Returns the {@link Scope} of `indexForUpsert` and asserts that it equals the scope of `indexForRemoval` when
-	 * the two index instances are distinct.
+	 * Returns the {@link Scope} of `targetForUpsert` and asserts that it equals the scope of `targetForRemoval` when
+	 * the two targets are distinct.
 	 *
-	 * Every attribute-mutation operation targets a single scope; mixing indexes from different scopes within one
+	 * Every attribute-mutation operation targets a single scope; mixing targets from different scopes within one
 	 * mutation call is an internal programming error.
 	 *
-	 * @param indexForRemoval the index from which old values are removed
-	 * @param indexForUpsert  the index into which new values are inserted
-	 * @return the scope shared by both indexes
-	 * @throws io.evitadb.exception.GenericEvitaInternalError if the two indexes belong to different scopes
+	 * @param targetForRemoval the target from which old values are removed
+	 * @param targetForUpsert  the target into which new values are inserted
+	 * @return the scope shared by both targets
+	 * @throws io.evitadb.exception.GenericEvitaInternalError if the two targets belong to different scopes
 	 */
 	@Nonnull
-	private static Scope getIndexedScope(@Nonnull EntityIndex indexForRemoval, @Nonnull EntityIndex indexForUpsert) {
-		final Scope scope = indexForUpsert.getIndexKey().scope();
+	private static Scope getIndexedScope(
+		@Nonnull IndexWriteTarget targetForRemoval,
+		@Nonnull IndexWriteTarget targetForUpsert
+	) {
+		final Scope scope = targetForUpsert.getIndexKey().scope();
 		Assert.isPremiseValid(
-			indexForUpsert == indexForRemoval || scope == indexForRemoval.getIndexKey().scope(),
+			targetForUpsert == targetForRemoval || scope == targetForRemoval.getIndexKey().scope(),
 			"Index scope mismatch!"
 		);
 		return scope;
+	}
+
+	/**
+	 * Returns the target as a reference partition, the way the registry of single-owner partitions mirrors a write
+	 * into it - a {@link io.evitadb.index.ReducedEntityIndex} or a {@link VirtualReferencePartition} - or `null` when
+	 * the target is an index object of another kind, whose writes are never mirrored. A type test, so a write into an
+	 * index object costs nothing more than it did before the mirror existed.
+	 *
+	 * @param target the target of the write
+	 * @return the target as a partition, or `null` when it is none
+	 */
+	@Nullable
+	private static ReferencePartition asPartition(@Nonnull IndexWriteTarget target) {
+		return target instanceof ReferencePartition partition ? partition : null;
 	}
 
 	/**
@@ -712,8 +755,8 @@ public interface AttributeIndexMutator {
 	 * @param referenceSchema         the reference schema for reference attributes, `null` for entity attributes
 	 * @param attributeSchemaProvider supplies compound schemas that reference the updated attribute
 	 * @param existingValueSupplier   provides current attribute values and the set of existing attribute locales
-	 * @param indexForRemoval         the index from which the old compound key is removed
-	 * @param indexForUpsert          the index into which the new compound key is inserted
+	 * @param targetForRemoval        the target from which the old compound key is removed
+	 * @param targetForUpsert         the target into which the new compound key is inserted
 	 * @param valueToUpdate           the new value for `updatedAttributeName` within each compound; `null` when the
 	 *                                attribute is being removed (the compound element is treated as absent)
 	 * @param locale                  the locale of the mutation, or `null` for non-localized attribute mutations
@@ -724,14 +767,14 @@ public interface AttributeIndexMutator {
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
 		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
-		@Nonnull EntityIndex indexForRemoval,
-		@Nonnull EntityIndex indexForUpsert,
+		@Nonnull IndexWriteTarget targetForRemoval,
+		@Nonnull IndexWriteTarget targetForUpsert,
 		@Nullable Serializable valueToUpdate,
 		@Nullable Locale locale,
 		@Nonnull String updatedAttributeName
 	) {
 		final EntitySchema entitySchema = executor.getEntitySchema();
-		final Scope scope = getIndexedScope(indexForRemoval, indexForUpsert);
+		final Scope scope = getIndexedScope(targetForRemoval, targetForUpsert);
 
 		attributeSchemaProvider.getCompoundAttributeSchemas(updatedAttributeName)
 			.filter(it -> it.isIndexedInScope(scope))
@@ -754,7 +797,7 @@ public interface AttributeIndexMutator {
 							.forEach(
 								attributeLocale -> updateCompound(
 									executor,
-									indexForRemoval, indexForUpsert,
+									targetForRemoval, targetForUpsert,
 									entitySchema, referenceSchema, compound,
 									attributeSchemaProvider, entityAttributeLocales, attributeLocale,
 									updatedAttributeName, valueToUpdate,
@@ -765,7 +808,7 @@ public interface AttributeIndexMutator {
 						// otherwise we just update the compound with particular locale or global if locale is null
 						updateCompound(
 							executor,
-							indexForRemoval, indexForUpsert,
+							targetForRemoval, targetForUpsert,
 							entitySchema, referenceSchema, compound,
 							attributeSchemaProvider, entityAttributeLocales, locale,
 							updatedAttributeName, valueToUpdate,
@@ -788,8 +831,8 @@ public interface AttributeIndexMutator {
 	 * all other component values from the pre-mutation snapshot.
 	 *
 	 * @param executor                       the executor providing primary-key context
-	 * @param indexForRemoval                the index from which the old compound sort key is removed
-	 * @param indexForUpsert                 the index into which the new compound sort key is inserted
+	 * @param targetForRemoval               the target from which the old compound sort key is removed
+	 * @param targetForUpsert                the target into which the new compound sort key is inserted
 	 * @param entitySchema                   the entity schema (used for index persistence metadata)
 	 * @param referenceSchema                the reference schema for reference attributes, `null` for entity attributes
 	 * @param compound                       the specific compound schema whose index entry is being updated
@@ -804,8 +847,8 @@ public interface AttributeIndexMutator {
 	 */
 	private static void updateCompound(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull EntityIndex indexForRemoval,
-		@Nonnull EntityIndex indexForUpsert,
+		@Nonnull IndexWriteTarget targetForRemoval,
+		@Nonnull IndexWriteTarget targetForUpsert,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull SortableAttributeCompoundSchema compound,
@@ -823,20 +866,20 @@ public interface AttributeIndexMutator {
 
 			removeOldCompound(
 				executor, executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX, Target.EXISTING),
-				indexForRemoval, compound, locale,
+				targetForRemoval, compound, locale,
 				entitySchema, referenceSchema, attributeElementValueProvider
 			);
 
 			insertNewCompound(
 				executor, executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_SORT_INDEX, Target.NEW),
-				indexForUpsert, compound, updatedAttributeName, valueToUpdate, locale,
+				targetForUpsert, compound, updatedAttributeName, valueToUpdate, locale,
 				entitySchema, referenceSchema, attributeSchemaProvider, attributeElementValueProvider
 			);
 		}
 	}
 
 	/**
-	 * Builds the new compound sort key and inserts it into the entity index.
+	 * Builds the new compound sort key and inserts it into the target.
 	 *
 	 * The compound key is assembled by mapping each {@link AttributeElement} in `compound.getAttributeElements()`:
 	 * - When the element's attribute name equals `updatedAttributeName`, `valueToUpdate` is used directly (which
@@ -848,7 +891,7 @@ public interface AttributeIndexMutator {
 	 *
 	 * @param executor                    the executor, whose write the registry of single-owner partitions mirrors
 	 * @param entityPrimaryKey            the entity primary key to associate with the compound sort entry
-	 * @param entityIndex                 the index into which the compound entry is inserted
+	 * @param target                      the target into which the compound entry is inserted
 	 * @param compound                    the compound schema that defines the key structure
 	 * @param updatedAttributeName        the attribute whose new value (`valueToUpdate`) overrides the stored value
 	 *                                    in the compound; may be `null` when all values come from `attributeElementValueProvider`
@@ -863,7 +906,7 @@ public interface AttributeIndexMutator {
 	private static void insertNewCompound(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		int entityPrimaryKey,
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull IndexWriteTarget target,
 		@Nonnull SortableAttributeCompoundSchema compound,
 		@Nullable String updatedAttributeName,
 		@Nullable Serializable valueToUpdate,
@@ -887,29 +930,39 @@ public interface AttributeIndexMutator {
 		if (!ArrayUtils.isEmptyOrItsValuesNull(newCompoundValues)) {
 			final Function<String, Class<?>> attributeTypeProvider =
 				theAttributeName -> attributeSchemaProvider.getAttributeSchema(theAttributeName).getPlainType();
-			// the sort index normalizes the array in place, the registry of single-owner partitions takes it as it was
-			final Serializable[] mirroredValues = VirtualReferencePartitionWriter.copyIfMirrored(
-				executor, referenceSchema, entityIndex, newCompoundValues
-			);
-			entityIndex.insertSortAttributeCompound(
-				entitySchema,
-				referenceSchema,
-				compound,
-				attributeTypeProvider,
-				locale,
-				newCompoundValues, entityPrimaryKey
-			);
-			if (mirroredValues != null) {
+			final ReferencePartition partition = asPartition(target);
+			if (target instanceof EntityIndex entityIndex) {
+				// the sort index normalizes the array in place, the registry of single-owner partitions takes it as
+				// it was
+				final Serializable[] mirroredValues = VirtualReferencePartitionWriter.copyIfMirrored(
+					executor, referenceSchema, partition, newCompoundValues
+				);
+				entityIndex.insertSortAttributeCompound(
+					entitySchema,
+					referenceSchema,
+					compound,
+					attributeTypeProvider,
+					locale,
+					newCompoundValues, entityPrimaryKey
+				);
+				if (mirroredValues != null) {
+					VirtualReferencePartitionWriter.compoundValueAdded(
+						executor, entitySchema, referenceSchema, compound, attributeTypeProvider, partition, locale,
+						mirroredValues
+					);
+				}
+			} else {
+				// nothing normalizes the array of a virtual partition, so the registry takes the array itself
 				VirtualReferencePartitionWriter.compoundValueAdded(
-					executor, entitySchema, referenceSchema, compound, attributeTypeProvider, entityIndex, locale,
-					mirroredValues
+					executor, entitySchema, referenceSchema, compound, attributeTypeProvider, partition, locale,
+					newCompoundValues
 				);
 			}
 		}
 	}
 
 	/**
-	 * Reconstructs the existing compound sort key from stored attribute values and removes it from the index.
+	 * Reconstructs the existing compound sort key from stored attribute values and removes it from the target.
 	 *
 	 * Each {@link AttributeElement} in `compound.getAttributeElements()` is resolved via
 	 * `attributeElementValueProvider`. If all resolved values are `null` the removal is skipped, because a
@@ -917,7 +970,7 @@ public interface AttributeIndexMutator {
 	 *
 	 * @param executor                     the executor, whose write the registry of single-owner partitions mirrors
 	 * @param entityPrimaryKey             the entity primary key whose compound sort entry should be removed
-	 * @param entityIndex                  the index from which the compound entry is removed
+	 * @param target                       the target from which the compound entry is removed
 	 * @param compound                     the compound schema that defines the key structure
 	 * @param locale                       the locale of the compound entry; `null` for non-localized compounds
 	 * @param entitySchema                 the entity schema (required for index persistence metadata)
@@ -927,7 +980,7 @@ public interface AttributeIndexMutator {
 	private static void removeOldCompound(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		int entityPrimaryKey,
-		@Nonnull EntityIndex entityIndex,
+		@Nonnull IndexWriteTarget target,
 		@Nonnull SortableAttributeCompoundSchema compound,
 		@Nullable Locale locale,
 		@Nonnull EntitySchemaContract entitySchema,
@@ -941,16 +994,25 @@ public interface AttributeIndexMutator {
 		}
 
 		if (!ArrayUtils.isEmptyOrItsValuesNull(oldCompoundValues)) {
-			// the sort index normalizes the array in place, the registry of single-owner partitions takes it as it was
-			final Serializable[] mirroredValues = VirtualReferencePartitionWriter.copyIfMirrored(
-				executor, referenceSchema, entityIndex, oldCompoundValues
-			);
-			entityIndex.removeSortAttributeCompound(
-				entitySchema, referenceSchema, compound, locale, oldCompoundValues, entityPrimaryKey
-			);
-			if (mirroredValues != null) {
+			final ReferencePartition partition = asPartition(target);
+			if (target instanceof EntityIndex entityIndex) {
+				// the sort index normalizes the array in place, the registry of single-owner partitions takes it as
+				// it was
+				final Serializable[] mirroredValues = VirtualReferencePartitionWriter.copyIfMirrored(
+					executor, referenceSchema, partition, oldCompoundValues
+				);
+				entityIndex.removeSortAttributeCompound(
+					entitySchema, referenceSchema, compound, locale, oldCompoundValues, entityPrimaryKey
+				);
+				if (mirroredValues != null) {
+					VirtualReferencePartitionWriter.compoundValueRemoved(
+						executor, entitySchema, referenceSchema, compound, partition, locale, mirroredValues
+					);
+				}
+			} else {
+				// nothing normalizes the array of a virtual partition, so the registry takes the array itself
 				VirtualReferencePartitionWriter.compoundValueRemoved(
-					executor, entitySchema, referenceSchema, compound, entityIndex, locale, mirroredValues
+					executor, entitySchema, referenceSchema, compound, partition, locale, oldCompoundValues
 				);
 			}
 		}
