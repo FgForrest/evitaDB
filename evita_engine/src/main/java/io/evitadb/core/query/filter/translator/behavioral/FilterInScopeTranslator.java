@@ -23,8 +23,14 @@
 
 package io.evitadb.core.query.filter.translator.behavioral;
 
+import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.filter.And;
+import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.FilterInScope;
+import io.evitadb.api.query.filter.Not;
+import io.evitadb.api.query.filter.Or;
+import io.evitadb.api.query.filter.UserFilter;
 import io.evitadb.core.query.QueryPlanner.EnclosingContainerRelation;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
@@ -36,10 +42,12 @@ import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.VirtualPartitionRows;
 import io.evitadb.core.query.filter.VirtualPartitionRows.InScopeReading;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyInSetTranslator;
+import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
@@ -105,6 +113,9 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 	 * - naming another scope, it is what the route the rows are answered for makes of a constraint confined to another
 	 *   scope - every row, or none (see {@link VirtualPartitionRows.InScopeReading}).
 	 *
+	 * A container decided without its children still hands their locales to the ordering of the fetched references,
+	 * as the visit of the index objects does - see {@link #applyLocalesToNestedQueryComparator}.
+	 *
 	 * @param inScope         the container
 	 * @param rows            the rows answered
 	 * @param filterByVisitor the visitor translating the body
@@ -119,9 +130,11 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 		final Scope scopeToUse = inScope.getScope();
 		final InScopeReading inScopeReading = rows.getInScopeReading();
 		if (inScopeReading == InScopeReading.ALL_SCOPES_UNMET) {
+			applyLocalesToNestedQueryComparator(inScope, filterByVisitor.getProcessingScope());
 			return EmptyFormula.INSTANCE;
 		}
 		if (scopeToUse != rows.getScope()) {
+			applyLocalesToNestedQueryComparator(inScope, filterByVisitor.getProcessingScope());
 			return inScopeReading == InScopeReading.OTHER_SCOPES_MET ?
 				filterByVisitor.getSuperSetFormula() : EmptyFormula.INSTANCE;
 		}
@@ -141,6 +154,64 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 						);
 				}
 			);
+	}
+
+	/**
+	 * Hands the comparator of the ordering of the fetched references the locales of the `entityLocaleEquals` inside
+	 * a container the virtual rows decide without visiting its children. The index objects visit the children of every
+	 * `inScope`, whichever scope it names, and {@link io.evitadb.core.query.filter.translator.entity.EntityLocaleEqualsTranslator}
+	 * sets its locale on the comparator as a side effect of the visit - so a locale confined to a scope the rows are
+	 * not in still decides the language `referenceContent(..., orderBy(entityProperty(...)))` orders by. Translating
+	 * the children against the rows would not do: they are confined to another scope, whose indexes the rows know
+	 * nothing about.
+	 *
+	 * The walk follows the visit of the index objects: the children in their order, so the last locale wins, through
+	 * the containers translated within the same processing scope - the logical ones and a nested `inScope` - and never
+	 * into a container that answers its body in a nested query of its own, such as `entityHaving`, whose locale is not
+	 * the comparator's. A constraint the processing scope suppresses is skipped, as the visit skips it.
+	 *
+	 * Costs nothing when no ordering of the fetched references is requested, otherwise one pass over the container.
+	 *
+	 * @param container       the container whose children are not translated
+	 * @param processingScope the processing scope of the rows
+	 */
+	private static void applyLocalesToNestedQueryComparator(
+		@Nonnull ConstraintContainer<FilterConstraint> container,
+		@Nonnull ProcessingScope<?> processingScope
+	) {
+		final EntityNestedQueryComparator comparator = processingScope.getEntityNestedQueryComparator();
+		if (comparator != null) {
+			applyLocales(container, comparator, processingScope);
+		}
+	}
+
+	/**
+	 * Sets the locale of every `entityLocaleEquals` the visit of the index objects would translate within the
+	 * processing scope of the container, in visiting order - see {@link #applyLocalesToNestedQueryComparator}.
+	 *
+	 * @param container       the container to walk
+	 * @param comparator      the comparator of the ordering of the fetched references
+	 * @param processingScope the processing scope of the rows
+	 */
+	private static void applyLocales(
+		@Nonnull ConstraintContainer<FilterConstraint> container,
+		@Nonnull EntityNestedQueryComparator comparator,
+		@Nonnull ProcessingScope<?> processingScope
+	) {
+		for (FilterConstraint child : container) {
+			if (processingScope.isSuppressed(child.getClass())) {
+				continue;
+			}
+			if (child instanceof EntityLocaleEquals entityLocaleEquals) {
+				comparator.setLocale(entityLocaleEquals.getLocale());
+			} else if (
+				child instanceof And || child instanceof Or || child instanceof Not ||
+					child instanceof UserFilter || child instanceof FilterInScope
+			) {
+				//noinspection unchecked
+				applyLocales((ConstraintContainer<FilterConstraint>) child, comparator, processingScope);
+			}
+		}
 	}
 
 	/**

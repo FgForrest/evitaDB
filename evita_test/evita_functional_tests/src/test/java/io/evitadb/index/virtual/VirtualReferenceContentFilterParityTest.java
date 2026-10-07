@@ -418,6 +418,48 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 		);
 	}
 
+	@DisplayName("a filter locale inside an inScope the rows are not decided by visiting orders the references")
+	@ParameterizedTest(name = "{0}")
+	@MethodSource("localeConfinedToAScopeFilters")
+	void shouldOrderTheReferencesByAFilterLocaleConfinedToAScope(
+		@Nonnull String name,
+		@Nonnull FilterConstraint referenceFilter
+	) {
+		// both scopes requested, so the reference filter is evaluated in a copy per scope, and the query locale
+		// conflicts with the Czech one of the filter
+		final Comparison<List<Integer>> comparison = VirtualReadParity.compare(
+			maintenance(CATALOG_LOCALIZED_TARGETS), Set.of(ENTITY_PRODUCT),
+			() -> queryBrandOrder(Locale.ENGLISH, BOTH, referenceFilter)
+		);
+		assertEquals(List.of(3, 2, 1), comparison.objectReading(), name + ": the index objects order by Czech names");
+		assertEquals(
+			comparison.objectReading(), comparison.virtualReading().answer(),
+			name + ": the virtual reading must order by the filter locale too"
+		);
+		assertTrue(
+			comparison.virtualReading().virtualRowsRead() > 0,
+			name + ": every brand partition is single-owner, so the fetch must read virtual rows"
+		);
+	}
+
+	/**
+	 * Returns the reference filters whose Czech `entityLocaleEquals` sits in an `inScope` of the archive, which the
+	 * live rows of {@link #CATALOG_LOCALIZED_TARGETS} decide without translating its children - directly, and nested
+	 * in a logical container.
+	 *
+	 * @return the name and the reference filter of each case
+	 */
+	@Nonnull
+	static Stream<Arguments> localeConfinedToAScopeFilters() {
+		return Stream.of(
+			Arguments.of("inScope of the archive", inScope(Scope.ARCHIVED, entityLocaleEquals(CZECH))),
+			Arguments.of(
+				"inScope of the archive around a disjunction",
+				inScope(Scope.ARCHIVED, or(entityPrimaryKeyInSet(1), entityLocaleEquals(CZECH)))
+			)
+		);
+	}
+
 	/**
 	 * Returns the primary keys past the last product rows reference - targets the managed collection never holds.
 	 *
@@ -554,19 +596,20 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 	/**
 	 * Defines the catalog of {@link #CATALOG_LOCALIZED_TARGETS}: brands 1 to 3 with a localized sortable name whose
 	 * Czech order is the reverse of the English one, and product 1 with a label in both languages referencing all three
-	 * brands - each brand by this product alone, so every partition of `brands` is single-owner.
+	 * brands - each brand by this product alone, so every partition of `brands` is single-owner. The reference and the
+	 * name are indexed in both scopes, so a query may request both, while every entity stays live.
 	 *
 	 * @param session the session to write in
 	 */
 	private static void setUpLocalizedTargets(@Nonnull EvitaSessionContract session) {
 		session.defineEntitySchema(ENTITY_BRAND)
-			.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().sortable().nullable())
+			.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().sortableInScope(BOTH).nullable())
 			.updateVia(session);
 		session.defineEntitySchema(ENTITY_PRODUCT)
 			.withAttribute(ATTRIBUTE_LABEL, String.class, whichIs -> whichIs.localized().nullable())
 			.withReferenceToEntity(
 				REFERENCE_BRANDS, ENTITY_BRAND, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs.indexedForFilteringInScope(Scope.LIVE)
+				whichIs -> whichIs.indexedForFilteringInScope(BOTH)
 			)
 			.updateVia(session);
 		for (int pk = 1; pk <= ENGLISH_NAMES.length; pk++) {
@@ -595,18 +638,40 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private List<Integer> queryBrandOrder(@Nullable Locale queryLocale) {
+		return queryBrandOrder(queryLocale, LIVE, entityLocaleEquals(CZECH));
+	}
+
+	/**
+	 * Fetches product 1 of {@link #CATALOG_LOCALIZED_TARGETS} with its brands filtered by a reference filter and ordered
+	 * by their localized name, and returns the brands in the order the product returns them.
+	 *
+	 * @param queryLocale     the locale of the query itself, `null` for none
+	 * @param scopes          the scopes the query requests
+	 * @param referenceFilter the filter of the brands
+	 * @return the brand primary keys in reference order
+	 */
+	@Nonnull
+	private List<Integer> queryBrandOrder(
+		@Nullable Locale queryLocale,
+		@Nonnull Scope[] scopes,
+		@Nonnull FilterConstraint referenceFilter
+	) {
 		return this.evita.queryCatalog(
 			CATALOG_LOCALIZED_TARGETS,
 			session -> {
 				final SealedEntity product = session.queryOne(
 					query(
 						collection(ENTITY_PRODUCT),
-						filterBy(entityPrimaryKeyInSet(1), queryLocale == null ? null : entityLocaleEquals(queryLocale)),
+						filterBy(
+							entityPrimaryKeyInSet(1),
+							queryLocale == null ? null : entityLocaleEquals(queryLocale),
+							scope(scopes)
+						),
 						require(
 							entityFetch(
 								referenceContent(
 									REFERENCE_BRANDS,
-									filterBy(entityLocaleEquals(CZECH)),
+									filterBy(referenceFilter),
 									orderBy(entityProperty(attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC))),
 									entityFetch()
 								)
