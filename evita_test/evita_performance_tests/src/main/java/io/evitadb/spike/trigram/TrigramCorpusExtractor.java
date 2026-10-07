@@ -31,9 +31,12 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataValue;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.core.Evita;
@@ -60,6 +63,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Function;
 
+import static io.evitadb.api.query.QueryConstraints.associatedDataContentAll;
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.dataInLocalesAll;
@@ -82,13 +86,35 @@ import static io.evitadb.api.query.QueryConstraints.require;
  *
  * # What is extracted, and why that set
  *
- * Every attribute whose {@link AttributeSchemaContract#getPlainType()} is `String` and which carries a **filter
- * index** in some scope: `filterable`, or `unique` / `unique within locale`, because uniqueness implies
- * filterability (see `AttributeSchemaContract#isUniqueInScope`) and therefore a `FilterIndex` that
- * `attributeContains` could be accelerated against. A `sortable`-only attribute is excluded - a `SortIndex` is not
- * a filter index and no substring predicate is answered from it. This is deliberately wider than the literal
- * "filterable" wording of the plan, and it is the difference between extracting `code`, `ean` and `url` - which
- * the plan names as candidates and which are `unique`, not `filterable` - and silently missing them.
+ * **By default** every attribute whose {@link AttributeSchemaContract#getPlainType()} is `String` and which
+ * carries a **filter index** in some scope: `filterable`, or `unique` / `unique within locale`, because
+ * uniqueness implies filterability (see `AttributeSchemaContract#isUniqueInScope`) and therefore a `FilterIndex`
+ * that `attributeContains` could be accelerated against. A `sortable`-only attribute is excluded - a `SortIndex`
+ * is not a filter index and no substring predicate is answered from it. This is deliberately wider than the
+ * literal "filterable" wording of the P8 plan, and it is the difference between extracting `code`, `ean` and
+ * `url` - which the plan names as candidates and which are `unique`, not `filterable` - and silently missing
+ * them.
+ *
+ * **Named explicitly, any `String` attribute is extracted whatever its index status**, and named associated data
+ * with it. That is the widening the fulltext line (P1, step K1) needs and the substring line never did: a
+ * fulltext field is as a rule *not* filter indexed, because nobody filters by a long description, so the default
+ * sweep above cannot see the fields whose memory and scan cost P1 exists to measure. The CMS profile is the case
+ * that forced it - its article body is not among the filter-indexed attributes the P8 census saw.
+ *
+ * Associated data is **never** swept: an empty allow-list means none, not all. It carries no index to narrow a
+ * sweep by, and a blanket one would pull in image descriptors and layout payloads. A `ComplexDataObject` field
+ * can be named but not extracted - the run refuses and names the type, because which leaf of a complex object is
+ * the body text is a question about the document model, not about extraction.
+ *
+ * Associated-data values are written under a `$`-prefixed field name ({@link #ASSOCIATED_DATA_PREFIX}), so that
+ * an attribute and an associated data sharing a name stay two distinct fields downstream.
+ *
+ * # Two modes
+ *
+ * `-D{@value #MODE_PROPERTY}=census` boots the catalog, prints every text-bearing field with its type, its
+ * localization and its indexes, and writes nothing. It exists because the allow-lists above cannot be written
+ * without it: the fields P1 needs are precisely the ones no previous run has listed. The default `extract` mode
+ * writes the TSV corpus.
  *
  * The value written is the **raw** attribute value, never a normalized one. Normalization is the analyzer's
  * business: A2 has to measure several normalizations of the same corpus (NFD as stored today, and the
@@ -110,7 +136,9 @@ import static io.evitadb.api.query.QueryConstraints.require;
  * | `evita.trigram.copyData` | `false` opens `dataDir` in place instead of copying (default `true`) |
  * | `evita.trigram.compress` | storage compression of the snapshot (default `true`, see {@link #COMPRESS_PROPERTY}) |
  * | `evita.trigram.entityTypes` | comma-separated collection allow-list; default: every collection |
- * | `evita.trigram.attributes` | attribute allow-list, `name` or `entityType:name`; default: all of them |
+ * | `evita.trigram.attributes` | attribute allow-list, `name` or `entityType:name`; a named attribute is extracted whatever its index status. Default: every filter-indexed `String` attribute |
+ * | `evita.trigram.associatedData` | associated-data allow-list, `name` or `entityType:name`; **default: none** |
+ * | `evita.trigram.mode` | `extract` (default) or `census` |
  * | `evita.trigram.pageSize` | entities fetched per query round trip (default 1000) |
  *
  * The catalog is **copied** into the working directory before boot by default. Opening a snapshot in place is not
@@ -141,7 +169,7 @@ import static io.evitadb.api.query.QueryConstraints.require;
  * The `--add-opens` flags are the ones the module's shade manifest declares: Byte Buddy generates classes
  * reflectively while an Evita instance boots and fails without them.
  *
- * @author Claude (P8 trigram-substring-index spike), FG Forrest a.s. (c) 2026
+ * @author Claude (P8 trigram-substring-index spike; widened for P1 fulltext step K1), FG Forrest a.s. (c) 2026
  */
 public class TrigramCorpusExtractor {
 
@@ -186,6 +214,43 @@ public class TrigramCorpusExtractor {
 	 * System property overriding how many entities are fetched per query round trip.
 	 */
 	public static final String PAGE_SIZE_PROPERTY = "evita.trigram.pageSize";
+
+	/**
+	 * System property naming the associated data to extract, each entry either a bare name (matching in every
+	 * collection) or `entityType:associatedDataName`.
+	 *
+	 * Associated data is **never** swept automatically, unlike attributes. It carries no index of any kind, so
+	 * there is no equivalent of "filter-indexed" to narrow a sweep by, and a blanket one would pull in image
+	 * descriptors, layout blocks and JSON payloads alongside the article body this exists to reach. Naming it
+	 * *is* the opt-in.
+	 */
+	public static final String ASSOCIATED_DATA_PROPERTY = "evita.trigram.associatedData";
+
+	/**
+	 * System property selecting what a run does: `extract` (the default) writes the TSV corpus, `census` boots
+	 * the catalog, prints every text-bearing field it holds with the way it is stored, and writes nothing.
+	 *
+	 * The census exists because the opt-in lists above cannot be written without it. The P8 sweep saw only
+	 * filter-indexed `String` attributes, so for any catalog whose long text lives elsewhere - a non-indexed
+	 * attribute, or associated data - the fields P1 needs are precisely the ones no previous run has listed.
+	 */
+	public static final String MODE_PROPERTY = "evita.trigram.mode";
+
+	/**
+	 * Value of {@link #MODE_PROPERTY} that surveys the schema instead of extracting.
+	 */
+	public static final String CENSUS_MODE = "census";
+
+	/**
+	 * Prefix distinguishing an associated-data name from an attribute name in the corpus's field column.
+	 *
+	 * The TSV has one column for the field name and the two namespaces are independent: a collection may hold
+	 * both an attribute and an associated data called `description`, and writing them under one name would
+	 * silently fuse two fields into one (field, term) key. A classifier can never begin with `$` - 
+	 * `ClassifierUtils.SUPPORTED_FORMAT_PATTERN` requires a leading alphabetic character - so the prefix
+	 * cannot collide with a real name, and a consumer that does not care about the distinction can ignore it.
+	 */
+	public static final String ASSOCIATED_DATA_PREFIX = "$";
 
 	/**
 	 * System property matching {@link StorageOptions#compress()} to the snapshot being read.
@@ -234,21 +299,25 @@ public class TrigramCorpusExtractor {
 	 * Performs the extraction as described in the class JavaDoc.
 	 */
 	private static void run() throws IOException {
+		final boolean census = CENSUS_MODE.equalsIgnoreCase(System.getProperty(MODE_PROPERTY, "extract"));
 		final String catalogName = requiredProperty(CATALOG_NAME_PROPERTY);
 		final Path dataDir = Path.of(requiredProperty(DATA_DIR_PROPERTY));
-		final Path corpusFile = Path.of(requiredProperty(CORPUS_FILE_PROPERTY));
+		// a census writes nothing, so it must not demand an output file it would never open
+		final Path corpusFile = census ? null : Path.of(requiredProperty(CORPUS_FILE_PROPERTY));
 		final boolean copyData = Boolean.parseBoolean(System.getProperty(COPY_DATA_PROPERTY, "true"));
 		final boolean compress = Boolean.parseBoolean(System.getProperty(COMPRESS_PROPERTY, "true"));
 		final int pageSize = Integer.parseInt(System.getProperty(PAGE_SIZE_PROPERTY, "1000"));
 		final Set<String> entityTypeFilter = parseListProperty(ENTITY_TYPES_PROPERTY);
 		final Set<String> attributeFilter = parseListProperty(ATTRIBUTES_PROPERTY);
+		final Set<String> associatedDataFilter = parseListProperty(ASSOCIATED_DATA_PROPERTY);
 
 		final Path storageDir = copyData
 			? copyCatalog(dataDir, catalogName)
 			: dataDir;
 
 		System.out.printf(
-			"Trigram corpus extraction - catalog `%s` from `%s`%n", catalogName, storageDir
+			"%s - catalog `%s` from `%s`%n",
+			census ? "Corpus census" : "Corpus extraction", catalogName, storageDir
 		);
 
 		final long bootStart = System.nanoTime();
@@ -274,6 +343,16 @@ public class TrigramCorpusExtractor {
 			awaitLoaded(evita, catalogName);
 			System.out.printf("Catalog booted in %,d ms.%n", (System.nanoTime() - bootStart) / 1_000_000);
 
+			if (census) {
+				// bound to an explicit Function for the same overload reason as the extraction below
+				final Function<EvitaSessionContract, Void> survey = session -> {
+					censusCatalog(session, entityTypeFilter);
+					return null;
+				};
+				evita.queryCatalog(catalogName, survey);
+				return;
+			}
+
 			Files.createDirectories(corpusFile.toAbsolutePath().getParent());
 			try (
 				final BufferedWriter writer = Files.newBufferedWriter(
@@ -285,7 +364,9 @@ public class TrigramCorpusExtractor {
 				// the lambda is bound to an explicit Function first: `queryCatalog` is overloaded for both
 				// Function and Consumer, and an inline lambda cannot pick between them
 				final Function<EvitaSessionContract, Map<String, long[]>> extraction =
-					session -> extractCatalog(session, entityTypeFilter, attributeFilter, pageSize, writer);
+					session -> extractCatalog(
+						session, entityTypeFilter, attributeFilter, associatedDataFilter, pageSize, writer
+					);
 				final Map<String, long[]> perGroupCounts = evita.queryCatalog(catalogName, extraction);
 				printSummary(perGroupCounts, corpusFile);
 			}
@@ -297,18 +378,20 @@ public class TrigramCorpusExtractor {
 	/**
 	 * Walks every selected collection of the catalog and writes one TSV line per extracted value occurrence.
 	 *
-	 * @param session          read-only session over the booted catalog
-	 * @param entityTypeFilter collections to visit; empty means every collection
-	 * @param attributeFilter  attributes to extract; empty means every filter-indexed `String` attribute
-	 * @param pageSize         entities per query round trip
-	 * @param writer           destination of the TSV lines
-	 * @return per `entityType/attributeName/locale` group, a two-slot array of `{occurrences, totalCodePoints}`
+	 * @param session              read-only session over the booted catalog
+	 * @param entityTypeFilter     collections to visit; empty means every collection
+	 * @param attributeFilter      attributes to extract; empty means every filter-indexed `String` attribute
+	 * @param associatedDataFilter associated data to extract; empty means none
+	 * @param pageSize             entities per query round trip
+	 * @param writer               destination of the TSV lines
+	 * @return per `entityType/fieldName/locale` group, a two-slot array of `{occurrences, totalCodePoints}`
 	 */
 	@Nonnull
 	private static Map<String, long[]> extractCatalog(
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Set<String> entityTypeFilter,
 		@Nonnull Set<String> attributeFilter,
+		@Nonnull Set<String> associatedDataFilter,
 		int pageSize,
 		@Nonnull BufferedWriter writer
 	) {
@@ -320,14 +403,24 @@ public class TrigramCorpusExtractor {
 			}
 			final SealedEntitySchema entitySchema = session.getEntitySchemaOrThrowException(entityType);
 			final Set<String> selectedAttributes = selectAttributes(entitySchema, attributeFilter);
-			if (selectedAttributes.isEmpty()) {
-				System.out.printf("  %-24s - no filter-indexed String attribute, skipped%n", entityType);
+			final Set<String> selectedAssociatedData = selectAssociatedData(entitySchema, associatedDataFilter);
+			if (selectedAttributes.isEmpty() && selectedAssociatedData.isEmpty()) {
+				System.out.printf("  %-24s - no selected text field, skipped%n", entityType);
 				continue;
 			}
-			System.out.printf(
-				"  %-24s - extracting %s%n", entityType, String.join(", ", selectedAttributes)
+			final List<String> selectionLabel = new ArrayList<>(
+				selectedAttributes.size() + selectedAssociatedData.size()
 			);
-			extractCollection(session, entityType, selectedAttributes, pageSize, writer, perGroupCounts);
+			selectionLabel.addAll(selectedAttributes);
+			for (final String associatedDataName : selectedAssociatedData) {
+				selectionLabel.add(ASSOCIATED_DATA_PREFIX + associatedDataName);
+			}
+			System.out.printf(
+				"  %-24s - extracting %s%n", entityType, String.join(", ", selectionLabel)
+			);
+			extractCollection(
+				session, entityType, selectedAttributes, selectedAssociatedData, pageSize, writer, perGroupCounts
+			);
 		}
 		return perGroupCounts;
 	}
@@ -335,21 +428,29 @@ public class TrigramCorpusExtractor {
 	/**
 	 * Pages through one collection, fetching all attributes in all locales, and writes the selected values.
 	 *
-	 * @param session            read-only session
-	 * @param entityType         collection to walk
-	 * @param selectedAttributes attribute names to extract
-	 * @param pageSize           entities per query round trip
-	 * @param writer             destination of the TSV lines
-	 * @param perGroupCounts     accumulator of per-group occurrence and code-point counts
+	 * @param session                read-only session
+	 * @param entityType             collection to walk
+	 * @param selectedAttributes     attribute names to extract
+	 * @param selectedAssociatedData associated-data names to extract
+	 * @param pageSize               entities per query round trip
+	 * @param writer                 destination of the TSV lines
+	 * @param perGroupCounts         accumulator of per-group occurrence and code-point counts
 	 */
 	private static void extractCollection(
 		@Nonnull EvitaSessionContract session,
 		@Nonnull String entityType,
 		@Nonnull Set<String> selectedAttributes,
+		@Nonnull Set<String> selectedAssociatedData,
 		int pageSize,
 		@Nonnull BufferedWriter writer,
 		@Nonnull Map<String, long[]> perGroupCounts
 	) {
+		// associated data is fetched only when something was selected: it is the expensive half of an entity
+		// body - a CMS article carries its whole text there - and asking for it unconditionally would slow
+		// every attribute-only run for nothing
+		final EntityFetch entityFetch = selectedAssociatedData.isEmpty()
+			? entityFetch(attributeContentAll(), dataInLocalesAll())
+			: entityFetch(attributeContentAll(), associatedDataContentAll(), dataInLocalesAll());
 		int pageNumber = 1;
 		int fetched = 0;
 		int total = Integer.MAX_VALUE;
@@ -358,7 +459,7 @@ public class TrigramCorpusExtractor {
 				Query.query(
 					collection(entityType),
 					require(
-						entityFetch(attributeContentAll(), dataInLocalesAll()),
+						entityFetch,
 						page(pageNumber, pageSize)
 					)
 				),
@@ -370,7 +471,9 @@ public class TrigramCorpusExtractor {
 				break;
 			}
 			for (int i = 0; i < entities.size(); i++) {
-				writeEntity(entities.get(i), entityType, selectedAttributes, writer, perGroupCounts);
+				writeEntity(
+					entities.get(i), entityType, selectedAttributes, selectedAssociatedData, writer, perGroupCounts
+				);
 			}
 			fetched += entities.size();
 			if (fetched % PROGRESS_LOG_INTERVAL < pageSize && fetched < total) {
@@ -384,16 +487,18 @@ public class TrigramCorpusExtractor {
 	/**
 	 * Writes every selected attribute value of one entity, expanding array attributes element by element.
 	 *
-	 * @param entity             the fetched entity
-	 * @param entityType         collection the entity belongs to
-	 * @param selectedAttributes attribute names to extract
-	 * @param writer             destination of the TSV lines
-	 * @param perGroupCounts     accumulator of per-group occurrence and code-point counts
+	 * @param entity                 the fetched entity
+	 * @param entityType             collection the entity belongs to
+	 * @param selectedAttributes     attribute names to extract
+	 * @param selectedAssociatedData associated-data names to extract
+	 * @param writer                 destination of the TSV lines
+	 * @param perGroupCounts         accumulator of per-group occurrence and code-point counts
 	 */
 	private static void writeEntity(
 		@Nonnull SealedEntity entity,
 		@Nonnull String entityType,
 		@Nonnull Set<String> selectedAttributes,
+		@Nonnull Set<String> selectedAssociatedData,
 		@Nonnull BufferedWriter writer,
 		@Nonnull Map<String, long[]> perGroupCounts
 	) {
@@ -429,6 +534,45 @@ public class TrigramCorpusExtractor {
 					"Attribute `" + entityType + "." + attributeName + "` is declared as String but carries `" +
 						value.getClass().getName() + "`!",
 					"Attribute declared as String carries a different type!"
+				);
+			}
+		}
+		if (selectedAssociatedData.isEmpty() || !entity.associatedDataAvailable()) {
+			return;
+		}
+		for (final AssociatedDataValue associatedDataValue : entity.getAssociatedDataValues()) {
+			final String associatedDataName = associatedDataValue.key().associatedDataName();
+			if (associatedDataValue.dropped() || !selectedAssociatedData.contains(associatedDataName)) {
+				continue;
+			}
+			final Serializable value = associatedDataValue.value();
+			if (value == null) {
+				continue;
+			}
+			// the field column carries the prefixed name, so an attribute and an associated data of the same
+			// name stay two fields downstream - see ASSOCIATED_DATA_PREFIX
+			final String fieldName = ASSOCIATED_DATA_PREFIX + associatedDataName;
+			final Locale locale = associatedDataValue.key().locale();
+			if (value instanceof final String text) {
+				writeLine(writer, entityType, fieldName, locale, primaryKey, text, perGroupCounts);
+			} else if (value instanceof final String[] texts) {
+				for (int i = 0; i < texts.length; i++) {
+					if (texts[i] != null) {
+						writeLine(writer, entityType, fieldName, locale, primaryKey, texts[i], perGroupCounts);
+					}
+				}
+			} else {
+				// Associated data is untyped in the sense that matters here: unlike an attribute it may hold a
+				// ComplexDataObject, and there is no one right way to flatten one into a text field - which
+				// leaf is the article body, and which is a layout hint, is a question about the document model
+				// and not about extraction. Refusing loudly names the field and its type so the decision gets
+				// taken; stringifying it silently would produce a corpus whose term counts mean nothing.
+				throw new GenericEvitaInternalError(
+					"Associated data `" + entityType + "." + associatedDataName + "` carries `" +
+						value.getClass().getName() + "`, which is not a String or String[] - run the census " +
+						"mode (`-D" + MODE_PROPERTY + "=" + CENSUS_MODE + "`) and decide how this field is to " +
+						"be flattened before extracting it.",
+					"Associated data is neither a String nor a String[]!"
 				);
 			}
 		}
@@ -476,13 +620,123 @@ public class TrigramCorpusExtractor {
 		counters[1] += SpikeTrigramCodec.codePointCount(value);
 	}
 
+	/* ======================================= census ============================================== */
+
+	/**
+	 * Prints every text-bearing field of every selected collection, with the way it is stored, and extracts
+	 * nothing.
+	 *
+	 * This answers the question the extraction allow-lists cannot be written without: **where does a catalog's
+	 * long text actually live?** A `String` attribute that carries a filter index is what the P8 sweep saw; a
+	 * `String` attribute without one, and associated data of any type, are invisible to that sweep and are
+	 * exactly where a body of prose tends to sit, since nobody filters or sorts by it.
+	 *
+	 * The three columns that decide what a field costs to reach are printed for each: whether it is localized
+	 * (a localized field multiplies by the number of locales), its declared type, and - for attributes - which
+	 * indexes it carries. A field's *size* is deliberately not sampled here: that costs a full walk, which is
+	 * the extraction this mode exists to avoid.
+	 *
+	 * @param session          read-only session over the booted catalog
+	 * @param entityTypeFilter collections to survey; empty means every collection
+	 */
+	private static void censusCatalog(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Set<String> entityTypeFilter
+	) {
+		final Set<String> entityTypes = new TreeSet<>(session.getAllEntityTypes());
+		System.out.printf("%n=== TEXT FIELD CENSUS ===%n");
+		for (final String entityType : entityTypes) {
+			if (!entityTypeFilter.isEmpty() && !entityTypeFilter.contains(entityType)) {
+				continue;
+			}
+			final SealedEntitySchema entitySchema = session.getEntitySchemaOrThrowException(entityType);
+			System.out.printf(
+				"%n%s (%,d entities, locales %s)%n",
+				entityType,
+				session.getEntityCollectionSize(entityType),
+				entitySchema.getLocales().isEmpty()
+					? "-"
+					: entitySchema.getLocales().stream().map(Locale::toLanguageTag).sorted().toList()
+			);
+			System.out.printf(
+				"  %-10s %-28s %-34s %-10s %s%n", "kind", "name", "type", "localized", "indexes"
+			);
+
+			final Map<String, ? extends AttributeSchemaContract> attributes = entitySchema.getAttributes();
+			final List<String> attributeNames = new ArrayList<>(attributes.keySet());
+			attributeNames.sort(null);
+			for (final String attributeName : attributeNames) {
+				final AttributeSchemaContract attributeSchema = attributes.get(attributeName);
+				if (!String.class.isAssignableFrom(attributeSchema.getPlainType())) {
+					continue;
+				}
+				final List<String> indexes = new ArrayList<>(4);
+				if (attributeSchema.isFilterableInAnyScope()) {
+					indexes.add("filterable");
+				}
+				if (attributeSchema.isUniqueInAnyScope()) {
+					indexes.add("unique");
+				}
+				if (attributeSchema.isUniqueWithinLocaleInAnyScope()) {
+					indexes.add("uniqueWithinLocale");
+				}
+				if (attributeSchema.isSortableInAnyScope()) {
+					indexes.add("sortable");
+				}
+				System.out.printf(
+					"  %-10s %-28s %-34s %-10s %s%n",
+					"attribute", attributeName, attributeSchema.getType().getSimpleName(),
+					attributeSchema.isLocalized(),
+					// "none" is the interesting value here, not a missing one: a String attribute with no index
+					// is invisible to the default sweep and is a prime fulltext candidate
+					indexes.isEmpty() ? "none - opt in by name" : String.join("+", indexes)
+				);
+			}
+
+			final Map<String, AssociatedDataSchemaContract> associatedData = entitySchema.getAssociatedData();
+			final List<String> associatedDataNames = new ArrayList<>(associatedData.keySet());
+			associatedDataNames.sort(null);
+			for (final String associatedDataName : associatedDataNames) {
+				final AssociatedDataSchemaContract associatedDataSchema = associatedData.get(associatedDataName);
+				final boolean extractable =
+					String.class.isAssignableFrom(associatedDataSchema.getPlainType());
+				System.out.printf(
+					"  %-10s %-28s %-34s %-10s %s%n",
+					"assocData", ASSOCIATED_DATA_PREFIX + associatedDataName,
+					associatedDataSchema.getType().getSimpleName(),
+					associatedDataSchema.isLocalized(),
+					extractable ? "none - opt in by name" : "none - NOT String, needs a flattening decision"
+				);
+			}
+		}
+		System.out.printf(
+			"%n Name the fields to extract with -D%s and -D%s (bare name, or `entityType:name`).%n",
+			ATTRIBUTES_PROPERTY, ASSOCIATED_DATA_PROPERTY
+		);
+	}
+
 	/* ===================================== selection ============================================= */
 
 	/**
-	 * Picks the attributes of one collection that carry a filter index and hold `String` values.
+	 * Picks the `String`-valued attributes of one collection to extract.
+	 *
+	 * Two modes, and the difference is the whole of K1's widening:
+	 *
+	 * - **No allow-list** - the default sweep, unchanged from P8: an attribute qualifies when it carries a
+	 *   **filter index** in some scope, because that is what makes it a substring-search candidate.
+	 *   Uniqueness implies filterability, so `code` / `ean` / `url` - unique rather than filterable - are in,
+	 *   and a `sortable`-only attribute is out, a `SortIndex` answering no substring predicate.
+	 * - **An allow-list** - naming an attribute opts it in **whatever its index status**. Fulltext fields are
+	 *   as a rule *not* filter indexed: nobody filters by a long description, so no filter index exists on
+	 *   one, and the sweep above cannot see the very fields P1 exists to measure. The `String` plain type
+	 *   stays a hard requirement either way, because a non-text attribute has no terms to contribute.
+	 *
+	 * This widens what a named attribute means rather than adding a second property. P8's documented runs
+	 * named filter-indexed attributes exclusively, so their behaviour is unchanged; what changes is that
+	 * naming a non-indexed one now works instead of silently yielding nothing.
 	 *
 	 * @param entitySchema    schema of the collection
-	 * @param attributeFilter caller-supplied allow-list; empty means "every qualifying attribute"
+	 * @param attributeFilter caller-supplied allow-list; empty means "every filter-indexed `String` attribute"
 	 * @return names of the attributes to extract, sorted
 	 */
 	@Nonnull
@@ -497,21 +751,60 @@ public class TrigramCorpusExtractor {
 			if (!String.class.isAssignableFrom(attributeSchema.getPlainType())) {
 				continue;
 			}
-			// uniqueness implies filterability, so a unique attribute has a filter index just like a filterable
-			// one - and `code` / `ean` / `url`, the plan's own candidate attributes, are unique rather than
-			// filterable in the demo schema
-			final boolean filterIndexed = attributeSchema.isFilterableInAnyScope()
-				|| attributeSchema.isUniqueInAnyScope()
-				|| attributeSchema.isUniqueWithinLocaleInAnyScope();
-			if (!filterIndexed) {
-				continue;
+			if (attributeFilter.isEmpty()) {
+				if (hasFilterIndex(attributeSchema)) {
+					selected.add(entry.getKey());
+				}
+			} else if (attributeFilter.contains(entry.getKey())
+				|| attributeFilter.contains(entitySchema.getName() + ':' + entry.getKey())) {
+				selected.add(entry.getKey());
 			}
-			if (!attributeFilter.isEmpty()
-				&& !attributeFilter.contains(entry.getKey())
-				&& !attributeFilter.contains(entitySchema.getName() + ':' + entry.getKey())) {
-				continue;
+		}
+		return selected;
+	}
+
+	/**
+	 * Tells whether an attribute carries a filter index in any scope, uniqueness counting as filterability.
+	 *
+	 * @param attributeSchema the attribute to test
+	 * @return true when a `FilterIndex` exists for it somewhere
+	 */
+	private static boolean hasFilterIndex(@Nonnull AttributeSchemaContract attributeSchema) {
+		return attributeSchema.isFilterableInAnyScope()
+			|| attributeSchema.isUniqueInAnyScope()
+			|| attributeSchema.isUniqueWithinLocaleInAnyScope();
+	}
+
+	/**
+	 * Picks the associated data of one collection to extract.
+	 *
+	 * There is no sweep here and deliberately so - see {@link #ASSOCIATED_DATA_PROPERTY}. An empty allow-list
+	 * means *none*, not *all*, which is the opposite of how the attribute allow-list reads and is the reason
+	 * both are documented rather than inferred.
+	 *
+	 * The declared type is not filtered on: a `ComplexDataObject` field is selected here and refused later, in
+	 * {@link #writeEntity}, where the message can name the type that actually arrived. Silently dropping it at
+	 * selection time would let a run that extracted nothing look like a run that extracted everything.
+	 *
+	 * @param entitySchema         schema of the collection
+	 * @param associatedDataFilter caller-supplied allow-list; empty means "none"
+	 * @return names of the associated data to extract, sorted
+	 */
+	@Nonnull
+	private static Set<String> selectAssociatedData(
+		@Nonnull SealedEntitySchema entitySchema,
+		@Nonnull Set<String> associatedDataFilter
+	) {
+		if (associatedDataFilter.isEmpty()) {
+			return Set.of();
+		}
+		final Set<String> selected = new TreeSet<>();
+		final Map<String, AssociatedDataSchemaContract> associatedData = entitySchema.getAssociatedData();
+		for (final Map.Entry<String, AssociatedDataSchemaContract> entry : associatedData.entrySet()) {
+			if (associatedDataFilter.contains(entry.getKey())
+				|| associatedDataFilter.contains(entitySchema.getName() + ':' + entry.getKey())) {
+				selected.add(entry.getKey());
 			}
-			selected.add(entry.getKey());
 		}
 		return selected;
 	}
@@ -592,13 +885,16 @@ public class TrigramCorpusExtractor {
 
 	/**
 	 * Escapes the TSV field separators so a value carrying a tab or a newline cannot corrupt the corpus.
-	 * {@link TrigramCorpusStatistics#unescape(String)} is the exact inverse.
+	 * {@link #unescape(String)} is the exact inverse.
+	 *
+	 * Public because the corpus format is consumed outside this package - the fulltext line's instruments read
+	 * the same TSV - and a second copy of the codec is how the two would silently drift apart.
 	 *
 	 * @param value raw value
 	 * @return the escaped value
 	 */
 	@Nonnull
-	static String escape(@Nonnull String value) {
+	public static String escape(@Nonnull String value) {
 		if (value.indexOf('\\') < 0 && value.indexOf('\t') < 0
 			&& value.indexOf('\n') < 0 && value.indexOf('\r') < 0) {
 			return value;
@@ -615,6 +911,40 @@ public class TrigramCorpusExtractor {
 			}
 		}
 		return escaped.toString();
+	}
+
+	/**
+	 * Reverses {@link #escape(String)}.
+	 *
+	 * @param value escaped TSV field
+	 * @return the original value
+	 */
+	@Nonnull
+	public static String unescape(@Nonnull String value) {
+		if (value.indexOf('\\') < 0) {
+			return value;
+		}
+		final StringBuilder unescaped = new StringBuilder(value.length());
+		int i = 0;
+		while (i < value.length()) {
+			final char character = value.charAt(i++);
+			if (character != '\\' || i >= value.length()) {
+				unescaped.append(character);
+				continue;
+			}
+			final char escaped = value.charAt(i++);
+			switch (escaped) {
+				case '\\' -> unescaped.append('\\');
+				case 't' -> unescaped.append('\t');
+				case 'n' -> unescaped.append('\n');
+				case 'r' -> unescaped.append('\r');
+				default -> throw new GenericEvitaInternalError(
+					"Unknown escape sequence `\\" + escaped + "` in the corpus!",
+					"Unknown escape sequence in the corpus!"
+				);
+			}
+		}
+		return unescaped.toString();
 	}
 
 	/**

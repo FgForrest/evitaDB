@@ -28,6 +28,7 @@ import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
+import io.evitadb.annotation.Internal;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityNotManagedException;
@@ -2680,6 +2681,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @throws GenericEvitaInternalError if {@link #prefetchEntities} has not been called prior to this method, or
 	 *                                   if it prepared no fetcher for the passed instance name
 	 */
+	@Internal("internal to the fetch pipeline")
 	@Nonnull
 	public ReferenceSetFetcher getMinimalReferenceFetcher(@Nonnull String instanceName) {
 		Assert.isPremiseValid(

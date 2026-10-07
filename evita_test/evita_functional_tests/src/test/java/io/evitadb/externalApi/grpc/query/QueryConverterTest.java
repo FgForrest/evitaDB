@@ -24,15 +24,21 @@
 package io.evitadb.externalApi.grpc.query;
 
 import com.google.protobuf.Int32Value;
+import io.evitadb.api.query.Query;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
+import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.parser.DefaultQueryParser;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.HierarchyParentsBehaviour;
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.query.visitor.PrettyPrintingVisitor.StringWithParameters;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.LongNumberRange;
+import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.generated.GrpcHierarchyParentsBehaviour;
 import io.evitadb.externalApi.grpc.generated.GrpcIntegerNumberRange;
@@ -51,11 +57,17 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.attributeEquals;
+import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.scope;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -227,6 +239,33 @@ class QueryConverterTest {
 		assertArrayEquals(attributeSpecialValueValue, convertQueryParam(attributeSpecialValueValue));
 		final OrderDirection[] orderDirectionValue = {OrderDirection.DESC, OrderDirection.ASC};
 		assertArrayEquals(orderDirectionValue, convertQueryParam(orderDirectionValue));
+		final Scope[] scopeValue = {Scope.ARCHIVED, Scope.LIVE};
+		assertArrayEquals(scopeValue, convertQueryParam(scopeValue));
+	}
+
+	/**
+	 * The client sends a query as a string with extracted parameters and the server parses it back. The order of
+	 * `scope(...)` decides which scope a unique lookup prefers, so it has to survive the whole trip.
+	 */
+	@Test
+	void shouldKeepTheRequestedScopeOrderThroughTheWire() {
+		final Query original = query(
+			collection("product"),
+			filterBy(scope(Scope.ARCHIVED, Scope.LIVE), attributeEquals("code", "a"))
+		);
+		final StringWithParameters stringWithParameters = original.normalizeQuery().toStringWithParameterExtraction();
+		final List<Object> parameters = QueryConverter.convertQueryParamsList(
+			stringWithParameters.parameters()
+				.stream()
+				.map((Serializable parameter) -> QueryConverter.convertQueryParam(parameter))
+				.toList()
+		);
+
+		final Query parsed = DefaultQueryParser.getInstance().parseQuery(stringWithParameters.query(), parameters);
+
+		final EntityScope parsedScope = QueryUtils.findFilter(parsed, EntityScope.class);
+		assertNotNull(parsedScope);
+		assertArrayEquals(new Scope[]{Scope.ARCHIVED, Scope.LIVE}, parsedScope.getScopesInRequestedOrder());
 	}
 
 	@SuppressWarnings("unchecked")

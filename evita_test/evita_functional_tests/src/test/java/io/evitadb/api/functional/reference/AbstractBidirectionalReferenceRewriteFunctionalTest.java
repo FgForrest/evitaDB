@@ -98,13 +98,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   are what the archived-owner rows pin. Every reference is declared `indexedInScope(LIVE, ARCHIVED)` because a
  *   cross-scope relation survives only when both schemas are indexed in every scope it spans.
  *
- *   **Measured, and load-bearing for anyone writing an archived-scope row:** that declaration is honoured for
- *   *original* references but not for *reflected* ones. Archived category 12 still carries its ten reflected
- *   `products` rows in its body, and the schema reports `indexedInScopes=[LIVE, ARCHIVED]`, yet no ARCHIVED
- *   `CATEGORY.products` type index exists at all — while `CATEGORY.curated` and `CATEGORY.plainProducts`, original
- *   references on that same archived category, do get one. Each half of a cross-scope relation is filed under the
- *   scope of the entity whose rows it holds, so the counterpart half `PRODUCT.(categories, 12)` sits in the LIVE
- *   family with all ten owning products, and the owner half is filed nowhere.
+ *   Each half of a cross-scope relation is filed under the scope of the entity whose rows it holds: the counterpart
+ *   half `PRODUCT.(categories, 12)` sits in the LIVE family with all ten owning products, and the owner half in the
+ *   ARCHIVED `CATEGORY.products` family. That archived half used to be missing for every reflected reference - the
+ *   builder handed them explicit components naming `LIVE` alone, leaving `ARCHIVED` indexed with no component - and
+ *   several rows here were written against that gap. Schema changes now complete such a scope with the default
+ *   component, which `ReflectedReferenceDefaultComponentsFunctionalTest` pins.
  * - **`taxonomy`.** The category-to-taxonomy assignment is load-bearing and must not be "simplified": exactly four
  *   live categories sit under taxonomy node 1, which keeps the hierarchy index option under its
  *   `mainIndexCardinality / 2` eligibility threshold (11 live categories, threshold 5, `4 <= 5`) so the hierarchy
@@ -545,6 +544,20 @@ public abstract class AbstractBidirectionalReferenceRewriteFunctionalTest {
 		return entities.stream()
 			.filter(entity -> entity.getScope() == scope)
 			.toList();
+	}
+
+	/**
+	 * Returns the primary keys of the passed entities - the candidates a query on
+	 * {@link io.evitadb.utils.PlanPreference#PREFETCH} is narrowed to.
+	 *
+	 * @param entities entities whose primary keys to return
+	 * @return the primary keys, in the order of the entities
+	 */
+	@Nonnull
+	protected static int[] primaryKeysOf(@Nonnull List<SealedEntity> entities) {
+		return entities.stream()
+			.mapToInt(SealedEntity::getPrimaryKeyOrThrowException)
+			.toArray();
 	}
 
 	/**

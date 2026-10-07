@@ -120,14 +120,22 @@ Unique constraints are only enforced within the same scope. This means that two 
 the same unique attribute value. When you move an entity from one scope to another, the unique constraints within
 the target scope are checked and if the entity violates the unique constraint, the move is refused.
 
-If you query entities in both scopes using [inScope](behavioral.md#in-scope) filter and use the filtering
-constraint that exactly matches the unique attribute ([attribute equals](../filtering/comparable.md#attribute-equals),
-[attribute in set](../filtering/comparable.md#attribute-in-set), [attribute is](../filtering/comparable.md#attribute-is)),
-evitaDB will prefer the entity from the first scope specified in `scope` constraint over the entities in scopes defined
-later in this `scope` constraint. This means that if you query a single entity by its unique attribute value (e.g. `URL`)
-and search for the entity in both scopes, you will always get the entity from the first scope you declare in your query.
-This behavior is not applied, when only partial match is used (e.g. [attribute starts with](../filtering/string.md#attribute-starts-with),
-etc.).
+If you query entities in several scopes and use a filtering constraint that exactly matches the unique attribute
+([attribute equals](../filtering/comparable.md#attribute-equals),
+[attribute in set](../filtering/comparable.md#attribute-in-set)), evitaDB prefers the entity from the first scope
+specified in the `scope` constraint over the entities in scopes listed later in it. This means that if you query
+a single entity by its unique attribute value (e.g. `URL`) and search for the entity in both scopes, you always get
+the entity from the first scope you declare in your query: `scope(LIVE, ARCHIVED)` returns the live entity,
+`scope(ARCHIVED, LIVE)` the archived one. The same applies to globally unique attributes and to unique reference
+attributes inside [`referenceHaving`](../filtering/references.md#reference-having), where the owner of the matching
+reference in the first listed scope wins.
+
+A negation of such a constraint (e.g. `not(attributeEquals('code', 'ABC-123'))`) is the complement of the preferred
+answer. It therefore returns the entity from the later scope, even though that entity carries the very value.
+
+This behavior is not applied when only a partial match is used (e.g.
+[attribute starts with](../filtering/string.md#attribute-starts-with), etc.), nor to
+[attribute is](../filtering/comparable.md#attribute-is), which considers all requested scopes.
 
 </Note>
 

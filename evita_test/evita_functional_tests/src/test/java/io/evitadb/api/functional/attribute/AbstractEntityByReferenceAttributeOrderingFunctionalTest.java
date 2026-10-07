@@ -107,7 +107,11 @@ public abstract class AbstractEntityByReferenceAttributeOrderingFunctionalTest {
 			} else if (o1 == null) {
 				return Integer.compare(sealedEntityA.getPrimaryKeyOrThrowException(), sealedEntityB.getPrimaryKeyOrThrowException());
 			} else {
-				return Integer.compare(o2.getReferencedPrimaryKey(), o1.getReferencedPrimaryKey());
+				// the ordering is descending, so products of the same brand follow in descending primary key order
+				final int result = Integer.compare(o2.getReferencedPrimaryKey(), o1.getReferencedPrimaryKey());
+				return result == 0 ?
+					Integer.compare(sealedEntityB.getPrimaryKeyOrThrowException(), sealedEntityA.getPrimaryKeyOrThrowException()) :
+					result;
 			}
 		};
 	}

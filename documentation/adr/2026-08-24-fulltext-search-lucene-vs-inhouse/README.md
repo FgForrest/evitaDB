@@ -5,7 +5,7 @@ updated: 2026-10-02 14:40
 status: partially-implemented
 kind: feature
 issues: [258, 1454]
-prs: []
+prs: [1453, 1483]
 areas: [evita_engine, evita_api, evita_query, evita_store, evita_external_api, evita_engine/index/trigram]
 supersedes: []
 superseded-by: []
@@ -109,6 +109,7 @@ database entirely:
 | 2026-08-30 | The gate's next increment is a **second input**, not a different scalar and not a shape in `n` | The production run indicts the quantity the gate reads, not the boundary it compares against: the gate's candidate upper bound overstates the real intersection by a median of 10–16× and by up to 4 752×, and it is blind to how many candidates survive the exact predicate — the variable that separates a 0.92× loss from a 4.97× win at a **bit-identical** gate input. A shape in `n` cannot see that either, and real data now says `n` is not even the dominant variable over this range | *Verification*; `TrigramSubstringSearch#accelerationThreshold`, `TrigramIndex#pricePattern` |
 | 2026-08-30 | The `SUBSTRING` capability requiring its scope to be **`filterable`** is a defect and will be lifted; the builder syntax that expresses it is left open | The capability was bound to `filterable(...)`, which is not the only way to get a filter index: a foldable `unique` attribute has no separate unique store and its values live in the *same* shared filter tree (`AttributeIndex#insertUniqueAttribute` does nothing and returns `BY_FILTER_WRITE`), reached through a write-path guard that is already `unique \|\| filterable \|\| sortable`. The cost of the oversight is measured rather than argued — `Product.code` is `unique`-not-`filterable` in production, and it is the single strongest result of the whole production run | `AttributeSchema:700` (`normalizeFilterCapabilities`), `AttributeIndexMutator:177`/`:325`; the three builder options and why none has won are under *Open items* |
 | 2026-08-31 | The accelerator moves onto its **own builder axis** — `acceleratedFor(...)` — superseding the 2026-08-25 fold into `filterable(...)`; this is option **C** of the three that were left open | The fold bound the accelerator to the wrong identifier. `filterable` is not the only way to get a filter index: a *foldable* `unique` attribute has no separate unique store and its values live in the **same** shared filter tree, which is why `AttributeIndex#insertUniqueAttribute` does nothing and returns `BY_FILTER_WRITE`. Option A (`unique(SUBSTRING)`) duplicated the capability argument onto a second builder family and left `unique(SUBSTRING)` + `filterable(SUBSTRING)` needing a defined meaning; option B′ (`unique().filterable(SUBSTRING)`) added no syntax but made a user declare a flag they did not want in order to reach a structure they already had, changing what the schema advertises. C matches the physical truth — the accelerator belongs to the filter index, not to whichever flag produced it — and the rule relaxes from "scope is filterable" to "scope has a filter index". Validation had to move off the mutation, which sees intermediate state and made declaration order significant, onto assembled schemas | `AttributeFilterAccelerator` (renamed from `FilterIndexCapability`, `SUBSTRING` → `SUBSTRING_SEARCH`), `SetAttributeSchemaAcceleratedMutation`, `AttributeSchemaContract#hasFilterIndexInScope`, `AbstractAttributeSchemaBuilder#validate` and a new `AttributeSchemaContract#validate` reached from `CatalogSchema#validate` — which closes the hole where mutations arriving over gRPC, REST and GraphQL bypassed validation entirely. The axis never shipped (`release_2026-2` has no reference to it), so `SetAttributeSchemaFilterableMutation` returns to its released shape and no new backward-compatible serializers were written. The value of the fix is measured rather than argued: `Product.code` is the strongest result of the production run (34/34 accelerated, worst case 8.42×) and is `unique`-not-`filterable` there, as is `code` in 16 of that catalog's other 17 collections — under the 2026-08-25 shape none of them could have declared the accelerator at all |
+| 2026-09-17 | **A searchable field must carry a locale** — schema validation refuses `searchable()` on a non-localized attribute or associated data | Fulltext structures are partitioned per (collection, locale, scope), and a non-localized field has no partition to live in. It is not hypothetical: a production CMS catalogue stores its article body as associated data with **no locale** while the `title` and `perex` beside it are localized. Three alternatives lost. **Indexing under every locale the entity has** is the only one where a Czech query gets Czech stems of the shared text and a German query German ones, with no new partition kind — *rejected because* it costs N× memory and N× analysis in an N-locale catalogue, to support a modelling shape the rule then disallows anyway; worth revisiting only if a catalogue appears whose non-localized text genuinely must be shared across locales. **One locale-less partition with the generic analyzer**, OR'd into every locale's query, is cheapest — one copy regardless of locale count — *rejected because* the generic chain does no stemming and no stop-word removal, so recall on the body (the largest and most valuable field of the CMS profile) would be markedly worse than on the localized title beside it, an indefensible asymmetry inside one collection; it also adds a second partition kind and an operand on every fulltext query. **A configured default locale** is cheap and correct for a single-language catalogue — *rejected because* it is silently wrong for a multilingual one with shared non-localized text, and it puts indexing semantics into configuration where a reader of the schema cannot see them. **The accepted cost, named before the decision was taken:** a catalogue whose text is not declared localized must migrate its schema before it can enable fulltext — for the CMS corpus, 956,323 records | Lands in F1 as the validation rule itself, next to its closest existing precedent: `AttributeSchemaContract#validate`, reached from `CatalogSchema#validate`, which is where the `acceleratedFor(...)` refusal lives. [`prototypes/p1-index-core-measurements.md`](prototypes/p1-index-core-measurements.md) part 7 |
 | 2026-10-02 | A fuzzy `attributeContains` over the trigram index counts an adjacent swap as **one** edit (restricted Damerau–Levenshtein), and the metric is carried into both halves of the method — the candidate generator's bound and the verification's distance | A swap is the most frequent keyboard mistake; the fulltext walker already builds its automaton with transpositions, every product engine surveyed does the same, and under plain Levenshtein the showcase `bnuda` → `bunda` is a two-edit case a 5–8 character fragment can never reach. The price is measured, not guessed: with a single pigeonhole threshold the per-edit constant rises from 3 to 4 trigram windows and the cut-offs move from 6 / 9 to 7 / 11 — which is why the *shape* was then measured further (swap expansion, full one-edit enumeration) and is recommended but **not yet decided**, pending the real corpus | [`prototypes/typo-tolerance-fuzzy-contains.md`](prototypes/typo-tolerance-fuzzy-contains.md) §1, §4.1, §6.1–§6.4 |
 
 ### Why the in-house core won
@@ -364,16 +365,48 @@ Shallow pointers only — the depth is in the supporting files.
 
 ## Verification
 
-### The fulltext core — the gate, still a plan
+### The fulltext core — P1's gate is measured, the rest is still a plan
 
-**Nothing of the fulltext core is implemented, so there is nothing to verify yet.** The gate is the
-verification plan, and it is deliberately numeric so that the answer is not a matter of opinion:
+**The fulltext core's structures exist on the branch since 2026-10-01; nothing of them is wired into the
+database yet.** `io.evitadb.index.fulltext` holds the transactional index, its length tables and the phase-1
+scorer, with the impacts stored in the dictionary's own leaves instead of a sidecar. There is no schema
+capability, persistence or query constraint yet. What changed on 2026-09-17 is that P1's three gate
+criteria have been *measured* rather than planned — on two production corpora, with every structure
+built outside the engine from an extracted corpus and thrown away afterwards. The gate remains
+deliberately numeric so that the answer is not a matter of opinion:
 
-| Prototype | What it proves | Criterion |
-|---|---|---|
-| **P5 — analysers** | Lucene analysis as a dependency; Czech support; coexistence with today's NFD normalisation | today's `attributeContains` behaviour unchanged; cs/en quality |
-| **P1 — index core** | dictionary, postings, impact sidecar, scorer | RAM ≤ 150 MB per 1M products and language; phase-1 scan ≤ 25 ms / 1M candidates |
-| **P2 — write path** | index maintenance while replaying a production WAL | commit throughput drop ≤ 10 % |
+| Prototype | What it proves | Criterion | Result |
+|---|---|---|---|
+| **P5 — analysers** | Lucene analysis as a dependency; Czech support; coexistence with today's NFD normalisation | today's `attributeContains` behaviour unchanged; cs/en quality | **merged 2026-09-24** (PR #1453): cs/sk/pl/ro analyzer pairs in production code |
+| **P1 — index core** | dictionary, postings, impact sidecar, scorer | RAM ≤ 150 MB per 1M products and language; phase-1 scan ≤ 25 ms / 1M candidates | **measured 2026-09-17 — passes, with one required change to the plan** |
+| **P2 — write path** | index maintenance while replaying a production WAL | commit throughput drop ≤ 10 % | not started |
+
+**P1's verdict, in three lines.** Full numbers, method and caveats:
+[`prototypes/p1-index-core-measurements.md`](prototypes/p1-index-core-measurements.md).
+
+- **RAM passes with room** — 0.85 GB (re-taken on the production structures 2026-10-01: **0.70 GB**,
+  measurements part 2.4) against a 2.43–3.89 GB budget on a production CMS catalogue
+  (972,611 articles), counting the term dictionary, the S1 impact sidecar and the dense length tables.
+  The expensive sidecar variant still lands at 1.23 GB, so the budget no longer forces that choice.
+  The build completes in 1.8 GB of heap, which settles §1.1's build-peak question: **P1 needs one
+  builder**, not OpenSearch's on-heap/off-heap split.
+- **Phase-1 latency passes only after the prototype's own §5.3 changes.** Its linear merge steps over
+  every candidate however short the posting list is, which makes the cost `tokens × width × candidates`
+  and fails 11 of 36 cells. A **galloping merge** takes it to 32 of 36, up to 45.1× faster, and restores
+  the cost shape §5.2 already assumed. The budget is then a three-term expression — candidates, summed
+  postings, matched documents — of which two coefficients proved corpus-invariant across a
+  fifty-fold difference in corpus size.
+- **Quality is a genuine two-way result**, as §7.5 demanded it be reported. Fulltext answers every typo
+  and missing-diacritics query that the literal baseline cannot; the baseline reaches substrings inside
+  tokens that a tokenized index cannot, measured and bounded rather than argued away. **Neither absorbs
+  the other.** On the CMS profile the decisive finding owes nothing to ranking: the corpus's principal
+  field is *associated data*, which `attributeContains` cannot address at all, and 11.8× more literal
+  matches live there than in the attributes it can reach.
+
+The quality baseline turned out to need **no catalogue boot and no schema change** — the constraint's
+predicate is a plain case-sensitive `value.contains(...)` and the trigram index only accelerates it —
+so the comparison was run over the stored values directly. That is worth knowing before anyone
+schedules a re-export for P2 or P3.
 
 Quality at the gate is **not** measured against our own yardstick: it is a side-by-side comparison
 against a Solr baseline through Sage's existing golden-set harness. For the CMS profile there is a
@@ -777,20 +810,62 @@ rather than a tuning one. Both are open items below.
 
 ### Open items — the fulltext core
 
-- **P5 is implemented but unmerged, and red as it stands (2026-09-02).** PR #1453 targets
-  `258-fulltext-support` and merges cleanly, but its last commit added two tests that assert accent-stripped
-  recall the shipped index chain cannot deliver by the PR's own measurement record —
-  `CzechAccentTypingTest.shouldMatchAccentStrippedTyping` (30 unreachable forms, the bare-typed `-ých` /
-  `-ým` class) and `FulltextAnalyzerTest.shouldConvergeDeclensionFormsWithoutDiacritics` (`panove` stems
-  to `panov`, not `pan`). Verified on the merged tree under two locales, 55 of 57 pass. They read as pinned
-  targets for the M7 query-side fan-out that is not implemented yet, or as documentation tests that should
-  be marked expected-to-fail; the author has to say which before the merge. Five items of the 2026-08-25
-  review also show no change on the branch: Polish and the generic chain do not fold diacritics, `register`
-  carries no note that JPMS consumers must require Lucene themselves, the unknown-language warning set is
-  process-static, and the word/number split filter is absent although the P5 plan on the branch says it
-  ships in the PR. `prototypes/p1-index-core.md` was revised on 2026-09-02 against P8 and P5 and already
-  states the shipped contract; on merge, its §2 takes the revised text over the PR's eleven-line addition,
-  which the revision supersedes.
+- **P1's plan needs three corrections before anyone implements from it (2026-09-17).** They are
+  measured, not proposed, and the detail is in
+  [`prototypes/p1-index-core-measurements.md`](prototypes/p1-index-core-measurements.md): §5.3's linear
+  merge must become a **galloping** one with a per-expansion cost selector; the phase-1 budget must be
+  written as **`2.4 ns × candidates + 32 ns × summed postings + 21 ns × matched documents`** rather than
+  as a single posting count, because a query matching every candidate spends 21 of its 25 ms before
+  walking a posting; and typo expansion must default to **literal prefix 2**, since at prefix 1 a single
+  real query token walks 811,725 postings — more than the whole-query budget. A first attempt at the
+  merge binary-searched the *whole* candidate array and left the dense cases flat; gallop from the
+  cursor instead.
+- **The index is persisted, not derived on open, which pulls sidecar format versioning into P1
+  (2026-09-17).** Build 325,352 ms against a measured catalogue open of ~33,000 ms — 9.9×, against P8's
+  "derive" precedent, because P1 re-analyses the corpus where P8 replays value counts. §4.3.5 of the
+  prototype therefore stops being optional.
+- **The CMS profile needs a per-attribute analyzer seam, and P1 priced what the missing filters cost
+  (2026-09-17).** §7's ruling is that a deployment strips HTML and extracts only the fulltext-relevant
+  parts of the JSON the CMS corpus carries in `data-` attributes. Measured, that configuration is worth
+  **46% of the index footprint and 39% of the build** — analysed raw, the paragraph tag reaches 100%
+  document frequency and 19 of the 25 widest posting lists are markup rather than prose. The stripper is
+  a small addition, already inside the pinned `lucene-analysis-common`. The extractor is not: the
+  assignment seam is per `(entity type, locale)`, so a title and a body in one collection and locale
+  share an analyzer, and a path expression meant for the body would be applied to the title. **This
+  resolves P5's open question P5-4 with evidence** — the need for a per-attribute override is not a
+  preference about recipes, it is a filter that is only correct on one attribute.
+- **Closed 2026-10-01 — the Czech/Slovak fan-out gap is by design.** The 2× difference P1 measured
+  (**cs 2.057 against sk 1.043** terms per position over a production e-commerce catalogue) re-measures
+  identically on the merged analyzers, and P5's whole-lexicon sweep already accounts for it: 77–87% of
+  Czech, Romanian and Polish words fork into several stem variants once diacritics are folded, against
+  4.4% of Slovak ones, and Slovak coverage is machine-checked by `SlovakVariantStemmerLexiconTest` with no
+  uncovered word. It was opened on the mistaken claim that P5's fixtures were Czech-only. Detail:
+  [`prototypes/p1-index-core-measurements.md`](prototypes/p1-index-core-measurements.md) part 9.
+- **The aggressive stemmer collapses unrelated lemmas, and the cost lands on phase-2 ranking
+  (2026-09-17).** Among the twenty-five widest posting lists of a production CMS corpus, `muh` merges
+  *můžete/můžou* with *muž/muže* and `cl` merges *celý/celé* with *čelo/čelit*. Ordinary behaviour for an
+  aggressive stemmer rather than a defect, but it is a precision cost that P7's ranking inherits, and it
+  is cheaper to know now than to rediscover there.
+- **A searchable field must carry a locale, and one production catalogue is already locked out by it
+  (2026-09-17).** The rule itself is settled — it is the last row of *Decisions taken* above, with its
+  three rejected alternatives. Its consequence is not: a `keywords` attribute that is filterable and unlocalized can
+  never take `searchable()` as it stands, and localizing it moves its filter index into the per-locale
+  partition, breaking a downstream consumer that filters without a locale. The export side declined for
+  that reason, correctly. Fulltext over that field now needs a second migration **plus** the query-side
+  `entityLocaleEquals` change that was just declined. **The rule must reach F1's
+  `AttributeSchemaContract#validate`, next to the `acceleratedFor(...)` refusal precedent**, and the
+  migration cost must be stated to anyone planning a fulltext rollout over an existing catalogue.
+- **P5 merged on 2026-09-24 (PR #1453); the 2026-09-02 blockers are closed.** The two red tests
+  asserted accent-stripped recall the index chain alone could not deliver; the asymmetric M7 analyzer
+  pairs that graduated on 2026-09-15 deliver it on the search side, and `CzechAccentTypingTest` was
+  removed in that commit (`a37950c15`). Polish now folds diacritics like the other three languages; the
+  generic chain deliberately does not. The word/number split filter is decided rather than missing: off by
+  default, in the chain after the tokenizer, and shipped together with the per-attribute switch
+  ([`prototypes/p5-word-number-split-comparison.md`](prototypes/p5-word-number-split-comparison.md) §7) —
+  until then `WordNumberSplitAnalysisTest` pins its contract. On the synced branch (2026-10-01) the
+  analyzer and trigram suites ran 299 tests, none failing. Two review points of 2026-08-25 were not
+  re-audited at merge: a note on `register` that JPMS consumers must require Lucene themselves, and the
+  process-static set behind the unknown-language warning.
 - **The incubator-module wiring is now shared, not P6's to fund (2026-09-17).** The JDK 21 baseline
   landed, but no pom in the tree carries `--add-modules jdk.incubator.vector` and no `module-info.java`
   declares it, so jVector still selects its scalar provider and reports no error while doing so — the
@@ -1076,12 +1151,6 @@ what the next step has to answer.
   mini-gate reframed from "jVector or in-house HNSW" to a planner-over-strategies subsystem with Lucene's
   vector packages added as a library candidate, and the verified negatives recorded — no cancellation,
   no ACORN-style widening and no scalar or RaBitQ-style code in jVector, no deletes in Lucene
-- **2026-09-17** — `dev` merged into the branch and the plans re-verified against the **JDK 21 baseline**
-  that landed with it (#1518): the version half of P6's entry condition is satisfied and the
-  module-wiring half is not, so P6 §3 is rewritten around that split and its measurement trap restated
-  as *surviving* the bump; P5's Lucene 10.x rejection is re-opened, half of it having expired with the
-  baseline; the driver's new release-17 floor is recorded as a hard placement constraint for both plans;
-  and the mmap table in `bitmap-memory-optimizations.md` is re-headed with the finding that no cell moved
 - **2026-08-27 → 2026-09-04** — the accent-vs-stemming prior-art survey and its measurement campaign
   for Czech (mechanism matrix A0–A22, verdict: the asymmetric M7), then the same survey and
   per-language measurements for Slovak, Polish and Romanian — recorded as
@@ -1112,6 +1181,27 @@ what the next step has to answer.
   property asserted before timing — held in every row); **Damerau decided** as the metric; swap expansion
   and full one-edit enumeration measured against the single threshold and found to dominate it; the
   four working documents migrated into this record as `prototypes/typo-tolerance-*.md`
+- **2026-09-17** — `dev` merged into the branch and the plans re-verified against the **JDK 21 baseline**
+  that landed with it (#1518): the version half of P6's entry condition is satisfied and the
+  module-wiring half is not, so P6 §3 is rewritten around that split and its measurement trap restated
+  as *surviving* the bump; P5's Lucene 10.x rejection is re-opened, half of it having expired with the
+  baseline; the driver's new release-17 floor is recorded as a hard placement constraint for both plans;
+  and the mmap table in `bitmap-memory-optimizations.md` is re-headed with the finding that no cell moved
+- **2026-09-17** — **P1 measured end to end** (K1–K7) on two production corpora, a CMS catalogue of
+  972,611 articles and an e-commerce catalogue of 157,410 products in two locales: the RAM criterion
+  passes at 0.85 GB against a 2.43–3.89 GB budget and the build needs 1.8 GB, so P1 ships one builder;
+  the latency criterion passes only once §5.3's linear merge becomes a galloping one (25 → 32 of 36
+  cells, up to 45.1×), and the budget resolves into a three-term expression whose matched-document and
+  per-candidate coefficients held across a fifty-fold corpus-size difference; the quality comparison
+  ran without a catalogue boot once the baseline predicate was read properly, and returned a two-way
+  result in which neither path absorbs the other — with the CMS profile's decisive finding being that
+  `attributeContains` cannot address associated data at all, where 11.8× more literal matches live.
+  Recorded in [`prototypes/p1-index-core-measurements.md`](prototypes/p1-index-core-measurements.md)
+- **2026-09-24** — **P5 merged** (PR #1453): the cs/sk/pl/ro analyzer pairs graduate to production code
+  after its review follow-ups, among them Romanian comma-below normalization, the Polish stop list shipped as a
+  resource with `lucene-analysis-stempel` dropped, a registry-closing race, `HTMLStripCharFilter` pinned by
+  `HtmlMarkupStrippingAnalysisTest` with the opt-in switch designed in `prototypes/p5-analyzers.md` §13,
+  and a skill for adding a language
 
 ## Supporting material
 
@@ -1124,6 +1214,12 @@ what the next step has to answer.
 - [`prototypes/p1-index-core.md`](prototypes/p1-index-core.md) — the index core prototype: the
   dictionary, the postings, the impact sidecar and the scorer, with the memory and latency criteria
   the gate is measured against.
+- [`prototypes/p1-index-core-measurements.md`](prototypes/p1-index-core-measurements.md) — the
+  empirical half of P1, run 2026-09-17 on two production corpora. Carries the three gate verdicts and
+  the numbers behind them, the two-corpus cost model that replaces the single expansion knee, the
+  measured infix regression and its lookalike, the three optimizations handed to P2, and a
+  method section stating what would invalidate each figure. Read it before implementing from
+  `p1-index-core.md`: three of that document's recommendations are superseded by measurement.
 - [`prototypes/p2-transactional-maintenance.md`](prototypes/p2-transactional-maintenance.md) — how the
   index is maintained on the write path inside a transaction, and the batch-maintenance fallback if
   the throughput criterion is missed.

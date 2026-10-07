@@ -269,6 +269,31 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 		}
 	}
 
+	/**
+	 * Returns the heap this node and the whole subtree beneath it occupy, in bytes - see
+	 * {@link BPlusTreeNode#getHeapSizeInBytes(ToLongFunction)} for the accounting rules.
+	 *
+	 * **A child slot inside `[0, peek]` can read `null`, and the walk steps over it.** This walk is reached from
+	 * `EntityCollection#describeIndex`, which takes no snapshot and holds no transaction, on a management thread that
+	 * shares no happens-before edge with a warm-up writer mutating this node in place - the price index's
+	 * `priceRecords` tree and the value index of a sort or chain index's `TransactionalUnorderedIntArray` both reach
+	 * it. That writer grows the node by storing the new child before raising `peek`, and shrinks it by nulling the
+	 * vacated slot next to lowering `peek`, all as plain stores. A reader can therefore hold a `peek` whose last slot
+	 * reads `null`: it loaded `peek` before a concurrent removal nulled the slot, which is a plain interleaving, or it
+	 * sees the raised `peek` before the child store behind it, which needs the stores to become visible out of program
+	 * order. The bucket tree's weekly sweep met the latter on the macOS/AArch64 leg only. This reader cannot charge
+	 * such a slot, and a monitoring call must not fail on it, so the figure is advisory while a writer is at work:
+	 * after a removal the slot really is empty, but on a grow the child exists and only this reader cannot see it yet,
+	 * so its subtree is missing from the figure. The array itself is allocated once at `blockSize + 1` and never
+	 * resized, so a raised `peek` cannot run off it - only the slot contents can lag.
+	 *
+	 * On a consistent observer every slot in `[0, peek]` is populated, so the check never skips anything and the
+	 * figure is unchanged. `UnpublishedChildSlot` in both `TransactionalElementBPlusTreeTest` and
+	 * `TransactionalIntToLongBPlusTreeTest` pins both halves.
+	 *
+	 * @param elementSizer prices one stored element; passed through to the leaves
+	 * @return the owned heap footprint of this subtree in bytes
+	 */
 	@Override
 	public long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
 		final VMLayout layout = VMLayout.current();
@@ -285,7 +310,11 @@ abstract class AbstractIntKeyedInternalNode<SELF extends AbstractIntKeyedInterna
 		// by a merge carries peek == -1 with `children[0]` already nulled, and clamping would walk that slot
 		final int childCount = this.peek + 1;
 		for (int i = 0; i < childCount; i++) {
-			size += this.children[i].getHeapSizeInBytes(elementSizer);
+			final BPlusTreeNode<?> child = this.children[i];
+			// a slot the count admits but whose child this reader cannot see - see the javadoc
+			if (child != null) {
+				size += child.getHeapSizeInBytes(elementSizer);
+			}
 		}
 		return size;
 	}

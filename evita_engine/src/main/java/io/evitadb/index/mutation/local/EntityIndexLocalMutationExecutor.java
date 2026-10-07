@@ -314,8 +314,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	@Nullable private List<ReferenceIndexMutator.OwnerReducedIndex> deferredOwnerReducedIndexes;
 	/**
 	 * Pre-mutation entity attribute values captured during the container implicit-mutation phase (before index
-	 * updates) for use in cross-entity histogram trigger mutations. Keyed by attribute name → locale → raw value. Uses
-	 * `putIfAbsent` to capture only the true pre-mutation value when the same attribute is mutated
+	 * updates) for use in cross-entity histogram trigger mutations. Keyed by attribute name → locale → raw value, where
+	 * a `null` value means the attribute was unset before the batch and a missing key means it was not captured.
+	 * Keeps only the first capture, so the true pre-mutation value survives when the same attribute is mutated
 	 * multiple times in one batch. Populated lazily in {@link #applyAttributeMutation}.
 	 */
 	@Nullable private Map<String, Map<Locale, Serializable>> capturedOldEntityAttributeValues;
@@ -2019,8 +2020,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 
 	/**
 	 * Captures the pre-mutation value of an entity attribute for deterministic cross-entity histogram
-	 * removal. Uses `putIfAbsent` to preserve only the true pre-mutation value when the same attribute
-	 * is mutated multiple times in one batch.
+	 * removal. Only the first capture of an attribute in one batch is kept, so the true pre-mutation value
+	 * survives when the same attribute is mutated multiple times.
+	 *
+	 * An attribute that was unset before the mutation is captured too - as `null`. The mutation is what makes
+	 * the capture meaningful, and "it had no value" is the answer the executor needs: without the entry it
+	 * cannot tell an unset value source from one this batch never touched.
 	 *
 	 * @param attributeKey the attribute key identifying the mutated attribute
 	 * @param supplier     pre-mutation attribute value supplier (reads from storage parts before write)
@@ -2029,8 +2034,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull ExistingAttributeValueSupplier supplier
 	) {
-		supplier.getAttributeValue(attributeKey).ifPresent(
-			av -> recordCapturedOldEntityAttributeValue(attributeKey, av.value())
+		recordCapturedOldEntityAttributeValue(
+			attributeKey,
+			supplier.getAttributeValue(attributeKey).map(AttributeValue::value).orElse(null)
 		);
 	}
 
@@ -2066,8 +2072,17 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * {@link NumberUtils#normalizeIfBigDecimal} here covers both: it is idempotent, so the already-normalized
 	 * route is unaffected, and a future third capture site cannot get it wrong by omission.
 	 *
-	 * `putIfAbsent` on both levels preserves the *true* pre-mutation value when one attribute is mutated
-	 * several times within a single batch.
+	 * Only the first capture of a key is kept on both levels, which preserves the *true* pre-mutation value when
+	 * one attribute is mutated several times within a single batch.
+	 *
+	 * **A `null` is recorded, not skipped.** A present key with a `null` value says "this attribute was unset
+	 * before the batch", and the executor reads it that way: the reference contributed nothing (or only the
+	 * histogram's default), so there is nothing of its own to remove. A missing key says "not mutated in this
+	 * batch", and the executor removes the current value instead. Skipping the `null` collapsed the first case
+	 * into the second, so setting an unset value to a bucket a sibling reference already occupied removed the
+	 * sibling's contribution on the mutated reference's behalf. That is also why a first-wins `containsKey` check
+	 * is used rather than `putIfAbsent`, which treats a stored `null` as absent and would let a later capture
+	 * overwrite it.
 	 *
 	 * @param attributeKey the attribute key identifying the captured attribute
 	 * @param rawValue     the pre-mutation value as read from storage, or `null` when the attribute was unset
@@ -2076,15 +2091,17 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull AttributeKey attributeKey,
 		@Nullable Serializable rawValue
 	) {
-		if (rawValue == null) {
-			return;
-		}
 		if (this.capturedOldEntityAttributeValues == null) {
 			this.capturedOldEntityAttributeValues = CollectionUtils.createHashMap(8);
 		}
-		this.capturedOldEntityAttributeValues
-			.computeIfAbsent(attributeKey.attributeName(), k -> CollectionUtils.createHashMap(4))
-			.putIfAbsent(attributeKey.locale(), NumberUtils.normalizeIfBigDecimal(rawValue));
+		final Map<Locale, Serializable> capturedByLocale = this.capturedOldEntityAttributeValues
+			.computeIfAbsent(attributeKey.attributeName(), k -> CollectionUtils.createHashMap(4));
+		if (!capturedByLocale.containsKey(attributeKey.locale())) {
+			capturedByLocale.put(
+				attributeKey.locale(),
+				rawValue == null ? null : NumberUtils.normalizeIfBigDecimal(rawValue)
+			);
+		}
 	}
 
 	/**

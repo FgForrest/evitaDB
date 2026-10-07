@@ -74,6 +74,8 @@ import java.util.function.ToLongFunction;
 
 import static io.evitadb.core.transaction.memory.WarmUpSavepoint.perOperationWriteLayer;
 import static io.evitadb.core.transaction.memory.WarmUpSavepoint.writeLayer;
+import static io.evitadb.index.bPlusTree.AbstractTransactionalBPlusTree.deriveInternalNodeBlockSize;
+import static io.evitadb.index.bPlusTree.AbstractTransactionalBPlusTree.deriveMinBlockSize;
 import static io.evitadb.utils.ArrayUtils.*;
 
 /**
@@ -83,7 +85,7 @@ import static io.evitadb.utils.ArrayUtils.*;
  * primitive `int` single-record column, and a sparse, lazily-allocated overflow column for the few multi-record
  * buckets.
  *
- * **Leaf layout — LAZY-PARALLEL.** All four columns have a logical capacity of `valueBlockSize` and move in lockstep
+ * **Leaf layout — LAZY-PARALLEL.** All five columns have a logical capacity of `valueBlockSize` and move in lockstep
  * on insert-shift / split / merge / steal:
  *
  * - `ValueColumn keys` — the value, ordered by the {@link #comparator} (natural order when `null`).
@@ -95,11 +97,14 @@ import static io.evitadb.utils.ArrayUtils.*;
  *   {@link OverflowRecords} owning the state machine and every operation on a slot's content.
  * - `RecordColumn valueIds` — **lazy and optional**: `null` until a value-id minter is installed on the tree, then
  *   `valueIds.intAt(i)` is the stable id naming bucket `i`'s distinct value.
+ * - `OverflowColumn impacts` — **lazy and optional**: `null` until {@link #enableImpacts()} switches the tree into
+ *   impact-carrying mode (accepted only while it is empty), then slot `i` holds the per-record impact bytes of
+ *   bucket `i` in the shape its record tier dictates — see {@link ImpactRecords}.
  *
  * **Each column's backing storage is sized to what the leaf actually holds, not to `valueBlockSize`.** The capacity
  * above is a logical number every column stores and answers from; the array behind it starts at four slots and doubles
  * up to that capacity, and is trimmed back when the commit merge builds a new committed leaf. The invariant that ties
- * the four together — every column's live run equals `peek + 1` — is asserted at every **structural** mutation's
+ * the five together — every column's live run equals `peek + 1` — is asserted at every **structural** mutation's
  * exit, but deliberately not on the per-insert path; see `BPlusLeafTreeNode.assertColumnsAlignedWithPeek` for
  * exactly which paths that is and why the per-insert exclusion is safe.
  *
@@ -290,6 +295,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * never be rolled back by a data transaction.
 	 */
 	@Nullable private IntSupplier valueIdMinter;
+	/**
+	 * Whether every leaf of this tree carries the parallel impact column. Like {@link #valueIdMinter} it is a
+	 * structural switch rather than a data change — never rolled back by a transaction — and it is accepted only
+	 * while the tree is empty, so every leaf the tree ever allocates is born with the column (see
+	 * {@link #enableImpacts()}).
+	 */
+	private boolean impactCarrying;
 	/**
 	 * The next stable leaf id this tree will hand out. Monotonic, never reused, runtime-only — see
 	 * {@code BPlusLeafTreeNode#getLeafId()}. Non-transactional, and carried across the commit-merge so a committed
@@ -522,7 +534,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 *
 	 * The child index and the node's `peek` are both bounded by {@link #observableInternalPeek} against the very
 	 * child array captured into the {@link CursorLevel}, because the cursor this builds is also handed to the
-	 * session-free management walk. The bound is a no-op for the structural callers — see that method.
+	 * session-free management walk. The bound is a no-op for the structural callers — see that method. A chosen slot
+	 * that still reads `null` is stepped back to the pre-growth child by {@link #observableChildIndex}, which is a
+	 * no-op for those callers too. Otherwise the path would end one level early, `cursor(key)` would lose the
+	 * whole tail, and the previous-record climb that re-descends through here would cast an internal node to a leaf.
 	 *
 	 * @param currentNode the current internal tree node being traversed; must not be null
 	 * @param key         the key for which the corresponding leaf node is to be found
@@ -535,7 +550,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	) {
 		final BPlusTreeNode<M, ?>[] children = currentNode.getChildren();
 		final int nodePeek = observableInternalPeek(currentNode.getPeek(), children);
-		final int childIndex = Math.min(currentNode.searchIndex(key), nodePeek);
+		final int childIndex = observableChildIndex(Math.min(currentNode.searchIndex(key), nodePeek), children);
 		path.add(new CursorLevel<>(children, childIndex, nodePeek));
 		if (children[childIndex] instanceof BPlusInternalTreeNode<?> childInternalNode) {
 			//noinspection unchecked
@@ -707,7 +722,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	}
 
 	/**
-	 * Constructor to initialize the tree with a single block size used for both leaf and internal nodes.
+	 * Constructor to initialize the tree from a single block size, deriving the remaining block sizes from it.
 	 *
 	 * @param valueBlockSize maximum number of buckets in a leaf node
 	 * @param keyType        the type of the keys (bucket values) stored in the tree
@@ -717,7 +732,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	}
 
 	/**
-	 * Constructor to initialize the tree with a single block size and an optional comparator.
+	 * Constructor to initialize the tree from a single block size and an optional comparator.
+	 *
+	 * The remaining block sizes are derived from `valueBlockSize` by
+	 * `AbstractTransactionalBPlusTree#deriveMinBlockSize` and `#deriveInternalNodeBlockSize`, so any size of at least 3
+	 * is accepted.
 	 *
 	 * @param valueBlockSize maximum number of buckets in a leaf node
 	 * @param keyType        the type of the keys (bucket values) stored in the tree
@@ -729,8 +748,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Nullable Comparator<K> comparator
 	) {
 		this(
-			valueBlockSize, valueBlockSize / 2,
-			valueBlockSize, valueBlockSize / 2,
+			valueBlockSize,
+			deriveMinBlockSize(valueBlockSize),
+			deriveInternalNodeBlockSize(valueBlockSize),
+			deriveMinBlockSize(deriveInternalNodeBlockSize(valueBlockSize)),
 			keyType,
 			comparator
 		);
@@ -804,6 +825,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				RecordColumnFactory.INT.create(valueBlockSize),
 				// a fresh tree carries no value ids; a consumer installs them afterwards via installValueIdMinter
 				null,
+				// nor impacts; enableImpacts() attaches the column while the tree is still empty
+				null,
 				comparator,
 				true
 			),
@@ -853,6 +876,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				valueColumnFactory.create(valueBlockSize),
 				RecordColumnFactory.LONG.create(valueBlockSize),
 				// a fresh tree carries no value ids; a consumer installs them afterwards via installValueIdMinter
+				null,
+				// nor impacts, which a long-payload tree never carries
 				null,
 				comparator,
 				true
@@ -1006,12 +1031,20 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 *                 {@code valueIds[0, count)} are read. {@code null} when the tree carries no value ids, in which
 	 *                 case the page is loaded without an id column
 	 * @param count    the number of live entries ({@code 1 <= count <= valueBlockSize})
+	 * @throws GenericEvitaInternalError when this tree carries impacts, which a page cannot restore yet, or the page
+	 *                                   is malformed
 	 */
 	@SuppressWarnings("unchecked")
 	public void bulkLoadPage(
 		@Nonnull Object[] keys, @Nonnull long[] payloads, @Nullable Object[] overflow,
 		@Nullable int[] valueIds, int count
 	) {
+		// the page format carries no impacts, and an impact-carrying leaf without them would hold null slots - a
+		// shape ImpactRecords defines as illegal, surfacing at the first read far from the load that caused it
+		Assert.isPremiseValid(
+			!this.impactCarrying,
+			"A bulk-loaded page carries no impacts - an impact-carrying tree cannot be loaded from one!"
+		);
 		Assert.isPremiseValid(count > 0, "A bulk-loaded page must hold at least one entry.");
 		Assert.isPremiseValid(
 			count <= this.valueBlockSize, "A page can never exceed the leaf block size (" + this.valueBlockSize + ")."
@@ -1066,7 +1099,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			valueIdColumn.bulkLoad(widenedValueIds, count);
 		}
 		setRoot(new BPlusLeafTreeNode<>(
-			keyColumn, recordColumn, overflowColumn, valueIdColumn, count - 1, this.comparator, true));
+			keyColumn, recordColumn, overflowColumn, valueIdColumn, null, count - 1,
+			this.comparator, true
+		));
 	}
 
 	/**
@@ -1098,6 +1133,75 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			column.bulkLoad(new long[liveRun], liveRun);
 		}
 		return column;
+	}
+
+	/**
+	 * Creates the impact column of a leaf of this tree that already holds `liveRun` buckets, or returns `null` when
+	 * this tree carries no impacts. The column arrives covering the live run, every slot `null`, for the reason
+	 * {@link #createValueIdColumn(int)} gives: a parallel column must be aligned with the leaf from the instant it is
+	 * attached.
+	 *
+	 * @param liveRun the number of buckets the leaf this column is being attached to already holds
+	 * @return the aligned, all-null impact column, or `null` when the tree carries no impacts
+	 */
+	@Nullable
+	private OverflowColumn createImpactColumn(int liveRun) {
+		if (!this.impactCarrying) {
+			return null;
+		}
+		return OverflowColumn.withLiveRun(this.valueBlockSize, liveRun);
+	}
+
+	/**
+	 * Switches this tree into impact-carrying mode: every leaf gains the parallel impact column, and every record
+	 * added from now on arrives with its impact through {@link #addRecord(Comparable, int, byte)}.
+	 *
+	 * Accepted only while the tree is EMPTY. Unlike value ids there is nothing a back-fill could stamp onto an
+	 * existing bucket — an impact is a property of each record the tree has already lost the source of — so a
+	 * populated tree is refused rather than walked. Idempotent on a tree that already carries impacts.
+	 *
+	 * @throws GenericEvitaInternalError when the tree does not carry impacts yet and already holds a bucket
+	 */
+	public void enableImpacts() {
+		if (this.impactCarrying) {
+			return;
+		}
+		final List<BPlusLeafTreeNode<K>> leaves = enumerateLeaves();
+		Assert.isPremiseValid(
+			!holdsAnyBucket(leaves),
+			"Impacts can be switched on only while the tree is empty — a populated bucket carries no impact to " +
+				"back-fill from."
+		);
+		this.impactCarrying = true;
+		for (final BPlusLeafTreeNode<K> leaf : leaves) {
+			leaf.ensureImpactColumn();
+		}
+	}
+
+	/**
+	 * Returns whether {@link #enableImpacts()} has switched this tree into impact-carrying mode - which decides the
+	 * insert API it accepts and whether {@link #impactsOf} and {@link BucketCursor#impacts()} can be read.
+	 *
+	 * @return `true` when this tree stores an impact byte beside every record
+	 */
+	public boolean carriesImpacts() {
+		return this.impactCarrying;
+	}
+
+	/**
+	 * Returns the impacts of `value`'s bucket, one byte per record in the order the bucket's records enumerate in
+	 * (unsigned ascending — the order {@link #getRecordsEqualTo(Comparable)} iterates in). The answer is a copy, paid
+	 * for with a descent; a walk over many buckets reads them through {@link BucketCursor#impacts()} instead, which
+	 * costs neither.
+	 *
+	 * @param value the value whose bucket to read
+	 * @return the aligned impacts, or an empty array when the tree holds no bucket for the value
+	 * @throws GenericEvitaInternalError when this tree carries no impacts
+	 */
+	@Nonnull
+	public byte[] impactsOf(@Nonnull K value) {
+		Assert.isPremiseValid(this.impactCarrying, "Impacts are readable only on an impact-carrying tree!");
+		return findLeafNode(value).impactsAlignedWith(value);
 	}
 
 	/**
@@ -1289,6 +1393,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			return 0;
 		}
 		final BPlusLeafTreeNode<K> leaf = findLeafNode(value);
+		if (leaf == null) {
+			// a session-free reader racing a merge - see `findLeafNode`; it observed no bucket
+			return 0;
+		}
 		final InsertionPosition position =
 			leaf.getKeyColumn().findKeyPosition(value, 0, leaf.getPeek() + 1, this.comparator);
 		return position.alreadyPresent() ? leaf.valueIdAt(position.position()) : 0;
@@ -1647,6 +1755,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 *
 	 * @param value the value identifying the bucket
 	 * @param pk    the record id to add (may be any int, including negative ids)
+	 * @throws GenericEvitaInternalError when this tree carries impacts - it takes every record through
+	 *                                   {@link #addRecord(Comparable, int, byte)}
 	 */
 	@Override
 	public void addRecord(@Nonnull K value, int pk) {
@@ -1666,9 +1776,44 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * @param pk    the record id to add (may be any int, including negative ids)
 	 * @return the id minted for the newly created bucket, `0` when a bucket was created on a tree that carries no
 	 *         value ids, or {@link #NO_CREATED_BUCKET} when the record joined an existing bucket
+	 * @throws GenericEvitaInternalError when this tree carries impacts - it takes every record through
+	 *                                   {@link #addRecord(Comparable, int, byte)}
 	 */
 	@Override
 	public int addRecordReportingValueBirth(@Nonnull K value, int pk) {
+		Assert.isPremiseValid(
+			!this.impactCarrying,
+			"An impact-carrying tree takes every record through addRecord(value, pk, impact)!"
+		);
+		return addRecordReportingValueBirth(value, pk, ImpactRecords.NO_IMPACT);
+	}
+
+	/**
+	 * Adds `pk` to the bucket of `value` together with its impact byte — the impact-carrying form of
+	 * {@link #addRecord(Comparable, int)}, identical in every effect on the record set and additionally storing the
+	 * impact beside the record. Adding a record the bucket already holds replaces its impact.
+	 *
+	 * @param value  the value identifying the bucket
+	 * @param pk     the record id to add (may be any int, including negative ids)
+	 * @param impact the record's impact, read as an unsigned byte
+	 * @throws GenericEvitaInternalError when this tree carries no impacts
+	 */
+	public void addRecord(@Nonnull K value, int pk, byte impact) {
+		Assert.isPremiseValid(this.impactCarrying, "Impacts are accepted only on an impact-carrying tree!");
+		addRecordReportingValueBirth(value, pk, Byte.toUnsignedInt(impact));
+	}
+
+	/**
+	 * The shared body of the two single-record inserts: `impact` is the record's impact widened to `0..255` on an
+	 * impact-carrying tree and {@link ImpactRecords#NO_IMPACT} on every other one.
+	 *
+	 * @param value  the value identifying the bucket
+	 * @param pk     the record id to add
+	 * @param impact the record's impact, or {@link ImpactRecords#NO_IMPACT}
+	 * @return the id minted for the newly created bucket, `0` when a bucket was created on a tree that carries no
+	 *         value ids, or {@link #NO_CREATED_BUCKET} when the record joined an existing bucket
+	 */
+	private int addRecordReportingValueBirth(@Nonnull K value, int pk, int impact) {
 		Assert.isPremiseValid(!this.longPayload, "Int record-set API is not available on a long-payload tree!");
 		// the cursor path exists ONLY to cascade a split upward, yet it used to be allocated on every insert. The
 		// descent below reaches the same leaf and resolves the boundary asserts' operands without capturing anything,
@@ -1678,7 +1823,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		// captured BEFORE mutating: the split machinery replaces this leaf in its parent, so the path has to reflect
 		// the pre-mutation tree
 		final Cursor<K> cursor = leaf.isNearlyFull() ? createCursor(value) : null;
-		final int insertedAt = leaf.addRecord(value, pk);
+		final int insertedAt = leaf.addRecord(value, pk, impact);
 		int bornValueId = NO_CREATED_BUCKET;
 		if (insertedAt != NO_NEW_BUCKET) {
 			bornValueId = stampValueId(leaf, insertedAt);
@@ -1707,6 +1852,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 *
 	 * @param value the value identifying the bucket
 	 * @param pks   the record ids to add; must be non-empty (may contain negative ids)
+	 * @throws GenericEvitaInternalError when this tree carries impacts - it takes every record through
+	 *                                   {@link #addRecord(Comparable, int, byte)}
 	 */
 	@Override
 	public void addRecord(@Nonnull K value, @Nonnull int... pks) {
@@ -1722,10 +1869,15 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * @param pks   the record ids to add; must be non-empty (may contain negative ids)
 	 * @return the id minted for the newly created bucket, `0` when a bucket was created on a tree that carries no
 	 *         value ids, or {@link #NO_CREATED_BUCKET} when the records joined an existing bucket
+	 * @throws GenericEvitaInternalError when this tree carries impacts - it takes every record through
+	 *                                   {@link #addRecord(Comparable, int, byte)}
 	 */
 	@Override
 	public int addRecordReportingValueBirth(@Nonnull K value, @Nonnull int... pks) {
 		Assert.isPremiseValid(!this.longPayload, "Int record-set API is not available on a long-payload tree!");
+		Assert.isPremiseValid(
+			!this.impactCarrying, "An impact-carrying tree takes every record through addRecord(value, pk, impact)!"
+		);
 		Assert.isTrue(pks.length > 0, "Record ids must be not null and non-empty!");
 		// see addRecord(K, int) — allocation-free descent, cursor path captured only when the leaf can overflow
 		final BoundaryContext<K> context = findLeafNodeWithBoundaryContext(value);
@@ -1822,7 +1974,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		if (value == null) {
 			return EmptyBitmap.INSTANCE;
 		}
-		return findLeafNode(value).getRecords(value);
+		final BPlusLeafTreeNode<K> leaf = findLeafNode(value);
+		// `null` only for a session-free reader racing a merge - see `findLeafNode`
+		return leaf == null ? EmptyBitmap.INSTANCE : leaf.getRecords(value);
 	}
 
 	/**
@@ -1843,7 +1997,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		Assert.isPremiseValid(!this.longPayload, "Int record-set API is not available on a long-payload tree!");
 		// the common answer is bucket-local, so the descent captures no path; only the cross-leaf climb below needs
 		// one, and it re-descends for it (nothing has mutated in between, so the second descent takes the same route)
-		final int inLeafAnchor = findLeafNode(value).previousRecord(value, recordId);
+		final BPlusLeafTreeNode<K> leaf = findLeafNode(value);
+		if (leaf == null) {
+			// only a session-free reader racing a merge gets here (see `findLeafNode`), never the write path this
+			// method serves: the descent entered an emptied donor, and the climb below would re-descend into it
+			return EvitaDataTypes.RESERVED_PRIMARY_KEY;
+		}
+		final int inLeafAnchor = leaf.previousRecord(value, recordId);
 		if (inLeafAnchor != EvitaDataTypes.RESERVED_PRIMARY_KEY) {
 			return inLeafAnchor;
 		}
@@ -1908,7 +2068,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			return OptionalLong.empty();
 		}
 		final BPlusLeafTreeNode<K> leaf = findLeafNode(value);
-		final int index = leaf.getValueIndex(value);
+		// `null` only for a session-free reader racing a merge - see `findLeafNode`
+		final int index = leaf == null ? -1 : leaf.getValueIndex(value);
 		return index < 0 ? OptionalLong.empty() : OptionalLong.of(leaf.longRecordAt(index));
 	}
 
@@ -1954,7 +2115,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		if (value == null) {
 			return 0;
 		}
-		return findLeafNode(value).cardinalityOf(value);
+		final BPlusLeafTreeNode<K> leaf = findLeafNode(value);
+		// `null` only for a session-free reader racing a merge - see `findLeafNode`
+		return leaf == null ? 0 : leaf.cardinalityOf(value);
 	}
 
 	/**
@@ -1968,7 +2131,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		if (value == null) {
 			return false;
 		}
-		return findLeafNode(value).getValueIndex(value) >= 0;
+		final BPlusLeafTreeNode<K> leaf = findLeafNode(value);
+		// `null` only for a session-free reader racing a merge - see `findLeafNode`
+		return leaf != null && leaf.getValueIndex(value) >= 0;
 	}
 
 	/**
@@ -1991,6 +2156,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * fail, so the cursor bounds every leaf by that leaf's own column live run rather than by `peek` alone. A torn
 	 * read then under-counts by whatever the writer had not finished, exactly as it did when the columns were fixed
 	 * arrays, instead of raising an {@link ArrayIndexOutOfBoundsException} out of an API call.
+	 *
+	 * Bounding each index by the array it addresses is not enough on its own, on the leaves or on the spine above
+	 * them. A slot inside the bound can still read `null` when the reader sees a raised `peek` before the child store
+	 * that precedes it, and the walk steps over such a slot rather than failing on it - see
+	 * {@link #observableChildIndex}. The same goes for an emptied merge donor - see {@link #isEmptiedSubtree}.
 	 *
 	 * @return the total record count, advisory under a concurrent non-transactional writer
 	 */
@@ -2315,6 +2485,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		// `InvertedIndex#createCopyWithMergedTransactionalMemory`). The carried operation still mints from the
 		// PRE-merge allocator, so it must be replaced before the merged tree takes any write.
 		merged.valueIdMinter = this.valueIdMinter;
+		// the impact switch is structural too: the merged tree's leaves were built carrying the column, so the flag
+		// must say so
+		merged.impactCarrying = this.impactCarrying;
 		// leaf ids are never reused, so the merged tree must continue the sequence rather than restart it and collide
 		// with ids its own carried-forward leaves already hold
 		merged.nextLeafId = this.nextLeafId;
@@ -2469,7 +2642,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * {@code observableLiveRun()} rather than by `size()` — see {@link ValueColumn#observableLiveRun()} for why one
 	 * reading of that bound stays valid for the whole walk.
 	 *
-	 * Every column is asked, not just the key column: the four are grown by four independent reallocations, so a
+	 * Every column is asked, not just the key column: the five are grown by five independent reallocations, so a
 	 * torn reader can catch any one of them behind the others. The cost is one call per column per **leaf**, never
 	 * per key — the cursors keep the answer in a field.
 	 *
@@ -2499,6 +2672,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 * @param records  the leaf's single-record column
 	 * @param overflow the leaf's lazy multi-record column, or `null` when it holds no multi bucket
 	 * @param valueIds the leaf's parallel value id column, or `null` when the tree carries no ids
+	 * @param impacts  the leaf's parallel impact column, or `null` when the tree carries no impacts
 	 * @return the last slot index the cursor may read, `-1` when it may read nothing
 	 */
 	private static <M extends Comparable<M>> int observableLeafPeek(
@@ -2506,7 +2680,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Nonnull ValueColumn<M> keys,
 		@Nonnull RecordColumn records,
 		@Nullable OverflowColumn overflow,
-		@Nullable RecordColumn valueIds
+		@Nullable RecordColumn valueIds,
+		@Nullable OverflowColumn impacts
 	) {
 		int bound = Math.min(peek, keys.observableLiveRun() - 1);
 		bound = Math.min(bound, records.observableLiveRun() - 1);
@@ -2515,6 +2690,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 		if (valueIds != null) {
 			bound = Math.min(bound, valueIds.observableLiveRun() - 1);
+		}
+		if (impacts != null) {
+			bound = Math.min(bound, impacts.observableLiveRun() - 1);
 		}
 		return bound;
 	}
@@ -2543,6 +2721,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 *
 	 * A walk bounded this way under-reports by whatever the writer had not finished — the same staleness the
 	 * fixed-length arrays produced, and what these callers are documented to accept.
+	 *
+	 * **This bounds the index, not the contents, so it is not sufficient on its own.** A slot inside the bound can
+	 * still read `null`: the writer stores the new child pointer before it raises `peek`, and a reader that sees the
+	 * two stores out of that order holds a raised `peek` over a slot it cannot see filled yet. Every caller that
+	 * dereferences the slot therefore also has to step over a `null` - see {@link #observableChildIndex}.
 	 *
 	 * **A green run on x86 proves nothing about this bound, and the reason differs by call site.** Where the caller
 	 * loads `peek` **before** the array — {@code addRightmostCursorLevels} — total store order forbids the
@@ -2590,6 +2773,68 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	}
 
 	/**
+	 * The child index a descent takes when the slot it chose may still read `null`: `index` itself when that slot is
+	 * populated, otherwise the nearest populated slot to its **left**.
+	 *
+	 * **A `null` inside `[0, peek]` is a store the reader cannot see yet, not an emptied node.** An internal node
+	 * grows in place by storing the new separator, then the new child pointers, then raising `peek`, and all of those
+	 * are plain stores. {@link #observableInternalPeek} keeps a raised `peek` inside the array, but it cannot say
+	 * whether the slot it admits is filled. A reader that sees the `peek` store before the child store it follows
+	 * lands on a slot that still reads `null`. The weekly sweep hit exactly that on macOS/AArch64, where
+	 * {@link #findLeafNode} handed `contains` a `null` leaf, while the x86 and Linux/AArch64 legs of the same commit
+	 * passed. Seeing the stores out of order needs a reordering x86's total store order forbids in hardware, so a
+	 * green run on x86 shows nothing about this guard either way.
+	 *
+	 * Stepping left takes the slot the **pre-growth** node would have chosen. The guard turns a crash into an
+	 * answer, not into a correct one. For a split of the last child that slot reads either the node being split,
+	 * which still holds every key, or - once `adaptToLeafSplit` has stored `left` there - the left half, which
+	 * lacks every key the unpublished right half takes, so such a key reads as absent. The in-place growth has
+	 * such windows without any reordering too, and a split of an inner child shifts the separators before the
+	 * children, routing a key to the wrong sibling; neither produces a `null`, so no guard sees them. No
+	 * production reader meets them: the management projections never run a point lookup. The content-sized
+	 * columns ADR records this as an open neighbour. Slot `0` is never stepped past: when it reads `null` too the
+	 * node shows the reader nothing, and the caller decides what that means.
+	 *
+	 * On a consistent observer every slot in `[0, peek]` is populated, so the loop never runs and `index` comes back
+	 * unchanged. That covers the whole write path and every descent under a transaction. A negative `index` (an
+	 * emptied node) also comes back unchanged. `TransactionalBucketBPlusTreeTest.UnpublishedChildSlot` pins both
+	 * halves deterministically.
+	 *
+	 * @param index    the child index the caller chose, already bounded by {@link #observableInternalPeek}
+	 * @param children the node's child array, as the caller read it
+	 * @return `index`, or the nearest lower index whose slot is populated, `0` when none is
+	 */
+	private static <M extends Comparable<M>> int observableChildIndex(
+		int index,
+		@Nonnull BPlusTreeNode<M, ?>[] children
+	) {
+		int observable = index;
+		while (observable > 0 && children[observable] == null) {
+			observable--;
+		}
+		return observable;
+	}
+
+	/**
+	 * Returns the impacts of the bucket at a leaf position as a cursor sees them - the shared body of every
+	 * {@link BucketCursor#impacts()}.
+	 *
+	 * @param impacts  the leaf's impact column, `null` on a tree that carries no impacts
+	 * @param overflow the leaf's overflow column, or `null` when the leaf holds no multi-record bucket
+	 * @param index    the bucket's position in the leaf
+	 * @return the view of the bucket's impacts
+	 */
+	@Nonnull
+	private static ImpactView impactViewAt(
+		@Nullable OverflowColumn impacts,
+		@Nullable OverflowColumn overflow,
+		int index
+	) {
+		Assert.isPremiseValid(impacts != null, "Impacts are readable only on an impact-carrying tree!");
+		return ImpactRecords.view(impacts.recordsAt(index), overflow == null ? null : overflow.recordsAt(index));
+	}
+
+	/**
 	 * A {@link BucketCursor} restricted to one leaf node, reading its columns directly (the same getters
 	 * {@link ForwardBucketCursor} reads). Used by the granular write path to materialize one leaf page at a time
 	 * without walking the whole tree.
@@ -2601,6 +2846,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		@Nonnull private final RecordColumn records;
 		@Nullable private final OverflowColumn overflow;
 		@Nullable private final RecordColumn valueIds;
+		@Nullable private final OverflowColumn impacts;
 		private final int peek;
 		private final long leafId;
 		private int currentIndex = -1;
@@ -2611,7 +2857,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.records = leaf.getRecords();
 			this.overflow = leaf.getOverflow();
 			this.valueIds = leaf.getValueIds();
-			this.peek = observableLeafPeek(leaf.getPeek(), this.keys, this.records, this.overflow, this.valueIds);
+			this.impacts = leaf.getImpacts();
+			this.peek = observableLeafPeek(
+				leaf.getPeek(), this.keys, this.records, this.overflow, this.valueIds, this.impacts
+			);
 			this.leafId = leaf.getId();
 		}
 
@@ -2667,6 +2916,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				return OverflowRecords.asBitmapView(bucketRecords, this.leafId);
 			}
 			return new SingleRecordBitmap(this.records.intAt(this.currentIndex));
+		}
+
+		@Nonnull
+		@Override
+		public ImpactView impacts() {
+			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
+			return impactViewAt(this.impacts, this.overflow, this.currentIndex);
 		}
 
 		@Override
@@ -3504,6 +3760,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 								this.valueColumnFactory.create(this.valueBlockSize),
 								this.recordColumnFactory.create(this.valueBlockSize),
 								createValueIdColumn(0),
+								createImpactColumn(0),
 								this.comparator,
 								true
 							)
@@ -3602,40 +3859,42 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	/**
 	 * Allocation-free leaf descent for READ-ONLY lookups: walks the root-to-leaf spine choosing each child by the same
 	 * {@link BPlusInternalTreeNode#searchIndex} rule {@link #addCursorLevels} uses, but WITHOUT capturing the cursor
-	 * path (no {@link CursorLevel} list, no backing array, no {@link Cursor}). It reads the transaction-aware
-	 * `getChildren()` accessor exactly like the cursor descent, and - like that descent - bounds the child index by
-	 * the array it actually holds, so it resolves the same nodes under the same concurrency rules.
+	 * path (no {@link CursorLevel} list, no backing array, no {@link Cursor}). Each level is one call to
+	 * {@link BPlusInternalTreeNode#pointLookupChild}, which resolves the node's transactional layer once and reads
+	 * the children, the separators and `peek` from it. It bounds the chosen child by the array it actually holds, as
+	 * the cursor descent does, so it resolves the same nodes under the same concurrency rules. This descent carries
+	 * every point lookup in the tree: `contains`, cardinality, value-id, previous-record and long-payload
+	 * resolution all go through here.
 	 *
-	 * That bound is the whole reason this loop is written across two statements instead of one. Java evaluates the
-	 * array expression **before** the index expression, so {@code getChildren()[searchIndex(key)]} captures the
-	 * children array first and only then lets {@code searchIndex} re-read `keys` and `peek` afresh - and a reader
-	 * sharing no happens-before edge with a growing writer can be handed an index that only the grown array can
-	 * serve. That is array-first/index-second: it needs no reordering at all and is a plain interleaving x86 permits,
-	 * unlike the count-first shapes that require weak-memory hardware. The bound belongs here as much as on the cursor
-	 * descents, because this one carries every point lookup in the tree - `contains`, cardinality, value-id,
-	 * previous-record and long-payload resolution all descend through here.
+	 * **Against a session-free reader racing a warm-up writer, bounding the index by the array is not enough.** The
+	 * array bound keeps a raised `peek` from running off the end, but the slot it admits can still read `null`
+	 * until the writer's child store becomes visible. Descending into that `null` once ended the loop below with a
+	 * `null` leaf. Each level therefore steps back to the child the **pre-growth** node would have chosen - see
+	 * {@link #observableChildIndex}. That keeps the descent from failing, but it does not make the answer exact:
+	 * mid-split, a key the unpublished half takes can read as absent - see that method for the windows.
 	 *
-	 * Clamping is semantically right rather than a fudge: the clamped index is the child the **pre-growth** node
-	 * would have chosen for a key past its last separator, so the descent stays correct for the snapshot it actually
-	 * read. See {@link #observableInternalPeek} for why the array is a parameter rather than something re-read.
+	 * **The one state with no child to step to is an emptied merge donor**, reached between `setPeek(-1)` and its
+	 * unlink in `consolidate` (see {@link #isEmptiedSubtree}). There this method returns `null`, and every caller
+	 * answers as if the key were absent - an under-report, the same staleness the session-free walks accept. On a
+	 * consistent observer - the whole write path, every descent under a transaction - neither guard ever fires, and
+	 * the result is never `null`.
 	 *
 	 * Measured on this family, a captured path costs ~208 B per descent against ~0 B here, so every lookup that uses
 	 * nothing but {@code cursor.leafNode()} takes this route. Structural operations (splits, deletes, consolidation,
 	 * parent-key updates) mutate the captured path and must keep using {@link #createCursor(Comparable)}.
 	 *
 	 * @param key the key whose responsible leaf is located
-	 * @return the leaf node that should hold the key (it may not actually contain it)
+	 * @return the leaf node that should hold the key (it may not actually contain it), or `null` only when a
+	 *         session-free reader's descent entered a subtree a concurrent merge has emptied
 	 */
-	@Nonnull
+	@Nullable
 	BPlusLeafTreeNode<K> findLeafNode(@Nonnull K key) {
 		BPlusTreeNode<K, ?> node = this.getRoot();
+		// a `null` step ends the loop as well, since `null instanceof` is false - see the javadoc for the one state
+		// that produces it
 		while (node instanceof BPlusInternalTreeNode<?> internal) {
 			//noinspection unchecked
-			final BPlusInternalTreeNode<K> internalNode = (BPlusInternalTreeNode<K>) internal;
-			// the array is captured into a local FIRST so the freshly computed index can be bound to it - see the
-			// javadoc above; on any consistent observer this clamp returns the index unchanged
-			final BPlusTreeNode<K, ?>[] children = internalNode.getChildren();
-			node = children[observableInternalPeek(internalNode.searchIndex(key), children)];
+			node = ((BPlusInternalTreeNode<K>) internal).pointLookupChild(key);
 		}
 		//noinspection unchecked
 		return (BPlusLeafTreeNode<K>) node;
@@ -3730,6 +3989,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		final RecordColumn originRecords = leaf.getRecords();
 		final OverflowColumn originOverflow = leaf.getOverflow();
 		final RecordColumn originValueIds = leaf.getValueIds();
+		final OverflowColumn originImpacts = leaf.getImpacts();
 
 		// Structural assert: the split partitions a sorted leaf into a left half [0, mid) and a right half
 		// [mid, capacity); the left leaf's last key must sort strictly before the right leaf's first key, and the
@@ -3752,10 +4012,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			originRecords,
 			originOverflow,
 			originValueIds,
+			originImpacts,
 			originKeys.allocate(this.valueBlockSize),
 			originRecords.allocate(this.valueBlockSize),
 			originOverflow == null ? null : new OverflowColumn(this.valueBlockSize),
 			originValueIds == null ? null : originValueIds.allocate(this.valueBlockSize),
+			originImpacts == null ? null : new OverflowColumn(this.valueBlockSize),
 			0,
 			mid,
 			this.comparator,
@@ -3770,10 +4032,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			originRecords,
 			originOverflow,
 			originValueIds,
+			originImpacts,
 			originKeys.allocate(this.valueBlockSize),
 			originRecords.allocate(this.valueBlockSize),
 			originOverflow == null ? null : new OverflowColumn(this.valueBlockSize),
 			originValueIds == null ? null : originValueIds.allocate(this.valueBlockSize),
+			originImpacts == null ? null : new OverflowColumn(this.valueBlockSize),
 			mid,
 			// the LOGICAL capacity, which a split always finds equal to the origin's live count because a leaf only
 			// splits when it is full. It must never become the backing array's physical length: `end` would collapse
@@ -4161,6 +4425,17 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		Bitmap records();
 
 		/**
+		 * Returns the impacts of the current bucket, one byte per record of {@link #records()} in its order. Read from
+		 * the leaf the cursor stands on, so it costs no descent, and the stored arrays are wrapped rather than copied
+		 * (see {@link ImpactView}). Valid only on an impact-carrying tree.
+		 *
+		 * @return the impacts of the current bucket
+		 * @throws GenericEvitaInternalError when the tree carries no impacts
+		 */
+		@Nonnull
+		ImpactView impacts();
+
+		/**
 		 * Returns the cardinality of the current bucket (1 for single, the record-set size for multi).
 		 *
 		 * @return the current bucket's cardinality
@@ -4470,11 +4745,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					size += internal.getHeapSizeInBytes(elementSizer, separatorsOwned);
 				} else if (child instanceof BPlusLeafTreeNode<?> leaf) {
 					size += leaf.getHeapSizeInBytes(elementSizer);
-				} else {
+				} else if (child != null) {
 					throw new GenericEvitaInternalError(
-						"Unexpected B+ tree node kind: " + (child == null ? "null" : child.getClass().getName())
+						"Unexpected B+ tree node kind: " + child.getClass().getName()
 					);
 				}
+				// a `null` is a slot the bounded count admits but whose child store this reader cannot see yet (see
+				// `observableChildIndex`) - this reader cannot charge it, and a monitoring call must not fail on it, so
+				// a subtree a concurrent grow is still publishing is missing from the figure
 			}
 			return size;
 		}
@@ -4817,7 +5095,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * writer can hand the search a `peek` the array it also read cannot serve. `keys.length >= peek` holds for
 		 * every consistent observer, so the bound is a no-op on the write path and on any descent under a
 		 * transaction — see {@link TransactionalBucketBPlusTree#observableInternalPeek} for the full argument. It
-		 * costs one array-length read the search's own bounds checks already need.
+		 * costs one array-length read the search's own bounds checks already need. The bound also stops short of any
+		 * trailing separator that still reads `null` - see {@link #childIndexIn}.
 		 *
 		 * @param key the key to search for
 		 * @return the index of the child that should contain the specified key
@@ -4827,9 +5106,75 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				? Transaction.getTransactionalMemoryLayerIfExists(this)
 				: null;
 			final BPlusInternalTreeNode<M> source = layer == null ? this : layer;
+			return childIndexIn(key, source.keys, source.peek);
+		}
+
+		/**
+		 * One step of {@link TransactionalBucketBPlusTree#findLeafNode}: the child that should hold `key`, as far as
+		 * the calling reader can see, or `null` when it can see none.
+		 *
+		 * The transactional layer is resolved **once**, and the children array, the separators and `peek` are all
+		 * read from that one source. The descent used to take `getChildren()` and then `searchIndex(key)`, which
+		 * resolved the layer twice per level. It is still allocation-free, because the {@link InsertionPosition}
+		 * never leaves {@link #childIndexIn}. The children array is read first, as before. The order no longer
+		 * carries the bound, because the chosen index is tied to that very array twice over:
+		 *
+		 * - {@link TransactionalBucketBPlusTree#observableInternalPeek} keeps it inside the array's length, and
+		 * - {@link TransactionalBucketBPlusTree#observableChildIndex} steps it back to the pre-growth child when the
+		 *   slot it admits still reads `null`.
+		 *
+		 * An **emptied** node - a merge donor between `setPeek(-1)` and its unlink - answers `null`. Handing its
+		 * negative `peek` to the search instead would fail `Arrays.binarySearch`'s range check. On a consistent
+		 * observer `peek` is never negative on a reachable node and every admitted slot is populated, so this returns
+		 * exactly `getChildren()[searchIndex(key)]`.
+		 *
+		 * @param key the key whose responsible child is located
+		 * @return the child to descend into, or `null` when this node shows the reader no child at all
+		 */
+		@Nullable
+		BPlusTreeNode<M, ?> pointLookupChild(@Nonnull M key) {
+			final BPlusInternalTreeNode<M> layer = this.transactionalLayer
+				? Transaction.getTransactionalMemoryLayerIfExists(this)
+				: null;
+			final BPlusInternalTreeNode<M> source = layer == null ? this : layer;
+			final BPlusTreeNode<M, ?>[] theChildren = source.children;
 			final M[] theKeys = source.keys;
-			final InsertionPosition insertionPosition =
-				findKeyPosition(key, theKeys, 0, Math.min(source.peek, theKeys.length));
+			final int thePeek = source.peek;
+			if (thePeek < 0) {
+				return null;
+			}
+			return theChildren[
+				observableChildIndex(observableInternalPeek(childIndexIn(key, theKeys, thePeek), theChildren), theChildren)
+				];
+		}
+
+		/**
+		 * The child index `key` belongs to, searched over the separators `theKeys` holds below `thePeek` - both as
+		 * the caller read them.
+		 *
+		 * The search is bounded by the array's own length (see {@link #searchIndex}) and then pulled in past any
+		 * **trailing** separator that still reads `null`. A split stores the promoted separator before it raises
+		 * `peek`, so a session-free reader that sees the two stores out of order is handed a live run whose last
+		 * slot is still empty. `Arrays.binarySearch` dereferences every slot it probes, so without the trim it would
+		 * throw a `NullPointerException` from inside the search. In an array grown in place only a trailing slot can
+		 * read `null` this way: every slot below the old live run held a separator before the grow, and a reader
+		 * sees either the old one or the new one. A **reallocated** array whose copied content the reader could not
+		 * see yet is a different, unguarded case. Whether it can occur depends on how the JVM publishes a freshly
+		 * copied array, which the Java memory model leaves open, so the content-sized columns decision record carries
+		 * it as an open item. A key past the last visible separator lands on the slot the pre-growth node gave it. On
+		 * a consistent observer the last live separator is never `null`, so the loop never runs.
+		 *
+		 * @param key     the key to search for
+		 * @param theKeys the separator array, as the caller read it
+		 * @param thePeek the node's `peek`, as the caller read it
+		 * @return the index of the child that should contain the specified key
+		 */
+		private int childIndexIn(@Nonnull M key, @Nonnull M[] theKeys, int thePeek) {
+			int bound = Math.min(thePeek, theKeys.length);
+			while (bound > 0 && theKeys[bound - 1] == null) {
+				bound--;
+			}
+			final InsertionPosition insertionPosition = findKeyPosition(key, theKeys, 0, bound);
 			return insertionPosition.alreadyPresent() ?
 				insertionPosition.position() + 1 : insertionPosition.position();
 		}
@@ -5196,6 +5541,19 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		@Nullable private RecordColumn valueIds;
 		/**
+		 * The optional parallel **impact** column: slot `i` holds the per-record impact bytes of bucket `i`, in the
+		 * shape {@link ImpactRecords} dictates for the bucket's record tier, positionally aligned with {@link #keys}
+		 * and {@link #records} and shifted in lockstep with them.
+		 *
+		 * `null` unless the owning tree carries impacts at all (see the tree's `impactCarrying`), which is the common
+		 * case. Reuses {@link OverflowColumn} because that column is an untyped reference column whose grow / trim /
+		 * shallow-clone contract is exactly what an impact slot needs: a slot's content is never written in place -
+		 * except an {@link ImpactRecords.PendingImpacts}, a transaction's delta, which accumulates in place. A
+		 * savepoint memento therefore marks it rather than sharing it ({@link ImpactRecords#snapshotColumn}), and a
+		 * layer never shares one with its base ({@link ImpactRecords#ownPendingDeltas}).
+		 */
+		@Nullable private OverflowColumn impacts;
+		/**
 		 * The leaf's **stable logical id** — the identity a value id directory references, as distinct from
 		 * {@link #id}, which is a per-instance version token that changes on every commit-merge rebuild.
 		 *
@@ -5305,6 +5663,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @param keys               the empty key column (its capacity is the block size)
 		 * @param records            the empty single-record column (same capacity, built by the tree's record factory)
 		 * @param valueIds           the empty value id column (same capacity), or `null` when the tree carries no ids
+		 * @param impacts            the empty impact column (same capacity), or `null` when the tree carries no impacts
 		 * @param comparator         optional comparator defining the key order; `null` ⇒ natural order
 		 * @param transactionalLayer whether this node participates in the transactional memory layer
 		 */
@@ -5312,6 +5671,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			@Nonnull ValueColumn<M> keys,
 			@Nonnull RecordColumn records,
 			@Nullable RecordColumn valueIds,
+			@Nullable OverflowColumn impacts,
 			@Nullable Comparator<M> comparator,
 			boolean transactionalLayer
 		) {
@@ -5319,23 +5679,27 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.records = records;
 			this.overflow = null;
 			this.valueIds = valueIds;
+			this.impacts = impacts;
 			this.comparator = comparator;
 			this.peek = -1;
 			this.transactionalLayer = transactionalLayer;
 		}
 
 		/**
-		 * Creates a new leaf node by copying a range of all three columns from origin arrays into the target arrays,
-		 * used during node split operations. The overflow column is allocated in the target only when the origin has one.
+		 * Creates a new leaf node by copying a range of every column from origin arrays into the target arrays, used
+		 * during node split operations. The optional columns - overflow, value ids, impacts - are copied only when the
+		 * target has them.
 		 *
 		 * @param originKeys         the source key column to copy from
 		 * @param originRecords      the source single-record column to copy from
 		 * @param originOverflow     the source overflow column to copy from (may be null)
 		 * @param originValueIds     the source value id column to copy from (may be null)
+		 * @param originImpacts      the source impact column to copy from (may be null)
 		 * @param keys               the target key column (may be the same as originKeys)
 		 * @param records            the target single-record column (may be the same as originRecords)
 		 * @param overflow           the target overflow column (may be the same as originOverflow, or null)
 		 * @param valueIds           the target value id column (may be the same as originValueIds, or null)
+		 * @param impacts            the target impact column (may be the same as originImpacts, or null)
 		 * @param start              the start index (inclusive) in the origin arrays
 		 * @param end                the end index (exclusive) in the origin arrays
 		 * @param comparator         optional comparator defining the key order; `null` ⇒ natural order
@@ -5346,10 +5710,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			@Nonnull RecordColumn originRecords,
 			@Nullable OverflowColumn originOverflow,
 			@Nullable RecordColumn originValueIds,
+			@Nullable OverflowColumn originImpacts,
 			@Nonnull ValueColumn<M> keys,
 			@Nonnull RecordColumn records,
 			@Nullable OverflowColumn overflow,
 			@Nullable RecordColumn valueIds,
+			@Nullable OverflowColumn impacts,
 			int start, int end,
 			@Nullable Comparator<M> comparator,
 			boolean transactionalLayer
@@ -5358,10 +5724,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.records = records;
 			this.overflow = overflow;
 			this.valueIds = valueIds;
+			this.impacts = impacts;
 			assertSelfCopySourceIsAligned(
 				end - start,
-				originKeys, originRecords, originOverflow, originValueIds,
-				keys, records, overflow, valueIds
+				originKeys, originRecords, originOverflow, originValueIds, originImpacts,
+				keys, records, overflow, valueIds, impacts
 			);
 			originKeys.copyRangeTo(start, keys, 0, end - start);
 			if (keys == originKeys) {
@@ -5375,6 +5742,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				originValueIds.copyRangeTo(start, valueIds, 0, end - start);
 				if (valueIds == originValueIds) {
 					valueIds.fillEmpty(end - start, valueIds.capacity());
+				}
+			}
+			if (impacts != null && originImpacts != null) {
+				originImpacts.copyRangeTo(start, impacts, 0, end - start);
+				if (impacts == originImpacts) {
+					impacts.fillEmpty(end - start, impacts.capacity());
 				}
 			}
 			if (overflow != null) {
@@ -5402,6 +5775,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @param records            the single-record column to adopt
 		 * @param overflow           the lazy multi-record column to adopt, or `null`
 		 * @param valueIds           the parallel value id column to adopt, or `null` when the tree carries no ids
+		 * @param impacts            the parallel impact column to adopt, or `null` when the tree carries no impacts
 		 * @param peek               the index of the last occupied slot
 		 * @param comparator         optional comparator defining the key order; `null` ⇒ natural order
 		 * @param transactionalLayer whether this node participates in the transactional memory layer
@@ -5411,6 +5785,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			@Nonnull RecordColumn records,
 			@Nullable OverflowColumn overflow,
 			@Nullable RecordColumn valueIds,
+			@Nullable OverflowColumn impacts,
 			int peek,
 			@Nullable Comparator<M> comparator,
 			boolean transactionalLayer
@@ -5419,6 +5794,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.records = records;
 			this.overflow = overflow;
 			this.valueIds = valueIds;
+			this.impacts = impacts;
 			this.peek = peek;
 			this.comparator = comparator;
 			this.transactionalLayer = transactionalLayer;
@@ -5480,51 +5856,87 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				final int originPeek = this.peek;
 				this.peek = peek;
 				if (peek < originPeek) {
-					this.keys.fillEmpty(peek + 1, originPeek + 1);
-					this.records.fillEmpty(peek + 1, originPeek + 1);
-					if (this.valueIds != null) {
-						this.valueIds.fillEmpty(peek + 1, originPeek + 1);
-					}
-					if (this.overflow != null) {
-						this.overflow.fillEmpty(peek + 1, originPeek + 1);
-					}
+					truncateColumns(peek + 1, originPeek + 1);
 				}
 				assertColumnsAlignedWithPeek();
 			} else {
 				final int originPeek = layer.peek;
 				layer.peek = peek;
 				if (peek < originPeek) {
-					if (layer.keys == this.keys) {
-						// decouple by deep-copying the shared base column before truncating it below
-						layer.keys = this.keys.duplicate();
-					}
-					// truncate the freed tail in both cases: a fixed-array column nulls/zeroes the released slots
-					// (as before), while a dense front-coded column actually drops them — a no-op for the former,
-					// mandatory for the latter, which has no harmless sentinel tail to leave behind
-					layer.keys.fillEmpty(peek + 1, originPeek + 1);
-					if (layer.records == this.records) {
-						// decouple by deep-copying the shared base column before truncating it below
-						layer.records = this.records.duplicate();
-					}
-					// truncate in BOTH arms, exactly as the key column above does. A `duplicate()` carries the
-					// source's whole live run across, so skipping the truncation on the freshly-decoupled arm left
-					// the record and id columns reporting a live run greater than `peek + 1` until some later
-					// mutation happened to repair it — the alignment invariant broken by omission
-					layer.records.fillEmpty(peek + 1, originPeek + 1);
-					if (layer.valueIds != null) {
-						if (layer.valueIds == this.valueIds) {
-							layer.valueIds = this.valueIds.duplicate();
-						}
-						layer.valueIds.fillEmpty(peek + 1, originPeek + 1);
-					}
-					if (layer.overflow != null) {
-						if (layer.overflow == this.overflow) {
-							layer.overflow = this.overflow.duplicate();
-						}
-						layer.overflow.fillEmpty(peek + 1, originPeek + 1);
-					}
+					layer.truncateLayerColumns(this, peek + 1, originPeek + 1);
 				}
 				layer.assertColumnsAlignedWithPeek();
+			}
+		}
+
+		/**
+		 * Truncates every column of this (non-transactional) leaf to the slots below `to`, releasing `[from, to)`.
+		 * Split out of {@link #setPeek(int)} so that method stays small enough for the JIT to inline it: each optional
+		 * column adds a branch here, and the impact column pushed the combined body past HotSpot's frequent-inline
+		 * limit of 325 bytes.
+		 *
+		 * @param from first slot to release
+		 * @param to   end (exclusive) of the slots to release
+		 */
+		private void truncateColumns(int from, int to) {
+			this.keys.fillEmpty(from, to);
+			this.records.fillEmpty(from, to);
+			if (this.valueIds != null) {
+				this.valueIds.fillEmpty(from, to);
+			}
+			if (this.impacts != null) {
+				this.impacts.fillEmpty(from, to);
+			}
+			if (this.overflow != null) {
+				this.overflow.fillEmpty(from, to);
+			}
+		}
+
+		/**
+		 * Truncates every column of this transactional layer to the slots below `to`, first decoupling each column
+		 * still shared with the committed `base` leaf, so the truncation never reaches the committed instance. The
+		 * transactional counterpart of {@link #truncateColumns(int, int)}, split out of {@link #setPeek(int)} for the
+		 * same reason.
+		 *
+		 * @param base the committed leaf this layer belongs to
+		 * @param from first slot to release
+		 * @param to   end (exclusive) of the slots to release
+		 */
+		private void truncateLayerColumns(@Nonnull BPlusLeafTreeNode<M> base, int from, int to) {
+			if (this.keys == base.keys) {
+				// decouple by deep-copying the shared base column before truncating it below
+				this.keys = base.keys.duplicate();
+			}
+			// truncate the freed tail in both cases: a fixed-array column nulls/zeroes the released slots
+			// (as before), while a dense front-coded column actually drops them — a no-op for the former,
+			// mandatory for the latter, which has no harmless sentinel tail to leave behind
+			this.keys.fillEmpty(from, to);
+			if (this.records == base.records) {
+				// decouple by deep-copying the shared base column before truncating it below
+				this.records = base.records.duplicate();
+			}
+			// truncate in BOTH arms, exactly as the key column above does. A `duplicate()` carries the
+			// source's whole live run across, so skipping the truncation on the freshly-decoupled arm left
+			// the record and id columns reporting a live run greater than `peek + 1` until some later
+			// mutation happened to repair it — the alignment invariant broken by omission
+			this.records.fillEmpty(from, to);
+			if (this.valueIds != null) {
+				if (this.valueIds == base.valueIds) {
+					this.valueIds = base.valueIds.duplicate();
+				}
+				this.valueIds.fillEmpty(from, to);
+			}
+			if (this.impacts != null) {
+				if (this.impacts == base.impacts) {
+					this.impacts = base.impacts.duplicate();
+				}
+				this.impacts.fillEmpty(from, to);
+			}
+			if (this.overflow != null) {
+				if (this.overflow == base.overflow) {
+					this.overflow = base.overflow.duplicate();
+				}
+				this.overflow.fillEmpty(from, to);
 			}
 		}
 
@@ -5586,11 +5998,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		/**
 		 * Returns the heap this leaf occupies, in bytes.
 		 *
-		 * Charges its own object, every column it owns and - when it has one - each record set the overflow column
-		 * points at, priced per tier by {@link OverflowRecords#heapSizeInBytes}. `comparator` is the tree's and
-		 * shared by every node, so only its slot is charged; the overflow column is `null` until the leaf's first
-		 * multi-record bucket and costs nothing until then, and the `valueIds` column is `null` unless some
-		 * subsystem has registered as a consumer of this tree's ids.
+		 * Charges its own object, every column it owns, each record set the overflow column points at - priced per
+		 * tier by {@link OverflowRecords#heapSizeInBytes} - and each impact slot the impact column holds, priced by
+		 * {@link ImpactRecords#heapSizeInBytes}. `comparator` is the tree's and shared by every node, so only its slot
+		 * is charged; the overflow column is `null` until the leaf's first multi-record bucket and costs nothing until
+		 * then, the `valueIds` column is `null` unless some subsystem has registered as a consumer of this tree's ids,
+		 * and the `impacts` column is `null` unless the tree carries impacts.
 		 *
 		 * Every column prices its backing array at its **allocated** length, which follows the live content rather
 		 * than the leaf block size, so this figure moves as buckets are inserted and removed.
@@ -5601,26 +6014,43 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		long getHeapSizeInBytes(@Nonnull ToLongFunction<Object> elementSizer) {
 			final VMLayout layout = VMLayout.current();
 			// id + warmUpTouchStamp + leafId + transactionalLayer + dirty
-			// + comparator/keys/records/overflow/valueIds slots + peek + pageSequence
-			long size = layout.sizeOfObject(3L * Long.BYTES + 2L + 5L * layout.referenceSize() + 2L * Integer.BYTES);
+			// + comparator/keys/records/overflow/valueIds/impacts slots + peek + pageSequence
+			long size = layout.sizeOfObject(3L * Long.BYTES + 2L + 6L * layout.referenceSize() + 2L * Integer.BYTES);
 			size += this.keys.getHeapSizeInBytes(elementSizer);
 			size += this.records.getHeapSizeInBytes();
-			if (this.valueIds != null) {
-				size += this.valueIds.getHeapSizeInBytes();
+			// every optional column is read ONCE: a warm-up savepoint rollback resets `overflow` to `null` in place
+			// (see `journalBucketInsertionIfOpen`), and this walk runs with no happens-before edge to that writer, so
+			// a second read could find `null` where the check found a column
+			final RecordColumn theValueIds = this.valueIds;
+			if (theValueIds != null) {
+				size += theValueIds.getHeapSizeInBytes();
 			}
-			if (this.overflow != null) {
-				size += this.overflow.getHeapSizeInBytes();
+			final OverflowColumn theOverflow = this.overflow;
+			if (theOverflow != null) {
+				size += theOverflow.getHeapSizeInBytes();
 				// bounded by the column's OBSERVABLE live run, exactly as the cursors bound themselves: every slot
 				// past the live run is `null` by contract, so there is nothing there for a walk to reach and nothing
 				// for the arithmetic to charge - and this walk reaches a request thread holding no session, so it
 				// must not trust a size the column's backing array may not yet be long enough to serve
-				final int overflowSize = this.overflow.observableLiveRun();
+				final int overflowSize = theOverflow.observableLiveRun();
 				for (int i = 0; i < overflowSize; i++) {
-					final Object bucketRecords = this.overflow.recordsAt(i);
+					final Object bucketRecords = theOverflow.recordsAt(i);
 					if (bucketRecords != null) {
 						// the tier decides the arithmetic: a sorted `int[]` is priced as an array, a bitmap answers
 						// for itself
 						size += OverflowRecords.heapSizeInBytes(bucketRecords);
+					}
+				}
+			}
+			final OverflowColumn theImpacts = this.impacts;
+			if (theImpacts != null) {
+				size += theImpacts.getHeapSizeInBytes();
+				// bounded exactly as the overflow walk above, for the same reason
+				final int impactsSize = theImpacts.observableLiveRun();
+				for (int i = 0; i < impactsSize; i++) {
+					final Object bucketImpacts = theImpacts.recordsAt(i);
+					if (bucketImpacts != null) {
+						size += ImpactRecords.heapSizeInBytes(bucketImpacts);
 					}
 				}
 			}
@@ -5756,6 +6186,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (this.valueIds != null) {
 					this.valueIds.copyRangeTo(0, this.valueIds, numberOfTailValues, this.peek + 1);
 				}
+				if (this.impacts != null) {
+					this.impacts.copyRangeTo(0, this.impacts, numberOfTailValues, this.peek + 1);
+				}
 				previousNode.getKeyColumn().copyRangeTo(
 					previousNode.size() - numberOfTailValues, this.keys, 0, numberOfTailValues);
 				previousNode.getRecords().copyRangeTo(
@@ -5766,6 +6199,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				);
 				copyValueIdRange(
 					previousNode.getValueIds(), previousNode.size() - numberOfTailValues, this.valueIds, 0,
+					numberOfTailValues
+				);
+				copyOverflowRange(
+					previousNode.getImpacts(), previousNode.size() - numberOfTailValues, this.impacts, 0,
 					numberOfTailValues
 				);
 				this.peek += numberOfTailValues;
@@ -5784,6 +6221,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (layer.valueIds != null) {
 					layer.valueIds.copyRangeTo(0, layer.valueIds, numberOfTailValues, layer.peek + 1);
 				}
+				if (layer.impacts != null) {
+					layer.impacts.copyRangeTo(0, layer.impacts, numberOfTailValues, layer.peek + 1);
+				}
 				previousNode.getKeyColumn().copyRangeTo(
 					previousNode.size() - numberOfTailValues, layer.keys, 0, numberOfTailValues);
 				previousNode.getRecords().copyRangeTo(
@@ -5794,6 +6234,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				);
 				copyValueIdRange(
 					previousNode.getValueIds(), previousNode.size() - numberOfTailValues, layer.valueIds, 0,
+					numberOfTailValues
+				);
+				copyOverflowRange(
+					previousNode.getImpacts(), previousNode.size() - numberOfTailValues, layer.impacts, 0,
 					numberOfTailValues
 				);
 				layer.peek += numberOfTailValues;
@@ -5818,11 +6262,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				final RecordColumn nextRecords = nextNode.getRecordsForUpdate();
 				final OverflowColumn nextOverflow = nextNode.getOverflowForUpdate();
 				final RecordColumn nextValueIds = nextNode.getValueIdsForUpdate();
+				final OverflowColumn nextImpacts = nextNode.getImpactsForUpdate();
 				ensureOverflowForSteal(this, nextOverflow);
 				nextKeys.copyRangeTo(0, this.keys, this.peek + 1, numberOfHeadValues);
 				nextRecords.copyRangeTo(0, this.records, this.peek + 1, numberOfHeadValues);
 				copyOverflowRange(nextOverflow, 0, this.overflow, this.peek + 1, numberOfHeadValues);
 				copyValueIdRange(nextValueIds, 0, this.valueIds, this.peek + 1, numberOfHeadValues);
+				copyOverflowRange(nextImpacts, 0, this.impacts, this.peek + 1, numberOfHeadValues);
 				nextKeys.copyRangeTo(numberOfHeadValues, nextKeys, 0, nextNode.size() - numberOfHeadValues);
 				nextRecords.copyRangeTo(numberOfHeadValues, nextRecords, 0, nextNode.size() - numberOfHeadValues);
 				if (nextOverflow != null) {
@@ -5832,6 +6278,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (nextValueIds != null) {
 					nextValueIds.copyRangeTo(
 						numberOfHeadValues, nextValueIds, 0, nextNode.size() - numberOfHeadValues);
+				}
+				if (nextImpacts != null) {
+					nextImpacts.copyRangeTo(
+						numberOfHeadValues, nextImpacts, 0, nextNode.size() - numberOfHeadValues);
 				}
 				nextNode.setPeek(nextNode.getPeek() - numberOfHeadValues);
 				this.peek += numberOfHeadValues;
@@ -5844,11 +6294,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				final RecordColumn nextRecords = nextNode.getRecordsForUpdate();
 				final OverflowColumn nextOverflow = nextNode.getOverflowForUpdate();
 				final RecordColumn nextValueIds = nextNode.getValueIdsForUpdate();
+				final OverflowColumn nextImpacts = nextNode.getImpactsForUpdate();
 				ensureOverflowForSteal(layer, nextOverflow);
 				nextKeys.copyRangeTo(0, layer.keys, layer.peek + 1, numberOfHeadValues);
 				nextRecords.copyRangeTo(0, layer.records, layer.peek + 1, numberOfHeadValues);
 				copyOverflowRange(nextOverflow, 0, layer.overflow, layer.peek + 1, numberOfHeadValues);
 				copyValueIdRange(nextValueIds, 0, layer.valueIds, layer.peek + 1, numberOfHeadValues);
+				copyOverflowRange(nextImpacts, 0, layer.impacts, layer.peek + 1, numberOfHeadValues);
 				nextKeys.copyRangeTo(numberOfHeadValues, nextKeys, 0, nextNode.size() - numberOfHeadValues);
 				nextRecords.copyRangeTo(numberOfHeadValues, nextRecords, 0, nextNode.size() - numberOfHeadValues);
 				if (nextOverflow != null) {
@@ -5858,6 +6310,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (nextValueIds != null) {
 					nextValueIds.copyRangeTo(
 						numberOfHeadValues, nextValueIds, 0, nextNode.size() - numberOfHeadValues);
+				}
+				if (nextImpacts != null) {
+					nextImpacts.copyRangeTo(
+						numberOfHeadValues, nextImpacts, 0, nextNode.size() - numberOfHeadValues);
 				}
 				nextNode.setPeek(nextNode.getPeek() - numberOfHeadValues);
 				layer.peek += numberOfHeadValues;
@@ -5885,10 +6341,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (this.valueIds != null) {
 					this.valueIds.copyRangeTo(0, this.valueIds, mergePeek + 1, this.peek + 1);
 				}
+				if (this.impacts != null) {
+					this.impacts.copyRangeTo(0, this.impacts, mergePeek + 1, this.peek + 1);
+				}
 				previousNode.getKeyColumn().copyRangeTo(0, this.keys, 0, mergePeek + 1);
 				previousNode.getRecords().copyRangeTo(0, this.records, 0, mergePeek + 1);
 				copyOverflowRange(previousNode.getOverflow(), 0, this.overflow, 0, mergePeek + 1);
 				copyValueIdRange(previousNode.getValueIds(), 0, this.valueIds, 0, mergePeek + 1);
+				copyOverflowRange(previousNode.getImpacts(), 0, this.impacts, 0, mergePeek + 1);
 				this.peek += mergePeek + 1;
 				assertColumnsAlignedWithPeek();
 				previousNode.setPeek(-1);
@@ -5905,10 +6365,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (layer.valueIds != null) {
 					layer.valueIds.copyRangeTo(0, layer.valueIds, mergePeek + 1, layer.peek + 1);
 				}
+				if (layer.impacts != null) {
+					layer.impacts.copyRangeTo(0, layer.impacts, mergePeek + 1, layer.peek + 1);
+				}
 				previousNode.getKeyColumnForUpdate().copyRangeTo(0, layer.keys, 0, mergePeek + 1);
 				previousNode.getRecordsForUpdate().copyRangeTo(0, layer.records, 0, mergePeek + 1);
 				copyOverflowRange(previousNode.getOverflowForUpdate(), 0, layer.overflow, 0, mergePeek + 1);
 				copyValueIdRange(previousNode.getValueIdsForUpdate(), 0, layer.valueIds, 0, mergePeek + 1);
+				copyOverflowRange(previousNode.getImpactsForUpdate(), 0, layer.impacts, 0, mergePeek + 1);
 				layer.peek += mergePeek + 1;
 				layer.assertColumnsAlignedWithPeek();
 				previousNode.setPeek(-1);
@@ -5931,6 +6395,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				nextNode.getRecords().copyRangeTo(0, this.records, this.peek + 1, mergePeek + 1);
 				copyOverflowRange(nextNode.getOverflow(), 0, this.overflow, this.peek + 1, mergePeek + 1);
 				copyValueIdRange(nextNode.getValueIds(), 0, this.valueIds, this.peek + 1, mergePeek + 1);
+				copyOverflowRange(nextNode.getImpacts(), 0, this.impacts, this.peek + 1, mergePeek + 1);
 				this.peek += mergePeek + 1;
 				assertColumnsAlignedWithPeek();
 				nextNode.setPeek(-1);
@@ -5943,6 +6408,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				nextNode.getRecordsForUpdate().copyRangeTo(0, layer.records, layer.peek + 1, mergePeek + 1);
 				copyOverflowRange(nextNode.getOverflowForUpdate(), 0, layer.overflow, layer.peek + 1, mergePeek + 1);
 				copyValueIdRange(nextNode.getValueIdsForUpdate(), 0, layer.valueIds, layer.peek + 1, mergePeek + 1);
+				copyOverflowRange(nextNode.getImpactsForUpdate(), 0, layer.impacts, layer.peek + 1, mergePeek + 1);
 				layer.peek += mergePeek + 1;
 				layer.assertColumnsAlignedWithPeek();
 				nextNode.setPeek(-1);
@@ -6096,6 +6562,117 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		/**
+		 * Retrieves the parallel impact column for READ-ONLY purposes (transaction-aware). Null when the owning tree
+		 * carries no impacts.
+		 *
+		 * @return the impact column, or null
+		 */
+		@Nullable
+		public OverflowColumn getImpacts() {
+			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
+				? Transaction.getTransactionalMemoryLayerIfExists(this)
+				: null;
+			if (layer == null) {
+				return this.impacts;
+			} else {
+				return layer.impacts;
+			}
+		}
+
+		/**
+		 * Retrieves the impact column for updating, decoupling a transactional copy when needed - the impact twin of
+		 * {@link #getValueIdsForUpdate()}, journalling nothing for the same reason. Returns null when the owning tree
+		 * carries no impacts.
+		 *
+		 * @return the impact column (transaction-local copy when a layer is active), or null
+		 */
+		@Nullable
+		public OverflowColumn getImpactsForUpdate() {
+			final BPlusLeafTreeNode<M> layer = perOperationWriteLayer(this, this.transactionalLayer);
+			if (layer == null) {
+				return this.impacts;
+			} else {
+				if (layer.impacts != null && layer.impacts == this.impacts) {
+					layer.impacts = this.impacts.duplicate();
+				}
+				return layer.impacts;
+			}
+		}
+
+		/**
+		 * Allocates this leaf's impact column when it is not yet present and returns the column every subsequent
+		 * write to this leaf will land on - the impact twin of {@link #ensureValueIdColumn()}, reached by the tree's
+		 * switch-on while the tree is still empty, so the column arrives covering the (empty) live run.
+		 *
+		 * @return the impact column the next write to this leaf will target, guaranteed non-null
+		 */
+		@Nonnull
+		OverflowColumn ensureImpactColumn() {
+			if (this.impacts == null) {
+				this.impacts = OverflowColumn.withLiveRun(this.records.capacity(), this.peek + 1);
+			}
+			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
+				? Transaction.getTransactionalMemoryLayerIfExists(this)
+				: null;
+			if (layer == null) {
+				return this.impacts;
+			}
+			if (layer.impacts == null || layer.impacts == this.impacts) {
+				layer.impacts = this.impacts.duplicate();
+			}
+			return layer.impacts;
+		}
+
+		/**
+		 * Returns the impacts of `value`'s bucket aligned with the order its records enumerate in, or an empty array
+		 * when this leaf holds no bucket for the value (transaction-aware).
+		 *
+		 * @param value the value to look up
+		 * @return the aligned impacts, never null
+		 */
+		@Nonnull
+		byte[] impactsAlignedWith(@Nonnull M value) {
+			final ValueColumn<M> theKeys;
+			final RecordColumn theRecords;
+			final OverflowColumn theOverflow;
+			final RecordColumn theValueIds;
+			final OverflowColumn theImpacts;
+			final int thePeek;
+
+			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
+				? Transaction.getTransactionalMemoryLayerIfExists(this)
+				: null;
+			if (layer == null) {
+				theKeys = this.keys;
+				theRecords = this.records;
+				theOverflow = this.overflow;
+				theValueIds = this.valueIds;
+				theImpacts = this.impacts;
+				thePeek = this.peek;
+			} else {
+				theKeys = layer.keys;
+				theRecords = layer.records;
+				theOverflow = layer.overflow;
+				theValueIds = layer.valueIds;
+				theImpacts = layer.impacts;
+				thePeek = layer.peek;
+			}
+			Assert.isPremiseValid(theImpacts != null, "This leaf carries no impact column!");
+			// bounded by the cross-column live run, exactly as `getRecords(M)` is
+			final InsertionPosition insertionPosition = theKeys.findKeyPosition(
+				value, 0,
+				observableLeafPeek(thePeek, theKeys, theRecords, theOverflow, theValueIds, theImpacts) + 1,
+				this.comparator
+			);
+			if (!insertionPosition.alreadyPresent()) {
+				return EMPTY_BYTE_ARRAY;
+			}
+			final int index = insertionPosition.position();
+			final Object bucketRecords = theOverflow == null ? null : theOverflow.recordsAt(index);
+			return ImpactRecords.aligned(theImpacts.recordsAt(index), bucketRecords);
+		}
+
+		/**
 		 * Retrieves the lazy overflow column for READ-ONLY purposes (transaction-aware). May be null when the leaf
 		 * carries no multi bucket.
 		 *
@@ -6184,6 +6761,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final RecordColumn theRecords;
 			final OverflowColumn theOverflow;
 			final RecordColumn theValueIds;
+			final OverflowColumn theImpacts;
 			final int thePeek;
 
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
@@ -6194,12 +6772,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				theRecords = this.records;
 				theOverflow = this.overflow;
 				theValueIds = this.valueIds;
+				theImpacts = this.impacts;
 				thePeek = this.peek;
 			} else {
 				theKeys = layer.keys;
 				theRecords = layer.records;
 				theOverflow = layer.overflow;
 				theValueIds = layer.valueIds;
+				theImpacts = layer.impacts;
 				thePeek = layer.peek;
 			}
 
@@ -6213,7 +6793,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			// to accept. On any consistent observer the bound returns `peek` unchanged
 			final InsertionPosition insertionPosition =
 				theKeys.findKeyPosition(
-					value, 0, observableLeafPeek(thePeek, theKeys, theRecords, theOverflow, theValueIds) + 1,
+					value, 0,
+					observableLeafPeek(thePeek, theKeys, theRecords, theOverflow, theValueIds, theImpacts) + 1,
 					this.comparator
 				);
 			if (!insertionPosition.alreadyPresent()) {
@@ -6385,6 +6966,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final RecordColumn theRecords;
 			final OverflowColumn theOverflow;
 			final RecordColumn theValueIds;
+			final OverflowColumn theImpacts;
 			final int thePeek;
 
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
@@ -6395,12 +6977,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				theRecords = this.records;
 				theOverflow = this.overflow;
 				theValueIds = this.valueIds;
+				theImpacts = this.impacts;
 				thePeek = this.peek;
 			} else {
 				theKeys = layer.keys;
 				theRecords = layer.records;
 				theOverflow = layer.overflow;
 				theValueIds = layer.valueIds;
+				theImpacts = layer.impacts;
 				thePeek = layer.peek;
 			}
 
@@ -6408,7 +6992,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			// the key column alone must never address the record column
 			final InsertionPosition insertionPosition =
 				theKeys.findKeyPosition(
-					value, 0, observableLeafPeek(thePeek, theKeys, theRecords, theOverflow, theValueIds) + 1,
+					value, 0,
+					observableLeafPeek(thePeek, theKeys, theRecords, theOverflow, theValueIds, theImpacts) + 1,
 					this.comparator
 				);
 			final int index = insertionPosition.position();
@@ -6447,6 +7032,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final RecordColumn theRecords;
 			final OverflowColumn theOverflow;
 			final RecordColumn theValueIds;
+			final OverflowColumn theImpacts;
 			final int thePeek;
 
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
@@ -6457,12 +7043,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				theRecords = this.records;
 				theOverflow = this.overflow;
 				theValueIds = this.valueIds;
+				theImpacts = this.impacts;
 				thePeek = this.peek;
 			} else {
 				theKeys = layer.keys;
 				theRecords = layer.records;
 				theOverflow = layer.overflow;
 				theValueIds = layer.valueIds;
+				theImpacts = layer.impacts;
 				thePeek = layer.peek;
 			}
 			Assert.isPremiseValid(thePeek >= 0, "Cannot read the last record of an empty leaf!");
@@ -6474,7 +7062,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			// anchors the record at the head instead of after its true predecessor. A wrong order, silently, rather
 			// than a failure. Bounding by the columns' own live run under-reports to the last bucket the reader can
 			// actually see, which is the staleness this walk is documented to accept
-			final int bound = observableLeafPeek(thePeek, theKeys, theRecords, theOverflow, theValueIds);
+			final int bound = observableLeafPeek(
+				thePeek, theKeys, theRecords, theOverflow, theValueIds, theImpacts
+			);
 			if (bound < 0) {
 				// a torn reader that can observe no live bucket at all has no predecessor to offer
 				return EvitaDataTypes.RESERVED_PRIMARY_KEY;
@@ -6513,7 +7103,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * Returns the index of the bucket for the given value, or -1 if absent.
 		 *
 		 * The index is safe to address ANY of the leaf's columns with, not merely the key column the search ran over:
-		 * the search is bounded by {@link TransactionalBucketBPlusTree#observableLeafPeek} across all four of them,
+		 * the search is bounded by {@link TransactionalBucketBPlusTree#observableLeafPeek} across all five of them,
 		 * so a slot a torn reader's key column can still see but its record column cannot is reported absent rather
 		 * than handed out for {@link #longRecordAt} to answer with an unmaterialized `0`.
 		 *
@@ -6525,6 +7115,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final RecordColumn theRecords;
 			final OverflowColumn theOverflow;
 			final RecordColumn theValueIds;
+			final OverflowColumn theImpacts;
 			final int thePeek;
 
 			final BPlusLeafTreeNode<M> layer = this.transactionalLayer
@@ -6535,12 +7126,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				theRecords = this.records;
 				theOverflow = this.overflow;
 				theValueIds = this.valueIds;
+				theImpacts = this.impacts;
 				thePeek = this.peek;
 			} else {
 				theKeys = layer.keys;
 				theRecords = layer.records;
 				theOverflow = layer.overflow;
 				theValueIds = layer.valueIds;
+				theImpacts = layer.impacts;
 				thePeek = layer.peek;
 			}
 
@@ -6548,7 +7141,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			// the key column alone must never address the record column
 			final InsertionPosition insertionPosition =
 				theKeys.findKeyPosition(
-					value, 0, observableLeafPeek(thePeek, theKeys, theRecords, theOverflow, theValueIds) + 1,
+					value, 0,
+					observableLeafPeek(thePeek, theKeys, theRecords, theOverflow, theValueIds, theImpacts) + 1,
 					this.comparator
 				);
 			return insertionPosition.alreadyPresent() ? insertionPosition.position() : -1;
@@ -6563,20 +7157,28 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 
 		@Override
 		public BPlusLeafTreeNode<M> createLayer() {
-			return new BPlusLeafTreeNode<>(
+			final BPlusLeafTreeNode<M> layer = new BPlusLeafTreeNode<>(
 				this.keys,
 				this.records,
 				this.overflow,
 				this.valueIds,
+				this.impacts,
 				this.keys,
 				this.records,
 				this.overflow,
 				this.valueIds,
+				this.impacts,
 				0,
 				this.peek + 1,
 				this.comparator,
 				false
 			);
+			if (this.impacts != null) {
+				// a leaf born in this transaction holds pending deltas in its base column, which the layer must not
+				// write in place - a savepoint that created the layer would drop it on rollback and keep those writes
+				layer.impacts = ImpactRecords.ownPendingDeltas(this.impacts);
+			}
+			return layer;
 		}
 
 		/**
@@ -6584,11 +7186,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * {@link ValueColumn#duplicate()}, the single-record column via {@link RecordColumn#duplicate()}, and the lazy
 		 * overflow column via {@link OverflowColumn#duplicate()}, which copies the array but **not** the bitmaps in it
 		 * — those own their own transactional layers and are snapshotted independently, so the leaf only needs to
-		 * remember which slot points to which bitmap. Independent copies guarantee a later mutation, or a repeated
-		 * {@link #restore}, cannot corrupt the memento. Every column keeps its physical length verbatim, so a rollback
-		 * restores the leaf's physical shape as faithfully as its content.
+		 * remember which slot points to which bitmap. The optional value id column is deep-copied the same way. The
+		 * impact column goes through {@link ImpactRecords#snapshotColumn}: its slots are shared like the overflow
+		 * column's, except a pending delta, which is written in place and is therefore marked rather than shared.
+		 * Independent copies guarantee a later mutation, or a repeated {@link #restore}, cannot corrupt the memento.
+		 * Every column keeps its physical length verbatim, so a rollback restores the leaf's physical shape as
+		 * faithfully as its content.
 		 *
-		 * @return an independent snapshot of this leaf's three columns and peek
+		 * @return an independent snapshot of every column of this leaf and its peek
 		 */
 		@Nonnull
 		@Override
@@ -6598,13 +7203,16 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				this.records.duplicate(),
 				this.overflow == null ? null : this.overflow.duplicate(),
 				this.valueIds == null ? null : this.valueIds.duplicate(),
+				// not a plain duplicate: a pending delta is written in place, so it is marked rather than shared
+				this.impacts == null ? null : ImpactRecords.snapshotColumn(this.impacts),
 				this.peek
 			);
 		}
 
 		/**
 		 * Restores the columnar state captured by {@link #snapshot}. Fresh copies of the memento's columns are installed
-		 * so the memento stays reusable for a repeated restore.
+		 * so the memento stays reusable for a repeated restore; the impact column is rebuilt through
+		 * {@link ImpactRecords#restoreColumn}, which rewinds every marked pending delta to its mark.
 		 *
 		 * @param memento the state previously captured by {@link #snapshot}
 		 */
@@ -6614,8 +7222,22 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.records = memento.records().duplicate();
 			this.overflow = memento.overflow() == null ? null : memento.overflow().duplicate();
 			this.valueIds = memento.valueIds() == null ? null : memento.valueIds().duplicate();
+			this.impacts = memento.impacts() == null ? null : ImpactRecords.restoreColumn(memento.impacts());
 			this.peek = memento.peek();
 			assertColumnsAlignedWithPeek();
+		}
+
+		/**
+		 * Closes the marks {@link #snapshot} opened on the pending impact deltas of this leaf, so they stop keeping an
+		 * undo log once the savepoint is over - see {@link ImpactRecords#releaseColumn}.
+		 *
+		 * @param memento the state previously captured by {@link #snapshot}
+		 */
+		@Override
+		public void releaseMemento(@Nonnull BPlusLeafNodeMemento<M> memento) {
+			if (memento.impacts() != null) {
+				ImpactRecords.releaseColumn(memento.impacts());
+			}
 		}
 
 		@Override
@@ -6633,18 +7255,21 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final RecordColumn theRecords;
 			final OverflowColumn theOverflow;
 			final RecordColumn theValueIds;
+			final OverflowColumn theImpacts;
 			final int thePeek;
 			if (layer == null) {
 				theKeys = this.keys;
 				theRecords = this.records;
 				theOverflow = this.overflow;
 				theValueIds = this.valueIds;
+				theImpacts = this.impacts;
 				thePeek = this.peek;
 			} else {
 				theKeys = layer.keys;
 				theRecords = layer.records;
 				theOverflow = layer.overflow;
 				theValueIds = layer.valueIds;
+				theImpacts = layer.impacts;
 				thePeek = layer.peek;
 			}
 
@@ -6660,6 +7285,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			// one transaction changes its representation at most once — see the class javadoc. The committed content
 			// of a TransactionalBitmap is obtainable nowhere else either.
 			OverflowColumn newOverflow = null;
+			OverflowColumn newImpacts = null;
 			RecordColumn newRecords = null;
 			if (theOverflow != null) {
 				for (int i = 0; i < thePeek + 1; i++) {
@@ -6674,9 +7300,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					final Object committed;
 					final int committedCardinality;
 					final int survivingSingleId;
+					// the committed record set of the bitmap arm, which the impact arm aligns its pending delta with
+					Bitmap committedRecords = null;
 					if (original instanceof final TransactionalBitmap bitmap) {
-						final Bitmap committedRecords =
-							transactionalLayer.getStateCopyWithCommittedChanges(bitmap);
+						committedRecords = transactionalLayer.getStateCopyWithCommittedChanges(bitmap);
 						committedCardinality = committedRecords.size();
 						survivingSingleId = committedCardinality == 1 ? committedRecords.getFirst() : 0;
 						if (committedCardinality <= 1) {
@@ -6694,6 +7321,21 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 						// an `int[]` slot can never have outgrown its tier - the promotion above the threshold
 						// happens eagerly, at mutation time - so it is carried across unchanged
 						committed = original;
+					}
+					if (theImpacts != null && committedCardinality > 0) {
+						// the impact slot follows the committed tier: a pending delta is aligned here, against the
+						// committed-before and committed-after bitmaps, and a demotion carries the surviving impacts
+						// into the shape the demoted record set takes
+						final Object originalImpacts = theImpacts.recordsAt(i);
+						final Object committedImpacts = ImpactRecords.committed(
+							originalImpacts, original, committedRecords, committedCardinality == 1 ? null : committed
+						);
+						if (committedImpacts != originalImpacts) {
+							if (newImpacts == null) {
+								newImpacts = theImpacts.duplicate();
+							}
+							newImpacts.setAt(i, committedImpacts);
+						}
 					}
 					if (committedCardinality == 1) {
 						// DEMOTE: revert the multi bucket to the primitive single-record form. The surviving id is
@@ -6730,6 +7372,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				newRecords == null || newOverflow != null,
 				"A records-column demotion must always be accompanied by an overflow-column change!"
 			);
+			// the impact column can be rebuilt on its own: an impact replaced on a record the bucket already held
+			// changes no record slot, and a pending delta aligned here changes none either
+			final OverflowColumn theMergedImpacts = newImpacts != null ? newImpacts : theImpacts;
 			// Every branch below builds a NEW committed leaf, which is the one moment in a leaf's life where the
 			// physical shape of its columns may be changed for free: the arrays are about to be handed to a fresh
 			// instance anyway, so a column carrying four times the slots it needs pays one copy to give them back.
@@ -6737,12 +7382,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			// every index on every commit and dirty every persisted page, destroying the very property the granular
 			// paging design exists for.
 			final BPlusLeafTreeNode<M> result;
-			if (newOverflow != null) {
+			if (newOverflow != null || newImpacts != null) {
 				result = new BPlusLeafTreeNode<>(
 					theKeys.trimmed(),
 					theMergedRecords.trimmed(),
-					newOverflow.trimmed(),
+					newOverflow != null ? newOverflow.trimmed() : theOverflow.trimmed(),
 					theValueIds == null ? null : theValueIds.trimmed(),
+					theMergedImpacts == null ? null : theMergedImpacts.trimmed(),
 					thePeek,
 					this.comparator,
 					true
@@ -6753,6 +7399,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					theMergedRecords.trimmed(),
 					theOverflow == null ? null : theOverflow.trimmed(),
 					theValueIds == null ? null : theValueIds.trimmed(),
+					theImpacts == null ? null : theImpacts.trimmed(),
 					thePeek,
 					this.comparator,
 					true
@@ -6766,6 +7413,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					theMergedRecords.trimmed(),
 					theOverflow == null ? null : theOverflow.trimmed(),
 					theValueIds == null ? null : theValueIds.trimmed(),
+					theImpacts == null ? null : theImpacts.trimmed(),
 					thePeek,
 					this.comparator,
 					true
@@ -6793,6 +7441,21 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * existing bucket
 		 */
 		public int addRecord(@Nonnull M value, int pk) {
+			return addRecord(value, pk, ImpactRecords.NO_IMPACT);
+		}
+
+		/**
+		 * Impact-carrying form of {@link #addRecord(Comparable, int)}: the same insert, additionally storing `impact`
+		 * beside the record when this leaf carries the impact column.
+		 *
+		 * @param value  the value identifying the bucket
+		 * @param pk     the record id to add
+		 * @param impact the record's impact widened to `0..255`, or {@link ImpactRecords#NO_IMPACT} on a tree that
+		 *               carries none
+		 * @return the slot index the new bucket was inserted at, or {@link #NO_NEW_BUCKET} when the record joined an
+		 * existing bucket
+		 */
+		public int addRecord(@Nonnull M value, int pk, int impact) {
 			final BPlusLeafTreeNode<M> layer = perOperationWriteLayer(this, this.transactionalLayer);
 			// adding a record mutates this leaf's page: flag it for re-emission (the layer is created above regardless,
 			// so a rare no-op add over-reports at worst — never under-reports)
@@ -6809,11 +7472,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				final InsertionPosition insertionPosition =
 					this.keys.findKeyPosition(value, 0, this.peek + 1, this.comparator);
 				if (insertionPosition.alreadyPresent()) {
-					addToExistingBucket(insertionPosition.position(), value, pk);
+					addToExistingBucket(insertionPosition.position(), value, pk, impact);
 					return NO_NEW_BUCKET;
 				}
 				journalBucketInsertionIfOpen(value);
-				insertNewSingleBucket(insertionPosition.position(), value, pk);
+				insertNewSingleBucket(insertionPosition.position(), value, pk, impactSlotOf(impact));
 				return insertionPosition.position();
 			} else {
 				Assert.isPremiseValid(
@@ -6833,10 +7496,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				final boolean alreadyPresent = insertionPosition.alreadyPresent();
 				decoupleTransactionalArrays(!alreadyPresent);
 				if (alreadyPresent) {
-					layer.addToExistingBucket(position, value, pk);
+					layer.addToExistingBucket(position, value, pk, impact);
 					return NO_NEW_BUCKET;
 				}
-				layer.insertNewSingleBucket(position, value, pk);
+				layer.insertNewSingleBucket(position, value, pk, impactSlotOf(impact));
 				return position;
 			}
 		}
@@ -6871,7 +7534,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					throw new GenericEvitaInternalError("value already present in a unique long-payload bucket tree");
 				}
 				journalBucketInsertionIfOpen(value);
-				insertNewSingleBucket(insertionPosition.position(), value, payload);
+				insertNewSingleBucket(insertionPosition.position(), value, payload, null);
 				return insertionPosition.position();
 			} else {
 				// unconditionally an insert, unlike its two siblings: this tree's buckets are unique, so a present
@@ -6886,7 +7549,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (insertionPosition.alreadyPresent()) {
 					throw new GenericEvitaInternalError("value already present in a unique long-payload bucket tree");
 				}
-				layer.insertNewSingleBucket(insertionPosition.position(), value, payload);
+				layer.insertNewSingleBucket(insertionPosition.position(), value, payload, null);
 				return insertionPosition.position();
 			}
 		}
@@ -7028,18 +7691,27 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * Adds a single record to the existing bucket at `index`, promoting it if needed. Operates on the resolved
 		 * (decoupled) column instance (`this` is the layer or the non-transactional node).
 		 *
-		 * Two of its three arms write nothing into this leaf's columns and therefore journal nothing: the multi-bucket
-		 * arm hands the write to the bucket's own {@link TransactionalBitmap}, which journals the exact membership it
-		 * changes, and the already-the-sole-record arm is a no-op. Only the promotion writes a column, and its inverse
-		 * is pushed before the first of those writes.
+		 * Two of its three arms write nothing into this leaf's record columns: the multi-bucket arm hands the write to
+		 * the bucket's own record set - a {@link TransactionalBitmap} journals the exact membership it changes, a
+		 * replacement array is journalled here - and the already-the-sole-record arm is a no-op on the record set. On
+		 * an impact-carrying tree both arms do write the bucket's impact slot, and journal it through
+		 * {@link #journalBucketImpactsIfOpen} first. The promotion writes the record columns, and its inverse is pushed
+		 * before the first of those writes.
 		 *
-		 * @param index the bucket index
-		 * @param value the bucket's key, by which the journalled inverse re-finds this slot at replay time
-		 * @param pk    the record id to add
+		 * @param index  the bucket index
+		 * @param value  the bucket's key, by which the journalled inverse re-finds this slot at replay time
+		 * @param pk     the record id to add
+		 * @param impact the record's impact, or {@link ImpactRecords#NO_IMPACT} on a tree that carries none
 		 */
-		private void addToExistingBucket(int index, @Nonnull M value, int pk) {
+		private void addToExistingBucket(int index, @Nonnull M value, int pk, int impact) {
 			final Object bucketRecords = this.overflow == null ? null : this.overflow.recordsAt(index);
+			final Object bucketImpacts = this.impacts == null ? null : this.impacts.recordsAt(index);
 			if (bucketRecords != null) {
+				// the impact arm goes FIRST: it resolves the landing position against the record set as it is now -
+				// in the bitmap tier against the delegate the record arm is about to mutate in place (WARM_UP) or hang
+				// a diff layer on (inside a transaction) - see ImpactRecords
+				final Object updatedImpacts = this.impacts == null
+					? null : ImpactRecords.add(bucketImpacts, bucketRecords, pk, impact);
 				// multi bucket - the tier decides whether this is an in-place bitmap add or a replacement array, and
 				// the result is stored back unconditionally because the two arms answer differently
 				final Object updated = OverflowRecords.add(bucketRecords, pk);
@@ -7049,19 +7721,51 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					journalBucketRecordsIfOpen(value, bucketRecords);
 					this.overflow.setAt(index, updated);
 				}
+				if (updatedImpacts != bucketImpacts) {
+					// a changed slot is a new object: the only slot written in place is a transaction's pending
+					// delta, which keeps answering with the same instance and is captured by the leaf memento instead.
+					// Its pre-image is therefore a total restore
+					journalBucketImpactsIfOpen(value, bucketImpacts);
+					this.impacts.setAt(index, updatedImpacts);
+				}
 				return;
 			}
 			// single bucket
-			if (this.records.intAt(index) == pk) {
-				// already the sole record - no-op, stay single
+			final int held = this.records.intAt(index);
+			if (held == pk) {
+				// already the sole record - no-op on the record set, stay single; the impact is replaced
+				if (this.impacts != null) {
+					final Object replaced = ImpactRecords.single(impact);
+					if (replaced != bucketImpacts) {
+						journalBucketImpactsIfOpen(value, bucketImpacts);
+						this.impacts.setAt(index, replaced);
+					}
+				}
 				return;
 			}
 			// second distinct record - promote out of the primitive tier into a sorted two-element array. The record
 			// set is built BEFORE anything is journalled or written, so the only allocation left after the inverse is
 			// in place is the lazy overflow column itself - a single assignment which either happens whole or not at all
-			final Object promoted = OverflowRecords.promoteSingle(this.records.intAt(index), pk);
-			journalBucketPromotionIfOpen(value, this.records.longAt(index));
+			final Object promoted = OverflowRecords.promoteSingle(held, pk);
+			final Object promotedImpacts = this.impacts == null
+				? null : ImpactRecords.promoteSingle(bucketImpacts, held, pk, impact);
+			journalBucketPromotionIfOpen(value, this.records.longAt(index), bucketImpacts);
 			ensureOverflowColumn().setAt(index, promoted);
+			if (this.impacts != null) {
+				this.impacts.setAt(index, promotedImpacts);
+			}
+		}
+
+		/**
+		 * Builds the impact slot a freshly inserted single-record bucket takes: a cached {@link Byte} on an
+		 * impact-carrying tree, `null` on every other one.
+		 *
+		 * @param impact the record's impact, or {@link ImpactRecords#NO_IMPACT}
+		 * @return the slot to attach, or `null`
+		 */
+		@Nullable
+		private Object impactSlotOf(int impact) {
+			return this.impacts == null ? null : ImpactRecords.single(impact);
 		}
 
 		/**
@@ -7094,7 +7798,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			// built while still detached from this leaf, so any inverse its own writes push is replayed against an
 			// instance the demotion below has already made unreachable
 			final Object promoted = OverflowRecords.promoteSingleWithAll(this.records.intAt(index), pks);
-			journalBucketPromotionIfOpen(value, this.records.longAt(index));
+			// the bulk path is refused on an impact-carrying tree, so there is never an impact slot to carry here
+			journalBucketPromotionIfOpen(
+				value, this.records.longAt(index), this.impacts == null ? null : this.impacts.recordsAt(index)
+			);
 			ensureOverflowColumn().setAt(index, promoted);
 		}
 
@@ -7106,8 +7813,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * the primitive single form (see the class javadoc), so a bucket never thrashes its representation within one
 		 * transaction.
 		 *
-		 * A multi bucket that survives the removal writes nothing into this leaf's columns, so the bucket's own
-		 * {@link TransactionalBitmap} is the only thing that journals. Both arms that DELETE a bucket push their
+		 * A multi bucket that survives the removal writes nothing into this leaf's record columns beyond a replacement
+		 * record set or impact slot, each journalled before it is stored; a {@link TransactionalBitmap} journals its
+		 * own membership. Both arms that DELETE a bucket push their
 		 * re-insertion inverse first, and for the drained multi bucket the two pushes land in exactly the order a
 		 * rollback needs: the bitmap's own `removeAll` inverse was pushed before this leaf's, so reverse replay
 		 * re-inserts the (still empty) bucket first and only then refills it.
@@ -7120,7 +7828,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		private int removeFromBucket(int index, @Nonnull M value, @Nonnull int... pks) {
 			final Object bucketRecords = this.overflow == null ? null : this.overflow.recordsAt(index);
+			final Object bucketImpacts = this.impacts == null ? null : this.impacts.recordsAt(index);
 			if (bucketRecords != null) {
+				// the impact arm goes first, for the reason addToExistingBucket gives
+				final Object updatedImpacts = this.impacts == null
+					? null : ImpactRecords.remove(bucketImpacts, bucketRecords, pks);
 				// multi bucket - the bitmap arm mutates in place, the array arm answers with a shorter array
 				final Object updated = OverflowRecords.remove(bucketRecords, pks);
 				if (OverflowRecords.cardinality(updated) == 0) {
@@ -7139,7 +7851,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					// arm mutated it in place, so this IS the drained instance whose own inverse refills it; the array
 					// arm never touched it, so it is the full pre-removal array and re-attaching it restores the
 					// bucket outright, with no refill to wait for
-					journalBucketDeletionIfOpen(value, this.records.longAt(index), bucketRecords, dyingValueId);
+					journalBucketDeletionIfOpen(
+						value, this.records.longAt(index), bucketRecords, dyingValueId, bucketImpacts
+					);
 					deleteBucketAt(index);
 					return dyingValueId;
 				}
@@ -7150,6 +7864,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					journalBucketRecordsIfOpen(value, bucketRecords);
 					this.overflow.setAt(index, updated);
 				}
+				if (updatedImpacts != bucketImpacts) {
+					journalBucketImpactsIfOpen(value, bucketImpacts);
+					this.impacts.setAt(index, updatedImpacts);
+				}
 				return NO_DELETED_BUCKET;
 			}
 			// single bucket - removing its sole id deletes the bucket
@@ -7158,7 +7876,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (pk == held) {
 					final int dyingValueId = this.valueIds == null ?
 						ValueIdAllocator.UNASSIGNED_VALUE_ID : this.valueIds.intAt(index);
-					journalBucketDeletionIfOpen(value, held, null, dyingValueId);
+					journalBucketDeletionIfOpen(value, held, null, dyingValueId, bucketImpacts);
 					deleteBucketAt(index);
 					return dyingValueId;
 				}
@@ -7168,7 +7886,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		/**
-		 * Inserts a new single-record bucket at `position`, shifting all three columns right by one. The payload is widened
+		 * Inserts a new single-record bucket at `position`, shifting every column right by one. The payload is widened
 		 * to `long` so the same helper serves both the `int` record-set path (an `int` pk auto-widens, then narrows back in
 		 * {@link IntRecordColumn#insertAt}) and the `long`-payload path (a packed `long` stored verbatim by
 		 * {@link LongRecordColumn#insertAt}).
@@ -7177,11 +7895,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * journalled deletion (see {@link #journalBucketDeletionIfOpen}) and a re-insertion made during a rollback must
 		 * not record anything.
 		 *
-		 * @param position the position at which to insert the new bucket
-		 * @param value    the bucket value
-		 * @param payload  the lone record id (widened `int` pk) or packed `long` payload
+		 * @param position   the position at which to insert the new bucket
+		 * @param value      the bucket value
+		 * @param payload    the lone record id (widened `int` pk) or packed `long` payload
+		 * @param impactSlot the impact slot the bucket carries, or `null` when the tree carries no impacts
 		 */
-		private void insertNewSingleBucket(int position, @Nonnull M value, long payload) {
+		private void insertNewSingleBucket(
+			int position, @Nonnull M value, long payload, @Nullable Object impactSlot
+		) {
 			this.keys.insertKeyAt(position, value);
 			this.records.insertAt(position, payload);
 			if (this.overflow != null) {
@@ -7193,11 +7914,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				// minted id onto it immediately after this call returns
 				this.valueIds.insertAt(position, 0);
 			}
+			if (this.impacts != null) {
+				this.impacts.insertAt(position, impactSlot);
+			}
 			this.peek++;
 		}
 
 		/**
-		 * Inserts a bucket holding an ALREADY BUILT record set at `position`, shifting all three columns right by one.
+		 * Inserts a bucket holding an ALREADY BUILT record set at `position`, shifting every column right by one.
 		 * The multi-bucket counterpart of {@link #insertNewSingleBucket}, and it journals nothing for the same reason:
 		 * it also serves the replay of a drained bucket's deletion, which re-attaches the very bitmap instance that was
 		 * dropped so the bitmap's own (older) inverse can refill it.
@@ -7213,16 +7937,18 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * multi if the column already existed, and no inverse ever drops a column that existed before its own
 		 * operation.
 		 *
-		 * @param position the position at which to insert the bucket
-		 * @param value    the bucket value
-		 * @param payload  the value the record column must carry at `position` (see above)
-		 * @param bucket   the record set to attach at `position`
+		 * @param position   the position at which to insert the bucket
+		 * @param value      the bucket value
+		 * @param payload    the value the record column must carry at `position` (see above)
+		 * @param bucket     the record set to attach at `position`
+		 * @param impactSlot the impact slot to attach at `position`, or `null` when the tree carries no impacts
 		 */
 		private void insertMultiBucket(
 			int position,
 			@Nonnull M value,
 			long payload,
-			@Nonnull Object bucket
+			@Nonnull Object bucket,
+			@Nullable Object impactSlot
 		) {
 			// the overflow column is created covering the leaf's current buckets, and its own insert below then moves
 			// it to `peek + 2` in lockstep with the record column beside it
@@ -7236,12 +7962,15 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				// one back)
 				this.valueIds.insertAt(position, 0);
 			}
+			if (this.impacts != null) {
+				this.impacts.insertAt(position, impactSlot);
+			}
 			this.peek++;
 		}
 
 		/**
 		 * Inserts a new bucket at `position` holding the given records (single when one id, a multi bitmap otherwise),
-		 * shifting all three columns right by one, and journals the deletion that undoes it.
+		 * shifting every column right by one, and journals the deletion that undoes it.
 		 *
 		 * @param position the position at which to insert the new bucket
 		 * @param value    the bucket value
@@ -7250,7 +7979,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		private void insertNewBucket(int position, @Nonnull M value, @Nonnull int... pks) {
 			if (pks.length == 1) {
 				journalBucketInsertionIfOpen(value);
-				insertNewSingleBucket(position, value, pks[0]);
+				insertNewSingleBucket(position, value, pks[0], null);
 			} else {
 				// the record set is built before the inverse is pushed and before the first column write, so the only
 				// step left that can allocate is the lazy overflow column, which insertMultiBucket resolves first
@@ -7259,12 +7988,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				// a bucket born multi has no single record behind it, so its record slot really is don't-care - unlike
 				// the replay case insertMultiBucket's javadoc describes, nothing can later demote this bucket to a
 				// single form that would read the slot back
-				insertMultiBucket(position, value, 0L, inserted);
+				insertMultiBucket(position, value, 0L, inserted, null);
 			}
 		}
 
 		/**
-		 * Deletes the bucket at `index`, collapsing all three columns. When the bucket was bitmap-tier its
+		 * Deletes the bucket at `index`, collapsing every column. When the bucket was bitmap-tier its
 		 * transactional layer is released via {@code discardRemovedValueLayer} so it is not detected as stale on
 		 * commit; an array-tier or single bucket owns no such layer and the call is a no-op for it.
 		 *
@@ -7285,6 +8014,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			if (this.valueIds != null) {
 				// the dead value's id is NOT given back — ids are monotonic with holes, so the slot simply collapses
 				this.valueIds.removeAt(index);
+			}
+			if (this.impacts != null) {
+				this.impacts.removeAt(index);
 			}
 			this.peek--;
 		}
@@ -7347,10 +8079,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 *
 		 * Must be called BEFORE the overflow column is resolved, since resolving it may be the write that creates it.
 		 *
-		 * @param value   the key of the bucket about to be promoted
-		 * @param payload the single record the bucket holds, to be restored into the record column on demotion
+		 * @param value           the key of the bucket about to be promoted
+		 * @param payload         the single record the bucket holds, to be restored into the record column on demotion
+		 * @param previousImpacts the single record's impact slot, to be restored beside it, or `null` when this leaf
+		 *                        carries no impact column
 		 */
-		private void journalBucketPromotionIfOpen(@Nonnull M value, long payload) {
+		private void journalBucketPromotionIfOpen(
+			@Nonnull M value, long payload, @Nullable Object previousImpacts
+		) {
 			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
 			if (savepoint != null && !savepoint.isCaptured(this)) {
 				final boolean overflowColumnAbsent = this.overflow == null;
@@ -7363,9 +8099,38 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 							this.overflow.setAt(position.position(), null);
 						}
 						this.records.setAt(position.position(), payload);
+						if (this.impacts != null) {
+							this.impacts.setAt(position.position(), previousImpacts);
+						}
 					}
 					if (overflowColumnAbsent) {
 						this.overflow = null;
+					}
+				});
+			}
+		}
+
+		/**
+		 * Journals the inverse of a bucket's impact slot being REPLACED - a multi bucket's on an insert or removal, a
+		 * single bucket's when its sole record is re-added with a new impact: putting the previous slot back at that
+		 * key. The impact twin of {@link #journalBucketRecordsIfOpen}, and it fires on every tier for the same reason
+		 * that method fires on the array tier only: outside a transaction, where a warm-up savepoint journals, an
+		 * impact slot is never written in place and journals nothing of its own, so a changed slot is a new object
+		 * whose pre-image, captured by reference, is a total restore.
+		 *
+		 * Must be called BEFORE the slot is written.
+		 *
+		 * @param value           the key of the bucket whose impact slot is about to be replaced
+		 * @param previousImpacts the impact slot currently attached at that key
+		 */
+		private void journalBucketImpactsIfOpen(@Nonnull M value, @Nullable Object previousImpacts) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null && !savepoint.isCaptured(this)) {
+				savepoint.push(() -> {
+					final InsertionPosition position =
+						this.keys.findKeyPosition(value, 0, this.peek + 1, this.comparator);
+					if (position.alreadyPresent() && this.impacts != null) {
+						this.impacts.setAt(position.position(), previousImpacts);
 					}
 				});
 			}
@@ -7427,19 +8192,23 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * {@code InvertedIndex#removeRecord} refuses as a premise violation the next time that value dies, and it
 		 * silently unlinks the value from every posting a substring accelerator holds against its old id.
 		 *
-		 * @param value   the key of the bucket about to be deleted
-		 * @param payload the value the record column carries at the bucket's slot — its lone record for a single
-		 *                bucket, and for a multi one the value a later demotion may still expose (see
-		 *                {@link #insertMultiBucket})
-		 * @param bucket  the drained record set to re-attach, or `null` when the bucket was a single one
-		 * @param valueId the id the dying bucket carried, or {@link ValueIdAllocator#UNASSIGNED_VALUE_ID} when this
-		 *                leaf holds no id column
+		 * @param value      the key of the bucket about to be deleted
+		 * @param payload    the value the record column carries at the bucket's slot — its lone record for a single
+		 *                   bucket, and for a multi one the value a later demotion may still expose (see
+		 *                   {@link #insertMultiBucket})
+		 * @param bucket     the drained record set to re-attach, or `null` when the bucket was a single one
+		 * @param valueId    the id the dying bucket carried, or {@link ValueIdAllocator#UNASSIGNED_VALUE_ID} when this
+		 *                   leaf holds no id column
+		 * @param impactSlot the impact slot the dying bucket carried, or `null` when this leaf holds no impact column;
+		 *                   captured by reference, which is a total restore because outside a transaction a slot is
+		 *                   never written in place
 		 */
 		private void journalBucketDeletionIfOpen(
 			@Nonnull M value,
 			long payload,
 			@Nullable Object bucket,
-			int valueId
+			int valueId,
+			@Nullable Object impactSlot
 		) {
 			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
 			if (savepoint != null && !savepoint.isCaptured(this)) {
@@ -7450,9 +8219,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 						return;
 					}
 					if (bucket == null) {
-						insertNewSingleBucket(position.position(), value, payload);
+						insertNewSingleBucket(position.position(), value, payload, impactSlot);
 					} else {
-						insertMultiBucket(position.position(), value, payload, bucket);
+						insertMultiBucket(position.position(), value, payload, bucket, impactSlot);
 					}
 					if (this.valueIds != null) {
 						this.valueIds.setAt(position.position(), valueId);
@@ -7540,7 +8309,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * defeating inlining" is one of the three named ways to break it, and that doing so "silently reintroduces a
 		 * per-insert allocation with **no test failure**". Planting one inside the two hottest insert methods, and
 		 * enlarging them against the inlining budget of the chain that escape analysis depends on, is a cost this
-		 * invariant does not have to pay: the per-insert lockstep of the four columns is pinned by
+		 * invariant does not have to pay: the per-insert lockstep of the five columns is pinned by
 		 * `BucketBPlusTreeValueIdTest` and the bucket tree's own suites instead, and the failure mode the invariant
 		 * really guards — a committed column reallocated by a self-copy — is reached through the structural paths.
 		 *
@@ -7553,6 +8322,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			final int expected = this.peek + 1;
 			if (this.keys.size() != expected || this.records.size() != expected
 				|| (this.valueIds != null && this.valueIds.size() != expected)
+				|| (this.impacts != null && this.impacts.size() != expected)
 				|| (this.overflow != null && this.overflow.size() != expected)) {
 				throwColumnMisalignment(expected);
 			}
@@ -7567,7 +8337,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		private void throwColumnMisalignment(int expected) {
 			throw new GenericEvitaInternalError(
-				columnMisalignmentMessage(expected, this.keys, this.records, this.valueIds, this.overflow)
+				columnMisalignmentMessage(
+					expected, this.keys, this.records, this.valueIds, this.impacts, this.overflow
+				)
 			);
 		}
 
@@ -7586,17 +8358,20 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * republished through two unordered stores on an object a query thread may be reading — after which the
 		 * trailing check finds the leaf tidy and says nothing at all.
 		 *
-		 * Only columns the caller actually aliased are examined, so the genuine split pays four reference compares.
+		 * Only columns the caller actually aliased are examined, so the genuine split pays at most five reference
+		 * compares.
 		 *
 		 * @param expected         the live run every aliased origin column must report (the copied range's length)
 		 * @param originKeys       the source key column
 		 * @param originRecords    the source single-record column
 		 * @param originOverflow   the source lazy multi-record column, or `null`
 		 * @param originValueIds   the source value id column, or `null`
+		 * @param originImpacts    the source impact column, or `null`
 		 * @param keys             the target key column
 		 * @param records          the target single-record column
 		 * @param overflow         the target lazy multi-record column, or `null`
 		 * @param valueIds         the target value id column, or `null`
+		 * @param impacts          the target impact column, or `null`
 		 */
 		private static void assertSelfCopySourceIsAligned(
 			int expected,
@@ -7604,17 +8379,22 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			@Nonnull RecordColumn originRecords,
 			@Nullable OverflowColumn originOverflow,
 			@Nullable RecordColumn originValueIds,
+			@Nullable OverflowColumn originImpacts,
 			@Nonnull ValueColumn<?> keys,
 			@Nonnull RecordColumn records,
 			@Nullable OverflowColumn overflow,
-			@Nullable RecordColumn valueIds
+			@Nullable RecordColumn valueIds,
+			@Nullable OverflowColumn impacts
 		) {
 			if ((keys == originKeys && originKeys.size() != expected)
 				|| (records == originRecords && originRecords.size() != expected)
 				|| (valueIds != null && valueIds == originValueIds && originValueIds.size() != expected)
+				|| (impacts != null && impacts == originImpacts && originImpacts.size() != expected)
 				|| (overflow != null && overflow == originOverflow && originOverflow.size() != expected)) {
 				throw new GenericEvitaInternalError(
-					columnMisalignmentMessage(expected, originKeys, originRecords, originValueIds, originOverflow)
+					columnMisalignmentMessage(
+						expected, originKeys, originRecords, originValueIds, originImpacts, originOverflow
+					)
 				);
 			}
 		}
@@ -7627,6 +8407,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @param keys     the key column to report on
 		 * @param records  the single-record column to report on
 		 * @param valueIds the value id column to report on, or `null`
+		 * @param impacts  the impact column to report on, or `null`
 		 * @param overflow the lazy multi-record column to report on, or `null`
 		 * @return the report text
 		 */
@@ -7636,19 +8417,23 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			@Nonnull ValueColumn<?> keys,
 			@Nonnull RecordColumn records,
 			@Nullable RecordColumn valueIds,
+			@Nullable OverflowColumn impacts,
 			@Nullable OverflowColumn overflow
 		) {
 			return "Leaf column misalignment: peek + 1 == " + expected + " but the columns report keys="
 				+ keys.size() + ", records=" + records.size()
 				+ ", valueIds=" + (valueIds == null ? "n/a" : valueIds.size())
+				+ ", impacts=" + (impacts == null ? "n/a" : impacts.size())
 				+ ", overflow=" + (overflow == null ? "n/a" : overflow.size())
 				+ ". Every column of a leaf must cover exactly the buckets the leaf holds.";
 		}
 
 		/**
-		 * Decouples the node's four columns into transaction-local copies before mutation. A layer starts out
+		 * Decouples the node's five columns into transaction-local copies before mutation. A layer starts out
 		 * aliasing the committed columns ({@link #createLayer()} passes them twice), so the copy is taken by
-		 * reference identity and every later call on the same layer is a no-op.
+		 * reference identity and every later call on the same layer is a no-op. The one exception is an impact column
+		 * holding pending deltas, which {@link #createLayer()} already replaced with the layer's own copy - the
+		 * identity check then finds nothing to decouple.
 		 *
 		 * `forInsert` picks which duplication primitive the copies are taken with, and it is not a hint — it decides
 		 * whether the very next statement allocates a second time. A committed leaf whose columns are exactly full
@@ -7681,6 +8466,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 				if (this.valueIds != null && layer.valueIds == this.valueIds) {
 					layer.valueIds = forInsert ? this.valueIds.duplicateForInsert() : this.valueIds.duplicate();
 				}
+				if (this.impacts != null && layer.impacts == this.impacts) {
+					layer.impacts = forInsert ? this.impacts.duplicateForInsert() : this.impacts.duplicate();
+				}
 				if (this.overflow != null && layer.overflow == this.overflow) {
 					layer.overflow = forInsert ? this.overflow.duplicateForInsert() : this.overflow.duplicate();
 				}
@@ -7688,15 +8476,20 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		}
 
 		/**
-		 * Immutable savepoint memento of a leaf node's three columns. The key column and single-record column are
-		 * private deep copies; the overflow column is a private **shallow** copy whose {@link TransactionalBitmap}
-		 * elements are shared by design (each owns its own snapshotted layer). See {@link #snapshot} and
-		 * {@link OverflowColumn#duplicate()}.
+		 * Savepoint memento of every column of a leaf node. The key, single-record and value id columns are private
+		 * deep copies; the overflow column is a private **shallow** copy whose {@link TransactionalBitmap} elements are
+		 * shared by design (each owns its own snapshotted layer). See {@link #snapshot} and
+		 * {@link OverflowColumn#duplicate()}. The memento is never written, but it is not immutable in full: its impact
+		 * column may hold {@link ImpactRecords.PendingImpactsMark} entries naming a live delta that keeps changing, so
+		 * the column must never be installed live as is - {@link ImpactRecords#restoreColumn} rebuilds it.
 		 *
 		 * @param keys     deep copy of the key (bucket-value) column
 		 * @param records  deep copy of the single-record column
 		 * @param overflow independent copy of the lazy overflow column (its bitmaps shared), or {@code null}
 		 * @param valueIds deep copy of the parallel value id column, or {@code null} when the tree carries no ids
+		 * @param impacts  independent copy of the parallel impact column - its slots shared, since they are never
+		 *                 written in place, except a pending delta, which is marked instead (see
+		 *                 {@link ImpactRecords#snapshotColumn}) - or {@code null} when the tree carries no impacts
 		 * @param peek     the last occupied column index
 		 */
 		record BPlusLeafNodeMemento<M extends Comparable<M>>(
@@ -7704,6 +8497,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			@Nonnull RecordColumn records,
 			@Nullable OverflowColumn overflow,
 			@Nullable RecordColumn valueIds,
+			@Nullable OverflowColumn impacts,
 			int peek
 		) {
 		}
@@ -7725,6 +8519,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		private RecordColumn leafRecords;
 		@Nullable private OverflowColumn leafOverflow;
 		@Nullable private RecordColumn leafValueIds;
+		@Nullable private OverflowColumn leafImpacts;
 		private int leafPeek;
 		private long leafId;
 
@@ -7840,6 +8635,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			return new SingleRecordBitmap(this.leafRecords.intAt(this.currentIndex));
 		}
 
+		@Nonnull
+		@Override
+		public ImpactView impacts() {
+			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
+			return impactViewAt(this.leafImpacts, this.leafOverflow, this.currentIndex);
+		}
+
 		@Override
 		public int size() {
 			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
@@ -7870,8 +8672,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.leafRecords = leaf.getRecords();
 			this.leafOverflow = leaf.getOverflow();
 			this.leafValueIds = leaf.getValueIds();
+			this.leafImpacts = leaf.getImpacts();
 			this.leafPeek = observableLeafPeek(
-				leaf.getPeek(), this.leafKeys, this.leafRecords, this.leafOverflow, this.leafValueIds
+				leaf.getPeek(), this.leafKeys, this.leafRecords, this.leafOverflow, this.leafValueIds,
+				this.leafImpacts
 			);
 			this.leafId = leaf.getId();
 		}
@@ -7885,6 +8689,14 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					BPlusTreeNode<?, ?> currentNode = this.path[level][this.pathIndex[level]];
 					boolean emptySubtree = false;
 					for (int i = level + 1; i <= this.path.length - 1; i++) {
+						if (currentNode == null) {
+							// a slot the captured `pathPeeks` admits but whose child store this reader cannot see
+							// yet - see `observableChildIndex`. It is the LAST slot of its level, and the pre-growth
+							// child to its left has already been walked, so the walk takes the next sibling exactly as
+							// for an emptied node below. The premise still guards a non-null node of the wrong kind
+							emptySubtree = true;
+							break;
+						}
 						Assert.isPremiseValid(
 							currentNode instanceof BPlusInternalTreeNode, "Internal node expected!");
 						//noinspection unchecked
@@ -7940,6 +8752,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		private RecordColumn leafRecords;
 		@Nullable private OverflowColumn leafOverflow;
 		@Nullable private RecordColumn leafValueIds;
+		@Nullable private OverflowColumn leafImpacts;
 		private int leafPeek;
 		private long leafId;
 
@@ -8027,6 +8840,13 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			return new SingleRecordBitmap(this.leafRecords.intAt(this.currentIndex));
 		}
 
+		@Nonnull
+		@Override
+		public ImpactView impacts() {
+			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
+			return impactViewAt(this.leafImpacts, this.leafOverflow, this.currentIndex);
+		}
+
 		@Override
 		public int size() {
 			Assert.isPremiseValid(this.positioned, "Cursor is not positioned at a bucket!");
@@ -8057,8 +8877,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			this.leafRecords = leaf.getRecords();
 			this.leafOverflow = leaf.getOverflow();
 			this.leafValueIds = leaf.getValueIds();
+			this.leafImpacts = leaf.getImpacts();
 			this.leafPeek = observableLeafPeek(
-				leaf.getPeek(), this.leafKeys, this.leafRecords, this.leafOverflow, this.leafValueIds
+				leaf.getPeek(), this.leafKeys, this.leafRecords, this.leafOverflow, this.leafValueIds,
+				this.leafImpacts
 			);
 			this.leafId = leaf.getId();
 		}
@@ -8085,9 +8907,12 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 							emptySubtree = true;
 							break;
 						}
+						// ...and the slot it admits may still read `null`: step back to the pre-growth rightmost child,
+						// or the walk would skip this whole sibling - see `observableChildIndex`
+						final int rightmost = observableChildIndex(levelPeek, levelChildren);
 						this.path[i] = levelChildren;
-						this.pathIndex[i] = levelPeek;
-						currentNode = levelChildren[levelPeek];
+						this.pathIndex[i] = rightmost;
+						currentNode = levelChildren[rightmost];
 					}
 					if (!emptySubtree) {
 						loadCurrentLeaf();
@@ -8204,7 +9029,9 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 					// before the count needs no reordering at all, so this escapes on x86 just as readily as on AArch64
 					final BPlusTreeNode<M, ?>[] children = currentNode.getChildren();
 					final int nodePeek = observableInternalPeek(currentNode.getPeek(), children);
-					newCursorLevel = new CursorLevel<>(children, nodePeek, nodePeek);
+					// the bound keeps `peek` inside the array, not off a slot whose child store this reader cannot see
+					// yet: the rightmost child is the pre-growth one - see `observableChildIndex`
+					newCursorLevel = new CursorLevel<>(children, observableChildIndex(nodePeek, children), nodePeek);
 					replacedPath.set(i, newCursorLevel);
 				}
 				return new CursorWithLevel<>(

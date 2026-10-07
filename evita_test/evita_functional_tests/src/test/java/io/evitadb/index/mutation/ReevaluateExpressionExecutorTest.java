@@ -42,10 +42,12 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
+import io.evitadb.core.exception.ReferenceComponentNotIndexedException;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
@@ -72,12 +74,15 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
+import java.util.TreeMap;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import org.junit.jupiter.api.Tag;
 
@@ -456,6 +461,90 @@ class ReevaluateExpressionExecutorTest {
 
 			// Since evaluateFilter returned empty → all PKs in shouldNotBeIndexed → no facets present
 			assertNoFacets(testTarget.globalIndex());
+		}
+
+		/**
+		 * The condition runs through the query engine, which refuses to read a reference indexed in the queried scope
+		 * without the component the condition needs - a shape a catalog stored before the schema rule existed can
+		 * carry. That refusal is meant for a query: here it would abort the write of an unrelated entity, or the
+		 * write-ahead log replay that recovers the catalog. The condition must instead be answered as matching nothing,
+		 * and the write must go through.
+		 */
+		@Test
+		@DisplayName("should treat a condition refused for a missing indexed component as matching nothing")
+		void shouldTreatAConditionRefusedForAMissingIndexedComponentAsMatchingNothing() {
+			final TestTarget testTarget = prepareRefusedConditionTarget(
+				new ReferenceComponentNotIndexedException("mirrors the refusal of the query guard")
+			);
+			seedFacet(testTarget.globalIndex(), testTarget.refSchema(), 3, 2, 100);
+
+			assertDoesNotThrow(
+				() -> ReevaluateExpressionExecutorTest.this.executor.execute(
+					ReevaluateExpressionMutation.withoutOldValues(
+						REFERENCE_NAME, 3, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE
+					),
+					testTarget.target()
+				),
+				"A refusal meant for a query must not abort the index maintenance of a write"
+			);
+			verify(testTarget.target()).evaluateFilter(any(FilterBy.class), eq(Scope.LIVE));
+			assertNoFacets(testTarget.globalIndex());
+		}
+
+		/**
+		 * The control for the test above: only the dedicated refusal is absorbed. Any other failure of the condition
+		 * is a genuine error and must still propagate.
+		 */
+		@Test
+		@DisplayName("should propagate any other failure of the condition")
+		void shouldPropagateAnyOtherFailureOfTheCondition() {
+			final TestTarget testTarget = prepareRefusedConditionTarget(
+				new EvitaInvalidUsageException("an unrelated refusal")
+			);
+
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> ReevaluateExpressionExecutorTest.this.executor.execute(
+					ReevaluateExpressionMutation.withoutOldValues(
+						REFERENCE_NAME, 3, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE
+					),
+					testTarget.target()
+				),
+				"Only the refusal for a missing indexed component may be absorbed by the write path"
+			);
+		}
+
+		/**
+		 * Prepares a target whose condition evaluation fails with the passed exception, for a facet trigger reading
+		 * the group of product 100's reference to referenced entity 3 in group 2.
+		 *
+		 * @param failure what the condition evaluation throws
+		 * @return the prepared target
+		 */
+		@Nonnull
+		private TestTarget prepareRefusedConditionTarget(@Nonnull RuntimeException failure) {
+			final FilterBy triggerFilter = new FilterBy(
+				new ReferenceHaving(
+					REFERENCE_NAME,
+					new GroupHaving(
+						new AttributeEquals("inputWidgetType", "INTERVAL")
+					)
+				)
+			);
+			final StubFacetTrigger facetTrigger = new StubFacetTrigger(
+				REFERENCE_NAME, triggerFilter, DependencyType.REFERENCED_ENTITY_ATTRIBUTE
+			);
+			final AffectedEntityResolution affected = new AffectedEntityResolution(
+				List.of(new AffectedReferenceGroup(3, 2, new BaseBitmap(100)))
+			);
+			final TestTarget testTarget = createTestTarget(affected, ReferenceIndexType.FOR_FILTERING);
+			final IndexMutationTarget target = testTarget.target();
+			when(target.evaluateFilter(any(FilterBy.class), eq(Scope.LIVE))).thenThrow(failure);
+			when(target.getFacetTrigger(REFERENCE_NAME, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE))
+				.thenReturn(facetTrigger);
+			when(target.getHistogramTriggers(REFERENCE_NAME, Scope.LIVE))
+				.thenReturn(Collections.emptyList());
+			return testTarget;
 		}
 
 		@Test
@@ -1969,6 +2058,91 @@ class ReevaluateExpressionExecutorTest {
 			assertArrayEquals(
 				new int[]{100}, enriched.previouslyIndexedOwnerPKs().get(HISTOGRAM_NAME).allOwnerPKs().getArray()
 			);
+		}
+
+		/**
+		 * The histogram counterpart of the facet refusal test in {@link ConditionEvaluationTest}: a histogram condition
+		 * the query engine refuses for a missing indexed component must count as matching nothing - an inverted answer
+		 * would silently add every affected owner to the histogram buckets instead of failing. Covers both places the
+		 * condition is evaluated: a single run over all affected owners, and one run per contribution when the condition
+		 * reads the group. Each is checked against a control whose condition answers, so an always-empty result could
+		 * not pass.
+		 */
+		@Test
+		@DisplayName("treats a histogram condition refused for a missing indexed component as matching nothing")
+		void shouldTreatARefusedHistogramConditionAsMatchingNothing() {
+			final Map<String, FilterBy> conditions = Map.of(
+				"global", new FilterBy(new AttributeEquals("code", "x")),
+				"perContribution", new FilterBy(
+					new ReferenceHaving(REFERENCE_NAME, new GroupHaving(new AttributeEquals("inputWidgetType", "INTERVAL")))
+				)
+			);
+			final Map<String, String> actual = new TreeMap<>();
+			for (Map.Entry<String, FilterBy> condition : conditions.entrySet()) {
+				actual.put(
+					condition.getKey() + ".refused",
+					histogramConditionAnswer(
+						condition.getValue(),
+						target -> when(target.evaluateFilter(any(FilterBy.class), eq(Scope.LIVE)))
+							.thenThrow(new ReferenceComponentNotIndexedException("mirrors the refusal of the query guard"))
+					)
+				);
+				actual.put(
+					condition.getKey() + ".answered",
+					histogramConditionAnswer(
+						condition.getValue(),
+						target -> when(target.evaluateFilter(any(FilterBy.class), eq(Scope.LIVE)))
+							.thenReturn(new BaseBitmap(100, 200))
+					)
+				);
+			}
+			assertEquals(
+				Map.of(
+					"global.refused", "[]",
+					"global.answered", "[100, 200]",
+					"perContribution.refused", "[]",
+					"perContribution.answered", "[100, 200]"
+				),
+				actual,
+				"A refused histogram condition must qualify no owner, while an answered one qualifies the owners it names"
+			);
+		}
+
+		/**
+		 * Runs the read-only pre-pass for a histogram trigger with the given condition over products 100 and 200, both
+		 * referencing entity 3 in group 1, and renders the owners it reports as qualifying.
+		 *
+		 * @param condition        the condition of the histogram trigger
+		 * @param conditionAnswer  stubs how the target answers the condition
+		 * @return the qualifying owners, as an array rendering
+		 */
+		@Nonnull
+		private String histogramConditionAnswer(
+			@Nonnull FilterBy condition,
+			@Nonnull Consumer<IndexMutationTarget> conditionAnswer
+		) {
+			final AffectedReferenceGroup group = new AffectedReferenceGroup(3, 1, new BaseBitmap(100, 200));
+			final TestTarget testTarget = createTestTarget(
+				new AffectedEntityResolution(List.of(group)), ReferenceIndexType.FOR_FILTERING
+			);
+			final IndexMutationTarget target = testTarget.target();
+			// build the trigger first - Mockito rejects a mock() / when() nested inside another when()
+			final HistogramExpressionTrigger trigger = mock(HistogramExpressionTrigger.class);
+			when(trigger.getHistogramIndexName()).thenReturn(HISTOGRAM_NAME);
+			when(trigger.hasFilterByConstraint()).thenReturn(true);
+			when(trigger.getFilterByConstraint()).thenReturn(condition);
+			when(target.getHistogramTriggers(REFERENCE_NAME, Scope.LIVE)).thenReturn(List.of(trigger));
+			conditionAnswer.accept(target);
+
+			final Map<String, ContributionVerdicts> conditionState =
+				ReevaluateExpressionExecutor.evaluateHistogramConditionState(
+					ReevaluateExpressionMutation.withoutOldValues(
+						REFERENCE_NAME, 3, DependencyType.REFERENCED_ENTITY_ATTRIBUTE, Scope.LIVE
+					),
+					target
+				);
+			assertNotNull(conditionState, "The premise is a reference declaring a histogram trigger");
+			return Arrays.toString(conditionState.get(HISTOGRAM_NAME).allOwnerPKs().getArray());
 		}
 
 		/**

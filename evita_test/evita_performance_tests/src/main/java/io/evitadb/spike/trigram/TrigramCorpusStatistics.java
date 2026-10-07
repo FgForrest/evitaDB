@@ -615,35 +615,15 @@ public class TrigramCorpusStatistics {
 	/**
 	 * Reverses {@link TrigramCorpusExtractor#escape(String)}.
 	 *
+	 * Retained as the name every reader of this class already knows; the codec itself lives next to the
+	 * `escape` that defines the format, so the two cannot drift.
+	 *
 	 * @param value escaped TSV field
 	 * @return the original value
 	 */
 	@Nonnull
 	static String unescape(@Nonnull String value) {
-		if (value.indexOf('\\') < 0) {
-			return value;
-		}
-		final StringBuilder unescaped = new StringBuilder(value.length());
-		int i = 0;
-		while (i < value.length()) {
-			final char character = value.charAt(i++);
-			if (character != '\\' || i >= value.length()) {
-				unescaped.append(character);
-				continue;
-			}
-			final char escaped = value.charAt(i++);
-			switch (escaped) {
-				case '\\' -> unescaped.append('\\');
-				case 't' -> unescaped.append('\t');
-				case 'n' -> unescaped.append('\n');
-				case 'r' -> unescaped.append('\r');
-				default -> throw new GenericEvitaInternalError(
-					"Unknown escape sequence `\\" + escaped + "` in the corpus!",
-					"Unknown escape sequence in the corpus!"
-				);
-			}
-		}
-		return unescaped.toString();
+		return TrigramCorpusExtractor.unescape(value);
 	}
 
 	/* ========================================= support =========================================== */

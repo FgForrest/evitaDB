@@ -23,6 +23,7 @@
 
 package io.evitadb.core.query.sort.attribute.sorter;
 
+import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.ForcedSortResolution;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.PositionResolution;
@@ -38,7 +39,6 @@ import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.ArrayUtils.InsertionPosition;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 import io.evitadb.roaringbitmap.RoaringBatchIterator;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 
@@ -54,18 +54,44 @@ import java.util.function.IntConsumer;
  * Implementation of the {@link SortedRecordsProvider} that merges multiple instances into a one discarding
  * the duplicate record primary keys. This operation is quite costly for large data sets and should be cached.
  *
+ * A record is claimed by the first provider in array order that contains it, so the order of the providers decides
+ * which value a record present in several of them is compared on. Records comparing equal on their values follow in
+ * the order of their primary keys in the direction of the ordering - ascending for an ascending order, descending for
+ * a descending one - which is the order a single provider already yields for them, so merging never changes the order
+ * of equal records.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@RequiredArgsConstructor
 public final class MergedComparableSortedRecordsSupplierSorter implements Sorter, MergedSortedRecordsSupplierContract {
 	/**
 	 * Contains the {@link Comparator} for the sorting execution.
 	 */
 	@SuppressWarnings("rawtypes") private final Comparator comparator;
 	/**
+	 * Direction in which records comparing equal on their values are ordered by their primary keys.
+	 */
+	private final OrderDirection primaryKeyOrder;
+	/**
 	 * Contains the {@link SortedRecordsProvider} implementation with merged pre-sorted records.
 	 */
 	@Getter private final SortedRecordsProvider[] sortedRecordsProviders;
+
+	/**
+	 * Creates the sorter.
+	 *
+	 * @param comparator             comparator of the values the providers hold, already in the ordering direction
+	 * @param primaryKeyOrder        direction of the ordering, applied to the primary keys of records with equal values
+	 * @param sortedRecordsProviders providers in the order in which they claim records
+	 */
+	public MergedComparableSortedRecordsSupplierSorter(
+		@SuppressWarnings("rawtypes") @Nonnull Comparator comparator,
+		@Nonnull OrderDirection primaryKeyOrder,
+		@Nonnull SortedRecordsProvider[] sortedRecordsProviders
+	) {
+		this.comparator = comparator;
+		this.primaryKeyOrder = primaryKeyOrder;
+		this.sortedRecordsProviders = sortedRecordsProviders;
+	}
 
 	@Nonnull
 	@Override
@@ -149,12 +175,14 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 				// next we need to fetch comparable values for head values from each mask and compare them
 				final SortedRecordsProviderBuffer[] sortedRecordsProviderBuffers = new SortedRecordsProviderBuffer[maskPeak + 1];
 				int sortedRecordsProviderBufferPeak = 0;
+				final boolean primaryKeysDescending = this.primaryKeyOrder == OrderDirection.DESC;
 				// init first values
 				for (int i = 0; i <= maskPeak; i++) {
 					final PositionResolution resolution = maskResults[i];
 					final SortedRecordsProvider sortedRecordsProvider = this.sortedRecordsProviders[i];
 					final SortedRecordsProviderBuffer sortedRecordsProviderBuffer = new SortedRecordsProviderBuffer(
-						this.comparator, sortedRecordsProvider, resolution.mask(), queryContext
+						this.comparator, primaryKeysDescending,
+						sortedRecordsProvider, resolution.mask(), queryContext
 					);
 					if (sortedRecordsProviderBuffer.fetchNext()) {
 						sortedRecordsProviderBuffers[sortedRecordsProviderBufferPeak++] = sortedRecordsProviderBuffer;
@@ -251,6 +279,10 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 		 */
 		@SuppressWarnings("rawtypes") private final Comparator comparator;
 		/**
+		 * Whether records with equal values are ordered by descending primary key.
+		 */
+		private final boolean primaryKeysDescending;
+		/**
 		 * An iterator over batches of integers in the mask bitmap.
 		 * Used to access the indices of relevant sorted records.
 		 */
@@ -300,11 +332,13 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 
 		public SortedRecordsProviderBuffer(
 			@SuppressWarnings("rawtypes") @Nonnull Comparator comparator,
+			boolean primaryKeysDescending,
 			@Nonnull SortedRecordsProvider sortedRecordsProvider,
 			@Nonnull PersistentRoaringBitmap mask,
 			@Nonnull QueryExecutionContext queryContext
 		) {
 			this.comparator = comparator;
+			this.primaryKeysDescending = primaryKeysDescending;
 			this.maskIterator = mask.getBatchIterator();
 			this.sortedRecordsProvider = sortedRecordsProvider;
 			this.sortedComparableForwardSeeker = sortedRecordsProvider.getSortedComparableForwardSeeker();
@@ -360,9 +394,10 @@ public final class MergedComparableSortedRecordsSupplierSorter implements Sorter
 			//noinspection unchecked,CompareToUsesNonFinalVariable
 			final int comparisonResult = this.comparator.compare(this.valueToCompare, o.valueToCompare);
 			if (comparisonResult == 0) {
-				// then compare primary keys
+				// then compare primary keys in the direction of the ordering
 				//noinspection CompareToUsesNonFinalVariable
-				return Integer.compare(this.primaryKey, o.primaryKey);
+				return this.primaryKeysDescending ?
+					Integer.compare(o.primaryKey, this.primaryKey) : Integer.compare(this.primaryKey, o.primaryKey);
 			} else {
 				return comparisonResult;
 			}

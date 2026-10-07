@@ -26,6 +26,7 @@ package io.evitadb.core.query.filter.translator.reference;
 import io.evitadb.core.query.QueryPlanner.EnclosingContainerRelation;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
@@ -147,10 +148,11 @@ public class ReferenceBodyTransposer {
 		@Nonnull Supplier<List<EntityIndex>> scopeIndexSupplier
 	) {
 		final Map<Formula, Boolean> projectableSubtrees = new IdentityHashMap<>();
+		final Map<Formula, OrChildren> orChildren = new IdentityHashMap<>();
 		final boolean negating = containsFutureNot(body);
 		if (!negating && combinedOnlyByUnion(body, projectableSubtrees)) {
-			// the body already answers the row-scoped question, so the rebuild would reproduce it at a cost that
-			// is quadratic in the size of the index family - see `combinedOnlyByUnion`. A body that was never
+			// the body already answers the row-scoped question, so the rebuild would only reproduce it at the cost
+			// of one projection per index in the family - see `combinedOnlyByUnion`. A body that was never
 			// evaluated per index lands here too: it says the same thing about every row, and carries no tag for
 			// `stripTags` to remove.
 			return stripTags(body);
@@ -163,7 +165,7 @@ public class ReferenceBodyTransposer {
 			for (final EntityIndex scopeIndex : scopeIndexes) {
 				collectProjection(
 					body, scopeIndex.getPrimaryKey(), scopeIndex::getAllPrimaryKeysFormula,
-					projectableSubtrees, perIndexFormulas
+					projectableSubtrees, orChildren, perIndexFormulas
 				);
 			}
 		} else {
@@ -172,7 +174,7 @@ public class ReferenceBodyTransposer {
 			perIndexFormulas = new ArrayList<>(taggedIndexes.size());
 			for (final Integer indexPrimaryKey : taggedIndexes) {
 				collectProjection(
-					body, indexPrimaryKey, UNREACHABLE_SUPER_SET, projectableSubtrees, perIndexFormulas
+					body, indexPrimaryKey, UNREACHABLE_SUPER_SET, projectableSubtrees, orChildren, perIndexFormulas
 				);
 			}
 		}
@@ -190,6 +192,7 @@ public class ReferenceBodyTransposer {
 	 * @param indexPrimaryKey     the index whose row is being isolated
 	 * @param superSet            owners of that index - the set a negation inside it is complemented against
 	 * @param projectableSubtrees memo shared across indexes
+	 * @param orChildren          memo of the split children of every `or` node, shared across indexes
 	 * @param collected           accumulator of the per-index formulas
 	 */
 	private static void collectProjection(
@@ -197,10 +200,11 @@ public class ReferenceBodyTransposer {
 		int indexPrimaryKey,
 		@Nonnull Supplier<Formula> superSet,
 		@Nonnull Map<Formula, Boolean> projectableSubtrees,
+		@Nonnull Map<Formula, OrChildren> orChildren,
 		@Nonnull List<Formula> collected
 	) {
 		final Formula projection = resolveNegation(
-			project(body, indexPrimaryKey, superSet, projectableSubtrees), superSet
+			project(body, indexPrimaryKey, superSet, projectableSubtrees, orChildren), superSet
 		);
 		if (!(projection instanceof EmptyFormula)) {
 			collected.add(projection);
@@ -232,6 +236,7 @@ public class ReferenceBodyTransposer {
 	 * @param indexPrimaryKey     the index whose row is being isolated
 	 * @param superSet            owners of that index, for the negations inside it
 	 * @param projectableSubtrees memoized answer to "does this subtree have to be projected at all"
+	 * @param orChildren          memoized split of the children of every `or` node reached so far
 	 * @return the projection, or {@link EmptyFormula#INSTANCE} when this index contributes nothing
 	 */
 	@Nonnull
@@ -239,7 +244,8 @@ public class ReferenceBodyTransposer {
 		@Nonnull Formula node,
 		int indexPrimaryKey,
 		@Nonnull Supplier<Formula> superSet,
-		@Nonnull Map<Formula, Boolean> projectableSubtrees
+		@Nonnull Map<Formula, Boolean> projectableSubtrees,
+		@Nonnull Map<Formula, OrChildren> orChildren
 	) {
 		if (node instanceof final IndexTaggedFormula tagged) {
 			return tagged.getIndexPrimaryKey() == indexPrimaryKey ?
@@ -247,7 +253,7 @@ public class ReferenceBodyTransposer {
 		}
 		if (node instanceof final FutureNotFormula futureNot) {
 			final Formula projectedInner = project(
-				futureNot.getInnerFormula(), indexPrimaryKey, superSet, projectableSubtrees
+				futureNot.getInnerFormula(), indexPrimaryKey, superSet, projectableSubtrees, orChildren
 			);
 			// nothing in this index matches what is being negated, so every row of it satisfies the negation -
 			// returning EMPTY here would delete the very owners the negation is supposed to select
@@ -259,15 +265,15 @@ public class ReferenceBodyTransposer {
 			return node;
 		}
 		final Formula[] children = node.getInnerFormulas();
+		if (node instanceof OrFormula) {
+			return projectDisjunction(
+				children, orChildren.computeIfAbsent(node, it -> OrChildren.of(children)),
+				indexPrimaryKey, superSet, projectableSubtrees, orChildren
+			);
+		}
 		final Formula[] projectedChildren = new Formula[children.length];
 		for (int i = 0; i < children.length; i++) {
-			projectedChildren[i] = project(children[i], indexPrimaryKey, superSet, projectableSubtrees);
-		}
-		if (node instanceof OrFormula) {
-			final Formula[] survivors = withoutEmpty(projectedChildren);
-			return survivors.length == 0 ?
-				EmptyFormula.INSTANCE :
-				FutureNotFormula.postProcess(survivors, EnclosingContainerRelation.DISJUNCTION, superSet);
+			projectedChildren[i] = project(children[i], indexPrimaryKey, superSet, projectableSubtrees, orChildren);
 		}
 		if (node instanceof AndFormula) {
 			// a leaf that contributed nothing for this row makes the whole conjunction empty for this row -
@@ -294,6 +300,125 @@ public class ReferenceBodyTransposer {
 	}
 
 	/**
+	 * Projects an `or` node onto one index, reading only the children that can contribute to it.
+	 *
+	 * Among an `or`'s children, a tagged child projects to its delegate for its own index and to nothing for every
+	 * other one, so for index `i` only the children tagged `i` and the untagged ones can survive. The per-index
+	 * contributions of a reference body sit under exactly such nodes - one child per index in the family - and
+	 * visiting all of them for every index made the rebuild quadratic in the family: 544 ms at 8,000 indexes,
+	 * 10.9 s at 32,000 for a conjunctive body. The split in {@link OrChildren} is computed once per node, so a
+	 * projection costs one lookup plus the untagged children. The survivors, their order, and how they are combined
+	 * are exactly what visiting every child produced.
+	 *
+	 * @param children            the children of the `or` node
+	 * @param split               the children split by the index that tagged them
+	 * @param indexPrimaryKey     the index whose row is being isolated
+	 * @param superSet            owners of that index, for the negations inside it
+	 * @param projectableSubtrees memoized answer to "does this subtree have to be projected at all"
+	 * @param orChildren          memoized split of the children of every `or` node reached so far
+	 * @return the projection, or {@link EmptyFormula#INSTANCE} when this index contributes nothing
+	 */
+	@Nonnull
+	private static Formula projectDisjunction(
+		@Nonnull Formula[] children,
+		@Nonnull OrChildren split,
+		int indexPrimaryKey,
+		@Nonnull Supplier<Formula> superSet,
+		@Nonnull Map<Formula, Boolean> projectableSubtrees,
+		@Nonnull Map<Formula, OrChildren> orChildren
+	) {
+		final int[] tagged = split.taggedPositionsOf(indexPrimaryKey);
+		final int[] untagged = split.untaggedPositions();
+		final List<Formula> survivors = new ArrayList<>(tagged.length + untagged.length);
+		int nextTagged = 0;
+		int nextUntagged = 0;
+		// merge the two position lists so the survivors keep the order the children had
+		while (nextTagged < tagged.length || nextUntagged < untagged.length) {
+			final int position = nextUntagged == untagged.length ||
+				(nextTagged < tagged.length && tagged[nextTagged] < untagged[nextUntagged]) ?
+				tagged[nextTagged++] : untagged[nextUntagged++];
+			final Formula projected = project(
+				children[position], indexPrimaryKey, superSet, projectableSubtrees, orChildren
+			);
+			if (!(projected instanceof EmptyFormula)) {
+				survivors.add(projected);
+			}
+		}
+		return survivors.isEmpty() ?
+			EmptyFormula.INSTANCE :
+			FutureNotFormula.postProcess(
+				survivors.toArray(Formula[]::new), EnclosingContainerRelation.DISJUNCTION, superSet
+			);
+	}
+
+	/**
+	 * The children of one `or` node, split once into the positions of the children each index tagged and the
+	 * positions of the untagged children, both in ascending order.
+	 *
+	 * @param taggedPositionsByIndex positions of the {@link IndexTaggedFormula} children, keyed by the tagging index
+	 * @param untaggedPositions      positions of every other child
+	 */
+	private record OrChildren(
+		@Nonnull Map<Integer, int[]> taggedPositionsByIndex,
+		@Nonnull int[] untaggedPositions
+	) {
+		/**
+		 * Positions of a node with no children tagged by the requested index.
+		 */
+		private static final int[] NONE = new int[0];
+
+		/**
+		 * Splits the children of an `or` node.
+		 *
+		 * @param children the children of the node
+		 * @return the split
+		 */
+		@Nonnull
+		static OrChildren of(@Nonnull Formula[] children) {
+			final Map<Integer, List<Integer>> tagged = CollectionUtils.createHashMap(children.length);
+			final List<Integer> untagged = new ArrayList<>(4);
+			for (int i = 0; i < children.length; i++) {
+				if (children[i] instanceof final IndexTaggedFormula taggedChild) {
+					tagged.computeIfAbsent(taggedChild.getIndexPrimaryKey(), k -> new ArrayList<>(1)).add(i);
+				} else {
+					untagged.add(i);
+				}
+			}
+			final Map<Integer, int[]> taggedPositions = CollectionUtils.createHashMap(tagged.size());
+			for (final Map.Entry<Integer, List<Integer>> entry : tagged.entrySet()) {
+				taggedPositions.put(entry.getKey(), toIntArray(entry.getValue()));
+			}
+			return new OrChildren(taggedPositions, toIntArray(untagged));
+		}
+
+		/**
+		 * Returns the positions of the children tagged by the index, in ascending order.
+		 *
+		 * @param indexPrimaryKey the index
+		 * @return the positions, empty when the index tagged no child of this node
+		 */
+		@Nonnull
+		int[] taggedPositionsOf(int indexPrimaryKey) {
+			return this.taggedPositionsByIndex.getOrDefault(indexPrimaryKey, NONE);
+		}
+
+		/**
+		 * Converts a list of positions to an array.
+		 *
+		 * @param positions the positions
+		 * @return the array
+		 */
+		@Nonnull
+		private static int[] toIntArray(@Nonnull List<Integer> positions) {
+			final int[] result = new int[positions.size()];
+			for (int i = 0; i < result.length; i++) {
+				result[i] = positions.get(i);
+			}
+			return result;
+		}
+	}
+
+	/**
 	 * Answers whether every per-index contribution in the subtree meets the others only under a disjunction.
 	 *
 	 * Such a body needs no rebuild at all. Projecting it onto index `i` keeps `i`'s own contributions and discards
@@ -302,15 +427,20 @@ public class ReferenceBodyTransposer {
 	 * are the same question. Any other operator above a contribution - a conjunction, or a container that keeps its
 	 * identity - makes the rebuild change the answer, which is the whole point of the transpose.
 	 *
-	 * Skipping the rebuild here is not a micro-optimisation. The rebuild walks the whole body once per index, and
-	 * the body holds one contribution per index, so its cost is quadratic in the size of the reference's index
-	 * family: measured at 224 ms for 8,000 indexes and quadrupling with every doubling, against families that
-	 * reach 169,102 indexes on a production catalog. A single leaf and a flat `or` of leaves - the overwhelmingly
-	 * common reference bodies, and the only shapes {@link BidirectionalReferenceRewriter} accepts - are exactly
-	 * the ones that land here.
+	 * Skipping the rebuild here is not a micro-optimisation. The rebuild builds one projection per index, and
+	 * families reach 169,102 indexes on a production catalog; it used to walk the whole body for each of them,
+	 * which made it quadratic - 224 ms at 8,000 indexes, quadrupling with every doubling - until
+	 * {@link #projectDisjunction} let a projection read only its own index's children. A single leaf and a flat
+	 * `or` of leaves - the overwhelmingly common reference bodies, and the only shapes
+	 * {@link BidirectionalReferenceRewriter} accepts - are exactly the ones that land here and skip even that.
 	 *
 	 * An index-independent subtree passes: it is kept whole for every index anyway, and a union of one thing with
 	 * itself is that thing.
+	 *
+	 * An {@link AttributeFormula} is looked through. Every attribute translator wraps its per-index contributions in
+	 * one, so without this no attribute leaf would ever take the fast path. The wrapper is a unary pass-through - it
+	 * computes exactly its child - so the union distributes over it: `Attr(Or(lᵢ))` and `Or(Attr(lᵢ))` are the same
+	 * set, and the body is returned with the wrapper still at its root, where the consumers matching on it expect it.
 	 *
 	 * @param node                subtree root
 	 * @param projectableSubtrees memo shared with {@link #isProjectable(Formula, Map)}
@@ -322,6 +452,9 @@ public class ReferenceBodyTransposer {
 	) {
 		if (node instanceof IndexTaggedFormula || !isProjectable(node, projectableSubtrees)) {
 			return true;
+		}
+		if (node instanceof AttributeFormula) {
+			return combinedOnlyByUnion(node.getInnerFormulas()[0], projectableSubtrees);
 		}
 		if (!(node instanceof OrFormula)) {
 			return false;

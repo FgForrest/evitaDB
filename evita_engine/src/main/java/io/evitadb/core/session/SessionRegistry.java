@@ -193,14 +193,14 @@ public final class SessionRegistry {
 	 * {@link #activeSessions} and {@link #currentSuspension} are: a fresh lock there would leave two independent gates
 	 * guarding one map, which is this very bug reintroduced by a rename.
 	 *
-	 * **The gate is only as complete as the paths that take it.** {@link #addSession(boolean, Supplier)} is today the
+	 * **The gate is only as complete as the paths that take it.** {@link #addSession(boolean, Function)} is today the
 	 * one and only way a session enters {@link #activeSessions}, which is what lets a single gate cover the whole
 	 * registry - {@link #createSession(Function)} reaches it too, since its factory ends there. A second registration
 	 * path that writes the map directly would be outside this fence and would reopen the race in silence.
 	 */
 	private final ReentrantReadWriteLock registrationGate;
 	/**
-	 * Serialises the admission {@link #addSession(boolean, Supplier)} performs while the catalog behind this registry
+	 * Serialises the admission {@link #addSession(boolean, Function)} performs while the catalog behind this registry
 	 * is **not** transactional, so that "there is no session yet" and "this session is in {@link #activeSessions}"
 	 * are one indivisible step.
 	 *
@@ -620,19 +620,25 @@ public final class SessionRegistry {
 	 * why the registration gate's read lock cannot stand in for it. A transactional catalog admits sessions in
 	 * parallel and does not take the admission lock at all.
 	 *
-	 * @param transactional   TRUE when the catalog behind this registry supports transactions, i.e. it is ALIVE
-	 * @param sessionSupplier constructs the session to be registered
+	 * **The registry chooses the catalog the session reads, not the caller.** The factory is handed the catalog
+	 * instance it must build the session on, and that instance is resolved only after its version has been pinned
+	 * against reclamation - see {@link #registerNewSession(Function)} for why a session built on a catalog the caller
+	 * resolved earlier can read a newer state than the one it reports.
+	 *
+	 * @param transactional  TRUE when the catalog behind this registry supports transactions, i.e. it is ALIVE
+	 * @param sessionFactory constructs the session to be registered on the catalog instance it is given - and on no
+	 *                       other
 	 * @return the proxy wrapping the newly registered session
 	 * @throws ConcurrentInitializationException when a session is already open on a non-transactional catalog
 	 */
 	@Nonnull
 	public EvitaInternalSessionContract addSession(
 		boolean transactional,
-		@Nonnull Supplier<EvitaSession> sessionSupplier
+		@Nonnull Function<Catalog, EvitaSession> sessionFactory
 	) {
 		return registerWhileNotSuspended(() -> {
 			if (transactional) {
-				return registerNewSession(sessionSupplier);
+				return registerNewSession(sessionFactory);
 			}
 			// CALIBRATION - this critical section is swept by `LongRunningSessionRegistryWarmUpAdmissionTest`
 			// (evita_test/evita_long_running_tests, io.evitadb.core.session). Measured on a 24-core Linux box with
@@ -657,7 +663,7 @@ public final class SessionRegistry {
 				if (incumbent.hasNext()) {
 					throw new ConcurrentInitializationException(incumbent.next());
 				}
-				return registerNewSession(sessionSupplier);
+				return registerNewSession(sessionFactory);
 			} finally {
 				this.exclusiveAdmissionLock.unlock();
 			}
@@ -669,19 +675,49 @@ public final class SessionRegistry {
 	 * index the registry maintains - {@link #activeSessions}, {@link #sessionsFifoQueue}, the version census in
 	 * {@link #catalogConsumedVersions} and the shared data store.
 	 *
-	 * Extracted out of {@link #addSession(boolean, Supplier)} so that the non-transactional path can wrap the
+	 * Extracted out of {@link #addSession(boolean, Function)} so that the non-transactional path can wrap the
 	 * emptiness check **and** this registration in a single critical section, while the transactional path calls it
 	 * with no extra lock held.
 	 *
-	 * **Ordering is load-bearing:** every step that can throw runs before the session becomes visible anywhere, so a
-	 * failed registration leaves no half-registered session behind. See the comment at the version pin.
+	 * **Ordering is load-bearing, twice over.** The catalog version is pinned *before* the catalog the session will
+	 * read is resolved, so no reclamation can give that version up while the session is being built - see the comment
+	 * at the capture pin. And every step that can throw runs before the session becomes visible anywhere, so a failed
+	 * registration leaves no half-registered session behind - see the comment at the version pin.
 	 *
-	 * @param sessionSupplier constructs the session to be registered
+	 * @param sessionFactory constructs the session to be registered on the catalog instance it is given
 	 * @return the proxy wrapping the newly registered session
 	 */
 	@Nonnull
-	private EvitaInternalSessionContract registerNewSession(@Nonnull Supplier<EvitaSession> sessionSupplier) {
-		final EvitaSession newSession = sessionSupplier.get();
+	private EvitaInternalSessionContract registerNewSession(@Nonnull Function<Catalog, EvitaSession> sessionFactory) {
+		// INVARIANT - pin first, resolve the catalog second. A session reads entity bodies and collection sizes
+		// through offset indexes shared by every catalog version, resolving its own version against their per-version
+		// roots - and those roots are released as soon as every consumer of a version has left
+		// (`catalogConsumersLeft`, clamped only by the retention floor of registered pins). A session resolved first
+		// and pinned afterwards is invisible to both for as long as it is being built: the last consumer of its
+		// version can leave, the next flush drops the roots, and `OffsetIndex.Roots#floorIndex` then silently answers
+		// the session's version with the oldest root still retained - a NEWER state, entities committed after the
+		// session's own version included, with no error anywhere. That is a snapshot-isolation leak - the shape of
+		// the "Entity with catalogVersion `559` is present in catalog version `558`" failures of
+		// `LongRunningEvitaTransactionalFunctionalTest` - and `SessionRegistryVersionPinTest` reproduces it
+		// deterministically when this pin is moved below the factory call.
+		//
+		// Pinning the version current at this instant, and only then resolving the catalog, closes the window. Every
+		// release of a version V is either clamped by this pin (it samples the retention floor under the same lock
+		// the pin is taken under) or was computed before the pin landed - and then from versions that had already
+		// been published at that time, which the catalog resolved below is at least as new as. The resolved version
+		// is therefore never below the oldest version any release could have given up. It may be newer than the
+		// pinned one, when a commit lands in between; the pin then holds a lower bound, which protects it just as
+		// well, until the census below replaces it with the exact version.
+		final CatalogVersionPin capturePin = pinCurrentCatalogVersion();
+		final EvitaSession newSession;
+		try {
+			// deliberately resolved again rather than reusing the catalog the pin sampled: it may be newer than the
+			// pinned version, and `registerSessionConsumingCatalogInVersion` swaps the pin for the exact one below
+			newSession = sessionFactory.apply(this.catalogSupplier.get());
+		} catch (Throwable ex) {
+			capturePin.close();
+			throw ex;
+		}
 		final long catalogVersion = newSession.getCatalogVersion();
 		final String catalogName = newSession.getCatalogName();
 
@@ -699,7 +735,9 @@ public final class SessionRegistry {
 		// `registerSessionConsumingCatalogInVersion` only absorbs `CatalogTransitioningException`. Published first,
 		// such a throw would leave a session in `activeSessions` that no caller ever received and therefore never
 		// closes - and on a catalog that is not transactional that orphan refuses every later admission for the
-		// life of the process. Everything below is a non-throwing publication.
+		// life of the process. Everything below is a non-throwing publication. The capture pin is handed over here and
+		// the census owns it from this call on - it either becomes the session's lease or is given back, on success
+		// and on failure alike.
 		final CatalogVersionPin catalogVersionPin;
 		try {
 			catalogVersionPin =
@@ -707,7 +745,8 @@ public final class SessionRegistry {
 					.registerSessionConsumingCatalogInVersion(
 						catalogVersion,
 						newSession.getSessionTraits(),
-						this.catalogSupplier
+						this.catalogSupplier,
+						capturePin
 					);
 		} catch (Throwable ex) {
 			// the supplier has already built the session by this point, and the caller never receives it, so nothing
@@ -736,6 +775,33 @@ public final class SessionRegistry {
 		);
 
 		return newSessionProxy;
+	}
+
+	/**
+	 * Pins the version of the catalog that is current at this instant, before the catalog a new session will read is
+	 * resolved - see the invariant at the top of {@link #registerNewSession(Function)}.
+	 *
+	 * Tolerant in the same way the session census is: a catalog that is transitioning, or that the supplier cannot
+	 * provide at all, yields {@link CatalogVersionPin#NONE}, which closes to nothing. Anything else the supplier throws
+	 * - the catalog has gone, or is unusable - propagates, and since nothing is held yet there is nothing to undo.
+	 *
+	 * @return the lease holding the current catalog version, or {@link CatalogVersionPin#NONE} when none could be taken
+	 */
+	@Nonnull
+	private CatalogVersionPin pinCurrentCatalogVersion() {
+		try {
+			final Catalog theCatalog = this.catalogSupplier.get();
+			if (theCatalog == null) {
+				return CatalogVersionPin.NONE;
+			}
+			final long version = theCatalog.getVersion();
+			theCatalog.catalogVersionPinned(version);
+			// bound to `theCatalog`, so a replacement taking over this name later cannot receive the release
+			return CatalogVersionPin.pinnedOn(version, theCatalog::catalogVersionReleased);
+		} catch (CatalogTransitioningException ignored) {
+			// nothing was pinned, so nothing is owed - the resolution that follows answers the transition itself
+			return CatalogVersionPin.NONE;
+		}
 	}
 
 	/**
@@ -1065,20 +1131,31 @@ public final class SessionRegistry {
 		 * session never reaches {@code removeSession} and therefore never reaches
 		 * {@link #unregisterSessionConsumingCatalogInVersion} either.
 		 *
-		 * @param version the version of the catalog the session will read
-		 * @param traits  the session's traits, which select the read-only or the read-write census map
-		 * @param catalog supplies the catalog to pin; it throws when the catalog has gone or is unusable
+		 * The registration takes over the capture pin {@link #registerNewSession(Function)} took before the session's
+		 * catalog was resolved. When that pin already holds `version` - the ordinary case - it simply becomes the
+		 * session's lease. When a commit landed in between, `version` is newer: it is pinned on its own and the capture
+		 * pin is given back only afterwards, so there is no instant at which the version is held by neither. Should the
+		 * exact pin be impossible to take, the capture pin is kept instead - it holds a version no newer than the
+		 * session's, which protects the session just as well. On failure it is given back with the census increment.
+		 *
+		 * @param version    the version of the catalog the session will read
+		 * @param traits     the session's traits, which select the read-only or the read-write census map
+		 * @param catalog    supplies the catalog to pin; it throws when the catalog has gone or is unusable
+		 * @param capturePin the lease taken before the session's catalog was resolved; owned by this method from the
+		 *                   moment it is called
 		 * @return the lease holding that version, which the caller keeps for the session's lifetime and hands back to
-		 *         {@link #unregisterSessionConsumingCatalogInVersion} - {@link CatalogVersionPin#NONE} when the pin
-		 *         could not be taken at all
-		 * @throws RuntimeException whatever the catalog supplier throws, propagated after the census increment has
-		 *                          been given back, so the caller may abandon the session without leaking a reader
+		 *         {@link #unregisterSessionConsumingCatalogInVersion} - {@link CatalogVersionPin#NONE} when no pin
+		 *         could be taken at all
+		 * @throws RuntimeException whatever the catalog supplier throws, propagated after the census increment and the
+		 *                          capture pin have been given back, so the caller may abandon the session without
+		 *                          leaking a reader
 		 */
 		@Nonnull
 		CatalogVersionPin registerSessionConsumingCatalogInVersion(
 			long version,
 			@Nonnull SessionTraits traits,
-			@Nonnull Supplier<Catalog> catalog
+			@Nonnull Supplier<Catalog> catalog,
+			@Nonnull CatalogVersionPin capturePin
 		) {
 			final ConcurrentHashMap<Long, Integer> targetIndex = traits.isReadWrite() ?
 				this.versionConsumingReadWriteSessions :
@@ -1101,20 +1178,26 @@ public final class SessionRegistry {
 			// read-only sessions and that argument collapses silently - no test fails, and a reader loses the
 			// generation underneath it. See the deleter matrix in
 			// `documentation/adr/2026-08-06-time-travel-disk-budget.md`.
+			if (capturePin.getCatalogVersion().orElse(-1L) == version) {
+				// nothing was committed while the session was being built - the pin already holds its version
+				return capturePin;
+			}
+			final CatalogVersionPin exactPin;
 			try {
 				final Catalog theCatalog = catalog.get();
 				// in rare cases (catalog replacement) the catalog might not be available already. A pin that was not
 				// taken needs no separate record of the omission: `NONE` closes to nothing, so the release cannot give
-				// back something this session never held
+				// back something this session never held - and the capture pin, if there is one, keeps protecting
 				if (theCatalog == null) {
-					return CatalogVersionPin.NONE;
+					return capturePin;
 				}
 				theCatalog.catalogVersionPinned(version);
 				// bound to `theCatalog`, so a replacement taking over this name later cannot receive the release
-				return CatalogVersionPin.pinnedOn(version, theCatalog::catalogVersionReleased);
+				exactPin = CatalogVersionPin.pinnedOn(version, theCatalog::catalogVersionReleased);
 			} catch (CatalogTransitioningException ignored) {
-				// catalog is transitioning, we cannot notify it anyway - and nothing was pinned, so nothing is owed
-				return CatalogVersionPin.NONE;
+				// catalog is transitioning, we cannot notify it anyway - and nothing new was pinned, so nothing new is
+				// owed; the capture pin holds a version no newer than the session's and stays as its lease
+				return capturePin;
 			} catch (Throwable ex) {
 				// The count above was raised for a session that is about to be abandoned. Nothing downstream takes
 				// it back: the registration catch closes the unpublished session, and `removeSession` opens with an
@@ -1131,8 +1214,12 @@ public final class SessionRegistry {
 					version,
 					(k, v) -> v == null || v == 1 ? null : v - 1
 				);
+				capturePin.close();
 				throw ex;
 			}
+			// given back only now that the exact version is held, so the session is never unprotected in between
+			capturePin.close();
+			return exactPin;
 		}
 
 		/**

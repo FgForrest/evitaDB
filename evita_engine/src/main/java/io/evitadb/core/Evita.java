@@ -2087,10 +2087,13 @@ public final class Evita implements EvitaContract {
 						this.onSessionTerminationCallback.accept(session);
 					};
 
+				// the session is built on the catalog the registry hands over, NOT on `catalog` above: the registry pins
+				// the version before it resolves the instance, and a session built on an instance resolved earlier
+				// would read at a version nothing protects - see `SessionRegistry#registerNewSession`
 				final EvitaInternalSessionContract internalSession = sessionRegistry.addSession(
 					catalog.supportsTransaction(),
-					() -> new EvitaSession(
-						this, catalog, this.reflectionLookup,
+					pinnedCatalog -> new EvitaSession(
+						this, pinnedCatalog, this.reflectionLookup,
 						terminationCallback,
 						ofNullable(sessionTraits.commitBehaviour()).orElse(CommitBehavior.defaultBehaviour()),
 						sessionTraits,

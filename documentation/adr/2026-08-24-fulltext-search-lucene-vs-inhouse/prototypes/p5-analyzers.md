@@ -1096,7 +1096,13 @@ The numbered ones follow on from the research; the new ones carry the P5 designa
   `(collection, locale)`, or will a need for a per-attribute override show? A real case stands behind it: a
   product's name and a long description in the same collection and the same language may want a different
   recipe, because one is a short structured field and the other continuous text. The parallel document about
-  the schema addresses it.
+  the schema addresses it. *Resolution (2026-09-17): the need has shown, and not as a preference. P1's
+  measurement campaign found that the CMS profile requires a JSON path extractor that is **only correct on
+  one attribute of a collection** — a title and a body sharing `(collection, locale)` would both receive a
+  path expression meant for the body — and priced the two filters §7 calls for at 46% of the index
+  footprint and 39% of the build. See [`p1-index-core-measurements.md`](p1-index-core-measurements.md)
+  part 6.1. An HTML stripper is unaffected, being a no-op on plain text; the extractor is the case that breaks
+  the seam.*
 - **P5-5 — the registry's behaviour on an unknown language (§4.1).** The recommendation is a generic
   analyzer plus a log message, but it is a product decision: the alternative is to reject the query. Name it
   in the documentation before somebody discovers it in production. *Resolution (2026-08-25): the

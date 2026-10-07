@@ -41,10 +41,20 @@ import java.io.Serializable;
 
 /**
  * The `facetHaving` constraint filters entities based on faceted references, enabling drill-down navigation with statistical impact
- * calculations. It works similarly to {@link ReferenceHaving}, but is specifically designed for faceted filtering scenarios and integrates
- * with the {@code facetSummary} requirement to compute facet statistics and selection impact predictions. When placed inside a
- * {@link UserFilter} container, `facetHaving` participates in facet statistics calculations; when used outside {@code userFilter}, it
- * behaves identically to {@code referenceHaving}.
+ * calculations. It selects facets - the referenced entities - and returns the entities referencing them, combined by the facet group
+ * relations the query requests: by default, the selected facets of one group are combined by logical OR and the groups by logical AND
+ * (see {@link io.evitadb.api.query.require.FacetGroupsConjunction}, {@link io.evitadb.api.query.require.FacetGroupsDisjunction} and
+ * {@link io.evitadb.api.query.require.FacetGroupsNegation} - the last one excludes the entities referencing the selected facets of its
+ * groups). It integrates with the {@code facetSummary} requirement to compute facet statistics and selection impact predictions. When
+ * placed inside a {@link UserFilter} container, `facetHaving` participates in facet statistics calculations.
+ *
+ * The nested constraints select facets rather than references, which is where `facetHaving` differs from {@link ReferenceHaving}:
+ * a constraint on a reference attribute is evaluated over all references pointing to the facet together, pooled across the entities
+ * that hold them (for a reference that allows duplicates, the references sharing the same representative attribute values are pooled
+ * instead). `attributeEquals` selects a facet when at least one reference to it carries the value, `attributeIsNull` when none of them
+ * carries the attribute, and an entity is matched through a selected facet whether or not its own reference satisfies the constraint.
+ * Reading the constraints per facet keeps the result consistent with the facet statistics, which are counted per facet;
+ * {@link ReferenceHaving} evaluates its constraints against each single reference instead.
  *
  * This constraint is a {@link FacetConstraint}, marking it as part of evitaDB's faceted filtering subsystem. Facets are a specialized type
  * of reference used for drill-down navigation in e-commerce applications (e.g., filtering products by brand, color, or category).
@@ -102,8 +112,9 @@ import java.io.Serializable;
  *
  * ## Behavior Outside UserFilter
  *
- * When `facetHaving` is used outside {@link UserFilter}, it behaves identically to {@link ReferenceHaving}. It filters entities based on the
- * specified reference constraints, but does **not** participate in facet statistics calculations:
+ * When `facetHaving` is used outside {@link UserFilter}, it filters entities the same way - its nested constraints select facets, and the
+ * entities referencing them are combined by the facet group relations - but it does **not** participate in facet statistics
+ * calculations:
  *
  * ```
  * filterBy(
@@ -114,7 +125,8 @@ import java.io.Serializable;
  * )
  * ```
  *
- * This is functionally equivalent to `referenceHaving("brand", entityPrimaryKeyInSet(1, 5))`.
+ * It matches the same entities as `referenceHaving("brand", entityPrimaryKeyInSet(1, 5))` only when both brands belong to the same facet
+ * group (or to none) and no facet group relation is changed by the query: brands of two different groups are combined by logical AND.
  *
  * ## Faceted Reference Filtering
  *
