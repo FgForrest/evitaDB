@@ -106,7 +106,8 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 				.addBackwardCompatibleSerializer(-6245538251957498672L, new EntityIndexStoragePartSerializer_2024_11(this.keyCompressor))
 				.addBackwardCompatibleSerializer(5424554446828324138L, new EntityIndexStoragePartSerializer_2025_6(this.keyCompressor))
 				.addBackwardCompatibleSerializer(6028764096012501468L, new EntityIndexStoragePartSerializer_2025_6(this.keyCompressor))
-				.addBackwardCompatibleSerializer(-5960890423106351315L, new EntityIndexStoragePartSerializer_2026_1(this.keyCompressor)),
+				.addBackwardCompatibleSerializer(-5960890423106351315L, new EntityIndexStoragePartSerializer_2026_1(this.keyCompressor))
+				.addBackwardCompatibleSerializer(-3842757193845629481L, new EntityIndexStoragePartSerializer_2026_2(this.keyCompressor)),
 			index++
 		);
 		kryo.register(
@@ -354,6 +355,31 @@ public class IndexStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			HistogramCardinalityStoragePart.class,
 			new SerialVersionBasedSerializer<>(new HistogramCardinalityStoragePartSerializer(this.keyCompressor), HistogramCardinalityStoragePart.class),
+			index++
+		);
+
+		// the fulltext index root record, its dictionary leaf-page record and its field length block record -
+		// brand-new record types with no backward-compatible reader (the fulltext feature is unreleased). Appended
+		// last to keep the preceding registration ids stable.
+		kryo.register(
+			FulltextIndexStoragePart.class,
+			new SerialVersionBasedSerializer<>(
+				new FulltextIndexStoragePartSerializer(this.keyCompressor), FulltextIndexStoragePart.class
+			),
+			index++
+		);
+		kryo.register(
+			FulltextDictionaryLeafPagePart.class,
+			new SerialVersionBasedSerializer<>(
+				new FulltextDictionaryLeafPagePartSerializer(), FulltextDictionaryLeafPagePart.class
+			),
+			index++
+		);
+		kryo.register(
+			FulltextFieldLengthBlockPart.class,
+			new SerialVersionBasedSerializer<>(
+				new FulltextFieldLengthBlockPartSerializer(), FulltextFieldLengthBlockPart.class
+			),
 			index++
 		);
 

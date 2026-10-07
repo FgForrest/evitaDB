@@ -98,7 +98,7 @@ public interface IndexComponent {
 	 * {@link io.evitadb.index.EntityIndex} is dropped: every persisted leaf page, and any root part addressed
 	 * independently of the {@link EntityIndexManifest} (e.g. the reference-type cardinality root, which the
 	 * manifest-baseline diff in {@code EntityIndex.emitVanishedRootRemovals} does not cover). Manifest-listed
-	 * roots (attribute / price / facet / histogram / hierarchy) are reclaimed by that diff and MUST NOT be
+	 * roots (attribute / price / facet / histogram / hierarchy / fulltext) are reclaimed by that diff and MUST NOT be
 	 * re-emitted here. Implementations read only their persisted baseline, never live/transactional state.
 	 *
 	 * The default is a no-op — correct for components that persist no leaf pages and whose root (if any) is

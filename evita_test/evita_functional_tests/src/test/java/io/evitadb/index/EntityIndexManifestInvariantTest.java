@@ -116,6 +116,7 @@ class EntityIndexManifestInvariantTest {
 			null,
 			new Scope[]{Scope.LIVE},
 			null,
+			null,
 			new Scope[]{Scope.LIVE},
 			false, false, false,
 			type, null,

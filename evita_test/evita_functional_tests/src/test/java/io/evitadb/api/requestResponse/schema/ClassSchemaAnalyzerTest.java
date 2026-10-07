@@ -49,7 +49,9 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.RemoveAttributeS
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaLocalizedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaNullableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaAcceleratedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaRepresentativeMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSearchableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSortableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
@@ -5120,6 +5122,176 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					);
 				}
 			);
+		}
+
+	}
+
+	/**
+	 * Covers the two attribute settings the annotations gained after the schema API: `searchable` and
+	 * `acceleratedFor`, in the general form and per scope, on entity, global and reference attributes.
+	 */
+	@Nested
+	@DisplayName("Searchable and accelerated attributes declared by annotation")
+	class SearchableAndAcceleratedAttributes {
+
+		@DisplayName("searchable and acceleratedFor reach the entity, global and reference attribute schemas")
+		@Test
+		void shouldSetupSearchableAndAcceleratedAttributes() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchemaFromModelClass(GetterBasedEntitySearchableEvolutionV1.class);
+					final SealedEntitySchema schema = session.getEntitySchema(
+						GetterBasedEntitySearchableEvolutionV1.ENTITY_NAME).orElseThrow();
+
+					// the general form applies to the default scope only
+					final AttributeSchemaContract name = schema.getAttribute("name").orElseThrow();
+					assertTrue(name.isSearchableInScope(Scope.LIVE));
+					assertFalse(name.isSearchableInScope(Scope.ARCHIVED));
+					final AttributeSchemaContract code = schema.getAttribute("code").orElseThrow();
+					assertEquals(
+						Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH), code.getAcceleratorsInScope(Scope.LIVE)
+					);
+					assertTrue(code.getAcceleratorsInScope(Scope.ARCHIVED).isEmpty());
+
+					// the per-scope form sets each scope on its own
+					final AttributeSchemaContract scopedText = schema.getAttribute("scopedText").orElseThrow();
+					assertTrue(scopedText.isSearchableInScope(Scope.LIVE));
+					assertTrue(scopedText.isSearchableInScope(Scope.ARCHIVED));
+					assertEquals(
+						Set.of(AttributeFilterAccelerator.SUBSTRING_SEARCH),
+						scopedText.getAcceleratorsInScope(Scope.LIVE)
+					);
+					assertTrue(scopedText.getAcceleratorsInScope(Scope.ARCHIVED).isEmpty());
+
+					assertTrue(
+						session.getCatalogSchema().getAttribute("searchableGlobalTitle").orElseThrow()
+							.isSearchableInScope(Scope.LIVE)
+					);
+					assertTrue(
+						schema.getReference("marketingBrand").orElseThrow()
+							.getAttribute("label").orElseThrow()
+							.isSearchableInScope(Scope.LIVE)
+					);
+				}
+			);
+		}
+
+		@DisplayName("re-analyzing an unchanged model produces no mutations")
+		@Test
+		void shouldProduceNoMutationsWhenReanalyzedUnchanged() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchemaFromModelClass(GetterBasedEntitySearchableEvolutionV1.class);
+
+					final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+						session, GetterBasedEntitySearchableEvolutionV1.class
+					);
+
+					assertEquals(0, mutations.length, "Expected no mutations but got: " + Arrays.toString(mutations));
+				}
+			);
+		}
+
+		@DisplayName("dropping searchable and acceleratedFor from the model withdraws them from the schema")
+		@Test
+		void shouldWithdrawSearchableAndAcceleratorsDroppedFromModel() {
+			ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchemaFromModelClass(GetterBasedEntitySearchableEvolutionV1.class);
+
+					final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
+						session, GetterBasedEntitySearchableEvolutionV2NarrowAll.class
+					);
+
+					assertTrue(
+						streamEntitySchemaMutations(mutations, SetAttributeSchemaSearchableMutation.class)
+							.anyMatch(it -> "name".equals(it.getName())),
+						"Expected SetAttributeSchemaSearchableMutation withdrawing `name`."
+					);
+					assertTrue(
+						streamEntitySchemaMutations(mutations, SetAttributeSchemaAcceleratedMutation.class)
+							.anyMatch(it -> "code".equals(it.getName())),
+						"Expected SetAttributeSchemaAcceleratedMutation withdrawing the accelerator of `code`."
+					);
+
+					final SealedEntitySchema schema = session.getEntitySchema(
+						GetterBasedEntitySearchableEvolutionV1.ENTITY_NAME).orElseThrow();
+					assertFalse(schema.getAttribute("name").orElseThrow().isSearchable());
+					final AttributeSchemaContract code = schema.getAttribute("code").orElseThrow();
+					assertTrue(code.getAcceleratorsInScope(Scope.LIVE).isEmpty());
+					// the filter index the accelerator sped up stays
+					assertTrue(code.isFilterableInScope(Scope.LIVE));
+					final AttributeSchemaContract scopedText = schema.getAttribute("scopedText").orElseThrow();
+					assertFalse(scopedText.isSearchable());
+					assertTrue(scopedText.getAcceleratorsInScope(Scope.LIVE).isEmpty());
+					assertTrue(scopedText.isFilterableInScope(Scope.LIVE));
+					assertFalse(
+						session.getCatalogSchema().getAttribute("searchableGlobalTitle").orElseThrow().isSearchable()
+					);
+					assertFalse(
+						schema.getReference("marketingBrand").orElseThrow()
+							.getAttribute("label").orElseThrow()
+							.isSearchable()
+					);
+				}
+			);
+		}
+
+		@DisplayName("the general searchable next to per-scope settings is refused")
+		@Test
+		void shouldRefuseGeneralSearchableNextToScopeSettings() {
+			assertRefusedWith(
+				EntityWithSearchableAndScopeSettings.class,
+				"the value of `searchable` property is not taken into an account"
+			);
+		}
+
+		@DisplayName("the general acceleratedFor next to per-scope settings is refused")
+		@Test
+		void shouldRefuseGeneralAcceleratedForNextToScopeSettings() {
+			assertRefusedWith(
+				EntityWithAcceleratorAndScopeSettings.class,
+				"the value of `acceleratedFor` property is not taken into an account"
+			);
+		}
+
+		@DisplayName("a searchable attribute that is not localized is refused")
+		@Test
+		void shouldRefuseSearchableAttributeThatIsNotLocalized() {
+			assertRefusedWith(
+				EntityWithNonLocalizedSearchableAttribute.class, "is searchable, but it is not localized"
+			);
+		}
+
+		@DisplayName("an accelerator on an attribute without a filter index is refused")
+		@Test
+		void shouldRefuseAcceleratorWithoutFilterIndex() {
+			assertRefusedWith(EntityWithAcceleratorWithoutFilterIndex.class, "has no filter index there");
+		}
+
+		/**
+		 * Defines the schema from `modelClass` and asserts it is refused - by the analyzer or when the session closes,
+		 * whichever comes first - with an exception whose cause chain carries `expectedMessagePart`.
+		 */
+		private void assertRefusedWith(@Nonnull Class<?> modelClass, @Nonnull String expectedMessagePart) {
+			final Throwable thrown = assertThrows(
+				Throwable.class,
+				() -> ClassSchemaAnalyzerTest.this.evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.defineEntitySchemaFromModelClass(modelClass);
+					}
+				)
+			);
+			Throwable current = thrown;
+			while (current != null &&
+				(current.getMessage() == null || !current.getMessage().contains(expectedMessagePart))) {
+				current = current.getCause();
+			}
+			assertNotNull(current, "Expected a refusal saying `" + expectedMessagePart + "`, got: " + thrown);
 		}
 
 	}

@@ -50,6 +50,7 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeF
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaConflictResolutionOverrideMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaAcceleratedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSearchableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaConflictResolutionMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.ModifyEntitySchemaConflictResolutionMutation;
@@ -81,6 +82,7 @@ import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -198,12 +200,12 @@ class WalSerializationServiceTest {
 		// each Create*SchemaMutation carries a NON-default override — a plain compile pass cannot catch the field
 		// being silently dropped/defaulted on the WAL replay path, only an explicit round-trip assertion can
 		final CreateAttributeSchemaMutation attributeMutation = new CreateAttributeSchemaMutation(
-			"code", null, null, null, null, null, null,
+			"code", null, null, null, null, null, null, null,
 			false, false, false, String.class, null, 0,
 			ConflictResolutionOverride.GRANULAR
 		);
 		final CreateGlobalAttributeSchemaMutation globalAttributeMutation = new CreateGlobalAttributeSchemaMutation(
-			"url", null, null, null, null, null, null, null,
+			"url", null, null, null, null, null, null, null, null,
 			false, false, false, String.class, null, 0,
 			ConflictResolutionOverride.GRANULAR
 		);
@@ -254,13 +256,13 @@ class WalSerializationServiceTest {
 			);
 		final CreateAttributeSchemaMutation attributeMutation = new CreateAttributeSchemaMutation(
 			"code", null, null, null,
-			Scope.DEFAULT_SCOPES, substringInLive, Scope.NO_SCOPE,
+			Scope.DEFAULT_SCOPES, substringInLive, null, Scope.NO_SCOPE,
 			false, false, false, String.class, null, 0,
 			ConflictResolutionOverride.INHERITED
 		);
 		final CreateGlobalAttributeSchemaMutation globalAttributeMutation = new CreateGlobalAttributeSchemaMutation(
 			"url", null, null, null, null,
-			Scope.DEFAULT_SCOPES, substringInLive, Scope.NO_SCOPE,
+			Scope.DEFAULT_SCOPES, substringInLive, null, Scope.NO_SCOPE,
 			false, false, false, String.class, null, 0,
 			ConflictResolutionOverride.INHERITED
 		);
@@ -274,6 +276,59 @@ class WalSerializationServiceTest {
 		assertArrayEquals(
 			substringInLive, roundTrip(walKryo, globalAttributeMutation).getAcceleratorsInScopes()
 		);
+	}
+
+	@Test
+	@Tag(SERIALIZATION)
+	@Tag(SCHEMA)
+	@DisplayName("should round-trip the searchable scopes on all three mutations that carry them")
+	void shouldRoundTripSearchableScopesOnAttributeMutations() {
+		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
+		final Scope[] bothScopes = {Scope.LIVE, Scope.ARCHIVED};
+
+		// a WAL entry whose searchable scopes were dropped on the way out would replay as an attribute nobody can
+		// search by, and nothing downstream would report a problem - and the accelerators written just before them
+		// must survive unshifted
+		final ScopedAttributeFilterAccelerators[] substringInLive = {
+			new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
+		};
+		final SetAttributeSchemaSearchableMutation setSearchableMutation =
+			new SetAttributeSchemaSearchableMutation("name", bothScopes);
+		final CreateAttributeSchemaMutation attributeMutation = new CreateAttributeSchemaMutation(
+			"name", null, null, null,
+			Scope.DEFAULT_SCOPES, substringInLive, bothScopes, Scope.NO_SCOPE,
+			true, false, false, String.class, null, 0,
+			ConflictResolutionOverride.INHERITED
+		);
+		final CreateGlobalAttributeSchemaMutation globalAttributeMutation = new CreateGlobalAttributeSchemaMutation(
+			"title", null, null, null, null,
+			Scope.DEFAULT_SCOPES, substringInLive, bothScopes, Scope.NO_SCOPE,
+			true, false, false, String.class, null, 0,
+			ConflictResolutionOverride.INHERITED
+		);
+
+		assertEquals(setSearchableMutation, roundTrip(walKryo, setSearchableMutation));
+		final CreateAttributeSchemaMutation attributeRoundTrip = roundTrip(walKryo, attributeMutation);
+		assertArrayEquals(bothScopes, attributeRoundTrip.getSearchableInScopes());
+		assertArrayEquals(substringInLive, attributeRoundTrip.getAcceleratorsInScopes());
+		assertEquals(attributeMutation, attributeRoundTrip);
+		final CreateGlobalAttributeSchemaMutation globalRoundTrip = roundTrip(walKryo, globalAttributeMutation);
+		assertArrayEquals(bothScopes, globalRoundTrip.getSearchableInScopes());
+		assertArrayEquals(substringInLive, globalRoundTrip.getAcceleratorsInScopes());
+		assertEquals(globalAttributeMutation, globalRoundTrip);
+	}
+
+	@Test
+	@Tag(SERIALIZATION)
+	@Tag(SCHEMA)
+	@DisplayName("should round-trip a mutation withdrawing searchability from every scope")
+	void shouldRoundTripSearchabilityWithdrawal() {
+		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
+		final SetAttributeSchemaSearchableMutation withdrawal = new SetAttributeSchemaSearchableMutation("name", false);
+
+		final SetAttributeSchemaSearchableMutation roundTripped = roundTrip(walKryo, withdrawal);
+		assertArrayEquals(Scope.NO_SCOPE, roundTripped.getSearchableInScopes());
+		assertFalse(roundTripped.isSearchable());
 	}
 
 	@Test
@@ -294,7 +349,7 @@ class WalSerializationServiceTest {
 
 		final CreateAttributeSchemaMutation uniqueOnly = new CreateAttributeSchemaMutation(
 			"code", null, null, uniqueInLive,
-			Scope.NO_SCOPE, substringInLive, Scope.NO_SCOPE,
+			Scope.NO_SCOPE, substringInLive, null, Scope.NO_SCOPE,
 			false, false, false, String.class, null, 0,
 			ConflictResolutionOverride.INHERITED
 		);

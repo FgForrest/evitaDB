@@ -171,6 +171,26 @@ public class FulltextAnalyzerRegistry implements Closeable {
 	}
 
 	/**
+	 * Returns the analyzer of the passed name for the indexing slot - the lookup that reads a persisted index back with
+	 * the analyzer its terms were produced by, whatever the schema's assignment for the collection and locale says now.
+	 *
+	 * @param analyzerName name of the analyzer, built in or registered
+	 * @return shared analyzer instance for the indexing slot
+	 * @throws EvitaInvalidUsageException                    when the name is neither built in nor registered, or the
+	 *                                                       registry is closed
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the analyzer declares itself search-time only
+	 */
+	@Nonnull
+	public FulltextAnalyzer getIndexAnalyzerByName(@Nonnull String analyzerName) {
+		assertNotClosed();
+		return getAnalyzerInstance(
+			analyzerName, AnalyzerSlot.INDEX,
+			() -> "Analyzer `" + analyzerName + "` a persisted fulltext index was built with is neither a built-in " +
+				"nor a registered analyzer."
+		);
+	}
+
+	/**
 	 * Registers an analyzer usable on both sides of the pipeline under `name`, making it referable from a schema
 	 * through {@link AnalyzerAssignmentResolver}.
 	 *
@@ -289,15 +309,9 @@ public class FulltextAnalyzerRegistry implements Closeable {
 	}
 
 	/**
-	 * Resolves the analyzer for the given combination and slot, and lazily creates its instance.
-	 *
-	 * The mode is validated on every lookup rather than only when the instance is built — the same analyzer is
-	 * shared by every slot referring to it, so a search-time only chain that a query slot already instantiated
-	 * must still be refused when an indexing slot asks for it.
-	 *
-	 * The closed flag is checked twice, before and after the instance is published — see the class javadoc. A
-	 * lookup that loses the race releases the instance it just created, so that {@link #close()} never leaves a
-	 * chain behind whose stream components nothing will free.
+	 * Resolves the analyzer for the given combination and slot, and lazily creates its instance. It runs the first
+	 * closed-flag check; the mode check and the second closed-flag check are in
+	 * {@link #getAnalyzerInstance(String, AnalyzerSlot, Supplier)}.
 	 *
 	 * @param entityType entity collection the value / query text belongs to
 	 * @param locale     locale of the text
@@ -318,17 +332,45 @@ public class FulltextAnalyzerRegistry implements Closeable {
 		assertNotClosed();
 		final AnalyzerAssignment assignment = resolveAssignment(entityType, locale);
 		final String name = assignment.analyzerName(slot);
-		final RegisteredAnalyzer definition = resolveDefinition(name);
-		Assert.notNull(
-			definition,
-			() -> new EvitaInvalidUsageException(
-				"Analyzer `" + name + "` requested for entity type `" + entityType + "` and locale `" + locale +
-					"` is neither a built-in nor a registered analyzer."
-			)
+		return getAnalyzerInstance(
+			name, slot,
+			() -> "Analyzer `" + name + "` requested for entity type `" + entityType + "` and locale `" + locale +
+				"` is neither a built-in nor a registered analyzer."
 		);
+	}
+
+	/**
+	 * Translates a resolved analyzer name into its shared instance for the slot, creating it lazily: validates the
+	 * name and the mode, and runs the second closed-flag check — the caller has run the first.
+	 *
+	 * The mode is validated on every lookup rather than only when the instance is built — the same analyzer is
+	 * shared by every slot referring to it, so a search-time only chain that a query slot already instantiated
+	 * must still be refused when an indexing slot asks for it.
+	 *
+	 * The closed flag is checked twice, before and after the instance is published — see the class javadoc. A
+	 * lookup that loses the race releases the instance it just created, so that {@link #close()} never leaves a
+	 * chain behind whose stream components nothing will free.
+	 *
+	 * @param name           name of the analyzer
+	 * @param slot           slot the analyzer is needed for
+	 * @param unknownMessage message of the error an unknown name produces
+	 * @return shared analyzer instance
+	 * @throws EvitaInvalidUsageException                    when the name is neither built in nor registered, or the
+	 *                                                       registry was closed meanwhile
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the analyzer may not be used in the slot
+	 */
+	@Nonnull
+	private FulltextAnalyzer getAnalyzerInstance(
+		@Nonnull String name,
+		@Nonnull AnalyzerSlot slot,
+		@Nonnull Supplier<String> unknownMessage
+	) {
+		final RegisteredAnalyzer definition = resolveDefinition(name);
+		Assert.notNull(definition, () -> new EvitaInvalidUsageException(unknownMessage.get()));
 		// the slot refuses an analyzer that declares the opposite side of the pipeline - this is what makes a
-		// runtime-swappable component impossible to bake into an index. Getting here means the assignment never
-		// passed validateAssignment, hence an internal error rather than a usage one
+		// runtime-swappable component impossible to bake into an index. Getting here means the name never passed
+		// validateAssignment - or a persisted index names a chain registered since with the opposite mode - hence an
+		// internal error rather than a usage one
 		definition.mode().checkAllowedInMode(slot.getRequiredMode());
 		final FulltextAnalyzer analyzer = this.instances.computeIfAbsent(
 			name,

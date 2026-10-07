@@ -41,6 +41,7 @@ import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityStoragePart;
@@ -264,13 +265,16 @@ public non-sealed interface EntityCollectionPersistenceService<S extends Storage
 	 *                                usage; false leaves it with no activity holder at all, which is how
 	 *                                `server.usageStatisticsTracking: false` reclaims five longs per index across a
 	 *                                catalog that may hold hundreds of thousands of them
+	 * @param fulltextAnalyzerRegistry the catalog's analyzer registry, which resolves the analyzer a persisted fulltext
+	 *                                index names - the one its terms were produced by
 	 */
 	@Nonnull
 	EntityIndex readEntityIndex(
 		long catalogVersion,
 		int entityIndexId,
 		@Nonnull EntitySchema entitySchema,
-		boolean usageStatisticsTracking
+		boolean usageStatisticsTracking,
+		@Nonnull FulltextAnalyzerRegistry fulltextAnalyzerRegistry
 	);
 
 	/**

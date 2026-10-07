@@ -95,7 +95,11 @@ public class ModifyAttributeSchemaTypeMutation
 		if (existingMutation instanceof AttributeSchemaMutation theExistingMutation && this.name.equals(theExistingMutation.getName())) {
 			if (existingMutation instanceof ModifyAttributeSchemaTypeMutation) {
 				return new MutationCombinationResult<>(null, this);
-			} else if (existingMutation instanceof SetAttributeSchemaFilterableMutation || existingMutation instanceof SetAttributeSchemaSortableMutation) {
+			} else if (
+				existingMutation instanceof SetAttributeSchemaFilterableMutation ||
+					existingMutation instanceof SetAttributeSchemaSearchableMutation ||
+					existingMutation instanceof SetAttributeSchemaSortableMutation
+			) {
 				// swap operations
 				return new MutationCombinationResult<>(this, existingMutation);
 			} else {
@@ -118,6 +122,7 @@ public class ModifyAttributeSchemaTypeMutation
 				return new MutationCombinationResult<>(null, this);
 			} else if (
 				existingMutation instanceof SetAttributeSchemaFilterableMutation ||
+					existingMutation instanceof SetAttributeSchemaSearchableMutation ||
 					existingMutation instanceof SetAttributeSchemaSortableMutation ||
 					existingMutation instanceof SetAttributeSchemaUniqueMutation ||
 					existingMutation instanceof SetAttributeSchemaRepresentativeMutation
@@ -140,8 +145,8 @@ public class ModifyAttributeSchemaTypeMutation
 		final Class newType = EvitaDataTypes.toWrappedForm(this.type);
 		// the rebuild branches below carry the existing accelerators over verbatim, so the new type has to be checked
 		// against them here - otherwise changing a `String` attribute that declares SUBSTRING to `Integer` would
-		// silently produce a schema the accelerator's own contract forbids. The non-empty-collection refusal cannot
-		// catch this: it compares accelerator sets and sees nothing *added*.
+		// silently produce a schema the accelerator's own contract forbids. A type change adds no accelerator, so no
+		// check that looks at the accelerators a schema change adds would ever see the new type.
 		verifyAcceleratorsApplicableToType(
 			this.name, newType, attributeSchema.getAcceleratorsInScopes()
 		);
@@ -158,6 +163,7 @@ public class ModifyAttributeSchemaTypeMutation
 				globalAttributeSchema.getGlobalUniquenessTypeInScopes(),
 				globalAttributeSchema.getFilterableInScopes(),
 				globalAttributeSchema.getAcceleratorsInScopes(),
+				globalAttributeSchema.getSearchableInScopes(),
 				globalAttributeSchema.getSortableInScopes(),
 				globalAttributeSchema.isLocalized(),
 				globalAttributeSchema.isNullable(),
@@ -179,6 +185,7 @@ public class ModifyAttributeSchemaTypeMutation
 				entityAttributeSchema.getUniquenessTypeInScopes(),
 				entityAttributeSchema.getFilterableInScopes(),
 				entityAttributeSchema.getAcceleratorsInScopes(),
+				entityAttributeSchema.getSearchableInScopes(),
 				entityAttributeSchema.getSortableInScopes(),
 				entityAttributeSchema.isLocalized(),
 				entityAttributeSchema.isNullable(),
@@ -200,6 +207,7 @@ public class ModifyAttributeSchemaTypeMutation
 				attributeSchema.getUniquenessTypeInScopes(),
 				attributeSchema.getFilterableInScopes(),
 				attributeSchema.getAcceleratorsInScopes(),
+				attributeSchema.getSearchableInScopes(),
 				attributeSchema.getSortableInScopes(),
 				attributeSchema.isLocalized(),
 				attributeSchema.isNullable(),

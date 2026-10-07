@@ -93,6 +93,7 @@ class AttributeSchemaAcceleratorsDataFetcherTest {
 			new ScopedAttributeFilterAccelerators[]{
 				new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 			},
+			null,
 			Scope.NO_SCOPE,
 			false, false, false,
 			String.class, null, 0,
@@ -117,6 +118,7 @@ class AttributeSchemaAcceleratorsDataFetcherTest {
 			(ScopedAttributeUniquenessType[]) null,
 			Scope.DEFAULT_SCOPES,
 			(ScopedAttributeFilterAccelerators[]) null,
+			null,
 			Scope.NO_SCOPE,
 			false, false, false,
 			String.class, null, 0,

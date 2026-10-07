@@ -390,6 +390,52 @@ final class ImpactRecords {
 	}
 
 	/**
+	 * Converts the impacts of a bucket read back from a persisted page into the slot shape its loaded record set
+	 * dictates - the load-path sibling of {@link #committed}, which does the same at a commit merge.
+	 *
+	 * @param impacts    the bucket's impacts as persisted, one byte per record in the order its records enumerate
+	 *                   in (unsigned ascending); adopted, not copied, for the array tier
+	 * @param recordSlot the bucket's loaded record slot: `null` for a single record, a sorted `int[]` or a
+	 *                   {@link TransactionalBitmap} as {@link OverflowRecords#loadedRecordSet} chose
+	 * @return the impact slot to store beside `recordSlot`
+	 * @throws GenericEvitaInternalError when the impacts do not cover exactly the bucket's records, or the record
+	 *                                   slot has a shape no record tier uses
+	 */
+	@Nonnull
+	static Object loaded(@Nonnull byte[] impacts, @Nullable Object recordSlot) {
+		if (recordSlot == null) {
+			verifyLoadedImpactCount(impacts, 1);
+			return Byte.valueOf(impacts[0]);
+		} else if (recordSlot instanceof final int[] small) {
+			verifyLoadedImpactCount(impacts, small.length);
+			return impacts;
+		} else if (recordSlot instanceof final TransactionalBitmap bitmap) {
+			verifyLoadedImpactCount(impacts, bitmap.size());
+			return chunkByContainer(impacts, RoaringBitmapBackedBitmap.getRoaringBitmap(bitmap));
+		} else {
+			throw new GenericEvitaInternalError(
+				"A loaded record slot must be null, an int[] or a TransactionalBitmap, not " +
+					recordSlot.getClass().getName() + "!"
+			);
+		}
+	}
+
+	/**
+	 * Verifies that the impacts of a bucket read back from a persisted page cover exactly its records.
+	 *
+	 * @param impacts     the bucket's impacts as persisted
+	 * @param recordCount the number of records the bucket's loaded record slot holds
+	 * @throws GenericEvitaInternalError when the two counts differ
+	 */
+	private static void verifyLoadedImpactCount(@Nonnull byte[] impacts, int recordCount) {
+		if (impacts.length != recordCount) {
+			throw new GenericEvitaInternalError(
+				"A persisted bucket carries " + impacts.length + " impacts for " + recordCount + " records!"
+			);
+		}
+	}
+
+	/**
 	 * Returns the impacts of a bucket aligned with the order its records enumerate in. Inside a transaction a
 	 * bitmap bucket with pending writes is aligned on the fly against its merged view - a read-your-writes answer
 	 * that costs one merge, paid only by a reader of a bucket the open transaction touched.

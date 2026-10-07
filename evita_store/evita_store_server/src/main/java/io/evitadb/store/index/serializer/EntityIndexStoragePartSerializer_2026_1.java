@@ -131,6 +131,7 @@ public class EntityIndexStoragePartSerializer_2026_1 extends Serializer<EntityIn
 			attributeIndexes,
 			priceIndexes,
 			hierarchyIndex, facetIndexes,
+			Collections.emptySet(),
 			Collections.emptySet()
 		);
 	}

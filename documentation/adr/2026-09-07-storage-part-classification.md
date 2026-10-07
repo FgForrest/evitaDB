@@ -1,7 +1,7 @@
 ---
 title: A storage part declares which kind of data it holds, at registration, in a closed enum
 date: 2026-09-07
-updated: 2026-09-07 12:05
+updated: 2026-10-02 11:20
 status: accepted
 kind: feature
 issues: [1500]
@@ -208,7 +208,7 @@ to the reporting surface this issue is about.
 
 **The statistics API is still undocumented for users.** Nothing under `documentation/user/` mentions
 `STORAGE_COMPOSITION`, so this taxonomy has no user-facing home yet; when that documentation is written,
-the fourteen groups are what it should describe rather than the 36 class names.
+the groups are what it should describe rather than the class names.
 
 ## Related work
 
@@ -220,3 +220,6 @@ the fourteen groups are what it should describe rather than the 36 class names.
 
 - **2026-09-07** — the client-side mapping's three failure modes analysed against a live server;
   classification designed, implemented and verified
+- **2026-10-02** — a fifteenth group, `FULLTEXT_INDEX` (wire value 15, after `HEADER`), added for the fulltext
+  index of #258 rather than folding it into `ATTRIBUTE_INDEX`: searchability is a schema decision separate from
+  filterability and sortability, the same argument that keeps `FACET_INDEX` apart from `REFERENCE_INDEX`

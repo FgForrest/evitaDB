@@ -42,6 +42,7 @@ import io.evitadb.index.component.loader.HistogramIndexMapLoader;
 import io.evitadb.index.component.loader.LoadContext;
 import io.evitadb.index.component.loader.LoadedComponentBundle;
 import io.evitadb.index.component.loader.LoadedComponentBundle.Histograms;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.map.TransactionalMap;
@@ -139,6 +140,11 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(HISTOGRAM)
 @DisplayName("Histogram index granular paging reloads through the real HistogramIndexMapLoader + OffsetIndex")
 class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
+	/**
+	 * The analyzer registry every load context carries. These manifests list no fulltext index, so it is never asked
+	 * for an analyzer and holds nothing that would need closing.
+	 */
+	private static final FulltextAnalyzerRegistry ANALYZER_REGISTRY = new FulltextAnalyzerRegistry();
 	private static final String ENTITY_TYPE = "product";
 	private static final String REFERENCE_NAME = "categories";
 	private static final String HISTOGRAM_NAME = "price";
@@ -1720,7 +1726,7 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 	) {
 		final EntityIndexStoragePart manifest = new EntityIndexStoragePart(
 			ENTITY_INDEX_PK, 1, ENTITY_INDEX_KEY,
-			Set.of(), Set.of(), false, Set.of(), manifestKeys
+			Set.of(), Set.of(), false, Set.of(), manifestKeys, Set.of()
 		);
 		return new LoadContext(
 			catalogVersion,
@@ -1732,7 +1738,8 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 			EmptyBitmap.INSTANCE,
 			Map.of(),
 			service,
-			null
+			null,
+			ANALYZER_REGISTRY
 		);
 	}
 

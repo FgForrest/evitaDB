@@ -312,6 +312,68 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	Map<Scope, Set<AttributeFilterAccelerator>> getAcceleratorsInScopes();
 
 	/**
+	 * When attribute is searchable, its values are analyzed into words and indexed in the fulltext index of the
+	 * entity collection, one index per locale, so that entities can be found and ranked by the words their values
+	 * contain. Each searchable attribute occupies (memory/disk) space in that index, and maintaining it adds work to
+	 * every write, so mark an attribute searchable only when it is meant to be searched by words.
+	 *
+	 * Searchability is **independent of {@link #isFilterable() filterability}**. Neither implies the other: a filter
+	 * index answers an exact comparison of the whole value, the fulltext index answers an analyzed match of its words,
+	 * and a long description is typically searchable without ever being filterable.
+	 *
+	 * Only a {@link #isLocalized() localized} attribute of type {@link String} or `String[]` may be searchable,
+	 * because the words of a value can only be analyzed in the language they are written in. The rule is reported by
+	 * {@link #validate()} on the assembled schema.
+	 *
+	 * **On a reference attribute**, the entity is searchable by the **set union** of the attribute's values over all
+	 * of its references of that reference type - an entity referencing three brands is found by the name of any of
+	 * them, and a name two of its references share counts once. A change of a reference attribute that adds no value
+	 * missing from that union and removes no value no other reference still holds changes nothing in the fulltext
+	 * index at all.
+	 *
+	 * **Over stored data**, declaring an attribute searchable is never refused, but values stored before the
+	 * declaration are not indexed retroactively - stored data is not reindexed yet - so a search returns incomplete
+	 * results until such a value is written again. Withdrawing searchability takes effect lazily, at the next write of
+	 * the attribute in the scope and locale, and the space its old values took in the index is not reclaimed; a later
+	 * re-declaration starts from an empty field. Results are only ever incomplete, never phantom.
+	 *
+	 * This method returns true only if the attribute is searchable in the default (i.e. {@link Scope#LIVE}) scope.
+	 *
+	 * @return true if attribute is searchable in the default (i.e. {@link Scope#LIVE}) scope
+	 */
+	default boolean isSearchable() {
+		return isSearchableInScope(Scope.DEFAULT_SCOPE);
+	}
+
+	/**
+	 * Returns true if the attribute is searchable in at least one scope - see {@link #isSearchable()} for what
+	 * searchability means.
+	 *
+	 * @return true if attribute is searchable in any scope
+	 */
+	default boolean isSearchableInAnyScope() {
+		return Arrays.stream(Scope.values()).anyMatch(this::isSearchableInScope);
+	}
+
+	/**
+	 * Returns true if the attribute is searchable in the given scope - see {@link #isSearchable()} for what
+	 * searchability means.
+	 *
+	 * @param scope to check attribute is searchable in
+	 * @return true if attribute is searchable in particular scope
+	 */
+	boolean isSearchableInScope(@Nonnull Scope scope);
+
+	/**
+	 * Retrieves the set of scopes in which the attribute is searchable - see {@link #isSearchable()} for what
+	 * searchability means.
+	 *
+	 * @return set of scopes in which the attribute is searchable, empty when it is searchable nowhere
+	 */
+	@Nonnull
+	Set<Scope> getSearchableInScopes();
+
+	/**
 	 * Collects the schema-consistency errors of this attribute, one message per problem, **without throwing**.
 	 *
 	 * The accumulating shape mirrors
@@ -319,7 +381,7 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * messages of every attribute and every reference and reports them together, so a user fixing a schema sees all
 	 * of the problems at once rather than peeling them off one exception at a time.
 	 *
-	 * It takes **no arguments on purpose**. The only rule it enforces is self-contained on the attribute, so widening
+	 * It takes **no arguments on purpose**. The rules it enforces are self-contained on the attribute, so widening
 	 * the signature to carry a catalog or an entity schema - as the reference-level validation must - would buy
 	 * nothing and would tie every future caller to state it does not need.
 	 *
@@ -344,6 +406,29 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 							" in scope `" + scope + "`, but it has no filter index there! Filter accelerators speed " +
 							"up an existing filter index - make the attribute filterable or unique in `" + scope +
 							"`, or drop the accelerators."
+					)
+				);
+			}
+		}
+		// searchability is checked on the assembled attribute for the same reason - `searchable()`, `localized()`
+		// and a type change may arrive in any order, and only their outcome has to make sense
+		if (isSearchableInAnyScope()) {
+			if (!String.class.equals(getPlainType())) {
+				errors = Stream.concat(
+					errors,
+					Stream.of(
+						"Attribute `" + getName() + "` is searchable, but its type is `" + getType().getName() +
+							"`! Only attributes of type `String` or `String[]` can be searchable."
+					)
+				);
+			}
+			if (!isLocalized()) {
+				errors = Stream.concat(
+					errors,
+					Stream.of(
+						"Attribute `" + getName() + "` is searchable, but it is not localized! A searchable " +
+							"attribute must be localized, because its words are analyzed in the language of the " +
+							"locale its value is written in."
 					)
 				);
 			}

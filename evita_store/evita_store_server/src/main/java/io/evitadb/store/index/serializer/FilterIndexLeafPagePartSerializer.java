@@ -36,7 +36,7 @@ import javax.annotation.Nonnull;
 /**
  * This {@link Serializer} implementation reads/writes a {@link FilterIndexLeafPagePart} — one leaf page of a granular
  * FilterIndex bucket tree — from/to binary format. The `(streamId, pageSequence)` pair fully determines the
- * storage-part primary key (via `join`), so the key is recomputed on read rather than stored; only the identifying
+ * storage-part primary key (via `pack`), so the key is recomputed on read rather than stored; only the identifying
  * pair and the leaf's buckets are written. The bucket-page frame is defined once in {@link BucketLeafPagePartSerializer}.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026

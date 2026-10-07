@@ -95,6 +95,7 @@ class AttributeSchemaTest {
 				},
 				new Scope[]{Scope.LIVE},
 				null,
+				null,
 				new Scope[]{Scope.LIVE},
 				false, true, true,
 				Integer.class, 0,
@@ -132,7 +133,7 @@ class AttributeSchemaTest {
 				"myAttr", customVariants,
 				null, null,
 				(Map<Scope, AttributeUniquenessType>) null,
-				null, null, null,
+				null, null, null, null,
 				false, false, false,
 				String.class, null, 0,
 				ConflictResolutionOverride.INHERITED
@@ -185,7 +186,7 @@ class AttributeSchemaTest {
 				new ScopedAttributeUniquenessType[]{
 					new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
 				},
-				null, null, null,
+				null, null, null, null,
 				false, false, false,
 				String.class, null,
 				ConflictResolutionOverride.INHERITED
@@ -207,7 +208,7 @@ class AttributeSchemaTest {
 						Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE
 					)
 				},
-				null, null, null,
+				null, null, null, null,
 				true, false, false,
 				String.class, null,
 				ConflictResolutionOverride.INHERITED
@@ -226,7 +227,7 @@ class AttributeSchemaTest {
 				new ScopedAttributeUniquenessType[]{
 					new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
 				},
-				null, null, null,
+				null, null, null, null,
 				false, false, false,
 				String.class, null,
 				ConflictResolutionOverride.INHERITED
@@ -250,6 +251,7 @@ class AttributeSchemaTest {
 				new Scope[]{Scope.LIVE},
 				null,
 				null,
+				null,
 				false, false, false,
 				String.class, null,
 				ConflictResolutionOverride.INHERITED
@@ -265,6 +267,7 @@ class AttributeSchemaTest {
 			final AttributeSchema schema = AttributeSchema._internalBuild(
 				"name",
 				null, null, null,
+				null,
 				new Scope[]{Scope.LIVE, Scope.ARCHIVED},
 				false, false, false,
 				String.class, null,
@@ -381,6 +384,7 @@ class AttributeSchemaTest {
 					Set.of(Scope.LIVE),
 					substringInLive,
 					null,
+					null,
 					false, false, false,
 					Integer.class, null, 0,
 					ConflictResolutionOverride.INHERITED
@@ -421,6 +425,7 @@ class AttributeSchemaTest {
 				(Map<Scope, AttributeUniquenessType>) null,
 				Set.of(Scope.LIVE),
 				acceleratorsInScopes,
+				null,
 				null,
 				false, false, false,
 				String.class, null, 0,
@@ -636,7 +641,7 @@ class AttributeSchemaTest {
 				new ScopedAttributeUniquenessType[]{
 					new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
 				},
-				null, null, null,
+				null, null, null, null,
 				false, false, false,
 				String.class, null,
 				ConflictResolutionOverride.INHERITED

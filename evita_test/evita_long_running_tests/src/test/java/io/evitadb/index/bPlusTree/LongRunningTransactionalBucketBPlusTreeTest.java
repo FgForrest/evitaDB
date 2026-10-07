@@ -68,6 +68,19 @@ import static org.junit.jupiter.api.Assertions.fail;
  * accumulates any layer-sweep, split/merge or column-alignment error over thousands of commit cycles. The seed is
  * printed on failure so a minimal reproduction can be reconstructed.
  *
+ * The impact proofs drive the tree in its impact-carrying mode, the one the fulltext term dictionary runs in, keyed by
+ * strings as the dictionary is. Every record carries an impact byte, and the impact column stores it in the shape of
+ * the bucket: one byte beside a single record, an array beside a small bucket, a chunk per bitmap container beside a
+ * bitmap bucket. The n-th impact must stay with the n-th record through every insert, removal, split, merge, bucket
+ * promotion and demotion, and commit. A few hot buckets random-walk across both bucket thresholds
+ * ({@link OverflowRecords#SMALL_BUCKET_THRESHOLD} and its demotion half), and their records span three bitmap
+ * containers, so the chunked form is exercised with more than one chunk. The impacts are checked twice per bucket,
+ * through the cursor's view and through a descent.
+ *
+ * Calibrated on 2026-10-07: leaving the chunk offset unreset when `ImpactRecords#align` steps into the next bitmap
+ * container failed the transactional impact proof in 0.04 s, while the two record-only proofs stayed green. Whoever
+ * next changes how the impact column is aligned, chunked or merged owes this test that check again.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Transactional bucket B+ tree (generational randomized proof)")
@@ -75,6 +88,38 @@ import static org.junit.jupiter.api.Assertions.fail;
 @Tag(DATA_TYPE)
 @Tag(TRANSACTION)
 class LongRunningTransactionalBucketBPlusTreeTest implements TimeBoundedTestSupport {
+	/**
+	 * The keys of the impact proofs, zero-padded so their string order is their numeric order.
+	 */
+	private static final String[] IMPACT_KEYS = impactKeys(48);
+	/**
+	 * How many of the first {@link #IMPACT_KEYS} are hot - they get one operation in four between them, and take
+	 * many records per operation, so their buckets cross the bucket thresholds.
+	 */
+	private static final int HOT_IMPACT_KEYS = 4;
+	/**
+	 * How many bitmap containers the record ids of the impact proofs span.
+	 */
+	private static final int IMPACT_CONTAINERS = 3;
+	/**
+	 * How many record ids of each container the impact proofs draw from.
+	 */
+	private static final int IMPACT_RECORDS_PER_CONTAINER = 120;
+
+	/**
+	 * Builds the keys of the impact proofs.
+	 *
+	 * @param count how many keys to build
+	 * @return the keys, in their natural order
+	 */
+	@Nonnull
+	private static String[] impactKeys(int count) {
+		final String[] keys = new String[count];
+		for (int i = 0; i < count; i++) {
+			keys[i] = (i < 10 ? "term0" : "term") + i;
+		}
+		return keys;
+	}
 
 	/**
 	 * Builds a fresh transactional bucket tree from the given reference snapshot, one bucket per key holding that
@@ -367,6 +412,268 @@ class LongRunningTransactionalBucketBPlusTreeTest implements TimeBoundedTestSupp
 		);
 	}
 
+	@ParameterizedTest(
+		name = "TransactionalBucketBPlusTree should keep every impact with its record across chained commits"
+	)
+	@Tag(SLOW)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	@DisplayName("keeps impacts aligned with records through randomized churn across chained commits")
+	void generationalImpactProofTest(@Nonnull GenerationalTestInput input) {
+		final long seed = input.randomSeed();
+		// print the seed so a failing run can be reproduced deterministically
+		System.out.println("LongRunningTransactionalBucketBPlusTreeTest (impacts) seed: " + seed);
+
+		runFor(
+			input,
+			1000,
+			new ImpactState(new StringBuilder(512), new TreeMap<>(), newImpactTree()),
+			(random, state) -> {
+				final TreeMap<String, TreeMap<Integer, Integer>> before = state.reference();
+				final TreeMap<String, TreeMap<Integer, Integer>> reference = deepCopy(before);
+				final StringBuilder code = state.code();
+				code.setLength(0);
+				final AtomicReference<TransactionalBucketBPlusTree<String>> published = new AtomicReference<>();
+
+				try {
+					assertStateAfterCommit(
+						state.tree(),
+						original -> {
+							final int operations = 1 + random.nextInt(8);
+							for (int op = 0; op < operations; op++) {
+								applyRandomImpactOperation(random, original, reference, code);
+							}
+						},
+						(original, committed) -> {
+							final TransactionalBucketBPlusTree<String> result =
+								committed == null ? original : committed;
+							if (result == original) {
+								// carried forward as the same instance, legal only when nothing changed
+								assertEquals(
+									before, reference, "No new version was published, yet the content changed"
+								);
+							}
+							verifyImpactTreeMatchesReference(result, reference);
+							// the previous version shares leaves and buckets with the published one, so an impact
+							// written in place shows up here
+							verifyImpactTreeMatchesReference(original, before);
+							published.set(result);
+						}
+					);
+				} catch (Exception ex) {
+					fail("Generation failed for seed " + seed + " with operations [" + code + "]", ex);
+					throw ex;
+				}
+
+				return new ImpactState(code, reference, published.get());
+			}
+		);
+	}
+
+	@ParameterizedTest(
+		name = "TransactionalBucketBPlusTree should keep every impact with its record through non-transactional churn"
+	)
+	@Tag(SLOW)
+	@ArgumentsSource(TimeArgumentProvider.class)
+	@DisplayName("keeps impacts aligned with records through randomized non-transactional (warm-up) churn")
+	void generationalImpactWarmUpProofTest(@Nonnull GenerationalTestInput input) {
+		final long seed = input.randomSeed();
+		// print the seed so a failing run can be reproduced deterministically
+		System.out.println("LongRunningTransactionalBucketBPlusTreeTest (impacts, warm-up) seed: " + seed);
+
+		final TransactionalBucketBPlusTree<String> tree = newImpactTree();
+		final TreeMap<String, TreeMap<Integer, Integer>> reference = new TreeMap<>();
+		runFor(
+			input, 1000, new StringBuilder(512),
+			(random, code) -> {
+				code.setLength(0);
+				try {
+					final int operations = 1 + random.nextInt(8);
+					for (int op = 0; op < operations; op++) {
+						applyRandomImpactOperation(random, tree, reference, code);
+					}
+					verifyImpactTreeMatchesReference(tree, reference);
+				} catch (Exception ex) {
+					fail("Generation failed for seed " + seed + " with operations [" + code + "]", ex);
+					throw ex;
+				}
+				return code;
+			}
+		);
+	}
+
+	/**
+	 * Creates an empty impact-carrying tree with string keys, at a small block size so splits and merges are dense.
+	 *
+	 * @return the tree
+	 */
+	@Nonnull
+	private static TransactionalBucketBPlusTree<String> newImpactTree() {
+		final TransactionalBucketBPlusTree<String> tree = new TransactionalBucketBPlusTree<>(
+			16, 7, 7, 3, String.class, null
+		);
+		tree.enableImpacts();
+		return tree;
+	}
+
+	/**
+	 * Applies one random operation to the impact-carrying tree and to the reference alike: adding records with their
+	 * impacts (a record the bucket already holds gets the new impact), re-impacting an existing record, removing some
+	 * records, or draining the whole bucket. A hot bucket takes up to forty records per operation and leans towards
+	 * growing while small and towards shrinking while large, so it keeps crossing both bucket thresholds.
+	 *
+	 * @param random    the source of randomness
+	 * @param tree      the tree under test
+	 * @param reference key to record to impact; updated alongside the tree
+	 * @param code      receives a short description of the operation
+	 */
+	private static void applyRandomImpactOperation(
+		@Nonnull Random random,
+		@Nonnull TransactionalBucketBPlusTree<String> tree,
+		@Nonnull TreeMap<String, TreeMap<Integer, Integer>> reference,
+		@Nonnull StringBuilder code
+	) {
+		final boolean hot = random.nextInt(4) == 0;
+		final String key = IMPACT_KEYS[random.nextInt(hot ? HOT_IMPACT_KEYS : IMPACT_KEYS.length)];
+		final TreeMap<Integer, Integer> bucket = reference.get(key);
+		final int size = bucket == null ? 0 : bucket.size();
+		final int growPercent = !hot ? 50 : size < 40 ? 70 : size > 200 ? 30 : 50;
+		final int dice = random.nextInt(100);
+		if (bucket == null || dice < growPercent) {
+			final TreeMap<Integer, Integer> target = bucket == null ? new TreeMap<>() : bucket;
+			final int count = hot ? 1 + random.nextInt(40) : 1;
+			for (int i = 0; i < count; i++) {
+				final int record = randomImpactRecord(random);
+				final int impact = 1 + random.nextInt(255);
+				tree.addRecord(key, record, (byte) impact);
+				target.put(record, impact);
+			}
+			reference.put(key, target);
+			code.append("A:").append(key).append('x').append(count).append(' ');
+		} else if (dice < growPercent + 10) {
+			// a new impact for a record the bucket holds replaces the old one in place of the record
+			final int record = pickFromKeys(bucket, random);
+			final int impact = 1 + random.nextInt(255);
+			tree.addRecord(key, record, (byte) impact);
+			bucket.put(record, impact);
+			code.append("U:").append(key).append(':').append(record).append(' ');
+		} else if (dice >= 95) {
+			tree.removeRecord(key, toArray(bucket.keySet()));
+			reference.remove(key);
+			code.append("D:").append(key).append(' ');
+		} else {
+			final int count = Math.min(bucket.size(), hot ? 1 + random.nextInt(40) : 1);
+			final TreeSet<Integer> victims = new TreeSet<>();
+			while (victims.size() < count) {
+				victims.add(pickFromKeys(bucket, random));
+			}
+			tree.removeRecord(key, toArray(victims));
+			bucket.keySet().removeAll(victims);
+			if (bucket.isEmpty()) {
+				reference.remove(key);
+			}
+			code.append("R:").append(key).append('x').append(count).append(' ');
+		}
+	}
+
+	/**
+	 * Draws a record id from one of three bitmap containers.
+	 *
+	 * @param random the source of randomness
+	 * @return the record id
+	 */
+	private static int randomImpactRecord(@Nonnull Random random) {
+		return random.nextInt(IMPACT_CONTAINERS) * 65_536 + random.nextInt(IMPACT_RECORDS_PER_CONTAINER);
+	}
+
+	/**
+	 * Verifies the tree holds exactly the reference: bucket count, key order, every bucket's records, and every
+	 * bucket's impacts in record order, read both through the cursor and through a descent. The tree must also report
+	 * a CONSISTENT internal state.
+	 *
+	 * @param tree      the tree to check
+	 * @param reference key to record to impact
+	 */
+	private static void verifyImpactTreeMatchesReference(
+		@Nonnull TransactionalBucketBPlusTree<String> tree,
+		@Nonnull TreeMap<String, TreeMap<Integer, Integer>> reference
+	) {
+		final ConsistencyReport report = tree.getConsistencyReport();
+		assertEquals(ConsistencyState.CONSISTENT, report.state(), report.report());
+		assertEquals(reference.size(), tree.bucketCount(), "Bucket count mismatch between tree and reference!");
+
+		int totalRecords = 0;
+		final BucketCursor<String> cursor = tree.cursor();
+		for (final Map.Entry<String, TreeMap<Integer, Integer>> entry : reference.entrySet()) {
+			final String key = entry.getKey();
+			assertTrue(cursor.next(), "Tree exposes fewer buckets than the reference!");
+			assertEquals(key, cursor.value(), "Key order mismatch between tree and reference!");
+			assertArrayEquals(
+				toArray(entry.getValue().keySet()), cursor.records().getArray(), "Record set mismatch for " + key + "!"
+			);
+			final byte[] impacts = new byte[entry.getValue().size()];
+			int index = 0;
+			for (final Integer impact : entry.getValue().values()) {
+				impacts[index++] = (byte) impact.intValue();
+			}
+			assertArrayEquals(impacts, cursor.impacts().toArray(), "Impacts read by the cursor for " + key + "!");
+			assertArrayEquals(impacts, tree.impactsOf(key), "Impacts read by a descent for " + key + "!");
+			totalRecords += impacts.length;
+		}
+		assertFalse(cursor.next(), "Tree exposes more buckets than the reference!");
+		assertEquals(totalRecords, tree.recordCount(), "Total record count mismatch between tree and reference!");
+	}
+
+	/**
+	 * Copies the reference deeply, so the copy can be changed while the original keeps describing the version a
+	 * transaction started from.
+	 *
+	 * @param reference key to record to impact
+	 * @return an independent copy
+	 */
+	@Nonnull
+	private static TreeMap<String, TreeMap<Integer, Integer>> deepCopy(
+		@Nonnull TreeMap<String, TreeMap<Integer, Integer>> reference
+	) {
+		final TreeMap<String, TreeMap<Integer, Integer>> copy = new TreeMap<>();
+		for (final Map.Entry<String, TreeMap<Integer, Integer>> entry : reference.entrySet()) {
+			copy.put(entry.getKey(), new TreeMap<>(entry.getValue()));
+		}
+		return copy;
+	}
+
+	/**
+	 * Picks a random key of the given map.
+	 *
+	 * @param map    the map
+	 * @param random the randomizer
+	 * @return a key the map holds
+	 */
+	private static int pickFromKeys(@Nonnull TreeMap<Integer, Integer> map, @Nonnull Random random) {
+		final int index = random.nextInt(map.size());
+		final Iterator<Integer> it = map.keySet().iterator();
+		int value = 0;
+		for (int i = 0; i <= index; i++) {
+			value = it.next();
+		}
+		return value;
+	}
+
+	/**
+	 * Converts an ascending collection of record ids into a primitive array.
+	 *
+	 * @param records the record ids, ascending
+	 * @return the record ids as an array
+	 */
+	@Nonnull
+	private static int[] toArray(@Nonnull java.util.Collection<Integer> records) {
+		final int[] array = new int[records.size()];
+		int index = 0;
+		for (final Integer value : records) {
+			array[index++] = value;
+		}
+		return array;
+	}
+
 	/**
 	 * Picks a random key present in the reference double.
 	 *
@@ -444,6 +751,20 @@ class LongRunningTransactionalBucketBPlusTreeTest implements TimeBoundedTestSupp
 	private record WarmUpState(
 		@Nonnull StringBuilder code,
 		boolean limitReached
+	) {
+	}
+
+	/**
+	 * Carries the chained state of the transactional impact proof.
+	 *
+	 * @param code      the operation log of the current generation, for the failure report
+	 * @param reference key to record to impact, as last published
+	 * @param tree      the last published tree
+	 */
+	private record ImpactState(
+		@Nonnull StringBuilder code,
+		@Nonnull TreeMap<String, TreeMap<Integer, Integer>> reference,
+		@Nonnull TransactionalBucketBPlusTree<String> tree
 	) {
 	}
 }

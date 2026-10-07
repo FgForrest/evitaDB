@@ -336,6 +336,9 @@ public final class CatalogSchema implements CatalogSchemaContract {
 					.toArray(Scope[]::new),
 				AttributeSchema.toAcceleratorsArray(attributeSchemaContract.getAcceleratorsInScopes()),
 				Arrays.stream(Scope.values())
+					.filter(attributeSchemaContract::isSearchableInScope)
+					.toArray(Scope[]::new),
+				Arrays.stream(Scope.values())
 					.filter(attributeSchemaContract::isSortableInScope)
 					.toArray(Scope[]::new),
 				attributeSchemaContract.isLocalized(),

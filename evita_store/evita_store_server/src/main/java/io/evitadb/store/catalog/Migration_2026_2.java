@@ -256,7 +256,8 @@ public interface Migration_2026_2 {
 							indexPart.getPriceIndexes(),
 							indexPart.isHierarchyIndex(),
 							indexPart.getFacetIndexes(),
-							indexPart.getHistogramIndexes()
+							indexPart.getHistogramIndexes(),
+							indexPart.getFulltextIndexes()
 						)
 					);
 					// persist the evicted bitmaps as the sibling part (skip empty indexes — the loader falls

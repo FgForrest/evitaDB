@@ -38,20 +38,25 @@ import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.EntityAttributeIndex;
+import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
+import io.evitadb.index.component.FulltextIndexMapComponent;
 import io.evitadb.index.component.PriceIndexComponent;
 import io.evitadb.index.component.ReducedIndexMembershipMapComponent;
 import io.evitadb.index.component.TrigramIndexMapComponent;
 import io.evitadb.index.component.loader.AttributeIndexLoader;
 import io.evitadb.index.component.loader.FacetIndexLoader;
+import io.evitadb.index.component.loader.FulltextIndexMapLoader;
 import io.evitadb.index.component.loader.HierarchyIndexLoader;
 import io.evitadb.index.component.loader.IndexReloadPlan;
 import io.evitadb.index.component.loader.LoadedComponentBundle;
 import io.evitadb.index.component.loader.PriceSuperIndexLoader;
 import io.evitadb.index.facet.FacetIndex;
+import io.evitadb.index.fulltext.FulltextIndex;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.membership.ReducedIndexMembership;
@@ -138,8 +143,8 @@ public class GlobalEntityIndex extends EntityIndex
 		}
 	);
 	/**
-	 * Matcher for {@link ReferencedTypeEntityIndex#getAllPrimaryKeys()} method that returns the super set of primary keys
-	 * from the proxy state object.
+	 * Matcher for {@link ReferencedTypeEntityIndex#getAllPrimaryKeys()} method that returns the super set of primary
+	 * keys from the proxy state object.
 	 */
 	private static final PredicateMethodClassification<GlobalEntityIndex, Void, GlobalIndexProxyState> GET_ALL_PRIMARY_KEYS_IMPLEMENTATION = new PredicateMethodClassification<>(
 		"getAllPrimaryKeys",
@@ -148,8 +153,8 @@ public class GlobalEntityIndex extends EntityIndex
 		(proxy, method, args, methodContext, proxyState, invokeSuper) -> proxyState.getSuperSetOfPrimaryKeysBitmap()
 	);
 	/**
-	 * Matcher for {@link ReferencedTypeEntityIndex#getAllPrimaryKeysFormula()} method that returns the super set of primary keys
-	 * from the proxy state object.
+	 * Matcher for {@link ReferencedTypeEntityIndex#getAllPrimaryKeysFormula()} method that returns the super set of
+	 * primary keys from the proxy state object.
 	 */
 	private static final PredicateMethodClassification<GlobalEntityIndex, Void, GlobalIndexProxyState> GET_ALL_PRIMARY_KEYS_FORMULA_IMPLEMENTATION = new PredicateMethodClassification<>(
 		"getAllPrimaryKeysFormula",
@@ -188,6 +193,21 @@ public class GlobalEntityIndex extends EntityIndex
 	 * shared value tree it indexes is dropped, which is the moment its value ids stop meaning anything.
 	 */
 	@Nonnull private final TransactionalMap<AttributeIndexKey, TrigramIndex> trigramIndex;
+	/**
+	 * The fulltext indexes of this index, one per locale partition - each holds the term dictionary, the impacts and
+	 * the field lengths of every searchable field of the entities in that locale. Empty, and costing a bare `HashMap`
+	 * object, for every collection without a fulltext-searchable field.
+	 *
+	 * Hosted here and nowhere else: the global index is the one index every entity belongs to, so a catalog pays for
+	 * the dictionary once. Unlike the trigram indexes these are primary state with a footprint of their own on disk -
+	 * see {@link FulltextIndexMapComponent}.
+	 */
+	@Nonnull private final TransactionalMap<Locale, FulltextIndex> fulltextIndexes;
+	/**
+	 * The component flushing {@link #fulltextIndexes}; held for its heap accounting, as it owns a snapshot nothing else
+	 * reaches.
+	 */
+	@Nonnull private final FulltextIndexMapComponent fulltextIndexComponent;
 	/**
 	 * Per-reference reverse lookup of "which reduced indexes hold this owner", keyed by reference name, used
 	 * by the cross-entity conditional-facet trigger to avoid walking every reduced index of the collection.
@@ -287,6 +307,10 @@ public class GlobalEntityIndex extends EntityIndex
 		// nowhere is charged the map object alone
 		this.trigramIndex = new TransactionalMap<>(new HashMap<>(), TrigramIndex.class, Function.identity());
 		addComponent(new TrigramIndexMapComponent(this.trigramIndex));
+		// likewise allocated empty: a collection with no fulltext-searchable field never puts anything here
+		this.fulltextIndexes = new TransactionalMap<>(new HashMap<>(), FulltextIndex.class, Function.identity());
+		this.fulltextIndexComponent = new FulltextIndexMapComponent(this.fulltextIndexes);
+		addComponent(this.fulltextIndexComponent);
 		// likewise allocated empty: a collection with no cross-entity conditional facet never puts anything here
 		this.reducedIndexMembership = new TransactionalMap<>(
 			new HashMap<>(), ReducedIndexMembership.class, Function.identity()
@@ -317,17 +341,19 @@ public class GlobalEntityIndex extends EntityIndex
 	) {
 		this(
 			primaryKey, entityIndexKey, version, entityIds, entityIdsByLanguage,
-			attributeIndex, priceIndex, hierarchyIndex, facetIndex, Map.of(), Map.of(), activity
+			attributeIndex, priceIndex, hierarchyIndex, facetIndex, Map.of(), Map.of(), Map.of(), activity
 		);
 	}
 
 	/**
-	 * Reconstructs a global entity index from persisted or committed state, together with the two derived
-	 * structures it hosts — the substring-search accelerators and the reduced-index membership lookup.
+	 * Reconstructs a global entity index from persisted or committed state, together with the fulltext indexes and the
+	 * two derived structures it hosts — the substring-search accelerators and the reduced-index membership lookup.
 	 *
 	 * @param trigramIndexes the per-`(attribute, locale)` trigram indexes — the committed ones on the merge copy, the
 	 *                       ones {@link TrigramIndex#rebuildAll} derived from the reloaded shared value trees on a cold
 	 *                       load, and empty for a caller that maintains none
+	 * @param fulltextIndexes the per-locale fulltext indexes — the committed ones on the merge copy, the ones loaded
+	 *                        from their pages on a cold load
 	 * @param reducedIndexMembership the per-reference reverse lookup of owners to the reduced indexes holding
 	 *                               them — derived state, empty on a freshly loaded index until it is rebuilt
 	 * @param activity       the activity holder to keep counting into — the copied index's own instance on the
@@ -345,6 +371,7 @@ public class GlobalEntityIndex extends EntityIndex
 		@Nonnull HierarchyIndex hierarchyIndex,
 		@Nonnull FacetIndex facetIndex,
 		@Nonnull Map<AttributeIndexKey, TrigramIndex> trigramIndexes,
+		@Nonnull Map<Locale, FulltextIndex> fulltextIndexes,
 		@Nonnull Map<String, ReducedIndexMembership> reducedIndexMembership,
 		@Nullable IndexActivity activity
 	) {
@@ -359,6 +386,11 @@ public class GlobalEntityIndex extends EntityIndex
 			new HashMap<>(trigramIndexes), TrigramIndex.class, Function.identity()
 		);
 		addComponent(new TrigramIndexMapComponent(this.trigramIndex));
+		this.fulltextIndexes = new TransactionalMap<>(
+			new HashMap<>(fulltextIndexes), FulltextIndex.class, Function.identity()
+		);
+		this.fulltextIndexComponent = new FulltextIndexMapComponent(this.fulltextIndexes);
+		addComponent(this.fulltextIndexComponent);
 		this.reducedIndexMembership = new TransactionalMap<>(
 			new HashMap<>(reducedIndexMembership), ReducedIndexMembership.class, Function.identity()
 		);
@@ -386,6 +418,7 @@ public class GlobalEntityIndex extends EntityIndex
 		.add(new PriceSuperIndexLoader())
 		.add(new HierarchyIndexLoader())
 		.add(new FacetIndexLoader())
+		.add(new FulltextIndexMapLoader())
 		.build((bundles, context) -> {
 			final LoadedComponentBundle.AttributeIndexes attributes =
 				(LoadedComponentBundle.AttributeIndexes) bundles.get(LoadedComponentBundle.AttributeIndexes.class);
@@ -395,6 +428,8 @@ public class GlobalEntityIndex extends EntityIndex
 				(LoadedComponentBundle.Hierarchy) bundles.get(LoadedComponentBundle.Hierarchy.class);
 			final LoadedComponentBundle.Facet facet =
 				(LoadedComponentBundle.Facet) bundles.get(LoadedComponentBundle.Facet.class);
+			final LoadedComponentBundle.FulltextIndexes fulltext =
+				(LoadedComponentBundle.FulltextIndexes) bundles.get(LoadedComponentBundle.FulltextIndexes.class);
 			final io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart manifest =
 				context.entityIndexStoragePart();
 			return new GlobalEntityIndex(
@@ -423,6 +458,7 @@ public class GlobalEntityIndex extends EntityIndex
 					manifest.getEntityIndexKey().scope(),
 					attributes.sharedValueIndexes()
 				),
+				fulltext.fulltextIndexes(),
 				// likewise derived state, but derived from the REDUCED indexes rather than from anything this
 				// index carries - and those are loaded independently of it, so there is nothing to rebuild from
 				// here. It starts empty, which costs correctness nothing (an uncovered reduced index is walked)
@@ -513,6 +549,69 @@ public class GlobalEntityIndex extends EntityIndex
 	}
 
 	/*
+		FULLTEXT INDEXES
+	 */
+
+	/**
+	 * Returns the fulltext index of the passed locale partition.
+	 *
+	 * @param locale the locale of the partition
+	 * @return the fulltext index, or `null` when this index keeps none for the locale
+	 */
+	@Nullable
+	public FulltextIndex getFulltextIndex(@Nonnull Locale locale) {
+		return this.fulltextIndexes.get(locale);
+	}
+
+	/**
+	 * Returns the locales this index keeps a fulltext index for.
+	 *
+	 * @return an immutable snapshot of the locales
+	 */
+	@Nonnull
+	public Set<Locale> getFulltextIndexLocales() {
+		return Set.copyOf(this.fulltextIndexes.keySet());
+	}
+
+	/**
+	 * Returns the fulltext index of the passed locale partition, creating an empty one built with the passed analyzer
+	 * when there is none.
+	 *
+	 * An existing index is returned as it is, even when it was built with a different analyzer than the passed one -
+	 * which happens when the analyzer assigned to the locale changed after the index was built, and the index was
+	 * reloaded with the analyzer it persisted. The index keeps analyzing every value it adds or removes with its own
+	 * analyzer, so it never holds the terms of two analyzers, and removing a value always finds the postings adding it
+	 * produced. The newly assigned analyzer applies only to an index built anew: the mismatch degrades the index to
+	 * its old analysis, it never refuses the write.
+	 *
+	 * @param locale        the locale of the partition
+	 * @param indexAnalyzer analyzer of the index slot of the locale, used only when the index is created
+	 * @return the fulltext index, never `null`
+	 */
+	@Nonnull
+	public FulltextIndex getOrCreateFulltextIndex(@Nonnull Locale locale, @Nonnull FulltextAnalyzer indexAnalyzer) {
+		final FulltextIndex existing = this.fulltextIndexes.get(locale);
+		if (existing != null) {
+			// TOBEDONE JNO #409 - rebuild an index whose analyzer differs from the one the locale is assigned now
+			return existing;
+		}
+		final FulltextIndex created = new FulltextIndex(indexAnalyzer);
+		this.fulltextIndexes.put(locale, created);
+		return created;
+	}
+
+	/**
+	 * Drops the fulltext index of the passed locale partition. Its footprint on disk - the root, the dictionary pages
+	 * and the length blocks - is removed by the next flush that collects this entity index, which happens only when the
+	 * caller obtained the index for modification, as for any other change of it.
+	 *
+	 * @param locale the locale of the partition
+	 */
+	public void removeFulltextIndex(@Nonnull Locale locale) {
+		this.fulltextIndexes.remove(locale);
+	}
+
+	/*
 		TRANSACTIONAL MEMORY IMPLEMENTATION
 	 */
 
@@ -533,6 +632,7 @@ public class GlobalEntityIndex extends EntityIndex
 			transactionalLayer.getStateCopyWithCommittedChanges(this.hierarchyIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.facetIndex),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.trigramIndex),
+			transactionalLayer.getStateCopyWithCommittedChanges(this.fulltextIndexes),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.reducedIndexMembership),
 			// the very same holder, not a copy: this is one logical index carried into the next catalog version
 			getActivity()
@@ -770,8 +870,8 @@ public class GlobalEntityIndex extends EntityIndex
 	 * Drops the trigram index of an attribute this index no longer maintains one for — the reconciliation every write
 	 * that takes the non-maintaining branch performs before delegating.
 	 *
-	 * Withdrawing a filter accelerator from a POPULATED collection is deliberately legal (the schema boundary refuses
-	 * additions only, see {@link EntityCollection}), and the accelerator is read on every write, so the withdrawal takes
+	 * Withdrawing a filter accelerator from a POPULATED collection is legal - no schema change is refused because the
+	 * collection holds data - and the accelerator is read on every write, so the withdrawal takes
 	 * effect at the very next one. Without this the entry would survive a gate that can never open again: nothing
 	 * would maintain it, {@link #dropTrigramIndexWithItsSharedValueTree} sits on the branch the write no longer takes,
 	 * and the index would keep its heap, keep answering {@link #getTrigramIndex} with postings drifting further from
@@ -823,12 +923,24 @@ public class GlobalEntityIndex extends EntityIndex
 
 	/**
 	 * Resolves the trigram index the write about to happen must report to, creating it - and switching the shared
-	 * value tree's id column on - the first time the attribute is written to.
+	 * value tree's id column on - the first time the attribute is written to while its tree is still empty. Returns
+	 * `null` while the accelerator is **dormant**, i.e. declared over a tree that already holds values.
 	 *
 	 * Attaching the value id consumer BEFORE the write is what makes the first value of an attribute countable: the
 	 * tree stamps a bucket at the moment it creates it, so a consumer attaching afterwards would find that one value
-	 * unstamped. It also makes the attach itself legal, because the tree is created empty here and the id column may
-	 * only be switched on while it still is.
+	 * unstamped. It also makes the attach itself legal, because the id column may only be switched on while the tree
+	 * is still empty.
+	 *
+	 * **Why a populated tree gets no accelerator.** A schema change is never refused because the collection already
+	 * holds data - bringing the indexes in line with it is the reindexing work of issue #409 - so the accelerator can
+	 * be declared over a tree that already holds values. Such a tree either carries no value ids (the accelerator was
+	 * never declared before its first value), and switching them on would mint ids no leaf page is rewritten to
+	 * persist; or it still carries them from a withdrawn declaration, and an index created here would hold none of the
+	 * values already present, so every substring query would silently under-report. Neither may happen, so the
+	 * accelerator stays dormant: no index, no consumer, and the substring translators scan, which answers correctly -
+	 * see `AbstractAttributeStringSearchTranslator`, which plans the scan whenever this map holds no index. Dormancy
+	 * ends when the tree empties out and is dropped (the next write starts a fresh tree), or at the next catalog load
+	 * for a tree that carries ids ({@link TrigramIndex#rebuildAll} derives the index from it there).
 	 *
 	 * The attach is reached only when the map holds no index yet, which is what keeps this off the steady-state write
 	 * path: an entry in the map exists only because the attach that created it succeeded, and the entry is dropped
@@ -837,16 +949,17 @@ public class GlobalEntityIndex extends EntityIndex
 	 * ({@link #reconcileTrigramIndexAbsence(ReferenceSchemaContract, AttributeSchemaContract, Locale)}) — the two
 	 * halves of the same invariant, and both are needed, since a withdrawn accelerator makes the drop hook unreachable.
 	 * A tree that somehow lost its ids while its entry survived is caught loudly by the tree's own premise on the very
-	 * next value born, rather than silently indexing everything under the unassigned id.
+	 * next value born, rather than silently indexing everything under the unassigned id. A dormant accelerator costs
+	 * one emptiness test per write to its attribute, and nothing else.
 	 *
 	 * @param referenceSchema the reference schema owning the attribute, or `null` for entity-level attributes
 	 * @param attributeSchema the schema of the attribute being written
 	 * @param allowedLocales  the set of locales permitted by the entity schema
 	 * @param locale          the locale of the value, or `null` for language-agnostic attributes
 	 * @param value           the value being written, which decides the key's locale for a localized attribute
-	 * @return the trigram index of that attribute and locale
+	 * @return the trigram index of that attribute and locale, or `null` while the accelerator is dormant
 	 */
-	@Nonnull
+	@Nullable
 	private TrigramIndex obtainTrigramIndex(
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeSchema,
@@ -860,6 +973,11 @@ public class GlobalEntityIndex extends EntityIndex
 		final TrigramIndex existing = this.trigramIndex.get(lookupKey);
 		if (existing != null) {
 			return existing;
+		}
+		final FilterIndex sharedValueView = this.attributeIndex.getFilterIndex(lookupKey);
+		if (sharedValueView != null && !sharedValueView.getInvertedIndex().isEmpty()) {
+			// declared over values indexed before the declaration - dormant, see the method's documentation
+			return null;
 		}
 		this.attributeIndex.attachSharedValueIdConsumer(
 			lookupKey, attributeSchema, TrigramIndex.VALUE_ID_CONSUMER_NAME
@@ -888,8 +1006,8 @@ public class GlobalEntityIndex extends EntityIndex
 	@Override
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// the priceIndex, trigramIndex and reducedIndexMembership slots
-		return getBaseHeapSizeInBytes(3L * layout.referenceSize())
+		// the priceIndex, trigramIndex, fulltextIndexes, fulltextIndexComponent and reducedIndexMembership slots
+		return getBaseHeapSizeInBytes(5L * layout.referenceSize())
 			+ this.priceIndex.getHeapSizeInBytes()
 			// the price component this class registers, holding the price index alone
 			+ layout.sizeOfObject(layout.referenceSize())
@@ -900,6 +1018,10 @@ public class GlobalEntityIndex extends EntityIndex
 			+ this.trigramIndex.getHeapSizeInBytes(key -> 0L, TrigramIndex::getHeapSizeInBytes)
 			// the trigram component this class registers, holding the map alone
 			+ layout.sizeOfObject(layout.referenceSize())
+			// the locales are interned by the JVM
+			+ this.fulltextIndexes.getHeapSizeInBytes(locale -> 0L, FulltextIndex::getHeapSizeInBytes)
+			// the fulltext component this class registers, with the footprint snapshot it alone holds
+			+ this.fulltextIndexComponent.getHeapSizeInBytes()
 			// the membership map charges its own keys: a reference name is held here and nowhere else in this index
 			+ this.reducedIndexMembership.getHeapSizeInBytes(
 				MemoryMeasuringConstants::computeStringSize, ReducedIndexMembership::getHeapSizeInBytes

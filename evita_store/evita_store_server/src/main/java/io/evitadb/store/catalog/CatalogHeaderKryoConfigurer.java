@@ -30,6 +30,8 @@ import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AttributesStoragePart.AttributesSetKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextLeafStreamKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueLeafStreamKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramLeafStreamKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexKey;
@@ -49,6 +51,8 @@ import io.evitadb.store.entity.serializer.EnumNameSerializer;
 import io.evitadb.store.entity.serializer.SerialVersionBasedSerializer;
 import io.evitadb.store.index.serializer.AttributeKeyWithIndexTypeSerializer;
 import io.evitadb.store.index.serializer.AttributeKeyWithIndexTypeSerializer_2025_5;
+import io.evitadb.store.index.serializer.FulltextIndexKeySerializer;
+import io.evitadb.store.index.serializer.FulltextLeafStreamKeySerializer;
 import io.evitadb.store.index.serializer.GlobalUniqueLeafStreamKeySerializer;
 import io.evitadb.store.index.serializer.HistogramIndexKeySerializer;
 import io.evitadb.store.index.serializer.HistogramLeafStreamKeySerializer;
@@ -148,6 +152,19 @@ public class CatalogHeaderKryoConfigurer implements Consumer<Kryo> {
 		kryo.register(
 			HistogramLeafStreamKey.class,
 			new SerialVersionBasedSerializer<>(new HistogramLeafStreamKeySerializer(), HistogramLeafStreamKey.class),
+			index++
+		);
+
+		// the fulltext index root key and its page-stream identity key - brand-new key types with no backward-compatible
+		// reader (the fulltext feature is unreleased). Appended last to keep the preceding registration ids stable.
+		kryo.register(
+			FulltextIndexKey.class,
+			new SerialVersionBasedSerializer<>(new FulltextIndexKeySerializer(), FulltextIndexKey.class),
+			index++
+		);
+		kryo.register(
+			FulltextLeafStreamKey.class,
+			new SerialVersionBasedSerializer<>(new FulltextLeafStreamKeySerializer(), FulltextLeafStreamKey.class),
 			index++
 		);
 

@@ -38,7 +38,7 @@ import javax.annotation.Nonnull;
  *
  * This base owns that leading frame in one authoritative place; concrete serializers implement the two identity
  * accessors and the two payload hooks. Keeping the frame here means the "key derived from the identifying pair, never
- * stored" contract cannot silently drift between the ten leaf-page serializers that share it.
+ * stored" contract cannot silently drift between the leaf-page serializers that share it.
  *
  * @param <T> the concrete leaf-page storage-part type
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026

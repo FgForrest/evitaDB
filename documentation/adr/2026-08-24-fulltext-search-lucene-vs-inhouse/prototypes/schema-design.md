@@ -1517,6 +1517,11 @@ The minimum that nevertheless **has** to be done before `searchable()` reaches u
 Point 1 is the only genuinely blocking one. Points 2 to 4 can be delivered in F1 and must not block the gate
 P5 → P1 → P2.
 
+> **Reversed 2026-10-05:** point 1 is not followed. No schema change is refused because the collection holds data;
+> the change is accepted, already indexed data keeps its old shape, and bringing it in line is the reindexing work of
+> #409. A capability that cannot serve over stored data degrades to *incomplete* answers, never to wrong ones - see
+> [`../../2026-10-05-schema-changes-never-refused-dormant-accelerator.md`](../../2026-10-05-schema-changes-never-refused-dormant-accelerator.md).
+
 ### 7.4 Where this is heading
 
 The target state is a **local rebuild of a single structure** — walk the collection's entities, re-tokenize

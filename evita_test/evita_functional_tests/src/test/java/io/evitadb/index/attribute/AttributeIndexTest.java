@@ -1234,6 +1234,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 				null,
 				new Scope[]{Scope.LIVE},
 				null,
+				null,
 				new Scope[]{Scope.LIVE},
 				false, false, false,
 				BigDecimal.class, null,

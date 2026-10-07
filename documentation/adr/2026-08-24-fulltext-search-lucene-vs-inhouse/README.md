@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-10-02 14:40
+updated: 2026-10-07 14:05
 status: partially-implemented
 kind: feature
 issues: [258, 1454]
@@ -9,7 +9,7 @@ prs: [1453, 1483]
 areas: [evita_engine, evita_api, evita_query, evita_store, evita_external_api, evita_engine/index/trigram]
 supersedes: []
 superseded-by: []
-relates: [2026-07-07-roaring-bitmap-vendoring, 2026-07-10-more-optimized-data-structures, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-27-write-path-performance-tuning, 2026-08-31-trigram-query-path-optimization, 2026-08-31-front-coded-column-stores-wtf8, 2026-09-10-simd-vector-api-feasibility, 2026-09-08-jdk21-safe-modernization, 2026-09-10-jdk21-virtual-threads-and-scoped-values]
+relates: [2026-07-07-roaring-bitmap-vendoring, 2026-07-10-more-optimized-data-structures, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-27-write-path-performance-tuning, 2026-08-31-trigram-query-path-optimization, 2026-08-31-front-coded-column-stores-wtf8, 2026-09-10-simd-vector-api-feasibility, 2026-09-08-jdk21-safe-modernization, 2026-09-10-jdk21-virtual-threads-and-scoped-values, 2026-10-05-schema-changes-never-refused-dormant-accelerator]
 ---
 
 # Fulltext search in evitaDB: an in-house core over the bitmap algebra, not a Lucene integration
@@ -111,6 +111,9 @@ database entirely:
 | 2026-08-31 | The accelerator moves onto its **own builder axis** — `acceleratedFor(...)` — superseding the 2026-08-25 fold into `filterable(...)`; this is option **C** of the three that were left open | The fold bound the accelerator to the wrong identifier. `filterable` is not the only way to get a filter index: a *foldable* `unique` attribute has no separate unique store and its values live in the **same** shared filter tree, which is why `AttributeIndex#insertUniqueAttribute` does nothing and returns `BY_FILTER_WRITE`. Option A (`unique(SUBSTRING)`) duplicated the capability argument onto a second builder family and left `unique(SUBSTRING)` + `filterable(SUBSTRING)` needing a defined meaning; option B′ (`unique().filterable(SUBSTRING)`) added no syntax but made a user declare a flag they did not want in order to reach a structure they already had, changing what the schema advertises. C matches the physical truth — the accelerator belongs to the filter index, not to whichever flag produced it — and the rule relaxes from "scope is filterable" to "scope has a filter index". Validation had to move off the mutation, which sees intermediate state and made declaration order significant, onto assembled schemas | `AttributeFilterAccelerator` (renamed from `FilterIndexCapability`, `SUBSTRING` → `SUBSTRING_SEARCH`), `SetAttributeSchemaAcceleratedMutation`, `AttributeSchemaContract#hasFilterIndexInScope`, `AbstractAttributeSchemaBuilder#validate` and a new `AttributeSchemaContract#validate` reached from `CatalogSchema#validate` — which closes the hole where mutations arriving over gRPC, REST and GraphQL bypassed validation entirely. The axis never shipped (`release_2026-2` has no reference to it), so `SetAttributeSchemaFilterableMutation` returns to its released shape and no new backward-compatible serializers were written. The value of the fix is measured rather than argued: `Product.code` is the strongest result of the production run (34/34 accelerated, worst case 8.42×) and is `unique`-not-`filterable` there, as is `code` in 16 of that catalog's other 17 collections — under the 2026-08-25 shape none of them could have declared the accelerator at all |
 | 2026-09-17 | **A searchable field must carry a locale** — schema validation refuses `searchable()` on a non-localized attribute or associated data | Fulltext structures are partitioned per (collection, locale, scope), and a non-localized field has no partition to live in. It is not hypothetical: a production CMS catalogue stores its article body as associated data with **no locale** while the `title` and `perex` beside it are localized. Three alternatives lost. **Indexing under every locale the entity has** is the only one where a Czech query gets Czech stems of the shared text and a German query German ones, with no new partition kind — *rejected because* it costs N× memory and N× analysis in an N-locale catalogue, to support a modelling shape the rule then disallows anyway; worth revisiting only if a catalogue appears whose non-localized text genuinely must be shared across locales. **One locale-less partition with the generic analyzer**, OR'd into every locale's query, is cheapest — one copy regardless of locale count — *rejected because* the generic chain does no stemming and no stop-word removal, so recall on the body (the largest and most valuable field of the CMS profile) would be markedly worse than on the localized title beside it, an indefensible asymmetry inside one collection; it also adds a second partition kind and an operand on every fulltext query. **A configured default locale** is cheap and correct for a single-language catalogue — *rejected because* it is silently wrong for a multilingual one with shared non-localized text, and it puts indexing semantics into configuration where a reader of the schema cannot see them. **The accepted cost, named before the decision was taken:** a catalogue whose text is not declared localized must migrate its schema before it can enable fulltext — for the CMS corpus, 956,323 records | Lands in F1 as the validation rule itself, next to its closest existing precedent: `AttributeSchemaContract#validate`, reached from `CatalogSchema#validate`, which is where the `acceleratedFor(...)` refusal lives. [`prototypes/p1-index-core-measurements.md`](prototypes/p1-index-core-measurements.md) part 7 |
 | 2026-10-02 | A fuzzy `attributeContains` over the trigram index counts an adjacent swap as **one** edit (restricted Damerau–Levenshtein), and the metric is carried into both halves of the method — the candidate generator's bound and the verification's distance | A swap is the most frequent keyboard mistake; the fulltext walker already builds its automaton with transpositions, every product engine surveyed does the same, and under plain Levenshtein the showcase `bnuda` → `bunda` is a two-edit case a 5–8 character fragment can never reach. The price is measured, not guessed: with a single pigeonhole threshold the per-edit constant rises from 3 to 4 trigram windows and the cut-offs move from 6 / 9 to 7 / 11 — which is why the *shape* was then measured further (swap expansion, full one-edit enumeration) and is recommended but **not yet decided**, pending the real corpus | [`prototypes/typo-tolerance-fuzzy-contains.md`](prototypes/typo-tolerance-fuzzy-contains.md) §1, §4.1, §6.1–§6.4 |
+| 2026-10-05 | **A schema change is never refused because the collection holds data** — the P8 refusal of a filter accelerator on a non-empty collection is removed, and `searchable()` will not get one either; an accelerator declared over stored values stays **dormant** (no index, the substring constraints scan) | Index maintenance on a schema change is the reindexing work of #409; until it exists the change is accepted and the indexed data keeps its old shape. Deleting the refusal alone was rejected: it shielded a write failure in a transaction, a write failure in warm-up, silent under-reporting after a re-declaration, and a catalog load failure. Full activation (back-fill the ids and rewrite every leaf page) was rejected as #409 machinery in the riskiest storage area | [`2026-10-05-schema-changes-never-refused-dormant-accelerator`](../2026-10-05-schema-changes-never-refused-dormant-accelerator.md); `GlobalEntityIndex#obtainTrigramIndex`, `TrigramIndex#rebuildAll`. Supersedes the "refuse" half of the 2026-08-25 value-id row and of the reindexing consequences below |
+| 2026-10-05 | **`searchable()` is a scope-aware attribute flag of its own** — five `filterable`-style methods, independent of `filterable` in both directions, allowed on entity, global and reference attributes; only a localized `String` / `String[]` may carry it, checked on the *assembled* attribute so declaration order never matters; on a reference attribute the entity is searchable by the **set union** of the values over its references of that type, and a change that neither adds nor removes a member of that set touches no index. Nothing about it is refused for stored data: a withdrawn field is **retired lazily** at the next write, so a re-declaration starts empty | `schema-design.md` §5.4 variant C, step 1 — the profile overload `searchable(String)`, the weight, the external-API mirrors and the annotations come with the query constraint in F1, because until then the flag has no query surface. Four alternatives lost. **Entity attributes only** — *rejected because* the union over references is a plain set union (`∪ String[] → String[]`) and brand or category names are among the first things searched by; it needs no reference index either, since the fulltext structures live only in the global index. **A multiset union** that counts how many references carry a value — *rejected because* every reference-attribute write would then touch the index, where the set form skips every write that leaves the set unchanged; term frequency over references is not a ranking signal anyone asked for. **Dropping the postings eagerly on withdrawal** — *rejected because* it is #409's rebuild machinery and cannot run inside a transaction on a populated structure; the retired field's postings stay as dead weight until #409, and results are only ever incomplete, never phantom. **The analyzer name and the length pivot in the schema** — deferred rather than rejected: the analyzer stays per (collection, locale), the pivot keeps its default of 25, and both are pinned by the F1 analyzer fingerprint | `AttributeSchemaContract#isSearchableInScope` / `#validate`, `SetAttributeSchemaSearchableMutation`, `ReferenceSchema#validateAttributes`; the reference-union behaviour is documented on `AttributeSchemaEditor#searchable()`. Field identity (kind + retired flag), the catalog-owned analyzer registry and the write path follow as separate commits |
+| 2026-10-05 | **A fulltext field is identified by its kind, its reference and its name, and a retired field keeps its id** — `FulltextFieldKey` = (`ATTRIBUTE` / `ASSOCIATED_DATA` / `REFERENCE_ATTRIBUTE`, reference name, name), a global attribute being an `ATTRIBUTE`; the root part persists each field's key and a retired flag beside its pivot and length blocks | Decided while the root-part format is still unreleased, so it costs no backward-compatible reader. Three alternatives lost. **The name alone** — *rejected because* the namespaces it would merge are independent in the schema: an attribute and an associated data item may share a name, and so may a reference attribute and an entity attribute, or two reference attributes of different references; each such pair would become one field. **Reusing `ContainerType`** (`ATTRIBUTE` / `ASSOCIATED_DATA` / `REFERENCE`) — *rejected because* it is the change-capture vocabulary and its `REFERENCE` names the reference itself, not an attribute on it; a fulltext kind borrowed from it would read wrong at every use. **Dropping a retired field from the registry** — *rejected because* a field's id is its position in the registry and the key prefix of every posting it owns; removing the entry would shift every later field onto another field's postings. The retired entry and its postings stay until #409 rebuilds the index | `FulltextFieldKey`, `FulltextIndex#retireField` / `#getFieldId`, `FulltextIndexStoragePart.FieldEntry`; the class javadoc of `FulltextIndex` ("Retired fields") |
 
 ### Why the in-house core won
 
@@ -213,6 +216,7 @@ dearer than linear costing suggests and the gate should be tighter.
 | A dedicated `session.suggest(...)` method | Does not escape the must-match filter (a suggestion has to be intersected with it), forces two round trips per keystroke for a rich dropdown, and no engine has one at API level | P3 measures the query-pipeline overhead as fatal against the 5 ms budget — then it is added *beside* the require form as an optimisation, never instead of it |
 | `float[]` added to `EvitaDataTypes` for embeddings | Breaches the principle that keeps floating-point out of indexes wholesale, not just for vectors; a dedicated `VectorEmbedding` type without `Comparable` cannot be marked filterable/sortable and skips the eight-layer schema-change cost | The vector branch needs values that must also be filterable or sortable in their own right |
 | A string mini-grammar for match strictness (`"3<90%"`, Lucene syntax in the query argument) | The engine parsing its own grammar out of a user-supplied string is exactly how the old solution leaked Lucene syntax into a public HTTP API, complete with its failure modes | Never; a typed shape (enumeration or child constraints) carries the same expressiveness |
+| **P1** — one catalog-wide term dictionary instead of one per (collection, locale, scope) | Only the term *strings* could be shared: postings name primary keys, which every collection numbers on its own, so a shared tree still holds one posting list per (collection, field, term). The strings are a small part of the index. On the CMS corpus the dictionary with its postings weighs 477 MB of the index's 700 MB (measurements part 2.4). Its 1.14M front-coded keys are estimated, not measured, at 10–15 MB, about 2 % of the index. Only the vocabulary the collections have in common could be saved, and in both measured corpora one collection holds nearly all of it. Against that saving: the key order (field, term) that makes a prefix expansion one contiguous cursor walk does not survive a collection component in the key, and a catalog-wide string → id table with per-collection postings turns that walk into a walk plus a probe per collection and adds an id → string directory of its own. Every fulltext write of every collection would land in one shared transactional structure, the one-namespace contention the catalog-wide value-ids analysis already declined. Dropping a collection would need a cleanup pass with per-term reference counts, where today it drops the collection's own pages. Each (collection, locale) index keeps its own analyzer under the mismatch policy, and one shared term space would tie collections to a single analyzer per locale | A catalog appears with several collections of comparable size and a largely shared vocabulary, **and** a measurement of the key column, not this estimate, puts the shared share at a level that matters. The heap is in the postings and impacts: the markup tokens of the CMS bodies and the surface-form dictionary mode (+717 MB) are the bigger levers |
 | **P8** — persist the trigram postings as paged leaf pages, at any granularity (leaf page / one record per key / hash shards) | Measured, not argued: all three rewrite *whole postings*, and the postings a write touches are the big ones — a touched key carries **30.7×** the bytes of an average key. One new `article/title/cs` value touches ~86 keys and rewrites **~4.8 MB** at the per-key floor, **4 285×** what a delta journal would append; at the current 512-key block, **94.1 % of every byte written is a bystander**, and no block size ≥ 8 comes within 2× of the floor. Granularity only sets the constant above a floor that is a fixed *share* of the whole index and grows with the corpus | The real fork is whole-posting rewrite versus delta journal, not granularity — so revisit only with a journal design, never with a different block size |
 | **P8** — a delta journal for the postings | Not rejected on its numbers (it is the only scale-free row in the write-amplification table, flat at ~1.1 kB per new value at every batch size) but on what it would be: a second write-ahead structure inside an engine that already treats a flush failure between durability and merge as unrecoverable-by-retry, whose central parameter would be compaction cadence, because folding a journal into a base snapshot is a whole-index rewrite by construction. The bulk rebuild then removed the reason to persist anything at all | Catalog open becomes rebuild-dominated again — a much wider opt-in attribute set, or many collections carrying one — and the ~4 s bulk figure stops being affordable |
 | **P8** — a flat open-addressing `long[]`/`Object[]` posting table | This is the spike's own §35.2 winner (1.1–1.6 ns/lookup against 4.5–28 ns boxed, 40–60× against binary search) and it still lost: an immutable published table clones both spine arrays on every commit that touches one posting, and the probe advantage is worth under a microsecond on a query whose verification phase runs tens to hundreds of microseconds | Never for the persisted/transactional structure. A flat table remains right for a **rebuilt-on-load, read-only** derived cache, which is what the spike actually measured |
@@ -292,6 +296,24 @@ Shallow pointers only — the depth is in the supporting files.
   is to **refuse** a change the engine cannot perform over a non-empty collection rather than accept
   it quietly. **P8 shipped that refusal for its own capability** and is the worked example — see
   below.
+  **Reversed 2026-10-05 ([`2026-10-05-schema-changes-never-refused-dormant-accelerator`](../2026-10-05-schema-changes-never-refused-dormant-accelerator.md)):** no schema change is refused because the collection holds data;
+  the change is accepted, the indexed data keeps its old shape, and #409 owns bringing it in line. For
+  fulltext that means a withdrawn `searchable` field is retired lazily, so a re-declaration starts empty -
+  incomplete, never phantom.
+- **A field's id is its registry position, so a retired field never leaves the registry.** The id is the key
+  prefix of every posting the field owns; `FulltextIndex#retireField` only stops its `FulltextFieldKey` from
+  resolving to it, and the root part persists it with a retired flag. A query or a write resolves fields by key
+  and so never reaches a retired one; code iterating field ids - a flush, a heap figure, a reindex - does, and
+  must ask `isFieldRetired`.
+- **The fulltext index is written at every mutation, and ahead of the reference `indexed` gate.**
+  `FulltextIndexMutator` updates the global index's fulltext index of the value's locale as each local mutation
+  is applied, so between any two mutations it holds exactly what the entity's storage parts hold - the invariant a
+  scope change relies on when it removes the entity's values from the scope it leaves. Reconciling once per entity
+  at `applyChanges` would write less, but could let a scope change in the same batch remove values that were never
+  the indexed ones. A reference attribute is united whether its reference is `indexed()` or not: the field lives in
+  the global index, which the reduced-index gate in `ReferenceMutationFanOut` does not concern. A value is indexed
+  as its **distinct** elements, so a `String[]` repeating an element counts it once - the set rule the reference
+  union follows, applied to entity attributes too so that add and remove always agree.
 - **The fulltext structures must be confined to the global index deliberately.** `AttributeIndex`
   lives on the common `EntityIndex` ancestor, not on `GlobalEntityIndex`, so reduced indexes have it
   too; the restriction is enforced the way `ReferencedTypeEntityIndex` does it for the sort
@@ -855,6 +877,33 @@ rather than a tuning one. Both are open items below.
   `entityLocaleEquals` change that was just declined. **The rule must reach F1's
   `AttributeSchemaContract#validate`, next to the `acceleratedFor(...)` refusal precedent**, and the
   migration cost must be stated to anyone planning a fulltext rollout over an existing catalogue.
+  **The rule landed 2026-10-05** with the `searchable()` schema API, in `AttributeSchemaContract#validate`; the
+  migration cost still has to be stated to whoever plans a rollout.
+- **`searchable()` exists in the Java API only, and must not ship that way (2026-10-05).** The schema API landed
+  without its gRPC, GraphQL and REST mirrors, which F1 adds together with the query constraint. Until then: a schema
+  read through gRPC - the Java driver included - reports **no attribute as searchable**; the GraphQL and REST
+  output of a create-attribute mutation carries a `searchableInScopes` property no descriptor declares, because that
+  output is built by reflection over the mutation's constructor; and `SetAttributeSchemaSearchableMutation` has no
+  external-API converter, so a change-data-capture stream reaching one through those APIs fails. The user
+  documentation of `searchable()` and its schema-capability usage statistics wait for the query constraint as well.
+- **A runtime-registered analyzer does not survive a restart, and must before one can be assigned (2026-10-05).**
+  `FulltextAnalyzerRegistry#register` lives in memory only, and a catalog load resolves each persisted index's
+  analyzer by name from a registry nothing has registered into yet - so a catalog holding an index built by a
+  registered analyzer would fail to load. Nothing reaches that today: the catalog's registry uses the default
+  assignment, which resolves built-in analyzers only. Whatever lets a schema assign a registered analyzer in F1 must
+  also make its definition available before the indexes load (persisted with the catalog, or supplied by
+  configuration at start-up), and belongs with the analyzer fingerprint, which pins what an analyzer *does* under
+  its name.
+- **A persisted analyzer or pivot that disagrees with the schema degrades, it is never refused (decided 2026-10-05).**
+  Until F1 moves them into the schema, each fulltext index persists the analyzer that built its terms and every field's
+  length pivot (the `TODO JNO … #258` sites). When the schema later says otherwise, the catalog still loads and the
+  index keeps serving - consistent with the rule that no schema change is refused for stored data. The rebuild that
+  would reconcile the two is #409's, and the site where an index reloaded with its persisted analyzer meets the newly
+  assigned one - `GlobalEntityIndex#getOrCreateFulltextIndex`, which hands out the existing index unchanged - carries
+  `TOBEDONE JNO #409`. Degrading safely has one condition: an index must keep using the analyzer and pivots it was built
+  with until it is rebuilt. Removing a value re-analyzes its text to find the postings to drop, so removing with a
+  different analyzer than the one that indexed it would leave stale postings behind - phantom hits, the one outcome the
+  rule forbids.
 - **P5 merged on 2026-09-24 (PR #1453); the 2026-09-02 blockers are closed.** The two red tests
   asserted accent-stripped recall the index chain alone could not deliver; the asymmetric M7 analyzer
   pairs that graduated on 2026-09-15 deliver it on the search side, and `CzechAccentTypingTest` was
@@ -904,10 +953,29 @@ rather than a tuning one. Both are open items below.
   way out (`replaceCatalog`) can follow in F1. P8 shipped the refusal for `SUBSTRING`, so the shape
   exists — but only for *adding* a capability to a non-empty collection. Withdrawal stays legal and
   is where the loose end is (below).
+  **Reversed 2026-10-05:** the refusal is gone - see [`2026-10-05-schema-changes-never-refused-dormant-accelerator`](../2026-10-05-schema-changes-never-refused-dormant-accelerator.md).
 - **Diacritics removal is not NFD.** The existing client uses a hand-written code-point table with
   special cases (`ß→ss`, `æ→ae`); we build on evitaDB's NFD normalisation. Results agree in most
   cases but not all, and migrating an existing site means a change in search results that has to be
   flagged in advance. P5 §7 has to verify the produced terms.
+- **`TransactionalBucketBPlusTree` carries two optional leaf columns as runtime modes, and should carry them behind a
+  seam (open question, 2026-10-06).** The impact column (`enableImpacts`, fulltext) and the value-id column
+  (`installValueIdMinter`, P8 trigram) are both switches inside one general-purpose tree: the tree knows two
+  index-specific concepts, and an impact-carrying tree refuses the plain `addRecord(value, pk)` family with a runtime
+  assertion while every other tree refuses `addRecord(value, pk, impact)`, so the type does not tell a caller which API
+  applies. Both columns are driven through every structural operation of `BPlusLeafTreeNode` - insert and remove shifts,
+  split, merge, borrowing, copy-on-write, commit merge, savepoint rollback, bulk load and heap size - and the impact
+  tiers follow the record tiers of `ImpactRecords` step by step. A typed subclass (`ImpactBucketBPlusTree` exposing only
+  the impact API, with a factory hook so commit copies keep their type) was considered and declined: it would still have
+  to override the inherited plain inserts to throw, which moves the refusal rather than removing it, and it cannot
+  express the value-id column at all, because that mode changes over the life of one tree - installed when the first
+  accelerator attaches, over a populated tree on load, again on the surviving tree at commit, and removed when the last
+  one detaches. The fix that removes both is a parallel-leaf-column seam: an interface the leaf drives through each of
+  the operations above, with value ids and impacts as two implementations and each owning index exposing its own typed
+  API, so the base tree knows neither. Revisit after F1 as a dedicated change: it rewrites the most
+  transaction-sensitive code of a 9,243-line class plus value-id code already in `dev`, so it needs the long-running B+
+  tree suites and a JMH run of `BucketBPlusTreePayloadBenchmark`, because the seam adds virtual calls to the leaf hot
+  path.
 
 ### Open items — the trigram substring index
 
@@ -968,6 +1036,9 @@ rather than a tuning one. Both are open items below.
   its dumped attribute values, with the capability declared before the first upsert. The general
   reindexing story is listed above as the fulltext core's only genuinely blocking item; this is that
   item arriving early, for a feature that has already shipped.
+  **2026-10-05:** the refusal half is gone ([`2026-10-05-schema-changes-never-refused-dormant-accelerator`](../2026-10-05-schema-changes-never-refused-dormant-accelerator.md)) - the declaration is now accepted on a populated
+  collection, but the accelerator stays dormant over a tree without value ids, so adoption by an existing
+  catalog still waits for #409 (or for the `replaceCatalog` route).
 - **The gate needs a second input, and the cheapest candidate is already known.** The four
   `catalogNumber` zero-runs forfeit up to 4.97× at a gate input that is bit-identical to the one cell
   that genuinely loses, so no threshold placed on that input can separate them. The distinguishing
@@ -1202,6 +1273,23 @@ what the next step has to answer.
   resource with `lucene-analysis-stempel` dropped, a registry-closing race, `HTMLStripCharFilter` pinned by
   `HtmlMarkupStrippingAnalysisTest` with the opt-in switch designed in `prototypes/p5-analyzers.md` §13,
   and a skill for adding a language
+- **2026-10-05** — during the S8b schema design review the P8 refusal of an accelerator on a non-empty
+  collection was replaced by dormancy, under the rule that no schema change is refused for stored data
+  ([`2026-10-05-schema-changes-never-refused-dormant-accelerator`](../2026-10-05-schema-changes-never-refused-dormant-accelerator.md))
+- **2026-10-05** — the `searchable()` schema API landed in the Java API: contract, data objects, builder,
+  `SetAttributeSchemaSearchableMutation`, Kryo and WAL serialization and validation; external-API mirrors deferred
+  to F1
+- **2026-10-05** — fulltext fields got their identity: `FulltextFieldKey` (kind, reference, name) replaces the bare
+  field name, and a retired field stays in the persisted registry under its id
+- **2026-10-05** — the catalog owns the analyzer registry: one per catalog, carried through going live, commits and
+  renames, closed when the catalog terminates, and handed to every entity index it loads, so a catalog load reads a
+  persisted fulltext index back with the analyzer it names
+- **2026-10-05** — the write path: entity, global and reference attributes declared `searchable()` are indexed into
+  the global index's fulltext index of their locale on every entity mutation, scope changes move them, and a write to
+  a withdrawn attribute retires its field - the end of P1's S8b
+- **2026-10-07** — a catalog-wide term dictionary declined: its only saving is the term strings, an estimated ~2 % of
+  the index, against the per-field prefix walk, per-collection write isolation and collection-drop lifecycle (see
+  *Rejected outright*)
 
 ## Supporting material
 

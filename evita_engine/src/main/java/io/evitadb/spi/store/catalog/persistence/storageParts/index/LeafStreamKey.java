@@ -46,9 +46,10 @@ import java.io.Serializable;
  * `entityIndexPrimaryKey`. `LeafStreamKey` is therefore `(entityIndexPrimaryKey, {@link AttributeKeyWithIndexType})`.
  *
  * The {@link KeyCompressor} is a bijective, restart-stable, transactionally-allocated dictionary persisted whole in the
- * catalog header, so `compressor.getId(leafStreamKey)` is a GUARANTEED-unique (never probabilistic) and deterministic
- * `int`: distinct sub-indexes get distinct ids, and an assigned id never changes. The number of sub-indexes is far below
- * 2^31, so the id fits the high 32 bits of the page PK while `pageSequence` fills the low 32.
+ * header of the entity collection whose data store holds the pages, so `compressor.getId(leafStreamKey)` is a
+ * GUARANTEED-unique (never probabilistic) and deterministic `int`: distinct sub-indexes get distinct ids, and an
+ * assigned id never changes. The number of sub-indexes is far below 2^31, so the id fits the high 32 bits of the page
+ * PK while `pageSequence` fills the low 32.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

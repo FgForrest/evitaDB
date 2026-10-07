@@ -1257,7 +1257,7 @@ enum GrpcHierarchyParentsBehaviour {
 }
 
 // What a storage part fundamentally is - the coarse fold of `GrpcStoragePartGroup`, and the one a composition table
-// uses when it wants three rows rather than fourteen. The three answer different questions: entity data shrinks only
+// uses when it wants three rows rather than fifteen. The three answer different questions: entity data shrinks only
 // by storing less, an index shrinks by indexing less (a schema decision that loses no data), and metadata is what the
 // store needs to describe itself and cannot be acted on at all.
 enum GrpcStoragePartKind {
@@ -1321,6 +1321,11 @@ enum GrpcStoragePartGroup {
   // all, so they never appear in a composition breakdown. Bytes here are the cost of the reference-schema histogram
   // definitions read back by the `referenceHistogram` require constraint.
   STORAGE_PART_GROUP_REFERENCE_HISTOGRAM_INDEX = 12;
+  // Everything built because an attribute or associated data is searchable - the fulltext index of each locale with
+  // its term dictionary, the impact of every posting and the field length tables. Charged apart from
+  // `ATTRIBUTE_INDEX` because searchability is a separate schema decision. Numbered after `HEADER` because it was
+  // added later; wire numbers are never reassigned.
+  STORAGE_PART_GROUP_FULLTEXT_INDEX = 15;
   // Schema records - the catalog schema and one entity schema per collection.
   STORAGE_PART_GROUP_SCHEMA = 13;
   // Header records the data store keeps to describe itself and its collections.

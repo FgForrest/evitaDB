@@ -1283,10 +1283,10 @@ public class InvertedIndex implements
 	 * reaches the ids only through a consumer's structure. The tree keeps minting rather than stopping, because a
 	 * column with a hole in it is what would really break the loader.
 	 *
-	 * The residue is collected on its own: a tree that empties out is dropped whole, and the accelerator can only be
-	 * re-declared on an empty collection (`EntityCollection#verifyNoAcceleratorAddedToNonEmptyCollection` refuses
-	 * additions, and `AttributeFilterAcceleratorRefusalTest#shouldAllowRemovingCapabilityFromPopulatedCollection`
-	 * pins that removals stay legal), so a re-attach always meets a tree whose column is empty anyway.
+	 * The residue is collected on its own: a tree that empties out is dropped whole. An accelerator re-declared over
+	 * a tree that still holds values does not re-attach on the write path at all - `GlobalEntityIndex` leaves it
+	 * dormant, because a fresh index there would miss the values already present - and the next catalog load attaches
+	 * again and derives the index from the column this method left standing (`TrigramIndex#rebuildAll`).
 	 *
 	 * Unregistering a consumer that is not the last one is unrestricted — the tree keeps its ids and nothing
 	 * structural happens.
@@ -1326,10 +1326,10 @@ public class InvertedIndex implements
 	 * The tree must still be EMPTY when ids are switched on. The tree itself would happily back-fill the values already
 	 * present, but that back-fill would live in memory only: it writes the id columns of leaves nothing marks dirty, so
 	 * the emitter never rewrites their pages, the ids never reach disk, and a reload would mint different ids for
-	 * exactly the values a consumer had already recorded ids for. The constraint costs nothing in practice because a
-	 * filter accelerator cannot be declared on a collection that already holds entities
-	 * (`EntityCollection#verifyNoAcceleratorAddedToNonEmptyCollection`), so the tree a consumer attaches to has
-	 * nothing in it yet.
+	 * exactly the values a consumer had already recorded ids for. No caller meets it in practice: an accelerator
+	 * declared over a tree that already holds values is left dormant by `GlobalEntityIndex` (the write path) and by
+	 * `TrigramIndex#rebuildAll` (the load path) instead of attaching, so a consumer only ever switches ids on for an
+	 * empty tree.
 	 *
 	 * @param allocator the allocator to mint from
 	 */
@@ -1339,8 +1339,8 @@ public class InvertedIndex implements
 				this.buckets.size() == 0,
 				"Value ids can only be switched on while the tree is still empty - back-filling the values already " +
 					"present dirties no leaf page, so the ids would never reach disk and a reload would hand those " +
-					"values different ones. A filter accelerator cannot be declared on a collection that already " +
-					"holds entities, so a consumer always attaches to an empty tree."
+					"values different ones. A consumer declared over a populated tree must stay dormant instead of " +
+					"attaching."
 			);
 			this.valueIdAllocator = allocator;
 			this.buckets.installValueIdMinter(this.valueIdAllocator::allocate);

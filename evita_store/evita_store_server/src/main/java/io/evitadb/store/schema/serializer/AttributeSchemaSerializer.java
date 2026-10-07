@@ -94,9 +94,11 @@ public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
 			output.writeBoolean(false);
 		}
 		kryo.writeObject(output, attributeSchema.getConflictResolutionOverride());
-		// appended last, mirroring how the conflict-resolution override was added - the release-2026.2 reader
-		// (AttributeSchemaSerializer_2026_2) simply stops before this point
+		// two sections appended last, in this fixed order - the accelerators, then the searchable scopes - mirroring
+		// how the conflict-resolution override was added; the release-2026.2 reader
+		// (AttributeSchemaSerializer_2026_2) simply stops before both
 		EntitySchemaSerializer.writeAccelerators(kryo, output, attributeSchema.getAcceleratorsInScopes());
+		EntitySchemaSerializer.writeScopeSet(kryo, output, attributeSchema.getSearchableInScopes());
 	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
@@ -134,9 +136,10 @@ public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
 		final ConflictResolutionOverride conflictResolutionOverride = kryo.readObject(input, ConflictResolutionOverride.class);
 		final Map<Scope, Set<AttributeFilterAccelerator>> accelerators =
 			EntitySchemaSerializer.readAccelerators(kryo, input);
+		final EnumSet<Scope> searchable = EntitySchemaSerializer.readScopeSet(kryo, input);
 		return AttributeSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
-			unique, filterable, accelerators, sortable, localized, nullable, representative,
+			unique, filterable, accelerators, searchable, sortable, localized, nullable, representative,
 			type, (Serializable) defaultValue, indexedDecimalPlaces, conflictResolutionOverride
 		);
 	}

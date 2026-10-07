@@ -549,24 +549,26 @@ if it does not hold:
     <dd>attributes shared across the whole catalog qualify too, but attributes attached to a
     [reference](#reference) do not. The index is kept per entity collection and never sees values stored on
     references. The plan is to lift this restriction in a future version</dd>
-    <dt>the entity collection does not contain any entities yet</dt>
-    <dd>the index is filled as entities are inserted, and evitaDB has no way to rebuild it for data that is already
-    there - so the accelerator has to be declared before the first entity is inserted</dd>
 </dl>
 
 <Note type="warning">
 
 <NoteTitle toggles="false">
 
-##### You cannot switch this accelerator on for data you already have
+##### Declared over data you already have, the accelerator stays dormant
 </NoteTitle>
 
-Because the declaration is rejected on a collection that already contains entities, there is no way to enable the
-accelerator on an existing, populated catalog in place.
+The accelerator is built as values are written, and evitaDB cannot yet rebuild it for values that are already stored.
+Declaring it on an attribute that already holds values is accepted, but the accelerator stays **dormant**: substring
+queries over that attribute keep scanning, exactly as they did before. The results are correct, but they are not any
+faster. evitaDB logs a warning when the schema change is made and again every time the catalog is loaded, so a dormant
+accelerator is never mistaken for an active one.
 
-The route today is to create a new catalog, declare the accelerator on it before inserting anything, load the data
-into it, and then replace the original catalog with the new one. Plan for this when you size a migration - it is a
-full re-import, not a schema tweak.
+A dormant accelerator becomes active once the attribute holds no values at all - for example after its entities have
+been removed - because the next value starts the index afresh. To accelerate an existing catalog today, create a new
+catalog, declare the accelerator on it before inserting anything, load the data into it, and then replace the
+original catalog with the new one. Plan for this when you size a migration - it is a full re-import, not a schema
+tweak.
 
 </Note>
 

@@ -25,6 +25,7 @@ package io.evitadb.index.component;
 
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
 import io.evitadb.utils.CollectionUtils;
 
@@ -64,6 +65,10 @@ public final class EntityIndexManifest {
 	 * `HistogramCapableEntityIndex`.
 	 */
 	private final Set<HistogramIndexStorageKey> histogramKeys = CollectionUtils.createHashSet(8);
+	/**
+	 * Keys of the per-locale fulltext indexes carried by `GlobalEntityIndex`.
+	 */
+	private final Set<FulltextIndexKey> fulltextKeys = CollectionUtils.createHashSet(4);
 	/**
 	 * Whether any hierarchy data is present in the index. Mirrors the
 	 * `!hierarchyIndex.isHierarchyIndexEmpty()` predicate used by
@@ -108,6 +113,15 @@ public final class EntityIndexManifest {
 	}
 
 	/**
+	 * Announces a single fulltext index key to the manifest.
+	 *
+	 * @param key the key to add
+	 */
+	public void addFulltextKey(@Nonnull FulltextIndexKey key) {
+		this.fulltextKeys.add(key);
+	}
+
+	/**
 	 * Marks the manifest as containing hierarchy data. Called by `HierarchyIndex` whenever
 	 * it currently carries at least one node.
 	 */
@@ -147,6 +161,14 @@ public final class EntityIndexManifest {
 	@Nonnull
 	public Set<HistogramIndexStorageKey> getHistogramKeys() {
 		return this.histogramKeys;
+	}
+
+	/**
+	 * @return the announced fulltext index keys, read by the parent `EntityIndex`
+	 */
+	@Nonnull
+	public Set<FulltextIndexKey> getFulltextKeys() {
+		return this.fulltextKeys;
 	}
 
 	/**

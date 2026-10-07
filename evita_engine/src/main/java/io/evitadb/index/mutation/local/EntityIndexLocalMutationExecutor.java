@@ -78,6 +78,7 @@ import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriConsumer;
 import io.evitadb.index.*;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor;
 import io.evitadb.index.mutation.EntityIndexMutation;
 import io.evitadb.index.mutation.IndexImplicitMutations;
@@ -241,6 +242,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Held by reference for the same reason the collection's registry is - it outlives every catalog version.
 	 */
 	@Nonnull private final SchemaCapabilityUsageRegistry catalogUsageRegistry;
+	/**
+	 * The catalog's analyzer registry, which supplies the analyzer a fulltext index of a locale is created with when a
+	 * searchable value is written into a locale that has none yet.
+	 */
+	@Nonnull private final FulltextAnalyzerRegistry fulltextAnalyzerRegistry;
 	/**
 	 * Whether this mutation counts the index-maintenance effort it costs - the server-wide
 	 * `server.usageStatisticsTracking` switch, resolved once when the executor is built.
@@ -413,6 +419,29 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		return globalIndex.insertPrimaryKeyIfMissing(entityPrimaryKey);
 	}
 
+	/**
+	 * Creates an executor that applies the local mutations of one entity to the indexes of its collection.
+	 *
+	 * @param containerAccessor            accessor of the current and previous storage containers of the entity
+	 * @param entityPrimaryKey             primary key of the mutated entity
+	 * @param entityIndexCreatingAccessor  accessor that creates or removes the entity indexes of the collection
+	 * @param catalogIndexCreatingAccessor accessor that creates or removes the catalog indexes
+	 * @param schemaAccessor               supplies the current entity schema
+	 * @param priceInternalIdSupplier      sequence assigning new price internal ids
+	 * @param fullEntitySupplier           supplies the full entity body, needed when the entity changes its scope
+	 * @param triggerRegistrySupplier      supplies the catalog registry of cross-entity expression triggers, or
+	 *                                     `null` when cross-entity triggers are not evaluated
+	 * @param localFacetTriggerSupplier    supplies the local facet expression trigger of a reference and scope, or
+	 *                                     `null` when no local expression is evaluated
+	 * @param crossEntitySchemaResolver    resolves an entity type to its schema across the catalog, or `null` to
+	 *                                     resolve only this executor's own entity schema
+	 * @param entityTypeClassifierResolver resolves an entity type name to its compact primary key and back
+	 * @param usageRegistry                the usage counters of the collection written into
+	 * @param catalogUsageRegistry         the usage counters of the catalog written into
+	 * @param fulltextAnalyzerRegistry     the catalog-owned analyzer registry, which supplies the analyzer when the
+	 *                                     fulltext index of a locale is first created
+	 * @param usageStatisticsTracking      whether the mutation counts the index-maintenance effort it costs
+	 */
 	public EntityIndexLocalMutationExecutor(
 		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
 		int entityPrimaryKey,
@@ -427,6 +456,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull EntityTypeClassifierResolver entityTypeClassifierResolver,
 		@Nonnull SchemaCapabilityUsageRegistry usageRegistry,
 		@Nonnull SchemaCapabilityUsageRegistry catalogUsageRegistry,
+		@Nonnull FulltextAnalyzerRegistry fulltextAnalyzerRegistry,
 		boolean usageStatisticsTracking
 	) {
 		this.containerAccessor = containerAccessor;
@@ -443,6 +473,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		this.entityTypeClassifierResolver = entityTypeClassifierResolver;
 		this.usageRegistry = usageRegistry;
 		this.catalogUsageRegistry = catalogUsageRegistry;
+		this.fulltextAnalyzerRegistry = fulltextAnalyzerRegistry;
 		this.usageStatisticsTracking = usageStatisticsTracking;
 	}
 
@@ -503,6 +534,16 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	@Nonnull
 	public String getEntityType() {
 		return this.entityType;
+	}
+
+	/**
+	 * Returns the catalog's analyzer registry, which supplies the analyzer of a fulltext index this mutation creates.
+	 *
+	 * @return the analyzer registry
+	 */
+	@Nonnull
+	public FulltextAnalyzerRegistry getFulltextAnalyzerRegistry() {
+		return this.fulltextAnalyzerRegistry;
 	}
 
 	/**
@@ -2535,6 +2576,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		unindexAllGlobalAttributes(entity, entitySchema, globalIndex, existingDataSupplierFactory);
 		// un-index hierarchy (hierarchies are only in global index)
 		unindexHierarchyPlacement(entityPrimaryKey, entitySchema, globalIndex);
+		// un-index searchable values from the fulltext indexes (they live in the global index only)
+		FulltextIndexMutator.unindexEntity(this, globalIndex, entity);
 		// remove all languages from the global indexes
 		unindexLocales(entity, entitySchema, globalIndex, existingDataSupplierFactory);
 		// finally, remove entity from the global index
@@ -2826,6 +2869,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		indexAllPrices(entity, scope, globalIndex, existingDataSupplierFactory);
 		// index references (and their attributes)
 		indexAllReferences(entity, scope, entitySchema, globalIndex, existingDataSupplierFactory);
+		// index searchable values into the fulltext indexes (they live in the global index only)
+		FulltextIndexMutator.indexEntity(this, globalIndex, entity);
 	}
 
 	/**

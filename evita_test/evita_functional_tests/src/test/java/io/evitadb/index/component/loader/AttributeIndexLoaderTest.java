@@ -54,6 +54,7 @@ import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.component.loader.LoadedComponentBundle.AttributeIndexes;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueIdAllocator;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.range.RangeIndex;
@@ -121,6 +122,11 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(ATTRIBUTE)
 class AttributeIndexLoaderTest {
 
+	/**
+	 * The analyzer registry every load context carries. These manifests list no fulltext index, so it is never asked
+	 * for an analyzer and holds nothing that would need closing.
+	 */
+	private static final FulltextAnalyzerRegistry ANALYZER_REGISTRY = new FulltextAnalyzerRegistry();
 	private static final String ENTITY_TYPE = "Product";
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_PRIORITY = "priority";
@@ -347,7 +353,8 @@ class AttributeIndexLoaderTest {
 			EmptyBitmap.INSTANCE,
 			Map.of(),
 			storage,
-			null
+			null,
+			ANALYZER_REGISTRY
 		);
 		final LoadedComponentBundle bundle = new AttributeIndexLoader().load(context);
 		return assertInstanceOf(AttributeIndexes.class, bundle, "Loader must return an AttributeIndexes bundle");
@@ -758,7 +765,7 @@ class AttributeIndexLoaderTest {
 			return new EntityIndexStoragePart(
 				INDEX_PK, 1, entityIndexKey,
 				new BaseBitmap(), new HashMap<Locale, TransactionalBitmap>(0),
-				this.manifestKeys, Set.of(), false, Set.of(), Set.of()
+				this.manifestKeys, Set.of(), false, Set.of(), Set.of(), Set.of()
 			);
 		}
 
@@ -988,7 +995,8 @@ class AttributeIndexLoaderTest {
 				storage,
 				// REFERENCED_ENTITY_TYPE indexes carry a String discriminator and a `null` referenceKey, exactly as the
 				// engine's DefaultEntityCollectionPersistenceService builds the context
-				null
+				null,
+				ANALYZER_REGISTRY
 			);
 			final LoadedComponentBundle bundle = new AttributeIndexLoader().load(context);
 			return assertInstanceOf(AttributeIndexes.class, bundle, "Loader must return an AttributeIndexes bundle");

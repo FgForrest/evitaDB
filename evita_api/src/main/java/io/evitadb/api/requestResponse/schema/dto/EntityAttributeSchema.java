@@ -70,7 +70,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		return new EntityAttributeSchema(
 			name, NamingConvention.generate(name),
 			null, null,
-			null, null, null, null,
+			null, null, null, null, null,
 			localized, false, false,
 			type, null,
 			0,
@@ -90,6 +90,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
 		@Nullable Scope[] filterableInScopes,
 		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
+		@Nullable Scope[] searchableInScopes,
 		@Nullable Scope[] sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -108,6 +109,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			theUniquenessType,
 			theFilterableInScopes,
 			toAcceleratorsEnumMap(acceleratorsInScopes),
+			ArrayUtils.toEnumSet(Scope.class, searchableInScopes),
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -130,6 +132,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
 		@Nullable Scope[] filterableInScopes,
 		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
+		@Nullable Scope[] searchableInScopes,
 		@Nullable Scope[] sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -149,6 +152,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			theUniquenessType,
 			theFilterableInScopes,
 			toAcceleratorsEnumMap(acceleratorsInScopes),
+			ArrayUtils.toEnumSet(Scope.class, searchableInScopes),
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -171,6 +175,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable Map<Scope, AttributeUniquenessType> uniqueInScopes,
 		@Nullable Set<Scope> filterableInScopes,
 		@Nullable Map<Scope, Set<AttributeFilterAccelerator>> acceleratorsInScopes,
+		@Nullable Set<Scope> searchableInScopes,
 		@Nullable Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -186,6 +191,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			uniqueInScopes,
 			filterableInScopes,
 			acceleratorsInScopes,
+			searchableInScopes,
 			sortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -209,6 +215,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable Map<Scope, AttributeUniquenessType> uniqueInScopes,
 		@Nullable Set<Scope> filterableInScopes,
 		@Nullable Map<Scope, Set<AttributeFilterAccelerator>> acceleratorsInScopes,
+		@Nullable Set<Scope> searchableInScopes,
 		@Nullable Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -224,6 +231,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			uniqueInScopes,
 			filterableInScopes,
 			acceleratorsInScopes,
+			searchableInScopes,
 			sortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -247,6 +255,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
 		@Nullable Scope[] filterableInScopes,
 		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
+		@Nullable Scope[] searchableInScopes,
 		@Nullable Scope[] sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -266,6 +275,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			theUniquenessType,
 			theFilterableInScopes,
 			toAcceleratorsEnumMap(acceleratorsInScopes),
+			ArrayUtils.toEnumSet(Scope.class, searchableInScopes),
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -282,6 +292,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 		@Nullable Map<Scope, AttributeUniquenessType> uniqueInScopes,
 		@Nullable Set<Scope> filterableInScopes,
 		@Nullable Map<Scope, Set<AttributeFilterAccelerator>> acceleratorsInScopes,
+		@Nullable Set<Scope> searchableInScopes,
 		@Nullable Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -293,7 +304,7 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 	) {
 		super(
 			name, nameVariants, description, deprecationNotice,
-			uniqueInScopes, filterableInScopes, acceleratorsInScopes, sortableInScopes,
+			uniqueInScopes, filterableInScopes, acceleratorsInScopes, searchableInScopes, sortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue, indexedDecimalPlaces,
 			conflictResolutionOverride
@@ -309,6 +320,8 @@ public final class EntityAttributeSchema extends AttributeSchema implements Enti
 			(this.filterableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.filterableInScopes) + ")") +
 			(this.acceleratorsInScopes.isEmpty() ?
 				"" : ", accelerators=(" + joinAccelerators(this.acceleratorsInScopes) + ")") +
+			", searchable=" +
+			(this.searchableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.searchableInScopes) + ")") +
 			", sortable=" +
 			(this.sortableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.sortableInScopes) + ")") +
 			", localized=" + this.localized +

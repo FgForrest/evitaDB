@@ -31,6 +31,8 @@ import org.junit.jupiter.api.Test;
 import java.math.BigDecimal;
 import java.util.Map;
 
+import static io.evitadb.utils.NumberUtils.byte4ToInt;
+import static io.evitadb.utils.NumberUtils.intToByte4;
 import static io.evitadb.utils.NumberUtils.pack;
 import static io.evitadb.utils.NumberUtils.unpack;
 import static io.evitadb.utils.NumberUtils.unpackHigh;
@@ -40,6 +42,7 @@ import static io.evitadb.utils.NumberUtils.unpackLow32;
 import static io.evitadb.utils.NumberUtils.unpackMid16;
 import java.io.Serializable;
 import io.evitadb.exception.GenericEvitaInternalError;
+import org.apache.lucene.util.SmallFloat;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -48,6 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.DATA_TYPE;
 
@@ -556,6 +560,74 @@ class NumberUtilsTest {
 			assertEquals(4, result[0].getRetainedDecimalPlaces());
 			assertEquals(881000L, result[0].getFrom());
 			assertNull(result[1]);
+		}
+	}
+
+	@Nested
+	@DisplayName("Byte4 encoding of non-negative ints")
+	class Byte4EncodingTests {
+
+		@Test
+		@DisplayName("Should encode every value of the first million exactly as Lucene's SmallFloat does")
+		void shouldEncodeLikeLuceneOverTheFirstMillion() {
+			for (int value = 0; value <= 1_000_000; value++) {
+				if (intToByte4(value) != SmallFloat.intToByte4(value)) {
+					assertEquals(SmallFloat.intToByte4(value), intToByte4(value), "Encoding differs for " + value);
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("Should decode every byte and encode the values around every decoded one as Lucene does")
+		void shouldMatchLuceneAtEveryCodeBoundary() {
+			for (int unsigned = 0; unsigned <= 255; unsigned++) {
+				final byte encoded = (byte) unsigned;
+				final int decoded = byte4ToInt(encoded);
+				assertEquals(SmallFloat.byte4ToInt(encoded), decoded, "Decoding differs for byte " + unsigned);
+				// the value of a code, and its neighbours, sit exactly where a code boundary is
+				final long last = Math.min(Integer.MAX_VALUE, decoded + 1L);
+				for (long value = Math.max(0L, decoded - 1L); value <= last; value++) {
+					assertEquals(
+						SmallFloat.intToByte4((int) value), intToByte4((int) value), "Encoding differs for " + value
+					);
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("Should round-trip small values exactly and the first lossy one to its lower neighbour")
+		void shouldRoundTripSmallValuesExactly() {
+			for (int value = 0; value <= 40; value++) {
+				assertEquals(value, byte4ToInt(intToByte4(value)), "Value " + value + " should round-trip");
+			}
+			assertEquals(40, byte4ToInt(intToByte4(41)));
+		}
+
+		@Test
+		@DisplayName("Should encode monotonically and never decode above the encoded value")
+		void shouldEncodeMonotonicallyAndNeverOverstate() {
+			int previousCode = 0;
+			// every value up to 100,000, then steps of a thousandth, so the walk reaches the largest int in seconds
+			for (long value = 0; value <= Integer.MAX_VALUE; value += value < 100_000 ? 1 : value / 1_000) {
+				final byte encoded = intToByte4((int) value);
+				final int code = Byte.toUnsignedInt(encoded);
+				assertTrue(code >= previousCode, "Encoding of " + value + " is below the one of a smaller value");
+				assertTrue(byte4ToInt(encoded) <= value, "Value " + value + " decodes above itself");
+				previousCode = code;
+			}
+		}
+
+		@Test
+		@DisplayName("Should map the largest int to the largest byte")
+		void shouldMapLargestIntToLargestByte() {
+			assertEquals((byte) 0xFF, intToByte4(Integer.MAX_VALUE));
+			assertEquals(2_013_265_944, byte4ToInt((byte) 0xFF));
+		}
+
+		@Test
+		@DisplayName("Should refuse a negative value")
+		void shouldRefuseNegativeValue() {
+			assertThrows(GenericEvitaInternalError.class, () -> intToByte4(-1));
 		}
 	}
 }
