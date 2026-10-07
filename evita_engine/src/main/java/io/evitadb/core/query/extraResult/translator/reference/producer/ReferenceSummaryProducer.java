@@ -526,7 +526,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 			return FacetGroupOccurrences.singleGroup(facetGroupId, facetEntityIds);
 		}
 		final List<Integer> groupsInQuery = new ArrayList<>(4);
-		final Map<Integer, Bitmap> entityIdsByGroup = new HashMap<>(8);
+		final Map<Integer, Bitmap> entityIdsByGroup = createHashMap(8);
 		entityIdsByGroup.put(facetGroupId, facetEntityIds);
 		for (final List<Integer> groups : groupsByScope.values()) {
 			for (final Integer groupId : groups) {

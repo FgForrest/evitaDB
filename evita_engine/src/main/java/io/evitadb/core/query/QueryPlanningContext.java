@@ -2176,7 +2176,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nullable Integer groupId
 	) {
 		if (this.facetGroupRelations == null) {
-			this.facetGroupRelations = new HashMap<>(8);
+			this.facetGroupRelations = CollectionUtils.createHashMap(8);
 		}
 		return this.facetGroupRelations
 			.computeIfAbsent(referenceSchema.getName(), referenceName -> new FacetGroupRelationsOfReference())
