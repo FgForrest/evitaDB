@@ -384,7 +384,9 @@ class ReevaluateExpressionExecutorTest {
 			// Act
 			ReevaluateExpressionExecutorTest.this.executor.execute(mutation, target);
 
-			// Assert: evaluateFilter was called with a filter that includes BOTH entity PK and group PK scoping
+			// Assert: evaluateFilter was called with the group PK merged into the condition's own `groupHaving`.
+			// The referenced entity is NOT pinned: the condition does not read it, the contribution's owner set
+			// already scopes the answer, and a pin would make it require the referenced entity to exist
 			final ArgumentCaptor<FilterBy> filterCaptor = ArgumentCaptor.forClass(FilterBy.class);
 			verify(target).evaluateFilter(filterCaptor.capture(), eq(Scope.LIVE));
 
@@ -398,7 +400,10 @@ class ReevaluateExpressionExecutorTest {
 				if (child instanceof ReferenceHaving rh) {
 					foundReferenceHaving = true;
 					assertContainsGroupHavingWithPK(rh, 2);
-					assertContainsEntityHavingWithPK(rh, 3);
+					assertTrue(
+						FinderVisitor.findConstraints(rh, EntityHaving.class::isInstance).isEmpty(),
+						"A condition that does not read the referenced entity must not pin it: " + rh
+					);
 				}
 			}
 			assertTrue(foundReferenceHaving, "Filter should contain ReferenceHaving");
@@ -1672,20 +1677,6 @@ class ReevaluateExpressionExecutorTest {
 	}
 
 	/**
-	 * Asserts that a {@link ReferenceHaving} constraint contains an {@link EntityHaving} clause
-	 * with an {@link EntityPrimaryKeyInSet} constraint matching the given entity PK.
-	 *
-	 * @param rh       the reference having constraint to inspect
-	 * @param entityPK the expected entity primary key
-	 */
-	private static void assertContainsEntityHavingWithPK(@Nonnull ReferenceHaving rh, int entityPK) {
-		assertTrue(
-			containsEntityHavingWithPK(rh, entityPK),
-			"ReferenceHaving should contain EntityHaving with entityPrimaryKeyInSet(" + entityPK + ")"
-		);
-	}
-
-	/**
 	 * Checks whether a {@link ReferenceHaving} contains a {@link GroupHaving} with an
 	 * {@link EntityPrimaryKeyInSet} constraint matching the given PK.
 	 *
@@ -1703,33 +1694,6 @@ class ReevaluateExpressionExecutorTest {
 				for (final FilterConstraint andChild : and.getChildren()) {
 					if (andChild instanceof GroupHaving gh) {
 						if (containsPKInSet(gh.getChildren(), groupPK)) {
-							return true;
-						}
-					}
-				}
-			}
-		}
-		return false;
-	}
-
-	/**
-	 * Checks whether a {@link ReferenceHaving} contains an {@link EntityHaving} with an
-	 * {@link EntityPrimaryKeyInSet} constraint matching the given PK.
-	 *
-	 * @param rh       the constraint to inspect
-	 * @param entityPK the expected PK value
-	 * @return true if found
-	 */
-	private static boolean containsEntityHavingWithPK(@Nonnull ReferenceHaving rh, int entityPK) {
-		for (final FilterConstraint child : rh.getChildren()) {
-			if (child instanceof EntityHaving eh) {
-				if (containsPKInSet(eh.getChildren(), entityPK)) {
-					return true;
-				}
-			} else if (child instanceof And and) {
-				for (final FilterConstraint andChild : and.getChildren()) {
-					if (andChild instanceof EntityHaving eh) {
-						if (containsPKInSet(eh.getChildren(), entityPK)) {
 							return true;
 						}
 					}

@@ -88,6 +88,7 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 	private static final String REF_PARAM_BY_REF_ATTR = "paramByRefAttr";
 	private static final String REF_PARAM_BY_ENTITY_ATTR = "paramByEntityAttr";
 	private static final String REF_PARAM_BY_REF_ENTITY_ATTR = "paramByRefEntityAttr";
+	private static final String REF_PARAM_BY_REF_ENTITY_ATTR_GROUPED = "paramByRefEntityAttrGrouped";
 	private static final String REF_PARAM_UNCONDITIONAL = "paramUnconditional";
 	private static final String REF_PARAM_MULTI_HISTOGRAM = "paramMultiHistogram";
 	private static final String REF_PARAM_BY_MIXED_AND = "paramByMixedAnd";
@@ -269,6 +270,26 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 				REF_PARAM_BY_REF_ENTITY_ATTR, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
 				whichIs -> whichIs
 					.indexedForFilteringAndPartitioning()
+					.bucketed(
+						HISTOGRAM_STATUS,
+						ExpressionFactory.parse(
+							"$reference.referencedEntity?.attributes['basicUnitValue']"
+						)
+					)
+					.bucketedPartially(
+						ExpressionFactory.parse(
+							"($reference.referencedEntity.attributes['status'] ?? '') == 'ACTIVE'"
+						)
+					)
+			)
+
+			// --- Grouped: condition on referenced entity attribute only, the group is never read ---
+			.withReferenceToEntity(
+				REF_PARAM_BY_REF_ENTITY_ATTR_GROUPED, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs
+					.indexedForFilteringAndPartitioning()
+					.indexedWithComponents(ReferenceIndexedComponents.values())
+					.withGroupTypeRelatedToEntity(ENTITY_PARAMETER)
 					.bucketed(
 						HISTOGRAM_STATUS,
 						ExpressionFactory.parse(
@@ -1931,6 +1952,268 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 			);
 		}
 
+		/**
+		 * A qualifying reference whose value source was unset contributed nothing, so when the value is set to
+		 * the bucket a sibling reference already occupies, the executor must only add. It used to mistake the
+		 * missing pre-mutation value for "the value source was not mutated", remove the *new* value on the
+		 * sibling's behalf and leave the bucket counting one contribution where there are two - so dropping
+		 * the sibling afterwards evicted the owner.
+		 */
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should keep both contributions when an unset value is set to a sibling's bucket")
+		void shouldKeepBothContributionsWhenUnsetValueIsSetToSiblingBucket(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+
+					session.createNewEntity(ENTITY_PARAMETER, 10)
+						.setAttribute(ATTR_INPUT_WIDGET_TYPE, "INTERVAL")
+						.upsertVia(session);
+
+					// PV#1 contributes bucket 50; PV#2 has no value yet and so contributes nothing
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 2)
+						.upsertVia(session);
+
+					// both references sit in the same qualifying group
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(
+							REF_PARAM_BY_GROUP_ATTR, 1,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 10)
+						)
+						.setReference(
+							REF_PARAM_BY_GROUP_ATTR, 2,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 10)
+						)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
+						HISTOGRAM_VALUE, new BigDecimal("50"), 1
+					);
+
+					// PV#2 gains the value PV#1 already holds - bucket 50 now counts two contributions
+					session.getEntity(ENTITY_PARAMETER_VALUE, 2, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.upsertVia(session);
+
+					// dropping PV#1 withdraws one of them - PV#2 must keep the product in bucket 50
+					session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.removeReference(REF_PARAM_BY_GROUP_ATTR, 1)
+						.upsertVia(session);
+
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10,
+						HISTOGRAM_VALUE, new BigDecimal("50"), 1
+					);
+
+					// dropping PV#2 withdraws the last contribution
+					session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.removeReference(REF_PARAM_BY_GROUP_ATTR, 2)
+						.upsertVia(session);
+
+					assertHistogramNotIndexed(
+						productCollection, REF_PARAM_BY_GROUP_ATTR, 10, HISTOGRAM_VALUE, 1
+					);
+				}
+			);
+		}
+
+		/**
+		 * A value expression with a `??` default contributes the default while its value source is unset. Once
+		 * the value is set, the default must make way for it. The executor used to read the missing
+		 * pre-mutation value as "the value source was not mutated" and remove the current - new - value, which
+		 * was not indexed yet, so the default stayed beside it: the owner counted twice and the histogram
+		 * minimum was stuck at the default.
+		 */
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should replace the default contribution when an unset value is set")
+		void shouldReplaceDefaultContributionWhenUnsetValueIsSet(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+
+					session.createNewEntity(ENTITY_PARAMETER, 10)
+						.setAttribute(ATTR_INPUT_WIDGET_TYPE, "INTERVAL")
+						.upsertVia(session);
+
+					// PV#1 has no value yet, so the reference contributes the `?? 0` default
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.upsertVia(session);
+
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(
+							REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 1,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 10)
+						)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 10,
+						HISTOGRAM_VALUE, BigDecimal.ZERO, 1
+					);
+
+					// PV#1 gains its value - the default must give way to it
+					session.getEntity(ENTITY_PARAMETER_VALUE, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.upsertVia(session);
+
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 10,
+						HISTOGRAM_VALUE, new BigDecimal("50"), 1
+					);
+					assertHistogramBucketNotContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 10,
+						HISTOGRAM_VALUE, BigDecimal.ZERO, 1
+					);
+
+					// dropping the only reference must leave no contribution behind
+					session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.removeReference(REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 1)
+						.upsertVia(session);
+
+					assertHistogramNotIndexed(
+						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 10, HISTOGRAM_VALUE, 1
+					);
+				}
+			);
+		}
+
+		/**
+		 * The same `??` default as above, but this time the value source is missing because the referenced entity
+		 * itself does not exist yet: `referencedEntity` is `null` while the owner is indexed. When the referenced
+		 * entity is created with its value, the default must make way for that value, exactly as it does when an
+		 * existing entity's unset value is set.
+		 */
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should replace the default contribution when the referenced entity is inserted later")
+		void shouldReplaceDefaultContributionWhenReferencedEntityIsInsertedLater(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+
+					session.createNewEntity(ENTITY_PARAMETER, 10)
+						.setAttribute(ATTR_INPUT_WIDGET_TYPE, "INTERVAL")
+						.upsertVia(session);
+
+					// PV#1 does not exist yet, so the reference contributes the `?? 0` default
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(
+							REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 1,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 10)
+						)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 10,
+						HISTOGRAM_VALUE, BigDecimal.ZERO, 1
+					);
+
+					// PV#1 arrives with its value - the default must give way to it
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.upsertVia(session);
+
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 10,
+						HISTOGRAM_VALUE, new BigDecimal("50"), 1
+					);
+					assertHistogramBucketNotContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 10,
+						HISTOGRAM_VALUE, BigDecimal.ZERO, 1
+					);
+
+					// dropping the only reference must leave no contribution behind
+					session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.removeReference(REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 1)
+						.upsertVia(session);
+
+					assertHistogramNotIndexed(
+						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 10, HISTOGRAM_VALUE, 1
+					);
+				}
+			);
+		}
+
+		/**
+		 * The re-evaluation pins its condition to the group of the mutated reference. When the condition never
+		 * reads the group, that pin must not make the verdict depend on the group entity existing: the owner was
+		 * indexed while the group was missing, so it contributed, and its old value has to make way for the new
+		 * one.
+		 */
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should move the contribution when the value changes while the group entity does not exist")
+		void shouldMoveContributionWhenValueChangesWhileGroupEntityIsMissing(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("10"))
+						.upsertVia(session);
+
+					// Parameter#10 is never created - the condition does not read it
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(
+							REF_PARAM_BY_REF_ENTITY_ATTR_GROUPED, 1,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 10)
+						)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR_GROUPED, 10,
+						HISTOGRAM_STATUS, new BigDecimal("10"), 1
+					);
+
+					session.getEntity(ENTITY_PARAMETER_VALUE, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.upsertVia(session);
+
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR_GROUPED, 10,
+						HISTOGRAM_STATUS, new BigDecimal("50"), 1
+					);
+					assertHistogramBucketNotContains(
+						productCollection, REF_PARAM_BY_REF_ENTITY_ATTR_GROUPED, 10,
+						HISTOGRAM_STATUS, new BigDecimal("10"), 1
+					);
+				}
+			);
+		}
+
 		@ParameterizedTest(name = "catalog state: {0}")
 		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should update histogram when referenced entity attribute changes (value)")
@@ -2973,6 +3256,65 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 					assertUngroupedLocalizedHistogramBucketContains(
 						productCollection, REF_PARAM_BY_LOCALIZED_ATTR,
 						HISTOGRAM_LOCALIZED, Locale.ENGLISH, new BigDecimal("17.64"), 2
+					);
+				}
+			);
+		}
+
+		/**
+		 * A mutation of one locale leaves every other locale's value as it was, so the executor must remove the
+		 * untouched locale's current value before re-adding it. It used to treat the locale missing from the
+		 * captured pre-mutation values as "was unset", skip the removal and count the untouched locale's
+		 * contribution twice - so removing the reference left the owner behind in that locale's bucket.
+		 */
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should not double-count the untouched locale when another locale's value changes")
+		void shouldNotDoubleCountUntouchedLocaleWhenAnotherLocaleValueChanges(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.setAttribute(ATTR_LOCALIZED_WEIGHT, Locale.ENGLISH, new BigDecimal("17.64"))
+						.setAttribute(ATTR_LOCALIZED_WEIGHT, new Locale("cs"), new BigDecimal("500"))
+						.upsertVia(session);
+
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(REF_PARAM_BY_LOCALIZED_ATTR, 1)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+
+					// mutate only the Czech value - the English one keeps its single contribution
+					session.getEntity(ENTITY_PARAMETER_VALUE, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTR_LOCALIZED_WEIGHT, new Locale("cs"), new BigDecimal("750"))
+						.upsertVia(session);
+
+					assertUngroupedLocalizedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_LOCALIZED_ATTR,
+						HISTOGRAM_LOCALIZED, Locale.ENGLISH, new BigDecimal("17.64"), 1
+					);
+
+					// the only reference goes - no locale may keep the product
+					session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.removeReference(REF_PARAM_BY_LOCALIZED_ATTR, 1)
+						.upsertVia(session);
+
+					assertUngroupedLocalizedHistogramNotIndexed(
+						productCollection, REF_PARAM_BY_LOCALIZED_ATTR,
+						HISTOGRAM_LOCALIZED, Locale.ENGLISH, 1
+					);
+					assertUngroupedLocalizedHistogramNotIndexed(
+						productCollection, REF_PARAM_BY_LOCALIZED_ATTR,
+						HISTOGRAM_LOCALIZED, new Locale("cs"), 1
 					);
 				}
 			);

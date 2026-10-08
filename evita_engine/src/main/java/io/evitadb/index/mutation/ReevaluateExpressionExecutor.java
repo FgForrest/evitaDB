@@ -809,7 +809,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	) {
 		final FilterBy parameterizedFilter = parameterize(
 			trigger.getFilterByConstraint(), mutation.referenceName(),
-			mutation.mutatedEntityPK(), mutation.dependencyType()
+			mutation.mutatedEntityPK(), mutation.dependencyType(),
+			!trigger.getLocalReferenceAttributes().isEmpty()
 		);
 		final Bitmap truePKs = target.evaluateFilter(parameterizedFilter, mutation.scope());
 		final Bitmap shouldBeIndexed = and(
@@ -845,7 +846,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			final FilterBy parameterizedFilter = parameterizeWithGroupScope(
 				trigger.getFilterByConstraint(), mutation.referenceName(),
 				mutation.mutatedEntityPK(), mutation.dependencyType(),
-				group.groupPK()
+				group.groupPK(), !trigger.getLocalReferenceAttributes().isEmpty()
 			);
 			final Bitmap truePKs = target.evaluateFilter(parameterizedFilter, mutation.scope());
 			final PersistentRoaringBitmap groupOwnerPKs = getRoaringBitmap(group.ownerPKs());
@@ -867,6 +868,14 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * the `GroupHaving` clause is still directly accessible for merging. This ensures that the
 	 * resulting filter has a single `GroupHaving(and(condition, entityPrimaryKeyInSet(groupPK)))`,
 	 * preventing cross-reference false positives.
+	 *
+	 * @param triggerFilterBy          the pre-translated `FilterBy` from the trigger
+	 * @param referenceName            name of the reference whose `referenceHaving` clause receives the PK scope
+	 * @param mutatedEntityPK          PK of the mutated entity
+	 * @param dependencyType           relationship between the mutated entity and the owner entity
+	 * @param groupPK                  PK of the group the evaluated references sit in, or `null` when ungrouped
+	 * @param readsReferenceAttributes `true` when the condition reads attributes of the reference itself
+	 * @return a new `FilterBy` with both PK scopes injected
 	 */
 	@Nonnull
 	private static FilterBy parameterizeWithGroupScope(
@@ -874,20 +883,23 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull String referenceName,
 		int mutatedEntityPK,
 		@Nonnull DependencyType dependencyType,
-		@Nullable Integer groupPK
+		@Nullable Integer groupPK,
+		boolean readsReferenceAttributes
 	) {
 		if (groupPK == null) {
-			return parameterize(triggerFilterBy, referenceName, mutatedEntityPK, dependencyType);
+			return parameterize(
+				triggerFilterBy, referenceName, mutatedEntityPK, dependencyType, readsReferenceAttributes
+			);
 		}
 		// Inject group PK scope into the ORIGINAL filter first (before entity PK injection); the
 		// recursive rewrite reaches every matching ReferenceHaving regardless of nesting (Or/And/Not),
 		// and injectPkScope merges the PK into every GroupHaving sibling in each match.
 		final EntityPrimaryKeyInSet groupPkConstraint = new EntityPrimaryKeyInSet(groupPK);
 		final FilterBy groupScoped = rewriteMatchingReferenceHavings(
-			triggerFilterBy, referenceName, groupPkConstraint, true
+			triggerFilterBy, referenceName, groupPkConstraint, true, true
 		);
 		// then apply the standard entity PK scoping
-		return parameterize(groupScoped, referenceName, mutatedEntityPK, dependencyType);
+		return parameterize(groupScoped, referenceName, mutatedEntityPK, dependencyType, readsReferenceAttributes);
 	}
 
 	/**
@@ -954,7 +966,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 *
 	 * @param resolution value resolution metadata identifying the histogram's source attribute
 	 * @param mutation   the cross-entity mutation carrying optional pre-mutation values
-	 * @return per-locale old values, or null if the value source was not mutated
+	 * @return per-locale old values, or null if the value source was not mutated; a locale mapped to `null` was
+	 *         unset before the mutation, a locale missing from the map was not mutated
 	 */
 	@Nullable
 	private static Map<Locale, Serializable> resolvePreMutationValues(
@@ -980,7 +993,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param rtei               the top-level referenced-type entity index
 	 * @param isGrouped          `true` when the reference has a group type
 	 * @param target             access to entity collection indexes
-	 * @param preMutationValues  per-locale pre-mutation raw values when the value source was mutated, or null
+	 * @param preMutationValues  per-locale pre-mutation raw values when the value source was mutated, or null;
+	 *                           a locale mapped to `null` was unset, a missing locale was not mutated
 	 */
 	private static void scopedRemoveForRefEntityAttrForLocale(
 		@Nonnull String histogramName,
@@ -996,10 +1010,14 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	) {
 		final String sourceEntityType = Objects.requireNonNull(resolution.sourceEntityType());
 
-		// when the value source attribute was itself mutated, use captured pre-mutation values
-		// for deterministic removal (the source FilterIndex already reflects the NEW values)
+		// when the value source attribute was itself mutated in this locale, use the captured pre-mutation value
+		// for deterministic removal (the source FilterIndex already reflects the NEW values). A captured `null` is
+		// a known old value - the attribute was unset, so only the default (if any) was contributed - and must not
+		// fall through to the current value, which would remove a sibling reference's contribution to the bucket
+		// the new value lands in. A locale missing from the capture was not mutated, so its current value is
+		// still the old one.
 		final Serializable[] knownOldValues;
-		if (preMutationValues != null) {
+		if (preMutationValues != null && preMutationValues.containsKey(locale)) {
 			final Serializable rawOldValue = preMutationValues.get(locale);
 			knownOldValues = ReferenceIndexMutator.resolveHistogramValues(rawOldValue, resolution);
 		} else {
@@ -2081,10 +2099,19 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * single mutated entity. For parent dependencies the filter is returned unchanged (scoping is
 	 * handled by the resolution step).
 	 *
-	 * @param triggerFilterBy   the pre-translated `FilterBy` from the trigger
-	 * @param referenceName     name of the reference whose `referenceHaving` clause receives the PK scope
-	 * @param mutatedEntityPK   PK of the mutated entity
-	 * @param dependencyType    relationship between the mutated entity and the owner entity
+	 * **A referenced entity the condition does not read is pinned only for a condition reading the reference's
+	 * own attributes.** The pin reaches the query engine as `entityHaving`, a lookup of the referenced entity, and
+	 * the engine does not see a reference whose managed target does not exist (yet) - whereas the owner's own
+	 * write evaluates the expression per reference and indexes such a reference with its `??` default. An
+	 * unneeded pin would therefore answer "did not contribute" for a contribution that exists, and the default
+	 * would stay in the histogram once the referenced entity arrives. The affected owners already reference the
+	 * mutated entity, so the pin adds nothing else for a condition that does not read it.
+	 *
+	 * @param triggerFilterBy          the pre-translated `FilterBy` from the trigger
+	 * @param referenceName            name of the reference whose `referenceHaving` clause receives the PK scope
+	 * @param mutatedEntityPK          PK of the mutated entity
+	 * @param dependencyType           relationship between the mutated entity and the owner entity
+	 * @param readsReferenceAttributes `true` when the condition reads attributes of the reference itself
 	 * @return a new `FilterBy` with PK-scoping injected; unchanged for parent deps
 	 */
 	@Nonnull
@@ -2092,7 +2119,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull FilterBy triggerFilterBy,
 		@Nonnull String referenceName,
 		int mutatedEntityPK,
-		@Nonnull DependencyType dependencyType
+		@Nonnull DependencyType dependencyType,
+		boolean readsReferenceAttributes
 	) {
 		// Parent entity dependency does not require PK scoping: the children bitmap from the resolution step
 		// already limits the scope to the right owners. Returning the original avoids an unnecessary allocation.
@@ -2104,7 +2132,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		final EntityPrimaryKeyInSet pkConstraint = new EntityPrimaryKeyInSet(mutatedEntityPK);
 		final boolean isGroupScope = dependencyType == DependencyType.GROUP_ENTITY_ATTRIBUTE
 			|| dependencyType == DependencyType.GROUP_ENTITY_REFERENCE_ATTRIBUTE;
-		return rewriteMatchingReferenceHavings(triggerFilterBy, referenceName, pkConstraint, isGroupScope);
+		return rewriteMatchingReferenceHavings(
+			triggerFilterBy, referenceName, pkConstraint, isGroupScope, isGroupScope || readsReferenceAttributes
+		);
 	}
 
 	/**
@@ -2127,6 +2157,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param pkConstraint   the PK constraint to merge into each matching `ReferenceHaving`
 	 * @param isGroupScope   `true` for {@link GroupHaving}-scoped injection, `false` for
 	 *                       {@link EntityHaving}-scoped injection
+	 * @param pinWithoutContainer `true` to append a new scope container when the clause holds none to merge
+	 *                       the PK into, `false` to leave such a clause unpinned
 	 * @return the rewritten filter; structurally identical when no owner-scope `ReferenceHaving`
 	 *         matched
 	 */
@@ -2135,7 +2167,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull FilterBy filterBy,
 		@Nonnull String referenceName,
 		@Nonnull EntityPrimaryKeyInSet pkConstraint,
-		boolean isGroupScope
+		boolean isGroupScope,
+		boolean pinWithoutContainer
 	) {
 		final FilterBy rewritten = (FilterBy) ConstraintCloneVisitor.clone(
 			filterBy,
@@ -2143,7 +2176,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				&& rh.getReferenceName().equals(referenceName)
 				&& !visitor.isWithin(EntityHaving.class)
 				&& !visitor.isWithin(GroupHaving.class)
-				? injectPkScope(rh, referenceName, pkConstraint, isGroupScope)
+				? injectPkScope(rh, referenceName, pkConstraint, isGroupScope, pinWithoutContainer)
 				: constraint
 		);
 		// ConstraintCloneVisitor.clone is @Nullable because it returns null when the cloned tree
@@ -2165,21 +2198,26 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * scope containers (produced by the expression translator when the same reference declares more
 	 * than one `groupEntity?.…` / `entity?.…` predicate) is correctly constrained on every branch.
 	 * When no scope container is present, a new one wrapping the PK constraint is appended as an
-	 * And-sibling.
+	 * And-sibling, unless `pinWithoutContainer` says the caller does not need the axis pinned; see
+	 * {@link #parameterize} for why an unneeded pin is harmful.
 	 *
 	 * @param rh            the original referenceHaving clause
 	 * @param referenceName the reference name for the new ReferenceHaving
 	 * @param pkConstraint  the PK constraint to inject
 	 * @param isGroupScope  `true` when the scope container is {@link GroupHaving}, `false` for
 	 *                      {@link EntityHaving}
-	 * @return a new {@link ReferenceHaving} with the PK constraint injected
+	 * @param pinWithoutContainer `true` to append a new scope container when none is present, `false` to
+	 *                      return the clause unchanged in that case
+	 * @return a new {@link ReferenceHaving} with the PK constraint injected, or `rh` itself when there was
+	 *         nothing to merge into and `pinWithoutContainer` is `false`
 	 */
 	@Nonnull
 	private static ReferenceHaving injectPkScope(
 		@Nonnull ReferenceHaving rh,
 		@Nonnull String referenceName,
 		@Nonnull EntityPrimaryKeyInSet pkConstraint,
-		boolean isGroupScope
+		boolean isGroupScope,
+		boolean pinWithoutContainer
 	) {
 		final FilterConstraint[] rhChildren = rh.getChildren();
 		final FilterConstraint[] updatedChildren = new FilterConstraint[rhChildren.length];
@@ -2200,6 +2238,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			return updatedChildren.length == 1
 				? new ReferenceHaving(referenceName, updatedChildren[0])
 				: new ReferenceHaving(referenceName, new And(updatedChildren));
+		}
+		if (!pinWithoutContainer) {
+			return rh;
 		}
 		// No existing scope container — wrap PK in a new one and add as an And-sibling.
 		final FilterConstraint pkScope = isGroupScope
