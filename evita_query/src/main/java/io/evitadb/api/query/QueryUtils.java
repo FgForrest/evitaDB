@@ -24,16 +24,13 @@
 package io.evitadb.api.query;
 
 import io.evitadb.api.query.filter.FilterBy;
-import io.evitadb.api.query.filter.FilterInScope;
 import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
 import io.evitadb.api.query.order.EntityGroupProperty;
 import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderBy;
-import io.evitadb.api.query.order.OrderInScope;
 import io.evitadb.api.query.order.ReferenceOrderingSpecification;
 import io.evitadb.api.query.require.Require;
-import io.evitadb.api.query.require.RequireInScope;
 import io.evitadb.api.query.require.SeparateEntityContentRequireContainer;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.query.visitor.FinderVisitor.PredicateWithDescription;
@@ -425,86 +422,78 @@ public class QueryUtils {
 		// contains an `inScope` at all
 		final FilterBy filterBy = query.getFilterBy();
 		if (filterBy != null) {
-			assertNoNestedScopeContainers(filterBy, null, null, null);
+			assertNoNestedScopeContainers(filterBy, null);
 		}
 		final OrderBy orderBy = query.getOrderBy();
 		if (orderBy != null) {
-			assertNoNestedScopeContainers(orderBy, null, null, null);
+			assertNoNestedScopeContainers(orderBy, null);
 		}
 		final Require require = query.getRequire();
 		if (require != null) {
-			assertNoNestedScopeContainers(require, null, null, null);
+			assertNoNestedScopeContainers(require, null);
 		}
 	}
 
 	/**
-	 * Walks `constraint` and its descendants once, remembering for each kind of scope container the one enclosing
-	 * the visited constraint within the current evaluation context - see {@link #assertNoNestedScopeContainers(Query)}.
+	 * Walks `constraint` and its descendants once, remembering the `inScope` container enclosing the visited constraint
+	 * within the current evaluation context - see {@link #assertNoNestedScopeContainers(Query)}.
+	 *
+	 * Only a container of the same kind ({@link Constraint#getType()}) is refused. One enclosing container is enough to
+	 * track all three kinds, because the kinds nest in one direction only - require constraints hold filter and order
+	 * constraints (`referenceContent`), order constraints hold filter constraints (`segment`), never the other way
+	 * round. Once the walk descends to another kind, a container of the kind it left cannot appear below, so an
+	 * `inScope` of the new kind may replace it.
 	 *
 	 * A container whose children are evaluated against another entity collection starts a new evaluation context for
 	 * its own kind: the enclosing container of that kind is forgotten below it, so an `inScope` there is accepted -
 	 * yet still checked against any `inScope` nested in it within that other context.
 	 *
-	 * @param constraint       the constraint to visit
-	 * @param enclosingFilter  the filter `inScope` enclosing the constraint in the current context, or NULL
-	 * @param enclosingOrder   the order `inScope` enclosing the constraint in the current context, or NULL
-	 * @param enclosingRequire the require `inScope` enclosing the constraint in the current context, or NULL
+	 * @param constraint the constraint to visit
+	 * @param enclosing  the `inScope` container enclosing the constraint in the current context, or NULL
 	 * @throws EvitaInvalidUsageException when an `inScope` is enclosed by another one of the same kind
 	 */
 	private static void assertNoNestedScopeContainers(
 		@Nonnull Constraint<?> constraint,
-		@Nullable FilterInScope enclosingFilter,
-		@Nullable OrderInScope enclosingOrder,
-		@Nullable RequireInScope enclosingRequire
+		@Nullable InScopeContainer<?> enclosing
 	) {
-		FilterInScope filterContext = enclosingFilter;
-		OrderInScope orderContext = enclosingOrder;
-		RequireInScope requireContext = enclosingRequire;
-		if (constraint instanceof final FilterInScope filterInScope) {
-			if (enclosingFilter != null) {
-				throw createNestedScopeContainerException(
-					enclosingFilter.getScope(), filterInScope, filterInScope.getScope()
-				);
+		InScopeContainer<?> context = enclosing;
+		if (constraint instanceof final InScopeContainer<?> inScope) {
+			if (enclosing != null && enclosing.getType() == inScope.getType()) {
+				throw createNestedScopeContainerException(enclosing.getScope(), inScope, inScope.getScope());
 			}
-			filterContext = filterInScope;
-		} else if (constraint instanceof final OrderInScope orderInScope) {
-			if (enclosingOrder != null) {
-				throw createNestedScopeContainerException(
-					enclosingOrder.getScope(), orderInScope, orderInScope.getScope()
-				);
-			}
-			orderContext = orderInScope;
-		} else if (constraint instanceof final RequireInScope requireInScope) {
-			if (enclosingRequire != null) {
-				throw createNestedScopeContainerException(
-					enclosingRequire.getScope(), requireInScope, requireInScope.getScope()
-				);
-			}
-			requireContext = requireInScope;
+			context = inScope;
 		} else if (
-			constraint instanceof SeparateEntityScopeContainer && !(constraint instanceof ReferenceHaving)
+			enclosing != null && enclosing.getType() == constraint.getType() &&
+				startsSeparateEntityContext(constraint)
 		) {
-			// the children filter another entity (`referenceHaving`'s own body filters the owner's references)
-			filterContext = null;
-		} else if (
-			constraint instanceof EntityProperty ||
-				constraint instanceof EntityGroupProperty ||
-				constraint instanceof ReferenceOrderingSpecification
-		) {
-			// the children order by the properties of another entity
-			orderContext = null;
-		} else if (constraint instanceof SeparateEntityContentRequireContainer) {
-			// the children describe the content of another entity
-			requireContext = null;
+			context = null;
 		}
 		if (constraint instanceof final ConstraintContainer<?> container) {
 			for (final Constraint<?> child : container.getChildren()) {
-				assertNoNestedScopeContainers(child, filterContext, orderContext, requireContext);
+				assertNoNestedScopeContainers(child, context);
 			}
 			for (final Constraint<?> additionalChild : container.getAdditionalChildren()) {
-				assertNoNestedScopeContainers(additionalChild, filterContext, orderContext, requireContext);
+				assertNoNestedScopeContainers(additionalChild, context);
 			}
 		}
+	}
+
+	/**
+	 * Returns true when the children of `constraint` are evaluated against another entity collection, which has scopes
+	 * of its own - see {@link #assertNoNestedScopeContainers(Query)} for the list.
+	 *
+	 * @param constraint the constraint to examine
+	 * @return true when the constraint starts a new evaluation context for its own kind
+	 */
+	private static boolean startsSeparateEntityContext(@Nonnull Constraint<?> constraint) {
+		// the children filter another entity (`referenceHaving`'s own body filters the owner's references)
+		return (constraint instanceof SeparateEntityScopeContainer && !(constraint instanceof ReferenceHaving)) ||
+			// the children order by the properties of another entity
+			constraint instanceof EntityProperty ||
+			constraint instanceof EntityGroupProperty ||
+			constraint instanceof ReferenceOrderingSpecification ||
+			// the children describe the content of another entity
+			constraint instanceof SeparateEntityContentRequireContainer;
 	}
 
 	/**
