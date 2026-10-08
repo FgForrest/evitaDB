@@ -144,6 +144,28 @@ public class AssociatedDataStoragePart implements EntityStoragePart, RecordWithC
 		this.sizeInBytes = sizeInBytes;
 	}
 
+	/**
+	 * Creates the pre-image of `source` (see {@link #createPreImage()}). The part holds no array or collection of its
+	 * own — a write replaces the immutable {@link AssociatedDataValue} as a whole — so every field is carried over as
+	 * it is.
+	 *
+	 * @param source the part whose current content is copied
+	 */
+	private AssociatedDataStoragePart(@Nonnull AssociatedDataStoragePart source) {
+		this.entityPrimaryKey = source.entityPrimaryKey;
+		this.associatedDataKey = source.associatedDataKey;
+		this.sizeInBytes = source.sizeInBytes;
+		this.storagePartPK = source.storagePartPK;
+		this.value = source.value;
+		this.dirty = source.dirty;
+	}
+
+	@Nonnull
+	@Override
+	public AssociatedDataStoragePart createPreImage() {
+		return new AssociatedDataStoragePart(this);
+	}
+
 	@Nonnull
 	@Override
 	public EntityAssociatedDataKey getStoragePartSourceKey() {

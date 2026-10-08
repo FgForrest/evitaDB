@@ -1778,6 +1778,50 @@ public final class ContainerizedLocalMutationExecutor
 	}
 
 	/**
+	 * Asks the data store buffer to journal the content of every part this executor already holds, for the savepoint
+	 * that has just opened around its root mutation. Must be called right after that savepoint opens and before any
+	 * mutation is applied.
+	 *
+	 * The constructor fetches the entity body before the collector opens the bracket, so that read could not record
+	 * anything. When the body is trapped in the buffer — an earlier nested mutation in the same flush window or
+	 * transaction touched this entity — this executor holds the very instance the buffer keeps and is about to mutate
+	 * it in place; without this call a failed mutation would leave its writes in it. Every held part is walked, not
+	 * only the body, so a part a future constructor fetches eagerly stays covered. Parts without an assigned primary
+	 * key were never stored, so they cannot be trapped and are skipped.
+	 */
+	public void journalPartsHeldBeforeSavepoint() {
+		journalTrappedContentIfHeld(this.entityContainer);
+		journalTrappedContentIfHeld(this.globalAttributesStorageContainer);
+		if (this.languageSpecificAttributesContainer != null) {
+			for (final AttributesStoragePart part : this.languageSpecificAttributesContainer.values()) {
+				journalTrappedContentIfHeld(part);
+			}
+		}
+		journalTrappedContentIfHeld(this.pricesContainer);
+		journalTrappedContentIfHeld(this.referencesStorageContainer);
+		if (this.associatedDataContainers != null) {
+			for (final AssociatedDataStoragePart part : this.associatedDataContainers.values()) {
+				journalTrappedContentIfHeld(part);
+			}
+		}
+	}
+
+	/**
+	 * Journals the trapped content of `part` (see {@link #journalPartsHeldBeforeSavepoint()}) when it is held and has
+	 * an assigned primary key.
+	 *
+	 * @param part the held part, or `null` when this executor does not hold one
+	 */
+	private void journalTrappedContentIfHeld(@Nullable EntityStoragePart part) {
+		if (part != null) {
+			final Long primaryKey = part.getStoragePartPK();
+			if (primaryKey != null) {
+				this.dataStoreUpdater.journalTrappedContent(primaryKey, part.getClass());
+			}
+		}
+	}
+
+	/**
 	 * Adds the given storage part to the target list when it is not {@code null}.
 	 *
 	 * @param target the list to add the part to
