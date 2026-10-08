@@ -1,7 +1,7 @@
 ---
 title: A catalog CDC resume position names the catalog incarnation it belongs to, and a position the catalog cannot serve is refused with a typed reason
 date: 2026-10-08
-updated: 2026-10-08 22:20
+updated: 2026-10-08 23:45
 status: accepted
 kind: fix
 issues: [1680]
@@ -263,6 +263,17 @@ of two incarnations - which `TransactionManager#notifyCatalogPresentInLiveView` 
     because a cancel from `onSubscribe` would hit a stream that does not exist yet.
   - **Driver, closed before told why:** an `AutoCloseable` consumer could be closed before its terminal signal ran. All
     signals after `onSubscribe` now run in one ordered chain on the callback executor.
+    - A close racing a terminal path (the consumer cancelling, the client closing) could still queue ahead of the
+      terminal signal. A terminal signal that finds the consumer already closed when its turn comes is now dropped.
+      The chain runs one signal at a time, so the check cannot race. Making "decide" and "insert" atomic was rejected,
+      because it would need a lock held across `observer.cancel(...)`.
+    - Two terminal paths could each queue an `onError`, so the consumer received two signals. Before the
+      acknowledgement, `subscribe()` could also throw a different failure from the one the consumer received.
+    - Now exactly one terminal path claims the termination, at the point where it used to read `closed`. Only that
+      path signals the consumer and fails the acknowledgement, with the same outcome (Reactive Streams §1.7).
+    - Declined: when the saturated callback pool refuses the consumer's close, a later terminal signal can still be
+      delivered. A refused close never closes the consumer, so that signal does not reach a closed consumer.
+      Reactive Streams §1.8 allows signals after a cancel.
   - **`TransactionManager` after `close()`:**
     - A late publication, WAL drain or commit-pipeline step threw a `NullPointerException`, or put state back on the
       closed manager. They are now refused with `InstanceTerminatedException`.
