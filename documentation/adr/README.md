@@ -33,10 +33,10 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-10-08 | [Standalone unique indexes key every value exactly as the filter index does](2026-10-08-unique-indexes-normalize-like-filter-indexes.md) | fix | accepted | #1712, #1713, PR #1722 |
 | 2026-10-08 | [Restore the content of a trapped storage part on rollback from a pre-image journalled when the part is read inside a savepoint](2026-10-08-trapped-storage-part-content-pre-images.md) | fix | accepted | #1678, PR #1724 |
 | 2026-10-08 | [Every requested scope is planned, checked and counted as if it were queried alone, and the facet summary predicts exactly what facetHaving selects](2026-10-08-scope-faithful-planning-and-facet-summary-parity.md) | fix | accepted | #1681, #1686, #1695, PR #1720 |
 | 2026-10-06 | [Unique indexes keep no record-id set, and a unique value occurs once whatever the locale](2026-10-06-unique-indexes-keep-no-record-set.md) | refactor | accepted | #1658, PR #1676 |
-| 2026-10-06 | [Standalone unique indexes key every value exactly as the filter index does](2026-10-06-unique-indexes-normalize-like-filter-indexes.md) | fix | accepted | #1712, #1713, PR #1722 |
 | 2026-10-01 | [A CDC subscriber catching up from the WAL is served everything it is owed or told why not](2026-10-01-cdc-catch-up-delivers-everything-owed-or-fails.md) | fix | accepted | #1687, #1446, #1690, PR #1688 |
 | 2026-09-28 | [Every scope a reference is indexed in must carry REFERENCED_ENTITY; a stored catalog lacking it loads, and every query and schema change over it refuses loudly](2026-09-28-indexed-reference-scope-requires-entity-component.md) | fix | accepted | #1601, #1583, PR #1657 |
 | 2026-09-25 | [attributeIsNull inside referenceHaving widens candidate discovery and is answered one reference row at a time](2026-09-25-attribute-is-null-in-reference-having.md) | fix | accepted | #1584, PR #1664 |

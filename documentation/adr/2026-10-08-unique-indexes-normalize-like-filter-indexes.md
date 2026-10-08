@@ -1,7 +1,7 @@
 ---
 title: Standalone unique indexes key every value exactly as the filter index does
-date: 2026-10-06
-updated: 2026-10-06 20:55
+date: 2026-10-08
+updated: 2026-10-08 12:46
 status: accepted
 kind: fix
 issues: [1712, 1713]

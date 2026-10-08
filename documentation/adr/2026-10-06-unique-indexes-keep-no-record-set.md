@@ -9,7 +9,7 @@ prs: [1676]
 areas: [evita_engine/src/main/java/io/evitadb/index/attribute/OwnerUniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/GlobalUniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/UniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/AttributeIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/FilterIndex.java, evita_engine/src/main/java/io/evitadb/index/invertedIndex/InvertedIndex.java, evita_engine/src/main/java/io/evitadb/core/collection/IndexCardinalityProjection.java, evita_api/src/main/java/io/evitadb/api/statistics, evita_api/src/main/java/io/evitadb/api/exception/UniqueValueViolationException.java]
 supersedes: []
 superseded-by: []
-relates: [2026-09-25-attribute-is-null-in-reference-having, 2026-08-10-catalog-and-collection-statistics, 2026-09-03-content-sized-value-tree-columns, 2026-10-06-unique-indexes-normalize-like-filter-indexes]
+relates: [2026-09-25-attribute-is-null-in-reference-having, 2026-08-10-catalog-and-collection-statistics, 2026-09-03-content-sized-value-tree-columns, 2026-10-08-unique-indexes-normalize-like-filter-indexes]
 ---
 
 # Unique indexes keep no record-id set, and a unique value occurs once whatever the locale
