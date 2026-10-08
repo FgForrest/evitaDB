@@ -57,6 +57,7 @@ import io.evitadb.core.query.algebra.facet.FacetHavingFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
+import io.evitadb.core.query.algebra.prefetch.MultipleEntityFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.algebra.reference.IndexTaggedFormula;
 import io.evitadb.core.query.algebra.reference.ReferencedEntityIndexPrimaryKeyTranslatingFormula;
@@ -107,6 +108,7 @@ import io.evitadb.index.Index;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.attribute.EntityReferenceWithLocale;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
@@ -1729,7 +1731,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * uniqueness:
 	 *
 	 * - in the unique index of the catalog of that scope, where the attribute is a catalog attribute globally unique
-	 *   there - the only lookup available when the queried collection is not known;
+	 *   there - the only lookup available when the queried collection is not known. That index spans every collection,
+	 *   so when the query targets one collection, an entity of another collection holding the value is no match: its
+	 *   primary key would be read as a key of the queried collection, and the scope is treated as not holding the value;
 	 * - otherwise in the unique indexes of the entity indexes of that scope, where the attribute is unique within the
 	 *   collection there;
 	 * - a scope declaring neither is passed over.
@@ -1742,7 +1746,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 *
 	 * @param referenceSchema     the reference schema the attribute belongs to, or NULL for an entity attribute
 	 * @param attributeDefinition the schema definition of the attribute being looked up
-	 * @param globalLookup        the lookup in the unique index of a catalog
+	 * @param globalLookup        the lookup in the unique index of a catalog, answering the entity that holds the value
 	 * @param collectionLookup    the lookup in a unique index of an entity index
 	 * @return the first non-empty answer, or {@link EmptyFormula} when no requested scope holds the value
 	 */
@@ -1750,7 +1754,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	public Formula applyOnFirstUniqueIndex(
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeSchemaContract attributeDefinition,
-		@Nonnull Function<GlobalUniqueIndex, Formula> globalLookup,
+		@Nonnull Function<GlobalUniqueIndex, Optional<EntityReferenceWithLocale>> globalLookup,
 		@Nonnull Function<UniqueIndex, Formula> collectionLookup
 	) {
 		final Set<Scope> allowedScopes = getProcessingScope().getScopes();
@@ -1767,7 +1771,16 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				// a scope the catalog has no index of holds no value - looking it up must not create the index
 				answer = this.queryContext.getCatalogIndexIfExists(scope)
 					.map(catalogIndex -> catalogIndex.getGlobalUniqueIndex(globalAttributeSchema, getLocale()))
-					.map(globalLookup)
+					.flatMap(
+						globalUniqueIndex -> globalLookup.apply(globalUniqueIndex)
+							.filter(holder -> !isEntityTypeKnown() || holder.type().equals(getEntityType()))
+							.map(
+								holder -> (Formula) new MultipleEntityFormula(
+									new long[]{globalUniqueIndex.getId()},
+									translateEntityReference(holder)
+								)
+							)
+					)
 					.orElse(EmptyFormula.INSTANCE);
 			} else if (attributeDefinition.isUniqueInScope(scope) && isEntityTypeKnown()) {
 				answer = getProcessingScope().getIndexStream()
