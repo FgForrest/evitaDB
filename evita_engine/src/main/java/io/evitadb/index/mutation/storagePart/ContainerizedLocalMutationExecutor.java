@@ -76,6 +76,9 @@ import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.buffer.DataStoreReader;
+import io.evitadb.core.transaction.Transaction;
+import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
@@ -192,6 +195,11 @@ public final class ContainerizedLocalMutationExecutor
 	@Nullable private Map<Locale, EnumSet<LocaleScope>> addedLocales;
 	@Nullable private Map<Locale, EnumSet<LocaleScope>> removedLocales;
 	@Getter private int localesIdentityHash;
+	/**
+	 * Set by the first {@link #applyMutation(LocalMutation)}: from then on the held parts may carry this executor's
+	 * changes, so {@link #journalPartsHeldBeforeSavepoint()} would journal them as their pre-image.
+	 */
+	private boolean mutationApplied;
 
 	/**
 	 * Lazily instantiates and returns the reference key manager. This avoids allocating the manager
@@ -1436,6 +1444,7 @@ public final class ContainerizedLocalMutationExecutor
 
 	@Override
 	public void applyMutation(@Nonnull LocalMutation<?, ?> localMutation) {
+		this.mutationApplied = true;
 		final EntitySchema entitySchema = this.schemaAccessor.get();
 		if (localMutation instanceof SetPriceInnerRecordHandlingMutation setPriceInnerRecordHandlingMutation) {
 			updatePrices(entitySchema, setPriceInnerRecordHandlingMutation);
@@ -1788,8 +1797,22 @@ public final class ContainerizedLocalMutationExecutor
 	 * it in place; without this call a failed mutation would leave its writes in it. Every held part is walked, not
 	 * only the body, so a part a future constructor fetches eagerly stays covered. Parts without an assigned primary
 	 * key were never stored, so they cannot be trapped and are skipped.
+	 *
+	 * Both preconditions are asserted, because breaking either fails silently otherwise: called before the savepoint
+	 * opens, the call journals nothing and the hole is back; called after a mutation, it journals the mutated content
+	 * as the pre-image and the rollback restores the wrong state.
+	 *
+	 * @throws GenericEvitaInternalError when no savepoint is open, or when a mutation has already been applied
 	 */
 	public void journalPartsHeldBeforeSavepoint() {
+		Assert.isPremiseValid(
+			isSavepointOpen(),
+			"Parts held before the savepoint can only be journalled while the savepoint is open!"
+		);
+		Assert.isPremiseValid(
+			!this.mutationApplied,
+			"Parts held before the savepoint must be journalled before the first mutation is applied!"
+		);
 		journalTrappedContentIfHeld(this.entityContainer);
 		journalTrappedContentIfHeld(this.globalAttributesStorageContainer);
 		if (this.languageSpecificAttributesContainer != null) {
@@ -1804,6 +1827,17 @@ public final class ContainerizedLocalMutationExecutor
 				journalTrappedContentIfHeld(part);
 			}
 		}
+	}
+
+	/**
+	 * Returns whether a savepoint brackets the current root mutation: the transactional one when a transaction is
+	 * bound to this thread, the warm-up one otherwise. The collector opens exactly one of the two.
+	 *
+	 * @return `true` when either kind of savepoint is open on this thread
+	 */
+	private static boolean isSavepointOpen() {
+		final TransactionalLayerMaintainer maintainer = Transaction.getTransactionalLayerMaintainer();
+		return maintainer == null ? WarmUpSavepoint.getIfOpen() != null : maintainer.isSavepointOpen();
 	}
 
 	/**
