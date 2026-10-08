@@ -397,11 +397,23 @@ class FilterInScopeTest {
 	@DisplayName("Nesting")
 	class NestingTest {
 
+		/**
+		 * A nested `inScope` is refused - but by the query, not by the constraint. The documentation's "the query is
+		 * rejected with an error" happens when the query is executed: the engine calls
+		 * {@link io.evitadb.api.query.QueryUtils#assertNoNestedScopeContainers(io.evitadb.api.query.Query)} before it
+		 * plans the query. The constructor must not throw, for two reasons:
+		 *
+		 * - a stored query of this shape (a traffic recording, for example) is rebuilt through this constructor when
+		 *   it is read back, and must stay readable;
+		 * - a constructor check would miss the trees assembled after construction - copies made by
+		 *   `getCopyWithNewChildren` and normalized queries - which the check on the final query tree covers.
+		 *
+		 * The rejection itself is covered by `QueryUtilsTest.AssertNoNestedScopeContainersTest#shouldRejectFilterInScopeOfOtherScopeNestedDirectly` and,
+		 * end to end through a session, by `InScopeReducedIndexPlanFunctionalTest.NestedInScopeRejection`.
+		 */
 		@Test
-		@DisplayName("should accept inScope nested in another inScope at construction")
-		void shouldAcceptInScopeNestedInAnotherInScopeAtConstruction() {
-			// the nesting is refused when the query is executed, never when it is built - a stored query of this shape
-			// has to stay readable
+		@DisplayName("should build inScope nested in another inScope and leave its rejection to query execution")
+		void shouldDeferNestedInScopeRejectionToExecution() {
 			final FilterInScope constraint = assertDoesNotThrow(
 				() -> inScope(Scope.LIVE, inScope(Scope.ARCHIVED, entityPrimaryKeyInSet(1)))
 			);
