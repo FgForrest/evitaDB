@@ -301,11 +301,20 @@ We apply the same rendering logic to the response and the result is as follows:
 
 <MDInclude sourceVariable="extraResults.ReferenceSummary">[Result for brand facet filters](/documentation/user/en/solve/examples/filtering-products-in-category/faceted-search.evitaql.string.md)</MDInclude>
 
-The colors *Red*, *Gold* and *Pink* are rendered as disabled. The demo dataset references these values under two
-different parameter groups named *Color*, and a facet selected alone matches only the products that reference it in all
-of its groups (see [facet groups belong to references](../query/filtering/references.md#facet-groups-belong-to-references)).
-No smartwatch references them in both groups, so selecting any of them would return no product - exactly what their
-impact predicts. To keep a value a single filter option, reference it under a single group.
+<Note type="question">
+
+<NoteTitle toggles="true">
+
+##### Why are the colors *Red*, *Gold* and *Pink* rendered as disabled?
+</NoteTitle>
+
+The demo dataset references these values under two different parameter groups named *Color*, and a facet selected
+alone matches only the products that reference it in all of its groups (see
+[facet groups belong to references](../query/filtering/references.md#facet-groups-belong-to-references)). No smartwatch
+references them in both groups, so selecting any of them would return no product - exactly what their impact predicts.
+To keep a value a single filter option, reference it under a single group.
+
+</Note>
 
 Ultimately, you'll want to have both requirements in a single query, but we'll go through some additional requirements 
 for the category detail page [until we combine everything](#complete-product-listing-queries-including-filtering-and-sorting).

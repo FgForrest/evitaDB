@@ -72,6 +72,23 @@ the query fail.
 
 </Note>
 
+<Note type="question">
+
+<NoteTitle toggles="true">
+
+##### Can I combine options of different references by logical OR?
+</NoteTitle>
+
+Not yet. Neither [`facetCalculationRules`](#facet-calculation-rules) nor the `facetGroups*` constraints change the
+relation between references: selecting a brand and a parameter value always returns only the entities that have
+both, even when every group of both references is set to logical disjunction (logical OR).
+
+A new relation level that combines the options of a group with the selections of all other references by logical
+OR is proposed in [issue #1698](https://github.com/FgForrest/evitaDB/issues/1698). If your filter needs it, vote
+for the issue with a 👍 reaction and describe your use case there — it helps us prioritize it.
+
+</Note>
+
 ## Reference summary
 
 <LS to="e,j,c">
