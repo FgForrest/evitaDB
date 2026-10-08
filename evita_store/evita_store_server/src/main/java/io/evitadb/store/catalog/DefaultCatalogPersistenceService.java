@@ -2285,6 +2285,7 @@ public class DefaultCatalogPersistenceService
 						scope,
 						attributeKey,
 						attributeSchema.getPlainType(),
+						attributeSchema.getIndexedDecimalPlaces(),
 						orderedPageSequences,
 						perPageValues,
 						perPagePayloads,
@@ -2296,6 +2297,7 @@ public class DefaultCatalogPersistenceService
 						scope,
 						attributeKey,
 						attributeSchema.getPlainType(),
+						attributeSchema.getIndexedDecimalPlaces(),
 						java.util.Objects.requireNonNull(
 							sharedUniqueIndexStoragePart.getValues(),
 							"A SINGLE global unique part must carry the inline value column!"

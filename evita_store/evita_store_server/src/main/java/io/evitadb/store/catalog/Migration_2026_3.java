@@ -24,10 +24,24 @@
 
 package io.evitadb.store.catalog;
 
+import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
+import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.array.CompositeIntArray;
+import io.evitadb.dataType.array.CompositeLongArray;
+import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.exception.ObsoleteStorageProtocolException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.dataType.BigDecimalNumberRange;
+import io.evitadb.index.EntityTypeClassifierResolver;
+import io.evitadb.index.attribute.EntityReferenceWithLocale;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.attribute.GlobalUniqueIndex;
+import io.evitadb.index.attribute.OwnerUniqueIndex;
+import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -35,6 +49,9 @@ import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex.AttributeCardinalityKey;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
+import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AbstractLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeCardinalityIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
@@ -42,13 +59,23 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeInde
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyWithIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.CatalogIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexLeafPageRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueLeafStreamKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.LeafStreamKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLeafPageRemoval;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;
 import io.evitadb.store.catalog.Migration_2025_6.NoChangeHeaderInfoSupplier;
 import io.evitadb.store.model.header.CollectionFileReference;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
@@ -67,10 +94,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
@@ -79,7 +109,8 @@ import java.util.function.Function;
 
 /**
  * Upgrades a catalog from storage protocol version 6 to 7 by re-keying every persisted
- * {@link AttributeCardinalityIndex} onto the canonical form its sibling value tree keys on.
+ * {@link AttributeCardinalityIndex} onto the canonical form its sibling value tree keys on, and every persisted
+ * standalone unique index onto the key space of the filter index (see *Standalone unique indexes* below).
  *
  * # What was wrong
  *
@@ -144,9 +175,23 @@ import java.util.function.Function;
  * order the scale is established in, and why the sibling filter index's FROZEN scale is preferred over the
  * schema's current one.
  *
+ * # Standalone unique indexes
+ *
+ * The catalog's {@link GlobalUniqueIndex} (`uniqueGlobally` / `uniqueGloballyWithinLocale`) and a collection's
+ * {@link OwnerUniqueIndex} (a localized attribute unique across locales) used to store every value as it was written.
+ * The engine now keys them exactly as the filter index does - through {@link FilterIndex#getNormalizer(Class, int)} at
+ * the attribute's `indexedDecimalPlaces` - and persists each key as a value of the declared type
+ * ({@link UniqueIndex#toPersistedValue}). Every persisted unique part, inline or paged, in every collection and in the
+ * catalog file, is rewritten into that canonical form; a part already in it is left alone.
+ *
+ * Two persisted values of one part that now name one key and belong to different owners are a **collision**: no unique
+ * index can hold one key for two owners, and which owner keeps the value is a decision only the data's author can
+ * make. All collisions are collected by a pre-pass that writes nothing, and the upgrade is then refused with every
+ * pair named, so the catalog stays exactly as the release that wrote it left it and can be fixed there.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @deprecated removable once no catalog older than 2026.3 can be encountered — at which point no catalog can
- * still carry raw-keyed cardinality counters, and neither this migration nor
+ * still carry raw-keyed cardinality counters or raw-keyed unique indexes, and neither this migration nor
  * `AttributeCardinalityIndexStoragePartSerializer_2026_2` has anything left to do
  */
 @Deprecated(since = "2026.3", forRemoval = true)
@@ -164,8 +209,10 @@ public interface Migration_2026_3 {
 	int MAX_REPORTED_ATTRIBUTES = 10;
 
 	/**
-	 * Re-keys every persisted attribute cardinality index of every collection onto its normalized form and
-	 * commits the catalog header at protocol version 7.
+	 * Re-keys every persisted attribute cardinality index and standalone unique index of every collection, and every
+	 * global unique index of the catalog, onto its normalized form and commits the catalog header at protocol
+	 * version 7. Refuses the upgrade, before writing anything, when two persisted unique values of different owners
+	 * name one key - see {@link #refuseUpgradeOverUniqueKeyCollisions}.
 	 *
 	 * @param catalogHeader                             the catalog header being upgraded
 	 * @param storagePartPersistenceService             the catalog-level storage part service
@@ -180,7 +227,7 @@ public interface Migration_2026_3 {
 	) {
 		ConsoleWriter.writeLine(
 			"Catalog `" + catalogHeader.catalogName() + "` uses storage protocol version 6; re-keying attribute " +
-				"cardinality indexes to their canonical form (protocol 7).",
+				"cardinality indexes and standalone unique indexes to their canonical form (protocol 7).",
 			ConsoleColor.BRIGHT_BLUE
 		);
 
@@ -188,7 +235,11 @@ public interface Migration_2026_3 {
 		final Collection<CollectionFileReference> entityTypeFileIndexes = catalogHeader.getEntityTypeFileIndexes();
 		final HashMap<String, CollectionFileReference> newCollectionFileIndex =
 			CollectionUtils.createHashMap(entityTypeFileIndexes.size());
+		final EntityTypeClassifierResolver entityTypeResolver =
+			new CatalogHeaderEntityTypeResolver(entityTypeFileIndexes);
 
+		// every collection is opened once: the unique-key pre-pass below and the rewrite pass after it share them
+		final List<CollectionUnderUpgrade> collections = new ArrayList<>(entityTypeFileIndexes.size());
 		for (final CollectionFileReference entityTypeFileIndex : entityTypeFileIndexes) {
 			// the stored header may name a data file generation a compaction has already replaced - the catalog
 			// header is the copy that cannot lag, so the file is resolved from there
@@ -204,25 +255,57 @@ public interface Migration_2026_3 {
 			final DefaultEntityCollectionPersistenceService collectionPersistenceService = Objects.requireNonNull(
 				entityCollectionPersistenceServiceFactory.apply(entityCollectionHeader)
 			);
-			final OffsetIndexStoragePartPersistenceService collectionStoragePartService =
-				collectionPersistenceService.getStoragePartPersistenceService();
-
-			// the entity schema supplies the per-attribute `indexedDecimalPlaces`; it is always stored under part id 1
-			final EntitySchema entitySchema = Objects.requireNonNull(
-				collectionStoragePartService.getStoragePart(catalogVersion, 1, EntitySchemaStoragePart.class),
-				"Entity schema storage part is missing for collection `" + entityCollectionHeader.entityType() + "`!"
-			).entitySchema();
-
 			final Set<Integer> indexIds = new HashSet<>(entityCollectionHeader.usedEntityIndexPrimaryKeys());
 			if (entityCollectionHeader.globalEntityIndexPrimaryKey() != null) {
 				indexIds.add(entityCollectionHeader.globalEntityIndexPrimaryKey());
 			}
+			// the entity schema supplies the per-attribute `indexedDecimalPlaces`; it is always stored under part id 1
+			final EntitySchema entitySchema = Objects.requireNonNull(
+				collectionPersistenceService.getStoragePartPersistenceService()
+					.getStoragePart(catalogVersion, 1, EntitySchemaStoragePart.class),
+				"Entity schema storage part is missing for collection `" + entityCollectionHeader.entityType() + "`!"
+			).entitySchema();
+			collections.add(
+				new CollectionUnderUpgrade(
+					entityTypeFileIndex, entityCollectionHeader, collectionPersistenceService, indexIds, entitySchema
+				)
+			);
+		}
+
+		// THE PRE-PASS. The standalone unique trees are re-keyed onto the filter index's key space, and two stored
+		// spellings of one value held by different owners would become one key with two owners - a state no unique
+		// index can hold. Every such pair is found before a single byte is written, so a refusal leaves the catalog
+		// exactly as the release that wrote it left it.
+		final List<UniqueKeyCollision> collisions = new ArrayList<>();
+		final List<GlobalUniqueIndexRekey> globalUniqueIndexRekeys = planGlobalUniqueIndexRekeys(
+			catalogVersion, storagePartPersistenceService, entityTypeResolver, collections, collisions
+		);
+		final Map<String, List<OwnerUniqueIndexRekey>> ownerUniqueIndexRekeys =
+			CollectionUtils.createHashMap(collections.size());
+		for (final CollectionUnderUpgrade collection : collections) {
+			ownerUniqueIndexRekeys.put(
+				collection.header().entityType(),
+				planOwnerUniqueIndexRekeys(catalogVersion, collection, collisions)
+			);
+		}
+		if (!collisions.isEmpty()) {
+			refuseUpgradeOverUniqueKeyCollisions(catalogHeader.catalogName(), collisions);
+		}
+
+		for (final CollectionUnderUpgrade collection : collections) {
+			final CollectionFileReference entityTypeFileIndex = collection.fileReference();
+			final EntityCollectionFileHeader entityCollectionHeader = collection.header();
+			final DefaultEntityCollectionPersistenceService collectionPersistenceService = collection.service();
+			final OffsetIndexStoragePartPersistenceService collectionStoragePartService =
+				collectionPersistenceService.getStoragePartPersistenceService();
+
+			final EntitySchema entitySchema = collection.entitySchema();
 
 			int rekeyedCounters = 0;
 			int orphanedPairs = 0;
 			final List<String> damagedAttributes = new ArrayList<>();
 			final List<String> uncheckedAttributes = new ArrayList<>();
-			for (final Integer indexPrimaryKey : indexIds) {
+			for (final Integer indexPrimaryKey : collection.indexIds()) {
 				final EntityIndexStoragePart indexPart = collectionStoragePartService.getStoragePart(
 					catalogVersion, indexPrimaryKey, EntityIndexStoragePart.class
 				);
@@ -260,12 +343,21 @@ public interface Migration_2026_3 {
 				}
 			}
 
-			if (rekeyedCounters > 0) {
+			final List<OwnerUniqueIndexRekey> uniqueIndexRekeys =
+				ownerUniqueIndexRekeys.get(entityCollectionHeader.entityType());
+			for (final OwnerUniqueIndexRekey uniqueIndexRekey : uniqueIndexRekeys) {
+				writeOwnerUniqueIndex(
+					catalogVersion, entityCollectionHeader.entityType(), uniqueIndexRekey, collectionStoragePartService
+				);
+			}
+
+			if (rekeyedCounters > 0 || !uniqueIndexRekeys.isEmpty()) {
 				final OffsetIndexDescriptor offsetIndexDescriptor = collectionPersistenceService.flush(
 					catalogVersion,
 					new NoChangeHeaderInfoSupplier(entityCollectionHeader)
 				);
-				final EntityCollectionFileHeader newCollectionHeader = collectionPersistenceService.getEntityCollectionHeader();
+				final EntityCollectionFileHeader newCollectionHeader =
+					collectionPersistenceService.getEntityCollectionHeader();
 				storagePartPersistenceService.putStoragePart(catalogVersion, newCollectionHeader);
 				newCollectionFileIndex.put(
 					entityTypeFileIndex.entityType(),
@@ -278,17 +370,29 @@ public interface Migration_2026_3 {
 				);
 				ConsoleWriter.writeLine(
 					"Entity collection `" + entityCollectionHeader.entityType() + "`: re-keyed " + rekeyedCounters +
-						" attribute cardinality index(es).",
+						" attribute cardinality index(es) and " + uniqueIndexRekeys.size() + " unique index(es).",
 					ConsoleColor.BRIGHT_BLUE
 				);
 			} else {
-				// nothing to do - every counter of this collection was already canonical
+				// nothing to do - every counter and unique key of this collection was already canonical
 				newCollectionFileIndex.put(entityTypeFileIndex.entityType(), entityTypeFileIndex);
 			}
 
 			reportPreExistingDamage(
 				catalogHeader.catalogName(), entityCollectionHeader.entityType(),
 				damagedAttributes, orphanedPairs, uncheckedAttributes
+			);
+		}
+
+		// the catalog-level parts are flushed by the post-upgrade action, together with the new catalog header
+		for (final GlobalUniqueIndexRekey uniqueIndexRekey : globalUniqueIndexRekeys) {
+			writeGlobalUniqueIndex(catalogVersion, uniqueIndexRekey, storagePartPersistenceService, entityTypeResolver);
+		}
+		if (!globalUniqueIndexRekeys.isEmpty()) {
+			ConsoleWriter.writeLine(
+				"Catalog `" + catalogHeader.catalogName() + "`: re-keyed " + globalUniqueIndexRekeys.size() +
+					" global unique index(es).",
+				ConsoleColor.BRIGHT_BLUE
 			);
 		}
 
@@ -762,6 +866,811 @@ public interface Migration_2026_3 {
 	 * @param notCheckedReason why the comparison could not be made, or `null` when it was made
 	 */
 	record CounterOutcome(boolean rewritten, int orphanedPairs, @Nullable String notCheckedReason) {
+	}
+
+	/**
+	 * Maps every persisted value of one standalone unique index onto its canonical form - the value of the declared type
+	 * naming the key {@link FilterIndex#getNormalizer(Class, int)} gives it, which is what the engine now persists
+	 * (see {@link UniqueIndex#toPersistedValue}). Canonical values are equal exactly when they name one key.
+	 *
+	 * Two stored values that name one key become one value. That is harmless only when both are provably
+	 * the same entry written twice: an array attribute holding both spellings for the same owner, which the engine
+	 * folds onto one entry as well. Anything else is a **collision** - two owners claiming one value, or one owner
+	 * claiming it under two locales of a locale-less key - and no unique index can hold it.
+	 *
+	 * Whether an equal owner proves "the same entry" depends on what the owner encodes, hence
+	 * `ownerIdentifiesEntry`: a global unique index packs entity type, primary key AND locale into its payload, so an
+	 * equal payload is the same entry; an owner unique index stores the record id alone, so an equal record id may
+	 * still be two locales of a localized attribute, and is reported rather than folded.
+	 *
+	 * Extracted from the storage plumbing so it can be tested as the pure transform it is.
+	 *
+	 * @param values               the stored keys, in any order
+	 * @param owners               the owner of each key, positionally aligned with `values` - a record id or a packed
+	 *                             entity tuple
+	 * @param ownerIdentifiesEntry `true` when an equal owner proves two keys are the same entry
+	 * @param canonicalizer        maps a stored value onto its canonical form (see {@link #canonicalizerFor})
+	 * @return `null` when every key is already canonical and the index needs no rewrite, otherwise the canonical keys
+	 * with their owners and every colliding pair of positions in the input
+	 */
+	@Nullable
+	static UniqueKeyRekeying rekeyUniqueKeys(
+		@Nonnull Serializable[] values,
+		@Nonnull long[] owners,
+		boolean ownerIdentifiesEntry,
+		@Nonnull Function<Serializable, Serializable> canonicalizer
+	) {
+		Assert.isPremiseValid(values.length == owners.length, "Values and owners must be positionally aligned!");
+		final Map<Serializable, Integer> firstPositions = CollectionUtils.createHashMap(values.length);
+		final List<Serializable> canonicalValues = new ArrayList<>(values.length);
+		final CompositeLongArray canonicalOwners = new CompositeLongArray();
+		final List<int[]> collisions = new ArrayList<>(0);
+		boolean changed = false;
+		for (int i = 0; i < values.length; i++) {
+			final Serializable canonicalValue = canonicalizer.apply(values[i]);
+			if (!canonicalValue.equals(values[i])) {
+				changed = true;
+			}
+			final Integer firstPosition = firstPositions.putIfAbsent(canonicalValue, i);
+			if (firstPosition == null) {
+				canonicalValues.add(canonicalValue);
+				canonicalOwners.add(owners[i]);
+			} else if (!(ownerIdentifiesEntry && owners[firstPosition] == owners[i])) {
+				collisions.add(new int[]{firstPosition, i});
+			}
+		}
+		// keys that were all canonical already were distinct tree keys, so they can neither move nor collide
+		return changed ?
+			new UniqueKeyRekeying(
+				canonicalValues.toArray(Serializable[]::new), canonicalOwners.toArray(), collisions
+			) :
+			null;
+	}
+
+	/**
+	 * Returns the function mapping a persisted unique value of `plainType` onto its canonical form at
+	 * `indexedDecimalPlaces` - see {@link UniqueIndex#toPersistedValue}.
+	 *
+	 * @param plainType            the plain (array-unwrapped) attribute type
+	 * @param indexedDecimalPlaces the attribute schema's `indexedDecimalPlaces`
+	 * @return the canonicalizer
+	 */
+	@Nonnull
+	static Function<Serializable, Serializable> canonicalizerFor(@Nonnull Class<?> plainType, int indexedDecimalPlaces) {
+		return value -> UniqueIndex.toPersistedValue(plainType, indexedDecimalPlaces, value);
+	}
+
+	/**
+	 * Tells whether the canonical form of a unique value of `plainType` depends on `indexedDecimalPlaces` at all -
+	 * only `BigDecimal` and `BigDecimalNumberRange` do (see {@link #resolveScale}).
+	 */
+	private static boolean isScaleDependent(@Nonnull Class<?> plainType) {
+		return BigDecimal.class.isAssignableFrom(plainType) || BigDecimalNumberRange.class.isAssignableFrom(plainType);
+	}
+
+	/**
+	 * Establishes the scale a global unique index of `attributeName` keys its values at: the `indexedDecimalPlaces`
+	 * of the catalog attribute, read from the first entity schema that declares it - an entity schema carries a copy of
+	 * every catalog attribute it uses, and reading the catalog schema itself would need a live catalog. Types without
+	 * a scale answer `0` immediately.
+	 *
+	 * @return the scale, or empty when no collection declares a scale-dependent attribute the index exists for
+	 */
+	@Nonnull
+	private static OptionalInt resolveGlobalScale(
+		@Nonnull List<CollectionUnderUpgrade> collections,
+		@Nonnull String attributeName,
+		@Nonnull Class<?> plainType
+	) {
+		if (!isScaleDependent(plainType)) {
+			return OptionalInt.of(0);
+		}
+		for (final CollectionUnderUpgrade collection : collections) {
+			final Optional<EntityAttributeSchemaContract> attribute = collection.entitySchema().getAttribute(attributeName);
+			if (attribute.isPresent()) {
+				return OptionalInt.of(attribute.get().getIndexedDecimalPlaces());
+			}
+		}
+		return OptionalInt.empty();
+	}
+
+	/**
+	 * Establishes the scale an owner unique index of `attributeName` keys its values at - the attribute's
+	 * `indexedDecimalPlaces` in the entity schema, at reference scope first when the owning index is a reference
+	 * index. Types without a scale answer `0` immediately.
+	 *
+	 * @return the scale, or empty when the schema cannot answer for a scale-dependent attribute
+	 */
+	@Nonnull
+	private static OptionalInt resolveOwnerScale(
+		@Nonnull EntitySchema entitySchema,
+		@Nullable String referenceName,
+		@Nonnull String attributeName,
+		@Nonnull Class<?> plainType
+	) {
+		if (!isScaleDependent(plainType)) {
+			return OptionalInt.of(0);
+		}
+		try {
+			return OptionalInt.of(Migration_2026_2.resolveIndexedDecimalPlaces(entitySchema, referenceName, attributeName));
+		} catch (GenericEvitaInternalError ex) {
+			return OptionalInt.empty();
+		}
+	}
+
+	/**
+	 * Tells the operator that a unique index could not be re-keyed because its scale is unknown, and leaves it as is.
+	 */
+	private static void warnUnresolvedUniqueScale(@Nonnull String structure) {
+		final String message = "The unique index of " + structure + " could not be re-keyed: its " +
+			"`indexedDecimalPlaces` is not resolvable from any entity schema. It keeps its existing keys; re-index " +
+			"the attribute if its writes or lookups later misbehave.";
+		ConsoleWriter.writeLine(message, ConsoleColor.BRIGHT_YELLOW);
+		LoggerFactory.getLogger(Migration_2026_3.class).warn(message);
+	}
+
+	/**
+	 * Plans the re-key of every catalog-level {@link GlobalUniqueIndexStoragePart} - the trees of `uniqueGlobally` and
+	 * `uniqueGloballyWithinLocale` attributes, in every scope - whose values are not all canonical, in either the
+	 * inline or the paged shape. Nothing is written here; colliding keys are appended to `collisions`.
+	 *
+	 * @param catalogVersion     the catalog version being upgraded
+	 * @param service            the catalog-level storage part service
+	 * @param entityTypeResolver names the owners of colliding keys
+	 * @param collections        the collections of the catalog, whose schemas supply the attribute scales
+	 * @param collisions         receives every collision found
+	 * @return the indexes that must be rewritten
+	 */
+	@Nonnull
+	private static List<GlobalUniqueIndexRekey> planGlobalUniqueIndexRekeys(
+		long catalogVersion,
+		@Nonnull CatalogOffsetIndexStoragePartPersistenceService service,
+		@Nonnull EntityTypeClassifierResolver entityTypeResolver,
+		@Nonnull List<CollectionUnderUpgrade> collections,
+		@Nonnull List<UniqueKeyCollision> collisions
+	) {
+		final List<GlobalUniqueIndexRekey> rekeys = new ArrayList<>(4);
+		for (final Scope scope : Scope.values()) {
+			final CatalogIndexStoragePart catalogIndexPart = service.getStoragePart(
+				catalogVersion, CatalogIndexStoragePart.getStoragePartPKForScope(scope), CatalogIndexStoragePart.class
+			);
+			if (catalogIndexPart == null) {
+				// no entity was ever indexed in this scope
+				continue;
+			}
+			for (final AttributeKey attributeKey : catalogIndexPart.getSharedAttributeUniqueIndexes()) {
+				final GlobalUniqueIndexStoragePart root = Objects.requireNonNull(
+					service.getStoragePart(
+						catalogVersion,
+						GlobalUniqueIndexStoragePart.computeUniquePartId(
+							scope, attributeKey, service.getReadOnlyKeyCompressor()
+						),
+						GlobalUniqueIndexStoragePart.class
+					),
+					"Shared unique index not found for attribute `" + attributeKey + "`!"
+				);
+				final Class<?> plainType = plainTypeOf(root.getType());
+				final Locale locale = attributeKey.locale();
+				final String structure = "catalog attribute `" + attributeKey.attributeName() + "`" +
+					(locale == null ? "" : " in locale `" + locale.toLanguageTag() + "`") + " (scope " + scope + ")";
+				final OptionalInt scale = resolveGlobalScale(collections, attributeKey.attributeName(), plainType);
+				if (scale.isEmpty()) {
+					warnUnresolvedUniqueScale(structure);
+					continue;
+				}
+				final Serializable[] values;
+				final long[] payloads;
+				if (root.isPaged()) {
+					final int streamId = service.getReadOnlyKeyCompressor().getId(
+						new GlobalUniqueLeafStreamKey(scope, attributeKey)
+					);
+					final CompositeObjectArray<Serializable> pagedValues =
+						new CompositeObjectArray<>(Serializable.class);
+					final CompositeLongArray pagedPayloads = new CompositeLongArray();
+					for (final int pageSequence : root.getLeafPageSequences()) {
+						final GlobalUniqueIndexLeafPagePart leafPage = Objects.requireNonNull(
+							service.getStoragePart(
+								catalogVersion,
+								GlobalUniqueIndexLeafPagePart.computeUniquePartId(streamId, pageSequence),
+								GlobalUniqueIndexLeafPagePart.class
+							),
+							"Global unique index leaf page " + pageSequence + " for attribute `" + attributeKey +
+								"` was not found in persistent storage!"
+						);
+						pagedValues.addAll(leafPage.getValues(), 0, leafPage.getValues().length);
+						pagedPayloads.addAll(leafPage.getPayloads(), 0, leafPage.getPayloads().length);
+					}
+					values = pagedValues.toArray();
+					payloads = pagedPayloads.toArray();
+				} else {
+					values = Objects.requireNonNull(root.getValues());
+					payloads = Objects.requireNonNull(root.getPayloads());
+				}
+
+				final UniqueKeyRekeying rekeying = rekeyUniqueKeys(
+					values, payloads, true, canonicalizerFor(plainType, scale.getAsInt())
+				);
+				if (rekeying == null) {
+					continue;
+				}
+				for (final int[] collision : rekeying.collisions()) {
+					collisions.add(
+						new UniqueKeyCollision(
+							structure,
+							values[collision[0]],
+							describeGlobalOwner(
+								scope, attributeKey, root, scale.getAsInt(), values[collision[0]],
+								payloads[collision[0]], entityTypeResolver
+							),
+							values[collision[1]],
+							describeGlobalOwner(
+								scope, attributeKey, root, scale.getAsInt(), values[collision[1]],
+								payloads[collision[1]], entityTypeResolver
+							)
+						)
+					);
+				}
+				rekeys.add(
+					new GlobalUniqueIndexRekey(
+						scope, attributeKey, root.getType(), scale.getAsInt(), root.getLocaleIndex(),
+						rekeying.values(), rekeying.owners(), root.isPaged() ? root.getLeafPageSequences() : new int[0]
+					)
+				);
+			}
+		}
+		return rekeys;
+	}
+
+	/**
+	 * Plans the re-key of every standalone (owner) {@link UniqueIndexStoragePart} of one collection - a localized
+	 * attribute unique across locales, in any entity index - whose values are not all canonical, in either the inline
+	 * or the paged shape. A unique part with a FILTER sibling under the same key is a view folded onto the shared
+	 * filter tree, which has always been keyed by the filter normalizer, and is skipped. Nothing is written here;
+	 * colliding keys are appended to `collisions`.
+	 *
+	 * @param catalogVersion the catalog version being upgraded
+	 * @param collection     the collection whose entity indexes are inspected
+	 * @param collisions     receives every collision found
+	 * @return the indexes that must be rewritten
+	 */
+	@Nonnull
+	private static List<OwnerUniqueIndexRekey> planOwnerUniqueIndexRekeys(
+		long catalogVersion,
+		@Nonnull CollectionUnderUpgrade collection,
+		@Nonnull List<UniqueKeyCollision> collisions
+	) {
+		final OffsetIndexStoragePartPersistenceService service =
+			collection.service().getStoragePartPersistenceService();
+		final String entityType = collection.header().entityType();
+		final List<OwnerUniqueIndexRekey> rekeys = new ArrayList<>(4);
+		for (final Integer indexPrimaryKey : collection.indexIds()) {
+			final EntityIndexStoragePart indexPart = service.getStoragePart(
+				catalogVersion, indexPrimaryKey, EntityIndexStoragePart.class
+			);
+			if (indexPart == null) {
+				// reported by the rewrite pass, which cannot proceed without it either
+				continue;
+			}
+			final Set<AttributeIndexKey> foldedKeys = new HashSet<>();
+			for (final AttributeIndexStorageKey storageKey : indexPart.getAttributeIndexes()) {
+				if (storageKey.indexType() == AttributeIndexType.FILTER) {
+					foldedKeys.add(storageKey.attribute());
+				}
+			}
+			for (final AttributeIndexStorageKey storageKey : indexPart.getAttributeIndexes()) {
+				if (
+					storageKey.indexType() != AttributeIndexType.UNIQUE ||
+						foldedKeys.contains(storageKey.attribute())
+				) {
+					continue;
+				}
+				final UniqueIndexStoragePart root = service.getStoragePart(
+					catalogVersion,
+					AttributeIndexStoragePart.computeUniquePartId(
+						indexPrimaryKey, AttributeIndexType.UNIQUE, storageKey.attribute(),
+						service.getReadOnlyKeyCompressor()
+					),
+					UniqueIndexStoragePart.class
+				);
+				if (root == null) {
+					continue;
+				}
+				final AttributeIndexKey attributeIndexKey = root.getAttributeIndexKey();
+				final Class<?> plainType = plainTypeOf(root.getType());
+				final String structure = "attribute `" + describeAttribute(attributeIndexKey) + "` of entity `" +
+					entityType + "`";
+				final OptionalInt scale = resolveOwnerScale(
+					collection.entitySchema(), indexPart.getEntityIndexKey().referenceName(),
+					attributeIndexKey.attributeName(), plainType
+				);
+				if (scale.isEmpty()) {
+					warnUnresolvedUniqueScale(structure);
+					continue;
+				}
+				final Serializable[] values;
+				final int[] recordIds;
+				if (root.isPaged()) {
+					final int streamId = service.getReadOnlyKeyCompressor().getId(
+						new LeafStreamKey(
+							indexPrimaryKey, new AttributeKeyWithIndexType(attributeIndexKey, AttributeIndexType.UNIQUE)
+						)
+					);
+					final CompositeObjectArray<Serializable> pagedValues =
+						new CompositeObjectArray<>(Serializable.class);
+					final CompositeIntArray pagedRecordIds = new CompositeIntArray();
+					for (final int pageSequence : root.getLeafPageSequences()) {
+						final UniqueIndexLeafPagePart leafPage = Objects.requireNonNull(
+							service.getStoragePart(
+								catalogVersion,
+								AbstractLeafPagePart.computeUniquePartId(streamId, pageSequence),
+								UniqueIndexLeafPagePart.class
+							),
+							"Unique index leaf page " + pageSequence + " for attribute `" + attributeIndexKey +
+								"` of entity `" + entityType + "` was not found in persistent storage!"
+						);
+						pagedValues.addAll(leafPage.getValues(), 0, leafPage.getValues().length);
+						pagedRecordIds.addAll(leafPage.getRecordIds(), 0, leafPage.getRecordIds().length);
+					}
+					values = pagedValues.toArray();
+					recordIds = pagedRecordIds.toArray();
+				} else if (root.getValues() == null || root.getRecordIds() == null) {
+					// a slim part carries no values of its own - there is nothing to re-key
+					continue;
+				} else {
+					values = root.getValues();
+					recordIds = root.getRecordIds();
+				}
+
+				final long[] owners = new long[recordIds.length];
+				for (int i = 0; i < recordIds.length; i++) {
+					owners[i] = recordIds[i];
+				}
+				final UniqueKeyRekeying rekeying = rekeyUniqueKeys(
+					values, owners, false, canonicalizerFor(plainType, scale.getAsInt())
+				);
+				if (rekeying == null) {
+					continue;
+				}
+				final boolean globalIndex = indexPart.getEntityIndexKey().type() == EntityIndexType.GLOBAL;
+				for (final int[] collision : rekeying.collisions()) {
+					collisions.add(
+						new UniqueKeyCollision(
+							structure,
+							values[collision[0]],
+							describeOwnerRecord(entityType, indexPart, globalIndex, recordIds[collision[0]]),
+							values[collision[1]],
+							describeOwnerRecord(entityType, indexPart, globalIndex, recordIds[collision[1]])
+						)
+					);
+				}
+				final int[] canonicalRecordIds = new int[rekeying.owners().length];
+				for (int i = 0; i < canonicalRecordIds.length; i++) {
+					canonicalRecordIds[i] = Math.toIntExact(rekeying.owners()[i]);
+				}
+				rekeys.add(
+					new OwnerUniqueIndexRekey(
+						indexPrimaryKey, attributeIndexKey, root.getType(), scale.getAsInt(), rekeying.values(),
+						canonicalRecordIds,
+						root.isPaged() ? root.getLeafPageSequences() : new int[0]
+					)
+				);
+			}
+		}
+		return rekeys;
+	}
+
+	/**
+	 * Writes one re-keyed owner unique index back to its collection.
+	 *
+	 * The index is rebuilt through the engine's own write path - a fresh {@link OwnerUniqueIndex} registering every
+	 * canonical key - so it is persisted in whichever shape the engine picks for its size: inline, or a paged root
+	 * with one part per leaf. The rebuilt leaves are numbered afresh, so every leaf page of the old tree that no new
+	 * leaf overwrites is removed; left behind, it would be an unreferenced record the offset index copies forward
+	 * on every compaction.
+	 *
+	 * @param catalogVersion the catalog version being upgraded
+	 * @param entityType     the entity type owning the index
+	 * @param rekey          the planned re-key
+	 * @param service        the collection's storage part service
+	 */
+	private static void writeOwnerUniqueIndex(
+		long catalogVersion,
+		@Nonnull String entityType,
+		@Nonnull OwnerUniqueIndexRekey rekey,
+		@Nonnull OffsetIndexStoragePartPersistenceService service
+	) {
+		final OwnerUniqueIndex rebuiltIndex = new OwnerUniqueIndex(
+			entityType, rekey.attributeIndexKey(), rekey.type(), rekey.indexedDecimalPlaces()
+		);
+		for (int i = 0; i < rekey.values().length; i++) {
+			rebuiltIndex.registerUniqueKey(rekey.values()[i], rekey.recordIds()[i]);
+		}
+		final TrappedChanges changes = new TrappedChanges();
+		rebuiltIndex.appendStorageParts(rekey.entityIndexPrimaryKey(), changes);
+		final AttributeKeyWithIndexType streamKey =
+			new AttributeKeyWithIndexType(rekey.attributeIndexKey(), AttributeIndexType.UNIQUE);
+		for (final int pageSequence : staleLeafPageSequences(rekey.previousLeafPageSequences(), changes)) {
+			changes.addChangeToStore(
+				new UniqueIndexLeafPageRemoval(rekey.entityIndexPrimaryKey(), streamKey, pageSequence)
+			);
+		}
+		drain(catalogVersion, changes, service);
+	}
+
+	/**
+	 * Writes one re-keyed global unique index back to the catalog.
+	 *
+	 * Each stored payload packs the owner's entity type and locale through ids the index itself assigned, so the
+	 * owners are decoded by an index restored from the canonical keys and the ORIGINAL payloads and locale map, and
+	 * then re-registered into a fresh index, which persists in whichever shape the engine picks for its size. As with
+	 * {@link #writeOwnerUniqueIndex}, every old leaf page no new leaf overwrites is removed.
+	 *
+	 * @param catalogVersion     the catalog version being upgraded
+	 * @param rekey              the planned re-key
+	 * @param service            the catalog-level storage part service
+	 * @param entityTypeResolver translates between entity type names and the ids the payloads carry
+	 */
+	private static void writeGlobalUniqueIndex(
+		long catalogVersion,
+		@Nonnull GlobalUniqueIndexRekey rekey,
+		@Nonnull CatalogOffsetIndexStoragePartPersistenceService service,
+		@Nonnull EntityTypeClassifierResolver entityTypeResolver
+	) {
+		final GlobalUniqueIndex decodingIndex = new GlobalUniqueIndex(
+			rekey.scope(), rekey.attributeKey(), rekey.type(), rekey.indexedDecimalPlaces(), rekey.values(),
+			rekey.payloads(), rekey.localeIndex()
+		);
+		final GlobalUniqueIndex rebuiltIndex = new GlobalUniqueIndex(
+			rekey.scope(), rekey.attributeKey(), rekey.type(), rekey.indexedDecimalPlaces()
+		);
+		for (final Serializable value : rekey.values()) {
+			final EntityReferenceWithLocale owner = decodingIndex
+				.getEntityReferenceByUniqueValue(value, null, entityTypeResolver)
+				.orElseThrow(
+					() -> new GenericEvitaInternalError(
+						"A re-keyed value of attribute `" + rekey.attributeKey() + "` lost its owner!"
+					)
+				);
+			rebuiltIndex.registerUniqueKey(
+				value, owner.getType(), owner.locale(), owner.getPrimaryKey(), entityTypeResolver
+			);
+		}
+		final TrappedChanges changes = new TrappedChanges();
+		rebuiltIndex.appendStorageParts(rekey.attributeKey(), changes);
+		for (final int pageSequence : staleLeafPageSequences(rekey.previousLeafPageSequences(), changes)) {
+			changes.addChangeToStore(
+				new GlobalUniqueIndexLeafPageRemoval(rekey.scope(), rekey.attributeKey(), pageSequence)
+			);
+		}
+		drain(catalogVersion, changes, service);
+	}
+
+	/**
+	 * Returns the leaf pages of the old tree that the rebuilt one does not reuse - every previous page sequence that
+	 * the root among `changes` does not list.
+	 *
+	 * @param previousLeafPageSequences the leaf pages the old root listed (empty for an inline index)
+	 * @param changes                   the parts the rebuilt index emitted, its root among them
+	 * @return the page sequences to remove
+	 */
+	@Nonnull
+	private static int[] staleLeafPageSequences(
+		@Nonnull int[] previousLeafPageSequences,
+		@Nonnull TrappedChanges changes
+	) {
+		if (previousLeafPageSequences.length == 0) {
+			return previousLeafPageSequences;
+		}
+		int[] reusedPageSequences = new int[0];
+		final Iterator<StoragePart> it = changes.getTrappedChangesIterator();
+		while (it.hasNext()) {
+			final StoragePart part = it.next();
+			if (part instanceof UniqueIndexStoragePart ownerRoot && ownerRoot.isPaged()) {
+				reusedPageSequences = ownerRoot.getLeafPageSequences();
+			} else if (part instanceof GlobalUniqueIndexStoragePart globalRoot && globalRoot.isPaged()) {
+				reusedPageSequences = globalRoot.getLeafPageSequences();
+			}
+		}
+		final Set<Integer> reused = new HashSet<>(reusedPageSequences.length);
+		for (final int pageSequence : reusedPageSequences) {
+			reused.add(pageSequence);
+		}
+		final CompositeIntArray stale = new CompositeIntArray();
+		for (final int pageSequence : previousLeafPageSequences) {
+			if (!reused.contains(pageSequence)) {
+				stale.add(pageSequence);
+			}
+		}
+		return stale.toArray();
+	}
+
+	/**
+	 * Applies every part in `changes` to `service`: a removal instruction removes the part it names, anything else is
+	 * stored - the same drain the regular flush performs.
+	 *
+	 * @param catalogVersion the catalog version being upgraded
+	 * @param changes        the parts to apply, in order
+	 * @param service        the storage part service to apply them to
+	 */
+	private static void drain(
+		long catalogVersion,
+		@Nonnull TrappedChanges changes,
+		@Nonnull OffsetIndexStoragePartPersistenceService service
+	) {
+		final Iterator<StoragePart> it = changes.getTrappedChangesIterator();
+		while (it.hasNext()) {
+			final StoragePart part = it.next();
+			if (part instanceof DeferredRemovalStoragePart removal) {
+				service.removeStoragePart(
+					catalogVersion,
+					removal.computeUniquePartIdAndSet(service.getReadOnlyKeyCompressor()),
+					removal.removedContainerType()
+				);
+			} else {
+				service.putStoragePart(catalogVersion, part);
+			}
+		}
+	}
+
+	/**
+	 * Refuses the upgrade because two stored spellings of one unique value are held by different owners, telling the
+	 * operator exactly which values and what to do about them. Nothing has been written when this runs, so the catalog
+	 * stays loadable by the release that wrote it, which is where the data has to be fixed.
+	 *
+	 * @param catalogName the name of the catalog being upgraded
+	 * @param collisions  every collision found by the pre-pass
+	 * @throws ObsoleteStorageProtocolException always
+	 */
+	private static void refuseUpgradeOverUniqueKeyCollisions(
+		@Nonnull String catalogName,
+		@Nonnull List<UniqueKeyCollision> collisions
+	) {
+		final List<String> described = new ArrayList<>(collisions.size());
+		for (final UniqueKeyCollision collision : collisions) {
+			described.add(collision.describe());
+		}
+		final String message = "Catalog `" + catalogName + "` cannot be upgraded to storage protocol version 7: " +
+			collisions.size() + " unique value(s) are stored in two spellings held by different owners. This version " +
+			"compares unique values exactly as it compares filtered ones, so it treats as ONE unique value the same " +
+			"instant written at two offsets, two Unicode spellings of one text (for example a precomposed `\\u010D` " +
+			"and a `c` followed by the combining caron `\\u030C`), and two decimals equal at the attribute's indexed " +
+			"decimal places; each pair below would become one value with two owners. Nothing has been written - the " +
+			"catalog is unchanged. Start the evitaDB version that wrote this catalog on it, change or remove one " +
+			"value of every pair, and then start this version again. Collisions: " +
+			formatAttributeList(described) + ".";
+		ConsoleWriter.writeLine(message, ConsoleColor.BRIGHT_RED, ConsoleDecoration.BOLD);
+		LoggerFactory.getLogger(Migration_2026_3.class).error(message);
+		throw new ObsoleteStorageProtocolException(
+			message,
+			"Catalog `" + catalogName + "` holds unique values that are equal once compared like filtered values and " +
+				"cannot be upgraded until they are made distinct - see the server log."
+		);
+	}
+
+	/**
+	 * Names the owner of one stored key of a global unique index, decoding its packed payload through an index that
+	 * holds that single entry.
+	 */
+	@Nonnull
+	private static String describeGlobalOwner(
+		@Nonnull Scope scope,
+		@Nonnull AttributeKey attributeKey,
+		@Nonnull GlobalUniqueIndexStoragePart root,
+		int indexedDecimalPlaces,
+		@Nonnull Serializable value,
+		long payload,
+		@Nonnull EntityTypeClassifierResolver entityTypeResolver
+	) {
+		return new GlobalUniqueIndex(
+			scope, attributeKey, root.getType(), indexedDecimalPlaces, new Serializable[]{value}, new long[]{payload},
+			root.getLocaleIndex()
+		)
+			.getEntityReferenceByUniqueValue(value, null, entityTypeResolver)
+			.map(
+				owner -> "`" + owner.getType() + "` " + owner.getPrimaryKey() +
+					(owner.locale() == null ? "" : " in locale `" + owner.locale().toLanguageTag() + "`")
+			)
+			.orElse("an unknown owner");
+	}
+
+	/**
+	 * Names the owner of one stored key of an owner unique index. In the collection's global entity index the record
+	 * id is the entity primary key; in any other index it is only meaningful together with that index.
+	 */
+	@Nonnull
+	private static String describeOwnerRecord(
+		@Nonnull String entityType,
+		@Nonnull EntityIndexStoragePart indexPart,
+		boolean globalIndex,
+		int recordId
+	) {
+		return globalIndex ?
+			"`" + entityType + "` " + recordId :
+			"record " + recordId + " of index " + indexPart.getEntityIndexKey() + " of `" + entityType + "`";
+	}
+
+	/**
+	 * Names an attribute index key the way an operator recognizes it: reference, attribute and locale.
+	 */
+	@Nonnull
+	private static String describeAttribute(@Nonnull AttributeIndexKey attributeIndexKey) {
+		return (attributeIndexKey.referenceName() == null ? "" : attributeIndexKey.referenceName() + ".") +
+			attributeIndexKey.attributeName() +
+			(attributeIndexKey.locale() == null ? "" : " [" + attributeIndexKey.locale().toLanguageTag() + "]");
+	}
+
+	/**
+	 * Resolves the plain (array-unwrapped) type of a stored unique index.
+	 */
+	@Nonnull
+	private static Class<?> plainTypeOf(@Nonnull Class<?> type) {
+		return type.isArray() ? type.getComponentType() : type;
+	}
+
+	/**
+	 * Renders a stored value with every non-ASCII character escaped, so two spellings that print identically are
+	 * told apart in the refusal message.
+	 */
+	@Nonnull
+	static String escapeSpelling(@Nonnull Serializable value) {
+		final String text = String.valueOf(value);
+		final StringBuilder sb = new StringBuilder(text.length() + 16);
+		for (int i = 0; i < text.length(); i++) {
+			final char c = text.charAt(i);
+			if (c < 128) {
+				sb.append(c);
+			} else {
+				sb.append(String.format("\\u%04X", (int) c));
+			}
+		}
+		return sb.toString();
+	}
+
+	/**
+	 * One collection the upgrade works on, opened once and shared by the unique-key pre-pass and the rewrite pass.
+	 *
+	 * @param fileReference the collection's entry in the catalog header
+	 * @param header        the reconciled collection header
+	 * @param service       the collection's persistence service
+	 * @param indexIds      primary keys of every entity index of the collection
+	 * @param entitySchema  the collection's schema, which supplies the attributes' `indexedDecimalPlaces`
+	 */
+	record CollectionUnderUpgrade(
+		@Nonnull CollectionFileReference fileReference,
+		@Nonnull EntityCollectionFileHeader header,
+		@Nonnull DefaultEntityCollectionPersistenceService service,
+		@Nonnull Set<Integer> indexIds,
+		@Nonnull EntitySchema entitySchema
+	) {
+	}
+
+	/**
+	 * The outcome of {@link #rekeyUniqueKeys}.
+	 *
+	 * @param values     the distinct canonical keys
+	 * @param owners     the owner of each key, positionally aligned with `values`
+	 * @param collisions every pair of input positions whose keys collapsed onto one key under different owners
+	 */
+	record UniqueKeyRekeying(
+		@Nonnull Serializable[] values,
+		@Nonnull long[] owners,
+		@Nonnull List<int[]> collisions
+	) {
+	}
+
+	/**
+	 * A planned rewrite of one owner unique index.
+	 *
+	 * @param entityIndexPrimaryKey     the entity index holding it
+	 * @param attributeIndexKey         the attribute it indexes
+	 * @param type                      the attribute type the stored part declares
+	 * @param indexedDecimalPlaces      the scale the attribute's `BigDecimal` values are keyed at
+	 * @param values                    the distinct canonical keys
+	 * @param recordIds                 the owning record of each key
+	 * @param previousLeafPageSequences the leaf pages the old root listed, empty for an inline index
+	 */
+	record OwnerUniqueIndexRekey(
+		int entityIndexPrimaryKey,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Class<? extends Serializable> type,
+		int indexedDecimalPlaces,
+		@Nonnull Serializable[] values,
+		@Nonnull int[] recordIds,
+		@Nonnull int[] previousLeafPageSequences
+	) {
+	}
+
+	/**
+	 * A planned rewrite of one global unique index.
+	 *
+	 * @param scope                     the scope of the catalog index holding it
+	 * @param attributeKey              the attribute it indexes
+	 * @param type                      the attribute type the stored part declares
+	 * @param indexedDecimalPlaces      the scale the attribute's `BigDecimal` values are keyed at
+	 * @param localeIndex               the locale ids the stored payloads refer to
+	 * @param values                    the distinct canonical keys
+	 * @param payloads                  the stored packed owner of each key
+	 * @param previousLeafPageSequences the leaf pages the old root listed, empty for an inline index
+	 */
+	record GlobalUniqueIndexRekey(
+		@Nonnull Scope scope,
+		@Nonnull AttributeKey attributeKey,
+		@Nonnull Class<? extends Serializable> type,
+		int indexedDecimalPlaces,
+		@Nonnull Map<Integer, Locale> localeIndex,
+		@Nonnull Serializable[] values,
+		@Nonnull long[] payloads,
+		@Nonnull int[] previousLeafPageSequences
+	) {
+	}
+
+	/**
+	 * Two stored spellings of one unique value held by different owners.
+	 *
+	 * @param structure      the unique index holding them, described for an operator
+	 * @param firstSpelling  the first stored spelling
+	 * @param firstOwner     the owner of the first spelling, described for an operator
+	 * @param secondSpelling the second stored spelling
+	 * @param secondOwner    the owner of the second spelling, described for an operator
+	 */
+	record UniqueKeyCollision(
+		@Nonnull String structure,
+		@Nonnull Serializable firstSpelling,
+		@Nonnull String firstOwner,
+		@Nonnull Serializable secondSpelling,
+		@Nonnull String secondOwner
+	) {
+
+		/**
+		 * Describes the collision in one line of the refusal message, with both spellings escaped.
+		 *
+		 * @return the description
+		 */
+		@Nonnull
+		String describe() {
+			return this.structure + ": `" + escapeSpelling(this.firstSpelling) + "` held by " + this.firstOwner +
+				" and `" + escapeSpelling(this.secondSpelling) + "` held by " + this.secondOwner;
+		}
+	}
+
+	/**
+	 * Translates between entity type names and the compact ids a global unique index packs into its payloads, from
+	 * the collections the catalog header lists. An id the header does not list (an entry left behind by a removed
+	 * collection) maps to a `#<id>` placeholder and back, so such an entry is carried over unchanged.
+	 */
+	final class CatalogHeaderEntityTypeResolver implements EntityTypeClassifierResolver {
+		private static final String UNKNOWN_TYPE_PREFIX = "#";
+		private final Map<Integer, String> entityTypesByPrimaryKey;
+		private final Map<String, Integer> primaryKeysByEntityType;
+
+		/**
+		 * Indexes the collections listed by the catalog header.
+		 *
+		 * @param collections the catalog header's collection references
+		 */
+		CatalogHeaderEntityTypeResolver(@Nonnull Collection<CollectionFileReference> collections) {
+			this.entityTypesByPrimaryKey = CollectionUtils.createHashMap(collections.size());
+			this.primaryKeysByEntityType = CollectionUtils.createHashMap(collections.size());
+			for (final CollectionFileReference collection : collections) {
+				this.entityTypesByPrimaryKey.put(collection.entityTypePrimaryKey(), collection.entityType());
+				this.primaryKeysByEntityType.put(collection.entityType(), collection.entityTypePrimaryKey());
+			}
+		}
+
+		@Override
+		public int toEntityTypePrimaryKey(@Nonnull String entityType) {
+			final Integer primaryKey = this.primaryKeysByEntityType.get(entityType);
+			return primaryKey == null ?
+				Integer.parseInt(entityType.substring(UNKNOWN_TYPE_PREFIX.length())) :
+				primaryKey;
+		}
+
+		@Nonnull
+		@Override
+		public String toEntityTypeName(int entityTypePrimaryKey) {
+			final String entityType = this.entityTypesByPrimaryKey.get(entityTypePrimaryKey);
+			return entityType == null ? UNKNOWN_TYPE_PREFIX + entityTypePrimaryKey : entityType;
+		}
 	}
 
 }

@@ -28,6 +28,7 @@ import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.bPlusTree.IntRecordBucketTree;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
@@ -47,20 +48,25 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLe
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.VMLayout;
+import lombok.Getter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
-import java.math.BigDecimal;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Function;
 
-import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.comparatorFor;
-import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.foldOntoDistinctValues;
+import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.collidingKeysError;
+import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.findFirstNonAscendingKey;
+import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.normalizerFor;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.plainTypeOf;
+import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.toDeclaredValue;
+import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.toDistinctKeys;
+import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.toKey;
+import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.toPersistedKeys;
 import static io.evitadb.utils.Assert.isTrue;
 
 /**
@@ -71,14 +77,15 @@ import static io.evitadb.utils.Assert.isTrue;
  * The value to record id relation is kept in a {@link TransactionalBucketBPlusTree} keyed by the unique value, where
  * each bucket holds exactly one record id (uniqueness is enforced on insert, so the bucket's overflow bitmap is never
  * allocated). String keys are stored in a prefix-compressed front-coded leaf column (auto-selected by
- * {@link ValueColumnFactory#forKey}), which is the memory win driving this backing: URL-slug unique attributes share
- * long common prefixes that a hash map cannot exploit. Persistence is granular — large indexes are written as
+ * {@link ValueColumnFactory#forFilterKey}), which is the memory win driving this backing: URL-slug unique attributes
+ * share long common prefixes that a hash map cannot exploit. Persistence is granular — large indexes are written as
  * individual {@link UniqueIndexLeafPagePart} leaf pages so a single edit rewrites one ~KB leaf instead of the whole
  * value map (see {@link #appendStorageParts}).
  *
- * The index keeps RAW values (no normalization) ordered by a comparator consistent with value equality — natural order
- * for every type except {@link BigDecimal}, which uses an exact value+scale order so {@code 1.0} and {@code 1.00} stay
- * distinct unique keys (matching the {@code HashMap} semantics this backing replaces).
+ * The index keys every value exactly as the attribute's filter index does - through
+ * {@link FilterIndex#getNormalizer(Class, int)} at the attribute's `indexedDecimalPlaces` - so two values the filter
+ * index treats as one are one unique value here too (see {@link UniqueIndexBPlusTreeSupport}). Every entry point
+ * converts its value to the key, and the storage parts carry the key as a value of the declared type.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -95,14 +102,21 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 */
 	@Nonnull private final TransactionalBoolean dirty;
 	/**
-	 * The plain (array-unwrapped) attribute type — drives the comparator and leaf-column choice for tree rebuilds.
+	 * The plain (array-unwrapped) attribute type — drives the normalizer and leaf-column choice for tree rebuilds.
 	 */
 	@Nonnull private final Class<? extends Serializable> plainType;
 	/**
-	 * The value order used by {@link #tree} — see {@link UniqueIndexBPlusTreeSupport#comparatorFor} (natural order, or
-	 * the scale-preserving exact order for `BigDecimal`).
+	 * The scale `BigDecimal` and `BigDecimalNumberRange` values are keyed at, frozen when the index is created (or
+	 * loaded) from the attribute schema's `indexedDecimalPlaces`; `0` for every other type. A schema that later
+	 * declares another scale refuses further writes until the index is rebuilt - see
+	 * {@link FilterIndex#assertIndexedDecimalPlacesUnchanged}.
 	 */
-	@Nonnull private final Comparator<Comparable<?>> comparator;
+	@Getter private final int indexedDecimalPlaces;
+	/**
+	 * Converts every value to its key in {@link #tree} - the filter index's normalizer for {@link #plainType} at
+	 * {@link #indexedDecimalPlaces}, see {@link UniqueIndexBPlusTreeSupport#normalizerFor}.
+	 */
+	@Nonnull private final Function<Object, Serializable> normalizer;
 	/**
 	 * Keeps the unique value to record id mappings. Each bucket holds exactly one record id; for String keys the leaf
 	 * column is front-coded. Large trees persist granularly as leaf pages (see {@link #pageStreamRegistry}).
@@ -116,55 +130,64 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	@Nonnull private final PageStreamRegistry pageStreamRegistry;
 
 	/**
-	 * Creates a fresh, empty value tree (int payload column holding the owning record id) ordered by the given
-	 * comparator — see {@link UniqueIndexBPlusTreeSupport#newIntPayloadTree}.
+	 * Creates a fresh, empty value tree (int payload column holding the owning record id) keyed like the filter index
+	 * — see {@link UniqueIndexBPlusTreeSupport#newIntPayloadTree}.
 	 *
-	 * @param plainType  the plain (array-unwrapped) attribute type
-	 * @param comparator the value order
+	 * @param plainType            the plain (array-unwrapped) attribute type
+	 * @param indexedDecimalPlaces the scale `BigDecimal` and `BigDecimalNumberRange` keys are encoded at
 	 * @return the fresh empty int-payload bucket tree
 	 */
 	@Nonnull
-	private static TransactionalBucketBPlusTree createEmptyTree(
-		@Nonnull Class<?> plainType,
-		@Nonnull Comparator<Comparable<?>> comparator
-	) {
-		return UniqueIndexBPlusTreeSupport.newIntPayloadTree(plainType, comparator);
+	private static TransactionalBucketBPlusTree createEmptyTree(@Nonnull Class<?> plainType, int indexedDecimalPlaces) {
+		return UniqueIndexBPlusTreeSupport.newIntPayloadTree(plainType, indexedDecimalPlaces);
 	}
 
 	/**
 	 * Creates an empty index for a freshly encountered attribute - the entry point when an entity introduces a
 	 * unique attribute that has not been indexed yet.
 	 *
-	 * @param entityType        type of the entity this index belongs to
-	 * @param attributeIndexKey key identifying the indexed attribute
-	 * @param attributeType     declared type of the attribute value
+	 * @param entityType           type of the entity this index belongs to
+	 * @param attributeIndexKey    key identifying the indexed attribute
+	 * @param attributeType        declared type of the attribute value
+	 * @param indexedDecimalPlaces the attribute schema's `indexedDecimalPlaces` (the scale `BigDecimal` values are
+	 *                             keyed at; ignored for other types)
 	 */
-	public OwnerUniqueIndex(@Nonnull String entityType, @Nonnull AttributeIndexKey attributeIndexKey, @Nonnull Class<? extends Serializable> attributeType) {
+	public OwnerUniqueIndex(
+		@Nonnull String entityType,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Class<? extends Serializable> attributeType,
+		int indexedDecimalPlaces
+	) {
 		super(entityType, attributeIndexKey, attributeType);
 		this.dirty = new TransactionalBoolean();
 		this.plainType = plainTypeOf(attributeType);
-		this.comparator = comparatorFor(this.plainType);
-		this.tree = createEmptyTree(this.plainType, this.comparator);
+		this.indexedDecimalPlaces = indexedDecimalPlaces;
+		this.normalizer = normalizerFor(this.plainType, indexedDecimalPlaces);
+		this.tree = createEmptyTree(this.plainType, indexedDecimalPlaces);
 		this.pageStreamRegistry = new PageStreamRegistry();
 	}
 
 	/**
 	 * Reconstructs a `SINGLE`-shape index from its persisted inline value/payload columns - the path taken when loading
-	 * an inline (SINGLE) index back from storage. The tree is rebuilt by inserting every `(value, recordId)` pair.
+	 * an inline (SINGLE) index back from storage. The tree is rebuilt by inserting every `(value, recordId)` pair, each
+	 * value converted to its key; a pair of values naming one key refuses to load (see {@link #seedTree}).
 	 *
-	 * @param entityType        type of the entity this index belongs to
-	 * @param attributeIndexKey key identifying the indexed attribute
-	 * @param attributeType     declared type of the attribute value
-	 * @param values            restored unique values in ascending key order
-	 * @param recordIds         restored record ids, positionally aligned with `values`
+	 * @param entityType           type of the entity this index belongs to
+	 * @param attributeIndexKey    key identifying the indexed attribute
+	 * @param attributeType        declared type of the attribute value
+	 * @param indexedDecimalPlaces the attribute schema's `indexedDecimalPlaces`
+	 * @param values               restored unique values
+	 * @param recordIds            restored record ids, positionally aligned with `values`
 	 */
-	public OwnerUniqueIndex(@Nonnull String entityType, @Nonnull AttributeIndexKey attributeIndexKey, @Nonnull Class<? extends Serializable> attributeType, @Nonnull Serializable[] values, @Nonnull int[] recordIds) {
-		super(entityType, attributeIndexKey, attributeType);
-		this.dirty = new TransactionalBoolean();
-		this.plainType = plainTypeOf(attributeType);
-		this.comparator = comparatorFor(this.plainType);
-		this.tree = createEmptyTree(this.plainType, this.comparator);
-		this.pageStreamRegistry = new PageStreamRegistry();
+	public OwnerUniqueIndex(
+		@Nonnull String entityType,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Class<? extends Serializable> attributeType,
+		int indexedDecimalPlaces,
+		@Nonnull Serializable[] values,
+		@Nonnull int[] recordIds
+	) {
+		this(entityType, attributeIndexKey, attributeType, indexedDecimalPlaces);
 		seedTree(values, recordIds);
 	}
 
@@ -173,23 +196,26 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * wrap an already-built tree directly (no re-seeding). The committed/assembled tree already carries its column kind
 	 * and leaf page sequences, so the page bookkeeping is carried by reference.
 	 *
-	 * @param entityType         type of the entity this index belongs to
-	 * @param attributeIndexKey  key identifying the indexed attribute
-	 * @param attributeType      declared type of the attribute value
-	 * @param tree               the already-built value tree
-	 * @param pageStreamRegistry the owner-resident page bookkeeping, carried BY REFERENCE
+	 * @param entityType           type of the entity this index belongs to
+	 * @param attributeIndexKey    key identifying the indexed attribute
+	 * @param attributeType        declared type of the attribute value
+	 * @param indexedDecimalPlaces the scale the keys of `tree` are encoded at
+	 * @param tree                 the already-built value tree
+	 * @param pageStreamRegistry   the owner-resident page bookkeeping, carried BY REFERENCE
 	 */
 	private OwnerUniqueIndex(
 		@Nonnull String entityType,
 		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull Class<? extends Serializable> attributeType,
+		int indexedDecimalPlaces,
 		@Nonnull TransactionalBucketBPlusTree tree,
 		@Nonnull PageStreamRegistry pageStreamRegistry
 	) {
 		super(entityType, attributeIndexKey, attributeType);
 		this.dirty = new TransactionalBoolean();
 		this.plainType = plainTypeOf(attributeType);
-		this.comparator = comparatorFor(this.plainType);
+		this.indexedDecimalPlaces = indexedDecimalPlaces;
+		this.normalizer = normalizerFor(this.plainType, indexedDecimalPlaces);
 		this.tree = tree;
 		this.pageStreamRegistry = pageStreamRegistry;
 	}
@@ -200,9 +226,14 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * stamped with its page sequence, and the page-stream bookkeeping (high-water + live set) is restored, so the first
 	 * post-restart commit rewrites only genuinely-changed leaves rather than re-paginating the whole index.
 	 *
+	 * Every persisted value is converted to its key first. A page whose keys do not come out strictly ascending is
+	 * refused, and when the cause is two values naming one key the error names both records (see
+	 * {@link UniqueIndexBPlusTreeSupport#collidingKeysError}).
+	 *
 	 * @param entityType            type of the entity this index belongs to
 	 * @param attributeIndexKey     key identifying the indexed attribute
 	 * @param attributeType         declared type of the attribute value
+	 * @param indexedDecimalPlaces  the attribute schema's `indexedDecimalPlaces`
 	 * @param orderedPageSequences  the persisted leaf-page sequences in ascending key order
 	 * @param perPageValues         the values of each leaf page, positionally aligned with `orderedPageSequences`
 	 * @param perPageRecordIds      the record ids of each leaf page, positionally aligned with `perPageValues`
@@ -214,6 +245,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		@Nonnull String entityType,
 		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull Class<? extends Serializable> attributeType,
+		int indexedDecimalPlaces,
 		@Nonnull int[] orderedPageSequences,
 		@Nonnull Serializable[][] perPageValues,
 		@Nonnull int[][] perPageRecordIds,
@@ -225,33 +257,48 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		);
 		Assert.isPremiseValid(orderedPageSequences.length > 0, "A paged owner unique index must have at least one leaf page.");
 		final Class<?> plainType = plainTypeOf(attributeType);
-		final Comparator<Comparable<?>> comparator = comparatorFor(plainType);
+		final Function<Object, Serializable> normalizer = normalizerFor(plainType, indexedDecimalPlaces);
 		final List<TransactionalBucketBPlusTree> pageTrees = new ArrayList<>(orderedPageSequences.length);
 		for (int i = 0; i < orderedPageSequences.length; i++) {
-			final Serializable[] values = perPageValues[i];
+			final Object[] keys = toPersistedKeys(normalizer, perPageValues[i]);
 			final int[] records = perPageRecordIds[i];
 			// a page never exceeds a leaf's capacity, so this single-leaf tree never splits; bulk-build the leaf's
 			// columns in one pass instead of `values.length` sequential addRecord calls - see
 			// bulkLoadSingleRecordPage's javadoc. An owner-unique index page structurally cannot hold a value
 			// shared by more than one record (uniqueness is enforced one layer up, at registerUniqueKey), so no
 			// overflow bucket is ever needed here
-			final TransactionalBucketBPlusTree pageTree = createEmptyTree(plainType, comparator);
-			final long[] payloads = new long[values.length];
-			for (int j = 0; j < values.length; j++) {
+			final TransactionalBucketBPlusTree pageTree = createEmptyTree(plainType, indexedDecimalPlaces);
+			final long[] payloads = new long[keys.length];
+			for (int j = 0; j < keys.length; j++) {
 				payloads[j] = records[j];
 			}
-			pageTree.bulkLoadSingleRecordPage(values, payloads, values.length);
+			try {
+				pageTree.bulkLoadSingleRecordPage(keys, payloads, keys.length);
+			} catch (GenericEvitaInternalError ex) {
+				// the load refused keys that are not strictly ascending - name the records when two of them collide
+				final int clash = findFirstNonAscendingKey(keys);
+				if (clash > 0 && UniqueIndexBPlusTreeSupport.KEY_ORDER.compare(
+					(Comparable<?>) keys[clash - 1], (Comparable<?>) keys[clash]) == 0) {
+					throw collidingKeysError(
+						describe(attributeIndexKey, entityType), keys[clash], plainType, indexedDecimalPlaces,
+						"record `" + records[clash - 1] + "`", "record `" + records[clash] + "`"
+					);
+				}
+				throw ex;
+			}
 			pageTrees.add(pageTree);
 		}
 		final TransactionalBucketBPlusTree tree =
-			createEmptyTree(plainType, comparator).assembleFromSingleLeafTrees(
+			createEmptyTree(plainType, indexedDecimalPlaces).assembleFromSingleLeafTrees(
 				pageTrees, orderedPageSequences,
 				"owner unique index for attribute " + attributeIndexKey + " of entity `" + entityType + "`"
 			);
 		final PageStreamRegistry pageStreamRegistry = PageStreamRegistry.restoredFrom(
 			UNIQUE_PAGE_STREAM, highWaterPageSequence, tree.leafPageHandles()
 		);
-		return new OwnerUniqueIndex(entityType, attributeIndexKey, attributeType, tree, pageStreamRegistry);
+		return new OwnerUniqueIndex(
+			entityType, attributeIndexKey, attributeType, indexedDecimalPlaces, tree, pageStreamRegistry
+		);
 	}
 
 	@Override
@@ -267,7 +314,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	@Nullable
 	@Override
 	public Integer getRecordIdByUniqueValue(@Nonnull Serializable value) {
-		final Bitmap records = this.tree.getRecordsEqualTo((Comparable) value);
+		final Bitmap records = this.tree.getRecordsEqualTo((Comparable) toKey(this.normalizer, value));
 		return records.isEmpty() ? null : records.getFirst();
 	}
 
@@ -280,15 +327,15 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * {@link IndexHeapSize#OWNED_KEY_SIZER}. No record-id set is kept beside it - the owning records are read off the
 	 * tree's payloads when {@link #size()} is asked for them - so the tree is the whole of the data this index holds.
 	 *
-	 * {@link #plainType} is a `Class` and {@link #comparator} is fixed scaffolding chosen by the attribute type, so
-	 * both contribute their slot alone — the same call {@code SortIndex} makes, for the same reason.
-	 * {@link #pageStreamRegistry} is excluded as single-writer flush bookkeeping.
+	 * {@link #plainType} is a `Class` and {@link #normalizer} is fixed scaffolding chosen by the attribute type, so
+	 * both contribute their slot alone — the same call {@code FilterIndex} and {@code SortIndex} make, for the same
+	 * reason. {@link #pageStreamRegistry} is excluded as single-writer flush bookkeeping.
 	 */
 	@Override
 	public long getHeapSizeInBytes() {
 		final VMLayout layout = VMLayout.current();
-		// the dirty / plainType / comparator / tree / pageStreamRegistry slots
-		return getSharedHeapSizeInBytes(5L * layout.referenceSize())
+		// the dirty / plainType / normalizer / tree / pageStreamRegistry slots, then the indexedDecimalPlaces int
+		return getSharedHeapSizeInBytes(5L * layout.referenceSize() + Integer.BYTES)
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.tree.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER);
 	}
@@ -417,7 +464,8 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 			// then carried BY REFERENCE into the committed copy, so the surviving owner keeps it (mirrors InvertedIndex).
 			this.pageStreamRegistry.publishStaged();
 			return new OwnerUniqueIndex(
-				getEntityType(), getAttributeIndexKey(), getType(), committedTree, this.pageStreamRegistry
+				getEntityType(), getAttributeIndexKey(), getType(), this.indexedDecimalPlaces, committedTree,
+				this.pageStreamRegistry
 			);
 		} else {
 			return this;
@@ -446,7 +494,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		final BucketCursor cursor = this.tree.cursor();
 		while (cursor.next()) {
 			Assert.isPremiseValid(cursor.isSingle(), "A unique index bucket must hold exactly one record!");
-			snapshotValues.add((Serializable) cursor.value());
+			snapshotValues.add(toDeclaredValue(this.plainType, this.indexedDecimalPlaces, cursor.value()));
 			snapshotRecordIds.add(cursor.singleRecordId());
 		}
 		return new InlineSnapshot(snapshotValues.toArray(), snapshotRecordIds.toArray());
@@ -458,16 +506,42 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 
 	/**
 	 * Inserts every persisted `(value, recordId)` pair (positionally-aligned value/payload columns) into the (fresh)
-	 * tree. Used by the SINGLE load constructor; the values are distinct unique keys, so no overflow bitmap is ever
-	 * allocated.
+	 * tree, converting each value to its key. Used by the SINGLE load constructor. The keys are distinct, so no
+	 * overflow bitmap is ever allocated - and a pair that is not refuses to load: a key already present joins its
+	 * bucket instead of adding one, which the O(1) bucket count tells right away (see
+	 * {@link UniqueIndexBPlusTreeSupport#collidingKeysError}).
 	 *
-	 * @param values    the persisted values in ascending key order
+	 * @param values    the persisted values
 	 * @param recordIds the persisted record ids, positionally aligned with `values`
 	 */
 	private void seedTree(@Nonnull Serializable[] values, @Nonnull int[] recordIds) {
-		for (int i = 0; i < values.length; i++) {
-			this.tree.addRecord((Comparable) values[i], recordIds[i]);
+		final Object[] keys = toPersistedKeys(this.normalizer, values);
+		for (int i = 0; i < keys.length; i++) {
+			this.tree.addRecord((Comparable) keys[i], recordIds[i]);
+			if (this.tree.size() != i + 1) {
+				final Bitmap owners = this.tree.getRecordsEqualTo((Comparable) keys[i]);
+				final int otherRecordId = owners.getFirst() == recordIds[i] ? owners.getLast() : owners.getFirst();
+				throw collidingKeysError(
+					describe(getAttributeIndexKey(), getEntityType()), keys[i], this.plainType,
+					this.indexedDecimalPlaces, "record `" + otherRecordId + "`", "record `" + recordIds[i] + "`"
+				);
+			}
 		}
+	}
+
+	/**
+	 * Describes the index for an operator: the attribute, its locale when it has one, and the entity type.
+	 *
+	 * @param attributeIndexKey the indexed attribute
+	 * @param entityType        the entity type the index belongs to
+	 * @return the description
+	 */
+	@Nonnull
+	private static String describe(@Nonnull AttributeIndexKey attributeIndexKey, @Nonnull String entityType) {
+		return "unique index of attribute `" + attributeIndexKey.attributeName() + "`" +
+			(attributeIndexKey.locale() == null ? "" : " in locale `" + attributeIndexKey.locale().toLanguageTag() + "`") +
+			(attributeIndexKey.referenceName() == null ? "" : " of reference `" + attributeIndexKey.referenceName() + "`") +
+			" of entity `" + entityType + "`";
 	}
 
 	/**
@@ -535,7 +609,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 				final CompositeIntArray pageRecordIds = new CompositeIntArray();
 				while (cursor.next()) {
 					Assert.isPremiseValid(cursor.isSingle(), "A unique index bucket must hold exactly one record!");
-					pageValues.add((Serializable) cursor.value());
+					pageValues.add(toDeclaredValue(this.plainType, this.indexedDecimalPlaces, cursor.value()));
 					pageRecordIds.add(cursor.singleRecordId());
 				}
 				return new LeafPage(pageSequence, pageValues.toArray(), pageRecordIds.toArray());
@@ -544,11 +618,11 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	}
 
 	/**
-	 * Array-dispatching entry point for registration. When `key` is an array (an array-typed attribute), every
-	 * element is first checked for a conflicting owner and only then registered, so a violation on any element
-	 * aborts the whole operation before mutating the index. The array is folded onto its distinct values first, so
-	 * a value the array repeats occupies its single tree entry once. Scalar keys are delegated straight to the
-	 * single-value overload. Finally marks the index dirty.
+	 * Array-dispatching entry point for registration. Every value is converted to its key first. When `key` is an
+	 * array (an array-typed attribute), every element is first checked for a conflicting owner and only then
+	 * registered, so a violation on any element aborts the whole operation before mutating the index. The array is
+	 * folded onto its distinct keys first, so a value the array repeats - in any spelling - occupies its single tree
+	 * entry once. Scalar keys are delegated straight to the single-value overload. Finally marks the index dirty.
 	 *
 	 * @param key      single unique value or an array of unique values to register
 	 * @param recordId record id that should own the value(s)
@@ -556,48 +630,56 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 */
 	private <T extends Serializable & Comparable<T>> void registerUniqueKeyValue(@Nonnull Object key, int recordId) {
 		if (key instanceof @Nonnull final Object[] valueArray) {
-			verifyValueArray(key);
 			// one value is one tree entry however many times the array repeats it - see #foldOntoDistinctValues
-			final Object[] distinctValues = foldOntoDistinctValues(valueArray, this.comparator);
+			final Object[] distinctKeys = toDistinctKeys(this.normalizer, valueArray);
 			// first verify removed data without modifications
-			for (Object valueItem : distinctValues) {
-				final T theValueItem = (T) valueItem;
-				final Integer existingRecordId = getRecordIdByUniqueValue(theValueItem);
-				assertUniqueKeyIsFree(theValueItem, recordId, existingRecordId);
+			for (Object keyItem : distinctKeys) {
+				final T theKeyItem = (T) keyItem;
+				assertUniqueKeyIsFree(theKeyItem, recordId, getRecordIdByKey(theKeyItem));
 			}
 			// now perform alteration
-			for (Object valueItem : distinctValues) {
+			for (Object keyItem : distinctKeys) {
 				//noinspection unchecked
-				registerUniqueKeyValue((T) valueItem, recordId);
+				registerUniqueKeyValue((T) keyItem, recordId);
 			}
 		} else {
-			verifyValue(key);
 			//noinspection unchecked
-			registerUniqueKeyValue((T) key, recordId);
+			registerUniqueKeyValue((T) toKey(this.normalizer, key), recordId);
 		}
 
 		this.dirty.setToTrue();
 	}
 
 	/**
-	 * Registers a single unique value to a record id after asserting the value is free.
+	 * Registers a single unique key to a record id after asserting the key is free.
 	 *
-	 * @param key      unique value to register
-	 * @param recordId record id that should own the value
-	 * @throws UniqueValueViolationException when the value is already owned by any record
+	 * @param key      unique key to register, already converted by {@link UniqueIndexBPlusTreeSupport#toKey}
+	 * @param recordId record id that should own the key
+	 * @throws UniqueValueViolationException when the key is already owned by any record
 	 */
 	private <T extends Serializable & Comparable<T>> void registerUniqueKeyValue(@Nonnull T key, int recordId) {
-		final Integer existingRecordId = getRecordIdByUniqueValue(key);
-		assertUniqueKeyIsFree(key, recordId, existingRecordId);
+		assertUniqueKeyIsFree(key, recordId, getRecordIdByKey(key));
 		this.tree.addRecord(key, recordId);
 	}
 
 	/**
-	 * Array-dispatching entry point for de-registration. When `key` is an array, every element's ownership is
-	 * first verified and only then removed, so a mismatch on any element aborts the operation before mutating the
-	 * index; the array branch returns {@link Integer#MIN_VALUE} as a sentinel since no single record id applies.
-	 * The array is folded onto its distinct values first, so a value the array repeats is retired once rather than
-	 * being sought a second time after its only entry is gone.
+	 * Returns the record owning an already converted key, or `null` when the key is free.
+	 *
+	 * @param key the tree key
+	 * @return the owning record id, or `null`
+	 */
+	@Nullable
+	private Integer getRecordIdByKey(@Nonnull Comparable<?> key) {
+		final Bitmap records = this.tree.getRecordsEqualTo((Comparable) key);
+		return records.isEmpty() ? null : records.getFirst();
+	}
+
+	/**
+	 * Array-dispatching entry point for de-registration. Every value is converted to its key first. When `key` is an
+	 * array, every element's ownership is first verified and only then removed, so a mismatch on any element aborts
+	 * the operation before mutating the index; the array branch returns {@link Integer#MIN_VALUE} as a sentinel since
+	 * no single record id applies. The array is folded onto its distinct keys first, so a value the array repeats - in
+	 * any spelling - is retired once rather than being sought a second time after its only entry is gone.
 	 * Scalar keys are delegated to the single-value overload and return the removed record id. Finally marks the
 	 * index dirty.
 	 *
@@ -609,24 +691,21 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	private <T extends Serializable & Comparable<T>> int unregisterUniqueKeyValue(@Nonnull Object key, int expectedRecordId) {
 		final int returnValue;
 		if (key instanceof @Nonnull final Object[] valueArray) {
-			verifyValueArray(key);
 			// one value is one tree entry however many times the array repeats it - see #foldOntoDistinctValues
-			final Object[] distinctValues = foldOntoDistinctValues(valueArray, this.comparator);
+			final Object[] distinctKeys = toDistinctKeys(this.normalizer, valueArray);
 			// first verify removed data without modifications
-			for (Object valueItem : distinctValues) {
-				final T theValueItem = (T) valueItem;
-				final Integer existingRecordId = getRecordIdByUniqueValue(theValueItem);
-				assertUniqueKeyOwnership(theValueItem, expectedRecordId, existingRecordId);
+			for (Object keyItem : distinctKeys) {
+				final T theKeyItem = (T) keyItem;
+				assertUniqueKeyOwnership(theKeyItem, expectedRecordId, getRecordIdByKey(theKeyItem));
 			}
 			// now perform alteration
-			for (Object valueItem : distinctValues) {
-				unregisterUniqueKeyValue((T) valueItem, expectedRecordId);
+			for (Object keyItem : distinctKeys) {
+				unregisterUniqueKeyValue((T) keyItem, expectedRecordId);
 			}
 
 			returnValue = Integer.MIN_VALUE;
 		} else {
-			verifyValue(key);
-			returnValue = unregisterUniqueKeyValue((T) key, expectedRecordId);
+			returnValue = unregisterUniqueKeyValue((T) toKey(this.normalizer, key), expectedRecordId);
 		}
 
 		this.dirty.setToTrue();
@@ -634,18 +713,18 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	}
 
 	/**
-	 * Removes a single unique value, asserting it was owned by `expectedRecordId`. The ownership assertion
+	 * Removes a single unique key, asserting it was owned by `expectedRecordId`. The ownership assertion
 	 * guarantees the removed mapping was non-null and equal to `expectedRecordId`, so beyond it the boxed
 	 * `existingRecordId` and the primitive `expectedRecordId` are interchangeable; the primitive is used to
 	 * avoid unboxing the (provably non-null) {@link Integer}.
 	 *
-	 * @param key              unique value to unregister
+	 * @param key              unique key to unregister, already converted by {@link UniqueIndexBPlusTreeSupport#toKey}
 	 * @param expectedRecordId record id expected to currently own the value
 	 * @return the removed record id (always equal to `expectedRecordId`)
 	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the value is absent or owned by a different record
 	 */
 	private <T extends Serializable & Comparable<T>> int unregisterUniqueKeyValue(@Nonnull T key, int expectedRecordId) {
-		final Integer existingRecordId = getRecordIdByUniqueValue(key);
+		final Integer existingRecordId = getRecordIdByKey(key);
 		// this throws unless existingRecordId is non-null AND equals expectedRecordId, so past this point the two
 		// are interchangeable; using the primitive expectedRecordId avoids unboxing the (provably non-null) Integer
 		assertUniqueKeyOwnership(key, expectedRecordId, existingRecordId);
@@ -664,14 +743,18 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * standing for two registrations, so unregistering either would drop the value the other still holds. The upsert
 	 * path unregisters a record's prior value before registering its new one, so an unchanged value never re-arrives.
 	 *
-	 * @param key              value being registered (used for the violation message)
+	 * @param key              key being registered (shown as a value of the declared type in the violation message)
 	 * @param recordId         record id attempting to claim the value
 	 * @param existingRecordId record id currently owning the value, or `null` if the value is free
 	 * @throws UniqueValueViolationException when the value is already owned by any record, this one included
 	 */
 	private <T extends Serializable & Comparable<T>> void assertUniqueKeyIsFree(@Nonnull T key, int recordId, @Nullable Integer existingRecordId) {
 		if (existingRecordId != null) {
-			throw new UniqueValueViolationException(getAttributeIndexKey().attributeName(), getAttributeIndexKey().locale(), key, getEntityType(), existingRecordId, getEntityType(), recordId);
+			throw new UniqueValueViolationException(
+				getAttributeIndexKey().attributeName(), getAttributeIndexKey().locale(),
+				toDeclaredValue(this.plainType, this.indexedDecimalPlaces, key),
+				getEntityType(), existingRecordId, getEntityType(), recordId
+			);
 		}
 	}
 
@@ -680,12 +763,13 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 * `expectedRecordId`. The failure message distinguishes a missing key (`existingRecordId` is `null`) from a key
 	 * owned by a different record.
 	 *
-	 * @param key              value being unregistered (used for the failure message)
+	 * @param theKey           key being unregistered (shown as a value of the declared type in the failure message)
 	 * @param expectedRecordId record id expected to own the value
 	 * @param existingRecordId record id actually found, or `null` if the value was absent
 	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the value is absent or owned by a different record
 	 */
-	private <T extends Serializable & Comparable<T>> void assertUniqueKeyOwnership(@Nonnull T key, int expectedRecordId, @Nullable Integer existingRecordId) {
+	private <T extends Serializable & Comparable<T>> void assertUniqueKeyOwnership(@Nonnull T theKey, int expectedRecordId, @Nullable Integer existingRecordId) {
+		final Serializable key = toDeclaredValue(this.plainType, this.indexedDecimalPlaces, theKey);
 		isTrue(
 			Objects.equals(existingRecordId, expectedRecordId),
 			() -> existingRecordId == null ?

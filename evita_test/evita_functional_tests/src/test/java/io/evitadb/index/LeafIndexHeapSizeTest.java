@@ -804,19 +804,19 @@ class LeafIndexHeapSizeTest {
 
 		/**
 		 * Everything a global unique index reaches but does not charge — the catalog key it was filed under, the
-		 * scope enum, the scaffolding comparator, the flush bookkeeping and two lambdas.
+		 * scope enum, the scaffolding normalizer, the flush bookkeeping and two lambdas.
 		 */
 		private static final String[] GLOBAL_EXCLUSIONS = {
-			"attributeKey", "comparator", "pageStreamRegistry", "scope",
+			"attributeKey", "normalizer", "pageStreamRegistry", "scope",
 			"tree.valueColumnFactory", "tree.recordColumnFactory"
 		};
 
 		/**
 		 * Everything an owner unique index reaches but does not charge — the key it was filed under, the collection
-		 * name, the scaffolding comparator, the flush bookkeeping and the tree's two column-factory lambdas.
+		 * name, the scaffolding normalizer, the flush bookkeeping and the tree's two column-factory lambdas.
 		 */
 		private static final String[] OWNER_EXCLUSIONS = {
-			"attributeIndexKey", "entityType", "comparator", "pageStreamRegistry",
+			"attributeIndexKey", "entityType", "normalizer", "pageStreamRegistry",
 			"tree.valueColumnFactory", "tree.recordColumnFactory"
 		};
 
@@ -827,7 +827,7 @@ class LeafIndexHeapSizeTest {
 			// walk charges the same single box the arithmetic does
 			assertMatchesMeasuredHeap(
 				index.getHeapSizeInBytes(), index,
-				"attributeIndexKey", "entityType", "comparator", "pageStreamRegistry",
+				"attributeIndexKey", "entityType", "normalizer", "pageStreamRegistry",
 				"tree.valueColumnFactory", "tree.recordColumnFactory"
 			);
 		}
@@ -837,7 +837,7 @@ class LeafIndexHeapSizeTest {
 			final OwnerUniqueIndex index = ownerUniqueIndex(200);
 			assertMatchesMeasuredHeap(
 				index.getHeapSizeInBytes(), index,
-				"attributeIndexKey", "entityType", "comparator", "pageStreamRegistry",
+				"attributeIndexKey", "entityType", "normalizer", "pageStreamRegistry",
 				"tree.valueColumnFactory", "tree.recordColumnFactory"
 			);
 		}
@@ -910,7 +910,7 @@ class LeafIndexHeapSizeTest {
 		private static GlobalUniqueIndex seededGlobal(int records) {
 			final GlobalUniqueIndex index = new GlobalUniqueIndex(
 				Scope.LIVE, new AttributeKey("url"), String.class
-			);
+			, 0);
 			for (int i = 0; i < records; i++) {
 				index.registerUniqueKey(
 					String.format("url-%05d", i), "Product", null, AUTOBOX_CACHE_CEILING + i, RESOLVER
@@ -923,7 +923,7 @@ class LeafIndexHeapSizeTest {
 		void shouldMeasureAnEmptyGlobalIndexExactly() {
 			final GlobalUniqueIndex index = new GlobalUniqueIndex(
 				Scope.LIVE, new AttributeKey("url"), String.class
-			);
+			, 0);
 			// the value tree memoizes its bucket count, and an empty one boxes ZERO - the JVM's own instance. One
 			// structure holds it, so the walk charges the same one box the arithmetic does
 			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, GLOBAL_EXCLUSIONS);
@@ -976,7 +976,7 @@ class LeafIndexHeapSizeTest {
 		private static GlobalUniqueIndex localizedGlobal(@Nonnull Locale[] locales, int records) {
 			final GlobalUniqueIndex index = new GlobalUniqueIndex(
 				Scope.LIVE, new AttributeKey("url", Locale.ENGLISH), String.class
-			);
+			, 0);
 			for (int i = 0; i < records; i++) {
 				index.registerUniqueKey(
 					String.format("url-%05d", i), "Product", locales[i % locales.length],
@@ -996,7 +996,7 @@ class LeafIndexHeapSizeTest {
 		private static OwnerUniqueIndex ownerUniqueIndex(int records) {
 			final OwnerUniqueIndex index = new OwnerUniqueIndex(
 				"Product", new AttributeIndexKey(null, "code", null), String.class
-			);
+			, 0);
 			for (int i = 0; i < records; i++) {
 				index.registerUniqueKey(String.format("code-%05d", i), i + 1);
 			}

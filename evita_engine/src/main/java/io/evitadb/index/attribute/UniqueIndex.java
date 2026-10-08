@@ -87,29 +87,46 @@ public abstract sealed class UniqueIndex implements
 	@Getter private final Class<? extends Serializable> type;
 
 	/**
-	 * Verifies that the component type of an array of unique values is both {@link Serializable} and
-	 * {@link Comparable} - the contract every key stored in this index must satisfy.
+	 * Verifies that a single unique key is both {@link Serializable} and {@link Comparable} - the contract every key
+	 * stored in a standalone unique index must satisfy. It is checked on the key the value is converted to, never on
+	 * the value itself: a `Currency` or a `Locale` is not comparable, while the key it is converted to is (see
+	 * `UniqueIndexBPlusTreeSupport#toKey`).
 	 *
-	 * @param value array whose component type is checked
-	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the component type is not {@link Serializable}
-	 *         or not {@link Comparable}
-	 */
-	static void verifyValueArray(@Nonnull Object value) {
-		isTrue(Serializable.class.isAssignableFrom(value.getClass().getComponentType()), "Value `" + unknownToString(value) + "` is expected to be Serializable but it is not!");
-		isTrue(Comparable.class.isAssignableFrom(value.getClass().getComponentType()), "Value `" + unknownToString(value) + "` is expected to be Comparable but it is not!");
-	}
-
-	/**
-	 * Verifies that a single unique value is both {@link Serializable} and {@link Comparable} - the contract every
-	 * key stored in this index must satisfy.
-	 *
-	 * @param value value to check
+	 * @param value key to check
 	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the value is not {@link Serializable} or not
 	 *         {@link Comparable}
 	 */
 	static void verifyValue(@Nonnull Object value) {
 		isTrue(value instanceof Serializable, "Value `" + unknownToString(value) + "` is expected to be Serializable but it is not!");
 		isTrue(value instanceof Comparable, "Value `" + unknownToString(value) + "` is expected to be Comparable but it is not!");
+	}
+
+	/**
+	 * Returns the value a standalone unique index ({@link OwnerUniqueIndex}, {@link GlobalUniqueIndex}) persists for
+	 * `value`: a value of the declared attribute type naming the key the index holds for it - see
+	 * `UniqueIndexBPlusTreeSupport#toDeclaredValue`. Two values the index treats as one unique value yield equal
+	 * results, and a value the current writer persisted yields itself.
+	 *
+	 * This is what lets code outside the index - the storage migration re-keying parts written before the unique
+	 * indexes keyed their values like the filter index - tell a persisted value already in canonical form from one that
+	 * is not, and two persisted values naming one key, without reimplementing the key space.
+	 *
+	 * @param plainType            the plain (array-unwrapped) attribute type
+	 * @param indexedDecimalPlaces the attribute schema's `indexedDecimalPlaces`
+	 * @param value                the value, in any spelling
+	 * @return the canonical persisted value
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the value cannot be a unique key
+	 */
+	@Nonnull
+	public static Serializable toPersistedValue(
+		@Nonnull Class<?> plainType,
+		int indexedDecimalPlaces,
+		@Nonnull Serializable value
+	) {
+		return UniqueIndexBPlusTreeSupport.toDeclaredValue(
+			plainType, indexedDecimalPlaces,
+			UniqueIndexBPlusTreeSupport.toKey(UniqueIndexBPlusTreeSupport.normalizerFor(plainType, indexedDecimalPlaces), value)
+		);
 	}
 
 	/**

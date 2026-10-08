@@ -120,7 +120,7 @@ class LongRunningGlobalUniqueIndexTest implements TimeBoundedTestSupport {
 		final int initialCount = 100;
 		final Map<String, Integer> mapToCompare = new HashMap<>();
 		final Set<Integer> currentRecordSet = new HashSet<>();
-		final GlobalUniqueIndex initialUniqueIndex = new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("code"), String.class);
+		final GlobalUniqueIndex initialUniqueIndex = new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("code"), String.class, 0);
 
 		runFor(
 			input,
@@ -164,7 +164,7 @@ class LongRunningGlobalUniqueIndexTest implements TimeBoundedTestSupport {
 						final GlobalUniqueIndex newGlobalUniqueIndex = new GlobalUniqueIndex(
 							Scope.LIVE,
 							committed.getAttributeKey(),
-							committed.getType(),
+							committed.getType(), 0,
 							snapshot.values(),
 							snapshot.payloads(),
 							new HashMap<>(committed.getLocaleIndex())
@@ -286,7 +286,7 @@ class LongRunningGlobalUniqueIndexTest implements TimeBoundedTestSupport {
 		@Nonnull Map<String, Integer> mapToCompare,
 		@Nonnull StringBuilder codeBuffer
 	) {
-		final GlobalUniqueIndex uniqueIndex = new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("code"), String.class);
+		final GlobalUniqueIndex uniqueIndex = new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("code"), String.class, 0);
 		for (final Entry<String, Integer> entry : mapToCompare.entrySet()) {
 			codeBuffer.append("uniqueIndex.registerUniqueKey(\"").append(entry.getKey()).append("\", ").append(entry.getValue()).append(");\n");
 			uniqueIndex.registerUniqueKey(entry.getKey(), Entities.PRODUCT, null, entry.getValue(), CLASSIFIER_RESOLVER);

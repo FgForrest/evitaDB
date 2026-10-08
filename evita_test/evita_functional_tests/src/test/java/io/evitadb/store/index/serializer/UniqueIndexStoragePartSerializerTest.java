@@ -273,7 +273,7 @@ class UniqueIndexStoragePartSerializerTest {
 			assertArrayEquals(new int[]{5, 5, 9}, deserialized.getRecordIds());
 			// the owner index restored from the columns counts the record owning two values once
 			final OwnerUniqueIndex restored = new OwnerUniqueIndex(
-				"PRODUCT", ATTRIBUTE_KEY, String.class, deserialized.getValues(), deserialized.getRecordIds()
+				"PRODUCT", ATTRIBUTE_KEY, String.class, 0, deserialized.getValues(), deserialized.getRecordIds()
 			);
 			assertArrayEquals(new int[]{5, 9}, UniqueIndexTestSupport.ownerRecordIds(restored));
 			assertEquals(2, restored.size());
