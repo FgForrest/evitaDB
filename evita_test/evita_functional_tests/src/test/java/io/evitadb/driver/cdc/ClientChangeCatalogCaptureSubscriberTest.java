@@ -462,6 +462,41 @@ class ClientChangeCatalogCaptureSubscriberTest {
 			assertEquals(List.of(Signal.SUBSCRIBE, Signal.COMPLETE), stream.delegate.signals);
 		}
 
+		@Test
+		@DisplayName("should fail subscribe() and the consumer with the same failure when two fail the stream at once")
+		void shouldFailSubscribeAndConsumerWithSameFailureWhenTwoFailTheStream() throws InterruptedException {
+			// the server fails the stream on the inbound thread while the driver fails it on its own before the
+			// acknowledgement. Each failure tells the consumer and releases `subscribe()`, and when the second one
+			// releases `subscribe()` while the first is still on its way, the consumer and the caller of `subscribe()`
+			// must still act on one and the same failure. The window lies between two statements of `onError`, so only
+			// a debugger opens it on demand: suspend the inbound thread in `onError` right before it fails the
+			// acknowledgement, let this thread fail the stream, then resume the inbound thread. Run freely, either
+			// thread may win, and both must agree either way.
+			final Harness harness = new Harness(resumeRequest(null));
+			final Stream stream = harness.subscribe(INCARNATION_A);
+			assertTrue(
+				stream.delegate.subscribed.await(30, TimeUnit.SECONDS), "The consumer was not subscribed in time."
+			);
+
+			final Thread inbound = new Thread(
+				() -> stream.fail(Status.UNAVAILABLE.withDescription("lost").asRuntimeException()),
+				"test-catalog-cdc-inbound"
+			);
+			inbound.setDaemon(true);
+			inbound.start();
+			stream.subscriber().notifyClientFailureAndClose(new GenericEvitaInternalError("The driver failed."));
+			inbound.join(TimeUnit.SECONDS.toMillis(30));
+			assertFalse(inbound.isAlive(), "The failure was not handled in time.");
+			stream.awaitSubscribed();
+
+			assertEquals(List.of(Signal.SUBSCRIBE, Signal.ERROR), stream.delegate.signals);
+			assertSame(
+				stream.delegate.error.get(),
+				assertInstanceOf(GenericEvitaInternalError.class, stream.subscribeFailure.get()).getCause(),
+				"subscribe() and the consumer must report the same failure"
+			);
+		}
+
 	}
 
 	@Nested

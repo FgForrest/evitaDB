@@ -125,6 +125,16 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * This is used to differentiate between client-initiated and server-initiated closures.
 	 */
 	private final AtomicBoolean serverSideClosed = new AtomicBoolean(false);
+	/**
+	 * Claimed by the one terminal path - {@link #onError}, {@link #notifyClientFailureAndClose} or
+	 * {@link #onComplete} - that decides how the stream ends (see {@link #claimTermination}). Only the winner tells the
+	 * delegate, fails `acknowledged` and cancels the subscription, all with its own outcome, so that the consumer and
+	 * the caller blocked in `subscribe()` always act on the same failure, and the delegate receives at most one
+	 * terminal signal (Reactive Streams §1.7). Deciding later - each path telling the delegate and failing the future
+	 * on its own - lets the paths interleave: the chain delivers the one that queued first while `subscribe()` throws
+	 * the one that completed the future first.
+	 */
+	private final AtomicBoolean terminationClaimed = new AtomicBoolean(false);
 
 	/**
 	 * Completed when the server acknowledges the subscription (the first {@link #onNext} carrying the
@@ -133,12 +143,13 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * {@link #awaitAcknowledgement()} so it returns only once the server-side subscription is
 	 * established — see that method for the ordering guarantees this provides.
 	 *
-	 * A terminal path that fails this future must read {@link #closed} — to decide whether the delegate is told —
-	 * **before** it completes the future. The caller woken by the completion tears the half-open subscription down
-	 * at once, which closes this subscriber; reading the flag afterwards lets that teardown win and swallows the
-	 * terminal signal the consumer is owed. The terminal signal itself is queued before the future is completed
-	 * but held until it is (see `lastDelegateSignal`), so a consumer whose handler cancels the subscription cannot
-	 * replace the failure `subscribe()` surfaces with a {@link PublisherClosedByClientException}.
+	 * A terminal path that fails this future must claim the termination (see {@link #claimTermination}), which reads
+	 * {@link #closed} to decide whether the delegate is told, **before** it completes the future. The caller woken by
+	 * the completion tears the half-open subscription down at once, which closes this subscriber; reading the flag
+	 * afterwards lets that teardown win and swallows the terminal signal the consumer is owed. The terminal signal
+	 * itself is queued before the future is completed but held until it is (see `lastDelegateSignal`), so a consumer
+	 * whose handler cancels the subscription cannot replace the failure `subscribe()` surfaces with a
+	 * {@link PublisherClosedByClientException}.
 	 */
 	private final CompletableFuture<Void> acknowledged = new CompletableFuture<>();
 
@@ -167,12 +178,11 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 *   still runs only after the failure `subscribe()` surfaces is settled
 	 *
 	 * The order of the chain is the order the signals are queued in, and a terminal path decides to queue its
-	 * signal by reading {@link #closed} a few statements before it does. A close that is not the teardown of
-	 * `subscribe()` - the consumer cancelling, or the client closing - can set the flag and queue the delegate close
-	 * in between, so a terminal signal may land behind the close; such a signal is dropped when its turn comes (see
-	 * `delegateClosed`). For the same reason two terminal paths - the server failing the stream while the driver
-	 * fails it for a consumer that fell behind - can both read the flag before either teardown sets it, and both queue
-	 * a terminal signal; only the first of them runs (see `delegateTerminated`).
+	 * signal by reading {@link #closed} a few statements before it does (see {@link #claimTermination}). A close that
+	 * is not the teardown of `subscribe()` - the consumer cancelling, or the client closing - can set the flag and
+	 * queue the delegate close in between, so a terminal signal may land behind the close; such a signal is dropped
+	 * when its turn comes (see `delegateClosed`). Two terminal paths never both queue a signal: only the one that
+	 * claims the termination does (see `terminationClaimed`).
 	 */
 	private final AtomicReference<CompletableFuture<Void>> lastDelegateSignal =
 		new AtomicReference<>(CompletableFuture.allOf(this.delegateSubscribed, this.acknowledged));
@@ -185,14 +195,6 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * one after another, so the check cannot race the close it guards against.
 	 */
 	private volatile boolean delegateClosed;
-
-	/**
-	 * Set by the first terminal signal of `lastDelegateSignal` just before it runs. Any terminal signal that finds it
-	 * set when its turn comes is dropped, so the delegate receives at most one `onError` / `onComplete` (Reactive
-	 * Streams §1.7) however many terminal paths decided to tell it. A signal whose dispatch is refused never runs and
-	 * does not set it, so the next one still reaches the delegate. Confined to the chain like `delegateClosed`.
-	 */
-	private volatile boolean delegateTerminated;
 
 	/**
 	 * The gRPC observer that sends requests to and receives responses from the server.
@@ -590,13 +592,16 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			rootCause instanceof PublisherClosedByClientException || rootCause instanceof TimeoutException ?
 				null : ErrorInfoConverter.toTypedException(throwable);
 		final Throwable failure = typedFailure == null ? rootCause : typedFailure;
-		// read before completing the future - the caller it releases closes this subscriber, see `acknowledged`;
-		// the publisher always attaches the subscription before the stream initializer runs, so by the time
-		// `onError` fires the subscription is guaranteed non-null
-		final ClientSubscription<C, REQ, RES> activeSubscription =
-			rootCause instanceof PublisherClosedByClientException || this.closed.get() ?
-				null :
-				Objects.requireNonNull(this.subscription, "Subscription must be attached before `onError` is invoked.");
+		if (rootCause instanceof PublisherClosedByClientException) {
+			// this is expected, we closed the publisher manually
+			// apparently, gRPC server doesn't know if cancellation was initiated by the client or by some network error
+			// in this case we don't call the on complete, nor on error methods on the delegate - and `close()`, which
+			// raised this error, has already failed `acknowledged`
+			log.debug("Client change capture publisher was closed manually by the client.", throwable);
+			return;
+		}
+		// claimed before completing the future - the caller it releases closes this subscriber, see `acknowledged`
+		final ClientSubscription<C, REQ, RES> activeSubscription = claimTermination(failure);
 		if (activeSubscription != null) {
 			// we notify the subscriber about the error — dispatched off this thread, which is the gRPC
 			// inbound (event loop) thread; a consumer `onError` handler that re-subscribes would otherwise
@@ -607,17 +612,10 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 				() -> this.delegate.onError(failure),
 				"deliver onError to the delegate subscriber"
 			);
-		}
-		// unblock a caller still waiting in `awaitAcknowledgement`: the stream failed before the
-		// server acknowledged the subscription, so the subscribe() call must fail rather than wait
-		// out the full streaming timeout (no-op once the ACK has already completed the future)
-		this.acknowledged.completeExceptionally(failure);
-		if (rootCause instanceof PublisherClosedByClientException) {
-			// this is expected, we closed the publisher manually
-			// apparently, gRPC server doesn't know if cancellation was initiated by the client or by some network error
-			// in this case we don't call the on complete, nor on error methods on the delegate
-			log.debug("Client change capture publisher was closed manually by the client.", throwable);
-		} else if (activeSubscription != null) {
+			// unblock a caller still waiting in `awaitAcknowledgement`: the stream failed before the
+			// server acknowledged the subscription, so the subscribe() call must fail rather than wait
+			// out the full streaming timeout (no-op once the ACK has already completed the future)
+			this.acknowledged.completeExceptionally(failure);
 			if (rootCause instanceof TimeoutException) {
 				// we don't log timeout exceptions as errors because we expect that the CDC is regularly timed out
 				// and then re-established by the client
@@ -648,15 +646,8 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * @param cause exception describing the client-internal failure
 	 */
 	void notifyClientFailureAndClose(@Nonnull Throwable cause) {
-		// read before completing the future - the caller it releases closes this subscriber, see `acknowledged`;
-		// invoked from `ClientSubscription.consume`, which can only exist once the
-		// publisher has attached this subscription, so the field is always non-null
-		final ClientSubscription<C, REQ, RES> activeSubscription = this.closed.get() ?
-			null :
-			Objects.requireNonNull(
-				this.subscription,
-				"Subscription must be attached before `notifyClientFailureAndClose` is invoked."
-			);
+		// claimed before completing the future - the caller it releases closes this subscriber, see `acknowledged`
+		final ClientSubscription<C, REQ, RES> activeSubscription = claimTermination(cause);
 		if (activeSubscription != null) {
 			// off-thread for the same reason as in `onError` — the caller is the drain task, and
 			// a rejected dispatch must not strand the terminal notification; queued before the future
@@ -666,10 +657,8 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 				() -> this.delegate.onError(cause),
 				"deliver onError (client-side failure) to the delegate subscriber"
 			);
-		}
-		// unblock a caller still waiting in `awaitAcknowledgement` (no-op once the ACK completed it)
-		this.acknowledged.completeExceptionally(cause);
-		if (activeSubscription != null) {
+			// unblock a caller still waiting in `awaitAcknowledgement` (no-op once the ACK completed it)
+			this.acknowledged.completeExceptionally(cause);
 			if (cause instanceof TemporalDataNotAvailableException) {
 				// a refusal of the subscription by `verifyAcknowledgement` - the consumer is told and has to act on
 				// it, nothing in the driver failed
@@ -692,12 +681,12 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	@Override
 	public void onComplete() {
 		this.serverSideClosed.set(true);
-		// read before completing the future - the caller it releases closes this subscriber, see `acknowledged`;
-		// gRPC calls `onComplete` only after `beforeStart` returned, by which point
-		// the publisher has already attached the subscription
-		final ClientSubscription<C, REQ, RES> activeSubscription = this.closed.get() ?
-			null :
-			Objects.requireNonNull(this.subscription, "Subscription must be attached before `onComplete` is invoked.");
+		// the failure `subscribe()` surfaces when the stream completes before the acknowledgement - the consumer is
+		// told `onComplete` instead, and both stand for the same outcome
+		final GenericEvitaInternalError completedEarly =
+			new GenericEvitaInternalError("The change data capture stream completed before it was acknowledged.");
+		// claimed before completing the future - the caller it releases closes this subscriber, see `acknowledged`
+		final ClientSubscription<C, REQ, RES> activeSubscription = claimTermination(completedEarly);
 		if (activeSubscription != null) {
 			// off-thread for the same reason as in `onError` — this runs on the gRPC inbound thread;
 			// queued before the future below is completed for the same reason as well
@@ -706,23 +695,46 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 				this.delegate::onComplete,
 				"deliver onComplete to the delegate subscriber"
 			);
-		}
-		// unblock a caller still waiting in `awaitAcknowledgement`: the stream completed before the
-		// server acknowledged the subscription, which is abnormal — fail the subscribe() rather than
-		// wait out the streaming timeout (no-op once the ACK has already completed the future)
-		this.acknowledged.completeExceptionally(
-			new GenericEvitaInternalError("The change data capture stream completed before it was acknowledged.")
-		);
-		if (activeSubscription != null) {
+			// unblock a caller still waiting in `awaitAcknowledgement`: the stream completed before the
+			// server acknowledged the subscription, which is abnormal — fail the subscribe() rather than
+			// wait out the streaming timeout (no-op once the ACK has already completed the future)
+			this.acknowledged.completeExceptionally(completedEarly);
 			// this handles cleanup and calling #close on this instance
 			activeSubscription.cancel();
 		}
 	}
 
 	/**
+	 * Decides whether the calling terminal path is the one that ends the stream (see `terminationClaimed`). It is when
+	 * this subscriber has not been closed - a close has already failed `acknowledged` and owes the delegate no terminal
+	 * signal - and no other terminal path has claimed the termination before it.
+	 *
+	 * A path that is refused must do nothing further: neither tell the delegate nor complete `acknowledged`. The
+	 * winner, or the close, completes the future and tears the subscription down.
+	 *
+	 * @param outcome the failure the calling path would end the stream with, for the log of a refused claim
+	 * @return the subscription to tear down when the caller won the claim, `null` when it must do nothing
+	 */
+	@Nullable
+	private ClientSubscription<C, REQ, RES> claimTermination(@Nonnull Throwable outcome) {
+		if (this.closed.get()) {
+			return null;
+		}
+		if (!this.terminationClaimed.compareAndSet(false, true)) {
+			log.debug(
+				"The change data capture stream has already been terminated; its later outcome is not reported.",
+				outcome
+			);
+			return null;
+		}
+		// every terminal path runs only once the stream initializer has started, and the publisher attaches the
+		// subscription before that - so the field is always non-null here
+		return Objects.requireNonNull(this.subscription, "Subscription must be attached before the stream terminates.");
+	}
+
+	/**
 	 * Queues a terminal `onError` / `onComplete` for the delegate through {@link #dispatchDelegateSignal}, and drops it
-	 * when its turn comes after the delegate close (see `delegateClosed`) or after another terminal signal (see
-	 * `delegateTerminated`) has already run.
+	 * when its turn comes after the delegate close has already run (see `delegateClosed`).
 	 *
 	 * @param executor    the executor that delivers the signal
 	 * @param signal      the terminal delegate callback to run
@@ -742,15 +754,7 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 						"The change data capture delegate subscriber was closed before `{}` could run; dropping it.",
 						description
 					);
-				} else if (this.delegateTerminated) {
-					// another terminal path decided to tell the delegate too, and its signal ran first
-					log.debug(
-						"The change data capture delegate subscriber was already terminated before `{}` could run; " +
-							"dropping it.",
-						description
-					);
 				} else {
-					this.delegateTerminated = true;
 					signal.run();
 				}
 			},
