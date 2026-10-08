@@ -166,26 +166,36 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 
 				this.targetEntityType = queryContext.getSchema().getName();
 				final AttributeSchemaAccessor attributeSchemaAccessor = new AttributeSchemaAccessor(queryContext);
-				globalEntityIndex = queryContext.getGlobalEntityIndex(scope);
+				// a scope holding no entity of the tree has no index of it, yet the node filter is checked against
+				// the schema all the same, over an empty index matching nothing
+				globalEntityIndex = queryContext.getGlobalEntityIndexIfExists(scope)
+					.orElseGet(() -> GlobalEntityIndex.createEmptyIndex(queryContext.getSchema().getName(), scope));
 				final List<GlobalEntityIndex> globalEntityIndices = Collections.singletonList(globalEntityIndex);
-				final Function<FilterBy, Formula> formulaFactory = theFilterBy -> queryContext.analyse(
-					theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
-						GlobalEntityIndex.class,
-						() -> globalEntityIndices,
-						null,
-						queryContext.getSchema(),
-						null,
-						null,
-						null,
-						attributeSchemaAccessor,
-						(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),
-						() -> {
-							theFilterBy.accept(theFilterByVisitor);
-							// get the result and clear the visitor internal structures
-							return theFilterByVisitor.getFormulaAndClear();
-						}
-					)
-				);
+				// the node filter is processed in the scope of the searched tree only - a unique attribute must resolve
+				// to the node of that tree and the filterability is checked against that scope alone
+				final Function<FilterBy, Formula> formulaFactory = theFilterBy -> theFilterByVisitor.getProcessingScope()
+					.doWithScope(
+						requestedScopes,
+						() -> queryContext.analyse(
+							theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
+								GlobalEntityIndex.class,
+								() -> globalEntityIndices,
+								null,
+								queryContext.getSchema(),
+								null,
+								null,
+								null,
+								attributeSchemaAccessor,
+								(entityContract, attributeName, locale) ->
+									Stream.of(entityContract.getAttributeValue(attributeName, locale)),
+								() -> {
+									theFilterBy.accept(theFilterByVisitor);
+									// get the result and clear the visitor internal structures
+									return theFilterByVisitor.getFormulaAndClear();
+								}
+							)
+						)
+					);
 				theFormula = filterBy == null ? null : formulaFactory.apply(filterBy);
 				theAnyChildFormula = anyChildFilter == null ? null : formulaFactory.apply(anyChildFilter);
 			} else {
@@ -324,27 +334,34 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 			);
 			this.targetEntityType = entitySchema.getName();
 			this.requestedScopes = Set.of(entityIndex.getIndexKey().scope());
-			// now analyze the filter by in a nested context with exchanged primary entity index
-			final Formula theFormula = queryContext.analyse(
-				theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
-					GlobalEntityIndex.class,
-					() -> Collections.singletonList(entityIndex),
-					null,
-					entitySchema,
-					null,
-					null,
-					null,
-					new AttributeSchemaAccessor(
-						queryContext.getCatalogSchema(),
+			// now analyze the filter by in a nested context with exchanged primary entity index, processed in the scope
+			// of that index only - the node must be looked up in the tree the statistics describe
+			final Formula theFormula = theFilterByVisitor.getProcessingScope().doWithScope(
+				this.requestedScopes,
+				() -> queryContext.analyse(
+					theFilterByVisitor.executeInContextAndIsolatedFormulaStack(
+						GlobalEntityIndex.class,
+						() -> Collections.singletonList(entityIndex),
+						null,
 						entitySchema,
-						null
-					),
-					(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),
-					() -> {
-						filterBy.accept(theFilterByVisitor);
-						// get the result and clear the visitor internal structures
-						return theFilterByVisitor.getFormulaAndClear();
-					}
+						null,
+						null,
+						null,
+						// the node filter is a part of the query, so it records what it names - the context of the
+						// query counts it on the registry of the hierarchy entity, whichever entity that is
+						new AttributeSchemaAccessor(
+							queryContext.getCatalogSchema(),
+							entitySchema,
+							null,
+							queryContext
+						),
+						(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale)),
+						() -> {
+							filterBy.accept(theFilterByVisitor);
+							// get the result and clear the visitor internal structures
+							return theFilterByVisitor.getFormulaAndClear();
+						}
+					)
 				)
 			);
 			// create a deferred formula that will log the execution time to query telemetry

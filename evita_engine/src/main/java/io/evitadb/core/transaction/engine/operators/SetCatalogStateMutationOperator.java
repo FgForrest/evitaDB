@@ -26,9 +26,11 @@ package io.evitadb.core.transaction.engine.operators;
 
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
+import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.mutation.engine.SetCatalogStateMutation;
 import io.evitadb.core.Evita;
+import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.engine.CatalogFolderContext;
 import io.evitadb.core.engine.ExpandedEngineState;
 import io.evitadb.core.exception.CatalogInactiveException;
@@ -40,6 +42,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Collections;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -118,12 +121,15 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 				0,
 				Collections.singletonList(evita.loadCatalogInternal(catalogName, readOnly)),
 				(progressingFuture, loadedCatalog) -> {
+					// the instance the load's write-ahead log replay settled on - see `Evita#loadCatalogInternal`
 					final CatalogContract installed = loadedCatalog.iterator().next();
-					// The engine state is the only place that will ever hold a reference to the catalog just
-					// loaded, so failing to install it strands the instance: nobody can reach it afterwards to
-					// close it, and the folder lock it took on load stays held for the life of the process.
-					// Shutdown makes that reachable - `Evita#closeCatalogs` clears the engine state before
-					// draining the mutations still in flight - so terminating here is the only release there is.
+					// Failing to record the activation must leave no live instance of this catalog behind, and by
+					// now the load's success callback has already published `installed` into the engine state, where
+					// sessions may be opening on it. Nothing else will ever close it either: shutdown makes this
+					// path reachable, because `Evita#closeCatalogs` clears the engine state before draining the
+					// mutations still in flight, and an instance nobody terminates keeps its storage handles open
+					// for the life of the process. So the failure branch below first withdraws the instance from the
+					// engine state, so that no reader is handed a closed catalog, and only then terminates it.
 					boolean installedIntoEngineState = false;
 					try {
 						completionEngineStateUpdater.accept(
@@ -133,7 +139,9 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 									return ExpandedEngineState
 										.builder(expandedEngineState)
 										.withVersion(version)
-										.withCatalog(installed)
+										.withCatalog(
+											newestOf(installed, expandedEngineState.getCatalog(catalogName).orElse(null))
+										)
 										.build();
 								}
 							}
@@ -141,6 +149,9 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 						installedIntoEngineState = true;
 					} finally {
 						if (!installedIntoEngineState) {
+							withdrawFailedActivation(
+								evita, transactionId, mutation, catalogName, transitionEngineStateUpdater
+							);
 							CatalogTerminationHelper.terminateQuietly(log, installed, catalogName, TERMINATION_FAILURE);
 						}
 					}
@@ -210,6 +221,106 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 					}
 					return null;
 				}
+			);
+		}
+	}
+
+	/**
+	 * Picks the catalog instance the activation installs: the one the load settled on, unless the engine state
+	 * already holds a newer instance of the very same catalog.
+	 *
+	 * The future of `Evita#loadCatalogInternal` yields the instance its write-ahead log was replayed to, and its
+	 * success callback has already put that instance into the engine state. From that moment sessions open on it
+	 * and commits move it further, each of them swapping its successor in through `Evita#replaceCatalogReference`.
+	 * Installing the instance the future yielded over such a successor would roll the activated catalog back by
+	 * those commits until the next commit replaces it again, so the newer instance is kept.
+	 *
+	 * Any real `Catalog` present here belongs to that replayed lineage, which is why the version alone tells the
+	 * instances apart. The transition phase installed an `UnusableCatalog` placeholder; a concurrent activation,
+	 * deactivation or go-live of the same catalog is refused by its conflict key; and while it is being activated,
+	 * the only code installing a real instance under its name is the load's success callback and the commit
+	 * pipeline of the instance that callback published.
+	 *
+	 * **This keeps a commit that landed before the state was read, not every commit.** The choice is made from
+	 * the state read under the engine state lock, but published only after the engine write-ahead log append that
+	 * follows. `Evita#replaceCatalogReference` swaps a commit into the wrapper of the snapshot being replaced, not
+	 * into the fresh one this activation publishes, so a commit landing during that append is dropped from the
+	 * engine state until the next commit replaces the instance again. Readers see the chosen instance for that
+	 * span; nothing is lost, because every commit builds on its transaction manager's last finalized catalog rather
+	 * than on the engine state.
+	 *
+	 * @param loaded  the instance the load future completed with
+	 * @param current the instance the engine state holds right now, `null` when it holds none
+	 * @return the instance to install
+	 */
+	@Nonnull
+	private static CatalogContract newestOf(@Nonnull CatalogContract loaded, @Nullable CatalogContract current) {
+		return current instanceof Catalog liveCatalog && liveCatalog.getVersion() > loaded.getVersion()
+			? liveCatalog
+			: loaded;
+	}
+
+	/**
+	 * Takes the instance of a catalog whose activation could not be recorded back out of the engine state, putting
+	 * the `INACTIVE` placeholder the catalog is persisted as behind its name.
+	 *
+	 * Only a failure ahead of the durability boundary reaches this. `EngineTransactionManager` reports no failure
+	 * past the engine write-ahead log append, and an append that fails leaves the engine bootstrap record where it
+	 * was, so the persisted engine state still lists the catalog as inactive - and the in-memory state must not
+	 * claim more. Yet the load's success callback has already published the instance the caller is about to
+	 * terminate; left there, the engine state would list an active catalog whose storage is closed until the
+	 * process restarts.
+	 *
+	 * The exchange keeps the engine state version, as nothing is being committed. It is best-effort: a shutdown
+	 * has already cleared the engine state, which then holds nothing to withdraw, and any other failure is logged
+	 * so that the caller still terminates the instance.
+	 *
+	 * **Sessions are not closed here.** A session opened on the published instance before it is withdrawn keeps
+	 * referencing it, and its next use fails against the storage the caller is about to close. Closing them would
+	 * need the catalog's sessions suspended before the termination, as deactivation does with
+	 * `Evita#suspendCatalogSessions`; this path does not do that.
+	 *
+	 * @param evita                        the engine whose state is corrected
+	 * @param transactionId                id of the activation transaction
+	 * @param mutation                     the activation mutation that could not be recorded
+	 * @param catalogName                  name of the catalog being activated
+	 * @param transitionEngineStateUpdater updater that exchanges the engine state without persisting it
+	 */
+	private void withdrawFailedActivation(
+		@Nonnull Evita evita,
+		@Nonnull UUID transactionId,
+		@Nonnull SetCatalogStateMutation mutation,
+		@Nonnull String catalogName,
+		@Nonnull Consumer<EngineStateUpdater> transitionEngineStateUpdater
+	) {
+		try {
+			transitionEngineStateUpdater.accept(
+				new AbstractEngineStateUpdater(transactionId, mutation) {
+					@Override
+					public ExpandedEngineState apply(long version, @Nonnull ExpandedEngineState expandedEngineState) {
+						return ExpandedEngineState
+							.builder(expandedEngineState)
+							.withCatalog(
+								SetCatalogStateMutationOperator.this.folderContext.createUnusableCatalog(
+									catalogName, CatalogState.INACTIVE, CatalogInactiveException::new
+								)
+							)
+							.build();
+					}
+				}
+			);
+			// the load's success callback has already announced the replayed catalog as settled, so the
+			// subscribers that heard it have to hear that it went back
+			evita.notifyCatalogStateSettled(catalogName, CatalogState.INACTIVE);
+		} catch (InstanceTerminatedException shuttingDown) {
+			// the engine state is cleared during shutdown, so there is no published instance left to withdraw
+			log.debug("Engine shut down while withdrawing the failed activation of catalog `{}`.", catalogName);
+		} catch (Throwable withdrawalFailure) {
+			log.error(
+				"Failed to withdraw catalog `{}` from the engine state after its activation could not be " +
+					"recorded - it stays listed as active while its storage is closed, until the server is " +
+					"restarted. Nothing on disk is damaged; the engine records the catalog as inactive.",
+				catalogName, withdrawalFailure
 			);
 		}
 	}

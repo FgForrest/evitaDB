@@ -1,7 +1,7 @@
 ---
 title: Make every warm-up entity write atomic through a thread-local savepoint whose participants journal their own absolute inverses, unconditionally
 date: 2026-08-26
-updated: 2026-09-08 13:10
+updated: 2026-10-08 06:45
 status: accepted
 kind: feature
 issues: [1432]
@@ -9,7 +9,7 @@ prs: [1494]
 areas: [evita_engine/core/transaction/memory, evita_engine/core/collection, evita_engine/core/buffer, evita_engine/index]
 supersedes: []
 superseded-by: []
-relates: [2026-07-10-more-optimized-data-structures, 2026-07-31-bulk-ingest-write-path, 2026-09-08-warm-up-invalid-schema-refuses-to-publish]
+relates: [2026-07-10-more-optimized-data-structures, 2026-07-31-bulk-ingest-write-path, 2026-09-08-warm-up-invalid-schema-refuses-to-publish, 2026-10-08-trapped-storage-part-content-pre-images]
 ---
 
 # Per-entity mutation atomicity in WARM_UP — a savepoint the structures journal into
@@ -64,7 +64,7 @@ and `rollback()` was a silent no-op. Recovery was documented as the caller's pro
 |------|----------|-----|--------|
 | 2026-08-24 | **Own the savepoint in a thread-local `WarmUpSavepoint`**, not in a parameter and not in a degenerate maintainer | The write path fans out through the whole index-mutation machinery; `CatalogState.WARMING_UP` is contractually single-threaded, so a thread-bound context is sound and costs one predicted-null `ThreadLocal` read outside a bracket | `WarmUpSavepoint` in `evita_engine/.../core/transaction/memory` |
 | 2026-08-24 | **One bracket for both savepoint kinds** — the collector opens the transactional savepoint when a maintainer exists and the warm-up savepoint otherwise | A second orchestration point would be a second rollback implementation; WAL replay opts out of both (`atomicRollback == false`), because whole-transaction discard is its recovery model | `LocalMutationExecutorCollector` (`609093b0a`) |
-| 2026-08-24 | **Granularity is chosen per structure family by the cost of the pre-image**, not by the structure's shape | First-touch memento where the pre-image is an `O(1)` reference grab (array-reference wrappers, scalars, `DataStoreChanges`); per-operation inverse where a first-touch copy would be the #1252 cliff (`Map`/`Set`/`List`) | Per-family table in `documentation/developer/stm/savepoints.md`; `cba1af9bb`, `53d7a376b` |
+| 2026-08-24 | **Granularity is chosen per structure family by the cost of the pre-image**, not by the structure's shape | First-touch memento where the pre-image is an `O(1)` reference grab (array-reference wrappers, scalars, `DataStoreChanges`); per-operation inverse where a first-touch copy would be the #1252 cliff (`Map`/`Set`/`List`). **Corrected 2026-10-08:** for `DataStoreChanges` the reference grab covers its bookkeeping but not the trapped parts it hands out by reference and its readers mutate in place — those need a content pre-image, see `2026-10-08-trapped-storage-part-content-pre-images` | Per-family table in `documentation/developer/stm/savepoints.md`; `cba1af9bb`, `53d7a376b` |
 | 2026-08-25 | **Reverse the bitmap to per-operation journaling** after the allocation profile refuted the first-touch clone | The copy-on-write `clone()` looked `O(1)` and deferred its real cost into every subsequent write — 13.2 % of all ingest allocation | [The bitmap reversal](#the-bitmap-reversal--a-measured-about-face) |
 | 2026-08-26 | **Answer "already captured?" from a per-participant generation stamp**, not from a per-savepoint `IdentityHashMap` | 461 ms per 100k entities of hashing and probing, for a question each participant can answer about itself in eight bytes | [First-touch dedup by stamp](#first-touch-dedup-by-stamp-not-by-map) |
 | 2026-08-24 / 2026-08-26 | **B+ trees: per-node first-touch mementos, then per-slot inverses for the measured hotspot** | The nodes already implement `Snapshotable`, so the memento machinery was reused rather than duplicated; measurement then showed whole-node capture costing 551 ms per 100k entities for writes touching one or two slots | [B+ trees](#b-trees-per-node-mementos-then-per-slot-inverses) |

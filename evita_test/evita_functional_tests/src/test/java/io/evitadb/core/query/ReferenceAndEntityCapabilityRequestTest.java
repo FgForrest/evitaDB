@@ -33,6 +33,7 @@ import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.core.exception.HierarchyNotIndexedException;
 import io.evitadb.core.exception.ReferenceNotFacetedException;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
@@ -58,6 +59,7 @@ import static io.evitadb.test.TestTags.*;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies the query side of the capabilities a **reference and an entity declare on themselves** - `faceted()`,
@@ -67,8 +69,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  * These reach the accumulator from translators of their own rather than from the one attribute accessor, and the
  * hazard is correspondingly different: not deduplication, which is already established one level down, but **whose
  * flag a query actually depended on**. Two of the sites make a claim about that in a comment and nothing else checks
- * it - a `hierarchyWithin` naming another collection's tree records against no registry at all, and a price histogram
- * counts the flag on its own, so a catalog whose only price usage is the histogram does not report it as unused.
+ * it - a `hierarchyWithin` naming another collection's tree counts on the registry of the collection owning the tree,
+ * and a price histogram counts the flag on its own, so a catalog whose only price usage is the histogram does not
+ * report it as unused.
  *
  * Every case reads the **difference** one query made to a registry, exactly as the sibling class does, so that neither
  * the fixture's own writes nor an earlier case can be mistaken for the query under test. Where a capability could
@@ -87,6 +90,11 @@ class ReferenceAndEntityCapabilityRequestTest implements EvitaTestSupport {
 	private static final String CATALOG = "referenceAndEntityCapabilityRequestTest";
 	private static final String ENTITY_PRODUCT = "product";
 	private static final String ENTITY_CATEGORY = "category";
+	/**
+	 * A hierarchical collection whose tree is indexed in both scopes, while every one of its entities is live - the
+	 * archived scope declares the flag but holds no index yet.
+	 */
+	private static final String ENTITY_SCOPED_CATEGORY = "scopedCategory";
 	private static final String REFERENCE_CATEGORIES = "categories";
 	/** A second indexed reference that declares no faceting - the negative side of every facet case below. */
 	private static final String REFERENCE_TAGS = "tags";
@@ -124,6 +132,12 @@ class ReferenceAndEntityCapabilityRequestTest implements EvitaTestSupport {
 	);
 	private static final SchemaCapabilityKey CATEGORY_HIERARCHY_INDEXED = SchemaCapabilityKey.entity(
 		ENTITY_CATEGORY, Capability.HIERARCHICAL, Scope.LIVE
+	);
+	private static final SchemaCapabilityKey SCOPED_CATEGORY_HIERARCHY_INDEXED = SchemaCapabilityKey.entity(
+		ENTITY_SCOPED_CATEGORY, Capability.HIERARCHICAL, Scope.LIVE
+	);
+	private static final SchemaCapabilityKey SCOPED_CATEGORY_ARCHIVED_HIERARCHY_INDEXED = SchemaCapabilityKey.entity(
+		ENTITY_SCOPED_CATEGORY, Capability.HIERARCHICAL, Scope.ARCHIVED
 	);
 
 	private TestPaths paths;
@@ -287,11 +301,82 @@ class ReferenceAndEntityCapabilityRequestTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("Filtering within another collection's tree counts nothing, on either registry")
-		void shouldNotRecordHierarchyIndexedWhenTheTreeBelongsToAnotherCollection() {
-			// the attribution rule the site states in a comment and nothing else checks: the flag verified belongs to
-			// the *target* schema, and a request is only ever filed against the collection being queried - so this
-			// query, which depends on `category`'s hierarchy while querying `product`, files against neither
+		@DisplayName("Filtering within its own tree over a scope holding no entity counts that scope's indexing too")
+		void shouldRecordHierarchyIndexedOfEveryQueriedScopeWhenOneHoldsNoEntity() {
+			// the archived scope holds no entity, hence no index to search - the query depends on its flag all the
+			// same, and it starts reading the archived tree the moment an entity is archived
+			final Map<SchemaCapabilityKey, Long> requested = requestedBy(
+				ENTITY_SCOPED_CATEGORY,
+				Query.query(
+					collection(ENTITY_SCOPED_CATEGORY),
+					filterBy(scope(Scope.LIVE, Scope.ARCHIVED), hierarchyWithinSelf(entityPrimaryKeyInSet(1)))
+				)
+			);
+
+			assertRequested(requested, SCOPED_CATEGORY_HIERARCHY_INDEXED);
+			assertRequested(requested, SCOPED_CATEGORY_ARCHIVED_HIERARCHY_INDEXED);
+		}
+
+		@Test
+		@DisplayName("Filtering within its own tree over a scope not indexing it is rejected, even an empty scope")
+		void shouldRejectFilteringWithinOwnHierarchyOverScopeNotIndexingItWhenTheScopeHoldsNoEntity() {
+			assertOwnHierarchyFilterRejectedForArchivedScope();
+		}
+
+		@Test
+		@DisplayName("Filtering within its own tree over a scope not indexing it is rejected, a non-empty one too")
+		void shouldRejectFilteringWithinOwnHierarchyOverScopeNotIndexingItWhenTheScopeHoldsAnEntity() {
+			ReferenceAndEntityCapabilityRequestTest.this.evita.updateCatalog(
+				CATALOG,
+				session -> {
+					session.archiveEntity(ENTITY_CATEGORY, CATEGORY_COUNT);
+				}
+			);
+			final int archivedCategories = ReferenceAndEntityCapabilityRequestTest.this.evita.queryCatalog(
+				CATALOG,
+				session -> {
+					return session.queryList(
+						Query.query(
+							collection(ENTITY_CATEGORY),
+							filterBy(scope(Scope.ARCHIVED), entityPrimaryKeyInSet(CATEGORY_COUNT))
+						),
+						EntityReference.class
+					).size();
+				}
+			);
+			assertEquals(1, archivedCategories, "the archived scope must hold the archived category");
+
+			assertOwnHierarchyFilterRejectedForArchivedScope();
+		}
+
+		/**
+		 * Asserts that filtering the categories within their own tree over both scopes is rejected for the archived
+		 * scope, where the hierarchy is not indexed, and that the rejection names that scope. The hierarchy is indexed
+		 * in the live scope only: whether the query is rejected must not depend on whether an entity happens to be
+		 * archived, so the rejection holds both for an archived scope holding no category and for one holding some.
+		 */
+		private void assertOwnHierarchyFilterRejectedForArchivedScope() {
+			final HierarchyNotIndexedException exception = assertThrows(
+				HierarchyNotIndexedException.class,
+				() -> executeAgainstProducts(
+					Query.query(
+						collection(ENTITY_CATEGORY),
+						filterBy(scope(Scope.LIVE, Scope.ARCHIVED), hierarchyWithinSelf(entityPrimaryKeyInSet(1)))
+					)
+				)
+			);
+			assertTrue(
+				exception.getMessage().contains(Scope.ARCHIVED.name()),
+				"The rejection must name the scope lacking the index: " + exception.getMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("Filtering within another collection's tree counts on that collection's registry only")
+		void shouldRecordHierarchyIndexedOnTheCollectionOwningTheTree() {
+			// the attribution rule: the flag verified belongs to the *target* schema, which declares it and whose
+			// schema mutation would drop it - so this query, which depends on `category`'s hierarchy while querying
+			// `product`, files the request against the categories, and never credits the queried collection
 			final Map<SchemaCapabilityKey, Long> productsBefore = requestedCounts(ENTITY_PRODUCT);
 			final Map<SchemaCapabilityKey, Long> categoriesBefore = requestedCounts(ENTITY_CATEGORY);
 
@@ -306,10 +391,7 @@ class ReferenceAndEntityCapabilityRequestTest implements EvitaTestSupport {
 				requestedCountsSince(ENTITY_PRODUCT, productsBefore), PRODUCT_HIERARCHY_INDEXED,
 				"The queried collection was credited with a hierarchy flag it does not even declare"
 			);
-			assertNotRequested(
-				requestedCountsSince(ENTITY_CATEGORY, categoriesBefore), CATEGORY_HIERARCHY_INDEXED,
-				"A query against `" + ENTITY_PRODUCT + "` filed a request against another collection's registry"
-			);
+			assertRequested(requestedCountsSince(ENTITY_CATEGORY, categoriesBefore), CATEGORY_HIERARCHY_INDEXED);
 		}
 
 		@Test
@@ -520,9 +602,10 @@ class ReferenceAndEntityCapabilityRequestTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Builds a fixture carrying one element of every kind this class is about: a hierarchical collection, a priced
-	 * collection, and a reference that is indexed, faceted and bucketed at once alongside one that is indexed and
-	 * declares a histogram nothing maintains.
+	 * Builds a fixture carrying one element of every kind this class is about: a hierarchical collection indexed in
+	 * the live scope, another indexed in both scopes with no entity archived, a priced collection, and a reference that
+	 * is indexed, faceted and bucketed at once alongside one that is indexed and declares a histogram nothing
+	 * maintains.
 	 */
 	private void buildCatalog() {
 		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
@@ -532,6 +615,10 @@ class ReferenceAndEntityCapabilityRequestTest implements EvitaTestSupport {
 				session.defineEntitySchema(ENTITY_CATEGORY)
 					.withoutGeneratedPrimaryKey()
 					.withHierarchy()
+					.updateVia(session);
+				session.defineEntitySchema(ENTITY_SCOPED_CATEGORY)
+					.withoutGeneratedPrimaryKey()
+					.withHierarchyIndexedInScope(Scope.LIVE, Scope.ARCHIVED)
 					.updateVia(session);
 				session.defineEntitySchema(ENTITY_PRODUCT)
 					.withoutGeneratedPrimaryKey()
@@ -564,6 +651,8 @@ class ReferenceAndEntityCapabilityRequestTest implements EvitaTestSupport {
 				for (int i = 2; i <= CATEGORY_COUNT; i++) {
 					session.upsertEntity(session.createNewEntity(ENTITY_CATEGORY, i).setParent(1));
 				}
+				session.upsertEntity(session.createNewEntity(ENTITY_SCOPED_CATEGORY, 1));
+				session.upsertEntity(session.createNewEntity(ENTITY_SCOPED_CATEGORY, 2).setParent(1));
 				for (int i = 1; i <= PRODUCT_COUNT; i++) {
 					final int productPrimaryKey = i;
 					final int categoryPrimaryKey = ((i - 1) % CATEGORY_COUNT) + 1;

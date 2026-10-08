@@ -30,7 +30,6 @@ import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import io.evitadb.annotation.Internal;
 import io.evitadb.api.EntityCollectionContract;
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityNotManagedException;
 import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.FilterConstraint;
@@ -98,12 +97,14 @@ import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.NestedQueryRestriction;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.response.ServerEntityDecorator;
+import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor;
 import io.evitadb.core.query.sort.ReferenceOrderByVisitor.OrderingDescriptor;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator.EntityGroupPropertyWithScopes;
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator.EntityPropertyWithScopes;
+import io.evitadb.core.session.EvitaSession;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.ReferenceKeeper;
 import io.evitadb.dataType.Scope;
@@ -124,6 +125,7 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.hierarchy.HierarchyIndexContract;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate.SelfTraversingPredicate;
+import io.evitadb.index.usage.SchemaCapabilityUsage;
 import io.evitadb.spi.store.catalog.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -1037,6 +1039,196 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	}
 
 	/**
+	 * Checks the filter and the ordering of the references `referenceContent` fetches against the schemas, while the
+	 * query is planned. The fetch translates them only when it has something to filter or order - an owner entity
+	 * referencing an entity that exists in the examined scopes - so without this check a constraint the schemas refuse
+	 * would fail the query or pass depending on the data it returns. The check translates what
+	 * {@link #getFilteredReferencedEntityIds} and {@link #createPrefetchedEntities} translate, the same way, and throws
+	 * the result away:
+	 *
+	 * - the filter, by a visitor that only checks it ({@link FilterByVisitor#createConstraintCheckVisitor}) - in every
+	 *   scope the reference is indexed in, over an empty type index of the reference, and the filter of an
+	 *   `entityHaving` or a `groupHaving` over an empty global index of the entity type it targets; a `groupHaving` at
+	 *   the root of the filter is separated from the rest exactly as the fetch separates it,
+	 * - the ordering by the attributes of the reference, and the ordering by the referenced entity or its group over
+	 *   the global index of that entity type, or an empty one in a scope it holds no entity of.
+	 *
+	 * The cost is one translation of each constraint per scope and query; nothing is evaluated and no nested query is
+	 * planned.
+	 *
+	 * The schema capabilities the check requests of the entity owning the references are counted once per query: the
+	 * check of a nested `referenceContent` runs in a context of the referenced collection, whose requests are handed to
+	 * the context of the query, and the fetch translates the constraints again only in contexts it never counts. The
+	 * capabilities of the entities an `entityHaving` or a `groupHaving` reaches are counted by the check as well: the
+	 * fetch plans its nested queries over those entities only when a fetched entity holds a reference to filter, so
+	 * the check hands what it requested to the context of the query (see
+	 * {@link io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper#planNestedQuery}), and the nested
+	 * queries of the fetch, planned in contexts derived from it, skip what it counted. The ordering by the referenced
+	 * entity or its group is counted by the check for the same reason: the comparators plan their queries over the
+	 * referenced entities only when a fetched entity holds a reference, so the requests of the sorter the check creates
+	 * are handed to the context of the query ({@link OrderByVisitor#createSorter} hands them to the context it creates
+	 * the sorter for), and those queries, planned in contexts derived from it, skip what it counted.
+	 *
+	 * @param queryContext    planning context of the query fetching the references
+	 * @param entitySchema    schema of the entity owning the references
+	 * @param referenceSchema schema of the fetched reference
+	 * @param filterBy        the filter of the fetched references, NULL when there is none
+	 * @param orderBy         the ordering of the fetched references, NULL when there is none
+	 * @param scopes          the scopes the references are fetched in
+	 * @throws EntityNotManagedException when `filterBy` reaches into the referenced entity body (`entityHaving`)
+	 *                                   while the referenced entity type is not managed by evitaDB
+	 */
+	public static void verifyReferenceContentConstraints(
+		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable FilterBy filterBy,
+		@Nullable OrderBy orderBy,
+		@Nonnull Set<Scope> scopes
+	) {
+		if (filterBy == null && orderBy == null) {
+			return;
+		}
+		// the references of a nested `referenceContent` are owned by the referenced entity, whose schema the checks
+		// resolve the reference and its attributes against
+		final QueryPlanningContext ownerQueryContext = entitySchema.getName().equals(queryContext.getEntityType()) ?
+			queryContext :
+			queryContext.getEntityCollectionOrThrowException(entitySchema.getName(), "check fetched references")
+				.createQueryContext(
+					queryContext,
+					queryContext.getEvitaRequest().deriveCopyWith(
+						entitySchema.getName(), null, null, queryContext.getLocale(), scopes
+					),
+					queryContext.getEvitaSession()
+				);
+		if (filterBy != null) {
+			verifyReferenceFilter(ownerQueryContext, referenceSchema, filterBy, scopes);
+		}
+		if (orderBy != null) {
+			verifyReferenceOrdering(ownerQueryContext, entitySchema, referenceSchema, orderBy);
+		}
+		// the context of the referenced entity is thrown away and its plan is never built, so the capabilities its
+		// check requested are handed to the query, which counts them once with its own - the fetch translates the
+		// constraints again in a context it never counts, or in one derived from the query's, which skips what the
+		// query counted, so nothing is counted twice
+		if (ownerQueryContext != queryContext) {
+			for (SchemaCapabilityUsage requestedCapability : ownerQueryContext.drainRequestedCapabilities()) {
+				queryContext.registerRequestedCapability(requestedCapability);
+			}
+		}
+	}
+
+	/**
+	 * Checks the filter of the fetched references - the part of {@link #verifyReferenceContentConstraints} that
+	 * mirrors {@link #getFilteredReferencedEntityIds}.
+	 *
+	 * @param ownerQueryContext planning context of the entity owning the references
+	 * @param referenceSchema   schema of the fetched reference
+	 * @param filterBy          the filter of the fetched references
+	 * @param scopes            the scopes the references are fetched in
+	 */
+	private static void verifyReferenceFilter(
+		@Nonnull QueryPlanningContext ownerQueryContext,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull FilterBy filterBy,
+		@Nonnull Set<Scope> scopes
+	) {
+		if (!referenceSchema.isReferencedEntityTypeManaged() && !QueryUtils.findConstraints(
+			filterBy, EntityHaving.class, SeparateEntityScopeContainer.class).isEmpty()) {
+			throw new EntityNotManagedException(referenceSchema.getReferencedEntityType());
+		}
+		final Set<Scope> examinedScopes = gatherSearchedScopes(filterBy, scopes);
+		final FilterByVisitor filterByVisitor = FilterByVisitor.createConstraintCheckVisitor(ownerQueryContext);
+		// a check matches no group, so the translation of the matching groups to the referenced entities is never
+		// called - it is passed only to separate the root `groupHaving` exactly as the fetch does
+		final GroupFilterSeparation groupFilter = separateAndEvaluateGroupFilter(
+			filterBy, referenceSchema, filterByVisitor, examinedScopes,
+			(referenceName, groupPrimaryKey) -> ArrayUtils.EMPTY_INT_ARRAY
+		);
+		final FilterConstraint[] entityLevelChildren = groupFilter.entityLevelChildren();
+		if (entityLevelChildren.length > 0) {
+			filterByVisitor.getProcessingScope().doWithScope(
+				examinedScopes,
+				() -> filterByVisitor.getReferencedRecordEntityIndexes(
+					new ReferenceHaving(referenceSchema.getName(), and(entityLevelChildren)),
+					examinedScopes,
+					(es, eik) -> null
+				)
+			);
+		}
+	}
+
+	/**
+	 * Checks the ordering of the fetched references - the part of {@link #verifyReferenceContentConstraints} that
+	 * mirrors the comparator {@link #createPrefetchedEntities} creates and its initialization in
+	 * {@link #initNestedQueryComparator}.
+	 *
+	 * @param ownerQueryContext planning context of the entity owning the references
+	 * @param entitySchema      schema of the entity owning the references
+	 * @param referenceSchema   schema of the fetched reference
+	 * @param orderBy           the ordering of the fetched references
+	 */
+	private static void verifyReferenceOrdering(
+		@Nonnull QueryPlanningContext ownerQueryContext,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull OrderBy orderBy
+	) {
+		final EntitySchema internalEntitySchema = ownerQueryContext
+			.getEntityCollectionOrThrowException(entitySchema.getName(), "check ordering of fetched references")
+			.getInternalSchema();
+		final OrderingDescriptor orderingDescriptor = ReferenceOrderByVisitor.getComparator(
+			ownerQueryContext,
+			new DefaultPrefetchRequirementCollector(),
+			orderBy,
+			internalEntitySchema,
+			internalEntitySchema.getReferenceOrThrowException(referenceSchema.getName())
+		);
+		final EntityNestedQueryComparator nestedQueryComparator = orderingDescriptor.nestedQueryComparator();
+		if (nestedQueryComparator != null) {
+			final EntityPropertyWithScopes entityOrderBy = nestedQueryComparator.getOrderBy();
+			if (entityOrderBy != null) {
+				final EntityCollection targetEntityCollection = ownerQueryContext.getEntityCollectionOrThrowException(
+					referenceSchema.getReferencedEntityType(), "order references"
+				);
+				OrderByVisitor.createSorter(
+					entityOrderBy.orderBy(),
+					nestedQueryComparator.getLocale(),
+					targetEntityCollection,
+					() -> "checking ordering of reference `" + referenceSchema.getName() + "` by entity `" +
+						targetEntityCollection.getEntityType() + "`: " + entityOrderBy,
+					ownerQueryContext,
+					entityOrderBy.scopes()
+				);
+			}
+			final EntityGroupPropertyWithScopes entityGroupOrderBy = nestedQueryComparator.getGroupOrderBy();
+			if (entityGroupOrderBy != null) {
+				final EntityCollection targetEntityGroupCollection = ofNullable(
+						referenceSchema.getReferencedGroupType()
+					)
+					.filter(it -> referenceSchema.isReferencedGroupTypeManaged())
+					.map(it -> ownerQueryContext.getEntityCollectionOrThrowException(it, "order references by group"))
+					.orElse(null);
+				Assert.isTrue(
+					targetEntityGroupCollection != null,
+					"The `entityGroupProperty` ordering is specified in the query but the reference `" +
+						referenceSchema.getName() + "` does not have managed entity group collection!"
+				);
+				OrderByVisitor.createSorter(
+					entityGroupOrderBy.orderBy(),
+					nestedQueryComparator.getLocale(),
+					targetEntityGroupCollection,
+					() -> "checking ordering of reference groups `" + referenceSchema.getName() +
+						"` by entity group `" + targetEntityGroupCollection.getEntityType() + "`: " +
+						entityGroupOrderBy,
+					ownerQueryContext,
+					entityGroupOrderBy.scopes()
+				);
+			}
+		}
+	}
+
+	/**
 	 * Narrows the set of referenced entity primary keys a reference filter has to be evaluated over by every
 	 * {@link EntityPrimaryKeyInSet} sitting in the filter's conjunctive root.
 	 *
@@ -1466,8 +1658,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					.map(it -> queryContext.getEntityCollectionOrThrowException(it, "order references by group"))
 					.orElse(null),
 				entityNestedQueryComparator,
-				queryContext.getEvitaRequest(),
-				Objects.requireNonNull(queryContext.getEvitaSession())
+				queryContext
 			);
 		}
 	}
@@ -1476,27 +1667,34 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * Initializes the {@link Sorter} implementation in the passed `entityNestedQueryComparator` from the global index
 	 * of the passed `targetEntityCollection`.
 	 *
+	 * The queries ordering the referenced entities (and their groups) are planned in contexts derived from the context
+	 * of the enclosing query - they are a part of the same logical query, and every comparator of a fetched reference
+	 * plans one, so the schema capabilities their orderings name must be counted once with the rest of the query
+	 * rather than once per comparator. The derived context also shares the planning policy of the query and never
+	 * prefetches, which an ordering without a filter has nothing to prefetch for anyway.
+	 *
 	 * @param referenceSchema             the schema of the reference
 	 * @param targetEntityCollection      collection of the referenced entity type
 	 * @param targetEntityGroupCollection collection of the referenced entity type group
 	 * @param entityNestedQueryComparator comparator that holds information about requested ordering so that we can
 	 *                                    apply it during entity filtering (if it's performed) and pre-initialize it
 	 *                                    in an optimal way
-	 * @param evitaRequest                source evita request
-	 * @param evitaSession                current session
+	 * @param queryContext                the planning context of the enclosing query
 	 */
 	private static void initializeComparatorFromGlobalIndex(
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull EntityCollection targetEntityCollection,
 		@Nullable EntityCollection targetEntityGroupCollection,
 		@Nonnull EntityNestedQueryComparator entityNestedQueryComparator,
-		@Nonnull EvitaRequest evitaRequest,
-		@Nonnull EvitaSessionContract evitaSession
+		@Nonnull QueryPlanningContext queryContext
 	) {
+		final EvitaRequest evitaRequest = queryContext.getEvitaRequest();
+		final EvitaSession evitaSession = Objects.requireNonNull(queryContext.getEvitaSession());
 		final EntityPropertyWithScopes entityOrderBy = entityNestedQueryComparator.getOrderBy();
 		if (entityOrderBy != null) {
 			final OrderBy orderBy = entityOrderBy.createStandaloneOrderBy();
 			final QueryPlanningContext nestedQueryContext = targetEntityCollection.createQueryContext(
+				queryContext,
 				evitaRequest.deriveCopyWith(
 					targetEntityCollection.getEntityType(),
 					null,
@@ -1522,6 +1720,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 			final OrderBy orderBy = entityGroupOrderBy.createStandaloneOrderBy();
 			final QueryPlanningContext nestedQueryContext = targetEntityGroupCollection.createQueryContext(
+				queryContext,
 				evitaRequest.deriveCopyWith(
 					targetEntityGroupCollection.getEntityType(),
 					null,

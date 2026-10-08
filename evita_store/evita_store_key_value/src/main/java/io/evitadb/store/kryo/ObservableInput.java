@@ -536,6 +536,17 @@ public class ObservableInput<T extends InputStream> extends Input {
 				// restoreLimitAfterOffRecordRead() cannot repair this: it declines to touch `limit` precisely
 				// because `total` has moved, which is the same fact that makes the value wrong.
 				this.limit = remaining;
+				// a compressed part whose decompressed bytes end exactly at the buffer edge: the inflater reports
+				// `finished()` only once it is asked for more output, which is the fill just above - the check at
+				// the top of this method saw the part unfinished and let the read come here. The part is read to
+				// its end, so the read continues in the next physical record of the chain, not in an underflow.
+				if (
+					remaining == 0 && this.compressed && this.inflater.finished() &&
+						this.inflater.getBytesRead() == this.expectedPayloadLength
+				) {
+					handleOverflow(totalReadLengthWithReserve, required);
+					return this.limit - this.position;
+				}
 				/* END OF EXTENSION */
 				throw new KryoException("Buffer underflow.");
 			}
@@ -707,7 +718,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 		this.payloadPrefixLength = computeReadLengthUpTo(this.payloadStartPosition);
 		this.actualLimit = this.limit > 0 ? this.limit : -1;
 		// cap at the current limit to avoid extending beyond actual data in partially filled buffers
-		final int cappedLimit = Math.min(this.limit, constraintLimitWithRecordLength(0) + this.payloadPrefixLength);
+		final int cappedLimit = Math.min(this.limit, constraintLimitWithRecordLength(0));
 		this.limit = cappedLimit;
 		final long totalBeforeRead = this.total;
 		this.readingTail = true;
@@ -741,7 +752,7 @@ public class ObservableInput<T extends InputStream> extends Input {
 		this.payloadPrefixLength = computeReadLengthUpTo(this.payloadStartPosition);
 		this.actualLimit = this.limit > 0 ? this.limit : -1;
 		// cap at the current limit to avoid extending beyond actual data in partially filled buffers
-		final int cappedLimit = Math.min(this.limit, constraintLimitWithRecordLength(0) + this.payloadPrefixLength);
+		final int cappedLimit = Math.min(this.limit, constraintLimitWithRecordLength(0));
 		this.limit = cappedLimit;
 		final long totalBeforeRead = this.total;
 		this.readingTail = true;
@@ -841,8 +852,11 @@ public class ObservableInput<T extends InputStream> extends Input {
 			// this will enforce invoking `fill` method with first inflater call
 			this.limit = this.position;
 		} else {
-			// cap at the current limit to avoid extending beyond actual data in partially filled buffers
-			this.limit = Math.min(this.limit, constraintLimitWithRecordLength() + this.payloadPrefixLength);
+			// cap at the current limit to avoid extending beyond actual data in partially filled buffers; the record
+			// length is measured from `startPosition`, so the header (`payloadPrefixLength`) is already inside it -
+			// adding it again would put the cap past the payload, where Kryo's single-byte reads (`readByte`,
+			// `readBoolean`) skip `require` and read the CRC32C tail instead of switching to the next chained record
+			this.limit = Math.min(this.limit, constraintLimitWithRecordLength());
 		}
 	}
 
@@ -1113,10 +1127,15 @@ public class ObservableInput<T extends InputStream> extends Input {
 	 * of the next record.
 	 */
 	private int constraintLimitWithRecordLength(int mandatorySpaceLength) {
-		if (!this.readingTail && this.expectedLength > 0 && this.expectedLength < this.accumulatedLength + this.limit - this.lastOffset) {
+		// the end of what the caller may read of the current record, in buffer coordinates
+		final int recordContentEnd =
+			this.startPosition + this.expectedLength - mandatorySpaceLength - this.accumulatedLength;
+		// cap whenever that end lies inside the buffered data - including when the buffer ends inside the record's
+		// tail, which a test against the whole record length would miss and leave the tail readable as payload
+		if (!this.readingTail && this.expectedLength > 0 && recordContentEnd < this.limit) {
 			// remember but cap the limit
 			this.actualLimit = this.limit;
-			return this.startPosition + this.expectedLength - mandatorySpaceLength - this.accumulatedLength;
+			return recordContentEnd;
 		} else {
 			// leave limit unchanged
 			return this.limit;

@@ -25,10 +25,12 @@ package io.evitadb.core.query.sort.reference.translator;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
+import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.query.order.EntityGroupProperty;
 import io.evitadb.api.query.order.EntityPrimaryKeyNatural;
 import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderDirection;
@@ -62,6 +64,7 @@ import io.evitadb.core.query.sort.reference.sorter.PickFirstReducedIndexResolver
 import io.evitadb.core.query.sort.reference.sorter.SequentialSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -271,6 +274,8 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	 * @param orderByVisitor           The visitor handling the query context, locale, and processing scope for sorting and traversal.
 	 * @param referenceSchema          The schema contract defining the entity references and relationships for sorting.
 	 * @param traverseByEntityProperty An array of {@link OrderConstraint}, specifying the constraints for traversing and sorting.
+	 * @param traversalSorter          The sorter of the referenced entities by `traverseByEntityProperty`, NULL when
+	 *                                 they are ordered by their primary key alone - see {@link #createTraversalSorter}.
 	 * @param traversalMode            The traversal mode dictating how the hierarchy nodes are processed.
 	 * @param referenceIndexIds        A formula providing the set of indices to be traversed and sorted.
 	 * @return A stream of integers representing the traversed and sorted primary keys of reduced entity indices.
@@ -280,6 +285,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull OrderConstraint[] traverseByEntityProperty,
+		@Nullable NestedContextSorter traversalSorter,
 		@Nonnull TraversalMode traversalMode,
 		@Nonnull Formula referenceIndexIds
 	) {
@@ -292,9 +298,8 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 						it -> it.listHierarchyNodesFromRoot(
 							traversalMode,
 							createLevelSorter(
-								orderByVisitor,
-								referenceSchema,
 								traverseByEntityProperty,
+								traversalSorter,
 								referenceIndexIds,
 								ids -> {
 									final Bitmap nodesWithParents = it.listNodesIncludingParents(ids.compute());
@@ -312,20 +317,31 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		return result;
 	}
 
+	/**
+	 * Creates the sorter of the nodes of one level of the referenced tree: the order of their primary keys when the
+	 * traversal orders by the primary key alone, the prepared `traversalSorter` otherwise.
+	 *
+	 * @param traverseByEntityProperty the ordering of the traversed nodes
+	 * @param traversalSorter          the sorter of the referenced entities by `traverseByEntityProperty`, NULL when
+	 *                                 they are ordered by their primary key alone
+	 * @param referenceIndexIds        the formula of the referenced entities the owners hold a row of
+	 * @param parentIdsFormula         widens the referenced entities to the nodes on their paths to the root
+	 * @return the sorter of the nodes of one level
+	 */
 	@Nonnull
 	private static UnaryOperator<int[]> createLevelSorter(
-		@Nonnull OrderByVisitor orderByVisitor,
-		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull OrderConstraint[] traverseByEntityProperty,
+		@Nullable NestedContextSorter traversalSorter,
 		@Nonnull Formula referenceIndexIds,
 		@Nonnull UnaryOperator<Formula> parentIdsFormula
 	) {
 		final UnaryOperator<int[]> levelSorter;
-		if (traverseByEntityProperty.length == 1 && traverseByEntityProperty[0] instanceof EntityPrimaryKeyNatural epkn) {
+		if (traversalSorter == null) {
+			final EntityPrimaryKeyNatural epkn = (EntityPrimaryKeyNatural) traverseByEntityProperty[0];
 			levelSorter = epkn.getOrderDirection() == OrderDirection.ASC ?
 				UnaryOperator.identity() : ArrayUtils::reverse;
 		} else {
-			final NestedContextSorter sorter = createNestedContextSorter(orderByVisitor, referenceSchema, traverseByEntityProperty);
+			final NestedContextSorter sorter = traversalSorter;
 			levelSorter = input -> {
 				if (input.length == 0) {
 					return ArrayUtils.EMPTY_INT_ARRAY;
@@ -360,15 +376,203 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		@Nonnull OrderConstraint[] pickFirstByEntityProperty,
 		@Nonnull Formula referenceIndexIds
 	) {
-		if (pickFirstByEntityProperty.length == 1 && pickFirstByEntityProperty[0] instanceof EntityPrimaryKeyNatural epkn) {
+		return getSortedReducedIndexPrimaryKeys(
+			pickFirstByEntityProperty,
+			isPrimaryKeyOrdering(pickFirstByEntityProperty) ?
+				null : createNestedContextSorter(orderByVisitor, referenceSchema, pickFirstByEntityProperty),
+			referenceIndexIds
+		);
+	}
+
+	/**
+	 * Returns the primary keys of the referenced entities ordered by the passed ordering - by the order of the primary
+	 * keys themselves when the ordering names the primary key alone, by the prepared `sorter` otherwise.
+	 *
+	 * @param ordering          the ordering of the referenced entities
+	 * @param sorter            the sorter of the referenced entities by `ordering`, NULL when they are ordered by
+	 *                          their primary key alone
+	 * @param referenceIndexIds the formula of the referenced entities to order
+	 * @return the ordered primary keys of the referenced entities
+	 */
+	@Nonnull
+	private static IntStream getSortedReducedIndexPrimaryKeys(
+		@Nonnull OrderConstraint[] ordering,
+		@Nullable NestedContextSorter sorter,
+		@Nonnull Formula referenceIndexIds
+	) {
+		if (sorter == null) {
+			final EntityPrimaryKeyNatural epkn = (EntityPrimaryKeyNatural) ordering[0];
 			return IntStream.of(
 				epkn.getOrderDirection() == OrderDirection.ASC ?
 					referenceIndexIds.compute().getArray() : ArrayUtils.reverse(referenceIndexIds.compute().getArray())
 			);
 		} else {
-			final NestedContextSorter sorter = createNestedContextSorter(orderByVisitor, referenceSchema, pickFirstByEntityProperty);
 			return IntStream.of(sorter.sortAndSlice(referenceIndexIds));
 		}
+	}
+
+	/**
+	 * Returns true when the passed ordering of the referenced entities names their primary key alone - the ordering that
+	 * needs no sorter, because the order of the primary keys is the order asked for.
+	 *
+	 * @param ordering the ordering of the referenced entities
+	 * @return true when its single constraint is {@link EntityPrimaryKeyNatural}
+	 */
+	private static boolean isPrimaryKeyOrdering(@Nonnull OrderConstraint[] ordering) {
+		return ordering.length == 1 && ordering[0] instanceof EntityPrimaryKeyNatural;
+	}
+
+	/**
+	 * Creates the sorter a `traverseByEntityProperty` ordering orders the referenced entities by, once per translation
+	 * and before it is known whether there is anything to order, or NULL when the ordering names the primary key
+	 * alone.
+	 *
+	 * The referenced entities are ordered only when an owner of the processed scopes holds a row of the reference, and
+	 * those of a hierarchical type only in a scope their tree exists in - but the query names the ordering whether or
+	 * not there is anything to order. Planned up front, the ordering is checked against the schema of the referenced
+	 * entity and the capabilities it requests are counted with the query regardless of the data, and one sorter serves
+	 * every level of every traversed tree.
+	 *
+	 * @param orderByVisitor           the visitor of the planned query
+	 * @param referenceSchema          the reference being ordered by
+	 * @param traverseByEntityProperty the ordering of the referenced entities
+	 * @return the sorter, NULL for the ordering by the primary key alone
+	 */
+	@Nullable
+	private static NestedContextSorter createTraversalSorter(
+		@Nonnull OrderByVisitor orderByVisitor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull OrderConstraint[] traverseByEntityProperty
+	) {
+		return isPrimaryKeyOrdering(traverseByEntityProperty) ?
+			null : createNestedContextSorter(orderByVisitor, referenceSchema, traverseByEntityProperty);
+	}
+
+	/**
+	 * Refuses an ordering constraint {@link #traverseChildConstraints} cannot translate - an {@link EntityProperty}
+	 * other than the one ordering by the primary key alone, and an {@link EntityGroupProperty}, at any depth. The
+	 * query is checked up front, before any child constraint is translated, so that it fails with this message whether
+	 * or not there is any data to order.
+	 *
+	 * @param referenceProperty the ordering whose child constraints are checked
+	 * @throws EvitaInvalidUsageException when a child constraint cannot be used within `referenceProperty`
+	 */
+	private static void assertChildConstraintsSupported(@Nonnull ReferenceProperty referenceProperty) {
+		for (OrderConstraint innerConstraint : referenceProperty.getOrderConstraints()) {
+			if (!(innerConstraint instanceof EntityProperty entityProperty && isPrimaryKeyOrdering(entityProperty))) {
+				assertNoEntityProperty(innerConstraint, referenceProperty);
+			}
+		}
+	}
+
+	/**
+	 * Refuses the passed constraint when it is an {@link EntityProperty} or an {@link EntityGroupProperty}, and
+	 * checks the children of a container the same way. A nested {@link ReferenceProperty} is left to its own
+	 * translator.
+	 *
+	 * @param constraint        the constraint to check
+	 * @param referenceProperty the ordering the constraint is placed in, quoted in the error message
+	 * @throws EvitaInvalidUsageException when the constraint cannot be used within `referenceProperty`
+	 */
+	private static void assertNoEntityProperty(
+		@Nonnull OrderConstraint constraint,
+		@Nonnull ReferenceProperty referenceProperty
+	) {
+		if (constraint instanceof EntityProperty || constraint instanceof EntityGroupProperty) {
+			throw new EvitaInvalidUsageException(
+				"Ordering constraint `" + constraint + "` cannot be used within `referenceProperty` of reference `" +
+					referenceProperty.getReferenceName() + "`: " +
+					(constraint instanceof EntityProperty ?
+						"`entityProperty` is supported there only with `entityPrimaryKeyNatural` as its single " +
+							"child. " :
+						"`entityGroupProperty` is not supported there. ") +
+					"The references themselves can be ordered by the properties of the referenced entity or its " +
+					"group in the `orderBy` of `referenceContent`."
+			);
+		} else if (
+			constraint instanceof ConstraintContainer<?> container && !(constraint instanceof ReferenceProperty)
+		) {
+			for (Object child : container.getChildren()) {
+				if (child instanceof OrderConstraint orderConstraint) {
+					assertNoEntityProperty(orderConstraint, referenceProperty);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Returns true when the passed {@link EntityProperty} orders by the primary key of the referenced entity alone -
+	 * the only form {@link #traverseChildConstraints} supports.
+	 *
+	 * @param entityProperty the constraint to examine
+	 * @return true when its single child is {@link EntityPrimaryKeyNatural}
+	 */
+	private static boolean isPrimaryKeyOrdering(@Nonnull EntityProperty entityProperty) {
+		final OrderConstraint[] childrenConstraints = entityProperty.getChildren();
+		return childrenConstraints.length == 1 && childrenConstraints[0] instanceof EntityPrimaryKeyNatural;
+	}
+
+	/**
+	 * Translates the child constraints of an ordering by a reference that has no rows to order by, only to check them
+	 * against the schemas in every processed scope, and throws the sorters away - so that the query does not fail or
+	 * pass depending on whether there are any rows to order by. A pick-first ordering has no rows when no owner of the
+	 * processed scopes holds a row of the reference, a traversal ordering also when the referenced entities the owners
+	 * hold rows of sit in no tree of the processed scopes.
+	 *
+	 * The constraints are translated exactly as the ordering with rows translates them, with two differences that keep
+	 * the translation from depending on the data: the translators are offered a single empty reduced index of the
+	 * reference - one index, as the rows of one referenced entity would be - the pick-first ordering through the
+	 * resolver of its indexes at planning time, the traversal ordering as the block it sorts; and the sorters are
+	 * collected in isolation, so that none joins the sorters of the query: an owner without a row stays unsorted by
+	 * the reference. The requirements to prefetch the translators register are thrown away as well, so that the check
+	 * neither widens the prefetch of the query nor changes the cost it is chosen by.
+	 *
+	 * @param referenceProperty         the ordering whose child constraints are checked
+	 * @param orderByVisitor            the visitor of the planned query
+	 * @param referenceSchema           the reference being ordered by
+	 * @param pickFirstByEntityProperty the ordering of the targets of a pick-first ordering, NULL for a traversal
+	 *                                  ordering
+	 * @param implicit                  true when the ordering specification is the implicit default of the reference
+	 */
+	private static void checkChildConstraintsWithoutRows(
+		@Nonnull ReferenceProperty referenceProperty,
+		@Nonnull OrderByVisitor orderByVisitor,
+		@Nonnull ReferenceSchema referenceSchema,
+		@Nullable PickFirstByEntityProperty pickFirstByEntityProperty,
+		boolean implicit
+	) {
+		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
+		final String referenceName = referenceSchema.getName();
+		final ReducedEntityIndex[] emptyIndexes = {
+			new ReducedEntityIndex(
+				-1,
+				orderByVisitor.getSchema().getName(),
+				new EntityIndexKey(
+					EntityIndexType.REFERENCED_ENTITY,
+					processingScope.getScopes().iterator().next(),
+					new RepresentativeReferenceKey(new ReferenceKey(referenceName, -1))
+				)
+			)
+		};
+		orderByVisitor.getQueryContext().executeDiscardingRequirementsToPrefetch(
+			() -> orderByVisitor.executeInContext(
+				pickFirstByEntityProperty == null ? emptyIndexes : EMPTY_REDUCED_INDEXES,
+				referenceSchema,
+				null,
+				processingScope.withReferenceSchemaAccessor(referenceName),
+				new MergeModeDefinition(
+					pickFirstByEntityProperty == null ? MergeMode.APPEND_ALL : MergeMode.APPEND_FIRST, implicit
+				),
+				pickFirstByEntityProperty == null ?
+					null :
+					createPickFirstIndexResolver(
+						orderByVisitor, referenceSchema, pickFirstByEntityProperty.getChildren(), () -> emptyIndexes
+					),
+				() -> orderByVisitor.collectIsolatedSorters(
+					() -> traverseChildConstraints(referenceProperty, orderByVisitor)
+				)
+			)
+		);
 	}
 
 	/**
@@ -488,6 +692,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	@Nonnull
 	@Override
 	public Stream<Sorter> createSorter(@Nonnull ReferenceProperty referenceProperty, @Nonnull OrderByVisitor orderByVisitor) {
+		assertChildConstraintsSupported(referenceProperty);
 		final String referenceName = referenceProperty.getReferenceName();
 		final EntitySchema entitySchema = orderByVisitor.getSchema();
 		final ReferenceSchema referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
@@ -522,8 +727,11 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 
 		if (orderingSpecification instanceof PickFirstByEntityProperty pfbep) {
 			if (!hasAnyReducedIndex(orderByVisitor, referenceName)) {
-				// no owner has a row of this reference in the processed scopes - there is nothing to sort by, and the
-				// nested constraints must not be planned (single-index translators require an index to exist)
+				// no owner has a row of this reference in the processed scopes - there is nothing to sort by, but the
+				// nested constraints are checked against the schemas all the same
+				checkChildConstraintsWithoutRows(
+					referenceProperty, orderByVisitor, referenceSchema, pfbep, orderingSpecificationRef.isEmpty()
+				);
 				return Stream.empty();
 			}
 			// the reduced indexes a pick-first ordering walks depend on the selected owners only - every row of a
@@ -556,18 +764,27 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		}
 
 		final TraverseByEntityProperty tbep = (TraverseByEntityProperty) orderingSpecification;
+		final OrderConstraint[] traversalOrdering = tbep.getChildren();
+		final NestedContextSorter traversalSorter = createTraversalSorter(
+			orderByVisitor, referenceSchema, traversalOrdering
+		);
 		final ReducedEntityIndex[] sortedReducedIndexes = selectPlanningReducedIndexes(
 			orderByVisitor,
 			referenceName,
 			referenceIndexIds -> referencedEntityHierarchical ?
 				getTraversedAndSortedReducedIndexPrimaryKeys(
-					orderByVisitor, referenceSchema, tbep.getChildren(), tbep.getTraversalMode(), referenceIndexIds
+					orderByVisitor, referenceSchema, traversalOrdering, traversalSorter, tbep.getTraversalMode(),
+					referenceIndexIds
 				) :
-				getSortedReducedIndexPrimaryKeys(
-					orderByVisitor, referenceSchema, tbep.getChildren(), referenceIndexIds
-				)
+				getSortedReducedIndexPrimaryKeys(traversalOrdering, traversalSorter, referenceIndexIds)
 		);
 		if (sortedReducedIndexes.length == 0) {
+			// no owner has a row of this reference in the processed scopes, or none of the referenced entities sits in
+			// a tree of them - there is nothing to sort by, but the nested constraints are checked against the schemas
+			// all the same
+			checkChildConstraintsWithoutRows(
+				referenceProperty, orderByVisitor, referenceSchema, null, orderingSpecificationRef.isEmpty()
+			);
 			return Stream.empty();
 		}
 

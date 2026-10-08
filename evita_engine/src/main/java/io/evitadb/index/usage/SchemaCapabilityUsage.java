@@ -48,7 +48,9 @@ import java.util.concurrent.atomic.LongAdder;
  *
  * It counts **once per logical query**, not once per candidate plan - the planner translates a filter afresh for every
  * candidate, so a count taken where the translation happens would measure how many alternatives the planner
- * considered rather than what the workload does.
+ * considered rather than what the workload does. Nor once per plan the query builds: a nested query, the filter of the
+ * summarized options or the filter of the fetched references naming a capability the query requested already is the
+ * same request, whether its target holds data or not.
  *
  * # What the update side counts
  *

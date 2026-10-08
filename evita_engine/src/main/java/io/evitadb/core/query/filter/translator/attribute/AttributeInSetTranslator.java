@@ -34,7 +34,6 @@ import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
-import io.evitadb.core.query.algebra.prefetch.MultipleEntityFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
@@ -42,7 +41,6 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
-import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
@@ -97,13 +95,8 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 							filterByVisitor.getProcessingScope().getReferenceSchema(),
 							attributeSchema,
 							index -> index.getEntityReferenceByUniqueValue(
-									comparedValue, attributeKey.locale(), filterByVisitor.getEntityTypeClassifierResolver()
-								)
-								.map(it -> (Formula) new MultipleEntityFormula(
-									new long[]{index.getId()},
-									new BaseBitmap(filterByVisitor.translateEntityReference(it))
-								))
-								.orElse(EmptyFormula.INSTANCE),
+								comparedValue, attributeKey.locale(), filterByVisitor.getEntityTypeClassifierResolver()
+							),
 							index -> ofNullable(index.getRecordIdByUniqueValue(comparedValue))
 								.map(it -> (Formula) new ConstantFormula(new ArrayBitmap(it)))
 								.orElse(EmptyFormula.INSTANCE)

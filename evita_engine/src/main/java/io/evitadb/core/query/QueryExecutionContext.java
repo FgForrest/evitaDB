@@ -33,6 +33,7 @@ import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.FacetGroupRelationLevel;
+import io.evitadb.api.query.require.FacetRelationType;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
@@ -757,12 +758,13 @@ public class QueryExecutionContext implements Closeable {
 		return this.queryContext.isFacetGroupConjunction(referenceSchema, groupId, level);
 	}
 
-	public boolean isFacetGroupDisjunction(
+	@Nonnull
+	public FacetRelationType getFacetRelationType(
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable Integer groupId,
 		@Nonnull FacetGroupRelationLevel level
 	) {
-		return this.queryContext.isFacetGroupDisjunction(referenceSchema, groupId, level);
+		return this.queryContext.getFacetRelationType(referenceSchema, groupId, level);
 	}
 
 	public boolean isFacetGroupNegation(

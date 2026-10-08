@@ -48,8 +48,8 @@ import java.util.Optional;
  * The `facetSummary` requirement triggers the calculation of the
  * {@link io.evitadb.api.requestResponse.extraResult.FacetSummary} extra result, which contains facet statistics for
  * all entity references that are marked as **faceted** in the entity schema. The facet summary is computed as a side
- * effect of the main entity query and always reflects the same filtering scope — it only counts entities that would
- * actually be returned by the current query.
+ * effect of the main entity query and always reflects the same filtering scope except the `userFilter` part — it
+ * counts only entities the current query would return if its `userFilter` part were left out.
  *
  * ## Result structure
  *
@@ -71,18 +71,26 @@ import java.util.Optional;
  *
  * `COUNTS` is the implicit default and is omitted from the EvitaQL string representation.
  *
+ * The group belongs to the reference, not to the facet, so a facet referenced under several groups is listed in each of
+ * them. Each of these entries counts the entities referencing the facet under its own group - or, in a group the query
+ * negates, the entities not referencing it under that group - so the entries of one facet may count differently, and
+ * an entry counting no entity is left out, while the impact of every entry predicts the same selection, because
+ * selecting the facet selects it in all of its groups.
+ *
  * ## Default facet calculation rules
  *
  * Unless overridden by {@link FacetCalculationRules} or the per-group behavior constraints
  * ({@link FacetGroupsConjunction}, {@link FacetGroupsDisjunction}, {@link FacetGroupsNegation},
  * {@link FacetGroupsExclusivity}), the following rules apply:
  *
- * 1. The facet summary covers only entities returned in the current query result.
+ * 1. The facet summary counts only entities the current query would return if its `userFilter` part were left out.
  * 2. Filter constraints placed **outside** `userFilter` are always respected and cannot be overridden by facet
  *    selection.
  * 3. Facets **within the same group** are combined with logical OR (disjunction) — selecting blue OR red.
- * 4. Facets **across different groups or references** are combined with logical AND (conjunction) — must be blue AND
- *    large.
+ * 4. Facets **across different groups** of the same reference are combined with logical AND (conjunction) — must be
+ *    blue AND large.
+ * 5. Facets of **different references** are always combined with logical AND (conjunction) — no constraint overrides
+ *    this, because `userFilter` combines its constraints the way `and` does.
  *
  * ## Entity fetch requirements
  *

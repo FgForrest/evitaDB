@@ -51,6 +51,7 @@ import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.SchemaNotFoundException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.EvitaEntityReferenceResponse;
@@ -152,6 +153,7 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.index.*;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.MapChanges.ValueMerger;
 import io.evitadb.index.map.PersistentTransactionalProducerMap;
@@ -704,6 +706,9 @@ public final class EntityCollection implements
 	@Override
 	@Nonnull
 	public Optional<SealedEntity> getEntity(int primaryKey, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+		// a fetch is not planned, so the structural rules `QueryPlanner#planQuery` checks for a query are checked here
+		// - the reference content filters of the requirements are evaluated directly by the reference fetcher
+		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
 		final ReferenceFetcher referenceFetcher = createReferenceFetcher(evitaRequest, session);
 
 		// record query information
@@ -717,6 +722,8 @@ public final class EntityCollection implements
 	@Override
 	@Nonnull
 	public ServerEntityDecorator enrichEntity(@Nonnull EntityContract entity, @Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+		// see `getEntity` - an enrichment is not planned either
+		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
 		final Map<String, RequirementContext> referenceEntityFetch = evitaRequest.getReferenceEntityFetch();
 		// enrichment adds and never subtracts, so the named sets this entity already carries have to survive a
 		// request that does not mention them. They are fetched again rather than carried over: this read may land on
@@ -820,6 +827,8 @@ public final class EntityCollection implements
 		@Nonnull EntityMutation entityMutation,
 		@Nonnull EvitaRequest evitaRequest
 	) {
+		// refused before the mutation - the reference fetcher evaluating the requirements runs only after it
+		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
 		final ServerEntityDecorator internalEntity =
 			wrapToDecorator(
 				evitaRequest,
@@ -857,6 +866,8 @@ public final class EntityCollection implements
 	@Override
 	@Nonnull
 	public <T extends Serializable> Optional<T> deleteEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest) {
+		// see `upsertAndFetchEntity` - refused before the entity is removed
+		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
@@ -903,6 +914,8 @@ public final class EntityCollection implements
 
 	@Override
 	public <T extends Serializable> DeletedHierarchy<T> deleteEntityAndItsHierarchy(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
+		// see `upsertAndFetchEntity` - refused before any entity of the hierarchy is removed
+		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
 		final EntityIndex globalIndex = getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL));
 		if (globalIndex != null) {
 			final int[] primaryKeys = evitaRequest.getPrimaryKeys();
@@ -979,6 +992,8 @@ public final class EntityCollection implements
 	@Nonnull
 	@Override
 	public <T extends Serializable> Optional<T> archiveEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest) {
+		// see `upsertAndFetchEntity` - refused before the entity changes its scope
+		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
@@ -1011,6 +1026,8 @@ public final class EntityCollection implements
 	@Nonnull
 	@Override
 	public <T extends Serializable> Optional<T> restoreEntity(@Nonnull EvitaSessionContract session, @Nonnull EvitaRequest evitaRequest) {
+		// see `upsertAndFetchEntity` - refused before the entity changes its scope
+		QueryUtils.assertNoNestedScopeContainers(evitaRequest.getQuery());
 		final int[] primaryKeys = evitaRequest.getPrimaryKeys();
 		Assert.isTrue(primaryKeys.length == 1, "Expected exactly one primary key to delete!");
 		if (getGlobalArchiveIndexIfExists().map(it -> it.contains(primaryKeys[0])).orElse(false)) {
@@ -4581,7 +4598,9 @@ public final class EntityCollection implements
 				EntityReference.class,
 				null
 			);
-			// use session-optional QueryPlanningContext — session may be null during WAL replay
+			// use session-optional QueryPlanningContext — session may be null during WAL replay; the evaluation is
+			// a part of the write, not a query, so neither the context nor its nested queries record any schema
+			// capability request
 			final QueryPlanningContext queryContext = new QueryPlanningContext(
 				EntityCollection.this.catalog,
 				EntityCollection.this,
@@ -4591,6 +4610,11 @@ public final class EntityCollection implements
 				EntityCollection.this.indexesByPrimaryKey,
 				EntityCollection.this.cacheSupervisor
 			);
+			// a scope this collection holds no entity of has nothing to match - the expression is not planned there,
+			// a write must not depend on whether the expression could be evaluated in a scope with no entities
+			if (queryContext.getGlobalEntityIndexIfExists(EntityCollection.this.getEntityType(), scope).isEmpty()) {
+				return EmptyBitmap.INSTANCE;
+			}
 			final Set<Scope> requestedScopes = EnumSet.of(scope);
 			final Formula formula = FilterByVisitor.createFormulaForTheFilter(
 				queryContext,

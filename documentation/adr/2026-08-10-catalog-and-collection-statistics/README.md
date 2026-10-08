@@ -9,7 +9,7 @@ prs: [1418]
 areas: [evita_api/api/statistics, evita_engine/core/catalog, evita_engine/core/collection, evita_engine/core/management, evita_engine/core/transaction, evita_engine/index, evita_external_api/evita_external_api_grpc, evita_driver, evita_store/evita_store_server, evita_store/evita_store_key_value, evita_common/utils]
 supersedes: []
 superseded-by: []
-relates: [2026-07-27-write-path-performance-tuning, 2026-09-03-content-sized-value-tree-columns, 2026-08-16-per-index-usage-statistics, 2026-09-07-storage-part-classification, 2026-09-30-unique-indexes-keep-no-record-set]
+relates: [2026-07-27-write-path-performance-tuning, 2026-09-03-content-sized-value-tree-columns, 2026-08-16-per-index-usage-statistics, 2026-09-07-storage-part-classification, 2026-10-06-unique-indexes-keep-no-record-set]
 ---
 
 # Statistics are selectable components at two levels, and an exact heap figure is reached one index at a time
@@ -283,7 +283,7 @@ Three residuals are known:
   key.
 - `GlobalUniqueIndex#getRecordCount` caught without a deterministic test. Since #1658 there is nothing to catch:
   it walks the value tree through the bounded bucket cursors instead of a per-type map
-  (`2026-09-30-unique-indexes-keep-no-record-set`).
+  (`2026-10-06-unique-indexes-keep-no-record-set`).
 - Compiled code may never observe the writer's `modCount` without a happens-before edge. That walk returns
   slightly stale data silently, which is the outcome the design accepts anyway.
 
@@ -343,4 +343,4 @@ not through a catch of its own. The heap-walk half of the same problem is record
   global-unique and index-map walks routed through `ManagementReads` (bounded retry, end-checked fallback),
   the shared helpers left loud
 - **2026-09-30** — the UNIQUE `recordsCovered` readings made exact: both unique indexes count their owners off
-  the value tree (#1658, `2026-09-30-unique-indexes-keep-no-record-set`)
+  the value tree (#1658, `2026-10-06-unique-indexes-keep-no-record-set`)

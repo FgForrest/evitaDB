@@ -85,15 +85,21 @@ public interface EngineMutationOperator<S, T extends EngineMutation<S>> {
 	 * - The operator may perform long‑running work asynchronously and must return a
 	 *   {@link io.evitadb.api.requestResponse.progress.ProgressingFuture} that completes with the
 	 *   mutation result.
-	 * - The {@code transitionEngineStateUpdater} is invoked at most once, and normally exactly once
-	 *   before the heavy work starts, to update in‑memory state (pre‑mutation phase). It is the only
-	 *   route by which an operator may write engine state, because it is the only one that runs under
+	 * - The {@code transitionEngineStateUpdater} is normally invoked exactly once before the heavy work
+	 *   starts, to update in‑memory state (pre‑mutation phase). It is the only route by which an
+	 *   operator may write engine state, because it is the only one that runs under
 	 *   {@link io.evitadb.core.transaction.engine.EngineTransactionManager}'s engine state lock — a
 	 *   bare read‑derive‑write loses to a concurrent commit across the fsync that commit performs.
-	 *   An operator whose failure cannot be compensated for may therefore invoke it instead from its
-	 *   failure path, to declare a terminal state for what it damaged; see
-	 *   {@link ModifyCatalogSchemaNameMutationOperator}, which does exactly that and consequently
-	 *   invokes this updater zero times on the path that succeeds.
+	 *   An operator may therefore invoke it again from its failure path, to put right what the failed
+	 *   work left behind the catalog name. Such a call keeps the engine state version, because nothing
+	 *   is being committed: it is an in‑place exchange of the instance behind the name. Each call reads
+	 *   the engine state afresh under the lock, so a second call layers on whatever the first one and
+	 *   any concurrent commit left there. Three operators use it:
+	 *   {@link ModifyCatalogSchemaNameMutationOperator} invokes it only from its failure path, to
+	 *   declare a terminal state for what it damaged, and so invokes it zero times on the path that
+	 *   succeeds; {@link MakeCatalogAliveMutationOperator} and {@link SetCatalogStateMutationOperator}
+	 *   invoke it before the work and once more when the work fails, to put back the instance the
+	 *   catalog is persisted as.
 	 * - The {@code completionEngineStateUpdater} must be invoked exactly once after the mutation
 	 *   finishes successfully so the transaction manager can append persistent log, persist the new state and
 	 *   publish the new version (post‑mutation phase).

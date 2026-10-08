@@ -26,6 +26,7 @@ package io.evitadb.api.query.filter;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.GenericConstraint;
+import io.evitadb.api.query.InScopeContainer;
 import io.evitadb.api.query.descriptor.ConstraintDomain;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
 import io.evitadb.api.query.descriptor.annotation.Creator;
@@ -53,6 +54,14 @@ import java.io.Serializable;
  *
  * The scope specified in `inScope` must match one of the scopes declared in the query's {@link EntityScope} constraint. Using `inScope(LIVE, ...)`
  * in a query that only searches `scope(ARCHIVED)` will result in a validation error, as the filtering constraints would never be applied.
+ *
+ * An `inScope` container must not be nested in another one within the same evaluation context: `inScope(LIVE, inScope(ARCHIVED, ...))`
+ * would apply the inner constraints only when LIVE and ARCHIVED entities were searched at once, which never happens, and
+ * `inScope(LIVE, inScope(LIVE, ...))` is redundant. A query containing either is rejected with
+ * {@link io.evitadb.exception.EvitaInvalidUsageException} when it is executed (see
+ * {@link io.evitadb.api.query.QueryUtils#assertNoNestedScopeContainers(io.evitadb.api.query.Query)}). An `inScope` placed inside
+ * a container that filters another entity (`entityHaving`, `groupHaving`, `hierarchyWithin`, ...) restricts the scope of that entity and is
+ * not nested in this sense; one placed in the body of `referenceHaving` restricts the owner's references and is.
  *
  * ## Multi-Scope Query Behavior
  *
@@ -153,7 +162,8 @@ import java.io.Serializable;
 	userDocsLink = "/documentation/query/filtering/behavioral#in-scope",
 	supportedIn = { ConstraintDomain.ENTITY, ConstraintDomain.REFERENCE, ConstraintDomain.INLINE_REFERENCE }
 )
-public class FilterInScope extends AbstractFilterConstraintContainer implements GenericConstraint<FilterConstraint> {
+public class FilterInScope extends AbstractFilterConstraintContainer
+	implements GenericConstraint<FilterConstraint>, InScopeContainer<FilterConstraint> {
 	@Serial private static final long serialVersionUID = -2943395408560139656L;
 	private static final String CONSTRAINT_NAME = "inScope";
 
@@ -171,6 +181,7 @@ public class FilterInScope extends AbstractFilterConstraintContainer implements 
 	/**
 	 * Returns requested scope.
 	 */
+	@Override
 	@Nonnull
 	public Scope getScope() {
 		return (Scope) getArguments()[0];

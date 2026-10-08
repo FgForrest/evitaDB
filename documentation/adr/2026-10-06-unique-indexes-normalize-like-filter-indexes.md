@@ -9,7 +9,7 @@ prs: [1722]
 areas: [evita_engine/src/main/java/io/evitadb/index/attribute/UniqueIndexBPlusTreeSupport.java, evita_engine/src/main/java/io/evitadb/index/attribute/OwnerUniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/GlobalUniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/UniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/FilterIndex.java, evita_engine/src/main/java/io/evitadb/index/bPlusTree/ValueColumnFactory.java, evita_engine/src/main/java/io/evitadb/index/component/loader/AttributeIndexLoader.java, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/attribute, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog/Migration_2026_3.java, evita_store/evita_store_server/src/main/java/io/evitadb/store/index/serializer/ComparableLocaleSerializer.java]
 supersedes: []
 superseded-by: []
-relates: [2026-09-04-millisecond-temporal-precision, 2026-09-30-unique-indexes-keep-no-record-set, 2026-09-21-cardinality-counter-normalized-keys, 2026-08-10-stored-value-normalization-split]
+relates: [2026-09-04-millisecond-temporal-precision, 2026-10-06-unique-indexes-keep-no-record-set, 2026-09-21-cardinality-counter-normalized-keys, 2026-08-10-stored-value-normalization-split]
 ---
 
 # Standalone unique indexes key every value exactly as the filter index does
@@ -184,7 +184,7 @@ decimal places (both `1.24`, `HALF_UP`). That is how the filter index and the fo
 - [2026-09-04-millisecond-temporal-precision](2026-09-04-millisecond-temporal-precision.md) — its `forKey` bullet
   (unique trees keep raw temporal values on a boxed column) and its "decided not to fix" bullet on legacy unique
   temporal values are superseded here; the millisecond rule itself stands and is what makes the `Instant` key exact.
-- [2026-09-30-unique-indexes-keep-no-record-set](2026-09-30-unique-indexes-keep-no-record-set.md) — same two classes;
+- [2026-10-06-unique-indexes-keep-no-record-set](2026-10-06-unique-indexes-keep-no-record-set.md) — same two classes;
   its "a unique value occurs once whatever the locale" rule is what the refusals here run through.
 - [2026-09-21-cardinality-counter-normalized-keys](2026-09-21-cardinality-counter-normalized-keys.md) — the same
   normalize-before-keying fix for the cardinality counter, and the `Migration_2026_3` step this one joins.

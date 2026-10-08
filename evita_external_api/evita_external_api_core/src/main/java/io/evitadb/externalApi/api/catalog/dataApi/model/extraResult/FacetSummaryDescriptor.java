@@ -67,7 +67,8 @@ public interface FacetSummaryDescriptor {
 		PropertyDescriptor COUNT = PropertyDescriptor.builder()
 			.name("count")
 			.description("""
-				Contains number of distinct entities in the response that possess any reference in this group.
+				Contains number of distinct entities of the query result, filtered without its user filter part, that possess
+				any reference in this group.
 				""")
 			.type(nonNull(Integer.class))
 			.build();

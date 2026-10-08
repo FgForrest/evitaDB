@@ -26,6 +26,8 @@ package io.evitadb.core.query.extraResult.translator.hierarchyStatistics.produce
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
+import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.visitor.Accumulator;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
@@ -33,7 +35,9 @@ import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.OptionalInt;
 import java.util.function.Function;
 
@@ -56,6 +60,24 @@ public class SiblingsStatisticsComputer extends AbstractSiblingsStatisticsComput
 		@Nonnull EnumSet<StatisticsType> statisticsType
 	) {
 		super(context, entityFetcher, hierarchyFilterPredicateProducer, exclusionPredicate, scopePredicate, statisticsBase, statisticsType);
+	}
+
+	/**
+	 * Returns no statistics when the `hierarchyWithin` selects no node in the scope of the statistics - a node that is
+	 * not there has no siblings - and the statistics of the siblings of the selected node otherwise.
+	 */
+	@Nonnull
+	@Override
+	protected List<Accumulator> createStatistics(
+		@Nonnull QueryExecutionContext executionContext,
+		@Nonnull HierarchyTraversalPredicate scopePredicate,
+		@Nonnull HierarchyFilteringPredicate filterPredicate
+	) {
+		if (this.context.hierarchyFilter() instanceof HierarchyWithin &&
+			this.context.rootHierarchyNodesSupplier().get().isEmpty()) {
+			return Collections.emptyList();
+		}
+		return super.createStatistics(executionContext, scopePredicate, filterPredicate);
 	}
 
 	@Override
