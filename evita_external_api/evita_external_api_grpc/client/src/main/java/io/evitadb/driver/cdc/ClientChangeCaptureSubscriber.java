@@ -142,6 +142,19 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	private final CompletableFuture<Void> acknowledged = new CompletableFuture<>();
 
 	/**
+	 * Completed once {@link #onSubscribe} has handed the delegate its subscription. Every terminal signal for the
+	 * delegate is chained onto it (see {@link #dispatchTerminalSignal}), so that the delegate never sees `onError`
+	 * or `onComplete` before `onSubscribe` (Reactive Streams §1.9).
+	 *
+	 * The publisher hands the subscription over only after the stream initializer has started the RPC, and gRPC may
+	 * fail or complete the stream on its inbound thread in between. Handing it over before the initializer instead
+	 * would let a consumer cancel from `onSubscribe` a stream that does not exist yet, which `subscribe()` would then
+	 * have to refuse to open. Captures need no gate: none is delivered before the delegate requests one, which it can
+	 * only do from `onSubscribe` on.
+	 */
+	private final CompletableFuture<Void> delegateSubscribed = new CompletableFuture<>();
+
+	/**
 	 * The gRPC observer that sends requests to and receives responses from the server.
 	 * This is initialized in the beforeStart method and used to cancel the stream when closing.
 	 */
@@ -276,7 +289,8 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	}
 
 	/**
-	 * Forwards the subscription to the delegate.
+	 * Forwards the subscription to the delegate and then releases any terminal signal the stream raised before it
+	 * (see `delegateSubscribed`).
 	 *
 	 * The field-level binding happens in {@link #attachSubscription} and must
 	 * precede the stream-initialization step that opens the inbound credit
@@ -286,7 +300,12 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 */
 	@Override
 	public void onSubscribe(Subscription subscription) {
-		this.delegate.onSubscribe(subscription);
+		try {
+			this.delegate.onSubscribe(subscription);
+		} finally {
+			// released even when the delegate throws - a terminal signal already raised must not be stranded
+			this.delegateSubscribed.complete(null);
+		}
 	}
 
 	/**
@@ -567,8 +586,8 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			// leaves nothing further to escalate to — the dispatcher logs it, and the teardown below runs
 			// either way.
 			try {
-				CdcCallbackDispatcher.dispatch(
-					activeSubscription.getExecutorService(),
+				dispatchTerminalSignal(
+					activeSubscription,
 					() -> this.delegate.onError(failure),
 					"deliver onError to the delegate subscriber"
 				);
@@ -614,8 +633,8 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			try {
 				// off-thread for the same reason as in `onError` — the caller is the drain task, and
 				// a rejected dispatch must not strand the terminal notification
-				CdcCallbackDispatcher.dispatch(
-					activeSubscription.getExecutorService(),
+				dispatchTerminalSignal(
+					activeSubscription,
 					() -> this.delegate.onError(cause),
 					"deliver onError (client-side failure) to the delegate subscriber"
 				);
@@ -653,8 +672,8 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			);
 			try {
 				// off-thread for the same reason as in `onError` — this runs on the gRPC inbound thread
-				CdcCallbackDispatcher.dispatch(
-					activeSubscription.getExecutorService(),
+				dispatchTerminalSignal(
+					activeSubscription,
 					this.delegate::onComplete,
 					"deliver onComplete to the delegate subscriber"
 				);
@@ -663,6 +682,29 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 				activeSubscription.cancel();
 			}
 		}
+	}
+
+	/**
+	 * Dispatches a terminal signal to the delegate off the calling thread through {@link CdcCallbackDispatcher},
+	 * but never before the delegate has received its subscription: until {@link #onSubscribe} has run, the dispatch
+	 * is parked on `delegateSubscribed` and submitted by the thread that completes it. Either way the signal runs on
+	 * the executor, never on the gRPC inbound thread or on the thread blocked in `subscribe()`.
+	 *
+	 * The dispatch result is ignored, as on every terminal path: a refusal leaves nothing further to escalate to, and
+	 * the dispatcher logs it.
+	 *
+	 * @param activeSubscription the subscription whose executor delivers the signal
+	 * @param signal             the delegate callback to run
+	 * @param description        what the callback does, for the log of a refused dispatch
+	 */
+	private void dispatchTerminalSignal(
+		@Nonnull ClientSubscription<C, REQ, RES> activeSubscription,
+		@Nonnull Runnable signal,
+		@Nonnull String description
+	) {
+		this.delegateSubscribed.thenRun(
+			() -> CdcCallbackDispatcher.dispatch(activeSubscription.getExecutorService(), signal, description)
+		);
 	}
 
 	/**

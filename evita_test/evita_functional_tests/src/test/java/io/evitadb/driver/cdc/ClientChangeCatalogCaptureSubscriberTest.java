@@ -60,6 +60,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Flow;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcOffsetDateTime;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcUuid;
@@ -408,6 +409,58 @@ class ClientChangeCatalogCaptureSubscriberTest {
 
 	}
 
+	@Nested
+	@DisplayName("Signals reaching the consumer while the stream is being opened")
+	class SignalsDuringInitialization {
+
+		@Test
+		@DisplayName("should subscribe the consumer before failing it with an error the server sent at once")
+		void shouldSubscribeConsumerBeforeServerError() {
+			// gRPC may fail the stream on another thread the moment it is started, before `subscribe()` has handed
+			// the consumer its subscription - the initializer stands for that thread here
+			final Harness harness = new Harness(resumeRequest(null));
+			harness.duringInitialization(
+				subscriber -> subscriber.onError(
+					sentByServer(
+						new ChangeCaptureResumePositionInvalidException(
+							Reason.AHEAD_OF_CATALOG, INCARNATION_A, 5L, 1L, null, 40L, 3
+						)
+					)
+				)
+			);
+			final Stream stream = harness.subscribe(INCARNATION_A);
+			stream.awaitSubscribed();
+
+			assertInstanceOf(ChangeCaptureResumePositionInvalidException.class, stream.subscribeFailure.get());
+			assertEquals(List.of(Signal.SUBSCRIBE, Signal.ERROR), stream.delegate.signals);
+		}
+
+		@Test
+		@DisplayName("should subscribe the consumer before failing it with a refusal of the acknowledgement")
+		void shouldSubscribeConsumerBeforeAcknowledgementRefusal() {
+			final Harness harness = new Harness(resumeRequest(INCARNATION_A));
+			harness.duringInitialization(subscriber -> subscriber.onNext(acknowledgement(null)));
+			final Stream stream = harness.subscribe(INCARNATION_B);
+			stream.awaitSubscribed();
+
+			assertInstanceOf(ChangeCaptureResumePositionInvalidException.class, stream.subscribeFailure.get());
+			assertEquals(List.of(Signal.SUBSCRIBE, Signal.ERROR), stream.delegate.signals);
+		}
+
+		@Test
+		@DisplayName("should subscribe the consumer before completing it when the server completes at once")
+		void shouldSubscribeConsumerBeforeCompletion() {
+			final Harness harness = new Harness(resumeRequest(null));
+			harness.duringInitialization(ClientChangeCatalogCaptureSubscriber::onCompleted);
+			final Stream stream = harness.subscribe(INCARNATION_A);
+			stream.awaitSubscribed();
+
+			assertInstanceOf(GenericEvitaInternalError.class, stream.subscribeFailure.get());
+			assertEquals(List.of(Signal.SUBSCRIBE, Signal.COMPLETE), stream.delegate.signals);
+		}
+
+	}
+
 	/**
 	 * A catalog change capture publisher whose stream initializer binds the identity it is told to - standing for
 	 * the session the driver registers the stream in - and hands the stream over to the test instead of a server.
@@ -419,6 +472,8 @@ class ClientChangeCatalogCaptureSubscriberTest {
 		private final AtomicReference<CountDownLatch> initialized = new AtomicReference<>();
 		private final AtomicReference<ClientCallStreamObserver<GrpcRegisterChangeCatalogCaptureRequest>> nextObserver =
 			new AtomicReference<>();
+		private final AtomicReference<Consumer<ClientChangeCatalogCaptureSubscriber>> duringInitialization =
+			new AtomicReference<>(subscriber -> {});
 
 		Harness(@Nonnull ChangeCatalogCaptureRequest request) {
 			this.publisher = new ClientChangeCatalogCaptureProcessor(
@@ -431,10 +486,21 @@ class ClientChangeCatalogCaptureSubscriberTest {
 					subscriber.bindRegisteringCatalogId(this.nextRegisteringCatalogId.get());
 					subscriber.beforeStart(this.nextObserver.get());
 					this.lastInitialized.set(subscriber);
+					this.duringInitialization.get().accept(subscriber);
 					this.initialized.get().countDown();
 				},
 				publisher -> {}
 			);
+		}
+
+		/**
+		 * Makes the stream initializer act on the stream once the RPC is started - the way gRPC may on another
+		 * thread before the publisher has handed the consumer its subscription.
+		 *
+		 * @param action what happens to the stream while it is being initialized
+		 */
+		void duringInitialization(@Nonnull Consumer<ClientChangeCatalogCaptureSubscriber> action) {
+			this.duringInitialization.set(action);
 		}
 
 		/**
@@ -526,9 +592,17 @@ class ClientChangeCatalogCaptureSubscriberTest {
 	}
 
 	/**
+	 * A signal the consumer's subscriber receives.
+	 */
+	private enum Signal {
+		SUBSCRIBE, NEXT, ERROR, COMPLETE
+	}
+
+	/**
 	 * The consumer's subscriber, requesting everything and recording what it receives.
 	 */
 	private static final class RecordingSubscriber implements Flow.Subscriber<ChangeCatalogCapture> {
+		final List<Signal> signals = new CopyOnWriteArrayList<>();
 		final List<ChangeCatalogCapture> received = new CopyOnWriteArrayList<>();
 		final AtomicReference<Throwable> error = new AtomicReference<>();
 		final AtomicReference<Flow.Subscription> subscription = new AtomicReference<>();
@@ -544,6 +618,7 @@ class ClientChangeCatalogCaptureSubscriberTest {
 
 		@Override
 		public void onSubscribe(Flow.Subscription subscription) {
+			this.signals.add(Signal.SUBSCRIBE);
 			this.subscription.set(subscription);
 			this.subscribed.countDown();
 			subscription.request(Long.MAX_VALUE);
@@ -551,11 +626,13 @@ class ClientChangeCatalogCaptureSubscriberTest {
 
 		@Override
 		public void onNext(ChangeCatalogCapture item) {
+			this.signals.add(Signal.NEXT);
 			this.received.add(item);
 		}
 
 		@Override
 		public void onError(Throwable throwable) {
+			this.signals.add(Signal.ERROR);
 			this.error.set(throwable);
 			if (this.cancelOnError) {
 				this.subscription.get().cancel();
@@ -564,7 +641,7 @@ class ClientChangeCatalogCaptureSubscriberTest {
 
 		@Override
 		public void onComplete() {
-			// not expected by any test
+			this.signals.add(Signal.COMPLETE);
 		}
 	}
 
