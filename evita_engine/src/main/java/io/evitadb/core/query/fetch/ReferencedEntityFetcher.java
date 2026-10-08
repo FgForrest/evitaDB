@@ -2347,7 +2347,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			referenceName,
 			referencedEntityIdsFormula,
 			referencedEntityToGroupIdTranslator,
-			slicingMode.chunkTransformer()
+			slicingMode.chunkTransformer(),
+			// only the ordering by a group property needs to know whether a referenced entity keeps one group
+			slicingMode.groupSortActive()
 		);
 
 		// the referenced entities and their groups are fetched by a single derived request - resolve the locale it will
@@ -2377,7 +2379,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			nestedQueryComparator.setFilteredEntities(
 				filteredReferencedEntityIds.getArray(),
 				ArrayUtils.EMPTY_INT_ARRAY,
-				entityPk -> groupToReferencedEntityIdTranslator.apply(referenceName, entityPk)
+				entityPk -> groupToReferencedEntityIdTranslator.apply(referenceName, entityPk),
+				false
 			);
 		}
 		// apply chunking if necessary
@@ -2471,7 +2474,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			nestedQueryComparator.setFilteredEntities(
 				filteredReferencedEntityIdsArray,
 				filteredReferencedGroupEntityIdsArray,
-				entityPk -> groupToReferencedEntityIdTranslator.apply(referenceName, entityPk)
+				entityPk -> groupToReferencedEntityIdTranslator.apply(referenceName, entityPk),
+				slicer.isGroupAssignmentVarying()
 			);
 		}
 

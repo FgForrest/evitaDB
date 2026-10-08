@@ -25,8 +25,12 @@ package io.evitadb.api.functional.fetch;
 
 import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.ContextMissingException;
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
+import io.evitadb.api.query.require.ReferenceContent;
+import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -39,6 +43,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.Evita;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
@@ -802,7 +807,10 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 	 * - parameters `1` to `6` whose names do not follow their primary keys,
 	 * - product `1` referencing parameters `1` and `4` without a group, `3` in group `1` and `2`, `5` in group `2`,
 	 * - product `2` referencing the same plus parameter `6` in group `99`, which does not exist,
-	 * - product `5` referencing parameter `1` in group `3`, `3` in group `1` and `4` without a group.
+	 * - product `5` referencing parameter `1` in group `3`, `3` in group `1` and `4` without a group,
+	 * - products `3` and `4` referencing parameters `2` and `3` in swapped groups `1` and `2`,
+	 * - product `6` referencing parameter `1` in group `2` - which product `1` references without a group - and `4`
+	 *   without a group.
 	 *
 	 * @param evita the evitaDB instance the catalog is created in
 	 * @return an empty data carrier - the fixture is addressed by primary key
@@ -866,6 +874,18 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 					.setReference(Entities.PARAMETER, 3, whichIs -> whichIs.setGroup(1))
 					.setReference(Entities.PARAMETER, 4)
 					.upsertVia(session);
+				session.createNewEntity(Entities.PRODUCT, 3)
+					.setReference(Entities.PARAMETER, 2, whichIs -> whichIs.setGroup(2))
+					.setReference(Entities.PARAMETER, 3, whichIs -> whichIs.setGroup(1))
+					.upsertVia(session);
+				session.createNewEntity(Entities.PRODUCT, 4)
+					.setReference(Entities.PARAMETER, 2, whichIs -> whichIs.setGroup(1))
+					.setReference(Entities.PARAMETER, 3, whichIs -> whichIs.setGroup(2))
+					.upsertVia(session);
+				session.createNewEntity(Entities.PRODUCT, 6)
+					.setReference(Entities.PARAMETER, 1, whichIs -> whichIs.setGroup(2))
+					.setReference(Entities.PARAMETER, 4)
+					.upsertVia(session);
 			}
 		);
 		return new DataCarrier();
@@ -916,6 +936,106 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 		// by its own name descending: 4 "Zz", 1 "Aa"
 		assertReferencedParameterOrder(
 			evita, ManagedReferencesBehaviour.ANY, fetchReferencedBodies, Map.of(5, new int[]{3, 4, 1})
+		);
+	}
+
+	@DisplayName("References are ordered by the group each owner assigns them to")
+	@ParameterizedTest(name = "fetching referenced entity bodies: {0}")
+	@ValueSource(booleans = {false, true})
+	@UseDataSet(UNGROUPED_REFERENCES)
+	void shouldOrderReferencesByGroupTheirOwnerAssigns(boolean fetchReferencedBodies, Evita evita) {
+		// product 3 holds parameter 3 in Alpha and 2 in Beta, product 4 the other way round
+		assertReferencedParameterOrder(
+			evita, ManagedReferencesBehaviour.ANY, fetchReferencedBodies,
+			Map.of(3, new int[]{3, 2}, 4, new int[]{2, 3})
+		);
+	}
+
+	@DisplayName("A reference without a group is ordered with the ungrouped ones even when another owner groups it")
+	@ParameterizedTest(name = "fetching referenced entity bodies: {0}")
+	@ValueSource(booleans = {false, true})
+	@UseDataSet(UNGROUPED_REFERENCES)
+	void shouldOrderReferenceWithoutGroupAsUngroupedWhenAnotherOwnerGroupsIt(
+		boolean fetchReferencedBodies,
+		Evita evita
+	) {
+		// product 6 holds parameter 1 in Beta, product 1 holds it without a group - so for product 1 it still follows
+		// all grouped references
+		assertReferencedParameterOrder(
+			evita, ManagedReferencesBehaviour.ANY, fetchReferencedBodies,
+			Map.of(1, new int[]{3, 5, 2, 4, 1}, 6, new int[]{1, 4})
+		);
+	}
+
+	@DisplayName("A named reference set is ordered by its own ordering when the query orders the same reference too")
+	@ParameterizedTest(name = "fetching referenced entity bodies: {0}")
+	@ValueSource(booleans = {false, true})
+	@UseDataSet(UNGROUPED_REFERENCES)
+	void shouldOrderNamedReferenceSetByItsOwnOrdering(boolean fetchReferencedBodies, Evita evita) {
+		final String ascendingInstance = "ascending";
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> products = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(entityPrimaryKeyInSet(1)),
+						require(
+							page(1, Integer.MAX_VALUE),
+							entityFetch(
+								referenceContent(
+									Entities.PARAMETER,
+									orderBy(
+										entityGroupProperty(attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC)),
+										entityProperty(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
+									),
+									fetchReferencedBodies ? entityFetch(attributeContent(ATTRIBUTE_NAME)) : null
+								),
+								new ReferenceContent(
+									ascendingInstance,
+									ManagedReferencesBehaviour.ANY,
+									new String[]{Entities.PARAMETER},
+									fetchReferencedBodies ?
+										new RequireConstraint[]{entityFetch(attributeContent(ATTRIBUTE_NAME))} :
+										new RequireConstraint[0],
+									new Constraint<?>[]{
+										orderBy(
+											entityGroupProperty(attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC)),
+											entityProperty(attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC))
+										)
+									}
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				final SealedEntity product = products.getRecordData().get(0);
+				final int[] descendingOrder = product.getReferences(Entities.PARAMETER)
+					.stream()
+					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+					.toArray();
+				assertArrayEquals(
+					new int[]{3, 5, 2, 4, 1}, descendingOrder,
+					"Unnamed parameter set is in a wrong order: " + Arrays.toString(descendingOrder)
+				);
+				// Alpha (3), Beta by name ascending (2 "Ab", 5 "Zy"), the ungrouped by name ascending (1 "Aa", 4 "Zz")
+				final int[] ascendingOrder = ((ServerEntityDecorator) product)
+					.getReferencesForReferenceContentInstance(
+						new ReferenceContentKey(ascendingInstance, Entities.PARAMETER)
+					)
+					.orElseThrow()
+					.getData()
+					.stream()
+					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+					.toArray();
+				assertArrayEquals(
+					new int[]{3, 2, 5, 1, 4}, ascendingOrder,
+					"Named parameter set is in a wrong order: " + Arrays.toString(ascendingOrder)
+				);
+				return null;
+			}
 		);
 	}
 

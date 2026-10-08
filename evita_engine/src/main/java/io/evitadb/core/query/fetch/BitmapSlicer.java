@@ -24,6 +24,8 @@
 package io.evitadb.core.query.fetch;
 
 
+import com.carrotsearch.hppc.IntArrayList;
+import com.carrotsearch.hppc.IntIntHashMap;
 import io.evitadb.api.query.require.Page;
 import io.evitadb.api.query.require.Strip;
 import io.evitadb.api.requestResponse.EvitaRequest.ResultForm;
@@ -51,11 +53,14 @@ import io.evitadb.spi.store.catalog.chunk.PageTransformerWithSlicer;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.PrimitiveIterator.OfInt;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -77,6 +82,10 @@ import java.util.stream.IntStream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
 class BitmapSlicer {
+	/**
+	 * Group state of a reference that holds no group.
+	 */
+	private static final int NO_GROUP = Integer.MIN_VALUE;
 	/**
 	 * Arrays of source entity primary keys indexed by their scope.
 	 */
@@ -112,7 +121,27 @@ class BitmapSlicer {
 	 * Contains a cache of groups indexed by entity primary key.
 	 */
 	private Map<Integer, int[]> groupsForEntity = Collections.emptyMap();
+	/**
+	 * The group state - the single group, or {@link #NO_GROUP} - each referenced entity was first recorded with,
+	 * indexed by the referenced entity primary key. NULL unless the group assignments are tracked, which only the
+	 * ordering by a group property needs - see {@link #isGroupAssignmentVarying()}.
+	 */
+	@Nullable private final IntIntHashMap groupStateByReferencedEntity;
+	/**
+	 * TRUE once a referenced entity was recorded with two different group states - see
+	 * {@link #isGroupAssignmentVarying()}.
+	 */
+	private boolean groupAssignmentVarying;
 
+	/**
+	 * Creates a slicer that does not track whether the group of a referenced entity varies between its references.
+	 *
+	 * @param entityPrimaryKey                    source entity primary keys indexed by their scope
+	 * @param referenceName                       the name of the sliced reference
+	 * @param referencedEntityIdsFormula          returns all referenced entity ids of a source entity
+	 * @param referencedEntityToGroupIdTranslator returns the groups of a referenced entity of a source entity
+	 * @param chunkTransformer                    the page / strip mathematics of the slice
+	 */
 	public BitmapSlicer(
 		@Nonnull Map<Scope, int[]> entityPrimaryKey,
 		@Nonnull String referenceName,
@@ -120,6 +149,33 @@ class BitmapSlicer {
 		@Nonnull TriFunction<Integer, String, Integer, IntStream> referencedEntityToGroupIdTranslator,
 		@Nonnull ChunkTransformer chunkTransformer
 	) {
+		this(
+			entityPrimaryKey, referenceName, referencedEntityIdsFormula, referencedEntityToGroupIdTranslator,
+			chunkTransformer, false
+		);
+	}
+
+	/**
+	 * Creates a slicer.
+	 *
+	 * @param entityPrimaryKey                    source entity primary keys indexed by their scope
+	 * @param referenceName                       the name of the sliced reference
+	 * @param referencedEntityIdsFormula          returns all referenced entity ids of a source entity
+	 * @param referencedEntityToGroupIdTranslator returns the groups of a referenced entity of a source entity
+	 * @param chunkTransformer                    the page / strip mathematics of the slice
+	 * @param trackGroupAssignments               TRUE to track while recording the groups whether the group of
+	 *                                            a referenced entity varies between its references - see
+	 *                                            {@link #isGroupAssignmentVarying()}
+	 */
+	public BitmapSlicer(
+		@Nonnull Map<Scope, int[]> entityPrimaryKey,
+		@Nonnull String referenceName,
+		@Nonnull BiFunction<String, Integer, Formula> referencedEntityIdsFormula,
+		@Nonnull TriFunction<Integer, String, Integer, IntStream> referencedEntityToGroupIdTranslator,
+		@Nonnull ChunkTransformer chunkTransformer,
+		boolean trackGroupAssignments
+	) {
+		this.groupStateByReferencedEntity = trackGroupAssignments ? new IntIntHashMap() : null;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.referenceName = referenceName;
 		this.referencedEntityIdsFormula = referencedEntityIdsFormula;
@@ -239,14 +295,73 @@ class BitmapSlicer {
 	 * @param filteredReferenceEntityIds the filtered referenced entity primary keys of the source entity
 	 */
 	private void recordGroupIds(int epk, @Nonnull Bitmap filteredReferenceEntityIds) {
-		this.groupsForEntity.put(
-			epk,
-			filteredReferenceEntityIds.stream()
-				.mapToObj(
-					refId -> this.referencedEntityToGroupIdTranslator.apply(epk, this.referenceName, refId))
-				.flatMapToInt(Function.identity())
-				.toArray()
-		);
+		if (this.groupStateByReferencedEntity == null) {
+			this.groupsForEntity.put(
+				epk,
+				filteredReferenceEntityIds.stream()
+					.mapToObj(
+						refId -> this.referencedEntityToGroupIdTranslator.apply(epk, this.referenceName, refId))
+					.flatMapToInt(Function.identity())
+					.toArray()
+			);
+		} else {
+			this.groupsForEntity.put(epk, recordAndTrackGroupIds(epk, filteredReferenceEntityIds));
+		}
+	}
+
+	/**
+	 * Variant of {@link #recordGroupIds(int, Bitmap)} that also tracks whether the group of a referenced entity
+	 * varies between its references: it compares the group state of each reference - its single group, or
+	 * {@link #NO_GROUP} - with the state the referenced entity was first recorded with, one primitive map probe per
+	 * reference, and stops comparing once a difference was found.
+	 *
+	 * @param epk                        primary key of the source entity
+	 * @param filteredReferenceEntityIds the filtered referenced entity primary keys of the source entity
+	 * @return the groups of the passed referenced entities
+	 */
+	@Nonnull
+	private int[] recordAndTrackGroupIds(int epk, @Nonnull Bitmap filteredReferenceEntityIds) {
+		final IntIntHashMap groupStates = Objects.requireNonNull(this.groupStateByReferencedEntity);
+		final IntArrayList groupIds = new IntArrayList(filteredReferenceEntityIds.size());
+		final OfInt referencedEntityIt = filteredReferenceEntityIds.iterator();
+		while (referencedEntityIt.hasNext()) {
+			final int refId = referencedEntityIt.nextInt();
+			final OfInt groupIt = this.referencedEntityToGroupIdTranslator.apply(epk, this.referenceName, refId)
+				.iterator();
+			int groupState = NO_GROUP;
+			while (groupIt.hasNext()) {
+				final int groupId = groupIt.nextInt();
+				groupIds.add(groupId);
+				if (groupState == NO_GROUP) {
+					groupState = groupId;
+				} else if (groupState != groupId) {
+					// a single source entity holds the referenced entity in two groups
+					this.groupAssignmentVarying = true;
+				}
+			}
+			if (!this.groupAssignmentVarying) {
+				final int index = groupStates.indexOf(refId);
+				if (groupStates.indexExists(index)) {
+					this.groupAssignmentVarying = groupStates.indexGet(index) != groupState;
+				} else {
+					groupStates.indexInsert(index, refId, groupState);
+				}
+			}
+		}
+		return groupIds.toArray();
+	}
+
+	/**
+	 * Returns TRUE when the group of some referenced entity differs between the references recorded so far -
+	 * a source entity holds it in another group than another source entity does, holds it without a group while
+	 * another one holds it in a group, or holds it in two groups at once. The ordering by a group property then
+	 * cannot place a referenced entity by its primary key alone. Always FALSE unless the slicer was created to track
+	 * the group assignments.
+	 *
+	 * @return TRUE when the group of a referenced entity varies between its references
+	 */
+	public boolean isGroupAssignmentVarying() {
+		return this.groupAssignmentVarying;
 	}
 
 	/**
