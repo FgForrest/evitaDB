@@ -35,17 +35,23 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
+import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.Evita;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
+import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.DataCarrier;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 
@@ -88,6 +94,7 @@ import static io.evitadb.test.TestTags.QUERY;
 @Tag(CONTRACT)
 @Tag(QUERY)
 class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest {
+	private static final String UNGROUPED_REFERENCES = "ungroupedReferences";
 
 	@DisplayName("References can be eagerly deeply fetched")
 	@UseDataSet(HUNDRED_PRODUCTS)
@@ -781,6 +788,159 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 							references.stream().map(ReferenceContract::getReferencedPrimaryKey).toList()
 					);
 				}
+
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Sets up a small catalog in which some parameter references of a product carry no group, so that the position
+	 * of the references without a group can be asserted exactly:
+	 *
+	 * - parameter groups `1` (`Alpha`) and `2` (`Beta`),
+	 * - parameters `1` to `6` whose names do not follow their primary keys,
+	 * - product `1` referencing parameters `1` and `4` without a group, `3` in group `1` and `2`, `5` in group `2`,
+	 * - product `2` referencing the same plus parameter `6` in group `99`, which does not exist.
+	 *
+	 * @param evita the evitaDB instance the catalog is created in
+	 * @return an empty data carrier - the fixture is addressed by primary key
+	 */
+	@DataSet(UNGROUPED_REFERENCES)
+	DataCarrier setUpUngroupedReferences(Evita evita) {
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(Entities.PARAMETER_GROUP)
+					.withoutGeneratedPrimaryKey()
+					.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::sortable)
+					.updateAndFetchVia(session);
+				session.defineEntitySchema(Entities.PARAMETER)
+					.withoutGeneratedPrimaryKey()
+					.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::sortable)
+					.updateAndFetchVia(session);
+				session.defineEntitySchema(Entities.PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withReferenceToEntity(
+						Entities.PARAMETER,
+						Entities.PARAMETER,
+						Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.withGroupTypeRelatedToEntity(Entities.PARAMETER_GROUP).indexedForFiltering()
+					)
+					.updateAndFetchVia(session);
+
+				session.createNewEntity(Entities.PARAMETER_GROUP, 1)
+					.setAttribute(ATTRIBUTE_NAME, "Alpha")
+					.upsertVia(session);
+				session.createNewEntity(Entities.PARAMETER_GROUP, 2)
+					.setAttribute(ATTRIBUTE_NAME, "Beta")
+					.upsertVia(session);
+
+				final String[] parameterNames = {"Aa", "Ab", "Mx", "Zz", "Zy", "Mm"};
+				for (int i = 0; i < parameterNames.length; i++) {
+					session.createNewEntity(Entities.PARAMETER, i + 1)
+						.setAttribute(ATTRIBUTE_NAME, parameterNames[i])
+						.upsertVia(session);
+				}
+
+				session.createNewEntity(Entities.PRODUCT, 1)
+					.setReference(Entities.PARAMETER, 1)
+					.setReference(Entities.PARAMETER, 2, whichIs -> whichIs.setGroup(2))
+					.setReference(Entities.PARAMETER, 3, whichIs -> whichIs.setGroup(1))
+					.setReference(Entities.PARAMETER, 4)
+					.setReference(Entities.PARAMETER, 5, whichIs -> whichIs.setGroup(2))
+					.upsertVia(session);
+				session.createNewEntity(Entities.PRODUCT, 2)
+					.setReference(Entities.PARAMETER, 1)
+					.setReference(Entities.PARAMETER, 2, whichIs -> whichIs.setGroup(2))
+					.setReference(Entities.PARAMETER, 3, whichIs -> whichIs.setGroup(1))
+					.setReference(Entities.PARAMETER, 4)
+					.setReference(Entities.PARAMETER, 5, whichIs -> whichIs.setGroup(2))
+					.setReference(Entities.PARAMETER, 6, whichIs -> whichIs.setGroup(99))
+					.upsertVia(session);
+			}
+		);
+		return new DataCarrier();
+	}
+
+	@DisplayName("References without a group are ordered after the grouped ones, by the next ordering")
+	@ParameterizedTest(name = "fetching referenced entity bodies: {0}")
+	@ValueSource(booleans = {false, true})
+	@UseDataSet(UNGROUPED_REFERENCES)
+	void shouldOrderReferencesWithoutGroupAfterGroupedOnes(boolean fetchReferencedBodies, Evita evita) {
+		// groups by name: Alpha (3), Beta (2 "Ab", 5 "Zy" - by name descending 5, 2), then the references without
+		// a group by name descending: 4 "Zz", 1 "Aa"
+		assertReferencedParameterOrder(
+			evita, 1, ManagedReferencesBehaviour.ANY, fetchReferencedBodies, new int[]{3, 5, 2, 4, 1}
+		);
+	}
+
+	@DisplayName("References whose group is filtered out are ordered after the grouped ones, by the next ordering")
+	@ParameterizedTest(name = "fetching referenced entity bodies: {0}")
+	@ValueSource(booleans = {false, true})
+	@UseDataSet(UNGROUPED_REFERENCES)
+	void shouldOrderReferencesWithFilteredOutGroupAfterGroupedOnes(boolean fetchReferencedBodies, Evita evita) {
+		// the group `99` of parameter 6 does not exist, so the EXISTING behaviour drops it from the ordered groups
+		// and parameter 6 joins the references without a group: 4 "Zz", 6 "Mm", 1 "Aa"
+		assertReferencedParameterOrder(
+			evita, 2, ManagedReferencesBehaviour.EXISTING, fetchReferencedBodies, new int[]{3, 5, 2, 4, 6, 1}
+		);
+	}
+
+	/**
+	 * Fetches the parameter references of the product ordered by the name of their group ascending and then by
+	 * their own name descending, and asserts the primary keys of the referenced parameters come in expected order.
+	 *
+	 * @param evita                      the evitaDB instance holding {@link #UNGROUPED_REFERENCES}
+	 * @param productPrimaryKey          primary key of the product whose references are fetched
+	 * @param managedReferencesBehaviour behaviour applied to references pointing to non-existing entities
+	 * @param fetchReferencedBodies      TRUE when the referenced parameter bodies are fetched too
+	 * @param expectedOrder              the expected primary keys of the referenced parameters, in order
+	 */
+	private static void assertReferencedParameterOrder(
+		@Nonnull Evita evita,
+		int productPrimaryKey,
+		@Nonnull ManagedReferencesBehaviour managedReferencesBehaviour,
+		boolean fetchReferencedBodies,
+		@Nonnull int[] expectedOrder
+	) {
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> products = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(entityPrimaryKeyInSet(productPrimaryKey)),
+						require(
+							page(1, Integer.MAX_VALUE),
+							entityFetch(
+								referenceContent(
+									managedReferencesBehaviour,
+									Entities.PARAMETER,
+									orderBy(
+										entityGroupProperty(attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC)),
+										entityProperty(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
+									),
+									fetchReferencedBodies ? entityFetch(attributeContent(ATTRIBUTE_NAME)) : null
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(1, products.getRecordData().size());
+				final int[] receivedOrder = products.getRecordData().get(0)
+					.getReferences(Entities.PARAMETER)
+					.stream()
+					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+					.toArray();
+				assertArrayEquals(
+					expectedOrder,
+					receivedOrder,
+					"Parameters of product `" + productPrimaryKey + "` are in a wrong order: " +
+						Arrays.toString(receivedOrder)
+				);
 
 				return null;
 			}

@@ -239,6 +239,16 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 						}
 					}
 				}
+				// the entities no ordered group reached - they have no group, or their group was filtered out - lack
+				// the value the groups are ordered by, so they follow all grouped ones in the order of the entities;
+				// left unset, their zero slots would sort first and shift the position of every entity
+				if (peek < combinedSortedEntities.length - 1) {
+					for (int entityPk : sortedEntities) {
+						if (filteredEntitySet.removeAll(entityPk) > 0) {
+							combinedSortedEntities[++peek] = entityPk;
+						}
+					}
+				}
 				ArrayUtils.sortSecondAlongFirstArray(combinedSortedEntities, this.sortedEntityIndexes);
 			}
 		}
