@@ -30,6 +30,7 @@ import io.evitadb.api.configuration.ChangeDataCaptureOptions;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.ChangeCaptureResumePositionInvalidException;
 import io.evitadb.api.exception.ChangeCaptureResumePositionInvalidException.Reason;
+import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
@@ -96,6 +97,10 @@ class CatalogChangeCaptureResumePositionTest implements EvitaTestSupport {
 	 * Name {@link #TEST_CATALOG} is renamed to.
 	 */
 	private static final String RENAMED_CATALOG = "renamedCatalog";
+	/**
+	 * Name of a catalog that is defined and left warming up.
+	 */
+	private static final String WARMING_UP_CATALOG = "warmingUpCatalog";
 	/**
 	 * Upper bound of every wait for a signal. A positive wait returns as soon as the signal arrives.
 	 */
@@ -475,6 +480,51 @@ class CatalogChangeCaptureResumePositionTest implements EvitaTestSupport {
 				() -> transactionManager.registerObserver(productRequest(catalog.getCatalogId(), liveVersion + 1))
 			);
 			accepted.close();
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Publication reaching a closed transaction manager")
+	class ClosedTransactionManager {
+
+		@Test
+		@DisplayName("should refuse a publication after the catalog was deactivated, before touching any state")
+		void shouldRefusePublicationAfterDeactivation() {
+			commitEntity(TEST_CATALOG, 1);
+			final Catalog terminatedCatalog = liveCatalog(TEST_CATALOG);
+			final TransactionManager transactionManager = terminatedCatalog.getTransactionManager();
+			assertTrue(terminatedCatalog.getVersion() > 0L, "The catalog must be past version 0 for this test.");
+
+			CatalogChangeCaptureResumePositionTest.this.evita.deactivateCatalog(TEST_CATALOG);
+			assertNull(transactionManager.getLivingCatalog(), "Deactivation did not close the transaction manager.");
+
+			// a publication racing the termination - a commit or a write-ahead log replay finishing late - must be
+			// told the manager is gone, not fail on the state the close released or bring that state back
+			assertThrows(InstanceTerminatedException.class, terminatedCatalog::notifyCatalogPresentInLiveView);
+			assertNull(transactionManager.getLivingCatalog(), "The closed manager got a living catalog back.");
+			assertNull(
+				transactionManager.getLastFinalizedCatalog(), "The closed manager got a finalized catalog back."
+			);
+		}
+
+		@Test
+		@DisplayName("should refuse a publication of a warming-up catalog after shutdown, before touching any state")
+		void shouldRefuseWarmingUpPublicationAfterShutdown() {
+			CatalogChangeCaptureResumePositionTest.this.evita.defineCatalog(WARMING_UP_CATALOG);
+			final Catalog terminatedCatalog = liveCatalog(WARMING_UP_CATALOG);
+			final TransactionManager transactionManager = terminatedCatalog.getTransactionManager();
+			assertEquals(0L, terminatedCatalog.getVersion(), "The catalog must be at version 0 for this test.");
+
+			CatalogChangeCaptureResumePositionTest.this.evita.close();
+			assertNull(transactionManager.getLivingCatalog(), "Shutdown did not close the transaction manager.");
+
+			// version 0 skips the ordering checks, so nothing but the closed state itself can refuse this one
+			assertThrows(InstanceTerminatedException.class, terminatedCatalog::notifyCatalogPresentInLiveView);
+			assertNull(transactionManager.getLivingCatalog(), "The closed manager got a living catalog back.");
+			assertNull(
+				transactionManager.getLastFinalizedCatalog(), "The closed manager got a finalized catalog back."
+			);
 		}
 
 	}

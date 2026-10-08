@@ -29,6 +29,7 @@ import io.evitadb.api.configuration.ChangeDataCaptureOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.exception.ChangeCaptureResumePositionInvalidException;
 import io.evitadb.api.exception.ConflictingCatalogMutationException;
+import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.exception.TransactionTimedOutException;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
@@ -935,18 +936,29 @@ public class TransactionManager implements Closeable {
 	 * catalog, the finalized catalog and the change observer each describing a different catalog.
 	 *
 	 * @param livingCatalog the catalog instance now present in the live view, of the incarnation this manager serves
+	 * @throws InstanceTerminatedException when this manager has already been closed
 	 */
 	public void notifyCatalogPresentInLiveView(@Nonnull Catalog livingCatalog) {
 		final Catalog previousLivingCatalog = getLivingCatalog();
+		// the living catalog is absent only once this manager has been closed - which happens when its catalog is
+		// terminated, and takes the change observer and the pipeline down with it. A publication arriving later
+		// raced that termination (a commit or a write-ahead log replay finishing during shutdown or deactivation) and
+		// has no live view left to enter. It is refused before any state is touched, just as the closed change
+		// observer would refuse it, rather than handing a closed manager a catalog it would keep for ever. The check
+		// is not atomic with `close()`: a publication already past it still reaches the closed observer, which
+		// refuses it as well
+		if (previousLivingCatalog == null) {
+			throw new InstanceTerminatedException(
+				"transaction manager of catalog `" + livingCatalog.getName() + "`"
+			);
+		}
 		// a transaction manager serves exactly one catalog incarnation - every catalog version derived from another
 		// one inherits both its identity and its transaction manager, and a rename keeps both - so the identity
 		// never changes here. The change observer's shared publishers rely on it: they stamp every capture with the
 		// identity they were created with, and a catalog of another incarnation reaching them would make those
-		// captures lie about the version sequence they belong to. The previous catalog is absent only once this
-		// manager has been closed, and then there is nothing to compare with
+		// captures lie about the version sequence they belong to
 		Assert.isPremiseValid(
-			previousLivingCatalog == null ||
-				Objects.equals(previousLivingCatalog.getCatalogId(), livingCatalog.getCatalogId()),
+			Objects.equals(previousLivingCatalog.getCatalogId(), livingCatalog.getCatalogId()),
 			() -> "The transaction manager of catalog `" + previousLivingCatalog.getCatalogId() + "` cannot " +
 				"publish catalog `" + livingCatalog.getCatalogId() + "` - a different incarnation has its own " +
 				"transaction manager!"
@@ -962,13 +974,13 @@ public class TransactionManager implements Closeable {
 			// would reject a republication of the very same instance that used to be allowed at any version
 			Assert.isPremiseValid(
 				previousLivingCatalog.getVersion() <= catalogVersion || previousLivingCatalog == livingCatalog,
-				"Catalog versions must be in order! " +
+				() -> "Catalog versions must be in order! " +
 					"Expected " + previousLivingCatalog.getVersion() + ", got " + catalogVersion + "."
 			);
 			final long theLastFinalizedVersion = getLastFinalizedCatalogVersion();
 			Assert.isPremiseValid(
 				theLastFinalizedVersion >= catalogVersion,
-				"Catalog versions must be in order! " +
+				() -> "Catalog versions must be in order! " +
 					"Expected " + theLastFinalizedVersion + ", got " + catalogVersion + "."
 			);
 		}
