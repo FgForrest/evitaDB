@@ -5,7 +5,7 @@ updated: 2026-10-08 23:45
 status: accepted
 kind: fix
 issues: [1680]
-prs: []
+prs: [1729]
 areas: [evita_api/src/main/java/io/evitadb/api/exception, evita_api/src/main/java/io/evitadb/api/requestResponse/cdc, evita_engine/src/main/java/io/evitadb/core/cdc, evita_engine/src/main/java/io/evitadb/core/transaction, evita_engine/src/main/java/io/evitadb/core/catalog, evita_external_api/evita_external_api_grpc/shared/src/main/java/io/evitadb/externalApi/grpc/requestResponse, evita_external_api/evita_external_api_grpc/server/src/main/java/io/evitadb/externalApi/grpc/services, evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver, evita_external_api/evita_external_api_rest/src/main/java/io/evitadb/externalApi/rest/api/catalog/cdcApi, evita_external_api/evita_external_api_graphql/src/main/java/io/evitadb/externalApi/graphql/api]
 supersedes: []
 superseded-by: []
