@@ -798,10 +798,11 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 	 * Sets up a small catalog in which some parameter references of a product carry no group, so that the position
 	 * of the references without a group can be asserted exactly:
 	 *
-	 * - parameter groups `1` (`Alpha`) and `2` (`Beta`),
+	 * - parameter groups `1` (`Alpha`), `2` (`Beta`) and `3`, which has no name,
 	 * - parameters `1` to `6` whose names do not follow their primary keys,
 	 * - product `1` referencing parameters `1` and `4` without a group, `3` in group `1` and `2`, `5` in group `2`,
-	 * - product `2` referencing the same plus parameter `6` in group `99`, which does not exist.
+	 * - product `2` referencing the same plus parameter `6` in group `99`, which does not exist,
+	 * - product `5` referencing parameter `1` in group `3`, `3` in group `1` and `4` without a group.
 	 *
 	 * @param evita the evitaDB instance the catalog is created in
 	 * @return an empty data carrier - the fixture is addressed by primary key
@@ -813,7 +814,7 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 			session -> {
 				session.defineEntitySchema(Entities.PARAMETER_GROUP)
 					.withoutGeneratedPrimaryKey()
-					.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::sortable)
+					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.sortable().nullable())
 					.updateAndFetchVia(session);
 				session.defineEntitySchema(Entities.PARAMETER)
 					.withoutGeneratedPrimaryKey()
@@ -834,6 +835,8 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 					.upsertVia(session);
 				session.createNewEntity(Entities.PARAMETER_GROUP, 2)
 					.setAttribute(ATTRIBUTE_NAME, "Beta")
+					.upsertVia(session);
+				session.createNewEntity(Entities.PARAMETER_GROUP, 3)
 					.upsertVia(session);
 
 				final String[] parameterNames = {"Aa", "Ab", "Mx", "Zz", "Zy", "Mm"};
@@ -858,6 +861,11 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 					.setReference(Entities.PARAMETER, 5, whichIs -> whichIs.setGroup(2))
 					.setReference(Entities.PARAMETER, 6, whichIs -> whichIs.setGroup(99))
 					.upsertVia(session);
+				session.createNewEntity(Entities.PRODUCT, 5)
+					.setReference(Entities.PARAMETER, 1, whichIs -> whichIs.setGroup(3))
+					.setReference(Entities.PARAMETER, 3, whichIs -> whichIs.setGroup(1))
+					.setReference(Entities.PARAMETER, 4)
+					.upsertVia(session);
 			}
 		);
 		return new DataCarrier();
@@ -871,7 +879,7 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 		// groups by name: Alpha (3), Beta (2 "Ab", 5 "Zy" - by name descending 5, 2), then the references without
 		// a group by name descending: 4 "Zz", 1 "Aa"
 		assertReferencedParameterOrder(
-			evita, 1, ManagedReferencesBehaviour.ANY, fetchReferencedBodies, new int[]{3, 5, 2, 4, 1}
+			evita, ManagedReferencesBehaviour.ANY, fetchReferencedBodies, Map.of(1, new int[]{3, 5, 2, 4, 1})
 		);
 	}
 
@@ -883,26 +891,50 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 		// the group `99` of parameter 6 does not exist, so the EXISTING behaviour drops it from the ordered groups
 		// and parameter 6 joins the references without a group: 4 "Zz", 6 "Mm", 1 "Aa"
 		assertReferencedParameterOrder(
-			evita, 2, ManagedReferencesBehaviour.EXISTING, fetchReferencedBodies, new int[]{3, 5, 2, 4, 6, 1}
+			evita, ManagedReferencesBehaviour.EXISTING, fetchReferencedBodies, Map.of(2, new int[]{3, 5, 2, 4, 6, 1})
+		);
+	}
+
+	@DisplayName("References in a group that does not exist are ordered with the references without a group")
+	@ParameterizedTest(name = "fetching referenced entity bodies: {0}")
+	@ValueSource(booleans = {false, true})
+	@UseDataSet(UNGROUPED_REFERENCES)
+	void shouldOrderReferencesInNonExistentGroupWithUngroupedOnes(boolean fetchReferencedBodies, Evita evita) {
+		// the ANY behaviour keeps the group `99` of parameter 6, but a group that does not exist has no name to be
+		// ordered by, so parameter 6 is ordered with the references without a group: 4 "Zz", 6 "Mm", 1 "Aa"
+		assertReferencedParameterOrder(
+			evita, ManagedReferencesBehaviour.ANY, fetchReferencedBodies, Map.of(2, new int[]{3, 5, 2, 4, 6, 1})
+		);
+	}
+
+	@DisplayName("References in a group lacking the ordered attribute are ordered with the references without a group")
+	@ParameterizedTest(name = "fetching referenced entity bodies: {0}")
+	@ValueSource(booleans = {false, true})
+	@UseDataSet(UNGROUPED_REFERENCES)
+	void shouldOrderReferencesInGroupLackingOrderedValueWithUngroupedOnes(boolean fetchReferencedBodies, Evita evita) {
+		// the group `3` of parameter 1 has no name, so parameter 1 is ordered with the references without a group
+		// by its own name descending: 4 "Zz", 1 "Aa"
+		assertReferencedParameterOrder(
+			evita, ManagedReferencesBehaviour.ANY, fetchReferencedBodies, Map.of(5, new int[]{3, 4, 1})
 		);
 	}
 
 	/**
-	 * Fetches the parameter references of the product ordered by the name of their group ascending and then by
-	 * their own name descending, and asserts the primary keys of the referenced parameters come in expected order.
+	 * Fetches the parameter references of the products in a single query, ordered by the name of their group
+	 * ascending and then by their own name descending, and asserts the primary keys of the referenced parameters of
+	 * each product come in the expected order.
 	 *
 	 * @param evita                      the evitaDB instance holding {@link #UNGROUPED_REFERENCES}
-	 * @param productPrimaryKey          primary key of the product whose references are fetched
 	 * @param managedReferencesBehaviour behaviour applied to references pointing to non-existing entities
 	 * @param fetchReferencedBodies      TRUE when the referenced parameter bodies are fetched too
-	 * @param expectedOrder              the expected primary keys of the referenced parameters, in order
+	 * @param expectedOrderByProduct     the expected primary keys of the referenced parameters in order, indexed by
+	 *                                   the primary key of the product
 	 */
 	private static void assertReferencedParameterOrder(
 		@Nonnull Evita evita,
-		int productPrimaryKey,
 		@Nonnull ManagedReferencesBehaviour managedReferencesBehaviour,
 		boolean fetchReferencedBodies,
-		@Nonnull int[] expectedOrder
+		@Nonnull Map<Integer, int[]> expectedOrderByProduct
 	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
@@ -910,7 +942,7 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 				final EvitaResponse<SealedEntity> products = session.query(
 					query(
 						collection(Entities.PRODUCT),
-						filterBy(entityPrimaryKeyInSet(productPrimaryKey)),
+						filterBy(entityPrimaryKeyInSet(expectedOrderByProduct.keySet().toArray(Integer[]::new))),
 						require(
 							page(1, Integer.MAX_VALUE),
 							entityFetch(
@@ -929,18 +961,19 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 					SealedEntity.class
 				);
 
-				assertEquals(1, products.getRecordData().size());
-				final int[] receivedOrder = products.getRecordData().get(0)
-					.getReferences(Entities.PARAMETER)
-					.stream()
-					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
-					.toArray();
-				assertArrayEquals(
-					expectedOrder,
-					receivedOrder,
-					"Parameters of product `" + productPrimaryKey + "` are in a wrong order: " +
-						Arrays.toString(receivedOrder)
-				);
+				assertEquals(expectedOrderByProduct.size(), products.getRecordData().size());
+				for (SealedEntity product : products.getRecordData()) {
+					final int[] receivedOrder = product.getReferences(Entities.PARAMETER)
+						.stream()
+						.mapToInt(ReferenceContract::getReferencedPrimaryKey)
+						.toArray();
+					assertArrayEquals(
+						expectedOrderByProduct.get(product.getPrimaryKey()),
+						receivedOrder,
+						"Parameters of product `" + product.getPrimaryKey() + "` are in a wrong order: " +
+							Arrays.toString(receivedOrder)
+					);
+				}
 
 				return null;
 			}

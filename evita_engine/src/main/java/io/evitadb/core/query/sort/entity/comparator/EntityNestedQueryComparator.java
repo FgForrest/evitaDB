@@ -118,8 +118,21 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	 */
 	private IntSet nonSortedReferences;
 
+	/**
+	 * Sorts the passed entities by the sorters of the passed tuple.
+	 *
+	 * @param filteredEntities the entity primary keys to sort
+	 * @param sortersTuple     the sorters to sort by, NULL keeps the passed order
+	 * @param appendUnsorted   TRUE to append the entities no sorter ranked - those lacking every value the sorters
+	 *                         order by - after the ranked ones, FALSE to leave them out of the result
+	 * @return the sorted entity primary keys
+	 */
 	@Nonnull
-	private static int[] getSortedEntities(@Nonnull int[] filteredEntities, @Nullable SortersTuple sortersTuple) {
+	private static int[] getSortedEntities(
+		@Nonnull int[] filteredEntities,
+		@Nullable SortersTuple sortersTuple,
+		boolean appendUnsorted
+	) {
 		if (sortersTuple == null) {
 			return filteredEntities;
 		} else {
@@ -135,11 +148,18 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 				0, 0
 			);
 			for (Sorter sorter : sortersTuple.sorters()) {
+				if (!appendUnsorted && sorter instanceof NoSorter) {
+					// the plan closes its sorters with the default one, which ranks what the others left unranked
+					break;
+				}
 				sortingContext = sorter.sortAndSlice(sortingContext, result,null);
 			}
 
 			// append the rest of the records if not all are sorted
 			if (sortingContext.peak() < result.length) {
+				if (!appendUnsorted) {
+					return Arrays.copyOf(result, sortingContext.peak());
+				}
 				NoSorter.INSTANCE.sortAndSlice(sortingContext, result, null);
 			}
 
@@ -219,11 +239,13 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 		}
 		if (!ArrayUtils.isEmpty(filteredEntities)) {
 			if (this.groupSorter == null) {
-				final int[] sortedEntities = getSortedEntities(filteredEntities, this.sorter);
+				final int[] sortedEntities = getSortedEntities(filteredEntities, this.sorter, true);
 				ArrayUtils.sortSecondAlongFirstArray(sortedEntities, this.sortedEntityIndexes);
 			} else {
-				final int[] sortedGroupEntities = getSortedEntities(filteredEntityGroups, this.groupSorter);
-				final int[] sortedEntities = getSortedEntities(filteredEntities, this.sorter);
+				// a group the sorters cannot rank - one that does not exist, or lacks every value they order by - has
+				// no value to be ordered by, so its entities are left to join the ungrouped ones below
+				final int[] sortedGroupEntities = getSortedEntities(filteredEntityGroups, this.groupSorter, false);
+				final int[] sortedEntities = getSortedEntities(filteredEntities, this.sorter, true);
 				final IntSet filteredEntitySet = new IntHashSet(filteredEntities.length);
 				for (int entityPk : filteredEntities) {
 					filteredEntitySet.add(entityPk);
@@ -239,9 +261,10 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 						}
 					}
 				}
-				// the entities no ordered group reached - they have no group, or their group was filtered out - lack
-				// the value the groups are ordered by, so they follow all grouped ones in the order of the entities;
-				// left unset, their zero slots would sort first and shift the position of every entity
+				// the entities no ordered group reached - they have no group, their group was filtered out, or it has
+				// no value to be ordered by - lack the value the groups are ordered by, so they follow all grouped
+				// ones in the order of the entities; left unset, their zero slots would sort first and shift the
+				// position of every entity
 				if (peek < combinedSortedEntities.length - 1) {
 					for (int entityPk : sortedEntities) {
 						if (filteredEntitySet.removeAll(entityPk) > 0) {
