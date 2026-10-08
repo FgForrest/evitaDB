@@ -1,11 +1,11 @@
 ---
 title: Restore the content of a trapped storage part on rollback from a pre-image journalled when the part is read inside a savepoint
 date: 2026-10-08
-updated: 2026-10-08 06:40
+updated: 2026-10-08 08:23
 status: accepted
 kind: fix
 issues: [1678]
-prs: []
+prs: [1724]
 areas: [evita_engine/core/buffer, evita_engine/core/collection, evita_engine/index/mutation/storagePart, evita_engine/spi/store/catalog/persistence/storageParts/entity]
 supersedes: []
 superseded-by: []
@@ -123,7 +123,10 @@ each other's writes.
 - **The pre-bracket hole.** The root executor fetches the entity body in its constructor, before the
   collector opens the savepoint, so that read journals nothing. `journalPartsHeldBeforeSavepoint`
   journals those parts once the bracket is open. It runs inside the `try`, because the 2026-08-26
-  invariant forbids anything throwable between `open()` and the `try`/`finally`.
+  invariant forbids anything throwable between `open()` and the `try`/`finally`. Its window is
+  asserted on both sides, because each violation fails silently: called before the savepoint opens
+  it journals nothing, and called after the first `applyMutation` it journals the mutated content as
+  the pre-image.
 - **Once per slot per savepoint** (`slotsWithPreImage`, reset by `snapshot()`). The earliest pre-image
   runs last in strict-reverse replay and wins, so later copies of the same slot are dead weight. Copying
   on every read retained `K` full copies of a part read `K` times — `Θ(K·N)`, quadratic in a lookup loop
@@ -138,7 +141,9 @@ each other's writes.
   deliberate.
 - **`createPreImage()` copies bookkeeping that never reaches disk**: the `dirty` flag and pending key
   reassignments. `ReferencesStoragePart`'s existing copy constructor is *not* a pre-image: it produces
-  a non-dirty part and drops that state.
+  a non-dirty part and drops that state. A Kryo round-trip was the generic alternative to five
+  per-type copies; it loses for the same reason, since a serializer carries only what reaches disk, and
+  it would also need the entity schema context the way the persisted-record pre-image does.
 
 ## Verification
 
@@ -165,6 +170,8 @@ each other's writes.
   | pre-image independence | the guard test red |
   | the per-slot dedup | `expected 1 but was 4` |
   | the `dirty` copy | `PricesStoragePart.dirty is not carried over` |
+  | both window assertions of the pre-bracket hook | 3 `HeldPartsJournalPreconditionTest` refusals red |
+  | the transactional half of the savepoint assertion | the transactional acceptance test red |
 
 - **Full functional suite:** 25,146 tests, 0 failures (one Docker-dependent error, unrelated).
 - **Performance** — `WarmUpAtomicityIngestBenchmark`, the end-to-end harness of the 2026-08-26 record:
@@ -187,9 +194,13 @@ each other's writes.
     - 20-category corpus: 186,976 pre-images for 51,252 mutations, 93,488 of them references parts.
 
     The path is hot; the copy is simply small next to the rest of an upsert.
-  - **What is not covered:** the production-corpus WARM_UP reindex (`warmup-reindex-benchmark`) could
-    not be measured on the benchmark machine. Its writer exhausted the 23 GiB heap in both arms,
-    baseline included, so that failure says nothing about this change.
+  - **What is not covered:**
+    - The production-corpus WARM_UP reindex (`warmup-reindex-benchmark`) could not be measured on the
+      benchmark machine. Its writer exhausted the 23 GiB heap in both arms, baseline included, so that
+      failure says nothing about this change.
+    - ALIVE is argued, not measured: no replay harness runs with savepoints (WAL replay opts out of
+      atomic rollback). Its extra cost is one savepoint-membership lookup per fetch inside a root
+      mutation, plus the same pre-images for trapped reads.
 
 ## Consequences & open follow-ups
 
@@ -200,6 +211,10 @@ each other's writes.
   its holder later changes in place.
 - **A new field on any entity part type must be copied by its `createPreImage()`.** The completeness
   walk in `EntityStoragePartPreImageTest` fails when one is not.
+- **The later-executor path has no end-to-end reproduction.** A failure in a later executor after a
+  nested executor already re-trapped the part is proven only at unit level
+  (`TrappedStoragePartContentRollbackTest`); no natural trigger was searched for. Option A covers it
+  regardless, because its inverse restores content whether or not the slot was re-trapped.
 - **#1615's in-flight registry seam is unaffected:** option A keeps the registry and the trapped map
   pointing at the same live instance. That branch's pre-PR checklist should still say so.
 
