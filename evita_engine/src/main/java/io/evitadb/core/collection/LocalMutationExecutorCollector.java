@@ -60,6 +60,7 @@ import io.evitadb.index.mutation.IndexImplicitMutations;
 import io.evitadb.index.mutation.IndexMutation;
 import io.evitadb.index.mutation.ReevaluateExpressionMutation;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
+import io.evitadb.index.mutation.local.PartitionReservations;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.index.mutation.storagePart.InFlightEntityAccessorLookup;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
@@ -69,6 +70,7 @@ import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -161,6 +163,13 @@ class LocalMutationExecutorCollector {
 	 * Allocated by the first registration, i.e. once per root mutation.
 	 */
 	@Nullable private Map<InFlightEntityKey, ContainerizedLocalMutationExecutor> inFlightExecutors;
+	/**
+	 * The primary keys of the partitions without an index object this root mutation has vacated, reserved for an owner
+	 * entering a partition of the same key again within it, and whether the root mutation is finishing - handed to
+	 * every index executor created for it, as {@link #findInFlightAccessor} is to every storage-part executor. See
+	 * {@link PartitionReservations}. {@link #finish()} drops the reservations after the commit or the rollback.
+	 */
+	@Getter @Nonnull private final PartitionReservations partitionReservations = new PartitionReservations();
 	/**
 	 * Reference to the fully fetched entity that is being mutated. This entity is needed for removal / archive / restore
 	 * mutations to generate local mutations for all necessary parts of the entity.
@@ -753,12 +762,16 @@ class LocalMutationExecutorCollector {
 		try {
 			// fallible finalization step — a throw here routes to rollback rather than a half-commit
 			if (this.exception == null) {
+				// no owner may enter a partition while the executors apply their changes
+				this.partitionReservations.setFinishing(true);
 				try {
 					for (final LocalMutationExecutor executor : this.executors) {
 						executor.applyChanges();
 					}
 				} catch (RuntimeException ex) {
 					this.exception = ex;
+				} finally {
+					this.partitionReservations.setFinishing(false);
 				}
 			}
 			if (this.exception == null) {
@@ -772,8 +785,10 @@ class LocalMutationExecutorCollector {
 				this, this.exception == null, this.trunkReplay
 			);
 		} finally {
-			// the executors are committed or rolled back - none of them is in flight any longer
+			// the executors are committed or rolled back - none of them is in flight any longer, and the partitions
+			// vacated by the root mutation nobody entered again are gone
 			this.inFlightExecutors = null;
+			this.partitionReservations.clear();
 		}
 	}
 

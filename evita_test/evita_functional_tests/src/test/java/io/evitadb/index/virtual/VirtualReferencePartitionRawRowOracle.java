@@ -43,7 +43,9 @@ import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.VirtualReferencePartitionSlot;
 import io.evitadb.index.attribute.OwnerSortIndex;
@@ -122,6 +124,10 @@ final class VirtualReferencePartitionRawRowOracle {
 	 * How many bodies of one collection and scope are read at most.
 	 */
 	private static final int PAGE_SIZE = 10_000;
+	/**
+	 * Returned by the partition lookup when the key has no partition - partition primary keys are positive.
+	 */
+	private static final int NO_PARTITION = 0;
 
 	/**
 	 * One single-owner partition as the bodies describe it.
@@ -209,6 +215,9 @@ final class VirtualReferencePartitionRawRowOracle {
 	) {
 		final String referenceName = referenceSchema.getName();
 		final String prefix = referenceName + "/" + scope + ": ";
+		final EntityIndex typeIndex = collection.getIndexByKeyIfExists(
+			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName)
+		);
 		final SortedMap<Integer, ExpectedPartition> expected = new TreeMap<>();
 		for (final List<OwnerRow> group : groupRows(referenceSchema, bodies).values()) {
 			if (group.size() != 1) {
@@ -216,19 +225,14 @@ final class VirtualReferencePartitionRawRowOracle {
 			}
 			final OwnerRow row = group.get(0);
 			final RepresentativeReferenceKey key = keyOf(referenceSchema, row.reference());
-			final EntityIndex partition = collection.getIndexByKeyIfExists(
-				new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, key)
-			);
-			if (partition == null) {
+			final int partitionPrimaryKey = findPartitionPrimaryKey(collection, typeIndex, scope, key);
+			if (partitionPrimaryKey == NO_PARTITION) {
 				findings.add(prefix + "the single owner " + primaryKeyOf(row) + " of " + key + " has no partition");
 			} else {
-				expected.put(partition.getPrimaryKey(), new ExpectedPartition(key, row));
+				expected.put(partitionPrimaryKey, new ExpectedPartition(key, row));
 			}
 		}
 
-		final EntityIndex typeIndex = collection.getIndexByKeyIfExists(
-			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName)
-		);
 		if (!(typeIndex instanceof final ReferencedTypeEntityIndex referencedTypeIndex)) {
 			if (!expected.isEmpty()) {
 				findings.add(prefix + "single-owner partitions " + expected.keySet() + " but no registry");
@@ -239,6 +243,40 @@ final class VirtualReferencePartitionRawRowOracle {
 		inspectRows(registry, expected, prefix, findings);
 		inspectSortValues(referenceSchema, scope, registry, expected, prefix, findings);
 		inspectChains(referenceSchema, scope, registry, expected, prefix, findings);
+	}
+
+	/**
+	 * Finds the primary key of the partition of a key: the primary key of its index object, or - in a catalog writing
+	 * its single-owner partitions virtually, where such a partition has no index object - of its registry row.
+	 *
+	 * @param collection the collection resolving the partitions
+	 * @param typeIndex  the referenced-type entity index of the reference in the scope, `null` when there is none
+	 * @param scope      the scope
+	 * @param key        the key of the partition
+	 * @return the primary key of the partition, or {@link #NO_PARTITION} when it has neither an index object nor a row
+	 */
+	private static int findPartitionPrimaryKey(
+		@Nonnull EntityCollection collection,
+		@Nullable EntityIndex typeIndex,
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey key
+	) {
+		final EntityIndex partition = collection.getIndexByKeyIfExists(
+			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, key)
+		);
+		if (partition != null) {
+			return partition.getPrimaryKey();
+		}
+		// TODO JNO - remove at the end of #1615
+		if (typeIndex instanceof final ReferencedTypeEntityIndex referencedTypeIndex) {
+			final VirtualReferencePartition registered = ReferencePartitions.findRegisteredForWrite(
+				referencedTypeIndex, key
+			);
+			if (registered != null) {
+				return registered.getPrimaryKey();
+			}
+		}
+		return NO_PARTITION;
 	}
 
 	/**

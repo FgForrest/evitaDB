@@ -894,6 +894,10 @@ public final class Catalog
 			evita.getEntityTypesMaintainingVirtualReferencePartitionsOnLoad(catalogName),
 			evita.getVirtualReferencePartitionProbeOnLoad(catalogName)
 		);
+		// TODO JNO - remove at the end of #1615
+		if (evita.isWrittenVirtuallyOnLoad(catalogName)) {
+			this.virtualReferencePartitionMaintenance.setWrittenVirtually(true);
+		}
 		this.persistenceService.readCatalogIndex(this, Scope.ARCHIVED)
 			.filter(it -> !it.isEmpty())
 			.ifPresent(this.archiveCatalogIndex::set);

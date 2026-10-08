@@ -978,12 +978,16 @@ public final class ReferencePartitions {
 		}
 		final VirtualReferencePartitionIndex registry = typeIndex.getVirtualReferencePartitionIndex();
 		final IntObjectHashMap<IntLongHashMap> families = new IntObjectHashMap<>(16);
+		// TODO JNO - remove at the end of #1615
+		final int rowModificationsAtCreation = VirtualReferencePartitionIndex.getRowModificationCountOfThread();
 		return representativeReferenceKey -> {
 			Assert.isPremiseValid(
 				referenceName.equals(representativeReferenceKey.referenceName()),
 				() -> "The owner read of `" + referenceName + "` cannot resolve key `" + representativeReferenceKey +
 					"`!"
 			);
+			// TODO JNO - remove at the end of #1615
+			assertNoRowModifiedSince(rowModificationsAtCreation, referenceName, scope);
 			final ReferencePartition object = resolveIfExists(indexByKey, scope, representativeReferenceKey);
 			final Serializable[] tuple = representativeReferenceKey.representativeAttributeValues();
 			// the empty tuple is never in the dictionary - the registry stands for it by the absence of a tuple id
@@ -1012,6 +1016,33 @@ public final class ReferencePartitions {
 			assertOwnerReadParity(partition, object);
 			return partition;
 		};
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Asserts the premise of the memo of the by-key owner reads (see {@link #resolverByKeyForOwnerRead}): no owner row
+	 * and no representative tuple was written by the thread since the memo was created. The memo remembers the
+	 * registered partitions of every target it has read, so a row written meanwhile - which only the thread running
+	 * the mutation can write - would be answered from what the memo read before.
+	 *
+	 * @param rowModificationsAtCreation the row modification count of the thread when the memo was created
+	 * @param referenceName              the reference the memo resolves
+	 * @param scope                      the scope the memo resolves
+	 * @throws GenericEvitaInternalError when a row was written since the memo was created
+	 */
+	private static void assertNoRowModifiedSince(
+		int rowModificationsAtCreation,
+		@Nonnull String referenceName,
+		@Nonnull Scope scope
+	) {
+		final int rowModifications = VirtualReferencePartitionIndex.getRowModificationCountOfThread();
+		if (rowModifications != rowModificationsAtCreation) {
+			throw new GenericEvitaInternalError(
+				"The by-key owner read of `" + referenceName + "` in scope `" + scope + "` remembers registry rows " +
+					"read before " + (rowModifications - rowModificationsAtCreation) + " row(s) were written - it " +
+					"must not outlive a pass that changes nothing!"
+			);
+		}
 	}
 
 	/**
@@ -1151,6 +1182,30 @@ public final class ReferencePartitions {
 			typeIndex, partitionPrimaryKey, NumberUtils.unpackHigh(ownerAndTarget),
 			readRepresentativeReferenceKey(typeIndex, partitionPrimaryKey, ownerAndTarget)
 		);
+	}
+
+	/**
+	 * Builds the virtual handle of a partition a write brings an owner into while the registry holds no row of it yet -
+	 * the partition is new, or its last owner left it within the running root mutation - for a write that writes the
+	 * single-owner partitions of the reference virtually. The handle names the entering owner; the owner's entering the
+	 * partition registers its row. Like the handles of the other write acquisitions it is not counted as resolved by a
+	 * query.
+	 *
+	 * @param typeIndex                  the referenced-type entity index of the reference in the partition's scope,
+	 *                                   which will carry the partition's row
+	 * @param partitionPrimaryKey        the primary key of the partition, already handed out by the index sequence
+	 * @param ownerPrimaryKey            the primary key of the owner entering the partition
+	 * @param representativeReferenceKey the representative reference key of the partition
+	 * @return the virtual partition
+	 */
+	@Nonnull
+	public static VirtualReferencePartition toWriteHandle(
+		@Nonnull ReferencedTypeEntityIndex typeIndex,
+		int partitionPrimaryKey,
+		int ownerPrimaryKey,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey
+	) {
+		return toUncountedPartition(typeIndex, partitionPrimaryKey, ownerPrimaryKey, representativeReferenceKey);
 	}
 
 	/**

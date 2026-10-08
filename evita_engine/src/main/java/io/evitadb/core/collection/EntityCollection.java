@@ -3978,7 +3978,9 @@ public final class EntityCollection implements
 			this::nextInternalPriceId,
 			entityMutation instanceof EntityRemoveMutation,
 			// TODO JNO - remove at the end of #1615
-			this.catalog.getVirtualReferencePartitionMaintenance().isVirtual()
+			this.catalog.getVirtualReferencePartitionMaintenance().isVirtual(),
+			// TODO JNO - remove at the end of #1615
+			this.catalog.getVirtualReferencePartitionMaintenance()::recordForeignReferencesFetch
 		);
 		final String entityType = getInternalSchema().getName();
 		final EntityIndexLocalMutationExecutor entityIndexUpdater = new EntityIndexLocalMutationExecutor(
@@ -4008,7 +4010,9 @@ public final class EntityCollection implements
 			// the collector is shared by the whole root mutation, so it identifies the root mutation for the probe
 			this.catalog.getVirtualReferencePartitionMaintenance().forMutation(
 				entityType, localMutationExecutorCollector
-			)
+			),
+			// the collector is shared by the whole root mutation, so its executors share the reservations too
+			localMutationExecutorCollector.getPartitionReservations()
 		);
 
 		return localMutationExecutorCollector.execute(

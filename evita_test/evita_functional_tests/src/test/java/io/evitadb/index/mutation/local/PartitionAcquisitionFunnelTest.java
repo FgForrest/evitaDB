@@ -161,6 +161,22 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 	 */
 	@Nonnull
 	private EntityIndexLocalMutationExecutor createExecutor(@Nonnull MutationHandle handle) {
+		return createExecutor(handle, new PartitionReservations());
+	}
+
+	/**
+	 * Creates an executor of the product collection writing through {@link #indexMaintainer} with the given
+	 * reservations of its root mutation.
+	 *
+	 * @param handle       the handle of the mutation
+	 * @param reservations the reservations of the root mutation
+	 * @return the executor
+	 */
+	@Nonnull
+	private EntityIndexLocalMutationExecutor createExecutor(
+		@Nonnull MutationHandle handle,
+		@Nonnull PartitionReservations reservations
+	) {
 		final AtomicInteger sequencer = new AtomicInteger(1);
 		return new EntityIndexLocalMutationExecutor(
 			this.containerAccessor,
@@ -179,7 +195,8 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			this.usageRegistry,
 			this.catalogUsageRegistry,
 			true,
-			handle
+			handle,
+			reservations
 		);
 	}
 
@@ -428,10 +445,82 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 		}
 
 		@Test
-		@DisplayName("an insert finding neither an index object nor a row refuses to mint a partition")
-		void shouldRefuseMintingWhenInsertMisses() {
-			final CountingIndexMaintainer maintainer = PartitionAcquisitionFunnelTest.this.indexMaintainer;
+		@DisplayName("an insert finding neither an index object nor a row mints a handle under a new primary key")
+		void shouldMintVirtualHandleWhenInsertMisses() {
+			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
+			final RepresentativeReferenceKey key = keyOf(SINGLE_REFERENCE);
+			final ReferencedTypeEntityIndex typeIndex = outer.typeIndexOf(SINGLE_REFERENCE);
+			final CountingIndexMaintainer maintainer = outer.indexMaintainer;
 			final int indexCount = maintainer.indexCount();
+			final int nextPrimaryKey = maintainer.nextPrimaryKey();
+
+			final VirtualReferencePartition minted = assertInstanceOf(
+				VirtualReferencePartition.class,
+				outer.virtualExecutor.getOrCreatePartitionForInsert(Scope.LIVE, key, WRITE_SITE)
+			);
+
+			assertEquals(nextPrimaryKey, minted.getPrimaryKey(), "the handle takes the next primary key");
+			assertEquals(nextPrimaryKey + 1, maintainer.nextPrimaryKey(), "exactly one primary key is allocated");
+			assertEquals(OWNER_PK, minted.ownerPrimaryKey(), "the handle names the entering owner");
+			assertEquals(key, minted.getRepresentativeReferenceKey());
+			assertSame(typeIndex, minted.typeIndex());
+			assertEquals(indexCount, maintainer.indexCount(), "minting creates no index object");
+			assertTrue(
+				typeIndex.getVirtualReferencePartitionIndex().getPartitionOwner(minted.getPrimaryKey()).isEmpty(),
+				"minting registers no row - the owner's entering the partition does"
+			);
+		}
+
+		@Test
+		@DisplayName("an insert takes the primary key the root mutation reserved for the key, once")
+		void shouldTakeReservedPrimaryKeyOnReentry() {
+			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
+			final RepresentativeReferenceKey key = keyOf(SINGLE_REFERENCE);
+			final ReferencedTypeEntityIndex typeIndex = outer.typeIndexOf(SINGLE_REFERENCE);
+			final CountingIndexMaintainer maintainer = outer.indexMaintainer;
+			final int vacatedPrimaryKey = maintainer.allocatePartitionPrimaryKey();
+			outer.virtualExecutor.reserveVacatedPartition(
+				ReferencePartitions.toWriteHandle(typeIndex, vacatedPrimaryKey, OWNER_PK, key)
+			);
+			final int nextPrimaryKey = maintainer.nextPrimaryKey();
+
+			assertEquals(
+				vacatedPrimaryKey,
+				outer.virtualExecutor.getOrCreatePartitionForInsert(Scope.LIVE, key, WRITE_SITE).getPrimaryKey(),
+				"the owner entering the vacated partition keeps its primary key"
+			);
+			assertEquals(nextPrimaryKey, maintainer.nextPrimaryKey(), "taking a reservation allocates nothing");
+			// the reservation is consumed - the next insert finding nothing mints anew
+			assertEquals(
+				nextPrimaryKey,
+				outer.virtualExecutor.getOrCreatePartitionForInsert(Scope.LIVE, key, WRITE_SITE).getPrimaryKey()
+			);
+			// a reservation of another key is not taken
+			outer.virtualExecutor.reserveVacatedPartition(
+				ReferencePartitions.toWriteHandle(typeIndex, vacatedPrimaryKey, OWNER_PK, key)
+			);
+			assertEquals(
+				nextPrimaryKey + 1,
+				outer.virtualExecutor.getOrCreatePartitionForInsert(
+					Scope.LIVE, new RepresentativeReferenceKey(new ReferenceKey(SINGLE_REFERENCE, TARGET_PK + 1)),
+					WRITE_SITE
+				).getPrimaryKey()
+			);
+			// and a lookup of the reserved key names the reservation in its refusal
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> outer.virtualExecutor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE)
+			);
+			assertTrue(
+				error.getPrivateMessage().contains("left it as partition " + vacatedPrimaryKey),
+				error.getPrivateMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("an insert minting a partition before its referenced-type index exists is refused")
+		void shouldRefuseMintingBeforeTypeIndexExists() {
+			final CountingIndexMaintainer maintainer = PartitionAcquisitionFunnelTest.this.indexMaintainer;
 			final int nextPrimaryKey = maintainer.nextPrimaryKey();
 			final GenericEvitaInternalError error = assertThrows(
 				GenericEvitaInternalError.class,
@@ -439,9 +528,31 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 					.getOrCreatePartitionForInsert(Scope.LIVE, keyOf(SINGLE_REFERENCE), WRITE_SITE)
 			);
 			assertTrue(error.getPrivateMessage().contains(WRITE_SITE), error.getPrivateMessage());
-			assertTrue(error.getPrivateMessage().contains("not supported yet"), error.getPrivateMessage());
-			assertEquals(indexCount, maintainer.indexCount(), "a refused insert must create nothing");
+			assertTrue(error.getPrivateMessage().contains("referenced-type index"), error.getPrivateMessage());
 			assertEquals(nextPrimaryKey, maintainer.nextPrimaryKey(), "a refused insert must allocate nothing");
+		}
+
+		@Test
+		@DisplayName("an insert while the root mutation is finishing is refused, a lookup is not")
+		void shouldRefuseInsertWhileRootMutationIsFinishing() {
+			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
+			final PartitionReservations reservations = new PartitionReservations();
+			final EntityIndexLocalMutationExecutor executor =
+				outer.createExecutor(MutationHandle.WRITTEN_VIRTUALLY, reservations);
+			final RepresentativeReferenceKey key = keyOf(SINGLE_REFERENCE);
+			final int primaryKey = outer.seedRow(key);
+			reservations.setFinishing(true);
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> executor.getOrCreatePartitionForInsert(Scope.LIVE, key, WRITE_SITE)
+			);
+			assertTrue(error.getPrivateMessage().contains(WRITE_SITE), error.getPrivateMessage());
+			assertTrue(error.getPrivateMessage().contains("finishing"), error.getPrivateMessage());
+			assertEquals(primaryKey, executor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE).getPrimaryKey());
+			reservations.setFinishing(false);
+			assertEquals(
+				primaryKey, executor.getOrCreatePartitionForInsert(Scope.LIVE, key, WRITE_SITE).getPrimaryKey()
+			);
 		}
 
 		@Test

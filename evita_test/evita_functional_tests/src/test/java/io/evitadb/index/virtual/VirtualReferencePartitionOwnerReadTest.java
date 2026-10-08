@@ -45,6 +45,7 @@ import io.evitadb.index.facet.FacetGroupIndex;
 import io.evitadb.index.facet.FacetIdIndex;
 import io.evitadb.index.facet.FacetReferenceIndex;
 import io.evitadb.index.VirtualReferencePartition;
+import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.NumberUtils;
 import org.junit.jupiter.api.AfterEach;
@@ -381,6 +382,36 @@ class VirtualReferencePartitionOwnerReadTest implements EvitaTestSupport {
 				).apply(category(product))
 			);
 		}
+	}
+
+	// TODO JNO - remove at the end of #1615
+	@Test
+	@DisplayName("a registry row written while the by-key owner read is in use fails its next probe")
+	void shouldRefuseProbeOfByKeyOwnerReadAfterRowWritten() {
+		final EntityCollection products = collectionOf(ENTITY_PRODUCT);
+		final Function<RepresentativeReferenceKey, ReferencePartition> categories =
+			ReferencePartitions.resolverByKeyForOwnerRead(
+				products.getDataStoreReader(), Scope.LIVE, REFERENCE_CATEGORIES, true
+			);
+		// the remembered family answers as long as nothing writes a row
+		final ReferencePartition first = categories.apply(category(1));
+		assertInstanceOf(VirtualReferencePartition.class, first);
+		assertEquals(first.getPrimaryKey(), categories.apply(category(1)).getPrimaryKey());
+
+		// any owner row the thread writes meanwhile - here into a registry of its own - may be one the memo read
+		new VirtualReferencePartitionIndex().putPartitionOwner(1, 2, 3);
+
+		final GenericEvitaInternalError error = assertThrows(
+			GenericEvitaInternalError.class, () -> categories.apply(category(1))
+		);
+		assertTrue(error.getPrivateMessage().contains("must not outlive"), error.getPrivateMessage());
+		// a resolution created after the write answers again
+		assertInstanceOf(
+			VirtualReferencePartition.class,
+			ReferencePartitions.resolverByKeyForOwnerRead(
+				products.getDataStoreReader(), Scope.LIVE, REFERENCE_CATEGORIES, true
+			).apply(category(1))
+		);
 	}
 
 	@Test

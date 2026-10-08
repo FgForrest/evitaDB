@@ -215,6 +215,13 @@ public final class VirtualReferencePartitionMaintenance {
 	private final AtomicLong partitionKeyVisitedEntries = new AtomicLong();
 	// TODO JNO - remove at the end of #1615
 	/**
+	 * How many times the storage-part executors of the catalog's mutations have fetched the references part of an
+	 * entity other than their own from the storage since this holder was created - see
+	 * {@link #recordForeignReferencesFetch()}.
+	 */
+	private final AtomicLong foreignReferencesFetches = new AtomicLong();
+	// TODO JNO - remove at the end of #1615
+	/**
 	 * The probe a test installed, `null` when none is. Volatile, because a test installs it on its own thread while
 	 * mutations - the trunk replay of a commit among them - run on others.
 	 */
@@ -567,6 +574,26 @@ public final class VirtualReferencePartitionMaintenance {
 	 */
 	public long getPartitionKeyVisitedEntries() {
 		return this.partitionKeyVisitedEntries.get();
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Records that a storage-part executor of a mutation of the catalog has fetched the references part of an entity
+	 * other than its own from the storage - the work the operation-count gates of the write path count.
+	 */
+	public void recordForeignReferencesFetch() {
+		this.foreignReferencesFetches.incrementAndGet();
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns how many times the storage-part executors of the catalog's mutations have fetched the references part of
+	 * an entity other than their own from the storage since this holder was created.
+	 *
+	 * @return the number of fetches
+	 */
+	public long getForeignReferencesFetchCount() {
+		return this.foreignReferencesFetches.get();
 	}
 
 	// TODO JNO - remove at the end of #1615

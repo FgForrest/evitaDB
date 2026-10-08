@@ -879,7 +879,8 @@ class OtherOwnerReferenceRowVisibilityTest implements EvitaTestSupport {
 			inFlightAccessorLookup,
 			internalPriceIds::incrementAndGet,
 			false,
-			catalog.getVirtualReferencePartitionMaintenance().isVirtual()
+			catalog.getVirtualReferencePartitionMaintenance().isVirtual(),
+			catalog.getVirtualReferencePartitionMaintenance()::recordForeignReferencesFetch
 		);
 	}
 

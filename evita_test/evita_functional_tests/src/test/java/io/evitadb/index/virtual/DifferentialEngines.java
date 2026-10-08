@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -62,6 +63,8 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexKey;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.VirtualReferencePartitionIndex;
+import io.evitadb.index.VirtualReferencePartitionSlot;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.OwnerUniqueIndex;
@@ -74,6 +77,11 @@ import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.index.virtual.ReadRouteActivation.LineConsumption;
 import io.evitadb.index.virtual.ReadRouteActivation.ReadRoute;
 import io.evitadb.index.virtual.TransitionHistory.InjectedTransitionFailure;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AttributesStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexLeafPagePart;
@@ -85,6 +93,7 @@ import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ExceptionUtils;
+import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -285,6 +294,18 @@ final class DifferentialEngines implements AutoCloseable {
 		VirtualReferencePartitionIndexStoragePart.class.getSimpleName(),
 		VirtualReferencePartitionIndexLeafPagePart.class.getSimpleName()
 	);
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Storage part types of the entities themselves - the only ones compared at the storage level when the maintaining
+	 * engine writes its single-owner partitions virtually, because the twin persists an index object for each of them.
+	 */
+	static final Set<String> ENTITY_STORAGE_PART_TYPES = Set.of(
+		EntityBodyStoragePart.class.getSimpleName(),
+		AttributesStoragePart.class.getSimpleName(),
+		AssociatedDataStoragePart.class.getSimpleName(),
+		PricesStoragePart.class.getSimpleName(),
+		ReferencesStoragePart.class.getSimpleName()
+	);
 	/**
 	 * Upper bound of the entities one query fetches. The fixtures driving the engines are far smaller.
 	 */
@@ -404,6 +425,13 @@ final class DifferentialEngines implements AutoCloseable {
 	 * The transaction settings of both engines; `null` for the defaults of the test configuration.
 	 */
 	@Nullable private final TransactionOptions transactionOptions;
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * TRUE when the maintaining engine represents its single-owner partitions virtually and writes them virtually -
+	 * as registry rows without index objects - while the reference engine is their twin: index objects and a registry
+	 * maintained next to them. See {@link #writtenVirtually(EvitaTestSupport, String, Set, TransactionOptions)}.
+	 */
+	private final boolean writtenVirtually;
 	/**
 	 * Every directory set any engine of this instance has used - the original ones and the crash images - so that
 	 * {@link #close()} removes them all.
@@ -481,13 +509,71 @@ final class DifferentialEngines implements AutoCloseable {
 		@Nonnull Set<String> entityTypes,
 		@Nullable TransactionOptions transactionOptions
 	) {
+		this(support, label, entityTypes, transactionOptions, false);
+	}
+
+	/**
+	 * Starts both engines, each in its own directories with an identical configuration using the given transaction
+	 * settings, in the mode the flag selects.
+	 *
+	 * @param support            the test owning the engines
+	 * @param label              a label naming the engines' directories
+	 * @param entityTypes        the entity types the maintaining engine maintains
+	 * @param transactionOptions the transaction settings of both engines; `null` for the defaults of the test
+	 *                           configuration
+	 * @param writtenVirtually   TRUE for the mode of {@link #writtenVirtually}
+	 */
+	private DifferentialEngines(
+		@Nonnull EvitaTestSupport support,
+		@Nonnull String label,
+		@Nonnull Set<String> entityTypes,
+		@Nullable TransactionOptions transactionOptions,
+		boolean writtenVirtually
+	) {
 		this.support = support;
 		this.entityTypes = Set.copyOf(entityTypes);
 		this.transactionOptions = transactionOptions;
+		this.writtenVirtually = writtenVirtually;
 		this.referencePaths = allocatePaths(label + "_reference");
 		this.maintainingPaths = allocatePaths(label + "_maintaining");
 		this.reference = new Evita(configurationOf(this.referencePaths));
 		this.maintaining = new Evita(configurationOf(this.maintainingPaths));
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Starts both engines for the comparison of a catalog writing its single-owner partitions virtually with its twin.
+	 * The maintaining engine hosts a catalog representing its single-owner partitions virtually with the virtual
+	 * writing on - its single-owner partitions are registry rows without index objects. The reference engine hosts a
+	 * catalog with index objects that maintains its registry next to them - the twin a catalog writing its partitions
+	 * as objects is. Everything the engines can be asked must still come out the same, with these differences in what
+	 * is compared:
+	 *
+	 * - a partition with a registry row is described by the row and the registry is described in full in both engines,
+	 *   so the registry of the maintaining engine is compared with the one the twin keeps next to its real partitions,
+	 *   which {@link VirtualReferencePartitionOracle} checks against them; an index object of a partition with a row
+	 *   is not described;
+	 * - the reference engine is checked by {@link VirtualReferencePartitionOracle} and the maintaining engine, whose
+	 *   partitions are not objects, is not; both are checked by {@link VirtualReferencePartitionRawRowOracle};
+	 * - the maintaining engine reads every query line virtually, the reference engine none;
+	 * - the storage level compares the storage parts of the entities and the last index primary key only, and the
+	 *   enrollment leaves out the partitions of the references whose partitions may be virtual.
+	 *
+	 * @param support            the test owning the engines
+	 * @param label              a label naming the engines' directories
+	 * @param entityTypes        the entity types of the history - maintained by both engines
+	 * @param transactionOptions the transaction settings of both engines; `null` for the defaults of the test
+	 *                           configuration
+	 * @return the engines
+	 */
+	@Nonnull
+	static DifferentialEngines writtenVirtually(
+		@Nonnull EvitaTestSupport support,
+		@Nonnull String label,
+		@Nonnull Set<String> entityTypes,
+		@Nullable TransactionOptions transactionOptions
+	) {
+		return new DifferentialEngines(support, label, entityTypes, transactionOptions, true);
 	}
 
 	/**
@@ -502,7 +588,7 @@ final class DifferentialEngines implements AutoCloseable {
 		this.reference.createCatalogWithVirtualReferencePartitions(CATALOG, false);
 		this.reference.defineCatalog(CATALOG).updateViaNewSession(this.reference);
 		// TODO JNO - remove at the end of #1615
-		this.maintaining.createCatalogWithVirtualReferencePartitions(CATALOG, false);
+		this.maintaining.createCatalogWithVirtualReferencePartitions(CATALOG, this.writtenVirtually);
 		this.maintaining.defineCatalog(CATALOG).updateViaNewSession(this.maintaining);
 		catalogOf(this.reference).getVirtualReferencePartitionMaintenance().setProbe(this.referenceHistory);
 		catalogOf(this.maintaining).getVirtualReferencePartitionMaintenance().setProbe(this.maintainingHistory);
@@ -838,8 +924,11 @@ final class DifferentialEngines implements AutoCloseable {
 	private EngineLoad startReference(long appliedVersion, long persistedVersion) {
 		final long imageVersion = readImageVersion(this.referencePaths);
 		this.reference = new Evita(configurationOf(this.referencePaths), false);
-		// maintaining nothing, but observed from the load on like the maintaining engine
-		this.reference.maintainVirtualReferencePartitionsOnLoad(CATALOG, Set.of(), this.referenceHistory);
+		// maintaining nothing - or, as the twin of a catalog writing virtually, its registry next to its objects - and
+		// observed from the load on like the maintaining engine
+		this.reference.maintainVirtualReferencePartitionsOnLoad(
+			CATALOG, this.writtenVirtually ? this.entityTypes : Set.of(), this.referenceHistory
+		);
 		this.reference.scheduleInitialCatalogLoading();
 		awaitCatalogLoaded(this.reference);
 		return describeLoad(this.reference, appliedVersion, persistedVersion, imageVersion);
@@ -858,6 +947,10 @@ final class DifferentialEngines implements AutoCloseable {
 		final long imageVersion = readImageVersion(this.maintainingPaths);
 		this.maintaining = new Evita(configurationOf(this.maintainingPaths), false);
 		this.maintaining.maintainVirtualReferencePartitionsOnLoad(CATALOG, this.entityTypes, this.maintainingHistory);
+		// TODO JNO - remove at the end of #1615
+		if (this.writtenVirtually) {
+			this.maintaining.writeVirtuallyOnLoad(CATALOG);
+		}
 		this.maintaining.scheduleInitialCatalogLoading();
 		awaitCatalogLoaded(this.maintaining);
 		return describeLoad(this.maintaining, appliedVersion, persistedVersion, imageVersion);
@@ -1033,7 +1126,8 @@ final class DifferentialEngines implements AutoCloseable {
 		final Catalog catalog = catalogOf(this.reference);
 		for (final String entityType : this.entityTypes) {
 			catalog.getVirtualReferencePartitionMaintenance().setReadVirtually(entityType, false);
-			catalog.getVirtualReferencePartitionMaintenance().setMaintained(entityType, false);
+			// the twin of a catalog writing virtually maintains its registry next to its objects
+			catalog.getVirtualReferencePartitionMaintenance().setMaintained(entityType, this.writtenVirtually);
 		}
 	}
 
@@ -1045,6 +1139,10 @@ final class DifferentialEngines implements AutoCloseable {
 		final Catalog catalog = catalogOf(this.maintaining);
 		for (final String entityType : this.entityTypes) {
 			catalog.getVirtualReferencePartitionMaintenance().setMaintained(entityType, true);
+		}
+		// TODO JNO - remove at the end of #1615
+		if (this.writtenVirtually) {
+			catalog.getVirtualReferencePartitionMaintenance().setWrittenVirtually(true);
 		}
 	}
 
@@ -1139,34 +1237,56 @@ final class DifferentialEngines implements AutoCloseable {
 		for (final String entityType : new TreeSet<>(session.getAllEntityTypes())) {
 			final EntityCollection collection =
 				(EntityCollection) catalog.getCollectionForEntity(entityType).orElseThrow();
+			final boolean expectedMaintained = maintained || this.writtenVirtually;
 			assertEquals(
-				maintained, collection.isVirtualReferencePartitionsMaintained(),
-				label + ": the switch of `" + entityType + "` must be " + (maintained ? "on" : "off") +
+				expectedMaintained, collection.isVirtualReferencePartitionsMaintained(),
+				label + ": the switch of `" + entityType + "` must be " + (expectedMaintained ? "on" : "off") +
+					" in the " + (maintained ? "maintaining" : "reference") + " engine"
+			);
+			// TODO JNO - remove at the end of #1615
+			assertEquals(
+				maintained && this.writtenVirtually,
+				catalog.getVirtualReferencePartitionMaintenance().isWrittenVirtually(),
+				label + ": the virtual writing must be " + (maintained && this.writtenVirtually ? "on" : "off") +
 					" in the " + (maintained ? "maintaining" : "reference") + " engine"
 			);
 			if (maintained) {
-				VirtualReferencePartitionOracle.assertConsistent(label, collection);
-				VirtualReferencePartitionRawRowOracle.assertConsistent(label, session, collection);
+				// the registered checks first - they name the defect they look for, the oracles only its consequence
 				for (final MaintainingEngineCheck check : this.maintainingEngineChecks) {
 					check.check(label, collection);
 				}
+				// the partitions of a catalog writing virtually are no index objects to check the registry against
+				if (!this.writtenVirtually) {
+					VirtualReferencePartitionOracle.assertConsistent(label, collection);
+				}
+				VirtualReferencePartitionRawRowOracle.assertConsistent(label, session, collection);
+			} else if (this.writtenVirtually) {
+				// the twin's registry is checked against its real partitions, and the snapshot then compares it with
+				// the registry of the catalog writing virtually
+				VirtualReferencePartitionOracle.assertConsistent(label, collection);
+				VirtualReferencePartitionRawRowOracle.assertConsistent(label, session, collection);
 			}
 			final EntitySchemaContract schema = session.getEntitySchemaOrThrowException(entityType);
-			// the maintaining engine reads virtually on the query lines whose routes have landed, and only there
-			final ReadRouteActivation activation = maintained ?
-				new ReadRouteActivation(
-					catalog.getVirtualReferencePartitionMaintenance(), this.entityTypes,
+			// the maintaining engine reads virtually on the query lines whose routes have landed, and only there - a
+			// catalog writing virtually reads every line virtually, its switch cannot be turned off
+			final ReadRouteActivation activation;
+			if (!maintained) {
+				activation = ReadRouteActivation.OFF;
+			} else {
+				activation = new ReadRouteActivation(
+					catalog.getVirtualReferencePartitionMaintenance(),
+					this.writtenVirtually ? Set.of() : this.entityTypes,
 					ReadRouteActivation.LANDED_ROUTES, this.virtualRowsPerLine, this.consumptionPerLine
-				) :
-				ReadRouteActivation.OFF;
+				);
+			}
 			for (final Scope scope : Scope.values()) {
 				describeQueries(snapshot, session, schema, scope, activation);
-				describeIndexes(snapshot, collection, schema, scope);
+				describeIndexes(snapshot, collection, schema, scope, this.writtenVirtually);
 			}
 			if (committed) {
-				describeStorage(snapshot, evita, entityType);
+				describeStorage(snapshot, evita, entityType, this.writtenVirtually);
 			} else {
-				describeEnrollment(snapshot, collection);
+				describeEnrollment(snapshot, collection, this.writtenVirtually);
 			}
 		}
 		return snapshot;
@@ -2102,7 +2222,8 @@ final class DifferentialEngines implements AutoCloseable {
 		@Nonnull Snapshot snapshot,
 		@Nonnull EntityCollection collection,
 		@Nonnull EntitySchemaContract schema,
-		@Nonnull Scope scope
+		@Nonnull Scope scope,
+		boolean byRegistry
 	) {
 		final String prefix = "index/" + schema.getName() + "/" + scope + "/";
 		final EntityIndex globalIndex = collection.getIndexByKeyIfExists(
@@ -2121,7 +2242,8 @@ final class DifferentialEngines implements AutoCloseable {
 				);
 				if (typeIndex instanceof final ReferencedTypeEntityIndex referencedTypeIndex) {
 					describeReferencedTypeIndex(
-						snapshot, prefix + family + "/" + referenceName, collection, referencedTypeIndex
+						snapshot, prefix + family + "/" + referenceName, collection, referencedTypeIndex,
+						byRegistry && family == EntityIndexType.REFERENCED_ENTITY_TYPE
 					);
 				}
 			}
@@ -2146,7 +2268,8 @@ final class DifferentialEngines implements AutoCloseable {
 		@Nonnull Snapshot snapshot,
 		@Nonnull String path,
 		@Nonnull EntityCollection collection,
-		@Nonnull ReferencedTypeEntityIndex typeIndex
+		@Nonnull ReferencedTypeEntityIndex typeIndex,
+		boolean byRegistry
 	) {
 		snapshot.put(path + "/primaryKey", String.valueOf(typeIndex.getPrimaryKey()));
 		snapshot.put(path + "/advertised", toString(typeIndex.getAllPrimaryKeys()));
@@ -2158,13 +2281,86 @@ final class DifferentialEngines implements AutoCloseable {
 		describeAttributeIndexes(snapshot, path, typeIndex);
 		describeCardinalities(snapshot, path, typeIndex);
 		final int[] advertised = typeIndex.getAllPrimaryKeys().getArray();
+		// only the type index of referenced entities carries a registry
+		final VirtualReferencePartitionIndex registry =
+			byRegistry ? typeIndex.getVirtualReferencePartitionIndex() : null;
 		for (final int partitionPrimaryKey : advertised) {
-			final EntityIndex partition = collection.getIndexByPrimaryKeyIfExists(partitionPrimaryKey);
 			final String partitionPath = path + "/partition/" + partitionPrimaryKey;
+			// TODO JNO - remove at the end of #1615
+			if (registry != null && registry.getPartitionOwner(partitionPrimaryKey).isPresent()) {
+				// a registered partition is its row in a catalog writing virtually - the registry lines describe it
+				snapshot.put(partitionPath, "REGISTERED");
+				continue;
+			}
+			final EntityIndex partition = collection.getIndexByPrimaryKeyIfExists(partitionPrimaryKey);
 			if (partition == null) {
 				snapshot.put(partitionPath, "MISSING");
 			} else {
 				describeIndex(snapshot, partitionPath, partition);
+			}
+		}
+		// TODO JNO - remove at the end of #1615
+		if (registry != null) {
+			describeRegistry(snapshot, path + "/registry", typeIndex.getIndexKey().scope(), registry);
+		}
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Adds the lines of a registry of single-owner partitions, independent of how its entries are laid out in pages:
+	 * every owner row with its referenced entity and representative attribute values, the declared sort and chain
+	 * keys, every sort value and chain predecessor of a registered partition and the entry count.
+	 *
+	 * @param snapshot the snapshot to add to
+	 * @param path     the path of the lines
+	 * @param scope    the scope of the registry
+	 * @param registry the registry
+	 */
+	private static void describeRegistry(
+		@Nonnull Snapshot snapshot,
+		@Nonnull String path,
+		@Nonnull Scope scope,
+		@Nonnull VirtualReferencePartitionIndex registry
+	) {
+		final SortedMap<Integer, Long> rows = new TreeMap<>();
+		registry.forEachEntry(VirtualReferencePartitionSlot.PARTITION_OWNER, rows::put);
+		final SortedSet<String> sortKeys = new TreeSet<>();
+		for (final AttributeIndexKey key : registry.getDeclaredSortKeys()) {
+			sortKeys.add(key.toString());
+		}
+		final SortedSet<String> chainKeys = new TreeSet<>();
+		for (final AttributeIndexKey key : registry.getDeclaredChainKeys()) {
+			chainKeys.add(key.toString());
+		}
+		snapshot.put(path + "/sortKeys", sortKeys.toString());
+		snapshot.put(path + "/chainKeys", chainKeys.toString());
+		snapshot.put(path + "/entries", String.valueOf(registry.getEntryCount()));
+		for (final Entry<Integer, Long> row : rows.entrySet()) {
+			final int partitionPrimaryKey = row.getKey();
+			final int tupleId = registry.getRepresentativeTupleId(partitionPrimaryKey);
+			final Serializable[] tuple = tupleId == VirtualReferencePartitionIndex.NO_TUPLE_ID ?
+				new Serializable[0] : registry.getTuple(tupleId);
+			final String rowPath = path + "/row/" + partitionPrimaryKey;
+			snapshot.put(
+				rowPath,
+				"owner " + NumberUtils.unpackHigh(row.getValue()) + ", target " +
+					NumberUtils.unpackLow(row.getValue()) + ", tuple " + CanonicalValue.encode(tuple) +
+					", scope " + scope
+			);
+			for (final AttributeIndexKey key : registry.getDeclaredSortKeys()) {
+				final int valueId = registry.getSortValueId(key, partitionPrimaryKey);
+				if (valueId != VirtualReferencePartitionIndex.NO_SORT_VALUE_ID) {
+					snapshot.put(
+						rowPath + "/sort/" + key,
+						CanonicalValue.encodeIndexed(registry.getNormalizedSortValue(key, valueId))
+					);
+				}
+			}
+			for (final AttributeIndexKey key : registry.getDeclaredChainKeys()) {
+				final OptionalInt predecessor = registry.getChainPredecessor(key, partitionPrimaryKey);
+				if (predecessor.isPresent()) {
+					snapshot.put(rowPath + "/chain/" + key, String.valueOf(predecessor.getAsInt()));
+				}
 			}
 		}
 	}
@@ -2206,13 +2402,29 @@ final class DifferentialEngines implements AutoCloseable {
 	 * @param snapshot   the snapshot to add to
 	 * @param collection the collection
 	 */
-	private static void describeEnrollment(@Nonnull Snapshot snapshot, @Nonnull EntityCollection collection) {
+	private static void describeEnrollment(
+		@Nonnull Snapshot snapshot,
+		@Nonnull EntityCollection collection,
+		boolean withoutVirtualPartitions
+	) {
 		final Set<String> enrolled = new TreeSet<>();
 		for (final IndexKey indexKey : collection.getDirtyIndexKeys()) {
-			if (!(indexKey instanceof final EntityIndexKey entityIndexKey) ||
-				entityIndexKey.type() != EntityIndexType.REFERENCED_ENTITY_TYPE) {
-				enrolled.add(indexKey.toString());
+			if (indexKey instanceof final EntityIndexKey entityIndexKey) {
+				if (entityIndexKey.type() == EntityIndexType.REFERENCED_ENTITY_TYPE) {
+					continue;
+				}
+				// TODO JNO - remove at the end of #1615
+				if (
+					withoutVirtualPartitions && entityIndexKey.type() == EntityIndexType.REFERENCED_ENTITY &&
+						entityIndexKey.discriminator() instanceof final RepresentativeReferenceKey key &&
+						collection.getSchema().getReference(key.referenceName())
+							.map(it -> VirtualReferencePartitionOracle.isShadowed(it, entityIndexKey.scope()))
+							.orElse(false)
+				) {
+					continue;
+				}
 			}
+			enrolled.add(indexKey.toString());
 		}
 		snapshot.put("enrollment/" + collection.getEntityType(), enrolled.toString());
 	}
@@ -2323,7 +2535,12 @@ final class DifferentialEngines implements AutoCloseable {
 	 * @param evita      the engine
 	 * @param entityType the entity type of the collection
 	 */
-	private static void describeStorage(@Nonnull Snapshot snapshot, @Nonnull Evita evita, @Nonnull String entityType) {
+	private static void describeStorage(
+		@Nonnull Snapshot snapshot,
+		@Nonnull Evita evita,
+		@Nonnull String entityType,
+		boolean entityPartsOnly
+	) {
 		final String prefix = "storage/" + entityType + "/";
 		final EntityCollectionStatistics statistics = evita.management().getEntityCollectionStatistics(
 			CATALOG, entityType,
@@ -2335,14 +2552,20 @@ final class DifferentialEngines implements AutoCloseable {
 		);
 		final StoragePartUsage[] parts = statistics.storageCompositionIfPresent().orElseThrow().parts();
 		for (final StoragePartUsage part : parts) {
-			if (!EXCLUDED_STORAGE_PART_TYPES.contains(part.storagePartType())) {
+			if (
+				!EXCLUDED_STORAGE_PART_TYPES.contains(part.storagePartType()) &&
+					(!entityPartsOnly || ENTITY_STORAGE_PART_TYPES.contains(part.storagePartType()))
+			) {
 				snapshot.put(
 					prefix + "part/" + part.storagePartType(),
 					part.count() + " records, " + part.totalBytes() + " bytes"
 				);
 			}
 		}
-		snapshot.put(prefix + "population", statistics.indexSummaryIfPresent().orElseThrow().toString());
+		// TODO JNO - remove at the end of #1615 (the condition, its body stays)
+		if (!entityPartsOnly) {
+			snapshot.put(prefix + "population", statistics.indexSummaryIfPresent().orElseThrow().toString());
+		}
 		snapshot.put(
 			prefix + "lastEntityIndexPrimaryKey",
 			String.valueOf(statistics.headerIfPresent().orElseThrow().lastEntityIndexPrimaryKey())

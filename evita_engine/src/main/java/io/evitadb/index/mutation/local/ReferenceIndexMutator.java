@@ -66,8 +66,10 @@ import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartition;
+import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.facet.FacetGroupIndex;
 import io.evitadb.index.facet.FacetIdIndex;
 import io.evitadb.index.facet.FacetReferenceIndex;
@@ -84,6 +86,7 @@ import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageCo
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -97,6 +100,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -933,8 +937,12 @@ public interface ReferenceIndexMutator {
 				}
 				yield firstIndexed;
 			}
-			case VirtualReferencePartition virtual ->
-				throw ReferencePartitions.virtualPartitionOnWritePath(virtual, "referenceInsertPerComponent");
+			// TODO JNO - remove at the end of #1615 (the arm stays, `requireWrittenVirtually` loses its condition)
+			case VirtualReferencePartition virtual -> ownerEnteredVirtualPartition(
+				executor, referenceSchema, referenceTypeIndex,
+				requireWrittenVirtually(executor, referenceSchema, virtual, "referenceInsertPerComponent"),
+				referenceKey, entityPrimaryKey, existingDataSupplierFactory
+			);
 		};
 		// the owner-membership boundary the cross-entity facet trigger's reverse lookup is maintained from -
 		// exactly the 0 -> 1 transition, for both index families, and for no other event
@@ -1314,8 +1322,9 @@ public interface ReferenceIndexMutator {
 			entitySchema, referenceSchema, executor, referenceTypeIndex, partition.getPrimaryKey(),
 			referenceKey, referencedPrimaryKey, existingDataSupplierFactory
 		);
-		// partition-local: the owner's row and the owner's data replicated into the partition
-		final boolean entityFullyRemovedFromTargetIndex = switch (partition) {
+		// partition-local: the owner's row and the owner's data replicated into the partition; the owners the
+		// partition holds after the removal, `null` when the entity was not one of them
+		final Bitmap ownersAfterRemoval = switch (partition) {
 			case ReducedEntityIndex referenceIndex -> {
 				final boolean removed = referenceIndex.removePrimaryKey(entityPrimaryKey);
 				if (removed) {
@@ -1330,17 +1339,140 @@ public interface ReferenceIndexMutator {
 					// the owner's data is gone from the partition, the registry follows the owner count
 					ownerRemovedFromPartition(executor, referenceSchema, referenceTypeIndex, referenceIndex);
 				}
-				yield removed;
+				yield removed ? referenceIndex.getAllPrimaryKeys() : null;
 			}
-			case VirtualReferencePartition virtual ->
-				throw ReferencePartitions.virtualPartitionOnWritePath(virtual, "referenceRemovalPerComponent");
+			// TODO JNO - remove at the end of #1615 (the arm stays, `requireWrittenVirtually` loses its condition)
+			case VirtualReferencePartition virtual -> {
+				ownerLeftVirtualPartition(
+					executor, referenceSchema, referenceTypeIndex,
+					requireWrittenVirtually(executor, referenceSchema, virtual, "referenceRemovalPerComponent"),
+					entityPrimaryKey
+				);
+				// a virtual partition has one owner, so it holds none once that owner has left - not the owner its
+				// handle still names
+				yield EmptyBitmap.INSTANCE;
+			}
 		};
 		// the symmetric 1 -> 0 boundary; see the insert counterpart
-		if (entityFullyRemovedFromTargetIndex) {
+		if (ownersAfterRemoval != null) {
 			recordOwnerLeftReducedIndex(
-				executor, referenceSchema, partition.getPrimaryKey(), partition.getAllPrimaryKeys(), entityPrimaryKey
+				executor, referenceSchema, partition.getPrimaryKey(), ownersAfterRemoval, entityPrimaryKey
 			);
 		}
+	}
+
+	// TODO JNO - remove at the end of #1615 (the probe call and the condition of `requireWrittenVirtually` only)
+	/**
+	 * Brings an owner into a partition represented by its registry row only - the virtual arm of the partition-local
+	 * half of a reference insertion. Three cases, by the partition's row:
+	 *
+	 * - **no row** - the partition is new, or its last owner left it within the running root mutation, and the owner
+	 *   is its first one (0 -> 1): the row is registered for the owner first, as the materialized arm registers it
+	 *   before the owner's data is replicated, and filled with what a partition of a reference indexed for filtering
+	 *   holds of its owner (see {@link #populateFilteringPartitionWithOwner}) - from the locales the owner had before
+	 *   the running mutation, which its own finalization moves to the locales it has after it, exactly as it moves
+	 *   every other partition of the owner;
+	 * - **a row of the owner** - the owner is in the partition already, through another reference of the same key, and
+	 *   nothing is written, as the materialized arm writes nothing for an owner the partition holds;
+	 * - **a row of another owner** - the partition would gain its second owner, which needs its index object; that is
+	 *   refused.
+	 *
+	 * @param executor                    the mutation executor writing as the owner
+	 * @param referenceSchema             the schema of the reference
+	 * @param referenceTypeIndex          the `REFERENCED_ENTITY_TYPE` index of the reference, carrying the registry
+	 * @param partition                   the virtual partition the owner enters, naming the owner when it has no row
+	 * @param referenceKey                the reference key whose attributes are replicated into the partition
+	 * @param entityPrimaryKey            the primary key of the owner
+	 * @param existingDataSupplierFactory factory supplying the owner's existing data
+	 * @return TRUE when the owner entered the partition, FALSE when the partition held it already
+	 * @throws GenericEvitaInternalError when the partition's row names another owner, or the handle of a partition
+	 *                                   without a row names another owner than the entering one
+	 */
+	private static boolean ownerEnteredVirtualPartition(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
+		@Nonnull VirtualReferencePartition partition,
+		@Nonnull ReferenceKey referenceKey,
+		int entityPrimaryKey,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
+	) {
+		final int partitionPrimaryKey = partition.getPrimaryKey();
+		final VirtualReferencePartitionIndex registry = referenceTypeIndex.getVirtualReferencePartitionIndex();
+		final OptionalLong row = registry.getPartitionOwner(partitionPrimaryKey);
+		if (row.isPresent()) {
+			final int rowOwner = NumberUtils.unpackHigh(row.getAsLong());
+			if (rowOwner == entityPrimaryKey) {
+				return false;
+			}
+			throw new GenericEvitaInternalError(
+				"Entity " + entityPrimaryKey + " enters partition " + partitionPrimaryKey + " `" +
+					partition.getIndexKey() + "` owned by entity " + rowOwner + " only - a partition without an " +
+					"index object cannot gain a second owner yet!"
+			);
+		}
+		isPremiseValid(
+			partition.ownerPrimaryKey() == entityPrimaryKey,
+			() -> "Partition " + partitionPrimaryKey + " `" + partition.getIndexKey() + "` has no row, but its " +
+				"handle names entity " + partition.ownerPrimaryKey() + " rather than the entering entity " +
+				entityPrimaryKey + "!"
+		);
+		// the row first - the population below mirrors every value into it, and only into a row of the owner
+		VirtualReferencePartitionWriter.partitionEntered(
+			registry, partitionPrimaryKey, entityPrimaryKey, partition.getRepresentativeReferenceKey()
+		);
+		// TODO JNO - remove at the end of #1615
+		executor.getVirtualReferencePartitionMutation().transitionPassed(
+			TransitionStage.ENTERED, referenceSchema.getName(), partition.getIndexKey().scope(), partitionPrimaryKey
+		);
+		populateFilteringPartitionWithOwner(
+			executor, partition, referenceSchema,
+			new RepresentativeReferenceKey(
+				referenceKey, partition.getRepresentativeReferenceKey().representativeAttributeValues()
+			),
+			true, existingDataSupplierFactory
+		);
+		return true;
+	}
+
+	// TODO JNO - remove at the end of #1615 (the probe call and the condition of `requireWrittenVirtually` only)
+	/**
+	 * Takes the last owner out of a partition represented by its registry row only - the virtual arm of the
+	 * partition-local half of a reference removal (1 -> 0). The row is dropped together with every sort value and
+	 * chain predecessor the registry holds of the partition, and the primary key is reserved for an owner entering a
+	 * partition of the same key within the running root mutation, as the materialized arm leaves its emptied index
+	 * object in place until the root mutation sweeps it.
+	 *
+	 * @param executor           the mutation executor writing as the owner
+	 * @param referenceSchema    the schema of the reference
+	 * @param referenceTypeIndex the `REFERENCED_ENTITY_TYPE` index of the reference, carrying the registry
+	 * @param partition          the virtual partition the owner leaves
+	 * @param entityPrimaryKey   the primary key of the owner
+	 * @throws GenericEvitaInternalError when the partition has no row, or its row names another owner
+	 */
+	private static void ownerLeftVirtualPartition(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
+		@Nonnull VirtualReferencePartition partition,
+		int entityPrimaryKey
+	) {
+		final int partitionPrimaryKey = partition.getPrimaryKey();
+		final VirtualReferencePartitionIndex registry = referenceTypeIndex.getVirtualReferencePartitionIndex();
+		final OptionalLong row = registry.getPartitionOwner(partitionPrimaryKey);
+		isPremiseValid(
+			row.isPresent() && NumberUtils.unpackHigh(row.getAsLong()) == entityPrimaryKey,
+			() -> "Entity " + entityPrimaryKey + " leaves partition " + partitionPrimaryKey + " `" +
+				partition.getIndexKey() + "`, whose registry row " +
+				(row.isPresent() ? "names entity " + NumberUtils.unpackHigh(row.getAsLong()) : "does not exist") +
+				" - only the only owner of a partition without an index object can leave it!"
+		);
+		VirtualReferencePartitionWriter.partitionVacated(registry, partitionPrimaryKey);
+		// TODO JNO - remove at the end of #1615
+		executor.getVirtualReferencePartitionMutation().transitionPassed(
+			TransitionStage.VACATED, referenceSchema.getName(), partition.getIndexKey().scope(), partitionPrimaryKey
+		);
+		executor.reserveVacatedPartition(partition);
 	}
 
 	/**
@@ -3070,21 +3202,48 @@ public interface ReferenceIndexMutator {
 			partitionIndex.insertPrimaryKeyIfMissing(ownerPrimaryKey),
 			() -> "Partition " + partitionIndex.getPrimaryKey() + " already has the owner " + ownerPrimaryKey + "!"
 		);
-		final RepresentativeReferenceKey representativeReferenceKey = partition.getRepresentativeReferenceKey();
-		final ExistingDataSupplierFactory existingDataSupplierFactory =
-			ownerExecutor.getStoragePartExistingDataFactory();
-		// the write set of `indexAllExistingData` for a partition of a reference indexed for filtering only: its
-		// facets, prices and entity attributes are indexed only in partitions of references indexed for partitioning
+		populateFilteringPartitionWithOwner(
+			ownerExecutor, partitionIndex, referenceSchema, partition.getRepresentativeReferenceKey(), false,
+			ownerExecutor.getStoragePartExistingDataFactory()
+		);
+	}
+
+	/**
+	 * Writes what a partition of a reference indexed for filtering only holds of one owner into the partition - the
+	 * write set of {@link #indexAllExistingData} for such a reference, whose facets, prices and entity attributes are
+	 * indexed only in partitions of references indexed for partitioning: the attributes of the owner's reference, the
+	 * sortable attribute compounds of the reference, and the localized compounds of every locale of the owner's
+	 * attributes. The owner's primary key is not written - the caller has entered it already, into the index object or
+	 * as the partition's registry row.
+	 *
+	 * @param executor                    the executor writing as the owner
+	 * @param target                      the partition - its index object, or a virtual partition whose registry row
+	 *                                    alone receives the values
+	 * @param referenceSchema             the reference the partition belongs to
+	 * @param representativeReferenceKey  the owner's reference whose attributes are written, with the representative
+	 *                                    attribute values of the partition
+	 * @param localesBeforeMutation       TRUE to write the locales the owner had before the running mutation, FALSE to
+	 *                                    write the locales its body has now
+	 * @param existingDataSupplierFactory factory supplying the owner's existing data
+	 */
+	private static void populateFilteringPartitionWithOwner(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull IndexWriteTarget target,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey,
+		boolean localesBeforeMutation,
+		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
+	) {
 		indexReferenceAttributes(
-			ownerExecutor, referenceSchema, partitionIndex, representativeReferenceKey, existingDataSupplierFactory
+			executor, referenceSchema, target, representativeReferenceKey, existingDataSupplierFactory
 		);
 		applyReferenceSortableAttributeCompoundSuite(
-			ownerExecutor, referenceSchema, partitionIndex, representativeReferenceKey, null,
+			executor, referenceSchema, target, representativeReferenceKey, null,
 			existingDataSupplierFactory, AttributeIndexMutator::insertInitialSuiteOfSortableAttributeCompounds
 		);
 		indexAllLocales(
-			ownerExecutor, ownerExecutor.getEntitySchema(), partitionIndex, representativeReferenceKey.referenceKey(),
-			ownerPrimaryKey, false, existingDataSupplierFactory
+			executor, executor.getEntitySchema(), target, representativeReferenceKey.referenceKey(),
+			executor.getOwnerPrimaryKey(), localesBeforeMutation, existingDataSupplierFactory
 		);
 	}
 

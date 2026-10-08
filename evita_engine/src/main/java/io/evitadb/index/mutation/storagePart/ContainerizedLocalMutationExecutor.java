@@ -187,6 +187,12 @@ public final class ContainerizedLocalMutationExecutor
 	 * {@link ReferencePartitions}).
 	 */
 	private final boolean virtualCatalog;
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Told about every fetch of the references part of an entity other than this executor's own from the storage - the
+	 * work the operation-count gates of the write path count.
+	 */
+	@Nonnull private final Runnable foreignReferencesFetchRecorder;
 	private final DataStoreMemoryBuffer dataStoreUpdater;
 	@Getter @Setter private boolean trapChanges;
 	private Scope initialEntityScope;
@@ -434,6 +440,10 @@ public final class ContainerizedLocalMutationExecutor
 		@Nonnull DataStoreReader dataStoreReader,
 		int entityPrimaryKey
 	) {
+		// TODO JNO - remove at the end of #1615
+		if (dataStoreReader != this.dataStoreReader || entityPrimaryKey != this.entityPrimaryKey) {
+			this.foreignReferencesFetchRecorder.run();
+		}
 		return ReferenceDecodeCoverageContext.executeWithCoverage(
 			null,
 			() -> dataStoreReader.fetch(
@@ -1046,6 +1056,8 @@ public final class ContainerizedLocalMutationExecutor
 	 * @param priceInternalIdSupplier supplier of new internal price ids
 	 * @param entityRemovedEntirely   true when the mutation removes the entity
 	 * @param virtualCatalog          true when the catalog represents its single-owner reference partitions virtually
+	 * @param foreignReferencesFetchRecorder told about every fetch of the references part of another entity from the
+	 *                                       storage
 	 */
 	public ContainerizedLocalMutationExecutor(
 		@Nonnull DataStoreMemoryBuffer dataStoreUpdater,
@@ -1059,7 +1071,9 @@ public final class ContainerizedLocalMutationExecutor
 		@Nonnull InFlightEntityAccessorLookup inFlightAccessorLookup,
 		@Nonnull IntSupplier priceInternalIdSupplier,
 		boolean entityRemovedEntirely,
-		boolean virtualCatalog
+		boolean virtualCatalog,
+		// TODO JNO - remove at the end of #1615
+		@Nonnull Runnable foreignReferencesFetchRecorder
 	) {
 		this.catalogVersion = catalogVersion;
 		this.dataStoreReader = dataStoreReader;
@@ -1076,6 +1090,7 @@ public final class ContainerizedLocalMutationExecutor
 		this.requiresExisting = requiresExisting;
 		this.entityRemovedEntirely = entityRemovedEntirely;
 		this.virtualCatalog = virtualCatalog;
+		this.foreignReferencesFetchRecorder = foreignReferencesFetchRecorder;
 	}
 
 	/**

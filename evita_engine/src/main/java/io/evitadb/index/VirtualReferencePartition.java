@@ -42,9 +42,10 @@ import javax.annotation.Nonnull;
  * to the referenced-type entity index of that moment, so a query that resolved it keeps reading the snapshot it planned
  * against. It is created by the read resolvers that honour the read switch of the collection (see
  * {@link ReferencePartitions}) and by the write acquisition of a mutation that writes the single-owner partitions of
- * the reference virtually, for a partition that has its registry row and no index object. A write path that takes a
- * virtual partition writes what the partition holds - its sort values and chain predecessors - into the registry row
- * only, and leaves out what a partition of a reference indexed for filtering keeps nowhere (language records, facets);
+ * the reference virtually, for a partition that has its registry row and no index object, or that an owner is about
+ * to enter while it has no row yet. A write path that takes a virtual partition writes what the partition holds - its
+ * only owner, its sort values and chain predecessors - into the registry row only, and leaves out what a partition of
+ * a reference indexed for filtering keeps nowhere (language records, facets);
  * every other exhaustive `switch` over {@link ReferencePartition} on a write path rejects it, and so does every write
  * path of a mutation that does not write the partition virtually.
  *
