@@ -36,7 +36,6 @@ import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.cdc.ChangeCatalogCaptureStatisticsEvent;
 import io.evitadb.core.metric.event.cdc.ChangeCatalogCaptureStatisticsPerAreaEvent;
 import io.evitadb.core.metric.event.cdc.ChangeCatalogCaptureStatisticsPerEntityTypeEvent;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.IOUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -50,6 +49,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * Implementation of the {@link ChangeObserverContract} that observes and captures changes to a catalog
@@ -115,6 +117,13 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 	 * Whether this observer is still active and can fire new events.
 	 */
 	private final AtomicBoolean active = new AtomicBoolean(true);
+	/**
+	 * Orders the creation of a shared publisher against {@link #close()}. A creation holds the read lock from its
+	 * {@link #active} check until the publisher is in {@link #uniquePublishers}; the close holds the write lock from
+	 * deactivation to the end of its sweep. So a publisher is either created before the sweep, which then closes it,
+	 * or refused - never created behind the sweep's back, where nothing would ever feed or close it.
+	 */
+	private final ReadWriteLock lifecycleLock = new ReentrantReadWriteLock();
 
 	public CatalogChangeObserver(
 		@Nonnull ChangeDataCaptureOptions cdcOptions,
@@ -165,11 +174,11 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 	@Override
 	public ChangeCapturePublisher<ChangeCatalogCapture> registerObserver(@Nonnull ChangeCatalogCaptureRequest request) {
 		assertActive();
+		// absent only once this observer has been closed, which may have happened since the check above
 		final Catalog theCatalog = this.currentCatalog.get();
-		Assert.isPremiseValid(
-			theCatalog != null,
-			"Catalog must be attached to the observer before registering a new publisher!"
-		);
+		if (theCatalog == null) {
+			throw new InstanceTerminatedException("catalog change observer");
+		}
 		// capture only the catalog name (a String) for logging purposes - capturing the whole
 		// `theCatalog` instance in the lambdas below (especially the long-lived `onClose` callback
 		// stored in the shared publisher) would pin the entire catalog snapshot in memory for the
@@ -180,57 +189,21 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 		// This way we can reuse predicate and caching logic for all subscribers with the same criteria.
 		// Specifics related to the start version and index, and provided content are handled in the isolated publisher.
 		final ChangeCatalogCapturePublisher changeCatalogCapturePublisher = new ChangeCatalogCapturePublisher(
-			// create or reuse the shared publisher
-			// `compute` rather than `computeIfAbsent`: a publisher that has already been retired must count as
-			// absent. `close()` removes itself from this map through its `onClose` hook, and that runs at the tail
-			// of the close - so between the moment a publisher marks itself closed and the moment it is forgotten
-			// here, `computeIfAbsent` would hand the closed instance straight back. A caller renewing after a
-			// refused registration would then be refused a second time by `assertActive()`, for no reason other
-			// than losing that race, which is exactly what the renewal exists to prevent.
-			criteriaBundle -> this.uniquePublishers.compute(
-				criteriaBundle,
-				(cb, existingPublisher) -> {
-					if (existingPublisher != null && !existingPublisher.isClosed()) {
-						return existingPublisher;
-					}
-					// this factory outlives the registration - the facade calls it again to renew a retired shared
-					// publisher, possibly long after this observer was closed together with its catalog. A closed
-					// observer has no catalog to serve, and a publisher created by it would never be told about one
-					final Catalog catalogToServe = this.currentCatalog.get();
-					if (!this.active.get() || catalogToServe == null) {
-						throw new InstanceTerminatedException("catalog change observer");
-					}
-					log.info(
-						"Creating new shared CDC publisher for catalog '{}' and criteria: {}",
-						catalogName, cb
-					);
-					return new ChangeCatalogCaptureSharedPublisher(
-						catalogToServe,
-						this.cdcExecutor,
-						this.cdcOptions.recentEventsCacheLimit(),
-						this.cdcOptions.subscriberBufferSize(),
-						cb,
-						this::updateStatistics,
-						closingPublisher -> {
-							log.info(
-								"Closing shared CDC publisher for catalog '{}' and criteria: {}",
-								catalogName, cb
-							);
-							this.uniquePublishers.remove(cb, closingPublisher);
-						}
-					);
-				}
-			),
+			criteriaBundle -> getOrCreateSharedPublisher(criteriaBundle, catalogName),
 			request
 		);
 
 		// when the shared publisher internal catalog version differs from the current one,
 		// this may happen due to a race condition between this method and set current catalog call
-		if (this.currentCatalog.get().getVersion() != theCatalog.getVersion()) {
+		final Catalog theCurrentCatalog = this.currentCatalog.get();
+		if (theCurrentCatalog == null) {
+			throw new InstanceTerminatedException("catalog change observer");
+		}
+		if (theCurrentCatalog.getVersion() != theCatalog.getVersion()) {
 			// notify the shared publisher about the current catalog state
 			changeCatalogCapturePublisher
 				.getSharedPublisher()
-				.notifyCatalogPresentInLiveView(this.currentCatalog.get());
+				.notifyCatalogPresentInLiveView(theCurrentCatalog);
 		}
 
 		return changeCatalogCapturePublisher;
@@ -258,13 +231,86 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 
 	@Override
 	public void close() {
-		if (this.active.compareAndSet(true, false)) {
-			this.uniquePublishers
-				.values()
-				.forEach(it -> IOUtils.closeQuietly(it::close));
-			this.uniquePublishers.clear();
-			this.currentCatalog.set(null);
-			IOUtils.closeQuietly(this.cleaner::close);
+		// the write lock waits out every shared publisher creation already past its `active` check, so the sweep
+		// below sees each of them - see `lifecycleLock`
+		final Lock closingLock = this.lifecycleLock.writeLock();
+		closingLock.lock();
+		try {
+			if (this.active.compareAndSet(true, false)) {
+				this.uniquePublishers
+					.values()
+					.forEach(it -> IOUtils.closeQuietly(it::close));
+				this.uniquePublishers.clear();
+				this.currentCatalog.set(null);
+				IOUtils.closeQuietly(this.cleaner::close);
+			}
+		} finally {
+			closingLock.unlock();
+		}
+	}
+
+	/**
+	 * Returns the live shared publisher for the criteria, creating it when there is none.
+	 *
+	 * This is the factory every {@link ChangeCatalogCapturePublisher} facade calls - lazily, when it first needs one,
+	 * and again whenever it finds its shared publisher retired - so it may run long after the registration, and
+	 * after this observer was closed together with its catalog. It runs under the read lock of {@link #lifecycleLock}
+	 * for that reason: the `active` check and the insertion into the map must not be split by {@link #close()}.
+	 *
+	 * @param criteriaBundle the criteria the shared publisher filters by
+	 * @param catalogName    the name of the catalog, for logging only
+	 * @return the live shared publisher for the criteria
+	 * @throws InstanceTerminatedException when this observer has been closed
+	 */
+	@Nonnull
+	private ChangeCatalogCaptureSharedPublisher getOrCreateSharedPublisher(
+		@Nonnull ChangeCatalogCriteriaBundle criteriaBundle,
+		@Nonnull String catalogName
+	) {
+		final Lock creationLock = this.lifecycleLock.readLock();
+		creationLock.lock();
+		try {
+			// `compute` rather than `computeIfAbsent`: a publisher that has already been retired must count as
+			// absent. `close()` removes itself from this map through its `onClose` hook, and that runs at the tail
+			// of the close - so between the moment a publisher marks itself closed and the moment it is forgotten
+			// here, `computeIfAbsent` would hand the closed instance straight back. A caller renewing after a
+			// refused registration would then be refused a second time by `assertActive()`, for no reason other
+			// than losing that race, which is exactly what the renewal exists to prevent.
+			return this.uniquePublishers.compute(
+				criteriaBundle,
+				(cb, existingPublisher) -> {
+					if (existingPublisher != null && !existingPublisher.isClosed()) {
+						return existingPublisher;
+					}
+					// a closed observer has no catalog to serve, and a publisher created by it would never be told
+					// about one
+					final Catalog catalogToServe = this.currentCatalog.get();
+					if (!this.active.get() || catalogToServe == null) {
+						throw new InstanceTerminatedException("catalog change observer");
+					}
+					log.info(
+						"Creating new shared CDC publisher for catalog '{}' and criteria: {}",
+						catalogName, cb
+					);
+					return new ChangeCatalogCaptureSharedPublisher(
+						catalogToServe,
+						this.cdcExecutor,
+						this.cdcOptions.recentEventsCacheLimit(),
+						this.cdcOptions.subscriberBufferSize(),
+						cb,
+						this::updateStatistics,
+						closingPublisher -> {
+							log.info(
+								"Closing shared CDC publisher for catalog '{}' and criteria: {}",
+								catalogName, cb
+							);
+							this.uniquePublishers.remove(cb, closingPublisher);
+						}
+					);
+				}
+			);
+		} finally {
+			creationLock.unlock();
 		}
 	}
 
