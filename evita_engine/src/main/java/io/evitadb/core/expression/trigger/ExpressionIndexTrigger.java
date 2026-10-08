@@ -186,6 +186,9 @@ public interface ExpressionIndexTrigger {
 	 * - {@link DependencyType#REFERENCED_ENTITY_ATTRIBUTE}: adds
 	 *   `entityHaving(entityPrimaryKeyInSet(mutatedPK))` within the `referenceHaving` clause
 	 *
+	 * A referenced entity the condition does not read is pinned only when the condition reads the reference's
+	 * own attributes - see `ReevaluateExpressionExecutor#parameterize`.
+	 *
 	 * For local-only triggers ({@link #getDependencyType()} returns `null`), this method throws
 	 * {@link UnsupportedOperationException} — local-only expressions are evaluated exclusively via
 	 * {@link #evaluate(int, ReferenceKey, WritableEntityStorageContainerAccessor, Function)}.
