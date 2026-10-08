@@ -1,11 +1,11 @@
 ---
 title: Every requested scope is planned, checked and counted as if it were queried alone, and the facet summary predicts exactly what facetHaving selects
-date: 2026-10-06
-updated: 2026-10-07 05:40
+date: 2026-10-08
+updated: 2026-10-08 10:31
 status: accepted
 kind: fix
 issues: [1681, 1686, 1695]
-prs: []
+prs: [1720]
 areas: [evita_engine/core/query, evita_engine/core/query/indexSelection, evita_engine/core/query/filter, evita_engine/core/query/filter/translator/behavioral, evita_engine/core/query/filter/translator/facet, evita_engine/core/query/filter/translator/hierarchy, evita_engine/core/query/filter/translator/reference, evita_engine/core/query/algebra/facet, evita_engine/core/query/extraResult/translator/reference, evita_engine/core/query/extraResult/translator/hierarchyStatistics, evita_engine/core/query/sort, evita_engine/core/query/fetch, evita_engine/core/collection, evita_engine/index/facet, evita_engine/index/hierarchy/predicate, evita_engine/index/usage, evita_query/api/query, evita_query/api/query/require, evita_api/api/requestResponse/extraResult, evita_external_api/evita_external_api_core, evita_external_api/evita_external_api_grpc, documentation/user/en/query]
 supersedes: []
 superseded-by: []
@@ -79,7 +79,7 @@ Upgrade notes with the user-visible consequences are on the issues themselves (`
 | Date | Decision | Why | Detail |
 |------|----------|-----|--------|
 | 2026-10-01 | A candidate built for fewer scopes than the query requests carries the correctness obstacle `PARTIAL_SCOPE_COVERAGE`, stays registered, and is never registered empty ("expanded A") | The disjunction of its indexes is the answer of the container's branch, not of the query. The constraint's own translator still finds it, and single-scope queries keep the reduced plan | `TargetIndexes.EligibilityObstacle#PARTIAL_SCOPE_COVERAGE`, `IndexSelectionVisitor` |
-| 2026-10-01 | Nested `inScope` of one kind within one evaluation context is refused at planning time, on the final query tree | A different scope is contradictory and the same scope redundant. Checking the final tree catches copies made by `getCopyWithNewChildren`, and stored traffic recordings of the shape still deserialize | `QueryUtils#assertNoNestedScopeContainers` from `QueryPlanner#planQuery`, `EntityCollection#getEntity` / `#enrichEntity` and the mutations that return the entity (checked before the mutation) |
+| 2026-10-01 | Nested `inScope` of one kind within one evaluation context is refused at planning time, on the final query tree | A different scope is contradictory and the same scope redundant. Checking the final tree catches copies made by `getCopyWithNewChildren`, and stored traffic recordings of the shape still deserialize | `QueryUtils#assertNoNestedScopeContainers` (over `InScopeContainer`) from `QueryPlanner#planQuery`, `EntityCollection#getEntity` / `#enrichEntity` and the mutations that return the entity (checked before the mutation) |
 | 2026-10-01 | A candidate is found by constraint identity **and** the processing scopes it was built for (#1686). Hierarchy roots are recorded per occurrence and read for a scope as exact, then covering, never non-covering | Identity alone returns the first of several per-scope candidates | `TargetIndexes#represents`, `QueryPlanningContext#getHierarchyFilterForScope` |
 | 2026-10-01 | Hierarchy statistics per scope: a scope no `hierarchyWithin` occurrence covers is computed as if unfiltered (its `parents` is empty). A covering occurrence that selects no node empties `children` / `parents` / `siblings`, while `fromRoot` / `fromNode` keep computing | The pivot-describing statistics have nothing to describe. `fromRoot` / `fromNode` are pivot-independent by contract (`hierarchy.md`), as a single-scope own-hierarchy query already computes them | Hierarchy statistics computers |
 | 2026-10-01 | A hierarchy filter over several scopes resolves its parent nodes in each scope's own tree, exactly as a query over that scope alone. The nodes of all scopes are united and paired with the owners of every queried scope ("semantics B", owner) | An archived product under a live category must keep matching over both scopes (`EvitaArchivingTest`) | `HierarchyWithinTranslator`, `HierarchyWithinRootTranslator`, `AbstractHierarchyTranslator` |
@@ -424,7 +424,9 @@ The remaining time is not yet attributed; see *Consequences*.
   `solve/render-products-in-category.md`, and select nothing alone. The fix is in the data (reference a value under a
   single group); the upgrade note of #1695 says so.
 - **#1698 (filed, enhancement).** `WITH_ALL_DIFFERENT_GROUPS`, an OR across references, is the place for the
-  semantics rejected above.
+  semantics rejected above. The reference summary documentation (`query/requirements/reference.md`, below the
+  default calculation rules) sends readers who need it to vote there - demand gathered on the issue is the trigger
+  to design it.
 - **Not backported.** The owner decided on 2026-10-01 not to backport #1681. The release lines keep the defect,
   with the same code since #677. The line of work later grew into result-changing behaviour and new refusals (see
   the upgrade notes), so any backport would have to be cut from the first #1681 commits alone.
@@ -498,3 +500,10 @@ The remaining time is not yet attributed; see *Consequences*.
   owner kept "R" and the example output was updated. PR #1720 opened; dev merged in.
 - **2026-10-07** — Timed A/B of the final tree against dev, 03:59–05:26 CEST: selection shapes at parity, the two
   NO_SELECTION shapes still about 5 % slower.
+- **2026-10-08** — Owner review of PR #1720. The nested-`inScope` check now walks one `InScopeContainer` instead of
+  three per-kind slots; a lazy check where translators resolve the active scope was declined, because translators
+  skip the children of a scope they do not process and nested fetch filters are planned only over data, which would
+  make the refusal data-dependent again. The construction tests were renamed to say the rejection is deferred to
+  execution. `FacetReferenceIndex#getGroupsOfFacet` keeps returning a list: it runs only behind
+  `isReferencedOnlyUnder`, and its content equality keys the formula-shape signature. The record takes the date of
+  the merge of PR #1720.

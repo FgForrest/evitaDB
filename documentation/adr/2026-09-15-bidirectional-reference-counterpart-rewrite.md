@@ -9,7 +9,7 @@ prs: [1548, 1568]
 areas: [evita_engine/src/main/java/io/evitadb/core/query/filter/translator/reference, evita_engine/src/main/java/io/evitadb/core/query/algebra/reference, evita_engine/src/main/java/io/evitadb/core/query/indexSelection, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/attribute, evita_engine/src/main/java/io/evitadb/core/query/QueryPlanningContext.java]
 supersedes: []
 superseded-by: []
-relates: [2026-09-11-reference-name-narrowing, 2026-09-12-committed-snapshot-provenance-for-enrichment, 2026-09-13-per-entity-io-statistics-attribution, 2026-09-15-non-collapsible-formula-marker, 2026-09-17-row-scoped-reference-having-body, 2026-09-23-pick-first-reference-ordering-from-selection, 2026-09-25-attribute-is-null-in-reference-having, 2026-09-28-indexed-reference-scope-requires-entity-component, 2026-10-06-scope-faithful-planning-and-facet-summary-parity]
+relates: [2026-09-11-reference-name-narrowing, 2026-09-12-committed-snapshot-provenance-for-enrichment, 2026-09-13-per-entity-io-statistics-attribution, 2026-09-15-non-collapsible-formula-marker, 2026-09-17-row-scoped-reference-having-body, 2026-09-23-pick-first-reference-ordering-from-selection, 2026-09-25-attribute-is-null-in-reference-having, 2026-09-28-indexed-reference-scope-requires-entity-component, 2026-10-08-scope-faithful-planning-and-facet-summary-parity]
 ---
 
 # Answer a `referenceHaving` from whichever end of a bidirectional reference is cheaper
@@ -577,7 +577,7 @@ one owner can hold two rows of the *same pair* carrying different values — and
   its rejected alternative and the carrier inventory.
 - Issue #37 — the cache-invalidation invariant this change had to satisfy, and the gap between
   `CacheSupervisor`'s documented design and `CacheEden`'s implementation.
-- `2026-10-06-scope-faithful-planning-and-facet-summary-parity` — when the counterpart answers, the rewrite records the owner-side
+- `2026-10-08-scope-faithful-planning-and-facet-summary-parity` — when the counterpart answers, the rewrite records the owner-side
   capabilities (`BidirectionalReferenceRewriter#checkAttributeConstraintsOnOwnerSide`) the skipped owner-side
   translation would have recorded, so schema-capability counts do not depend on whether the rewrite is taken.
 
