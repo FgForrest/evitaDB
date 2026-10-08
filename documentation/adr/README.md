@@ -33,6 +33,7 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-10-08 | [Restore the content of a trapped storage part on rollback from a pre-image journalled when the part is read inside a savepoint](2026-10-08-trapped-storage-part-content-pre-images.md) | fix | accepted | #1678, PR #1724 |
 | 2026-10-06 | [Unique indexes keep no record-id set, and a unique value occurs once whatever the locale](2026-10-06-unique-indexes-keep-no-record-set.md) | refactor | accepted | #1658, PR #1676 |
 | 2026-10-01 | [A CDC subscriber catching up from the WAL is served everything it is owed or told why not](2026-10-01-cdc-catch-up-delivers-everything-owed-or-fails.md) | fix | accepted | #1687, #1446, #1690, PR #1688 |
 | 2026-09-28 | [Every scope a reference is indexed in must carry REFERENCED_ENTITY; a stored catalog lacking it loads, and every query and schema change over it refuses loudly](2026-09-28-indexed-reference-scope-requires-entity-component.md) | fix | accepted | #1601, #1583, PR #1657 |
