@@ -1732,8 +1732,11 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 *
 	 * - in the unique index of the catalog of that scope, where the attribute is a catalog attribute globally unique
 	 *   there - the only lookup available when the queried collection is not known. That index spans every collection,
-	 *   so when the query targets one collection, an entity of another collection holding the value is no match: its
-	 *   primary key would be read as a key of the queried collection, and the scope is treated as not holding the value;
+	 *   so when the filter targets one collection, an entity of another collection holding the value is no match: its
+	 *   primary key would be read as a key of the targeted collection, and the scope is treated as not holding the
+	 *   value. The targeted collection is the one of the {@link ProcessingScope} - the referenced collection for a
+	 *   nested filter planned on this query context, such as the node filter of `hierarchyWithin`, and the queried one
+	 *   otherwise;
 	 * - otherwise in the unique indexes of the entity indexes of that scope, where the attribute is unique within the
 	 *   collection there;
 	 * - a scope declaring neither is passed over.
@@ -1763,6 +1766,11 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			Arrays.stream(this.queryContext.getEvitaRequest().getScopesAsArray())
 				.filter(allowedScopes::contains)
 				.toArray(Scope[]::new);
+		// the collection the filter is planned for - a nested filter planned on this query context (the node filter of
+		// a `hierarchyWithin`, say) targets the referenced collection, not the queried one
+		final String targetEntityType = ofNullable(getProcessingScope().getEntitySchema())
+			.map(EntitySchemaContract::getName)
+			.orElse(isEntityTypeKnown() ? getEntityType() : null);
 		for (Scope scope : scopesInOrder) {
 			final Formula answer;
 			if (attributeDefinition instanceof GlobalAttributeSchemaContract globalAttributeSchema &&
@@ -1773,11 +1781,11 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 					.map(catalogIndex -> catalogIndex.getGlobalUniqueIndex(globalAttributeSchema, getLocale()))
 					.flatMap(
 						globalUniqueIndex -> globalLookup.apply(globalUniqueIndex)
-							.filter(holder -> !isEntityTypeKnown() || holder.type().equals(getEntityType()))
+							.filter(holder -> targetEntityType == null || holder.type().equals(targetEntityType))
 							.map(
 								holder -> (Formula) new MultipleEntityFormula(
 									new long[]{globalUniqueIndex.getId()},
-									translateEntityReference(holder)
+									toPrimaryKeyOfTargetCollection(holder, targetEntityType)
 								)
 							)
 					)
@@ -1808,6 +1816,31 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			}
 		}
 		return EmptyFormula.INSTANCE;
+	}
+
+	/**
+	 * Returns the key under which the entity holding a globally unique value enters the formula tree of the
+	 * collection the filter is planned for.
+	 *
+	 * In a filter over the queried collection - or over no collection at all - the entity goes through
+	 * {@link QueryPlanningContext#translateEntityReference}, which masks keys of several collections apart and
+	 * remembers the reference, so the matched entity later takes the locale of the value. A nested filter over another
+	 * collection is planned on the same query context, yet its result is a set of keys of that collection only: the key
+	 * is used as is, because registering it would pair a key of the queried collection with another collection's
+	 * entity.
+	 *
+	 * @param holder           the entity holding the value, already known to belong to `targetEntityType`
+	 * @param targetEntityType the collection the filter is planned for, or NULL when the query targets no collection
+	 * @return bitmap with the single key of the holder
+	 */
+	@Nonnull
+	private Bitmap toPrimaryKeyOfTargetCollection(
+		@Nonnull EntityReferenceWithLocale holder,
+		@Nullable String targetEntityType
+	) {
+		return targetEntityType == null || (isEntityTypeKnown() && targetEntityType.equals(getEntityType())) ?
+			translateEntityReference(holder) :
+			new BaseBitmap(holder.primaryKey());
 	}
 
 	/**
