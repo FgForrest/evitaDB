@@ -53,6 +53,7 @@ import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Objects;
 import java.util.Set;
@@ -81,11 +82,21 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 			return translateForVirtualPartitionRows(inScope, virtualPartitionRows, filterByVisitor);
 		}
 
+		// a nested evaluation may process fewer scopes than the query requested - the parent filter of a hierarchy
+		// constraint is resolved in the tree of one scope at a time - and the container must restrict only those
+		final Set<Scope> processingScopes = filterByVisitor.getProcessingScope().getScopes();
 		filterByVisitor.registerFormulaPostProcessorBefore(
 			InScopeFormulaPostProcessor.class,
-			() -> new InScopeFormulaPostProcessor(requestedScopes, filterByVisitor::getSuperSetFormula),
+			() -> new InScopeFormulaPostProcessor(processingScopes, filterByVisitor::getSuperSetFormula),
 			EntityPrimaryKeyInSetTranslator.SuperSetMatchingPostProcessor.class
 		);
+
+		if (!processingScopes.contains(scopeToUse)) {
+			// the container restricts a scope this evaluation does not process, so it restricts nothing here - its
+			// constraints are not evaluated and the post-processor replaces it with every entity of each processed
+			// scope
+			return new ScopeContainerFormula(scopeToUse);
+		}
 
 		return filterByVisitor.getProcessingScope()
 			.doWithScope(
@@ -94,9 +105,20 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 					for (FilterConstraint innerConstraint : inScope.getChildren()) {
 						innerConstraint.accept(filterByVisitor);
 					}
+					final Formula[] collectedFormulas = filterByVisitor.getCollectedFormulasOnCurrentLevel();
+					if (Arrays.stream(collectedFormulas).noneMatch(FutureNotFormula.class::isInstance)) {
+						return new ScopeContainerFormula(scopeToUse, collectedFormulas);
+					}
+					// a negation must be resolved by the container that collects it - the levels above see this
+					// container, not the placeholder inside it - and standing alone it subtracts from every entity of
+					// the container's scope, which is all the container restricts
 					return new ScopeContainerFormula(
 						scopeToUse,
-						filterByVisitor.getCollectedFormulasOnCurrentLevel()
+						FutureNotFormula.postProcess(
+							collectedFormulas,
+							EnclosingContainerRelation.CONJUNCTION,
+							() -> filterByVisitor.getSuperSetFormula(scopeToUse)
+						)
 					);
 				}
 			);
@@ -108,8 +130,7 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 	 * of them at once, without the post-processor, which would read the type-level index of the rows' scope as the
 	 * whole answer and fill the other requested scopes with records of another kind:
 	 *
-	 * - naming the scope of the rows, the container is its children, translated in that scope, unless the route reads
-	 *   every `inScope` as unmet;
+	 * - naming the scope of the rows, the container is its children, translated in that scope;
 	 * - naming another scope, it is what the route the rows are answered for makes of a constraint confined to another
 	 *   scope - every row, or none (see {@link VirtualPartitionRows.InScopeReading}).
 	 *
@@ -128,14 +149,9 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 		@Nonnull FilterByVisitor filterByVisitor
 	) {
 		final Scope scopeToUse = inScope.getScope();
-		final InScopeReading inScopeReading = rows.getInScopeReading();
-		if (inScopeReading == InScopeReading.ALL_SCOPES_UNMET) {
-			applyLocalesToNestedQueryComparator(inScope, filterByVisitor.getProcessingScope());
-			return EmptyFormula.INSTANCE;
-		}
 		if (scopeToUse != rows.getScope()) {
 			applyLocalesToNestedQueryComparator(inScope, filterByVisitor.getProcessingScope());
-			return inScopeReading == InScopeReading.OTHER_SCOPES_MET ?
+			return rows.getInScopeReading() == InScopeReading.OTHER_SCOPES_MET ?
 				filterByVisitor.getSuperSetFormula() : EmptyFormula.INSTANCE;
 		}
 		return filterByVisitor.getProcessingScope()
@@ -265,9 +281,12 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 	@RequiredArgsConstructor
 	public static final class InScopeFormulaPostProcessor implements FormulaPostProcessor {
 		/**
-		 * The set of scopes that were requested by the input query.
+		 * The set of scopes the visitor processes when the post-processor is registered - the scopes of the query at
+		 * the top level, fewer of them in a nested evaluation narrowed to the scopes of the indexes it searches.
+		 * A branch is built for each of them and for no other: a branch of a scope the evaluation does not process
+		 * would stand for every entity of that scope, which the searched indexes do not hold.
 		 */
-		private final Set<Scope> requestedScopes;
+		private final Set<Scope> processedScopes;
 		/**
 		 * Supplier that provides the super set formula.
 		 */
@@ -286,7 +305,7 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 		@Override
 		public void visit(@Nonnull Formula formula) {
 			this.finalFormula = FormulaFactory.or(
-				this.requestedScopes.stream()
+				this.processedScopes.stream()
 					.map(
 						scope -> {
 							// if the formula is a ScopeContainerFormula and the scope matches, return the inner formulas
@@ -315,8 +334,11 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 							);
 							// if the result formula is empty - it means that for particular scope there are no constraints set
 							// we need to use super set formula instead - i.e. all entities in the scope match the "zero" constraints
+							// the container stands for the whole scope once a clone removes every constraint it holds
+							final Formula scopeSuperSet = this.superSetFormulaSupplier.apply(scope);
 							return clonedFormula == null ?
-								this.superSetFormulaSupplier.apply(scope) : new ScopeContainerFormula(scope, clonedFormula);
+								scopeSuperSet :
+								ScopeContainerFormula.restrictingScope(scope, scopeSuperSet, clonedFormula);
 						}
 					)
 					.toArray(Formula[]::new)

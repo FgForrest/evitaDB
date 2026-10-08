@@ -1338,11 +1338,12 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 	 * subscriber-version map drains to empty inside `clearUnusedDataInRingBuffer`.
 	 *
 	 * Reproduces the exact production state observed in the crash: an initialised ring buffer plus a
-	 * `versionSubscribersCount` whose only tracked version is strictly below the buffer's effective
-	 * start version. The cleanup loop removes that stale entry, emptying the map; the old code then
-	 * called {@link java.util.concurrent.ConcurrentSkipListMap#firstKey()} on the now-empty map and
-	 * threw {@link java.util.NoSuchElementException}. The fix re-reads `firstEntry()`, which returns
-	 * `null` on an empty map, so the loop terminates cleanly.
+	 * `versionSubscribersCount` whose only entry - one no subscriber tracks any more - sits strictly
+	 * below the buffer's effective start version. The cleanup removes that stale entry, emptying the map;
+	 * the old code then called {@link java.util.concurrent.ConcurrentSkipListMap#firstKey()} on the
+	 * now-empty map and threw {@link java.util.NoSuchElementException}. The cleanup now sweeps the head of
+	 * the map without asking it for a first key, so it terminates cleanly. An entry with a live count is a
+	 * lagging subscriber and is kept.
 	 *
 	 * @param evita       the Evita database instance with the test dataset already loaded
 	 * @param brandSchema the brand schema created during test setup
@@ -1380,40 +1381,113 @@ class CatalogChangeObserverTest implements EvitaTestSupport {
 				}
 			);
 
-			// locate the shared publisher backing this subscription (the only active one with an
-			// initialised ring buffer)
-			final Map<ChangeCatalogCriteriaBundle, ChangeCatalogCaptureSharedPublisher> uniquePublishers =
-				getNonnullFieldValue(tested, "uniquePublishers");
-			ChangeCatalogCaptureSharedPublisher sharedPublisher = null;
-			ChangeCaptureRingBuffer<ChangeCatalogCapture> ringBuffer = null;
-			for (final ChangeCatalogCaptureSharedPublisher candidate : uniquePublishers.values()) {
-				if (candidate.isClosed()) {
-					continue;
-				}
-				final ChangeCaptureRingBuffer<ChangeCatalogCapture> candidateBuffer = getFieldValue(candidate, "lastCaptures");
-				if (candidateBuffer != null) {
-					sharedPublisher = candidate;
-					ringBuffer = candidateBuffer;
-					break;
-				}
-			}
-			assertNotNull(sharedPublisher, "Expected an active shared publisher with an initialised ring buffer");
+			final ChangeCatalogCaptureSharedPublisher sharedPublisher = findSharedPublisherWithRingBuffer(tested);
+			final ChangeCaptureRingBuffer<ChangeCatalogCapture> ringBuffer =
+				getNonnullFieldValue(sharedPublisher, "lastCaptures");
 
-			// craft the production state: the only tracked version sits strictly below the ring
-			// buffer's effective start version, so cleanup removes it and empties the map
+			// craft the production state: the only entry sits strictly below the ring buffer's effective start
+			// version and nobody tracks it any more, so cleanup removes it and empties the map - an entry with
+			// a live count belongs to a lagging subscriber and is kept for the lagging-subscriber metric
 			final ConcurrentSkipListMap<Long, Integer> versionSubscribersCount =
 				getNonnullFieldValue(sharedPublisher, "versionSubscribersCount");
 			versionSubscribersCount.clear();
-			versionSubscribersCount.put(ringBuffer.getEffectiveStartCatalogVersion() - 1, 1);
+			versionSubscribersCount.put(ringBuffer.getEffectiveStartCatalogVersion() - 1, 0);
 
 			// previously threw NoSuchElementException from firstKey() once the loop emptied the map
-			final ChangeCatalogCaptureSharedPublisher publisherUnderTest = sharedPublisher;
-			assertDoesNotThrow(publisherUnderTest::checkSubscribersLeft);
+			assertDoesNotThrow(sharedPublisher::checkSubscribersLeft);
 			assertTrue(
 				versionSubscribersCount.isEmpty(),
 				"Stale sub-threshold version entry should have been drained"
 			);
 		}
+	}
+
+	/**
+	 * The periodic cleanup sweeps the subscriber-version counts below the ring buffer's effective start - but only
+	 * the counts nobody holds any more. A positive count below the start belongs to a subscriber lagging behind the
+	 * ring buffer and reading the WAL, which is exactly what the lagging-subscriber metric reports, and counts at or
+	 * above the start are none of the sweep's business.
+	 *
+	 * @param evita       the Evita database instance with the test dataset already loaded
+	 * @param brandSchema the brand schema created during test setup
+	 */
+	@UseDataSet(value = CDC_TRANSACTIONS, destroyAfterTest = true)
+	@Test
+	@DisplayName("sweep only the untracked versions below the ring buffer start and keep a lagging subscriber's count")
+	void shouldSweepOnlyUntrackedVersionsBelowTheRingBufferStart(
+		@Nonnull Evita evita,
+		@Nonnull SealedEntitySchema brandSchema
+	) {
+		final Catalog catalog = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		final CatalogChangeObserver tested =
+			(CatalogChangeObserver) catalog.getTransactionManager().getChangeObserver();
+		tested.notifyCatalogPresentInLiveView(catalog);
+
+		final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
+			.sinceVersion(catalog.getVersion() + 1)
+			.content(ChangeCaptureContent.BODY)
+			.criteria(
+				ChangeCatalogCaptureCriteria.builder()
+					.dataArea(builder -> builder.containerType(ContainerType.ENTITY).operation(Operation.UPSERT))
+					.build()
+			)
+			.build();
+
+		try (final ChangeCapturePublisher<ChangeCatalogCapture> publisher = tested.registerObserver(request)) {
+			publisher.subscribe(new MockCatalogChangeSubscriber());
+
+			// drive one transactional mutation so the ring buffer (lastCaptures) gets initialised
+			evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					this.dataGenerator.generateEntities(brandSchema, this.noEntityPicker, SEED)
+						.skip(20)
+						.limit(1)
+						.forEach(session::upsertEntity);
+				}
+			);
+
+			final ChangeCatalogCaptureSharedPublisher sharedPublisher = findSharedPublisherWithRingBuffer(tested);
+			final ChangeCaptureRingBuffer<ChangeCatalogCapture> ringBuffer =
+				getNonnullFieldValue(sharedPublisher, "lastCaptures");
+			final ConcurrentSkipListMap<Long, Integer> versionSubscribersCount =
+				getNonnullFieldValue(sharedPublisher, "versionSubscribersCount");
+			final long ringBufferStart = ringBuffer.getEffectiveStartCatalogVersion();
+			versionSubscribersCount.clear();
+			versionSubscribersCount.put(ringBufferStart - 2, 0);
+			versionSubscribersCount.put(ringBufferStart - 1, 3);
+			versionSubscribersCount.put(ringBufferStart, 0);
+
+			sharedPublisher.checkSubscribersLeft();
+
+			assertEquals(
+				Map.of(ringBufferStart - 1, 3, ringBufferStart, 0),
+				versionSubscribersCount,
+				"Only the zero count below the ring buffer start may be swept: the positive one belongs to a " +
+					"lagging subscriber, and the one at the start is not below it."
+			);
+		}
+	}
+
+	/**
+	 * Locates the shared publisher backing the test's subscription - the only active one whose ring buffer has
+	 * been initialised.
+	 *
+	 * @param observer the catalog change observer holding the shared publishers
+	 * @return the shared publisher with an initialised ring buffer
+	 */
+	@Nonnull
+	private static ChangeCatalogCaptureSharedPublisher findSharedPublisherWithRingBuffer(
+		@Nonnull CatalogChangeObserver observer
+	) {
+		final Map<ChangeCatalogCriteriaBundle, ChangeCatalogCaptureSharedPublisher> uniquePublishers =
+			getNonnullFieldValue(observer, "uniquePublishers");
+		for (final ChangeCatalogCaptureSharedPublisher candidate : uniquePublishers.values()) {
+			if (!candidate.isClosed() && getFieldValue(candidate, "lastCaptures") != null) {
+				return candidate;
+			}
+		}
+		throw new AssertionError("Expected an active shared publisher with an initialised ring buffer");
 	}
 
 	/**

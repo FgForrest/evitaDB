@@ -71,6 +71,17 @@ class MutableFormula implements Formula {
 	}
 
 	/**
+	 * Returns the group of the facet group formula this formula stands for - the delegate always belongs to the same
+	 * group as the pivot it is merged with.
+	 *
+	 * @return the group, NULL for the facets without a group
+	 */
+	@Nullable
+	public Integer getFacetGroupId() {
+		return this.delegate.getFacetGroupId();
+	}
+
+	/**
 	 * The delegate is exchanged with different formula group delegate for each computation. This allows us to fully
 	 * reuse original formula tree and yet calculate different result using an exchanged delegate in this formula.
 	 * This approach is a HACK and should not be used in any other place than the facet summary computation logic.

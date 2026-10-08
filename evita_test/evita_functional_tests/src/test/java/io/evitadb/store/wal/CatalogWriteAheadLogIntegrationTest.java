@@ -29,6 +29,9 @@ import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.proxy.mock.EmptyEntitySchemaAccessor;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.UpsertAttributeMutation;
 import io.evitadb.api.requestResponse.mutation.CatalogBoundMutation;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
@@ -48,6 +51,7 @@ import io.evitadb.spi.store.engine.exception.WriteAheadLogCorruptedException;
 import io.evitadb.store.catalog.DefaultIsolatedWalService;
 import io.evitadb.store.checksum.Crc32CChecksumFactory;
 import io.evitadb.store.compression.CompressionFactory;
+import io.evitadb.store.compression.ZipCompressionFactory;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.model.reference.TransactionMutationWithWalFileReference;
@@ -85,6 +89,7 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -92,9 +97,13 @@ import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
+import java.util.Random;
 import java.util.UUID;
+import java.util.function.IntSupplier;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -863,6 +872,115 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 		}
 
 		/**
+		 * The log's last written version must describe the whole log, not its active file. The active file holds no
+		 * transaction right after a rotation, and indefinitely when the process crashed between rotation creating
+		 * it - with only its cumulative checksum header - and the first append landing in it, a state the log opens
+		 * as it is. Every caller of the last written version means the log: readers bound their reads by it, a
+		 * restarted transaction manager continues after it, and startup checks the persisted state against it.
+		 *
+		 * The crash state is produced from a real rotation: cutting the active file back to its header leaves
+		 * exactly the bytes rotation wrote before the append that triggered it.
+		 */
+		@Test
+		@DisplayName("should report the last version of the whole log while its active file holds no transaction")
+		void shouldReportTheLastVersionOfTheWholeLogWhileItsActiveFileHoldsNoTransaction() throws IOException {
+			CatalogWriteAheadLogIntegrationTest.this.wal.close();
+			CatalogWriteAheadLogIntegrationTest.this.wal = createCatalogWriteAheadLogOfSmallSize();
+
+			final int[] transactionSizes = {10, 15, 20, 15, 10};
+			writeWal(CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, transactionSizes);
+			final File[] walFiles = sortedWalFiles();
+			assertEquals(3, walFiles.length, "the fixture relies on the log having rotated twice");
+			assertEquals(transactionSizes.length, CatalogWriteAheadLogIntegrationTest.this.wal.getLastWrittenVersion());
+			final long lastVersionOfFinalizedFile = getFirstAndLastVersionsFromWalFile(
+				walFiles[1], WriteAheadLogCorruptedException.WalKind.CATALOG
+			).lastVersion();
+
+			// the crash: rotation created the active file, and the append that triggered it never landed
+			CatalogWriteAheadLogIntegrationTest.this.wal.close();
+			try (final RandomAccessFile raf = new RandomAccessFile(walFiles[2], "rw")) {
+				raf.setLength(AbstractMutationLog.CUMULATIVE_CRC32_SIZE);
+			}
+			CatalogWriteAheadLogIntegrationTest.this.wal = createCatalogWriteAheadLogOfSmallSize();
+
+			assertEquals(
+				-1L, CatalogWriteAheadLogIntegrationTest.this.wal.getLastWrittenVersionOfCurrentWalFile(),
+				"precondition: the reopened active file holds no transaction"
+			);
+			assertEquals(
+				lastVersionOfFinalizedFile, CatalogWriteAheadLogIntegrationTest.this.wal.getLastWrittenVersion(),
+				"The log's last written version is the last version of the finalized file before the empty active " +
+					"one - every transaction up to it is intact and readable. Reporting the active file's -1 makes " +
+					"the log look empty to everyone bounding a read by it or continuing after it."
+			);
+
+			// the next append continues the log rather than starting it over
+			final Map<Long, List<Mutation>> appended = writeWal(
+				CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, new int[]{10}
+			);
+			final long nextVersion = lastVersionOfFinalizedFile + 1;
+			assertEquals(List.of(nextVersion), new ArrayList<>(appended.keySet()));
+			assertEquals(nextVersion, CatalogWriteAheadLogIntegrationTest.this.wal.getLastWrittenVersion());
+			assertEquals(nextVersion, CatalogWriteAheadLogIntegrationTest.this.wal.getLastWrittenVersionOfCurrentWalFile());
+
+			// and the log still opens - its files continue one another
+			CatalogWriteAheadLogIntegrationTest.this.wal.close();
+			CatalogWriteAheadLogIntegrationTest.this.wal = createCatalogWriteAheadLogOfSmallSize();
+			assertEquals(nextVersion, CatalogWriteAheadLogIntegrationTest.this.wal.getLastWrittenVersion());
+			try (
+				final Stream<CatalogBoundMutation> stream = CatalogWriteAheadLogIntegrationTest.this.wal
+					.getCommittedLiveMutationStream(1L, nextVersion, VersionSource.INTERNAL)
+			) {
+				assertEquals(
+					List.of(1L, 2L, 3L, nextVersion),
+					stream
+						.filter(TransactionMutation.class::isInstance)
+						.map(it -> ((TransactionMutation) it).getVersion())
+						.toList()
+				);
+			}
+		}
+
+		/**
+		 * The retention removes several files in one sweep, oldest first, while a lagging reader looks up the first
+		 * replayable version. A listing of the folder taken during that sweep may still see a file deleted after
+		 * the listing passed it and miss one deleted before - leaving a gap among the files it reports. The lookup
+		 * needs only the oldest file listed, and the reader it serves can still be served; failing it on the gap
+		 * reports an internal error to a subscriber that is not behind the retention at all.
+		 *
+		 * The race cannot be timed against a real folder, so the test leaves on disk what such a listing reports.
+		 */
+		@Test
+		@DisplayName("should resolve the first replayable version from a listing missing a file removed mid-listing")
+		void shouldResolveTheFirstReplayableVersionFromAListingThatMissedAFileRemovedMidListing() throws IOException {
+			CatalogWriteAheadLogIntegrationTest.this.wal.close();
+			CatalogWriteAheadLogIntegrationTest.this.wal = createCatalogWriteAheadLogOfSmallSize();
+
+			final int[] transactionSizes = {10, 15, 20, 15, 10, 10, 15, 20, 15, 10};
+			writeWal(CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, transactionSizes);
+			final File[] walFiles = sortedWalFiles();
+			assertTrue(
+				walFiles.length >= 4,
+				"the fixture needs a removed file between two surviving ones; it produced " + walFiles.length +
+					" file(s)"
+			);
+			final long expectedFirstReplayableVersion = getFirstAndLastVersionsFromWalFile(
+				walFiles[1], WriteAheadLogCorruptedException.WalKind.CATALOG
+			).firstVersion();
+
+			// what the listing reports: the oldest file is gone, and so is the file after the oldest one it still saw
+			assertTrue(walFiles[0].delete());
+			assertTrue(walFiles[2].delete());
+
+			assertEquals(
+				expectedFirstReplayableVersion,
+				CatalogWriteAheadLogIntegrationTest.this.wal.getFirstReplayableVersion(),
+				"The oldest file listed survives and its first version is the floor - a gap after it says nothing " +
+					"about how far back the log reaches."
+			);
+		}
+
+		/**
 		 * Lists the WAL files of the test directory ordered by their file index.
 		 *
 		 * @return the WAL files, oldest first
@@ -892,6 +1010,100 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 				return ByteBuffer.wrap(prefix).order(ByteOrder.LITTLE_ENDIAN).getInt();
 			}
 		}
+	}
+
+	/**
+	 * Pins the lookup of the first replayable version against the retention removing files while it runs.
+	 *
+	 * The lookup lists the oldest file and then reads its head, and the retention removes files on the scheduler in
+	 * between. The race cannot be timed against a real folder, so it is reproduced through the seam the lookup is
+	 * built on: a listing that moves forward when asked again, and a reader that reports a file as gone.
+	 */
+	@Nested
+	@DisplayName("First replayable version racing the retention")
+	class FirstReplayableVersionRaceTests {
+
+		/**
+		 * Returns a listing that answers the given oldest file indexes one per call, and fails when asked more often.
+		 *
+		 * @param oldestWalFileIndexes the indexes the successive listings find
+		 * @return the listing
+		 */
+		@Nonnull
+		private static IntSupplier listing(int... oldestWalFileIndexes) {
+			final Iterator<Integer> iterator = Arrays.stream(oldestWalFileIndexes).iterator();
+			return () -> {
+				assertTrue(iterator.hasNext(), "The folder was listed more often than the test expected.");
+				return iterator.next();
+			};
+		}
+
+		@Test
+		@DisplayName("should follow the retention to the next oldest file when the listed one vanishes before it is read")
+		void shouldFollowTheRetentionWhenTheOldestFileVanishesBeforeItIsRead() {
+			final List<Integer> readIndexes = new ArrayList<>(2);
+			final long firstReplayableVersion = AbstractMutationLog.resolveFirstReplayableVersion(
+				listing(3, 4),
+				walFileIndex -> {
+					readIndexes.add(walFileIndex);
+					// file 3 was removed between the listing and the read; file 4 is the oldest one left
+					return walFileIndex == 3 ? OptionalLong.empty() : OptionalLong.of(17L);
+				},
+				WriteAheadLogCorruptedException.WalKind.CATALOG
+			);
+
+			assertEquals(
+				17L, firstReplayableVersion,
+				"The retention removed the oldest file after it was listed. The floor is the first version of the " +
+					"file that is oldest now - answering -1 claims nothing was ever purged, and failing tells a " +
+					"reader whose position is still in the log that it cannot be served."
+			);
+			assertEquals(List.of(3, 4), readIndexes);
+		}
+
+		@Test
+		@DisplayName("should answer a stub as the oldest file without listing the folder again")
+		void shouldAnswerAStubWithoutListingAgain() {
+			assertEquals(
+				-1L,
+				AbstractMutationLog.resolveFirstReplayableVersion(
+					listing(5), walFileIndex -> OptionalLong.of(-1L), WriteAheadLogCorruptedException.WalKind.CATALOG
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should not read any file of a log that still has its first file")
+		void shouldNotReadAnyFileOfALogThatStillHasItsFirstFile() {
+			assertEquals(
+				-1L,
+				AbstractMutationLog.resolveFirstReplayableVersion(
+					listing(0),
+					walFileIndex -> {
+						throw new AssertionError("No file may be read when nothing was ever purged.");
+					},
+					WriteAheadLogCorruptedException.WalKind.CATALOG
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should report an oldest file that vanished without a newer one taking its place")
+		void shouldReportAnOldestFileThatVanishedWithoutANewerOneTakingItsPlace() {
+			final WriteAheadLogCorruptedException exception = assertThrows(
+				WriteAheadLogCorruptedException.class,
+				() -> AbstractMutationLog.resolveFirstReplayableVersion(
+					listing(3, 2),
+					walFileIndex -> walFileIndex == 3 ? OptionalLong.empty() : OptionalLong.of(9L),
+					WriteAheadLogCorruptedException.WalKind.CATALOG
+				),
+				"The retention removes files oldest first, so after it removed file 3 the oldest file cannot be an " +
+					"older one. A listing that goes backwards is not the retention at work, and its answer must not " +
+					"be passed off as the floor."
+			);
+			assertTrue(exception.getMessage().contains("index 3"), exception.getMessage());
+		}
+
 	}
 
 	/**
@@ -1262,6 +1474,164 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 		assertEquals(expected.getMutationCount(), actual.getMutationCount());
 		assertEquals(expected.getWalSizeInBytes(), actual.getWalSizeInBytes());
 		assertEquals(expected.getCommitTimestamp(), actual.getCommitTimestamp());
+	}
+
+	/**
+	 * Tests reading a WAL whose records are compressed.
+	 *
+	 * The WAL reader checks every transaction's framing prefix against the size it measured for the leading
+	 * {@link TransactionMutation} record, measured as the difference of {@link io.evitadb.store.kryo.ObservableInput}
+	 * stream offsets. When the compressed leading record straddles the end of the reader's raw buffer, the inflater
+	 * refills that buffer in the middle of the record - and the stream offset restored after the record once
+	 * forgot the bytes the refill discarded. The intact file was then refused as `Invalid WAL file on position`,
+	 * which a greedy forward read (CDC catch-up) reported as a silent early end of the stream.
+	 *
+	 * Only a sequential advance into the next transaction can meet the straddle - a reader seeking to a
+	 * transaction starts its buffer at that transaction - so the WAL must hold enough transactions for the
+	 * leading records to land across the buffer's edge several times; with the fixed seed below they do.
+	 */
+	@Nested
+	@DisplayName("Compressed WAL Tests")
+	class CompressedWalTests {
+		/**
+		 * Words the compressible payloads are assembled from - a small vocabulary deflates well, so the mutations
+		 * and the leading transaction records keep their compression bit.
+		 */
+		private static final String[] VOCABULARY = {
+			"product", "variant", "price", "stock", "category", "brand", "attribute", "reference", "locale",
+			"currency", "delivery", "warranty", "color", "material", "dimensions", "weight", "the", "and", "with"
+		};
+		/**
+		 * Number of transactions written - enough for the leading records to straddle the reader's raw buffer edge
+		 * repeatedly.
+		 */
+		private static final int TRANSACTION_COUNT = 1_500;
+
+		@Test
+		@DisplayName("should read every transaction forward when compressed leading records span raw buffer refills")
+		void shouldReadCompressedWalForwardAcrossRawBufferRefills() throws IOException {
+			final CatalogWriteAheadLogIntegrationTest outer = CatalogWriteAheadLogIntegrationTest.this;
+			outer.wal.close();
+			outer.wal = new CatalogWriteAheadLog(
+				0L,
+				TEST_CATALOG,
+				new LogFileRecordReference(index -> getWalFileName(TEST_CATALOG, index)),
+				outer.walDirectory,
+				outer.catalogKryoPool,
+				new StorageSettings(
+					StorageOptions.builder().compress(true).build(),
+					TransactionOptions.builder().walFileSizeBytes(Long.MAX_VALUE).build()
+				),
+				Mockito.mock(Scheduler.class),
+				outer.offsetConsumer
+			);
+
+			final Map<Long, List<Mutation>> txInMutations = writeCompressibleTransactions(new Random(1687L));
+
+			// a reader that names the version it expects must deliver every transaction, or fail loudly
+			final List<Long> deliveredVersions = new ArrayList<>(TRANSACTION_COUNT);
+			try (
+				final Stream<CatalogBoundMutation> stream = outer.wal.getCommittedLiveMutationStream(
+					1L, TRANSACTION_COUNT, VersionSource.INTERNAL
+				)
+			) {
+				final Iterator<CatalogBoundMutation> it = stream.iterator();
+				while (it.hasNext()) {
+					final TransactionMutation txMutation = assertInstanceOf(TransactionMutation.class, it.next());
+					final List<Mutation> written = txInMutations.get(txMutation.getVersion());
+					assertTransactionMutationEquals((TransactionMutation) written.get(0), txMutation);
+					for (int i = 1; i <= txMutation.getMutationCount(); i++) {
+						assertEquals(written.get(i), it.next(), "Mutation " + i + " of transaction " + txMutation.getVersion());
+					}
+					deliveredVersions.add(txMutation.getVersion());
+				}
+			}
+			assertEquals(TRANSACTION_COUNT, deliveredVersions.size());
+			assertEquals(TRANSACTION_COUNT, deliveredVersions.get(deliveredVersions.size() - 1));
+
+			// the greedy read CDC catches up with must not end early either - it turns every failure into an end
+			try (final Stream<CatalogBoundMutation> stream = outer.wal.getCommittedMutationStream(1L)) {
+				assertEquals(
+					TRANSACTION_COUNT,
+					stream.filter(TransactionMutation.class::isInstance).count(),
+					"The greedy forward read ended before the last transaction of an intact WAL."
+				);
+			}
+		}
+
+		/**
+		 * Writes {@link #TRANSACTION_COUNT} transactions of one to three compressible upsert mutations each. Every
+		 * transaction gets its own isolated WAL handle, as in production, and a fixed id and timestamp, so the WAL
+		 * bytes - and with them the buffer edges the test depends on - are the same in every run.
+		 *
+		 * @param random seeded random number generator shaping the transactions
+		 * @return written mutations by catalog version, the leading transaction mutation first
+		 */
+		@Nonnull
+		private Map<Long, List<Mutation>> writeCompressibleTransactions(@Nonnull Random random) {
+			final CatalogWriteAheadLogIntegrationTest outer = CatalogWriteAheadLogIntegrationTest.this;
+			final Map<Long, List<Mutation>> txInMutations = CollectionUtils.createHashMap(TRANSACTION_COUNT);
+			final OffsetDateTime firstTimestamp = OffsetDateTime.of(2026, 10, 1, 12, 0, 0, 0, ZoneOffset.UTC);
+			for (int i = 0; i < TRANSACTION_COUNT; i++) {
+				final long version = i + 1;
+				final List<Mutation> mutations = new ArrayList<>(4);
+				final DefaultIsolatedWalService isolatedWal = new DefaultIsolatedWalService(
+					TEST_CATALOG,
+					new UUID(0L, version),
+					new ConflictResolution(ConflictPolicy.NONE),
+					KryoFactory.createKryo(WalKryoConfigurer.INSTANCE),
+					new WriteOnlyOffHeapWithFileBackupHandle(
+						outer.walDirectory.resolve("isolatedWal-" + version + ".tmp"),
+						StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE,
+						false,
+						outer.observableOutputKeeper,
+						outer.bigOffHeapMemoryManager,
+						Crc32CChecksumFactory.INSTANCE,
+						ZipCompressionFactory.INSTANCE
+					)
+				);
+				try {
+					final int mutationCount = 1 + random.nextInt(3);
+					for (int m = 1; m <= mutationCount; m++) {
+						final Mutation mutation = new EntityUpsertMutation(
+							"product", m, EntityExistence.MAY_EXIST,
+							new UpsertAttributeMutation(
+								"description", Locale.ENGLISH, generateCompressibleText(10 + random.nextInt(3_000), random)
+							)
+						);
+						isolatedWal.write(version, mutation);
+						mutations.add(mutation);
+					}
+					final OffHeapWithFileBackupReference walReference = isolatedWal.getWalReference();
+					final TransactionMutation txMutation = new TransactionMutation(
+						new UUID(1L, version), version, mutations.size(), walReference.getContentLength(),
+						firstTimestamp.plusSeconds(i)
+					);
+					outer.wal.append(txMutation, walReference);
+					mutations.add(0, txMutation);
+				} finally {
+					isolatedWal.close();
+				}
+				txInMutations.put(version, mutations);
+			}
+			return txInMutations;
+		}
+
+		/**
+		 * Generates text of words from {@link #VOCABULARY} that deflates well.
+		 *
+		 * @param length minimal length of the generated text
+		 * @param random random number generator picking the words
+		 * @return compressible text at least `length` characters long
+		 */
+		@Nonnull
+		private static String generateCompressibleText(int length, @Nonnull Random random) {
+			final StringBuilder sb = new StringBuilder(length + 16);
+			while (sb.length() < length) {
+				sb.append(VOCABULARY[random.nextInt(VOCABULARY.length)]).append(' ');
+			}
+			return sb.toString();
+		}
 	}
 
 	/**

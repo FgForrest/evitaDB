@@ -29,7 +29,6 @@ import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -38,6 +37,7 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.lang.management.ManagementFactory;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
@@ -48,7 +48,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
@@ -704,23 +703,23 @@ class FacetReferenceIndexTest {
 		}
 
 		@Test
-		@DisplayName("a facet its bucket does not hold still gets a slot, filled with an empty bitmap")
-		void shouldFillTheSlotOfAnUnknownFacetWithAnEmptyBitmap() {
+		@DisplayName("a facet the index does not know is skipped even when an ungrouped index exists")
+		void shouldSkipUnknownFacetNextToUngroupedIndex() {
 			final FacetReferenceIndex index = new FacetReferenceIndex(REFERENCE_NAME);
 			index.addFacet(10, null, 100);
 
-			// facet 999 belongs to no group, so it joins the ungrouped bucket even though that index has never
-			// heard of it - the bitmap array must keep a slot for it rather than shift the remaining ones
+			// facet 999 is referenced by nothing here, so this index cannot say which group it belongs to - another
+			// index of the same query may know it in a group of its own, and an ungrouped term would contradict it
 			final List<FacetGroupFormula> formulas = index.getFacetReferencingEntityIdsFormula(
 				this.formulaFactory, new BaseBitmap(10, 999)
 			);
 
 			assertEquals(1, formulas.size());
 			final FacetGroupFormula formula = formulas.get(0);
-			assertArrayEquals(new int[]{10, 999}, formula.getFacetIds().getArray());
-			assertEquals(2, formula.getBitmaps().length);
+			assertNull(formula.getFacetGroupId());
+			assertArrayEquals(new int[]{10}, formula.getFacetIds().getArray());
+			assertEquals(1, formula.getBitmaps().length);
 			assertArrayEquals(new int[]{100}, formula.getBitmaps()[0].getArray());
-			assertSame(EmptyBitmap.INSTANCE, formula.getBitmaps()[1]);
 		}
 
 		@Test
@@ -866,25 +865,74 @@ class FacetReferenceIndexTest {
 			return facetIds;
 		}
 
-		// Known limitation: a facet held in both a group index and the ungrouped index is reported only under
-		// its group, so the entities that reference it without a group are dropped from the formula
 		@Test
-		@DisplayName("a facet indexed both in a group and without one is reported only under its group")
-		void shouldReportOnlyTheGroupFormulaForAFacetIndexedBothWays() {
+		@DisplayName("a facet indexed both in a group and without one is reported under both")
+		void shouldReportFacetIndexedBothWaysUnderBoth() {
 			final FacetReferenceIndex index = new FacetReferenceIndex(REFERENCE_NAME);
 			index.addFacet(10, null, 100);
 			index.addFacet(10, 5, 200);
 
+			// the group is a property of the reference, so the facet takes part in both the group and the facets
+			// without a group, each with the entities referencing it that way
 			final List<FacetGroupFormula> formulas = index.getFacetReferencingEntityIdsFormula(
 				this.formulaFactory, new BaseBitmap(10)
 			);
 
-			assertEquals(1, formulas.size());
+			assertEquals(2, formulas.size());
 			assertEquals(5, formulas.get(0).getFacetGroupId());
-			assertArrayEquals(
-				new int[]{200}, formulas.get(0).getBitmaps()[0].getArray(),
-				"entity 100 references facet 10 without a group and is not reported"
-			);
+			assertArrayEquals(new int[]{200}, formulas.get(0).getBitmaps()[0].getArray());
+			assertNull(formulas.get(1).getFacetGroupId());
+			assertArrayEquals(new int[]{100}, formulas.get(1).getBitmaps()[0].getArray());
+		}
+
+		@Test
+		@DisplayName("the groups of a facet list every group it is referenced under, without a group last")
+		void shouldListEveryGroupOfFacet() {
+			final FacetReferenceIndex index = new FacetReferenceIndex(REFERENCE_NAME);
+			index.addFacet(10, null, 100);
+			index.addFacet(10, 7, 200);
+			index.addFacet(10, 5, 300);
+			index.addFacet(11, 5, 400);
+
+			assertEquals(Arrays.asList(5, 7, null), index.getGroupsOfFacet(10));
+			assertEquals(List.of(5), index.getGroupsOfFacet(11));
+			assertEquals(List.of(), index.getGroupsOfFacet(999));
+		}
+
+		@Test
+		@DisplayName("a facet is referenced only under a group exactly when its groups list that group alone")
+		void shouldTellFacetReferencedOnlyUnderGroupAsItsGroupsDo() {
+			final FacetReferenceIndex index = new FacetReferenceIndex(REFERENCE_NAME);
+			// facet 10 in two groups and without one, 11 in group 5 only, 12 without a group only, 13 in group 5 and
+			// without one
+			index.addFacet(10, null, 100);
+			index.addFacet(10, 7, 200);
+			index.addFacet(10, 5, 300);
+			index.addFacet(11, 5, 400);
+			index.addFacet(12, null, 500);
+			index.addFacet(13, 5, 600);
+			index.addFacet(13, null, 700);
+
+			assertTrue(index.isReferencedOnlyUnder(11, 5));
+			assertTrue(index.isReferencedOnlyUnder(12, null));
+			assertFalse(index.isReferencedOnlyUnder(10, 5));
+			assertFalse(index.isReferencedOnlyUnder(10, null));
+			assertFalse(index.isReferencedOnlyUnder(11, 7));
+			assertFalse(index.isReferencedOnlyUnder(11, null));
+			assertFalse(index.isReferencedOnlyUnder(12, 5));
+			assertFalse(index.isReferencedOnlyUnder(13, 5));
+			assertFalse(index.isReferencedOnlyUnder(13, null));
+			assertFalse(index.isReferencedOnlyUnder(999, 5));
+			assertFalse(index.isReferencedOnlyUnder(999, null));
+			for (final int facetId : new int[]{10, 11, 12, 13, 999}) {
+				for (final Integer groupId : Arrays.asList(5, 7, null)) {
+					assertEquals(
+						index.getGroupsOfFacet(facetId).equals(Collections.singletonList(groupId)),
+						index.isReferencedOnlyUnder(facetId, groupId),
+						"facet " + facetId + ", group " + groupId
+					);
+				}
+			}
 		}
 	}
 }

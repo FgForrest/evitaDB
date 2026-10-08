@@ -1,7 +1,7 @@
 ---
 title: Pace gRPC server-streaming producers with a readiness gate, and unblock large file transfers
 date: 2026-08-24
-updated: 2026-08-25 05:00
+updated: 2026-10-01 15:40
 status: accepted
 kind: fix
 issues: [1441]
@@ -13,7 +13,7 @@ areas:
   - evita_external_api/evita_external_api_grpc/client/src/main/java/io/evitadb/driver
 supersedes: []
 superseded-by: []
-relates: [2026-08-05-streaming-calls-must-not-be-retry-decorated, 2026-09-13-off-record-reads-must-not-restore-an-invalidated-buffer-limit]
+relates: [2026-08-05-streaming-calls-must-not-be-retry-decorated, 2026-09-13-off-record-reads-must-not-restore-an-invalidated-buffer-limit, 2026-10-01-cdc-catch-up-delivers-everything-owed-or-fails]
 ---
 
 # Pace gRPC server-streaming producers with a readiness gate that parks the worker
@@ -310,7 +310,8 @@ path no matter what the server does, and can never fail.
   client lags. It is blocked on a second defect anyway: a subscriber whose WAL pointer has been purged
   (`walFileCountKept`, default 8) gets `findWalIndexFor == -1`, a nonexistent file, a null supplier and
   an empty stream — no error, no advance, re-requesting the same pointer forever. Filed as **#1446**
-  (milestone 2026.3); it has to land before CDC gating does.
+  (milestone 2026.3); it has to land before CDC gating does. **Closed** by `2026-10-01-cdc-catch-up-delivers-everything-owed-or-fails`: such a
+  subscriber now receives `TemporalDataNotAvailableException`, so the gating is no longer blocked on it.
 - **The ungated producer plausibly starved *sibling* RPCs on the same connection, not just memory.**
   Reported from production: while a backup download was in flight, unrelated gRPC calls issued by other
   browser threads failed. Memory exhaustion does not explain that on its own. Three mechanisms do, and

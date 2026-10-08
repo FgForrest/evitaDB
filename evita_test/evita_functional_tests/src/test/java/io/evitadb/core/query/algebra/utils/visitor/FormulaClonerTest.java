@@ -278,8 +278,10 @@ class FormulaClonerTest {
 		@Test
 		@DisplayName("should drop ScopeContainerFormula when all its children are stripped")
 		void shouldDropScopeContainerFormulaWhenAllChildrenStripped() {
-			// ScopeContainerFormula.getCloneWithInnerFormulas([]) returns EmptyFormula too — the cloner must
-			// honour the generalised convention and drop the scope container instead of leaking EmptyFormula upwards.
+			// a ScopeContainerFormula built by a public constructor returns EmptyFormula from
+			// getCloneWithInnerFormulas([]) too - the cloner must honour the generalised convention and drop the scope
+			// container instead of leaking EmptyFormula upwards; ScopeContainerFormula#restrictingScope builds the
+			// container that stands for its whole scope instead, see the test below
 			final ConstantFormula stripA = new ConstantFormula(new ArrayBitmap(301));
 			final ConstantFormula stripB = new ConstantFormula(new ArrayBitmap(302));
 			final ConstantFormula keep = new ConstantFormula(new ArrayBitmap(21, 22));
@@ -298,6 +300,31 @@ class FormulaClonerTest {
 			assertFalse(FormulaLocator.contains(cloneResult, ScopeContainerFormula.class));
 			// AND with one surviving child collapses to that child
 			assertSame(keep, cloneResult);
+		}
+
+		@Test
+		@DisplayName("should keep a scope-restricting container as its whole scope when all its children are stripped")
+		void shouldKeepScopeRestrictingContainerAsWholeScopeWhenAllChildrenStripped() {
+			// the shape the inScope post-processor builds: one container per scope, each restricting its own scope;
+			// removing the only constraint of the live scope leaves the live scope unrestricted, not empty
+			final ConstantFormula strip = new ConstantFormula(new ArrayBitmap(2, 3));
+			final Formula tree = new OrFormula(
+				ScopeContainerFormula.restrictingScope(
+					Scope.LIVE, new ConstantFormula(new ArrayBitmap(1, 2, 3, 4, 5)), strip
+				),
+				ScopeContainerFormula.restrictingScope(
+					Scope.ARCHIVED,
+					new ConstantFormula(new ArrayBitmap(11, 12)),
+					new ConstantFormula(new ArrayBitmap(11))
+				)
+			);
+
+			final Formula cloneResult = FormulaCloner.clone(tree, f -> f == strip ? null : f);
+
+			assertNotNull(cloneResult);
+			assertFalse(FormulaLocator.contains(cloneResult, EmptyFormula.class));
+			assertTrue(FormulaLocator.contains(cloneResult, ScopeContainerFormula.class));
+			assertArrayEquals(new int[]{1, 2, 3, 4, 5, 11}, cloneResult.compute().getArray());
 		}
 	}
 

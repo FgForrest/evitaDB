@@ -140,7 +140,7 @@
 		<jackson.version>2.22.3</jackson.version>
 		<jackson.annotations.version>2.22</jackson.annotations.version>
 		<snakeyaml.version>2.7</snakeyaml.version>
-		<roaringbitmap.version>1.6.18</roaringbitmap.version>
+		<roaringbitmap.version>1.6.23</roaringbitmap.version>
 		<junit.jupiter.version>6.1.3</junit.jupiter.version>
 		<mockito.junit.version>5.23.0</mockito.junit.version>
 		<assertj.version>3.27.7</assertj.version>
@@ -657,7 +657,7 @@
 					-->
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-enforcer-plugin</artifactId>
-					<version>3.6.2</version>
+					<version>3.6.3</version>
 					<dependencies>
 						<dependency>
 							<groupId>org.codehaus.mojo</groupId>

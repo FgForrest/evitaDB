@@ -24,12 +24,9 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.core.buffer.TrappedChanges;
-import io.evitadb.core.query.algebra.Formula;
-import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.Bitmap;
-import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
 import io.evitadb.utils.VMLayout;
@@ -120,21 +117,6 @@ public final class UniqueIndexView extends UniqueIndex {
 		// the bucket of a unique value holds at most one record (uniqueness is enforced on insert)
 		final Bitmap records = filterView.getRecordsEqualTo(value);
 		return records.isEmpty() ? null : records.getFirst();
-	}
-
-	@Override
-	public Formula getRecordIdsFormula() {
-		// wrap the filter view's already-memoized all-records bitmap over the same shared tree - the formula itself
-		// is built fresh per call, because an index-lifetime one would pin the calling query's execution context
-		final FilterIndex filterView = this.sharedFilterView;
-		return filterView == null ? EmptyFormula.INSTANCE : filterView.getAllRecordsFormula();
-	}
-
-	@Nonnull
-	@Override
-	public Bitmap getRecordIds() {
-		final FilterIndex filterView = this.sharedFilterView;
-		return filterView == null ? EmptyBitmap.INSTANCE : filterView.getAllRecords();
 	}
 
 	@Override

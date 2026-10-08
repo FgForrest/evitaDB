@@ -31,8 +31,8 @@ import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.OwnerUniqueIndex;
-import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.UniqueIndex;
+import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleWithScope;
@@ -282,20 +282,29 @@ final class PromotionRehearsalInspector implements Consumer<PromotionRehearsal> 
 		});
 		index.forEachAttributeIndexKey(AttributeIndexType.UNIQUE, key -> {
 			final UniqueIndex uniqueIndex = index.getUniqueIndex(key);
-			if (uniqueIndex != null) {
-				putIfAny(lines, path("unique", key), filter(uniqueIndex.getRecordIds(), ownerRecords));
-				if (uniqueIndex instanceof final OwnerUniqueIndex ownerUniqueIndex) {
-					final StringBuilder mapping = new StringBuilder(64);
-					ownerUniqueIndex.forEachValueToRecord(
-						(value, recordId) -> {
-							if (ownerRecords.test(recordId)) {
-								mapping.append(CanonicalValue.encode(value)).append('=').append(recordId)
-									.append("; ");
-							}
-						}
-					);
-					putIfAny(lines, path("unique", key) + "/mapping", mapping.toString());
+			final FilterIndex filterIndex = index.getFilterIndex(key);
+			if (uniqueIndex != null && filterIndex != null) {
+				// a unique index keeps no record set - it is probed with every value of the filter index of the key
+				final StringBuilder probes = new StringBuilder(64);
+				for (final ValueToRecord bucket : filterIndex.getHistogramOfAllRecords().getBuckets()) {
+					final Integer recordId = uniqueIndex.getRecordIdByUniqueValue(bucket.getValue());
+					if (recordId != null && ownerRecords.test(recordId)) {
+						probes.append(CanonicalValue.encode(bucket.getValue())).append('=').append(recordId)
+							.append("; ");
+					}
 				}
+				putIfAny(lines, path("unique", key), probes.toString());
+			}
+			if (uniqueIndex instanceof final OwnerUniqueIndex ownerUniqueIndex) {
+				final StringBuilder mapping = new StringBuilder(64);
+				ownerUniqueIndex.forEachValueToRecord(
+					(value, recordId) -> {
+						if (ownerRecords.test(recordId)) {
+							mapping.append(CanonicalValue.encode(value)).append('=').append(recordId).append("; ");
+						}
+					}
+				);
+				putIfAny(lines, path("unique", key) + "/mapping", mapping.toString());
 			}
 		});
 		index.forEachAttributeIndexKey(AttributeIndexType.CHAIN, key -> {

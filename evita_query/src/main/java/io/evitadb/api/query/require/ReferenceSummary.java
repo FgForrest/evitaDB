@@ -49,8 +49,8 @@ import java.util.Optional;
  * The `referenceSummary` requirement triggers the calculation of the
  * {@link io.evitadb.api.requestResponse.extraResult.ReferenceSummary} extra result, which contains reference statistics for
  * all entity references that are marked as **faceted** in the entity schema. The reference summary is computed as a side
- * effect of the main entity query and always reflects the same filtering scope — it only counts entities that would
- * actually be returned by the current query.
+ * effect of the main entity query and always reflects the same filtering scope except the `userFilter` part — it
+ * counts only entities the current query would return if its `userFilter` part were left out.
  *
  * ## Result structure
  *
@@ -72,18 +72,27 @@ import java.util.Optional;
  *
  * `COUNTS` is the implicit default and is omitted from the EvitaQL string representation.
  *
+ * The group belongs to the reference, not to the option, so an option referenced under several groups is listed in each
+ * of them. Each of these entries counts the entities referencing the option under its own group - or, in a group the
+ * query negates, the entities not referencing it under that group - so the entries of one option may count differently,
+ * and an entry counting no entity is left out, while the impact of every entry predicts the same selection, because
+ * selecting the option selects it in all of its groups.
+ *
  * ## Default reference calculation rules
  *
  * Unless overridden by {@link FacetCalculationRules} or the per-group behavior constraints
  * ({@link FacetGroupsConjunction}, {@link FacetGroupsDisjunction}, {@link FacetGroupsNegation},
  * {@link FacetGroupsExclusivity}), the following rules apply:
  *
- * 1. The reference summary covers only entities returned in the current query result.
+ * 1. The reference summary counts only entities the current query would return if its `userFilter` part were left
+ *    out.
  * 2. Filter constraints placed **outside** `userFilter` are always respected and cannot be overridden by reference
  *    selection.
  * 3. References **within the same group** are combined with logical OR (disjunction) — selecting blue OR red.
- * 4. References **across different groups or references** are combined with logical AND (conjunction) — must be blue AND
- *    large.
+ * 4. References **across different groups** of the same reference are combined with logical AND (conjunction) — must
+ *    be blue AND large.
+ * 5. Options of **different references** are always combined with logical AND (conjunction) — no constraint overrides
+ *    this, because `userFilter` combines its constraints the way `and` does.
  *
  * ## Entity fetch requirements
  *

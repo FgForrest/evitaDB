@@ -1,7 +1,7 @@
 ---
 title: A pick-first reference ordering sorts on the first row of every selected owner, resolved from the selection rather than from the filter
 date: 2026-09-23
-updated: 2026-09-30 17:55
+updated: 2026-10-06 11:45
 status: accepted
 kind: fix
 issues: [1614]
@@ -14,7 +14,7 @@ areas:
   - documentation/user/en/query/ordering
 supersedes: []
 superseded-by: []
-relates: [2026-09-18-reference-planning-from-owner-membership, 2026-09-15-bidirectional-reference-counterpart-rewrite]
+relates: [2026-09-18-reference-planning-from-owner-membership, 2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-10-08-scope-faithful-planning-and-facet-summary-parity]
 ---
 
 # A pick-first reference ordering sorts on the first row of every selected owner, resolved from the selection
@@ -347,11 +347,13 @@ a measured production shape: that is where the per-query cost still follows `row
   live owners, by more than 100 over both scopes, the index route placing archived owners after live ones within a
   target. It predates this change, which leaves traverse untouched (see Key technical details), and needs the
   traverse-narrowing decision above before either route can be called right.
-- **Found, not fixed: `ExactSorter` fails on a page starting past the matched keys.** With
-  `orderBy(entityPrimaryKeyExact(10, 3), ...)` and `page(2, 3)`, `ExactSorter#sortAndSlice` computes
-  `toAppend = lastSortedItem - recomputedStartIndex`, which goes negative when fewer keys match the exact order than
-  the page skips, and `System.arraycopy` throws `ArrayIndexOutOfBoundsException` instead of handing the rest to the
-  next sorter. Found by the quality pass of this work; outside its diff.
+- **Fixed by #1671: `ExactSorter` failed on a page starting past the matched keys.** With
+  `orderBy(entityPrimaryKeyExact(10, 3), ...)` and `page(2, 3)`, `ExactSorter#sortAndSlice` computed a negative copy
+  length and threw `ArrayIndexOutOfBoundsException` instead of handing the rest to the next sorter. Found by the
+  quality pass of this work; the fix also covers `AttributeExactSorter`, `ReversedPrimaryKeySorter` and
+  `TranslatedPrimaryKeySorter`, which mis-sliced pages with an offset too, and makes `ReversedPrimaryKeySorter` and
+  `NoSorter` hand the records they skip to the skipped-records consumer, without which a later `segment` received
+  records an earlier one had already skipped.
 
 ## Related work
 
@@ -359,6 +361,9 @@ a measured production shape: that is where the per-query cost still follows `row
   without that widening the gather would find no membership for most references and fall back to the family walk.
 - `2026-09-15-bidirectional-reference-counterpart-rewrite` - its ordering guard exists because of the narrowing this
   record removes for comparable pick-first orderings.
+- `2026-10-08-scope-faithful-planning-and-facet-summary-parity` - the pick-first path without rows translates its children over one empty reduced
+  index (`ReferencePropertyTranslator#checkChildConstraintsWithoutRows`), so an ordering the schema refuses fails
+  whether or not an owner holds a row, and the prefetch it would register is discarded.
 
 ## Timeline
 

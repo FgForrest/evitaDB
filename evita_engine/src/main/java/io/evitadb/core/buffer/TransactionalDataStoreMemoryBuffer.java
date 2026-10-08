@@ -138,7 +138,11 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 	@Override
 	@Nullable
 	public <T extends StoragePart> T fetch(long catalogVersion, long primaryKey, @Nonnull Class<T> containerType) {
-		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(this.transactionalMemoryDataSource);
+		// the write-variant fetch: a trapped part is handed out as the very instance the layer holds, and the caller
+		// may mutate it in place, so the layer journals its content on the way out - which an open savepoint replays
+		// only when the layer's snapshot was recorded BEFORE that push (see DataStoreChanges#journalTrappedContent)
+		final DataStoreChanges layer =
+			Transaction.getTransactionalMemoryLayerForWriteIfExists(this.transactionalMemoryDataSource);
 		if (layer == null) {
 			return this.persistenceService.getStoragePart(catalogVersion, primaryKey, containerType);
 		} else {
@@ -160,7 +164,9 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 	@Override
 	@Nullable
 	public <T extends StoragePart, U extends Comparable<U>> T fetch(long catalogVersion, @Nonnull U originalKey, @Nonnull Class<T> containerType, @Nonnull BiFunction<KeyCompressor, U, OptionalLong> compressedKeyComputer) {
-		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(this.transactionalMemoryDataSource);
+		// the write-variant fetch for the same reason as in #fetch(long, long, Class)
+		final DataStoreChanges layer =
+			Transaction.getTransactionalMemoryLayerForWriteIfExists(this.transactionalMemoryDataSource);
 		final OptionalLong storagePartId = compressedKeyComputer.apply(
 			layer == null ? this.persistenceService.getReadOnlyKeyCompressor() : layer.getReadOnlyKeyCompressor(),
 			originalKey
@@ -234,6 +240,14 @@ public class TransactionalDataStoreMemoryBuffer implements DataStoreMemoryBuffer
 	public Set<IndexKey> getDirtyIndexKeys() {
 		final DataStoreChanges layer = getTransactionalMemoryLayerIfExists(this.transactionalMemoryDataSource);
 		return Objects.requireNonNullElse(layer, this.dataStoreChanges).getDirtyIndexKeys();
+	}
+
+	@Override
+	public <T extends StoragePart> void journalTrappedContent(long primaryKey, @Nonnull Class<T> containerType) {
+		// the write-variant fetch records the layer's snapshot into the open savepoint before the journal push
+		final DataStoreChanges layer =
+			Transaction.getTransactionalMemoryLayerForWriteIfExists(this.transactionalMemoryDataSource);
+		Objects.requireNonNullElse(layer, this.dataStoreChanges).journalTrappedContent(primaryKey, containerType);
 	}
 
 	@Nonnull

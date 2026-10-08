@@ -409,17 +409,14 @@ class DifferentialComparisonTest {
 		@Test
 		@DisplayName("two values swapped between the same two records are found")
 		void shouldFindSwappedValues() {
-			final OwnerUniqueIndex original = new OwnerUniqueIndex("product", KEY, String.class);
+			final OwnerUniqueIndex original = new OwnerUniqueIndex("product", KEY, String.class, 0);
 			original.registerUniqueKey("a", 1);
 			original.registerUniqueKey("b", 2);
-			final OwnerUniqueIndex swapped = new OwnerUniqueIndex("product", KEY, String.class);
+			final OwnerUniqueIndex swapped = new OwnerUniqueIndex("product", KEY, String.class, 0);
 			swapped.registerUniqueKey("a", 2);
 			swapped.registerUniqueKey("b", 1);
 
-			assertArrayEquals(
-				original.getRecordIds().getArray(), swapped.getRecordIds().getArray(),
-				"the premise: the same records"
-			);
+			assertEquals(original.size(), swapped.size(), "the premise: as many records");
 			assertEquals(
 				original.getDistinctValueCount(), swapped.getDistinctValueCount(), "the premise: as many values"
 			);

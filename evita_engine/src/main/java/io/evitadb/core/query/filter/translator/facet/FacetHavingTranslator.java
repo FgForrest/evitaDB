@@ -26,8 +26,11 @@ package io.evitadb.core.query.filter.translator.facet;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 import io.evitadb.api.exception.EntityIsNotHierarchicalException;
+import io.evitadb.api.exception.EntityNotManagedException;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.*;
+import io.evitadb.api.query.require.FacetRelationType;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
@@ -40,6 +43,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.base.NotFormula;
+import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.algebra.facet.CombinedFacetFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupAndFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
@@ -53,20 +57,27 @@ import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.function.TriFunction;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
+import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
@@ -156,11 +167,15 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 						hierarchyConstraints
 					) : null,
 				targetSchema,
-				scopes.stream()
-					.map(scope -> filterByVisitor.getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType(), scope))
-					.filter(Optional::isPresent)
-					.map(Optional::get)
-					.toArray(EntityIndex[]::new)
+				// the target indexes serve the children expansion only - looking them up for any other facet would
+				// fail for a referenced entity type evitaDB does not manage, which has no collection to look into
+				isHierarchical ?
+					scopes.stream()
+						.map(scope -> filterByVisitor.getGlobalEntityIndexIfExists(referenceSchema.getReferencedEntityType(), scope))
+						.filter(Optional::isPresent)
+						.map(Optional::get)
+						.toArray(EntityIndex[]::new) :
+					null
 			);
 		}
 	}
@@ -252,76 +267,104 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 			}
 		}
 
-		final List<Formula> collectedFormulas = filterByVisitor.collectFromIndexes(
-			entityIndex -> {
-				final FacetFiltering facetFiltering = isolateFilteringConstraints(
-					filterByVisitor, facetHaving.getChildren(), referenceSchema, scopes
-				);
+		// the facets of a referenced entity type evitaDB does not manage can be selected only by what the owning
+		// entities store about them - the primary keys and the reference attributes; the data of the facet entities
+		// themselves is not there to be asked about
+		if (!referenceSchema.isReferencedEntityTypeManaged() &&
+			QueryUtils.findConstraint(facetHaving, EntityHaving.class, SeparateEntityScopeContainer.class) != null) {
+			throw new EntityNotManagedException(referenceSchema.getReferencedEntityType());
+		}
 
-				final Bitmap finalFacetIds = processingScope.doWithReferencedEntityExpansionFunction(
-					facetFiltering.includeChildren() ?
-						mainFacetIdsBitmap -> {
-							if (mainFacetIdsBitmap.isEmpty()) {
-								return mainFacetIdsBitmap;
-							} else {
-								final int[] mainFacetIds = mainFacetIdsBitmap.getArray();
-								final HierarchyWithin hierarchyWithin = Objects.requireNonNull(
-										facetFiltering.hierarchyFiltering())
-									.apply(mainFacetIds);
-								final Formula resultFormula = FormulaFactory.or(
-									Stream.concat(
-										Stream.of(new ConstantFormula(mainFacetIdsBitmap)),
-										Arrays.stream(Objects.requireNonNull(facetFiltering.targetIndex()))
-											.map(targetIndex ->
-												     HierarchyWithinTranslator.createFormulaFromHierarchyIndex(
-													     hierarchyWithin,
-													     Objects.requireNonNull(targetIndex),
-													     mainFacetIds,
-													     filterByVisitor.getQueryContext(),
-													     scopes,
-													     referenceSchema,
-													     Objects.requireNonNull(facetFiltering.targetSchema())
-												     )
-											)
-									).toArray(Formula[]::new)
-								);
-								resultFormula.initialize(filterByVisitor.getInternalExecutionContext());
-								return resultFormula.compute();
-							}
-						} :
-						UnaryOperator.identity(),
-					() -> {
-						final Formula finalFacetIdsFormula = filterByVisitor.getReferencedRecordIdFormula(
-							entitySchema,
-							referenceSchema,
-							facetFiltering.mainFiltering()
+		final List<EntityIndex> searchedIndexes = filterByVisitor.getEntityIndexStream().toList();
+		// there is no index to search - no entity can match
+		if (searchedIndexes.isEmpty()) {
+			return EmptyFormula.INSTANCE;
+		}
+
+		final FacetFiltering facetFiltering = isolateFilteringConstraints(
+			filterByVisitor, facetHaving.getChildren(), referenceSchema, scopes
+		);
+		final Bitmap finalFacetIds = processingScope.doWithReferencedEntityExpansionFunction(
+			facetFiltering.includeChildren() ?
+				mainFacetIdsBitmap -> {
+					if (mainFacetIdsBitmap.isEmpty()) {
+						return mainFacetIdsBitmap;
+					} else {
+						final int[] mainFacetIds = mainFacetIdsBitmap.getArray();
+						final HierarchyWithin hierarchyWithin = Objects.requireNonNull(
+								facetFiltering.hierarchyFiltering())
+							.apply(mainFacetIds);
+						final Formula resultFormula = FormulaFactory.or(
+							Stream.concat(
+								Stream.of(new ConstantFormula(mainFacetIdsBitmap)),
+								Arrays.stream(Objects.requireNonNull(facetFiltering.targetIndex()))
+									.map(targetIndex ->
+										     HierarchyWithinTranslator.createFormulaFromHierarchyIndex(
+											     hierarchyWithin,
+											     Objects.requireNonNull(targetIndex),
+											     mainFacetIds,
+											     filterByVisitor.getQueryContext(),
+											     scopes,
+											     referenceSchema,
+											     Objects.requireNonNull(facetFiltering.targetSchema())
+										     )
+									)
+							).toArray(Formula[]::new)
 						);
-
-						// initialize the formula before compute is called
-						finalFacetIdsFormula.initialize(filterByVisitor.getInternalExecutionContext());
-						// calculate result
-						return finalFacetIdsFormula.compute();
+						resultFormula.initialize(filterByVisitor.getInternalExecutionContext());
+						return resultFormula.compute();
 					}
+				} :
+				UnaryOperator.identity(),
+			() -> {
+				final Formula finalFacetIdsFormula = filterByVisitor.getReferencedRecordIdFormula(
+					entitySchema,
+					referenceSchema,
+					facetFiltering.mainFiltering()
 				);
-				// first collect all formulas
-				return entityIndex.getFacetReferencingEntityIdsFormula(
-					facetHaving.getReferenceName(),
-					(groupId, theFacetIds, recordIdBitmaps) -> {
-						if (filterByVisitor.isFacetGroupConjunction(referenceSchema, groupId, WITH_DIFFERENT_FACETS_IN_GROUP)) {
-							// AND relation is requested for facet of this group
-							return new FacetGroupAndFormula(
-								facetHaving.getReferenceName(), groupId, theFacetIds, recordIdBitmaps
-							);
-						} else {
-							// default facet relation inside same group is or
-							return new FacetGroupOrFormula(
-								facetHaving.getReferenceName(), groupId, theFacetIds, recordIdBitmaps
-							);
-						}
-					},
-					finalFacetIds
-				).stream();
-			});
+
+				// initialize the formula before compute is called
+				finalFacetIdsFormula.initialize(filterByVisitor.getInternalExecutionContext());
+				// calculate result
+				return finalFacetIdsFormula.compute();
+			}
+		);
+
+		final TriFunction<Integer, Bitmap, Bitmap[], FacetGroupFormula> groupFormulaFactory =
+			(groupId, theFacetIds, recordIdBitmaps) -> {
+				if (filterByVisitor.isFacetGroupConjunction(referenceSchema, groupId, WITH_DIFFERENT_FACETS_IN_GROUP)) {
+					// AND relation is requested for facet of this group
+					return new FacetGroupAndFormula(
+						facetHaving.getReferenceName(), groupId, theFacetIds, recordIdBitmaps
+					);
+				} else {
+					// default facet relation inside same group is or
+					return new FacetGroupOrFormula(
+						facetHaving.getReferenceName(), groupId, theFacetIds, recordIdBitmaps
+					);
+				}
+			};
+		// first collect all formulas
+		final List<FacetGroupFormula> collectedFormulas = new ArrayList<>(16);
+		for (final EntityIndex searchedIndex : searchedIndexes) {
+			collectedFormulas.addAll(
+				searchedIndex.getFacetReferencingEntityIdsFormula(
+					facetHaving.getReferenceName(), groupFormulaFactory, finalFacetIds
+				)
+			);
+		}
+		collectedFormulas.addAll(
+			getGroupsOfFacetsUnknownToReducedIndexes(
+				filterByVisitor, entitySchema, facetHaving.getReferenceName(), searchedIndexes, groupFormulaFactory,
+				finalFacetIds
+			)
+		);
+		final FacetGroupFormula unreferencedFacetsTerm = getTermOfUnreferencedNamedFacets(
+			facetFiltering, collectedFormulas, groupFormulaFactory
+		);
+		if (unreferencedFacetsTerm != null) {
+			collectedFormulas.add(unreferencedFacetsTerm);
+		}
 
 		// no single entity references this particular facet - return empty result quickly
 		if (collectedFormulas.isEmpty()) {
@@ -331,7 +374,6 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 		// now aggregate formulas by group id - there will always be disjunction
 		final Collection<Optional<FacetGroupFormula>> formulasGroupedByGroupId = collectedFormulas
 			.stream()
-			.map(FacetGroupFormula.class::cast)
 			.collect(
 				Collectors.groupingBy(
 					it -> new GroupKey(it.getFacetGroupId()),
@@ -339,28 +381,151 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 				)
 			).values();
 
-		// now aggregate formulas by their group relation type
-		final Map<Class<? extends FilterConstraint>, List<FacetGroupFormula>> formulasGroupedByAggregationType = formulasGroupedByGroupId
+		// now aggregate formulas by their group relation type - the facets without a group and the groups of a type
+		// evitaDB does not manage follow the relation settings like any other group, the reference summary resolves
+		// the relation the same way, so the result must not deviate from it
+		return composeFacetSelectionFormula(
+			facetHaving.getReferenceName(),
+			formulasGroupedByGroupId.stream()
+				.filter(Optional::isPresent)
+				.map(Optional::get)
+				.toList(),
+			it -> filterByVisitor.getFacetRelationType(referenceSchema, it.getFacetGroupId(), WITH_DIFFERENT_GROUPS)
+		);
+	}
+
+	/**
+	 * Returns the term of the facets the facet filter names by primary key that no searched scope references. Such a
+	 * facet has no reference to take a group from, so it is a facet without a group: its term joins the term of the
+	 * facets without a group and follows their relations, and it holds no entity. A filter that is exactly
+	 * {@link EntityPrimaryKeyInSet} selects every primary key it names, referenced or not - the way a client selects
+	 * options. Any other filter selects among the facets the searched scopes reference only, because every other
+	 * constraint reads data of a reference, which an unreferenced facet does not have; so does a filter expanding
+	 * hierarchical facets to their children, whose named parents are commonly referenced by no entity at all.
+	 *
+	 * @param facetFiltering      the isolated constraints of the facet filter
+	 * @param collectedFormulas   the terms of the selected facets collected from the searched indexes and the scopes
+	 * @param groupFormulaFactory creates the formula of one group from its id, its facets and their entities
+	 * @return the term of the unreferenced named facets in the group of the facets without a group, or NULL when the
+	 * filter names no such facet
+	 */
+	@Nullable
+	private static FacetGroupFormula getTermOfUnreferencedNamedFacets(
+		@Nonnull FacetFiltering facetFiltering,
+		@Nonnull List<FacetGroupFormula> collectedFormulas,
+		@Nonnull TriFunction<Integer, Bitmap, Bitmap[], FacetGroupFormula> groupFormulaFactory
+	) {
+		final FilterConstraint[] filterConstraints = facetFiltering.mainFiltering().getChildren();
+		if (facetFiltering.includeChildren() ||
+			filterConstraints.length != 1 ||
+			!(filterConstraints[0] instanceof EntityPrimaryKeyInSet entityPrimaryKeyInSet)) {
+			return null;
+		}
+		final IntSet referencedFacetIds = new IntHashSet(16);
+		for (final FacetGroupFormula collectedFormula : collectedFormulas) {
+			final OfInt facetIdIterator = collectedFormula.getFacetIds().iterator();
+			while (facetIdIterator.hasNext()) {
+				referencedFacetIds.add(facetIdIterator.nextInt());
+			}
+		}
+		final int[] unreferencedFacetIds = Arrays.stream(entityPrimaryKeyInSet.getPrimaryKeys())
+			.filter(it -> !referencedFacetIds.contains(it))
+			.distinct()
+			.sorted()
+			.toArray();
+		if (unreferencedFacetIds.length == 0) {
+			return null;
+		}
+		final Bitmap[] noEntities = new Bitmap[unreferencedFacetIds.length];
+		Arrays.fill(noEntities, EmptyBitmap.INSTANCE);
+		return groupFormulaFactory.apply(null, new BaseBitmap(unreferencedFacetIds), noEntities);
+	}
+
+	/**
+	 * Returns the terms a plan over reduced indexes must add for the selected facets they do not know. A reduced index
+	 * holds the entities of one referenced entity only, so a facet the scope references may be unknown to it - the
+	 * facet is referenced by entities outside it. The groups of such a facet are still the groups the scope files its
+	 * references under, and the plan over the global index composes the facet's term into each of them, so the plan
+	 * over the reduced indexes must too: a term of a conjunctive group empties the group, a term of a negated group
+	 * subtracts nothing. The terms are taken from the global index of the scope of each reduced index, with no entity
+	 * in them, because none of the entities the reduced index holds references the facet. A term that a searched index
+	 * holds as well merges with it into the same term.
+	 *
+	 * @param filterByVisitor     the visitor providing the global indexes
+	 * @param entitySchema        the schema of the queried entity
+	 * @param referenceName       the name of the faceted reference
+	 * @param searchedIndexes     the indexes the selection is evaluated in
+	 * @param groupFormulaFactory creates the formula of one group from its id, its facets and their entities
+	 * @param selectedFacetIds    the primary keys of the selected facets
+	 * @return the terms of the selected facets in the groups the scopes of the reduced indexes give them, with no
+	 * entities, or an empty list when every searched index is a global one
+	 */
+	@Nonnull
+	private static List<FacetGroupFormula> getGroupsOfFacetsUnknownToReducedIndexes(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull String referenceName,
+		@Nonnull List<EntityIndex> searchedIndexes,
+		@Nonnull TriFunction<Integer, Bitmap, Bitmap[], FacetGroupFormula> groupFormulaFactory,
+		@Nonnull Bitmap selectedFacetIds
+	) {
+		final Set<Scope> scopesOfReducedIndexes = searchedIndexes.stream()
+			.filter(it -> !(it instanceof GlobalEntityIndex))
+			.map(it -> it.getIndexKey().scope())
+			.collect(Collectors.toCollection(() -> EnumSet.noneOf(Scope.class)));
+		if (scopesOfReducedIndexes.isEmpty() || selectedFacetIds.isEmpty()) {
+			return List.of();
+		}
+		final List<FacetGroupFormula> terms = new ArrayList<>(8);
+		for (final Scope scope : scopesOfReducedIndexes) {
+			filterByVisitor.getGlobalEntityIndexIfExists(entitySchema.getName(), scope)
+				.ifPresent(
+					globalIndex -> terms.addAll(
+						globalIndex.getFacetReferencingEntityIdsFormula(
+							referenceName,
+							(groupId, theFacetIds, recordIdBitmaps) -> {
+								final Bitmap[] noEntities = new Bitmap[recordIdBitmaps.length];
+								Arrays.fill(noEntities, EmptyBitmap.INSTANCE);
+								return groupFormulaFactory.apply(groupId, theFacetIds, noEntities);
+							},
+							selectedFacetIds
+						)
+					)
+				);
+		}
+		return terms;
+	}
+
+	/**
+	 * Composes the facet-selection formula of one reference from the formulas of its selected facet groups - each
+	 * group joins the container of its relation to the other groups and the containers are composed by
+	 * {@link #composeFacetSelectionFormula(String, Formula, Formula, Formula)}. The reference summary composes its
+	 * impact predictions through this method as well, so that the prediction for a group not selected yet has exactly
+	 * the shape of the result selecting it.
+	 *
+	 * @param referenceName         the name of the reference the facets belong to
+	 * @param facetGroupFormulas    the formulas of the selected facet groups, one for each group
+	 * @param relationBetweenGroups resolves the relation of the group of the passed formula to the other groups
+	 * @param <T>                   the type of the facet group formulas
+	 * @return the composed facet-selection formula, either a {@link FacetHavingFormula} wrapping the compound or a
+	 * {@link FutureNotFormula} sentinel when all the groups are negated
+	 */
+	@Nonnull
+	public static <T extends Formula> Formula composeFacetSelectionFormula(
+		@Nonnull String referenceName,
+		@Nonnull Collection<T> facetGroupFormulas,
+		@Nonnull Function<T, FacetRelationType> relationBetweenGroups
+	) {
+		final Map<Class<? extends FilterConstraint>, List<T>> formulasGroupedByAggregationType = facetGroupFormulas
 			.stream()
-			.filter(Optional::isPresent)
-			.map(Optional::get)
 			.collect(
 				Collectors.groupingBy(
-					it -> {
-						final Integer groupId = it.getFacetGroupId();
-						if (groupId != null) {
-							if (referenceSchema.isReferencedGroupTypeManaged()) {
-								// OR relation is requested for facets of this group
-								if (filterByVisitor.isFacetGroupDisjunction(referenceSchema, groupId, WITH_DIFFERENT_GROUPS)) {
-									return Or.class;
-									// NOT relation is requested for facets of this group
-								} else if (filterByVisitor.isFacetGroupNegation(referenceSchema, groupId, WITH_DIFFERENT_GROUPS)) {
-									return Not.class;
-								}
-							}
-						}
-						// default group relation is and
-						return And.class;
+					it -> switch (relationBetweenGroups.apply(it)) {
+						case DISJUNCTION -> Or.class;
+						case NEGATION -> Not.class;
+						// exclusivity changes only the reference summary, the result falls back to the system
+						// default between groups, which is a conjunction
+						case CONJUNCTION, EXCLUSIVITY -> And.class;
 					}
 				)
 			);
@@ -376,7 +541,7 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 			.map(it -> FormulaFactory.or(it.toArray(Formula[]::new)))
 			.orElse(null);
 
-		return composeFacetSelectionFormula(facetHaving.getReferenceName(), notFormula, andFormula, orFormula);
+		return composeFacetSelectionFormula(referenceName, notFormula, andFormula, orFormula);
 	}
 
 	/**
@@ -415,7 +580,9 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 				composed = orFormula;
 			} else if (orFormula == null) {
 				composed = andFormula;
-			} else if (orFormula instanceof FacetGroupFormula) {
+			} else if (!(orFormula instanceof OrFormula)) {
+				// a single disjunctive group - the reference summary passes a formula standing in for a facet group
+				// formula here, which cannot be cloned
 				composed = new CombinedFacetFormula(andFormula, orFormula);
 			} else {
 				composed = orFormula.getCloneWithInnerFormulas(
@@ -478,7 +645,8 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 	 * @param mainFiltering      constraint to be used for general facet filtering
 	 * @param hierarchyFiltering constraint to be used to match additional children of all matched hierarchy facets
 	 * @param targetSchema       the schema of the target entity
-	 * @param targetIndex        the global index of the target entity
+	 * @param targetIndex        the global indexes of the target entity, present only when the hierarchical facets
+	 *                           include their children
 	 */
 	public record FacetFiltering(
 		@Nonnull FilterBy mainFiltering,

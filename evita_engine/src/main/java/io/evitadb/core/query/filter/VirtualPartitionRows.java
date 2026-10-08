@@ -358,9 +358,9 @@ public final class VirtualPartitionRows {
 	 * - `referenceHaving` rebuilds its body from the formulas of its level and never runs the post-processor of
 	 *   `inScope`, so a constraint confined to another scope contributes nothing for a partition;
 	 * - `referenceContent(filterBy)` evaluates the body per partition and runs the post-processor, which ORs one copy
-	 *   of the body per requested scope: in the copy of the partition's own scope a constraint confined to another
-	 *   scope is replaced by every record of the partition, in the copy of any other requested scope every `inScope`
-	 *   is replaced by records of that scope, of which the partition holds none.
+	 *   of the body per processed scope, each restricted to the entities of its scope: in the copy of the partition's
+	 *   own scope a constraint confined to another scope is replaced by every record of the partition, and the copy of
+	 *   any other scope selects nothing, because the partition holds no entity of that scope.
 	 */
 	public enum InScopeReading {
 		/**
@@ -371,12 +371,7 @@ public final class VirtualPartitionRows {
 		 * `inScope` naming the scope of the rows is its children, naming another scope it is met by every row - the
 		 * copy of the rows' own scope in `referenceContent(filterBy)`.
 		 */
-		OTHER_SCOPES_MET,
-		/**
-		 * Every `inScope` is unmet, whichever scope it names - the copy of another requested scope in
-		 * `referenceContent(filterBy)`.
-		 */
-		ALL_SCOPES_UNMET
+		OTHER_SCOPES_MET
 	}
 
 	@Override

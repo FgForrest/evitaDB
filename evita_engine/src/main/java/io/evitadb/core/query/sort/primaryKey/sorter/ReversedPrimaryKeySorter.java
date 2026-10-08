@@ -26,6 +26,7 @@ package io.evitadb.core.query.sort.primaryKey.sorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -57,12 +58,20 @@ public class ReversedPrimaryKeySorter implements Sorter {
 		final int peak = sortingContext.peak();
 
 
-		// recalculate positions for reversed order
-		final int length = recomputedEndIndex - recomputedStartIndex;
-		final int[] range = filteredRecordIdBitmap.getRange(
-			size - Math.min(size, length),
-			size - recomputedStartIndex
-		);
+		// the slice `[start, end)` of the reversed order is the slice `[size - end, size - start)` of the ascending
+		// order read backwards
+		final int start = Math.min(size, recomputedStartIndex);
+		final int end = Math.min(size, recomputedEndIndex);
+		final int[] range = start < end ?
+			filteredRecordIdBitmap.getRange(size - end, size - start) : ArrayUtils.EMPTY_INT_ARRAY;
+		// the skipped records (the slice `[0, start)` of the reversed order) must reach the consumer - a wrapping
+		// sorter (such as a segment) relies on it to exclude them from the input of the sorters that follow
+		if (skippedRecordsConsumer != null && start > 0) {
+			final int[] skipped = filteredRecordIdBitmap.getRange(size - start, size);
+			for (int i = skipped.length - 1; i >= 0; i--) {
+				skippedRecordsConsumer.accept(skipped[i]);
+			}
+		}
 		// and copy the range contents in reversed order
 		int newPeak = peak;
 		for (int i = range.length - 1; i >= 0; i--) {
@@ -71,7 +80,7 @@ public class ReversedPrimaryKeySorter implements Sorter {
 		return sortingContext.createResultContext(
 			EmptyBitmap.INSTANCE,
 			newPeak - peak,
-			0
+			start
 		);
 	}
 

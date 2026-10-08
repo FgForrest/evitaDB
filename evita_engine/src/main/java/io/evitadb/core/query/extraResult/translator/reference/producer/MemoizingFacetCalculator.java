@@ -92,14 +92,14 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 		this.baseFormulaWithoutUserFilter = baseFormulaWithoutUserFilter;
 		this.baseMatchCount = baseFormula.compute().size();
 		this.facetFormulaGenerator = new FacetFormulaGenerator(
+			queryContext::getFacetRelationType,
 			queryContext::isFacetGroupConjunction,
-			queryContext::isFacetGroupDisjunction,
 			queryContext::isFacetGroupNegation,
 			queryContext::isFacetGroupExclusive
 		);
 		this.impactFormulaGenerator = new ImpactFormulaGenerator(
+			queryContext::getFacetRelationType,
 			queryContext::isFacetGroupConjunction,
-			queryContext::isFacetGroupDisjunction,
 			queryContext::isFacetGroupNegation,
 			queryContext::isFacetGroupExclusive
 		);
@@ -107,11 +107,19 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 
 	@Nullable
 	@Override
-	public RequestImpact calculateImpact(@Nonnull ReferenceSchemaContract referenceSchema, int facetId, @Nullable Integer facetGroupId, boolean required, @Nonnull Bitmap[] facetEntityIds) {
+	public RequestImpact calculateImpact(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		int facetId,
+		@Nullable Integer facetGroupId,
+		boolean required,
+		@Nonnull Bitmap[] facetEntityIds,
+		@Nonnull FacetGroupOccurrences facetGroupOccurrences
+	) {
 		final ImpactFormulaGenerator generator = this.impactFormulaGenerator;
 		// create formula that would capture the requested facet selected
 		final Formula hypotheticalFormula = generator.generateFormula(
-			this.baseFormula, this.baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
+			this.baseFormula, this.baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds,
+			facetGroupOccurrences
 		);
 		// initialize the formula
 		hypotheticalFormula.initialize(this.executionContext);
@@ -123,14 +131,22 @@ public class MemoizingFacetCalculator implements FacetCalculator, ImpactCalculat
 			difference,
 			hypotheticalCount,
 			hypotheticalCount > 0 &&
-				(difference != 0 || generator.hasSenseAlone(hypotheticalFormula, referenceSchema, facetGroupId, facetId, facetEntityIds))
+				(difference != 0 || generator.hasSenseAlone(
+					hypotheticalFormula, referenceSchema, facetGroupId, facetId, facetGroupOccurrences
+				))
 		);
 	}
 
 	@Nonnull
 	@Override
-	public Formula createCountFormula(@Nonnull ReferenceSchemaContract referenceSchema, int facetId, @Nullable Integer facetGroupId, @Nonnull Bitmap[] facetEntityIds) {
-		// create formula that would capture all mandatory filtering constraints plus this single facet selected
+	public Formula createCountFormula(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		int facetId,
+		@Nullable Integer facetGroupId,
+		@Nonnull Bitmap[] facetEntityIds
+	) {
+		// create formula that would capture all mandatory filtering constraints plus this single facet selected in
+		// the group of the counted entry only
 		final Formula hypotheticalFormula = this.facetFormulaGenerator.generateFormula(
 			this.baseFormula, this.baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId, facetEntityIds
 		);

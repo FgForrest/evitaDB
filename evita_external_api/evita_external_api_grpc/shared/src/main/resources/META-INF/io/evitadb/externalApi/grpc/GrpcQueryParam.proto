@@ -100,7 +100,7 @@ message GrpcQueryParam {
     GrpcFacetRelationType facetRelationType = 25;
     // Binds a `GrpcFacetGroupRelationLevel` enum parameter into the query, used by facet summary
     // impact calculation to select whether the relation applies between facets in the same group or
-    // across different groups/references.
+    // across different groups of the same reference.
     GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;
     // Binds a `GrpcTraversalMode` enum parameter into the query, used by the
     // `traverseByEntityProperty` ordering constraint to select depth-first or breadth-first traversal.

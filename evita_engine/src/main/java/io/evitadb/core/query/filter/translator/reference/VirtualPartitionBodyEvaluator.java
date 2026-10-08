@@ -56,7 +56,6 @@ import io.evitadb.core.query.filter.NestedQueryRestriction;
 import io.evitadb.core.query.filter.VirtualPartitionRows;
 import io.evitadb.core.query.filter.VirtualPartitionRows.InScopeReading;
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
-import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.ReferencePartitionSplit;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -240,10 +239,10 @@ public final class VirtualPartitionBodyEvaluator {
 	/**
 	 * Answers a body exactly for the virtual candidates of a split as `referenceContent(filterBy)` reads it, and
 	 * returns the primary keys of those whose single row satisfies it. That route evaluates the body against each
-	 * partition with the post-processor of `inScope` running, which ORs one copy of the body per requested scope (see
-	 * {@link InScopeReading}): the copy of the partition's own scope ({@link InScopeReading#OTHER_SCOPES_MET}) and,
-	 * when the query requests another scope too, the copy in which every `inScope` is unmet
-	 * ({@link InScopeReading#ALL_SCOPES_UNMET}). A body without `inScope` has no copies, and is evaluated once.
+	 * partition with the post-processor of `inScope` running, which ORs one copy of the body per processed scope, each
+	 * restricted to the entities of its scope (see {@link InScopeReading}). Only the copy of the partition's own scope
+	 * ({@link InScopeReading#OTHER_SCOPES_MET}) can select a row - the copy of any other scope is restricted to entities
+	 * the partition does not hold - so the body is evaluated once, in that reading.
 	 *
 	 * @param filterByVisitor             the visitor translating the reference filter
 	 * @param entitySchema                the schema of the entity owning the reference
@@ -267,29 +266,9 @@ public final class VirtualPartitionBodyEvaluator {
 		@Nullable NestedQueryRestriction nestedQueryRestriction,
 		@Nullable EntityNestedQueryComparator entityNestedQueryComparator
 	) {
-		final Bitmap ownScopeCopy = getMatchingPartitions(
+		return getMatchingPartitions(
 			filterByVisitor, entitySchema, referenceSchema, body, split, InScopeReading.OTHER_SCOPES_MET,
 			nestedQueryRestriction, entityNestedQueryComparator
-		);
-		final Set<Scope> requestedScopes = filterByVisitor.getScopes();
-		if (requestedScopes.size() < 2 || !containsInScope(body)) {
-			return ownScopeCopy;
-		}
-		// every partition lives in one of the requested scopes, so with two of them each has the copy of the other
-		final Bitmap otherScopeCopy = getMatchingPartitions(
-			filterByVisitor, entitySchema, referenceSchema, body, split, InScopeReading.ALL_SCOPES_UNMET,
-			nestedQueryRestriction, entityNestedQueryComparator
-		);
-		if (otherScopeCopy.isEmpty()) {
-			return ownScopeCopy;
-		} else if (ownScopeCopy.isEmpty()) {
-			return otherScopeCopy;
-		}
-		return new BaseBitmap(
-			PersistentRoaringBitmap.or(
-				RoaringBitmapBackedBitmap.getRoaringBitmap(ownScopeCopy),
-				RoaringBitmapBackedBitmap.getRoaringBitmap(otherScopeCopy)
-			)
 		);
 	}
 
@@ -371,24 +350,6 @@ public final class VirtualPartitionBodyEvaluator {
 			}
 		}
 		return true;
-	}
-
-	/**
-	 * Tells whether a body holds `inScope` among the constraints on the reference row.
-	 *
-	 * @param constraint the body or a part of it
-	 * @return TRUE when an `inScope` constrains the row
-	 */
-	private static boolean containsInScope(@Nonnull FilterConstraint constraint) {
-		if (constraint instanceof FilterInScope) {
-			return true;
-		}
-		for (final FilterConstraint child : rowChildrenOf(constraint)) {
-			if (containsInScope(child)) {
-				return true;
-			}
-		}
-		return false;
 	}
 
 	/**

@@ -122,6 +122,27 @@ public class PricesStoragePart implements EntityStoragePart {
 		this.sizeInBytes = sizeInBytes;
 	}
 
+	/**
+	 * Creates the pre-image of `source` (see {@link #createPreImage()}): every field is carried over and the price
+	 * array, which {@link #replaceOrAddPrice} writes into in place, is copied.
+	 *
+	 * @param source the part whose current content is copied
+	 */
+	private PricesStoragePart(@Nonnull PricesStoragePart source) {
+		this.entityPrimaryKey = source.entityPrimaryKey;
+		this.version = source.version;
+		this.priceInnerRecordHandling = source.priceInnerRecordHandling;
+		this.prices = Arrays.copyOf(source.prices, source.prices.length);
+		this.sizeInBytes = source.sizeInBytes;
+		this.dirty = source.dirty;
+	}
+
+	@Nonnull
+	@Override
+	public PricesStoragePart createPreImage() {
+		return new PricesStoragePart(this);
+	}
+
 	@Nullable
 	@Override
 	public Long getStoragePartPK() {

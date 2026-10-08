@@ -937,6 +937,8 @@ reference created, and each new value would make writes more expensive.
 
 </Note>
 
+A [reflected reference](#reference-directionality) allows duplicates exactly when the original reference it reflects does. It inherits the cardinality of the original reference by default; when it declares its own cardinality, both cardinalities must either allow duplicates or disallow them, and a reflected reference allowing duplicates must also inherit all representative attributes of the original reference. A schema whose two references disagree - whether the mismatch is declared directly or arises later by changing the cardinality of either reference - is refused with an `InvalidSchemaMutationException` when the session that changed the schema closes.
+
 ## Scopes
 
 Scopes are separate areas of memory where entity indexes are stored. Scopes are used to separate live data from archived 

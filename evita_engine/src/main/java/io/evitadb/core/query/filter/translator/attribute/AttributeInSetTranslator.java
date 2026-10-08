@@ -34,7 +34,6 @@ import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
-import io.evitadb.core.query.algebra.prefetch.MultipleEntityFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
@@ -42,13 +41,10 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
-import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.utils.ArrayUtils;
-import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
-import java.math.BigDecimal;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
@@ -99,15 +95,8 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 							filterByVisitor.getProcessingScope().getReferenceSchema(),
 							attributeSchema,
 							index -> index.getEntityReferenceByUniqueValue(
-									comparedValue, attributeKey.locale(), filterByVisitor.getEntityTypeClassifierResolver()
-								)
-								// the catalog-wide index answers for every collection - keep a holder of the queried one
-								.filter(filterByVisitor::isOfQueriedEntityType)
-								.map(it -> (Formula) new MultipleEntityFormula(
-									new long[]{index.getId()},
-									new BaseBitmap(filterByVisitor.translateEntityReference(it))
-								))
-								.orElse(EmptyFormula.INSTANCE),
+								comparedValue, attributeKey.locale(), filterByVisitor.getEntityTypeClassifierResolver()
+							),
 							index -> ofNullable(index.getRecordIdByUniqueValue(comparedValue))
 								.map(it -> (Formula) new ConstantFormula(new ArrayBitmap(it)))
 								.orElse(EmptyFormula.INSTANCE)
@@ -170,32 +159,20 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
 
 			final Class<? extends Serializable> plainType = attributeSchema.getPlainType();
-			// scaled-int normalizer for the filter value tree (NFD strings / instant-folded OffsetDateTime / scaled-int
-			// BigDecimal); the filter index re-normalizes idempotently so the already-scaled probe flows through safely
+			// the filter normalizer (NFD strings / instant-folded OffsetDateTime / scaled-int BigDecimal) yields the form
+			// every value tree of the attribute stores - the filter tree and the standalone unique trees alike; each
+			// index re-normalizes idempotently, so the already-normalized probe flows through safely
 			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(
 				plainType, attributeSchema.getIndexedDecimalPlaces()
 			);
-
-			// the exact (un-scaled) target values feed the unique path, which keeps BigDecimal exact
-			final List<? extends Serializable> targetValues = Arrays.stream(comparedValues)
+			final List<? extends Serializable> theComparedValues = Arrays.stream(comparedValues)
 				.map(it -> EvitaDataTypes.toTargetType(it, plainType))
-				.toList();
-			final List<? extends Serializable> theComparedValues = targetValues.stream()
 				.map(normalizer)
 				.toList();
-			// uniqueness stays exact BigDecimal: probe the unique index with the unscaled values for BigDecimal
-			// attributes, stripped of trailing zeros exactly as the stored keys are (`NumberUtils#normalizeForIndexing`
-			// at the write boundary) because the index orders its keys by scale too; for every other type the
-			// canonical (NFD/instant) form matches what the unique index stored
-			final List<? extends Serializable> uniqueComparedValues = plainType == BigDecimal.class ?
-				targetValues.stream()
-					.map(it -> NumberUtils.normalizeForIndexing(it, attributeSchema.getIndexedDecimalPlaces()))
-					.toList() :
-				theComparedValues;
 
 			if (scopes.stream().anyMatch(scope -> isUniqueInScope(attributeSchema, scope))) {
 				return createUniqueAttributeFormula(
-					filterByVisitor, attributeSchema, attributeKey, uniqueComparedValues
+					filterByVisitor, attributeSchema, attributeKey, theComparedValues
 				);
 			} else {
 				return createFilterableAttributeFormula(

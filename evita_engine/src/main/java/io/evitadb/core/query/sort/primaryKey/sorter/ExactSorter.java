@@ -67,11 +67,15 @@ public class ExactSorter implements Sorter {
 		// sort the filtered entity primary keys along the exact order in input
 		final int lastSortedItem = ArrayUtils.sortAlong(this.exactOrder, filteredRecordIds);
 
-		// copy the sorted data to result
-		final int toAppend = Math.min(lastSortedItem - recomputedStartIndex, recomputedEndIndex - recomputedStartIndex);
-		System.arraycopy(filteredRecordIds, recomputedStartIndex, result, sortingContext.peak(), toAppend);
+		// only the records matched by the exact order (positions `[0, lastSortedItem)`) are sorted by this sorter -
+		// when the page starts past them, none is appended and only the matched ones count as skipped, so that
+		// the next sorter skips the rest of the offset from the records it receives
+		final int skippedRecords = Math.min(recomputedStartIndex, lastSortedItem);
+		final int toAppend = Math.max(0, Math.min(lastSortedItem, recomputedEndIndex) - recomputedStartIndex);
+		if (toAppend > 0) {
+			System.arraycopy(filteredRecordIds, recomputedStartIndex, result, sortingContext.peak(), toAppend);
+		}
 
-		int skippedRecords = Math.min(recomputedStartIndex, filteredRecordIds.length);
 		if (skippedRecordsConsumer != null) {
 			for (int i = 0; i < skippedRecords; i++) {
 				skippedRecordsConsumer.accept(filteredRecordIds[i]);

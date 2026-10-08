@@ -23,15 +23,18 @@
 
 package io.evitadb.core.cdc;
 
+import io.evitadb.api.requestResponse.cdc.CaptureArea;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.core.executor.EvitaRejectingExecutorHandler;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
+import io.evitadb.api.requestResponse.cdc.Operation;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -297,6 +300,102 @@ class ChangeCaptureSubscriptionFillFailureTest {
 		} finally {
 			executorService.shutdownNow();
 		}
+	}
+
+	@DisplayName("a fill that queued captures before failing must deliver them before the failure")
+	@Test
+	void shouldDeliverTheCapturesAFailedFillQueuedBeforeItsFailure() {
+		final List<ChangeCatalogCapture> delivered = deliverAFillThatQueuesTwoCapturesAndFails(5);
+
+		assertEquals(
+			List.of(1L, 2L),
+			delivered.stream().map(ChangeCatalogCapture::version).toList(),
+			"The fill read both captures intact before it failed, and they are owed to the subscriber - a " +
+				"resubscription from the last delivered position would fail at the same place again, so dropping " +
+				"them together with the error makes them unreachable."
+		);
+	}
+
+	@DisplayName("a fill failure must reach the subscriber even when the demand ends exactly at the queued captures")
+	@Test
+	void shouldReportTheFillFailureWhenTheDemandEndsAtTheLastQueuedCapture() {
+		final List<ChangeCatalogCapture> delivered = deliverAFillThatQueuesTwoCapturesAndFails(2);
+
+		assertEquals(
+			List.of(1L, 2L),
+			delivered.stream().map(ChangeCatalogCapture::version).toList(),
+			"Both captures the failed fill queued were requested and must be delivered."
+		);
+	}
+
+	/**
+	 * Drives a subscription whose single fill queues two captures and then fails, with the given demand, and
+	 * verifies the failure reaches the subscriber only after every capture it was delivered.
+	 *
+	 * @param demand the number of captures the subscriber requests
+	 * @return the captures delivered before the failure, in delivery order
+	 */
+	@Nonnull
+	private static List<ChangeCatalogCapture> deliverAFillThatQueuesTwoCapturesAndFails(long demand) {
+		final RuntimeException fillFailure = new IllegalStateException("WAL read failed after two captures");
+		final AtomicInteger deliveredBeforeError = new AtomicInteger(-1);
+		final RecordingSubscriber subscriber = new RecordingSubscriber() {
+			@Override
+			public void onError(Throwable throwable) {
+				deliveredBeforeError.set(getItems().size());
+				super.onError(throwable);
+			}
+		};
+		final AtomicInteger fillAttempts = new AtomicInteger();
+
+		final ExecutorService executorService = createDaemonExecutor();
+		try {
+			final DefaultChangeCaptureSubscription<ChangeCatalogCapture> subscription =
+				new DefaultChangeCaptureSubscription<>(
+					UUID.randomUUID(),
+					16,
+					new WalPointerWithContent(1L, 0, ChangeCaptureContent.HEADER),
+					subscriber,
+					executorService,
+					(walPointer, theSubscription, queue) -> {
+						assertEquals(1, fillAttempts.incrementAndGet(), "Only the first fill may run.");
+						queue.offer(createCapture(1L));
+						queue.offer(createCapture(2L));
+						throw fillFailure;
+					},
+					capture -> {
+					},
+					subscriptionId -> {
+					}
+				);
+			subscription.activate();
+
+			assertDoesNotThrow(() -> subscription.request(demand));
+
+			assertSame(fillFailure, subscriber.getError(), "The failure of the fill never reached the subscriber.");
+			assertEquals(
+				2,
+				deliveredBeforeError.get(),
+				"The failure has to follow the captures the failed fill queued, not overtake them."
+			);
+			assertTrue(subscription.isFinished(), "The subscription is still live after its fill failed.");
+			return subscriber.getItems();
+		} finally {
+			executorService.shutdownNow();
+		}
+	}
+
+	/**
+	 * Creates a body-less data capture of the given version, as a header-only subscription receives it.
+	 *
+	 * @param version the catalog version of the capture
+	 * @return the capture
+	 */
+	@Nonnull
+	private static ChangeCatalogCapture createCapture(long version) {
+		return new ChangeCatalogCapture(
+			version, 0, OffsetDateTime.now(), CaptureArea.DATA, "product", 1, Operation.UPSERT, null
+		);
 	}
 
 	@DisplayName("a capture queue that is genuinely full must raise the rejection the release path has to survive")

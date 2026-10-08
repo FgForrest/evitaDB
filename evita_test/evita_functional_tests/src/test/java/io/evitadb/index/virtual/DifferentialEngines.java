@@ -2506,7 +2506,7 @@ final class DifferentialEngines implements AutoCloseable {
 			if (uniqueIndex != null) {
 				snapshot.put(
 					path + "/unique/" + key,
-					toString(uniqueIndex.getRecordIds()) + " of " + uniqueIndex.getDistinctValueCount() + " values"
+					uniqueIndex.size() + " records of " + uniqueIndex.getDistinctValueCount() + " values"
 				);
 				if (uniqueIndex instanceof final OwnerUniqueIndex ownerUniqueIndex) {
 					snapshot.put(path + "/unique/" + key + "/mapping", describeUniqueMapping(ownerUniqueIndex));

@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.function.BiLongConsumer;
 import io.evitadb.function.TriConsumer;
+import io.evitadb.utils.Assert;
 import io.evitadb.utils.IOUtils;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -106,7 +107,7 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	/**
 	 * Queue that buffers catalog change events before they are delivered to the subscriber.
 	 */
-	@Nonnull private final Queue<T> queue;
+	@Nonnull private final ArrayBlockingQueue<T> queue;
 
 	/**
 	 * Flag indicating whether this subscription has been completed or cancelled.
@@ -176,6 +177,30 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	 * The index within the version of the last delivered event.
 	 */
 	private int lastIndex;
+
+	/**
+	 * The newest version whose every capture the queue filler has examined and - where it matched - queued, or `-1`
+	 * when no fill has vouched for one yet. Guarded by {@link #lock}.
+	 *
+	 * {@link #lastVersion} moves only when a capture is delivered, so a subscriber whose criteria match nothing for
+	 * a while would otherwise keep asking for the same old position: every fill re-reads an ever longer stretch of
+	 * the write-ahead log, and once retention removes the file that position lies in, the subscriber is reported
+	 * as having lost history although it never missed a capture. The next fill therefore starts after this version
+	 * whenever it lies ahead of the last delivered capture.
+	 */
+	private long examinedThroughVersion = -1L;
+
+	/**
+	 * The failure of a queue fill that has not been reported to the subscriber yet, or `null`. Guarded by
+	 * {@link #lock}.
+	 *
+	 * A fill offers captures to the queue as it reads them, so when it fails part-way the queue may already hold
+	 * intact captures that precede the damage. Those are owed to the subscriber: dropping them with the error would
+	 * make them unreachable, because a resubscription from the last delivered position reads the same stretch and
+	 * fails at the same place again. The failure therefore waits here until the queue is drained, and only then
+	 * reaches {@link #onError(Throwable)}.
+	 */
+	@Nullable private Throwable pendingFillFailure;
 
 	/**
 	 * Creates a new subscription for catalog change events.
@@ -587,6 +612,50 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	}
 
 	/**
+	 * Records that the queue filler has examined every capture up to and including `version` and queued each one
+	 * this subscription accepts, so that the next fill may continue after it even when nothing matched. Must be
+	 * called from the queue filler - it relies on {@link #lock} being held by {@link #consumeQueue()}.
+	 *
+	 * The caller vouches for completeness: a fill cut short by a full queue must not call this, because the
+	 * captures it did not get to would be skipped.
+	 *
+	 * @param version the newest version examined in full
+	 */
+	void markExaminedThrough(long version) {
+		Assert.isPremiseValid(
+			this.lock.isHeldByCurrentThread(),
+			"The examined version may only be moved by the queue filler!"
+		);
+		if (version > this.examinedThroughVersion) {
+			this.examinedThroughVersion = version;
+		}
+	}
+
+	/**
+	 * Returns true when the delivery queue can still accept a capture - after a fill, it tells a fill that ran out
+	 * of captures from one that ran out of room. A fill that filled the queue exactly reads as cut short, which
+	 * costs only a repeated scan.
+	 *
+	 * @return true when the queue is not full
+	 */
+	boolean hasQueueCapacity() {
+		return this.queue.remainingCapacity() > 0;
+	}
+
+	/**
+	 * Returns the position the next fill starts at: right after the last delivered capture, or after the newest
+	 * version a previous fill examined in full, whichever lies further ahead. Guarded by {@link #lock}.
+	 *
+	 * @return the position the next fill starts at
+	 */
+	@Nonnull
+	private WalPointer getNextFillPointer() {
+		final WalPointer afterLastDelivered = new WalPointer(this.lastVersion, this.lastIndex + 1);
+		return this.examinedThroughVersion >= this.lastVersion ?
+			new WalPointer(this.examinedThroughVersion + 1, 0) : afterLastDelivered;
+	}
+
+	/**
 	 * Moves the version used for the last pull of catalog data, reporting the move so the publisher can
 	 * follow it in the map that gates ring-buffer trimming.
 	 *
@@ -645,7 +714,8 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 	 * 3. Delivering events to the subscriber
 	 * 4. Tracking the last processed version and index
 	 * 5. Reporting a failure of either the fill or the delivery to the subscriber through
-	 *    {@link #onError(Throwable)} and leaving the loop
+	 *    {@link #onError(Throwable)} and leaving the loop - a failed fill only after the captures it had already
+	 *    queued were delivered, see {@link #pendingFillFailure}
 	 *
 	 * Neither failure may escape this method, and both entry points explain why. {@link #request(long)} calls it
 	 * on the caller's thread, and {@link Flow.Subscription#request(long)} must never throw - so a throw would
@@ -667,9 +737,14 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 				// Try to get the next event from the queue
 				T capture = this.queue.poll();
 				if (capture == null) {
+					if (this.pendingFillFailure != null) {
+						// everything the failed fill queued has been delivered, the failure is next
+						onError(this.pendingFillFailure);
+						break;
+					}
 					// If the queue is empty, fill it with new events starting from the last processed position
 					try {
-						this.queueFiller.accept(new WalPointer(this.lastVersion, this.lastIndex + 1), this, this.queue);
+						this.queueFiller.accept(getNextFillPointer(), this, this.queue);
 					} catch (Throwable fillException) {
 						// The filler reads the write-ahead log, so it can fail for reasons that have nothing to
 						// do with the subscriber - and that failure has to reach the subscriber all the same.
@@ -679,12 +754,16 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 						// receiving events for the lifetime of the process. On the `request(n)` path the same
 						// throw also propagates out of Flow.Subscription#request(long), which reactive-streams
 						// forbids from throwing, into the gRPC producer loop or into embedded caller code.
-						onError(fillException);
-						break;
+						// The captures this fill queued before failing are delivered first - see
+						// `pendingFillFailure`.
+						this.pendingFillFailure = fillException;
 					}
 					// Try again to get an event from the now-filled queue
 					capture = this.queue.poll();
 					if (capture == null) {
+						if (this.pendingFillFailure != null) {
+							onError(this.pendingFillFailure);
+						}
 						// If the queue is still empty, we've reached the end of available events
 						// and need to wait for more to be generated in the system
 						break;
@@ -707,6 +786,11 @@ public class DefaultChangeCaptureSubscription<T extends ChangeCapture> implement
 					onError(onNextException);
 					break;
 				}
+			}
+			if (this.pendingFillFailure != null && this.queue.isEmpty()) {
+				// the demand ran out exactly at the last capture the failed fill queued - nothing is owed any
+				// more, and reactive-streams lets the error go out without demand
+				onError(this.pendingFillFailure);
 			}
 		} finally {
 			// Always release the lock, even if an exception occurs

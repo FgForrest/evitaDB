@@ -516,7 +516,7 @@ class IndexInvariantsTest implements EvitaTestSupport, IndexingTestSupport {
 
 					// verify entity-level data (EAN, prices) was propagated to the
 					// reduced index for category 1
-					IndexingTestSupport.assertDataWasPropagated(categoryIndex, 1);
+					IndexingTestSupport.assertDataWasPropagated(categoryIndex, 1, "EAN_001");
 				}
 			);
 		}

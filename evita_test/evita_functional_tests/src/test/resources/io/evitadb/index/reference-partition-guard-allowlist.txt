@@ -24,6 +24,7 @@ R1 | io.evitadb.core.query.filter.SplitTargetPartitions#getOwnerRowCount | owner
 R1 | io.evitadb.core.query.filter.SplitTargetPartitions#materializedIndexes | carrier of the materialized partitions of the hierarchy nodes, resolved for the query body channel
 R1 | io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyInSetTranslator#translate | partition-scoped body class token test and owners, from the query body channel
 R1 | io.evitadb.core.query.filter.translator.reference.BidirectionalReferenceRewriter#allRowsOf | owners formula over the partitions of the query body channel
+R1 | io.evitadb.core.query.filter.translator.reference.BidirectionalReferenceRewriter#checkAttributeConstraintsOnOwnerSide | class token of the query body channel over no partition - the owner-side attribute constraints are translated only for the capabilities they request
 R1 | io.evitadb.core.query.filter.translator.reference.BidirectionalReferenceRewriter#createMaterializedRowsFormula | owner's materialized partitions entered into the query body channel for an isolated body
 R1 | io.evitadb.core.query.filter.translator.reference.BidirectionalReferenceRewriter#createPerOwnerFormulas | owner's partitions split by representation, the materialized ones collected for the query body channel
 R1 | io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper#createIndexLocalTargetFormula | owners of a body index tagged by its primary key, from the query body channel
@@ -36,6 +37,7 @@ R1 | io.evitadb.core.query.filter.translator.reference.ReferenceHavingTranslator
 R1 | io.evitadb.core.query.indexSelection.IndexSelectionVisitor#addHierarchyIndexOption | hierarchy target index set: partitions entered into the query body channel under their class token
 R1 | io.evitadb.core.query.indexSelection.IndexSelectionVisitor#addReferenceIndexOption | reference target index set: class token of the query body channel and owner-count sum
 R1 | io.evitadb.core.query.indexSelection.IndexSelectionVisitor#resolveAllPartitionsOfNodes | object-only list of a hierarchy target index set, resolved on demand into the query body channel
+R1 | io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator#checkChildConstraintsWithoutRows | an empty, unregistered reduced index stands for the rows of one referenced entity while the child constraints of an ordering without rows are checked against the schemas - nothing is read from it
 R1 | io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator#selectFullEntityIndexSet | whole family of the reference resolved into the query body channel
 R1 | io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator#selectReducedEntityIndexSet | reuses the filter's partitions from the query body channel under their class token
 R1 | io.evitadb.core.query.sort.ReferenceOrderByVisitor#getChainOfPartition | materialized arm of the exhaustive switch reading the partition's own chain index; the virtual arm reads the registry
@@ -87,6 +89,7 @@ R1 | io.evitadb.store.catalog.DefaultEntityCollectionPersistenceService#resolveP
 R2 | io.evitadb.core.collection.EntityCollection$EntityIndexMaintainer#getOrCreateIndex | the collection maintainer constructs reduced entity indexes and mints their primary keys
 R2 | io.evitadb.core.query.indexSelection.IndexSelectionVisitor#addHierarchyIndexOption | hierarchy target index set: partitions entered into the query body channel under their class token
 R2 | io.evitadb.core.query.indexSelection.IndexSelectionVisitor#addReferenceIndexOption | reference target index set: class token of the query body channel and owner-count sum
+R2 | io.evitadb.core.query.sort.reference.translator.ReferencePropertyTranslator#checkChildConstraintsWithoutRows | the key of the empty, unregistered reduced index the child constraints of an ordering without rows are checked over
 R2 | io.evitadb.index.EntityIndexKey#<init> (overloads (Lio/evitadb/api/index/EntityIndexType;Lio/evitadb/dataType/Scope;Ljava/io/Serializable;)V) | index key validation per index type - not a partition access
 R2 | io.evitadb.index.EntityIndexKey$1#<clinit> | enum switch map of the index key validation - not a partition access
 R2 | io.evitadb.index.ReferencePartitions#createKey | the partition resolver implementation itself

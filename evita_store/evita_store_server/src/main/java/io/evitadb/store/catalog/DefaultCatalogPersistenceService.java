@@ -2320,6 +2320,7 @@ public class DefaultCatalogPersistenceService
 						scope,
 						attributeKey,
 						attributeSchema.getPlainType(),
+						attributeSchema.getIndexedDecimalPlaces(),
 						orderedPageSequences,
 						perPageValues,
 						perPagePayloads,
@@ -2331,6 +2332,7 @@ public class DefaultCatalogPersistenceService
 						scope,
 						attributeKey,
 						attributeSchema.getPlainType(),
+						attributeSchema.getIndexedDecimalPlaces(),
 						java.util.Objects.requireNonNull(
 							sharedUniqueIndexStoragePart.getValues(),
 							"A SINGLE global unique part must carry the inline value column!"
@@ -3215,6 +3217,7 @@ public class DefaultCatalogPersistenceService
 		if (theCatalogWal == null) {
 			return 0L;
 		} else {
+			// the whole log, not its active file - which holds nothing right after a rotation
 			return theCatalogWal.getLastWrittenVersion();
 		}
 	}
@@ -3226,6 +3229,16 @@ public class DefaultCatalogPersistenceService
 			return -1L;
 		} else {
 			return theCatalogWal.getFirstVersionOfCurrentWalFile();
+		}
+	}
+
+	@Override
+	public long getFirstReplayableCatalogVersion() {
+		final CatalogWriteAheadLog theCatalogWal = this.catalogWal;
+		if (theCatalogWal == null) {
+			return -1L;
+		} else {
+			return theCatalogWal.getFirstReplayableVersion();
 		}
 	}
 

@@ -39,12 +39,10 @@ import io.evitadb.core.query.algebra.price.termination.PriceWrappingFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
-import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.SplitTargetPartitions;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.Index;
 import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.utils.Assert;
@@ -54,7 +52,6 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 
@@ -64,6 +61,28 @@ import static io.evitadb.api.query.QueryConstraints.*;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> implements FilteringConstraintTranslator<T>, SelfTraversingTranslator {
+
+	/**
+	 * Encodes the processing scopes as an additional cache key of
+	 * {@link QueryPlanningContext#computeOnlyOnce(java.util.List, FilterConstraint, Supplier, long...)}.
+	 *
+	 * The memoized computation registers the roots and the node visibility of the constraint for the processing
+	 * scopes it runs in, and its result depends on them too, so a computation for one scope set must never be answered
+	 * from the cache of another - it would leave its own scope set unregistered. Both hierarchy translators compute
+	 * one scope at a time over that scope's global index, so the key carries a single scope: an occurrence in
+	 * `inScope(LIVE, ...)` and the live part of a top-level occurrence over both scopes share one computation, which is
+	 * correct, because they are the same one.
+	 *
+	 * @param scopes the processing scopes of the translated occurrence
+	 * @return a positive key, one bit per scope
+	 */
+	protected static long scopesCacheKey(@Nonnull Set<Scope> scopes) {
+		long key = 0L;
+		for (final Scope scope : scopes) {
+			key |= 1L << scope.ordinal();
+		}
+		return key;
+	}
 
 	/**
 	 * Creates a hierarchy exclusion predicate if the exclusion filter is defined and stores it to
@@ -108,7 +127,7 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 				referenceSchema
 			);
 
-			queryContext.setHierarchyHavingPredicate(hierarchyFilterConstraint, predicate);
+			queryContext.setHierarchyHavingPredicate(hierarchyFilterConstraint, requestedScopes, predicate);
 			return predicate;
 		}
 	}
@@ -122,7 +141,8 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 	 * {@link io.evitadb.core.query.indexSelection.IndexSelectionVisitor} - it descends only through conjunctions, so
 	 * a hierarchy constraint nested in `or` or `not` always lands on the computed branch. Both branches must produce
 	 * the same formula, which is why the computed one resolves the reduced indexes exactly the way the index
-	 * selection does: from the queried entity schema and the reference the constraint itself names.
+	 * selection does: from the queried entity schema and the reference the constraint itself names, for every node
+	 * the constraint selects in any processing scope's tree and in every processing scope.
 	 *
 	 * Both branches read the partitions of the nodes split by representation (see {@link SplitTargetPartitions}): the
 	 * owners of the materialized partitions are OR'ed with one constant over the owners of all the registered
@@ -143,13 +163,7 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 		final TargetIndexes<?> targetIndexes = filterByVisitor.findTargetIndexSet(hierarchyWithinConstraint);
 		if (targetIndexes == null) {
 			final Formula hierarchyNodesFormula = hierarchyNodesFormulaSupplier.get();
-			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
-			final Set<Scope> scopes = processingScope.getScopes();
-			Assert.isTrue(
-				scopes.isEmpty() || scopes.size() == 1,
-				() -> "Hierarchy queries cannot be executed in multiple scopes (" +
-					scopes.stream().map(Scope::name).collect(Collectors.joining(", ")) + ") simultaneously."
-			);
+			// the nodes of every processing scope's tree, each paired with the owners of every processing scope
 			return filterByVisitor
 				.getReferencedEntityPartitions(entitySchema, referenceSchema, hierarchyNodesFormula.compute())
 				.createOwnersFormula(null);

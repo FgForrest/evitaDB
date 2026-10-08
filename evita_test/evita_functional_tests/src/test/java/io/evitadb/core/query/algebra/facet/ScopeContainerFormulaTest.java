@@ -136,6 +136,19 @@ class ScopeContainerFormulaTest {
 
 			assertArrayEquals(new int[]{20, 30}, result.getArray());
 		}
+
+		@Test
+		@DisplayName("should keep only the entities of its scope when restricting a scope")
+		void shouldKeepOnlyEntitiesOfItsScopeWhenRestrictingScope() {
+			// a negation subtracts from the entities of every queried scope, so its result holds 6 and 7 of another one
+			final ScopeContainerFormula formula = ScopeContainerFormula.restrictingScope(
+				Scope.LIVE,
+				new ConstantFormula(new ArrayBitmap(1, 2, 3, 4, 5)),
+				new ConstantFormula(new ArrayBitmap(4, 5, 6, 7))
+			);
+
+			assertArrayEquals(new int[]{4, 5}, formula.compute().getArray());
+		}
 	}
 
 	@Nested
@@ -197,6 +210,48 @@ class ScopeContainerFormulaTest {
 			final Formula clone = original.getCloneWithInnerFormulas();
 
 			assertSame(EmptyFormula.INSTANCE, clone);
+		}
+
+		@Test
+		@DisplayName("should stand for the whole scope when a scope restriction is cloned with zero inner formulas")
+		void shouldStandForWholeScopeWhenScopeRestrictionIsClonedWithZeroInnerFormulas() {
+			final ScopeContainerFormula original = ScopeContainerFormula.restrictingScope(
+				Scope.ARCHIVED,
+				new ConstantFormula(new ArrayBitmap(1, 2, 3, 4, 5)),
+				new ConstantFormula(new ArrayBitmap(2, 3))
+			);
+
+			final Formula clone = original.getCloneWithInnerFormulas();
+
+			final ScopeContainerFormula cloned = assertInstanceOf(ScopeContainerFormula.class, clone);
+			assertEquals(Scope.ARCHIVED, cloned.getScope());
+			assertArrayEquals(new int[]{1, 2, 3, 4, 5}, cloned.compute().getArray());
+		}
+
+		@Test
+		@DisplayName("should keep standing for the whole scope through clones with inner formulas and callbacks")
+		void shouldKeepStandingForWholeScopeThroughClones() {
+			final ScopeContainerFormula original = ScopeContainerFormula.restrictingScope(
+				Scope.LIVE,
+				new ConstantFormula(new ArrayBitmap(1, 2, 3, 4, 5)),
+				new ConstantFormula(new ArrayBitmap(2, 3))
+			);
+
+			final Formula withOtherChild = original.getCloneWithInnerFormulas(new ConstantFormula(new ArrayBitmap(4)));
+			assertArrayEquals(new int[]{4}, withOtherChild.compute().getArray());
+			assertArrayEquals(
+				new int[]{1, 2, 3, 4, 5},
+				withOtherChild.getCloneWithInnerFormulas().compute().getArray()
+			);
+
+			final CacheableFormula withCallback = original.getCloneWithComputationCallback(
+				formula -> {},
+				new ConstantFormula(new ArrayBitmap(2, 3))
+			);
+			assertArrayEquals(
+				new int[]{1, 2, 3, 4, 5},
+				withCallback.getCloneWithInnerFormulas().compute().getArray()
+			);
 		}
 
 		@Test

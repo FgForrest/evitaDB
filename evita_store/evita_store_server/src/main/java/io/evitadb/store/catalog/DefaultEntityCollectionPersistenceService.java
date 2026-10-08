@@ -1260,8 +1260,16 @@ public class DefaultEntityCollectionPersistenceService
 	 * Flushes entire living data set to the target output stream. If the output stream represents a file, the file must
 	 * exist and must be prepared for re-writing. File must not be used by any other process.
 	 *
-	 * @param outputStream   output stream to write the data to
-	 * @param catalogVersion new catalog version
+	 * The counters of the produced header (last assigned primary keys, the entity indexes in use) are taken from the
+	 * live header of this service, so this overload is correct only when `catalogVersion` is the newest version of
+	 * the collection - a copy of an older version must use
+	 * {@link #copySnapshotTo(long, CollectionFileReference, EntityCollectionFileHeader, OutputStream, IntConsumer)}.
+	 *
+	 * @param catalogVersion   new catalog version
+	 * @param fileReference    reference to the file the copy is written as
+	 * @param outputStream     output stream to write the data to
+	 * @param progressConsumer consumer of the number of records copied so far, or null
+	 * @return the header addressing the copied data
 	 */
 	@Nonnull
 	public EntityCollectionFileHeader copySnapshotTo(
@@ -1270,14 +1278,43 @@ public class DefaultEntityCollectionPersistenceService
 		@Nonnull OutputStream outputStream,
 		@Nullable IntConsumer progressConsumer
 	) {
+		return copySnapshotTo(
+			catalogVersion, fileReference, getEntityCollectionHeader(), outputStream, progressConsumer
+		);
+	}
+
+	/**
+	 * Flushes the data set valid at `catalogVersion` to the target output stream and produces a header for it, taking
+	 * its counters from `headerAtVersion`. If the output stream represents a file, the file must exist and must be
+	 * prepared for re-writing. File must not be used by any other process.
+	 *
+	 * The live header of this service describes its newest version. A copy of an older version - a backup taken while
+	 * transactions keep committing - must carry the counters of that version instead: an entity index created after
+	 * it would otherwise be listed in the copied header without being present in the copied data, and the copy could
+	 * not be loaded.
+	 *
+	 * @param catalogVersion   catalog version whose data set is copied
+	 * @param fileReference    reference to the file the copy is written as
+	 * @param headerAtVersion  collection header valid at `catalogVersion`, the source of the copied counters
+	 * @param outputStream     output stream to write the data to
+	 * @param progressConsumer consumer of the number of records copied so far, or null
+	 * @return the header addressing the copied data
+	 */
+	@Nonnull
+	public EntityCollectionFileHeader copySnapshotTo(
+		long catalogVersion,
+		@Nonnull CollectionFileReference fileReference,
+		@Nonnull EntityCollectionFileHeader headerAtVersion,
+		@Nonnull OutputStream outputStream,
+		@Nullable IntConsumer progressConsumer
+	) {
 		final OffsetIndexDescriptor offsetIndexDescriptor = getStoragePartPersistenceService().copySnapshotTo(catalogVersion, outputStream, progressConsumer);
-		final EntityCollectionFileHeader currentHeader = getEntityCollectionHeader();
 		final Path catalogStoragePath = this.entityCollectionFile.getParent();
 		return createEntityCollectionHeader(
 			catalogVersion,
 			catalogStoragePath,
 			offsetIndexDescriptor,
-			new CopyingHeaderInfoSupplier(currentHeader),
+			new CopyingHeaderInfoSupplier(headerAtVersion),
 			new CollectionFileReference(
 				fileReference.entityType(),
 				fileReference.entityTypePrimaryKey(),
