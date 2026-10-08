@@ -1234,7 +1234,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			verifyReferenceFilter(ownerQueryContext, referenceSchema, filterBy, scopes);
 		}
 		if (orderBy != null) {
-			verifyReferenceOrdering(ownerQueryContext, entitySchema, referenceSchema, orderBy);
+			verifyReferenceOrdering(ownerQueryContext, entitySchema, referenceSchema, filterBy, orderBy);
 		}
 		// the context of the referenced entity is thrown away and its plan is never built, so the capabilities its
 		// check requested are handed to the query, which counts them once with its own - the fetch translates the
@@ -1294,15 +1294,23 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * mirrors the comparator {@link #createPrefetchedEntities} creates and its initialization in
 	 * {@link #initNestedQueryComparator}.
 	 *
+	 * The fetch orders the referenced entities and their groups in the locale of the {@link EntityLocaleEquals} of
+	 * the reference filter, which its translation sets on the comparator, and in the locale of the query when the
+	 * filter names none. The check translates no filter into the comparator it creates, so it looks the locale up in
+	 * the filter the same way the body fetch does (see {@link #findReferenceFilterLocale(FilterBy)}) - an ordering by
+	 * a localized attribute is refused only when there is no locale in either place.
+	 *
 	 * @param ownerQueryContext planning context of the entity owning the references
 	 * @param entitySchema      schema of the entity owning the references
 	 * @param referenceSchema   schema of the fetched reference
+	 * @param filterBy          the filter of the fetched references, NULL when there is none
 	 * @param orderBy           the ordering of the fetched references
 	 */
 	private static void verifyReferenceOrdering(
 		@Nonnull QueryPlanningContext ownerQueryContext,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable FilterBy filterBy,
 		@Nonnull OrderBy orderBy
 	) {
 		final EntitySchema internalEntitySchema = ownerQueryContext
@@ -1317,6 +1325,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		);
 		final EntityNestedQueryComparator nestedQueryComparator = orderingDescriptor.nestedQueryComparator();
 		if (nestedQueryComparator != null) {
+			final Locale referenceFilterLocale = findReferenceFilterLocale(filterBy);
+			final Locale locale = referenceFilterLocale == null ? ownerQueryContext.getLocale() : referenceFilterLocale;
 			final EntityPropertyWithScopes entityOrderBy = nestedQueryComparator.getOrderBy();
 			if (entityOrderBy != null) {
 				final EntityCollection targetEntityCollection = ownerQueryContext.getEntityCollectionOrThrowException(
@@ -1324,7 +1334,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				);
 				OrderByVisitor.createSorter(
 					entityOrderBy.orderBy(),
-					nestedQueryComparator.getLocale(),
+					locale,
 					targetEntityCollection,
 					() -> "checking ordering of reference `" + referenceSchema.getName() + "` by entity `" +
 						targetEntityCollection.getEntityType() + "`: " + entityOrderBy,
@@ -1347,7 +1357,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				);
 				OrderByVisitor.createSorter(
 					entityGroupOrderBy.orderBy(),
-					nestedQueryComparator.getLocale(),
+					locale,
 					targetEntityGroupCollection,
 					() -> "checking ordering of reference groups `" + referenceSchema.getName() +
 						"` by entity group `" + targetEntityGroupCollection.getEntityType() + "`: " +
@@ -1623,6 +1633,25 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nullable FilterBy referenceFilterBy,
 		@Nonnull QueryExecutionContext executionContext
 	) {
+		final Locale referenceFilterLocale = findReferenceFilterLocale(referenceFilterBy);
+		return referenceFilterLocale == null ?
+			executionContext.getEvitaRequest().getRequiredOrImplicitLocale() : referenceFilterLocale;
+	}
+
+	/**
+	 * Returns the locale of the {@link EntityLocaleEquals} the reference-level `filterBy` hands to the fetch of the
+	 * referenced entity (or group) bodies - the one {@link #unwrapFilterBy(FilterBy)} propagates into the derived fetch
+	 * request. Both the body fetch (see {@link #resolveRequiredLocale}) and the planning check of the ordering of the
+	 * references (see {@link #verifyReferenceOrdering}) look the locale up here, so they never disagree on it.
+	 *
+	 * At most one {@link EntityLocaleEquals} is expected inside the unwrapped filter - a filter carrying several of
+	 * them makes the constraint finder throw `MoreThanSingleResultException`.
+	 *
+	 * @param referenceFilterBy the reference-level `filterBy`, NULL when there is none
+	 * @return the locale of the filter, or NULL when it names none
+	 */
+	@Nullable
+	private static Locale findReferenceFilterLocale(@Nullable FilterBy referenceFilterBy) {
 		final FilterBy unwrappedFilterBy = unwrapFilterBy(referenceFilterBy);
 		if (unwrappedFilterBy != null) {
 			final EntityLocaleEquals localeConstraint = QueryUtils.findConstraint(unwrappedFilterBy, EntityLocaleEquals.class);
@@ -1630,7 +1659,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				return localeConstraint.getLocale();
 			}
 		}
-		return executionContext.getEvitaRequest().getRequiredOrImplicitLocale();
+		return null;
 	}
 
 	/**

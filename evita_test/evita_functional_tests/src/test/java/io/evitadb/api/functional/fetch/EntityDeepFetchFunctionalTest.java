@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.BinaryEntity;
 import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.core.Evita;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
@@ -856,6 +857,268 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 					receivedOrderedNames
 				);
 
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("References are ordered by a localized entity attribute in the locale of the reference filter when the query has none")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldOrderReferencesByLocalizedEntityAttributeInReferenceFilterLocale(
+		Evita evita, List<SealedEntity> originalProducts, List<SealedEntity> originalStores
+	) {
+		final Map<Integer, String> czechStoreNames = originalStores
+			.stream()
+			.filter(it -> it.getLocales().contains(CZECH_LOCALE))
+			.collect(
+				Collectors.toMap(
+					EntityClassifier::getPrimaryKeyOrThrowException,
+					it -> Objects.requireNonNull(it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE, String.class))
+				)
+			);
+		// an owner not localized in Czech keeps no reference through a reference filter by the Czech locale, so only
+		// the Czech owners are examined - the same restriction the other ordered fetches of this class apply
+		final Map<Integer, Set<Integer>> czechStoresOfProducts = originalProducts
+			.stream()
+			.filter(it -> it.getLocales().contains(CZECH_LOCALE))
+			.map(
+				it -> Map.entry(
+					it.getPrimaryKeyOrThrowException(),
+					it.getReferences(Entities.STORE)
+						.stream()
+						.map(ReferenceContract::getReferencedPrimaryKey)
+						.filter(czechStoreNames::containsKey)
+						.collect(Collectors.toSet())
+				)
+			)
+			.filter(it -> it.getValue().size() > 2)
+			.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+		assertFalse(czechStoresOfProducts.isEmpty(), "The data set must hold a product with several Czech stores");
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// neither the query nor its filter names a locale - only the filter of the references does
+				final EvitaResponse<SealedEntity> products = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(entityPrimaryKeyInSet(czechStoresOfProducts.keySet().toArray(Integer[]::new))),
+						require(
+							page(1, Integer.MAX_VALUE),
+							entityFetch(
+								referenceContent(
+									Entities.STORE,
+									filterBy(entityLocaleEquals(CZECH_LOCALE)),
+									orderBy(
+										entityProperty(
+											attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
+										)
+									),
+									entityFetch(attributeContent())
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(czechStoresOfProducts.size(), products.getRecordData().size());
+				final LocalizedStringComparator czechComparator = new LocalizedStringComparator(
+					Collator.getInstance(CZECH_LOCALE)
+				);
+				for (final SealedEntity product : products.getRecordData()) {
+					final Collection<ReferenceContract> references = product.getReferences(Entities.STORE);
+					final Set<Integer> expectedStores = czechStoresOfProducts.get(product.getPrimaryKey());
+					assertEquals(
+						expectedStores,
+						references.stream().map(ReferenceContract::getReferencedPrimaryKey).collect(Collectors.toSet()),
+						"Product `" + product.getPrimaryKey() + "` must reference exactly its Czech stores"
+					);
+					final String[] expectedNames = expectedStores
+						.stream()
+						.map(czechStoreNames::get)
+						.sorted(czechComparator.reversed())
+						.toArray(String[]::new);
+					final String[] receivedNames = references
+						.stream()
+						.map(it -> czechStoreNames.get(it.getReferencedPrimaryKey()))
+						.toArray(String[]::new);
+					assertArrayEquals(
+						expectedNames, receivedNames,
+						"Product `" + product.getPrimaryKey() + "` must have its stores ordered by their Czech names"
+					);
+				}
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("References are ordered by a localized group attribute in the locale of the reference filter when the query has none")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldOrderReferencesByLocalizedGroupAttributeInReferenceFilterLocale(
+		Evita evita, List<SealedEntity> originalProducts, List<SealedEntity> originalParameters
+	) {
+		final Set<Integer> czechParameters = originalParameters
+			.stream()
+			.filter(it -> it.getLocales().contains(CZECH_LOCALE))
+			.map(EntityClassifier::getPrimaryKeyOrThrowException)
+			.collect(Collectors.toSet());
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Map<Integer, String> czechGroupNames = session.queryListOfSealedEntities(
+						query(
+							collection(Entities.PARAMETER_GROUP),
+							filterBy(entityLocaleEquals(CZECH_LOCALE)),
+							require(page(1, Integer.MAX_VALUE), entityFetch(attributeContent(ATTRIBUTE_NAME)))
+						)
+					)
+					.stream()
+					.collect(
+						Collectors.toMap(
+							EntityClassifier::getPrimaryKeyOrThrowException,
+							it -> Objects.requireNonNull(it.getAttribute(ATTRIBUTE_NAME, String.class))
+						)
+					);
+				// only the owners whose Czech parameters all sit in a group with a Czech name, so that every
+				// fetched reference has a value to be ordered by
+				final Map<Integer, Map<Integer, String>> groupNamesOfProducts = originalProducts
+					.stream()
+					.filter(it -> it.getLocales().contains(CZECH_LOCALE))
+					.map(
+						it -> Map.entry(
+							it.getPrimaryKeyOrThrowException(),
+							it.getReferences(Entities.PARAMETER)
+								.stream()
+								.filter(ref -> czechParameters.contains(ref.getReferencedPrimaryKey()))
+								.collect(
+									Collectors.toMap(
+										ReferenceContract::getReferencedPrimaryKey,
+										ref -> ref.getGroup()
+											.map(group -> czechGroupNames.get(group.getPrimaryKey()))
+											.orElse("")
+									)
+								)
+						)
+					)
+					.filter(it -> it.getValue().size() > 2 && !it.getValue().containsValue(""))
+					.collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+				assertFalse(groupNamesOfProducts.isEmpty(), "The data set must hold a product with several Czech groups");
+
+				// neither the query nor its filter names a locale - only the filter of the references does
+				final EvitaResponse<SealedEntity> products = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(entityPrimaryKeyInSet(groupNamesOfProducts.keySet().toArray(Integer[]::new))),
+						require(
+							page(1, Integer.MAX_VALUE),
+							entityFetch(
+								referenceContent(
+									Entities.PARAMETER,
+									filterBy(entityLocaleEquals(CZECH_LOCALE)),
+									orderBy(
+										entityGroupProperty(
+											attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
+										)
+									),
+									entityFetch(attributeContent()),
+									entityGroupFetch(attributeContent())
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(groupNamesOfProducts.size(), products.getRecordData().size());
+				final LocalizedStringComparator czechComparator = new LocalizedStringComparator(
+					Collator.getInstance(CZECH_LOCALE)
+				);
+				for (final SealedEntity product : products.getRecordData()) {
+					final Map<Integer, String> groupNames = groupNamesOfProducts.get(product.getPrimaryKey());
+					final Collection<ReferenceContract> references = product.getReferences(Entities.PARAMETER);
+					assertEquals(
+						groupNames.keySet(),
+						references.stream().map(ReferenceContract::getReferencedPrimaryKey).collect(Collectors.toSet()),
+						"Product `" + product.getPrimaryKey() + "` must reference exactly its Czech parameters"
+					);
+					final String[] expectedGroupNames = groupNames.values()
+						.stream()
+						.sorted(czechComparator.reversed())
+						.toArray(String[]::new);
+					final String[] receivedGroupNames = references
+						.stream()
+						.map(it -> groupNames.get(it.getReferencedPrimaryKey()))
+						.toArray(String[]::new);
+					assertArrayEquals(
+						expectedGroupNames, receivedGroupNames,
+						"Product `" + product.getPrimaryKey() + "` must have its parameters ordered by the Czech " +
+							"names of their groups"
+					);
+				}
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("References cannot be ordered by a localized attribute when neither the query nor the reference filter names a locale")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldRefuseOrderingReferencesByLocalizedAttributeWithoutLocale(Evita evita, List<SealedEntity> originalStores) {
+		final Integer[] stores = originalStores
+			.stream()
+			.map(EntityClassifier::getPrimaryKeyOrThrowException)
+			.toArray(Integer[]::new);
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				// the reference filter names no locale, so there is none the ordering could use
+				final EvitaInvalidUsageException entityOrderingRefusal = assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							require(
+								entityFetch(
+									referenceContent(
+										Entities.STORE,
+										filterBy(entityPrimaryKeyInSet(stores)),
+										orderBy(entityProperty(attributeNatural(ATTRIBUTE_NAME)))
+									)
+								)
+							)
+						),
+						SealedEntity.class
+					)
+				);
+				assertTrue(
+					entityOrderingRefusal.getMessage().contains("without locale"),
+					entityOrderingRefusal.getMessage()
+				);
+				final EvitaInvalidUsageException groupOrderingRefusal = assertThrows(
+					EvitaInvalidUsageException.class,
+					() -> session.query(
+						query(
+							collection(Entities.PRODUCT),
+							require(
+								entityFetch(
+									referenceContent(
+										Entities.PARAMETER,
+										orderBy(entityGroupProperty(attributeNatural(ATTRIBUTE_NAME)))
+									)
+								)
+							)
+						),
+						SealedEntity.class
+					)
+				);
+				assertTrue(
+					groupOrderingRefusal.getMessage().contains("without locale"),
+					groupOrderingRefusal.getMessage()
+				);
 				return null;
 			}
 		);
