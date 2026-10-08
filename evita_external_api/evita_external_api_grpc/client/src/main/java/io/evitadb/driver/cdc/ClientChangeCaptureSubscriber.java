@@ -170,7 +170,9 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * signal by reading {@link #closed} a few statements before it does. A close that is not the teardown of
 	 * `subscribe()` - the consumer cancelling, or the client closing - can set the flag and queue the delegate close
 	 * in between, so a terminal signal may land behind the close; such a signal is dropped when its turn comes (see
-	 * `delegateClosed`).
+	 * `delegateClosed`). For the same reason two terminal paths - the server failing the stream while the driver
+	 * fails it for a consumer that fell behind - can both read the flag before either teardown sets it, and both queue
+	 * a terminal signal; only the first of them runs (see `delegateTerminated`).
 	 */
 	private final AtomicReference<CompletableFuture<Void>> lastDelegateSignal =
 		new AtomicReference<>(CompletableFuture.allOf(this.delegateSubscribed, this.acknowledged));
@@ -183,6 +185,14 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * one after another, so the check cannot race the close it guards against.
 	 */
 	private volatile boolean delegateClosed;
+
+	/**
+	 * Set by the first terminal signal of `lastDelegateSignal` just before it runs. Any terminal signal that finds it
+	 * set when its turn comes is dropped, so the delegate receives at most one `onError` / `onComplete` (Reactive
+	 * Streams §1.7) however many terminal paths decided to tell it. A signal whose dispatch is refused never runs and
+	 * does not set it, so the next one still reaches the delegate. Confined to the chain like `delegateClosed`.
+	 */
+	private volatile boolean delegateTerminated;
 
 	/**
 	 * The gRPC observer that sends requests to and receives responses from the server.
@@ -711,7 +721,8 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 
 	/**
 	 * Queues a terminal `onError` / `onComplete` for the delegate through {@link #dispatchDelegateSignal}, and drops it
-	 * when its turn comes after the delegate close has already run (see `delegateClosed`).
+	 * when its turn comes after the delegate close (see `delegateClosed`) or after another terminal signal (see
+	 * `delegateTerminated`) has already run.
 	 *
 	 * @param executor    the executor that delivers the signal
 	 * @param signal      the terminal delegate callback to run
@@ -731,7 +742,15 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 						"The change data capture delegate subscriber was closed before `{}` could run; dropping it.",
 						description
 					);
+				} else if (this.delegateTerminated) {
+					// another terminal path decided to tell the delegate too, and its signal ran first
+					log.debug(
+						"The change data capture delegate subscriber was already terminated before `{}` could run; " +
+							"dropping it.",
+						description
+					);
 				} else {
+					this.delegateTerminated = true;
 					signal.run();
 				}
 			},

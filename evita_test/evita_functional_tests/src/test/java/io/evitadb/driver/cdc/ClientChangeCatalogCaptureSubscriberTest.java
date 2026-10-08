@@ -530,6 +530,30 @@ class ClientChangeCatalogCaptureSubscriberTest {
 			assertEquals(1, Collections.frequency(signals, Signal.CLOSE), "Unexpected signals: " + signals);
 		}
 
+		@Test
+		@DisplayName("should fail the consumer only once when the server and the driver both fail the stream")
+		void shouldFailConsumerOnlyOnceWhenServerAndDriverFailTheStream() {
+			// the server fails the stream on the inbound thread while the drain task fails it for a consumer that
+			// fell behind - neither path has closed the subscriber yet, because the teardown both of them request
+			// waits in the pool, so both decide to tell the consumer; it must still be told only once (Reactive
+			// Streams §1.7), and by the failure that came first
+			final LastFirstExecutorService executor = new LastFirstExecutorService();
+			final Harness harness = new Harness(resumeRequest(null), executor);
+			final Stream stream = harness.subscribe(INCARNATION_A, new CloseableRecordingSubscriber());
+			stream.deliver(acknowledgement(INCARNATION_A));
+			stream.awaitSubscribed();
+
+			stream.fail(Status.UNAVAILABLE.withDescription("lost").asRuntimeException());
+			stream.subscriber().notifyClientFailureAndClose(new GenericEvitaInternalError("The consumer fell behind."));
+			executor.runAll();
+
+			assertEquals(List.of(Signal.SUBSCRIBE, Signal.ERROR, Signal.CLOSE), stream.delegate.signals);
+			assertEquals(
+				Status.Code.UNAVAILABLE,
+				assertInstanceOf(StatusRuntimeException.class, stream.delegate.error.get()).getStatus().getCode()
+			);
+		}
+
 	}
 
 	/**
