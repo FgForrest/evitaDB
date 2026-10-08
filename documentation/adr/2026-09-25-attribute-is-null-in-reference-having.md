@@ -1,7 +1,7 @@
 ---
 title: attributeIsNull inside referenceHaving widens candidate discovery and is answered one reference row at a time
 date: 2026-09-25
-updated: 2026-09-30 10:35
+updated: 2026-10-06 11:45
 status: accepted
 kind: fix
 issues: [1584]
@@ -9,7 +9,7 @@ prs: [1664]
 areas: [evita_engine/src/main/java/io/evitadb/core/query/filter/translator/attribute, evita_query/src/main/java/io/evitadb/api/query/filter/EntityScope.java, evita_api/src/main/java/io/evitadb/api/requestResponse/EvitaRequest.java, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/reference/ReferenceBodyTransposer.java, evita_engine/src/main/java/io/evitadb/core/query/filter/FilterByVisitor.java, evita_engine/src/main/java/io/evitadb/index/cardinality/ReferenceTypeCardinalityIndex.java]
 supersedes: []
 superseded-by: []
-relates: [2026-09-17-row-scoped-reference-having-body, 2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-10-06-unique-indexes-keep-no-record-set]
+relates: [2026-09-17-row-scoped-reference-having-body, 2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-10-06-unique-indexes-keep-no-record-set, 2026-10-08-scope-faithful-planning-and-facet-summary-parity]
 ---
 
 # `attributeIsNull` inside `referenceHaving` widens candidate discovery and is answered one reference row at a time
@@ -326,6 +326,9 @@ Unique lookups (`UniqueAttributeLookupBenchmark`, results in its `.md`) are flat
   #1584 as open.
 - `2026-09-15-bidirectional-reference-counterpart-rewrite` — the counterpart route, which evaluated a
   filterable null test correctly per row already and inherited only defect C.
+- `2026-10-08-scope-faithful-planning-and-facet-summary-parity` — the parent filter of a hierarchy constraint over several scopes is resolved in each
+  scope's own tree, so the "first listed scope wins" rule of this record never picks one scope there: a unique
+  value may select one node per scope.
 
 ## Timeline
 

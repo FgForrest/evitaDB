@@ -67,6 +67,7 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.index.usage.SchemaCapabilityUsage;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NumberUtils;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
@@ -151,7 +152,27 @@ public class HavingTranslatorHelper {
 	 * Plans and constructs a nested query for the provided target entity type and filter constraint.
 	 * The formula is cached and computed only once to avoid redundant computation. When the target
 	 * entity doesn't have a global index, an empty formula is returned (since no entities are present
-	 * there).
+	 * there). The filter is still checked against the target entity schema in every scope without a global index,
+	 * so that a filter that cannot be evaluated fails the query whether the entities exist or not.
+	 *
+	 * A visitor that only checks the filter ({@link FilterByVisitor#isConstraintCheckOnly()}) plans no nested query at
+	 * all: the filter is checked over an empty global index of every scope, and the empty formula is returned as when
+	 * the target entity type holds no entity - its formula is thrown away, and nothing is evaluated for it.
+	 *
+	 * Either check is made by {@link #checkNestedFilter}, in the scopes the nested query is planned in - those a
+	 * `scope(...)` of the filter names, which the nested query honours whatever the enclosing query processes, see
+	 * {@link #getNestedQueryScopes} - so that it refuses nothing the nested query evaluated over data accepts.
+	 *
+	 * A nested query planned over data counts the schema capabilities its filter requests when its plan is built -
+	 * those the logical query it belongs to has not counted yet, see
+	 * {@link QueryPlanningContext#drainRequestedCapabilitiesToCount()}. A check hands everything it requested, in every
+	 * scope, to the context of the enclosing filter, which counts it with the logical query - whether or not a nested
+	 * query evaluating the same filter over data is planned later, because whether one is depends on the data: the
+	 * filter of the fetched references, which is checked while the query is planned, is evaluated only when a fetched
+	 * entity holds a reference to filter. Nothing is counted twice: every nested query is planned in a context derived
+	 * from that of the enclosing query - the fetch included, which plans in the context of the query it fetches for -
+	 * and skips what the logical query counted already. A check of a filter nested in a checked filter hands its
+	 * requests to the context of the enclosing check, which hands them on with its own.
 	 *
 	 * @param targetEntityType         the type of the target entity for which the nested query is being planned
 	 * @param filter                   the filter constraint that applies the necessary filtering logic
@@ -172,6 +193,17 @@ public class HavingTranslatorHelper {
 		final EntityCollection targetEntityCollection = filterByVisitor.getEntityCollectionOrThrowException(
 			targetEntityType, taskDescriptionSupplier
 		);
+		final FilterBy nestedFilterBy = filter instanceof FilterBy filterBy ? filterBy : new FilterBy(filter);
+		final EntityScope nestedScope = QueryUtils.findConstraint(
+			nestedFilterBy, EntityScope.class, SeparateEntityScopeContainer.class
+		);
+		if (filterByVisitor.isConstraintCheckOnly()) {
+			checkNestedFilter(
+				targetEntityCollection, nestedFilterBy, getNestedQueryScopes(nestedScope, processingScope.getScopes()),
+				filterByVisitor, taskDescriptionSupplier
+			);
+			return List.of(new GlobalIndexAndFormula(null, EmptyFormula.INSTANCE));
+		}
 		final List<GlobalEntityIndex> globalIndexes = processingScope.getScopes()
 			.stream()
 			.map(
@@ -182,6 +214,25 @@ public class HavingTranslatorHelper {
 			.filter(Objects::nonNull)
 			.map(GlobalEntityIndex.class::cast)
 			.toList();
+
+		// a scope the target entity type holds no entity of has no index and the nested query is not planned there,
+		// but the filter is still checked against the entity schema in that scope, so that the query does not fail or
+		// pass depending on the data - nothing can match there, so the formula of the check is not used; a nested
+		// `scope(...)` takes the scopes of the nested query out of the processing scopes, so it is checked in the
+		// scopes it names, and only when no nested query is planned at all - one planned query checks all of them
+		final Set<Scope> scopesToCheck;
+		if (nestedScope == null) {
+			scopesToCheck = EnumSet.copyOf(processingScope.getScopes());
+			globalIndexes.forEach(it -> scopesToCheck.remove(it.getIndexKey().scope()));
+		} else {
+			scopesToCheck = globalIndexes.isEmpty() ? nestedScope.getScope() : Set.of();
+		}
+		if (!scopesToCheck.isEmpty()) {
+			// no nested query is planned in the checked scopes, so the check counts what it requested there
+			checkNestedFilter(
+				targetEntityCollection, nestedFilterBy, scopesToCheck, filterByVisitor, taskDescriptionSupplier
+			);
+		}
 
 		if (globalIndexes.isEmpty()) {
 			return List.of(new GlobalIndexAndFormula(null, EmptyFormula.INSTANCE));
@@ -269,6 +320,97 @@ public class HavingTranslatorHelper {
 					)
 				).toList();
 		}
+	}
+
+	/**
+	 * Returns the scopes a nested query is planned in when it is planned for all processing scopes at once: those the
+	 * `scope(...)` of its filter names - the nested query honours it whatever the enclosing query processes - or the
+	 * processing scopes when its filter names none.
+	 *
+	 * @param nestedScope      the `scope(...)` of the nested filter, NULL when it has none
+	 * @param processingScopes the scopes of the enclosing query being processed
+	 * @return the scopes of the nested query
+	 */
+	@Nonnull
+	private static Set<Scope> getNestedQueryScopes(
+		@Nullable EntityScope nestedScope,
+		@Nonnull Set<Scope> processingScopes
+	) {
+		return nestedScope == null ? processingScopes : nestedScope.getScope();
+	}
+
+	/**
+	 * Checks the nested filter against the schema of the target entity type in the passed scopes, without planning the
+	 * nested query and without evaluating anything: the filter is translated over an empty global index of every scope,
+	 * in the planning context of the nested query, by a visitor that only checks it - so the reference constraints the
+	 * filter nests look into no index holding data either, however deep they are - and the formula is thrown away.
+	 *
+	 * The planning context of the check is thrown away and no plan of it is ever built, so the schema capabilities the
+	 * check requested are handed to the context of the enclosing filter, which counts them with the logical query it
+	 * belongs to - see {@link #planNestedQuery} for why that never counts them twice.
+	 *
+	 * @param targetEntityCollection  the collection of the target entity type
+	 * @param filterBy                the nested filter
+	 * @param scopes                  the scopes the nested query is planned in
+	 * @param filterByVisitor         the visitor translating the enclosing filter
+	 * @param taskDescriptionSupplier a supplier of the description of the nested query for the telemetry
+	 */
+	private static void checkNestedFilter(
+		@Nonnull EntityCollection targetEntityCollection,
+		@Nonnull FilterBy filterBy,
+		@Nonnull Set<Scope> scopes,
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull Supplier<String> taskDescriptionSupplier
+	) {
+		final String targetEntityType = targetEntityCollection.getEntityType();
+		final QueryPlanningContext nestedQueryContext = createNestedQueryContext(
+			targetEntityCollection, filterBy, scopes, filterByVisitor
+		);
+		FilterByVisitor.createFormulaForTheFilter(
+			nestedQueryContext,
+			GlobalEntityIndex.class,
+			scopes.stream()
+				.map(scope -> GlobalEntityIndex.createEmptyIndex(targetEntityType, scope))
+				.toList(),
+			filterBy,
+			null,
+			nestedQueryContext.getSchema(),
+			taskDescriptionSupplier,
+			true
+		);
+		final QueryPlanningContext queryContext = filterByVisitor.getQueryContext();
+		for (final SchemaCapabilityUsage requestedCapability : nestedQueryContext.drainRequestedCapabilities()) {
+			queryContext.registerRequestedCapability(requestedCapability);
+		}
+	}
+
+	/**
+	 * Creates the planning context a nested query of the target entity type is planned in over the passed scopes. A
+	 * check of the nested filter translates it in this context, as the nested query evaluated over data does, because
+	 * several translators resolve their constraint against the entity type of the context - a `hierarchyWithin` of a
+	 * reference of the target, or of the target's own tree - and would resolve it against the entity type of the
+	 * enclosing query in its context.
+	 *
+	 * @param targetEntityCollection the collection of the target entity type
+	 * @param filterBy               the nested filter
+	 * @param scopes                 the scopes the nested query is planned in
+	 * @param filterByVisitor        the visitor translating the enclosing filter
+	 * @return the planning context of the nested query
+	 */
+	@Nonnull
+	private static QueryPlanningContext createNestedQueryContext(
+		@Nonnull EntityCollection targetEntityCollection,
+		@Nonnull FilterBy filterBy,
+		@Nonnull Set<Scope> scopes,
+		@Nonnull FilterByVisitor filterByVisitor
+	) {
+		return targetEntityCollection.createQueryContext(
+			filterByVisitor.getQueryContext(),
+			filterByVisitor.getEvitaRequest().deriveCopyWith(
+				targetEntityCollection.getEntityType(), filterBy, null, null, scopes
+			),
+			filterByVisitor.getEvitaSession()
+		);
 	}
 
 	/**

@@ -404,6 +404,9 @@ public class QuerySerializationTest {
 				return Stream.of(
 					arguments("inScope wrapping attribute",
 						inScope(Scope.LIVE, attributeEquals("a", "b"))),
+					// refused at execution, but a stored query of this shape must stay readable
+					arguments("inScope nested in inScope",
+						inScope(Scope.LIVE, inScope(Scope.ARCHIVED, attributeEquals("a", "b")))),
 					arguments("scope (LIVE, ARCHIVED)",
 						scope(Scope.LIVE, Scope.ARCHIVED)),
 					// the order decides which scope a unique lookup prefers, so it has to survive the round trip
@@ -581,6 +584,9 @@ public class QuerySerializationTest {
 					entityPrimaryKeyExact(1, 8, 10, 3)),
 				arguments("inScope wrapping attributeNatural",
 					inScope(Scope.LIVE, attributeNatural("a", OrderDirection.ASC))),
+				// refused at execution, but a stored query of this shape must stay readable
+				arguments("inScope nested in inScope",
+					inScope(Scope.LIVE, inScope(Scope.ARCHIVED, attributeNatural("a", OrderDirection.ASC)))),
 				arguments("priceNatural",
 					priceNatural(OrderDirection.ASC)),
 				arguments("random",
@@ -1017,6 +1023,9 @@ public class QuerySerializationTest {
 				return Stream.of(
 					arguments("inScope wrapping facetSummary",
 						inScope(Scope.LIVE, facetSummary())),
+					// refused at execution, but a stored query of this shape must stay readable
+					arguments("inScope nested in inScope",
+						inScope(Scope.LIVE, inScope(Scope.ARCHIVED, facetSummary()))),
 
 					arguments("facetSummary(null depth)",
 						facetSummary((FacetStatisticsDepth) null)),

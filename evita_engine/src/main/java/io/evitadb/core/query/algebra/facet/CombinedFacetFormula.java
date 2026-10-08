@@ -39,8 +39,8 @@ import javax.annotation.Nonnull;
 /**
  * This formula has almost identical implementation as {@link OrFormula} but it accepts only set of
  * {@link Formula} as a child and allows containing even single child (on the contrary to the {@link OrFormula}).
- * The formula envelops both AND joined facet formulas and OR joined facet formulas and allows to distinguish between
- * them and so that newly added formulas for clone can target the proper container in this formula.
+ * The formula envelops the AND joined facet formulas and the OR joined facet formulas - the conjunctive and the
+ * disjunctive facet groups of the facet selection of one reference - and computes their union.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -71,14 +71,6 @@ public class CombinedFacetFormula extends AbstractFormula implements NonCacheabl
 	@Override
 	public long getOperationCost() {
 		return 11;
-	}
-
-	public Formula getAndFormula() {
-		return getInnerFormulas()[0];
-	}
-
-	public Formula getOrFormula() {
-		return getInnerFormulas()[1];
 	}
 
 	@Override

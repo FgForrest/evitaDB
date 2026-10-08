@@ -25,6 +25,7 @@ package io.evitadb.api.query.require;
 
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.GenericConstraint;
+import io.evitadb.api.query.InScopeContainer;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.descriptor.annotation.Child;
 import io.evitadb.api.query.descriptor.annotation.ConstraintDefinition;
@@ -72,6 +73,11 @@ import java.io.Serializable;
  * - Additional children of different constraint types are not accepted — all children must be
  *   `RequireConstraint` instances.
  * - Children must be unique within the container (see `@Child(uniqueChildren = true)`).
+ * - No `inScope` may be nested among the children within the same evaluation context (a container fetching another
+ *   entity's content starts another one): a different scope would be contradictory and the same scope redundant, so
+ *   a query containing either is rejected when it is executed (see
+ *   {@link io.evitadb.api.query.QueryUtils#assertNoNestedScopeContainers(io.evitadb.api.query.Query)}) - the
+ *   container itself accepts any children, so that stored queries stay readable.
  *
  * ## Applicability and necessity
  *
@@ -98,7 +104,8 @@ import java.io.Serializable;
 	shortDescription = "The constraint limits enclosed require constraints to apply only when processing entities in a specific scope (LIVE or ARCHIVED).",
 	userDocsLink = "/documentation/query/require/behavioral#in-scope"
 )
-public class RequireInScope extends AbstractRequireConstraintContainer implements GenericConstraint<RequireConstraint> {
+public class RequireInScope extends AbstractRequireConstraintContainer
+	implements GenericConstraint<RequireConstraint>, InScopeContainer<RequireConstraint> {
 	@Serial private static final long serialVersionUID = 6118312763849285407L;
 	private static final String CONSTRAINT_NAME = "inScope";
 
@@ -122,6 +129,7 @@ public class RequireInScope extends AbstractRequireConstraintContainer implement
 	/**
 	 * Returns requested scope.
 	 */
+	@Override
 	@Nonnull
 	public Scope getScope() {
 		return (Scope) getArguments()[0];

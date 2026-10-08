@@ -67,7 +67,8 @@ public interface ReferenceSummaryDescriptor {
 		PropertyDescriptor COUNT = PropertyDescriptor.builder()
 			.name("count")
 			.description("""
-				Contains number of distinct entities in the response that possess any reference in this group.
+				Contains number of distinct entities of the query result, filtered without its user filter part, that possess
+				any reference in this group.
 				""")
 			.type(nonNull(Integer.class))
 			.build();
@@ -140,7 +141,9 @@ public interface ReferenceSummaryDescriptor {
 		PropertyDescriptor COUNT = PropertyDescriptor.builder()
 			.name("count")
 			.description("""
-				Contains number of distinct entities in the response that possess of this reference.
+				Contains number of distinct entities of the query result, filtered without its user filter part, that possess
+				this reference under the group of the statistics - or, when the query negates the group, that do not possess
+				it under that group.
 				""")
 			.type(nonNull(Integer.class))
 			.build();

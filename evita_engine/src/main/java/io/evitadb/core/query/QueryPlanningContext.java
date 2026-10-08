@@ -26,22 +26,41 @@ package io.evitadb.core.query;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.EntityCollectionRequiredException;
+import io.evitadb.api.exception.EntityNotManagedException;
+import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.filter.And;
+import io.evitadb.api.query.filter.EntityPrimaryKeyBetween;
+import io.evitadb.api.query.filter.EntityPrimaryKeyGreaterThan;
+import io.evitadb.api.query.filter.EntityPrimaryKeyGreaterThanEquals;
+import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
+import io.evitadb.api.query.filter.EntityPrimaryKeyLessThan;
+import io.evitadb.api.query.filter.EntityPrimaryKeyLessThanEquals;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
+import io.evitadb.api.query.filter.HierarchyWithin;
+import io.evitadb.api.query.filter.Not;
+import io.evitadb.api.query.filter.Or;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.DefaultPrefetchRequirementCollector;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.FacetGroupRelationLevel;
+import io.evitadb.api.query.require.FacetGroupsConjunction;
+import io.evitadb.api.query.require.FacetGroupsConstraint;
+import io.evitadb.api.query.require.FacetGroupsDisjunction;
+import io.evitadb.api.query.require.FacetGroupsExclusivity;
+import io.evitadb.api.query.require.FacetGroupsNegation;
 import io.evitadb.api.query.require.FacetRelationType;
 import io.evitadb.api.query.require.FetchRequirementCollector;
 import io.evitadb.api.query.require.QueryPriceMode;
+import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.FacetFilterBy;
 import io.evitadb.api.requestResponse.data.EntityContract;
@@ -124,6 +143,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			Scope.ARCHIVED, new EntityIndexKey(EntityIndexType.GLOBAL, Scope.ARCHIVED)
 		)
 	);
+	/**
+	 * The order in which the relations the query declares for a reference are tried when several of them match one
+	 * facet group - see {@link #getFacetRelationType}. It is the order the reference summary has always tried them in,
+	 * so a query declaring overlapping relations keeps the summary it had, and the query result follows it.
+	 */
+	private static final FacetRelationType[] DECLARED_RELATION_PRECEDENCE = {
+		FacetRelationType.NEGATION, FacetRelationType.DISJUNCTION, FacetRelationType.EXCLUSIVITY,
+		FacetRelationType.CONJUNCTION
+	};
 
 	/**
 	 * Contains reference to the parent context of this one. The reference is not NULL only for sub-queries.
@@ -139,9 +167,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 *
 	 * Translators register here the {@link EntityContentRequire} they will need on a prefetched entity body, so that
 	 * a single prefetch can satisfy all of them at once instead of each translator fetching on its own.
+	 *
+	 * Replaced by a collector that is thrown away while constraints are translated only to be checked - see
+	 * {@link #executeDiscardingRequirementsToPrefetch(Supplier)}.
 	 */
 	@Nonnull @Getter
-	private final FetchRequirementCollector fetchRequirementCollector = new DefaultPrefetchRequirementCollector();
+	private FetchRequirementCollector fetchRequirementCollector = new DefaultPrefetchRequirementCollector();
 	/**
 	 * Contains reference to the policy that controls the interaction with cache and drives the query planning strategy.
 	 * It is picked once for the outer query (debug modes may force a non-caching variant) and inherited unchanged by
@@ -226,6 +257,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	private final boolean prefetchPossible;
 	/**
+	 * False for the context of an internal evaluation a write makes - the condition of a conditional facet or histogram
+	 * expression a mutation, or the replay of the write-ahead log, re-evaluates through the query engine (see the
+	 * session-optional constructor) - and for every context derived from it. Such an evaluation is no query: nothing it
+	 * names is asked for by anybody, so it records no schema capability at all - it neither mints the keys nor
+	 * resolves the holders, and the plans of the nested queries it builds count nothing. The value is inherited by the
+	 * derived contexts, so the decision is made once, where the evaluation starts, and no translator has to know.
+	 */
+	private final boolean recordingRequestedCapabilities;
+	/**
 	 * Internal execution context used for execution of formulas evaluated in planning phase.
 	 *
 	 * Planning is supposed to be cheap, but a few decisions have to compute a formula eagerly to be made at all -
@@ -264,39 +304,56 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	private EntitySchema entitySchema;
 	/**
-	 * Contains the {@link HierarchyFilteringPredicate} of each translated hierarchy filter constraint, keeping
-	 * information about which hierarchy nodes that constraint includes or excludes from traversal.
+	 * Contains the {@link HierarchyFilteringPredicate} of each translated occurrence of a hierarchy filter constraint,
+	 * keeping information about which hierarchy nodes that constraint includes or excludes from traversal.
 	 *
 	 * It is resolved by the filtering phase and handed over to the requirement phase, so that hierarchy statistics
 	 * observe exactly the same node visibility as the filter did. Keyed by the constraint for the same reason as
 	 * {@link #rootHierarchyNodesFormula} - a query may carry several hierarchy filters and the statistics of one
-	 * hierarchy must never observe the visibility another one declared. Read through
-	 * {@link #getHierarchyHavingPredicate(HierarchyFilterConstraint)}. Lazily allocated by
-	 * {@link #setHierarchyHavingPredicate(HierarchyFilterConstraint, HierarchyFilteringPredicate)}.
+	 * hierarchy must never observe the visibility another one declared - together with the processing scopes the
+	 * occurrence was translated in, because one constraint (the same instance or an equal one) placed in
+	 * `inScope(ARCHIVED, ...)` and elsewhere is resolved against different trees, and the statistics of a scope must
+	 * observe what an occurrence covering that scope resolved. Insertion-ordered, so the first covering occurrence is
+	 * found deterministically. Read through {@link #getHierarchyHavingPredicate(HierarchyFilterConstraint, Scope)}.
+	 * Lazily allocated by
+	 * {@link #setHierarchyHavingPredicate(HierarchyFilterConstraint, Set, HierarchyFilteringPredicate)}.
 	 */
 	@Nullable
-	private Map<HierarchyFilterConstraint, HierarchyFilteringPredicate> hierarchyHavingPredicate;
+	private Map<ScopedHierarchyFilter, HierarchyFilteringPredicate> hierarchyHavingPredicate;
 	/**
-	 * Contains the {@link Formula} that calculates the root hierarchy node ids of each translated hierarchy filter
-	 * constraint, so that the requirement phase (hierarchy statistics) can reuse what the filtering phase already
-	 * computed. Keyed by the constraint itself, because a single query may legitimately carry several of them -
-	 * two subtrees joined by `or`, or two constraints aimed at different references - and the statistics of one
-	 * hierarchy must never observe the roots of another. Read through
-	 * {@link #getRootHierarchyNodes(HierarchyFilterConstraint)}. Lazily allocated by
-	 * {@link #setRootHierarchyNodesFormula(HierarchyFilterConstraint, Formula)}.
+	 * Contains the {@link Formula} that calculates the root hierarchy node ids of each translated occurrence of
+	 * a hierarchy filter constraint, so that the requirement phase (hierarchy statistics) can reuse what the filtering
+	 * phase already computed. Keyed by the constraint itself, because a single query may legitimately carry several of
+	 * them - two subtrees joined by `or`, or two constraints aimed at different references - and the statistics of one
+	 * hierarchy must never observe the roots of another; and by the processing scopes of the occurrence, for the reason
+	 * given at {@link #hierarchyHavingPredicate}. Read through
+	 * {@link #getRootHierarchyNodes(HierarchyFilterConstraint, Scope)}. Lazily allocated by
+	 * {@link #setRootHierarchyNodesFormula(HierarchyFilterConstraint, Set, Formula)}.
 	 */
 	@Nullable
-	private Map<HierarchyFilterConstraint, Formula> rootHierarchyNodesFormula;
+	private Map<ScopedHierarchyFilter, Formula> rootHierarchyNodesFormula;
 	/**
-	 * The index contains rules for facet summary computation regarding the inter facet relation. The key in the index
-	 * is a tuple consisting of `referenceName`, `typeOfRule` and the {@link FacetGroupRelationLevel} the relation was
-	 * asked about, the value in the index is prepared predicate allowing to mark the group id involved in special
-	 * relation handling.
+	 * The predicates testing the facet groups against the group filters of the facet relation constraints, keyed by
+	 * the {@link FacetFilterBy} declaration the filter comes from - by its identity, not by equality. The request
+	 * creates one declaration for each constraint, which belongs to one reference, one relation type and the level the
+	 * constraint declares, so two references declaring equal filters over different group types never share
+	 * a predicate. A negation declared at one level only is served for both levels as the very same declaration (see
+	 * {@link EvitaRequest#getFacetGroupNegation}) and so is planned once, while a negation declared at each level
+	 * keeps a predicate for each of its two filters.
 	 *
 	 * The predicates are expensive - each of them plans and evaluates the group filter - and are asked about many
-	 * group ids in a row, hence the memoization. Lazily allocated by {@link #getFacetRelationTuples()}.
+	 * group ids in a row, hence the memoization. Lazily allocated by {@link #getFacetGroupPredicates()}.
 	 */
-	private Map<FacetRelationTuple, FilteringFormulaPredicate> facetRelationTuples;
+	private Map<FacetFilterBy, FilteringFormulaPredicate> facetGroupPredicates;
+	/**
+	 * Memoizes the facet relations resolved by {@link #getFacetRelationType} and {@link #isFacetGroupRelationType},
+	 * indexed by the reference name and then by the facet group - see {@link FacetGroupRelations} for why these two and
+	 * the asked level and relation are the whole key. The reference summary asks about the relations of a group once
+	 * for every facet of it, and each resolution otherwise walks the precedence of the declared relations through
+	 * several look-ups of the request. Lazily allocated by {@link #getFacetGroupRelations}.
+	 */
+	@Nullable
+	private Map<String, FacetGroupRelationsOfReference> facetGroupRelations;
 	/**
 	 * Internal cache that serves for caching the computed formulas of nested queries.
 	 *
@@ -316,6 +373,15 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * what makes a second drain of the same context a no-op.
 	 */
 	@Nullable private List<SchemaCapabilityUsage> requestedCapabilities;
+	/**
+	 * The schema capabilities this **logical query** has counted so far, as the holders counting them - kept on the
+	 * root context only, because every plan of the query counts against the same record: the query itself, the nested
+	 * queries planned with it and those its fetch plans. See {@link #drainRequestedCapabilitiesToCount()}.
+	 *
+	 * Left NULL until the query first counts something; the first drain adopts the list it drained rather than copying
+	 * it, so a query building one plan allocates nothing for it.
+	 */
+	@Nullable private List<SchemaCapabilityUsage> countedCapabilities;
 	/**
 	 * Memoized results of per-constraint planning decisions that are asked for twice in a single plan - once while
 	 * index selection decides which indexes it must discover, and again while the filter translator builds the
@@ -367,7 +433,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 				catalog.getName(),
 				entityCollection == null ? null : entityCollection.getEntityType(),
 				evitaRequest.getLabels()
-			)
+			),
+			true
 		);
 		Assert.isPremiseValid(evitaSession instanceof EvitaSession, "The session must be an instance of EvitaSession!");
 	}
@@ -405,7 +472,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		this(
 			parentQueryContext, catalog, entityCollection,
 			evitaSession, evitaRequest, telemetry, indexes, indexesByPk,
-			cacheSupervisor, null
+			cacheSupervisor, null, true
 		);
 		// guard only when session is expected — nested contexts during session-less evaluation
 		// (WAL replay) inherit the null session from the parent and should not assert
@@ -421,7 +488,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * construction) work normally.
 	 *
 	 * No telemetry is collected by such a context - there is no client to report it to - and no {@link FinishedEvent}
-	 * is emitted, because this evaluation is not a client query.
+	 * is emitted, because this evaluation is not a client query. For the same reason neither this context nor any
+	 * context derived from it records a schema capability request - see {@link #recordingRequestedCapabilities}.
 	 *
 	 * The raw `Map` parameters are deliberate: the caller of this path holds the indexes in a differently
 	 * parameterized map and the generic signature of the sibling constructors would force an unchecked cast on
@@ -447,7 +515,10 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull Map indexesByPk,
 		@Nonnull CacheSupervisor cacheSupervisor
 	) {
-		this(null, catalog, entityCollection, evitaSession, evitaRequest, null, indexes, indexesByPk, cacheSupervisor, null);
+		this(
+			null, catalog, entityCollection, evitaSession, evitaRequest, null, indexes, indexesByPk, cacheSupervisor,
+			null, false
+		);
 	}
 
 	/**
@@ -472,6 +543,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @param cacheSupervisor    supervisor deciding which formulas get their results memoized
 	 * @param event              metric event to be completed when the query finishes, NULL for nested and
 	 *                           internal evaluations that must not be reported as client queries
+	 * @param recordingRequestedCapabilities false for the context of an internal evaluation a write makes, which
+	 *                           records no schema capability request - ignored for a nested context, which inherits
+	 *                           the value of its parent, see {@link #recordingRequestedCapabilities}
 	 */
 	private <S extends IndexKey, T extends Index<S>> QueryPlanningContext(
 		@Nullable QueryPlanningContext parentQueryContext,
@@ -483,7 +557,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull Map<S, T> indexes,
 		@Nonnull Map<Integer, T> indexesByPk,
 		@Nonnull CacheSupervisor cacheSupervisor,
-		@Nullable FinishedEvent event
+		@Nullable FinishedEvent event,
+		boolean recordingRequestedCapabilities
 	) {
 		this.parentContext = parentQueryContext;
 		this.catalog = catalog;
@@ -503,9 +578,11 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 				|| isDebugModeEnabled(DebugMode.PREFER_INDEX_SCAN) ?
 				BitmapFavouringNoCachePolicy.INSTANCE : DefaultPolicy.INSTANCE;
 			this.prefetchPossible = true;
+			this.recordingRequestedCapabilities = recordingRequestedCapabilities;
 		} else {
 			this.planningPolicy = parentQueryContext.planningPolicy;
 			this.prefetchPossible = false;
+			this.recordingRequestedCapabilities = parentQueryContext.recordingRequestedCapabilities;
 		}
 		this.telemetryStack = new ArrayDeque<>(16);
 		ofNullable(telemetry).ifPresent(this.telemetryStack::push);
@@ -535,6 +612,26 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	public void addRequirementToPrefetch(@Nonnull EntityContentRequire... require) {
 		this.fetchRequirementCollector.addRequirementsToPrefetch(require);
+	}
+
+	/**
+	 * Executes the lambda with the requirements to prefetch it registers collected apart from those of the query and
+	 * thrown away afterwards. A constraint translated only to be checked against the schemas contributes nothing to
+	 * the plan - an ordering by a reference no entity holds a row of sorts nothing - so whatever its translators ask to
+	 * prefetch must not widen the prefetch of the query, nor change the cost the prefetch is chosen by.
+	 *
+	 * @param lambda the translation whose requirements to prefetch are discarded
+	 * @param <T>    the type of the result of the lambda
+	 * @return the result of the lambda
+	 */
+	public <T> T executeDiscardingRequirementsToPrefetch(@Nonnull Supplier<T> lambda) {
+		final FetchRequirementCollector queryRequirementCollector = this.fetchRequirementCollector;
+		this.fetchRequirementCollector = new DefaultPrefetchRequirementCollector();
+		try {
+			return lambda.get();
+		} finally {
+			this.fetchRequirementCollector = queryRequirementCollector;
+		}
 	}
 
 	/**
@@ -569,22 +666,25 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * the one {@link io.evitadb.index.IndexActivity} answers, and {@link SchemaCapabilityUsage} states the difference
 	 * in full.
 	 *
-	 * # Attribution, and the case this deliberately drops
+	 * # Attribution follows the owner, not the context
 	 *
-	 * Only elements of **this context's own collection** are recorded, which is what `owner` is checked for. A lookup
-	 * that resolved against the catalog schema alone belongs elsewhere and has its own method -
-	 * {@link #recordRequestedGlobalCapability(String, Capability, Scope)} - so one call site is left passing through
-	 * without recording anything, and it is a known gap rather than an oversight: **a filter or an ordering evaluated
-	 * against another collection's structures** (a nested query behind `referenceHaving`, an ordering by a referenced
-	 * entity's property) would have to count against *that* collection's registry, and the context that owns it is not
-	 * the one whose plan gets built.
+	 * The holder is resolved in the registry of **the collection whose schema declares the element** - `owner` -
+	 * whichever context records it. Most requests name an element of this context's own collection, but a constraint
+	 * translated here may well name another collection's element: the parent filter of a `hierarchyWithin` of a
+	 * reference, its `having` / `excluding` filters, the node filters of the hierarchy statistics of a reference, the
+	 * group selector of a `histogramHaving` - all evaluated in the context of the queried entity against the schema of
+	 * the entity they select. Such a request is counted on the registry of that entity, because that is the schema
+	 * declaring the flag and the schema mutation that would drop it. Attributing it to this context's collection would
+	 * protect the wrong flag while leaving the right one looking dead, and dropping it - as this method once did - would
+	 * leave the right one looking dead all the same; the holder is what the accumulator keeps, so where it was resolved
+	 * is the only thing the owner changes.
 	 *
-	 * Counting it here would attribute the request to the wrong schema, which is worse than not counting it: the
-	 * number exists to decide whether a flag can be dropped, and a request attributed to the wrong element protects
-	 * the wrong flag while leaving the right one looking dead.
+	 * A lookup that resolved against the catalog schema alone has its own method -
+	 * {@link #recordRequestedGlobalCapability(String, Capability, Scope)}. An owner whose collection the catalog does
+	 * not hold records nothing.
 	 *
-	 * @param owner         the entity schema declaring the element, as the caller resolved it - a schema of another
-	 *                      collection is silently ignored
+	 * @param owner         the entity schema declaring the element, as the caller resolved it - the request is counted
+	 *                      on the registry of its collection
 	 * @param containerName name of the reference declaring the element, or NULL when the entity declares it directly
 	 * @param elementKind   whether the element is an attribute or a sortable attribute compound
 	 * @param elementName   name of the element, canonical as the schema spells it
@@ -599,14 +699,18 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull Capability capability,
 		@Nonnull Scope scope
 	) {
-		final EntityCollection collection = this.entityCollection;
-		if (collection == null || !owner.getName().equals(this.entityType)) {
-			return;
-		}
 		// bail before the key is minted: the planner translates the filter once per candidate index set, so this runs
 		// N times per logical query and each run would otherwise allocate a `SchemaCapabilityKey` and hash it into the
-		// registry. That is the per-query cost `server.usageStatisticsTracking: false` exists to remove
-		if (!this.catalog.isUsageStatisticsTracked()) {
+		// registry. That is the per-query cost `server.usageStatisticsTracking: false` exists to remove - and the cost
+		// an internal evaluation of a write must not pay at all, since it is no query
+		if (!this.recordingRequestedCapabilities || !this.catalog.isUsageStatisticsTracked()) {
+			return;
+		}
+		final String ownerType = owner.getName();
+		final EntityCollection collection = ownerType.equals(this.entityType) ?
+			this.entityCollection :
+			getEntityCollection(ownerType).orElse(null);
+		if (collection == null) {
 			return;
 		}
 		registerRequestedCapability(
@@ -629,8 +733,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * winning plan is built, never once per candidate plan the planner weighed. See
 	 * {@link #registerRequestedCapability}.
 	 *
-	 * @param owner      the entity schema the flag was verified against - a lookup that resolved against another
-	 *                   collection records nothing, exactly as a filter evaluated against another collection does
+	 * @param owner      the entity schema the flag was verified against - the request is counted on the registry of
+	 *                   its collection, whichever collection this context queries (a `hierarchyWithin` of a reference
+	 *                   depends on the tree of the referenced entity)
 	 * @param capability the flag the query needed - `HIERARCHY_INDEXED` or `PRICE_INDEXED`
 	 * @param scopes     the scopes the query asked for
 	 */
@@ -653,8 +758,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * opposite arrangement from a request about an attribute *of* the reference, which names it as the container;
 	 * see {@link io.evitadb.index.usage.SchemaCapabilityKey#reference}.
 	 *
-	 * @param owner         the entity schema declaring the reference - see {@link #recordRequestedEntityCapability}
-	 *                      for why a foreign owner records nothing
+	 * @param owner         the entity schema declaring the reference - the request is counted on the registry of its
+	 *                      collection, see {@link #recordRequestedCapability}
 	 * @param referenceName name of the reference the query named
 	 * @param capability    the flag the query needed - `INDEXED`, `FACETED` or `BUCKETED`
 	 * @param scopes        the scopes the query asked for
@@ -700,8 +805,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull Capability capability,
 		@Nonnull Scope scope
 	) {
-		// same bail as the collection-level path, and for the same per-candidate-plan reason
-		if (!this.catalog.isUsageStatisticsTracked()) {
+		// same bail as the collection-level path, and for the same reasons
+		if (!this.recordingRequestedCapabilities || !this.catalog.isUsageStatisticsTracked()) {
 			return;
 		}
 		registerRequestedCapability(
@@ -755,24 +860,25 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * the list behind would count that query twice. Because the accumulator is handed over rather than copied, the
 	 * second drain finds nothing and the second build counts nothing.
 	 *
+	 * This method only moves what was requested - into the context of an enclosing query, when the context is one of a
+	 * nested filter that is only checked and never builds a plan. What a built plan counts goes through
+	 * {@link #drainRequestedCapabilitiesToCount()}, which also leaves out what another plan of the same logical query
+	 * counted already.
+	 *
 	 * # What that leaves standing, and why it is the honest reading
 	 *
-	 * The emptying makes the count *once per drain of what had been accumulated by then*, not *once per context*: a
-	 * capability registered **after** a build has already drained would be counted again by the next build on the same
-	 * context. Nothing a production session does can reach that, because everything that consults the schema runs
-	 * before the single build that ends {@link QueryPlanner#planQuery}. One debug-only path could:
+	 * A capability registered **after** a build has already drained is counted by the next build on the same context
+	 * only when the logical query has not counted it yet. One debug-only path registers such capabilities:
 	 * {@link io.evitadb.api.query.require.DebugMode#VERIFY_POSSIBLE_CACHING_TREES} equips each cacheable variant of
 	 * the formula with a sorter of its own *after* the preferred plan was built, and planning an ordering re-registers
-	 * what it names.
+	 * what it names - which the record of the counted capabilities keeps from being counted twice.
 	 *
-	 * Suppressing that with a one-way "already flushed" latch was deliberately not done, and the asymmetry is the
-	 * reason: this count exists to answer *"would dropping this flag break a query?"*, where an over-count merely
-	 * protects a flag a little too eagerly, while an under-count makes a used flag look dead and invites somebody to
-	 * drop it. A latch buys exactness under a debug mode that already multiplies every per-index reading, at the price
-	 * of silently discarding the requests of any future caller that legitimately plans further work on a context whose
-	 * plan is already built - trading a debug-only over-count for an under-count nobody would notice. The caveat
-	 * therefore reads exactly like {@link io.evitadb.index.IndexActivity}'s: exact arithmetic on these readings
-	 * requires a session with no verification debug mode enabled.
+	 * Suppressing everything registered after the first build with a one-way "already flushed" latch was deliberately
+	 * not done, and the asymmetry is the reason: this count exists to answer *"would dropping this flag break a
+	 * query?"*, where an over-count merely protects a flag a little too eagerly, while an under-count makes a used flag
+	 * look dead and invites somebody to drop it. A latch would silently discard the requests of any future caller that
+	 * legitimately plans further work on a context whose plan is already built; the record of the counted capabilities
+	 * discards only the repetition of a request the query has already counted.
 	 *
 	 * @return the distinct holders this query requested, in registration order; empty when it requested none
 	 */
@@ -784,6 +890,71 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		}
 		this.requestedCapabilities = null;
 		return accumulated;
+	}
+
+	/**
+	 * Hands over what this context requested that the **logical query** it belongs to has not counted yet, and records
+	 * it as counted - the drain a built plan counts its requests by ({@link QueryPlanBuilder#build()},
+	 * {@link QueryPlanBuilder#empty(QueryPlanningContext)}).
+	 *
+	 * A logical query builds several plans: its own, one for every nested query its filter plans over data, and those
+	 * its fetch plans for the filters of the fetched references. Each of them asks the schema for what its constraints
+	 * name, and two of them may well name the same capability - an entity filter of a reference and the filter of the
+	 * summarized options of the same reference, two entity filters naming one attribute of the referenced entity, or
+	 * an entity filter and the filter of the fetched references. Counting each plan on its own would count such a
+	 * capability once per plan, but only where its target holds data: a filter whose target holds no entity of the
+	 * scope builds no plan, it is only checked, and the check hands what it requested to the context of the enclosing
+	 * query, which deduplicates it with everything else the query requested. The record kept on the root context makes
+	 * every plan of the logical query count against the same set, so a capability is counted once per logical query -
+	 * by whichever of its plans is built first - with and without data.
+	 *
+	 * A plan planned in a context derived from no other one - a separate root - is a logical query of its own and
+	 * counts on its own.
+	 *
+	 * The list returned is the caller's to iterate right away, not to keep: the first drain of the logical query
+	 * adopts the drained list as its record instead of copying it, and later drains add to it.
+	 *
+	 * @return the distinct holders to count, in registration order; empty when there is nothing the logical query has
+	 *         not counted yet
+	 */
+	@Nonnull
+	public List<SchemaCapabilityUsage> drainRequestedCapabilitiesToCount() {
+		final List<SchemaCapabilityUsage> requested = drainRequestedCapabilities();
+		if (requested.isEmpty()) {
+			return requested;
+		}
+		QueryPlanningContext rootContext = this;
+		while (rootContext.parentContext != null) {
+			rootContext = rootContext.parentContext;
+		}
+		final List<SchemaCapabilityUsage> counted = rootContext.countedCapabilities;
+		if (counted == null) {
+			// the drained list is distinct already and nobody else holds it, so it becomes the record as it is
+			rootContext.countedCapabilities = requested;
+			return requested;
+		}
+		List<SchemaCapabilityUsage> toCount = null;
+		for (final SchemaCapabilityUsage holder : requested) {
+			// identity, for the same reason the accumulator compares by it - see `registerRequestedCapability`
+			boolean alreadyCounted = false;
+			for (final SchemaCapabilityUsage countedHolder : counted) {
+				if (countedHolder == holder) {
+					alreadyCounted = true;
+					break;
+				}
+			}
+			if (!alreadyCounted) {
+				if (toCount == null) {
+					toCount = new ArrayList<>(requested.size());
+				}
+				toCount.add(holder);
+			}
+		}
+		if (toCount == null) {
+			return List.of();
+		}
+		counted.addAll(toCount);
+		return toCount;
 	}
 
 	/**
@@ -912,6 +1083,20 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		);
 		//noinspection unchecked
 		return (T) index;
+	}
+
+	/**
+	 * Returns the {@link CatalogIndex} of the scope when the catalog holds one, without creating it. Unlike
+	 * {@link #getIndexIfExists(IndexKey, Class)} with a {@link CatalogIndexKey}, which creates the archive catalog
+	 * index on its first access, this lookup leaves the catalog untouched - a scope the catalog has no index of holds
+	 * no value to look up, so a query asking about it must not change the catalog.
+	 *
+	 * @param scope the scope of the requested catalog index
+	 * @return the catalog index or empty result when the catalog has not created one for the scope
+	 */
+	@Nonnull
+	public Optional<CatalogIndex> getCatalogIndexIfExists(@Nonnull Scope scope) {
+		return this.catalog.getCatalogIndexIfExits(scope);
 	}
 
 	/**
@@ -1683,64 +1868,110 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 
 	/**
-	 * Sets resolved hierarchy root nodes formula of a single hierarchy filter constraint, to be shared among the
-	 * filter and the requirement phase.
+	 * Sets resolved hierarchy root nodes formula of one occurrence of a hierarchy filter constraint, to be shared among
+	 * the filter and the requirement phase.
 	 *
-	 * The first formula recorded for a constraint wins. A constraint is translated once per scope index and the
-	 * translation deliberately lets the first applicable scope take precedence (LIVE before ARCHIVED), so the roots
-	 * have to follow the same precedence rather than being overwritten by a later scope.
+	 * The first formula recorded for a constraint and a scope set wins: within one scope set a constraint is
+	 * translated once per scope index and the translation deliberately lets the first applicable scope take precedence
+	 * (LIVE before ARCHIVED), so the roots have to follow the same precedence rather than being overwritten by
+	 * a later scope.
 	 *
 	 * @param hierarchyFilterConstraint the constraint whose roots were resolved
+	 * @param scopes                    the processing scopes the occurrence was translated in
 	 * @param rootHierarchyNodesFormula formula computing primary keys of the hierarchy roots
 	 */
 	public void setRootHierarchyNodesFormula(
 		@Nonnull HierarchyFilterConstraint hierarchyFilterConstraint,
+		@Nonnull Set<Scope> scopes,
 		@Nonnull Formula rootHierarchyNodesFormula
 	) {
 		if (this.rootHierarchyNodesFormula == null) {
-			this.rootHierarchyNodesFormula = CollectionUtils.createHashMap(4);
+			this.rootHierarchyNodesFormula = CollectionUtils.createLinkedHashMap(4);
 		}
-		this.rootHierarchyNodesFormula.putIfAbsent(hierarchyFilterConstraint, rootHierarchyNodesFormula);
+		this.rootHierarchyNodesFormula.putIfAbsent(
+			new ScopedHierarchyFilter(hierarchyFilterConstraint, scopes), rootHierarchyNodesFormula
+		);
 	}
 
 	/**
-	 * Sets resolved hierarchy having/exclusion predicate of a single hierarchy filter constraint, to be shared among
-	 * the filter and the requirement phase.
+	 * Sets resolved hierarchy having/exclusion predicate of one occurrence of a hierarchy filter constraint, to be
+	 * shared among the filter and the requirement phase.
 	 *
-	 * The first predicate recorded for a constraint wins, for the same reason as in
-	 * {@link #setRootHierarchyNodesFormula(HierarchyFilterConstraint, Formula)}: a constraint is translated once per
-	 * scope index and the first applicable scope takes precedence.
+	 * The first predicate recorded for a constraint and a scope set wins, for the same reason as in
+	 * {@link #setRootHierarchyNodesFormula(HierarchyFilterConstraint, Set, Formula)}.
 	 *
 	 * @param hierarchyFilterConstraint the constraint whose node visibility was resolved
+	 * @param scopes                    the processing scopes the occurrence was translated in
 	 * @param hierarchyHavingPredicate  predicate deciding which hierarchy nodes are traversable
 	 */
 	public void setHierarchyHavingPredicate(
 		@Nonnull HierarchyFilterConstraint hierarchyFilterConstraint,
+		@Nonnull Set<Scope> scopes,
 		@Nonnull HierarchyFilteringPredicate hierarchyHavingPredicate
 	) {
 		if (this.hierarchyHavingPredicate == null) {
-			this.hierarchyHavingPredicate = CollectionUtils.createHashMap(4);
+			this.hierarchyHavingPredicate = CollectionUtils.createLinkedHashMap(4);
 		}
-		this.hierarchyHavingPredicate.putIfAbsent(hierarchyFilterConstraint, hierarchyHavingPredicate);
+		this.hierarchyHavingPredicate.putIfAbsent(
+			new ScopedHierarchyFilter(hierarchyFilterConstraint, scopes), hierarchyHavingPredicate
+		);
 	}
 
 	/**
-	 * Returns the node visibility predicate declared by the passed hierarchy filter constraint.
+	 * Returns the node visibility predicate declared by the passed hierarchy filter constraint for the statistics of
+	 * the passed scope.
 	 *
 	 * The caller passes the constraint the extra result decided to describe - resolved by
 	 * {@link EvitaRequest#getHierarchyWithin(String)} - so the visibility always belongs to that very hierarchy.
 	 * A NULL constraint, and a constraint that declares no `having` / `havingAnyChild` / `excluding` filter, both
 	 * yield NULL, which the computers read as "every node is traversable".
 	 *
+	 * The predicate comes from an occurrence covering the scope - see
+	 * {@link #findCoveringResolution(Map, HierarchyFilterConstraint, Scope)}. NULL is returned as well when no
+	 * occurrence covers the scope: the constraint does not restrict that scope's entities at all.
+	 *
 	 * @param hierarchyFilterConstraint the constraint whose node visibility is asked for, may be NULL
-	 * @return the predicate declared by that constraint, or NULL when it declared none
+	 * @param scope                     the scope the statistics are computed for
+	 * @return the predicate declared by that constraint, or NULL when it declared none for the scope
 	 */
 	@Nullable
 	public HierarchyFilteringPredicate getHierarchyHavingPredicate(
-		@Nullable HierarchyFilterConstraint hierarchyFilterConstraint
+		@Nullable HierarchyFilterConstraint hierarchyFilterConstraint,
+		@Nonnull Scope scope
 	) {
 		return this.hierarchyHavingPredicate == null || hierarchyFilterConstraint == null ?
-			null : this.hierarchyHavingPredicate.get(hierarchyFilterConstraint);
+			null : findCoveringResolution(this.hierarchyHavingPredicate, hierarchyFilterConstraint, scope);
+	}
+
+	/**
+	 * Finds what an occurrence of the constraint covering `scope` resolved: the occurrence translated in exactly that
+	 * scope (inside `inScope(scope, ...)`, or in a query over that scope only) is preferred, then the first recorded
+	 * occurrence whose processing scopes contain it (a top-level constraint of a query over several scopes). An
+	 * occurrence that does not cover the scope - one inside an `inScope` of another scope - never answers for it.
+	 *
+	 * @param resolutions               the resolutions recorded per occurrence, in the order they were recorded
+	 * @param hierarchyFilterConstraint the constraint whose resolution is asked for
+	 * @param scope                     the scope the statistics are computed for
+	 * @param <T>                       the type of the resolution
+	 * @return the resolution of a covering occurrence, or NULL when no occurrence covers the scope
+	 */
+	@Nullable
+	private static <T> T findCoveringResolution(
+		@Nonnull Map<ScopedHierarchyFilter, T> resolutions,
+		@Nonnull HierarchyFilterConstraint hierarchyFilterConstraint,
+		@Nonnull Scope scope
+	) {
+		final T exact = resolutions.get(new ScopedHierarchyFilter(hierarchyFilterConstraint, EnumSet.of(scope)));
+		if (exact != null) {
+			return exact;
+		}
+		for (final Map.Entry<ScopedHierarchyFilter, T> entry : resolutions.entrySet()) {
+			final ScopedHierarchyFilter key = entry.getKey();
+			if (key.scopes().contains(scope) && key.constraint().equals(hierarchyFilterConstraint)) {
+				return entry.getValue();
+			}
+		}
+		return null;
 	}
 
 	/**
@@ -1756,31 +1987,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nullable Integer groupId,
 		@Nonnull FacetGroupRelationLevel level
 	) {
-		return isFacetGroupRelationType(
-			FacetRelationType.CONJUNCTION,
-			referenceSchema, groupId, level,
-			EvitaRequest::getFacetGroupConjunction
-		);
-	}
-
-	/**
-	 * Returns true if passed `groupId` of `referenceName` facets are requested to be joined by disjunction (OR) on
-	 * particular level.
-	 *
-	 * @param referenceSchema reference schema of the facet group
-	 * @param groupId         group id to be tested
-	 * @param level           level of the facet group relation (within group, between groups)
-	 */
-	public boolean isFacetGroupDisjunction(
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nullable Integer groupId,
-		@Nonnull FacetGroupRelationLevel level
-	) {
-		return isFacetGroupRelationType(
-			FacetRelationType.DISJUNCTION,
-			referenceSchema, groupId, level,
-			EvitaRequest::getFacetGroupDisjunction
-		);
+		return isFacetGroupRelationType(FacetRelationType.CONJUNCTION, referenceSchema, groupId, level);
 	}
 
 	/**
@@ -1796,11 +2003,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nullable Integer groupId,
 		@Nonnull FacetGroupRelationLevel level
 	) {
-		return isFacetGroupRelationType(
-			FacetRelationType.NEGATION,
-			referenceSchema, groupId, level,
-			EvitaRequest::getFacetGroupNegation
-		);
+		return isFacetGroupRelationType(FacetRelationType.NEGATION, referenceSchema, groupId, level);
 	}
 
 	/**
@@ -1816,112 +2019,460 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nullable Integer groupId,
 		@Nonnull FacetGroupRelationLevel level
 	) {
-		return isFacetGroupRelationType(
-			FacetRelationType.EXCLUSIVITY,
-			referenceSchema, groupId, level,
-			EvitaRequest::getFacetGroupExclusivity
+		return isFacetGroupRelationType(FacetRelationType.EXCLUSIVITY, referenceSchema, groupId, level);
+	}
+
+	/**
+	 * Checks the reference of every facet relation constraint the query declares and plans its group filter, so that
+	 * a constraint which cannot take effect fails the query whatever else the query asks for. A filter is otherwise
+	 * planned only when something asks about its relation - `facetHaving` asks about some relations of the references
+	 * it selects, the reference summary about others of the references it summarizes, and exclusivity is asked about
+	 * only while impacts are computed - so the same filter would fail one query and be silently ignored by another.
+	 * A constraint naming a reference the entity schema does not have would be ignored by every query, because
+	 * nothing in the query can ever ask about it, so it is refused as `referenceContent` and
+	 * `referenceSummaryOfReference` naming such a reference are.
+	 *
+	 * The predicates are planned through {@link #isFacetGroupRelationDeclaredAt} at the level each constraint declares,
+	 * so that a negation declared at each level has both of its filters planned, and stay memoized for the planning
+	 * that follows, so each filter is still planned once per query.
+	 *
+	 * @throws ReferenceNotFoundException when a constraint names a reference the entity schema does not have
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when a group filter is declared for a reference without
+	 *                                                          a group type
+	 * @throws EntityNotManagedException when a group filter asks a group type not managed by evitaDB about anything
+	 *                                   but the primary keys of the groups
+	 */
+	public void assertFacetGroupFiltersEvaluable() {
+		if (!isEntityTypeKnown()) {
+			// without a target collection there is no reference schema to check the constraints against
+			return;
+		}
+		final EntitySchema schema = getSchema();
+		for (final FacetGroupsConstraint constraint : QueryUtils.findRequires(this.evitaRequest.getQuery(), FacetGroupsConstraint.class)) {
+			final String referenceName = constraint.getReferenceName();
+			final ReferenceSchemaContract referenceSchema = schema.getReference(referenceName)
+				.orElseThrow(() -> new ReferenceNotFoundException(referenceName, schema));
+			if (constraint.getFacetGroups().isPresent()) {
+				// asking about a facet without a group plans the filter without testing any group against it
+				final FacetRelationType relationType = switch (constraint) {
+					case FacetGroupsConjunction ignored -> FacetRelationType.CONJUNCTION;
+					case FacetGroupsDisjunction ignored -> FacetRelationType.DISJUNCTION;
+					case FacetGroupsNegation ignored -> FacetRelationType.NEGATION;
+					case FacetGroupsExclusivity ignored -> FacetRelationType.EXCLUSIVITY;
+					default -> throw new GenericEvitaInternalError("Unknown facet relation constraint: " + constraint);
+				};
+				isFacetGroupRelationDeclaredAt(
+					relationType, referenceSchema, null, constraint.getFacetGroupRelationLevel()
+				);
+			}
+		}
+	}
+
+	/**
+	 * Refuses a request-wide default negation within the groups that cannot take effect. The query result and the
+	 * reference summary negate a group only by its relation to the other groups, and a default negation within the
+	 * groups is served there only while the default between them is a conjunction - by De Morgan's laws negating each
+	 * facet of a group and combining them with AND is the same set as negating the group's disjunction - or
+	 * a negation itself. With any other default between groups there is no relation that could negate a group, and
+	 * the negation would be silently ignored by both the result and the summary.
+	 *
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when `facetCalculationRules` sets a negation within the
+	 *                                                          groups and neither a conjunction nor a negation between
+	 *                                                          them
+	 */
+	public void assertDefaultFacetRelationsEffective() {
+		final FacetRelationType groupRelationType = this.evitaRequest.getDefaultGroupRelationType();
+		Assert.isTrue(
+			this.evitaRequest.getDefaultFacetRelationType() != FacetRelationType.NEGATION ||
+				groupRelationType == FacetRelationType.CONJUNCTION || groupRelationType == FacetRelationType.NEGATION,
+			() -> "The `facetCalculationRules(NEGATION, " + groupRelationType + ")` requirement cannot take effect: " +
+				"a group of options is negated by its relation to the other groups, and a negation within the groups " +
+				"applies there only while the groups are combined by `CONJUNCTION` or negated themselves - with `" +
+				groupRelationType + "` between the groups no option would be negated. Use " +
+				"`facetCalculationRules(NEGATION, CONJUNCTION)`, or set the negation between the groups instead."
 		);
 	}
 
 	/**
-	 * Determines whether the specified relation type matches the given facet group relation criteria. Shared
-	 * implementation of the four `isFacetGroup*` methods, which differ only in the relation type they ask about
-	 * and the request accessor that carries the settings for it.
+	 * Returns the relation the facets of the passed group take at the passed level. This is the one resolution the
+	 * query result and the reference summary share, so that the summary predicts the products the result returns:
 	 *
-	 * The decision has three outcomes worth knowing about:
+	 * - a relation the query declares for the reference, and whose group filter matches the group (or which has no
+	 *   filter at all), takes precedence over the request-wide default of `facetCalculationRules`
+	 * - when several declared relations match the group, the first of {@link #DECLARED_RELATION_PRECEDENCE} wins
+	 * - the default for the level decides only a group no declared relation matches - a default negation within the
+	 *   groups included, which negates the groups it decides between groups too, see
+	 *   {@link #getDefaultFacetRelationType}
 	 *
-	 * - the query says nothing about this relation for this reference - the request-wide default for the given
-	 *   `level` decides
-	 * - the query requests the relation **without** a filter - it applies to every group, hence `true`
-	 * - the query requests the relation **with** a filter - the filter is planned into a predicate (memoized in
-	 *   {@link #facetRelationTuples}, since it is asked about many groups in a row) and the group is tested
-	 *   against it; a facet with no group at all cannot match such a filter and gets `false`
-	 *
-	 * @param relationType the type of the facet relation to be checked
 	 * @param referenceSchema the schema of the reference to which the facet group belongs
-	 * @param groupId the identifier of the group being considered; can be null if no group is specified
-	 * @param level the level of facet group relation that should be considered in the evaluation
-	 * @param facetSettingsRetriever accessor pulling the settings of `relationType` for a reference name out of
-	 *                               the request - this is what binds the shared implementation to one relation
-	 * @return `true` if the relation type matches the facet group relation criteria, `false` otherwise
+	 * @param groupId         the identifier of the group; NULL for the facets without a group
+	 * @param level           the level of the facet group relation (within group, between groups)
+	 * @return the relation of the facets of the group at the level
+	 */
+	@Nonnull
+	public FacetRelationType getFacetRelationType(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		final FacetGroupRelations relations = getFacetGroupRelations(referenceSchema, groupId);
+		final FacetRelationType memoized = relations.getRelationType(level);
+		if (memoized != null) {
+			return memoized;
+		}
+		final FacetRelationType declared = getDeclaredFacetRelationType(referenceSchema, groupId, level);
+		final FacetRelationType resolved = declared == null ?
+			getDefaultFacetRelationType(referenceSchema, groupId, level) : declared;
+		relations.setRelationType(level, resolved);
+		return resolved;
+	}
+
+	/**
+	 * Determines whether the specified relation type applies to the facets of the passed group at the passed level.
+	 * Shared implementation of the four `isFacetGroup*` methods, which differ only in the relation type they ask
+	 * about. The relation applies when the query declares it for the group, or when it is the request-wide default for
+	 * the level and the query declares no relation for the group at all - a declared relation always takes precedence
+	 * over the default, see {@link #getFacetRelationType}.
+	 *
+	 * Unlike {@link #getFacetRelationType}, two declared relations may both apply - e.g. a conjunction declared within
+	 * the group together with a negation, which is honoured at both levels: the facets of such a group are combined
+	 * with AND and the group is negated.
+	 *
+	 * @param relationType    the type of the facet relation to be checked
+	 * @param referenceSchema the schema of the reference to which the facet group belongs
+	 * @param groupId         the identifier of the group being considered; can be null if no group is specified
+	 * @param level           the level of facet group relation that should be considered in the evaluation
+	 * @return `true` if the relation type applies to the facets of the group, `false` otherwise
 	 */
 	private boolean isFacetGroupRelationType(
 		@Nonnull FacetRelationType relationType,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable Integer groupId,
-		@Nonnull FacetGroupRelationLevel level,
-		@Nonnull FacetSettingsRetriever facetSettingsRetriever
-		) {
-		final String referenceName = referenceSchema.getName();
-		final FacetRelationType theDefault = level == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP ?
-			this.evitaRequest.getDefaultFacetRelationType() : this.evitaRequest.getDefaultGroupRelationType();
-		// the settings are read for the level being asked about - a relation declared between groups must not
-		// decide the relation between the facets inside one group, and vice versa
-		final Optional<FacetFilterBy> facetSettings = facetSettingsRetriever.apply(
-			this.evitaRequest, referenceName, level
-		);
-		if (facetSettings.isEmpty()) {
-			return theDefault == relationType;
-		} else {
-			final FacetFilterBy facetFilterBy = facetSettings.get();
-			final FilterBy filterBy = facetFilterBy.filterBy();
-			if (filterBy != null) {
-				if (groupId == null) {
-					return false;
-				} else {
-					final boolean requestedExplicitly = getFacetRelationTuples()
-						.computeIfAbsent(
-							new FacetRelationTuple(referenceName, relationType, level),
-							refName -> {
-								final String referencedGroupType = referenceSchema.getReferencedGroupType();
-								Assert.isTrue(
-									referencedGroupType != null,
-									() -> "Referenced group type must be defined for facet group " + relationType.name().toLowerCase() + " of `" + referenceName + "`!"
-								);
-								if (referenceSchema.isReferencedGroupTypeManaged()) {
-									return new FilteringFormulaPredicate(
-										this,
-										getScopes(),
-										filterBy,
-										referencedGroupType,
-										() -> "Facet group " + relationType.name().toLowerCase() + " of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
-									);
-								} else {
-									return new FilteringFormulaPredicate(
-										this,
-										getThrowingGlobalIndexesForNonManagedEntityTypeGroup(referenceName, referencedGroupType),
-										filterBy,
-										() -> "Facet group "  + relationType.name().toLowerCase() + " of `" + referenceSchema.getName() + "` filter: " + facetFilterBy
-									);
-								}
-							}
-						)
-						.test(groupId);
-					return requestedExplicitly || theDefault == relationType;
-				}
-			} else {
-				return true;
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		final FacetGroupRelations relations = getFacetGroupRelations(referenceSchema, groupId);
+		final int relationBit = FacetGroupRelations.getRelationBit(relationType, level);
+		if (relations.isApplicationResolved(relationBit)) {
+			return relations.isApplying(relationBit);
+		}
+		final boolean applying = isFacetGroupRelationDeclared(relationType, referenceSchema, groupId, level) ||
+			(getDefaultFacetRelationType(referenceSchema, groupId, level) == relationType &&
+				getDeclaredFacetRelationType(referenceSchema, groupId, level) == null);
+		relations.setApplication(relationBit, applying);
+		return applying;
+	}
+
+	/**
+	 * Returns the memoized relations of the passed facet group of the passed reference, creating an empty record on
+	 * the first ask - see {@link #facetGroupRelations}.
+	 *
+	 * @param referenceSchema the schema of the reference to which the facet group belongs
+	 * @param groupId         the identifier of the group; NULL for the facets without a group
+	 * @return the memoized relations of the group
+	 */
+	@Nonnull
+	private FacetGroupRelations getFacetGroupRelations(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId
+	) {
+		if (this.facetGroupRelations == null) {
+			this.facetGroupRelations = CollectionUtils.createHashMap(8);
+		}
+		return this.facetGroupRelations
+			.computeIfAbsent(referenceSchema.getName(), referenceName -> new FacetGroupRelationsOfReference())
+			.get(groupId);
+	}
+
+	/**
+	 * Returns the first relation of {@link #DECLARED_RELATION_PRECEDENCE} the query declares for the passed group at
+	 * the passed level, or NULL when it declares none of them.
+	 *
+	 * @param referenceSchema the schema of the reference to which the facet group belongs
+	 * @param groupId         the identifier of the group; NULL for the facets without a group
+	 * @param level           the level of the facet group relation
+	 * @return the declared relation, or NULL when the default of the level decides
+	 */
+	@Nullable
+	private FacetRelationType getDeclaredFacetRelationType(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		for (final FacetRelationType relationType : DECLARED_RELATION_PRECEDENCE) {
+			if (isFacetGroupRelationDeclared(relationType, referenceSchema, groupId, level)) {
+				return relationType;
 			}
 		}
+		return null;
+	}
+
+	/**
+	 * Returns the request-wide default relation the facets of the passed group take at the passed level - the one
+	 * `facetCalculationRules` sets, or the system default when the query does not change it.
+	 *
+	 * A negation is the one relation whose level does not change the outcome while the other level stays at its
+	 * system default: by De Morgan's laws, negating each facet of a group and combining them with AND is the same set
+	 * as negating the group's disjunction. Both the query result and the reference summary negate a group only by its
+	 * relation to the other groups, so a default negation within the groups, with the default between them left at
+	 * the system conjunction, is served between groups as well - just as a declared negation is honoured at both
+	 * levels (see {@link EvitaRequest#getFacetGroupNegation}). It negates only the groups it decides within: a group
+	 * declaring its own relation within it takes the default between groups as it stands.
+	 *
+	 * @param referenceSchema the schema of the reference to which the facet group belongs
+	 * @param groupId         the identifier of the group; NULL for the facets without a group
+	 * @param level           the level of the facet group relation
+	 * @return the default relation of the facets of the group at the level
+	 */
+	@Nonnull
+	private FacetRelationType getDefaultFacetRelationType(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		if (level == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP) {
+			return this.evitaRequest.getDefaultFacetRelationType();
+		}
+		final FacetRelationType groupRelationType = this.evitaRequest.getDefaultGroupRelationType();
+		return groupRelationType == FacetRelationType.CONJUNCTION &&
+			this.evitaRequest.getDefaultFacetRelationType() == FacetRelationType.NEGATION &&
+			getDeclaredFacetRelationType(
+				referenceSchema, groupId, FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP
+			) == null ?
+			FacetRelationType.NEGATION : groupRelationType;
+	}
+
+	/**
+	 * Returns true when the query declares the passed relation for the passed group at the passed level - see
+	 * {@link #isFacetGroupRelationDeclaredAt} for how one declaration decides it.
+	 *
+	 * A negation is honoured at both levels whichever level declares it (see
+	 * {@link EvitaRequest#getFacetGroupNegation}), so a group is negated at either level when it matches the negation
+	 * served for either of them. Asking only the passed level is not enough: when each level declares a negation of
+	 * its own, the request serves each level its own declaration, and a group matching only the declaration of the
+	 * other level would not be negated at this one.
+	 *
+	 * @param relationType    the type of the facet relation to be checked
+	 * @param referenceSchema the schema of the reference to which the facet group belongs
+	 * @param groupId         the identifier of the group being considered; can be null if no group is specified
+	 * @param level           the level of facet group relation that should be considered in the evaluation
+	 * @return `true` if the query declares the relation for the group at the level
+	 */
+	private boolean isFacetGroupRelationDeclared(
+		@Nonnull FacetRelationType relationType,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		if (relationType == FacetRelationType.NEGATION) {
+			return isFacetGroupRelationDeclaredAt(
+				FacetRelationType.NEGATION, referenceSchema, groupId,
+				FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP
+			) || isFacetGroupRelationDeclaredAt(
+				FacetRelationType.NEGATION, referenceSchema, groupId, FacetGroupRelationLevel.WITH_DIFFERENT_GROUPS
+			);
+		}
+		return isFacetGroupRelationDeclaredAt(relationType, referenceSchema, groupId, level);
+	}
+
+	/**
+	 * Returns true when the relation settings the request serves for the passed level decide the passed group:
+	 *
+	 * - the query declares no such relation for the reference at the level - `false`
+	 * - the relation is declared **without** a filter - it applies to every group, hence `true`
+	 * - the relation is declared **with** a filter - the filter is planned into a predicate (memoized in
+	 *   {@link #facetGroupPredicates}, since it is asked about many groups in a row) and the group is tested against
+	 *   it; a facet with no group at all cannot match such a filter and gets `false`
+	 *
+	 * The filter is planned even when the asked facet has no group, so that a filter which cannot be evaluated fails
+	 * every query declaring it - see {@link #createFacetGroupPredicate}. {@link #assertFacetGroupFiltersEvaluable}
+	 * relies on that: it asks about a facet without a group at the level each constraint declares, to plan every
+	 * declared filter up front.
+	 *
+	 * @param relationType    the type of the facet relation to be checked
+	 * @param referenceSchema the schema of the reference to which the facet group belongs
+	 * @param groupId         the identifier of the group being considered; can be null if no group is specified
+	 * @param level           the level whose relation settings are read
+	 * @return `true` if the relation settings of the level decide the group
+	 */
+	private boolean isFacetGroupRelationDeclaredAt(
+		@Nonnull FacetRelationType relationType,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable Integer groupId,
+		@Nonnull FacetGroupRelationLevel level
+	) {
+		final String referenceName = referenceSchema.getName();
+		// the settings are read for the level being asked about - a relation declared between groups must not
+		// decide the relation between the facets inside one group, and vice versa (negation excepted, see
+		// EvitaRequest#getFacetGroupNegation)
+		final Optional<FacetFilterBy> facetSettings = switch (relationType) {
+			case CONJUNCTION -> this.evitaRequest.getFacetGroupConjunction(referenceName, level);
+			case DISJUNCTION -> this.evitaRequest.getFacetGroupDisjunction(referenceName, level);
+			case NEGATION -> this.evitaRequest.getFacetGroupNegation(referenceName, level);
+			case EXCLUSIVITY -> this.evitaRequest.getFacetGroupExclusivity(referenceName, level);
+		};
+		if (facetSettings.isEmpty()) {
+			return false;
+		}
+		final FacetFilterBy facetFilterBy = facetSettings.get();
+		final FilterBy filterBy = facetFilterBy.filterBy();
+		if (filterBy == null) {
+			return true;
+		}
+		// the filter is planned before the group is looked at: a filter that cannot be evaluated must fail the query
+		// even when only facets without a group ask about it, just as it fails the reference summary, which asks
+		// about every group of the reference
+		final FilteringFormulaPredicate groupPredicate = getFacetGroupPredicates()
+			.computeIfAbsent(
+				facetFilterBy,
+				declaration -> createFacetGroupPredicate(relationType, referenceSchema, declaration, filterBy)
+			);
+		// a facet without a group cannot match a group filter
+		return groupId != null && groupPredicate.test(groupId);
+	}
+
+	/**
+	 * Plans the group filter of a facet relation constraint into a predicate testing the primary keys of the facet
+	 * groups. A filter that cannot be evaluated is refused with a client error, so that the query fails the same way
+	 * whether the result, the reference summary, or both of them ask about it.
+	 *
+	 * @param relationType    the relation type the filter belongs to
+	 * @param referenceSchema the schema of the reference whose groups are filtered
+	 * @param facetFilterBy   the relation settings carrying the filter, used in the telemetry step description
+	 * @param filterBy        the group filter of the settings
+	 * @return the predicate testing the primary keys of the facet groups
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the reference has no group type at all
+	 * @throws EntityNotManagedException when the group type is not managed by evitaDB and the filter asks about
+	 *                                   anything but the primary keys of the groups
+	 */
+	@Nonnull
+	private FilteringFormulaPredicate createFacetGroupPredicate(
+		@Nonnull FacetRelationType relationType,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull FacetFilterBy facetFilterBy,
+		@Nonnull FilterBy filterBy
+	) {
+		final String referenceName = referenceSchema.getName();
+		final String referencedGroupType = referenceSchema.getReferencedGroupType();
+		Assert.isTrue(
+			referencedGroupType != null,
+			() -> "The `" + getRelationConstraintName(relationType) + "` constraint of reference `" + referenceName +
+				"` declares a group filter, but the reference has no group type, so the filter cannot be evaluated!"
+		);
+		final Supplier<String> stepDescription = () -> "Facet group " + relationType.name().toLowerCase() +
+			" of `" + referenceName + "` filter: " + facetFilterBy;
+		if (referenceSchema.isReferencedGroupTypeManaged()) {
+			// the filter is checked against the group schema in every requested scope, also in a scope the group type
+			// holds no entity of - see FilterByVisitor#createFormulaForTheFilter
+			return new FilteringFormulaPredicate(this, getScopes(), filterBy, referencedGroupType, stepDescription);
+		} else {
+			// the stub indexes of a group type evitaDB does not manage know the primary keys of the groups and nothing
+			// else - planning any other constraint would fail on an error that does not name the actual cause
+			if (FinderVisitor.findConstraint(filterBy, QueryPlanningContext::isNotAnsweredByGroupPrimaryKeys) != null) {
+				throw new EntityNotManagedException(referencedGroupType);
+			}
+			return new FilteringFormulaPredicate(
+				this,
+				getThrowingGlobalIndexesForNonManagedEntityTypeGroup(referenceName, referencedGroupType),
+				filterBy,
+				null,
+				stepDescription
+			);
+		}
+	}
+
+	/**
+	 * Returns true when the passed constraint of a facet group filter cannot be answered from the primary keys of the
+	 * groups alone - i.e. it is neither the filter root, a logical container, nor one of the primary key constraints.
+	 * The primary key ranges (`entityPrimaryKeyBetween`, `entityPrimaryKeyGreaterThan` and the others) are translated
+	 * against the superset of all primary keys, which the stub index of a group type evitaDB does not manage knows.
+	 *
+	 * @param constraint the constraint of the group filter
+	 * @return true when the constraint needs more than the primary keys of the groups
+	 */
+	private static boolean isNotAnsweredByGroupPrimaryKeys(@Nonnull Constraint<?> constraint) {
+		return !(constraint instanceof FilterBy || constraint instanceof And || constraint instanceof Or ||
+			constraint instanceof Not || constraint instanceof EntityPrimaryKeyInSet ||
+			constraint instanceof EntityPrimaryKeyBetween || constraint instanceof EntityPrimaryKeyGreaterThan ||
+			constraint instanceof EntityPrimaryKeyGreaterThanEquals || constraint instanceof EntityPrimaryKeyLessThan ||
+			constraint instanceof EntityPrimaryKeyLessThanEquals);
+	}
+
+	/**
+	 * Returns the name of the require constraint that declares the passed facet relation type, so that an error
+	 * message names the constraint the client actually wrote.
+	 *
+	 * @param relationType the relation type
+	 * @return the name of the constraint declaring it
+	 */
+	@Nonnull
+	private static String getRelationConstraintName(@Nonnull FacetRelationType relationType) {
+		return switch (relationType) {
+			case CONJUNCTION -> "facetGroupsConjunction";
+			case DISJUNCTION -> "facetGroupsDisjunction";
+			case NEGATION -> "facetGroupsNegation";
+			case EXCLUSIVITY -> "facetGroupsExclusivity";
+		};
+	}
+
+	/**
+	 * Returns the hierarchy filter constraint as it applies to the hierarchy statistics of the passed scope: the
+	 * constraint itself, or NULL when it is a `hierarchyWithin` no occurrence of which covers the scope - see
+	 * {@link #findCoveringResolution(Map, HierarchyFilterConstraint, Scope)}. Such a constraint does not restrict that
+	 * scope's entities at all, so the statistics of the scope are computed as if the query had no hierarchy filter.
+	 *
+	 * A `hierarchyWithinRoot` is returned as it is: it declares no roots of its own, so its statistics start at the
+	 * index roots whether an occurrence covers the scope or not, and its node visibility is resolved per scope by
+	 * {@link #getHierarchyHavingPredicate(HierarchyFilterConstraint, Scope)}.
+	 *
+	 * @param hierarchyFilterConstraint the constraint resolved by {@link EvitaRequest#getHierarchyWithin(String)},
+	 *                                  may be NULL
+	 * @param scope                     the scope the statistics are computed for
+	 * @return the constraint restricting the scope, or NULL when there is none
+	 */
+	@Nullable
+	public HierarchyFilterConstraint getHierarchyFilterForScope(
+		@Nullable HierarchyFilterConstraint hierarchyFilterConstraint,
+		@Nonnull Scope scope
+	) {
+		if (hierarchyFilterConstraint instanceof HierarchyWithin &&
+			(this.rootHierarchyNodesFormula == null ||
+				findCoveringResolution(this.rootHierarchyNodesFormula, hierarchyFilterConstraint, scope) == null)) {
+			return null;
+		}
+		return hierarchyFilterConstraint;
 	}
 
 	/**
 	 * Returns primary keys of all root hierarchy nodes that cover the hierarchy requested by the passed constraint.
 	 *
 	 * The caller passes the constraint the extra result decided to describe - resolved by
-	 * {@link EvitaRequest#getHierarchyWithin(String)} - so the roots always belong to that very hierarchy. A NULL
-	 * constraint, and a constraint that declares no roots of its own (`hierarchyWithinRoot`), both yield an empty
-	 * bitmap, which the producers read as "the index roots".
+	 * {@link EvitaRequest#getHierarchyWithin(String)} and narrowed by
+	 * {@link #getHierarchyFilterForScope(HierarchyFilterConstraint, Scope)} - so the roots always belong to that very
+	 * hierarchy. A NULL constraint, and a constraint that declares no roots of its own (`hierarchyWithinRoot`), both
+	 * yield an empty bitmap, which the producers read as "the index roots".
+	 *
+	 * The roots come from an occurrence covering the scope - see
+	 * {@link #findCoveringResolution(Map, HierarchyFilterConstraint, Scope)}. For a `hierarchyWithin` an empty bitmap
+	 * therefore means that the covering occurrence selected no node in the scope, so the statistics that describe the
+	 * selected node - `children`, `parents` and `siblings` - are empty. The statistics that do not depend on it -
+	 * `fromRoot` and `fromNode` - use the roots only to mark the requested nodes and are computed as usual. An empty
+	 * bitmap is returned as well when no occurrence covers the scope, but the producers never ask about such
+	 * a constraint: it does not restrict the scope, so `getHierarchyFilterForScope` hands them NULL in its place.
 	 *
 	 * @param hierarchyFilterConstraint the constraint whose roots are asked for, may be NULL
+	 * @param scope                     the scope the statistics are computed for
 	 * @return bitmap of root hierarchy nodes
 	 */
 	@Nonnull
-	public Bitmap getRootHierarchyNodes(@Nullable HierarchyFilterConstraint hierarchyFilterConstraint) {
-		return ofNullable(this.rootHierarchyNodesFormula)
-			.map(it -> hierarchyFilterConstraint == null ? null : it.get(hierarchyFilterConstraint))
-			.map(Formula::compute)
-			.orElse(EmptyBitmap.INSTANCE);
+	public Bitmap getRootHierarchyNodes(
+		@Nullable HierarchyFilterConstraint hierarchyFilterConstraint,
+		@Nonnull Scope scope
+	) {
+		if (this.rootHierarchyNodesFormula == null || hierarchyFilterConstraint == null) {
+			return EmptyBitmap.INSTANCE;
+		}
+		final Formula formula = findCoveringResolution(this.rootHierarchyNodesFormula, hierarchyFilterConstraint, scope);
+		return formula == null ? EmptyBitmap.INSTANCE : formula.compute();
 	}
 
 	/**
@@ -2039,60 +2590,165 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Lazy initialization of the facet relation tuples.
+	 * Lazy initialization of {@link #facetGroupPredicates}, an identity map - see the field for why.
 	 *
-	 * @return facet relation tuples
+	 * @return the predicates of the group filters, keyed by their declarations
 	 */
 	@Nonnull
-	private Map<FacetRelationTuple, FilteringFormulaPredicate> getFacetRelationTuples() {
-		if (this.facetRelationTuples == null) {
-			this.facetRelationTuples = new HashMap<>();
+	private Map<FacetFilterBy, FilteringFormulaPredicate> getFacetGroupPredicates() {
+		if (this.facetGroupPredicates == null) {
+			this.facetGroupPredicates = new IdentityHashMap<>(4);
 		}
-		return this.facetRelationTuples;
+		return this.facetGroupPredicates;
 	}
 
 	/**
-	 * Tuple that wraps {@link ReferenceSchemaContract#getName()}, {@link FacetRelationType} and
-	 * {@link FacetGroupRelationLevel} into one object used as the {@link #facetRelationTuples} key. The level is
-	 * part of the key because the two levels are orthogonal and each carries its own filter, so a predicate
-	 * memoized for one must never be reused to answer the other.
-	 *
-	 * @param referenceName name of the reference the facet group belongs to
-	 * @param relation      relation type the memoized predicate decides about
-	 * @param level         the {@link FacetGroupRelationLevel} the relation was asked about (within group vs.
-	 *                      between groups)
+	 * The memoized {@link FacetGroupRelations} of the facet groups of one reference - see {@link #facetGroupRelations}.
+	 * The facets without a group have a slot of their own, so that no group id stands in for them.
 	 */
-	private record FacetRelationTuple(
-		@Nonnull String referenceName,
-		@Nonnull FacetRelationType relation,
-		@Nonnull FacetGroupRelationLevel level
-	) {
-
-	}
-
-	/**
-	 * Pulls the settings of one facet relation type for a reference at a particular
-	 * {@link FacetGroupRelationLevel} out of the request. This is what binds the shared
-	 * {@link #isFacetGroupRelationType} implementation to one of the four relations; the level is part of the lookup
-	 * because the two levels are orthogonal and carry their own settings.
-	 */
-	@FunctionalInterface
-	private interface FacetSettingsRetriever {
+	private static final class FacetGroupRelationsOfReference {
+		/**
+		 * The relations of the facet groups, indexed by the group id.
+		 */
+		private final IntObjectHashMap<FacetGroupRelations> groups = new IntObjectHashMap<>(16);
+		/**
+		 * The relations of the facets without a group, NULL until asked about.
+		 */
+		@Nullable private FacetGroupRelations withoutGroup;
 
 		/**
-		 * Returns the settings declared for the given reference at the given level.
+		 * Returns the relations of the passed group, creating an empty record on the first ask.
 		 *
-		 * @param request       request to read the settings from
-		 * @param referenceName name of the reference the facets belong to
-		 * @param level         level the relation is being asked about
-		 * @return the settings, empty when the query declared none for that reference at that level
+		 * @param groupId the identifier of the group; NULL for the facets without a group
+		 * @return the memoized relations of the group
 		 */
 		@Nonnull
-		Optional<FacetFilterBy> apply(
-			@Nonnull EvitaRequest request,
-			@Nonnull String referenceName,
-			@Nonnull FacetGroupRelationLevel level
-		);
+		FacetGroupRelations get(@Nullable Integer groupId) {
+			if (groupId == null) {
+				if (this.withoutGroup == null) {
+					this.withoutGroup = new FacetGroupRelations();
+				}
+				return this.withoutGroup;
+			}
+			FacetGroupRelations relations = this.groups.get(groupId);
+			if (relations == null) {
+				relations = new FacetGroupRelations();
+				this.groups.put(groupId, relations);
+			}
+			return relations;
+		}
+
+	}
+
+	/**
+	 * The relations resolved for the facets of one facet group, each memoized once it has been resolved for the first
+	 * time. The relations are a function of the group, the level and the relation asked about, given the reference name
+	 * and the context, and of nothing else:
+	 *
+	 * - the declarations and the request-wide defaults come from {@link #evitaRequest}, which a context never replaces,
+	 *   and are looked up by the reference name - the reference schema contributes nothing else, since the group filter
+	 *   planned from it is memoized by its declaration in {@link #facetGroupPredicates}, which belongs to the reference
+	 *   of that name
+	 * - the group filter is planned over all the scopes of the context and tests the group id only, so the relation of
+	 *   a group never differs from one scope to another
+	 * - a context derived from this one memoizes its own relations, it does not share these
+	 *
+	 * A resolution that fails - a group filter that cannot be evaluated - memoizes nothing, so it fails again when asked
+	 * again.
+	 */
+	private static final class FacetGroupRelations {
+		/**
+		 * The number of the relation types, the width of the block of bits of one level in the bit masks.
+		 */
+		private static final int RELATION_TYPE_COUNT = FacetRelationType.values().length;
+		/**
+		 * The relation resolved by {@link #getFacetRelationType} for the facets within the group, NULL until resolved.
+		 */
+		@Nullable private FacetRelationType withinGroup;
+		/**
+		 * The relation resolved by {@link #getFacetRelationType} between the group and the other groups, NULL until
+		 * resolved.
+		 */
+		@Nullable private FacetRelationType betweenGroups;
+		/**
+		 * The bits of the relations {@link #isFacetGroupRelationType} has decided about, see {@link #getRelationBit}.
+		 */
+		private int resolvedApplications;
+		/**
+		 * The bits of the relations {@link #isFacetGroupRelationType} has decided to apply, see {@link #getRelationBit}.
+		 */
+		private int applyingRelations;
+
+		/**
+		 * Returns the bit standing for the passed relation at the passed level in {@link #resolvedApplications} and
+		 * {@link #applyingRelations}.
+		 *
+		 * @param relationType the relation type
+		 * @param level        the level of the facet group relation
+		 * @return the bit
+		 */
+		static int getRelationBit(@Nonnull FacetRelationType relationType, @Nonnull FacetGroupRelationLevel level) {
+			return 1 << (level.ordinal() * RELATION_TYPE_COUNT + relationType.ordinal());
+		}
+
+		/**
+		 * Returns the memoized relation of the facets of the group at the passed level.
+		 *
+		 * @param level the level of the facet group relation
+		 * @return the relation, NULL when not resolved yet
+		 */
+		@Nullable
+		FacetRelationType getRelationType(@Nonnull FacetGroupRelationLevel level) {
+			return level == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP ?
+				this.withinGroup : this.betweenGroups;
+		}
+
+		/**
+		 * Memoizes the relation of the facets of the group at the passed level.
+		 *
+		 * @param level        the level of the facet group relation
+		 * @param relationType the resolved relation
+		 */
+		void setRelationType(@Nonnull FacetGroupRelationLevel level, @Nonnull FacetRelationType relationType) {
+			if (level == FacetGroupRelationLevel.WITH_DIFFERENT_FACETS_IN_GROUP) {
+				this.withinGroup = relationType;
+			} else {
+				this.betweenGroups = relationType;
+			}
+		}
+
+		/**
+		 * Returns true if it has been decided whether the relation of the passed bit applies to the group.
+		 *
+		 * @param relationBit the bit of the relation, see {@link #getRelationBit}
+		 * @return true if the decision is memoized
+		 */
+		boolean isApplicationResolved(int relationBit) {
+			return (this.resolvedApplications & relationBit) != 0;
+		}
+
+		/**
+		 * Returns the memoized decision whether the relation of the passed bit applies to the group.
+		 *
+		 * @param relationBit the bit of the relation, see {@link #getRelationBit}
+		 * @return true if the relation applies
+		 */
+		boolean isApplying(int relationBit) {
+			return (this.applyingRelations & relationBit) != 0;
+		}
+
+		/**
+		 * Memoizes the decision whether the relation of the passed bit applies to the group.
+		 *
+		 * @param relationBit the bit of the relation, see {@link #getRelationBit}
+		 * @param applying    true if the relation applies
+		 */
+		void setApplication(int relationBit, boolean applying) {
+			this.resolvedApplications |= relationBit;
+			if (applying) {
+				this.applyingRelations |= relationBit;
+			}
+		}
 
 	}
 
@@ -2164,6 +2820,19 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 				", constraint=" + this.constraint +
 				'}';
 		}
+	}
+
+	/**
+	 * Key of the hierarchy resolutions recorded per occurrence: a hierarchy filter constraint together with the
+	 * processing scopes the occurrence was translated in.
+	 *
+	 * @param constraint the hierarchy filter constraint, compared by equality like the constraint-only key
+	 * @param scopes     the processing scopes the constraint was translated in
+	 */
+	private record ScopedHierarchyFilter(
+		@Nonnull HierarchyFilterConstraint constraint,
+		@Nonnull Set<Scope> scopes
+	) {
 	}
 
 }
