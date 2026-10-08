@@ -590,7 +590,7 @@ public class CatalogGraphQLDataSubscriptionsFunctionalTest
 
 		assertSubscriptionRefused(
 			evita, tester, subscriptionId,
-			"onDataChange(sinceVersion: \\\"" + (getStartVersionForCatalogCDC(evita, TEST_CATALOG) + 1) + "\\\") { version index operation }",
+			"onDataChange(sinceVersion: \\\"" + (getStartVersionForCatalogCDC(evita, TEST_CATALOG) + AHEAD_OF_CATALOG_MARGIN) + "\\\") { version index operation }",
 			session -> {
 				session.createNewEntity(newEntityType, 1).upsertVia(session);
 			},

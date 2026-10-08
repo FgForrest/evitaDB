@@ -345,7 +345,7 @@ public class CatalogRestCdcFunctionalTest extends RestEndpointFunctionalTest
 
 		assertSubscriptionRefused(
 			evita, tester, newCatalogName, subscriptionId,
-			"{ \"sinceVersion\": \"" + (getStartVersionForEvitaCDC(evita, newCatalogName) + 1) + "\" }",
+			"{ \"sinceVersion\": \"" + (getStartVersionForEvitaCDC(evita, newCatalogName) + AHEAD_OF_CATALOG_MARGIN) + "\" }",
 			"lies ahead of catalog"
 		);
 	}

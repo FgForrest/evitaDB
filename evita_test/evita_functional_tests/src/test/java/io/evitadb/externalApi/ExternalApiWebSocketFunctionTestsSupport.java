@@ -65,6 +65,15 @@ public interface ExternalApiWebSocketFunctionTestsSupport {
 	Duration REFUSED_SUBSCRIPTION_QUIET_WINDOW = Duration.ofSeconds(2);
 
 	/**
+	 * How many versions past the start version a test subscribes from to provoke the refusal of a resume position
+	 * that lies ahead of the catalog. A refusal test commits a probe change once the connection is acknowledged, which
+	 * may happen before the server has registered the subscription. One version past the start version would then be
+	 * exactly the next version of the catalog, which is accepted, and the test would wait in vain for the refusal. The
+	 * margin keeps the position ahead whatever the test commits meanwhile.
+	 */
+	long AHEAD_OF_CATALOG_MARGIN = 100L;
+
+	/**
 	 * Returns the identity of the current incarnation of the catalog - the `catalogId` a CDC consumer stores with its
 	 * resume position.
 	 */
