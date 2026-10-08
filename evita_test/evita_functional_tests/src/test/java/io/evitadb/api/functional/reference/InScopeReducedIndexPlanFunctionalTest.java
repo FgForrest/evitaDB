@@ -88,6 +88,7 @@ import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.anyHaving;
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
+import static io.evitadb.api.query.QueryConstraints.attributeInSet;
 import static io.evitadb.api.query.QueryConstraints.attributeIsNull;
 import static io.evitadb.api.query.QueryConstraints.attributeNatural;
 import static io.evitadb.api.query.QueryConstraints.children;
@@ -2518,6 +2519,18 @@ public class InScopeReducedIndexPlanFunctionalTest {
 				Arguments.of(
 					"roots by unique attribute", ENTITY_PRODUCT,
 					hierarchyWithin(REF_CATEGORIES, attributeEquals(ATTR_CODE, ROOT_CODE)),
+					bothSubtrees, LIVE_SUBTREE, archivedSubtree
+				),
+				// the parent filter is planned for the categories on the query context of the products: the value the
+				// catalog-wide unique index answers is held by a category, which is the collection the filter targets
+				Arguments.of(
+					"roots by global unique attribute", ENTITY_PRODUCT,
+					hierarchyWithin(REF_CATEGORIES, attributeEquals(ATTR_GLOBAL_CODE, ROOT_CODE)),
+					bothSubtrees, LIVE_SUBTREE, archivedSubtree
+				),
+				Arguments.of(
+					"roots by global unique attribute in set", ENTITY_PRODUCT,
+					hierarchyWithin(REF_CATEGORIES, attributeInSet(ATTR_GLOBAL_CODE, ROOT_CODE)),
 					bothSubtrees, LIVE_SUBTREE, archivedSubtree
 				),
 				Arguments.of(
