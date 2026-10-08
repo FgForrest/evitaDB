@@ -386,6 +386,12 @@ class ChangeCaptureSubscriptionFillFailureTest {
 	}
 
 	/**
+	 * Identity of the catalog incarnation the captures of the tests belong to - the subscription does not
+	 * interpret it.
+	 */
+	private static final UUID CATALOG_ID = UUID.fromString("7e6d5c4b-3a29-4180-9f7e-6d5c4b3a2918");
+
+	/**
 	 * Creates a body-less data capture of the given version, as a header-only subscription receives it.
 	 *
 	 * @param version the catalog version of the capture
@@ -394,7 +400,7 @@ class ChangeCaptureSubscriptionFillFailureTest {
 	@Nonnull
 	private static ChangeCatalogCapture createCapture(long version) {
 		return new ChangeCatalogCapture(
-			version, 0, OffsetDateTime.now(), CaptureArea.DATA, "product", 1, Operation.UPSERT, null
+			CATALOG_ID, version, 0, OffsetDateTime.now(), CaptureArea.DATA, "product", 1, Operation.UPSERT, null
 		);
 	}
 

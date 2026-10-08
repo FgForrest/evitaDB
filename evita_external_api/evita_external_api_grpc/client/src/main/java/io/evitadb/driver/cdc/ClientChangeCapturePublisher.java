@@ -25,7 +25,6 @@ package io.evitadb.driver.cdc;
 
 import io.evitadb.api.requestResponse.cdc.ChangeCapture;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
-import io.evitadb.externalApi.grpc.requestResponse.cdc.HeartBeat;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.IOUtils;
 import io.grpc.stub.ClientResponseObserver;
@@ -40,7 +39,6 @@ import java.nio.BufferOverflowException;
 import java.time.Duration;
 import java.util.Collection;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentSkipListSet;
@@ -164,10 +162,8 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 	public void subscribe(Subscriber<? super C> subscriber) {
 		assertActive();
 
-		final ClientChangeCaptureSubscriber<C, REQ, RES> internalSubscriber = new ClientChangeCaptureSubscriber<>(
+		final ClientChangeCaptureSubscriber<C, REQ, RES> internalSubscriber = createInternalSubscriber(
 			subscriber,
-			this::deserializeAcknowledgementResponse,
-			this::deserializeCaptureResponse,
 			this.streamingTimeout,
 			this.queueSize
 		);
@@ -249,25 +245,26 @@ public abstract class ClientChangeCapturePublisher<C extends ChangeCapture, REQ,
 	}
 
 	/**
-	 * Takes the response from the server representing a single capture and deserializes it into a UUID identification
-	 * of the subscriber. The response must be of type acknowledgement, otherwise an exception is thrown.
+	 * Creates the internal subscriber that bridges one gRPC stream to the passed subscriber. Called once per
+	 * {@link #subscribe(Subscriber)}, so that every stream gets its own instance - and with it its own state:
+	 * a publisher may serve several streams, each of them opened in a different session and acknowledged by the
+	 * server separately, and whatever a stream learns about itself (the catalog incarnation it is bound to, for
+	 * example) must not leak to its siblings.
 	 *
-	 * @param itemResponse the response received from the server
-	 * @return the deserialized UUID of the subscriber
+	 * The implementation decides how the subscriber decodes acknowledgements, heartbeats and captures from the
+	 * server responses.
+	 *
+	 * @param subscriber        the subscriber the captures are delivered to
+	 * @param streamingTimeout  per-message response deadline the internal subscriber applies
+	 * @param flowControlWindow number of captures the server may push without further acknowledgement
+	 * @return the new internal subscriber, not shared with any other stream
 	 */
 	@Nonnull
-	protected abstract Optional<HeartBeat> deserializeAcknowledgementResponse(RES itemResponse);
-
-	/**
-	 * Takes the response from the server representing a single capture and deserializes it into a specific {@link ChangeCapture}.
-	 *
-	 * This method must be implemented by subclasses to handle the specific type of response received from the server.
-	 *
-	 * @param itemResponse the response received from the server
-	 * @return the deserialized change capture
-	 */
-	@Nonnull
-	protected abstract Optional<C> deserializeCaptureResponse(RES itemResponse);
+	protected abstract ClientChangeCaptureSubscriber<C, REQ, RES> createInternalSubscriber(
+		@Nonnull Subscriber<? super C> subscriber,
+		@Nonnull Duration streamingTimeout,
+		int flowControlWindow
+	);
 
 	/**
 	 * Verifies that the publisher is still active.

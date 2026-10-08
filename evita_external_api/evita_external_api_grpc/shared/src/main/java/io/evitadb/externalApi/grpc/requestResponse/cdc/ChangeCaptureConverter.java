@@ -54,6 +54,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.UUID;
 
 /**
  * This class contains conversion methods for CDC (Change Data Capture) requests and responses.
@@ -84,6 +85,7 @@ public class ChangeCaptureConverter {
 		final boolean versionExceedsBound = request.hasSinceVersion() &&
 			request.getSinceVersion().getValue() > requestedCatalogVersion;
 		return new ChangeCatalogCaptureRequest(
+			request.hasCatalogId() ? EvitaDataTypesConverter.toUuid(request.getCatalogId()) : null,
 			request.hasSinceVersion() && !versionExceedsBound ?
 				request.getSinceVersion().getValue() : requestedCatalogVersion,
 			// the index default must be derived from `sinceIndex` presence alone - deriving it from `sinceVersion`
@@ -125,6 +127,7 @@ public class ChangeCaptureConverter {
 		final boolean versionClamped = !request.hasSinceVersion() ||
 			request.getSinceVersion().getValue() < floorCatalogVersion;
 		return new ChangeCatalogCaptureRequest(
+			request.hasCatalogId() ? EvitaDataTypesConverter.toUuid(request.getCatalogId()) : null,
 			versionClamped ? floorCatalogVersion : request.getSinceVersion().getValue(),
 			!versionClamped && request.hasSinceIndex() ? request.getSinceIndex().getValue() : 0,
 			request.getCriteriaList()
@@ -144,6 +147,7 @@ public class ChangeCaptureConverter {
 	@Nonnull
 	public static ChangeCatalogCaptureRequest toChangeCaptureRequest(@Nonnull GetMutationsHistoryRequest request) {
 		return new ChangeCatalogCaptureRequest(
+			request.hasCatalogId() ? EvitaDataTypesConverter.toUuid(request.getCatalogId()) : null,
 			request.hasSinceVersion() ? request.getSinceVersion().getValue() : null,
 			request.hasSinceIndex() ? request.getSinceIndex().getValue() : null,
 			request.getCriteriaList()
@@ -198,6 +202,9 @@ public class ChangeCaptureConverter {
 			.newBuilder()
 			.setContent(EvitaEnumConverter.toGrpcChangeCaptureContent(request.content()));
 
+		if (request.catalogId() != null) {
+			builder.setCatalogId(EvitaDataTypesConverter.toGrpcUuid(request.catalogId()));
+		}
 		if (request.sinceVersion() != null) {
 			builder.setSinceVersion(Int64Value.of(request.sinceVersion()));
 		}
@@ -227,6 +234,9 @@ public class ChangeCaptureConverter {
 				EvitaEnumConverter.toGrpcChangeCaptureContent(
 					request.content()));
 
+		if (request.catalogId() != null) {
+			builder.setCatalogId(EvitaDataTypesConverter.toGrpcUuid(request.catalogId()));
+		}
 		if (request.sinceVersion() != null) {
 			builder.setSinceVersion(Int64Value.of(request.sinceVersion()));
 		}
@@ -263,11 +273,21 @@ public class ChangeCaptureConverter {
 	/**
 	 * Converts {@link GrpcChangeCatalogCapture} to {@link ChangeCatalogCapture}.
 	 *
+	 * The gRPC capture does not carry the identity of the catalog incarnation it belongs to - repeating the same
+	 * value on every capture of a stream would only cost bandwidth - so the caller supplies it from the context
+	 * the capture arrived in: the identity the subscription acknowledgement named, or the identity of the session
+	 * a history read was executed in.
+	 *
 	 * @param changeCatalogCapture the change catalog capture to convert
-	 * @return the converted request
+	 * @param catalogId            identity of the catalog incarnation the capture belongs to, `null` only when
+	 *                             the context it arrived in does not know it
+	 * @return the converted capture
 	 */
 	@Nonnull
-	public static ChangeCatalogCapture toChangeCatalogCapture(@Nonnull GrpcChangeCatalogCapture changeCatalogCapture) {
+	public static ChangeCatalogCapture toChangeCatalogCapture(
+		@Nonnull GrpcChangeCatalogCapture changeCatalogCapture,
+		@Nullable UUID catalogId
+	) {
 		final CatalogBoundMutation mutation;
 		if (changeCatalogCapture.hasEntityMutation()) {
 			mutation = DelegatingEntityMutationConverter.INSTANCE.convert(changeCatalogCapture.getEntityMutation());
@@ -301,6 +321,7 @@ public class ChangeCaptureConverter {
 			"Change catalog capture must have index!"
 		);
 		return new ChangeCatalogCapture(
+			catalogId,
 			changeCatalogCapture.getVersion().getValue(),
 			changeCatalogCapture.getIndex().getValue(),
 			EvitaDataTypesConverter.toOffsetDateTime(changeCatalogCapture.getTimestamp()),
@@ -432,6 +453,9 @@ public class ChangeCaptureConverter {
 		@Nonnull GrpcRegisterChangeCatalogCaptureRequest request
 	) {
 		final ChangeCatalogCaptureRequest.Builder requestBuilder = ChangeCatalogCaptureRequest.builder();
+		if (request.hasCatalogId()) {
+			requestBuilder.catalogId(EvitaDataTypesConverter.toUuid(request.getCatalogId()));
+		}
 		if (request.hasSinceVersion()) {
 			requestBuilder.sinceVersion(request.getSinceVersion().getValue());
 		}

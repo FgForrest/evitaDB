@@ -24,23 +24,23 @@
 package io.evitadb.driver.cdc;
 
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
-import io.evitadb.externalApi.grpc.generated.GrpcCaptureResponseType;
+import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcRegisterChangeCatalogCaptureResponse;
-import io.evitadb.externalApi.grpc.requestResponse.cdc.HeartBeat;
+import io.evitadb.utils.Assert;
 import io.grpc.stub.ClientResponseObserver;
 
 import javax.annotation.Nonnull;
 import java.time.Duration;
-import java.util.Optional;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Flow.Subscriber;
 import java.util.function.Consumer;
-
-import static io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter.toChangeCatalogCapture;
-import static io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter.toHeartBeat;
 
 /**
  * Implementation of {@link ClientChangeCapturePublisher} for the {@link ChangeCatalogCapture}.
+ *
+ * Every stream of the publisher gets its own {@link ClientChangeCatalogCaptureSubscriber}, which tracks the catalog
+ * incarnation that particular stream is bound to - see that class for why the identity cannot be kept here.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -48,37 +48,66 @@ public class ClientChangeCatalogCaptureProcessor extends
 	ClientChangeCapturePublisher<ChangeCatalogCapture, GrpcRegisterChangeCatalogCaptureRequest, GrpcRegisterChangeCatalogCaptureResponse> {
 
 	/**
+	 * The request every stream of this publisher is registered with.
+	 */
+	private final ChangeCatalogCaptureRequest request;
+
+	/**
+	 * Creates the publisher of catalog change captures.
+	 *
+	 * @param queueSize        maximum number of captures buffered for each subscriber
+	 * @param streamingTimeout per-message response deadline of every stream
+	 * @param executorService  executor delivering the captures to the subscribers
+	 * @param request          the request every stream of this publisher is registered with
+	 * @param streamInitializer starts the gRPC stream of one subscriber; it must bind the identity of the catalog of
+	 *                         the session it registers the stream in
+	 *                         ({@link ClientChangeCatalogCaptureSubscriber#bindRegisteringCatalogId}) before
+	 *                         starting the RPC
+	 * @param onCloseCallback  callback executed when the publisher is closed
 	 * @see ClientChangeCapturePublisher#ClientChangeCapturePublisher(int, Duration, ExecutorService, Consumer, Consumer)
 	 */
 	public ClientChangeCatalogCaptureProcessor(
 		int queueSize,
 		@Nonnull Duration streamingTimeout,
 		@Nonnull ExecutorService executorService,
-		@Nonnull Consumer<ClientResponseObserver<GrpcRegisterChangeCatalogCaptureRequest, GrpcRegisterChangeCatalogCaptureResponse>> streamInitializer,
+		@Nonnull ChangeCatalogCaptureRequest request,
+		@Nonnull Consumer<ClientChangeCatalogCaptureSubscriber> streamInitializer,
 		@Nonnull Consumer<ClientChangeCapturePublisher<ChangeCatalogCapture, GrpcRegisterChangeCatalogCaptureRequest, GrpcRegisterChangeCatalogCaptureResponse>> onCloseCallback
 	) {
-		super(queueSize, streamingTimeout, executorService, streamInitializer, onCloseCallback);
+		super(
+			queueSize, streamingTimeout, executorService,
+			observer -> streamInitializer.accept(asCatalogCaptureSubscriber(observer)),
+			onCloseCallback
+		);
+		this.request = request;
+	}
+
+	/**
+	 * Narrows the observer the superclass hands to the stream initializer to the subscriber type this publisher
+	 * creates in {@link #createInternalSubscriber}.
+	 *
+	 * @param observer the internal subscriber of the stream being initialized
+	 * @return the same instance
+	 */
+	@Nonnull
+	private static ClientChangeCatalogCaptureSubscriber asCatalogCaptureSubscriber(
+		@Nonnull ClientResponseObserver<GrpcRegisterChangeCatalogCaptureRequest, GrpcRegisterChangeCatalogCaptureResponse> observer
+	) {
+		Assert.isPremiseValid(
+			observer instanceof ClientChangeCatalogCaptureSubscriber,
+			"The catalog change capture publisher initializes only the streams of the subscribers it creates itself!"
+		);
+		return (ClientChangeCatalogCaptureSubscriber) observer;
 	}
 
 	@Nonnull
 	@Override
-	protected Optional<HeartBeat> deserializeAcknowledgementResponse(GrpcRegisterChangeCatalogCaptureResponse itemResponse) {
-		if (itemResponse.getResponseType() == GrpcCaptureResponseType.ACKNOWLEDGEMENT
-			|| itemResponse.getResponseType() == GrpcCaptureResponseType.HEARTBEAT) {
-			return Optional.of(toHeartBeat(itemResponse.getUuid(), itemResponse.getHeartBeat()));
-		} else {
-			return Optional.empty();
-		}
-	}
-
-	@Nonnull
-	@Override
-	protected Optional<ChangeCatalogCapture> deserializeCaptureResponse(GrpcRegisterChangeCatalogCaptureResponse itemResponse) {
-		if (itemResponse.getResponseType() == GrpcCaptureResponseType.CHANGE) {
-			return Optional.of(toChangeCatalogCapture(itemResponse.getCapture()));
-		} else {
-			return Optional.empty();
-		}
+	protected ClientChangeCaptureSubscriber<ChangeCatalogCapture, GrpcRegisterChangeCatalogCaptureRequest, GrpcRegisterChangeCatalogCaptureResponse> createInternalSubscriber(
+		@Nonnull Subscriber<? super ChangeCatalogCapture> subscriber,
+		@Nonnull Duration streamingTimeout,
+		int flowControlWindow
+	) {
+		return new ClientChangeCatalogCaptureSubscriber(subscriber, this.request, streamingTimeout, flowControlWindow);
 	}
 
 }

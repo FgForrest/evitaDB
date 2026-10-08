@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureCriteria;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.session.EvitaInternalSessionContract;
 import io.evitadb.core.transaction.TransactionManager;
 import io.evitadb.dataType.ContainerType;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -56,6 +57,7 @@ import java.nio.file.Files;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
 import static io.evitadb.test.TestTags.CDC;
@@ -561,6 +563,89 @@ class CatalogChangeCaptureResumePositionTest implements EvitaTestSupport {
 			);
 		}
 
+	}
+
+	@Nested
+	@DisplayName("Live catalog version reported by heartbeats")
+	class HeartbeatVersion {
+
+		@Test
+		@DisplayName("should follow the incarnation through commits and a rename, never the catalog name")
+		void shouldFollowIncarnationThroughCommitsAndRename() {
+			final LongSupplier versionSupplier = liveVersionSupplier(TEST_CATALOG);
+			assertEquals(liveCatalog(TEST_CATALOG).getVersion(), versionSupplier.getAsLong());
+
+			final long committedVersion = commitEntity(TEST_CATALOG, 1);
+			assertEquals(
+				committedVersion, versionSupplier.getAsLong(),
+				"The supplier outlives the session it was created in and must follow the commits after it."
+			);
+
+			CatalogChangeCaptureResumePositionTest.this.evita.renameCatalog(TEST_CATALOG, RENAMED_CATALOG);
+			final long renamedVersion = commitEntity(RENAMED_CATALOG, 2);
+			assertEquals(renamedVersion, versionSupplier.getAsLong(), "A rename keeps the incarnation.");
+
+			// the old name is taken by an unrelated catalog that moves past the renamed one
+			defineAliveCatalog(TEST_CATALOG);
+			for (int primaryKey = 1; liveCatalog(TEST_CATALOG).getVersion() <= renamedVersion; primaryKey++) {
+				commitEntity(TEST_CATALOG, primaryKey);
+			}
+			assertEquals(
+				renamedVersion, versionSupplier.getAsLong(),
+				"The supplier followed the name to catalog version " + liveCatalog(TEST_CATALOG).getVersion() +
+					" of an unrelated catalog."
+			);
+		}
+
+		@Test
+		@DisplayName("should keep the last version of a replaced incarnation and follow the replacing one under its new name")
+		void shouldKeepLastVersionOfReplacedIncarnation() {
+			commitEntity(TEST_CATALOG, 1);
+			final long replacedVersion = liveCatalog(TEST_CATALOG).getVersion();
+			final LongSupplier replacedSupplier = liveVersionSupplier(TEST_CATALOG);
+			defineAliveCatalog(REPLACING_CATALOG);
+			for (int primaryKey = 1; liveCatalog(REPLACING_CATALOG).getVersion() <= replacedVersion; primaryKey++) {
+				commitEntity(REPLACING_CATALOG, primaryKey);
+			}
+			final LongSupplier replacingSupplier = liveVersionSupplier(REPLACING_CATALOG);
+
+			CatalogChangeCaptureResumePositionTest.this.evita.replaceCatalog(REPLACING_CATALOG, TEST_CATALOG);
+
+			final long reportedAfterReplacement = assertDoesNotThrow(
+				replacedSupplier::getAsLong,
+				"The heartbeat calls the supplier unguarded - a replaced incarnation must not make it throw."
+			);
+			assertEquals(
+				replacedVersion, reportedAfterReplacement,
+				"The supplier of the replaced incarnation must keep reporting its last version - neither switch to " +
+					"the replacing catalog, which carries its name now, nor give up."
+			);
+			final long nextVersion = commitEntity(TEST_CATALOG, 100);
+			assertEquals(replacedVersion, replacedSupplier.getAsLong());
+			assertEquals(
+				nextVersion, replacingSupplier.getAsLong(),
+				"The replacing incarnation lives on under the replaced name and its supplier must keep following it."
+			);
+		}
+
+	}
+
+	/**
+	 * Creates the live catalog version supplier of a session opened on the passed catalog - the way the gRPC server
+	 * creates it for the heartbeats of a change capture stream. The session is closed right away; the supplier
+	 * must keep working without it.
+	 *
+	 * @param catalogName the catalog to open the session on
+	 * @return the supplier
+	 */
+	@Nonnull
+	private LongSupplier liveVersionSupplier(@Nonnull String catalogName) {
+		return this.evita.queryCatalog(
+			catalogName,
+			session -> {
+				return assertInstanceOf(EvitaInternalSessionContract.class, session).createLiveCatalogVersionSupplier();
+			}
+		);
 	}
 
 	/**

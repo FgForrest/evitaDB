@@ -26,10 +26,14 @@ package io.evitadb.driver.cdc;
 import com.linecorp.armeria.client.ClientRequestContext;
 import com.linecorp.armeria.common.TimeoutException;
 import com.linecorp.armeria.common.util.TimeoutMode;
+import io.evitadb.api.exception.ChangeCaptureResumePositionInvalidException;
+import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.requestResponse.cdc.ChangeCapture;
 import io.evitadb.driver.cdc.ClientChangeCapturePublisher.ClientSubscription;
 import io.evitadb.driver.exception.PublisherClosedByClientException;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.externalApi.grpc.requestResponse.ErrorInfoConverter;
 import io.evitadb.externalApi.grpc.requestResponse.cdc.HeartBeat;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.ExceptionUtils;
@@ -314,9 +318,17 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * `EvitaClientSession#registerChangeCatalogCapture` — see that method for the ordering contract that
 	 * any new asynchronous session API has to respect.
 	 *
+	 * A failure the consumer is expected to react to - a {@link TemporalDataNotAvailableException}, including the
+	 * {@link ChangeCaptureResumePositionInvalidException} that refuses a resume position, whether the server raised
+	 * it or {@link #verifyAcknowledgement} did - is rethrown as itself, so that `subscribe()` fails with the very
+	 * exception a consumer catches to rebuild its state, instead of a generic internal error it would have to
+	 * unwrap.
+	 *
+	 * @throws TemporalDataNotAvailableException if the subscription was refused because the data it asks for is
+	 *         not available - typically a resume position the catalog cannot serve
 	 * @throws GenericEvitaInternalError if the server does not acknowledge the subscription within
-	 *         the streaming timeout, the stream fails before the acknowledgement arrives, or the
-	 *         waiting thread is interrupted
+	 *         the streaming timeout, the stream fails before the acknowledgement arrives for any other reason, or
+	 *         the waiting thread is interrupted
 	 */
 	void awaitAcknowledgement() {
 		try {
@@ -330,6 +342,9 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			);
 		} catch (ExecutionException ex) {
 			final Throwable cause = ex.getCause() == null ? ex : ex.getCause();
+			if (cause instanceof TemporalDataNotAvailableException temporalDataNotAvailable) {
+				throw temporalDataNotAvailable;
+			}
 			throw new GenericEvitaInternalError(
 				"The change data capture subscription failed before it was acknowledged by the server: " +
 					cause.getMessage(),
@@ -424,6 +439,16 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			// IDE-friendly capture: the null-check above already proved non-null, so this
 			// `requireNonNull` is a no-op at runtime but tells static analyzers the dereference is safe
 			final HeartBeat acknowledgement = Objects.requireNonNull(this.lastHeartBeat);
+			try {
+				verifyAcknowledgement(itemResponse, acknowledgement);
+			} catch (RuntimeException refusal) {
+				// the subscription is refused before it is established - neither the acknowledgement future nor
+				// the capture window is opened. The failure is client-originated, so the server still believes
+				// the stream is open and the teardown must cancel it; the ACK future fails with the refusal
+				// itself, which is what `subscribe()` surfaces
+				notifyClientFailureAndClose(refusal);
+				return;
+			}
 			activeSubscription.setSubscriptionId(acknowledgement.subscriptionId());
 			// ACK consumed: open the full window so the server may start streaming captures
 			observer.request(this.flowControlWindow);
@@ -441,6 +466,23 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 				observer.request(1);
 			}
 		}
+	}
+
+	/**
+	 * Verifies the acknowledgement of the subscription before the subscription is considered established. Called
+	 * on the gRPC inbound thread for the first response of the stream only, before the acknowledgement future is
+	 * completed and before the server is allowed to push any capture - so a refusal here guarantees that the
+	 * consumer receives nothing from a stream it must not consume.
+	 *
+	 * The default accepts every acknowledgement. A subclass throws to refuse the subscription; the exception
+	 * fails `subscribe()` and is delivered to the delegate's `onError`, and the stream is cancelled.
+	 *
+	 * @param acknowledgement the raw acknowledgement response
+	 * @param heartBeat       the heartbeat decoded from it
+	 * @throws RuntimeException to refuse the subscription
+	 */
+	protected void verifyAcknowledgement(@Nonnull RES acknowledgement, @Nonnull HeartBeat heartBeat) {
+		// accepted - this stream has nothing to verify
 	}
 
 	/**
@@ -467,16 +509,25 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * For expected errors, it completes the stream gracefully.
 	 * For unexpected errors, it logs the error, notifies the delegate subscriber, and closes the stream.
 	 *
+	 * A server error that describes a recognised evitaDB exception (see {@link ErrorInfoConverter}) reaches the
+	 * delegate - and a caller still blocked in `subscribe()` - as that exception, rebuilt with all its fields,
+	 * rather than as the raw gRPC status. The client-close and timeout classification runs first and is never
+	 * subject to the rebuild: neither carries a server error.
+	 *
 	 * @param throwable the error that occurred
 	 */
 	@Override
 	public void onError(Throwable throwable) {
 		this.serverSideClosed.set(true);
 		final Throwable rootCause = ExceptionUtils.getRootCause(throwable);
+		final EvitaInvalidUsageException typedFailure =
+			rootCause instanceof PublisherClosedByClientException || rootCause instanceof TimeoutException ?
+				null : ErrorInfoConverter.toTypedException(throwable);
+		final Throwable failure = typedFailure == null ? rootCause : typedFailure;
 		// unblock a caller still waiting in `awaitAcknowledgement`: the stream failed before the
 		// server acknowledged the subscription, so the subscribe() call must fail rather than wait
 		// out the full streaming timeout (no-op once the ACK has already completed the future)
-		this.acknowledged.completeExceptionally(rootCause);
+		this.acknowledged.completeExceptionally(failure);
 		if (rootCause instanceof PublisherClosedByClientException) {
 			// this is expected, we closed the publisher manually
 			// apparently, gRPC server doesn't know if cancellation was initiated by the client or by some network error
@@ -487,6 +538,10 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 				// we don't log timeout exceptions as errors because we expect that the CDC is regularly timed out
 				// and then re-established by the client
 				log.debug("CDC stream timed out and will be re-established.", throwable);
+			} else if (typedFailure != null) {
+				// the server refused to continue for a reason the consumer is told about and has to act on (a resume
+				// position it cannot serve, for example) - not a fault of the driver or the connection
+				log.warn("The change capture stream was terminated by the server: {}", typedFailure.getMessage());
 			} else {
 				log.error("Error occurred in the client change capture publisher.", throwable);
 			}
@@ -505,7 +560,7 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			try {
 				CdcCallbackDispatcher.dispatch(
 					activeSubscription.getExecutorService(),
-					() -> this.delegate.onError(rootCause),
+					() -> this.delegate.onError(failure),
 					"deliver onError to the delegate subscriber"
 				);
 			} finally {
@@ -532,7 +587,13 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 		// unblock a caller still waiting in `awaitAcknowledgement` (no-op once the ACK completed it)
 		this.acknowledged.completeExceptionally(cause);
 		if (!this.closed.get()) {
-			log.error("Client-side change capture subscription failed.", cause);
+			if (cause instanceof TemporalDataNotAvailableException) {
+				// a refusal of the subscription by `verifyAcknowledgement` - the consumer is told and has to act on
+				// it, nothing in the driver failed
+				log.warn("The change capture subscription was refused: {}", cause.getMessage());
+			} else {
+				log.error("Client-side change capture subscription failed.", cause);
+			}
 			// invoked from `ClientSubscription.consume`, which can only exist once the
 			// publisher has attached this subscription, so the field is always non-null
 			final ClientSubscription<C, REQ, RES> activeSubscription = Objects.requireNonNull(

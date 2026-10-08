@@ -23,13 +23,18 @@
 
 package io.evitadb.driver;
 
+import io.evitadb.api.exception.ChangeCaptureResumePositionInvalidException;
+import io.evitadb.api.exception.ChangeCaptureResumePositionInvalidException.Reason;
 import io.evitadb.api.exception.InstanceTerminatedException;
+import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.exception.EvitaError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.externalApi.grpc.services.interceptors.GlobalExceptionHandlerInterceptor;
 import io.grpc.Status;
 import io.grpc.Status.Code;
 import io.grpc.StatusRuntimeException;
+import io.grpc.stub.StreamObserver;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -37,7 +42,9 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static io.evitadb.test.TestTags.DRIVER;
 import static io.evitadb.test.TestTags.OBSERVABILITY;
@@ -149,6 +156,87 @@ class EvitaClientErrorTransformationTest {
 			assertTrue(
 				result.getMessage().contains("INTERNAL: connect: timed out"),
 				"Unexpected message: " + result.getMessage()
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("when the error details describe an exception the client can rebuild")
+	class RebuildableException {
+
+		@Test
+		@DisplayName("should rebuild a refused change capture resume position as itself")
+		void shouldRebuildRefusedResumePosition() {
+			final ChangeCaptureResumePositionInvalidException refusal = new ChangeCaptureResumePositionInvalidException(
+				Reason.DIFFERENT_INCARNATION, UUID.randomUUID(), 12L, 3L, UUID.randomUUID(), 40L, 7
+			);
+
+			final RuntimeException result = transformSentByServer(refusal);
+
+			final ChangeCaptureResumePositionInvalidException rebuilt =
+				assertInstanceOf(ChangeCaptureResumePositionInvalidException.class, result);
+			assertEquals(refusal.getReason(), rebuilt.getReason());
+			assertEquals(refusal.getCatalogId(), rebuilt.getCatalogId());
+			assertEquals(refusal.getRequestedCatalogId(), rebuilt.getRequestedCatalogId());
+			assertEquals(refusal.getPublicMessage(), rebuilt.getPublicMessage());
+		}
+
+		@Test
+		@DisplayName("should rebuild unavailable temporal data as itself")
+		void shouldRebuildTemporalDataNotAvailable() {
+			final RuntimeException result = transformSentByServer(new TemporalDataNotAvailableException(5L));
+
+			final TemporalDataNotAvailableException rebuilt =
+				assertInstanceOf(TemporalDataNotAvailableException.class, result);
+			assertEquals(5L, rebuilt.getCatalogVersion());
+		}
+
+		@Test
+		@DisplayName("should keep any other client error generic, with the server's error code")
+		void shouldKeepOtherClientErrorGeneric() {
+			final EvitaInvalidUsageException other = new EvitaInvalidUsageException(PUBLIC_MESSAGE);
+
+			final RuntimeException result = transformSentByServer(other);
+
+			assertEquals(EvitaInvalidUsageException.class, result.getClass());
+			assertEquals(other.getErrorCode(), ((EvitaInvalidUsageException) result).getErrorCode());
+		}
+
+		/**
+		 * Sends the exception through the server's error mapping and transforms the status the client receives.
+		 *
+		 * @param exception the exception raised on the server
+		 * @return the exception the driver raises towards the caller
+		 */
+		@Nonnull
+		private static RuntimeException transformSentByServer(@Nonnull Throwable exception) {
+			final AtomicReference<Throwable> emitted = new AtomicReference<>();
+			GlobalExceptionHandlerInterceptor.sendErrorToClient(
+				exception,
+				new StreamObserver<Object>() {
+					@Override
+					public void onNext(Object value) {
+						throw new AssertionError("No message expected.");
+					}
+
+					@Override
+					public void onError(Throwable throwable) {
+						emitted.set(throwable);
+					}
+
+					@Override
+					public void onCompleted() {
+						throw new AssertionError("No completion expected.");
+					}
+				}
+			);
+			final StatusRuntimeException serverSide = assertInstanceOf(StatusRuntimeException.class, emitted.get());
+			return EvitaClient.transformStatusRuntimeException(
+				// the server-side cause does not cross the wire
+				new StatusRuntimeException(serverSide.getStatus().withCause(null), serverSide.getTrailers()),
+				() -> {
+					throw new AssertionError("the unauthenticated callback must not run");
+				}
 			);
 		}
 	}

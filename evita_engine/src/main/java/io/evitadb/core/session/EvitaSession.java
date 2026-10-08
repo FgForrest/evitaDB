@@ -128,6 +128,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
+import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -1448,6 +1449,12 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Override
 	public List<WriteAheadLogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion) {
 		return this.catalog.getCatalogVersionDescriptors(catalogVersion);
+	}
+
+	@Nonnull
+	@Override
+	public LongSupplier createLiveCatalogVersionSupplier() {
+		return this.catalog.createLiveVersionSupplier();
 	}
 
 	@Nonnull
