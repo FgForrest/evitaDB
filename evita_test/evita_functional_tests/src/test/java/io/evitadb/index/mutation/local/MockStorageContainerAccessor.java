@@ -37,9 +37,11 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalInt;
+import java.util.Set;
 
 /**
  * This mock object is used in tests to provide container object without necessity to load them from persistent data
@@ -54,6 +56,11 @@ class MockStorageContainerAccessor implements WritableEntityStorageContainerAcce
 	 * The accessors {@link #getAccessorOfOtherEntity(int)} hands out, by the primary key of the entity they serve.
 	 */
 	private final Map<Integer, WritableEntityStorageContainerAccessor> accessorsOfOtherEntities = new HashMap<>();
+	/**
+	 * The primary keys of the other entities {@link #isOtherEntityInFlight(int)} reports as mutated by the root
+	 * mutation.
+	 */
+	private final Set<Integer> otherEntitiesInFlight = new HashSet<>();
 	private EntityBodyStoragePart entityStorageContainer;
 	private AttributesStoragePart attributesStorageContainer;
 	private ReferencesStoragePart referencesStorageContainer;
@@ -72,6 +79,21 @@ class MockStorageContainerAccessor implements WritableEntityStorageContainerAcce
 	 */
 	void registerAccessorOfOtherEntity(int entityPrimaryKey, @Nonnull WritableEntityStorageContainerAccessor accessor) {
 		this.accessorsOfOtherEntities.put(entityPrimaryKey, accessor);
+	}
+
+	/**
+	 * Marks another entity as mutated by the root mutation from now on - see {@link #isOtherEntityInFlight(int)}. The
+	 * mark survives {@link #reset()}, as the registrations of accessors do.
+	 *
+	 * @param entityPrimaryKey the primary key of the other entity
+	 */
+	void markOtherEntityInFlight(int entityPrimaryKey) {
+		this.otherEntitiesInFlight.add(entityPrimaryKey);
+	}
+
+	@Override
+	public boolean isOtherEntityInFlight(int entityPrimaryKey) {
+		return this.otherEntitiesInFlight.contains(entityPrimaryKey);
 	}
 
 	@Nonnull

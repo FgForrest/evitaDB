@@ -24,6 +24,7 @@
 package io.evitadb.index.mutation.local;
 
 import com.carrotsearch.hppc.IntHashSet;
+import com.carrotsearch.hppc.IntObjectHashMap;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
@@ -331,6 +332,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	@Nullable private List<ReferencePartition> partitionsLeftWithOneOwner;
 	/**
+	 * The executors writing as other owners of reference partitions that this one has created (see
+	 * {@link #createExecutorOfOtherOwner(int)}), by the primary key of the owner - only of owners the root mutation
+	 * does not mutate, whose data cannot change while it runs, so the executor and everything it derives from the
+	 * owner's data serve every population of a partition with that owner. Allocated lazily, because most entity
+	 * mutations populate no partition with another owner.
+	 */
+	@Nullable private IntObjectHashMap<EntityIndexLocalMutationExecutor> otherOwnerExecutors;
+	/**
 	 * List of all mutations that are being processed right now.
 	 */
 	@Nullable private List<? extends LocalMutation<?, ?>> localMutations;
@@ -598,11 +607,44 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * It is the executor that writes a partition's existing owner into the partition when the partition is built
 	 * anew (see {@link ReferenceIndexMutator#populatePartitionWithOwner}).
 	 *
+	 * The executor of an owner the root mutation does not mutate is created once and handed out again on every later
+	 * call: the owner cannot change while the root mutation runs, so neither can anything the executor derives from its
+	 * data, and the populations of many partitions with one owner share one executor. Whether the owner is mutated is
+	 * asked on every call, before the remembered executor is considered - an owner the root mutation has started
+	 * mutating since gets a new executor reading its staged state, never again the remembered one, which is forgotten.
+	 * The executor of an owner being mutated is never remembered: its state goes on changing.
+	 *
 	 * @param ownerPrimaryKey the primary key of the other entity
 	 * @return the executor writing as the other entity
 	 */
 	@Nonnull
 	EntityIndexLocalMutationExecutor createExecutorOfOtherOwner(int ownerPrimaryKey) {
+		if (this.containerAccessor.isOtherEntityInFlight(ownerPrimaryKey)) {
+			if (this.otherOwnerExecutors != null) {
+				this.otherOwnerExecutors.remove(ownerPrimaryKey);
+			}
+			return newExecutorOfOtherOwner(ownerPrimaryKey);
+		}
+		if (this.otherOwnerExecutors == null) {
+			this.otherOwnerExecutors = new IntObjectHashMap<>(4);
+		}
+		EntityIndexLocalMutationExecutor executor = this.otherOwnerExecutors.get(ownerPrimaryKey);
+		if (executor == null) {
+			executor = newExecutorOfOtherOwner(ownerPrimaryKey);
+			this.otherOwnerExecutors.put(ownerPrimaryKey, executor);
+		}
+		return executor;
+	}
+
+	/**
+	 * Creates a new executor writing as another entity of this collection - see
+	 * {@link #createExecutorOfOtherOwner(int)}, which decides whether a remembered one is handed out instead.
+	 *
+	 * @param ownerPrimaryKey the primary key of the other entity
+	 * @return the new executor writing as the other entity
+	 */
+	@Nonnull
+	private EntityIndexLocalMutationExecutor newExecutorOfOtherOwner(int ownerPrimaryKey) {
 		return new EntityIndexLocalMutationExecutor(
 			this.containerAccessor.getAccessorOfOtherEntity(ownerPrimaryKey),
 			ownerPrimaryKey,

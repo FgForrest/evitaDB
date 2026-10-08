@@ -934,6 +934,11 @@ class DefaultFacetExpressionTriggerTest {
 			throw new UnsupportedOperationException("The test accessor serves one entity only.");
 		}
 
+		@Override
+		public boolean isOtherEntityInFlight(int entityPrimaryKey) {
+			throw new UnsupportedOperationException("The test accessor serves one entity only.");
+		}
+
 		@Nonnull
 		@Override
 		public EntityBodyStoragePart getEntityStoragePart(
@@ -1073,6 +1078,11 @@ class DefaultFacetExpressionTriggerTest {
 		@Nonnull
 		@Override
 		public WritableEntityStorageContainerAccessor getAccessorOfOtherEntity(int entityPrimaryKey) {
+			throw new UnsupportedOperationException("The test accessor serves one entity only.");
+		}
+
+		@Override
+		public boolean isOtherEntityInFlight(int entityPrimaryKey) {
 			throw new UnsupportedOperationException("The test accessor serves one entity only.");
 		}
 

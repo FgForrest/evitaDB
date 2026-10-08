@@ -174,6 +174,19 @@ public interface WritableEntityStorageContainerAccessor extends EntityStoragePar
 	WritableEntityStorageContainerAccessor getAccessorOfOtherEntity(int entityPrimaryKey);
 
 	/**
+	 * Returns whether the current root entity mutation mutates another entity of the same entity type - whether
+	 * {@link #getAccessorOfOtherEntity(int)} answers with the accessor of the entity's own executor, whose state goes
+	 * on changing while the root mutation runs. The entity this accessor serves is mutated by definition.
+	 *
+	 * An entity the root mutation does not mutate cannot change while it runs, so whatever is derived from its accessor
+	 * stays valid until the entity starts being mutated - which the root mutation may still do later on.
+	 *
+	 * @param entityPrimaryKey the primary key of the other entity
+	 * @return TRUE when the root mutation mutates the entity
+	 */
+	boolean isOtherEntityInFlight(int entityPrimaryKey);
+
+	/**
 	 * Pairs a locale with the set of scopes in which a change to that locale occurred within the current mutation
 	 * session. A single locale may appear in multiple scopes simultaneously — for example when an attribute mutation
 	 * both adds a localized attribute (implying {@link LocaleScope#ATTRIBUTE}) and is the first locale-carrying

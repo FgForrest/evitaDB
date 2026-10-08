@@ -24,7 +24,6 @@
 
 package io.evitadb.index.virtual;
 
-import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.PromotionRehearsal;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -36,7 +35,6 @@ import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.invertedIndex.ValueToRecord;
-import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleScope;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleWithScope;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
@@ -47,19 +45,15 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
-import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.function.IntPredicate;
 
-import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.collectionOf;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
  * Rehearses the materialization of every single-owner partition that gains its second owner, at the very point it
@@ -74,14 +68,13 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  * - the rebuilt partition in full - anything it holds is the materialization's doing;
  * - the live partition projected on the first owner - its membership, its language records and its attribute
  *   records keyed by the first owner, and its chain records keyed by the first owner or by the referenced entity -
- *   so a record another entity left in the partition is never mistaken for the first owner's;
- * - the projection **overlaid with the first owner's pending locale changes**, which the live partition learns only
- *   when the first owner's own mutation applies its changes, after every mutation of the root mutation was
- *   dispatched, whereas the materialization reads the first owner's body, which knows them already. A removed
- *   locale drops the first owner's language record and its localized compounds of the locale from the expectation,
- *   an added one adds the language record. The localized compounds of an added locale get their values only when
- *   the first owner's mutation applies its changes, so they are kept aside as **deferred** expectations and
- *   compared with the live partition once the step is over (see {@link #assertDeferredMatch(Evita)}).
+ *   so a record another entity left in the partition is never mistaken for the first owner's.
+ *
+ * The two must be equal, the locales included. A first owner mutated by the same root mutation has its locale changes
+ * pending: the live partition learns them only when the first owner's own mutation applies its changes, after every
+ * mutation of the root mutation was dispatched, and the materialization writes the locales the first owner had before
+ * the root mutation, so that the same finalization moves the rebuilt partition exactly as it moves the live one. The
+ * pending changes are recorded with the outcome, so that a test can prove its history had some.
  *
  * The rebuilt partition is released in a `finally` - its transactional memory removed, so the commit's sweep of the
  * transaction's layers finds nothing of it - and never escapes the call. Only descriptions of both sides are kept.
@@ -94,23 +87,9 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  */
 final class PromotionRehearsalInspector implements Consumer<PromotionRehearsal> {
 	/**
-	 * Names of the sortable attribute compounds of the inspected references - the keys a locale change of the first
-	 * owner adds or removes when its mutation applies its changes.
-	 */
-	@Nonnull private final Set<String> compoundNames;
-	/**
 	 * The outcome of every rehearsal, in the order they ran.
 	 */
 	private final List<Outcome> outcomes = new ArrayList<>(8);
-
-	/**
-	 * Creates the inspector.
-	 *
-	 * @param compoundNames names of the sortable attribute compounds of the inspected references
-	 */
-	PromotionRehearsalInspector(@Nonnull Set<String> compoundNames) {
-		this.compoundNames = Set.copyOf(compoundNames);
-	}
 
 	/**
 	 * The outcome of one rehearsal.
@@ -120,11 +99,9 @@ final class PromotionRehearsalInspector implements Consumer<PromotionRehearsal> 
 	 * @param partition    the primary key of the partition
 	 * @param owner        the first owner, the one rebuilt
 	 * @param joiningOwner the second owner, whose joining made the promotion point
-	 * @param expected     the live partition projected on the first owner and overlaid with its pending locales
-	 * @param rebuilt      the rebuilt partition
-	 * @param deferred       the lines kept aside for the comparison after the step - the rebuilt localized compounds
-	 *                       of the locales the first owner gained in the root mutation
-	 * @param pendingLocales the first owner's pending locale changes the expectation was overlaid with, each as
+	 * @param expected       the live partition projected on the first owner
+	 * @param rebuilt        the rebuilt partition
+	 * @param pendingLocales the first owner's pending locale changes when the rehearsal ran, each as
 	 *                       `+locale [scopes]` or `-locale [scopes]`
 	 */
 	record Outcome(
@@ -135,7 +112,6 @@ final class PromotionRehearsalInspector implements Consumer<PromotionRehearsal> 
 		int joiningOwner,
 		@Nonnull SortedMap<String, String> expected,
 		@Nonnull SortedMap<String, String> rebuilt,
-		@Nonnull SortedMap<String, String> deferred,
 		@Nonnull List<String> pendingLocales
 	) {
 
@@ -183,13 +159,12 @@ final class PromotionRehearsalInspector implements Consumer<PromotionRehearsal> 
 				live, record -> record == owner, record -> record == owner || record == target
 			);
 			final SortedMap<String, String> rebuiltLines = describe(rebuilt, record -> true, record -> true);
-			final SortedMap<String, String> deferred = new TreeMap<>();
-			final List<String> pendingLocales = overlay(rehearsal, expected, rebuiltLines, deferred);
+			final List<String> pendingLocales = pendingLocalesOf(rehearsal);
 			synchronized (this.outcomes) {
 				this.outcomes.add(
 					new Outcome(
 						rehearsal.getEntityType(), live.getIndexKey(), live.getPrimaryKey(), owner,
-						rehearsal.getJoiningOwnerPrimaryKey(), expected, rebuiltLines, deferred, pendingLocales
+						rehearsal.getJoiningOwnerPrimaryKey(), expected, rebuiltLines, pendingLocales
 					)
 				);
 			}
@@ -234,97 +209,22 @@ final class PromotionRehearsalInspector implements Consumer<PromotionRehearsal> 
 	}
 
 	/**
-	 * Compares the deferred lines of the given outcomes with the live partitions of the engine's committed catalog,
-	 * projected on the first owner - the values the first owner's mutation gave its localized compounds of a locale
-	 * it gained when it applied its changes.
-	 *
-	 * @param engine   the engine whose committed catalog holds the partitions
-	 * @param outcomes the outcomes whose deferred lines to compare
-	 * @return how many deferred lines were compared
-	 */
-	static int assertDeferredMatch(@Nonnull Evita engine, @Nonnull List<Outcome> outcomes) {
-		int compared = 0;
-		for (final Outcome outcome : outcomes) {
-			if (outcome.deferred().isEmpty()) {
-				continue;
-			}
-			final EntityIndex live = collectionOf(engine, outcome.entityType())
-				.getIndexByKeyIfExists(outcome.partitionKey());
-			assertNotNull(live, "the partition " + outcome.partitionKey() + " must still exist");
-			final SortedMap<String, String> now = describe(
-				live, record -> record == outcome.owner(), record -> record == outcome.owner()
-			);
-			for (final Map.Entry<String, String> line : outcome.deferred().entrySet()) {
-				assertEquals(
-					line.getValue(), now.get(line.getKey()),
-					"the deferred line " + line.getKey() + " of partition " + outcome.partition() + " rebuilt for " +
-						"its owner " + outcome.owner()
-				);
-				compared++;
-			}
-		}
-		return compared;
-	}
-
-	/**
-	 * Applies the first owner's pending locale changes to the expectation and moves the localized compounds of the
-	 * locales it gained aside.
+	 * Lists the first owner's pending locale changes - those its mutation applies to its partitions when it applies its
+	 * changes.
 	 *
 	 * @param rehearsal the rehearsal
-	 * @param expected  the expectation, changed in place
-	 * @param rebuilt   the rebuilt partition's lines, changed in place
-	 * @param deferred  receives the rebuilt lines compared only after the step
-	 * @return the pending locale changes applied, each as `+locale [scopes]` or `-locale [scopes]`
+	 * @return the pending locale changes, each as `+locale [scopes]` or `-locale [scopes]`
 	 */
 	@Nonnull
-	private List<String> overlay(
-		@Nonnull PromotionRehearsal rehearsal,
-		@Nonnull SortedMap<String, String> expected,
-		@Nonnull SortedMap<String, String> rebuilt,
-		@Nonnull SortedMap<String, String> deferred
-	) {
-		final String owner = "[" + rehearsal.getOwnerPrimaryKey() + "]";
-		final List<String> applied = new ArrayList<>(2);
+	private static List<String> pendingLocalesOf(@Nonnull PromotionRehearsal rehearsal) {
+		final List<String> pending = new ArrayList<>(2);
 		for (final LocaleWithScope removed : rehearsal.getOwnerRemovedLocales()) {
-			applied.add("-" + removed.locale().toLanguageTag() + " " + removed.scope());
-			if (removed.scope().contains(LocaleScope.ENTITY)) {
-				expected.remove(languagePath(removed.locale()));
-			}
-			if (removed.scope().contains(LocaleScope.ATTRIBUTE)) {
-				expected.keySet().removeIf(path -> isCompoundOf(path, removed.locale()));
-			}
+			pending.add("-" + removed.locale().toLanguageTag() + " " + removed.scope());
 		}
 		for (final LocaleWithScope added : rehearsal.getOwnerAddedLocales()) {
-			applied.add("+" + added.locale().toLanguageTag() + " " + added.scope());
-			if (added.scope().contains(LocaleScope.ENTITY)) {
-				expected.put(languagePath(added.locale()), owner);
-			}
-			if (added.scope().contains(LocaleScope.ATTRIBUTE)) {
-				expected.keySet().removeIf(path -> isCompoundOf(path, added.locale()));
-				for (final String path : List.copyOf(rebuilt.keySet())) {
-					if (isCompoundOf(path, added.locale())) {
-						deferred.put(path, rebuilt.remove(path));
-					}
-				}
-			}
+			pending.add("+" + added.locale().toLanguageTag() + " " + added.scope());
 		}
-		return applied;
-	}
-
-	/**
-	 * Tells whether a line describes a sortable attribute compound of the given locale.
-	 *
-	 * @param path   the path of the line
-	 * @param locale the locale
-	 * @return TRUE for a line of a localized compound of the locale
-	 */
-	private boolean isCompoundOf(@Nonnull String path, @Nonnull Locale locale) {
-		final String suffix = "@" + locale.toLanguageTag();
-		if (!path.startsWith("sort/") || !path.endsWith(suffix)) {
-			return false;
-		}
-		final String attribute = path.substring(path.indexOf('.') + 1, path.length() - suffix.length());
-		return this.compoundNames.contains(attribute);
+		return pending;
 	}
 
 	/**

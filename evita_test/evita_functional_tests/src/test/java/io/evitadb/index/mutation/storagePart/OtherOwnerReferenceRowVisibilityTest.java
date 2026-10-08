@@ -677,23 +677,198 @@ class OtherOwnerReferenceRowVisibilityTest implements EvitaTestSupport {
 		}
 	}
 
+	@Nested
+	@DisplayName("Entity the root mutation does not mutate")
+	class EntityNotMutated {
+
+		/**
+		 * An entity the root mutation does not mutate cannot change while it runs, so every executor of the root
+		 * mutation reading it is answered by the parts the first read fetched - the references fetched once, however
+		 * many reads and executors ask for them.
+		 *
+		 * @param state catalog state the scenario runs in
+		 */
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("reads each part of it once within the root mutation")
+		void shouldReadEachPartOnceWhenTheRootMutationReadsItRepeatedly(@Nonnull CatalogState state) {
+			prepare(state);
+
+			OtherOwnerReferenceRowVisibilityTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				(Consumer<EvitaSessionContract>) session -> {
+					final Catalog catalog = catalog();
+					final RootMutation rootMutation = RootMutation.keepingForeignParts(catalog);
+					final ContainerizedLocalMutationExecutor secondOwner =
+						openMutationOfSecondOwner(session, rootMutation);
+					final ContainerizedLocalMutationExecutor thirdOwner =
+						rootMutation.openNested(ENTITY_PRODUCT, THIRD_OWNER_PK);
+					final long fetchesBefore =
+						catalog.getVirtualReferencePartitionMaintenance().getForeignReferencesFetchCount();
+
+					final ReferencesStoragePart references =
+						secondOwner.getReferencesStoragePart(ENTITY_PRODUCT, FIRST_OWNER_PK);
+					assertEquals(COMMITTED_PRIORITY, priorityOf(references));
+					assertAll(
+						() -> assertSame(
+							references, secondOwner.getReferencesStoragePart(ENTITY_PRODUCT, FIRST_OWNER_PK)
+						),
+						() -> assertSame(
+							references, thirdOwner.getReferencesStoragePart(ENTITY_PRODUCT, FIRST_OWNER_PK),
+							"another executor of the root mutation must be answered by the same read"
+						),
+						() -> assertSame(
+							secondOwner.getEntityStoragePart(
+								ENTITY_PRODUCT, FIRST_OWNER_PK, EntityExistence.MUST_EXIST
+							),
+							thirdOwner.getEntityStoragePart(ENTITY_PRODUCT, FIRST_OWNER_PK, EntityExistence.MUST_EXIST)
+						),
+						() -> assertSame(
+							secondOwner.getAttributeStoragePart(ENTITY_PRODUCT, FIRST_OWNER_PK),
+							thirdOwner.getAttributeStoragePart(ENTITY_PRODUCT, FIRST_OWNER_PK)
+						),
+						() -> assertSame(
+							secondOwner.getAttributeStoragePart(ENTITY_PRODUCT, FIRST_OWNER_PK, Locale.ENGLISH),
+							thirdOwner.getAttributeStoragePart(ENTITY_PRODUCT, FIRST_OWNER_PK, Locale.ENGLISH)
+						)
+					);
+					assertEquals(
+						fetchesBefore + 1,
+						catalog.getVirtualReferencePartitionMaintenance().getForeignReferencesFetchCount(),
+						"the references of the entity must have been fetched once"
+					);
+				}
+			);
+		}
+
+		/**
+		 * An entity read before the root mutation starts mutating it is read from its executor afterwards: the parts
+		 * read before describe the entity as it was, and the executor asks whether the entity is in flight before it
+		 * looks at them. The root mutation here keeps those parts on purpose, so the ordering alone is proven.
+		 *
+		 * @param state catalog state the scenario runs in
+		 */
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("reads it from its executor once the root mutation starts mutating it")
+		void shouldReadTheStagedEntityWhenTheRootMutationStartedMutatingItAfterARead(@Nonnull CatalogState state) {
+			prepare(state);
+
+			OtherOwnerReferenceRowVisibilityTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				(Consumer<EvitaSessionContract>) session -> {
+					final RootMutation rootMutation = RootMutation.keepingForeignParts(catalog());
+					final ContainerizedLocalMutationExecutor secondOwner =
+						openMutationOfSecondOwner(session, rootMutation);
+					final EntityBodyStoragePart bodyBefore =
+						secondOwner.getEntityStoragePart(ENTITY_PRODUCT, FIRST_OWNER_PK, EntityExistence.MUST_EXIST);
+					assertFalse(bodyBefore.getAttributeLocales().contains(Locale.ENGLISH));
+					assertEquals(
+						COMMITTED_PRIORITY,
+						priorityOf(secondOwner.getReferencesStoragePart(ENTITY_PRODUCT, FIRST_OWNER_PK))
+					);
+					assertNull(
+						attributeOf(
+							secondOwner.getAttributeStoragePart(ENTITY_PRODUCT, FIRST_OWNER_PK, Locale.ENGLISH),
+							new AttributeKey(ATTR_NAME, Locale.ENGLISH)
+						)
+					);
+
+					final EntityMutation firstOwnerMutation = session
+						.getEntity(ENTITY_PRODUCT, FIRST_OWNER_PK, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTR_NAME, Locale.ENGLISH, IN_FLIGHT_VALUE)
+						.setReference(
+							REF_CATEGORIES, CATEGORY_PK,
+							whichIs -> whichIs.setAttribute(ATTR_PRIORITY, SECOND_OWNER_PRIORITY)
+						)
+						.toMutation()
+						.orElseThrow();
+					final ContainerizedLocalMutationExecutor firstOwner =
+						rootMutation.openNested(ENTITY_PRODUCT, FIRST_OWNER_PK);
+					applyLocalPhase(firstOwner, firstOwnerMutation.getLocalMutations());
+
+					assertAll(
+						() -> assertSame(
+							firstOwner.getEntityStoragePart(ENTITY_PRODUCT, FIRST_OWNER_PK, EntityExistence.MUST_EXIST),
+							secondOwner.getEntityStoragePart(
+								ENTITY_PRODUCT, FIRST_OWNER_PK, EntityExistence.MUST_EXIST
+							),
+							"the body must be read from the executor of the entity"
+						),
+						() -> assertTrue(
+							secondOwner.getEntityStoragePart(ENTITY_PRODUCT, FIRST_OWNER_PK, EntityExistence.MUST_EXIST)
+								.getAttributeLocales().contains(Locale.ENGLISH),
+							"the attribute locale gained in flight must be seen"
+						),
+						() -> assertEquals(
+							SECOND_OWNER_PRIORITY,
+							priorityOf(secondOwner.getReferencesStoragePart(ENTITY_PRODUCT, FIRST_OWNER_PK)),
+							"the reference changed in flight must be seen"
+						),
+						() -> assertEquals(
+							IN_FLIGHT_VALUE,
+							attributeOf(
+								secondOwner.getAttributeStoragePart(ENTITY_PRODUCT, FIRST_OWNER_PK, Locale.ENGLISH),
+								new AttributeKey(ATTR_NAME, Locale.ENGLISH)
+							),
+							"the localized attribute set in flight must be seen"
+						)
+					);
+				}
+			);
+		}
+	}
+
 	/**
 	 * Emulates one root entity mutation the way its collector sees it: every executor opened here is registered, and
 	 * every executor opened here is handed this registry as its {@link InFlightEntityAccessorLookup}. Executors are
 	 * never committed, exactly as they are not while the index executors of the root mutation decide a promotion or a
 	 * demotion.
+	 *
+	 * A root mutation created by {@link #keepingForeignParts(Catalog)} also keeps the parts its executors read of the
+	 * entities it does not mutate, as the collector does - but it keeps them even after it opens an executor of such an
+	 * entity, which the collector does not, so that only the order in which an executor asks the lookup keeps a read of
+	 * that entity from being answered by the parts read before.
 	 */
 	private static final class RootMutation implements InFlightEntityAccessorLookup {
 		private final Catalog catalog;
 		private final Map<String, ContainerizedLocalMutationExecutor> executors = CollectionUtils.createHashMap(4);
+		/**
+		 * The parts read of the entities the root mutation does not mutate, `null` when it keeps none.
+		 */
+		@Nullable private final Map<String, ForeignEntityStorageParts> foreignParts;
 
 		/**
-		 * Creates an empty root mutation.
+		 * Creates an empty root mutation keeping no part of the entities it does not mutate.
 		 *
 		 * @param catalog catalog the session works with
 		 */
 		RootMutation(@Nonnull Catalog catalog) {
+			this(catalog, null);
+		}
+
+		/**
+		 * Creates an empty root mutation.
+		 *
+		 * @param catalog      catalog the session works with
+		 * @param foreignParts the parts read of the entities the root mutation does not mutate, `null` to keep none
+		 */
+		private RootMutation(@Nonnull Catalog catalog, @Nullable Map<String, ForeignEntityStorageParts> foreignParts) {
 			this.catalog = catalog;
+			this.foreignParts = foreignParts;
+		}
+
+		/**
+		 * Creates an empty root mutation keeping the parts its executors read of the entities it does not mutate.
+		 *
+		 * @param catalog catalog the session works with
+		 * @return the root mutation
+		 */
+		@Nonnull
+		static RootMutation keepingForeignParts(@Nonnull Catalog catalog) {
+			return new RootMutation(catalog, CollectionUtils.createHashMap(4));
 		}
 
 		@Nullable
@@ -703,6 +878,19 @@ class OtherOwnerReferenceRowVisibilityTest implements EvitaTestSupport {
 			int entityPrimaryKey
 		) {
 			return this.executors.get(key(entityType, entityPrimaryKey));
+		}
+
+		@Nullable
+		@Override
+		public ForeignEntityStorageParts getForeignEntityStorageParts(
+			@Nonnull String entityType,
+			int entityPrimaryKey
+		) {
+			return this.foreignParts == null
+				? null
+				: this.foreignParts.computeIfAbsent(
+					key(entityType, entityPrimaryKey), it -> new ForeignEntityStorageParts()
+				);
 		}
 
 		/**

@@ -3170,11 +3170,13 @@ public interface ReferenceIndexMutator {
 	 * the owner's own state - its staged state when the root mutation mutates it too - and so that a write reaching
 	 * beyond the partition fails rather than lands.
 	 *
-	 * The partition is written from the owner's body as it is now, the locales the root mutation has added to the
-	 * owner or removed from it included. A partition the owner entered earlier learns those locale changes only when
-	 * the owner's own mutation applies its changes, so a caller writing a partition while the owner is still being
-	 * mutated has to keep that finalization from removing from the partition a locale it never received - as the
-	 * finalization already does for the partitions the owner's mutation itself creates.
+	 * The partition receives the locales the owner had before the running root mutation - the locales the root
+	 * mutation has added to the owner left out, those it has removed from it kept - exactly as every other partition of
+	 * the owner holds them until the owner's own mutation applies its changes and moves all of them, this one included,
+	 * to the locales the owner has after it. The finalization of the owner's mutation therefore finds the partition
+	 * where it finds the others: it adds to it no locale it holds already and removes from it no locale it never
+	 * received. An owner the root mutation does not mutate has no pending locale change, and receives the locales it
+	 * has.
 	 *
 	 * @param ownerExecutor   the executor writing as the owner
 	 * @param partitionIndex  the empty partition to write the owner into
@@ -3202,8 +3204,9 @@ public interface ReferenceIndexMutator {
 			partitionIndex.insertPrimaryKeyIfMissing(ownerPrimaryKey),
 			() -> "Partition " + partitionIndex.getPrimaryKey() + " already has the owner " + ownerPrimaryKey + "!"
 		);
+		// the locales before the root mutation - the owner's finalization moves the partition to those after it
 		populateFilteringPartitionWithOwner(
-			ownerExecutor, partitionIndex, referenceSchema, partition.getRepresentativeReferenceKey(), false,
+			ownerExecutor, partitionIndex, referenceSchema, partition.getRepresentativeReferenceKey(), true,
 			ownerExecutor.getStoragePartExistingDataFactory()
 		);
 	}

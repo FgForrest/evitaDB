@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
+import io.evitadb.index.mutation.storagePart.ForeignEntityStorageParts;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -50,7 +51,9 @@ import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -65,6 +68,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * and the nested executors while the mutation ran is what makes the emptiness asserted afterwards meaningful: with the
  * clearing at the end of the root mutation removed, these tests find every one of them still registered. The reads
  * served by the registry while a root mutation is in flight are covered by `OtherOwnerReferenceRowVisibilityTest`.
+ *
+ * The parts the root mutation keeps of the entities it reads without mutating them share the lifetime: none of them
+ * survives the root mutation either.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -171,6 +177,55 @@ class LocalMutationExecutorCollectorInFlightRegistryTest implements EvitaTestSup
 					"The failed root mutation was not rolled back"
 				);
 				assertNothingInFlight(collector, CATEGORY_PK);
+			}
+		);
+	}
+
+	/**
+	 * The parts a root mutation read of the entities it did not mutate describe them as they were while it ran, and the
+	 * commit may change them - the parts of an entity the root mutation started mutating, and of one it never did, are
+	 * forgotten once it finishes, so a read made through the collector afterwards fetches them anew.
+	 *
+	 * @param state catalog state the scenario runs in
+	 */
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("forgets the parts read of other entities once the root mutation finishes")
+	void shouldForgetThePartsReadOfOtherEntitiesWhenRootMutationFinishes(@Nonnull CatalogState state) {
+		prepare(state);
+
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			(Consumer<EvitaSessionContract>) session -> {
+				final EntityMutation mutation = session.getEntity(ENTITY_PRODUCT, PRODUCT_PK, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setReference(REF_CATEGORIES, SECOND_CATEGORY_PK)
+					.toMutation()
+					.orElseThrow();
+				final EntityCollection products = collection(ENTITY_PRODUCT);
+				final LocalMutationExecutorCollector collector = products.createLocalMutationExecutorCollector();
+				final ForeignEntityStorageParts nestedBefore =
+					collector.getForeignEntityStorageParts(ENTITY_CATEGORY, SECOND_CATEGORY_PK);
+				final ForeignEntityStorageParts untouchedBefore =
+					collector.getForeignEntityStorageParts(ENTITY_CATEGORY, CATEGORY_PK);
+				assertSame(
+					untouchedBefore, collector.getForeignEntityStorageParts(ENTITY_CATEGORY, CATEGORY_PK),
+					"the parts of an entity are kept while the root mutation runs"
+				);
+
+				applyAsRootMutation(products, collector, session, mutation);
+
+				assertAll(
+					() -> assertNotSame(
+						nestedBefore, collector.getForeignEntityStorageParts(ENTITY_CATEGORY, SECOND_CATEGORY_PK),
+						"the parts of the entity the nested mutation mutated survived the root mutation"
+					),
+					() -> assertNotSame(
+						untouchedBefore, collector.getForeignEntityStorageParts(ENTITY_CATEGORY, CATEGORY_PK),
+						"the parts of an entity the root mutation did not mutate survived it"
+					)
+				);
 			}
 		);
 	}

@@ -1099,8 +1099,8 @@ public final class ContainerizedLocalMutationExecutor
 	 * Additionally, it validates the existence of the entity based on the expectation provided.
 	 *
 	 * When the requested `entityType` differs from the entity type being mutated by this executor,
-	 * the method delegates to the cross-entity data store reader without caching. This enables
-	 * expression evaluation proxies to transparently read storage parts from referenced or group
+	 * the method delegates to the cross-entity data store reader, without caching the part in this executor. This
+	 * enables expression evaluation proxies to transparently read storage parts from referenced or group
 	 * entity collections.
 	 *
 	 * Every read of another entity - of any type, this method and its siblings alike - first asks the
@@ -1108,7 +1108,9 @@ public final class ContainerizedLocalMutationExecutor
 	 * the part comes from that entity's own executor, so the read sees what the root mutation has applied to it
 	 * but not yet committed; that executor read and verified the body against its own expectation when it was
 	 * created, so `expects` is not verified again. Otherwise the part is read from the data store reader, which
-	 * ignores `expects` too and returns an empty body for a missing entity.
+	 * ignores `expects` too and returns an empty body for a missing entity - once within the root mutation, which
+	 * keeps the parts it reads of the entities it does not mutate (see {@link ForeignEntityStorageParts}); the body,
+	 * the attributes and the references are kept, the associated data and the prices are read every time.
 	 *
 	 * @param entityType the type of the entity being retrieved
 	 * @param entityPrimaryKey the primary key of the entity to retrieve
@@ -1163,12 +1165,23 @@ public final class ContainerizedLocalMutationExecutor
 			if (inFlightAccessor != null) {
 				return inFlightAccessor.getEntityStoragePart(entityType, entityPrimaryKey, expects);
 			}
-			// different entity (cross-entity or same-type parent) — non-cached read
+			// different entity the root mutation does not mutate — read once within the root mutation
+			final ForeignEntityStorageParts foreignParts =
+				this.inFlightAccessorLookup.getForeignEntityStorageParts(entityType, entityPrimaryKey);
+			final EntityBodyStoragePart readBody = foreignParts == null ? null : foreignParts.getBody();
+			if (readBody != null) {
+				return readBody;
+			}
 			final DataStoreReader reader = this.entityType.equals(entityType)
 				? this.dataStoreReader
 				: getCrossEntityDataStoreReader(entityType);
-			return ofNullable(reader.fetch(this.catalogVersion, entityPrimaryKey, EntityBodyStoragePart.class))
-				.orElseGet(() -> new EntityBodyStoragePart(entityPrimaryKey));
+			final EntityBodyStoragePart body = ofNullable(
+				reader.fetch(this.catalogVersion, entityPrimaryKey, EntityBodyStoragePart.class)
+			).orElseGet(() -> new EntityBodyStoragePart(entityPrimaryKey));
+			if (foreignParts != null) {
+				foreignParts.setBody(body);
+			}
+			return body;
 		}
 	}
 
@@ -1219,14 +1232,25 @@ public final class ContainerizedLocalMutationExecutor
 			if (inFlightAccessor != null) {
 				return inFlightAccessor.getAttributeStoragePart(entityType, entityPrimaryKey);
 			}
-			// different entity (cross-entity or same-type parent) — non-cached read
+			// different entity the root mutation does not mutate — read once within the root mutation
+			final ForeignEntityStorageParts foreignParts =
+				this.inFlightAccessorLookup.getForeignEntityStorageParts(entityType, entityPrimaryKey);
+			final AttributesStoragePart readAttributes =
+				foreignParts == null ? null : foreignParts.getGlobalAttributes();
+			if (readAttributes != null) {
+				return readAttributes;
+			}
 			final DataStoreReader reader = this.entityType.equals(entityType)
 				? this.dataStoreReader
 				: getCrossEntityDataStoreReader(entityType);
 			final EntityAttributesSetKey key = new EntityAttributesSetKey(entityPrimaryKey, null);
-			return ofNullable(reader.fetch(
+			final AttributesStoragePart attributes = ofNullable(reader.fetch(
 				this.catalogVersion, key, AttributesStoragePart.class, AttributesStoragePart::computeUniquePartId
 			)).orElseGet(() -> new AttributesStoragePart(entityPrimaryKey));
+			if (foreignParts != null) {
+				foreignParts.setGlobalAttributes(attributes);
+			}
+			return attributes;
 		}
 	}
 
@@ -1257,14 +1281,25 @@ public final class ContainerizedLocalMutationExecutor
 			if (inFlightAccessor != null) {
 				return inFlightAccessor.getAttributeStoragePart(entityType, entityPrimaryKey, locale);
 			}
-			// different entity (cross-entity or same-type parent) — non-cached read
+			// different entity the root mutation does not mutate — read once within the root mutation
+			final ForeignEntityStorageParts foreignParts =
+				this.inFlightAccessorLookup.getForeignEntityStorageParts(entityType, entityPrimaryKey);
+			final AttributesStoragePart readAttributes =
+				foreignParts == null ? null : foreignParts.getLocalizedAttributes(locale);
+			if (readAttributes != null) {
+				return readAttributes;
+			}
 			final DataStoreReader reader = this.entityType.equals(entityType)
 				? this.dataStoreReader
 				: getCrossEntityDataStoreReader(entityType);
 			final EntityAttributesSetKey key = new EntityAttributesSetKey(entityPrimaryKey, locale);
-			return ofNullable(reader.fetch(
+			final AttributesStoragePart attributes = ofNullable(reader.fetch(
 				this.catalogVersion, key, AttributesStoragePart.class, AttributesStoragePart::computeUniquePartId
 			)).orElseGet(() -> new AttributesStoragePart(entityPrimaryKey, locale));
+			if (foreignParts != null) {
+				foreignParts.setLocalizedAttributes(locale, attributes);
+			}
+			return attributes;
 		}
 	}
 
@@ -1390,12 +1425,22 @@ public final class ContainerizedLocalMutationExecutor
 			if (inFlightAccessor != null) {
 				return inFlightAccessor.getReferencesStoragePart(entityType, entityPrimaryKey);
 			}
-			// different entity (cross-entity or same-type parent) — non-cached read
+			// different entity the root mutation does not mutate — read once within the root mutation
+			final ForeignEntityStorageParts foreignParts =
+				this.inFlightAccessorLookup.getForeignEntityStorageParts(entityType, entityPrimaryKey);
+			final ReferencesStoragePart readReferences = foreignParts == null ? null : foreignParts.getReferences();
+			if (readReferences != null) {
+				return readReferences;
+			}
 			final DataStoreReader reader = this.entityType.equals(entityType)
 				? this.dataStoreReader
 				: getCrossEntityDataStoreReader(entityType);
-			return ofNullable(fetchCompleteReferences(reader, entityPrimaryKey))
+			final ReferencesStoragePart references = ofNullable(fetchCompleteReferences(reader, entityPrimaryKey))
 				.orElseGet(() -> new ReferencesStoragePart(entityPrimaryKey));
+			if (foreignParts != null) {
+				foreignParts.setReferences(references);
+			}
+			return references;
 		}
 	}
 
@@ -1757,6 +1802,12 @@ public final class ContainerizedLocalMutationExecutor
 		final WritableEntityStorageContainerAccessor inFlightAccessor =
 			this.inFlightAccessorLookup.findInFlightAccessor(this.entityType, entityPrimaryKey);
 		return inFlightAccessor == null ? new OtherEntityAccessor(this) : inFlightAccessor;
+	}
+
+	@Override
+	public boolean isOtherEntityInFlight(int entityPrimaryKey) {
+		return entityPrimaryKey == this.entityPrimaryKey ||
+			this.inFlightAccessorLookup.findInFlightAccessor(this.entityType, entityPrimaryKey) != null;
 	}
 
 	/**
@@ -4244,8 +4295,9 @@ public final class ContainerizedLocalMutationExecutor
 	/**
 	 * A read-only accessor of an entity of the executor's own type that the root mutation does not mutate - see
 	 * {@link ContainerizedLocalMutationExecutor#getAccessorOfOtherEntity(int)}. Every read goes through the executor,
-	 * whose branches for other entities than its own ask the {@link InFlightEntityAccessorLookup} first and read the
-	 * data store otherwise, without caching. The entity has no pending locale change, no price identifier assigned in
+	 * whose branches for other entities than its own ask the {@link InFlightEntityAccessorLookup} first and otherwise
+	 * answer from the parts the root mutation has read of the entity already, reading the data store only for a part
+	 * it has not (see {@link ForeignEntityStorageParts}). The entity has no pending locale change, no price identifier assigned in
 	 * the root mutation and is not being removed, and nothing may change it through this accessor.
 	 */
 	private static final class OtherEntityAccessor implements WritableEntityStorageContainerAccessor {
@@ -4356,6 +4408,11 @@ public final class ContainerizedLocalMutationExecutor
 		@Override
 		public WritableEntityStorageContainerAccessor getAccessorOfOtherEntity(int entityPrimaryKey) {
 			return this.executor.getAccessorOfOtherEntity(entityPrimaryKey);
+		}
+
+		@Override
+		public boolean isOtherEntityInFlight(int entityPrimaryKey) {
+			return this.executor.isOtherEntityInFlight(entityPrimaryKey);
 		}
 	}
 

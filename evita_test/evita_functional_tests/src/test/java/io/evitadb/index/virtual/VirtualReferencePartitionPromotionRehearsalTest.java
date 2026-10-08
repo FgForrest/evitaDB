@@ -61,8 +61,6 @@ import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.updateProduct
 import static io.evitadb.index.virtual.VirtualReferencePartitionMirrorTest.ATTRIBUTE_CATEGORY_ORDER;
 import static io.evitadb.index.virtual.VirtualReferencePartitionMirrorTest.ATTRIBUTE_PRODUCT_ORDER;
 import static io.evitadb.index.virtual.VirtualReferencePartitionMirrorTest.ATTRIBUTE_SPAN;
-import static io.evitadb.index.virtual.VirtualReferencePartitionMirrorTest.COMPOUND_LABEL_AND_PRICE;
-import static io.evitadb.index.virtual.VirtualReferencePartitionMirrorTest.COMPOUND_TYPED;
 import static io.evitadb.index.virtual.VirtualReferencePartitionMirrorTest.DECIMAL_PLACES;
 import static io.evitadb.index.virtual.VirtualReferencePartitionMirrorTest.fillReference;
 import static io.evitadb.index.virtual.VirtualReferencePartitionMirrorTest.spanOf;
@@ -131,12 +129,6 @@ class VirtualReferencePartitionPromotionRehearsalTest implements EvitaTestSuppor
 	 * A localized compound of the locale fixture: the label, then the order descending with nulls first.
 	 */
 	private static final String COMPOUND_LABEL_AND_ORDER = "labelAndOrder";
-	/**
-	 * Every sortable attribute compound of every fixture.
-	 */
-	private static final Set<String> COMPOUNDS = Set.of(
-		COMPOUND_LABEL_AND_PRICE, COMPOUND_TYPED, COMPOUND_LABEL_AND_ORDER
-	);
 	/**
 	 * A product none of the fixtures creates.
 	 */
@@ -284,8 +276,8 @@ class VirtualReferencePartitionPromotionRehearsalTest implements EvitaTestSuppor
 
 	@ParameterizedTest(name = "{0}")
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
-	@DisplayName("a locale the first owner loses in the promoting root mutation is left out of the rebuilt partition")
-	void shouldLeaveOutALocaleTheFirstOwnerLosesInTheSameRootMutation(CatalogState state) {
+	@DisplayName("a locale the first owner loses in the promoting root mutation is kept until its finalization")
+	void shouldKeepALocaleTheFirstOwnerLosesInTheSameRootMutation(CatalogState state) {
 		final DifferentialEngines theEngines = start(
 			"removedLocale", state, VirtualReferencePartitionPromotionRehearsalTest::setUpLocales
 		);
@@ -312,16 +304,19 @@ class VirtualReferencePartitionPromotionRehearsalTest implements EvitaTestSuppor
 			productSide.pendingLocales().stream().anyMatch(it -> it.startsWith("-cs")),
 			"the first owner must have had the Czech locale pending for removal: " + productSide
 		);
+		// the rebuilt partition holds the locales before the root mutation, as the live one does until the first
+		// owner's mutation applies its changes and moves both
 		assertTrue(
-			productSide.rebuilt().keySet().stream().noneMatch(it -> it.endsWith("cs")),
-			"the rebuilt partition must not know the Czech locale: " + productSide.rebuilt()
+			productSide.rebuilt().containsKey("language/cs") &&
+				productSide.rebuilt().containsKey("sort/categories." + COMPOUND_LABEL_AND_ORDER + "@cs"),
+			"the rebuilt partition must still know the Czech locale: " + productSide.rebuilt()
 		);
 	}
 
 	@ParameterizedTest(name = "{0}")
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
-	@DisplayName("a locale the first owner gains in the promoting root mutation is rebuilt as its finalization adds it")
-	void shouldRebuildALocaleTheFirstOwnerGainsInTheSameRootMutation(CatalogState state) {
+	@DisplayName("a locale the first owner gains in the promoting root mutation is left to its finalization")
+	void shouldLeaveALocaleTheFirstOwnerGainsInTheSameRootMutationToItsFinalization(CatalogState state) {
 		final DifferentialEngines theEngines = start(
 			"addedLocale", state, VirtualReferencePartitionPromotionRehearsalTest::setUpLocales
 		);
@@ -347,9 +342,15 @@ class VirtualReferencePartitionPromotionRehearsalTest implements EvitaTestSuppor
 			productSide.pendingLocales().stream().anyMatch(it -> it.startsWith("+de")),
 			"the first owner must have had the German locale pending for addition: " + productSide
 		);
+		// the rebuilt partition holds the locales before the root mutation, as the live one does until the first
+		// owner's mutation applies its changes and moves both
 		assertTrue(
-			PromotionRehearsalInspector.assertDeferredMatch(theEngines.getMaintaining(), outcomes) > 0,
-			"the German compound of the first owner must have been compared once its mutation applied its changes"
+			productSide.rebuilt().keySet().stream().noneMatch(it -> it.endsWith("de")),
+			"the rebuilt partition must not know the German locale yet: " + productSide.rebuilt()
+		);
+		assertTrue(
+			productSide.rebuilt().containsKey("sort/categories." + COMPOUND_LABEL_AND_ORDER + "@en"),
+			"the comparison must cover the localized compound of a locale the first owner had: " + productSide
 		);
 	}
 
@@ -459,7 +460,7 @@ class VirtualReferencePartitionPromotionRehearsalTest implements EvitaTestSuppor
 		final DifferentialEngines theEngines = new DifferentialEngines(this, label, ENTITY_TYPES);
 		this.engines = theEngines;
 		theEngines.prepare(state, setup);
-		final PromotionRehearsalInspector theInspector = new PromotionRehearsalInspector(COMPOUNDS);
+		final PromotionRehearsalInspector theInspector = new PromotionRehearsalInspector();
 		this.inspector = theInspector;
 		theEngines.getMaintainingHistory().setPromotionInspector(theInspector);
 		return theEngines;

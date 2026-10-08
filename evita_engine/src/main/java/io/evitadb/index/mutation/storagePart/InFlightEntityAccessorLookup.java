@@ -65,4 +65,24 @@ public interface InFlightEntityAccessorLookup {
 	@Nullable
 	WritableEntityStorageContainerAccessor findInFlightAccessor(@Nonnull String entityType, int entityPrimaryKey);
 
+	/**
+	 * Returns the storage parts of an entity the current root mutation does not mutate that it has read so far - the
+	 * holder is created empty when the entity is asked for first, and the caller fills it with the parts it reads. An
+	 * entity the root mutation does not mutate cannot change while it runs, so a part read once answers every later
+	 * read of it within the root mutation (see {@link ForeignEntityStorageParts}).
+	 *
+	 * Ask only after {@link #findInFlightAccessor(String, int)} found no executor of the entity: the parts of an entity
+	 * being mutated live in its executor, and the holder of an entity is dropped when the entity starts being mutated.
+	 *
+	 * The default keeps nothing, so every read goes to the data store reader.
+	 *
+	 * @param entityType       the entity collection name
+	 * @param entityPrimaryKey the primary key of the entity
+	 * @return the parts of the entity read so far, or `null` when the lookup keeps none
+	 */
+	@Nullable
+	default ForeignEntityStorageParts getForeignEntityStorageParts(@Nonnull String entityType, int entityPrimaryKey) {
+		return null;
+	}
+
 }

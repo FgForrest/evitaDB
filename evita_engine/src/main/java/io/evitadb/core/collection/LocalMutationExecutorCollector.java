@@ -62,6 +62,7 @@ import io.evitadb.index.mutation.ReevaluateExpressionMutation;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.local.PartitionReservations;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
+import io.evitadb.index.mutation.storagePart.ForeignEntityStorageParts;
 import io.evitadb.index.mutation.storagePart.InFlightEntityAccessorLookup;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
@@ -119,7 +120,7 @@ import static io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @RequiredArgsConstructor
-class LocalMutationExecutorCollector {
+class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 	/**
 	 * The timestamp when the collector was created.
 	 */
@@ -163,6 +164,21 @@ class LocalMutationExecutorCollector {
 	 * Allocated by the first registration, i.e. once per root mutation.
 	 */
 	@Nullable private Map<InFlightEntityKey, ContainerizedLocalMutationExecutor> inFlightExecutors;
+	/**
+	 * The storage parts this root mutation has read of the entities it does not mutate, keyed by the entity - the
+	 * answer of {@link #getForeignEntityStorageParts}, consulted by the storage-part executors only after
+	 * {@link #findInFlightAccessor} found no executor of the entity. An entity the root mutation does not mutate cannot
+	 * change while it runs, so a part read once serves every later read of it, however many executors and populations
+	 * of reference partitions read it.
+	 *
+	 * The parts of an entity are dropped when the entity starts being mutated (see {@link #registerInFlightExecutor}) -
+	 * its executor answers every read of it from then on - and all of them are dropped when the root mutation finishes,
+	 * committed or rolled back. The map is not capped: it holds at most the entities the root mutation reads without
+	 * mutating them.
+	 *
+	 * Allocated by the first read, which most root mutations never make.
+	 */
+	@Nullable private Map<InFlightEntityKey, ForeignEntityStorageParts> foreignStorageParts;
 	/**
 	 * The primary keys of the partitions without an index object this root mutation has vacated, reserved for an owner
 	 * entering a partition of the same key again within it, and whether the root mutation is finishing - handed to
@@ -255,7 +271,7 @@ class LocalMutationExecutorCollector {
 	private boolean trunkReplay;
 
 	/**
-	 * Key of {@link #inFlightExecutors} — identifies the entity an executor mutates.
+	 * Key of {@link #inFlightExecutors} and {@link #foreignStorageParts} — identifies an entity of the root mutation.
 	 *
 	 * @param entityType       the entity collection name
 	 * @param entityPrimaryKey the primary key of the entity
@@ -719,14 +735,39 @@ class LocalMutationExecutorCollector {
 	 *         finished
 	 */
 	@Nullable
-	WritableEntityStorageContainerAccessor findInFlightAccessor(@Nonnull String entityType, int entityPrimaryKey) {
+	@Override
+	public WritableEntityStorageContainerAccessor findInFlightAccessor(
+		@Nonnull String entityType,
+		int entityPrimaryKey
+	) {
 		return this.inFlightExecutors == null
 			? null
 			: this.inFlightExecutors.get(new InFlightEntityKey(entityType, entityPrimaryKey));
 	}
 
 	/**
-	 * Registers the storage-part executor of a mutation entering {@link #execute} into {@link #inFlightExecutors}.
+	 * Returns the storage parts this root mutation has read so far of an entity it does not mutate, creating the
+	 * holder empty when the entity is asked for first. See {@link #foreignStorageParts}.
+	 *
+	 * @param entityType       the entity collection name
+	 * @param entityPrimaryKey the primary key of the entity
+	 * @return the parts of the entity read so far
+	 */
+	@Nonnull
+	@Override
+	public ForeignEntityStorageParts getForeignEntityStorageParts(@Nonnull String entityType, int entityPrimaryKey) {
+		if (this.foreignStorageParts == null) {
+			this.foreignStorageParts = CollectionUtils.createHashMap(4);
+		}
+		return this.foreignStorageParts.computeIfAbsent(
+			new InFlightEntityKey(entityType, entityPrimaryKey), key -> new ForeignEntityStorageParts()
+		);
+	}
+
+	/**
+	 * Registers the storage-part executor of a mutation entering {@link #execute} into {@link #inFlightExecutors}, and
+	 * drops the storage parts of its entity read before it - the executor answers every read of the entity from now on,
+	 * and the entity's parts change with it (see {@link #foreignStorageParts}).
 	 *
 	 * An entity is expected to have at most one executor per root mutation: the external mutations an executor spawns
 	 * are merged per target entity, and the nested mutations spawn none that lead back to an entity already in flight.
@@ -739,9 +780,11 @@ class LocalMutationExecutorCollector {
 		if (this.inFlightExecutors == null) {
 			this.inFlightExecutors = CollectionUtils.createHashMap(4);
 		}
-		this.inFlightExecutors.put(
-			new InFlightEntityKey(executor.getEntityType(), executor.getEntityPrimaryKey()), executor
-		);
+		final InFlightEntityKey key = new InFlightEntityKey(executor.getEntityType(), executor.getEntityPrimaryKey());
+		this.inFlightExecutors.put(key, executor);
+		if (this.foreignStorageParts != null) {
+			this.foreignStorageParts.remove(key);
+		}
 	}
 
 	/**
@@ -785,9 +828,11 @@ class LocalMutationExecutorCollector {
 				this, this.exception == null, this.trunkReplay
 			);
 		} finally {
-			// the executors are committed or rolled back - none of them is in flight any longer, and the partitions
-			// vacated by the root mutation nobody entered again are gone
+			// the executors are committed or rolled back - none of them is in flight any longer, the parts read of
+			// the other entities may be outdated by the commit, and the partitions vacated by the root mutation
+			// nobody entered again are gone
 			this.inFlightExecutors = null;
+			this.foreignStorageParts = null;
 			this.partitionReservations.clear();
 		}
 	}

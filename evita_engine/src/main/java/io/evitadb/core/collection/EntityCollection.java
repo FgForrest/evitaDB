@@ -3973,8 +3973,8 @@ public final class EntityCollection implements
 				.map(EntityCollection::getDataStoreReader)
 				.orElse(null),
 			// the collector is shared by the whole root mutation, so this finds the entities its nested mutations
-			// mutate in other collections as well
-			localMutationExecutorCollector::findInFlightAccessor,
+			// mutate in other collections as well, and keeps the parts read of the entities none of them mutates
+			localMutationExecutorCollector,
 			this::nextInternalPriceId,
 			entityMutation instanceof EntityRemoveMutation,
 			// TODO JNO - remove at the end of #1615

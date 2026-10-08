@@ -69,6 +69,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -469,6 +470,34 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 				1, EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this.partitionExecutor.getOwnerPrimaryKey(),
 				"the executor it was created from keeps writing as its own owner"
 			);
+		}
+
+		@Test
+		@DisplayName("the executor of an owner the root mutation does not mutate is handed out again")
+		void shouldHandOutTheSameExecutorWhenTheOwnerIsNotMutated() {
+			final EntityIndexLocalMutationExecutor first = otherOwnerExecutor();
+			final EntityIndexLocalMutationExecutor second =
+				EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this.partitionExecutor
+					.createExecutorOfOtherOwner(OTHER_OWNER_PK);
+			assertSame(first, second, "the owner cannot change while the root mutation runs");
+			assertEquals(OTHER_OWNER_PK, second.getOwnerPrimaryKey());
+		}
+
+		@Test
+		@DisplayName("an owner the root mutation started mutating gets a new executor on every call")
+		void shouldCreateANewExecutorEveryTimeWhenTheOwnerIsMutated() {
+			final EntityIndexLocalMutationExecutor remembered = otherOwnerExecutor();
+			EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this.containerAccessor
+				.markOtherEntityInFlight(OTHER_OWNER_PK);
+			final EntityIndexLocalMutationExecutor afterMutationStarted =
+				EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this.partitionExecutor
+					.createExecutorOfOtherOwner(OTHER_OWNER_PK);
+			final EntityIndexLocalMutationExecutor again =
+				EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this.partitionExecutor
+					.createExecutorOfOtherOwner(OTHER_OWNER_PK);
+			assertNotSame(remembered, afterMutationStarted, "the remembered executor reads the owner's old state");
+			assertNotSame(afterMutationStarted, again, "the state of an owner being mutated goes on changing");
+			assertEquals(OTHER_OWNER_PK, again.getOwnerPrimaryKey());
 		}
 
 		@Test
