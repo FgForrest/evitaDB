@@ -25,6 +25,7 @@ package io.evitadb.core.buffer;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
+import com.carrotsearch.hppc.LongHashSet;
 import com.carrotsearch.hppc.LongObjectHashMap;
 import com.carrotsearch.hppc.LongObjectMap;
 import com.carrotsearch.hppc.ObjectContainer;
@@ -47,6 +48,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStor
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePartKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import io.evitadb.utils.Assert;
@@ -145,13 +147,25 @@ public class DataStoreChanges
 	 */
 	@Nonnull private StoragePartPersistenceService<StorageDescriptor> persistenceService;
 	/**
-	 * Undo journal recording the inverse of every dirty-index mutation ({@link #dirtyEntityIndexes} /
-	 * {@link #dirtyEntityIndexesByPk}) while a savepoint is open, so {@link #snapshot()} is `O(1)` (a journal mark)
-	 * instead of deep-copying the whole catalog/collection-wide accumulated dirty-index maps per per-entity savepoint —
-	 * the rollback cliff. Lazily allocated on the first {@link #snapshot()} (null for non-savepoint mutations, which pay
-	 * nothing) and drained back to null when the savepoint commits (see {@link #releaseMemento(DataStoreChangesMemento)}).
+	 * Undo journal recording, while a savepoint is open, the inverse of every change to this layer's revertable
+	 * in-memory state: dirty-index mutations ({@link #dirtyEntityIndexes} / {@link #dirtyEntityIndexesByPk}), trapped
+	 * slot changes, truncations of {@link #pendingIndexRemovalParts}, and the content pre-images of trapped parts
+	 * handed out by reference. That keeps {@link #snapshot()} `O(1)` (a journal mark) instead of deep-copying the whole
+	 * catalog/collection-wide accumulated state per per-entity savepoint — the rollback cliff. Lazily allocated on the
+	 * first {@link #snapshot()} (null for non-savepoint mutations, which pay nothing) and dropped back to null whenever
+	 * it drains empty, on commit and on rollback alike (see {@link #dropUndoJournalWhenDrained()}).
+	 *
+	 * A non-null journal is therefore the signal that a savepoint is open over this layer:
+	 * {@link #journalTrappedContent(long, Class)} relies on it to skip the pre-image copy on every other read.
 	 */
 	@Nullable private UndoJournal undoJournal;
+	/**
+	 * The trapped slots, per storage-part type, whose content pre-image the current savepoint has already journalled
+	 * (see {@link #journalTrappedContent(long, Class)}). A later read of the same slot inside the same savepoint takes
+	 * no further copy. Reset by {@link #snapshot()}, because a new savepoint must capture afresh, and dropped together
+	 * with a drained {@link #undoJournal}.
+	 */
+	@Nullable private Map<Class<? extends StoragePart>, LongHashSet> slotsWithPreImage;
 	/**
 	 * Whether this instance's flush feeds a merge that PRUNES on the dirty-index-key snapshot, and must therefore
 	 * capture {@link #lastCommittedDirtyIndexKeys}. True only for an {@code EntityCollection} diff layer — the shared,
@@ -257,11 +271,15 @@ public class DataStoreChanges
 	 * The {@link #persistenceService} reference itself is intentionally not part of the memento (it changes only on
 	 * store compaction, never inside a mutation).
 	 *
-	 * Nothing is copied: BOTH the dirty-index tracking and the trapped storage-part cache are rewound by replaying the
-	 * journal down to the captured mark, so the memento is an `int` and a snapshot costs nothing that grows with the
-	 * accumulated state. The {@link Index} values are shared by reference on purpose: their own transactional layers
-	 * are snapshotted independently, so the memento only needs to remember *which* indexes were dirty, not their
-	 * contents.
+	 * The snapshot copies nothing: BOTH the dirty-index tracking and the trapped storage-part cache are rewound by
+	 * replaying the journal down to the captured mark, so the memento is an `int` and a snapshot costs nothing that
+	 * grows with the accumulated state. The one copy the mechanism makes is per trapped part, not per snapshot: a
+	 * trapped part is handed out by reference and mutated in place, so restoring its slot would not restore its
+	 * content, and a {@link EntityStoragePart#createPreImage() pre-image} of it is journalled when it is read inside
+	 * the savepoint instead (see {@link #journalTrappedContent(long, Class)}). That cost is paid on the read and grows
+	 * with the part, never with the accumulated state. The {@link Index} values are shared by reference on purpose:
+	 * their own transactional layers are snapshotted independently, so the memento only needs to remember *which*
+	 * indexes were dirty, not their contents.
 	 */
 	@Nonnull
 	@Override
@@ -269,6 +287,8 @@ public class DataStoreChanges
 		if (this.undoJournal == null) {
 			this.undoJournal = new UndoJournal();
 		}
+		// a new savepoint has captured no slot yet - every first read inside it must take its own pre-image
+		this.slotsWithPreImage = null;
 		return new DataStoreChangesMemento(this.undoJournal.mark());
 	}
 
@@ -286,6 +306,7 @@ public class DataStoreChanges
 		UndoJournal.assertRestorable(this.undoJournal, memento.mark());
 		if (this.undoJournal != null) {
 			this.undoJournal.rollbackTo(memento.mark());
+			dropUndoJournalWhenDrained();
 		}
 	}
 
@@ -300,9 +321,20 @@ public class DataStoreChanges
 	public void releaseMemento(@Nonnull DataStoreChangesMemento memento) {
 		if (this.undoJournal != null) {
 			this.undoJournal.releaseFrom(memento.mark());
-			if (this.undoJournal.isEmpty()) {
-				this.undoJournal = null;
-			}
+			dropUndoJournalWhenDrained();
+		}
+	}
+
+	/**
+	 * Nulls out {@link #undoJournal} once no savepoint has anything left in it, after a restore and after a release
+	 * alike. A non-null journal is what tells the trapped-part read that a savepoint is open (see
+	 * {@link #journalTrappedContent(long, Class)}), so an empty one left behind would make every read of a trapped part
+	 * outside any savepoint pay for a pre-image no rollback will ever replay.
+	 */
+	private void dropUndoJournalWhenDrained() {
+		if (this.undoJournal != null && this.undoJournal.isEmpty()) {
+			this.undoJournal = null;
+			this.slotsWithPreImage = null;
 		}
 	}
 
@@ -317,7 +349,9 @@ public class DataStoreChanges
 	 * it exists.
 	 *
 	 * Called from every method that mutates the state {@link #snapshot()} captures — the dirty-index tracking and the
-	 * trapped storage-part cache. Deliberately NOT called from {@link #setPersistenceService} (not part of the memento;
+	 * trapped storage-part cache — and from the one read that journals into it: handing out a trapped part (see
+	 * {@link #journalTrappedContent(long, Class)}), whose content pre-image must land in the journal this touch
+	 * allocates. Deliberately NOT called from {@link #setPersistenceService} (not part of the memento;
 	 * it changes only on store compaction, never inside an entity mutation) nor from {@link #popTrappedUpdates()} (the
 	 * flush, which runs between entity mutations and drains this layer wholesale rather than mutating it as part of
 	 * one).
@@ -429,6 +463,89 @@ public class DataStoreChanges
 					inner.remove(primaryKey);
 				}
 			}
+		});
+	}
+
+	/**
+	 * Records the inverse that puts the CURRENT CONTENT of the part trapped under `(containerType, primaryKey)` back
+	 * into its slot, so a savepoint rollback undoes whatever its holder does to that instance from now on. No-op unless
+	 * a savepoint is open over this layer and the slot holds a live part.
+	 *
+	 * {@link #getStoragePart} calls this for every trapped part it hands out. The storage executor calls it, through
+	 * {@link DataStoreMemoryBuffer#journalTrappedContent}, for the parts it fetched BEFORE the root mutation's
+	 * savepoint opened — its constructor reads the entity body, and the collector opens the bracket only afterwards,
+	 * so that read recorded nothing.
+	 *
+	 * **Why the slot journal is not enough.** {@link #journalTrappedChange} restores which instance a slot holds. But
+	 * {@link #getStoragePart} hands out the trapped instance itself, and the storage executor caches it and mutates it
+	 * in place while it applies a mutation — long before (or without ever) putting it back through
+	 * {@link #trapPutStoragePart}. Restoring the slot to that instance restores nothing, so a failed root mutation
+	 * would leave its writes in the part: a later reader in the same transaction sees them, and in WARM_UP the next
+	 * flush persists them. The inverse therefore installs a {@link EntityStoragePart#createPreImage() pre-image}
+	 * taken now, and the mutated instance — held only by the executors of the failed mutation — is dropped.
+	 *
+	 * **Ordering.** The inverse is an absolute restore like every other one in the journal. A later slot change
+	 * inside the same savepoint pushes its own inverse after this one, so the strict-reverse replay runs it first and
+	 * this one last: the slot ends at the pre-image.
+	 *
+	 * **Once per slot and savepoint.** Because the earliest pre-image of a slot runs last and wins, every later one
+	 * would be overwritten on rollback — whichever instance the slot holds by then. So only the first read of a slot
+	 * inside a savepoint takes a copy (see {@link #slotsWithPreImage}). Taking one per read would retain `K` full
+	 * copies of a part read `K` times, which is quadratic when a lookup loop re-reads a large references part per
+	 * iteration.
+	 *
+	 * **Registration.** A non-null {@link #undoJournal} is the signal that a savepoint is open. In WARM_UP the read
+	 * records the layer's first touch, which takes the snapshot that allocates the journal; in a transaction the
+	 * buffer fetches this layer through the write-variant accessor, which records the snapshot before the read (see
+	 * `TransactionalDataStoreMemoryBuffer#fetch`). Either way the journal mark is taken before this push, so the
+	 * rollback replays it.
+	 *
+	 * Only {@link EntityStoragePart} instances are mutated by their readers — they are the only parts the storage
+	 * executor traps — so any other part type is left alone.
+	 *
+	 * @param primaryKey    the primary key of the slot
+	 * @param containerType the storage-part type of the slot
+	 */
+	public void journalTrappedContent(long primaryKey, @Nonnull Class<? extends StoragePart> containerType) {
+		final Map<Class<? extends StoragePart>, LongObjectMap<StoragePart>> outer = this.trappedChanges;
+		final LongObjectMap<StoragePart> slots = outer == null ? null : outer.get(containerType);
+		final StoragePart storagePart = slots == null ? null : slots.get(primaryKey);
+		if (storagePart != null && !(storagePart instanceof RemovedStoragePart)) {
+			journalTrappedContent(slots, primaryKey, storagePart);
+		}
+	}
+
+	/**
+	 * Records the inverse that puts the CURRENT CONTENT of a trapped part back into its slot - see
+	 * {@link #journalTrappedContent(long, Class)} for the public entry and the reasoning.
+	 *
+	 * @param slots       the per-type map of trapped parts that holds `storagePart`
+	 * @param primaryKey  the primary key of the slot
+	 * @param storagePart the trapped instance about to be handed out
+	 */
+	private void journalTrappedContent(
+		@Nonnull LongObjectMap<StoragePart> slots,
+		long primaryKey,
+		@Nonnull StoragePart storagePart
+	) {
+		recordWarmUpSavepointTouch();
+		if (this.undoJournal == null || !(storagePart instanceof EntityStoragePart entityStoragePart)) {
+			return;
+		}
+		Map<Class<? extends StoragePart>, LongHashSet> taken = this.slotsWithPreImage;
+		if (taken == null) {
+			taken = createHashMap(4);
+			this.slotsWithPreImage = taken;
+		}
+		if (!taken.computeIfAbsent(storagePart.getClass(), type -> new LongHashSet(16)).add(primaryKey)) {
+			// this savepoint already holds the earliest pre-image of the slot, which is the one a rollback keeps
+			return;
+		}
+		final Map<Class<? extends StoragePart>, LongObjectMap<StoragePart>> outer = this.trappedChanges;
+		final EntityStoragePart preImage = entityStoragePart.createPreImage();
+		this.undoJournal.push(() -> {
+			this.trappedChanges = outer;
+			slots.put(primaryKey, preImage);
 		});
 	}
 
@@ -546,6 +663,10 @@ public class DataStoreChanges
 	/**
 	 * Retrieves a storage part from the local trapped changes cache if available, otherwise fetches it from the persistence service.
 	 *
+	 * A trapped part is returned by reference — the very instance this layer keeps — so while a savepoint is open over
+	 * this layer the read also journals an `O(part size)` copy of its current content for the rollback to restore (see
+	 * {@link #journalTrappedContent(long, Class)}).
+	 *
 	 * @param catalogVersion the current version of the catalog to read from
 	 * @param primaryKey primary key of the storage part to retrieve
 	 * @param containerType class type of the storage part container
@@ -562,6 +683,9 @@ public class DataStoreChanges
 					if (storagePart instanceof RemovedStoragePart) {
 						return null;
 					}
+					// the caller receives the trapped instance itself and may mutate it in place, so its content is
+					// journalled before it leaves this layer
+					journalTrappedContent(trappedChanges, primaryKey, storagePart);
 					// this transaction wrote the part and is now reading it back - the storage was never touched,
 					// and only this layer can say so (see StorageAccessScope#noteRecordServedFromMemory)
 					StorageAccessScope.noteRecordServedFromMemory(storagePart);
