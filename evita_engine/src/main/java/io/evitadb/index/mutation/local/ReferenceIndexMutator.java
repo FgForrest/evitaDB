@@ -3738,16 +3738,17 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Returns the locales of one kind the entity had before its current mutation started - the locales its reduced
-	 * indexes hold until {@link EntityIndexLocalMutationExecutor#applyChanges()} moves the indexes of the references
-	 * the entity has then to the locales the mutation added or removed. The entity body, by contrast, changes its
-	 * locales the moment the first or the last localized value lands, so its current locales differ from those of the
-	 * indexes by exactly the locales added and removed so far.
+	 * Returns the locales of one kind the entity had before its current mutation started - the locales its global
+	 * index and its reduced indexes hold until {@link EntityIndexLocalMutationExecutor#applyChanges()} moves the global
+	 * index and the indexes of the references the entity has then to the locales the mutation added or removed. The
+	 * entity body, by contrast, changes its locales the moment the first or the last localized value lands, so its
+	 * current locales differ from those of the indexes by exactly the locales added and removed so far.
 	 *
-	 * A reduced index the entity enters or leaves in the middle of the mutation must therefore be populated or cleared
-	 * with these locales, whichever order the mutation lists its local mutations in: an index cleared of the current
-	 * locales would be asked for a locale it never received, an index populated with them would receive a locale the
-	 * end of the mutation adds again, or keep a locale the end of the mutation does not remove.
+	 * A reduced index the entity enters or leaves in the middle of the mutation, and the global index of the scope the
+	 * entity leaves or enters when the mutation changes its scope, must therefore be populated or cleared with these
+	 * locales, whichever order the mutation lists its local mutations in: an index cleared of the current locales would
+	 * be asked for a locale it never received, an index populated with them would receive a locale the end of the
+	 * mutation adds again, or keep a locale the end of the mutation does not remove.
 	 *
 	 * @param containerAccessor the accessor tracking the locales the mutation added and removed so far
 	 * @param currentLocales    the locales of the given kind the entity body has now
@@ -3755,7 +3756,7 @@ public interface ReferenceIndexMutator {
 	 * @return the locales of the given kind before the mutation, `currentLocales` itself when the mutation changed none
 	 */
 	@Nonnull
-	private static Set<Locale> getLocalesBeforeMutation(
+	static Set<Locale> getLocalesBeforeMutation(
 		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
 		@Nonnull Set<Locale> currentLocales,
 		@Nonnull LocaleScope scope

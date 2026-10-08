@@ -104,6 +104,7 @@ import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleScope;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleWithScope;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.spi.store.catalog.shared.model.PriceWithInternalIds;
@@ -3334,9 +3335,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Unindexes the locales associated with the provided entity.
-	 * This method iterates through each locale in the entity and ensures that
-	 * the locale is removed from the global index.
+	 * Unindexes the locales associated with the provided entity from the global index - the sortable attribute
+	 * compounds of every attribute locale and the language of every entity locale the global index holds for it.
+	 *
+	 * Those are the locales the entity had before its running mutation (see
+	 * {@link ReferenceIndexMutator#getLocalesBeforeMutation}), not the locales its body has now: the body gains or loses
+	 * a locale the moment the first or the last localized value lands, while the global index learns about it only in
+	 * {@link #applyChanges()}. A locale the mutation removed earlier is therefore still in the source scope and must be
+	 * removed from it here, and a locale it added has never reached the source scope.
 	 *
 	 * @param entity                      The entity whose locales are to be unindexed.
 	 * @param entitySchema                The schema of the entity for which locales are being unindexed.
@@ -3350,10 +3356,17 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull EntityExistingDataFactory existingDataSupplierFactory
 	) {
 		final int epk = entity.getPrimaryKeyOrThrowException();
-		for (Locale locale : entity.getAttributeLocales()) {
+		final EntityBodyStoragePart entityCnt = this.containerAccessor.getEntityStoragePart(
+			this.entityType, epk, EntityExistence.MUST_EXIST
+		);
+		for (Locale locale : ReferenceIndexMutator.getLocalesBeforeMutation(
+			this.containerAccessor, entityCnt.getAttributeLocales(), LocaleScope.ATTRIBUTE
+		)) {
 			removeEntityAttributeLocaleInTargetIndex(locale, entitySchema, globalIndex, existingDataSupplierFactory);
 		}
-		for (Locale locale : entity.getLocales()) {
+		for (Locale locale : ReferenceIndexMutator.getLocalesBeforeMutation(
+			this.containerAccessor, entityCnt.getLocales(), LocaleScope.ENTITY
+		)) {
 			removeEntityLocaleInTargetIndex(locale, entitySchema, globalIndex, epk);
 		}
 	}
@@ -3605,8 +3618,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Indexes all locales for the given entity by invoking the method to upsert language-specific entities
-	 * into the target index.
+	 * Indexes all locales for the given entity into the global index - the sortable attribute compounds of every
+	 * attribute locale and the language of every entity locale.
+	 *
+	 * Those are the locales the entity had before its running mutation (see
+	 * {@link ReferenceIndexMutator#getLocalesBeforeMutation}), exactly as the reduced indexes the entity enters in the
+	 * target scope receive them: {@link #applyChanges()} then moves the global index and every reduced index of the
+	 * entity in the target scope to the locales the mutation added or removed. Indexing the locales the body has now
+	 * would make it add a locale the target scope holds already and remove one it never received.
 	 *
 	 * @param entity                      The entity containing locales to be indexed.
 	 * @param entitySchema                The schema of the entity providing structure and constraints.
@@ -3620,10 +3639,17 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull EntityExistingDataFactory existingDataSupplierFactory
 	) {
 		final int epk = entity.getPrimaryKeyOrThrowException();
-		for (Locale locale : entity.getAttributeLocales()) {
+		final EntityBodyStoragePart entityCnt = this.containerAccessor.getEntityStoragePart(
+			this.entityType, epk, EntityExistence.MUST_EXIST
+		);
+		for (Locale locale : ReferenceIndexMutator.getLocalesBeforeMutation(
+			this.containerAccessor, entityCnt.getAttributeLocales(), LocaleScope.ATTRIBUTE
+		)) {
 			upsertEntityAttributeLocaleInTargetIndex(locale, entitySchema, globalIndex, existingDataSupplierFactory);
 		}
-		for (Locale locale : entity.getLocales()) {
+		for (Locale locale : ReferenceIndexMutator.getLocalesBeforeMutation(
+			this.containerAccessor, entityCnt.getLocales(), LocaleScope.ENTITY
+		)) {
 			upsertEntityLocaleInTargetIndex(locale, entitySchema, globalIndex, epk);
 		}
 	}
