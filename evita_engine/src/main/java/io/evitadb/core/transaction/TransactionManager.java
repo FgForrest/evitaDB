@@ -236,7 +236,8 @@ public class TransactionManager implements Closeable {
 	 * The catalog is being exchanged regularly and the instance of the TransactionManager is not recreated - i.e. stays
 	 * the same for different catalog versions and is propagated throughout the whole lifetime of the "logical" catalog.
 	 *
-	 * This catalog might not be visible yet in evita instance and may differ from {@link #livingCatalog}.
+	 * This catalog might not be visible yet in evita instance and may differ from {@link #livingCatalog}. It is `null`
+	 * once this manager has been closed.
 	 */
 	private final AtomicReference<Catalog> lastFinalizedCatalog;
 	/**
@@ -626,11 +627,12 @@ public class TransactionManager implements Closeable {
 	 * and reloading simply replays the transaction, whereas a post-durability failure leaves disk holding a version
 	 * whose incorporation did not pass, which a reload would land straight back on.
 	 *
-	 * @param catalogVersion the version whose incorporation failed
+	 * @param lastFinalizedCatalog the last finalized catalog, read by the caller while this manager was still open
+	 * @param catalogVersion       the version whose incorporation failed
 	 * @return true when the version is already on disk
 	 */
-	private boolean isVersionPersisted(long catalogVersion) {
-		return getLastFinalizedCatalog().getLastPersistedCatalogVersion() >= catalogVersion;
+	private static boolean isVersionPersisted(@Nonnull Catalog lastFinalizedCatalog, long catalogVersion) {
+		return lastFinalizedCatalog.getLastPersistedCatalogVersion() >= catalogVersion;
 	}
 
 	/**
@@ -948,9 +950,7 @@ public class TransactionManager implements Closeable {
 		// is not atomic with `close()`: a publication already past it still reaches the closed observer, which
 		// refuses it as well
 		if (previousLivingCatalog == null) {
-			throw new InstanceTerminatedException(
-				"transaction manager of catalog `" + livingCatalog.getName() + "`"
-			);
+			throw createTerminatedException();
 		}
 		// a transaction manager serves exactly one catalog incarnation - every catalog version derived from another
 		// one inherits both its identity and its transaction manager, and a rename keeps both - so the identity
@@ -1607,13 +1607,19 @@ public class TransactionManager implements Closeable {
 					// we need to forget about the data written to disk, but not yet propagated to indexes (volatile data)
 					latestCatalog.forgetVolatileData();
 					final Catalog catalog = this.lastFinalizedCatalog.get();
+					if (catalog == null) {
+						// the manager was closed while this round ran - `close()` took the change observer down and
+						// failed every commit still pending, so there are no captures left to retract and no later
+						// round to suspend. Reading the getter here would replace the failure with the closed state
+						throw ex;
+					}
 					this.changeObserver.forgetMutationsAfter(catalog, catalog.getVersion());
 
 					if (collectingVersion >= 0) {
 						// a failed flush/merge: suspend rather than retry. The retry is what would diff the next flush
 						// against the baselines this one left behind, and it can never succeed by repetition anyway -
 						// a deterministic failure spins forever, a transient one corrupts.
-						suspend(ex, isVersionPersisted(collectingVersion), collectingVersion);
+						suspend(ex, isVersionPersisted(catalog, collectingVersion), collectingVersion);
 					}
 					// rethrow the exception - a failure BEFORE the collect (an unreadable WAL tail, a replay error) is
 					// still safely retryable and keeps its bounded retry
@@ -1797,10 +1803,15 @@ public class TransactionManager implements Closeable {
 	 * This catalog might not be visible yet in evita instance and may differ from {@link #livingCatalog}.
 	 *
 	 * @return the latest catalog instance visible only to trunk incorporation stage
+	 * @throws InstanceTerminatedException when this manager has already been closed - it no longer holds any catalog
 	 */
 	@Nonnull
 	public Catalog getLastFinalizedCatalog() {
-		return this.lastFinalizedCatalog.get();
+		final Catalog theLastFinalizedCatalog = this.lastFinalizedCatalog.get();
+		if (theLastFinalizedCatalog == null) {
+			throw createTerminatedException();
+		}
+		return theLastFinalizedCatalog;
 	}
 
 	/**
@@ -1827,8 +1838,8 @@ public class TransactionManager implements Closeable {
 			request,
 			this.catalogId,
 			getLastFinalizedCatalogVersion(),
-			// consulted only to describe a refusal; a manager closed meanwhile fails the lookup, and the validator
-			// keeps the refusal and attaches that failure to it
+			// consulted only to describe a refusal; a closed manager fails the lookup with
+			// `InstanceTerminatedException`, and the validator keeps the refusal and attaches that failure to it
 			() -> getLastFinalizedCatalog().getFirstReplayableCatalogVersion()
 		);
 		return this.changeObserver.registerObserver(request);
@@ -1849,6 +1860,16 @@ public class TransactionManager implements Closeable {
 		this.pendingCommitProgressRegistry.failAllPending("the transaction manager is being closed");
 		this.livingCatalog.set(null);
 		this.lastFinalizedCatalog.set(null);
+	}
+
+	/**
+	 * Creates the exception every entry point refuses with once this manager has been closed.
+	 *
+	 * @return the exception naming the catalog this manager served
+	 */
+	@Nonnull
+	private InstanceTerminatedException createTerminatedException() {
+		return new InstanceTerminatedException("transaction manager of catalog `" + this.catalogName + "`");
 	}
 
 	/**
@@ -2014,6 +2035,12 @@ public class TransactionManager implements Closeable {
 			// path by the trunk-incorporation stage; the drainer owns no commit-progress record and must not
 			// let an uncaught throw permanently pause this task.
 			return 0;
+		} catch (InstanceTerminatedException ex) {
+			// a drain that was already running when this manager closed: there is no catalog left to drain into,
+			// and the closed task would not run again anyway
+			log.debug(
+				"Draining the WAL of catalog `{}` stopped - its transaction manager was closed.", this.catalogName
+			);
 		}
 		// pause the task
 		return -1;

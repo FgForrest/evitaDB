@@ -485,7 +485,7 @@ class CatalogChangeCaptureResumePositionTest implements EvitaTestSupport {
 	}
 
 	@Nested
-	@DisplayName("Publication reaching a closed transaction manager")
+	@DisplayName("Closed transaction manager")
 	class ClosedTransactionManager {
 
 		@Test
@@ -503,8 +503,9 @@ class CatalogChangeCaptureResumePositionTest implements EvitaTestSupport {
 			// told the manager is gone, not fail on the state the close released or bring that state back
 			assertThrows(InstanceTerminatedException.class, terminatedCatalog::notifyCatalogPresentInLiveView);
 			assertNull(transactionManager.getLivingCatalog(), "The closed manager got a living catalog back.");
-			assertNull(
-				transactionManager.getLastFinalizedCatalog(), "The closed manager got a finalized catalog back."
+			assertThrows(
+				InstanceTerminatedException.class, transactionManager::getLastFinalizedCatalog,
+				"The closed manager got a finalized catalog back."
 			);
 		}
 
@@ -522,8 +523,51 @@ class CatalogChangeCaptureResumePositionTest implements EvitaTestSupport {
 			// version 0 skips the ordering checks, so nothing but the closed state itself can refuse this one
 			assertThrows(InstanceTerminatedException.class, terminatedCatalog::notifyCatalogPresentInLiveView);
 			assertNull(transactionManager.getLivingCatalog(), "The closed manager got a living catalog back.");
-			assertNull(
-				transactionManager.getLastFinalizedCatalog(), "The closed manager got a finalized catalog back."
+			assertThrows(
+				InstanceTerminatedException.class, transactionManager::getLastFinalizedCatalog,
+				"The closed manager got a finalized catalog back."
+			);
+		}
+
+		@Test
+		@DisplayName("should refuse a write-ahead log drain after the catalog was deactivated")
+		void shouldRefuseWriteAheadLogDrainAfterDeactivation() {
+			final long committedVersion = commitEntity(TEST_CATALOG, 1);
+			final TransactionManager transactionManager = liveCatalog(TEST_CATALOG).getTransactionManager();
+
+			CatalogChangeCaptureResumePositionTest.this.evita.deactivateCatalog(TEST_CATALOG);
+			assertNull(transactionManager.getLivingCatalog(), "Deactivation did not close the transaction manager.");
+
+			// a drain that starts once its manager is closed - the background drainer or a trunk incorporation
+			// task running late - has no catalog left to incorporate into, and must say so
+			assertThrows(
+				InstanceTerminatedException.class,
+				() -> transactionManager.processEntireWriteAheadLog(committedVersion + 1, version -> {})
+			);
+		}
+
+		@Test
+		@DisplayName("should attach the termination to a resume position refused by a closed manager")
+		void shouldAttachTerminationToResumePositionRefusedByClosedManager() {
+			final long committedVersion = commitEntity(TEST_CATALOG, 1);
+			final Catalog catalog = liveCatalog(TEST_CATALOG);
+			final TransactionManager transactionManager = catalog.getTransactionManager();
+
+			CatalogChangeCaptureResumePositionTest.this.evita.deactivateCatalog(TEST_CATALOG);
+			assertNull(transactionManager.getLivingCatalog(), "Deactivation did not close the transaction manager.");
+
+			// the refusal is decided before the oldest available version is looked up; the lookup is the part that
+			// needs the closed state, and its failure travels with the refusal rather than replacing it
+			final ChangeCaptureResumePositionInvalidException refusal = assertThrows(
+				ChangeCaptureResumePositionInvalidException.class,
+				() -> transactionManager.registerObserver(productRequest(null, committedVersion + 2))
+			);
+			assertEquals(Reason.AHEAD_OF_CATALOG, refusal.getReason());
+			assertNull(refusal.getCatalogVersion(), "A closed manager cannot know the oldest available version.");
+			assertEquals(1, refusal.getSuppressed().length, "The failed lookup was not attached to the refusal.");
+			assertInstanceOf(
+				InstanceTerminatedException.class, refusal.getSuppressed()[0],
+				"The lookup failed for a reason other than the closed manager."
 			);
 		}
 
