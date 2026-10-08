@@ -131,6 +131,13 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * arrives. {@link ClientChangeCapturePublisher#subscribe} blocks on this future via
 	 * {@link #awaitAcknowledgement()} so it returns only once the server-side subscription is
 	 * established — see that method for the ordering guarantees this provides.
+	 *
+	 * A terminal path that fails this future must read {@link #closed} — to decide whether the delegate is told —
+	 * **before** it completes the future. The caller woken by the completion tears the half-open subscription down
+	 * at once, which closes this subscriber; reading the flag afterwards lets that teardown win and swallows the
+	 * terminal signal the consumer is owed. The future itself is still completed before the delegate is notified,
+	 * so a consumer whose handler cancels the subscription cannot replace the failure `subscribe()` surfaces with
+	 * a {@link PublisherClosedByClientException}.
 	 */
 	private final CompletableFuture<Void> acknowledged = new CompletableFuture<>();
 
@@ -524,6 +531,8 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			rootCause instanceof PublisherClosedByClientException || rootCause instanceof TimeoutException ?
 				null : ErrorInfoConverter.toTypedException(throwable);
 		final Throwable failure = typedFailure == null ? rootCause : typedFailure;
+		// read before completing the future - the caller it releases closes this subscriber, see `acknowledged`
+		final boolean closedBeforeFailure = this.closed.get();
 		// unblock a caller still waiting in `awaitAcknowledgement`: the stream failed before the
 		// server acknowledged the subscription, so the subscribe() call must fail rather than wait
 		// out the full streaming timeout (no-op once the ACK has already completed the future)
@@ -533,7 +542,7 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			// apparently, gRPC server doesn't know if cancellation was initiated by the client or by some network error
 			// in this case we don't call the on complete, nor on error methods on the delegate
 			log.debug("Client change capture publisher was closed manually by the client.", throwable);
-		} else if (!this.closed.get()) {
+		} else if (!closedBeforeFailure) {
 			if (rootCause instanceof TimeoutException) {
 				// we don't log timeout exceptions as errors because we expect that the CDC is regularly timed out
 				// and then re-established by the client
@@ -584,9 +593,11 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * @param cause exception describing the client-internal failure
 	 */
 	void notifyClientFailureAndClose(@Nonnull Throwable cause) {
+		// read before completing the future - the caller it releases closes this subscriber, see `acknowledged`
+		final boolean closedBeforeFailure = this.closed.get();
 		// unblock a caller still waiting in `awaitAcknowledgement` (no-op once the ACK completed it)
 		this.acknowledged.completeExceptionally(cause);
-		if (!this.closed.get()) {
+		if (!closedBeforeFailure) {
 			if (cause instanceof TemporalDataNotAvailableException) {
 				// a refusal of the subscription by `verifyAcknowledgement` - the consumer is told and has to act on
 				// it, nothing in the driver failed
@@ -625,13 +636,15 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	@Override
 	public void onComplete() {
 		this.serverSideClosed.set(true);
+		// read before completing the future - the caller it releases closes this subscriber, see `acknowledged`
+		final boolean closedBeforeCompletion = this.closed.get();
 		// unblock a caller still waiting in `awaitAcknowledgement`: the stream completed before the
 		// server acknowledged the subscription, which is abnormal — fail the subscribe() rather than
 		// wait out the streaming timeout (no-op once the ACK has already completed the future)
 		this.acknowledged.completeExceptionally(
 			new GenericEvitaInternalError("The change data capture stream completed before it was acknowledged.")
 		);
-		if (!this.closed.get()) {
+		if (!closedBeforeCompletion) {
 			// gRPC calls `onComplete` only after `beforeStart` returned, by which point
 			// the publisher has already attached the subscription
 			final ClientSubscription<C, REQ, RES> activeSubscription = Objects.requireNonNull(

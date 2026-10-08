@@ -352,6 +352,33 @@ class ClientChangeCatalogCaptureSubscriberTest {
 		}
 
 		@Test
+		@DisplayName("should fail subscribe() with the refusal even when the consumer cancels from its onError")
+		void shouldSurfaceTypedRefusalWhenConsumerCancelsFromOnError() throws InterruptedException {
+			// the synchronous executor runs the consumer's `onError` inline, so its cancellation closes the internal
+			// subscriber before `onError` returns - had the driver notified the consumer before failing the
+			// acknowledgement, that close would have failed it first, and subscribe() would report a closed
+			// publisher instead of the refusal the consumer has to act on
+			final ChangeCaptureResumePositionInvalidException serverRefusal =
+				new ChangeCaptureResumePositionInvalidException(
+					Reason.AHEAD_OF_CATALOG, INCARNATION_A, 5L, 1L, null, 40L, 3
+				);
+			final Harness harness = new Harness(resumeRequest(null));
+			final Stream stream = harness.subscribe(INCARNATION_A, new RecordingSubscriber(true));
+			// the stream is initialized before the consumer is handed its subscription, which it needs to cancel
+			assertTrue(
+				stream.delegate.subscribed.await(30, TimeUnit.SECONDS), "The consumer was not subscribed in time."
+			);
+
+			stream.fail(sentByServer(serverRefusal));
+			stream.awaitSubscribed();
+
+			final ChangeCaptureResumePositionInvalidException surfaced = assertInstanceOf(
+				ChangeCaptureResumePositionInvalidException.class, stream.subscribeFailure.get()
+			);
+			assertSame(surfaced, stream.delegate.error.get());
+		}
+
+		@Test
 		@DisplayName("should deliver the retention failure the server sent mid-stream to the consumer as itself")
 		void shouldDeliverTypedFailureAfterAcknowledgement() {
 			final Harness harness = new Harness(resumeRequest(null));
@@ -417,12 +444,24 @@ class ClientChangeCatalogCaptureSubscriberTest {
 		 * @param registeringCatalogId identity of the catalog of the session the stream is registered in
 		 * @return the stream
 		 */
-		@SuppressWarnings("unchecked")
 		@Nonnull
 		Stream subscribe(@Nonnull UUID registeringCatalogId) {
+			return subscribe(registeringCatalogId, new RecordingSubscriber(false));
+		}
+
+		/**
+		 * Starts `subscribe()` of the passed consumer on a background thread - it blocks until the acknowledgement,
+		 * which the test delivers - and returns once the stream has been initialized.
+		 *
+		 * @param registeringCatalogId identity of the catalog of the session the stream is registered in
+		 * @param delegate             the consumer's subscriber
+		 * @return the stream
+		 */
+		@SuppressWarnings("unchecked")
+		@Nonnull
+		Stream subscribe(@Nonnull UUID registeringCatalogId, @Nonnull RecordingSubscriber delegate) {
 			final ClientCallStreamObserver<GrpcRegisterChangeCatalogCaptureRequest> observer =
 				mock(ClientCallStreamObserver.class);
-			final RecordingSubscriber delegate = new RecordingSubscriber();
 			final AtomicReference<Throwable> subscribeFailure = new AtomicReference<>();
 			final CountDownLatch streamInitialized = new CountDownLatch(1);
 			this.nextRegisteringCatalogId.set(registeringCatalogId);
@@ -492,9 +531,21 @@ class ClientChangeCatalogCaptureSubscriberTest {
 	private static final class RecordingSubscriber implements Flow.Subscriber<ChangeCatalogCapture> {
 		final List<ChangeCatalogCapture> received = new CopyOnWriteArrayList<>();
 		final AtomicReference<Throwable> error = new AtomicReference<>();
+		final AtomicReference<Flow.Subscription> subscription = new AtomicReference<>();
+		final CountDownLatch subscribed = new CountDownLatch(1);
+		/**
+		 * Whether `onError` cancels the subscription, as a consumer cleaning up after a failed stream does.
+		 */
+		private final boolean cancelOnError;
+
+		RecordingSubscriber(boolean cancelOnError) {
+			this.cancelOnError = cancelOnError;
+		}
 
 		@Override
 		public void onSubscribe(Flow.Subscription subscription) {
+			this.subscription.set(subscription);
+			this.subscribed.countDown();
 			subscription.request(Long.MAX_VALUE);
 		}
 
@@ -506,6 +557,9 @@ class ClientChangeCatalogCaptureSubscriberTest {
 		@Override
 		public void onError(Throwable throwable) {
 			this.error.set(throwable);
+			if (this.cancelOnError) {
+				this.subscription.get().cancel();
+			}
 		}
 
 		@Override
