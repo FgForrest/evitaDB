@@ -44,8 +44,8 @@ import java.util.UUID;
  * means nothing once the catalog has been replaced by another incarnation with its own version sequence.
  *
  * @param catalogId        the identity ({@link CatalogContract#getCatalogId()}) of the catalog incarnation that
- *                         produced the capture, `null` only for a capture created by the compatibility constructor
- *                         that does not know it
+ *                         produced the capture, `null` when its producer does not know the identity - for example
+ *                         a capture created by the compatibility constructor
  * @param version          the version of the catalog where the operation was performed
  * @param index            the index of the event within the enclosed transaction, index 0 is the transaction
  *                         lead event

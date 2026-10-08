@@ -265,7 +265,7 @@ public interface CatalogContract {
 	 *
 	 * The resume position of the request is checked against the incarnation of this catalog before the publisher is
 	 * created: a position recorded on another incarnation of the catalog, or lying more than one version past the last
-	 * catalog version the incarnation has committed, is refused synchronously.
+	 * version the catalog has finalized, is refused synchronously.
 	 *
 	 * @param request defines what events are captured
 	 * @return publisher that emits {@link ChangeCatalogCapture}s that match the request

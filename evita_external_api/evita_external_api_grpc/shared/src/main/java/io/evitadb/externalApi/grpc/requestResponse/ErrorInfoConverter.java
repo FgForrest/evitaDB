@@ -109,6 +109,10 @@ public class ErrorInfoConverter {
 	 */
 	public static final String OFFSET_DATE_TIME = "offsetDateTime";
 
+	private ErrorInfoConverter() {
+		// static helper
+	}
+
 	/**
 	 * Returns the metadata describing the fields of the passed exception, or an empty map when the exception is not
 	 * one of the types the client can rebuild. The server adds the result to the {@link ErrorInfo} of the status it

@@ -52,7 +52,7 @@ import static io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConve
  * consumer's resume position honest about it:
  *
  * - every delivered {@link ChangeCatalogCapture} carries {@link ChangeCatalogCapture#catalogId()} - the server
- *   sends the identity once, on the acknowledgement, rather than on each capture, so it is stamped here;
+ *   sends the identity on the acknowledgement (and on heartbeats), never on a capture, so it is stamped here;
  * - when the acknowledgement does not carry the identity, the server predates it and ignored
  *   {@link ChangeCatalogCaptureRequest#catalogId()} - the check the server would have done is done here instead,
  *   against the catalog of the session the stream was registered in, before any capture can arrive.

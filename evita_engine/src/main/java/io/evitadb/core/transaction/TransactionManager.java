@@ -1770,9 +1770,9 @@ public class TransactionManager implements Closeable {
 	/**
 	 * Returns the current catalog instance that is visible as living catalog instance to all the queries.
 	 *
-	 * @return the living catalog instance visible to all queries
+	 * @return the living catalog instance visible to all queries, `null` once this manager has been closed
 	 */
-	@Nonnull
+	@Nullable
 	public Catalog getLivingCatalog() {
 		return this.livingCatalog.get();
 	}

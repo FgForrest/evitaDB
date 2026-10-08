@@ -55,15 +55,15 @@ public class ClientChangeCatalogCaptureProcessor extends
 	/**
 	 * Creates the publisher of catalog change captures.
 	 *
-	 * @param queueSize        maximum number of captures buffered for each subscriber
-	 * @param streamingTimeout per-message response deadline of every stream
-	 * @param executorService  executor delivering the captures to the subscribers
-	 * @param request          the request every stream of this publisher is registered with
+	 * @param queueSize         maximum number of captures buffered for each subscriber
+	 * @param streamingTimeout  per-message response deadline of every stream
+	 * @param executorService   executor delivering the captures to the subscribers
+	 * @param request           the request every stream of this publisher is registered with
 	 * @param streamInitializer starts the gRPC stream of one subscriber; it must bind the identity of the catalog of
-	 *                         the session it registers the stream in
-	 *                         ({@link ClientChangeCatalogCaptureSubscriber#bindRegisteringCatalogId}) before
-	 *                         starting the RPC
-	 * @param onCloseCallback  callback executed when the publisher is closed
+	 *                          the session it registers the stream in
+	 *                          ({@link ClientChangeCatalogCaptureSubscriber#bindRegisteringCatalogId}) before
+	 *                          starting the RPC
+	 * @param onCloseCallback   callback executed when the publisher is closed
 	 * @see ClientChangeCapturePublisher#ClientChangeCapturePublisher(int, Duration, ExecutorService, Consumer, Consumer)
 	 */
 	public ClientChangeCatalogCaptureProcessor(

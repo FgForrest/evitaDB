@@ -396,9 +396,10 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * The resume position of the request is checked against the catalog incarnation this session is bound to before
 	 * the publisher is created. A position recorded on another incarnation
 	 * ({@link ChangeCatalogCaptureRequest#catalogId()} differs from {@link #getCatalogId()}), or lying more than one
-	 * version past the current catalog version, is refused right here - such a subscription would otherwise stay
-	 * open and deliver nothing until the catalog happened to reach the requested version. A position the write-ahead
-	 * log no longer retains is reported later, to the subscriber, through the same exception type.
+	 * version past the last version the catalog has finalized (never older than the version this session sees), is
+	 * refused right here - such a subscription would otherwise stay open and deliver nothing until the catalog
+	 * happened to reach the requested version. A position the write-ahead log no longer retains is reported later, to
+	 * the subscriber, through the same exception type.
 	 *
 	 * @param request defines what events are captured
 	 * @return publisher that emits {@link ChangeCatalogCapture}s that match the request

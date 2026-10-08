@@ -688,8 +688,8 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 *   subscriber once re-read the same unreadable transaction forever without anyone being told
 	 * - a position the WAL retention has already removed is reported as
 	 *   {@link ChangeCaptureResumePositionInvalidException} with reason
-	 *   {@link ChangeCaptureResumePositionInvalidException.Reason#OUTSIDE_RETENTION} - a
-	 *   {@link TemporalDataNotAvailableException} - the subscriber cannot be served any more, and pretending
+	 *   {@link ChangeCaptureResumePositionInvalidException.Reason#OUTSIDE_RETENTION} (a
+	 *   {@link TemporalDataNotAvailableException}): the subscriber cannot be served any more, and pretending
 	 *   otherwise would starve it of every later capture as well
 	 * - a position older than a WAL that never lost a file is served from its first transaction: the versions below
 	 *   it were never transactions (they belong to the warm-up phase), so nothing is skipped
