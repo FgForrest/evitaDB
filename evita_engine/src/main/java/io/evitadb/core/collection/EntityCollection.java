@@ -166,6 +166,7 @@ import io.evitadb.index.mutation.IndexMutationExecutorRegistry;
 import io.evitadb.index.mutation.IndexMutationTarget;
 import io.evitadb.index.mutation.ReevaluateExpressionMutation;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
+import io.evitadb.index.mutation.local.VirtualReferencePartitionWriter;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.index.reference.ReferenceChanges;
 import io.evitadb.index.reference.TransactionalReference;
@@ -4635,10 +4636,12 @@ public final class EntityCollection implements
 									tracked
 								);
 							} else if (eikAgain.type() == EntityIndexType.REFERENCED_ENTITY) {
-								assertReferenceIndexPrerequisites(
+								final String referenceName =
 									((RepresentativeReferenceKey) Objects.requireNonNull(eikAgain.discriminator()))
-										.referenceName()
-								);
+										.referenceName();
+								assertReferenceIndexPrerequisites(referenceName);
+								// TODO JNO - remove at the end of #1615
+								assertPartitionObjectMayBeCreated(eikAgain, referenceName);
 								entityIndex = new ReducedEntityIndex(
 									EntityCollection.this.getNextIndexPrimaryKey(),
 									EntityCollection.this.getEntityType(),
@@ -4971,6 +4974,36 @@ public final class EntityCollection implements
 		@Override
 		public boolean isInVirtualCatalog() {
 			return EntityCollection.this.catalog.getVirtualReferencePartitionMaintenance().isVirtual();
+		}
+
+		// TODO JNO - remove at the end of #1615
+		/**
+		 * Refuses to create the index object of a reference partition the catalog writes virtually - a partition of a
+		 * reference whose partitions may be virtual in the key's scope, while the catalog represents its single-owner
+		 * partitions virtually and writes them so. Such a partition with a single owner is a registry row and nothing
+		 * else; only the creation is refused, an index object that already exists is still returned.
+		 *
+		 * @param partitionKey  the key of the partition about to be created
+		 * @param referenceName the reference of the partition
+		 * @throws GenericEvitaInternalError when the catalog writes the partition virtually
+		 */
+		private void assertPartitionObjectMayBeCreated(
+			@Nonnull EntityIndexKey partitionKey,
+			@Nonnull String referenceName
+		) {
+			if (
+				EntityCollection.this.catalog.getVirtualReferencePartitionMaintenance().isWrittenVirtually() &&
+					VirtualReferencePartitionWriter.isShadowed(
+						EntityCollection.this.getSchema().getReferenceOrThrowException(referenceName),
+						partitionKey.scope()
+					)
+			) {
+				throw new GenericEvitaInternalError(
+					"Collection `" + getEntityType() + "` writes the single-owner partitions of reference `" +
+						referenceName + "` in scope `" + partitionKey.scope() + "` virtually - the index object of " +
+						"partition `" + partitionKey + "` must not be created!"
+				);
+			}
 		}
 
 		/**

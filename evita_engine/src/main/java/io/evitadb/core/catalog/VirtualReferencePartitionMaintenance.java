@@ -231,6 +231,12 @@ public final class VirtualReferencePartitionMaintenance {
 	 * the life of the holder, as the representation is for the life of the catalog.
 	 */
 	private final boolean virtual;
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * TRUE when a test switched the virtual writing of the single-owner partitions on - see
+	 * {@link #setWrittenVirtually(boolean)}. Volatile for the same reason as {@link #probe}.
+	 */
+	private volatile boolean writtenVirtually;
 
 	// TODO JNO - remove at the end of #1615
 	/**
@@ -372,7 +378,7 @@ public final class VirtualReferencePartitionMaintenance {
 	 * executor of its entity index mutations - and by nothing else, so that {@link #getMaintainedMutationCount()}
 	 * counts mutations rather than reads.
 	 *
-	 * Without a probe installed the handle is one of two shared constants, so nothing is allocated per mutation.
+	 * Without a probe installed the handle is one of the shared constants, so nothing is allocated per mutation.
 	 *
 	 * @param entityType   the name of the entity type the mutation writes into
 	 * @param rootMutation the identity of the root entity mutation this mutation belongs to - its own, or the one
@@ -385,11 +391,48 @@ public final class VirtualReferencePartitionMaintenance {
 		if (maintained) {
 			this.maintainedMutationCount.incrementAndGet();
 		}
+		// only a virtual catalog maintains every collection, so the virtual writing implies the maintenance
+		final boolean theWrittenVirtually = this.virtual && this.writtenVirtually;
 		final TransitionProbe theProbe = this.probe;
 		if (theProbe == null) {
+			if (theWrittenVirtually) {
+				return MutationHandle.WRITTEN_VIRTUALLY;
+			}
 			return maintained ? MutationHandle.MAINTAINED : MutationHandle.OFF;
 		}
-		return new MutationHandle(maintained, entityType, theProbe, rootMutation);
+		return new MutationHandle(maintained, theWrittenVirtually, entityType, theProbe, rootMutation);
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns TRUE when the mutations of the catalog write the single-owner partitions of the references it represents
+	 * virtually as registry rows rather than as reduced entity indexes - see {@link MutationHandle#writtenVirtually()}.
+	 * Never TRUE outside a virtual catalog.
+	 *
+	 * @return TRUE when the virtual writing is on
+	 */
+	public boolean isWrittenVirtually() {
+		return this.virtual && this.writtenVirtually;
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Turns the virtual writing of the single-owner partitions on or off. Off by default, so that a virtual catalog
+	 * still writes its single-owner partitions as reduced entity indexes and keeps the registry in step with them;
+	 * only a test turns it on, and only in a virtual catalog - a catalog representing its partitions as objects has
+	 * no other way to write them.
+	 *
+	 * @param writtenVirtually TRUE to write the single-owner partitions virtually, FALSE to write them as objects
+	 * @throws GenericEvitaInternalError when the virtual writing is turned on in a catalog that is not virtual
+	 */
+	public void setWrittenVirtually(boolean writtenVirtually) {
+		if (writtenVirtually && !this.virtual) {
+			throw new GenericEvitaInternalError(
+				"The catalog represents its single-owner reference partitions as objects - they cannot be written " +
+					"virtually!"
+			);
+		}
+		this.writtenVirtually = writtenVirtually;
 	}
 
 	// TODO JNO - remove at the end of #1615
@@ -1057,17 +1100,22 @@ public final class VirtualReferencePartitionMaintenance {
 
 	// TODO JNO - remove at the end of #1615
 	/**
-	 * What one entity mutation knows about virtual reference partitions: whether it maintains them, and the probe it
-	 * reports its transitions to. Without a probe the handle is one of the shared constants {@link #OFF} and
-	 * {@link #MAINTAINED}, so building it allocates nothing.
+	 * What one entity mutation knows about virtual reference partitions: whether it maintains them, whether it writes
+	 * the single-owner ones virtually, and the probe it reports its transitions to. Without a probe the handle is one of
+	 * the shared constants {@link #OFF}, {@link #MAINTAINED} and {@link #WRITTEN_VIRTUALLY}, so building it allocates
+	 * nothing.
 	 *
-	 * @param maintained   TRUE when the mutation maintains the virtual reference partitions of its collection
-	 * @param entityType   the entity type the mutation writes into, `null` in the shared constants
-	 * @param probe        the probe to report to, `null` for none
-	 * @param rootMutation the identity of the root entity mutation, `null` in the shared constants
+	 * @param maintained       TRUE when the mutation maintains the virtual reference partitions of its collection
+	 * @param writtenVirtually TRUE when the mutation writes the single-owner partitions of the references its catalog
+	 *                         represents virtually as registry rows rather than as reduced entity indexes - only ever
+	 *                         TRUE in a virtual catalog whose holder has the virtual writing switched on
+	 * @param entityType       the entity type the mutation writes into, `null` in the shared constants
+	 * @param probe            the probe to report to, `null` for none
+	 * @param rootMutation     the identity of the root entity mutation, `null` in the shared constants
 	 */
 	public record MutationHandle(
 		boolean maintained,
+		boolean writtenVirtually,
 		@Nullable String entityType,
 		@Nullable TransitionProbe probe,
 		@Nullable Object rootMutation
@@ -1075,11 +1123,16 @@ public final class VirtualReferencePartitionMaintenance {
 		/**
 		 * The handle of a mutation that maintains nothing and reports to no probe.
 		 */
-		public static final MutationHandle OFF = new MutationHandle(false, null, null, null);
+		public static final MutationHandle OFF = new MutationHandle(false, false, null, null, null);
 		/**
 		 * The handle of a mutation that maintains the virtual reference partitions and reports to no probe.
 		 */
-		public static final MutationHandle MAINTAINED = new MutationHandle(true, null, null, null);
+		public static final MutationHandle MAINTAINED = new MutationHandle(true, false, null, null, null);
+		/**
+		 * The handle of a mutation that maintains the virtual reference partitions, writes the single-owner ones
+		 * virtually and reports to no probe.
+		 */
+		public static final MutationHandle WRITTEN_VIRTUALLY = new MutationHandle(true, true, null, null, null);
 
 		/**
 		 * Reports a transition to the probe, if there is one. A probe may throw, which fails the mutation at this

@@ -344,8 +344,9 @@ public interface ReferenceIndexMutator {
 					referenceKey, referencePresenceExpected
 				);
 
-				final ReferencePartition partition = executor.getOrCreatePartitionForWrite(
-					scope, referenceKey.isKnownInternalPrimaryKey() ? bothKeys.stored() : bothKeys.current()
+				final ReferencePartition partition = executor.getOrCreatePartitionForInsert(
+					scope, referenceKey.isKnownInternalPrimaryKey() ? bothKeys.stored() : bothKeys.current(),
+					"iterateReducedEntityPath"
 				);
 				// the fan-out consumers write through the generic index API, which only a materialized partition
 				// offers - every production caller fans out over references indexed for partitioning
@@ -2448,7 +2449,7 @@ public interface ReferenceIndexMutator {
 				for (final Serializable value : values) {
 					for (final int storagePK : groupStoragePKs) {
 						final HistogramCapableEntityIndex hcei = asAdvertisedHistogramCapableIndex(
-							executor.getEntityIndexByPrimaryKeyForModification(storagePK),
+							executor.getGroupIndexByPrimaryKeyForModification(scope, referenceName, storagePK),
 							referenceName, trigger.getHistogramIndexName(), storagePK, scope
 						);
 						if (isValueInHistogram(hcei, trigger.getHistogramIndexName(), locale, value, ownerPK)) {
@@ -3786,7 +3787,7 @@ public interface ReferenceIndexMutator {
 					final int[] storagePKs = rtei.getAllReferenceIndexes(groupId);
 					for (final int storagePK : storagePKs) {
 						final HistogramCapableEntityIndex hcei = asAdvertisedHistogramCapableIndex(
-							executor.getEntityIndexByPrimaryKeyForModification(storagePK),
+							executor.getGroupIndexByPrimaryKeyForModification(scope, referenceName, storagePK),
 							referenceName, histogramName, storagePK, scope
 						);
 						if (isValueInHistogram(hcei, histogramName, locale, value, ownerPK)) {
@@ -3851,7 +3852,7 @@ public interface ReferenceIndexMutator {
 				final int[] storagePKs = rtei.getAllReferenceIndexes(groupId);
 				for (final int storagePK : storagePKs) {
 					final HistogramCapableEntityIndex hcei = asAdvertisedHistogramCapableIndex(
-						executor.getEntityIndexByPrimaryKeyForModification(storagePK),
+						executor.getGroupIndexByPrimaryKeyForModification(scope, referenceName, storagePK),
 						referenceName, histogramName, storagePK, scope
 					);
 					if (isValueInHistogram(hcei, histogramName, locale, value, ownerPK)) {
@@ -4068,7 +4069,7 @@ public interface ReferenceIndexMutator {
 			}
 			final int[] storagePKs = rtei.getAllReferenceIndexes(groupId);
 			for (final int storagePK : storagePKs) {
-				final EntityIndex reducedIndex = executor.getEntityIndexByPrimaryKeyForModification(storagePK);
+				final EntityIndex reducedIndex = executor.getGroupIndexByPrimaryKeyForModification(scope, referenceName, storagePK);
 				// the type-level index advertises this storage PK, so the per-group reduced index
 				// must exist — a missing entry signals a corrupted index linkage
 				if (reducedIndex == null) {

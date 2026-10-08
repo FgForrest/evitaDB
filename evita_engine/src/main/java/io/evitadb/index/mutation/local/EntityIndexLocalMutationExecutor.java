@@ -106,6 +106,7 @@ import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageCo
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.spi.store.catalog.shared.model.PriceWithInternalIds;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.Functions;
@@ -1807,6 +1808,41 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
+	 * Returns the existing index of the group family of a reference by its storage primary key, registered for
+	 * modification - see {@link #getEntityIndexByPrimaryKeyForModification(int)}. The primary keys of the group family
+	 * never name a partition of the entity family, so a primary key without an index object must not name a registry
+	 * row of the reference's single-owner partitions either: a registered partition reached by the group-family walk
+	 * means the two families got mixed up.
+	 *
+	 * @param scope           the scope of the group family
+	 * @param referenceName   the reference of this collection's entity type the group family belongs to
+	 * @param indexPrimaryKey the storage primary key of the index
+	 * @return the existing index registered for modification, or `null` if no index with the given PK exists
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when no index exists and the primary key names a registry
+	 *                                                         row of the reference in the scope
+	 */
+	@Nullable
+	EntityIndex getGroupIndexByPrimaryKeyForModification(
+		@Nonnull Scope scope,
+		@Nonnull String referenceName,
+		int indexPrimaryKey
+	) {
+		final EntityIndex index = getEntityIndexByPrimaryKeyForModification(indexPrimaryKey);
+		// TODO JNO - remove at the end of #1615
+		if (index == null && this.virtualReferencePartitionMutation.writtenVirtually()) {
+			final ReferencedTypeEntityIndex typeIndex = getReferencedTypeIndexIfExists(scope, referenceName);
+			isPremiseValid(
+				typeIndex == null ||
+					typeIndex.getVirtualReferencePartitionIndex().getPartitionOwner(indexPrimaryKey).isEmpty(),
+				() -> "The group family of reference `" + referenceName + "` in scope `" + scope + "` lists primary " +
+					"key " + indexPrimaryKey + ", which names a registered single-owner partition of the reference " +
+					"rather than a group index!"
+			);
+		}
+		return index;
+	}
+
+	/**
 	 * Method returns existing index by primary key and adds it to the changed set of indexes that needs persisting.
 	 *
 	 * The resolution MUST go through the registering accessor, not the plain read: every caller of this method mutates
@@ -1831,10 +1867,87 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Returns the reference partition of the representative reference key in the scope, acquired for writing: the
-	 * partition is created when the collection holds none yet, registered for modification tracking so that its
-	 * changed storage parts are persisted on flush, and added to the set of indexes the end-of-mutation sweep
-	 * inspects - the same acquisition as {@link #getOrCreateIndex(EntityIndexKey)}.
+	 * Returns the reference partition of the representative reference key in the scope, acquired for writing a
+	 * partition the reference already holds - see {@link #getOrCreatePartitionForInsert}, which may also bring one into
+	 * existence.
+	 *
+	 * Unless the mutation writes the single-owner partitions of the reference in the scope virtually, the acquisition
+	 * is that of {@link #getOrCreateIndex(EntityIndexKey)}: the partition is created when the collection holds none yet,
+	 * registered for modification tracking so that its changed storage parts are persisted on flush, and added to the
+	 * set of indexes the end-of-mutation sweep inspects. When it does, the partition is looked up and never created:
+	 * its index object, registered the same way, when there is one, its virtual handle built from the registry row of
+	 * the key otherwise.
+	 *
+	 * @param scope                      the scope of the partition
+	 * @param representativeReferenceKey the representative reference key of the partition
+	 * @param writeSite                  names the write path acquiring the partition, for the error message
+	 * @return the existing (or, off the virtual writing, newly created) partition
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key holds an index that is not a reference
+	 *                                                         partition, or the mutation writes the partition
+	 *                                                         virtually and neither its index object nor its
+	 *                                                         registry row exists
+	 */
+	@Nonnull
+	ReferencePartition getPartitionForWrite(
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey,
+		@Nonnull String writeSite
+	) {
+		// TODO JNO - remove at the end of #1615
+		if (isWrittenVirtually(scope, representativeReferenceKey.referenceName())) {
+			final ReferencePartition partition = findPartitionWrittenVirtually(scope, representativeReferenceKey);
+			if (partition == null) {
+				throw new GenericEvitaInternalError(
+					"The write path `" + writeSite + "` found no partition of `" + representativeReferenceKey +
+						"` in scope `" + scope + "` of entity type `" + getEntitySchema().getName() + "` - neither " +
+						"its index object nor its registry row exists!"
+				);
+			}
+			return partition;
+		}
+		return createPartitionObjectIfMissing(scope, representativeReferenceKey);
+	}
+
+	/**
+	 * Returns the reference partition of the representative reference key in the scope, acquired for writing an owner
+	 * into it: the partition the reference already holds, as {@link #getPartitionForWrite} finds it, or a new one when
+	 * there is none.
+	 *
+	 * Unless the mutation writes the single-owner partitions of the reference in the scope virtually, the acquisition
+	 * is that of {@link #getOrCreateIndex(EntityIndexKey)} - see {@link #getPartitionForWrite}.
+	 *
+	 * @param scope                      the scope of the partition
+	 * @param representativeReferenceKey the representative reference key of the partition
+	 * @param writeSite                  names the write path acquiring the partition, for the error message
+	 * @return the existing or newly created partition
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key holds an index that is not a reference
+	 *                                                         partition, or the mutation writes the partition
+	 *                                                         virtually and the reference holds none under the key
+	 */
+	@Nonnull
+	ReferencePartition getOrCreatePartitionForInsert(
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey,
+		@Nonnull String writeSite
+	) {
+		// TODO JNO - remove at the end of #1615
+		if (isWrittenVirtually(scope, representativeReferenceKey.referenceName())) {
+			final ReferencePartition partition = findPartitionWrittenVirtually(scope, representativeReferenceKey);
+			if (partition == null) {
+				throw new GenericEvitaInternalError(
+					"The write path `" + writeSite + "` needs a new partition of `" + representativeReferenceKey +
+						"` in scope `" + scope + "` of entity type `" + getEntitySchema().getName() + "` - minting a " +
+						"partition without an index object is not supported yet!"
+				);
+			}
+			return partition;
+		}
+		return createPartitionObjectIfMissing(scope, representativeReferenceKey);
+	}
+
+	/**
+	 * Returns the index object of the partition of the representative reference key in the scope, creating it when
+	 * the collection holds none yet - the acquisition of {@link #getOrCreateIndex(EntityIndexKey)}.
 	 *
 	 * @param scope                      the scope of the partition
 	 * @param representativeReferenceKey the representative reference key of the partition
@@ -1843,23 +1956,149 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 *                                                         partition
 	 */
 	@Nonnull
-	ReferencePartition getOrCreatePartitionForWrite(
+	private ReferencePartition createPartitionObjectIfMissing(
 		@Nonnull Scope scope,
 		@Nonnull RepresentativeReferenceKey representativeReferenceKey
 	) {
 		return Objects.requireNonNull(
 			ReferencePartitions.requireMaterialized(
 				ReferencePartitions.resolveIfExists(this::getOrCreateIndex, scope, representativeReferenceKey),
-				"getOrCreatePartitionForWrite"
+				"createPartitionObjectIfMissing"
 			)
 		);
 	}
 
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns TRUE when this mutation writes the single-owner partitions of the reference in the scope virtually - the
+	 * mutation writes virtually and the partitions of the reference in the scope may be virtual.
+	 *
+	 * @param scope         the scope of the partitions
+	 * @param referenceName the reference of this collection's entity type
+	 * @return TRUE when the partitions are written virtually
+	 */
+	private boolean isWrittenVirtually(@Nonnull Scope scope, @Nonnull String referenceName) {
+		return this.virtualReferencePartitionMutation.writtenVirtually() &&
+			VirtualReferencePartitionWriter.isShadowed(
+				getEntitySchema().getReferenceOrThrowException(referenceName), scope
+			);
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Looks up the partition of the representative reference key in the scope for a mutation that writes it virtually,
+	 * creating nothing: the index object when there is one - registered for modification tracking and for the
+	 * end-of-mutation sweep as {@link #getOrCreateIndex(EntityIndexKey)} registers it - and the virtual handle built
+	 * from the registry row of the key otherwise.
+	 *
+	 * @param scope                      the scope of the partition
+	 * @param representativeReferenceKey the representative reference key of the partition
+	 * @return the partition, or `null` when neither its index object nor its registry row exists
+	 */
+	@Nullable
+	private ReferencePartition findPartitionWrittenVirtually(
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey
+	) {
+		if (ReferencePartitions.resolveIfExists(this::getIndexIfExists, scope, representativeReferenceKey) != null) {
+			// the key holds an index - the enrolling accessor registers it and creates nothing
+			return ReferencePartitions.resolveIfExists(this::getOrCreateIndex, scope, representativeReferenceKey);
+		}
+		final ReferencedTypeEntityIndex typeIndex = getReferencedTypeIndexIfExists(
+			scope, representativeReferenceKey.referenceName()
+		);
+		return typeIndex == null ?
+			null : ReferencePartitions.findRegisteredForWrite(typeIndex, representativeReferenceKey);
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Looks up the partition of a primary key the type index lists for a mutation that writes it virtually, creating
+	 * nothing: the index object when there is one - registered as {@link #getIndexByPrimaryKey(int)} registers it -
+	 * and the virtual handle built from the registry row of the primary key otherwise.
+	 *
+	 * @param typeIndex           the referenced-type entity index listing the primary key
+	 * @param partitionPrimaryKey the primary key of the partition
+	 * @param writeSite           names the write path acquiring the partition, for the error message
+	 * @return the partition
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when neither the index object nor the registry row of the
+	 *                                                         primary key exists, or the index object is not a
+	 *                                                         partition of the type index's reference and scope
+	 */
+	@Nonnull
+	private ReferencePartition getPartitionByPrimaryKeyWrittenVirtually(
+		@Nonnull ReferencedTypeEntityIndex typeIndex,
+		int partitionPrimaryKey,
+		@Nonnull String writeSite
+	) {
+		final EntityIndexKey typeIndexKey = typeIndex.getIndexKey();
+		final String referenceName = typeIndex.getReferenceName();
+		if (this.entityIndexCreatingAccessor.getIndexByPrimaryKeyIfExists(partitionPrimaryKey) != null) {
+			final EntityIndex index = getIndexByPrimaryKey(partitionPrimaryKey).orElseThrow();
+			final ReferencePartition partition = ReferencePartitions.requirePartition(
+				index, getEntitySchema().getName(), partitionPrimaryKey
+			);
+			isPremiseValid(
+				ReferencePartitions.belongsTo(partition, typeIndexKey.scope(), referenceName),
+				() -> "Type index `" + typeIndexKey + "` lists primary key " + partitionPrimaryKey + ", which names " +
+					index + " rather than a partition of reference `" + referenceName + "` in scope `" +
+					typeIndexKey.scope() + "`!"
+			);
+			return partition;
+		}
+		final ReferencePartition registered = ReferencePartitions.resolveRegisteredForWrite(
+			typeIndex, partitionPrimaryKey
+		);
+		if (registered == null) {
+			throw new GenericEvitaInternalError(
+				"The write path `" + writeSite + "` found no partition of primary key " + partitionPrimaryKey +
+					" listed by `" + typeIndexKey + "` of entity type `" + getEntitySchema().getName() + "` - " +
+					"neither its index object nor its registry row exists!"
+			);
+		}
+		return registered;
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Returns the referenced-type entity index of the reference in the scope without creating it and without
+	 * registering it for modification tracking.
+	 *
+	 * @param scope         the scope
+	 * @param referenceName the reference of this collection's entity type
+	 * @return the type index, or `null` when the collection holds none
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key holds an index that is not a
+	 *                                                         referenced-type entity index
+	 */
+	@Nullable
+	private ReferencedTypeEntityIndex getReferencedTypeIndexIfExists(
+		@Nonnull Scope scope,
+		@Nonnull String referenceName
+	) {
+		final EntityIndexKey typeIndexKey = new EntityIndexKey(
+			EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName
+		);
+		final EntityIndex typeIndex = getIndexIfExists(typeIndexKey);
+		if (typeIndex == null) {
+			return null;
+		}
+		isPremiseValid(
+			typeIndex instanceof ReferencedTypeEntityIndex,
+			() -> "Expected " + ReferencedTypeEntityIndex.class.getSimpleName() + " under `" + typeIndexKey +
+				"` but got " + typeIndex.getClass() + "!"
+		);
+		return (ReferencedTypeEntityIndex) typeIndex;
+	}
+
 	/**
 	 * Passes every reference partition holding rows of the reference that point to the target entity in the scope to
-	 * the consumer, each acquired for writing. The acquisition creates what it does not find - the type index of a
-	 * reference allowing duplicates, the single partition of one that does not; a primary key the type index lists
-	 * must resolve.
+	 * the consumer, each acquired for writing.
+	 *
+	 * Unless the mutation writes the single-owner partitions of the reference in the scope virtually, the acquisition
+	 * creates what it does not find - the type index of a reference allowing duplicates, the single partition of one
+	 * that does not; a primary key the type index lists must resolve. When it does, nothing is created: each partition
+	 * is its index object when there is one, its virtual handle built from the registry row otherwise, a target
+	 * without a partition yields none, and a primary key the type index lists must still resolve to one or the other.
 	 *
 	 * @param scope            the scope of the partitions
 	 * @param referenceSchema  the reference of this collection's entity type
@@ -1874,18 +2113,67 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		int targetPrimaryKey,
 		@Nonnull Consumer<ReferencePartition> consumer
 	) {
-		final ReferencePartition[] partitions = ReferencePartitions.requireMaterialized(
-			ReferencePartitions.resolveOfTargetOrThrow(
-				this::getOrCreateIndex,
-				partitionPrimaryKey -> getIndexByPrimaryKey(partitionPrimaryKey).orElse(null),
-				scope, referenceSchema.getName(), referenceSchema.getCardinality().allowsDuplicates(),
-				targetPrimaryKey, getEntitySchema().getName()
-			),
-			"forEachPartitionOfTargetForWrite"
-		);
+		final ReferencePartition[] partitions;
+		// TODO JNO - remove at the end of #1615
+		if (isWrittenVirtually(scope, referenceSchema.getName())) {
+			partitions = findPartitionsOfTargetWrittenVirtually(scope, referenceSchema, targetPrimaryKey);
+		} else {
+			partitions = ReferencePartitions.requireMaterialized(
+				ReferencePartitions.resolveOfTargetOrThrow(
+					this::getOrCreateIndex,
+					partitionPrimaryKey -> getIndexByPrimaryKey(partitionPrimaryKey).orElse(null),
+					scope, referenceSchema.getName(), referenceSchema.getCardinality().allowsDuplicates(),
+					targetPrimaryKey, getEntitySchema().getName()
+				),
+				"forEachPartitionOfTargetForWrite"
+			);
+		}
 		for (final ReferencePartition partition : partitions) {
 			consumer.accept(partition);
 		}
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Finds every partition of the target for a mutation that writes the single-owner partitions of the reference in
+	 * the scope virtually - see {@link #forEachPartitionOfTargetForWrite}. The lookup follows the cardinality of the
+	 * reference as the object-only resolution does: the single partition of a reference without duplicates by its key,
+	 * the partitions of one with duplicates through the type index.
+	 *
+	 * @param scope            the scope of the partitions
+	 * @param referenceSchema  the reference of this collection's entity type
+	 * @param targetPrimaryKey the primary key of the referenced entity
+	 * @return the partitions of the target, possibly empty
+	 */
+	@Nonnull
+	private ReferencePartition[] findPartitionsOfTargetWrittenVirtually(
+		@Nonnull Scope scope,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		int targetPrimaryKey
+	) {
+		final String referenceName = referenceSchema.getName();
+		if (!referenceSchema.getCardinality().allowsDuplicates()) {
+			final ReferencePartition partition = findPartitionWrittenVirtually(
+				scope,
+				new RepresentativeReferenceKey(
+					new ReferenceKey(referenceName, targetPrimaryKey), ArrayUtils.EMPTY_SERIALIZABLE_ARRAY
+				)
+			);
+			return partition == null ?
+				ReferencePartitions.EMPTY_PARTITIONS : new ReferencePartition[]{partition};
+		}
+		final ReferencedTypeEntityIndex typeIndex = getReferencedTypeIndexIfExists(scope, referenceName);
+		if (typeIndex == null) {
+			return ReferencePartitions.EMPTY_PARTITIONS;
+		}
+		final int[] partitionPrimaryKeys = typeIndex.getAllReferenceIndexes(targetPrimaryKey);
+		final ReferencePartition[] result = new ReferencePartition[partitionPrimaryKeys.length];
+		for (int i = 0; i < partitionPrimaryKeys.length; i++) {
+			result[i] = getPartitionByPrimaryKeyWrittenVirtually(
+				typeIndex, partitionPrimaryKeys[i], "forEachPartitionOfTargetForWrite"
+			);
+		}
+		return result;
 	}
 
 	/**
@@ -2507,9 +2795,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 								this, referenceKey.referenceName(), scope
 							);
 						final ReferencePartition formerPartition =
-							getOrCreatePartitionForWrite(scope, bothKeys.stored());
+							getPartitionForWrite(
+								scope, bothKeys.stored(), "getRepresentativeReferenceKeysAndUpdateIndexesIfNecessary"
+							);
 						final ReferencePartition newPartition =
-							getOrCreatePartitionForWrite(scope, bothKeys.current());
+							getOrCreatePartitionForInsert(
+								scope, bothKeys.current(), "getRepresentativeReferenceKeysAndUpdateIndexesIfNecessary"
+							);
 						ReferenceIndexMutator.referenceRemovalPerComponent(
 							entityPrimaryKey, entitySchema, referenceSchema, this,
 							referenceTypeIndex, formerPartition, referenceKey,
@@ -2989,7 +3281,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 							ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
 								this, referenceKey.referenceName(), scope
 							);
-						final ReferencePartition partition = getOrCreatePartitionForWrite(scope, rrk);
+						final ReferencePartition partition = getPartitionForWrite(
+							scope, rrk, "unindexReferences"
+						);
 						ReferenceIndexMutator.referenceRemovalPerComponent(
 							epk, entitySchema, referenceSchema, this,
 							referenceTypeIndex, partition, referenceKey,
@@ -3311,7 +3605,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 							ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
 								this, rrk.referenceName(), scope
 							);
-						final ReferencePartition partition = getOrCreatePartitionForWrite(scope, rrk);
+						final ReferencePartition partition = getOrCreatePartitionForInsert(
+							scope, rrk, "indexAllReferences"
+						);
 						ReferenceIndexMutator.referenceInsertPerComponent(
 							epk, entitySchema, referenceSchema, this,
 							referenceTypeIndex, partition, referenceKey,
@@ -3535,7 +3831,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		// entity component: update facet group in entity reduced index
 		if (entityComponentEnabled) {
 			// the acquisition enrols the partition even when the reference holds no facets there
-			final ReferencePartition partition = getOrCreatePartitionForWrite(scope, rrk);
+			final ReferencePartition partition = getPartitionForWrite(scope, rrk, "updateReferenceOnSetGroup");
 			switch (partition) {
 				case ReducedEntityIndex referenceIndex -> ReferenceIndexMutator.setFacetGroupInIndex(
 					epk, referenceIndex, referenceSchema,
@@ -3596,7 +3892,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		// entity component: update facet group in entity reduced index
 		if (entityComponentEnabled) {
 			// the acquisition enrols the partition even when the reference holds no facets there
-			final ReferencePartition partition = getOrCreatePartitionForWrite(scope, rrk);
+			final ReferencePartition partition = getPartitionForWrite(scope, rrk, "updateReferenceOnRemoveGroup");
 			switch (partition) {
 				case ReducedEntityIndex referenceIndex -> ReferenceIndexMutator.removeFacetGroupInIndex(
 					epk, referenceIndex, referenceSchema,
@@ -3645,7 +3941,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
 					this, referenceKey.referenceName(), scope
 				);
-			final ReferencePartition partition = getOrCreatePartitionForWrite(scope, rrk);
+			final ReferencePartition partition = getPartitionForWrite(scope, rrk, "updateReferenceOnAttributeChange");
 			ReferenceIndexMutator.attributeUpdate(
 				this, existingStoragePartFactory,
 				referenceTypeIndex,
@@ -3713,7 +4009,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
 					this, referenceKey.referenceName(), scope
 				);
-			final ReferencePartition partition = getOrCreatePartitionForWrite(scope, rrk);
+			final ReferencePartition partition = getOrCreatePartitionForInsert(scope, rrk, "updateReferenceOnInsert");
 			ReferenceIndexMutator.referenceInsertPerComponent(
 				epk, entitySchema, referenceSchema, this,
 				referenceTypeIndex, partition, referenceKey,
@@ -3784,7 +4080,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
 					this, rrk.referenceName(), scope
 				);
-			final ReferencePartition partition = getOrCreatePartitionForWrite(scope, rrk);
+			final ReferencePartition partition = getPartitionForWrite(scope, rrk, "updateReferenceOnRemoval");
 			ReferenceIndexMutator.referenceRemovalPerComponent(
 				epk, entitySchema, referenceSchema, this,
 				referenceTypeIndex, partition, referenceKey,

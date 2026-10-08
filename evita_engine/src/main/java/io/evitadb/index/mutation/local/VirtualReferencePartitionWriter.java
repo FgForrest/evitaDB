@@ -145,7 +145,7 @@ import java.util.function.Function;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-final class VirtualReferencePartitionWriter {
+public final class VirtualReferencePartitionWriter {
 
 	private VirtualReferencePartitionWriter() {
 	}
@@ -158,7 +158,7 @@ final class VirtualReferencePartitionWriter {
 	 * @param scope           the scope
 	 * @return TRUE when the registry keeps rows for the reference in the scope
 	 */
-	static boolean isShadowed(@Nonnull ReferenceSchemaContract referenceSchema, @Nonnull Scope scope) {
+	public static boolean isShadowed(@Nonnull ReferenceSchemaContract referenceSchema, @Nonnull Scope scope) {
 		return referenceSchema.getReferenceIndexType(scope) == ReferenceIndexType.FOR_FILTERING &&
 			referenceSchema.getIndexedComponents(scope).contains(ReferenceIndexedComponents.REFERENCED_ENTITY);
 	}

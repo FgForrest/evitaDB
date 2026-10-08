@@ -250,13 +250,13 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 				new ReferenceKey(SINGLE_REFERENCE, TARGET_PK)
 			);
 			final ReferencePartition created = EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this
-				.partitionExecutor.getOrCreatePartitionForWrite(Scope.LIVE, rrk);
+				.partitionExecutor.getOrCreatePartitionForInsert(Scope.LIVE, rrk, "test");
 			assertInstanceOf(ReducedEntityIndex.class, created);
 			assertEquals(rrk, created.getRepresentativeReferenceKey());
 			assertEquals(Scope.LIVE, created.getIndexKey().scope());
 
 			final ReferencePartition again = EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this
-				.partitionExecutor.getOrCreatePartitionForWrite(Scope.LIVE, rrk);
+				.partitionExecutor.getOrCreatePartitionForInsert(Scope.LIVE, rrk, "test");
 			assertSame(created, again, "the second acquisition must return the very same object");
 			assertEquals(
 				2, EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this.indexMaintainer.acquisitionsByKey(
@@ -279,7 +279,7 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 			assertThrows(
 				GenericEvitaInternalError.class,
 				() -> EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this.partitionExecutor
-					.getOrCreatePartitionForWrite(Scope.LIVE, rrk)
+					.getOrCreatePartitionForInsert(Scope.LIVE, rrk, "test")
 			);
 		}
 	}

@@ -858,7 +858,7 @@ public final class ReferencePartitions {
 				.getPartitionOwner(partitionPrimaryKey);
 			if (row.isPresent()) {
 				final long ownerAndTarget = row.getAsLong();
-				final VirtualReferencePartition partition = toOwnerReadPartition(
+				final VirtualReferencePartition partition = toUncountedPartition(
 					registryTypeIndex, partitionPrimaryKey, NumberUtils.unpackHigh(ownerAndTarget),
 					readRepresentativeReferenceKey(registryTypeIndex, partitionPrimaryKey, ownerAndTarget)
 				);
@@ -922,7 +922,7 @@ public final class ReferencePartitions {
 			final OptionalLong row = registry.getPartitionOwner(partitionPrimaryKey);
 			if (row.isPresent()) {
 				final long ownerAndTarget = row.getAsLong();
-				final VirtualReferencePartition partition = toOwnerReadPartition(
+				final VirtualReferencePartition partition = toUncountedPartition(
 					typeIndex, partitionPrimaryKey, NumberUtils.unpackHigh(ownerAndTarget),
 					readRepresentativeReferenceKey(typeIndex, partitionPrimaryKey, ownerAndTarget)
 				);
@@ -1003,7 +1003,7 @@ public final class ReferencePartitions {
 				return object;
 			}
 			final long partitionAndOwner = family.indexGet(slot);
-			final VirtualReferencePartition partition = toOwnerReadPartition(
+			final VirtualReferencePartition partition = toUncountedPartition(
 				typeIndex, NumberUtils.unpackHigh(partitionAndOwner), NumberUtils.unpackLow(partitionAndOwner),
 				representativeReferenceKey
 			);
@@ -1032,19 +1032,12 @@ public final class ReferencePartitions {
 		final int[] partitionPrimaryKeys = typeIndex.getAllReferenceIndexes(targetPrimaryKey);
 		final IntLongHashMap family = new IntLongHashMap(partitionPrimaryKeys.length);
 		for (final int partitionPrimaryKey : partitionPrimaryKeys) {
-			final OptionalLong row = registry.getPartitionOwner(partitionPrimaryKey);
+			final OptionalLong row = readRowOfTarget(typeIndex, targetPrimaryKey, partitionPrimaryKey);
 			if (row.isEmpty()) {
 				// a partition with several owners - its index object answers it
 				continue;
 			}
 			final long ownerAndTarget = row.getAsLong();
-			if (NumberUtils.unpackLow(ownerAndTarget) != targetPrimaryKey) {
-				throw new GenericEvitaInternalError(
-					"Type index `" + typeIndex.getIndexKey() + "` lists partition " + partitionPrimaryKey +
-						" for target " + targetPrimaryKey + ", but its registry row names target " +
-						NumberUtils.unpackLow(ownerAndTarget) + "!"
-				);
-			}
 			final int tupleId = registry.getRepresentativeTupleId(partitionPrimaryKey);
 			final int slot = family.indexOf(tupleId);
 			if (family.indexExists(slot)) {
@@ -1062,7 +1055,105 @@ public final class ReferencePartitions {
 	}
 
 	/**
-	 * Builds the read-only handle of a registered partition an owner read answers. Unlike the handles of the read
+	 * Reads the registry row of one member of a target's family - a primary key the type index lists for the target -
+	 * and checks that the row names that target.
+	 *
+	 * @param typeIndex           the referenced-type entity index of the reference in the scope
+	 * @param targetPrimaryKey    the primary key of the target entity
+	 * @param partitionPrimaryKey the primary key the type index lists for the target
+	 * @return the row, `pack(ownerPrimaryKey, targetPrimaryKey)`, or empty when the registry holds no row for the
+	 *         partition - a partition with several owners
+	 * @throws GenericEvitaInternalError when the row names another target
+	 */
+	@Nonnull
+	private static OptionalLong readRowOfTarget(
+		@Nonnull ReferencedTypeEntityIndex typeIndex,
+		int targetPrimaryKey,
+		int partitionPrimaryKey
+	) {
+		final OptionalLong row = typeIndex.getVirtualReferencePartitionIndex().getPartitionOwner(partitionPrimaryKey);
+		if (row.isPresent() && NumberUtils.unpackLow(row.getAsLong()) != targetPrimaryKey) {
+			throw new GenericEvitaInternalError(
+				"Type index `" + typeIndex.getIndexKey() + "` lists partition " + partitionPrimaryKey +
+					" for target " + targetPrimaryKey + ", but its registry row names target " +
+					NumberUtils.unpackLow(row.getAsLong()) + "!"
+			);
+		}
+		return row;
+	}
+
+	/**
+	 * Finds the registered partition of a representative reference key for a write that writes the single-owner
+	 * partitions of the reference virtually - the partition whose registry row names the key's target and whose
+	 * representative values are the key's. The registry has no `(target, representative values) -> partition`
+	 * structure, so the target's family is scanned: one copy of it from the type index and one or two registry
+	 * lookups per member, `O(family)`. Nothing is remembered - the rows change while the root mutation writes.
+	 *
+	 * The handle is not counted as resolved by a query.
+	 *
+	 * @param typeIndex                  the referenced-type entity index of the reference in the key's scope
+	 * @param representativeReferenceKey the representative reference key of the partition
+	 * @return the virtual partition, or `null` when the registry holds no row of the key
+	 * @throws GenericEvitaInternalError when a row of the target's family names another target
+	 */
+	@Nullable
+	public static VirtualReferencePartition findRegisteredForWrite(
+		@Nonnull ReferencedTypeEntityIndex typeIndex,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey
+	) {
+		final VirtualReferencePartitionIndex registry = typeIndex.getVirtualReferencePartitionIndex();
+		if (registry.isEmpty()) {
+			return null;
+		}
+		final Serializable[] tuple = representativeReferenceKey.representativeAttributeValues();
+		// the empty tuple is never in the dictionary - the registry stands for it by the absence of a tuple id
+		final int tupleId = tuple.length == 0 ?
+			VirtualReferencePartitionIndex.NO_TUPLE_ID : registry.getTupleId(tuple);
+		if (tuple.length > 0 && tupleId == VirtualReferencePartitionIndex.NO_TUPLE_ID) {
+			// no registered partition holds the tuple
+			return null;
+		}
+		final int targetPrimaryKey = representativeReferenceKey.primaryKey();
+		for (final int partitionPrimaryKey : typeIndex.getAllReferenceIndexes(targetPrimaryKey)) {
+			final OptionalLong row = readRowOfTarget(typeIndex, targetPrimaryKey, partitionPrimaryKey);
+			if (row.isPresent() && registry.getRepresentativeTupleId(partitionPrimaryKey) == tupleId) {
+				return toUncountedPartition(
+					typeIndex, partitionPrimaryKey, NumberUtils.unpackHigh(row.getAsLong()),
+					representativeReferenceKey
+				);
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Resolves a partition the registry of single-owner partitions holds a row for into its virtual handle for a write
+	 * that writes the single-owner partitions of the reference virtually - the write-path counterpart of
+	 * {@link #resolveVirtualIfExists(ReferencedTypeEntityIndex, int)}, whose handle is counted as resolved by a query
+	 * while this one is not. Two lookups in the registry, `O(log n)` each.
+	 *
+	 * @param typeIndex           the referenced-type entity index of the reference in the partition's scope
+	 * @param partitionPrimaryKey the primary key of the partition, positive
+	 * @return the virtual partition, or `null` when the registry holds no row for the primary key
+	 */
+	@Nullable
+	public static VirtualReferencePartition resolveRegisteredForWrite(
+		@Nonnull ReferencedTypeEntityIndex typeIndex,
+		int partitionPrimaryKey
+	) {
+		final OptionalLong row = typeIndex.getVirtualReferencePartitionIndex().getPartitionOwner(partitionPrimaryKey);
+		if (row.isEmpty()) {
+			return null;
+		}
+		final long ownerAndTarget = row.getAsLong();
+		return toUncountedPartition(
+			typeIndex, partitionPrimaryKey, NumberUtils.unpackHigh(ownerAndTarget),
+			readRepresentativeReferenceKey(typeIndex, partitionPrimaryKey, ownerAndTarget)
+		);
+	}
+
+	/**
+	 * Builds the handle of a registered partition an owner read or a write answers. Unlike the handles of the read
 	 * resolvers it is not counted as resolved by a query.
 	 *
 	 * @param typeIndex                  the referenced-type entity index whose registry holds the partition's row
@@ -1072,7 +1163,7 @@ public final class ReferencePartitions {
 	 * @return the virtual partition
 	 */
 	@Nonnull
-	private static VirtualReferencePartition toOwnerReadPartition(
+	private static VirtualReferencePartition toUncountedPartition(
 		@Nonnull ReferencedTypeEntityIndex typeIndex,
 		int partitionPrimaryKey,
 		int ownerPrimaryKey,
