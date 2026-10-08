@@ -165,9 +165,24 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * - `acknowledged`, so that a terminal path can queue its signal **before** it releases the caller blocked in
 	 *   `subscribe()` - and thereby ahead of the delegate close that caller's teardown queues - while the signal
 	 *   still runs only after the failure `subscribe()` surfaces is settled
+	 *
+	 * The order of the chain is the order the signals are queued in, and a terminal path decides to queue its
+	 * signal by reading {@link #closed} a few statements before it does. A close that is not the teardown of
+	 * `subscribe()` - the consumer cancelling, or the client closing - can set the flag and queue the delegate close
+	 * in between, so a terminal signal may land behind the close; such a signal is dropped when its turn comes (see
+	 * `delegateClosed`).
 	 */
 	private final AtomicReference<CompletableFuture<Void>> lastDelegateSignal =
 		new AtomicReference<>(CompletableFuture.allOf(this.delegateSubscribed, this.acknowledged));
+
+	/**
+	 * Set by the queued close of a closeable delegate just before it closes the delegate. A terminal signal that
+	 * finds it set when its turn in `lastDelegateSignal` comes has been overtaken by that close, and is dropped
+	 * rather than run against a consumer whose resources are gone - exactly as it is never queued when the close sets
+	 * {@link #closed} before the terminal path reads it. Written and read only by the signals of the chain, which run
+	 * one after another, so the check cannot race the close it guards against.
+	 */
+	private volatile boolean delegateClosed;
 
 	/**
 	 * The gRPC observer that sends requests to and receives responses from the server.
@@ -577,7 +592,7 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			// inbound (event loop) thread; a consumer `onError` handler that re-subscribes would otherwise
 			// block the very thread that has to deliver the acknowledgement it then waits for. Queued before the
 			// future below is completed, so it precedes the delegate close of the teardown that completion releases
-			dispatchDelegateSignal(
+			dispatchTerminalSignal(
 				activeSubscription.getExecutorService(),
 				() -> this.delegate.onError(failure),
 				"deliver onError to the delegate subscriber"
@@ -636,7 +651,7 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			// off-thread for the same reason as in `onError` — the caller is the drain task, and
 			// a rejected dispatch must not strand the terminal notification; queued before the future
 			// below is completed for the same reason as well
-			dispatchDelegateSignal(
+			dispatchTerminalSignal(
 				activeSubscription.getExecutorService(),
 				() -> this.delegate.onError(cause),
 				"deliver onError (client-side failure) to the delegate subscriber"
@@ -676,7 +691,7 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 		if (activeSubscription != null) {
 			// off-thread for the same reason as in `onError` — this runs on the gRPC inbound thread;
 			// queued before the future below is completed for the same reason as well
-			dispatchDelegateSignal(
+			dispatchTerminalSignal(
 				activeSubscription.getExecutorService(),
 				this.delegate::onComplete,
 				"deliver onComplete to the delegate subscriber"
@@ -692,6 +707,36 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			// this handles cleanup and calling #close on this instance
 			activeSubscription.cancel();
 		}
+	}
+
+	/**
+	 * Queues a terminal `onError` / `onComplete` for the delegate through {@link #dispatchDelegateSignal}, and drops it
+	 * when its turn comes after the delegate close has already run (see `delegateClosed`).
+	 *
+	 * @param executor    the executor that delivers the signal
+	 * @param signal      the terminal delegate callback to run
+	 * @param description what the callback does, for the log of a refused or dropped dispatch
+	 */
+	private void dispatchTerminalSignal(
+		@Nonnull Executor executor,
+		@Nonnull Runnable signal,
+		@Nonnull String description
+	) {
+		dispatchDelegateSignal(
+			executor,
+			() -> {
+				if (this.delegateClosed) {
+					// a close racing the terminal path overtook it in the chain - the delegate is closed already
+					log.debug(
+						"The change data capture delegate subscriber was closed before `{}` could run; dropping it.",
+						description
+					);
+				} else {
+					signal.run();
+				}
+			},
+			description
+		);
 	}
 
 	/**
@@ -790,12 +835,16 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			// `subscribe()` → `awaitAcknowledgement()` on the thread that must deliver the acknowledgement.
 			// Driver-side teardown is already complete at this point (`observer.cancel` ran above), so
 			// nothing driver-internal depends on this task. Queued behind the terminal signal, if any, so the
-			// delegate is closed only after it has been told why.
+			// delegate is closed only after it has been told why; a terminal signal that a racing terminal path
+			// queues behind it is dropped instead (see `delegateClosed`).
 			final ClientSubscription<C, REQ, RES> activeSubscription = this.subscription;
 			if (activeSubscription != null && this.delegate instanceof AutoCloseable closeable) {
 				dispatchDelegateSignal(
 					activeSubscription.getExecutorService(),
-					() -> IOUtils.closeQuietly(closeable::close),
+					() -> {
+						this.delegateClosed = true;
+						IOUtils.closeQuietly(closeable::close);
+					},
 					"close the delegate subscriber"
 				);
 			}

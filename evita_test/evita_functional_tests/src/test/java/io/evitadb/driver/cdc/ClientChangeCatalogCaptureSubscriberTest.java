@@ -500,6 +500,36 @@ class ClientChangeCatalogCaptureSubscriberTest {
 			assertEquals(List.of(Signal.SUBSCRIBE, Signal.ERROR, Signal.CLOSE), stream.delegate.signals);
 		}
 
+		@Test
+		@DisplayName("should never fail the consumer after it was closed by a close racing the failure")
+		void shouldNeverFailConsumerAfterRacingCloseClosedIt() throws InterruptedException {
+			// gRPC fails the stream on its inbound thread while the consumer closes the publisher on its own. The
+			// failure may decide to tell the consumer and then be overtaken by the close before it queues the
+			// signal - which would close the consumer first and run its `onError` after its resources are gone.
+			// The window lies between two statements of `onError`, so only a debugger opens it on demand: suspend the
+			// inbound thread in `onError` right after it read `closed`, let this thread run the close, then resume
+			// the inbound thread. Run freely, either thread may win, and the close must stay last either way.
+			final Harness harness = new Harness(resumeRequest(null));
+			final Stream stream = harness.subscribe(INCARNATION_A, new CloseableRecordingSubscriber());
+			stream.deliver(acknowledgement(INCARNATION_A));
+			stream.awaitSubscribed();
+
+			final Thread inbound = new Thread(
+				() -> stream.fail(Status.UNAVAILABLE.withDescription("lost").asRuntimeException()),
+				"test-catalog-cdc-inbound"
+			);
+			inbound.setDaemon(true);
+			inbound.start();
+			stream.subscriber().close();
+			inbound.join(TimeUnit.SECONDS.toMillis(30));
+			assertFalse(inbound.isAlive(), "The failure was not handled in time.");
+
+			final List<Signal> signals = stream.delegate.signals;
+			assertEquals(Signal.SUBSCRIBE, signals.get(0), "Unexpected signals: " + signals);
+			assertEquals(Signal.CLOSE, signals.get(signals.size() - 1), "Unexpected signals: " + signals);
+			assertEquals(1, Collections.frequency(signals, Signal.CLOSE), "Unexpected signals: " + signals);
+		}
+
 	}
 
 	/**
