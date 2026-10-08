@@ -349,7 +349,8 @@ public interface ReferenceIndexMutator {
 					"iterateReducedEntityPath"
 				);
 				// the fan-out consumers write through the generic index API, which only a materialized partition
-				// offers - every production caller fans out over references indexed for partitioning
+				// offers - only the fan-out over references indexed for partitioning reaches this, and the partitions
+				// of such a reference are never virtual
 				switch (partition) {
 					case ReducedEntityIndex indexToUse ->
 						referenceIndexConsumer.accept(referenceSchema, indexToUse, indexToUse);
@@ -631,11 +632,13 @@ public interface ReferenceIndexMutator {
 	 * The attribute is looked up via the reference schema (not the entity schema), since reference attributes are
 	 * scoped to the reference, not to the owning entity. The method delegates to
 	 * {@link EntityIndexLocalMutationExecutor#updateAttribute(ReferenceSchemaContract, AttributeMutation,
-	 * AttributeAndCompoundSchemaProvider, ExistingAttributeValueSupplier, EntityIndex, EntityIndex, boolean, boolean)}
+	 * AttributeAndCompoundSchemaProvider, ExistingAttributeValueSupplier, IndexWriteTarget, IndexWriteTarget, boolean,
+	 * boolean)}
 	 * twice: once for the type index (keyed by the partition primary key) and once for the partition itself (keyed by
 	 * the owning entity's primary key, or by the referenced entity's primary key when the attribute type is
 	 * {@link ReferencedEntityPredecessor}). The type index half is written for every partition whatever its form; the
-	 * partition half is a dispatch over the partition's form.
+	 * partition half is a dispatch over the form of each partition of the pair: an index object receives its half of
+	 * the write, a virtual partition of a mutation writing it virtually receives it into its registry row only.
 	 *
 	 * @param executor                 the mutation executor coordinating the index updates
 	 * @param attributeSupplierFactory factory for reading existing reference attribute values from storage
@@ -672,22 +675,41 @@ public interface ReferenceIndexMutator {
 			referenceSchema, attributeMutation, attributeSchemaProvider, existingValueAccessorFactory
 		);
 		// partition-local: the pair form - both partitions carry the same reference, before and after a change of
-		// its representative attribute values moves the row
-		switch (partitionForRemoval) {
-			case ReducedEntityIndex indexForRemoval -> {
-				switch (partitionForUpsert) {
-					case ReducedEntityIndex indexForUpsert -> updateAttributeInReducedIndex(
-						executor, indexForRemoval, indexForUpsert,
-						referenceSchema, referenceKey, attributeMutation,
-						attributeSchemaProvider, existingValueAccessorFactory
-					);
-					case VirtualReferencePartition virtual ->
-						throw ReferencePartitions.virtualPartitionOnWritePath(virtual, "attributeUpdate");
-				}
-			}
+		// its representative attribute values moves the row; each half is written in its own form, so the old value
+		// may leave a registry row while the new one enters an index object, or the other way round
+		updateAttributeInPartitions(
+			executor,
+			toWriteTarget(executor, referenceSchema, partitionForRemoval, "attributeUpdate"),
+			toWriteTarget(executor, referenceSchema, partitionForUpsert, "attributeUpdate"),
+			referenceSchema, referenceKey, attributeMutation,
+			attributeSchemaProvider, existingValueAccessorFactory
+		);
+	}
+
+	/**
+	 * Returns the partition as the target of a partition-local write: an index object as it is, a virtual partition
+	 * when the mutation writes the single-owner partitions of the reference virtually - see
+	 * {@link #requireWrittenVirtually}.
+	 *
+	 * @param executor        the mutation executor
+	 * @param referenceSchema the schema of the partition's reference
+	 * @param partition       the partition written into
+	 * @param writeSite       names the write path, for the error message
+	 * @return the partition as a write target
+	 * @throws GenericEvitaInternalError when the partition is virtual and the mutation does not write it virtually
+	 */
+	@Nonnull
+	private static IndexWriteTarget toWriteTarget(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferencePartition partition,
+		@Nonnull String writeSite
+	) {
+		return switch (partition) {
+			case ReducedEntityIndex index -> index;
 			case VirtualReferencePartition virtual ->
-				throw ReferencePartitions.virtualPartitionOnWritePath(virtual, "attributeUpdate");
-		}
+				requireWrittenVirtually(executor, referenceSchema, virtual, writeSite);
+		};
 	}
 
 	/**
@@ -735,7 +757,7 @@ public interface ReferenceIndexMutator {
 		// so subsequent attribute updates must follow the same keying rule
 		executor.executeWithDifferentPrimaryKeyToIndex(
 			(indexType, target) -> referenceKey.primaryKey(),
-			() -> updateAttributeInReducedIndex(
+			() -> updateAttributeInPartitions(
 				executor, indexForRemoval, indexForUpsert,
 				referenceSchema, referenceKey, attributeMutation,
 				attributeSchemaProvider, existingValueAccessorFactory
@@ -786,23 +808,25 @@ public interface ReferenceIndexMutator {
 	}
 
 	/**
-	 * Writes a reference-attribute mutation into a pair of reduced indexes - the one the old value is removed from and
-	 * the one the new value is inserted into - keyed by the owning entity's primary key, or by the referenced
-	 * entity's primary key when the attribute type is {@link ReferencedEntityPredecessor}.
+	 * Writes a reference-attribute mutation into a pair of reduced indexes or partitions - the one the old value is
+	 * removed from and the one the new value is inserted into - keyed by the owning entity's primary key, or by the
+	 * referenced entity's primary key when the attribute type is {@link ReferencedEntityPredecessor}. Either half may
+	 * be a virtual partition, whose registry row alone receives its half of the write (see
+	 * {@link AttributeIndexMutator}).
 	 *
 	 * @param executor                     the mutation executor coordinating the index updates
-	 * @param indexForRemoval              the reduced index the old value is removed from
-	 * @param indexForUpsert               the reduced index the new value is inserted into
+	 * @param targetForRemoval             the reduced index or partition the old value is removed from
+	 * @param targetForUpsert              the reduced index or partition the new value is inserted into
 	 * @param referenceSchema              the schema describing the reference and its attributes
 	 * @param referenceKey                 identifies the specific reference instance being updated
 	 * @param attributeMutation            the attribute-level mutation to apply
 	 * @param attributeSchemaProvider      provider of the reference's attribute and compound schemas
 	 * @param existingValueAccessorFactory supplier of the reference's existing attribute values
 	 */
-	private static void updateAttributeInReducedIndex(
+	private static void updateAttributeInPartitions(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull AbstractReducedEntityIndex indexForRemoval,
-		@Nonnull AbstractReducedEntityIndex indexForUpsert,
+		@Nonnull IndexWriteTarget targetForRemoval,
+		@Nonnull IndexWriteTarget targetForUpsert,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull AttributeMutation attributeMutation,
@@ -819,8 +843,8 @@ public interface ReferenceIndexMutator {
 				attributeMutation,
 				attributeSchemaProvider,
 				existingValueAccessorFactory,
-				indexForRemoval,
-				indexForUpsert,
+				targetForRemoval,
+				targetForUpsert,
 				false,
 				true
 			)
@@ -1146,7 +1170,8 @@ public interface ReferenceIndexMutator {
 
 	/**
 	 * Adds the facet of a reference to the partition - see {@link #addFacetToIndex}, which keeps facets out of every
-	 * partition of a reference not indexed for partitioning.
+	 * partition of a reference not indexed for partitioning. A virtual partition is a partition of such a reference,
+	 * so it receives nothing.
 	 *
 	 * @param partition        the partition receiving the facet
 	 * @param referenceSchema  the schema of the partition's reference
@@ -1167,9 +1192,73 @@ public interface ReferenceIndexMutator {
 			case ReducedEntityIndex referenceIndex -> addFacetToIndex(
 				referenceIndex, referenceSchema, referenceKey, groupId, entityPrimaryKey, executor
 			);
+			// a reference whose partitions may be virtual is not indexed for partitioning, so its partitions hold no
+			// facets - the global index alone received this one
 			case VirtualReferencePartition virtual ->
-				throw ReferencePartitions.virtualPartitionOnWritePath(virtual, "addFacetToPartition");
+				requireWrittenVirtually(executor, referenceSchema, virtual, "addFacetToPartition");
 		}
+	}
+
+	// TODO JNO - remove at the end of #1615 (the condition on the virtual writing, the rest stays)
+	/**
+	 * Returns the virtual partition a write path met, provided the mutation writes the single-owner partitions of the
+	 * partition's reference virtually: the mutation writes virtually, the partition belongs to the reference and the
+	 * reference's partitions may be virtual in the partition's scope - so the reference is not indexed for
+	 * partitioning there and the partition holds nothing but what its registry row keeps. Any other virtual partition
+	 * on a write path means a read resolver leaked into it, which fails before anything is written.
+	 *
+	 * @param executor        the mutation executor
+	 * @param referenceSchema the schema of the reference the write belongs to
+	 * @param partition       the virtual partition the write path met
+	 * @param writeSite       names the write path, for the error message
+	 * @return the partition
+	 * @throws GenericEvitaInternalError when the mutation does not write the partition virtually
+	 */
+	@Nonnull
+	static VirtualReferencePartition requireWrittenVirtually(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull VirtualReferencePartition partition,
+		@Nonnull String writeSite
+	) {
+		if (
+			executor.getVirtualReferencePartitionMutation().writtenVirtually() &&
+				referenceSchema.getName().equals(partition.getRepresentativeReferenceKey().referenceName()) &&
+				VirtualReferencePartitionWriter.isShadowed(referenceSchema, partition.getIndexKey().scope())
+		) {
+			return partition;
+		}
+		throw ReferencePartitions.virtualPartitionOnWritePath(partition, writeSite);
+	}
+
+	/**
+	 * Returns the target of a write only an index object takes - the prices and the entity attributes a partition of a
+	 * reference indexed for partitioning replicates from its owner. A virtual partition is a partition of a reference
+	 * indexed for filtering only and has no place for them, so meeting one here means the reference's indexing and its
+	 * partitions disagree.
+	 *
+	 * @param target          the target of the write
+	 * @param referenceSchema the schema of the reference the target belongs to, indexed for partitioning in the
+	 *                        target's scope
+	 * @param writeSite       names the write path, for the error message
+	 * @return the target as an index object
+	 * @throws GenericEvitaInternalError when the target is a virtual partition
+	 */
+	@Nonnull
+	static EntityIndex requireIndexObject(
+		@Nonnull IndexWriteTarget target,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull String writeSite
+	) {
+		return switch (target) {
+			case EntityIndex index -> index;
+			case VirtualReferencePartition virtual -> throw new GenericEvitaInternalError(
+				"The write path `" + writeSite + "` met virtual partition " + virtual.getPrimaryKey() + " (`" +
+					virtual.getIndexKey() + "`) of reference `" + referenceSchema.getName() + "`, which is " +
+					"indexed for partitioning in scope `" + virtual.getIndexKey().scope() + "` - a virtual partition " +
+					"holds no partitioning content!"
+			);
+		};
 	}
 
 	/**

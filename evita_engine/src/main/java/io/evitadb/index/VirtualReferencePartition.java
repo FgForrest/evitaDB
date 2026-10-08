@@ -40,9 +40,13 @@ import javax.annotation.Nonnull;
  *
  * The handle is a value: it copies what the registry holds of the partition at the moment it is resolved and refers
  * to the referenced-type entity index of that moment, so a query that resolved it keeps reading the snapshot it planned
- * against. It is created only by the read resolvers that honour the read switch of the collection (see
- * {@link ReferencePartitions}); the write path never sees one, and every exhaustive `switch` over
- * {@link ReferencePartition} on a write path rejects it.
+ * against. It is created by the read resolvers that honour the read switch of the collection (see
+ * {@link ReferencePartitions}) and by the write acquisition of a mutation that writes the single-owner partitions of
+ * the reference virtually, for a partition that has its registry row and no index object. A write path that takes a
+ * virtual partition writes what the partition holds - its sort values and chain predecessors - into the registry row
+ * only, and leaves out what a partition of a reference indexed for filtering keeps nowhere (language records, facets);
+ * every other exhaustive `switch` over {@link ReferencePartition} on a write path rejects it, and so does every write
+ * path of a mutation that does not write the partition virtually.
  *
  * While the reduced entity index of a registered partition still exists, the handle and the index describe the same
  * partition under the same primary key - the read switch only decides which of the two a query reads.

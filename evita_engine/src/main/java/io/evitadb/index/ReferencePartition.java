@@ -42,15 +42,18 @@ import javax.annotation.Nonnull;
  * representations:
  *
  * - a materialized {@link ReducedEntityIndex}, which implements this interface directly, so a partition costs no
- *   wrapper object and keeps its identity - every partition has one, and every write reaches the partition through it;
- * - a {@link VirtualReferencePartition}, a value read out of the registry of single-owner partitions, which only the
- *   read resolvers honouring the collection's read switch hand out for a registered partition.
+ *   wrapper object and keeps its identity;
+ * - a {@link VirtualReferencePartition}, a value read out of the registry of single-owner partitions, which the read
+ *   resolvers honouring the collection's read switch hand out for a registered partition, and the write acquisition
+ *   of a mutation writing the single-owner partitions virtually hands out for a registered partition without an index
+ *   object.
  *
  * The interface is sealed so that code which genuinely needs the object - a write that goes through the generic
  * {@link EntityIndex} write API, the query body channel that is bound to {@link Index} (see
  * {@link ReferencePartitions#toReducedEntityIndex}), a sort that reads the partition's sort or chain index - unwraps
- * it in an exhaustive `switch`, and the compiler lists every such place: the virtual arm of a write path throws, and so
- * does the virtual arm of a query route that does not read virtual partitions yet. Partitions are resolved through
+ * it in an exhaustive `switch`, and the compiler lists every such place: the virtual arm of a write path writes the
+ * partition's registry row, or throws where the write needs the index object, and the virtual arm of a query route
+ * that does not read virtual partitions yet throws. Partitions are resolved through
  * {@link ReferencePartitions} and the resolver surfaces built on it; a guard test in the functional test suite rejects
  * new direct accesses to the reduced index family.
  *

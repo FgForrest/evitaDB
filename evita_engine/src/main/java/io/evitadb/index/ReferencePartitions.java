@@ -171,10 +171,9 @@ public final class ReferencePartitions {
 	}
 
 	/**
-	 * Asserts that a partition a write path holds is not virtual. A write reaches a partition only through its
-	 * reduced entity index, and the object-only resolvers the write path uses never answer with anything else - a
-	 * virtual partition here means a read resolver leaked into the write path, which this rejects before anything is
-	 * written.
+	 * Asserts that a partition a write path holds is not virtual. The object-only resolvers a write path uses never
+	 * answer with anything but a reduced entity index - a virtual partition here means a read resolver leaked into the
+	 * write path, which this rejects before anything is written.
 	 *
 	 * @param partition the partition, possibly `null`
 	 * @param writeSite names the write path holding the partition, for the error message
@@ -213,7 +212,9 @@ public final class ReferencePartitions {
 	}
 
 	/**
-	 * Creates the error the virtual arm of an exhaustive `switch` over a partition on a write path throws.
+	 * Creates the error the virtual arm of an exhaustive `switch` over a partition on a write path throws when the
+	 * write path cannot take the virtual partition: the path writes only index objects, or the mutation does not write
+	 * the single-owner partitions of the partition's reference virtually.
 	 *
 	 * @param partition the virtual partition the write path met
 	 * @param writeSite names the write path, for the error message
@@ -226,8 +227,8 @@ public final class ReferencePartitions {
 	) {
 		return new GenericEvitaInternalError(
 			"The write path `" + writeSite + "` met virtual reference partition " + partition.getPrimaryKey() +
-				" (`" + partition.getIndexKey() + "`) - a write reaches a partition only through its reduced entity " +
-				"index, and a read resolver must not be used to find it!"
+				" (`" + partition.getIndexKey() + "`) it cannot write - only a mutation writing the single-owner " +
+				"partitions of the reference virtually reaches one, and a read resolver must not be used to find it!"
 		);
 	}
 

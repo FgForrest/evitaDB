@@ -66,6 +66,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * `evita_store_server`, only {@link VirtualReferencePartitionWriter} and the index mutators that decide the
  * transitions of a partition's owner count - the reference, attribute and entity index mutators - and the registry
  * itself may call the writer or a mutator of {@link VirtualReferencePartitionIndex}, directly or by a method reference.
+ * The writer's predicate telling whether a reference's partitions may be virtual writes nothing and may be called from
+ * anywhere.
  *
  * ## What it guarantees, and what it does not
  *
@@ -109,6 +111,11 @@ class VirtualReferencePartitionWriterGuardTest {
 		"declareSortKey", "retireSortKey", "putSortValue", "putNormalizedSortValue", "removeSortValue",
 		"declareChainKey", "retireChainKey", "putChainPredecessor", "removeChainPredecessor"
 	);
+	/**
+	 * The methods of the writer that only read the schema - a caller asking whether a reference's partitions may be
+	 * virtual writes nothing, so it may call them from anywhere.
+	 */
+	private static final Set<String> WRITER_PREDICATES = Set.of("isShadowed");
 	/**
 	 * Internal names of the classes allowed to call the writer and the registry mutators - their nested and synthetic
 	 * classes included.
@@ -318,7 +325,8 @@ class VirtualReferencePartitionWriterGuardTest {
 			@Nonnull String name,
 			@Nonnull String evidence
 		) {
-			final boolean writerCall = WRITER.equals(owner) && !"<init>".equals(name);
+			final boolean writerCall = WRITER.equals(owner) && !"<init>".equals(name) &&
+				!WRITER_PREDICATES.contains(name);
 			final boolean registryWrite = REGISTRY.equals(owner) && REGISTRY_MUTATORS.contains(name);
 			if (!writerCall && !registryWrite) {
 				return;

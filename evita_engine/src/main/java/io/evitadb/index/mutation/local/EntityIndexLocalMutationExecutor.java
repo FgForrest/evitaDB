@@ -3338,12 +3338,18 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					applyOnExistingReducedIndexes(
 						scope,
 						referenceSupplier,
-						(referenceSchema, index) -> {
+						(referenceSchema, target) -> {
 							if (ReferenceIndexMutator.isIndexedReferenceFor(
 								referenceSchema, scope,
 								ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING
 							)) {
-								priceRemovalOperation.accept(referenceSchema, index, price);
+								priceRemovalOperation.accept(
+									referenceSchema,
+									ReferenceIndexMutator.requireIndexObject(
+										target, referenceSchema, "unindexAllPrices"
+									),
+									price
+								);
 							}
 						}
 					);
@@ -3520,12 +3526,18 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					applyOnExistingReducedIndexes(
 						scope,
 						referenceSupplier,
-						(referenceSchema, index) -> {
+						(referenceSchema, target) -> {
 							if (ReferenceIndexMutator.isIndexedReferenceFor(
 								referenceSchema, scope,
 								ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING
 							)) {
-								priceUpsertOperation.accept(referenceSchema, index, price);
+								priceUpsertOperation.accept(
+									referenceSchema,
+									ReferenceIndexMutator.requireIndexObject(
+										target, referenceSchema, "indexAllPrices"
+									),
+									price
+								);
 							}
 						}
 					);
@@ -3661,17 +3673,19 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * set created only for the references that can reach an index twice.
 	 *
 	 * Entity-family partitions are acquired for writing through {@link #forEachPartitionOfTargetForWrite}, and group
-	 * indexes through the group type index; both are acquired before any consumer runs.
+	 * indexes through the group type index; both are acquired before any consumer runs. An entity-family partition is
+	 * handed over in the form the acquisition found it in - an index object, or the virtual partition of a mutation
+	 * writing the single-owner partitions of its reference virtually, which only its registry row represents.
 	 *
 	 * @param scope                the scope the existing references are indexed in
 	 * @param referenceSupplier    supplies the entity's currently existing reference keys
-	 * @param entityIndexConsumer  receives each distinct reduced index with the reference schema it was reached
-	 *                             through
+	 * @param entityIndexConsumer  receives each distinct reduced index or partition with the reference schema it was
+	 *                             reached through
 	 */
 	private void applyOnExistingReducedIndexes(
 		@Nonnull Scope scope,
 		@Nonnull ReferenceSupplier referenceSupplier,
-		@Nonnull BiConsumer<ReferenceSchemaContract, EntityIndex> entityIndexConsumer
+		@Nonnull BiConsumer<ReferenceSchemaContract, IndexWriteTarget> entityIndexConsumer
 	) {
 		final EntitySchema entitySchema = getEntitySchema();
 		final AtomicReference<ReferenceSchemaContract> referenceSchema = new AtomicReference<>();
@@ -3694,17 +3708,19 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 						visitedIndexes.updateAndGet(it -> it == null ? new IntHashSet() : it) : null;
 					forEachPartitionOfTargetForWrite(
 						scope, partitionSchema, refKey.primaryKey(),
-						// the consumers (locales, prices) write through the generic index API, which only a
-						// materialized partition offers
+						// a virtual partition reaches the consumers only from a mutation writing it virtually, and
+						// each consumer decides what of its write the partition's registry row takes
 						partition -> {
 							if (visitedPartitions == null || visitedPartitions.add(partition.getPrimaryKey())) {
 								switch (partition) {
 									case ReducedEntityIndex reducedIndex ->
 										entityIndexConsumer.accept(partitionSchema, reducedIndex);
-									case VirtualReferencePartition virtual ->
-										throw ReferencePartitions.virtualPartitionOnWritePath(
-											virtual, "applyOnExistingReducedIndexes"
-										);
+									case VirtualReferencePartition virtual -> entityIndexConsumer.accept(
+										partitionSchema,
+										ReferenceIndexMutator.requireWrittenVirtually(
+											this, partitionSchema, virtual, "applyOnExistingReducedIndexes"
+										)
+									);
 								}
 							}
 						}
@@ -3839,8 +3855,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					mutation.getGroupPrimaryKey(),
 					this
 				);
-				case VirtualReferencePartition virtual ->
-					throw ReferencePartitions.virtualPartitionOnWritePath(virtual, "setFacetGroupInIndex");
+				// a partition of a reference not indexed for partitioning holds no facets, the global index alone
+				// moved this one to its new group
+				case VirtualReferencePartition virtual -> ReferenceIndexMutator.requireWrittenVirtually(
+					this, referenceSchema, virtual, "setFacetGroupInIndex"
+				);
 			}
 		}
 		// defer histogram group transfer while cardinality data is still present
@@ -3899,8 +3918,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					mutation.getReferenceKey(),
 					this
 				);
-				case VirtualReferencePartition virtual ->
-					throw ReferencePartitions.virtualPartitionOnWritePath(virtual, "removeFacetGroupInIndex");
+				// a partition of a reference not indexed for partitioning holds no facets, see the set counterpart
+				case VirtualReferencePartition virtual -> ReferenceIndexMutator.requireWrittenVirtually(
+					this, referenceSchema, virtual, "removeFacetGroupInIndex"
+				);
 			}
 		}
 		// defer histogram group transfer while cardinality data is still present
@@ -4268,7 +4289,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		applyOnExistingReducedIndexes(
 			getScope(),
 			existingDataSupplierFactory.getReferenceSupplier(),
-			(referenceSchema, index) -> upsertEntityLocaleInTargetIndex(locale, entitySchema, index, epk)
+			(referenceSchema, target) -> {
+				// a virtual partition keeps no language records - the locales of its only owner are those of the
+				// owner in the global index
+				if (target instanceof EntityIndex index) {
+					upsertEntityLocaleInTargetIndex(locale, entitySchema, index, epk);
+				}
+			}
 		);
 	}
 
@@ -4288,7 +4315,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		applyOnExistingReducedIndexes(
 			getScope(),
 			existingDataSupplierFactory.getReferenceSupplier(),
-			(referenceSchema, index) -> removeEntityLocaleInTargetIndex(locale, entitySchema, index, epk)
+			(referenceSchema, target) -> {
+				// a virtual partition keeps no language records, see `upsertEntityLocale`
+				if (target instanceof EntityIndex index) {
+					removeEntityLocaleInTargetIndex(locale, entitySchema, index, epk);
+				}
+			}
 		);
 	}
 
@@ -4305,8 +4337,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		applyOnExistingReducedIndexes(
 			getScope(),
 			existingDataSupplierFactory.getReferenceSupplier(),
-			(referenceSchema, index) ->
-				upsertEntityAttributeLocaleInTargetIndex(locale, entitySchema, index, existingDataSupplierFactory)
+			(referenceSchema, target) ->
+				upsertEntityAttributeLocaleInTargetIndex(locale, entitySchema, target, existingDataSupplierFactory)
 		);
 	}
 
@@ -4325,8 +4357,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		applyOnExistingReducedIndexes(
 			getScope(),
 			existingDataSupplierFactory.getReferenceSupplier(),
-			(referenceSchema, index) ->
-				removeEntityAttributeLocaleInTargetIndex(locale, entitySchema, index, existingDataSupplierFactory)
+			(referenceSchema, target) ->
+				removeEntityAttributeLocaleInTargetIndex(locale, entitySchema, target, existingDataSupplierFactory)
 		);
 	}
 
