@@ -28,7 +28,9 @@ import io.evitadb.core.Evita;
 import net.javacrumbs.jsonunit.assertj.JsonAssert;
 
 import javax.annotation.Nonnull;
+import java.time.Duration;
 import java.util.Random;
+import java.util.UUID;
 
 import static net.javacrumbs.jsonunit.assertj.JsonAssertions.assertThatJson;
 
@@ -53,6 +55,37 @@ public interface ExternalApiWebSocketFunctionTestsSupport {
 			catalogName,
 			EvitaSessionContract::getCatalogVersion
 		) + 1;
+	}
+
+	/**
+	 * How long a test listens for further events after a CDC subscription has been refused, to prove that nothing
+	 * follows the error. The refusal happens while the subscription is being registered, so no capture can follow it
+	 * by construction - the window only has to be long enough for a capture of an accepted subscription to arrive.
+	 */
+	Duration REFUSED_SUBSCRIPTION_QUIET_WINDOW = Duration.ofSeconds(2);
+
+	/**
+	 * Returns the identity of the current incarnation of the catalog - the `catalogId` a CDC consumer stores with its
+	 * resume position.
+	 */
+	@Nonnull
+	default UUID getCatalogIdForCatalogCDC(@Nonnull Evita evita, @Nonnull String catalogName) {
+		return evita.queryCatalog(
+			catalogName,
+			EvitaSessionContract::getCatalogId
+		);
+	}
+
+	/**
+	 * Asserts that the event is a terminal `error` event of the subscription.
+	 */
+	@Nonnull
+	default JsonAssert assertErrorEvent(@Nonnull String receivedEvent, @Nonnull String expectedSubscriptionId) {
+		return assertThatJson(receivedEvent)
+			.and(
+				it -> it.node("type").isEqualTo("error"),
+				it -> it.node("id").isEqualTo("\"" + expectedSubscriptionId + "\"")
+			);
 	}
 
 	@Nonnull

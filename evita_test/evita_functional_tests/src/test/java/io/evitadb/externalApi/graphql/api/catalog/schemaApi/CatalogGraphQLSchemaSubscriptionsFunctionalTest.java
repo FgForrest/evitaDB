@@ -23,6 +23,7 @@
 
 package io.evitadb.externalApi.graphql.api.catalog.schemaApi;
 
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.cdc.Operation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
@@ -30,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchema
 import io.evitadb.core.Evita;
 import io.evitadb.externalApi.ExternalApiFunctionTestsSupport;
 import io.evitadb.externalApi.ExternalApiWebSocketFunctionTestsSupport;
+import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureDescriptor;
 import io.evitadb.externalApi.api.catalog.schemaApi.model.mutation.catalog.ModifyEntitySchemaMutationDescriptor;
 import io.evitadb.externalApi.api.model.mutation.MutationDescriptor;
 import io.evitadb.externalApi.api.system.model.cdc.ChangeSystemCaptureDescriptor;
@@ -43,10 +45,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.util.UUID;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static net.javacrumbs.jsonunit.assertj.JsonAssertions.assertThatJson;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static io.evitadb.test.TestTags.GRAPHQL;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
 import static io.evitadb.test.TestTags.QUERY;
@@ -504,6 +509,137 @@ public class CatalogGraphQLSchemaSubscriptionsFunctionalTest
 						it -> it.node(resultPath("payload", "data", "onMyEntityType" + subscriptionId + "SchemaChangeUntyped", ChangeSystemCaptureDescriptor.BODY, MutationDescriptor.MUTATION_TYPE))
 							.isEqualTo(CreateAttributeSchemaMutation.class.getSimpleName())
 					);
+			}
+		);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_CATALOG_API)
+	@DisplayName("Should accept a resume position of the current catalog incarnation and stamp catalog schema changes with it")
+	void shouldAcceptCurrentCatalogIdAndReturnItInCatalogSchemaChanges(Evita evita, GraphQLTester tester) {
+		final String subscriptionId = createSubscriptionId();
+		final String newEntityType = "myEntityType" + subscriptionId;
+		final UUID catalogId = getCatalogIdForCatalogCDC(evita, TEST_CATALOG);
+
+		tester.testWebSocket(
+			TEST_CATALOG,
+			SCHEMA_PATH_SUFFIX,
+			ctx -> {
+				final long startVersion = getStartVersionForCatalogCDC(evita, TEST_CATALOG);
+
+				// open subscription
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(
+					subscriptionId,
+					"onSchemaChange(catalogId: \\\"" + catalogId + "\\\", sinceVersion: \\\"" + startVersion + "\\\") { catalogId version index operation }"
+				));
+
+				// wait for connection_ack before triggering the data change — gives the server
+				// time to finish registering the CDC subscription so the upsert is not raced
+				ctx.awaitEvents(1);
+
+				// apply operation to trigger a new event
+				evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.defineEntitySchema(newEntityType).updateVia(session);
+					}
+				);
+			},
+			2, receivedEvents -> {
+				assertConnectionAckEvent(receivedEvents.get(0));
+				assertNextEvent(receivedEvents.get(1), subscriptionId)
+					.and(
+						it -> it.node(resultPath(ON_SCHEMA_CHANGE_PATH, ChangeCatalogCaptureDescriptor.CATALOG_ID))
+							.isString()
+							.isEqualTo(catalogId.toString()),
+						it -> it.node(resultPath(ON_SCHEMA_CHANGE_PATH, ChangeCatalogCaptureDescriptor.OPERATION))
+							.isEqualTo(Operation.UPSERT)
+					);
+			}
+		);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_CATALOG_API)
+	@DisplayName("Should refuse catalog schema changes from a resume position of a different catalog incarnation")
+	void shouldRefuseCatalogSchemaChangesOfDifferentCatalogIncarnation(Evita evita, GraphQLTester tester) {
+		final String subscriptionId = createSubscriptionId();
+		assertSubscriptionRefused(
+			evita, tester, subscriptionId,
+			"onSchemaChange(catalogId: \\\"" + UUID.randomUUID() + "\\\", sinceVersion: \\\"" + getStartVersionForCatalogCDC(evita, TEST_CATALOG) + "\\\") { version index operation }",
+			session -> {
+				session.defineEntitySchema("myEntityType" + subscriptionId).updateVia(session);
+			},
+			"was recorded on a different incarnation of the catalog"
+		);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_CATALOG_API)
+	@DisplayName("Should refuse collection schema changes from a resume position of a different catalog incarnation")
+	void shouldRefuseCollectionSchemaChangesOfDifferentCatalogIncarnation(Evita evita, GraphQLTester tester) {
+		final String subscriptionId = createSubscriptionId();
+		final String newEntityType = "myEntityType" + subscriptionId;
+		evita.updateCatalog(
+			TEST_CATALOG,
+			session -> {
+				session.defineEntitySchema(newEntityType).updateVia(session);
+			}
+		);
+
+		assertSubscriptionRefused(
+			evita, tester, subscriptionId,
+			"onMyEntityType" + subscriptionId + "SchemaChange(catalogId: \\\"" + UUID.randomUUID() + "\\\", sinceVersion: \\\"" + getStartVersionForCatalogCDC(evita, TEST_CATALOG) + "\\\") { version index operation }",
+			session -> {
+				session.getEntitySchema(newEntityType)
+					.orElseThrow()
+					.openForWrite()
+					.withAttribute("code", String.class)
+					.updateVia(session);
+			},
+			"was recorded on a different incarnation of the catalog"
+		);
+	}
+
+	/**
+	 * Opens a CDC subscription that is expected to be refused, commits a change afterwards and asserts that the
+	 * subscription ends with a single error event carrying the expected message and that no capture follows it.
+	 * The probe change must be one the subscription would deliver if it were accepted, so that a subscription
+	 * accepted by mistake fails the test on the delivered capture rather than on a timeout.
+	 */
+	private void assertSubscriptionRefused(
+		@Nonnull Evita evita,
+		@Nonnull GraphQLTester tester,
+		@Nonnull String subscriptionId,
+		@Nonnull String subscriptionQuery,
+		@Nonnull Consumer<EvitaSessionContract> probeChange,
+		@Nonnull String expectedMessageFragment
+	) {
+		tester.testWebSocket(
+			TEST_CATALOG,
+			SCHEMA_PATH_SUFFIX,
+			ctx -> {
+				// open subscription
+				ctx.writer().write(createConnectionInitMessage());
+				ctx.writer().write(createSubscriptionQueryMessage(subscriptionId, subscriptionQuery));
+				ctx.awaitEvents(1);
+
+				// a change that an accepted subscription would deliver
+				evita.updateCatalog(TEST_CATALOG, probeChange);
+				ctx.tryAwaitEvents(3, REFUSED_SUBSCRIPTION_QUIET_WINDOW);
+			},
+			2, receivedEvents -> {
+				assertConnectionAckEvent(receivedEvents.get(0));
+				assertErrorEvent(receivedEvents.get(1), subscriptionId)
+					.node("payload[0].message")
+					.isString()
+					.contains(expectedMessageFragment);
+				assertErrorEvent(receivedEvents.get(1), subscriptionId)
+					.node("payload[0].extensions.errorCode")
+					.isString()
+					.isNotBlank();
+				assertEquals(2, receivedEvents.size(), "No event may follow the refusal: " + receivedEvents);
 			}
 		);
 	}

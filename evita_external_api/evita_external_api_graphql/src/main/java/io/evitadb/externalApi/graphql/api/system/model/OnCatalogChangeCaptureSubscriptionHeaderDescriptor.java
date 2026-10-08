@@ -26,6 +26,8 @@ package io.evitadb.externalApi.graphql.api.system.model;
 import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureCriteriaDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
+import java.util.UUID;
+
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableListRef;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
@@ -43,6 +45,18 @@ public interface OnCatalogChangeCaptureSubscriptionHeaderDescriptor {
 			Specifies source catalog for the changes stream.
 			""")
 		.type(nonNull(String.class))
+		.build();
+	PropertyDescriptor CATALOG_ID = PropertyDescriptor.builder()
+		.name("catalogId")
+		.description("""
+			Specifies the identity of the catalog incarnation the resume position (`sinceVersion`, `sinceIndex`) was
+			recorded on - the `catalogId` of the last capture the client processed, which should be stored together
+			with the position. Catalog versions mean something only within one incarnation of the catalog: replacing,
+			restoring or duplicating a catalog starts a different version sequence under the same name. If the id does
+			not match the current incarnation of the catalog, the stream is refused with an error instead of delivering
+			changes from an unrelated version sequence. If not specified, no identity is checked.
+			""")
+		.type(nullable(UUID.class))
 		.build();
 	PropertyDescriptor SINCE_VERSION = PropertyDescriptor.builder()
 		.name("sinceVersion")
