@@ -2393,6 +2393,74 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 			);
 		}
 
+		/**
+		 * A value expression with a `??` default contributes the default while its value source is unset. Once
+		 * the value is set, the default must make way for it. The executor used to read the missing
+		 * pre-mutation value as "the value source was not mutated" and remove the current - new - value, which
+		 * was not indexed yet, so the default stayed beside it: the owner counted twice and the histogram
+		 * minimum was stuck at the default.
+		 */
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should replace the default contribution when an unset value is set")
+		void shouldReplaceDefaultContributionWhenUnsetValueIsSet(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+
+					session.createNewEntity(ENTITY_PARAMETER, 10)
+						.setAttribute(ATTR_INPUT_WIDGET_TYPE, "INTERVAL")
+						.upsertVia(session);
+
+					// PV#1 has no value yet, so the reference contributes the `?? 0` default
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.upsertVia(session);
+
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(
+							REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 1,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 10)
+						)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 10,
+						HISTOGRAM_VALUE, BigDecimal.ZERO, 1
+					);
+
+					// PV#1 gains its value - the default must give way to it
+					session.getEntity(ENTITY_PARAMETER_VALUE, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("50"))
+						.upsertVia(session);
+
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 10,
+						HISTOGRAM_VALUE, new BigDecimal("50"), 1
+					);
+					assertHistogramBucketNotContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 10,
+						HISTOGRAM_VALUE, BigDecimal.ZERO, 1
+					);
+
+					// dropping the only reference must leave no contribution behind
+					session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.removeReference(REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 1)
+						.upsertVia(session);
+
+					assertHistogramNotIndexed(
+						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 10, HISTOGRAM_VALUE, 1
+					);
+				}
+			);
+		}
+
 		@ParameterizedTest(name = "catalog state: {0}")
 		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("Should update histogram when referenced entity attribute changes (value)")
