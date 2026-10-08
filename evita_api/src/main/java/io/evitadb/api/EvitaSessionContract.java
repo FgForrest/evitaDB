@@ -393,13 +393,22 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	/**
 	 * Creates new publisher that emits {@link ChangeCatalogCapture}s that match the request.
 	 *
+	 * The resume position of the request is checked against the catalog incarnation this session is bound to before
+	 * the publisher is created. A position recorded on another incarnation
+	 * ({@link ChangeCatalogCaptureRequest#catalogId()} differs from {@link #getCatalogId()}), or lying more than one
+	 * version past the current catalog version, is refused right here - such a subscription would otherwise stay
+	 * open and deliver nothing until the catalog happened to reach the requested version. A position the write-ahead
+	 * log no longer retains is reported later, to the subscriber, through the same exception type.
+	 *
 	 * @param request defines what events are captured
 	 * @return publisher that emits {@link ChangeCatalogCapture}s that match the request
+	 * @throws ChangeCaptureResumePositionInvalidException when the resume position of the request cannot be served by
+	 *                                                     the catalog this session is bound to
 	 */
 	@Nonnull
 	ChangeCapturePublisher<ChangeCatalogCapture> registerChangeCatalogCapture(
 		@Nonnull ChangeCatalogCaptureRequest request
-	);
+	) throws ChangeCaptureResumePositionInvalidException;
 
 	/**
 	 * Method creates new a new entity schema and collection for it in the catalog this session is tied to. It returns
@@ -1446,7 +1455,9 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 *
 	 * `request.sinceVersion()` is an inclusive lower bound: only mutations from that catalog version onward are
 	 * returned. If unset, the stream starts at the oldest version known to the catalog's mutation history. A
-	 * `sinceVersion` past the newest available version is not rejected - it simply yields an empty stream.
+	 * `sinceVersion` past the newest available version is not rejected - it simply yields an empty stream. A request
+	 * stating {@link ChangeCatalogCaptureRequest#catalogId()} of another catalog incarnation than the one this session
+	 * is bound to is rejected, because its versions belong to an unrelated version sequence.
 	 *
 	 * !!! Important: remember to close the stream after you are done with it to release the resources
 	 *
@@ -1454,6 +1465,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 *                are combined with logical OR
 	 * @return stream of change data captures that match the specified criteria in forward chronological order
 	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
+	 * @throws ChangeCaptureResumePositionInvalidException when the request expects another catalog incarnation
 	 */
 	@Nonnull
 	Stream<ChangeCatalogCapture> getMutationsHistoryForward(
@@ -1465,7 +1477,9 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 * in the request, in reverse chronological order - the most recent matching change is returned first.
 	 *
 	 * `request.sinceVersion()` is an inclusive upper bound: the anchor version to start from, going backward. If
-	 * unset, the stream starts at the most recently committed version.
+	 * unset, the stream starts at the most recently committed version. A request stating
+	 * {@link ChangeCatalogCaptureRequest#catalogId()} of another catalog incarnation than the one this session is
+	 * bound to is rejected, because its versions belong to an unrelated version sequence.
 	 *
 	 * !!! Important: remember to close the stream after you are done with it to release the resources
 	 *
@@ -1473,6 +1487,7 @@ public interface EvitaSessionContract extends Comparable<EvitaSessionContract>, 
 	 *                are combined with logical OR
 	 * @return stream of change data captures that match the specified criteria in reverse chronological order
 	 * @throws TemporalDataNotAvailableException when data for particular moment is not available anymore
+	 * @throws ChangeCaptureResumePositionInvalidException when the request expects another catalog incarnation
 	 */
 	@Nonnull
 	Stream<ChangeCatalogCapture> getMutationsHistoryReversed(

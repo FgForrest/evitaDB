@@ -24,6 +24,8 @@
 package io.evitadb.core.cdc;
 
 
+import io.evitadb.api.exception.ChangeCaptureResumePositionInvalidException;
+import io.evitadb.api.exception.ChangeCaptureResumePositionInvalidException.Reason;
 import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
@@ -33,6 +35,7 @@ import io.evitadb.api.requestResponse.mutation.MutationPredicate;
 import io.evitadb.api.requestResponse.mutation.infrastructure.TransactionMutation;
 import io.evitadb.core.buffer.RingBuffer.OutsideScopeException;
 import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.cdc.WalReadResult.RetentionFailureFactory;
 import io.evitadb.spi.store.catalog.wal.VersionSource;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -117,6 +120,17 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	private final AtomicReference<Catalog> currentCatalog;
 
 	/**
+	 * Identity of the catalog incarnation this publisher serves, stamped onto every capture it creates. It is constant
+	 * for the publisher's lifetime: the publisher belongs to the change observer of one transaction manager, and only
+	 * versions of one incarnation share a transaction manager - a replaced catalog closes its observer together with
+	 * every publisher in it. The transaction manager refuses a catalog of another incarnation in
+	 * {@link io.evitadb.core.transaction.TransactionManager#notifyCatalogPresentInLiveView(Catalog)}, so none can
+	 * reach {@link #notifyCatalogPresentInLiveView(Catalog)}. Captures are shared by all subscribers through the ring
+	 * buffer, so the identity is stamped once here, never per subscriber.
+	 */
+	private final UUID catalogId;
+
+	/**
 	 * The size of the ring buffer used to store recent change catalog captures.
 	 */
 	private final int bufferSize;
@@ -173,6 +187,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		@Nonnull Consumer<ChangeCatalogCaptureSharedPublisher> onClose
 	) {
 		this.currentCatalog = new AtomicReference<>(catalog);
+		this.catalogId = catalog.getCatalogId();
 		this.cdcExecutor = cdcExecutor;
 		this.onNextConsumer = onNextConsumer;
 		this.onClose = onClose;
@@ -180,7 +195,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		this.criteria = criteria;
 		this.bufferSize = bufferSize;
 		// Create a shared predicate that will be used to filter mutations
-		this.sharedPredicate = this.criteria.createPredicate(null, null);
+		this.sharedPredicate = this.criteria.createPredicate(this.catalogId, null, null);
 	}
 
 	/**
@@ -188,6 +203,11 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 * Updates the currently active catalog, notifies all active subscriptions about the new catalog,
 	 * and manages cleanup of expired data in the ring buffer and subscription statistics.
 	 * If there are no active subscribers remaining, the publisher is closed.
+	 *
+	 * The catalog always belongs to the incarnation identified by {@link #catalogId}. That is guarded by
+	 * {@link io.evitadb.core.transaction.TransactionManager#notifyCatalogPresentInLiveView(Catalog)} before any
+	 * state is touched - a check here could only refuse after the transaction manager had already moved on, and
+	 * would abort the change observer's loop over its publishers half-way.
 	 *
 	 * @param catalog the catalog instance now present in the live view; must not be null
 	 */
@@ -667,6 +687,8 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 *   to the WAL reader, which then reports any failure to reach it instead of ending the stream early - a lagging
 	 *   subscriber once re-read the same unreadable transaction forever without anyone being told
 	 * - a position the WAL retention has already removed is reported as
+	 *   {@link ChangeCaptureResumePositionInvalidException} with reason
+	 *   {@link ChangeCaptureResumePositionInvalidException.Reason#OUTSIDE_RETENTION} - a
 	 *   {@link TemporalDataNotAvailableException} - the subscriber cannot be served any more, and pretending
 	 *   otherwise would starve it of every later capture as well
 	 * - a position older than a WAL that never lost a file is served from its first transaction: the versions below
@@ -676,7 +698,7 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 	 * @param changeCatalogCaptures the queue to fill with change catalog captures
 	 * @return the last capture added to the queue and the newest version the read examined in full
 	 * @throws InstanceTerminatedException       if the publisher is closed
-	 * @throws TemporalDataNotAvailableException if the WAL retention has removed the position
+	 * @throws ChangeCaptureResumePositionInvalidException if the WAL retention has removed the position
 	 */
 	@Nonnull
 	WalReadResult<ChangeCatalogCapture> readWal(
@@ -692,11 +714,15 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		if (walPointer.version() > readUpToVersion) {
 			return new WalReadResult<>(null, readUpToVersion);
 		}
-		WalReadResult.assertPositionRetained(walPointer, catalog.getFirstReplayableCatalogVersion());
+		final RetentionFailureFactory retentionFailureFactory = (position, firstReplayableVersion, cause) ->
+			createRetentionFailure(catalog, position, firstReplayableVersion, cause);
+		WalReadResult.assertPositionRetained(
+			walPointer, catalog.getFirstReplayableCatalogVersion(), retentionFailureFactory
+		);
 		// we must not use the shared predicate, because this method is called from subscriber thread
 		// and the shared predicate is not thread-safe
 		final MutationPredicate localPredicate = this.criteria.createPredicate(
-			walPointer.version(), walPointer.index()
+			this.catalogId, walPointer.version(), walPointer.index()
 		);
 		try (
 			// the version named here is published, so it is in the WAL - failing to reach it is damage, not the
@@ -757,8 +783,39 @@ public class ChangeCatalogCaptureSharedPublisher implements Flow.Publisher<Chang
 		} catch (RuntimeException ex) {
 			// the retention may have removed the position between the check above and the read - report that as
 			// what it is rather than as the WAL damage the reader had to assume
-			throw WalReadResult.classifyReadFailure(ex, walPointer, catalog::getFirstReplayableCatalogVersion);
+			throw WalReadResult.classifyReadFailure(
+				ex, walPointer, catalog::getFirstReplayableCatalogVersion, retentionFailureFactory
+			);
 		}
+	}
+
+	/**
+	 * Creates the exception reporting a subscriber position the WAL retention has removed. A catalog subscriber is
+	 * told which incarnation it was served from and how far it has fallen behind, so that it can tell this apart
+	 * from the other reasons its resume position may be refused for and knows what to subscribe to next.
+	 *
+	 * @param catalog                the catalog the subscriber was read for
+	 * @param position               the position the subscriber had to continue from
+	 * @param firstReplayableVersion the first version the WAL can still replay
+	 * @param cause                  the failure of the read that ran into the removed position, if there was one
+	 * @return the exception to throw
+	 */
+	@Nonnull
+	private ChangeCaptureResumePositionInvalidException createRetentionFailure(
+		@Nonnull Catalog catalog,
+		@Nonnull WalPointer position,
+		long firstReplayableVersion,
+		@Nullable Throwable cause
+	) {
+		return cause == null ?
+			new ChangeCaptureResumePositionInvalidException(
+				Reason.OUTSIDE_RETENTION, this.catalogId, catalog.getVersion(), firstReplayableVersion,
+				null, position.version(), position.index()
+			) :
+			new ChangeCaptureResumePositionInvalidException(
+				Reason.OUTSIDE_RETENTION, this.catalogId, catalog.getVersion(), firstReplayableVersion,
+				null, position.version(), position.index(), cause
+			);
 	}
 
 	/**

@@ -86,6 +86,7 @@ import io.evitadb.api.task.TaskStatus;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.CatalogConsumerControl;
+import io.evitadb.core.cdc.ResumePositionValidator;
 import io.evitadb.core.cdc.predicate.MutationPredicateFactory;
 import io.evitadb.core.executor.Interruptible;
 import io.evitadb.core.executor.Scheduler;
@@ -1452,7 +1453,12 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Nonnull
 	@Override
 	public Stream<ChangeCatalogCapture> getMutationsHistoryForward(@Nonnull ChangeCatalogCaptureRequest criteria) {
-		final MutationPredicate mutationPredicate = MutationPredicateFactory.createChangeCatalogCapturePredicate(criteria);
+		// only the identity is checked - a forward `sinceVersion` past the newest version is documented to yield
+		// an empty stream, unlike a subscription, which refuses it
+		assertSameCatalogIncarnation(criteria);
+		final MutationPredicate mutationPredicate = MutationPredicateFactory.createChangeCatalogCapturePredicate(
+			criteria, this.catalog.getCatalogId()
+		);
 		final long sinceVersion = criteria.sinceVersion() != null ?
 			criteria.sinceVersion() : this.catalog.getFirstCatalogVersionAfter(null).startVersion();
 		return registerStreamAndReturnCloseableStream(
@@ -1473,7 +1479,9 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 	@Nonnull
 	@Override
 	public Stream<ChangeCatalogCapture> getMutationsHistoryReversed(@Nonnull ChangeCatalogCaptureRequest criteria) {
-		final MutationPredicate mutationPredicate = MutationPredicateFactory.createReversedChangeCatalogCapturePredicate(criteria);
+		assertSameCatalogIncarnation(criteria);
+		final MutationPredicate mutationPredicate =
+			MutationPredicateFactory.createReversedChangeCatalogCapturePredicate(criteria, this.catalog.getCatalogId());
 		return registerStreamAndReturnCloseableStream(
 			this.catalog
 				.getReversedCommittedMutationStream(criteria.sinceVersion())
@@ -2405,6 +2413,23 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 			transaction.setRollbackOnly();
 		}
 		return transaction;
+	}
+
+	/**
+	 * Verifies that the resume position of a history request was recorded on the catalog incarnation this session
+	 * is bound to. Without it a position from a replaced catalog would read an unrelated version sequence - or,
+	 * for a version the new incarnation has not reached, an empty stream - with nothing telling the caller why.
+	 *
+	 * @param request the history request whose position is checked
+	 * @throws ChangeCaptureResumePositionInvalidException when the request expects another incarnation
+	 */
+	private void assertSameCatalogIncarnation(@Nonnull ChangeCatalogCaptureRequest request) {
+		ResumePositionValidator.assertSameIncarnation(
+			request,
+			this.catalog.getCatalogId(),
+			this.catalog.getVersion(),
+			this.catalog::getFirstReplayableCatalogVersion
+		);
 	}
 
 	/**

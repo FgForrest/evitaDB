@@ -32,6 +32,7 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.exception.EvitaInvalidUsageException;
 
 import javax.annotation.Nonnull;
+import java.util.OptionalLong;
 import java.util.UUID;
 
 /**
@@ -84,6 +85,12 @@ public interface ChangeCatalogObserverContract extends ChangeObserverContract<Ch
 
 		@Nonnull
 		@Override
+		public OptionalLong getObservedCatalogVersion() {
+			return OptionalLong.empty();
+		}
+
+		@Nonnull
+		@Override
 		public ChangeCapturePublisher<ChangeCatalogCapture> registerObserver(@Nonnull ChangeCatalogCaptureRequest request) {
 			throw new EvitaInvalidUsageException("Change data capture is not enabled in the configuration of this instance.");
 		}
@@ -123,6 +130,19 @@ public interface ChangeCatalogObserverContract extends ChangeObserverContract<Ch
 	 * periodically to provide insights into the state and performance of the CDC system.
 	 */
 	void emitObservabilityEvents();
+
+	/**
+	 * Returns the version of the catalog this observer currently considers present in the live view - the version
+	 * a new subscription without an explicit start position is anchored to.
+	 *
+	 * The observer is told about a new version only after the version has been published to new sessions, so a
+	 * session may already see a newer version than the one returned here; the reverse holds for a session opened
+	 * before the latest commit. A caller judging a subscription position must therefore not rely on either alone.
+	 *
+	 * @return the observed catalog version, or empty when no catalog is attached (CDC disabled or observer closed)
+	 */
+	@Nonnull
+	OptionalLong getObservedCatalogVersion();
 
 	/**
 	 * Closes this observer and releases all resources associated with it.

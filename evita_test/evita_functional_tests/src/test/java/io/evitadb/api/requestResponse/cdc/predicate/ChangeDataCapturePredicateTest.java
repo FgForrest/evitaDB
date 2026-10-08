@@ -190,7 +190,8 @@ class ChangeDataCapturePredicateTest extends AbstractHundredProductsFunctionalTe
 						.build()
 				)
 				.content(ChangeCaptureContent.BODY)
-				.build()
+				.build(),
+			null
 		);
 		final List<ChangeCatalogCapture> cdc = this.mutations.stream()
 			.flatMap(it -> it.toChangeCatalogCapture(forwardCatchAllPredicate, ChangeCaptureContent.BODY))
@@ -236,7 +237,8 @@ class ChangeDataCapturePredicateTest extends AbstractHundredProductsFunctionalTe
 						.build()
 				)
 				.content(ChangeCaptureContent.BODY)
-				.build()
+				.build(),
+			null
 		);
 
 		/* we need somehow to initialize mutation count eagerly?! */

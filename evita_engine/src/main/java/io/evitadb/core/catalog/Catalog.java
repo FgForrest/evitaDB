@@ -109,6 +109,7 @@ import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
 import io.evitadb.core.cache.CacheSupervisor;
+import io.evitadb.core.cdc.ResumePositionValidator;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.collection.EntityCollection.EntityCollectionHeaderWithCollection;
 import io.evitadb.core.exception.StorageImplementationNotFoundException;
@@ -1543,6 +1544,16 @@ public final class Catalog
 		Assert.isTrue(
 			getCatalogState() == CatalogState.ALIVE,
 			() -> new CatalogNotAliveException(getInternalSchema().getName())
+		);
+		// `this` is the catalog instance the registering session is bound to, so the position is judged against
+		// exactly one incarnation even when the catalog is being replaced concurrently - and a refusal reaches the
+		// caller synchronously, before a subscription that would stay silent ever exists
+		ResumePositionValidator.assertSubscriptionPosition(
+			request,
+			getCatalogId(),
+			getVersion(),
+			this.transactionManager.getChangeObserver().getObservedCatalogVersion(),
+			this::getFirstReplayableCatalogVersion
 		);
 		return this.transactionManager.registerObserver(request);
 	}

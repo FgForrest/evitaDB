@@ -920,9 +920,27 @@ public class TransactionManager implements Closeable {
 	/**
 	 * Notifies the system that a catalog is present in the live view.
 	 * This method is used to indicate that a catalog is currently available in the live view.
+	 *
+	 * Every premise is verified before any state is touched: a refusal half-way through would leave the living
+	 * catalog, the finalized catalog and the change observer each describing a different catalog.
+	 *
+	 * @param livingCatalog the catalog instance now present in the live view, of the incarnation this manager serves
 	 */
 	public void notifyCatalogPresentInLiveView(@Nonnull Catalog livingCatalog) {
 		final Catalog previousLivingCatalog = getLivingCatalog();
+		// a transaction manager serves exactly one catalog incarnation - every catalog version derived from another
+		// one inherits both its identity and its transaction manager, and a rename keeps both - so the identity
+		// never changes here. The change observer's shared publishers rely on it: they stamp every capture with the
+		// identity they were created with, and a catalog of another incarnation reaching them would make those
+		// captures lie about the version sequence they belong to. The previous catalog is absent only once this
+		// manager has been closed, and then there is nothing to compare with
+		Assert.isPremiseValid(
+			previousLivingCatalog == null ||
+				Objects.equals(previousLivingCatalog.getCatalogId(), livingCatalog.getCatalogId()),
+			() -> "The transaction manager of catalog `" + previousLivingCatalog.getCatalogId() + "` cannot " +
+				"publish catalog `" + livingCatalog.getCatalogId() + "` - a different incarnation has its own " +
+				"transaction manager!"
+		);
 		final long catalogVersion = livingCatalog.getVersion();
 		if (catalogVersion > 0L) {
 			// what this guards is that the live view never regresses to an older state - so the comparison is

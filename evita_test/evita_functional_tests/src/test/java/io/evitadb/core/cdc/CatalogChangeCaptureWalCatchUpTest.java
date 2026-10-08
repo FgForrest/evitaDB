@@ -27,6 +27,8 @@ import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.configuration.ChangeDataCaptureOptions;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.api.exception.ChangeCaptureResumePositionInvalidException;
+import io.evitadb.api.exception.ChangeCaptureResumePositionInvalidException.Reason;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
@@ -301,6 +303,16 @@ class CatalogChangeCaptureWalCatchUpTest implements EvitaTestSupport {
 			temporalDataNotAvailable.getCatalogVersion(),
 			"The error must name the oldest version the subscriber can still resume from."
 		);
+		// the catalog stream reports it as an invalid resume position, so that one handler covers every reason a
+		// consumer's checkpoint can stop being servable - the handlers written for the plain type still catch it
+		final ChangeCaptureResumePositionInvalidException invalidPosition = assertInstanceOf(
+			ChangeCaptureResumePositionInvalidException.class, error,
+			"A catalog subscriber must be told which catalog incarnation could not serve its position."
+		);
+		assertEquals(Reason.OUTSIDE_RETENTION, invalidPosition.getReason());
+		assertEquals(liveCatalog().getCatalogId(), invalidPosition.getCatalogId());
+		assertEquals(liveCatalog().getVersion(), invalidPosition.getCurrentCatalogVersion());
+		assertEquals(removedVersion, invalidPosition.getRequestedSinceVersion());
 		assertTrue(
 			subscriber.getItems().isEmpty(),
 			"Nothing may be delivered from a position that is no longer in the log - the first capture after it " +

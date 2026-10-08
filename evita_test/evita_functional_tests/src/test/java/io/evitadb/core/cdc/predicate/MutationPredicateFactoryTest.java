@@ -76,7 +76,7 @@ import static io.evitadb.test.TestTags.CDC;
 class MutationPredicateFactoryTest {
 
     /**
-     * Tests the {@link MutationPredicateFactory#createChangeCatalogCapturePredicate(ChangeCatalogCaptureRequest)} method
+     * Tests the {@link MutationPredicateFactory#createChangeCatalogCapturePredicate(ChangeCatalogCaptureRequest, UUID)} method
      * with a request that specifies a version.
      *
      * Verifies that the created predicate correctly filters mutations based on the specified version.
@@ -91,7 +91,7 @@ class MutationPredicateFactoryTest {
             .build();
 
         // Create the predicate
-        MutationPredicate predicate = MutationPredicateFactory.createChangeCatalogCapturePredicate(request);
+        MutationPredicate predicate = MutationPredicateFactory.createChangeCatalogCapturePredicate(request, null);
 
         // Verify the predicate is not null
         assertNotNull(predicate);
@@ -116,7 +116,7 @@ class MutationPredicateFactoryTest {
     }
 
     /**
-     * Tests the {@link MutationPredicateFactory#createChangeCatalogCapturePredicate(ChangeCatalogCaptureRequest)} method
+     * Tests the {@link MutationPredicateFactory#createChangeCatalogCapturePredicate(ChangeCatalogCaptureRequest, UUID)} method
      * with a request that specifies both version and index.
      *
      * Verifies that the created predicate correctly filters mutations based on both version and index.
@@ -132,7 +132,7 @@ class MutationPredicateFactoryTest {
             .build();
 
         // Create the predicate
-        MutationPredicate predicate = MutationPredicateFactory.createChangeCatalogCapturePredicate(request);
+        MutationPredicate predicate = MutationPredicateFactory.createChangeCatalogCapturePredicate(request, null);
 
         // Verify the predicate is not null
         assertNotNull(predicate);
@@ -186,7 +186,7 @@ class MutationPredicateFactoryTest {
     }
 
 	/**
-	 * Tests the {@link MutationPredicateFactory#createReversedChangeCatalogCapturePredicate(ChangeCatalogCaptureRequest)} method
+	 * Tests the {@link MutationPredicateFactory#createReversedChangeCatalogCapturePredicate(ChangeCatalogCaptureRequest, UUID)} method
 	 * with a request that specifies both version and index.
 	 *
 	 * Verifies that the created predicate correctly filters mutations in reverse order based on both version and index.
@@ -202,7 +202,7 @@ class MutationPredicateFactoryTest {
 			.build();
 
 		// Create the predicate
-		MutationPredicate predicate = MutationPredicateFactory.createReversedChangeCatalogCapturePredicate(request);
+		MutationPredicate predicate = MutationPredicateFactory.createReversedChangeCatalogCapturePredicate(request, null);
 
 		// Verify the predicate is not null
 		assertNotNull(predicate);
@@ -260,7 +260,7 @@ class MutationPredicateFactoryTest {
 	}
 
     /**
-     * Tests the {@link MutationPredicateFactory#createReversedChangeCatalogCapturePredicate(ChangeCatalogCaptureRequest)} method
+     * Tests the {@link MutationPredicateFactory#createReversedChangeCatalogCapturePredicate(ChangeCatalogCaptureRequest, UUID)} method
      * with a request that specifies a version.
      *
      * Verifies that the created predicate correctly filters mutations in reverse order based on the specified version.
@@ -275,7 +275,7 @@ class MutationPredicateFactoryTest {
             .build();
 
         // Create the predicate
-        MutationPredicate predicate = MutationPredicateFactory.createReversedChangeCatalogCapturePredicate(request);
+        MutationPredicate predicate = MutationPredicateFactory.createReversedChangeCatalogCapturePredicate(request, null);
 
         // Verify the predicate is not null
         assertNotNull(predicate);
@@ -395,7 +395,7 @@ class MutationPredicateFactoryTest {
     }
 
     /**
-     * Tests the {@link MutationPredicateFactory#createPredicateUsingComparator(Long, Integer, ChangeCatalogCaptureCriteria[], Comparator, Comparator, StreamDirection)}
+     * Tests the {@link MutationPredicateFactory#createPredicateUsingComparator(UUID, Long, Integer, ChangeCatalogCaptureCriteria[], Comparator, Comparator, StreamDirection)}
      * method with an array of criteria.
      *
      * Verifies that the created predicate correctly combines multiple criteria with OR logic.
@@ -425,7 +425,7 @@ class MutationPredicateFactoryTest {
 
         // Create the predicate with both criteria
         MutationPredicate predicate = MutationPredicateFactory.createPredicateUsingComparator(
-			null, null,
+			null, null, null,
             new ChangeCatalogCaptureCriteria[]{dataCriteria2, dataCriteria1},
             Comparator.naturalOrder(), Comparator.naturalOrder(),
 	        StreamDirection.FORWARD
@@ -451,7 +451,7 @@ class MutationPredicateFactoryTest {
     }
 
     /**
-     * Tests the {@link MutationPredicateFactory#createPredicateUsingComparator(Long, Integer, ChangeCatalogCaptureCriteria[], Comparator, Comparator, StreamDirection)}
+     * Tests the {@link MutationPredicateFactory#createPredicateUsingComparator(UUID, Long, Integer, ChangeCatalogCaptureCriteria[], Comparator, Comparator, StreamDirection)}
      * method with null criteria.
      *
      * Verifies that the created predicate is a TruePredicate that accepts all mutations.
@@ -461,7 +461,7 @@ class MutationPredicateFactoryTest {
     void shouldCreatePredicateUsingComparatorWithNullCriteria() {
         // Create the predicate with null criteria
         MutationPredicate predicate = MutationPredicateFactory.createPredicateUsingComparator(
-			null, null, null,
+			null, null, null, null,
 	        Comparator.naturalOrder(), Comparator.naturalOrder(),
 	        StreamDirection.FORWARD
         );
@@ -479,7 +479,7 @@ class MutationPredicateFactoryTest {
     }
 
     /**
-     * Tests the {@link MutationPredicateFactory#createChangeCatalogCapturePredicate(ChangeCatalogCaptureRequest)} method
+     * Tests the {@link MutationPredicateFactory#createChangeCatalogCapturePredicate(ChangeCatalogCaptureRequest, UUID)} method
      * with a request that specifies criteria.
      *
      * Verifies that the created predicate correctly filters mutations based on the specified criteria.
@@ -506,7 +506,7 @@ class MutationPredicateFactoryTest {
             .build();
 
         // Create the predicate
-        MutationPredicate predicate = MutationPredicateFactory.createChangeCatalogCapturePredicate(request);
+        MutationPredicate predicate = MutationPredicateFactory.createChangeCatalogCapturePredicate(request, null);
 
         // Verify the predicate is not null
         assertNotNull(predicate);

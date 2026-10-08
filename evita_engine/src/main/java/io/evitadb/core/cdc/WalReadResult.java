@@ -35,7 +35,9 @@ import java.util.function.LongSupplier;
  * Outcome of one read of change captures from the write-ahead log on behalf of a lagging subscriber.
  *
  * The catalog and the system shared publishers read their logs the same way, so the two ways such a read can fail
- * on the WAL retention are classified here, once for both of them.
+ * on the WAL retention are classified here, once for both of them. What they report differs: each publisher passes a
+ * {@link RetentionFailureFactory} - the catalog one reports the identity of the catalog incarnation along with the
+ * retention floor, the system one, which serves no catalog, reports the floor alone.
  *
  * @param lastCapture            the last capture the read offered to the subscriber's queue, or `null` when it
  *                               offered none
@@ -55,11 +57,16 @@ record WalReadResult<T extends ChangeCapture>(
 	 *
 	 * @param walPointer             the position the subscriber continues from
 	 * @param firstReplayableVersion the first version the WAL can still replay, `-1` when it never lost a file
+	 * @param failureFactory         creates the exception reporting a removed position
 	 * @throws TemporalDataNotAvailableException if the position lies below the first replayable version
 	 */
-	static void assertPositionRetained(@Nonnull WalPointer walPointer, long firstReplayableVersion) {
+	static void assertPositionRetained(
+		@Nonnull WalPointer walPointer,
+		long firstReplayableVersion,
+		@Nonnull RetentionFailureFactory failureFactory
+	) {
 		if (firstReplayableVersion > walPointer.version()) {
-			throw new TemporalDataNotAvailableException(firstReplayableVersion);
+			throw failureFactory.create(walPointer, firstReplayableVersion, null);
 		}
 	}
 
@@ -76,13 +83,15 @@ record WalReadResult<T extends ChangeCapture>(
 	 * @param walPointer             the position the read started at
 	 * @param firstReplayableVersion looks up the first version the WAL can still replay, `-1` when it never lost a
 	 *                               file
+	 * @param failureFactory         creates the exception reporting a removed position, caused by the read failure
 	 * @return the exception to throw
 	 */
 	@Nonnull
 	static RuntimeException classifyReadFailure(
 		@Nonnull RuntimeException readFailure,
 		@Nonnull WalPointer walPointer,
-		@Nonnull LongSupplier firstReplayableVersion
+		@Nonnull LongSupplier firstReplayableVersion,
+		@Nonnull RetentionFailureFactory failureFactory
 	) {
 		final long theFirstReplayableVersion;
 		try {
@@ -92,7 +101,42 @@ record WalReadResult<T extends ChangeCapture>(
 			return readFailure;
 		}
 		return theFirstReplayableVersion > walPointer.version() ?
-			new TemporalDataNotAvailableException(theFirstReplayableVersion, readFailure) : readFailure;
+			failureFactory.create(walPointer, theFirstReplayableVersion, readFailure) : readFailure;
+	}
+
+	/**
+	 * Creates the exception reporting that the WAL retention has removed the position a lagging subscriber has to
+	 * continue from.
+	 */
+	@FunctionalInterface
+	interface RetentionFailureFactory {
+
+		/**
+		 * Reports the removed position as a plain {@link TemporalDataNotAvailableException} naming the retention
+		 * floor - for a stream that does not belong to any catalog incarnation.
+		 */
+		RetentionFailureFactory PLAIN = (walPointer, firstReplayableVersion, cause) -> cause == null ?
+			new TemporalDataNotAvailableException(firstReplayableVersion) :
+			new TemporalDataNotAvailableException(firstReplayableVersion, cause);
+
+		/**
+		 * Creates the exception.
+		 *
+		 * @param walPointer             the position the subscriber has to continue from
+		 * @param firstReplayableVersion the first version the WAL can still replay - the oldest version still
+		 *                               available
+		 * @param cause                  the failure of the read that ran into the removed position, `null` when the
+		 *                               removal was recognized before reading
+		 * @return the exception to throw, whose {@link TemporalDataNotAvailableException#getCatalogVersion()} is the
+		 *         first replayable version
+		 */
+		@Nonnull
+		TemporalDataNotAvailableException create(
+			@Nonnull WalPointer walPointer,
+			long firstReplayableVersion,
+			@Nullable Throwable cause
+		);
+
 	}
 
 }

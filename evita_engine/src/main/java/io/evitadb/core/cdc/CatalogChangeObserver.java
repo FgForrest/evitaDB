@@ -43,6 +43,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
+import java.util.OptionalLong;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -145,6 +146,13 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 		}
 	}
 
+	@Nonnull
+	@Override
+	public OptionalLong getObservedCatalogVersion() {
+		final Catalog catalog = this.currentCatalog.get();
+		return catalog == null ? OptionalLong.empty() : OptionalLong.of(catalog.getVersion());
+	}
+
 	@Override
 	public void processMutation(@Nonnull CatalogBoundMutation mutation) {
 		assertActive();
@@ -193,12 +201,19 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 					if (existingPublisher != null && !existingPublisher.isClosed()) {
 						return existingPublisher;
 					}
+					// this factory outlives the registration - the facade calls it again to renew a retired shared
+					// publisher, possibly long after this observer was closed together with its catalog. A closed
+					// observer has no catalog to serve, and a publisher created by it would never be told about one
+					final Catalog catalogToServe = this.currentCatalog.get();
+					if (!this.active.get() || catalogToServe == null) {
+						throw new InstanceTerminatedException("catalog change observer");
+					}
 					log.info(
 						"Creating new shared CDC publisher for catalog '{}' and criteria: {}",
 						catalogName, cb
 					);
 					return new ChangeCatalogCaptureSharedPublisher(
-						this.currentCatalog.get(),
+						catalogToServe,
 						this.cdcExecutor,
 						this.cdcOptions.recentEventsCacheLimit(),
 						this.cdcOptions.subscriberBufferSize(),
@@ -365,7 +380,7 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 	 */
 	private void assertActive() {
 		if (!this.active.get()) {
-			throw new InstanceTerminatedException("system change observer");
+			throw new InstanceTerminatedException("catalog change observer");
 		}
 	}
 

@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.mutation.MutationPredicateContext;
 import io.evitadb.api.requestResponse.mutation.StreamDirection;
 import io.evitadb.core.Evita;
 import io.evitadb.core.buffer.RingBuffer.OutsideScopeException;
+import io.evitadb.core.cdc.WalReadResult.RetentionFailureFactory;
 import io.evitadb.core.cdc.predicate.MutationPredicateFactory;
 import io.evitadb.core.cdc.predicate.MutationPredicateFactory.TruePredicate;
 import io.evitadb.core.cdc.predicate.VersionAndIndexPredicate;
@@ -757,7 +758,9 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 		if (walPointer.version() > readUpToVersion) {
 			return new WalReadResult<>(null, readUpToVersion);
 		}
-		WalReadResult.assertPositionRetained(walPointer, this.evita.getFirstReplayableVersion());
+		WalReadResult.assertPositionRetained(
+			walPointer, this.evita.getFirstReplayableVersion(), RetentionFailureFactory.PLAIN
+		);
 		// we must not use the shared predicate, because this method is called from subscriber thread
 		// and the shared predicate is not thread-safe
 		final MutationPredicate localPredicate = new VersionAndIndexPredicate(
@@ -823,7 +826,9 @@ public class ChangeSystemCaptureSharedPublisher implements Flow.Publisher<Change
 		} catch (RuntimeException ex) {
 			// the retention may have removed the position between the check above and the read - report that as
 			// what it is rather than as the WAL damage the reader had to assume
-			throw WalReadResult.classifyReadFailure(ex, walPointer, this.evita::getFirstReplayableVersion);
+			throw WalReadResult.classifyReadFailure(
+				ex, walPointer, this.evita::getFirstReplayableVersion, RetentionFailureFactory.PLAIN
+			);
 		}
 	}
 
