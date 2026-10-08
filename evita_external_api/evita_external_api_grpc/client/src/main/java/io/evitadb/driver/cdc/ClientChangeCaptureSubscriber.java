@@ -55,6 +55,7 @@ import java.util.concurrent.Flow;
 import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 /**
@@ -135,16 +136,16 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * A terminal path that fails this future must read {@link #closed} — to decide whether the delegate is told —
 	 * **before** it completes the future. The caller woken by the completion tears the half-open subscription down
 	 * at once, which closes this subscriber; reading the flag afterwards lets that teardown win and swallows the
-	 * terminal signal the consumer is owed. The future itself is still completed before the delegate is notified,
-	 * so a consumer whose handler cancels the subscription cannot replace the failure `subscribe()` surfaces with
-	 * a {@link PublisherClosedByClientException}.
+	 * terminal signal the consumer is owed. The terminal signal itself is queued before the future is completed
+	 * but held until it is (see `lastDelegateSignal`), so a consumer whose handler cancels the subscription cannot
+	 * replace the failure `subscribe()` surfaces with a {@link PublisherClosedByClientException}.
 	 */
 	private final CompletableFuture<Void> acknowledged = new CompletableFuture<>();
 
 	/**
-	 * Completed once {@link #onSubscribe} has handed the delegate its subscription. Every terminal signal for the
-	 * delegate is chained onto it (see {@link #dispatchTerminalSignal}), so that the delegate never sees `onError`
-	 * or `onComplete` before `onSubscribe` (Reactive Streams §1.9).
+	 * Completed once {@link #onSubscribe} has handed the delegate its subscription. The signals queued for the
+	 * delegate start from it (see `lastDelegateSignal`), so that the delegate never sees `onError` or `onComplete`
+	 * before `onSubscribe` (Reactive Streams §1.9).
 	 *
 	 * The publisher hands the subscription over only after the stream initializer has started the RPC, and gRPC may
 	 * fail or complete the stream on its inbound thread in between. Handing it over before the initializer instead
@@ -153,6 +154,20 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * only do from `onSubscribe` on.
 	 */
 	private final CompletableFuture<Void> delegateSubscribed = new CompletableFuture<>();
+
+	/**
+	 * The last signal queued for the delegate: a terminal `onError` / `onComplete`, or the `close` of a closeable
+	 * delegate. Each runs on the executor only after its predecessor has run (see {@link #dispatchDelegateSignal}),
+	 * so the delegate is closed after the terminal signal that precedes the close - two independent dispatches would
+	 * leave the order to the pool. The chain starts once both of these are settled:
+	 *
+	 * - `delegateSubscribed`, so that no terminal signal precedes `onSubscribe`
+	 * - `acknowledged`, so that a terminal path can queue its signal **before** it releases the caller blocked in
+	 *   `subscribe()` - and thereby ahead of the delegate close that caller's teardown queues - while the signal
+	 *   still runs only after the failure `subscribe()` surfaces is settled
+	 */
+	private final AtomicReference<CompletableFuture<Void>> lastDelegateSignal =
+		new AtomicReference<>(CompletableFuture.allOf(this.delegateSubscribed, this.acknowledged));
 
 	/**
 	 * The gRPC observer that sends requests to and receives responses from the server.
@@ -550,8 +565,24 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			rootCause instanceof PublisherClosedByClientException || rootCause instanceof TimeoutException ?
 				null : ErrorInfoConverter.toTypedException(throwable);
 		final Throwable failure = typedFailure == null ? rootCause : typedFailure;
-		// read before completing the future - the caller it releases closes this subscriber, see `acknowledged`
-		final boolean closedBeforeFailure = this.closed.get();
+		// read before completing the future - the caller it releases closes this subscriber, see `acknowledged`;
+		// the publisher always attaches the subscription before the stream initializer runs, so by the time
+		// `onError` fires the subscription is guaranteed non-null
+		final ClientSubscription<C, REQ, RES> activeSubscription =
+			rootCause instanceof PublisherClosedByClientException || this.closed.get() ?
+				null :
+				Objects.requireNonNull(this.subscription, "Subscription must be attached before `onError` is invoked.");
+		if (activeSubscription != null) {
+			// we notify the subscriber about the error — dispatched off this thread, which is the gRPC
+			// inbound (event loop) thread; a consumer `onError` handler that re-subscribes would otherwise
+			// block the very thread that has to deliver the acknowledgement it then waits for. Queued before the
+			// future below is completed, so it precedes the delegate close of the teardown that completion releases
+			dispatchDelegateSignal(
+				activeSubscription.getExecutorService(),
+				() -> this.delegate.onError(failure),
+				"deliver onError to the delegate subscriber"
+			);
+		}
 		// unblock a caller still waiting in `awaitAcknowledgement`: the stream failed before the
 		// server acknowledged the subscription, so the subscribe() call must fail rather than wait
 		// out the full streaming timeout (no-op once the ACK has already completed the future)
@@ -561,7 +592,7 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			// apparently, gRPC server doesn't know if cancellation was initiated by the client or by some network error
 			// in this case we don't call the on complete, nor on error methods on the delegate
 			log.debug("Client change capture publisher was closed manually by the client.", throwable);
-		} else if (!closedBeforeFailure) {
+		} else if (activeSubscription != null) {
 			if (rootCause instanceof TimeoutException) {
 				// we don't log timeout exceptions as errors because we expect that the CDC is regularly timed out
 				// and then re-established by the client
@@ -573,28 +604,8 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			} else {
 				log.error("Error occurred in the client change capture publisher.", throwable);
 			}
-			// the publisher always attaches the subscription before the stream initializer runs,
-			// so by the time `onError` fires the subscription is guaranteed non-null
-			final ClientSubscription<C, REQ, RES> activeSubscription = Objects.requireNonNull(
-				this.subscription,
-				"Subscription must be attached before `onError` is invoked."
-			);
-			// we notify the subscriber about the error — dispatched off this thread, which is the gRPC
-			// inbound (event loop) thread; a consumer `onError` handler that re-subscribes would otherwise
-			// block the very thread that has to deliver the acknowledgement it then waits for.
-			// The dispatch result is deliberately ignored: this is already the terminal path, so a refusal
-			// leaves nothing further to escalate to — the dispatcher logs it, and the teardown below runs
-			// either way.
-			try {
-				dispatchTerminalSignal(
-					activeSubscription,
-					() -> this.delegate.onError(failure),
-					"deliver onError to the delegate subscriber"
-				);
-			} finally {
-				// this handles cleanup and calling #close on this instance
-				activeSubscription.cancel();
-			}
+			// this handles cleanup and calling #close on this instance
+			activeSubscription.cancel();
 		}
 	}
 
@@ -612,11 +623,28 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	 * @param cause exception describing the client-internal failure
 	 */
 	void notifyClientFailureAndClose(@Nonnull Throwable cause) {
-		// read before completing the future - the caller it releases closes this subscriber, see `acknowledged`
-		final boolean closedBeforeFailure = this.closed.get();
+		// read before completing the future - the caller it releases closes this subscriber, see `acknowledged`;
+		// invoked from `ClientSubscription.consume`, which can only exist once the
+		// publisher has attached this subscription, so the field is always non-null
+		final ClientSubscription<C, REQ, RES> activeSubscription = this.closed.get() ?
+			null :
+			Objects.requireNonNull(
+				this.subscription,
+				"Subscription must be attached before `notifyClientFailureAndClose` is invoked."
+			);
+		if (activeSubscription != null) {
+			// off-thread for the same reason as in `onError` — the caller is the drain task, and
+			// a rejected dispatch must not strand the terminal notification; queued before the future
+			// below is completed for the same reason as well
+			dispatchDelegateSignal(
+				activeSubscription.getExecutorService(),
+				() -> this.delegate.onError(cause),
+				"deliver onError (client-side failure) to the delegate subscriber"
+			);
+		}
 		// unblock a caller still waiting in `awaitAcknowledgement` (no-op once the ACK completed it)
 		this.acknowledged.completeExceptionally(cause);
-		if (!closedBeforeFailure) {
+		if (activeSubscription != null) {
 			if (cause instanceof TemporalDataNotAvailableException) {
 				// a refusal of the subscription by `verifyAcknowledgement` - the consumer is told and has to act on
 				// it, nothing in the driver failed
@@ -624,25 +652,9 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			} else {
 				log.error("Client-side change capture subscription failed.", cause);
 			}
-			// invoked from `ClientSubscription.consume`, which can only exist once the
-			// publisher has attached this subscription, so the field is always non-null
-			final ClientSubscription<C, REQ, RES> activeSubscription = Objects.requireNonNull(
-				this.subscription,
-				"Subscription must be attached before `notifyClientFailureAndClose` is invoked."
-			);
-			try {
-				// off-thread for the same reason as in `onError` — the caller is the drain task, and
-				// a rejected dispatch must not strand the terminal notification
-				dispatchTerminalSignal(
-					activeSubscription,
-					() -> this.delegate.onError(cause),
-					"deliver onError (client-side failure) to the delegate subscriber"
-				);
-			} finally {
-				// triggers `close()` which still sees `serverSideClosed == false` and therefore
-				// propagates the cancellation to the gRPC stream
-				activeSubscription.cancel();
-			}
+			// triggers `close()` which still sees `serverSideClosed == false` and therefore
+			// propagates the cancellation to the gRPC stream
+			activeSubscription.cancel();
 		}
 	}
 
@@ -655,55 +667,72 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 	@Override
 	public void onComplete() {
 		this.serverSideClosed.set(true);
-		// read before completing the future - the caller it releases closes this subscriber, see `acknowledged`
-		final boolean closedBeforeCompletion = this.closed.get();
+		// read before completing the future - the caller it releases closes this subscriber, see `acknowledged`;
+		// gRPC calls `onComplete` only after `beforeStart` returned, by which point
+		// the publisher has already attached the subscription
+		final ClientSubscription<C, REQ, RES> activeSubscription = this.closed.get() ?
+			null :
+			Objects.requireNonNull(this.subscription, "Subscription must be attached before `onComplete` is invoked.");
+		if (activeSubscription != null) {
+			// off-thread for the same reason as in `onError` — this runs on the gRPC inbound thread;
+			// queued before the future below is completed for the same reason as well
+			dispatchDelegateSignal(
+				activeSubscription.getExecutorService(),
+				this.delegate::onComplete,
+				"deliver onComplete to the delegate subscriber"
+			);
+		}
 		// unblock a caller still waiting in `awaitAcknowledgement`: the stream completed before the
 		// server acknowledged the subscription, which is abnormal — fail the subscribe() rather than
 		// wait out the streaming timeout (no-op once the ACK has already completed the future)
 		this.acknowledged.completeExceptionally(
 			new GenericEvitaInternalError("The change data capture stream completed before it was acknowledged.")
 		);
-		if (!closedBeforeCompletion) {
-			// gRPC calls `onComplete` only after `beforeStart` returned, by which point
-			// the publisher has already attached the subscription
-			final ClientSubscription<C, REQ, RES> activeSubscription = Objects.requireNonNull(
-				this.subscription,
-				"Subscription must be attached before `onComplete` is invoked."
-			);
-			try {
-				// off-thread for the same reason as in `onError` — this runs on the gRPC inbound thread
-				dispatchTerminalSignal(
-					activeSubscription,
-					this.delegate::onComplete,
-					"deliver onComplete to the delegate subscriber"
-				);
-			} finally {
-				// this handles cleanup and calling #close on this instance
-				activeSubscription.cancel();
-			}
+		if (activeSubscription != null) {
+			// this handles cleanup and calling #close on this instance
+			activeSubscription.cancel();
 		}
 	}
 
 	/**
-	 * Dispatches a terminal signal to the delegate off the calling thread through {@link CdcCallbackDispatcher},
-	 * but never before the delegate has received its subscription: until {@link #onSubscribe} has run, the dispatch
-	 * is parked on `delegateSubscribed` and submitted by the thread that completes it. Either way the signal runs on
-	 * the executor, never on the gRPC inbound thread or on the thread blocked in `subscribe()`.
+	 * Queues a signal for the delegate behind the last one (see `lastDelegateSignal`) and dispatches it off the
+	 * calling thread through {@link CdcCallbackDispatcher} once its predecessor has run. Until then the dispatch is
+	 * parked, and submitted by the thread that settles the predecessor - which only submits it: the signal itself
+	 * always runs on the executor, never on the gRPC inbound thread or on the thread blocked in `subscribe()`.
 	 *
 	 * The dispatch result is ignored, as on every terminal path: a refusal leaves nothing further to escalate to, and
-	 * the dispatcher logs it.
+	 * the dispatcher logs it. A refused signal never runs, so it releases its successor at once rather than strand it.
 	 *
-	 * @param activeSubscription the subscription whose executor delivers the signal
-	 * @param signal             the delegate callback to run
-	 * @param description        what the callback does, for the log of a refused dispatch
+	 * @param executor    the executor that delivers the signal
+	 * @param signal      the delegate callback to run
+	 * @param description what the callback does, for the log of a refused dispatch
 	 */
-	private void dispatchTerminalSignal(
-		@Nonnull ClientSubscription<C, REQ, RES> activeSubscription,
+	private void dispatchDelegateSignal(
+		@Nonnull Executor executor,
 		@Nonnull Runnable signal,
 		@Nonnull String description
 	) {
-		this.delegateSubscribed.thenRun(
-			() -> CdcCallbackDispatcher.dispatch(activeSubscription.getExecutorService(), signal, description)
+		final CompletableFuture<Void> delivered = new CompletableFuture<>();
+		final CompletableFuture<Void> predecessor = this.lastDelegateSignal.getAndSet(delivered);
+		// `whenComplete` rather than `thenRun`: the head of the chain fails together with a failed acknowledgement,
+		// and has to release the first signal all the same
+		predecessor.whenComplete(
+			(ignored, predecessorFailure) -> {
+				final Throwable refusal = CdcCallbackDispatcher.dispatch(
+					executor,
+					() -> {
+						try {
+							signal.run();
+						} finally {
+							delivered.complete(null);
+						}
+					},
+					description
+				);
+				if (refusal != null) {
+					delivered.complete(null);
+				}
+			}
 		);
 	}
 
@@ -760,10 +789,11 @@ public class ClientChangeCaptureSubscriber<C extends ChangeCapture, REQ, RES>
 			// a naive "run the cleanup synchronously" fallback would) walks straight back into
 			// `subscribe()` → `awaitAcknowledgement()` on the thread that must deliver the acknowledgement.
 			// Driver-side teardown is already complete at this point (`observer.cancel` ran above), so
-			// nothing driver-internal depends on this task.
+			// nothing driver-internal depends on this task. Queued behind the terminal signal, if any, so the
+			// delegate is closed only after it has been told why.
 			final ClientSubscription<C, REQ, RES> activeSubscription = this.subscription;
 			if (activeSubscription != null && this.delegate instanceof AutoCloseable closeable) {
-				CdcCallbackDispatcher.dispatch(
+				dispatchDelegateSignal(
 					activeSubscription.getExecutorService(),
 					() -> IOUtils.closeQuietly(closeable::close),
 					"close the delegate subscriber"

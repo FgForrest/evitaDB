@@ -55,9 +55,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Flow;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -461,6 +464,44 @@ class ClientChangeCatalogCaptureSubscriberTest {
 
 	}
 
+	@Nested
+	@DisplayName("Closing a closeable consumer")
+	class ClosingConsumer {
+
+		@Test
+		@DisplayName("should close the consumer only after the error that was held until its onSubscribe")
+		void shouldCloseConsumerAfterHeldError() {
+			// the error is raised before the consumer is subscribed, so its delivery waits for `onSubscribe` - while
+			// the teardown it triggers closes the internal subscriber at once
+			final Harness harness = new Harness(resumeRequest(null));
+			harness.duringInitialization(
+				subscriber -> subscriber.onError(Status.UNAVAILABLE.withDescription("lost").asRuntimeException())
+			);
+			final Stream stream = harness.subscribe(INCARNATION_A, new CloseableRecordingSubscriber());
+			stream.awaitSubscribed();
+
+			assertEquals(List.of(Signal.SUBSCRIBE, Signal.ERROR, Signal.CLOSE), stream.delegate.signals);
+		}
+
+		@Test
+		@DisplayName("should close the consumer only after the error when the pool runs the later task first")
+		void shouldCloseConsumerAfterErrorWhateverOrderThePoolRunsTasksIn() {
+			// a multi-threaded pool gives no order to two tasks submitted one after the other - the newest-first
+			// executor stands for the interleaving in which the teardown overtakes the error it follows
+			final LastFirstExecutorService executor = new LastFirstExecutorService();
+			final Harness harness = new Harness(resumeRequest(null), executor);
+			final Stream stream = harness.subscribe(INCARNATION_A, new CloseableRecordingSubscriber());
+			stream.deliver(acknowledgement(INCARNATION_A));
+			stream.awaitSubscribed();
+
+			stream.fail(Status.UNAVAILABLE.withDescription("lost").asRuntimeException());
+			executor.runAll();
+
+			assertEquals(List.of(Signal.SUBSCRIBE, Signal.ERROR, Signal.CLOSE), stream.delegate.signals);
+		}
+
+	}
+
 	/**
 	 * A catalog change capture publisher whose stream initializer binds the identity it is told to - standing for
 	 * the session the driver registers the stream in - and hands the stream over to the test instead of a server.
@@ -476,10 +517,14 @@ class ClientChangeCatalogCaptureSubscriberTest {
 			new AtomicReference<>(subscriber -> {});
 
 		Harness(@Nonnull ChangeCatalogCaptureRequest request) {
+			this(request, new SynchronousExecutorService());
+		}
+
+		Harness(@Nonnull ChangeCatalogCaptureRequest request, @Nonnull ExecutorService executor) {
 			this.publisher = new ClientChangeCatalogCaptureProcessor(
 				QUEUE_SIZE,
 				Duration.ofSeconds(30),
-				new SynchronousExecutorService(),
+				executor,
 				request,
 				subscriber -> {
 					// what the session does: bind its identity before starting the RPC
@@ -595,13 +640,13 @@ class ClientChangeCatalogCaptureSubscriberTest {
 	 * A signal the consumer's subscriber receives.
 	 */
 	private enum Signal {
-		SUBSCRIBE, NEXT, ERROR, COMPLETE
+		SUBSCRIBE, NEXT, ERROR, COMPLETE, CLOSE
 	}
 
 	/**
 	 * The consumer's subscriber, requesting everything and recording what it receives.
 	 */
-	private static final class RecordingSubscriber implements Flow.Subscriber<ChangeCatalogCapture> {
+	private static class RecordingSubscriber implements Flow.Subscriber<ChangeCatalogCapture> {
 		final List<Signal> signals = new CopyOnWriteArrayList<>();
 		final List<ChangeCatalogCapture> received = new CopyOnWriteArrayList<>();
 		final AtomicReference<Throwable> error = new AtomicReference<>();
@@ -642,6 +687,72 @@ class ClientChangeCatalogCaptureSubscriberTest {
 		@Override
 		public void onComplete() {
 			this.signals.add(Signal.COMPLETE);
+		}
+	}
+
+	/**
+	 * A consumer's subscriber that is closeable as well, recording its closing among the signals it receives.
+	 */
+	private static final class CloseableRecordingSubscriber extends RecordingSubscriber implements AutoCloseable {
+
+		CloseableRecordingSubscriber() {
+			super(false);
+		}
+
+		@Override
+		public void close() {
+			this.signals.add(Signal.CLOSE);
+		}
+	}
+
+	/**
+	 * Queues every task until the test runs them, and then runs the newest first - including the tasks the running
+	 * ones submit - which is an order a multi-threaded pool is free to choose for tasks submitted one after another.
+	 */
+	private static final class LastFirstExecutorService extends AbstractExecutorService {
+		private final BlockingDeque<Runnable> tasks = new LinkedBlockingDeque<>();
+		private volatile boolean shutdown;
+
+		/**
+		 * Runs the queued tasks, newest first, until none is left.
+		 */
+		void runAll() {
+			Runnable task;
+			while ((task = this.tasks.pollLast()) != null) {
+				task.run();
+			}
+		}
+
+		@Override
+		public void shutdown() {
+			this.shutdown = true;
+		}
+
+		@Nonnull
+		@Override
+		public List<Runnable> shutdownNow() {
+			this.shutdown = true;
+			return Collections.emptyList();
+		}
+
+		@Override
+		public boolean isShutdown() {
+			return this.shutdown;
+		}
+
+		@Override
+		public boolean isTerminated() {
+			return this.shutdown;
+		}
+
+		@Override
+		public boolean awaitTermination(long timeout, @Nonnull TimeUnit unit) {
+			return true;
+		}
+
+		@Override
+		public void execute(@Nonnull Runnable command) {
+			this.tasks.addLast(command);
 		}
 	}
 
