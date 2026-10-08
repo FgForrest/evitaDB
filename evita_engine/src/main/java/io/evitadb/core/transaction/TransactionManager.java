@@ -27,6 +27,7 @@ import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.configuration.ChangeDataCaptureOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.exception.ChangeCaptureResumePositionInvalidException;
 import io.evitadb.api.exception.ConflictingCatalogMutationException;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.exception.TransactionTimedOutException;
@@ -61,6 +62,7 @@ import io.evitadb.core.buffer.RingBuffer.OutsideScopeException;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.cdc.CatalogChangeObserver;
 import io.evitadb.core.cdc.ChangeCatalogObserverContract;
+import io.evitadb.core.cdc.ResumePositionValidator;
 import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.Scheduler;
@@ -167,6 +169,13 @@ public class TransactionManager implements Closeable {
 	 * Lambda function that is called when a new catalog version is available.
 	 */
 	private final Consumer<Catalog> newCatalogVersionConsumer;
+	/**
+	 * Identity of the catalog incarnation this manager serves. Every catalog version derived from another one inherits
+	 * both its identity and its transaction manager, and a rename keeps both, so the identity never changes during the
+	 * manager's lifetime (see {@link #notifyCatalogPresentInLiveView(Catalog)}). Kept here rather than read from a
+	 * catalog instance, because those references are cleared when the manager closes.
+	 */
+	private final UUID catalogId;
 	/**
 	 * Contains the latest version created for appending to the WAL - this practically represents a sequence
 	 * number increased with each committed transaction and denotes the next catalog version.
@@ -416,6 +425,7 @@ public class TransactionManager implements Closeable {
 		this.transactionalExecutor = transactionalExecutor;
 		this.transactionalPipeline = createTransactionalPublisher();
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
+		this.catalogId = catalog.getCatalogId();
 		this.transactionAcceptanceTimeout = this.configuration.transaction().waitForTransactionAcceptanceInMillis();
 		final ChangeDataCaptureOptions cdcOptions = this.configuration.server().changeDataCapture();
 		this.changeObserver = cdcOptions.enabled() ?
@@ -1784,11 +1794,31 @@ public class TransactionManager implements Closeable {
 	/**
 	 * Registers an observer to capture changes based on the provided request.
 	 *
+	 * The resume position of the request is verified here, at the single boundary every catalog change capture
+	 * registration passes, so that no entry point can create a subscription the check would have refused. It is
+	 * judged against this manager's incarnation and its last finalized version: finalization precedes every way a
+	 * version becomes visible - to new sessions and, later still, to the change observer - so no consumer can have
+	 * learnt a version this manager has not finalized yet, while a session or the observer may both still describe
+	 * the version before (see {@link ResumePositionValidator#assertSubscriptionPosition}). The refusal is thrown
+	 * synchronously, before a subscription that would stay silent exists.
+	 *
 	 * @param request the request containing the criteria and configuration for capturing changes
 	 * @return an instance of ChangeCapturePublisher that allows the caller to manage the registered observer
+	 * @throws ChangeCaptureResumePositionInvalidException when the resume position of the request cannot be served by
+	 *                                                     the incarnation this manager serves
 	 */
 	@Nonnull
-	public ChangeCapturePublisher<ChangeCatalogCapture> registerObserver(@Nonnull ChangeCatalogCaptureRequest request) {
+	public ChangeCapturePublisher<ChangeCatalogCapture> registerObserver(
+		@Nonnull ChangeCatalogCaptureRequest request
+	) throws ChangeCaptureResumePositionInvalidException {
+		ResumePositionValidator.assertSubscriptionPosition(
+			request,
+			this.catalogId,
+			getLastFinalizedCatalogVersion(),
+			// consulted only to describe a refusal; a manager closed meanwhile fails the lookup, and the validator
+			// keeps the refusal and attaches that failure to it
+			() -> getLastFinalizedCatalog().getFirstReplayableCatalogVersion()
+		);
 		return this.changeObserver.registerObserver(request);
 	}
 

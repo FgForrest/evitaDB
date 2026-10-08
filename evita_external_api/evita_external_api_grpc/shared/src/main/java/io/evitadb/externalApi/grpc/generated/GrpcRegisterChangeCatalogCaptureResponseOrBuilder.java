@@ -33,8 +33,8 @@ public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
 
   /**
    * <pre>
-   * Identification of the registered subscription. Present on every message, not just the initial
-   * acknowledgement.
+   * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` messages (when a
+   * subscription id is available), unset on `CHANGE` messages.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -43,8 +43,8 @@ public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
   boolean hasUuid();
   /**
    * <pre>
-   * Identification of the registered subscription. Present on every message, not just the initial
-   * acknowledgement.
+   * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` messages (when a
+   * subscription id is available), unset on `CHANGE` messages.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -53,8 +53,8 @@ public interface GrpcRegisterChangeCatalogCaptureResponseOrBuilder extends
   io.evitadb.externalApi.grpc.generated.GrpcUuid getUuid();
   /**
    * <pre>
-   * Identification of the registered subscription. Present on every message, not just the initial
-   * acknowledgement.
+   * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` messages (when a
+   * subscription id is available), unset on `CHANGE` messages.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>

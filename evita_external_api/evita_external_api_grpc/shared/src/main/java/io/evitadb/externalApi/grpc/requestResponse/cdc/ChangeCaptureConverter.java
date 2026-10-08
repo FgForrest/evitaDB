@@ -221,7 +221,7 @@ public class ChangeCaptureConverter {
 	}
 
 	/**
-	 * Converts a {@link ChangeCatalogCaptureRequest} to a {@link GetMutationsHistoryPageRequest}.
+	 * Converts a {@link ChangeCatalogCaptureRequest} to a {@link GetMutationsHistoryRequest}.
 	 *
 	 * @param request the request to convert
 	 * @return the converted request

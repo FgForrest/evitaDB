@@ -301,8 +301,8 @@ message GrpcEntityCollectionChanges {
 // `CHANGE` (`capture` populated, `heartBeat` is not), or `HEARTBEAT` (`heartBeat` populated, `capture`
 // is not) - the periodic keep-alive sent while no matching mutation has occurred.
 message GrpcRegisterChangeCatalogCaptureResponse {
-  // Identification of the registered subscription. Present on every message, not just the initial
-  // acknowledgement.
+  // Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` messages (when a
+  // subscription id is available), unset on `CHANGE` messages.
   GrpcUuid uuid = 1;
   // The single mutation (CDC event) delivered by this message. Populated only when `responseType` is
   // `CHANGE`; unset otherwise.

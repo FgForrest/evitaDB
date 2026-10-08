@@ -79,8 +79,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The new incarnation numbered its versions from scratch, so the position lay far ahead of it; the subscription was
  * accepted, stayed open and healthy, and delivered nothing for a day - until the new catalog happened to reach that
  * version. The tests reach that situation through the public API of a real engine and assert the refusal instead,
- * and pin the positions that must stay acceptable: the next version, a renamed catalog, a restarted engine and both
- * orderings of the session's and the change observer's view of the live version.
+ * and pin the positions that must stay acceptable: the next version, a renamed catalog, a restarted engine, and the
+ * next version while the registering session and the change observer still describe an older one.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -223,17 +223,32 @@ class CatalogChangeCaptureResumePositionTest implements EvitaTestSupport {
 			assertEquals(Reason.AHEAD_OF_CATALOG, aheadRefusal.getReason());
 			assertEquals(replacingCatalogId, aheadRefusal.getCatalogId());
 
-			// the remedy the exception names - subscribe from the head expecting the new identity - works
-			final Registration renewed = register(TEST_CATALOG, productRequest(replacingCatalogId, null));
-			assertEquals(replacingCatalogId, renewed.catalogId());
+			// the remedy the exception names - rebuild from one session's snapshot and resume right after it - loses
+			// nothing, not even a change committed while the rebuild runs
+			final Checkpoint snapshot = CatalogChangeCaptureResumePositionTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return new Checkpoint(session.getCatalogId(), session.getCatalogVersion() + 1);
+				}
+			);
+			assertEquals(replacingCatalogId, snapshot.catalogId());
+			final long committedDuringRebuild = commitEntity(TEST_CATALOG, 100);
+			assertEquals(snapshot.sinceVersion(), committedDuringRebuild);
+			final Registration renewed = register(
+				TEST_CATALOG, productRequest(snapshot.catalogId(), snapshot.sinceVersion())
+			);
 			final AwaitableCaptureSubscriber<ChangeCatalogCapture> subscriber = AwaitableCaptureSubscriber.unbounded();
 			renewed.publisher().subscribe(subscriber);
-			final long nextVersion = commitEntity(TEST_CATALOG, 100);
+			final long nextVersion = commitEntity(TEST_CATALOG, 101);
 			assertTrue(
 				subscriber.awaitUntil(
 					items -> versionsOf(items).contains(nextVersion), AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS
 				),
 				"The renewed subscription did not deliver the next change of the replacing catalog."
+			);
+			assertEquals(
+				List.of(committedDuringRebuild, nextVersion), versionsOf(subscriber.getItems()),
+				"The change committed while the consumer rebuilt its state must be delivered, not skipped."
 			);
 			assertStampedWith(replacingCatalogId, subscriber.getItems(), "the renewed subscription");
 		}
@@ -363,7 +378,7 @@ class CatalogChangeCaptureResumePositionTest implements EvitaTestSupport {
 				final ChangeCapturePublisher<ChangeCatalogCapture> publisher = assertDoesNotThrow(
 					() -> olderSession.registerChangeCatalogCapture(productRequest(null, committedVersion + 1)),
 					"The version right after the latest commit was refused because the session reads the version " +
-						"before it - the live version is the newer of the session's and the observer's."
+						"before it - the live version is the last one the catalog finalized."
 				);
 				publisher.subscribe(subscriber);
 			}
@@ -379,25 +394,87 @@ class CatalogChangeCaptureResumePositionTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("should accept the next version in a session that sees a version the observer was not told yet")
-		void shouldAcceptNextVersionInSessionAheadOfObserver() {
+		@DisplayName("should accept the next version while both the session and the change observer lag behind it")
+		void shouldAcceptNextVersionWhileSessionAndObserverLag() throws Exception {
 			final Catalog olderCatalog = liveCatalog(TEST_CATALOG);
-			final long committedVersion = commitEntity(TEST_CATALOG, 1);
-			final CatalogChangeObserver observer =
-				(CatalogChangeObserver) liveCatalog(TEST_CATALOG).getTransactionManager().getChangeObserver();
-			// reproduces the window between publishing a new catalog version to sessions and notifying the change
-			// observer about it (`Evita#replaceCatalogReference`) - the observer still holds the version before
-			observer.notifyCatalogPresentInLiveView(olderCatalog);
-			try {
-				assertEquals(committedVersion - 1, observer.getObservedCatalogVersion().orElseThrow());
-				assertDoesNotThrow(
-					() -> register(TEST_CATALOG, productRequest(null, committedVersion + 1)),
-					"The version right after the latest commit was refused because the change observer has not been " +
-						"told about that commit yet - the live version is the newer of the session's and the observer's."
-				);
-			} finally {
-				observer.notifyCatalogPresentInLiveView(liveCatalog(TEST_CATALOG));
+			final AwaitableCaptureSubscriber<ChangeCatalogCapture> subscriber = AwaitableCaptureSubscriber.unbounded();
+			final long committedVersion;
+			try (final EvitaSessionContract olderSession = CatalogChangeCaptureResumePositionTest.this.evita
+				.createReadOnlySession(TEST_CATALOG)) {
+				committedVersion = commitEntity(TEST_CATALOG, 1);
+				final CatalogChangeObserver observer =
+					(CatalogChangeObserver) liveCatalog(TEST_CATALOG).getTransactionManager().getChangeObserver();
+				// reproduces the window between publishing a new catalog version to sessions and notifying the change
+				// observer about it (`Evita#replaceCatalogReference`): a consumer learnt the new version from a fresh
+				// session, while the session it registers in and the observer both still describe the version before
+				observer.notifyCatalogPresentInLiveView(olderCatalog);
+				final ChangeCapturePublisher<ChangeCatalogCapture> publisher;
+				try {
+					assertEquals(
+						committedVersion - 1, olderSession.getCatalogVersion(),
+						"The session must still read the version before the commit for this test."
+					);
+					publisher = assertDoesNotThrow(
+						() -> olderSession.registerChangeCatalogCapture(productRequest(null, committedVersion + 1)),
+						"The version right after the latest commit was refused because neither the session nor the " +
+							"change observer has caught up with that commit yet - the live version is the last one " +
+							"the catalog finalized, which precedes both."
+					);
+					assertDoesNotThrow(
+						() -> register(TEST_CATALOG, productRequest(null, committedVersion + 1)).publisher().close(),
+						"A fresh session sees the commit, the observer does not - the position must pass as well."
+					);
+				} finally {
+					observer.notifyCatalogPresentInLiveView(liveCatalog(TEST_CATALOG));
+				}
+				publisher.subscribe(subscriber);
 			}
+			final long nextVersion = commitEntity(TEST_CATALOG, 2);
+			assertEquals(committedVersion + 1, nextVersion);
+			assertTrue(
+				subscriber.awaitUntil(
+					items -> versionsOf(items).contains(nextVersion), AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS
+				),
+				"The subscription did not deliver the version it was registered for."
+			);
+			assertEquals(List.of(nextVersion), versionsOf(subscriber.getItems()));
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Registration directly with the transaction manager")
+	class TransactionManagerRegistration {
+
+		@Test
+		@DisplayName("should verify the resume position at the transaction manager, which every registration passes")
+		void shouldVerifyResumePositionAtTransactionManager() {
+			commitEntity(TEST_CATALOG, 1);
+			final Catalog catalog = liveCatalog(TEST_CATALOG);
+			final TransactionManager transactionManager = catalog.getTransactionManager();
+			final long liveVersion = catalog.getVersion();
+
+			final ChangeCaptureResumePositionInvalidException foreignRefusal = assertThrows(
+				ChangeCaptureResumePositionInvalidException.class,
+				() -> transactionManager.registerObserver(productRequest(UUID.randomUUID(), liveVersion)),
+				"A position of another incarnation registered with the transaction manager directly was accepted - " +
+					"the publisher would deliver this catalog's captures to a consumer of another one."
+			);
+			assertEquals(Reason.DIFFERENT_INCARNATION, foreignRefusal.getReason());
+			assertEquals(catalog.getCatalogId(), foreignRefusal.getCatalogId());
+			assertEquals(liveVersion, foreignRefusal.getCurrentCatalogVersion());
+
+			final ChangeCaptureResumePositionInvalidException aheadRefusal = assertThrows(
+				ChangeCaptureResumePositionInvalidException.class,
+				() -> transactionManager.registerObserver(productRequest(null, liveVersion + 2)),
+				"A position ahead of the catalog registered with the transaction manager directly was accepted."
+			);
+			assertEquals(Reason.AHEAD_OF_CATALOG, aheadRefusal.getReason());
+
+			final ChangeCapturePublisher<ChangeCatalogCapture> accepted = assertDoesNotThrow(
+				() -> transactionManager.registerObserver(productRequest(catalog.getCatalogId(), liveVersion + 1))
+			);
+			accepted.close();
 		}
 
 	}

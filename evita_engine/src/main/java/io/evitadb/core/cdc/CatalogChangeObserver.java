@@ -43,7 +43,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Map;
-import java.util.OptionalLong;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutorService;
@@ -144,13 +143,6 @@ public class CatalogChangeObserver implements ChangeCatalogObserverContract {
 		for (ChangeCatalogCaptureSharedPublisher sharedPublisher : this.uniquePublishers.values()) {
 			sharedPublisher.notifyCatalogPresentInLiveView(catalog);
 		}
-	}
-
-	@Nonnull
-	@Override
-	public OptionalLong getObservedCatalogVersion() {
-		final Catalog catalog = this.currentCatalog.get();
-		return catalog == null ? OptionalLong.empty() : OptionalLong.of(catalog.getVersion());
 	}
 
 	@Override

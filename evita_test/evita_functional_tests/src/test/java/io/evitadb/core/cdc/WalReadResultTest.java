@@ -159,4 +159,25 @@ class WalReadResultTest {
 		assertEquals(11L, notAvailable.getCatalogVersion());
 	}
 
+	@Test
+	@DisplayName("should never report a position below the sentinel of a WAL that has not lost a file as removed")
+	void shouldNeverReportAPositionBelowTheNeverLostAFileSentinelAsRemoved() {
+		// `-1` is not a version but a WAL that never lost a file - nothing can have been removed below it
+		final WalPointer belowSentinel = new WalPointer(-5L, 0);
+		WalReadResult.assertPositionRetained(belowSentinel, -1L, RetentionFailureFactory.PLAIN);
+
+		final RuntimeException readFailure = new IllegalStateException("the read failed");
+		assertSame(
+			readFailure,
+			WalReadResult.classifyReadFailure(readFailure, belowSentinel, () -> -1L, RetentionFailureFactory.PLAIN),
+			"A WAL that never lost a file cannot have removed the position - the read failure is the answer."
+		);
+
+		// a real retention floor still refuses the very same position
+		assertThrows(
+			TemporalDataNotAvailableException.class,
+			() -> WalReadResult.assertPositionRetained(belowSentinel, 0L, RetentionFailureFactory.PLAIN)
+		);
+	}
+
 }

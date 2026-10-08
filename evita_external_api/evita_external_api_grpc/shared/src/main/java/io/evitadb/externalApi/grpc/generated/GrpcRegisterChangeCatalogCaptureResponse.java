@@ -75,8 +75,8 @@ private static final long serialVersionUID = 0L;
   private io.evitadb.externalApi.grpc.generated.GrpcUuid uuid_;
   /**
    * <pre>
-   * Identification of the registered subscription. Present on every message, not just the initial
-   * acknowledgement.
+   * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` messages (when a
+   * subscription id is available), unset on `CHANGE` messages.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -88,8 +88,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Identification of the registered subscription. Present on every message, not just the initial
-   * acknowledgement.
+   * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` messages (when a
+   * subscription id is available), unset on `CHANGE` messages.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -101,8 +101,8 @@ private static final long serialVersionUID = 0L;
   }
   /**
    * <pre>
-   * Identification of the registered subscription. Present on every message, not just the initial
-   * acknowledgement.
+   * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` messages (when a
+   * subscription id is available), unset on `CHANGE` messages.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -773,8 +773,8 @@ private static final long serialVersionUID = 0L;
         io.evitadb.externalApi.grpc.generated.GrpcUuid, io.evitadb.externalApi.grpc.generated.GrpcUuid.Builder, io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder> uuidBuilder_;
     /**
      * <pre>
-     * Identification of the registered subscription. Present on every message, not just the initial
-     * acknowledgement.
+     * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` messages (when a
+     * subscription id is available), unset on `CHANGE` messages.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -785,8 +785,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered subscription. Present on every message, not just the initial
-     * acknowledgement.
+     * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` messages (when a
+     * subscription id is available), unset on `CHANGE` messages.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -801,8 +801,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered subscription. Present on every message, not just the initial
-     * acknowledgement.
+     * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` messages (when a
+     * subscription id is available), unset on `CHANGE` messages.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -822,8 +822,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered subscription. Present on every message, not just the initial
-     * acknowledgement.
+     * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` messages (when a
+     * subscription id is available), unset on `CHANGE` messages.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -841,8 +841,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered subscription. Present on every message, not just the initial
-     * acknowledgement.
+     * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` messages (when a
+     * subscription id is available), unset on `CHANGE` messages.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -867,8 +867,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered subscription. Present on every message, not just the initial
-     * acknowledgement.
+     * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` messages (when a
+     * subscription id is available), unset on `CHANGE` messages.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -885,8 +885,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered subscription. Present on every message, not just the initial
-     * acknowledgement.
+     * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` messages (when a
+     * subscription id is available), unset on `CHANGE` messages.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -898,8 +898,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered subscription. Present on every message, not just the initial
-     * acknowledgement.
+     * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` messages (when a
+     * subscription id is available), unset on `CHANGE` messages.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>
@@ -914,8 +914,8 @@ private static final long serialVersionUID = 0L;
     }
     /**
      * <pre>
-     * Identification of the registered subscription. Present on every message, not just the initial
-     * acknowledgement.
+     * Identification of the registered subscription. Set on `ACKNOWLEDGEMENT` and `HEARTBEAT` messages (when a
+     * subscription id is available), unset on `CHANGE` messages.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid uuid = 1;</code>

@@ -29,7 +29,6 @@ import io.evitadb.api.exception.ChangeCaptureResumePositionInvalidException.Reas
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest;
 
 import javax.annotation.Nonnull;
-import java.util.OptionalLong;
 import java.util.UUID;
 import java.util.function.LongSupplier;
 
@@ -49,8 +48,9 @@ import java.util.function.LongSupplier;
  *   recorded on this incarnation, with or without an identity; the history reads do not apply it, because they
  *   document a future version as yielding an empty stream
  *
- * The caller passes the identity of the catalog instance the session is bound to, so the check is atomic with
- * respect to a concurrent replacement: a session never changes the incarnation it reads.
+ * The caller passes the identity of the incarnation the position is judged against - the catalog instance a session
+ * is bound to for the history reads, the incarnation a transaction manager serves for a subscription - so the check is
+ * atomic with respect to a concurrent replacement: neither ever changes the incarnation it belongs to.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -90,17 +90,18 @@ public final class ResumePositionValidator {
 	 * on, and it must not lie more than one version ahead of the live catalog in any case. Exactly one version ahead
 	 * is the version the next change will carry - the default start of a subscription - and is accepted.
 	 *
-	 * The live version is the greater of the two views of it. The session's catalog may be newer than the version the
-	 * change observer was told about, because a new version is published to sessions before the observer is notified;
-	 * and it may be older, when the session was opened before the latest commit. Judging by either view alone would
-	 * refuse a position that is legitimately next.
+	 * The live version must be the last version the incarnation has **finalized**, not the version of any catalog
+	 * instance a reader holds. Finalization precedes every way a version becomes visible: a session bound to an older
+	 * snapshot, and the change observer that is told about a new version only after it has been published to new
+	 * sessions, may both still describe the version before - while a consumer has already learnt the newer one from a
+	 * fresh session and legitimately asks for the version after it. Judged by those lagging views, such a position
+	 * would be refused as ahead of the catalog.
 	 *
-	 * @param request                the request whose position is checked
-	 * @param catalogId              identity of the catalog incarnation the session is bound to
-	 * @param sessionCatalogVersion  the version of the catalog the session is bound to
-	 * @param observedCatalogVersion the version the incarnation's change observer considers live, if it has one
-	 * @param firstReplayableVersion looks up the first version the incarnation's WAL can still replay, `-1` when it
-	 *                               never lost a file - consulted only to describe a refusal
+	 * @param request                 the request whose position is checked
+	 * @param catalogId               identity of the catalog incarnation the subscription is registered with
+	 * @param finalizedCatalogVersion the last version that incarnation has finalized
+	 * @param firstReplayableVersion  looks up the first version the incarnation's WAL can still replay, `-1` when it
+	 *                                never lost a file - consulted only to describe a refusal
 	 * @throws ChangeCaptureResumePositionInvalidException with {@link Reason#DIFFERENT_INCARNATION} when the request
 	 *                                                     expects another incarnation, or with
 	 *                                                     {@link Reason#AHEAD_OF_CATALOG} when its version lies more
@@ -109,16 +110,13 @@ public final class ResumePositionValidator {
 	public static void assertSubscriptionPosition(
 		@Nonnull ChangeCatalogCaptureRequest request,
 		@Nonnull UUID catalogId,
-		long sessionCatalogVersion,
-		@Nonnull OptionalLong observedCatalogVersion,
+		long finalizedCatalogVersion,
 		@Nonnull LongSupplier firstReplayableVersion
 	) {
-		final long liveCatalogVersion = observedCatalogVersion.isPresent() ?
-			Math.max(sessionCatalogVersion, observedCatalogVersion.getAsLong()) : sessionCatalogVersion;
-		assertSameIncarnation(request, catalogId, liveCatalogVersion, firstReplayableVersion);
+		assertSameIncarnation(request, catalogId, finalizedCatalogVersion, firstReplayableVersion);
 		final Long sinceVersion = request.sinceVersion();
-		if (sinceVersion != null && sinceVersion > liveCatalogVersion + 1) {
-			throw refuse(Reason.AHEAD_OF_CATALOG, request, catalogId, liveCatalogVersion, firstReplayableVersion);
+		if (sinceVersion != null && sinceVersion > finalizedCatalogVersion + 1) {
+			throw refuse(Reason.AHEAD_OF_CATALOG, request, catalogId, finalizedCatalogVersion, firstReplayableVersion);
 		}
 	}
 

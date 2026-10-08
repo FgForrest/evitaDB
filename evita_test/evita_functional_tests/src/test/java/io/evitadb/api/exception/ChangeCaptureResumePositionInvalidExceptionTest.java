@@ -75,11 +75,15 @@ class ChangeCaptureResumePositionInvalidExceptionTest {
 		assertTrue(message.contains("sinceIndex=2"), message);
 		assertTrue(message.contains(CATALOG_ID.toString()), message);
 		assertTrue(message.contains("version 12"), message);
-		assertTrue(
-			message.contains("subscribe again from the head of the stream (without `sinceVersion`)"),
-			"The consumer must be told what to do: " + message
-		);
 		assertTrue(message.contains("Drop every state derived from the change stream"), message);
+		assertTrue(
+			message.contains("rebuild it from the data of a single session") &&
+				message.contains("`sinceVersion` one past its catalog version and `sinceIndex` 0"),
+			"The consumer must be told to resume right after the snapshot it rebuilt from: " + message
+		);
+		// subscribing from the head once the rebuild has finished skips the changes committed while it ran
+		assertFalse(message.contains("subscribe again from the head of the stream"), message);
+		assertTrue(message.contains("If that position is refused too, rebuild again."), message);
 		assertEquals(message, exception.getPublicMessage());
 	}
 
@@ -100,7 +104,7 @@ class ChangeCaptureResumePositionInvalidExceptionTest {
 		assertEquals(REQUESTED_CATALOG_ID, exception.getRequestedCatalogId());
 		assertEquals(1878L, exception.getRequestedSinceVersion());
 		assertNull(exception.getRequestedSinceIndex());
-		assertFalse(exception.getMessage().contains("sinceIndex"));
+		assertFalse(exception.getMessage().contains("sinceIndex="), exception.getMessage());
 	}
 
 	@Test

@@ -65,7 +65,7 @@ record WalReadResult<T extends ChangeCapture>(
 		long firstReplayableVersion,
 		@Nonnull RetentionFailureFactory failureFactory
 	) {
-		if (firstReplayableVersion > walPointer.version()) {
+		if (isRemovedByRetention(walPointer, firstReplayableVersion)) {
 			throw failureFactory.create(walPointer, firstReplayableVersion, null);
 		}
 	}
@@ -100,8 +100,22 @@ record WalReadResult<T extends ChangeCapture>(
 			readFailure.addSuppressed(recheckFailure);
 			return readFailure;
 		}
-		return theFirstReplayableVersion > walPointer.version() ?
+		return isRemovedByRetention(walPointer, theFirstReplayableVersion) ?
 			failureFactory.create(walPointer, theFirstReplayableVersion, readFailure) : readFailure;
+	}
+
+	/**
+	 * Decides whether the WAL retention has removed the position. Only a WAL that has actually lost a file can have
+	 * removed anything: its first replayable version is then a real, non-negative version. The `-1` a WAL that never
+	 * lost a file answers is a sentinel, not a version - compared as a number it would declare every position below
+	 * it removed, although nothing was.
+	 *
+	 * @param walPointer             the position the subscriber continues from
+	 * @param firstReplayableVersion the first version the WAL can still replay, `-1` when it never lost a file
+	 * @return `true` when the position lies below the first version the WAL can still replay
+	 */
+	private static boolean isRemovedByRetention(@Nonnull WalPointer walPointer, long firstReplayableVersion) {
+		return firstReplayableVersion >= 0L && firstReplayableVersion > walPointer.version();
 	}
 
 	/**

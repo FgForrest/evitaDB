@@ -263,9 +263,9 @@ public interface CatalogContract {
 	 * Creates new publisher that emits {@link ChangeCatalogCapture}s that match the request. Change catalog capture
 	 * operates on WAL (Write Ahead Log) and can be enabled only when the catalog is in {@link CatalogState#ALIVE} state.
 	 *
-	 * The resume position of the request is checked against this catalog instance before the publisher is created:
-	 * a position recorded on another incarnation of the catalog, or lying more than one version past the live catalog
-	 * version, is refused synchronously.
+	 * The resume position of the request is checked against the incarnation of this catalog before the publisher is
+	 * created: a position recorded on another incarnation of the catalog, or lying more than one version past the last
+	 * catalog version the incarnation has committed, is refused synchronously.
 	 *
 	 * @param request defines what events are captured
 	 * @return publisher that emits {@link ChangeCatalogCapture}s that match the request

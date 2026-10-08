@@ -34,7 +34,6 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.OptionalLong;
 import java.util.UUID;
 import java.util.function.LongSupplier;
 
@@ -51,9 +50,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Verifies the decisions {@link ResumePositionValidator} makes about a resume position, independently of an engine:
  * which positions an incarnation refuses, which it must still accept, and what the refusal tells the consumer.
  *
- * The engine-level tests in `CatalogChangeCaptureResumePositionTest` reach the same decisions through a real catalog;
- * this class pins the boundaries exactly - in particular both orderings of the session's and the change observer's
- * view of the live version, one of which an engine reaches only inside a window of a few instructions.
+ * The engine-level tests in `CatalogChangeCaptureResumePositionTest` reach the same decisions through a real catalog,
+ * including the windows in which a session and the change observer still describe an older version than the one the
+ * check is judged by; this class pins the boundaries exactly.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -91,14 +90,12 @@ class ResumePositionValidatorTest {
 	}
 
 	/**
-	 * Checks a subscription position against a catalog whose session and observer agree on {@link #LIVE_VERSION}.
+	 * Checks a subscription position against an incarnation that has finalized {@link #LIVE_VERSION}.
 	 *
 	 * @param request the request to check
 	 */
 	private static void assertSubscription(@Nonnull ChangeCatalogCaptureRequest request) {
-		ResumePositionValidator.assertSubscriptionPosition(
-			request, CATALOG_ID, LIVE_VERSION, OptionalLong.of(LIVE_VERSION), FIRST_REPLAYABLE_VERSION
-		);
+		ResumePositionValidator.assertSubscriptionPosition(request, CATALOG_ID, LIVE_VERSION, FIRST_REPLAYABLE_VERSION);
 	}
 
 	@Nested
@@ -192,43 +189,6 @@ class ResumePositionValidatorTest {
 			assertDoesNotThrow(() -> assertSubscription(request(null, LIVE_VERSION + 1)));
 			assertDoesNotThrow(() -> assertSubscription(request(null, LIVE_VERSION)));
 			assertDoesNotThrow(() -> assertSubscription(request(null, 0L)));
-		}
-
-		@Test
-		@DisplayName("should accept the next version of a session that is already ahead of the change observer")
-		void shouldAcceptNextVersionOfSessionAheadOfObserver() {
-			// a new version is published to sessions before the observer is told about it
-			assertDoesNotThrow(
-				() -> ResumePositionValidator.assertSubscriptionPosition(
-					request(null, LIVE_VERSION + 2), CATALOG_ID, LIVE_VERSION + 1, OptionalLong.of(LIVE_VERSION),
-					FIRST_REPLAYABLE_VERSION
-				)
-			);
-		}
-
-		@Test
-		@DisplayName("should accept the next version of an observer that is already ahead of the session")
-		void shouldAcceptNextVersionOfObserverAheadOfSession() {
-			// a session opened before the latest commit still reads the version before it
-			assertDoesNotThrow(
-				() -> ResumePositionValidator.assertSubscriptionPosition(
-					request(null, LIVE_VERSION + 2), CATALOG_ID, LIVE_VERSION, OptionalLong.of(LIVE_VERSION + 1),
-					FIRST_REPLAYABLE_VERSION
-				)
-			);
-		}
-
-		@Test
-		@DisplayName("should judge by the session alone when the catalog has no change observer")
-		void shouldJudgeBySessionWithoutObserver() {
-			final ChangeCaptureResumePositionInvalidException refusal = assertThrows(
-				ChangeCaptureResumePositionInvalidException.class,
-				() -> ResumePositionValidator.assertSubscriptionPosition(
-					request(null, LIVE_VERSION + 2), CATALOG_ID, LIVE_VERSION, OptionalLong.empty(),
-					FIRST_REPLAYABLE_VERSION
-				)
-			);
-			assertEquals(LIVE_VERSION, refusal.getCurrentCatalogVersion());
 		}
 
 	}

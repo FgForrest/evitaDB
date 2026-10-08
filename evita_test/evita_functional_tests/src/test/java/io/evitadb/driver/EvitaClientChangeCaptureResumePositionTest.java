@@ -376,18 +376,35 @@ class EvitaClientChangeCaptureResumePositionTest {
 			assertEquals(replacingCatalogId, aheadRefusal.getCatalogId());
 			assertNull(aheadRefusal.getRequestedCatalogId());
 
-			// the remedy the exception names works through the driver as well, and the captures carry the new identity
+			// the remedy the exception names - rebuild from one session's snapshot and resume right after it - works
+			// through the driver as well: a change committed while the rebuild runs is delivered, and the captures
+			// carry the new identity
+			final Checkpoint snapshot = evitaClient.queryCatalog(
+				catalogName,
+				session -> {
+					return new Checkpoint(session.getCatalogId(), session.getCatalogVersion() + 1);
+				}
+			);
+			assertEquals(replacingCatalogId, snapshot.catalogId());
+			final long committedDuringRebuild = commitEntity(evitaClient, catalogName, 100);
+			assertEquals(snapshot.sinceVersion(), committedDuringRebuild);
 			final RecordingSubscriber renewed = new RecordingSubscriber();
 			evitaClient.queryCatalog(
 				catalogName,
 				session -> {
-					session.registerChangeCatalogCapture(productRequest(replacingCatalogId, null)).subscribe(renewed);
+					session.registerChangeCatalogCapture(productRequest(snapshot.catalogId(), snapshot.sinceVersion()))
+						.subscribe(renewed);
 				}
 			);
-			final long nextVersion = commitEntity(evitaClient, catalogName, 100);
+			final long nextVersion = commitEntity(evitaClient, catalogName, 101);
 			assertTrue(
 				renewed.awaitItems(items -> items.stream().anyMatch(it -> it.version() == nextVersion)),
 				"The renewed subscription did not deliver the next change of the replacing catalog."
+			);
+			assertEquals(
+				List.of(committedDuringRebuild, nextVersion),
+				renewed.items.stream().map(ChangeCatalogCapture::version).distinct().toList(),
+				"The change committed while the consumer rebuilt its state must be delivered, not skipped."
 			);
 			assertStampedWith(replacingCatalogId, renewed.items);
 		}

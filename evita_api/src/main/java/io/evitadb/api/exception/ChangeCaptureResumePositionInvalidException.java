@@ -41,9 +41,15 @@ import java.util.UUID;
  *
  * Whatever the reason, the consumer cannot continue where it left off: the changes between its position and the
  * present are either gone or belong to a different dataset that merely carries the same name. A consumer holding
- * state derived from the stream (a cache, a projection) must drop it together with the stored position, rebuild it
- * from the current data and subscribe again from the head of the stream - without `sinceVersion` - expecting
- * {@link #getCatalogId()}. Silently rewinding the position instead would hide the gap the derived state now has.
+ * state derived from the stream (a cache, a projection) must drop it together with the stored position and rebuild
+ * it from the data of **one** session, which reads one consistent catalog version, and then resume right after that
+ * version: at {@link io.evitadb.api.EvitaSessionContract#getCatalogId()},
+ * {@link io.evitadb.api.EvitaSessionContract#getCatalogVersion()} `+ 1` and `sinceIndex` `0` of that session.
+ * Subscribing from the head of the stream - without `sinceVersion` - once the rebuild has finished would silently
+ * skip every change committed while it ran, because the head has moved on by then. Registering the subscription
+ * first and buffering its captures until the rebuild is done works as well. Should the resume position be refused
+ * again - the rebuild took longer than the write-ahead log retains changes - the consumer rebuilds again. Silently
+ * rewinding the position instead would hide the gap the derived state now has.
  * The captures of a stream carry the identity of the incarnation they come from in
  * {@link ChangeCatalogCapture#catalogId()} - the value to store alongside the position and to pass back in
  * {@link ChangeCatalogCaptureRequest#catalogId()} on resumption.
@@ -210,10 +216,15 @@ public class ChangeCaptureResumePositionInvalidException extends TemporalDataNot
 				". The changes in between are gone.";
 		};
 		message.append(explanation);
+		// no field of the exception goes into the advice: the session the consumer rebuilds from names the catalog id
+		// and version to resume at, and they may have moved on since this refusal
 		message
-			.append(" Drop every state derived from the change stream together with the stored resume position, ")
-			.append("rebuild it from the current data and subscribe again from the head of the stream (without ")
-			.append("`sinceVersion`), expecting catalog id `").append(catalogId).append("`.");
+			.append(" Drop every state derived from the change stream together with the stored resume position and ")
+			.append("rebuild it from the data of a single session, which reads one consistent catalog version. Then ")
+			.append("resume right after that version - with the catalog id the session reports, `sinceVersion` one ")
+			.append("past its catalog version and `sinceIndex` 0 - so that the changes committed while the rebuild ")
+			.append("ran are delivered; subscribing from the head of the stream once the rebuild has finished would ")
+			.append("skip them. If that position is refused too, rebuild again.");
 		return message.toString();
 	}
 
