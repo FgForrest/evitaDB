@@ -965,10 +965,6 @@ final class DifferentialEngines implements AutoCloseable {
 		final long imageVersion = readImageVersion(this.maintainingPaths);
 		this.maintaining = new Evita(configurationOf(this.maintainingPaths), false);
 		this.maintaining.maintainVirtualReferencePartitionsOnLoad(CATALOG, this.entityTypes, this.maintainingHistory);
-		// TODO JNO - remove at the end of #1615
-		if (this.writtenVirtually) {
-			this.maintaining.writeVirtuallyOnLoad(CATALOG);
-		}
 		this.maintaining.scheduleInitialCatalogLoading();
 		awaitCatalogLoaded(this.maintaining);
 		return describeLoad(this.maintaining, appliedVersion, persistedVersion, imageVersion);
@@ -1157,10 +1153,6 @@ final class DifferentialEngines implements AutoCloseable {
 		final Catalog catalog = catalogOf(this.maintaining);
 		for (final String entityType : this.entityTypes) {
 			catalog.getVirtualReferencePartitionMaintenance().setMaintained(entityType, true);
-		}
-		// TODO JNO - remove at the end of #1615
-		if (this.writtenVirtually) {
-			catalog.getVirtualReferencePartitionMaintenance().setWrittenVirtually(true);
 		}
 	}
 

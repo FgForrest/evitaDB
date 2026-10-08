@@ -264,8 +264,8 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 	 * Whether the root entity mutation replays a committed transaction - onto the trunk after a commit, or from the
 	 * write-ahead log at load - which is the root mutation that opted out of atomic rollback. Reported with the
 	 * outcome of the root mutation to the probe of virtual reference partitions, see
-	 * {@link io.evitadb.core.catalog.VirtualReferencePartitionMaintenance#rootMutationFinished(Object, boolean,
-	 * boolean)}.
+	 * {@link io.evitadb.core.catalog.VirtualReferencePartitionMaintenance#rootMutationFinished(Catalog, Object,
+	 * boolean, boolean)}.
 	 */
 	// TODO JNO - remove at the end of #1615
 	private boolean trunkReplay;
@@ -832,7 +832,7 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 			// TODO JNO - remove at the end of #1615
 			this.catalog.getVirtualReferencePartitionMaintenance().rootMutationFinished(
 				// TODO JNO - remove at the end of #1615
-				this, this.exception == null, this.trunkReplay
+				this.catalog, this, this.exception == null, this.trunkReplay
 			);
 		} finally {
 			// the executors are committed or rolled back - none of them is in flight any longer, the parts read of

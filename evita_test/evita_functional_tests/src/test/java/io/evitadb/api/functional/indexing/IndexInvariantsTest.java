@@ -524,6 +524,11 @@ class IndexInvariantsTest implements EvitaTestSupport, IndexingTestSupport {
 		@Test
 		@DisplayName("Only reference data should propagate for filtering-only references")
 		void shouldPropagateOnlyReferenceDataToReducedIndexForFilteringOnlyReference() {
+			// TODO JNO - remove at the end of #1615
+			// the test reads the index object of a single-owner partition, which only a catalog with objects has
+			IndexInvariantsTest.this.evita.deleteCatalogIfExists(TEST_CATALOG);
+			IndexInvariantsTest.this.evita.createCatalogWithVirtualReferencePartitions(TEST_CATALOG, false);
+			IndexInvariantsTest.this.evita.defineCatalog(TEST_CATALOG);
 			IndexInvariantsTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {

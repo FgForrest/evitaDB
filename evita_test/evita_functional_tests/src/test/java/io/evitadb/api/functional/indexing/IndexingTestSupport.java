@@ -34,6 +34,8 @@ import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.utils.ArrayUtils;
@@ -173,6 +175,31 @@ public interface IndexingTestSupport {
 				new RepresentativeReferenceKey(new ReferenceKey(entityType, recordId))
 			)
 		);
+	}
+
+	// TODO JNO - remove at the end of #1615 (the lookup through the registry stays)
+	/**
+	 * Retrieves the partition of the referenced entity for the given collection, scope, reference and record id - its
+	 * index object, or the virtual handle of its registry row when the partition is a single-owner one of a catalog
+	 * representing those as rows. Meant for checking that the partition exists, not for reading what it holds.
+	 *
+	 * @param collection    the entity collection to query
+	 * @param scope         the scope to search in
+	 * @param referenceName the reference name
+	 * @param recordId      the primary key of the referenced entity
+	 * @return the partition, or null if not found
+	 */
+	@Nullable
+	static ReferencePartition getReferencedEntityPartition(
+		@Nonnull EntityCollectionContract collection,
+		@Nonnull Scope scope,
+		@Nonnull String referenceName,
+		int recordId
+	) {
+		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
+		return ReferencePartitions.resolverByKeyForOwnerRead(
+			((EntityCollection) collection).getDataStoreReader(), scope, referenceName, true
+		).apply(new RepresentativeReferenceKey(new ReferenceKey(referenceName, recordId)));
 	}
 
 	/**

@@ -30,8 +30,13 @@ import io.evitadb.api.exception.ReferencePartitionReindexRequiredException;
 import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
+import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -77,6 +82,7 @@ import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.referenceContentAll;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static io.evitadb.api.query.QueryConstraints.scope;
 import static io.evitadb.index.virtual.DifferentialEngines.CATALOG;
@@ -429,13 +435,13 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 		assertEquals(partition, assertRow(theEvita, ENTITY_PRODUCT, changedScope, category(owner), other));
 		assertNoPartitionObject(theEvita, ENTITY_PRODUCT, changedScope, category(owner));
 
-		// 1 -> 0 of an index object left with its only owner - the object loses its owner, and the row it never had is
-		// not registered; what the object holds of its former indexing is not the subject here
+		// 1 -> 0 of an index object left with its only owner - the object is retired with its owner, and the row it
+		// never had is not registered
 		final int moverPartition = assertPartitionObject(
 			theEvita, ENTITY_PRODUCT, changedScope, category(mover), mover
 		);
 		update(theEvita, updateProduct(mover, it -> it.removeReference(REFERENCE_CATEGORIES, mover)));
-		assertNoOwnerLeft(theEvita, ENTITY_PRODUCT, changedScope, category(mover));
+		assertNoPartitionObject(theEvita, ENTITY_PRODUCT, changedScope, category(mover));
 		assertNoRow(theEvita, ENTITY_PRODUCT, changedScope, category(mover));
 		assertEquals(
 			partition, assertRow(theEvita, ENTITY_PRODUCT, changedScope, category(owner), other),
@@ -447,6 +453,51 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 		update(theEvita, updateProduct(mover, it -> it.setReference(REFERENCE_CATEGORIES, SECOND_FREE_CATEGORY)));
 		assertRow(theEvita, ENTITY_PRODUCT, changedScope, category(SECOND_FREE_CATEGORY), mover);
 		assertNoPartitionObject(theEvita, ENTITY_PRODUCT, changedScope, category(SECOND_FREE_CATEGORY));
+
+		assertRowsAgreeWithBodies(theEvita, changedScope);
+	}
+
+	@ParameterizedTest(name = "{0}, {1}")
+	@MethodSource("statesAndScopes")
+	@DisplayName("an index object the former indexing left is retired with its last owner, its key kept within the root")
+	void shouldRetireTheIndexObjectOfTheFormerIndexingWithItsLastOwner(CatalogState state, Scope changedScope) {
+		final Evita theEvita = start("formerObjectRetired", state, true);
+		final int owner = ownerIn(changedScope);
+		final int mover = moverIn(changedScope);
+		final int ownerPartition = assertPartitionObject(
+			theEvita, ENTITY_PRODUCT, changedScope, category(owner), owner
+		);
+		final int moverPartition = assertPartitionObject(
+			theEvita, ENTITY_PRODUCT, changedScope, category(mover), mover
+		);
+		changeIndexType(theEvita, ENTITY_PRODUCT, REFERENCE_CATEGORIES, changedScope, false);
+
+		// the only owner leaves and enters again in one mutation - the object is retired, and the owner enters the
+		// partition as its row under the primary key the object had
+		update(
+			theEvita,
+			session -> session.upsertEntity(
+				new EntityUpsertMutation(
+					ENTITY_PRODUCT, owner, EntityExistence.MUST_EXIST,
+					new RemoveReferenceMutation(existingCategoryReferenceKey(session, owner, owner)),
+					new InsertReferenceMutation(new ReferenceKey(REFERENCE_CATEGORIES, owner, -1))
+				)
+			)
+		);
+		assertEquals(
+			ownerPartition, assertRow(theEvita, ENTITY_PRODUCT, changedScope, category(owner), owner),
+			"the owner entering the partition again within the root mutation keeps its primary key"
+		);
+
+		// the only owner leaves - the object is retired with it, nothing represents the partition any more
+		update(theEvita, updateProduct(mover, it -> it.removeReference(REFERENCE_CATEGORIES, mover)));
+		assertNoPartitionObject(theEvita, ENTITY_PRODUCT, changedScope, category(mover));
+		assertNoRow(theEvita, ENTITY_PRODUCT, changedScope, category(mover));
+		assertNotAdvertised(theEvita, ENTITY_PRODUCT, REFERENCE_CATEGORIES, changedScope, moverPartition);
+
+		// an owner entering it in a later root mutation brings in a row only
+		update(theEvita, updateProduct(mover, it -> it.setReference(REFERENCE_CATEGORIES, mover)));
+		assertRow(theEvita, ENTITY_PRODUCT, changedScope, category(mover), mover);
 
 		assertRowsAgreeWithBodies(theEvita, changedScope);
 	}
@@ -618,7 +669,6 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 		this.evita = theEvita;
 		theEvita.createCatalogWithVirtualReferencePartitions(CATALOG, true);
 		theEvita.defineCatalog(CATALOG).updateViaNewSession(theEvita);
-		catalogOf(theEvita).getVirtualReferencePartitionMaintenance().setWrittenVirtually(true);
 		update(theEvita, session -> setUp(session, partitioning));
 		if (state == CatalogState.ALIVE) {
 			theEvita.updateCatalog(CATALOG, EvitaSessionContract::goLiveAndClose);
@@ -904,26 +954,29 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Asserts that the partition of the key has no owner left - it has no index object, or one without owners.
+	 * Returns the key, with its internal primary key, of the only existing category reference of a product to a
+	 * category, in whichever scope the product is.
 	 *
-	 * @param theEvita   the engine
-	 * @param entityType the entity type owning the reference
-	 * @param scope      the scope
-	 * @param key        the key of the partition
+	 * @param session  the session to read in
+	 * @param product  the product
+	 * @param category the referenced category
+	 * @return the reference key
 	 */
-	private static void assertNoOwnerLeft(
-		@Nonnull Evita theEvita,
-		@Nonnull String entityType,
-		@Nonnull Scope scope,
-		@Nonnull RepresentativeReferenceKey key
+	@Nonnull
+	private static ReferenceKey existingCategoryReferenceKey(
+		@Nonnull EvitaSessionContract session,
+		int product,
+		int category
 	) {
-		final EntityCollection collection = VirtualPartitionSingletonLifecycleTest.collectionOf(theEvita, entityType);
-		assertNotNull(collection);
-		final EntityIndex partition = collection.getIndexByKeyIfExists(ReferencePartitions.createKey(scope, key));
-		assertTrue(
-			partition == null || partition.getAllPrimaryKeys().isEmpty(),
-			"the partition of " + key + " in " + scope + " must have no owner left, but has " + partition
-		);
+		final List<ReferenceKey> keys = session.getEntity(ENTITY_PRODUCT, product, Scope.values(), referenceContentAll())
+			.orElseThrow()
+			.getReferences(REFERENCE_CATEGORIES)
+			.stream()
+			.filter(it -> it.getReferencedPrimaryKey() == category)
+			.map(ReferenceContract::getReferenceKey)
+			.toList();
+		assertEquals(1, keys.size(), "product " + product + " must reference category " + category + " once: " + keys);
+		return keys.get(0);
 	}
 
 	/**

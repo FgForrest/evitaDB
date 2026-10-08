@@ -31,6 +31,7 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.TransactionOptions;
 import io.evitadb.api.file.FileForFetch;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
@@ -39,7 +40,8 @@ import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
-import io.evitadb.index.VirtualReferencePartitionIndex;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
@@ -77,9 +79,9 @@ import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.ENTITY_CATEGO
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.ENTITY_PRODUCT;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.REFERENCE_CATEGORIES;
 import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.category;
+import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.collectionOf;
 import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.describeRows;
 import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.partitionOf;
-import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.registryOf;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.STORAGE;
@@ -385,16 +387,26 @@ class VirtualRepresentationPersistenceTest implements EvitaTestSupport {
 				recovered.getVirtualReferencePartitionMaintenance().getMaintainedMutationCount(),
 				"every entity mutation the replay executed must have run with the virtual representation"
 			);
+			final ReferencedTypeEntityIndex typeIndex = assertInstanceOf(
+				ReferencedTypeEntityIndex.class,
+				collectionOf(this.evita, ENTITY_ACCESSORY).getIndexByKeyIfExists(
+					new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, REFERENCE_CATEGORIES)
+				)
+			);
 			for (final int category : ACCESSORY_CATEGORIES) {
-				final int partition = partitionOf(this.evita, ENTITY_ACCESSORY, Scope.LIVE, category(category));
-				assertNotEquals(-1, partition, "the replay must have created the partition of category " + category);
-				final VirtualReferencePartitionIndex registry = Objects.requireNonNull(
-					registryOf(this.evita, ENTITY_ACCESSORY, Scope.LIVE, REFERENCE_CATEGORIES)
+				// the replay wrote the single-owner partition virtually - the type index advertises its row only
+				final int[] partitions = typeIndex.getAllReferenceIndexes(category);
+				assertEquals(
+					1, partitions.length, "the replay must have created the partition of category " + category
 				);
-				final OptionalLong row = registry.getPartitionOwner(partition);
+				final OptionalLong row = typeIndex.getVirtualReferencePartitionIndex().getPartitionOwner(partitions[0]);
 				assertTrue(
 					row.isPresent(),
 					"the replay must have registered the single-owner partition of category " + category
+				);
+				assertEquals(
+					-1, partitionOf(this.evita, ENTITY_ACCESSORY, Scope.LIVE, category(category)),
+					"the replayed single-owner partition of category " + category + " must have no index object"
 				);
 			}
 			assertRepresentation(

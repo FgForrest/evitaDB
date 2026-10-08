@@ -317,8 +317,9 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 		final int committedBefore = theEngines.getMaintainingHistory().getCommitted().size();
 
 		// the reflected removals run before the reflected insertion: product 1 leaves the shared partition (2 -> 1),
-		// product 3 leaves it empty (1 -> 0) and product 2 enters the emptied index object (0 -> 1), which registers
-		// its row - so the demotion of the partition product 1 left finds the row in place and retires the object only
+		// product 3 leaves it empty (1 -> 0), which retires its index object and reserves its primary key, and product 2
+		// enters it as its row under that primary key (0 -> 1) - so the demotion of the partition product 1 left finds
+		// the row in place and nothing left to retire
 		theEngines.step(
 			"category 3 stops listing products 1 and 3 and lists product 2 in one root mutation",
 			session -> session.upsertEntity(

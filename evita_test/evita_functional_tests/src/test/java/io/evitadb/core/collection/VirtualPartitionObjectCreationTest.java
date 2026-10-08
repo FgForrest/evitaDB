@@ -59,11 +59,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 // TODO JNO - remove at the end of #1615
 /**
- * Verifies that a catalog representing its single-owner reference partitions virtually, once it writes them
+ * Verifies that a catalog representing its single-owner reference partitions virtually, while it writes them
  * virtually, refuses to create the index object of a partition of a reference whose partitions may be virtual - while
  * an index object that already exists is still answered, and the partitions of a reference indexed for partitioning
- * are created as always. The virtual writing is off by default, can be switched on only in a virtual catalog, and is
- * carried by the handle every entity mutation of the catalog gets.
+ * are created as always. The virtual writing is on by default in a virtual catalog, can be switched off by a test and
+ * never on in a catalog with objects, and is carried by the handle every entity mutation of the catalog gets.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -78,7 +78,7 @@ class VirtualPartitionObjectCreationTest implements EvitaTestSupport {
 	private static final String REF_CATEGORIES = "categories";
 	/** A reference indexed for partitioning - its partitions are never virtual. */
 	private static final String REF_PARTITIONED_CATEGORIES = "partitionedCategories";
-	/** The category the product references before the virtual writing is switched on. */
+	/** The category the product references while the virtual writing is switched off. */
 	private static final int REFERENCED_CATEGORY_PK = 1;
 	/** A category no product references. */
 	private static final int UNREFERENCED_CATEGORY_PK = 3;
@@ -110,6 +110,8 @@ class VirtualPartitionObjectCreationTest implements EvitaTestSupport {
 		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
 		this.evita.createCatalogWithVirtualReferencePartitions(CATALOG, true);
 		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
+		// the product's single-owner partition is written as an index object, the one the tests find existing
+		catalog().getVirtualReferencePartitionMaintenance().setWrittenVirtually(false);
 		this.evita.updateCatalog(
 			CATALOG,
 			(Consumer<EvitaSessionContract>) session -> {
@@ -134,6 +136,7 @@ class VirtualPartitionObjectCreationTest implements EvitaTestSupport {
 					.upsertVia(session);
 			}
 		);
+		catalog().getVirtualReferencePartitionMaintenance().setWrittenVirtually(true);
 	}
 
 	@AfterEach
@@ -166,24 +169,16 @@ class VirtualPartitionObjectCreationTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Runs the logic in a read-write session with the virtual writing switched on, switching it off afterwards.
+	 * Runs the logic in a read-write session of the catalog, which writes its single-owner partitions virtually.
 	 *
 	 * @param logic the logic to run
 	 */
 	private void updateWrittenVirtually(@Nonnull Consumer<EvitaSessionContract> logic) {
-		this.evita.updateCatalog(
-			CATALOG,
-			session -> {
-				final VirtualReferencePartitionMaintenance maintenance =
-					catalog().getVirtualReferencePartitionMaintenance();
-				maintenance.setWrittenVirtually(true);
-				try {
-					logic.accept(session);
-				} finally {
-					maintenance.setWrittenVirtually(false);
-				}
-			}
+		assertTrue(
+			catalog().getVirtualReferencePartitionMaintenance().isWrittenVirtually(),
+			"self-check: the catalog must write its single-owner partitions virtually"
 		);
+		this.evita.updateCatalog(CATALOG, logic);
 	}
 
 	@Test
@@ -194,7 +189,7 @@ class VirtualPartitionObjectCreationTest implements EvitaTestSupport {
 			final IndexMaintainer<EntityIndexKey, EntityIndex> maintainer = products.getEntityIndexMaintainer();
 			final EntityIndexKey existingKey = partitionKey(REF_CATEGORIES, REFERENCED_CATEGORY_PK);
 			final EntityIndex existing = products.getIndexByKeyIfExists(existingKey);
-			assertNotNull(existing, "self-check: the partition created before the switch must exist");
+			assertNotNull(existing, "self-check: the partition written as an index object must exist");
 			assertSame(existing, maintainer.getOrCreateIndex(existingKey));
 
 			final EntityIndexKey missingKey = partitionKey(REF_CATEGORIES, UNREFERENCED_CATEGORY_PK);
@@ -221,32 +216,41 @@ class VirtualPartitionObjectCreationTest implements EvitaTestSupport {
 	@Test
 	@DisplayName("without the virtual writing the index object of the partition is created as always")
 	void shouldCreatePartitionObjectWhenNotWrittenVirtually() {
-		this.evita.updateCatalog(
-			CATALOG,
-			session -> {
-				final EntityCollection products = products();
-				final EntityIndexKey key = partitionKey(REF_CATEGORIES, UNREFERENCED_CATEGORY_PK);
-				assertInstanceOf(ReducedEntityIndex.class, products.getEntityIndexMaintainer().getOrCreateIndex(key));
-			}
-		);
+		final VirtualReferencePartitionMaintenance maintenance = catalog().getVirtualReferencePartitionMaintenance();
+		maintenance.setWrittenVirtually(false);
+		try {
+			this.evita.updateCatalog(
+				CATALOG,
+				session -> {
+					final EntityCollection products = products();
+					final EntityIndexKey key = partitionKey(REF_CATEGORIES, UNREFERENCED_CATEGORY_PK);
+					assertInstanceOf(
+						ReducedEntityIndex.class, products.getEntityIndexMaintainer().getOrCreateIndex(key)
+					);
+				}
+			);
+		} finally {
+			maintenance.setWrittenVirtually(true);
+		}
 	}
 
 	@Test
-	@DisplayName("the virtual writing is off by default and carried by the handle of every entity mutation")
+	@DisplayName("the virtual writing is on by default and carried by the handle of every entity mutation")
 	void shouldCarryVirtualWritingInMutationHandle() {
 		final VirtualReferencePartitionMaintenance maintenance = catalog().getVirtualReferencePartitionMaintenance();
 		assertTrue(maintenance.isVirtual(), "self-check: the catalog must be virtual");
-		assertFalse(maintenance.isWrittenVirtually());
-		assertFalse(maintenance.forMutation(ENTITY_PRODUCT, new Object()).writtenVirtually());
-		maintenance.setWrittenVirtually(true);
+		assertTrue(maintenance.isWrittenVirtually());
+		assertTrue(maintenance.forMutation(ENTITY_PRODUCT, new Object()).writtenVirtually());
+		assertTrue(maintenance.forMutation(ENTITY_CATEGORY, new Object()).maintained());
+		maintenance.setWrittenVirtually(false);
 		try {
-			assertTrue(maintenance.isWrittenVirtually());
-			assertTrue(maintenance.forMutation(ENTITY_PRODUCT, new Object()).writtenVirtually());
+			assertFalse(maintenance.isWrittenVirtually());
+			assertFalse(maintenance.forMutation(ENTITY_PRODUCT, new Object()).writtenVirtually());
 			assertTrue(maintenance.forMutation(ENTITY_CATEGORY, new Object()).maintained());
 		} finally {
-			maintenance.setWrittenVirtually(false);
+			maintenance.setWrittenVirtually(true);
 		}
-		assertFalse(maintenance.forMutation(ENTITY_PRODUCT, new Object()).writtenVirtually());
+		assertTrue(maintenance.forMutation(ENTITY_PRODUCT, new Object()).writtenVirtually());
 	}
 
 	@Test

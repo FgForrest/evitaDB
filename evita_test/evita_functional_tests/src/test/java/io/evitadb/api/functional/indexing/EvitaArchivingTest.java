@@ -785,10 +785,10 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 				"Group entity type index should be rebuilt in LIVE after restore"
 			);
 			assertNotNull(
-				getReferencedEntityIndex(
+				IndexingTestSupport.getReferencedEntityPartition(
 					productCollection3, Scope.LIVE, Entities.CATEGORY, 20
 				),
-				"Referenced entity index should be rebuilt in LIVE after restore"
+				"Referenced entity partition should be rebuilt in LIVE after restore"
 			);
 		}
 

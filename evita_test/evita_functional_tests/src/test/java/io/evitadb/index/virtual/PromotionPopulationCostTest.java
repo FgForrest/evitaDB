@@ -177,9 +177,8 @@ class PromotionPopulationCostTest implements EvitaTestSupport {
 		evita().createCatalogWithVirtualReferencePartitions(CATALOG, writtenVirtually);
 		evita().defineCatalog(CATALOG).updateViaNewSession(evita());
 		final VirtualReferencePartitionMaintenance maintenance = maintenance();
-		if (writtenVirtually) {
-			maintenance.setWrittenVirtually(true);
-		} else {
+		// a virtual catalog writes its single-owner partitions virtually by default, one with objects is switched on
+		if (!writtenVirtually) {
 			for (final String entityType : List.of(ENTITY_PRODUCT, ENTITY_PARAMETER, ENTITY_CATEGORY)) {
 				maintenance.setMaintained(entityType, true);
 			}

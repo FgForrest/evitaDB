@@ -70,6 +70,11 @@ import java.util.function.Function;
  * the transitions of a partition's owner count the reference index mutator decides, and about the sort values and
  * chain predecessors the attribute index mutator writes into a partition, and about nothing else.
  *
+ * In a catalog representing its single-owner partitions virtually the row is the only representation of a
+ * single-owner partition - the partition has no index object while it has one owner - so what is written here is the
+ * partition itself. In a catalog with objects that maintains the registry, and in a virtual catalog a test switched to
+ * writing objects, the row is kept next to the partition's index object and must say what the object says.
+ *
  * # Owner rows
  *
  * The transitions of a partition's owner count decide its row:
@@ -79,7 +84,9 @@ import java.util.function.Function;
  *   the owner's data into the partition, so the row is in place while that data is being written;
  * - **shared** (1 -> 2) - the partition gained a second owner and is no longer a single-owner one: everything the
  *   index records about it is dropped at once;
- * - **vacated** (1 -> 0) - the partition lost its last owner: everything the index records about it is dropped.
+ * - **vacated** (1 -> 0) - the partition lost its last owner: everything the index records about it is dropped. A
+ *   mutation writing its single-owner partitions virtually also retires the partition's emptied index object, when
+ *   it has one, and reserves its primary key for the root mutation as for a row.
  *
  * Every drop is followed by the retirement of the declared sort and chain keys when no partition has an owner row
  * left, so an index without a single row declares no key either - a key nothing can hold would keep the index, and the
@@ -145,8 +152,8 @@ import java.util.function.Function;
  * or unique index only, and a virtual partition keeps sort values and chain predecessors only.
  *
  * The referenced-type entity index carrying the registry is acquired for writing only when something is mirrored, and
- * without joining the indexes the end of the mutation inspects for emptiness: the registry is a shadow of the
- * partitions and must not change which indexes the mutation is seen to have touched.
+ * without joining the indexes the end of the mutation inspects for emptiness: writing a row or a value into the
+ * registry must not change which indexes the mutation is seen to have touched.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -234,6 +241,8 @@ public final class VirtualReferencePartitionWriter {
 		final ReferencePartition current = ReferencePartitions.asPartition(currentIndex);
 		// emptied or shared again since it was left with one owner - there is nothing to demote
 		if (current == null || current.getPrimaryKey() != partitionPrimaryKey || current.size() != 1) {
+			// TODO JNO - remove at the end of #1615
+			reportDemotionOfRetiredObject(executor, partition);
 			return;
 		}
 		final String referenceName = current.getRepresentativeReferenceKey().referenceName();
@@ -272,12 +281,45 @@ public final class VirtualReferencePartitionWriter {
 		if (executor.getVirtualReferencePartitionMutation().writtenVirtually()) {
 			// the row holds everything the object holds of the only owner now, so the row alone represents the
 			// partition - an index object of a single-owner partition is never kept
-			executor.retirePartitionObject(currentIndex);
+			executor.retirePartitionObject(current);
 		}
 		// TODO JNO - remove at the end of #1615
 		executor.getVirtualReferencePartitionMutation().transitionPassed(
 			TransitionStage.DEMOTED, referenceName, scope, partitionPrimaryKey
 		);
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Reports the demotion of a partition whose index object a mutation writing its single-owner partitions virtually
+	 * retired when its last owner left it, and that an owner entered again within the root mutation as its row under
+	 * the same primary key: the partition has one owner, as the index object an engine maintaining nothing keeps would
+	 * have, so the transition is reported at the very same point, although there is nothing left to demote.
+	 *
+	 * @param executor  the mutation executor that left the partition with one owner
+	 * @param partition the partition as it was when it was left with one owner - only its key and primary key are read
+	 */
+	private static void reportDemotionOfRetiredObject(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferencePartition partition
+	) {
+		final MutationHandle mutation = executor.getVirtualReferencePartitionMutation();
+		if (!mutation.writtenVirtually() || executor.getIndexIfExists(partition.getIndexKey()) != null) {
+			return;
+		}
+		final String referenceName = partition.getRepresentativeReferenceKey().referenceName();
+		final Scope scope = partition.getIndexKey().scope();
+		final EntityIndex typeIndex = executor.getIndexIfExists(
+			ReferenceIndexMutator.getReferencedTypeIndexKey(referenceName, scope)
+		);
+		if (
+			typeIndex instanceof final ReferencedTypeEntityIndex referencedTypeIndex &&
+				referencedTypeIndex.getVirtualReferencePartitionIndex()
+					.getPartitionOwner(partition.getPrimaryKey())
+					.isPresent()
+		) {
+			mutation.transitionPassed(TransitionStage.DEMOTED, referenceName, scope, partition.getPrimaryKey());
+		}
 	}
 
 	/**

@@ -2249,13 +2249,13 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 
 	// TODO JNO - remove at the end of #1615
 	/**
-	 * Reserves the primary key of a partition without an index object whose last owner - this executor's entity - has
-	 * just left it, so that an owner entering a partition of the same key within the root mutation keeps it (see
-	 * {@link PartitionReservations}).
+	 * Reserves the primary key of a partition whose last owner - this executor's entity - has just left it and that
+	 * has no index object any more - its row was dropped, or its index object retired - so that an owner entering a
+	 * partition of the same key within the root mutation keeps it (see {@link PartitionReservations}).
 	 *
 	 * @param partition the partition its last owner has just left
 	 */
-	void reserveVacatedPartition(@Nonnull VirtualReferencePartition partition) {
+	void reserveVacatedPartition(@Nonnull ReferencePartition partition) {
 		this.partitionReservations.reserve(
 			this.entityType, partition.getIndexKey().scope(), partition.getRepresentativeReferenceKey(),
 			partition.getPrimaryKey()
@@ -2302,15 +2302,16 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 
 	/**
 	 * Retires the index object of a partition that has become a single-owner one again (2 -> 1) and whose registry
-	 * row holds everything the object holds of its only owner - the object is removed by its key, together with its
-	 * registration by primary key and its persisted footprint (see {@link IndexMaintainer#removeIndex(IndexKey)}). The
-	 * partition keeps its primary key in the row. The end-of-mutation sweep of every executor finds the object gone and
+	 * row holds everything the object holds of its only owner, or of a partition its last owner has just left (1 -> 0)
+	 * - the object is removed by its key, together with its registration by primary key and its persisted footprint
+	 * (see {@link IndexMaintainer#removeIndex(IndexKey)}). The partition keeps its primary key in the row, or in the
+	 * reservation of the root mutation. The end-of-mutation sweep of every executor finds the object gone and
 	 * passes it over.
 	 *
-	 * @param partitionIndex the index object of the partition
+	 * @param partition the partition whose index object is retired
 	 */
-	void retirePartitionObject(@Nonnull EntityIndex partitionIndex) {
-		this.entityIndexCreatingAccessor.removeIndex(partitionIndex.getIndexKey());
+	void retirePartitionObject(@Nonnull ReferencePartition partition) {
+		this.entityIndexCreatingAccessor.removeIndex(partition.getIndexKey());
 	}
 
 	/**

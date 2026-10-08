@@ -81,6 +81,10 @@ class GroupEntityIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 		this.evita = new Evita(
 			getEvitaConfiguration()
 		);
+		// TODO JNO - remove at the end of #1615
+		// the tests compare the index objects of single-owner partitions with the group indexes, and only a catalog
+		// with objects has them
+		this.evita.createCatalogWithVirtualReferencePartitions(TEST_CATALOG, false);
 		this.evita.defineCatalog(TEST_CATALOG);
 	}
 

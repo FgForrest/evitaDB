@@ -70,12 +70,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 // TODO JNO - remove at the end of #1615
 /**
- * Counts the work the write path of a catalog writing its single-owner partitions virtually does, rather than the
- * calls it makes: an owner of `k` single-owner partitions changing a locale, moving to another scope or being removed
- * must cost a number of registry operations proportional to `k` - each of its partitions written once - must bring no
- * index object into existence and must read the references of no other entity. A path that walked the partitions of
- * other owners, or populated a partition from another owner, would show in these counts long before it showed in a
- * latency.
+ * Counts the work the write path of a virtual catalog does, rather than the calls it makes - with nothing switched,
+ * as a virtual catalog writes its single-owner partitions as registry rows by default: an owner of `k` single-owner
+ * partitions changing a locale, moving to another scope or being removed must cost a number of registry operations
+ * proportional to `k` - each of its partitions written once - must bring no index object into existence and must read
+ * the references of no other entity. A path that walked the partitions of other owners, or populated a partition from
+ * another owner, would show in these counts long before it showed in a latency.
  *
  * A second owner joining all `k` partitions of the first one promotes each of them exactly once - `k` index objects,
  * no row left - and reads the first owner's references from the storage once for all of them; leaving them again
@@ -103,6 +103,10 @@ class VirtualPartitionOpCountGateTest implements EvitaTestSupport {
 	 * The product owning every partition of the gate.
 	 */
 	private static final int OWNER = 1;
+	/**
+	 * How many single-owner partitions {@link #OWNER} has in both halves of the gate.
+	 */
+	private static final int K = 300;
 
 	@Nullable private TestPaths paths;
 	@Nullable private Evita evita;
@@ -116,7 +120,7 @@ class VirtualPartitionOpCountGateTest implements EvitaTestSupport {
 		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
 		final VirtualReferencePartitionMaintenance maintenance = maintenance();
 		maintenance.setProbe(this.history);
-		maintenance.setWrittenVirtually(true);
+		assertTrue(maintenance.isWrittenVirtually(), "a virtual catalog writes its partitions virtually by default");
 	}
 
 	@AfterEach
@@ -343,10 +347,6 @@ class VirtualPartitionOpCountGateTest implements EvitaTestSupport {
 	@DisplayName("a second owner joining every partition of the first one")
 	class PromotedPartitions {
 		/**
-		 * How many single-owner partitions the first owner has.
-		 */
-		private static final int K = 300;
-		/**
 		 * The owner joining every partition of {@link #OWNER}.
 		 */
 		private static final int SECOND_OWNER = OWNER + 1;
@@ -432,10 +432,6 @@ class VirtualPartitionOpCountGateTest implements EvitaTestSupport {
 	@Nested
 	@DisplayName("an owner of single-owner partitions")
 	class SingletonPartitions {
-		/**
-		 * How many single-owner partitions the owner has.
-		 */
-		private static final int K = 300;
 
 		@ParameterizedTest(name = "{0}")
 		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})

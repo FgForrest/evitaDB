@@ -123,6 +123,9 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 				.server(ServerOptions.builder().closeSessionsAfterSecondsOfInactivity(-1).build())
 				.build()
 		);
+		// TODO JNO - remove at the end of #1615
+		// the tests resolve the index objects of single-owner partitions, which only a catalog with objects has
+		this.evita.createCatalogWithVirtualReferencePartitions(TEST_CATALOG, false);
 		this.evita.defineCatalog(TEST_CATALOG);
 	}
 

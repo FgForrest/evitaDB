@@ -151,6 +151,10 @@ public class ReferenceLocalizedCompoundIndexingTest implements EvitaTestSupport 
 		cleanTestSubDirectoryWithRethrow(DIR);
 		cleanTestSubDirectoryWithRethrow(DIR_EXPORT);
 		this.evita = new Evita(getEvitaConfiguration());
+		// TODO JNO - remove at the end of #1615
+		// the tests read the sort indexes of the index objects of single-owner partitions, which only a catalog with
+		// objects has
+		this.evita.createCatalogWithVirtualReferencePartitions(TEST_CATALOG, false);
 		this.evita.defineCatalog(TEST_CATALOG);
 	}
 

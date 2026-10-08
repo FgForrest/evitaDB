@@ -1167,7 +1167,9 @@ public interface ReferenceIndexMutator {
 
 	/**
 	 * Keeps the registry of single-owner partitions in step with a partition that has just lost an owner: a partition
-	 * left without any owner (1 -> 0) gets its row dropped. A partition left with one owner (2 -> 1) is handed to the
+	 * left without any owner (1 -> 0) gets its row dropped, and a mutation writing its single-owner partitions
+	 * virtually also retires the partition's emptied index object and reserves its primary key for the root mutation,
+	 * exactly as for a vacated row. A partition left with one owner (2 -> 1) is handed to the
 	 * executor, which demotes it when it applies its changes - whether it is a single-owner one again is known only
 	 * once the mutation has finished (see {@link VirtualReferencePartitionWriter#partitionLeftWithOneOwner}). Any
 	 * other owner count leaves the registry alone. Only partitions of a reference whose partitions may be virtual are
@@ -1206,6 +1208,15 @@ public interface ReferenceIndexMutator {
 			VirtualReferencePartitionWriter.partitionVacated(
 				referenceTypeIndex.getVirtualReferencePartitionIndex(), partition.getPrimaryKey()
 			);
+		}
+		// TODO JNO - remove at the end of #1615 (the condition, its body stays)
+		if (mutation.writtenVirtually()) {
+			// a single-owner partition is never kept as an index object, an emptied one neither - typically one the
+			// former indexing for partitioning left, whose content of that indexing keeps it from the sweep of empty
+			// indexes; it is retired and its primary key reserved as a vacated row's, so an owner entering the
+			// partition again within the root mutation enters its row under the same primary key
+			executor.retirePartitionObject(partition);
+			executor.reserveVacatedPartition(partition);
 		}
 		// TODO JNO - remove at the end of #1615
 		mutation.transitionPassed(

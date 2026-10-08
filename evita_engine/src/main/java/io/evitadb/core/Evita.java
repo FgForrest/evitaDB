@@ -148,7 +148,6 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.CompletionStage;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -337,13 +336,6 @@ public final class Evita implements EvitaContract {
 	// TODO JNO - remove at the end of #1615
 	private final Map<String, TransitionProbe> virtualReferencePartitionProbesOnLoad =
 		CollectionUtils.createConcurrentHashMap(4);
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * The names of the catalogs that write their single-owner reference partitions virtually from the moment they are
-	 * loaded - see {@link #writeVirtuallyOnLoad(String)}.
-	 */
-	// TODO JNO - remove at the end of #1615
-	private final Set<String> virtualReferencePartitionsWrittenVirtuallyOnLoad = ConcurrentHashMap.newKeySet();
 	// TODO JNO - remove at the end of #1615
 	/**
 	 * The representation of the single-owner reference partitions a catalog is created in, keyed by catalog name -
@@ -824,46 +816,6 @@ public final class Evita implements EvitaContract {
 		} else {
 			this.virtualReferencePartitionProbesOnLoad.put(catalogName, probe);
 		}
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Makes the given catalog write its single-owner reference partitions virtually from the moment it is loaded -
-	 * before the write-ahead log it has not yet incorporated is replayed onto it, so the replayed mutations write them
-	 * virtually as well (see
-	 * {@link io.evitadb.core.catalog.VirtualReferencePartitionMaintenance#setWrittenVirtually(boolean)}). Has an effect
-	 * on a catalog representing its single-owner partitions virtually only, and a load of any other catalog fails.
-	 *
-	 * Meant for tests only, and callable only before the initial catalog loading is scheduled - see
-	 * {@link #maintainVirtualReferencePartitionsOnLoad(String, Set)}. Every later load of the catalog by this instance
-	 * is seeded the same way.
-	 *
-	 * @param catalogName the name of the catalog
-	 * @throws GenericEvitaInternalError when the initial catalog loading has already been scheduled
-	 */
-	// TODO JNO - remove at the end of #1615
-	public void writeVirtuallyOnLoad(@Nonnull String catalogName) {
-		Assert.isPremiseValid(
-			!this.catalogLoadingScheduled.get(),
-			() -> new GenericEvitaInternalError(
-				"Catalog loading has already been scheduled - the virtual writing of catalog `" + catalogName +
-					"` must be turned on before scheduleInitialCatalogLoading() is called."
-			)
-		);
-		this.virtualReferencePartitionsWrittenVirtuallyOnLoad.add(catalogName);
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Returns TRUE when the given catalog writes its single-owner reference partitions virtually from the moment it is
-	 * loaded - see {@link #writeVirtuallyOnLoad(String)}.
-	 *
-	 * @param catalogName the name of the catalog
-	 * @return TRUE when the virtual writing is turned on at the load
-	 */
-	// TODO JNO - remove at the end of #1615
-	public boolean isWrittenVirtuallyOnLoad(@Nonnull String catalogName) {
-		return this.virtualReferencePartitionsWrittenVirtuallyOnLoad.contains(catalogName);
 	}
 
 	// TODO JNO - remove at the end of #1615

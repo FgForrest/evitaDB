@@ -42,7 +42,6 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.core.Evita;
-import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
@@ -786,11 +785,12 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 			}
 		}
 		assertEquals(2, registeredPartitions, "one registered partition per scope must have been checked");
-		// the index objects still exist, so the lookup must agree with them as well
+		// the single-owner partitions are their rows only, and the lookup must agree with the rows and the index objects
+		assertBrandPartitionsAreRowsOnly(2);
 		assertMembershipMatchesIndexes();
 	}
 
-	// TODO JNO - remove at the end of #1615 (the creation and writing switches; the test stays)
+	// TODO JNO - remove at the end of #1615 (the creation switch; the test stays)
 	@ParameterizedTest
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 	@DisplayName("single-owner partitions written as registry rows keep the lookup complete before any reload")
@@ -799,9 +799,6 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 		this.evita.createCatalogWithVirtualReferencePartitions(TEST_CATALOG, true);
 		this.evita.defineCatalog(TEST_CATALOG);
 		prepare(state, "CHECKBOX");
-		((Catalog) this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow())
-			.getVirtualReferencePartitionMaintenance()
-			.setWrittenVirtually(true);
 		tx(session -> session.createNewEntity(ENTITY_BRAND, SECOND_BRAND_PK).upsertVia(session));
 		// each brand is referenced by one product alone - two single-owner partitions, each its registry row only
 		tx(session -> session.createNewEntity(ENTITY_PRODUCT, 1).setReference(REF_BRAND, BRAND_PK).upsertVia(session));

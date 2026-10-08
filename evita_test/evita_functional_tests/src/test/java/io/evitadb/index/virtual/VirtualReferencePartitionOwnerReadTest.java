@@ -91,8 +91,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The catalog is {@link SingleOwnerPartitionFixture} with the reflected `Category.products` reference, with one product
  * moved to the archive (so both scopes hold registered partitions) and one gallery partition shared by two products
  * under a representative value other single-owner partitions use (so a known tuple names a partition the registry does
- * not hold). The index objects of the registered partitions still exist, which lets every answer be compared with the
- * object it stands for.
+ * not hold). The catalog has its virtual writing switched off, so the index objects of the registered partitions still
+ * exist next to their rows, which lets every answer be compared with the object it stands for. The conditional facet
+ * scenarios run in a catalog writing its single-owner partitions virtually, as every virtual catalog does by default.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -164,6 +165,11 @@ class VirtualReferencePartitionOwnerReadTest implements EvitaTestSupport {
 		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
 		this.evita.createCatalogWithVirtualReferencePartitions(CATALOG, true);
 		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
+		// TODO JNO - remove at the end of #1615
+		// the index objects stay next to the rows, so every answer can be compared with the object it stands for
+		((Catalog) this.evita.getCatalogInstance(CATALOG).orElseThrow())
+			.getVirtualReferencePartitionMaintenance()
+			.setWrittenVirtually(false);
 		this.evita.updateCatalog(CATALOG, SingleOwnerPartitionFixture::setUpWithReflectedProducts);
 		this.evita.updateCatalog(CATALOG, EvitaSessionContract::goLiveAndClose);
 		this.evita.updateCatalog(

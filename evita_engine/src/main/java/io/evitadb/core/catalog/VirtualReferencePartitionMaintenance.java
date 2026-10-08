@@ -38,6 +38,8 @@ import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageCo
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -121,6 +123,16 @@ import java.util.function.Supplier;
  * header before any of its collections is constructed and before the write-ahead log is replayed onto it, so the
  * replayed mutations - those creating a collection among them - are virtual as well. Everything above about the
  * switch and the forced default concerns the other catalogs only.
+ *
+ * A virtual catalog also **writes** its single-owner partitions virtually: a partition of a reference whose
+ * partitions may be virtual is a registry row without an index object while it has one owner, and an index object
+ * without a row once it has more (see {@link #isWrittenVirtually()}). A test may switch the virtual writing off for
+ * a virtual catalog it compares with the index objects (see {@link #setWrittenVirtually(boolean)}); the catalog then
+ * writes its partitions as index objects and keeps the registry next to them, as a catalog with objects maintaining
+ * it does. In the forced mode every root entity mutation of a catalog writing virtually that commits checks the
+ * partitions its transitions passed: none may be both a row and an index object, and none but one that only had values
+ * written into it may be an index object of fewer than two owners (see
+ * {@link #rootMutationFinished(Catalog, Object, boolean, boolean)}).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -240,10 +252,17 @@ public final class VirtualReferencePartitionMaintenance {
 	private final boolean virtual;
 	// TODO JNO - remove at the end of #1615
 	/**
-	 * TRUE when a test switched the virtual writing of the single-owner partitions on - see
+	 * TRUE when a test switched the virtual writing of the single-owner partitions of a virtual catalog off - see
 	 * {@link #setWrittenVirtually(boolean)}. Volatile for the same reason as {@link #probe}.
 	 */
-	private volatile boolean writtenVirtually;
+	private volatile boolean writtenAsObjects;
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * The partitions the transitions of each running root entity mutation passed, keyed by the identity of the root
+	 * mutation - collected in the forced mode for a virtual catalog only, `null` otherwise. See
+	 * {@link #rootMutationFinished(Catalog, Object, boolean, boolean)}.
+	 */
+	@Nullable private final Map<Object, Set<TouchedPartition>> forcedTouchedPartitions;
 
 	// TODO JNO - remove at the end of #1615
 	/**
@@ -251,6 +270,7 @@ public final class VirtualReferencePartitionMaintenance {
 	 */
 	public VirtualReferencePartitionMaintenance() {
 		this.virtual = false;
+		this.forcedTouchedPartitions = null;
 	}
 
 	// TODO JNO - remove at the end of #1615
@@ -286,6 +306,7 @@ public final class VirtualReferencePartitionMaintenance {
 		this.virtual = virtual;
 		this.maintainedEntityTypes.addAll(maintainedEntityTypes);
 		this.probe = probe;
+		this.forcedTouchedPartitions = FORCED && virtual ? new ConcurrentHashMap<>(16) : null;
 	}
 
 	// TODO JNO - remove at the end of #1615
@@ -385,7 +406,9 @@ public final class VirtualReferencePartitionMaintenance {
 	 * executor of its entity index mutations - and by nothing else, so that {@link #getMaintainedMutationCount()}
 	 * counts mutations rather than reads.
 	 *
-	 * Without a probe installed the handle is one of the shared constants, so nothing is allocated per mutation.
+	 * Without a probe installed the handle is one of the shared constants, so nothing is allocated per mutation - except
+	 * in the forced mode for a virtual catalog, whose handles collect the partitions their transitions pass for the
+	 * check at the end of the root mutation (see {@link #rootMutationFinished(Catalog, Object, boolean, boolean)}).
 	 *
 	 * @param entityType   the name of the entity type the mutation writes into
 	 * @param rootMutation the identity of the root entity mutation this mutation belongs to - its own, or the one
@@ -399,35 +422,42 @@ public final class VirtualReferencePartitionMaintenance {
 			this.maintainedMutationCount.incrementAndGet();
 		}
 		// only a virtual catalog maintains every collection, so the virtual writing implies the maintenance
-		final boolean theWrittenVirtually = this.virtual && this.writtenVirtually;
+		final boolean theWrittenVirtually = isWrittenVirtually();
 		final TransitionProbe theProbe = this.probe;
-		if (theProbe == null) {
+		final Set<TouchedPartition> touchedPartitions = FORCED && this.forcedTouchedPartitions != null ?
+			this.forcedTouchedPartitions.computeIfAbsent(rootMutation, it -> new HashSet<>(16)) : null;
+		if (theProbe == null && touchedPartitions == null) {
 			if (theWrittenVirtually) {
 				return MutationHandle.WRITTEN_VIRTUALLY;
 			}
 			return maintained ? MutationHandle.MAINTAINED : MutationHandle.OFF;
 		}
-		return new MutationHandle(maintained, theWrittenVirtually, entityType, theProbe, rootMutation);
+		return new MutationHandle(
+			maintained, theWrittenVirtually, entityType, theProbe, rootMutation, touchedPartitions
+		);
 	}
 
 	// TODO JNO - remove at the end of #1615
 	/**
 	 * Returns TRUE when the mutations of the catalog write the single-owner partitions of the references it represents
 	 * virtually as registry rows rather than as reduced entity indexes - see {@link MutationHandle#writtenVirtually()}.
-	 * Never TRUE outside a virtual catalog.
+	 * TRUE for every virtual catalog unless a test switched the virtual writing off, never TRUE outside a virtual
+	 * catalog.
 	 *
 	 * @return TRUE when the virtual writing is on
 	 */
 	public boolean isWrittenVirtually() {
-		return this.virtual && this.writtenVirtually;
+		return this.virtual && !this.writtenAsObjects;
 	}
 
 	// TODO JNO - remove at the end of #1615
 	/**
-	 * Turns the virtual writing of the single-owner partitions on or off. Off by default, so that a virtual catalog
-	 * still writes its single-owner partitions as reduced entity indexes and keeps the registry in step with them;
-	 * only a test turns it on, and only in a virtual catalog - a catalog representing its partitions as objects has
-	 * no other way to write them.
+	 * Turns the virtual writing of the single-owner partitions of a virtual catalog off or back on. On by default, so
+	 * a virtual catalog writes a single-owner partition as its registry row only. A test switches it off to keep the
+	 * index objects of the single-owner partitions next to their rows - to compare what a virtual catalog answers from
+	 * a row with the object the row stands for - and a catalog representing its partitions as objects can never have
+	 * it on, as it has no other way to write them. Switched off, the catalog writes exactly as a catalog with objects
+	 * maintaining its registry does; mutations written before the switch stay as they were written.
 	 *
 	 * @param writtenVirtually TRUE to write the single-owner partitions virtually, FALSE to write them as objects
 	 * @throws GenericEvitaInternalError when the virtual writing is turned on in a catalog that is not virtual
@@ -439,7 +469,7 @@ public final class VirtualReferencePartitionMaintenance {
 					"virtually!"
 			);
 		}
-		this.writtenVirtually = writtenVirtually;
+		this.writtenAsObjects = !writtenVirtually;
 	}
 
 	// TODO JNO - remove at the end of #1615
@@ -447,18 +477,87 @@ public final class VirtualReferencePartitionMaintenance {
 	 * Reports to the installed probe, if any, that a root entity mutation finished - its changes committed or rolled
 	 * back. Called once per root entity mutation, after the outcome is final.
 	 *
+	 * In the forced mode a committed root mutation of a catalog writing virtually is then checked: no partition its
+	 * transitions passed may be both a registry row and an index object, and an index object of a partition its
+	 * transitions passed must hold at least two owners - a partition that gained its only owner, was left with one of
+	 * two or lost its last owner is its row only, or nothing. A partition that only had values written into it is
+	 * exempt from the second rule: a single-owner index object left by a reference whose indexing changed from
+	 * partitioning to filtering keeps its only owner until the owner leaves or the catalog is reindexed. The check
+	 * visits only the partitions the root mutation touched, never the other partitions of the catalog.
+	 *
+	 * @param catalog      the catalog version the root mutation wrote into
 	 * @param rootMutation the identity of the root entity mutation, the one its mutations' handles carry
 	 * @param committed    TRUE when the root mutation committed, FALSE when it was rolled back
 	 * @param trunkReplay  TRUE when the root mutation replays a committed transaction - onto the trunk after a commit,
 	 *                     or from the write-ahead log at load - rather than running in a session
+	 * @throws GenericEvitaInternalError in the forced mode, when a touched partition is represented by both a row and
+	 *                                   an index object, or by an index object of fewer than two owners while
+	 *                                   something more than values was written into it
 	 */
-	public void rootMutationFinished(@Nonnull Object rootMutation, boolean committed, boolean trunkReplay) {
+	public void rootMutationFinished(
+		@Nonnull Catalog catalog,
+		@Nonnull Object rootMutation,
+		boolean committed,
+		boolean trunkReplay
+	) {
 		final TransitionProbe theProbe = this.probe;
 		if (theProbe != null) {
 			theProbe.rootMutationFinished(
 				committed ? TransitionStage.ROOT_COMMITTED : TransitionStage.ROOT_ROLLED_BACK,
 				rootMutation,
 				trunkReplay
+			);
+		}
+		if (FORCED && this.forcedTouchedPartitions != null) {
+			final Set<TouchedPartition> touchedPartitions = this.forcedTouchedPartitions.remove(rootMutation);
+			// only virtual catalogs collect, so the representation is checked unless a test switched it to objects
+			if (committed && touchedPartitions != null && !this.writtenAsObjects) {
+				for (final TouchedPartition touchedPartition : touchedPartitions) {
+					assertRepresentedOnce(catalog, touchedPartition);
+				}
+			}
+		}
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Asserts that a partition a committed root mutation touched is represented once - see
+	 * {@link #rootMutationFinished(Catalog, Object, boolean, boolean)}.
+	 *
+	 * @param catalog   the catalog version the root mutation wrote into
+	 * @param partition the touched partition
+	 * @throws GenericEvitaInternalError when the partition is represented by both a row and an index object, or by an
+	 *                                   index object of fewer than two owners while something more than values was
+	 *                                   written into it
+	 */
+	private static void assertRepresentedOnce(@Nonnull Catalog catalog, @Nonnull TouchedPartition partition) {
+		final EntityCollection collection = catalog.getCollectionForEntityInternal(partition.entityType())
+			.orElseThrow(
+				() -> new GenericEvitaInternalError(
+					"Collection `" + partition.entityType() + "` touched by a committed root mutation does not exist!"
+				)
+			);
+		final EntityIndex typeIndex = collection.getIndexByKeyIfExists(
+			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, partition.scope(), partition.referenceName())
+		);
+		final boolean hasRow = typeIndex instanceof final ReferencedTypeEntityIndex referencedTypeIndex &&
+			referencedTypeIndex.getVirtualReferencePartitionIndex()
+				.getPartitionOwner(partition.partitionPrimaryKey())
+				.isPresent();
+		// the index object of the partition, never its row - the lenient resolution reads index objects only
+		final ReferencePartition object = collection.resolvePartitionIfExists(partition.partitionPrimaryKey());
+		final int objectOwners = object == null ? 0 : object.size();
+		final boolean representedOnce = hasRow ?
+			object == null : object == null || objectOwners >= 2 || partition.valuesWritten();
+		if (!representedOnce) {
+			throw new GenericEvitaInternalError(
+				"Partition " + partition.partitionPrimaryKey() + " of reference `" + partition.referenceName() +
+					"` of collection `" + partition.entityType() + "` in scope `" + partition.scope() + "` is " +
+					(hasRow ? "a registry row" : "no registry row") +
+					(object == null ? " without an index object" : " with an index object of " + objectOwners +
+						" owner(s)") +
+					" after its root mutation committed - a catalog writing its single-owner partitions virtually " +
+					"keeps a single-owner partition as its row only, and a shared one as its index object only!"
 			);
 		}
 	}
@@ -1130,40 +1229,44 @@ public final class VirtualReferencePartitionMaintenance {
 	 * What one entity mutation knows about virtual reference partitions: whether it maintains them, whether it writes
 	 * the single-owner ones virtually, and the probe it reports its transitions to. Without a probe the handle is one of
 	 * the shared constants {@link #OFF}, {@link #MAINTAINED} and {@link #WRITTEN_VIRTUALLY}, so building it allocates
-	 * nothing.
+	 * nothing - unless the forced mode collects the partitions the transitions of a virtual catalog pass.
 	 *
-	 * @param maintained       TRUE when the mutation maintains the virtual reference partitions of its collection
-	 * @param writtenVirtually TRUE when the mutation writes the single-owner partitions of the references its catalog
-	 *                         represents virtually as registry rows rather than as reduced entity indexes - only ever
-	 *                         TRUE in a virtual catalog whose holder has the virtual writing switched on
-	 * @param entityType       the entity type the mutation writes into, `null` in the shared constants
-	 * @param probe            the probe to report to, `null` for none
-	 * @param rootMutation     the identity of the root entity mutation, `null` in the shared constants
+	 * @param maintained        TRUE when the mutation maintains the virtual reference partitions of its collection
+	 * @param writtenVirtually  TRUE when the mutation writes the single-owner partitions of the references its catalog
+	 *                          represents virtually as registry rows rather than as reduced entity indexes - TRUE in
+	 *                          every virtual catalog whose holder has not had the virtual writing switched off by a
+	 *                          test, never TRUE outside a virtual catalog
+	 * @param entityType        the entity type the mutation writes into, `null` in the shared constants
+	 * @param probe             the probe to report to, `null` for none
+	 * @param rootMutation      the identity of the root entity mutation, `null` in the shared constants
+	 * @param touchedPartitions the partitions the transitions of the root mutation passed so far, collected for the
+	 *                          check at its end - `null` outside the forced mode and outside a virtual catalog
 	 */
 	public record MutationHandle(
 		boolean maintained,
 		boolean writtenVirtually,
 		@Nullable String entityType,
 		@Nullable TransitionProbe probe,
-		@Nullable Object rootMutation
+		@Nullable Object rootMutation,
+		@Nullable Set<TouchedPartition> touchedPartitions
 	) {
 		/**
 		 * The handle of a mutation that maintains nothing and reports to no probe.
 		 */
-		public static final MutationHandle OFF = new MutationHandle(false, false, null, null, null);
+		public static final MutationHandle OFF = new MutationHandle(false, false, null, null, null, null);
 		/**
 		 * The handle of a mutation that maintains the virtual reference partitions and reports to no probe.
 		 */
-		public static final MutationHandle MAINTAINED = new MutationHandle(true, false, null, null, null);
+		public static final MutationHandle MAINTAINED = new MutationHandle(true, false, null, null, null, null);
 		/**
 		 * The handle of a mutation that maintains the virtual reference partitions, writes the single-owner ones
 		 * virtually and reports to no probe.
 		 */
-		public static final MutationHandle WRITTEN_VIRTUALLY = new MutationHandle(true, true, null, null, null);
+		public static final MutationHandle WRITTEN_VIRTUALLY = new MutationHandle(true, true, null, null, null, null);
 
 		/**
-		 * Reports a transition to the probe, if there is one. A probe may throw, which fails the mutation at this
-		 * point.
+		 * Reports a transition to the probe, if there is one, and collects its partition for the check at the end of
+		 * the root mutation in the forced mode. A probe may throw, which fails the mutation at this point.
 		 *
 		 * @param stage               the transition
 		 * @param referenceName       the reference
@@ -1176,6 +1279,14 @@ public final class VirtualReferencePartitionMaintenance {
 			@Nonnull Scope scope,
 			int partitionPrimaryKey
 		) {
+			if (this.touchedPartitions != null && this.entityType != null) {
+				this.touchedPartitions.add(
+					new TouchedPartition(
+						this.entityType, referenceName, scope, partitionPrimaryKey,
+						stage == TransitionStage.MIRRORED
+					)
+				);
+			}
 			if (this.probe != null && this.entityType != null && this.rootMutation != null) {
 				this.probe.transitionPassed(
 					stage, this.entityType, referenceName, scope, partitionPrimaryKey, this.rootMutation
@@ -1194,6 +1305,27 @@ public final class VirtualReferencePartitionMaintenance {
 				this.probe.promotionPointPassed(rehearsal.get(), this.rootMutation);
 			}
 		}
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * A partition a transition of a root entity mutation passed - see
+	 * {@link #rootMutationFinished(Catalog, Object, boolean, boolean)}.
+	 *
+	 * @param entityType          the entity type owning the reference
+	 * @param referenceName       the reference
+	 * @param scope               the scope of the partition
+	 * @param partitionPrimaryKey the primary key of the partition
+	 * @param valuesWritten       TRUE when the transition only wrote values into the partition or removed them
+	 *                            ({@link TransitionStage#MIRRORED}) rather than changing its owners
+	 */
+	public record TouchedPartition(
+		@Nonnull String entityType,
+		@Nonnull String referenceName,
+		@Nonnull Scope scope,
+		int partitionPrimaryKey,
+		boolean valuesWritten
+	) {
 	}
 
 }
