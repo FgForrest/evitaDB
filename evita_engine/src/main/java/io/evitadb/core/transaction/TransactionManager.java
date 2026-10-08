@@ -733,12 +733,18 @@ public class TransactionManager implements Closeable {
 		if (numberOfDroppedCatalogVersions > 0) {
 			this.lastAssignedCatalogVersion.addAndGet(-numberOfDroppedCatalogVersions);
 			this.accumulatedCatalogSchemaVersionDelta.addAndGet(-schemaVersionDelta);
+			// releasing a reservation is the cleanup of a commit that failed - possibly because this manager was
+			// closed under it - so it goes through on a closed manager too. Only the cross-check needs the living
+			// catalog, and a closed manager has none left to check against
 			final Catalog theLivingCatalog = getLivingCatalog();
-			final long theLastAssignedCatalogVersion = getLastAssignedCatalogVersion();
-			Assert.isPremiseValid(
-				theLastAssignedCatalogVersion >= theLivingCatalog.getVersion(),
-				"Unexpected catalog version " + theLivingCatalog.getVersion() + " vs. " + theLastAssignedCatalogVersion + "!"
-			);
+			if (theLivingCatalog != null) {
+				final long theLastAssignedCatalogVersion = getLastAssignedCatalogVersion();
+				Assert.isPremiseValid(
+					theLastAssignedCatalogVersion >= theLivingCatalog.getVersion(),
+					() -> "Unexpected catalog version " + theLivingCatalog.getVersion() + " vs. " +
+						theLastAssignedCatalogVersion + "!"
+				);
+			}
 		} else if (numberOfDroppedCatalogVersions < 0) {
 			throw new GenericEvitaInternalError("Negative number of dropped catalog versions!");
 		}
@@ -869,7 +875,7 @@ public class TransactionManager implements Closeable {
 	 * durable **before** calling this - see {@link Catalog#syncWal()}.
 	 */
 	public void syncWal() {
-		getLivingCatalog().syncWal();
+		requireLivingCatalog().syncWal();
 	}
 
 	/**
@@ -1052,7 +1058,7 @@ public class TransactionManager implements Closeable {
 					"Reserved catalog version " + reservedCatalogVersion + " must directly follow " +
 						"the last assigned catalog version " + theLastAssignedCatalogVersion + "!"
 				);
-				final Catalog theLivingCatalog = getLivingCatalog();
+				final Catalog theLivingCatalog = requireLivingCatalog();
 				final long livingCatalogVersion = theLivingCatalog.getVersion();
 				final Map<Object, CommutativeConflictResolver<?>> aggregates =
 					initializeAggregatesIfNecessary(conflictKeys);
@@ -1190,7 +1196,7 @@ public class TransactionManager implements Closeable {
 		// missing from the pool is not merely garbage: the pool mints a replacement, so the count of instances
 		// a writer and its readers share creeps upward for as long as the process runs.
 		try (
-			final Stream<CatalogBoundMutation> committedMutations = getLivingCatalog()
+			final Stream<CatalogBoundMutation> committedMutations = theLivingCatalog
 				// both bounds are the engine's own bookkeeping, so a version missing from the log is genuine
 				// damage
 				.getCommittedLiveMutationStream(
@@ -1402,7 +1408,7 @@ public class TransactionManager implements Closeable {
 					"Transaction cannot be written to the WAL out of order. " +
 						"Expected version " + (theLastWrittenCatalogVersion + 1) + ", got " + transactionMutation.getVersion() + "."
 				);
-				return getLivingCatalog()
+				return requireLivingCatalog()
 					.appendWalAndDiscardDeferringSync(
 						transactionMutation,
 						walReference
@@ -1707,7 +1713,8 @@ public class TransactionManager implements Closeable {
 	 */
 	public void waitUntilLiveVersionReaches(long catalogVersion) {
 		waitUntilVersionReaches(
-			() -> getLivingCatalog().getVersion(),
+			// a closed manager never publishes again, so the wait ends with the closure rather than at its deadline
+			() -> requireLivingCatalog().getVersion(),
 			catalogVersion,
 			safetyDeadlineMs(),
 			getCatalogName()
@@ -1793,6 +1800,21 @@ public class TransactionManager implements Closeable {
 	@Nullable
 	public Catalog getLivingCatalog() {
 		return this.livingCatalog.get();
+	}
+
+	/**
+	 * Returns the living catalog for work that cannot proceed without one.
+	 *
+	 * @return the living catalog instance visible to all queries
+	 * @throws InstanceTerminatedException when this manager has already been closed
+	 */
+	@Nonnull
+	private Catalog requireLivingCatalog() {
+		final Catalog theLivingCatalog = this.livingCatalog.get();
+		if (theLivingCatalog == null) {
+			throw createTerminatedException();
+		}
+		return theLivingCatalog;
 	}
 
 	/**

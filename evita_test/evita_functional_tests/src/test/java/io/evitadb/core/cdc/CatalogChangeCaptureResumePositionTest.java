@@ -55,7 +55,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.file.Files;
+import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
@@ -63,6 +65,7 @@ import java.util.stream.Stream;
 
 import static io.evitadb.test.TestTags.CDC;
 import static io.evitadb.test.TestTags.ENGINE;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -568,6 +571,55 @@ class CatalogChangeCaptureResumePositionTest implements EvitaTestSupport {
 			assertInstanceOf(
 				InstanceTerminatedException.class, refusal.getSuppressed()[0],
 				"The lookup failed for a reason other than the closed manager."
+			);
+		}
+
+		@Test
+		@DisplayName("should refuse commit pipeline work that needs the living catalog after deactivation")
+		void shouldRefuseCommitPipelineWorkAfterDeactivation() {
+			final long committedVersion = commitEntity(TEST_CATALOG, 1);
+			final TransactionManager transactionManager = liveCatalog(TEST_CATALOG).getTransactionManager();
+
+			CatalogChangeCaptureResumePositionTest.this.evita.deactivateCatalog(TEST_CATALOG);
+			assertNull(transactionManager.getLivingCatalog(), "Deactivation did not close the transaction manager.");
+
+			// a commit still in the pipeline when its catalog went away reaches these late - each of them needs the
+			// living catalog the close released, and must say the manager is gone rather than fail on its absence
+			assertAll(
+				() -> assertThrows(InstanceTerminatedException.class, transactionManager::syncWal, "WAL sync"),
+				() -> assertThrows(
+					InstanceTerminatedException.class,
+					() -> transactionManager.waitUntilLiveVersionReaches(committedVersion + 1),
+					"waiting for the live view"
+				),
+				() -> assertThrows(
+					InstanceTerminatedException.class,
+					() -> transactionManager.identifyConflicts(
+						committedVersion, transactionManager.getLastAssignedCatalogVersion() + 1,
+						OffsetDateTime.now(), Set.of()
+					),
+					"conflict resolution"
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("should release a reserved catalog version after deactivation")
+		void shouldReleaseReservedCatalogVersionAfterDeactivation() {
+			commitEntity(TEST_CATALOG, 1);
+			final TransactionManager transactionManager = liveCatalog(TEST_CATALOG).getTransactionManager();
+
+			CatalogChangeCaptureResumePositionTest.this.evita.deactivateCatalog(TEST_CATALOG);
+			assertNull(transactionManager.getLivingCatalog(), "Deactivation did not close the transaction manager.");
+
+			// releasing a reservation is the cleanup of a commit that failed - often because the manager closed
+			// under it - so it must go through rather than replace that failure with one of its own
+			final long lastAssignedVersion = transactionManager.getLastAssignedCatalogVersion();
+			transactionManager.getNextCatalogVersionToAssign();
+			assertDoesNotThrow(() -> transactionManager.notifyCatalogVersionDropped(1, 0));
+			assertEquals(
+				lastAssignedVersion, transactionManager.getLastAssignedCatalogVersion(),
+				"The reserved catalog version was not released."
 			);
 		}
 
