@@ -59,6 +59,7 @@ import java.util.EnumMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
@@ -75,6 +76,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * index object into existence and must read the references of no other entity. A path that walked the partitions of
  * other owners, or populated a partition from another owner, would show in these counts long before it showed in a
  * latency.
+ *
+ * A second owner joining all `k` partitions of the first one promotes each of them exactly once - `k` index objects,
+ * no row left - and reads the first owner's references from the storage once for all of them; leaving them again
+ * demotes each exactly once, back to `k` rows and no index object, reading nothing of another entity.
  *
  * The registry operations are counted as the transitions the mutation passes: every owner row entered or vacated and
  * every value written into a row or removed from it reports one.
@@ -282,12 +287,143 @@ class VirtualPartitionOpCountGateTest implements EvitaTestSupport {
 		assertEquals(
 			0, objects[0], "no partition of `" + REFERENCE_CATEGORIES + "` may have an index object in " + scope
 		);
+		return rows(scope);
+	}
+
+	/**
+	 * Counts the rows of the registry of the category reference in the scope of the committed catalog.
+	 *
+	 * @param scope the scope
+	 * @return the number of owner rows
+	 */
+	private int rows(@Nonnull Scope scope) {
+		final EntityIndex typeIndex = collectionOf(ENTITY_PRODUCT).getIndexByKeyIfExists(
+			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, REFERENCE_CATEGORIES)
+		);
+		if (!(typeIndex instanceof final ReferencedTypeEntityIndex referencedTypeIndex)) {
+			return 0;
+		}
 		final VirtualReferencePartitionIndex registry = referencedTypeIndex.getVirtualReferencePartitionIndex();
 		final int[] rows = {0};
 		registry.forEachEntry(
 			VirtualReferencePartitionSlot.PARTITION_OWNER, (partition, payload) -> rows[0]++
 		);
 		return rows[0];
+	}
+
+	/**
+	 * Counts the index objects of the partitions of the category reference in the scope of the committed catalog.
+	 *
+	 * @param scope the scope
+	 * @return the number of index objects
+	 */
+	private int partitionObjects(@Nonnull Scope scope) {
+		final EntityCollection products = collectionOf(ENTITY_PRODUCT);
+		final EntityIndex typeIndex = products.getIndexByKeyIfExists(
+			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, REFERENCE_CATEGORIES)
+		);
+		if (!(typeIndex instanceof final ReferencedTypeEntityIndex referencedTypeIndex)) {
+			return 0;
+		}
+		final int[] objects = {0};
+		referencedTypeIndex.forEachReferenceIndexPrimaryKey(
+			partitionPrimaryKey -> {
+				if (products.getIndexByPrimaryKeyIfExists(partitionPrimaryKey) != null) {
+					objects[0]++;
+				}
+			}
+		);
+		return objects[0];
+	}
+
+	/**
+	 * The promotion half of the gate: a second owner joining and leaving every single-owner partition of the first one.
+	 */
+	@Nested
+	@DisplayName("a second owner joining every partition of the first one")
+	class PromotedPartitions {
+		/**
+		 * How many single-owner partitions the first owner has.
+		 */
+		private static final int K = 300;
+		/**
+		 * The owner joining every partition of {@link #OWNER}.
+		 */
+		private static final int SECOND_OWNER = OWNER + 1;
+
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("promotes each partition once from one read of the first owner and demotes each once")
+		void shouldPromoteEachPartitionOnceAndDemoteEachOnce(CatalogState state) {
+			prepare(state, K, false);
+			evita().updateCatalog(
+				CATALOG,
+				session -> {
+					session.upsertEntity(session.createNewEntity(ENTITY_PRODUCT, SECOND_OWNER));
+				}
+			);
+			VirtualPartitionOpCountGateTest.this.history.sessionClosed(state == CatalogState.WARMING_UP, false);
+			assertEquals(K, rowsWithoutObjects(Scope.LIVE), "every partition of the first owner is a row");
+			// counted on the session's thread - a live catalog replays the session onto the trunk after the commit
+			final long[] fetches = new long[2];
+
+			// the second owner joins every partition: each is promoted to an index object holding both owners, whose
+			// first owner is read from the storage once for all of them
+			final Map<TransitionStage, Integer> promotion = countTransitions(
+				session -> {
+					final long fetchesBefore = maintenance().getForeignReferencesFetchCount();
+					final EntityBuilder secondOwner = session.getEntity(
+							ENTITY_PRODUCT, SECOND_OWNER, entityFetchAllContent()
+						)
+						.orElseThrow()
+						.openForWrite();
+					for (int pk = 1; pk <= K; pk++) {
+						final int category = pk;
+						secondOwner.setReference(
+							REFERENCE_CATEGORIES, category,
+							whichIs -> whichIs.setAttribute(ATTRIBUTE_ORDER, K + category)
+								.setAttribute(ATTRIBUTE_LABEL, Locale.ENGLISH, "Copy " + category)
+						);
+					}
+					secondOwner.upsertVia(session);
+					fetches[0] = maintenance().getForeignReferencesFetchCount() - fetchesBefore;
+				}
+			);
+			assertEquals(K, promotion.get(TransitionStage.SHARED), "every partition is promoted once: " + promotion);
+			assertEquals(
+				Set.of(TransitionStage.SHARED, TransitionStage.MIRRORED), promotion.keySet(),
+				"the promotion passed other transitions: " + promotion
+			);
+			assertEquals(K, partitionObjects(Scope.LIVE), "every promoted partition is an index object");
+			assertEquals(0, rows(Scope.LIVE), "no promoted partition keeps its row");
+			assertEquals(
+				1, fetches[0], "the first owner's references must be read once for all " + K + " promotions"
+			);
+
+			// the second owner leaves every partition again: each is demoted to the row of the first owner
+			final Map<TransitionStage, Integer> demotion = countTransitions(
+				session -> {
+					final long fetchesBefore = maintenance().getForeignReferencesFetchCount();
+					final EntityBuilder secondOwner = session.getEntity(
+							ENTITY_PRODUCT, SECOND_OWNER, entityFetchAllContent()
+						)
+						.orElseThrow()
+						.openForWrite();
+					for (int pk = 1; pk <= K; pk++) {
+						secondOwner.removeReference(REFERENCE_CATEGORIES, pk);
+					}
+					secondOwner.upsertVia(session);
+					fetches[1] = maintenance().getForeignReferencesFetchCount() - fetchesBefore;
+				}
+			);
+			assertEquals(K, demotion.get(TransitionStage.DEMOTED), "every partition is demoted once: " + demotion);
+			assertEquals(
+				Set.of(TransitionStage.DEMOTED, TransitionStage.MIRRORED), demotion.keySet(),
+				"the demotion passed other transitions: " + demotion
+			);
+			assertEquals(K, rowsWithoutObjects(Scope.LIVE), "every demoted partition is a row again");
+			assertEquals(0, fetches[1], "the demotion reads the references of no other entity");
+		}
 	}
 
 	/**

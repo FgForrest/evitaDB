@@ -97,7 +97,12 @@ import java.util.function.Function;
  *   owner. The values are copied as the partition's sort indexes store them, in their normalized form, and recorded
  *   as such (see {@link VirtualReferencePartitionIndex#putNormalizedSortValue}). A partition that has a row by then -
  *   another executor of the root mutation demoted it already, or it was vacated and entered again meanwhile - keeps
- *   it, and one that has no owner or several owners by then gets none.
+ *   it, and one that has no owner or several owners by then gets none. A mutation writing its single-owner
+ *   partitions virtually then retires the partition's index object, so the row alone represents the partition.
+ *
+ * The opposite move - a partition kept as a row gaining its second owner - is the reference index mutator's: it
+ * installs the partition's index object and writes the first owner into it before the second owner enters, and the
+ * entering drops the row as for any partition becoming a shared one.
  *
  * Only references indexed `FOR_FILTERING` with the referenced entity component in the scope have virtual partitions
  * (see {@link #isShadowed(ReferenceSchemaContract, Scope)}); a reference indexed for partitioning keeps a reduced
@@ -211,7 +216,9 @@ public final class VirtualReferencePartitionWriter {
 	 * Demotes a partition the mutation left with one owner of two (2 -> 1), once every mutation of the root mutation
 	 * has been dispatched: when the partition still has exactly one owner and no row, its row is registered for that
 	 * owner and filled by extraction - see the class documentation. The partition is resolved anew by its key, so a
-	 * partition removed since, or replaced by another one of the same key, is left alone.
+	 * partition removed since, or replaced by another one of the same key, is left alone. A mutation writing its
+	 * single-owner partitions virtually retires the partition's index object once its row is in place - this runs while
+	 * the root mutation is finishing, when an index object may be retired but none may be installed.
 	 *
 	 * @param executor  the mutation executor that left the partition with one owner
 	 * @param partition the partition as it was when it was left with one owner - only its key and primary key are read
@@ -260,6 +267,12 @@ public final class VirtualReferencePartitionWriter {
 					currentIndex, ownerPrimaryKey
 				);
 			}
+		}
+		// TODO JNO - remove at the end of #1615 (the condition, its body stays)
+		if (executor.getVirtualReferencePartitionMutation().writtenVirtually()) {
+			// the row holds everything the object holds of the only owner now, so the row alone represents the
+			// partition - an index object of a single-owner partition is never kept
+			executor.retirePartitionObject(currentIndex);
 		}
 		// TODO JNO - remove at the end of #1615
 		executor.getVirtualReferencePartitionMutation().transitionPassed(

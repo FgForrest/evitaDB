@@ -886,7 +886,8 @@ public interface ReferenceIndexMutator {
 	 * Performs the entity-component indexing of a reference insertion. This registers the partition's primary key in
 	 * the type index and indexes the reference attributes there (written for every partition, whatever its
 	 * form), adds the owner to the partition and populates it with the owner's data, records the membership boundary
-	 * and adds the facet to the partition.
+	 * and adds the facet to the partition. A partition kept as the registry row of another owner becomes an index
+	 * object holding that owner before the owner enters it (see {@link #promoteWhenJoiningAnotherOwner}).
 	 *
 	 * @param entityPrimaryKey            the primary key of the entity being indexed
 	 * @param entitySchema                the entity schema
@@ -915,8 +916,18 @@ public interface ReferenceIndexMutator {
 			entitySchema, referenceSchema, executor, referenceTypeIndex, partition.getPrimaryKey(),
 			referenceKey, referencedPrimaryKey, existingDataSupplierFactory
 		);
+		// a partition kept as the registry row of another owner gains its second owner here, which takes an index
+		// object holding that owner - the owner then enters the object as it enters any other
+		// TODO JNO - remove at the end of #1615 (the promotion stays, `requireWrittenVirtually` loses its condition)
+		final ReferencePartition target = partition instanceof final VirtualReferencePartition virtual ?
+			promoteWhenJoiningAnotherOwner(
+				executor, referenceSchema, referenceTypeIndex,
+				requireWrittenVirtually(executor, referenceSchema, virtual, "referenceInsertPerComponent"),
+				entityPrimaryKey
+			) :
+			partition;
 		// partition-local: the owner's row and the owner's data replicated into the partition
-		final boolean entityFirstIndexedInTargetIndex = switch (partition) {
+		final boolean entityFirstIndexedInTargetIndex = switch (target) {
 			case ReducedEntityIndex referenceIndex -> {
 				final boolean firstIndexed = referenceIndex.insertPrimaryKeyIfMissing(entityPrimaryKey);
 				// REI indexes are keyed per-reference so no duplicate refs can land here; always run the
@@ -945,14 +956,63 @@ public interface ReferenceIndexMutator {
 			);
 		};
 		// the owner-membership boundary the cross-entity facet trigger's reverse lookup is maintained from -
-		// exactly the 0 -> 1 transition, for both index families, and for no other event
+		// exactly the 0 -> 1 transition, for both index families, and for no other event; a promoted partition reports
+		// the owners its index object holds, never the single owner its row named
 		if (entityFirstIndexedInTargetIndex) {
 			recordOwnerEnteredReducedIndex(
-				executor, referenceSchema, partition.getPrimaryKey(), partition.getAllPrimaryKeys(), entityPrimaryKey
+				executor, referenceSchema, target.getPrimaryKey(), target.getAllPrimaryKeys(), entityPrimaryKey
 			);
 		}
 		// add facet to the partition
-		addFacetToPartition(partition, referenceSchema, referenceKey, groupId, entityPrimaryKey, executor);
+		addFacetToPartition(target, referenceSchema, referenceKey, groupId, entityPrimaryKey, executor);
+	}
+
+	/**
+	 * Promotes a partition represented by the registry row of another owner - its first owner - which the entering
+	 * owner is about to join (1 -> 2). A partition with two owners is an index object, so one is installed under the
+	 * partition's primary key (see {@link EntityIndexLocalMutationExecutor#installPartitionObject}) and filled with what
+	 * it holds of the first owner (see {@link #populatePartitionWithOwner}): read as the root mutation sees that owner,
+	 * from the locales it had before the running root mutation, and written by an executor writing as the first owner
+	 * that maintains no registry - the row holds the first owner's values already, and is dropped once the entering
+	 * owner makes the partition a shared one.
+	 *
+	 * Nothing outside the partition learns of the first owner again: the referenced-type index advertised the
+	 * partition and the membership of the reduced indexes recorded its owner when the first owner entered it.
+	 *
+	 * A partition without a row - one the entering owner brings into existence - and one whose row names the entering
+	 * owner are returned as they are, for the virtual arm.
+	 *
+	 * @param executor           the mutation executor writing as the entering owner
+	 * @param referenceSchema    the schema of the reference
+	 * @param referenceTypeIndex the `REFERENCED_ENTITY_TYPE` index of the reference, carrying the registry
+	 * @param partition          the virtual partition the owner enters
+	 * @param entityPrimaryKey   the primary key of the entering owner
+	 * @return the index object of the promoted partition holding its first owner, or the virtual partition when it is
+	 * not promoted
+	 * @throws GenericEvitaInternalError when the root mutation is finishing, or the index object cannot be installed
+	 */
+	@Nonnull
+	private static ReferencePartition promoteWhenJoiningAnotherOwner(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
+		@Nonnull VirtualReferencePartition partition,
+		int entityPrimaryKey
+	) {
+		final OptionalLong row = referenceTypeIndex.getVirtualReferencePartitionIndex()
+			.getPartitionOwner(partition.getPrimaryKey());
+		if (row.isEmpty()) {
+			return partition;
+		}
+		final int firstOwner = NumberUtils.unpackHigh(row.getAsLong());
+		if (firstOwner == entityPrimaryKey) {
+			return partition;
+		}
+		final ReducedEntityIndex partitionIndex = executor.installPartitionObject(
+			partition, "referenceInsertPerComponent"
+		);
+		populatePartitionWithOwner(executor.createExecutorOfOtherOwner(firstOwner), partitionIndex, referenceSchema);
+		return partitionIndex;
 	}
 
 	/**
@@ -1374,8 +1434,8 @@ public interface ReferenceIndexMutator {
 	 *   every other partition of the owner;
 	 * - **a row of the owner** - the owner is in the partition already, through another reference of the same key, and
 	 *   nothing is written, as the materialized arm writes nothing for an owner the partition holds;
-	 * - **a row of another owner** - the partition would gain its second owner, which needs its index object; that is
-	 *   refused.
+	 * - **a row of another owner** - never: a partition gaining its second owner is promoted to an index object before
+	 *   the owner enters it (see {@link #promoteWhenJoiningAnotherOwner}), so meeting one here is refused.
 	 *
 	 * @param executor                    the mutation executor writing as the owner
 	 * @param referenceSchema             the schema of the reference
@@ -1407,8 +1467,8 @@ public interface ReferenceIndexMutator {
 			}
 			throw new GenericEvitaInternalError(
 				"Entity " + entityPrimaryKey + " enters partition " + partitionPrimaryKey + " `" +
-					partition.getIndexKey() + "` owned by entity " + rowOwner + " only - a partition without an " +
-					"index object cannot gain a second owner yet!"
+					partition.getIndexKey() + "` owned by entity " + rowOwner + " only without promoting it - a " +
+					"partition gaining its second owner must be an index object!"
 			);
 		}
 		isPremiseValid(

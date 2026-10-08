@@ -2110,6 +2110,57 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
+	 * Gives a partition represented by its registry row alone an index object, because the partition is about to gain
+	 * its second owner (1 -> 2). The object is installed under the partition's primary key - the one its row carries
+	 * and the one the partition keeps - registered for modification tracking so that its storage parts are persisted on
+	 * flush, and added to the indexes the end-of-mutation sweep inspects, as the acquisition of
+	 * {@link #getOrCreateIndex(EntityIndexKey)} registers an index it creates. The object is empty: the caller writes
+	 * the partition's first owner into it.
+	 *
+	 * No owner may enter a partition while the root mutation is finishing, so no partition is promoted then.
+	 *
+	 * @param partition the partition gaining its second owner
+	 * @param writeSite names the write path promoting the partition, for the error message
+	 * @return the empty index object of the partition
+	 * @throws GenericEvitaInternalError when the root mutation is finishing, or the index object cannot be installed
+	 *                                   under the partition's key and primary key (see
+	 *                                   {@link IndexMaintainer#installIndex(IndexKey, int, IntFunction)})
+	 */
+	@Nonnull
+	ReducedEntityIndex installPartitionObject(
+		@Nonnull VirtualReferencePartition partition,
+		@Nonnull String writeSite
+	) {
+		final EntityIndexKey indexKey = partition.getIndexKey();
+		isPremiseValid(
+			!this.partitionReservations.isFinishing(),
+			() -> "The write path `" + writeSite + "` promotes partition " + partition.getPrimaryKey() + " `" +
+				indexKey + "` of entity type `" + this.entityType + "` while the root mutation is finishing - no " +
+				"owner may enter a partition once the executors apply their changes!"
+		);
+		final EntityIndex installed = this.entityIndexCreatingAccessor.installIndex(
+			indexKey,
+			partition.getPrimaryKey(),
+			primaryKey -> new ReducedEntityIndex(primaryKey, this.entityType, indexKey, this.usageStatisticsTracking)
+		);
+		this.accessedIndexes.add(indexKey);
+		return (ReducedEntityIndex) installed;
+	}
+
+	/**
+	 * Retires the index object of a partition that has become a single-owner one again (2 -> 1) and whose registry
+	 * row holds everything the object holds of its only owner - the object is removed by its key, together with its
+	 * registration by primary key and its persisted footprint (see {@link IndexMaintainer#removeIndex(IndexKey)}). The
+	 * partition keeps its primary key in the row. The end-of-mutation sweep of every executor finds the object gone and
+	 * passes it over.
+	 *
+	 * @param partitionIndex the index object of the partition
+	 */
+	void retirePartitionObject(@Nonnull EntityIndex partitionIndex) {
+		this.entityIndexCreatingAccessor.removeIndex(partitionIndex.getIndexKey());
+	}
+
+	/**
 	 * Returns the index object of the partition of the representative reference key in the scope, creating it when
 	 * the collection holds none yet - the acquisition of {@link #getOrCreateIndex(EntityIndexKey)}.
 	 *

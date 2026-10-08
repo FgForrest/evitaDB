@@ -59,6 +59,7 @@ import java.util.function.IntFunction;
 
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
+import static io.evitadb.utils.Assert.isPremiseValid;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -556,6 +557,56 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 		}
 
 		@Test
+		@DisplayName("a promotion installs an empty index object under the primary key of the row")
+		void shouldInstallEmptyIndexObjectUnderPrimaryKeyOfRowOnPromotion() {
+			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
+			final RepresentativeReferenceKey key = keyOf(SINGLE_REFERENCE);
+			final int primaryKey = outer.seedRow(key);
+			final CountingIndexMaintainer maintainer = outer.indexMaintainer;
+			final int nextPrimaryKey = maintainer.nextPrimaryKey();
+			final VirtualReferencePartition handle = assertInstanceOf(
+				VirtualReferencePartition.class, outer.virtualExecutor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE)
+			);
+
+			final ReducedEntityIndex installed = outer.virtualExecutor.installPartitionObject(handle, WRITE_SITE);
+
+			assertEquals(primaryKey, installed.getPrimaryKey(), "the index object takes the primary key of the row");
+			assertEquals(ReferencePartitions.createKey(Scope.LIVE, key), installed.getIndexKey());
+			assertEquals(0, installed.size(), "the caller writes the first owner into the empty index object");
+			assertSame(installed, maintainer.getIndexIfExists(installed.getIndexKey()));
+			assertSame(installed, maintainer.getIndexByPrimaryKeyIfExists(primaryKey));
+			assertEquals(nextPrimaryKey, maintainer.nextPrimaryKey(), "the installation allocates no primary key");
+			assertSame(
+				installed, outer.virtualExecutor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE),
+				"the index object wins over the row from now on"
+			);
+		}
+
+		@Test
+		@DisplayName("a promotion while the root mutation is finishing is refused before anything is installed")
+		void shouldRefusePromotionWhileRootMutationIsFinishing() {
+			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
+			final PartitionReservations reservations = new PartitionReservations();
+			final EntityIndexLocalMutationExecutor executor =
+				outer.createExecutor(MutationHandle.WRITTEN_VIRTUALLY, reservations);
+			final RepresentativeReferenceKey key = keyOf(SINGLE_REFERENCE);
+			outer.seedRow(key);
+			final VirtualReferencePartition handle = assertInstanceOf(
+				VirtualReferencePartition.class, executor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE)
+			);
+			final int indexCount = outer.indexMaintainer.indexCount();
+			reservations.setFinishing(true);
+
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class, () -> executor.installPartitionObject(handle, WRITE_SITE)
+			);
+
+			assertTrue(error.getPrivateMessage().contains(WRITE_SITE), error.getPrivateMessage());
+			assertTrue(error.getPrivateMessage().contains("finishing"), error.getPrivateMessage());
+			assertEquals(indexCount, outer.indexMaintainer.indexCount(), "a refused promotion installs nothing");
+		}
+
+		@Test
 		@DisplayName("a mutation not writing virtually creates the index object a row stands for, as before")
 		void shouldCreateIndexObjectWhenNotWritingVirtually() {
 			final RepresentativeReferenceKey key = keyOf(SINGLE_REFERENCE);
@@ -793,7 +844,11 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			int primaryKey,
 			@Nonnull IntFunction<EntityIndex> factory
 		) {
-			throw new UnsupportedOperationException("The test maintainer does not install indexes");
+			isPremiseValid(
+				!this.indexes.containsKey(indexKey) && !this.indexesByPrimaryKey.containsKey(primaryKey),
+				"The test maintainer installs an index under a free key and primary key only!"
+			);
+			return register(factory.apply(primaryKey));
 		}
 
 		@Override

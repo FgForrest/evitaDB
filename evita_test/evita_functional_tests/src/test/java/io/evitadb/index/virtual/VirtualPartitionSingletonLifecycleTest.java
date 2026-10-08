@@ -76,6 +76,8 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
@@ -832,6 +834,11 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 	 * the collection holds to the consumer - advertised or not, so an object a write created and left without owners is
 	 * found too.
 	 *
+	 * The browse of the indexes reads the committed state only, while a check inside an open transaction must see the
+	 * state of the transaction: so the primary keys the browse lists are joined with those the type index advertises
+	 * in the transaction, and each is resolved in the transaction - an index object the transaction installed is
+	 * found through its advertisement, and one it retired is not found at all.
+	 *
 	 * @param collection the collection
 	 * @param consumer   receives the scope and the index object
 	 */
@@ -844,6 +851,7 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 				if (!VirtualReferencePartitionOracle.isShadowed(referenceSchema, scope)) {
 					continue;
 				}
+				final SortedSet<Integer> primaryKeys = new TreeSet<>();
 				int pageNumber = 1;
 				IndexBrowseResult page;
 				do {
@@ -855,12 +863,23 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 						)
 					);
 					for (final BrowsedIndex browsed : page.indexes()) {
-						final EntityIndex partition =
-							collection.getIndexByPrimaryKeyIfExists(browsed.indexPrimaryKey());
-						assertNotNull(partition, "the browsed index " + browsed.indexPrimaryKey() + " must exist");
-						consumer.accept(scope, partition);
+						primaryKeys.add(browsed.indexPrimaryKey());
 					}
 				} while (page.indexes().length == IndexBrowseCriteria.MAX_PAGE_SIZE);
+				if (
+					collection.getIndexByKeyIfExists(
+						new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceSchema.getName())
+					) instanceof final ReferencedTypeEntityIndex typeIndex
+				) {
+					typeIndex.forEachReferenceIndexPrimaryKey(primaryKeys::add);
+				}
+				for (final Integer primaryKey : primaryKeys) {
+					// a primary key of a row without an object, or of an object the transaction retired
+					final EntityIndex partition = collection.getIndexByPrimaryKeyIfExists(primaryKey);
+					if (partition != null && partition.getIndexKey().type() == EntityIndexType.REFERENCED_ENTITY) {
+						consumer.accept(scope, partition);
+					}
+				}
 			}
 		}
 	}

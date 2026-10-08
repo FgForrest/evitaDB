@@ -25,6 +25,7 @@ package io.evitadb.index.virtual;
 
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -33,7 +34,12 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
+import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.EntityIndex;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.VirtualReferencePartitionSlot;
 import io.evitadb.index.mutation.local.dataAccess.ReferenceResolutionCounter;
 import io.evitadb.index.virtual.PromotionRehearsalInspector.Outcome;
 import io.evitadb.test.EvitaTestSupport;
@@ -110,15 +116,6 @@ class PromotionPopulationCostTest implements EvitaTestSupport {
 	void setUp() {
 		this.paths = createTestPaths("PromotionPopulationCostTest");
 		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
-		// the partitions stay real, the registry of the single-owner ones is maintained next to them
-		this.evita.createCatalogWithVirtualReferencePartitions(CATALOG, false);
-		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
-		final VirtualReferencePartitionMaintenance maintenance = maintenance();
-		for (final String entityType : List.of(ENTITY_PRODUCT, ENTITY_PARAMETER, ENTITY_CATEGORY)) {
-			maintenance.setMaintained(entityType, true);
-		}
-		maintenance.setProbe(this.history);
-		this.history.setPromotionInspector(this.inspector);
 	}
 
 	@AfterEach
@@ -152,12 +149,43 @@ class PromotionPopulationCostTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Runs the setup in the warm-up session of the catalog and takes the catalog live when asked to.
+	 * Creates the catalog keeping its partitions real and maintaining the registry of the single-owner ones next to
+	 * them, runs the setup in its warm-up session and takes the catalog live when asked to.
 	 *
 	 * @param state the catalog state to end in
 	 * @param setup the schema and the initial data
 	 */
 	private void prepare(@Nonnull CatalogState state, @Nonnull Consumer<EvitaSessionContract> setup) {
+		prepare(state, false, setup);
+	}
+
+	/**
+	 * Creates the catalog, runs the setup in its warm-up session and takes the catalog live when asked to. The catalog
+	 * either keeps its partitions real and maintains the registry of the single-owner ones next to them, or writes its
+	 * single-owner partitions virtually - as registry rows, so that a partition gaining its second owner is promoted to
+	 * an index object for real.
+	 *
+	 * @param state            the catalog state to end in
+	 * @param writtenVirtually TRUE to write the single-owner partitions virtually
+	 * @param setup            the schema and the initial data
+	 */
+	private void prepare(
+		@Nonnull CatalogState state,
+		boolean writtenVirtually,
+		@Nonnull Consumer<EvitaSessionContract> setup
+	) {
+		evita().createCatalogWithVirtualReferencePartitions(CATALOG, writtenVirtually);
+		evita().defineCatalog(CATALOG).updateViaNewSession(evita());
+		final VirtualReferencePartitionMaintenance maintenance = maintenance();
+		if (writtenVirtually) {
+			maintenance.setWrittenVirtually(true);
+		} else {
+			for (final String entityType : List.of(ENTITY_PRODUCT, ENTITY_PARAMETER, ENTITY_CATEGORY)) {
+				maintenance.setMaintained(entityType, true);
+			}
+		}
+		maintenance.setProbe(this.history);
+		this.history.setPromotionInspector(this.inspector);
 		evita().updateCatalog(
 			CATALOG,
 			session -> {
@@ -168,6 +196,41 @@ class PromotionPopulationCostTest implements EvitaTestSupport {
 			}
 		);
 		assertEquals(0, this.inspector.getOutcomes().size(), "the setup must promote no partition");
+	}
+
+	/**
+	 * Counts the index objects of the partitions the reference advertises in the live scope of the committed catalog,
+	 * and the rows of its registry of single-owner partitions there.
+	 *
+	 * @param entityType    the entity type owning the reference
+	 * @param referenceName the reference
+	 * @return the number of index objects and the number of rows
+	 */
+	@Nonnull
+	private ObjectsAndRows countObjectsAndRows(@Nonnull String entityType, @Nonnull String referenceName) {
+		final EntityCollection collection = (EntityCollection) evita().getCatalogInstance(CATALOG)
+			.orElseThrow()
+			.getCollectionForEntity(entityType)
+			.orElseThrow();
+		final EntityIndex typeIndex = collection.getIndexByKeyIfExists(
+			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, referenceName)
+		);
+		if (!(typeIndex instanceof final ReferencedTypeEntityIndex referencedTypeIndex)) {
+			return new ObjectsAndRows(0, 0);
+		}
+		final int[] objects = {0};
+		referencedTypeIndex.forEachReferenceIndexPrimaryKey(
+			partitionPrimaryKey -> {
+				if (collection.getIndexByPrimaryKeyIfExists(partitionPrimaryKey) != null) {
+					objects[0]++;
+				}
+			}
+		);
+		final int[] rows = {0};
+		referencedTypeIndex.getVirtualReferencePartitionIndex().forEachEntry(
+			VirtualReferencePartitionSlot.PARTITION_OWNER, (partition, payload) -> rows[0]++
+		);
+		return new ObjectsAndRows(objects[0], rows[0]);
 	}
 
 	/**
@@ -355,6 +418,37 @@ class PromotionPopulationCostTest implements EvitaTestSupport {
 			assertResolvedByBinarySearch(work.resolutions());
 		}
 
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("promotes every partition to an index object from one fetch of the first owner's references")
+		void shouldPromoteEveryPartitionFromOneFetchWhenWrittenVirtually(CatalogState state) {
+			prepare(state, true, CopiedReferences::setUpParameters);
+			assertEquals(
+				new ObjectsAndRows(0, K), countObjectsAndRows(ENTITY_PRODUCT, REFERENCE_PARAMETERS),
+				"every partition of the first owner is a row before the copy"
+			);
+
+			final CopyWork work = copyReferences(session -> {});
+
+			assertEquals(K, work.rehearsals(), "every partition of the first owner is promoted once: " + work);
+			final List<Outcome> outcomes = PromotionPopulationCostTest.this.inspector.assertAllMatched(
+				"the copy promoting for real", 0
+			);
+			for (int i = 0; i < K; i++) {
+				assertEquals(FIRST_OWNER, outcomes.get(i).owner(), "the first owner is written into the object");
+				assertEquals(SECOND_OWNER, outcomes.get(i).joiningOwner());
+			}
+			assertEquals(
+				new ObjectsAndRows(K, 0), countObjectsAndRows(ENTITY_PRODUCT, REFERENCE_PARAMETERS),
+				"every promoted partition is an index object, none is a row"
+			);
+			assertEquals(
+				1, work.foreignReferencesFetches(),
+				"the first owner's references must be fetched once for all " + K + " promotions: " + work
+			);
+			assertResolvedByBinarySearch(work.resolutions());
+		}
+
 		/**
 		 * Asserts that every reference resolved during the copy cost at most a binary search over the entity's
 		 * references and one comparison of the single reference of its key - and that the first owner's references
@@ -488,7 +582,38 @@ class PromotionPopulationCostTest implements EvitaTestSupport {
 		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 		@DisplayName("a population after the first owner started being mutated reads its staged state")
 		void shouldReadTheStagedFirstOwnerWhenItStartedBeingMutatedAfterAnEarlierPopulation(CatalogState state) {
-			prepare(state, FirstOwnerInFlight::setUpCategories);
+			assertPopulationsReadTheFirstOwnerAsTheRootMutationSeesIt(state, false);
+		}
+
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("a promotion after the first owner started being mutated writes its staged state into the object")
+		void shouldPromoteFromTheStagedFirstOwnerWhenWrittenVirtually(CatalogState state) {
+			assertPopulationsReadTheFirstOwnerAsTheRootMutationSeesIt(state, true);
+			assertEquals(
+				new ObjectsAndRows(1, 0), countObjectsAndRows(ENTITY_PRODUCT, REFERENCE_CATEGORIES),
+				"the category partition is promoted to an index object"
+			);
+			assertEquals(
+				new ObjectsAndRows(1, 0), countObjectsAndRows(ENTITY_PRODUCT, REFERENCE_MAIN_CATEGORY),
+				"the main category partition is promoted to an index object"
+			);
+		}
+
+		/**
+		 * Runs the category mutation promoting both partitions of the first owner - the first before the root mutation
+		 * mutates the first owner, the second after it gave the first owner a German value - and asserts that each
+		 * population read the first owner as the root mutation saw it then, writing the locales it had before the root
+		 * mutation.
+		 *
+		 * @param state            the catalog state
+		 * @param writtenVirtually TRUE to write the single-owner partitions virtually, so that the promotions are real
+		 */
+		private void assertPopulationsReadTheFirstOwnerAsTheRootMutationSeesIt(
+			@Nonnull CatalogState state,
+			boolean writtenVirtually
+		) {
+			prepare(state, writtenVirtually, FirstOwnerInFlight::setUpCategories);
 
 			// the category inserts its references ordered by name, and the reflected mutations run in that order: the
 			// main product joins the main category partition (a population reading the first owner, which the root
@@ -538,6 +663,15 @@ class PromotionPopulationCostTest implements EvitaTestSupport {
 				"the second population must write the locales before the root mutation: " + category
 			);
 		}
+	}
+
+	/**
+	 * The representation of the partitions of one reference in one scope.
+	 *
+	 * @param objects how many partitions are index objects
+	 * @param rows    how many partitions are registry rows
+	 */
+	private record ObjectsAndRows(int objects, int rows) {
 	}
 
 	/**
