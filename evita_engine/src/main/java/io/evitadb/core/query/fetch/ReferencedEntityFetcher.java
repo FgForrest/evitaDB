@@ -2412,6 +2412,14 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				entityIndex = Collections.emptyMap();
 			}
 		} else {
+			// no referenced entity body is fetched, so neither slicing method runs and the slicer records no group -
+			// yet the group bodies and the ordering by a group property below both read the groups it records
+			if (
+				referenceSchema.isReferencedGroupTypeManaged() && referenceSchema.getReferencedGroupType() != null &&
+					(requirements.entityGroupFetch() != null || slicingMode.groupSortActive())
+			) {
+				slicer.collectGroupIds(toFormula(filteredReferencedEntityIds), validityMapping);
+			}
 			entityIndex = Collections.emptyMap();
 		}
 		filteredReferencedEntityIdsArray = filteredReferencedEntityIds.getArray();

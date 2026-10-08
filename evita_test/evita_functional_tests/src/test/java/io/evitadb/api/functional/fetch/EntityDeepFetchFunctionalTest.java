@@ -47,6 +47,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import javax.annotation.Nonnull;
+
 import java.text.Collator;
 import java.util.Arrays;
 import java.util.Collection;
@@ -573,6 +575,267 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 
 				return null;
 			}
+		);
+	}
+
+	@DisplayName("References ordered by a group property carry group bodies without referenced entity bodies")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldOrderReferencesByGroupPropertyAndFetchGroupBodiesWithoutReferencedEntityBodies(
+		Evita evita,
+		List<SealedEntity> originalProducts
+	) {
+		final Map<Integer, Integer> parameterCountByProduct = getCzechProductsWithLotsOfParameters(originalProducts);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> products = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityPrimaryKeyInSet(parameterCountByProduct.keySet().toArray(Integer[]::new)),
+								entityLocaleEquals(CZECH_LOCALE)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							entityFetch(
+								referenceContent(
+									Entities.PARAMETER,
+									orderBy(
+										entityGroupProperty(
+											attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
+										)
+									),
+									entityGroupFetch(attributeContent())
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(parameterCountByProduct.size(), products.getRecordData().size());
+				for (final SealedEntity product : products.getRecordData()) {
+					final Collection<ReferenceContract> references = product.getReferences(Entities.PARAMETER);
+					assertEquals(parameterCountByProduct.get(product.getPrimaryKey()), references.size());
+
+					final String[] receivedGroupNames = references.stream()
+						.map(
+							it -> it.getGroupEntity()
+								.orElseThrow(
+									() -> new AssertionError(
+										"Product `" + product.getPrimaryKey() + "` lacks the body of the group of " +
+											"the parameter `" + it.getReferencedPrimaryKey() + "` although " +
+											"`entityGroupFetch` was requested."
+									)
+								)
+								.getAttribute(ATTRIBUTE_NAME, String.class)
+						)
+						.toArray(String[]::new);
+					assertGroupNamesInDescendingOrder(product, references, receivedGroupNames);
+				}
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("References can be ordered by a group property without fetching any referenced body")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldOrderReferencesByGroupPropertyWithoutFetchingAnyReferencedBody(
+		Evita evita,
+		List<SealedEntity> originalProducts
+	) {
+		final Map<Integer, Integer> parameterCountByProduct = getCzechProductsWithLotsOfParameters(originalProducts);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final Map<Integer, String> groupNames = session.queryListOfSealedEntities(
+						query(
+							collection(Entities.PARAMETER_GROUP),
+							filterBy(entityLocaleEquals(CZECH_LOCALE)),
+							require(
+								page(1, Integer.MAX_VALUE),
+								entityFetch(attributeContent(ATTRIBUTE_NAME))
+							)
+						)
+					)
+					.stream()
+					.collect(
+						Collectors.toMap(
+							EntityContract::getPrimaryKey,
+							it -> it.getAttribute(ATTRIBUTE_NAME, String.class)
+						)
+					);
+
+				final EvitaResponse<SealedEntity> products = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityPrimaryKeyInSet(parameterCountByProduct.keySet().toArray(Integer[]::new)),
+								entityLocaleEquals(CZECH_LOCALE)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							entityFetch(
+								referenceContent(
+									Entities.PARAMETER,
+									orderBy(
+										entityGroupProperty(
+											attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
+										)
+									)
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(parameterCountByProduct.size(), products.getRecordData().size());
+				for (final SealedEntity product : products.getRecordData()) {
+					final Collection<ReferenceContract> references = product.getReferences(Entities.PARAMETER);
+					assertEquals(parameterCountByProduct.get(product.getPrimaryKey()), references.size());
+
+					final String[] receivedGroupNames = references.stream()
+						.map(it -> groupNames.get(it.getGroup().orElseThrow().getPrimaryKey()))
+						.toArray(String[]::new);
+					assertGroupNamesInDescendingOrder(product, references, receivedGroupNames);
+				}
+
+				return null;
+			}
+		);
+	}
+
+	@DisplayName("References can be ordered by an entity property without fetching referenced entity bodies")
+	@UseDataSet(HUNDRED_PRODUCTS)
+	@Test
+	void shouldOrderReferencesByEntityPropertyWithoutFetchingReferencedEntityBodies(
+		Evita evita,
+		List<SealedEntity> originalProducts,
+		List<SealedEntity> originalParameters
+	) {
+		final Map<Integer, Integer> parameterCountByProduct = getCzechProductsWithLotsOfParameters(originalProducts);
+		final Map<Integer, String> parameterNames = originalParameters.stream()
+			.collect(
+				Collectors.toMap(
+					EntityContract::getPrimaryKey,
+					it -> it.getAttribute(ATTRIBUTE_NAME, CZECH_LOCALE, String.class)
+				)
+			);
+
+		evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final EvitaResponse<SealedEntity> products = session.query(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							and(
+								entityPrimaryKeyInSet(parameterCountByProduct.keySet().toArray(Integer[]::new)),
+								entityLocaleEquals(CZECH_LOCALE)
+							)
+						),
+						require(
+							page(1, Integer.MAX_VALUE),
+							entityFetch(
+								referenceContent(
+									Entities.PARAMETER,
+									orderBy(
+										entityProperty(
+											attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC)
+										)
+									)
+								)
+							)
+						)
+					),
+					SealedEntity.class
+				);
+
+				assertEquals(parameterCountByProduct.size(), products.getRecordData().size());
+				final LocalizedStringComparator czechComparator = new LocalizedStringComparator(
+					Collator.getInstance(CZECH_LOCALE));
+				for (final SealedEntity product : products.getRecordData()) {
+					final Collection<ReferenceContract> references = product.getReferences(Entities.PARAMETER);
+					assertEquals(parameterCountByProduct.get(product.getPrimaryKey()), references.size());
+
+					final String[] receivedNames = references.stream()
+						.map(it -> parameterNames.get(it.getReferencedPrimaryKey()))
+						.toArray(String[]::new);
+					final String[] expectedNames = Arrays.stream(receivedNames)
+						.sorted((o1, o2) -> czechComparator.compare(o1, o2) * -1)
+						.toArray(String[]::new);
+					assertArrayEquals(
+						expectedNames,
+						receivedNames,
+						"Parameters of product `" + product.getPrimaryKey() + "` are not ordered by their name: " +
+							references.stream().map(ReferenceContract::getReferencedPrimaryKey).toList()
+					);
+				}
+
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Returns the products localized in Czech that reference more than four parameters, mapped to the number of
+	 * parameters each of them references.
+	 *
+	 * @param originalProducts all products of the data set
+	 * @return number of referenced parameters indexed by the product primary key
+	 */
+	@Nonnull
+	private static Map<Integer, Integer> getCzechProductsWithLotsOfParameters(
+		@Nonnull List<SealedEntity> originalProducts
+	) {
+		return originalProducts.stream()
+			.filter(it -> it.getReferences(Entities.PARAMETER).size() > 4 && it.getLocales().contains(CZECH_LOCALE))
+			.collect(
+				Collectors.toMap(
+					EntityContract::getPrimaryKey,
+					it -> it.getReferences(Entities.PARAMETER).size()
+				)
+			);
+	}
+
+	/**
+	 * Asserts that the group names of the references of a product, read in the order the references were returned,
+	 * descend by the Czech collation - i.e. that the references are ordered by the name of their group.
+	 *
+	 * @param product            the product owning the references
+	 * @param references         the references in the order they were returned
+	 * @param receivedGroupNames the names of the groups of `references`, in the same order
+	 */
+	private static void assertGroupNamesInDescendingOrder(
+		@Nonnull SealedEntity product,
+		@Nonnull Collection<ReferenceContract> references,
+		@Nonnull String[] receivedGroupNames
+	) {
+		final LocalizedStringComparator czechComparator = new LocalizedStringComparator(
+			Collator.getInstance(CZECH_LOCALE));
+		final String[] expectedGroupNames = Arrays.stream(receivedGroupNames)
+			.sorted((o1, o2) -> czechComparator.compare(o1, o2) * -1)
+			.toArray(String[]::new);
+		assertArrayEquals(
+			expectedGroupNames,
+			receivedGroupNames,
+			"Parameters of product `" + product.getPrimaryKey() + "` are not ordered by the name of their group: " +
+				references.stream()
+					.map(
+						it -> it.getReferencedPrimaryKey() + "(group " +
+							it.getGroup().map(EntityClassifier::getPrimaryKey).orElse(null) + ")"
+					)
+					.toList()
 		);
 	}
 

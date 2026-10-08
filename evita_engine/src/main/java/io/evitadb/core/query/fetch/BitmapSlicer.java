@@ -172,24 +172,81 @@ class BitmapSlicer {
 				.stream()
 				.flatMapToInt(IntStream::of)
 				.mapToObj(epk -> {
-					final Bitmap filteredReferenceEntityIds = FormulaFactory.and(
-						this.referencedEntityIdsFormula.apply(this.referenceName, epk),
-						referencedEntityIds,
-						validityMapping.getValidReferencedEntitiesFormula(epk)
-					).compute();
-					final Bitmap chunk = this.chunker.apply(filteredReferenceEntityIds);
-					this.groupsForEntity.put(
-						epk,
-						filteredReferenceEntityIds.stream()
-							.mapToObj(
-								refId -> this.referencedEntityToGroupIdTranslator.apply(epk, this.referenceName, refId))
-							.flatMapToInt(Function.identity())
-							.toArray()
+					final Bitmap filteredReferenceEntityIds = filterReferencedEntityIds(
+						epk, referencedEntityIds, validityMapping
 					);
+					final Bitmap chunk = this.chunker.apply(filteredReferenceEntityIds);
+					recordGroupIds(epk, filteredReferenceEntityIds);
 					return ReferencedEntityFetcher.toFormula(chunk);
 				})
 				.toArray(Formula[]::new)
 		).compute();
+	}
+
+	/**
+	 * Records the groups of the filtered references of every source entity without slicing anything, for the case
+	 * when no referenced entity body is fetched and so neither {@link #sliceEntityIds} nor
+	 * {@link #sliceEntityIdsSorted} runs. The group bodies and the ordering by a group property still read
+	 * {@link #getGroupIds}, which would otherwise report no group at all. The recorded set is the one
+	 * {@link #sliceEntityIds} records - the groups of all filtered references, regardless of the page or strip.
+	 *
+	 * @param referencedEntityIds global formula of filter-matching referenced entity PKs (filterBy applied)
+	 * @param validityMapping     per-source validity gate (multi-source dedup / chunked predicate)
+	 */
+	public void collectGroupIds(
+		@Nonnull Formula referencedEntityIds,
+		@Nonnull ValidEntityToReferenceMapping validityMapping
+	) {
+		int sourceEntityCount = 0;
+		for (int[] primaryKeys : this.entityPrimaryKey.values()) {
+			sourceEntityCount += primaryKeys.length;
+		}
+		this.groupsForEntity = CollectionUtils.createHashMap(sourceEntityCount);
+		for (int[] primaryKeys : this.entityPrimaryKey.values()) {
+			for (int epk : primaryKeys) {
+				recordGroupIds(epk, filterReferencedEntityIds(epk, referencedEntityIds, validityMapping));
+			}
+		}
+	}
+
+	/**
+	 * Returns the primary keys of the entities the source entity references that match both `referencedEntityIds`
+	 * and the per-source `validityMapping`.
+	 *
+	 * @param epk                 primary key of the source entity
+	 * @param referencedEntityIds global formula of filter-matching referenced entity PKs (filterBy applied)
+	 * @param validityMapping     per-source validity gate (multi-source dedup / chunked predicate)
+	 * @return the filtered referenced entity primary keys of the source entity
+	 */
+	@Nonnull
+	private Bitmap filterReferencedEntityIds(
+		int epk,
+		@Nonnull Formula referencedEntityIds,
+		@Nonnull ValidEntityToReferenceMapping validityMapping
+	) {
+		return FormulaFactory.and(
+			this.referencedEntityIdsFormula.apply(this.referenceName, epk),
+			referencedEntityIds,
+			validityMapping.getValidReferencedEntitiesFormula(epk)
+		).compute();
+	}
+
+	/**
+	 * Records the groups of the passed referenced entities of the source entity, so that {@link #getGroupIds}
+	 * returns them.
+	 *
+	 * @param epk                        primary key of the source entity
+	 * @param filteredReferenceEntityIds the filtered referenced entity primary keys of the source entity
+	 */
+	private void recordGroupIds(int epk, @Nonnull Bitmap filteredReferenceEntityIds) {
+		this.groupsForEntity.put(
+			epk,
+			filteredReferenceEntityIds.stream()
+				.mapToObj(
+					refId -> this.referencedEntityToGroupIdTranslator.apply(epk, this.referenceName, refId))
+				.flatMapToInt(Function.identity())
+				.toArray()
+		);
 	}
 
 	/**
