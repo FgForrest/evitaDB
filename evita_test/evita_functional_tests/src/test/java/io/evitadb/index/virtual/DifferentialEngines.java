@@ -804,6 +804,24 @@ final class DifferentialEngines implements AutoCloseable {
 		return committedSnapshot(this.reference, false).lines();
 	}
 
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Reduces the indexes of one collection of a catalog writing its single-owner partitions virtually to the
+	 * index-level lines of the comparison - in every scope, registry included (see {@link #describeIndexes}) - without
+	 * running a query. Read inside a session, the lines describe the state of the session's transaction.
+	 *
+	 * @param collection the collection
+	 * @return the lines, sorted by path
+	 */
+	@Nonnull
+	static SortedMap<String, String> describeIndexesOf(@Nonnull EntityCollection collection) {
+		final Snapshot snapshot = new Snapshot();
+		for (final Scope scope : Scope.values()) {
+			describeIndexes(snapshot, collection, collection.getSchema(), scope, true);
+		}
+		return snapshot.lines();
+	}
+
 	/**
 	 * Returns the engine with the switch off.
 	 *

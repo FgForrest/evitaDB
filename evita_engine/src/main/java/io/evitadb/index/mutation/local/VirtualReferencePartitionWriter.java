@@ -402,7 +402,9 @@ public final class VirtualReferencePartitionWriter {
 
 	/**
 	 * Returns the partition an attribute index write concerns when the registry may mirror it - the write is directed
-	 * at a partition of the given reference, whose partitions may be virtual in the partition's scope.
+	 * at a partition of the given reference, whose partitions may be virtual in the partition's scope, or at a row the
+	 * reference left while it was indexed for filtering only, which the acquisition released to a write taking content
+	 * out of it (see {@link EntityIndexLocalMutationExecutor#isReleasedRowOfFormerIndexing}).
 	 *
 	 * @param executor        the mutation executor
 	 * @param referenceSchema the reference the written attribute or compound belongs to, `null` for an entity one
@@ -433,7 +435,10 @@ public final class VirtualReferencePartitionWriter {
 		if (
 			referenceSchema != null &&
 				referenceSchema.getName().equals(partition.getRepresentativeReferenceKey().referenceName()) &&
-				isShadowed(referenceSchema, partition.getIndexKey().scope())
+				(
+					isShadowed(referenceSchema, partition.getIndexKey().scope()) ||
+						executor.isReleasedRowOfFormerIndexing(partition)
+				)
 		) {
 			return partition;
 		}

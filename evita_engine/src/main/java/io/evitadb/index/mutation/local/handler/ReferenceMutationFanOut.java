@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMut
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceMutation;
+import io.evitadb.api.requestResponse.data.mutation.reference.SetReferenceGroupMutation;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.index.AbstractReducedEntityIndex;
@@ -34,6 +35,7 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexType;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor.Target;
+import io.evitadb.index.mutation.local.PartitionWriteKind;
 import io.evitadb.index.mutation.local.ReferenceIndexConsumer;
 import io.evitadb.index.mutation.local.ReferenceIndexMutator;
 
@@ -86,7 +88,10 @@ final class ReferenceMutationFanOut {
 		executor.fanOutPerReference(
 			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
 			crossRefConsumer, crossRefPredicate, presenceExpected,
-			ReferenceIndexMutator.IterationPath.BOTH
+			ReferenceIndexMutator.IterationPath.BOTH,
+			// a facet or a facet group enters the other partitions; the attribute change writes nothing into them
+			mutation instanceof InsertReferenceMutation || mutation instanceof SetReferenceGroupMutation ?
+				PartitionWriteKind.ADDING : PartitionWriteKind.REMOVING
 		);
 		// defer re-evaluation to after storage write so expression reads updated reference attributes
 		if (executor.hasFacetExpressionTriggers() && mutation instanceof ReferenceAttributeMutation ram) {

@@ -63,6 +63,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntFunction;
 
+import static io.evitadb.index.mutation.local.PartitionWriteKind.ADDING;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -235,7 +236,7 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 	private List<ReferencePartition> collectPartitionsOfTarget(@Nonnull String referenceName) {
 		final List<ReferencePartition> partitions = new ArrayList<>(4);
 		this.partitionExecutor.forEachPartitionOfTargetForWrite(
-			Scope.LIVE, reference(referenceName), TARGET_PK, partitions::add
+			Scope.LIVE, reference(referenceName), TARGET_PK, ADDING, partitions::add
 		);
 		return partitions;
 	}
@@ -251,13 +252,13 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 				new ReferenceKey(SINGLE_REFERENCE, TARGET_PK)
 			);
 			final ReferencePartition created = EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this
-				.partitionExecutor.getOrCreatePartitionForInsert(Scope.LIVE, rrk, "test");
+				.partitionExecutor.getOrCreatePartitionForInsert(Scope.LIVE, rrk, "test", ADDING);
 			assertInstanceOf(ReducedEntityIndex.class, created);
 			assertEquals(rrk, created.getRepresentativeReferenceKey());
 			assertEquals(Scope.LIVE, created.getIndexKey().scope());
 
 			final ReferencePartition again = EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this
-				.partitionExecutor.getOrCreatePartitionForInsert(Scope.LIVE, rrk, "test");
+				.partitionExecutor.getOrCreatePartitionForInsert(Scope.LIVE, rrk, "test", ADDING);
 			assertSame(created, again, "the second acquisition must return the very same object");
 			assertEquals(
 				2, EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this.indexMaintainer.acquisitionsByKey(
@@ -280,7 +281,7 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 			assertThrows(
 				GenericEvitaInternalError.class,
 				() -> EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this.partitionExecutor
-					.getOrCreatePartitionForInsert(Scope.LIVE, rrk, "test")
+					.getOrCreatePartitionForInsert(Scope.LIVE, rrk, "test", ADDING)
 			);
 		}
 	}
@@ -372,7 +373,7 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 					.fanOutPerReference(
 						ReferenceIndexType.FOR_FILTERING,
 						(referenceSchema, indexForRemoval, indexForUpsert) -> invocations.incrementAndGet(),
-						Functions.alwaysTrue(), true, IterationPath.BOTH
+						Functions.alwaysTrue(), true, IterationPath.BOTH, ADDING
 					)
 			);
 			assertTrue(
@@ -391,7 +392,7 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 					.fanOutUniquePerIndex(
 						ReferenceIndexType.FOR_FILTERING,
 						(referenceSchema, indexForRemoval, indexForUpsert) -> invocations.incrementAndGet(),
-						Functions.alwaysTrue(), true, IterationPath.BOTH
+						Functions.alwaysTrue(), true, IterationPath.BOTH, ADDING
 					)
 			);
 			assertTrue(

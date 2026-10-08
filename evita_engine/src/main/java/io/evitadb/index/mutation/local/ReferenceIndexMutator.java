@@ -23,6 +23,7 @@
 
 package io.evitadb.index.mutation.local;
 
+import io.evitadb.api.exception.ReferencePartitionReindexRequiredException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.Droppable;
@@ -104,6 +105,7 @@ import java.util.OptionalLong;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Consumer;
 
 import static io.evitadb.index.mutation.local.dataAccess.ExistingAttributeValueSupplier.NO_EXISTING_VALUE_SUPPLIER;
 import static io.evitadb.utils.Assert.isPremiseValid;
@@ -233,6 +235,8 @@ public interface ReferenceIndexMutator {
 	 *                                  be present in the index (used to resolve the correct
 	 *                                  {@link RepresentativeReferenceKey})
 	 * @param path                      which path(s) to traverse — see {@link IterationPath}
+	 * @param writeKind                 whether the consumer may put content into the partitions of the entity path
+	 *                                  or only takes content out of them - see {@link PartitionWriteKind}
 	 */
 	static void forEachReferenceIndex(
 		@Nonnull ReferenceIndexType indexType,
@@ -240,18 +244,55 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceIndexConsumer referenceIndexConsumer,
 		@Nonnull Predicate<ReferenceContract> referencePredicate,
 		boolean referencePresenceExpected,
-		@Nonnull IterationPath path
+		@Nonnull IterationPath path,
+		@Nonnull PartitionWriteKind writeKind
+	) {
+		forEachReferenceIndex(
+			indexType, executor, referenceIndexConsumer, referencePredicate, referencePresenceExpected, path,
+			writeKind, null
+		);
+	}
+
+	/**
+	 * The iteration of {@link #forEachReferenceIndex(ReferenceIndexType, EntityIndexLocalMutationExecutor,
+	 * ReferenceIndexConsumer, Predicate, boolean, IterationPath, PartitionWriteKind)}, which may also hand the rows
+	 * of the former indexing of a reference, released to a write taking content out of them, to a consumer of their
+	 * own - see {@link #iterateReducedEntityPath}.
+	 *
+	 * @param indexType                 minimum {@link ReferenceIndexType} level required for a reference to qualify
+	 * @param executor                  the mutation executor providing entity state and index access
+	 * @param referenceIndexConsumer    callback invoked for each qualifying reference
+	 * @param referencePredicate        additional filter applied after the schema-level check
+	 * @param referencePresenceExpected whether the referenced/group primary key is expected to already be present
+	 *                                  in the index
+	 * @param path                      which path(s) to traverse — see {@link IterationPath}
+	 * @param writeKind                 whether the consumer may put content into the partitions of the entity path
+	 *                                  or only takes content out of them - see {@link PartitionWriteKind}
+	 * @param releasedRowConsumer       receives every released row of the former indexing the entity path meets,
+	 *                                  `null` to pass them over
+	 */
+	private static void forEachReferenceIndex(
+		@Nonnull ReferenceIndexType indexType,
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceIndexConsumer referenceIndexConsumer,
+		@Nonnull Predicate<ReferenceContract> referencePredicate,
+		boolean referencePresenceExpected,
+		@Nonnull IterationPath path,
+		@Nonnull PartitionWriteKind writeKind,
+		@Nullable Consumer<VirtualReferencePartition> releasedRowConsumer
 	) {
 		switch (path) {
 			case REDUCED_ENTITY -> iterateReducedEntityPath(
-				indexType, executor, referenceIndexConsumer, referencePredicate, referencePresenceExpected
+				indexType, executor, referenceIndexConsumer, referencePredicate, referencePresenceExpected, writeKind,
+				releasedRowConsumer
 			);
 			case GROUP -> iterateGroupPath(
 				indexType, executor, referenceIndexConsumer, referencePredicate, referencePresenceExpected
 			);
 			case BOTH -> {
 				iterateReducedEntityPath(
-					indexType, executor, referenceIndexConsumer, referencePredicate, referencePresenceExpected
+					indexType, executor, referenceIndexConsumer, referencePredicate, referencePresenceExpected,
+					writeKind, releasedRowConsumer
 				);
 				iterateGroupPath(
 					indexType, executor, referenceIndexConsumer, referencePredicate, referencePresenceExpected
@@ -290,6 +331,8 @@ public interface ReferenceIndexMutator {
 	 * @param referencePresenceExpected whether the referenced/group primary key is expected to already
 	 *                                  be present in the index
 	 * @param path                      which path(s) to traverse — see {@link IterationPath}
+	 * @param writeKind                 whether the consumer may put content into the partitions of the entity path
+	 *                                  or only takes content out of them - see {@link PartitionWriteKind}
 	 */
 	static void forEachUniqueReferenceIndex(
 		@Nonnull ReferenceIndexType indexType,
@@ -297,7 +340,42 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferenceIndexConsumer referenceIndexConsumer,
 		@Nonnull Predicate<ReferenceContract> referencePredicate,
 		boolean referencePresenceExpected,
-		@Nonnull IterationPath path
+		@Nonnull IterationPath path,
+		@Nonnull PartitionWriteKind writeKind
+	) {
+		forEachUniqueReferenceIndex(
+			indexType, executor, referenceIndexConsumer, referencePredicate, referencePresenceExpected, path,
+			writeKind, null
+		);
+	}
+
+	/**
+	 * The iteration of {@link #forEachUniqueReferenceIndex(ReferenceIndexType, EntityIndexLocalMutationExecutor,
+	 * ReferenceIndexConsumer, Predicate, boolean, IterationPath, PartitionWriteKind)}, which may also hand the rows
+	 * of the former indexing of a reference, released to a write taking content out of them, to a consumer of their
+	 * own - see {@link #iterateReducedEntityPath}. The rows are not deduplicated.
+	 *
+	 * @param indexType                 minimum {@link ReferenceIndexType} level required for a reference to qualify
+	 * @param executor                  the mutation executor providing entity state and index access
+	 * @param referenceIndexConsumer    callback invoked for each unique target index
+	 * @param referencePredicate        additional filter applied after the schema-level check
+	 * @param referencePresenceExpected whether the referenced/group primary key is expected to already be present
+	 *                                  in the index
+	 * @param path                      which path(s) to traverse — see {@link IterationPath}
+	 * @param writeKind                 whether the consumer may put content into the partitions of the entity path
+	 *                                  or only takes content out of them - see {@link PartitionWriteKind}
+	 * @param releasedRowConsumer       receives every released row of the former indexing the entity path meets,
+	 *                                  `null` to pass them over
+	 */
+	private static void forEachUniqueReferenceIndex(
+		@Nonnull ReferenceIndexType indexType,
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceIndexConsumer referenceIndexConsumer,
+		@Nonnull Predicate<ReferenceContract> referencePredicate,
+		boolean referencePresenceExpected,
+		@Nonnull IterationPath path,
+		@Nonnull PartitionWriteKind writeKind,
+		@Nullable Consumer<VirtualReferencePartition> releasedRowConsumer
 	) {
 		// dedup by AbstractReducedEntityIndex identity — single map spans both paths
 		final int referenceCount = executor.getReferencesStoragePart().getReferences().length;
@@ -315,20 +393,28 @@ public interface ReferenceIndexMutator {
 				}
 			};
 		forEachReferenceIndex(
-			indexType, executor, dedupConsumer, referencePredicate, referencePresenceExpected, path
+			indexType, executor, dedupConsumer, referencePredicate, referencePresenceExpected, path, writeKind,
+			releasedRowConsumer
 		);
 	}
 
 	/**
 	 * Internal helper that drives the per-reference entity-level path. Extracted so both
 	 * `forEachReferenceIndex` and `forEachUniqueReferenceIndex` share a single iteration loop.
+	 *
+	 * A partition its reference left as a registry row while it was indexed for filtering only, before it became
+	 * indexed for partitioning, is decided by its acquisition (see {@link PartitionWriteKind}): a consumer that may put
+	 * content into it is refused there, and one that only takes content out of it passes the row over - the row never
+	 * held anything the fan-out writes - unless a consumer of the released rows is given, which then receives it.
 	 */
 	private static void iterateReducedEntityPath(
 		@Nonnull ReferenceIndexType indexType,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferenceIndexConsumer referenceIndexConsumer,
 		@Nonnull Predicate<ReferenceContract> referencePredicate,
-		boolean referencePresenceExpected
+		boolean referencePresenceExpected,
+		@Nonnull PartitionWriteKind writeKind,
+		@Nullable Consumer<VirtualReferencePartition> releasedRowConsumer
 	) {
 		final Scope scope = executor.getScope();
 		final ReferencesStoragePart referencesStorageContainer = executor.getReferencesStoragePart();
@@ -350,16 +436,22 @@ public interface ReferenceIndexMutator {
 
 				final ReferencePartition partition = executor.getOrCreatePartitionForInsert(
 					scope, referenceKey.isKnownInternalPrimaryKey() ? bothKeys.stored() : bothKeys.current(),
-					"iterateReducedEntityPath"
+					"iterateReducedEntityPath", writeKind
 				);
 				// the fan-out consumers write through the generic index API, which only a materialized partition
 				// offers - only the fan-out over references indexed for partitioning reaches this, and the partitions
-				// of such a reference are never virtual
+				// of such a reference are virtual only as the rows of its former indexing
 				switch (partition) {
 					case ReducedEntityIndex indexToUse ->
 						referenceIndexConsumer.accept(referenceSchema, indexToUse, indexToUse);
-					case VirtualReferencePartition virtual ->
-						throw ReferencePartitions.virtualPartitionOnWritePath(virtual, "forEachReferenceIndex");
+					case VirtualReferencePartition virtual -> {
+						if (!executor.isReleasedRowOfFormerIndexing(virtual)) {
+							throw ReferencePartitions.virtualPartitionOnWritePath(virtual, "forEachReferenceIndex");
+						}
+						if (releasedRowConsumer != null) {
+							releasedRowConsumer.accept(virtual);
+						}
+					}
 				}
 			}
 		}
@@ -1270,10 +1362,12 @@ public interface ReferenceIndexMutator {
 	// TODO JNO - remove at the end of #1615 (the condition on the virtual writing, the rest stays)
 	/**
 	 * Returns the virtual partition a write path met, provided the mutation writes the single-owner partitions of the
-	 * partition's reference virtually: the mutation writes virtually, the partition belongs to the reference and the
-	 * reference's partitions may be virtual in the partition's scope - so the reference is not indexed for
-	 * partitioning there and the partition holds nothing but what its registry row keeps. Any other virtual partition
-	 * on a write path means a read resolver leaked into it, which fails before anything is written.
+	 * partition's reference virtually: the mutation writes virtually, the partition belongs to the reference and
+	 * either the reference's partitions may be virtual in the partition's scope - so the reference is not indexed for
+	 * partitioning there and the partition holds nothing but what its registry row keeps - or the acquisition released
+	 * the partition to a write taking content out of it as a row the reference left while it was indexed for filtering
+	 * only (see {@link EntityIndexLocalMutationExecutor#isReleasedRowOfFormerIndexing}). Any other virtual partition on
+	 * a write path means a read resolver leaked into it, which fails before anything is written.
 	 *
 	 * @param executor        the mutation executor
 	 * @param referenceSchema the schema of the reference the write belongs to
@@ -1292,7 +1386,10 @@ public interface ReferenceIndexMutator {
 		if (
 			executor.getVirtualReferencePartitionMutation().writtenVirtually() &&
 				referenceSchema.getName().equals(partition.getRepresentativeReferenceKey().referenceName()) &&
-				VirtualReferencePartitionWriter.isShadowed(referenceSchema, partition.getIndexKey().scope())
+				(
+					VirtualReferencePartitionWriter.isShadowed(referenceSchema, partition.getIndexKey().scope()) ||
+						executor.isReleasedRowOfFormerIndexing(partition)
+				)
 		) {
 			return partition;
 		}
@@ -1819,6 +1916,11 @@ public interface ReferenceIndexMutator {
 	 * sibling partition - a product already sitting in a category never received the parameter-value facet
 	 * that category's reduced index is queried through.
 	 *
+	 * A partition the owner belongs to through a reference that was indexed for filtering only when the owner
+	 * entered it, and is indexed for partitioning now, may still be the registry row of that former indexing. Such a
+	 * row holds no facet: a facet the expression keeps out of the partitions passes it over, a facet the expression
+	 * puts into them is refused with {@link ReferencePartitionReindexRequiredException}.
+	 *
 	 * @param globalIndex               the global entity index (must be a global-scoped index)
 	 * @param executor                  the mutation executor; provides references storage and schema access
 	 * @param entityPrimaryKey          the primary key of the entity owning the references
@@ -1887,10 +1989,21 @@ public interface ReferenceIndexMutator {
 			}
 			for (int i = 0; i < ownerReducedIndexes.size(); i++) {
 				final OwnerReducedIndex ownerIndex = ownerReducedIndexes.get(i);
-				applyFacetDecisionMatrix(
-					ownerIndex.index(), ownerIndex.indexSchema(), referenceKey, groupId,
-					entityPrimaryKey, nowFaceted
-				);
+				switch (ownerIndex.index()) {
+					case EntityIndex index -> applyFacetDecisionMatrix(
+						index, ownerIndex.indexSchema(), referenceKey, groupId, entityPrimaryKey, nowFaceted
+					);
+					// a row of the former indexing holds no facet - a facet leaving it or staying out of it leaves it
+					// as it is, a facet entering it has no place there
+					case VirtualReferencePartition row -> {
+						if (nowFaceted) {
+							throw new ReferencePartitionReindexRequiredException(
+								executor.getEntityType(), row.getRepresentativeReferenceKey().referenceName(),
+								row.getIndexKey().scope()
+							);
+						}
+					}
+				}
 			}
 		}
 	}
@@ -2143,11 +2256,20 @@ public interface ReferenceIndexMutator {
 			"Facet re-evaluation scope must match the executor scope!"
 		);
 		final List<OwnerReducedIndex> collected = new ArrayList<>(8);
+		final EntitySchema entitySchema = executor.getEntitySchema();
 		forEachUniqueReferenceIndex(
 			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, executor,
 			(referenceSchema, indexForRemoval, indexForUpsert) ->
 				collected.add(new OwnerReducedIndex(indexForUpsert, referenceSchema)),
-			reference -> true, true, IterationPath.BOTH
+			reference -> true, true, IterationPath.BOTH,
+			// whether the re-evaluation adds a facet is known per index only once the expression is evaluated, so a
+			// row of the former indexing is collected as released and refused only when a facet would enter it
+			PartitionWriteKind.REMOVING,
+			row -> collected.add(
+				new OwnerReducedIndex(
+					row, entitySchema.getReferenceOrThrowException(row.getRepresentativeReferenceKey().referenceName())
+				)
+			)
 		);
 		return collected;
 	}
@@ -2163,11 +2285,16 @@ public interface ReferenceIndexMutator {
 	 * solely by its {@link ReferenceKey}. Passing the mutated reference's schema instead trips that assertion
 	 * for every conditionally faceted reference, which is exactly the case this fan-out exists to serve.
 	 *
-	 * @param index       the reduced index holding the owning entity
+	 * A partition its reference left as a registry row while it was indexed for filtering only, before it became
+	 * indexed for partitioning, is collected too: it holds no facet, so the re-evaluation passes it over unless a facet
+	 * would enter it, which is refused (see {@link #reEvaluateFacetExpressionsInAllIndexes}).
+	 *
+	 * @param index       the reduced index holding the owning entity, or the row of the former indexing of its
+	 *                    reference released to the re-evaluation
 	 * @param indexSchema the schema of the reference the index was created for
 	 */
 	record OwnerReducedIndex(
-		@Nonnull AbstractReducedEntityIndex index,
+		@Nonnull IndexWriteTarget index,
 		@Nonnull ReferenceSchemaContract indexSchema
 	) {
 	}
@@ -3143,7 +3270,9 @@ public interface ReferenceIndexMutator {
 	 * counterpart of {@link #insertInitialSuiteOfSortableAttributeCompounds} and
 	 * {@link #removeEntireSuiteOfSortableAttributeCompounds} for a partition without an index object. A partition may
 	 * be virtual only for a reference indexed for filtering, so only the reference-level half of the suite applies: the
-	 * entity-level compounds are indexed in the partitions of references indexed for partitioning only.
+	 * entity-level compounds are indexed in the partitions of references indexed for partitioning only. A row the
+	 * reference left while it was indexed for filtering only, released to a write taking content out of it, holds the
+	 * reference-level half as well and never held the other.
 	 *
 	 * @param executor                    the mutation executor writing as the partition's owner
 	 * @param referenceSchema             the schema describing the reference
@@ -3154,6 +3283,8 @@ public interface ReferenceIndexMutator {
 	 * @param primaryOp                   the insertion or the removal of the compounds
 	 * @throws io.evitadb.exception.GenericEvitaInternalError when the partition is not one of the reference, or the
 	 *                                                         reference's partitions may not be virtual in its scope
+	 *                                                         and the partition is not a released row of its former
+	 *                                                         indexing
 	 */
 	static void applyVirtualPartitionCompoundSuite(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
@@ -3167,9 +3298,13 @@ public interface ReferenceIndexMutator {
 		final RepresentativeReferenceKey partitionKey = partition.getRepresentativeReferenceKey();
 		isPremiseValid(
 			referenceSchema.getName().equals(partitionKey.referenceName()) &&
-				VirtualReferencePartitionWriter.isShadowed(referenceSchema, partition.getIndexKey().scope()),
+				(
+					VirtualReferencePartitionWriter.isShadowed(referenceSchema, partition.getIndexKey().scope()) ||
+						executor.isReleasedRowOfFormerIndexing(partition)
+				),
 			() -> "Virtual partition `" + partition.getIndexKey() + "` is not a partition of `" +
-				referenceSchema.getName() + "` that may be virtual!"
+				referenceSchema.getName() + "` that may be virtual, nor a row of its former indexing released to a " +
+				"removal!"
 		);
 		applyReferenceSortableAttributeCompoundSuite(
 			executor, referenceSchema, partition,

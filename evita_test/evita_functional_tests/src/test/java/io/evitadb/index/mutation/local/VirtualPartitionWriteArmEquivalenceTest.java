@@ -114,6 +114,7 @@ import java.util.function.Consumer;
 import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 
+import static io.evitadb.index.mutation.local.PartitionWriteKind.ADDING;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
@@ -382,7 +383,7 @@ class VirtualPartitionWriteArmEquivalenceTest extends AbstractMutatorTestBase {
 			new Mutation(
 				"add the facet to the partition", false,
 				executor -> ReferenceIndexMutator.addFacetToPartition(
-					executor.getPartitionForWrite(Scope.LIVE, PARTITION_KEY, WRITE_SITE),
+					executor.getPartitionForWrite(Scope.LIVE, PARTITION_KEY, WRITE_SITE, ADDING),
 					referenceSchema(REFERENCE_NAME), referenceKey, GROUP_PK, OWNER_PK, executor
 				),
 				() -> {}
@@ -473,7 +474,7 @@ class VirtualPartitionWriteArmEquivalenceTest extends AbstractMutatorTestBase {
 			);
 			final VirtualReferencePartition partition = assertInstanceOf(
 				VirtualReferencePartition.class,
-				virtualArm.newExecutor().getPartitionForWrite(Scope.LIVE, PARTITION_KEY, WRITE_SITE)
+				virtualArm.newExecutor().getPartitionForWrite(Scope.LIVE, PARTITION_KEY, WRITE_SITE, ADDING)
 			);
 			// the same maintainer, read by a mutation that only maintains the registry
 			final EntityIndexLocalMutationExecutor executor = virtualArm.newExecutor(MutationHandle.MAINTAINED);
@@ -514,7 +515,7 @@ class VirtualPartitionWriteArmEquivalenceTest extends AbstractMutatorTestBase {
 			final Arm virtualArm = new Arm(MutationHandle.WRITTEN_VIRTUALLY, REFERENCE_NAME);
 			virtualArm.seed(PARTITION_KEY, PARTITION_PK, false);
 			final ReferencePartition partition =
-				virtualArm.newExecutor().getPartitionForWrite(Scope.LIVE, PARTITION_KEY, WRITE_SITE);
+				virtualArm.newExecutor().getPartitionForWrite(Scope.LIVE, PARTITION_KEY, WRITE_SITE, ADDING);
 			final GenericEvitaInternalError error = assertThrows(
 				GenericEvitaInternalError.class,
 				() -> ReferenceIndexMutator.requireIndexObject(partition, referenceSchema(REFERENCE_NAME), WRITE_SITE)
@@ -718,8 +719,8 @@ class VirtualPartitionWriteArmEquivalenceTest extends AbstractMutatorTestBase {
 				ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
 					executor, DUPLICATE_REFERENCE_NAME, Scope.LIVE
 				),
-				executor.getPartitionForWrite(Scope.LIVE, removalKey, WRITE_SITE),
-				executor.getPartitionForWrite(Scope.LIVE, upsertKey, WRITE_SITE),
+				executor.getPartitionForWrite(Scope.LIVE, removalKey, WRITE_SITE, ADDING),
+				executor.getPartitionForWrite(Scope.LIVE, upsertKey, WRITE_SITE, ADDING),
 				referenceSchema(DUPLICATE_REFERENCE_NAME), referenceKey, attributeMutation
 			),
 			() -> this.storage.setReference(

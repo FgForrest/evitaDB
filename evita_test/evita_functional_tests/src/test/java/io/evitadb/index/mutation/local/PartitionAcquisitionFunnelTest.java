@@ -23,12 +23,14 @@
 
 package io.evitadb.index.mutation.local;
 
+import io.evitadb.api.exception.ReferencePartitionReindexRequiredException;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 // TODO JNO - remove at the end of #1615
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.MutationHandle;
 import io.evitadb.dataType.Scope;
@@ -47,6 +49,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.function.Executable;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -57,12 +60,15 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntFunction;
 
+import static io.evitadb.index.mutation.local.PartitionWriteKind.ADDING;
+import static io.evitadb.index.mutation.local.PartitionWriteKind.REMOVING;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.utils.Assert.isPremiseValid;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -75,7 +81,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * when there is one, the virtual handle built from its registry row otherwise - and fails, naming the write path, when
  * there is neither. The lookups read the registry and nothing else: no index is created and no primary key is
  * allocated. A mutation that does not write virtually, and a reference whose partitions are never virtual, acquire
- * their partitions exactly as before - creating what they do not find.
+ * their partitions exactly as before - creating what they do not find. The one exception is a registry row of a
+ * reference indexed for partitioning, which its former indexing for filtering only left behind: a write adding to it
+ * is refused with the error asking for a reindex, a write removing from it gets the row, released to it.
  *
  * The index maintainer is a real map of real indexes that counts every index it creates and every primary key it
  * allocates; a registry row without an index object is seeded the way a partition entering its first owner registers
@@ -103,6 +111,11 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 	 * A reference indexed for partitioning - its partitions are never virtual.
 	 */
 	private static final String PARTITIONING_REFERENCE = "funnelPartitioningRef";
+	/**
+	 * A reference indexed for partitioning that allows duplicates - one partition per target and representative value,
+	 * never virtual.
+	 */
+	private static final String PARTITIONING_DUPLICATE_REFERENCE = "funnelPartitioningDuplicateRef";
 	/**
 	 * Primary key of the referenced entity every test acquires partitions of.
 	 */
@@ -151,6 +164,13 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			.withReferenceTo(
 				PARTITIONING_REFERENCE, PARTITIONING_REFERENCE, Cardinality.ZERO_OR_MORE,
 				thatIs -> thatIs.indexedForFilteringAndPartitioning()
+			)
+			.withReferenceTo(
+				PARTITIONING_DUPLICATE_REFERENCE, PARTITIONING_DUPLICATE_REFERENCE,
+				Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+				thatIs -> thatIs
+					.indexedForFilteringAndPartitioning()
+					.withAttribute(REPRESENTATIVE_ATTRIBUTE, String.class, attr -> attr.filterable().representative())
 			);
 	}
 
@@ -222,8 +242,24 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 	 */
 	@Nonnull
 	private static RepresentativeReferenceKey duplicateKeyOf(@Nonnull String representativeValue) {
+		return duplicateKeyOf(DUPLICATE_REFERENCE, representativeValue);
+	}
+
+	/**
+	 * Creates the representative reference key of the target of a reference allowing duplicates with a representative
+	 * value.
+	 *
+	 * @param referenceName       the reference
+	 * @param representativeValue the representative attribute value
+	 * @return the key
+	 */
+	@Nonnull
+	private static RepresentativeReferenceKey duplicateKeyOf(
+		@Nonnull String referenceName,
+		@Nonnull String representativeValue
+	) {
 		return new RepresentativeReferenceKey(
-			new ReferenceKey(DUPLICATE_REFERENCE, TARGET_PK), new Serializable[]{representativeValue}
+			new ReferenceKey(referenceName, TARGET_PK), new Serializable[]{representativeValue}
 		);
 	}
 
@@ -324,9 +360,27 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull String referenceName
 	) {
+		return collectPartitionsOfTarget(executor, referenceName, ADDING);
+	}
+
+	/**
+	 * Collects the partitions of {@link #TARGET_PK} the executor hands out for a write of the given kind.
+	 *
+	 * @param executor      the executor
+	 * @param referenceName the reference
+	 * @param writeKind     whether the write may put content into the partitions or only takes content out of them
+	 * @return the partitions in the order the consumer received them
+	 */
+	@Nonnull
+	private List<ReferencePartition> collectPartitionsOfTarget(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull String referenceName,
+		@Nonnull PartitionWriteKind writeKind
+	) {
 		final List<ReferencePartition> partitions = new ArrayList<>(4);
 		executor.forEachPartitionOfTargetForWrite(
-			Scope.LIVE, this.productSchema.getReferenceOrThrowException(referenceName), TARGET_PK, partitions::add
+			Scope.LIVE, this.productSchema.getReferenceOrThrowException(referenceName),
+			TARGET_PK, writeKind, partitions::add
 		);
 		return partitions;
 	}
@@ -362,8 +416,10 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			final ReducedEntityIndex object = addObject(key, 31);
 			seedRow(key, 31);
 			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
-			assertSame(object, outer.virtualExecutor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE));
-			assertSame(object, outer.virtualExecutor.getOrCreatePartitionForInsert(Scope.LIVE, key, WRITE_SITE));
+			assertSame(object, outer.virtualExecutor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE, ADDING));
+			assertSame(object, outer.virtualExecutor.getOrCreatePartitionForInsert(
+				Scope.LIVE, key, WRITE_SITE, ADDING
+			));
 			assertEquals(
 				2, outer.indexMaintainer.acquisitionsByKey(object.getIndexKey()),
 				"the index object must be registered for modification by both acquisitions"
@@ -377,10 +433,12 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			final int primaryKey = seedRow(key);
 			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
 			assertHandleOfRow(
-				primaryKey, key, outer.virtualExecutor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE)
+				primaryKey, key, outer.virtualExecutor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE, ADDING)
 			);
 			assertHandleOfRow(
-				primaryKey, key, outer.virtualExecutor.getOrCreatePartitionForInsert(Scope.LIVE, key, WRITE_SITE)
+				primaryKey, key, outer.virtualExecutor.getOrCreatePartitionForInsert(
+					Scope.LIVE, key, WRITE_SITE, ADDING
+				)
 			);
 		}
 
@@ -393,11 +451,13 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			final int americanPrimaryKey = seedRow(american);
 			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
 			assertHandleOfRow(
-				germanPrimaryKey, german, outer.virtualExecutor.getPartitionForWrite(Scope.LIVE, german, WRITE_SITE)
+				germanPrimaryKey, german, outer.virtualExecutor.getPartitionForWrite(
+					Scope.LIVE, german, WRITE_SITE, ADDING
+				)
 			);
 			assertHandleOfRow(
 				americanPrimaryKey, american,
-				outer.virtualExecutor.getPartitionForWrite(Scope.LIVE, american, WRITE_SITE)
+				outer.virtualExecutor.getPartitionForWrite(Scope.LIVE, american, WRITE_SITE, ADDING)
 			);
 		}
 
@@ -412,8 +472,8 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			final int indexCount = maintainer.indexCount();
 			final int nextPrimaryKey = maintainer.nextPrimaryKey();
 			final EntityIndexLocalMutationExecutor executor = PartitionAcquisitionFunnelTest.this.virtualExecutor;
-			executor.getPartitionForWrite(Scope.LIVE, single, WRITE_SITE);
-			executor.getOrCreatePartitionForInsert(Scope.LIVE, german, WRITE_SITE);
+			executor.getPartitionForWrite(Scope.LIVE, single, WRITE_SITE, ADDING);
+			executor.getOrCreatePartitionForInsert(Scope.LIVE, german, WRITE_SITE, ADDING);
 			collectPartitionsOfTarget(executor, SINGLE_REFERENCE);
 			collectPartitionsOfTarget(executor, DUPLICATE_REFERENCE);
 			assertEquals(indexCount, maintainer.indexCount(), "no index may be created");
@@ -437,7 +497,7 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 				final GenericEvitaInternalError error = assertThrows(
 					GenericEvitaInternalError.class,
 					() -> PartitionAcquisitionFunnelTest.this.virtualExecutor
-						.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE)
+						.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE, ADDING)
 				);
 				assertTrue(error.getPrivateMessage().contains(WRITE_SITE), error.getPrivateMessage());
 				assertTrue(error.getPrivateMessage().contains("neither"), error.getPrivateMessage());
@@ -457,7 +517,7 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 
 			final VirtualReferencePartition minted = assertInstanceOf(
 				VirtualReferencePartition.class,
-				outer.virtualExecutor.getOrCreatePartitionForInsert(Scope.LIVE, key, WRITE_SITE)
+				outer.virtualExecutor.getOrCreatePartitionForInsert(Scope.LIVE, key, WRITE_SITE, ADDING)
 			);
 
 			assertEquals(nextPrimaryKey, minted.getPrimaryKey(), "the handle takes the next primary key");
@@ -487,14 +547,16 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 
 			assertEquals(
 				vacatedPrimaryKey,
-				outer.virtualExecutor.getOrCreatePartitionForInsert(Scope.LIVE, key, WRITE_SITE).getPrimaryKey(),
+				outer.virtualExecutor.getOrCreatePartitionForInsert(
+					Scope.LIVE, key, WRITE_SITE, ADDING
+				).getPrimaryKey(),
 				"the owner entering the vacated partition keeps its primary key"
 			);
 			assertEquals(nextPrimaryKey, maintainer.nextPrimaryKey(), "taking a reservation allocates nothing");
 			// the reservation is consumed - the next insert finding nothing mints anew
 			assertEquals(
 				nextPrimaryKey,
-				outer.virtualExecutor.getOrCreatePartitionForInsert(Scope.LIVE, key, WRITE_SITE).getPrimaryKey()
+				outer.virtualExecutor.getOrCreatePartitionForInsert(Scope.LIVE, key, WRITE_SITE, ADDING).getPrimaryKey()
 			);
 			// a reservation of another key is not taken
 			outer.virtualExecutor.reserveVacatedPartition(
@@ -504,13 +566,13 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 				nextPrimaryKey + 1,
 				outer.virtualExecutor.getOrCreatePartitionForInsert(
 					Scope.LIVE, new RepresentativeReferenceKey(new ReferenceKey(SINGLE_REFERENCE, TARGET_PK + 1)),
-					WRITE_SITE
+					WRITE_SITE, ADDING
 				).getPrimaryKey()
 			);
 			// and a lookup of the reserved key names the reservation in its refusal
 			final GenericEvitaInternalError error = assertThrows(
 				GenericEvitaInternalError.class,
-				() -> outer.virtualExecutor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE)
+				() -> outer.virtualExecutor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE, ADDING)
 			);
 			assertTrue(
 				error.getPrivateMessage().contains("left it as partition " + vacatedPrimaryKey),
@@ -526,7 +588,7 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			final GenericEvitaInternalError error = assertThrows(
 				GenericEvitaInternalError.class,
 				() -> PartitionAcquisitionFunnelTest.this.virtualExecutor
-					.getOrCreatePartitionForInsert(Scope.LIVE, keyOf(SINGLE_REFERENCE), WRITE_SITE)
+					.getOrCreatePartitionForInsert(Scope.LIVE, keyOf(SINGLE_REFERENCE), WRITE_SITE, ADDING)
 			);
 			assertTrue(error.getPrivateMessage().contains(WRITE_SITE), error.getPrivateMessage());
 			assertTrue(error.getPrivateMessage().contains("referenced-type index"), error.getPrivateMessage());
@@ -545,14 +607,16 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			reservations.setFinishing(true);
 			final GenericEvitaInternalError error = assertThrows(
 				GenericEvitaInternalError.class,
-				() -> executor.getOrCreatePartitionForInsert(Scope.LIVE, key, WRITE_SITE)
+				() -> executor.getOrCreatePartitionForInsert(Scope.LIVE, key, WRITE_SITE, ADDING)
 			);
 			assertTrue(error.getPrivateMessage().contains(WRITE_SITE), error.getPrivateMessage());
 			assertTrue(error.getPrivateMessage().contains("finishing"), error.getPrivateMessage());
-			assertEquals(primaryKey, executor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE).getPrimaryKey());
+			assertEquals(primaryKey, executor.getPartitionForWrite(
+				Scope.LIVE, key, WRITE_SITE, ADDING
+			).getPrimaryKey());
 			reservations.setFinishing(false);
 			assertEquals(
-				primaryKey, executor.getOrCreatePartitionForInsert(Scope.LIVE, key, WRITE_SITE).getPrimaryKey()
+				primaryKey, executor.getOrCreatePartitionForInsert(Scope.LIVE, key, WRITE_SITE, ADDING).getPrimaryKey()
 			);
 		}
 
@@ -565,7 +629,9 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			final CountingIndexMaintainer maintainer = outer.indexMaintainer;
 			final int nextPrimaryKey = maintainer.nextPrimaryKey();
 			final VirtualReferencePartition handle = assertInstanceOf(
-				VirtualReferencePartition.class, outer.virtualExecutor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE)
+				VirtualReferencePartition.class, outer.virtualExecutor.getPartitionForWrite(
+					Scope.LIVE, key, WRITE_SITE, ADDING
+				)
 			);
 
 			final ReducedEntityIndex installed = outer.virtualExecutor.installPartitionObject(handle, WRITE_SITE);
@@ -577,7 +643,7 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			assertSame(installed, maintainer.getIndexByPrimaryKeyIfExists(primaryKey));
 			assertEquals(nextPrimaryKey, maintainer.nextPrimaryKey(), "the installation allocates no primary key");
 			assertSame(
-				installed, outer.virtualExecutor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE),
+				installed, outer.virtualExecutor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE, ADDING),
 				"the index object wins over the row from now on"
 			);
 		}
@@ -592,7 +658,7 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			final RepresentativeReferenceKey key = keyOf(SINGLE_REFERENCE);
 			outer.seedRow(key);
 			final VirtualReferencePartition handle = assertInstanceOf(
-				VirtualReferencePartition.class, executor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE)
+				VirtualReferencePartition.class, executor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE, ADDING)
 			);
 			final int indexCount = outer.indexMaintainer.indexCount();
 			reservations.setFinishing(true);
@@ -612,10 +678,14 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			final RepresentativeReferenceKey key = keyOf(SINGLE_REFERENCE);
 			final int primaryKey = seedRow(key);
 			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
-			final ReferencePartition looked = outer.objectExecutor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE);
+			final ReferencePartition looked = outer.objectExecutor.getPartitionForWrite(
+				Scope.LIVE, key, WRITE_SITE, ADDING
+			);
 			final ReducedEntityIndex created = assertInstanceOf(ReducedEntityIndex.class, looked);
 			assertTrue(primaryKey != created.getPrimaryKey(), "the created index object must not take the row's key");
-			assertSame(created, outer.objectExecutor.getOrCreatePartitionForInsert(Scope.LIVE, key, WRITE_SITE));
+			assertSame(created, outer.objectExecutor.getOrCreatePartitionForInsert(
+				Scope.LIVE, key, WRITE_SITE, ADDING
+			));
 		}
 
 		@Test
@@ -623,9 +693,13 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 		void shouldCreateIndexObjectOfPartitioningReferenceWhenWritingVirtually() {
 			final RepresentativeReferenceKey key = keyOf(PARTITIONING_REFERENCE);
 			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
-			final ReferencePartition created = outer.virtualExecutor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE);
+			final ReferencePartition created = outer.virtualExecutor.getPartitionForWrite(
+				Scope.LIVE, key, WRITE_SITE, ADDING
+			);
 			assertInstanceOf(ReducedEntityIndex.class, created);
-			assertSame(created, outer.virtualExecutor.getOrCreatePartitionForInsert(Scope.LIVE, key, WRITE_SITE));
+			assertSame(created, outer.virtualExecutor.getOrCreatePartitionForInsert(
+				Scope.LIVE, key, WRITE_SITE, ADDING
+			));
 		}
 	}
 
@@ -688,6 +762,179 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			assertTrue(
 				error.getPrivateMessage().contains("forEachPartitionOfTargetForWrite"), error.getPrivateMessage()
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("rows left by a reference indexed for filtering only before it became indexed for partitioning")
+	class RowsOfFormerIndexing {
+
+		@Test
+		@DisplayName("a write adding to the row is refused with the reindex error and creates nothing")
+		void shouldRefuseAddingWriteWithReindexErrorWhenRowOfFormerIndexing() {
+			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
+			final RepresentativeReferenceKey key = keyOf(PARTITIONING_REFERENCE);
+			outer.seedRow(key);
+			final int indexCount = outer.indexMaintainer.indexCount();
+			final int nextPrimaryKey = outer.indexMaintainer.nextPrimaryKey();
+
+			assertReindexRequired(
+				PARTITIONING_REFERENCE,
+				() -> outer.virtualExecutor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE, ADDING)
+			);
+			assertReindexRequired(
+				PARTITIONING_REFERENCE,
+				() -> outer.virtualExecutor.getOrCreatePartitionForInsert(Scope.LIVE, key, WRITE_SITE, ADDING)
+			);
+			assertReindexRequired(
+				PARTITIONING_REFERENCE,
+				() -> outer.collectPartitionsOfTarget(outer.virtualExecutor, PARTITIONING_REFERENCE, ADDING)
+			);
+
+			assertEquals(indexCount, outer.indexMaintainer.indexCount(), "no index object may be created");
+			assertEquals(nextPrimaryKey, outer.indexMaintainer.nextPrimaryKey(), "no primary key may be allocated");
+		}
+
+		@Test
+		@DisplayName("a write removing from the row gets the row, released to it, and creates nothing")
+		void shouldReleaseRowToRemovingWriteWhenRowOfFormerIndexing() {
+			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
+			final RepresentativeReferenceKey key = keyOf(PARTITIONING_REFERENCE);
+			final int primaryKey = outer.seedRow(key);
+			final int indexCount = outer.indexMaintainer.indexCount();
+			final EntityIndexLocalMutationExecutor executor = outer.createExecutor(MutationHandle.WRITTEN_VIRTUALLY);
+			final VirtualReferencePartition row = ReferencePartitions.findRegisteredForWrite(
+				outer.typeIndexOf(PARTITIONING_REFERENCE), key
+			);
+			assertNotNull(row);
+			assertFalse(executor.isReleasedRowOfFormerIndexing(row), "nothing is released before the acquisition");
+
+			final ReferencePartition acquired = executor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE, REMOVING);
+
+			assertHandleOfRow(primaryKey, key, acquired);
+			assertTrue(executor.isReleasedRowOfFormerIndexing(acquired));
+			assertHandleOfRow(
+				primaryKey, key, executor.getOrCreatePartitionForInsert(Scope.LIVE, key, WRITE_SITE, REMOVING)
+			);
+			final List<ReferencePartition> ofTarget = outer.collectPartitionsOfTarget(
+				executor, PARTITIONING_REFERENCE, REMOVING
+			);
+			assertEquals(1, ofTarget.size());
+			assertHandleOfRow(primaryKey, key, ofTarget.get(0));
+			assertEquals(indexCount, outer.indexMaintainer.indexCount(), "no index object may be created");
+		}
+
+		@Test
+		@DisplayName("the partitions of one target with duplicates are its index objects and its released rows")
+		void shouldMixIndexObjectsAndReleasedRowsWhenReferenceAllowsDuplicates() {
+			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
+			final ReducedEntityIndex german = outer.addObject(
+				duplicateKeyOf(PARTITIONING_DUPLICATE_REFERENCE, "DE"), 51
+			);
+			final RepresentativeReferenceKey american = duplicateKeyOf(PARTITIONING_DUPLICATE_REFERENCE, "US");
+			final int americanPrimaryKey = outer.seedRow(american);
+
+			assertReindexRequired(
+				PARTITIONING_DUPLICATE_REFERENCE,
+				() -> outer.collectPartitionsOfTarget(
+					outer.virtualExecutor, PARTITIONING_DUPLICATE_REFERENCE, ADDING
+				)
+			);
+			final List<ReferencePartition> partitions = outer.collectPartitionsOfTarget(
+				outer.virtualExecutor, PARTITIONING_DUPLICATE_REFERENCE, REMOVING
+			);
+
+			assertEquals(2, partitions.size());
+			assertSame(german, partitions.get(0));
+			assertHandleOfRow(americanPrimaryKey, american, partitions.get(1));
+		}
+
+		@Test
+		@DisplayName("the index object of the key wins over a row of the former indexing")
+		void shouldPreferIndexObjectOverRowOfFormerIndexing() {
+			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
+			final RepresentativeReferenceKey key = keyOf(PARTITIONING_REFERENCE);
+			final ReducedEntityIndex object = outer.addObject(key, 61);
+			outer.seedRow(key, 61);
+
+			assertSame(object, outer.virtualExecutor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE, ADDING));
+			assertSame(
+				object, outer.virtualExecutor.getOrCreatePartitionForInsert(Scope.LIVE, key, WRITE_SITE, ADDING)
+			);
+		}
+
+		@Test
+		@DisplayName("a key without a row creates its index object while other targets have rows")
+		void shouldCreateIndexObjectWhenOnlyOtherTargetsHaveRows() {
+			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
+			outer.seedRow(new RepresentativeReferenceKey(new ReferenceKey(PARTITIONING_REFERENCE, TARGET_PK + 1)));
+			final RepresentativeReferenceKey key = keyOf(PARTITIONING_REFERENCE);
+			final int indexCount = outer.indexMaintainer.indexCount();
+
+			final ReferencePartition created = outer.virtualExecutor.getOrCreatePartitionForInsert(
+				Scope.LIVE, key, WRITE_SITE, ADDING
+			);
+
+			assertInstanceOf(ReducedEntityIndex.class, created);
+			assertEquals(indexCount + 1, outer.indexMaintainer.indexCount(), "the index object must be created");
+		}
+
+		@Test
+		@DisplayName("a mutation not writing virtually never looks for rows and creates the index object as before")
+		void shouldCreateIndexObjectNextToRowWhenNotWritingVirtually() {
+			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
+			final RepresentativeReferenceKey key = keyOf(PARTITIONING_REFERENCE);
+			final int primaryKey = outer.seedRow(key);
+
+			final ReducedEntityIndex created = assertInstanceOf(
+				ReducedEntityIndex.class,
+				outer.objectExecutor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE, ADDING)
+			);
+
+			assertTrue(primaryKey != created.getPrimaryKey(), "the created index object must not take the row's key");
+		}
+
+		@Test
+		@DisplayName("a row reaching a write path without being released by the acquisition is still refused")
+		void shouldRefuseRowOfFormerIndexingThatWasNotReleased() {
+			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
+			final RepresentativeReferenceKey key = keyOf(PARTITIONING_REFERENCE);
+			outer.seedRow(key);
+			final VirtualReferencePartition leaked = ReferencePartitions.findRegisteredForWrite(
+				outer.typeIndexOf(PARTITIONING_REFERENCE), key
+			);
+			assertNotNull(leaked);
+			final EntityIndexLocalMutationExecutor executor = outer.createExecutor(MutationHandle.WRITTEN_VIRTUALLY);
+			final ReferenceSchemaContract referenceSchema =
+				outer.productSchema.getReferenceOrThrowException(PARTITIONING_REFERENCE);
+
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> ReferenceIndexMutator.requireWrittenVirtually(executor, referenceSchema, leaked, WRITE_SITE)
+			);
+			executor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE, REMOVING);
+			assertSame(
+				leaked, ReferenceIndexMutator.requireWrittenVirtually(executor, referenceSchema, leaked, WRITE_SITE),
+				"once released to a removal, the row is accepted"
+			);
+		}
+
+		/**
+		 * Asserts that the acquisition fails with the reindex error naming the product entity type, the reference and
+		 * the live scope.
+		 *
+		 * @param referenceName the reference the error must name
+		 * @param acquisition   the acquisition
+		 */
+		private void assertReindexRequired(@Nonnull String referenceName, @Nonnull Executable acquisition) {
+			final ReferencePartitionReindexRequiredException error = assertThrows(
+				ReferencePartitionReindexRequiredException.class, acquisition
+			);
+			assertEquals(PartitionAcquisitionFunnelTest.this.productSchema.getName(), error.getEntityType());
+			assertEquals(referenceName, error.getReferenceName());
+			assertEquals(Scope.LIVE, error.getScope());
+			assertTrue(error.getPublicMessage().contains("`" + referenceName + "`"), error.getPublicMessage());
+			assertTrue(error.getPublicMessage().contains("`LIVE`"), error.getPublicMessage());
 		}
 	}
 
