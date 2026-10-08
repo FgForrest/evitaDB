@@ -1,7 +1,7 @@
 ---
 title: A catalog CDC resume position names the catalog incarnation it belongs to, and a position the catalog cannot serve is refused with a typed reason
 date: 2026-10-08
-updated: 2026-10-08 18:30
+updated: 2026-10-08 22:20
 status: accepted
 kind: fix
 issues: [1680]
@@ -231,6 +231,21 @@ of two incarnations - which `TransactionManager#notifyCatalogPresentInLiveView` 
   `catalogId` pass-through dropped in the five fetchers and the REST request, all six different-incarnation tests
   receive the probe capture instead of the error (`expected: <"error"> but was: <"next">`). The REST capture
   serializer wrote `entityPrimaryKey` under the `entityType` key and lost it; fixed and covered on the way.
+- End gates: the Codex adversarial review of the branch approved with no findings. A full `evita_functional_tests`
+  run of 26,842 tests found one flaky test, `ClientChangeCatalogCaptureSubscriberTest#shouldSurfaceTypedRefusalBeforeAcknowledgement`
+  (the consumer's error was `null`), caused by a driver race older than this work. That race and the defects listed
+  under "Fixed in passing" were each proven by a test that failed on the old code, then the fix, then a counterfactual:
+  - the race: forced with a debugger pause, since no hook sits between the two statements involved;
+  - signal ordering: deterministic red tests (`expected [SUBSCRIBE, ERROR] but was [ERROR, SUBSCRIBE]`,
+    `[CLOSE, SUBSCRIBE, ERROR]`); the targeted driver CDC test classes run 36 tests, 0 failures;
+  - the closed transaction manager: tests on a real Evita after `deactivateCatalog` or `close()`, which threw a
+    `NullPointerException` or handed the closed manager a catalog back before the fix;
+  - the observer close race: `CatalogChangeObserverCloseRaceTest`, which holds the creating thread at the publisher
+    creation log statement while the real `deactivateCatalog` closes the observer. The `io.evitadb.core.cdc` and
+    `io.evitadb.core.transaction` packages run 374 tests, 0 failures.
+
+  After the fixes, the full `evita_functional_tests` run is 26,855 tests with 0 failures. Its one error is
+  `ExportS3ServiceTest`, which needs Docker. The whole-reactor `test-compile` (`-P unitAndFunctional,full`) is green.
 
 ## Consequences & open follow-ups
 
@@ -239,9 +254,34 @@ of two incarnations - which `TransactionManager#notifyCatalogPresentInLiveView` 
 - **A consumer that sends no `catalogId` is protected only against a position that lies ahead.** A stale position
   behind the replacing catalog's current version is still served from an unrelated lineage; only the identity closes
   that, which is why the user documentation tells everyone to send it.
-- **Pre-existing, not fixed:** `CatalogChangeObserver` can create a shared publisher concurrently with `close()`'s
-  sweep and clear, leaving a returned publisher detached and unclosed. The sequential renewal is covered; that
-  interleaving is not.
+- **Fixed in passing** (defects older than this work, one commit each):
+  - **Driver, lost `onError` before the acknowledgement:** a refusal before the acknowledgement could reach `subscribe()`
+    but not the consumer, because the woken caller tore the subscription down before the delivery decision. The
+    decision is now taken before the caller is released.
+  - **Driver, `onError` before `onSubscribe`:** the consumer could receive `onError`/`onComplete` before `onSubscribe`.
+    Terminal signals now wait for `onSubscribe`; handing the subscription over before the RPC starts was rejected,
+    because a cancel from `onSubscribe` would hit a stream that does not exist yet.
+  - **Driver, closed before told why:** an `AutoCloseable` consumer could be closed before its terminal signal ran. All
+    signals after `onSubscribe` now run in one ordered chain on the callback executor.
+  - **`TransactionManager` after `close()`:**
+    - A late publication, WAL drain or commit-pipeline step threw a `NullPointerException`, or put state back on the
+      closed manager. They are now refused with `InstanceTerminatedException`.
+    - Releasing a failed commit's version reservation still succeeds, because it runs in a `finally` block and must
+      not replace the original failure.
+    - The check against `close()` is not atomic. A publication already past it is refused by the closed change
+      observer instead, so no CAS was added.
+  - **`CatalogChangeObserver` close race:** a shared publisher created concurrently with `close()`'s sweep and clear
+    was left detached and unclosed. Creation and close are now ordered by a read/write lock.
+- **Open, not folded in: a catalog rename does not serialize with trunk incorporation.** This rests on reasoning; no
+  test reproduces it.
+  - `ModifyCatalogSchemaNameMutationOperator` quiesces sessions only. A session committing with
+    `WAIT_FOR_WAL_PERSISTENCE` counts as closed while its trunk round is still pending, and the WAL drainer runs
+    rounds at any time.
+  - In that overlap, `Catalog#replace` closes the persistence service the round writes through. It publishes a
+    renamed instance at the live version, which `notifyCatalogPresentInLiveView` swaps into `lastFinalizedCatalog`
+    mid-round, and `replayMutationsOnCatalog` re-reads it per transaction.
+  - Passing the round's catalog to the replay would only change which wrong outcome results. The rename needs to
+    drain or hold trunk incorporation, which needs its own design.
 - **The server's error code is not transported** to the driver; the rebuilt exception computes its own on the client
   (`EvitaInvalidUsageException` has no setter, so carrying it would need an `evita_common` change).
 - **REST and GraphQL deliver only the message** of a refusal over the stream, not its fields (GraphQL adds the evitaDB
@@ -271,4 +311,7 @@ of two incarnations - which `TransactionManager#notifyCatalogPresentInLiveView` 
 
 - **2026-10-08** — #1680 reported from the production stall; forks F1-F4 decided; design reviewed (Codex, go with
   changes); engine, gRPC and driver implemented; a second review found the lagging-view false refusal, the public
-  transaction-manager bypass and the lossy recovery advice, all fixed the same day
+  transaction-manager bypass and the lossy recovery advice, all fixed the same day. End gates (Codex review,
+  code-quality pass, full functional run) surfaced a driver race older than this work. It was fixed together with six
+  more defects of the same age in the driver's signal ordering, the closed transaction manager and the change
+  observer's close. A rename racing trunk incorporation was recorded as open.
