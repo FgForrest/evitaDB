@@ -80,6 +80,8 @@ import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
 import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
+import io.evitadb.utils.IOUtils;
+import io.evitadb.utils.IOUtils.ExceptionThrowingRunnable;
 import io.evitadb.utils.NumberUtils;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
@@ -214,15 +216,67 @@ public interface Migration_2026_3 {
 	 * version 7. Refuses the upgrade, before writing anything, when two persisted unique values of different owners
 	 * name one key - see {@link #refuseUpgradeOverUniqueKeyCollisions}.
 	 *
+	 * Every collection persistence service the upgrade opens through the factory is closed before it returns, whether
+	 * it succeeds, refuses or fails - an open service keeps a handle of the collection's data file, which on some
+	 * platforms keeps a later compaction from deleting the file it retires.
+	 *
 	 * @param catalogHeader                             the catalog header being upgraded
 	 * @param storagePartPersistenceService             the catalog-level storage part service
-	 * @param entityCollectionPersistenceServiceFactory builds a persistence service for one collection
+	 * @param entityCollectionPersistenceServiceFactory builds a persistence service for one collection - a new
+	 *                                                  instance on every call, closed by the upgrade
 	 * @param postUpgradeAction                         commits the rewritten catalog header
 	 */
 	static void upgradeFromStorageProtocolVersion_6_to_7(
 		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
 		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService,
 		@Nonnull Function<EntityCollectionFileHeader, DefaultEntityCollectionPersistenceService> entityCollectionPersistenceServiceFactory,
+		@Nonnull Consumer<CatalogHeader<LogFileRecordReference, CollectionFileReference>> postUpgradeAction
+	) {
+		final List<DefaultEntityCollectionPersistenceService> openedServices =
+			new ArrayList<>(catalogHeader.getEntityTypeFileIndexes().size());
+		try {
+			rekeyCatalog(
+				catalogHeader,
+				storagePartPersistenceService,
+				// a service is recorded the moment it exists, so one opened right before a failure is closed as well
+				entityCollectionHeader -> {
+					final DefaultEntityCollectionPersistenceService service =
+						entityCollectionPersistenceServiceFactory.apply(entityCollectionHeader);
+					if (service != null) {
+						openedServices.add(service);
+					}
+					return service;
+				},
+				postUpgradeAction
+			);
+		} finally {
+			// a close deletes nothing: after a success it writes nothing either - every collection the upgrade
+			// changed was flushed before its header was recorded - and after a failure it can only append what a
+			// collection had not flushed yet, which no published header names; so one close after everything,
+			// the publication included, covers every path. A close that fails is logged and the others still run
+			IOUtils.closeQuietly(
+				openedServices.stream()
+					.map(service -> (ExceptionThrowingRunnable) service::close)
+					.toArray(ExceptionThrowingRunnable[]::new)
+			);
+		}
+	}
+
+	/**
+	 * Re-keys every persisted attribute cardinality index and standalone unique index of every collection, and every
+	 * global unique index of the catalog, and commits the catalog header at protocol version 7 - the work of
+	 * {@link #upgradeFromStorageProtocolVersion_6_to_7}, which owns the collection persistence services it opens.
+	 *
+	 * @param catalogHeader                 the catalog header being upgraded
+	 * @param storagePartPersistenceService the catalog-level storage part service
+	 * @param collectionServiceFactory      opens the persistence service of one collection
+	 * @param postUpgradeAction             commits the rewritten catalog header
+	 */
+	private static void rekeyCatalog(
+		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
+		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService,
+		@Nonnull
+		Function<EntityCollectionFileHeader, DefaultEntityCollectionPersistenceService> collectionServiceFactory,
 		@Nonnull Consumer<CatalogHeader<LogFileRecordReference, CollectionFileReference>> postUpgradeAction
 	) {
 		ConsoleWriter.writeLine(
@@ -253,7 +307,7 @@ public interface Migration_2026_3 {
 				)
 			);
 			final DefaultEntityCollectionPersistenceService collectionPersistenceService = Objects.requireNonNull(
-				entityCollectionPersistenceServiceFactory.apply(entityCollectionHeader)
+				collectionServiceFactory.apply(entityCollectionHeader)
 			);
 			final Set<Integer> indexIds = new HashSet<>(entityCollectionHeader.usedEntityIndexPrimaryKeys());
 			if (entityCollectionHeader.globalEntityIndexPrimaryKey() != null) {
