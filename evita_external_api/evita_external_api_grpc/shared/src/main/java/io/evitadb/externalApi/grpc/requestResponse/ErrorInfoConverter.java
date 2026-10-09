@@ -38,9 +38,10 @@ import javax.annotation.Nullable;
 import java.time.DateTimeException;
 import java.time.OffsetDateTime;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 
 /**
  * Carries the fields of selected evitaDB exceptions across the gRPC boundary as the metadata of the
@@ -124,7 +125,7 @@ public class ErrorInfoConverter {
 	@Nonnull
 	public static Map<String, String> toErrorInfoMetadata(@Nonnull EvitaInvalidUsageException exception) {
 		if (exception instanceof ChangeCaptureResumePositionInvalidException resumePositionInvalid) {
-			final Map<String, String> metadata = new HashMap<>(16);
+			final Map<String, String> metadata = createHashMap(8);
 			metadata.put(EXCEPTION_CLASS, ChangeCaptureResumePositionInvalidException.class.getName());
 			metadata.put(REASON, resumePositionInvalid.getReason().name());
 			metadata.put(CATALOG_ID, resumePositionInvalid.getCatalogId().toString());
@@ -138,7 +139,7 @@ public class ErrorInfoConverter {
 			// the exact class only - a subtype unknown to this converter would be rebuilt as its parent and lose
 			// whatever it adds, so it travels as a generic exception instead
 			final TemporalDataNotAvailableException temporalDataNotAvailable = (TemporalDataNotAvailableException) exception;
-			final Map<String, String> metadata = new HashMap<>(4);
+			final Map<String, String> metadata = createHashMap(3);
 			metadata.put(EXCEPTION_CLASS, TemporalDataNotAvailableException.class.getName());
 			putIfPresent(metadata, CATALOG_VERSION, temporalDataNotAvailable.getCatalogVersion());
 			putIfPresent(metadata, OFFSET_DATE_TIME, temporalDataNotAvailable.getOffsetDateTime());
