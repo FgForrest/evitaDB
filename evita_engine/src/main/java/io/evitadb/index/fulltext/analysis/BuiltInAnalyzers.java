@@ -25,6 +25,7 @@
 package io.evitadb.index.fulltext.analysis;
 
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.utils.CollectionUtils;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -51,6 +52,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -163,17 +165,33 @@ public class BuiltInAnalyzers {
 	 * {@link FulltextAnalyzerRegistry}.
 	 */
 	private static final Map<String, BuiltInAnalyzer> ANALYZERS_BY_NAME = Map.ofEntries(
-		entry(GENERIC_ANALYZER_NAME, allModes(TokenizingAnalyzer::new)),
-		entry(CZECH_ANALYZER_NAME, allModes(() -> new DiacriticsFoldingAnalyzerWrapper(new CzechAnalyzer()))),
-		entry(CZECH_SEARCH_ANALYZER_NAME, searchTime(BuiltInAnalyzers::czechSearchChain)),
-		entry(ENGLISH_ANALYZER_NAME, allModes(EnglishAnalyzer::new)),
-		entry(GERMAN_ANALYZER_NAME, allModes(GermanAnalyzer::new)),
-		entry(POLISH_ANALYZER_NAME, allModes(BuiltInAnalyzers::polishIndexChain)),
-		entry(POLISH_SEARCH_ANALYZER_NAME, searchTime(BuiltInAnalyzers::polishSearchChain)),
-		entry(SLOVAK_ANALYZER_NAME, allModes(BuiltInAnalyzers::slovakIndexChain)),
-		entry(SLOVAK_SEARCH_ANALYZER_NAME, searchTime(BuiltInAnalyzers::slovakSearchChain)),
-		entry(ROMANIAN_ANALYZER_NAME, allModes(BuiltInAnalyzers::romanianIndexChain)),
-		entry(ROMANIAN_SEARCH_ANALYZER_NAME, searchTime(BuiltInAnalyzers::romanianSearchChain))
+		entry(GENERIC_ANALYZER_NAME, allModes(TokenizingAnalyzer::new, null)),
+		entry(
+			CZECH_ANALYZER_NAME,
+			allModes(
+				() -> new DiacriticsFoldingAnalyzerWrapper(new CzechAnalyzer()), CzechAnalyzer::getDefaultStopSet
+			)
+		),
+		entry(
+			CZECH_SEARCH_ANALYZER_NAME,
+			searchTime(BuiltInAnalyzers::czechSearchChain, CzechAnalyzer::getDefaultStopSet)
+		),
+		entry(ENGLISH_ANALYZER_NAME, allModes(EnglishAnalyzer::new, EnglishAnalyzer::getDefaultStopSet)),
+		entry(GERMAN_ANALYZER_NAME, allModes(GermanAnalyzer::new, GermanAnalyzer::getDefaultStopSet)),
+		entry(POLISH_ANALYZER_NAME, allModes(BuiltInAnalyzers::polishIndexChain, () -> PolishStopWords.SET)),
+		entry(
+			POLISH_SEARCH_ANALYZER_NAME, searchTime(BuiltInAnalyzers::polishSearchChain, () -> PolishStopWords.SET)
+		),
+		entry(SLOVAK_ANALYZER_NAME, allModes(BuiltInAnalyzers::slovakIndexChain, null)),
+		entry(SLOVAK_SEARCH_ANALYZER_NAME, searchTime(BuiltInAnalyzers::slovakSearchChain, null)),
+		entry(
+			ROMANIAN_ANALYZER_NAME,
+			allModes(BuiltInAnalyzers::romanianIndexChain, RomanianAnalyzer::getDefaultStopSet)
+		),
+		entry(
+			ROMANIAN_SEARCH_ANALYZER_NAME,
+			searchTime(BuiltInAnalyzers::romanianSearchChain, RomanianAnalyzer::getDefaultStopSet)
+		)
 	);
 
 	/**
@@ -194,6 +212,12 @@ public class BuiltInAnalyzers {
 	 * The assignment a language the table does not know falls back to.
 	 */
 	private static final AnalyzerAssignment GENERIC_ASSIGNMENT = AnalyzerAssignment.uniform(GENERIC_ANALYZER_NAME);
+
+	/**
+	 * The folded stop words of the built-in analyzers asked for so far, keyed by analyzer name - see
+	 * {@link #foldedStopWordsFor(String)}.
+	 */
+	private static final Map<String, Set<String>> FOLDED_STOP_WORDS = CollectionUtils.createConcurrentHashMap(16);
 
 	/**
 	 * Languages already reported as unknown, so that the fallback is logged once per language instead of once
@@ -444,25 +468,85 @@ public class BuiltInAnalyzers {
 	}
 
 	/**
+	 * Returns the stop words the built-in analyzer of the passed name drops, lower-cased and folded to ASCII the way
+	 * {@link #foldStopWord(String)} folds a query word. Built once per name and cached.
+	 *
+	 * The folded form is what lets a query word typed without diacritics be recognized as a stop word the index
+	 * dropped: the stop filters of the `cs`, `pl` and `ro` chains (and German's, before its normalization) run on
+	 * the accented text and their lists hold accented forms only, so the index drops `není` while a query's `neni`
+	 * passes the search chain and then finds nothing.
+	 *
+	 * @param name analyzer name
+	 * @return the folded stop words, empty for an analyzer without a stop filter and for a name that is not built in
+	 */
+	@Nonnull
+	static Set<String> foldedStopWordsFor(@Nonnull String name) {
+		final BuiltInAnalyzer definition = definitionFor(name);
+		if (definition == null || definition.stopWords() == null) {
+			return Set.of();
+		}
+		return FOLDED_STOP_WORDS.computeIfAbsent(name, theName -> foldAll(definition.stopWords().get()));
+	}
+
+	/**
+	 * Lower-cases a word and folds it to ASCII with {@link ASCIIFoldingFilter} - the normalization both sides of a
+	 * folded stop-word comparison go through.
+	 *
+	 * @param word the word, typically a query word's surface form
+	 * @return the folded word
+	 */
+	@Nonnull
+	static String foldStopWord(@Nonnull String word) {
+		final char[] lowerCased = word.toLowerCase(Locale.ROOT).toCharArray();
+		// folding expands a character into at most four - the bound ASCIIFoldingFilter itself allocates for
+		final char[] folded = new char[lowerCased.length * 4];
+		final int length = ASCIIFoldingFilter.foldToASCII(lowerCased, 0, folded, 0, lowerCased.length);
+		return new String(folded, 0, length);
+	}
+
+	/**
+	 * Folds every word of a stop set.
+	 *
+	 * @param stopWords the stop set of a chain
+	 * @return the folded words, unmodifiable
+	 */
+	@Nonnull
+	private static Set<String> foldAll(@Nonnull CharArraySet stopWords) {
+		final Set<String> folded = CollectionUtils.createHashSet(stopWords.size());
+		for (Object stopWord : stopWords) {
+			folded.add(foldStopWord(stopWord instanceof char[] chars ? new String(chars) : stopWord.toString()));
+		}
+		return Collections.unmodifiableSet(folded);
+	}
+
+	/**
 	 * Wraps a factory as a built-in usable on both sides of the pipeline.
 	 *
-	 * @param factory builds the Lucene chain
+	 * @param factory   builds the Lucene chain
+	 * @param stopWords supplies the stop set the chain drops, null when it has no stop filter
 	 * @return the declaration
 	 */
 	@Nonnull
-	private static BuiltInAnalyzer allModes(@Nonnull Supplier<Analyzer> factory) {
-		return new BuiltInAnalyzer(AnalysisMode.ALL, factory);
+	private static BuiltInAnalyzer allModes(
+		@Nonnull Supplier<Analyzer> factory,
+		@Nullable Supplier<CharArraySet> stopWords
+	) {
+		return new BuiltInAnalyzer(AnalysisMode.ALL, factory, stopWords);
 	}
 
 	/**
 	 * Wraps a factory as a built-in usable only while analysing query text.
 	 *
-	 * @param factory builds the Lucene chain
+	 * @param factory   builds the Lucene chain
+	 * @param stopWords supplies the stop set the chain drops, null when it has no stop filter
 	 * @return the declaration
 	 */
 	@Nonnull
-	private static BuiltInAnalyzer searchTime(@Nonnull Supplier<Analyzer> factory) {
-		return new BuiltInAnalyzer(AnalysisMode.SEARCH_TIME, factory);
+	private static BuiltInAnalyzer searchTime(
+		@Nonnull Supplier<Analyzer> factory,
+		@Nullable Supplier<CharArraySet> stopWords
+	) {
+		return new BuiltInAnalyzer(AnalysisMode.SEARCH_TIME, factory, stopWords);
 	}
 
 	/**
@@ -525,12 +609,15 @@ public class BuiltInAnalyzers {
 	 * What a built-in name resolves to: the side(s) of the pipeline its chain may be used on, and the factory
 	 * able to build that chain.
 	 *
-	 * @param mode    side(s) of the pipeline chains built by `factory` may be used on
-	 * @param factory builds the Lucene chain; called at most once per registry, when the name is first used
+	 * @param mode      side(s) of the pipeline chains built by `factory` may be used on
+	 * @param factory   builds the Lucene chain; called at most once per registry, when the name is first used
+	 * @param stopWords supplies the stop set the chain drops, the very set its stop filter reads; null when the
+	 *                  chain has no stop filter. A supplier, so that declaring it loads no list.
 	 */
 	record BuiltInAnalyzer(
 		@Nonnull AnalysisMode mode,
-		@Nonnull Supplier<Analyzer> factory
+		@Nonnull Supplier<Analyzer> factory,
+		@Nullable Supplier<CharArraySet> stopWords
 	) {
 	}
 

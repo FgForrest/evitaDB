@@ -40,6 +40,7 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -127,6 +128,67 @@ class FulltextAnalyzerRegistryTest {
 	@Nonnull
 	private static List<String> terms(@Nonnull FulltextAnalyzer analyzer, @Nonnull String text) {
 		return analyzer.getTerms(text).stream().map(AnalyzedTerm::term).toList();
+	}
+
+	@Nested
+	@DisplayName("Folded stop words")
+	class FoldedStopWords {
+
+		@Test
+		@DisplayName("A Czech stop word typed without diacritics is recognized, an ordinary word is not")
+		void shouldRecognizeCzechStopWordsWithoutDiacritics() {
+			final FulltextAnalyzerRegistry registry = createRegistry();
+			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.CZECH_ANALYZER_NAME, "neni"));
+			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.CZECH_ANALYZER_NAME, "Není"));
+			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.CZECH_ANALYZER_NAME, "JESTE"));
+			// `být` folds into the real word `byt` - which is why the caller checks the index first
+			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.CZECH_ANALYZER_NAME, "byt"));
+			assertFalse(registry.isFoldedStopWord(BuiltInAnalyzers.CZECH_ANALYZER_NAME, "skladem"));
+			final Set<String> stopWords = registry.getFoldedStopWords(BuiltInAnalyzers.CZECH_ANALYZER_NAME);
+			assertTrue(stopWords.contains("neni"));
+			assertFalse(stopWords.contains("není"), "The set holds the folded forms only");
+			// the search-side chain drops the same words
+			assertEquals(stopWords, registry.getFoldedStopWords(BuiltInAnalyzers.CZECH_SEARCH_ANALYZER_NAME));
+		}
+
+		@Test
+		@DisplayName("Polish and Romanian stop words are recognized folded, in both Romanian orthographies")
+		void shouldRecognizePolishAndRomanianStopWords() {
+			final FulltextAnalyzerRegistry registry = createRegistry();
+			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.POLISH_ANALYZER_NAME, "byc"));
+			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.POLISH_ANALYZER_NAME, "juz"));
+			assertFalse(registry.isFoldedStopWord(BuiltInAnalyzers.POLISH_ANALYZER_NAME, "herbata"));
+			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.ROMANIAN_ANALYZER_NAME, "dupa"));
+			// the list is written with cedilla, a modern query with comma below - folding collapses both
+			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.ROMANIAN_ANALYZER_NAME, "și"));
+			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.ROMANIAN_ANALYZER_NAME, "şi"));
+			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.GERMAN_ANALYZER_NAME, "fur"));
+		}
+
+		@Test
+		@DisplayName("A chain without a stop filter and a registered analyzer have no stop words")
+		void shouldHaveNoStopWordsWithoutStopFilter() {
+			final FulltextAnalyzerRegistry registry = createRegistry();
+			registry.register("mine", TokenizingAnalyzer::new);
+			assertTrue(registry.getFoldedStopWords(BuiltInAnalyzers.SLOVAK_ANALYZER_NAME).isEmpty());
+			assertTrue(registry.getFoldedStopWords(BuiltInAnalyzers.GENERIC_ANALYZER_NAME).isEmpty());
+			assertTrue(registry.getFoldedStopWords("mine").isEmpty());
+			assertTrue(registry.getFoldedStopWords("unknown").isEmpty());
+			assertFalse(registry.isFoldedStopWord("mine", "the"));
+		}
+
+		@Test
+		@DisplayName("A closed registry refuses the lookup")
+		void shouldRefuseLookupWhenClosed() {
+			// not remembered for the tear-down, which would close it a second time
+			final FulltextAnalyzerRegistry registry = new FulltextAnalyzerRegistry();
+			registry.close();
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> registry.getFoldedStopWords(BuiltInAnalyzers.CZECH_ANALYZER_NAME)
+			);
+		}
+
 	}
 
 	@Nested

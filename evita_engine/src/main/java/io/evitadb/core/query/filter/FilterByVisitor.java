@@ -56,6 +56,8 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.facet.FacetHavingFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
+import io.evitadb.core.query.algebra.fulltext.FulltextScoreAccessor;
+import io.evitadb.core.query.algebra.fulltext.ReferenceOwnerFulltextScoreAccessor;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
 import io.evitadb.core.query.algebra.prefetch.MultipleEntityFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
@@ -80,6 +82,8 @@ import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyInSetTrans
 import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyLessThanEqualsTranslator;
 import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyLessThanTranslator;
 import io.evitadb.core.query.filter.translator.facet.FacetHavingTranslator;
+import io.evitadb.core.query.filter.translator.fulltext.InFieldTranslator;
+import io.evitadb.core.query.filter.translator.fulltext.TextMatchesTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
 import io.evitadb.core.query.filter.translator.histogram.HistogramHavingTranslator;
@@ -220,6 +224,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		TRANSLATORS.put(UserFilter.class, new UserFilterTranslator());
 		TRANSLATORS.put(FilterInScope.class, new FilterInScopeTranslator());
 		TRANSLATORS.put(EntityScope.class, FilteringConstraintTranslator.noOpTranslator());
+		TRANSLATORS.put(TextMatches.class, new TextMatchesTranslator());
+		TRANSLATORS.put(InField.class, new InFieldTranslator());
 
 		CONJUNCTIVE_FORMULAS = new HashSet<>(16);
 		CONJUNCTIVE_FORMULAS.add(AndFormula.class);
@@ -291,6 +297,13 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 */
 	@Nonnull
 	private final List<ResolvedHistogramHaving> resolvedHistogramHavings = new ArrayList<>(4);
+	/**
+	 * Fulltext score sources of nested `entityHaving` / `groupHaving` queries, carried over to the owners - see
+	 * {@link #registerReferencedFulltextScores}. Per visitor for the same reason as {@link #resolvedHistogramHavings}:
+	 * every alternative plan translates the filter with its own visitor, and its sorter reads its own registry.
+	 */
+	@Nonnull
+	private final List<ReferencedFulltextScores> referencedFulltextScores = new ArrayList<>(2);
 	/**
 	 * True when this visitor translates a filter only to check it against the schemas and its formula is thrown away
 	 * - see {@link #createConstraintCheckVisitor(QueryPlanningContext)}. Such a visitor looks into no index holding
@@ -647,6 +660,45 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 */
 	public void registerResolvedHistogramHaving(@Nonnull ResolvedHistogramHaving entry) {
 		this.resolvedHistogramHavings.add(entry);
+	}
+
+	/**
+	 * Records a fulltext score source of a nested `entityHaving` / `groupHaving` query, answering in the primary-key
+	 * space of the owners this visitor filters. The nested query's formula is never visible in this visitor's filter
+	 * tree, so this is the only way the `relevance()` sorter of the plan learns about it - see
+	 * {@link ReferenceOwnerFulltextScoreAccessor}.
+	 *
+	 * The same nested filter reached through the same reference is recorded once, however many times it is
+	 * translated - a per-index evaluation translates it once per reduced index.
+	 *
+	 * @param referenceName name of the reference the owners reach the targets through
+	 * @param accessor      the score source in the owner primary-key space
+	 */
+	public void registerReferencedFulltextScores(
+		@Nonnull String referenceName,
+		@Nonnull ReferenceOwnerFulltextScoreAccessor accessor
+	) {
+		for (ReferencedFulltextScores registered : this.referencedFulltextScores) {
+			if (registered.accessor().getTargetFilter() == accessor.getTargetFilter() &&
+				registered.referenceName().equals(referenceName)) {
+				return;
+			}
+		}
+		this.referencedFulltextScores.add(new ReferencedFulltextScores(referenceName, accessor));
+	}
+
+	/**
+	 * Returns the fulltext score sources of the nested queries recorded during this visitor's translation pass.
+	 *
+	 * @return the score sources in the owner primary-key space; empty when no nested query searched fulltext
+	 */
+	@Nonnull
+	public List<FulltextScoreAccessor> getReferencedFulltextScores() {
+		final List<FulltextScoreAccessor> result = new ArrayList<>(this.referencedFulltextScores.size());
+		for (ReferencedFulltextScores registered : this.referencedFulltextScores) {
+			result.add(registered.accessor());
+		}
+		return result;
 	}
 
 	/**
@@ -2011,6 +2063,18 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		final FormulaDeduplicator deduplicator = new FormulaDeduplicator(finalFormula);
 		deduplicator.visit(finalFormula);
 		return deduplicator.getPostProcessedFormula();
+	}
+
+	/**
+	 * A fulltext score source of a nested query, with the reference it reaches the owners through.
+	 *
+	 * @param referenceName name of the reference
+	 * @param accessor      the score source in the owner primary-key space
+	 */
+	private record ReferencedFulltextScores(
+		@Nonnull String referenceName,
+		@Nonnull ReferenceOwnerFulltextScoreAccessor accessor
+	) {
 	}
 
 	/**

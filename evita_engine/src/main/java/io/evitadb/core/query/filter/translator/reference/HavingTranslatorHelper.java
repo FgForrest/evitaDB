@@ -39,6 +39,7 @@ import io.evitadb.core.exception.ReferenceComponentNotIndexedException;
 import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.fulltext.ReferenceOwnerFulltextScoreAccessor;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
@@ -707,6 +708,13 @@ public class HavingTranslatorHelper {
 			)
 				.stream()
 				.map(nestedResult -> {
+					if (!ReferencedTypeEntityIndex.class.isAssignableFrom(processingScope.getIndexType())) {
+						// the index-discovery pass only selects candidate indexes - the owner-level answer, and with
+						// it the relevance of the owners, comes from every other branch below
+						registerReferencedFulltextScores(
+							filterByVisitor, entitySchema, referenceSchema, typeLevelIndexType, nestedResult
+						);
+					}
 					if (ReferencedTypeEntityIndex.class.isAssignableFrom(processingScope.getIndexType())) {
 						return switch (typeLevelIndexType) {
 							// In the index-discovery phase (scope holds a ReferencedTypeEntityIndex) the type-level
@@ -880,6 +888,63 @@ public class HavingTranslatorHelper {
 				})
 				.toArray(Formula[]::new)
 		);
+	}
+
+	/**
+	 * Carries the fulltext scores of a nested query over to the owners, when its filter holds a score source: the
+	 * nested formula never stays visible in the owner's filter tree, so the score source is registered on the owner's
+	 * visitor instead - see {@link ReferenceOwnerFulltextScoreAccessor}.
+	 *
+	 * The owners of a target are the owners of its reduced indexes - entity indexes for `entityHaving`, group indexes
+	 * for `groupHaving` - in the scopes being processed now, captured here because the lookup runs only when the
+	 * sorter asks for the scores, long after this processing scope is gone.
+	 *
+	 * The score is the best of the targets an owner references through any row; a row condition beside
+	 * `entityHaving` in the same `referenceHaving` narrows which owners match, not which of their targets score.
+	 *
+	 * @param filterByVisitor    the visitor translating the owner's filter
+	 * @param entitySchema       schema of the owner entity
+	 * @param referenceSchema    the reference the owners reach the targets through
+	 * @param typeLevelIndexType whether the targets are referenced entities or groups
+	 * @param nestedResult       the planned nested query over one target global index
+	 */
+	static void registerReferencedFulltextScores(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull EntityIndexType typeLevelIndexType,
+		@Nonnull GlobalIndexAndFormula nestedResult
+	) {
+		if (nestedResult.globalIndex() == null || filterByVisitor.isConstraintCheckOnly()) {
+			return;
+		}
+		final QueryPlanningContext queryContext = filterByVisitor.getQueryContext();
+		final Scope[] ownerScopes = filterByVisitor.getProcessingScope().getScopes().toArray(Scope[]::new);
+		final boolean groups = typeLevelIndexType == EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE;
+		final ReferenceOwnerFulltextScoreAccessor accessor = ReferenceOwnerFulltextScoreAccessor.create(
+			nestedResult.filter(),
+			targetPrimaryKey -> {
+				final PersistentRoaringBitmap[] owners = Arrays.stream(ownerScopes)
+					.flatMap(
+						scope -> groups ?
+							queryContext.getReducedGroupEntityIndexes(
+								scope, targetPrimaryKey, entitySchema, referenceSchema, (schema, key) -> null
+							) :
+							queryContext.getReducedEntityIndexes(
+								scope, targetPrimaryKey, entitySchema, referenceSchema, (schema, key) -> null
+							)
+					)
+					.map(EntityIndex::getAllPrimaryKeys)
+					.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
+					.toArray(PersistentRoaringBitmap[]::new);
+				final PersistentRoaringBitmap combined = owners.length == 1 ?
+					owners[0] : PersistentRoaringBitmap.or(owners);
+				return combined.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(combined);
+			}
+		);
+		if (accessor != null) {
+			filterByVisitor.registerReferencedFulltextScores(referenceSchema.getName(), accessor);
+		}
 	}
 
 	/**

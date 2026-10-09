@@ -35,6 +35,7 @@ import java.io.Closeable;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
@@ -188,6 +189,46 @@ public class FulltextAnalyzerRegistry implements Closeable {
 			() -> "Analyzer `" + analyzerName + "` a persisted fulltext index was built with is neither a built-in " +
 				"nor a registered analyzer."
 		);
+	}
+
+	/**
+	 * Returns the stop words the analyzer of the passed name drops, lower-cased and folded to ASCII. A built-in
+	 * chain answers the very set its stop filter reads; an analyzer registered at runtime, and a chain without a stop
+	 * filter, answer an empty set - a registered chain is opaque, there is nothing to read its stop set from.
+	 *
+	 * The query side needs this because the stop filters of several built-in index chains run on the accented text
+	 * and hold accented forms only: the index drops `není`, while the query word `neni` passes the search chain
+	 * untouched. Folding both sides recognizes the word as one the index dropped - see
+	 * {@link #isFoldedStopWord(String, String)}.
+	 *
+	 * @param analyzerName name of the analyzer, typically the one a fulltext index was built with
+	 * @return the folded stop words, unmodifiable, never null
+	 * @throws EvitaInvalidUsageException when the registry is closed
+	 */
+	@Nonnull
+	public Set<String> getFoldedStopWords(@Nonnull String analyzerName) {
+		assertNotClosed();
+		// a runtime registration can never shadow a built-in name, so the built-in table answers alone
+		return BuiltInAnalyzers.foldedStopWordsFor(analyzerName);
+	}
+
+	/**
+	 * Returns whether a word, lower-cased and folded to ASCII, is a stop word of the analyzer of the passed name -
+	 * a word that analyzer drops in some spelling, so that its absence from an index the analyzer built says
+	 * nothing about the indexed texts.
+	 *
+	 * Folding loses distinctions, and some are real words: `být` is a Czech stop word while `byt` ("apartment") is
+	 * not. Callers must therefore ask only about a word the index does not know at all - a word with postings is a
+	 * real word whatever its folded form collides with.
+	 *
+	 * @param analyzerName name of the analyzer
+	 * @param word         the word as written, e.g. a query word's surface form
+	 * @return true when its folded form is one of the analyzer's folded stop words
+	 * @throws EvitaInvalidUsageException when the registry is closed
+	 */
+	public boolean isFoldedStopWord(@Nonnull String analyzerName, @Nonnull String word) {
+		final Set<String> stopWords = getFoldedStopWords(analyzerName);
+		return !stopWords.isEmpty() && stopWords.contains(BuiltInAnalyzers.foldStopWord(word));
 	}
 
 	/**

@@ -281,6 +281,39 @@ public final class FulltextPhaseOneScorer {
 	}
 
 	/**
+	 * Selects the top N of candidates scored elsewhere, in the order {@link #score} selects its own: composite
+	 * compared unsigned, best first, ties by ascending primary key. It lets a score source that derives composites
+	 * rather than computing them - the owners of scored referenced entities - rank exactly as the scorer does.
+	 *
+	 * @param candidates     primary keys of the candidates, distinct
+	 * @param composites     the composite of each candidate, parallel to `candidates`; `0` for a candidate not scored
+	 * @param topN           how many entities to return, at least one
+	 * @param postingsWalked the postings the composites were computed from, reported in the result
+	 * @return the selected entities in descending rank order
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when `topN` is not positive or the arrays differ in length
+	 */
+	@Nonnull
+	public static Result selectTopN(
+		@Nonnull int[] candidates,
+		@Nonnull long[] composites,
+		int topN,
+		long postingsWalked
+	) {
+		Assert.isPremiseValid(topN > 0, () -> "The number of results must be positive, " + topN + " was requested!");
+		Assert.isPremiseValid(
+			candidates.length == composites.length,
+			() -> candidates.length + " candidates carry " + composites.length + " composites!"
+		);
+		int matchedDocuments = 0;
+		for (long composite : composites) {
+			if (composite != 0L) {
+				matchedDocuments++;
+			}
+		}
+		return selectTopN(candidates, composites, Math.min(topN, matchedDocuments), matchedDocuments, postingsWalked);
+	}
+
+	/**
 	 * Decides the merge strategy for one expansion. A galloping merge costs one gallop per posting over the average
 	 * gap between hits; a linear merge costs every candidate plus every posting.
 	 *

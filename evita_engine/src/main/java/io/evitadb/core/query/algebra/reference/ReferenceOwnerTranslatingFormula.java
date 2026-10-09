@@ -26,13 +26,16 @@ package io.evitadb.core.query.algebra.reference;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.ChildrenDependentFormula;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.fulltext.FulltextScoreAccessor;
 import io.evitadb.core.query.algebra.deferred.DeferredFormula;
 import io.evitadb.core.query.filter.translator.reference.EntityHavingTranslator;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
 import io.evitadb.utils.Assert;
 import net.openhft.hashing.LongHashFunction;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
@@ -52,7 +55,8 @@ import java.util.function.IntFunction;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
-public class ReferenceOwnerTranslatingFormula extends AbstractFormula implements ChildrenDependentFormula {
+public class ReferenceOwnerTranslatingFormula extends AbstractFormula
+	implements ChildrenDependentFormula, FulltextScoreAccessor {
 	/**
 	 * Unique identifier of this formula used in {@link AbstractFormula#getClassId()} for hash computation.
 	 */
@@ -158,6 +162,27 @@ public class ReferenceOwnerTranslatingFormula extends AbstractFormula implements
 	@Override
 	public String toString() {
 		return "TRANSLATE TO ENTITY PRIMARY KEYS";
+	}
+
+	/**
+	 * Never provides fulltext scores. The inner formula speaks primary keys of another space than this formula's
+	 * result - a fulltext formula of the referenced collection inside it scores referenced entities, not the entities
+	 * this formula yields - so this formula answers the accessor lookup itself and stops a `relevance()` sorter from
+	 * descending into it. The owners' relevance arrives through `ReferenceOwnerFulltextScoreAccessor` instead.
+	 *
+	 * @return always false
+	 */
+	@Override
+	public boolean providesFulltextScores() {
+		return false;
+	}
+
+	@Nonnull
+	@Override
+	public Result getFulltextScores(@Nonnull int[] candidates, int topN) {
+		throw new GenericEvitaInternalError(
+			"Formula `" + getClass().getSimpleName() + "` translates primary keys and provides no fulltext scores!"
+		);
 	}
 
 }
