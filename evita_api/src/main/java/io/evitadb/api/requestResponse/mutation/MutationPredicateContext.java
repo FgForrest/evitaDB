@@ -26,13 +26,13 @@ package io.evitadb.api.requestResponse.mutation;
 import io.evitadb.api.requestResponse.cdc.ChangeCatalogCapture;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
-import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.OptionalInt;
+import java.util.UUID;
 import java.util.function.Supplier;
 
 import static java.util.OptionalInt.of;
@@ -43,9 +43,13 @@ import static java.util.OptionalInt.of;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-@RequiredArgsConstructor
 public class MutationPredicateContext {
 	@Getter private final StreamDirection direction;
+	/**
+	 * Identity of the catalog incarnation whose mutations flow through this context, stamped onto every
+	 * {@link ChangeCatalogCapture} created from it. `null` when the producer of the mutation flow does not know it.
+	 */
+	@Nullable @Getter private final UUID catalogId;
 	@Getter private long version = 0L;
 	@Getter private int index = 0;
 	@Getter private OffsetDateTime timestamp;
@@ -53,6 +57,29 @@ public class MutationPredicateContext {
 	@Nullable private Integer entityPrimaryKey;
 	private int mutationCount = 0;
 	private boolean doAdvance = true;
+
+	/**
+	 * Creates a context for a mutation flow whose catalog incarnation is unknown - the captures created from it
+	 * carry no {@link ChangeCatalogCapture#catalogId()}.
+	 *
+	 * @param direction the direction the mutation flow runs in
+	 */
+	public MutationPredicateContext(@Nonnull StreamDirection direction) {
+		this.direction = direction;
+		this.catalogId = null;
+	}
+
+	/**
+	 * Creates a context for a mutation flow of a single catalog incarnation. The identity is fixed for the lifetime of
+	 * the context, because a mutation flow never crosses incarnations - a replaced catalog closes its flows.
+	 *
+	 * @param direction the direction the mutation flow runs in
+	 * @param catalogId the identity of the catalog incarnation the mutations belong to
+	 */
+	public MutationPredicateContext(@Nonnull StreamDirection direction, @Nullable UUID catalogId) {
+		this.direction = direction;
+		this.catalogId = catalogId;
+	}
 
 	/**
 	 * Returns the last known primary key of the entity. Might reflect current mutation entity or when the mutation is

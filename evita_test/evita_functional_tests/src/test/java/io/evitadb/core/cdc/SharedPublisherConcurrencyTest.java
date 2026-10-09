@@ -149,6 +149,41 @@ class SharedPublisherConcurrencyTest {
 	}
 
 	/**
+	 * Verifies that a facade outliving its change observer is refused a renewed shared publisher. The observer is
+	 * closed together with its catalog when the catalog is replaced, which closes every shared publisher; the facade
+	 * still holds the observer's factory and calls it to renew the retired one on its next subscription. The closed
+	 * observer has no catalog to hand the new publisher, which used to surface as a `NullPointerException`.
+	 */
+	@Test
+	@DisplayName("refuse to renew a shared publisher once the observer has been closed")
+	void shouldRefuseToRenewSharedPublisherAfterObserverClosed() {
+		final CatalogChangeObserver observer = new CatalogChangeObserver(
+			ChangeDataCaptureOptions.builder().build(),
+			new ImmediateExecutorService(),
+			mock(Scheduler.class),
+			createCatalog(15L)
+		);
+		final ChangeCatalogCapturePublisher facade = (ChangeCatalogCapturePublisher) observer.registerObserver(
+			new ChangeCatalogCaptureRequest(null, null, null, ChangeCaptureContent.BODY)
+		);
+		facade.subscribe(new SilentSubscriber<>());
+		final ChangeCatalogCaptureSharedPublisher retiredPublisher = facade.getSharedPublisher();
+
+		observer.close();
+		assertTrue(retiredPublisher.isClosed(), "Closing the observer did not close its shared publisher.");
+
+		assertThrows(
+			InstanceTerminatedException.class,
+			() -> facade.subscribe(new SilentSubscriber<>()),
+			"A facade of a closed observer renewed its shared publisher instead of being refused."
+		);
+		assertEquals(
+			0, observer.getUniquePublishersCount(),
+			"The refused renewal left a shared publisher behind in the closed observer."
+		);
+	}
+
+	/**
 	 * Verifies that the public catalog-publisher overload has released every reentrant hold of its lock before
 	 * invoking subscriber code.
 	 */
@@ -536,6 +571,8 @@ class SharedPublisherConcurrencyTest {
 	private static Catalog createCatalog(long version) {
 		final Catalog catalog = mock(Catalog.class);
 		when(catalog.getName()).thenReturn("sharedPublisherTest");
+		// the shared publisher stamps every capture with the identity of the incarnation it serves
+		when(catalog.getCatalogId()).thenReturn(UUID.nameUUIDFromBytes("sharedPublisherTest".getBytes()));
 		when(catalog.getVersion()).thenReturn(version);
 		return catalog;
 	}

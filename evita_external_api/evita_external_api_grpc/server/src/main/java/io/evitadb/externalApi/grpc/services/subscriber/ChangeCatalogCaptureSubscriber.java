@@ -60,10 +60,28 @@ public class ChangeCatalogCaptureSubscriber
 	 * for backward compatibility. May be null if the client did not report its version.
 	 */
 	private final SemVer clientVersion;
+	/**
+	 * Identity of the catalog incarnation the subscription is registered in - the incarnation every capture of the
+	 * stream belongs to. Sent on the acknowledgement and on every heartbeat, never on a capture, so that the client
+	 * can stamp the captures with it without paying for the value on each of them.
+	 */
+	private final UUID catalogId;
 
+	/**
+	 * Creates a subscriber bridging the catalog change capture publisher to the gRPC stream.
+	 *
+	 * @param scheduler        scheduler running the heartbeat task
+	 * @param catalogName      name of the catalog, used as the owner of the heartbeat task
+	 * @param catalogId        identity of the catalog incarnation the subscription is registered in
+	 * @param responseObserver the gRPC stream to write to
+	 * @param clientVersion    version of the connected client, `null` when it did not report one
+	 * @param versionSupplier  supplier of the catalog version reported by heartbeats, must never throw
+	 * @param serviceContext   the Armeria context of the call
+	 */
 	public ChangeCatalogCaptureSubscriber(
 		@Nonnull Scheduler scheduler,
 		@Nonnull String catalogName,
+		@Nonnull UUID catalogId,
 		@Nonnull ServerCallStreamObserver<GrpcRegisterChangeCatalogCaptureResponse> responseObserver,
 		@Nullable SemVer clientVersion,
 		@Nonnull LongSupplier versionSupplier,
@@ -77,6 +95,7 @@ public class ChangeCatalogCaptureSubscriber
 			versionSupplier,
 			serviceContext
 		);
+		this.catalogId = catalogId;
 		this.clientVersion = clientVersion;
 	}
 
@@ -94,6 +113,7 @@ public class ChangeCatalogCaptureSubscriber
 		return response
 			.setResponseType(GrpcCaptureResponseType.ACKNOWLEDGEMENT)
 			.setHeartBeat(heartBeat)
+			.setCatalogId(toGrpcUuid(this.catalogId))
 			.build();
 	}
 
@@ -121,6 +141,7 @@ public class ChangeCatalogCaptureSubscriber
 		return response
 			.setResponseType(GrpcCaptureResponseType.HEARTBEAT)
 			.setHeartBeat(heartBeat)
+			.setCatalogId(toGrpcUuid(this.catalogId))
 			.build();
 	}
 }

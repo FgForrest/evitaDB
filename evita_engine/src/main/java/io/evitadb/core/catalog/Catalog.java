@@ -199,6 +199,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
@@ -206,6 +207,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
+import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
@@ -1189,6 +1191,38 @@ public final class Catalog
 	}
 
 	/**
+	 * Creates a supplier of the newest version this catalog **incarnation** has reached in the live view - not the
+	 * version of this particular instance, which is an immutable snapshot, and not the version of whatever catalog
+	 * carries this catalog's name later.
+	 *
+	 * The incarnation is followed through its {@link TransactionManager}, which every catalog version derived from
+	 * this one shares and a rename keeps, while a replacement, restore or duplication starts a new one. Once the
+	 * incarnation leaves the live view (it was replaced, removed or the engine shut down), its transaction manager
+	 * forgets the living catalog and the supplier keeps reporting the last version it saw - it never switches to
+	 * another incarnation and never throws, which is what lets the change capture heartbeat call it unguarded.
+	 *
+	 * The supplier deliberately captures the transaction manager, never this instance: a long-lived consumer of it
+	 * (a change capture stream may stay open for days) would otherwise pin this snapshot and everything it
+	 * references in memory, long after the live view has moved on. The transaction manager references only the
+	 * catalog currently living, and nothing once it is closed.
+	 *
+	 * @return the supplier, starting at the version of this instance
+	 */
+	@Nonnull
+	public LongSupplier createLiveVersionSupplier() {
+		final TransactionManager theTransactionManager = this.transactionManager;
+		final AtomicLong lastKnownVersion = new AtomicLong(getVersion());
+		return () -> {
+			final Catalog livingCatalog = theTransactionManager.getLivingCatalog();
+			return livingCatalog == null ?
+				lastKnownVersion.get() :
+				// never reported going backwards - a session may have been bound to a version the live view had
+				// not published yet when the supplier was created
+				lastKnownVersion.accumulateAndGet(livingCatalog.getVersion(), Math::max);
+		};
+	}
+
+	/**
 	 * This method is part of the internal API and allows to move forward the catalog version sequence number in
 	 * transactional context.
 	 *
@@ -1544,6 +1578,9 @@ public final class Catalog
 			getCatalogState() == CatalogState.ALIVE,
 			() -> new CatalogNotAliveException(getInternalSchema().getName())
 		);
+		// the transaction manager verifies the resume position - it is the boundary every registration passes, and it
+		// serves exactly the incarnation `this` belongs to, so the position is judged against that one incarnation
+		// even when the catalog is being replaced concurrently
 		return this.transactionManager.registerObserver(request);
 	}
 

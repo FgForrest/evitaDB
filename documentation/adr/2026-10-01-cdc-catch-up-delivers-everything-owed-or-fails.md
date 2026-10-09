@@ -9,7 +9,7 @@ prs: [1688]
 areas: [evita_store/evita_store_key_value/src/main/java/io/evitadb/store/kryo, evita_store/evita_store_server/src/main/java/io/evitadb/store/wal, evita_store/evita_store_server/src/main/java/io/evitadb/store/engine, evita_engine/src/main/java/io/evitadb/core/cdc, evita_engine/src/main/java/io/evitadb/spi/store]
 supersedes: []
 superseded-by: []
-relates: [2026-09-13-off-record-reads-must-not-restore-an-invalidated-buffer-limit, 2026-08-24-grpc-streaming-backpressure-readiness-gate]
+relates: [2026-09-13-off-record-reads-must-not-restore-an-invalidated-buffer-limit, 2026-08-24-grpc-streaming-backpressure-readiness-gate, 2026-10-08-cdc-resume-position-carries-catalog-identity]
 ---
 
 # A CDC subscriber catching up from the WAL is served everything it is owed or told why not

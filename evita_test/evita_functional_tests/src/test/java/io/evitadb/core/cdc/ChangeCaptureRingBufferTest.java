@@ -40,6 +40,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
 import java.util.Random;
+import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -429,11 +430,17 @@ class ChangeCaptureRingBufferTest {
     }
 
     /**
+     * Identity of the catalog incarnation the captures of the tests belong to - the ring buffer does not interpret it.
+     */
+    private static final UUID CATALOG_ID = UUID.fromString("4b3f2c1d-8e7a-4f6b-9c5d-2a1e0f9b8c7d");
+
+    /**
      * Helper method to create a ChangeCatalogCapture instance.
      */
 	@Nonnull
     private static ChangeCatalogCapture createCapture(long version, int index, String entityType) {
         return new ChangeCatalogCapture(
+            CATALOG_ID,
             version,
             index,
             OffsetDateTime.now(),

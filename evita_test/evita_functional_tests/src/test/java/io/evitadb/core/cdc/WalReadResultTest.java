@@ -23,10 +23,15 @@
 
 package io.evitadb.core.cdc;
 
+import io.evitadb.api.exception.ChangeCaptureResumePositionInvalidException;
+import io.evitadb.api.exception.ChangeCaptureResumePositionInvalidException.Reason;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
+import io.evitadb.core.cdc.WalReadResult.RetentionFailureFactory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+
+import java.util.UUID;
 
 import static io.evitadb.test.TestTags.CDC;
 import static io.evitadb.test.TestTags.ENGINE;
@@ -34,6 +39,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Verifies how a failed read of the write-ahead log on behalf of a lagging change capture subscriber is classified
@@ -55,7 +61,9 @@ class WalReadResultTest {
 	void shouldReportAPositionRemovedDuringTheReadAsTemporalDataNotAvailable() {
 		final RuntimeException readFailure = new IllegalStateException("the read failed");
 
-		final RuntimeException classified = WalReadResult.classifyReadFailure(readFailure, READ_START, () -> 11L);
+		final RuntimeException classified = WalReadResult.classifyReadFailure(
+			readFailure, READ_START, () -> 11L, RetentionFailureFactory.PLAIN
+		);
 
 		final TemporalDataNotAvailableException notAvailable = assertInstanceOf(
 			TemporalDataNotAvailableException.class, classified
@@ -69,8 +77,14 @@ class WalReadResultTest {
 	void shouldRethrowTheReadFailureWhenThePositionIsStillRetained() {
 		final RuntimeException readFailure = new IllegalStateException("the read failed");
 
-		assertSame(readFailure, WalReadResult.classifyReadFailure(readFailure, READ_START, () -> 10L));
-		assertSame(readFailure, WalReadResult.classifyReadFailure(readFailure, READ_START, () -> -1L));
+		assertSame(
+			readFailure,
+			WalReadResult.classifyReadFailure(readFailure, READ_START, () -> 10L, RetentionFailureFactory.PLAIN)
+		);
+		assertSame(
+			readFailure,
+			WalReadResult.classifyReadFailure(readFailure, READ_START, () -> -1L, RetentionFailureFactory.PLAIN)
+		);
 	}
 
 	@Test
@@ -82,7 +96,8 @@ class WalReadResultTest {
 		final RuntimeException classified = WalReadResult.classifyReadFailure(
 			readFailure, READ_START, () -> {
 				throw recheckFailure;
-			}
+			},
+			RetentionFailureFactory.PLAIN
 		);
 
 		assertSame(
@@ -92,6 +107,77 @@ class WalReadResultTest {
 				"re-check that follows it must not take its place."
 		);
 		assertArrayEquals(new Throwable[]{recheckFailure}, readFailure.getSuppressed());
+	}
+
+	@Test
+	@DisplayName("should report a removed position through the factory the publisher passed, before and after a read")
+	void shouldReportARemovedPositionThroughThePassedFactory() {
+		final UUID catalogId = UUID.randomUUID();
+		final RetentionFailureFactory catalogFactory = (position, firstReplayableVersion, cause) -> cause == null ?
+			new ChangeCaptureResumePositionInvalidException(
+				Reason.OUTSIDE_RETENTION, catalogId, 20L, firstReplayableVersion,
+				null, position.version(), position.index()
+			) :
+			new ChangeCaptureResumePositionInvalidException(
+				Reason.OUTSIDE_RETENTION, catalogId, 20L, firstReplayableVersion,
+				null, position.version(), position.index(), cause
+			);
+
+		final ChangeCaptureResumePositionInvalidException beforeRead = assertThrows(
+			ChangeCaptureResumePositionInvalidException.class,
+			() -> WalReadResult.assertPositionRetained(READ_START, 11L, catalogFactory)
+		);
+		assertEquals(11L, beforeRead.getCatalogVersion());
+		assertEquals(10L, beforeRead.getRequestedSinceVersion());
+		assertEquals(catalogId, beforeRead.getCatalogId());
+
+		final RuntimeException readFailure = new IllegalStateException("the read failed");
+		readFailure.addSuppressed(new IllegalStateException("closing the reader failed"));
+		final ChangeCaptureResumePositionInvalidException afterRead = assertInstanceOf(
+			ChangeCaptureResumePositionInvalidException.class,
+			WalReadResult.classifyReadFailure(readFailure, READ_START, () -> 11L, catalogFactory)
+		);
+		assertEquals(11L, afterRead.getCatalogVersion());
+		assertSame(readFailure, afterRead.getCause(), "The read failure and what it carries must stay attached.");
+		assertEquals(1, afterRead.getCause().getSuppressed().length);
+	}
+
+	@Test
+	@DisplayName("should let a retained position pass and report a removed one as the plain exception by default")
+	void shouldLetARetainedPositionPassAndReportARemovedOneAsThePlainException() {
+		WalReadResult.assertPositionRetained(READ_START, 10L, RetentionFailureFactory.PLAIN);
+		WalReadResult.assertPositionRetained(READ_START, -1L, RetentionFailureFactory.PLAIN);
+
+		final TemporalDataNotAvailableException notAvailable = assertThrows(
+			TemporalDataNotAvailableException.class,
+			() -> WalReadResult.assertPositionRetained(READ_START, 11L, RetentionFailureFactory.PLAIN)
+		);
+		assertEquals(
+			TemporalDataNotAvailableException.class, notAvailable.getClass(),
+			"A stream that belongs to no catalog incarnation has no identity to report."
+		);
+		assertEquals(11L, notAvailable.getCatalogVersion());
+	}
+
+	@Test
+	@DisplayName("should never report a position below the sentinel of a WAL that has not lost a file as removed")
+	void shouldNeverReportAPositionBelowTheNeverLostAFileSentinelAsRemoved() {
+		// `-1` is not a version but a WAL that never lost a file - nothing can have been removed below it
+		final WalPointer belowSentinel = new WalPointer(-5L, 0);
+		WalReadResult.assertPositionRetained(belowSentinel, -1L, RetentionFailureFactory.PLAIN);
+
+		final RuntimeException readFailure = new IllegalStateException("the read failed");
+		assertSame(
+			readFailure,
+			WalReadResult.classifyReadFailure(readFailure, belowSentinel, () -> -1L, RetentionFailureFactory.PLAIN),
+			"A WAL that never lost a file cannot have removed the position - the read failure is the answer."
+		);
+
+		// a real retention floor still refuses the very same position
+		assertThrows(
+			TemporalDataNotAvailableException.class,
+			() -> WalReadResult.assertPositionRetained(belowSentinel, 0L, RetentionFailureFactory.PLAIN)
+		);
 	}
 
 }

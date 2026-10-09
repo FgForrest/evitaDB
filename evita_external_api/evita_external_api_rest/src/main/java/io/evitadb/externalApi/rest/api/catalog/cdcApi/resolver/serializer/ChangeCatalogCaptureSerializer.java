@@ -83,11 +83,12 @@ public class ChangeCatalogCaptureSerializer {
 	public ObjectNode serialize(@Nonnull ChangeCatalogCapture capture) {
 		final ObjectNode rootNode = this.objectJsonSerializer.objectNode();
 
+		rootNode.putIfAbsent(ChangeCatalogCaptureDescriptor.CATALOG_ID.name(), capture.catalogId() != null ? this.objectJsonSerializer.serializeObject(capture.catalogId()) : null);
 		rootNode.putIfAbsent(ChangeCatalogCaptureDescriptor.VERSION.name(), this.objectJsonSerializer.serializeObject(capture.version()));
 		rootNode.putIfAbsent(ChangeCatalogCaptureDescriptor.INDEX.name(), this.objectJsonSerializer.serializeObject(capture.index()));
 		rootNode.putIfAbsent(ChangeCatalogCaptureDescriptor.AREA.name(), this.objectJsonSerializer.serializeObject(capture.area()));
 		rootNode.putIfAbsent(ChangeCatalogCaptureDescriptor.ENTITY_TYPE.name(), capture.entityType() != null ? this.objectJsonSerializer.serializeObject(capture.entityType()) : null);
-		rootNode.putIfAbsent(ChangeCatalogCaptureDescriptor.ENTITY_TYPE.name(), capture.entityPrimaryKey() != null ? this.objectJsonSerializer.serializeObject(capture.entityPrimaryKey()) : null);
+		rootNode.putIfAbsent(ChangeCatalogCaptureDescriptor.ENTITY_PRIMARY_KEY.name(), capture.entityPrimaryKey() != null ? this.objectJsonSerializer.serializeObject(capture.entityPrimaryKey()) : null);
 		rootNode.putIfAbsent(ChangeCatalogCaptureDescriptor.OPERATION.name(), this.objectJsonSerializer.serializeObject(capture.operation()));
 
 		final CatalogBoundMutation body = capture.body();

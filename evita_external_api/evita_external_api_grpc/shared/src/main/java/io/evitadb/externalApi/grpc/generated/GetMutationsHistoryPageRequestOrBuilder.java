@@ -356,4 +356,49 @@ public interface GetMutationsHistoryPageRequestOrBuilder extends
    * @return The content.
    */
   io.evitadb.externalApi.grpc.generated.GrpcChangeCaptureContent getContent();
+
+  /**
+   * <pre>
+   * Identity of the catalog incarnation the traversal's anchor (`sinceVersion`/`sinceIndex`) was recorded on -
+   * the `catalogId` a client stored together with a position it took from an earlier page or capture. Catalog
+   * versions mean something only within one incarnation: replacing, restoring or duplicating a catalog starts
+   * a different version sequence under the same name. When set and the session's catalog is a different
+   * incarnation, the call fails with `ChangeCaptureResumePositionInvalidException` (reason
+   * `DIFFERENT_INCARNATION`) instead of reading an unrelated version sequence. If unset, no identity is
+   * checked - the request is served from whatever catalog currently carries the session's catalog name.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 8;</code>
+   * @return Whether the catalogId field is set.
+   */
+  boolean hasCatalogId();
+  /**
+   * <pre>
+   * Identity of the catalog incarnation the traversal's anchor (`sinceVersion`/`sinceIndex`) was recorded on -
+   * the `catalogId` a client stored together with a position it took from an earlier page or capture. Catalog
+   * versions mean something only within one incarnation: replacing, restoring or duplicating a catalog starts
+   * a different version sequence under the same name. When set and the session's catalog is a different
+   * incarnation, the call fails with `ChangeCaptureResumePositionInvalidException` (reason
+   * `DIFFERENT_INCARNATION`) instead of reading an unrelated version sequence. If unset, no identity is
+   * checked - the request is served from whatever catalog currently carries the session's catalog name.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 8;</code>
+   * @return The catalogId.
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcUuid getCatalogId();
+  /**
+   * <pre>
+   * Identity of the catalog incarnation the traversal's anchor (`sinceVersion`/`sinceIndex`) was recorded on -
+   * the `catalogId` a client stored together with a position it took from an earlier page or capture. Catalog
+   * versions mean something only within one incarnation: replacing, restoring or duplicating a catalog starts
+   * a different version sequence under the same name. When set and the session's catalog is a different
+   * incarnation, the call fails with `ChangeCaptureResumePositionInvalidException` (reason
+   * `DIFFERENT_INCARNATION`) instead of reading an unrelated version sequence. If unset, no identity is
+   * checked - the request is served from whatever catalog currently carries the session's catalog name.
+   * </pre>
+   *
+   * <code>.io.evitadb.externalApi.grpc.generated.GrpcUuid catalogId = 8;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcUuidOrBuilder getCatalogIdOrBuilder();
 }

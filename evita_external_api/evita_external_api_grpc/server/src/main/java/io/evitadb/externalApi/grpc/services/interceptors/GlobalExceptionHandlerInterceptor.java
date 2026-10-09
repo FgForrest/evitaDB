@@ -30,6 +30,7 @@ import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.externalApi.grpc.exception.ClosedGrpcStreamException;
 import io.evitadb.externalApi.grpc.exception.StalledGrpcStreamException;
+import io.evitadb.externalApi.grpc.requestResponse.ErrorInfoConverter;
 import io.evitadb.utils.ExceptionUtils;
 import io.grpc.ForwardingServerCallListener;
 import io.grpc.Metadata;
@@ -62,6 +63,11 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 	/**
 	 * Method sends error to the client side using provided response observer the same way as it would if the exception
 	 * would be thrown directly in the service implementation and handled by the interceptor.
+	 *
+	 * Every path that terminates a call with an exception goes through here or through the interceptor itself, so
+	 * that the client always receives the same status code, error code and {@link ErrorInfo} detail for the same
+	 * exception - regardless of whether it was raised synchronously by the service method or delivered later to an
+	 * asynchronous stream (a change capture subscription, for example).
 	 *
 	 * @param exception exception that occurred
 	 * @param responseObserver response observer to send the error to
@@ -106,9 +112,12 @@ public class GlobalExceptionHandlerInterceptor implements ServerInterceptor {
 				log.debug("Invalid usage exception gRPC call: " + exception.getMessage(), exception);
 			}
 
+			// the metadata carries the fields of the exceptions a client can rebuild as themselves - empty for all
+			// others, which travel as error code and message only
 			final ErrorInfo errorInfo = ErrorInfo.newBuilder()
 				.setReason(invalidUsageException.getErrorCode() + ": " + invalidUsageException.getPublicMessage())
 				.setDomain(invalidUsageException.getClass().getSimpleName())
+				.putAllMetadata(ErrorInfoConverter.toErrorInfoMetadata(invalidUsageException))
 				.build();
 
 			rpcStatus = com.google.rpc.Status.newBuilder()
