@@ -822,6 +822,35 @@ final class DifferentialEngines implements AutoCloseable {
 		return snapshot.lines();
 	}
 
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Reduces the committed state of any catalog of an engine - not only the one the engines host - to the query-level
+	 * lines of the comparison (see {@link #describeQueries}), every collection in every scope. Each line runs with the
+	 * read switch of the catalog itself: a catalog representing its single-owner partitions virtually reads them
+	 * virtually, any other one reads its index objects. Two catalogs holding the same data must have equal lines,
+	 * whatever their representations.
+	 *
+	 * @param evita       the engine
+	 * @param catalogName the catalog
+	 * @return the lines, sorted by path
+	 */
+	@Nonnull
+	static SortedMap<String, String> describeQueriesOf(@Nonnull Evita evita, @Nonnull String catalogName) {
+		return evita.queryCatalog(
+			catalogName,
+			(Function<EvitaSessionContract, SortedMap<String, String>>) session -> {
+				final Snapshot snapshot = new Snapshot();
+				for (final String entityType : new TreeSet<>(session.getAllEntityTypes())) {
+					final EntitySchemaContract schema = session.getEntitySchemaOrThrowException(entityType);
+					for (final Scope scope : Scope.values()) {
+						describeQueries(snapshot, session, schema, scope, ReadRouteActivation.OFF);
+					}
+				}
+				return snapshot.lines();
+			}
+		);
+	}
+
 	/**
 	 * Returns the engine with the switch off.
 	 *

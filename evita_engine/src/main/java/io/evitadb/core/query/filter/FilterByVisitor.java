@@ -24,6 +24,7 @@
 package io.evitadb.core.query.filter;
 
 import io.evitadb.api.exception.ReferenceNotFoundException;
+import io.evitadb.api.exception.ReferencePartitionReindexRequiredException;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.ConstraintLeaf;
@@ -119,6 +120,7 @@ import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.index.mutation.local.VirtualReferencePartitionWriter;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.AccessLevel;
@@ -136,6 +138,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -1048,8 +1051,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 
 		final IntFunction<ReferencePartition> partitionAccessor;
 		if (this.getSchema().getName().equals(entitySchema.getName())) {
-			// the queried collection - its index snapshot, strictly
-			partitionAccessor = this::resolvePartition;
+			// the queried collection - its index snapshot, leniently; a miss is caught by `resolve`
+			partitionAccessor = this::resolvePartitionIfExists;
 		} else {
 			// another collection - its live indexes (dirty buffer first), leniently; a miss is caught by `resolve`
 			final EntityCollection targetCollection = getEntityCollectionOrThrowException(
@@ -1066,8 +1069,21 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		final QueryPlanningContext theQueryContext = this.queryContext;
 		final Function<Bitmap, ReferencePartitionSplit> splitter =
 			candidates -> theQueryContext.splitPartitionsForRead(entityType, referenceName, candidates, scopes);
+		// a candidate without an index object may be a row the reference left in the registry while it was indexed
+		// for filtering only - the registry is consulted only then, so a candidate with an index object costs nothing
+		final IntConsumer missingPartitionGuard = partitionPrimaryKey -> {
+			final ReferencePartitionSplit split = splitter.apply(new BaseBitmap(partitionPrimaryKey));
+			if (split.getVirtualCount() > 0) {
+				final Scope rowScope = split.getVirtualTypeIndex(0).getIndexKey().scope();
+				if (!VirtualReferencePartitionWriter.isShadowed(referenceSchema, rowScope)) {
+					throw ReferencePartitionReindexRequiredException.forQuery(entityType, referenceName, rowScope);
+				}
+			}
+		};
 
-		return new ReducedIndexCandidates(reducedIndexPksFormula.compute(), partitionAccessor, splitter);
+		return new ReducedIndexCandidates(
+			reducedIndexPksFormula.compute(), partitionAccessor, splitter, missingPartitionGuard
+		);
 	}
 
 	/**
@@ -1078,15 +1094,21 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * gets the list discovery would have produced, and {@link #resolveSplit()} reads the registry of the query's own
 	 * snapshot.
 	 *
-	 * @param primaryKeys       primary keys of the candidate reduced indexes
-	 * @param partitionAccessor resolves one candidate primary key into its partition, as an index object
-	 * @param splitter          splits candidate primary keys by representation - see
-	 *                          {@link QueryPlanningContext#splitPartitionsForRead}
+	 * @param primaryKeys           primary keys of the candidate reduced indexes
+	 * @param partitionAccessor     resolves one candidate primary key into its partition, as an index object, `null`
+	 *                              when it has none
+	 * @param splitter              splits candidate primary keys by representation - see
+	 *                              {@link QueryPlanningContext#splitPartitionsForRead}
+	 * @param missingPartitionGuard receives a candidate primary key {@link #resolve()} found no index object for, and
+	 *                              refuses the query with {@link ReferencePartitionReindexRequiredException} when the
+	 *                              candidate is a registry row of a reference indexed for partitioning since the row
+	 *                              was written - a row holds nothing of what that indexing keeps in an index object
 	 */
 	public record ReducedIndexCandidates(
 		@Nonnull Bitmap primaryKeys,
 		@Nonnull IntFunction<ReferencePartition> partitionAccessor,
-		@Nonnull Function<Bitmap, ReferencePartitionSplit> splitter
+		@Nonnull Function<Bitmap, ReferencePartitionSplit> splitter,
+		@Nonnull IntConsumer missingPartitionGuard
 	) {
 
 		/**
@@ -1159,6 +1181,11 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			while (it.hasNext()) {
 				final int partitionPk = it.nextInt();
 				final ReferencePartition partition = this.partitionAccessor.apply(partitionPk);
+				if (partition == null) {
+					// a row of a reference indexed for partitioning since it was written refuses the query, any other
+					// miss is a defect reported below
+					this.missingPartitionGuard.accept(partitionPk);
+				}
 				// supplier, not concatenation - this loop runs once per reduced index, which is once per
 				// referenced entity of the whole collection
 				Assert.isPremiseValid(

@@ -79,6 +79,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.api.query.QueryConstraints.referenceContentAll;
@@ -183,6 +184,10 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 	 * Another category no product of the fixture references.
 	 */
 	private static final int SECOND_FREE_TARGET = 12;
+	/**
+	 * A category and a media the fixture does not create.
+	 */
+	private static final int MISSING_TARGET = REFERENCED_ENTITY_COUNT + 1;
 	/**
 	 * A checkpoint interval that never elapses within a test, so the committed transactions stay in the write-ahead
 	 * log.
@@ -567,6 +572,36 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 		assertNoPartitionObjectOfVirtualReference(theEngines.getMaintaining());
 	}
 
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("a category created after the product referencing it reflects the product's row")
+	void shouldReflectTheRowOfAProductIntoACategoryCreatedAfterIt(CatalogState state) {
+		final DifferentialEngines theEngines = start("reflectedOnCreation", state);
+		theEngines.step(
+			"a new product enters a category that does not exist yet",
+			session -> newProduct(session, NEW_PRODUCT, MISSING_TARGET, false).upsertVia(session)
+		);
+		assertRegistered(theEngines, ENTITY_PRODUCT, Scope.LIVE, category(MISSING_TARGET), NEW_PRODUCT);
+		assertEquals(
+			List.of(), reflectedProductsOf(theEngines.getMaintaining(), MISSING_TARGET),
+			"a category that does not exist reflects nothing"
+		);
+
+		// the new category finds the product it reflects among the owners of the product's partitions of it - the
+		// row of the only one, which has no index object
+		theEngines.step(
+			"the category is created",
+			session -> session.upsertEntity(session.createNewEntity(ENTITY_CATEGORY, MISSING_TARGET))
+		);
+
+		assertEquals(
+			List.of(NEW_PRODUCT), reflectedProductsOf(theEngines.getMaintaining(), MISSING_TARGET),
+			"the new category must reflect the product read out of its row"
+		);
+		assertRegistered(theEngines, ENTITY_CATEGORY, Scope.LIVE, product(NEW_PRODUCT), MISSING_TARGET);
+		assertNoPartitionObjectOfVirtualReference(theEngines.getMaintaining());
+	}
+
 	@Test
 	@DisplayName("the rows written virtually are rebuilt by the replay of the write-ahead log and survive a restart")
 	void shouldReplayTheWriteAheadLogIntoRows() {
@@ -771,6 +806,31 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 			change.accept(builder);
 			builder.upsertVia(session);
 		};
+	}
+
+	/**
+	 * Returns the products a category of the committed catalog of an engine reflects.
+	 *
+	 * @param evita    the engine
+	 * @param category the category
+	 * @return the primary keys of the reflected products, ascending, empty when the category does not exist
+	 */
+	@Nonnull
+	private static List<Integer> reflectedProductsOf(@Nonnull Evita evita, int category) {
+		return evita.queryCatalog(
+			CATALOG,
+			(Function<EvitaSessionContract, List<Integer>>) session -> session.getEntity(
+					ENTITY_CATEGORY, category, referenceContentAll()
+				)
+				.map(
+					entity -> entity.getReferences(REFERENCE_PRODUCTS)
+						.stream()
+						.map(ReferenceContract::getReferencedPrimaryKey)
+						.sorted()
+						.toList()
+				)
+				.orElse(List.of())
+		);
 	}
 
 	/**

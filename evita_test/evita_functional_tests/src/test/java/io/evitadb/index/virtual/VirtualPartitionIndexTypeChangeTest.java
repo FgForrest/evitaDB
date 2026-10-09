@@ -25,10 +25,17 @@ package io.evitadb.index.virtual;
 
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.ReferencePartitionReindexRequiredException;
-import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.expression.ExpressionFactory;
+import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.order.OrderBy;
+import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.require.FacetStatisticsDepth;
+import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -53,8 +60,9 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
-import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.EvitaTestSupport.TestPaths;
+import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.utils.ExceptionUtils;
 import io.evitadb.utils.NumberUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -67,24 +75,48 @@ import org.junit.jupiter.params.provider.MethodSource;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.attributeEquals;
+import static io.evitadb.api.query.QueryConstraints.attributeNatural;
 import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.entityFetch;
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
+import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
+import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyNatural;
+import static io.evitadb.api.query.QueryConstraints.facetSummary;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.fromRoot;
+import static io.evitadb.api.query.QueryConstraints.hierarchyOfReference;
+import static io.evitadb.api.query.QueryConstraints.hierarchyWithin;
+import static io.evitadb.api.query.QueryConstraints.hierarchyWithinRoot;
+import static io.evitadb.api.query.QueryConstraints.orderBy;
+import static io.evitadb.api.query.QueryConstraints.pickFirstByEntityProperty;
+import static io.evitadb.api.query.QueryConstraints.priceInCurrency;
+import static io.evitadb.api.query.QueryConstraints.priceInPriceLists;
+import static io.evitadb.api.query.QueryConstraints.priceNatural;
 import static io.evitadb.api.query.QueryConstraints.referenceContentAll;
+import static io.evitadb.api.query.QueryConstraints.referenceContentWithAttributes;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
+import static io.evitadb.api.query.QueryConstraints.referenceProperty;
+import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
+import static io.evitadb.api.query.QueryConstraints.statistics;
+import static io.evitadb.api.query.QueryConstraints.traverseByEntityProperty;
 import static io.evitadb.index.virtual.DifferentialEngines.CATALOG;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
@@ -173,6 +205,15 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 	 * Another category no product of the fixture references.
 	 */
 	private static final int SECOND_FREE_CATEGORY = 12;
+
+	/**
+	 * The prefix of an answer of a read refused for rows of a reference now indexed for partitioning.
+	 */
+	private static final String READ_REFUSED = "refused for ";
+	/**
+	 * The prefix of an answer of a read that failed otherwise.
+	 */
+	private static final String READ_FAILED = "failed with ";
 
 	@Nullable private Evita evita;
 	@Nullable private TestPaths paths;
@@ -383,9 +424,9 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 
 	@ParameterizedTest(name = "{0}, {1}")
 	@MethodSource("statesAndScopes")
-	@DisplayName("the index objects a reference indexed for partitioning left are read, written, joined and demoted")
+	@DisplayName("the index objects a reference indexed for partitioning left are reloaded, read, written and demoted")
 	void shouldKeepTheIndexObjectsOfTheFormerIndexingWorking(CatalogState state, Scope changedScope) {
-		final Evita theEvita = start("formerObjects", state, true);
+		Evita theEvita = start("formerObjects", state, true);
 		final int owner = ownerIn(changedScope);
 		final int other = otherIn(changedScope);
 		final int mover = moverIn(changedScope);
@@ -396,6 +437,14 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 			referenceSchema(theEvita, ENTITY_PRODUCT, REFERENCE_CATEGORIES).getReferenceIndexType(changedScope)
 		);
 		assertNoRow(theEvita, ENTITY_PRODUCT, changedScope, category(owner));
+
+		// the index objects the former indexing left are what the catalog persisted - a reload brings them back as
+		// index objects, and no row is made of them
+		theEvita = restart(theEvita);
+		assertEquals(partition, assertPartitionObject(theEvita, ENTITY_PRODUCT, changedScope, category(owner), owner));
+		assertNoRow(theEvita, ENTITY_PRODUCT, changedScope, category(owner));
+		assertPartitionObject(theEvita, ENTITY_PRODUCT, changedScope, category(other), other);
+		assertNoRow(theEvita, ENTITY_PRODUCT, changedScope, category(other));
 
 		// read
 		assertEquals(
@@ -434,6 +483,9 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 		update(theEvita, updateProduct(owner, it -> it.removeReference(REFERENCE_CATEGORIES, owner)));
 		assertEquals(partition, assertRow(theEvita, ENTITY_PRODUCT, changedScope, category(owner), other));
 		assertNoPartitionObject(theEvita, ENTITY_PRODUCT, changedScope, category(owner));
+		// the demotion is what the catalog persisted - a reload finds the row and no index object
+		theEvita = restart(theEvita);
+		assertEquals(partition, assertRow(theEvita, ENTITY_PRODUCT, changedScope, category(owner), other));
 
 		// 1 -> 0 of an index object left with its only owner - the object is retired with its owner, and the row it
 		// never had is not registered
@@ -554,6 +606,70 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 		assertRowsAgreeWithBodies(theEvita, Scope.LIVE);
 	}
 
+	@ParameterizedTest(name = "{0}, {1}")
+	@MethodSource("statesAndScopes")
+	@DisplayName("every read of rows of a reference now indexed for partitioning answers as before or fails loudly")
+	void shouldNeverReadARowOfTheFormerIndexingSilentlyWrong(CatalogState state, Scope changedScope) {
+		final Evita theEvita = start("staleRowReads", state, false);
+		update(
+			theEvita,
+			session -> {
+				for (int pk = 1; pk <= PRODUCT_COUNT; pk++) {
+					session.getEntity(ENTITY_CATEGORY, pk, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTRIBUTE_TITLE, "Category " + pk)
+						.upsertVia(session);
+				}
+			}
+		);
+		final int owner = ownerIn(changedScope);
+		final int other = otherIn(changedScope);
+		final int ownerPartition = assertRow(theEvita, ENTITY_PRODUCT, changedScope, category(owner), owner);
+		final int otherPartition = assertRow(theEvita, ENTITY_PRODUCT, changedScope, category(other), other);
+		final SortedMap<String, String> before = readsOfPartitionContent(theEvita, changedScope, owner, other);
+		final List<String> failedBefore = before.entrySet().stream()
+			.filter(it -> it.getValue().startsWith(READ_FAILED))
+			.map(it -> it.getKey() + " = " + it.getValue())
+			.toList();
+		assertTrue(failedBefore.isEmpty(), "every read must answer before the change: " + failedBefore);
+		assertTrue(
+			before.get("product/entityAttribute/filter").contains(String.valueOf(owner)),
+			"the reads must find the owner before the change: " + before
+		);
+
+		changeIndexType(theEvita, ENTITY_PRODUCT, REFERENCE_CATEGORIES, changedScope, true);
+		assertEquals(ownerPartition, assertRow(theEvita, ENTITY_PRODUCT, changedScope, category(owner), owner));
+		assertEquals(otherPartition, assertRow(theEvita, ENTITY_PRODUCT, changedScope, category(other), other));
+
+		// nothing the reads see changed but the index type, so every read answers as before - unless it needs content
+		// only an index object of the partitioning holds, and then it refuses the rows it cannot read
+		final SortedMap<String, String> after = readsOfPartitionContent(theEvita, changedScope, owner, other);
+		final List<String> silentlyWrong = new ArrayList<>(4);
+		for (final Map.Entry<String, String> read : before.entrySet()) {
+			final String afterValue = after.get(read.getKey());
+			if (!read.getValue().equals(afterValue) && !isRefusedAsStale(read.getKey(), afterValue, changedScope)) {
+				silentlyWrong.add(
+					read.getKey() + "\n   before: " + read.getValue() + "\n   after:  " + afterValue
+				);
+			}
+		}
+		if (!silentlyWrong.isEmpty()) {
+			fail(
+				silentlyWrong.size() + " read(s) of rows of a reference now indexed for partitioning answered " +
+					"differently without refusing:\n" + String.join("\n", silentlyWrong)
+			);
+		}
+		// a read planned over the partitions of one target needs the content an index object of the partitioning holds
+		assertTrue(
+			isRefusedAsStale(
+				"product/entityAttribute/filter/oneTarget", after.get("product/entityAttribute/filter/oneTarget"),
+				changedScope
+			),
+			"a read needing the entity attributes of a row must have been refused: " + after
+		);
+	}
+
 	/**
 	 * Defines the schema and the data - see the constants. With `partitioning` the source reference is indexed for
 	 * filtering and partitioning in both scopes, otherwise for filtering only.
@@ -563,9 +679,12 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 	 */
 	private static void setUp(@Nonnull EvitaSessionContract session, boolean partitioning) {
 		session.defineEntitySchema(ENTITY_CATEGORY)
+			.withHierarchyIndexedInScope(Scope.LIVE, Scope.ARCHIVED)
 			.withAttribute(
 				ATTRIBUTE_TITLE, String.class,
-				whichIs -> whichIs.filterableInScope(Scope.LIVE, Scope.ARCHIVED).nullable()
+				whichIs -> whichIs.filterableInScope(Scope.LIVE, Scope.ARCHIVED)
+					.sortableInScope(Scope.LIVE, Scope.ARCHIVED)
+					.nullable()
 			)
 			.updateVia(session);
 		session.defineEntitySchema(ENTITY_PRODUCT)
@@ -574,7 +693,10 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 			.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.unique())
 			.withAttribute(
 				ATTRIBUTE_NAME, String.class,
-				whichIs -> whichIs.localized().filterableInScope(Scope.LIVE, Scope.ARCHIVED).nullable()
+				whichIs -> whichIs.localized()
+					.filterableInScope(Scope.LIVE, Scope.ARCHIVED)
+					.sortableInScope(Scope.LIVE, Scope.ARCHIVED)
+					.nullable()
 			)
 			.withAttribute(ATTRIBUTE_VISIBLE, Boolean.class, whichIs -> whichIs.nullable())
 			.withAttribute(ATTRIBUTE_PINNED, Boolean.class, whichIs -> whichIs.nullable())
@@ -661,11 +783,7 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 	private Evita start(@Nonnull String label, @Nonnull CatalogState state, boolean partitioning) {
 		final TestPaths thePaths = createTestPaths(getClass().getSimpleName() + "_" + label);
 		this.paths = thePaths;
-		final Evita theEvita = new Evita(
-			newTestEvitaConfigurationBuilder(thePaths)
-				.server(ServerOptions.builder().closeSessionsAfterSecondsOfInactivity(-1).build())
-				.build()
-		);
+		final Evita theEvita = new Evita(configuration(thePaths));
 		this.evita = theEvita;
 		theEvita.createCatalogWithVirtualReferencePartitions(CATALOG, true);
 		theEvita.defineCatalog(CATALOG).updateViaNewSession(theEvita);
@@ -679,6 +797,300 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 			"the catalog must write its single-owner partitions virtually"
 		);
 		return theEvita;
+	}
+
+	/**
+	 * Runs every read of the scope whose answer could need content that only an index object of a partition of a
+	 * reference indexed for partitioning holds - entity attributes and prices filtered or sorted within the partitions
+	 * of a target, the facet summary of a target, a reference attribute, the `pickFirst` and the block-by-block
+	 * orderings, the filtered reference content, and the same through the reflected reference of the category - and
+	 * describes the answer of each, or the failure it raised, together with the query lines of the whole catalog (see
+	 * {@link DifferentialEngines#describeQueriesOf}).
+	 *
+	 * @param theEvita the engine
+	 * @param scope    the scope to read
+	 * @param owner    a product of the scope
+	 * @param other    another product of the scope
+	 * @return the answers by the name of the read
+	 */
+	@Nonnull
+	private static SortedMap<String, String> readsOfPartitionContent(
+		@Nonnull Evita theEvita,
+		@Nonnull Scope scope,
+		int owner,
+		int other
+	) {
+		final SortedMap<String, String> answers = new TreeMap<>();
+		final FilterConstraint ofBoth = referenceHaving(REFERENCE_CATEGORIES, entityPrimaryKeyInSet(owner, other));
+		readOwners(
+			answers, theEvita, "product/entityAttribute/filter", ENTITY_PRODUCT,
+			filterBy(
+				scope(scope), entityLocaleEquals(Locale.ENGLISH), ofBoth,
+				attributeEquals(ATTRIBUTE_NAME, "Product " + owner)
+			),
+			null
+		);
+		readOwners(
+			answers, theEvita, "product/entityAttribute/order", ENTITY_PRODUCT,
+			filterBy(scope(scope), entityLocaleEquals(Locale.ENGLISH), ofBoth),
+			orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
+		);
+		final FilterConstraint ofOwner = referenceHaving(REFERENCE_CATEGORIES, entityPrimaryKeyInSet(owner));
+		readOwners(
+			answers, theEvita, "product/entityAttribute/filter/oneTarget", ENTITY_PRODUCT,
+			filterBy(
+				scope(scope), entityLocaleEquals(Locale.ENGLISH), ofOwner,
+				attributeEquals(ATTRIBUTE_NAME, "Product " + owner)
+			),
+			null
+		);
+		readOwners(
+			answers, theEvita, "product/entityAttribute/order/oneTarget", ENTITY_PRODUCT,
+			filterBy(scope(scope), entityLocaleEquals(Locale.ENGLISH), ofOwner),
+			orderBy(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
+		);
+		readOwners(
+			answers, theEvita, "product/price/filter/oneTarget", ENTITY_PRODUCT,
+			filterBy(scope(scope), ofOwner, priceInPriceLists(PRICE_LIST), priceInCurrency(CZK)),
+			null
+		);
+		readOwners(
+			answers, theEvita, "product/hierarchyWithin", ENTITY_PRODUCT,
+			filterBy(scope(scope), hierarchyWithin(REFERENCE_CATEGORIES, entityPrimaryKeyInSet(owner))),
+			null
+		);
+		readOwners(
+			answers, theEvita, "product/hierarchyWithin/entityAttribute", ENTITY_PRODUCT,
+			filterBy(
+				scope(scope), entityLocaleEquals(Locale.ENGLISH),
+				hierarchyWithin(REFERENCE_CATEGORIES, entityPrimaryKeyInSet(owner)),
+				attributeEquals(ATTRIBUTE_NAME, "Product " + owner)
+			),
+			null
+		);
+		readOwners(
+			answers, theEvita, "product/hierarchyWithinRoot", ENTITY_PRODUCT,
+			filterBy(scope(scope), hierarchyWithinRoot(REFERENCE_CATEGORIES)),
+			null
+		);
+		read(
+			answers, theEvita, "product/hierarchyStatistics",
+			session -> session.query(
+				query(
+					collection(ENTITY_PRODUCT),
+					filterBy(scope(scope)),
+					require(
+						hierarchyOfReference(
+							REFERENCE_CATEGORIES,
+							fromRoot(
+								"tree", statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
+							)
+						)
+					)
+				),
+				EntityReference.class
+			).getExtraResults().toString()
+		);
+		readOwners(
+			answers, theEvita, "product/price/filter", ENTITY_PRODUCT,
+			filterBy(scope(scope), ofBoth, priceInPriceLists(PRICE_LIST), priceInCurrency(CZK)),
+			null
+		);
+		readOwners(
+			answers, theEvita, "product/price/order", ENTITY_PRODUCT,
+			filterBy(scope(scope), ofBoth, priceInPriceLists(PRICE_LIST), priceInCurrency(CZK)),
+			orderBy(priceNatural(OrderDirection.DESC))
+		);
+		read(
+			answers, theEvita, "product/facetSummary",
+			session -> session.query(
+				query(
+					collection(ENTITY_PRODUCT),
+					filterBy(scope(scope), referenceHaving(REFERENCE_CATEGORIES, entityPrimaryKeyInSet(owner))),
+					require(facetSummary(FacetStatisticsDepth.COUNTS))
+				),
+				EntityReference.class
+			).getExtraResults().toString()
+		);
+		readOwners(
+			answers, theEvita, "product/referenceAttribute", ENTITY_PRODUCT,
+			filterBy(scope(scope), referenceHaving(REFERENCE_CATEGORIES, attributeEquals(ATTRIBUTE_ORDER, owner))),
+			null
+		);
+		readOwners(
+			answers, theEvita, "product/pickFirst", ENTITY_PRODUCT, filterBy(scope(scope)),
+			orderBy(
+				referenceProperty(
+					REFERENCE_CATEGORIES,
+					pickFirstByEntityProperty(entityPrimaryKeyNatural(OrderDirection.DESC)),
+					attributeNatural(ATTRIBUTE_ORDER, OrderDirection.DESC)
+				)
+			)
+		);
+		readOwners(
+			answers, theEvita, "product/traverse", ENTITY_PRODUCT, filterBy(scope(scope)),
+			orderBy(
+				referenceProperty(
+					REFERENCE_CATEGORIES,
+					traverseByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
+					attributeNatural(ATTRIBUTE_ORDER, OrderDirection.DESC)
+				)
+			)
+		);
+		read(
+			answers, theEvita, "product/referenceContent",
+			session -> session.query(
+				query(
+					collection(ENTITY_PRODUCT),
+					filterBy(scope(scope)),
+					require(
+						entityFetch(
+							referenceContentWithAttributes(
+								REFERENCE_CATEGORIES, filterBy(entityPrimaryKeyInSet(owner, other))
+							)
+						)
+					)
+				),
+				SealedEntity.class
+			).getRecordData().toString()
+		);
+		final FilterConstraint ofBothProducts = referenceHaving(
+			REFERENCE_PRODUCTS, entityPrimaryKeyInSet(owner, other)
+		);
+		readOwners(
+			answers, theEvita, "category/entityAttribute/filter", ENTITY_CATEGORY,
+			filterBy(ofBothProducts, attributeEquals(ATTRIBUTE_TITLE, "Category " + owner)),
+			null
+		);
+		readOwners(
+			answers, theEvita, "category/entityAttribute/order", ENTITY_CATEGORY,
+			filterBy(ofBothProducts), orderBy(attributeNatural(ATTRIBUTE_TITLE, OrderDirection.DESC))
+		);
+		read(answers, "catalog/queryLines", () -> DifferentialEngines.describeQueriesOf(theEvita, CATALOG).toString());
+		return answers;
+	}
+
+	/**
+	 * Runs a query of the primary keys of the entities of a collection and records them, or the failure the query
+	 * raised.
+	 *
+	 * @param answers    the answers to record into
+	 * @param theEvita   the engine
+	 * @param name       the name of the read
+	 * @param entityType the collection
+	 * @param filterBy   the filter
+	 * @param orderBy    the ordering, `null` for none
+	 */
+	private static void readOwners(
+		@Nonnull SortedMap<String, String> answers,
+		@Nonnull Evita theEvita,
+		@Nonnull String name,
+		@Nonnull String entityType,
+		@Nonnull FilterBy filterBy,
+		@Nullable OrderBy orderBy
+	) {
+		read(
+			answers, theEvita, name,
+			session -> session.query(
+				orderBy == null ?
+					query(collection(entityType), filterBy) : query(collection(entityType), filterBy, orderBy),
+				EntityReference.class
+			).getRecordData().stream().map(EntityReference::getPrimaryKey).toList().toString()
+		);
+	}
+
+	/**
+	 * Runs a read in a read-only session and records its answer, or the failure it raised - a refusal to read rows of
+	 * a reference now indexed for partitioning as {@link #READ_REFUSED} with the entity type, the reference and the
+	 * scope the refusal names, any other failure as {@link #READ_FAILED} with its type and message.
+	 *
+	 * @param answers  the answers to record into
+	 * @param theEvita the engine
+	 * @param name     the name of the read
+	 * @param read     the read, describing its answer
+	 */
+	private static void read(
+		@Nonnull SortedMap<String, String> answers,
+		@Nonnull Evita theEvita,
+		@Nonnull String name,
+		@Nonnull Function<EvitaSessionContract, String> read
+	) {
+		read(answers, name, () -> theEvita.queryCatalog(CATALOG, read));
+	}
+
+	/**
+	 * Runs a read and records its answer, or the failure it raised - see
+	 * {@link #read(SortedMap, Evita, String, Function)}.
+	 *
+	 * @param answers the answers to record into
+	 * @param name    the name of the read
+	 * @param read    the read, describing its answer
+	 */
+	private static void read(
+		@Nonnull SortedMap<String, String> answers,
+		@Nonnull String name,
+		@Nonnull Supplier<String> read
+	) {
+		String answer;
+		try {
+			answer = read.get();
+		} catch (RuntimeException ex) {
+			final ReferencePartitionReindexRequiredException refusal =
+				ExceptionUtils.findInCauseChain(ex, ReferencePartitionReindexRequiredException.class);
+			answer = refusal == null ?
+				READ_FAILED + ex.getClass().getSimpleName() + ": " + ex.getMessage() :
+				READ_REFUSED + refusal.getEntityType() + "/" + refusal.getReferenceName() + "/" + refusal.getScope();
+		}
+		answers.put(name, answer);
+	}
+
+	/**
+	 * Returns TRUE when a read was refused for the rows of the reference whose index type changed - the product's
+	 * category reference, or the category's reflection of it, in the changed scope.
+	 *
+	 * @param name   the name of the read
+	 * @param answer the answer recorded for it
+	 * @param scope  the scope whose index type changed
+	 * @return TRUE for a refusal naming the reference the read reads
+	 */
+	private static boolean isRefusedAsStale(@Nonnull String name, @Nullable String answer, @Nonnull Scope scope) {
+		if (answer == null || !answer.startsWith(READ_REFUSED)) {
+			return false;
+		}
+		final String refused = answer.substring(READ_REFUSED.length());
+		return refused.equals(ENTITY_PRODUCT + "/" + REFERENCE_CATEGORIES + "/" + scope) ||
+			refused.equals(ENTITY_CATEGORY + "/" + REFERENCE_PRODUCTS + "/" + scope) ||
+			// the query lines read every reference of the catalog
+			(name.startsWith("catalog/") && refused.endsWith("/" + scope));
+	}
+
+	/**
+	 * Builds the configuration of an engine over the given directories.
+	 *
+	 * @param thePaths the directories
+	 * @return the configuration
+	 */
+	@Nonnull
+	private EvitaConfiguration configuration(@Nonnull TestPaths thePaths) {
+		return newTestEvitaConfigurationBuilder(thePaths)
+			.server(ServerOptions.builder().closeSessionsAfterSecondsOfInactivity(-1).build())
+			.build();
+	}
+
+	/**
+	 * Closes the engine and starts a fresh one over the same directories, told nothing about the catalog, and waits
+	 * until it has loaded the catalog.
+	 *
+	 * @param theEvita the engine to close
+	 * @return the restarted engine
+	 */
+	@Nonnull
+	private Evita restart(@Nonnull Evita theEvita) {
+		theEvita.close();
+		final Evita restarted = new Evita(configuration(Objects.requireNonNull(this.paths)));
+		this.evita = restarted;
+		DifferentialEngines.awaitCatalogLoaded(restarted);
+		return restarted;
 	}
 
 	/**

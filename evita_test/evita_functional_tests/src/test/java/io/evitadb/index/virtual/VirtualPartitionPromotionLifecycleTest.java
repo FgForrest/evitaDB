@@ -542,7 +542,7 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 
 	@ParameterizedTest(name = "{0}")
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
-	@DisplayName("a demotion before the remaining owner's locale finalization fills the row the finalization moves")
+	@DisplayName("a demotion before the remaining owner's locale finalization fills the row it moves, kept by a reload")
 	void shouldDemoteBeforeTheLocaleFinalizationOfTheRemainingOwner(CatalogState state) {
 		final DifferentialEngines theEngines = startWith(
 			"demotionFirst", state, Set.of(ENTITY_PRODUCT, ENTITY_CATEGORY),
@@ -583,11 +583,16 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 			"the demotion must have preceded the finalization of the remaining owner"
 		);
 		assertNoPartitionObjectOfVirtualReference(theEngines.getMaintaining());
+
+		// the row the finalization moved is what the catalog persisted - the reload compares it with the twin again
+		theEngines.restart();
+		assertRegisteredUnder(theEngines, ENTITY_PRODUCT, category(SHARED_CATEGORY), REMAINING_OWNER, partition);
+		assertNoPartitionObjectOfVirtualReference(theEngines.getMaintaining());
 	}
 
 	@ParameterizedTest(name = "{0}")
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
-	@DisplayName("a demotion after the remaining owner's locale finalization extracts the values it moved")
+	@DisplayName("a demotion after the remaining owner's locale finalization extracts what it moved, kept by a reload")
 	void shouldDemoteAfterTheLocaleFinalizationOfTheRemainingOwner(CatalogState state) {
 		final DifferentialEngines theEngines = startWith(
 			"demotionLast", state, Set.of(ENTITY_PRODUCT, ENTITY_CATEGORY),
@@ -627,6 +632,11 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 			stages,
 			"the finalization of the remaining owner must have preceded the demotion"
 		);
+		assertNoPartitionObjectOfVirtualReference(theEngines.getMaintaining());
+
+		// the values the demotion extracted are what the catalog persisted - the reload compares them with the twin
+		theEngines.restart();
+		assertRegisteredUnder(theEngines, ENTITY_PRODUCT, category(SHARED_CATEGORY), REMAINING_OWNER, partition);
 		assertNoPartitionObjectOfVirtualReference(theEngines.getMaintaining());
 	}
 
