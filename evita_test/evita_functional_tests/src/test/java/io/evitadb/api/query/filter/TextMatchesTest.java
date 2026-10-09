@@ -64,7 +64,6 @@ class TextMatchesTest {
 		void shouldCreateViaFactoryWithoutFieldRestrictions() {
 			final TextMatches constraint = textMatches("black leather jacket");
 
-			assertNotNull(constraint);
 			assertEquals("black leather jacket", constraint.getText());
 			assertEquals(0, constraint.getChildrenCount());
 		}
@@ -74,7 +73,6 @@ class TextMatchesTest {
 		void shouldCreateViaFactoryWithFieldRestrictions() {
 			final TextMatches constraint = textMatches("jacket", inField("name"), inField("description"));
 
-			assertNotNull(constraint);
 			assertEquals(2, constraint.getChildrenCount());
 		}
 
@@ -83,7 +81,6 @@ class TextMatchesTest {
 		void shouldDropNullFieldRestrictions() {
 			final TextMatches constraint = textMatches("jacket", inField(null), inField("name"));
 
-			assertNotNull(constraint);
 			assertArrayEquals(new InField[]{inField("name")}, constraint.getInFields());
 		}
 

@@ -103,6 +103,31 @@ class ComplexDataObjectAccessTest {
 		return ExpressionFactory.parse(expression).compute(new SingleVariableEvaluationContext("value", ARTICLE));
 	}
 
+	/**
+	 * Evaluates the expression with the passed complex data object bound to `$value`.
+	 *
+	 * @param value      the complex data object
+	 * @param expression the expression
+	 * @return the result
+	 */
+	@Nullable
+	private static Serializable evaluate(@Nonnull ComplexDataObject value, @Nonnull String expression) {
+		return ExpressionFactory.parse(expression).compute(new SingleVariableEvaluationContext("value", value));
+	}
+
+	/**
+	 * Asserts that evaluating the expression over the article fails with a message containing the fragment.
+	 *
+	 * @param fragment   the expected part of the message
+	 * @param expression the expression
+	 */
+	private static void assertMessageContains(@Nonnull String fragment, @Nonnull String expression) {
+		final ExpressionEvaluationException exception = assertThrows(
+			ExpressionEvaluationException.class, () -> evaluate(expression)
+		);
+		assertTrue(exception.getPrivateMessage().contains(fragment), exception.getPrivateMessage());
+	}
+
 	@Nested
 	@DisplayName("Property and element access")
 	class PropertyAndElementAccess {
@@ -136,11 +161,22 @@ class ComplexDataObjectAccessTest {
 		}
 
 		@Test
-		@DisplayName("Reports a shape mismatch as an evaluation error")
-		void shouldReportShapeMismatch() {
-			assertThrows(ExpressionEvaluationException.class, () -> evaluate("$value.blocks[5]"));
-			assertThrows(ExpressionEvaluationException.class, () -> evaluate("$value.blocks['text']"));
-			assertThrows(ExpressionEvaluationException.class, () -> evaluate("$value[0]"));
+		@DisplayName("Refuses an index outside an array node, naming the index")
+		void shouldRefuseIndexOutOfBounds() {
+			assertMessageContains("Index `5` is out of bounds", "$value.blocks[5]");
+			assertMessageContains("Index `-1` is out of bounds", "$value.blocks[-1]");
+		}
+
+		@Test
+		@DisplayName("Refuses a name on an array node, naming the element")
+		void shouldRefuseNameOnArrayNode() {
+			assertMessageContains("Cannot access element `text` by name", "$value.blocks['text']");
+		}
+
+		@Test
+		@DisplayName("Refuses an index on a map node, naming the element")
+		void shouldRefuseIndexOnMapNode() {
+			assertMessageContains("Cannot access element `0` by index", "$value[0]");
 		}
 
 	}
@@ -164,9 +200,7 @@ class ComplexDataObjectAccessTest {
 		@Test
 		@DisplayName("Spreads a map node over its values")
 		void shouldSpreadMapNode() {
-			final Serializable result = evaluate("$value.labels.*[$]");
-			assertTrue(result instanceof Map<?, ?>);
-			assertEquals(Map.of("cs", "Obuv", "en", "Shoes"), result);
+			assertEquals(Map.of("cs", "Obuv", "en", "Shoes"), evaluate("$value.labels.*[$]"));
 		}
 
 		@Test
@@ -189,6 +223,34 @@ class ComplexDataObjectAccessTest {
 			assertEquals(true, evaluate("$value.blocks.any($.caption == 'photo')"));
 			assertEquals(false, evaluate("$value.blocks.all($.caption == 'photo')"));
 			assertEquals(false, evaluate("$value.blocks.none($.text == 'first block')"));
+		}
+
+		@Test
+		@DisplayName("Decides any, all and none over an empty array node by no element")
+		void shouldMatchOverEmptyArrayNode() {
+			final ComplexDataObject empty = new ComplexDataObject(map("blocks", new DataItemArray(new DataItem[0])));
+			assertEquals(false, evaluate(empty, "$value.blocks.any($.text == 'x')"));
+			assertEquals(true, evaluate(empty, "$value.blocks.all($.text == 'x')"));
+			assertEquals(true, evaluate(empty, "$value.blocks.none($.text == 'x')"));
+		}
+
+		@Test
+		@DisplayName("Refuses a predicate that does not evaluate to a boolean")
+		void shouldRefuseNonBooleanPredicate() {
+			assertMessageContains("Predicate must evaluate to boolean", "$value.blocks.any($.text)");
+		}
+
+		@Test
+		@DisplayName("Refuses a predicate method on a map node")
+		void shouldRefusePredicateMethodOnMapNode() {
+			assertMessageContains("Expected an array", "$value.labels.any($ == 'Shoes')");
+		}
+
+		@Test
+		@DisplayName("Refuses an unsupported method and a size with an argument")
+		void shouldRefuseUnsupportedMethodOrArguments() {
+			assertMessageContains("Cannot invoke method `first`", "$value.blocks.first()");
+			assertMessageContains("requires exactly 0 argument(s)", "$value.blocks.size(1)");
 		}
 
 	}

@@ -26,23 +26,34 @@ package io.evitadb.core.query.algebra.reference;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
+import io.evitadb.core.query.algebra.fulltext.FulltextScoreAccessor;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder;
+import io.evitadb.core.query.algebra.utils.visitor.FormulaFinder.LookUp;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.fulltext.FulltextPhaseOneScorer;
+import io.evitadb.index.fulltext.FulltextPhaseOneScorer.Result;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.util.Collection;
+import java.util.List;
 import java.util.function.IntFunction;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.REFERENCE;
@@ -269,6 +280,74 @@ class ReferenceOwnerTranslatingFormulaTest {
 			);
 
 			assertEquals(0, formula.getEstimatedCardinality());
+		}
+	}
+
+	@Nested
+	@DisplayName("Fulltext scores")
+	class FulltextScoresTest {
+
+		@Test
+		@DisplayName("should stop the score lookup and provide no scores even over a scoring inner formula")
+		void shouldStopScoreLookupOverScoringInnerFormula() {
+			final ReferenceOwnerTranslatingFormula formula = createFormula(
+				TRANSACTIONAL_ID, WORST_CARDINALITY,
+				new ScoringFormula(new ArrayBitmap(1, 2)),
+				SIMPLE_EXPANDER
+			);
+
+			final Collection<FulltextScoreAccessor> found =
+				FormulaFinder.find(formula, FulltextScoreAccessor.class, LookUp.SHALLOW);
+
+			assertEquals(List.of(formula), List.copyOf(found));
+			assertFalse(formula.providesFulltextScores());
+		}
+
+		@Test
+		@DisplayName("should refuse a request for scores, naming the formula")
+		void shouldRefuseRequestForScores() {
+			final ReferenceOwnerTranslatingFormula formula = createFormula(
+				TRANSACTIONAL_ID, WORST_CARDINALITY,
+				new ConstantFormula(new ArrayBitmap(1)),
+				SIMPLE_EXPANDER
+			);
+
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> formula.getFulltextScores(new int[]{10}, 1)
+			);
+
+			assertTrue(
+				error.getPrivateMessage().contains(ReferenceOwnerTranslatingFormula.class.getSimpleName()),
+				error.getPrivateMessage()
+			);
+		}
+	}
+
+	/**
+	 * A constant formula that claims to provide fulltext scores, standing for a fulltext formula of the referenced
+	 * collection below the translating formula.
+	 */
+	private static final class ScoringFormula extends ConstantFormula implements FulltextScoreAccessor {
+
+		/**
+		 * Creates the formula over the passed primary keys.
+		 *
+		 * @param delegate the primary keys the formula yields
+		 */
+		ScoringFormula(@Nonnull Bitmap delegate) {
+			super(delegate);
+		}
+
+		@Override
+		public boolean providesFulltextScores() {
+			return true;
+		}
+
+		@Nonnull
+		@Override
+		public Result getFulltextScores(@Nonnull int[] candidates, int topN) {
+			return FulltextPhaseOneScorer.selectTopN(candidates, new long[candidates.length], topN, 0L);
 		}
 	}
 

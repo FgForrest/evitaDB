@@ -63,7 +63,6 @@ class RelevanceTest {
 		void shouldCreateViaFactoryWithoutChildren() {
 			final Relevance constraint = relevance();
 
-			assertNotNull(constraint);
 			assertEquals(0, constraint.getChildrenCount());
 			assertEquals(0, constraint.getArguments().length);
 		}

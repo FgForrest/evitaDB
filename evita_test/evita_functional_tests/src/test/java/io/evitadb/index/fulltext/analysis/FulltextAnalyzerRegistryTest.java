@@ -153,17 +153,47 @@ class FulltextAnalyzerRegistryTest {
 		}
 
 		@Test
-		@DisplayName("Polish and Romanian stop words are recognized folded, in both Romanian orthographies")
-		void shouldRecognizePolishAndRomanianStopWords() {
+		@DisplayName("A Polish stop word typed without diacritics is recognized, an ordinary word is not")
+		void shouldRecognizePolishStopWords() {
 			final FulltextAnalyzerRegistry registry = createRegistry();
 			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.POLISH_ANALYZER_NAME, "byc"));
 			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.POLISH_ANALYZER_NAME, "juz"));
 			assertFalse(registry.isFoldedStopWord(BuiltInAnalyzers.POLISH_ANALYZER_NAME, "herbata"));
+			// the search-side chain drops the same words
+			assertEquals(
+				registry.getFoldedStopWords(BuiltInAnalyzers.POLISH_ANALYZER_NAME),
+				registry.getFoldedStopWords(BuiltInAnalyzers.POLISH_SEARCH_ANALYZER_NAME)
+			);
+		}
+
+		@Test
+		@DisplayName("A Romanian stop word is recognized folded in both orthographies, an ordinary word is not")
+		void shouldRecognizeRomanianStopWordsInBothOrthographies() {
+			final FulltextAnalyzerRegistry registry = createRegistry();
 			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.ROMANIAN_ANALYZER_NAME, "dupa"));
 			// the list is written with cedilla, a modern query with comma below - folding collapses both
 			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.ROMANIAN_ANALYZER_NAME, "și"));
 			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.ROMANIAN_ANALYZER_NAME, "şi"));
+			assertFalse(registry.isFoldedStopWord(BuiltInAnalyzers.ROMANIAN_ANALYZER_NAME, "ceai"));
+			// the search-side chain drops the same words
+			assertEquals(
+				registry.getFoldedStopWords(BuiltInAnalyzers.ROMANIAN_ANALYZER_NAME),
+				registry.getFoldedStopWords(BuiltInAnalyzers.ROMANIAN_SEARCH_ANALYZER_NAME)
+			);
+		}
+
+		@Test
+		@DisplayName("A German stop word typed without an umlaut is recognized, an ordinary word is not")
+		void shouldRecognizeGermanStopWords() {
+			final FulltextAnalyzerRegistry registry = createRegistry();
 			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.GERMAN_ANALYZER_NAME, "fur"));
+			assertTrue(registry.isFoldedStopWord(BuiltInAnalyzers.GERMAN_ANALYZER_NAME, "für"));
+			assertFalse(registry.isFoldedStopWord(BuiltInAnalyzers.GERMAN_ANALYZER_NAME, "tee"));
+			// the search-side chain drops the same words
+			assertEquals(
+				registry.getFoldedStopWords(BuiltInAnalyzers.GERMAN_ANALYZER_NAME),
+				registry.getFoldedStopWords(BuiltInAnalyzers.GERMAN_SEARCH_ANALYZER_NAME)
+			);
 		}
 
 		@Test

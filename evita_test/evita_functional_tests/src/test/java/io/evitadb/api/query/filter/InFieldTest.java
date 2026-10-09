@@ -59,7 +59,6 @@ class InFieldTest {
 		void shouldCreateViaFactory() {
 			final InField constraint = inField("name");
 
-			assertNotNull(constraint);
 			assertEquals("name", constraint.getFieldName());
 		}
 
