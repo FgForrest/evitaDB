@@ -27,6 +27,8 @@ import io.evitadb.api.query.expression.evaluate.SingleVariableEvaluationContext;
 import io.evitadb.api.query.expression.object.accessor.common.DataItemSupport;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.dataType.ComplexDataObject;
+import io.evitadb.dataType.data.DataItem;
+import io.evitadb.dataType.data.DataItemArray;
 import io.evitadb.dataType.expression.Expression;
 import io.evitadb.exception.ExpressionEvaluationException;
 import io.evitadb.utils.CollectionUtils;
@@ -56,9 +58,11 @@ import java.util.concurrent.ConcurrentHashMap;
  *   ({@link AssociatedDataSchemaContract#TEXT_EXPRESSION_VARIABLE}); without an expression it holds no text;
  * - anything else holds no text.
  *
- * The expression result contributes every `String` it holds - directly, as elements of a list, an array or the values
- * of a map (the result of spreading a map), nested collections flattened. Nulls - a missing path, a missing property
- * of one element of a spread - are skipped in both modes.
+ * The expression result contributes every `String` it holds - directly, as elements of a list, an array or an array
+ * node of the complex data object (its elements unwrapped), or as the values of a map (the result of spreading a map),
+ * nested collections flattened. A map node of the complex data object is an object, not a collection, so it holds no
+ * text - `.*[$]` spreads its values. Nulls - a missing path, a missing property of one element of a spread - are
+ * skipped in both modes.
  *
  * **Two modes, picked by who can act** ({@link ExtractionMode}):
  *
@@ -93,18 +97,6 @@ public final class SearchableTextExtractor {
 	private static final String NULL_SPREAD_OPERAND = "Cannot spread operand, operand is null";
 
 	/**
-	 * Extracts the distinct texts of a stored associated data value.
-	 *
-	 * @param value              the stored value
-	 * @param textExpression     the expression selecting the text of a complex data object, or `null`
-	 * @param entityType         the entity type, for the log
-	 * @param associatedDataName the associated data, for the log
-	 * @param mode               how strictly a value that does not fit the expression is treated
-	 * @return the distinct texts in the order they were found, empty when the value holds none
-	 * @throws ExpressionEvaluationException in the {@link ExtractionMode#STRICT} mode, when the expression throws over
-	 *                                       the value or yields a leaf that is not a string
-	 */
-	/**
 	 * How strictly a value that does not fit the expression is treated - see the class documentation.
 	 */
 	public enum ExtractionMode {
@@ -120,6 +112,18 @@ public final class SearchableTextExtractor {
 
 	}
 
+	/**
+	 * Extracts the distinct texts of a stored associated data value.
+	 *
+	 * @param value              the stored value
+	 * @param textExpression     the expression selecting the text of a complex data object, or `null`
+	 * @param entityType         the entity type, for the log
+	 * @param associatedDataName the associated data, for the log
+	 * @param mode               how strictly a value that does not fit the expression is treated
+	 * @return the distinct texts in the order they were found, empty when the value holds none
+	 * @throws ExpressionEvaluationException in the {@link ExtractionMode#STRICT} mode, when the expression throws over
+	 *                                       the value or yields a leaf that is not a string
+	 */
 	@Nonnull
 	public static Set<String> extract(
 		@Nonnull Serializable value,
@@ -138,63 +142,92 @@ public final class SearchableTextExtractor {
 				}
 			}
 		} else if (value instanceof ComplexDataObject complexDataObject && textExpression != null) {
-			final Serializable root = DataItemSupport.unwrap(complexDataObject);
-			if (root != null) {
-				final Serializable result;
-				try {
-					result = textExpression.compute(
-						new SingleVariableEvaluationContext(AssociatedDataSchemaContract.TEXT_EXPRESSION_VARIABLE, root)
-					);
-				} catch (RuntimeException e) {
-					// any failure of the evaluation counts - an engine-initiated path (removal, scope change) must never
-					// fail on a value it did not write, and a client write gets one well-formed error instead of a raw one
-					if (mode == ExtractionMode.STRICT) {
-						// a plain spread over a missing collection throws in EvitaEL - say how to make it optional
-						final String hint = e.getMessage() != null && e.getMessage().contains(NULL_SPREAD_OPERAND) ?
-							" Use `?.*` for an optional collection." : "";
-						throw new ExpressionEvaluationException(
-							"The text expression `" + textExpression.toExpressionString() + "` of searchable " +
-								"associated data `" + associatedDataName + "` of `" + entityType + "` cannot be " +
-								"evaluated over the written value: " + e.getMessage() + hint,
-							"The text expression of searchable associated data `" + associatedDataName +
-								"` cannot be evaluated over the written value.",
-							e
-						);
-					}
-					// the value does not have the shape the expression expects - it selects no text, the write goes on
-					reportOnce(
-						entityType, associatedDataName, "evaluation",
-						"The text expression `{}` of searchable associated data `{}` of `{}` cannot be evaluated " +
-							"over a stored value ({}); such values contribute no searchable text.",
-						textExpression.toExpressionString(), associatedDataName, entityType, e.getMessage()
-					);
-					return texts;
-				}
-				final Object offending = collect(result, texts);
-				if (offending != null && mode == ExtractionMode.STRICT) {
-					throw new ExpressionEvaluationException(
-						"The text expression `" + textExpression.toExpressionString() + "` of searchable associated " +
-							"data `" + associatedDataName + "` of `" + entityType + "` yields a value of type `" +
-							offending.getClass().getName() + "` for the written value - it may yield strings only " +
-							"(missing values and nulls are skipped).",
-						"The text expression of searchable associated data `" + associatedDataName +
-							"` yields a value that is not a string."
-					);
-				} else if (offending != null) {
-					reportOnce(
-						entityType, associatedDataName, "non-string",
-						"The text expression `{}` of searchable associated data `{}` of `{}` yields values that are " +
-							"not strings; they contribute no searchable text.",
-						textExpression.toExpressionString(), associatedDataName, entityType
-					);
-				}
-			}
+			extractFromComplexDataObject(
+				complexDataObject, textExpression, entityType, associatedDataName, mode, texts
+			);
 		}
 		return texts;
 	}
 
 	/**
-	 * Adds every string an expression result holds to `target`, flattening lists, arrays and map values.
+	 * Adds the texts the expression selects from a complex data object to `texts` - see {@link #extract}.
+	 *
+	 * @param complexDataObject  the stored value
+	 * @param textExpression     the expression selecting the text
+	 * @param entityType         the entity type, for the log
+	 * @param associatedDataName the associated data, for the log
+	 * @param mode               how strictly a value that does not fit the expression is treated
+	 * @param texts              the set collecting the texts
+	 * @throws ExpressionEvaluationException in the {@link ExtractionMode#STRICT} mode, when the expression throws over
+	 *                                       the value or yields a leaf that is not a string
+	 */
+	private static void extractFromComplexDataObject(
+		@Nonnull ComplexDataObject complexDataObject,
+		@Nonnull Expression textExpression,
+		@Nonnull String entityType,
+		@Nonnull String associatedDataName,
+		@Nonnull ExtractionMode mode,
+		@Nonnull Set<String> texts
+	) {
+		final Serializable root = DataItemSupport.unwrap(complexDataObject);
+		if (root == null) {
+			return;
+		}
+		final Serializable result;
+		try {
+			result = textExpression.compute(
+				new SingleVariableEvaluationContext(AssociatedDataSchemaContract.TEXT_EXPRESSION_VARIABLE, root)
+			);
+		} catch (RuntimeException e) {
+			// any failure of the evaluation counts - an engine-initiated path (removal, scope change) must never
+			// fail on a value it did not write, and a client write gets one well-formed error instead of a raw one
+			if (mode == ExtractionMode.STRICT) {
+				// a plain spread over a missing collection throws in EvitaEL - say how to make it optional
+				final String hint = e.getMessage() != null && e.getMessage().contains(NULL_SPREAD_OPERAND) ?
+					" Use `?.*` for an optional collection." : "";
+				throw new ExpressionEvaluationException(
+					"The text expression `" + textExpression.toExpressionString() + "` of searchable " +
+						"associated data `" + associatedDataName + "` of `" + entityType + "` cannot be " +
+						"evaluated over the written value: " + e.getMessage() + hint,
+					"The text expression of searchable associated data `" + associatedDataName +
+						"` cannot be evaluated over the written value.",
+					e
+				);
+			}
+			// the value does not have the shape the expression expects - it selects no text, the write goes on
+			reportOnce(
+				entityType, associatedDataName, "evaluation",
+				"The text expression `{}` of searchable associated data `{}` of `{}` cannot be evaluated " +
+					"over a stored value ({}); such values contribute no searchable text.",
+				textExpression.toExpressionString(), associatedDataName, entityType, e.getMessage()
+			);
+			return;
+		}
+		final Object offending = collect(result, texts);
+		if (offending != null) {
+			if (mode == ExtractionMode.STRICT) {
+				throw new ExpressionEvaluationException(
+					"The text expression `" + textExpression.toExpressionString() + "` of searchable associated " +
+						"data `" + associatedDataName + "` of `" + entityType + "` yields a value of type `" +
+						offending.getClass().getName() + "` for the written value - it may yield strings only " +
+						"(missing values and nulls are skipped).",
+					"The text expression of searchable associated data `" + associatedDataName +
+						"` yields a value that is not a string."
+				);
+			}
+			reportOnce(
+				entityType, associatedDataName, "non-string",
+				"The text expression `{}` of searchable associated data `{}` of `{}` yields values that are " +
+					"not strings; they contribute no searchable text.",
+				textExpression.toExpressionString(), associatedDataName, entityType
+			);
+		}
+	}
+
+	/**
+	 * Adds every string an expression result holds to `target`, flattening lists, arrays, array nodes of a complex data
+	 * object and map values. A map node of a complex data object is an object rather than a collection, so it is a
+	 * leaf that is not a string.
 	 *
 	 * @param result the expression result
 	 * @param target the set collecting the texts
@@ -213,6 +246,17 @@ public final class SearchableTextExtractor {
 			return collectAll(Arrays.asList(array), target);
 		} else if (result instanceof Map<?, ?> map) {
 			return collectAll(map.values(), target);
+		} else if (result instanceof DataItemArray array) {
+			// an array node of a complex data object reads as an array of its unwrapped elements - a map node stays
+			// an object, and an object is not text
+			Object offending = null;
+			for (final DataItem child : array.children()) {
+				final Object childOffending = collect(DataItemSupport.unwrap(child), target);
+				if (offending == null) {
+					offending = childOffending;
+				}
+			}
+			return offending;
 		} else {
 			return result;
 		}

@@ -83,6 +83,33 @@ class SearchableTextExtractorTest {
 			"labels", map("cs", new DataItemValue("Obuv"), "en", new DataItemValue("Shoes"))
 		)
 	);
+	/**
+	 * A tagged product: string arrays as a property, inside the elements of an array, two levels deep and nested in
+	 * each other, plus an array holding a number.
+	 */
+	private static final ComplexDataObject TAGGED = new ComplexDataObject(
+		map(
+			"tags", strings("red", "leather", "red"),
+			"blocks", new DataItemArray(
+				new DataItem[]{
+					map("tags", strings("summer", "red")),
+					map("tags", strings("winter")),
+					map("text", new DataItemValue("untagged"))
+				}
+			),
+			"chapters", new DataItemArray(
+				new DataItem[]{
+					map(
+						"sections", new DataItemArray(
+							new DataItem[]{map("tags", strings("deep a")), map("tags", strings("deep b", "deep a"))}
+						)
+					)
+				}
+			),
+			"matrix", new DataItemArray(new DataItem[]{strings("x", "y"), strings("z")}),
+			"codes", new DataItemArray(new DataItem[]{new DataItemValue("A1"), new DataItemValue(7L)})
+		)
+	);
 
 	/**
 	 * Builds a map node of the passed key/value pairs, keeping their order.
@@ -97,6 +124,21 @@ class SearchableTextExtractorTest {
 			children.put((String) keysAndValues[i], (DataItem) keysAndValues[i + 1]);
 		}
 		return new DataItemMap(children);
+	}
+
+	/**
+	 * Builds an array node of string leaves, keeping their order.
+	 *
+	 * @param values the strings
+	 * @return the array node
+	 */
+	@Nonnull
+	private static DataItemArray strings(@Nonnull String... values) {
+		final DataItem[] children = new DataItem[values.length];
+		for (int i = 0; i < values.length; i++) {
+			children[i] = new DataItemValue(values[i]);
+		}
+		return new DataItemArray(children);
 	}
 
 	/**
@@ -192,6 +234,48 @@ class SearchableTextExtractorTest {
 		@DisplayName("a spread over a map contributes its values")
 		void shouldExtractMapSpreadValues() {
 			assertEquals(Set.of("Obuv", "Shoes"), extract(ARTICLE, "$value.labels.*[$]"));
+		}
+
+		@Test
+		@DisplayName("an array node of strings contributes its distinct strings in both modes")
+		void shouldExtractArrayNodeOfStrings() {
+			assertEquals(List.of("red", "leather"), List.copyOf(extract(TAGGED, "$value.tags")));
+			assertEquals(
+				List.of("red", "leather"), List.copyOf(extract(TAGGED, "$value.tags", ExtractionMode.STRICT))
+			);
+		}
+
+		@Test
+		@DisplayName("a spread over array nodes contributes every string of every array in both modes")
+		void shouldExtractSpreadOverArrayNodes() {
+			assertEquals(Set.of("summer", "red", "winter"), extract(TAGGED, "$value.blocks.*[$.tags]"));
+			assertEquals(
+				Set.of("summer", "red", "winter"),
+				extract(TAGGED, "$value.blocks.*[$.tags]", ExtractionMode.STRICT)
+			);
+		}
+
+		@Test
+		@DisplayName("nested spreads over array nodes and array nodes of array nodes are flattened in both modes")
+		void shouldFlattenNestedArrayNodes() {
+			final String nestedSpread = "$value.chapters.*[$.sections.*[$.tags]]";
+			assertEquals(Set.of("deep a", "deep b"), extract(TAGGED, nestedSpread));
+			assertEquals(Set.of("deep a", "deep b"), extract(TAGGED, nestedSpread, ExtractionMode.STRICT));
+			assertEquals(List.of("x", "y", "z"), List.copyOf(extract(TAGGED, "$value.matrix")));
+			assertEquals(List.of("x", "y", "z"), List.copyOf(extract(TAGGED, "$value.matrix", ExtractionMode.STRICT)));
+		}
+
+		@Test
+		@DisplayName("an array node holding a non-string is refused strictly and skipped leniently")
+		void shouldRefuseNonStringInArrayNodeInStrictMode() {
+			assertEquals(Set.of("A1"), extract(TAGGED, "$value.codes"));
+			final ExpressionEvaluationException exception = assertThrows(
+				ExpressionEvaluationException.class,
+				() -> extract(TAGGED, "$value.codes", ExtractionMode.STRICT)
+			);
+			assertTrue(exception.getPrivateMessage().contains("java.lang.Long"), exception.getPrivateMessage());
+			// an array node of objects holds no text - an object is navigated, not read as text
+			assertTrue(extract(TAGGED, "$value.blocks").isEmpty());
 		}
 
 		@Test
