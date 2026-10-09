@@ -268,9 +268,6 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 	}
 
 	/**
-	 * Builds new instance of immutable {@link AssociatedDataSchema} filled with updated configuration.
-	 */
-	/**
 	 * Records a full statement of the searchability axis - the scopes and the text expression together.
 	 *
 	 * @param searchableInScopes the scopes the associated data is searchable in
@@ -303,7 +300,6 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 	 * @return the assembled schema
 	 * @throws InvalidSchemaMutationException when the assembled schema is not consistent
 	 */
-	@Delegate(types = AssociatedDataSchemaContract.class)
 	@Nonnull
 	public AssociatedDataSchemaContract toInstance() {
 		final AssociatedDataSchemaContract instance = assembleInstance();
@@ -322,8 +318,13 @@ public final class AssociatedDataSchemaBuilder implements AssociatedDataSchemaEd
 	 * Assembles the associated data schema from the base schema and the mutations recorded so far, without validating
 	 * it - the builder's own methods read the half-declared state through it.
 	 *
+	 * It also hosts the {@link Delegate} that routes this builder's {@link AssociatedDataSchemaContract} getters, so a
+	 * getter answers what has been declared so far: validating on every read would refuse a declaration that is merely
+	 * unfinished, while {@link #toInstance()} still validates the whole of it.
+	 *
 	 * @return the assembled schema
 	 */
+	@Delegate(types = AssociatedDataSchemaContract.class)
 	@Nonnull
 	private AssociatedDataSchemaContract assembleInstance() {
 		if (this.updatedSchema == null || this.updatedSchemaDirty != MutationImpact.NO_IMPACT) {

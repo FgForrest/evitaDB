@@ -140,6 +140,35 @@ class SearchableAssociatedDataSchemaTest implements EvitaTestSupport {
 			assertEquals(ExpressionFactory.parse("$value.blocks.*[$.text]"), article.getTextExpression());
 		}
 
+		@Test
+		@DisplayName("should answer a getter between two declarations with the state declared so far")
+		void shouldAnswerGettersOfAHalfDeclaredAssociatedData() {
+			final SearchableAssociatedDataSchemaTest test = SearchableAssociatedDataSchemaTest.this;
+			test.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withoutGeneratedPrimaryKey()
+						.withLocale(Locale.ENGLISH)
+						.withAssociatedData(
+							BODY, String.class,
+							whichIs -> {
+								whichIs.searchable();
+								// searchable but not localized yet - a getter reads that state, it does not refuse it
+								assertTrue(whichIs.isSearchable());
+								assertFalse(whichIs.isLocalized());
+								whichIs.localized();
+							}
+						)
+						.updateVia(session);
+				}
+			);
+
+			final AssociatedDataSchemaContract body = test.productSchema().getAssociatedData(BODY).orElseThrow();
+			assertTrue(body.isSearchable());
+			assertTrue(body.isLocalized());
+		}
+
 		@ParameterizedTest(name = "{0}")
 		@MethodSource("io.evitadb.api.functional.schema.SearchableAssociatedDataSchemaTest#unfitDeclarations")
 		@DisplayName("should refuse associated data that cannot be searchable and leave the schema untouched")
