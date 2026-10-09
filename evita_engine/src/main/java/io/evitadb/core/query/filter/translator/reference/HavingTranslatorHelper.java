@@ -708,14 +708,16 @@ public class HavingTranslatorHelper {
 			)
 				.stream()
 				.map(nestedResult -> {
-					if (!ReferencedTypeEntityIndex.class.isAssignableFrom(processingScope.getIndexType())) {
+					final boolean indexDiscovery =
+						ReferencedTypeEntityIndex.class.isAssignableFrom(processingScope.getIndexType());
+					if (!indexDiscovery) {
 						// the index-discovery pass only selects candidate indexes - the owner-level answer, and with
 						// it the relevance of the owners, comes from every other branch below
 						registerReferencedFulltextScores(
 							filterByVisitor, entitySchema, referenceSchema, typeLevelIndexType, nestedResult
 						);
 					}
-					if (ReferencedTypeEntityIndex.class.isAssignableFrom(processingScope.getIndexType())) {
+					if (indexDiscovery) {
 						return switch (typeLevelIndexType) {
 							// In the index-discovery phase (scope holds a ReferencedTypeEntityIndex) the type-level
 							// index is keyed by referenced entity PKs, not group PKs, so it cannot be asked about

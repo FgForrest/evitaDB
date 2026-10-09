@@ -31,6 +31,7 @@ import io.evitadb.dataType.data.DataItemValue;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 
@@ -94,6 +95,17 @@ public final class DataItemSupport {
 		}
 		final DataItem child = map.getProperty(name);
 		return unwrap(child);
+	}
+
+	/**
+	 * Returns the type name of an operand for an error message of an accessor.
+	 *
+	 * @param object the operand
+	 * @return its class name, or `null`
+	 */
+	@Nonnull
+	static String typeName(@Nullable Serializable object) {
+		return object == null ? "null" : object.getClass().getName();
 	}
 
 }

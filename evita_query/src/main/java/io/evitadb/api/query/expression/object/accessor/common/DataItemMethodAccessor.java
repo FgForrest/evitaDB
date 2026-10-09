@@ -91,8 +91,7 @@ public class DataItemMethodAccessor implements ObjectMethodAccessor {
 			return map.getPropertyCount();
 		}
 		throw new ExpressionEvaluationException(
-			"Cannot invoke method `size` on object of type `" +
-				(object == null ? "null" : object.getClass().getName()) +
+			"Cannot invoke method `size` on object of type `" + DataItemSupport.typeName(object) +
 				"`. Expected an array or an object of a complex data object.",
 			"Cannot invoke method `size`."
 		);
@@ -126,7 +125,7 @@ public class DataItemMethodAccessor implements ObjectMethodAccessor {
 		if (!(object instanceof DataItemArray array)) {
 			throw new ExpressionEvaluationException(
 				"Cannot invoke method `" + methodName + "` on object of type `" +
-					(object == null ? "null" : object.getClass().getName()) + "`. Expected an array of a complex " +
+					DataItemSupport.typeName(object) + "`. Expected an array of a complex " +
 					"data object.",
 				"Cannot invoke method `" + methodName + "`. Expected an array."
 			);
@@ -136,8 +135,7 @@ public class DataItemMethodAccessor implements ObjectMethodAccessor {
 			final Serializable result = predicate.compute(context.withThis(DataItemSupport.unwrap(element)));
 			if (!(result instanceof Boolean matches)) {
 				throw new ExpressionEvaluationException(
-					"Predicate must evaluate to boolean, but got " +
-						(result != null ? result.getClass().getName() : "null") + ".",
+					"Predicate must evaluate to boolean, but got " + DataItemSupport.typeName(result) + ".",
 					"Predicate must evaluate to boolean."
 				);
 			}

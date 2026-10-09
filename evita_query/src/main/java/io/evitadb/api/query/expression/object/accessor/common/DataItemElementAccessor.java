@@ -66,7 +66,8 @@ public class DataItemElementAccessor implements ObjectElementAccessor {
 			return DataItemSupport.getChild(map, elementName);
 		}
 		throw new ExpressionEvaluationException(
-			"Cannot access element `" + elementName + "` by name on object of type `" + typeName(navigable) +
+			"Cannot access element `" + elementName + "` by name on object of type `" +
+				DataItemSupport.typeName(navigable) +
 				"`. Expected an object of a complex data object.",
 			"Cannot access element `" + elementName + "` by name."
 		);
@@ -90,21 +91,11 @@ public class DataItemElementAccessor implements ObjectElementAccessor {
 			return DataItemSupport.unwrap(children[elementIndex]);
 		}
 		throw new ExpressionEvaluationException(
-			"Cannot access element `" + elementIndex + "` by index on object of type `" + typeName(navigable) +
+			"Cannot access element `" + elementIndex + "` by index on object of type `" +
+				DataItemSupport.typeName(navigable) +
 				"`. Expected an array of a complex data object.",
 			"Cannot access element `" + elementIndex + "` by index."
 		);
-	}
-
-	/**
-	 * Returns the type name of an operand for an error message.
-	 *
-	 * @param object the operand
-	 * @return its class name, or `null`
-	 */
-	@Nonnull
-	private static String typeName(@Nullable Serializable object) {
-		return object == null ? "null" : object.getClass().getName();
 	}
 
 }

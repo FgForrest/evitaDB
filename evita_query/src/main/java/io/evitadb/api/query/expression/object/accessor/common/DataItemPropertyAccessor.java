@@ -66,7 +66,7 @@ public class DataItemPropertyAccessor implements ObjectPropertyAccessor {
 		}
 		throw new ExpressionEvaluationException(
 			"Cannot access property `" + propertyIdentifier + "` on object of type `" +
-				(navigable == null ? "null" : navigable.getClass().getName()) + "`. Expected an object of a complex " +
+				DataItemSupport.typeName(navigable) + "`. Expected an object of a complex " +
 				"data object.",
 			"Cannot access property `" + propertyIdentifier + "`."
 		);
