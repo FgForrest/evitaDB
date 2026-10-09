@@ -26,6 +26,9 @@ package io.evitadb.index.cardinality;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex.AttributeCardinalityKey;
 import io.evitadb.index.result.CardinalityChange;
+
+import java.io.Serializable;
+import java.math.BigDecimal;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -382,6 +385,63 @@ class AttributeCardinalityIndexTest {
 					assertNull(index.createStoragePart(1, key));
 				}
 			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Raw multiplicity is the counter's job — never fold it")
+	class RawMultiplicity {
+
+		/**
+		 * The guard against "tidying" the array fold into the wrong loop.
+		 *
+		 * `FilterIndex` folds an array onto its DISTINCT index keys, because the bucket axis is a set. The counter
+		 * is the opposite: it exists to know how many times a record reached one key, so it must count every raw
+		 * element. Folding here would leave a count of one where two contributions exist, and the first departure
+		 * would drop a shared entry the second still needs — which is exactly the defect the normalized counter
+		 * key was introduced to repair.
+		 */
+		@Test
+		@DisplayName("two array elements that share one index key must count TWO, not one")
+		void shouldCountEveryCollidingArrayElement() {
+			final AttributeCardinalityIndex index = new AttributeCardinalityIndex(BigDecimal.class);
+			final int record = 1000;
+			// what `ReferencedTypeEntityIndex` does per element of a `BigDecimal[]` at indexedDecimalPlaces 0
+			final Serializable firstKey = index.normalizeKey(new BigDecimal("1.2"), 0);
+			final Serializable secondKey = index.normalizeKey(new BigDecimal("1.4"), 0);
+			assertEquals(firstKey, secondKey, "premise: both elements must canonicalize onto ONE key");
+
+			assertEquals(CardinalityChange.BOUNDARY_CROSSED, index.addRecord(firstKey, record));
+			assertEquals(
+				CardinalityChange.NO_BOUNDARY_CROSSING, index.addRecord(secondKey, record),
+				"the second element is a second contribution to the same key, not a no-op"
+			);
+
+			assertEquals(
+				Integer.valueOf(2), index.getCardinalities().get(new AttributeCardinalityKey(record, firstKey)),
+				"the counter holds RAW multiplicity - a folded counter would say one and drop the shared entry on " +
+					"the first removal"
+			);
+		}
+
+		@Test
+		@DisplayName("only the last of the colliding contributions crosses the boundary back down")
+		void shouldReleaseTheEntryOnlyOnTheLastRemoval() {
+			final AttributeCardinalityIndex index = new AttributeCardinalityIndex(BigDecimal.class);
+			final int record = 1000;
+			final Serializable key = index.normalizeKey(new BigDecimal("1.2"), 0);
+			index.addRecord(key, record);
+			index.addRecord(index.normalizeKey(new BigDecimal("1.4"), 0), record);
+
+			assertEquals(
+				CardinalityChange.NO_BOUNDARY_CROSSING, index.removeRecord(key, record),
+				"one contribution left, so the shared index entry must survive"
+			);
+			assertEquals(
+				CardinalityChange.BOUNDARY_CROSSED, index.removeRecord(key, record),
+				"and only now may the entry be retired"
+			);
+			assertTrue(index.isEmpty());
 		}
 	}
 

@@ -92,9 +92,15 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 	// 2024.5 (and older) is intentionally absent: the type-less 2024.5 filter-index storage format is no longer
 	// supported (its backward-compatible serializer was removed). Such catalogs must be upgraded through an
 	// intermediate 2025.x release first; attempting a direct load now fails fast with StoredVersionNotSupportedException.
+	//
+	// 2026.2 is the one that exercises the storage-protocol 6 -> 7 upgrade: a catalog written by that release is
+	// already at protocol 6 (Migration_2026_2 took it there), so loading it here is the only coverage that actually
+	// runs Migration_2026_3 — which re-keys every persisted AttributeCardinalityIndex onto the canonical form its
+	// value tree keys on, and whose storage part changed serialVersionUID in the same change. The older fixtures
+	// reach protocol 7 too, but by chaining through every earlier step; this one starts adjacent to it.
 	@ParameterizedTest
 	@ValueSource(
-		strings = {"2025.1", "2025.3", "2025.6", "2026.1"}
+		strings = {"2025.1", "2025.3", "2025.6", "2026.1", "2026.2"}
 	)
 	void verifyBackwardCompatibilityTo(String version) throws IOException {
 		final Path targetDirectory = this.mainDirectory.resolve(version);
