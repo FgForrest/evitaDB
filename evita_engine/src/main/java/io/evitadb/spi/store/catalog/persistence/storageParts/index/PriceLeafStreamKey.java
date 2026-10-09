@@ -41,8 +41,9 @@ import java.io.Serializable;
  * and that id must encode the FULL sub-index identity in a single `int` because the other half of the joined `long` PK is
  * consumed by `pageSequence`.
  *
- * The id is obtained by registering this key with the catalog's {@link KeyCompressor}, exactly as the root part already
- * obtains its compressed id from {@link PriceIndexKey} ({@link PriceListAndCurrencyIndexStoragePart#computeUniquePartId}).
+ * The id is obtained by registering this key with the {@link KeyCompressor} of the entity collection whose data store
+ * holds the pages, exactly as the root part already obtains its compressed id from {@link PriceIndexKey}
+ * ({@link PriceListAndCurrencyIndexStoragePart#computeUniquePartId}).
  * The difference is that the root part may spend both 32-bit halves of its PK on identity, so its compressed id need only
  * cover the {@link PriceIndexKey}; a leaf page may not, so its stream id must ALSO fold in the `entityIndexPrimaryKey`.
  * `PriceLeafStreamKey` is therefore `(entityIndexPrimaryKey, {@link PriceIndexKey})`. Unlike the FilterIndex's

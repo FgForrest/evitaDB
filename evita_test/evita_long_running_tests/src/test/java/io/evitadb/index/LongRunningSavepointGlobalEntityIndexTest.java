@@ -130,9 +130,8 @@ class LongRunningSavepointGlobalEntityIndexTest extends AbstractSavepointFuzzTes
 	/**
 	 * A {@link GlobalEntityIndex} paired with an in-test model of its logical content (primary keys, a locale → PK
 	 * mapping and a model of every fulltext index) so randomized mutations can be generated that keep the model and
-	 * index in lockstep. The initial non-empty
-	 * index is seeded outside any transaction; mutations are applied to the index (and mirrored in the model) within the
-	 * framework's transaction.
+	 * index in lockstep. The initial non-empty index is seeded outside any transaction; mutations are applied to the
+	 * index (and mirrored in the model) within the framework's transaction.
 	 */
 	private static final class GlobalState implements FuzzGeneration<GlobalSnapshot> {
 		private static final int MAX_PK = 50;

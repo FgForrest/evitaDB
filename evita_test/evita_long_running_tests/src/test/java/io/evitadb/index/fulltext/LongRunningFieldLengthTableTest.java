@@ -217,7 +217,13 @@ class LongRunningFieldLengthTableTest implements TimeBoundedTestSupport {
 			final int primaryKey = steered
 				? random.nextInt(1 << 16)
 				: LIGHT_BLOCK_BASES[random.nextInt(LIGHT_BLOCK_BASES.length)] + random.nextInt(LIGHT_BLOCK_SPREAD);
-			final boolean remove = steered ? random.nextInt(100) < (growing ? 15 : 85) : random.nextInt(3) == 0;
+			final boolean remove;
+			if (steered) {
+				final int removalPercent = growing ? 15 : 85;
+				remove = random.nextInt(100) < removalPercent;
+			} else {
+				remove = random.nextInt(3) == 0;
+			}
 			if (remove) {
 				// a removal aims at an existing entity when the block has one, or it would mostly miss
 				final Integer existing = steered ? existingSteeredKey(model, primaryKey) : null;

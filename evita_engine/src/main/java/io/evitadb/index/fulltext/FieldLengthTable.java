@@ -508,6 +508,8 @@ public class FieldLengthTable implements TransactionalLayerProducer<FieldLengthT
 			// which come in block order because both walks ascend
 			Arrays.fill(slots, (byte) 0);
 			copyBlockInto(blockKey, slots);
+			// without a layer the override array is empty and the loop would not run anyway; the check states that
+			// where the nullable `layer` is dereferenced
 			if (layer != null) {
 				while (overrideIndex < overriddenKeys.length && overriddenKeys[overrideIndex] >>> 16 == blockKey) {
 					final int primaryKey = overriddenKeys[overrideIndex++];

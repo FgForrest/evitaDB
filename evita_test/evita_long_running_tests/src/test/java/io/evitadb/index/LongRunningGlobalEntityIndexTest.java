@@ -265,8 +265,8 @@ class LongRunningGlobalEntityIndexTest implements TimeBoundedTestSupport {
 	 * Applies a random batch of 1–5 insert/remove operations to `index`, mirroring each into the reference model so the
 	 * two stay in lockstep. Shared by the commit and rollback proofs so both drive the identical random-draw sequence.
 	 *
-	 * @param random           source of randomness
-	 * @param index            the index being mutated
+	 * @param random            source of randomness
+	 * @param index             the index being mutated
 	 * @param referencePks      the reference model for primary keys
 	 * @param referenceLocales  the reference model for locale-to-PK mapping
 	 * @param referenceFulltext the reference model of every fulltext index, by locale
@@ -369,8 +369,8 @@ class LongRunningGlobalEntityIndexTest implements TimeBoundedTestSupport {
 	/**
 	 * Executes a random operation on both the index and the reference model.
 	 *
-	 * @param random           source of randomness
-	 * @param index            the index being tested
+	 * @param random            source of randomness
+	 * @param index             the index being tested
 	 * @param referencePks      the reference model for primary keys
 	 * @param referenceLocales  the reference model for locale-to-PK mapping
 	 * @param referenceFulltext the reference model of every fulltext index, by locale

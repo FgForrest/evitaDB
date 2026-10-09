@@ -5164,15 +5164,14 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 					);
 					assertTrue(scopedText.getAcceleratorsInScope(Scope.ARCHIVED).isEmpty());
 
-					assertTrue(
-						session.getCatalogSchema().getAttribute("searchableGlobalTitle").orElseThrow()
-							.isSearchableInScope(Scope.LIVE)
-					);
-					assertTrue(
-						schema.getReference("marketingBrand").orElseThrow()
-							.getAttribute("label").orElseThrow()
-							.isSearchableInScope(Scope.LIVE)
-					);
+					final AttributeSchemaContract globalTitle = session.getCatalogSchema()
+						.getAttribute("searchableGlobalTitle").orElseThrow();
+					assertTrue(globalTitle.isSearchableInScope(Scope.LIVE));
+					assertFalse(globalTitle.isSearchableInScope(Scope.ARCHIVED));
+					final AttributeSchemaContract label = schema.getReference("marketingBrand").orElseThrow()
+						.getAttribute("label").orElseThrow();
+					assertTrue(label.isSearchableInScope(Scope.LIVE));
+					assertFalse(label.isSearchableInScope(Scope.ARCHIVED));
 				}
 			);
 		}
@@ -5273,12 +5272,13 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 		}
 
 		/**
-		 * Defines the schema from `modelClass` and asserts it is refused - by the analyzer or when the session closes,
-		 * whichever comes first - with an exception whose cause chain carries `expectedMessagePart`.
+		 * Defines the schema from `modelClass` and asserts the analyzer refuses it with a
+		 * {@link SchemaClassInvalidException} whose cause chain carries `expectedMessagePart` - the analyzer's own
+		 * checks and the attribute validation it triggers are both reported that way.
 		 */
 		private void assertRefusedWith(@Nonnull Class<?> modelClass, @Nonnull String expectedMessagePart) {
-			final Throwable thrown = assertThrows(
-				Throwable.class,
+			final SchemaClassInvalidException thrown = assertThrows(
+				SchemaClassInvalidException.class,
 				() -> ClassSchemaAnalyzerTest.this.evita.updateCatalog(
 					TEST_CATALOG,
 					session -> {
