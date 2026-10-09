@@ -26,6 +26,7 @@ package io.evitadb.core.query.filter.translator.fulltext;
 import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.query.filter.InField;
 import io.evitadb.api.query.filter.TextMatches;
+import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -233,8 +234,9 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 					fields.length > 0,
 					() -> new EvitaInvalidUsageException(
 						"Constraint `textMatches` cannot be used on the entity collection `" + entitySchema.getName() +
-							"` in scope `" + scope + "` - the collection declares no attribute searchable there. " +
-							"Make at least one localized String attribute `searchable` in the schema!"
+							"` in scope `" + scope + "` - the collection declares no attribute or associated data " +
+							"searchable there. Make at least one localized String attribute or associated data " +
+							"`searchable` in the schema!"
 					)
 				);
 				result.put(scope, fields);
@@ -271,7 +273,7 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 
 	/**
 	 * Collects every field of the collection that is searchable in the scope: its entity attributes, global ones
-	 * included, and the attributes of each of its references.
+	 * included, the attributes of each of its references, and its associated data.
 	 *
 	 * @param entitySchema schema of the queried collection
 	 * @param scope        the scope
@@ -295,6 +297,11 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 						FulltextFieldKey.referenceAttribute(referenceSchema.getName(), attributeSchema.getName())
 					);
 				}
+			}
+		}
+		for (AssociatedDataSchemaContract associatedDataSchema : entitySchema.getAssociatedData().values()) {
+			if (associatedDataSchema.isSearchableInScope(scope)) {
+				fields.add(FulltextFieldKey.associatedData(associatedDataSchema.getName()));
 			}
 		}
 		return fields.toArray(FulltextFieldKey[]::new);

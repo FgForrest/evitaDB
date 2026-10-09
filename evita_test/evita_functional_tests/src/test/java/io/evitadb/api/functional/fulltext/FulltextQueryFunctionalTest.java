@@ -556,7 +556,7 @@ public class FulltextQueryFunctionalTest {
 							EntityReference.class
 						)
 					);
-					assertTrue(exception.getMessage().contains("no attribute searchable"), exception.getMessage());
+					assertTrue(exception.getMessage().contains("no attribute or associated data searchable"), exception.getMessage());
 					return null;
 				}
 			);

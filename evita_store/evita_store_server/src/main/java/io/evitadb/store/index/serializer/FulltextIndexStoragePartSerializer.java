@@ -45,8 +45,8 @@ import java.util.Locale;
  * written without the paged flag.
  *
  * A field is written as its kind by name - as the stream kind of a {@link FulltextLeafStreamKeySerializer} key is -
- * the reference name (`null` for every kind but a reference attribute), the name, the pivot, the retired flag and
- * the keys of its length blocks.
+ * the reference name (`null` for every kind but a reference attribute), the name, the pivot, the text expression
+ * (`null` for a field whose values are the text), the retired flag and the keys of its length blocks.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -76,6 +76,7 @@ public class FulltextIndexStoragePartSerializer extends Serializer<FulltextIndex
 			output.writeString(key.name());
 			//TODO JNO change it at the end of #258
 			output.writeDouble(field.lengthPivot());
+			output.writeString(field.textExpression());
 			output.writeBoolean(field.retired());
 			final int[] lengthBlocks = field.lengthBlocks();
 			output.writeVarInt(lengthBlocks.length, true);
@@ -103,12 +104,13 @@ public class FulltextIndexStoragePartSerializer extends Serializer<FulltextIndex
 			final String referenceName = input.readString();
 			final FulltextFieldKey key = new FulltextFieldKey(kind, referenceName, input.readString());
 			final double lengthPivot = input.readDouble();
+			final String textExpression = input.readString();
 			final boolean retired = input.readBoolean();
 			final int[] lengthBlocks = new int[input.readVarInt(true)];
 			for (int j = 0; j < lengthBlocks.length; j++) {
 				lengthBlocks[j] = input.readVarInt(true);
 			}
-			fields[i] = new FieldEntry(key, lengthPivot, retired, lengthBlocks);
+			fields[i] = new FieldEntry(key, lengthPivot, textExpression, retired, lengthBlocks);
 		}
 
 		final PagedStreamMetadata dictionary = PagedStreamMetadataSerializer.readBody(input);

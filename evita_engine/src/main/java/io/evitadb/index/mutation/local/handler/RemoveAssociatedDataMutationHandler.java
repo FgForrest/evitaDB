@@ -30,8 +30,9 @@ import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import javax.annotation.Nonnull;
 
 /**
- * Handler for `RemoveAssociatedDataMutation`. Same deferred-facet-only side-effect as the upsert
- * branch — see `UpsertAssociatedDataMutationHandler` and `AssociatedDataMutationFanOut`.
+ * Handler for `RemoveAssociatedDataMutation`. Same side-effects as the upsert branch - the
+ * fulltext index of searchable associated data and the deferred facet re-evaluation — see
+ * `UpsertAssociatedDataMutationHandler` and `AssociatedDataMutationFanOut`.
  */
 public final class RemoveAssociatedDataMutationHandler implements LocalMutationHandler<RemoveAssociatedDataMutation> {
 
@@ -53,7 +54,7 @@ public final class RemoveAssociatedDataMutationHandler implements LocalMutationH
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull GlobalEntityIndex globalIndex
 	) {
-		AssociatedDataMutationFanOut.apply(mutation.getAssociatedDataKey().associatedDataName(), executor, globalIndex);
+		AssociatedDataMutationFanOut.apply(mutation, executor, globalIndex);
 	}
 
 }

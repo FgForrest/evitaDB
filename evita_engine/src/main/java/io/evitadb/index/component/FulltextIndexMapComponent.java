@@ -259,6 +259,7 @@ public final class FulltextIndexMapComponent implements IndexComponent {
 			fields[fieldId] = new FieldEntry(
 				Objects.requireNonNull(index.getFieldKey(fieldId)),
 				index.getLengthPivot(fieldId),
+				index.getTextExpression(fieldId),
 				index.isFieldRetired(fieldId),
 				emission.blockKeys()
 			);

@@ -27,6 +27,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.SchemaPostProcessorCapturingResult;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaClassInvalidException;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor.CatalogSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
@@ -5172,6 +5173,14 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 						.getAttribute("label").orElseThrow();
 					assertTrue(label.isSearchableInScope(Scope.LIVE));
 					assertFalse(label.isSearchableInScope(Scope.ARCHIVED));
+					// associated data: a String is searchable as it is, a POJO through its text expression
+					final AssociatedDataSchemaContract body = schema.getAssociatedData("body").orElseThrow();
+					assertTrue(body.isSearchableInScope(Scope.LIVE));
+					assertFalse(body.isSearchableInScope(Scope.ARCHIVED));
+					assertNull(body.getTextExpression());
+					final AssociatedDataSchemaContract article = schema.getAssociatedData("article").orElseThrow();
+					assertTrue(article.isSearchable());
+					assertEquals(ExpressionFactory.parse("$value.title"), article.getTextExpression());
 				}
 			);
 		}
@@ -5235,6 +5244,10 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 							.getAttribute("label").orElseThrow()
 							.isSearchable()
 					);
+					assertFalse(schema.getAssociatedData("body").orElseThrow().isSearchableInAnyScope());
+					final AssociatedDataSchemaContract article = schema.getAssociatedData("article").orElseThrow();
+					assertFalse(article.isSearchableInAnyScope());
+					assertNull(article.getTextExpression());
 				}
 			);
 		}

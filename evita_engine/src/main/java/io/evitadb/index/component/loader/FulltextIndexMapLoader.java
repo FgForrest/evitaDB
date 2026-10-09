@@ -212,7 +212,8 @@ public final class FulltextIndexMapLoader implements ComponentLoader {
 			}
 			fields.add(
 				new Field(
-					entry.key(), entry.lengthPivot(), entry.retired(), FieldLengthTable.fromPersistedBlocks(blocks)
+					entry.key(), entry.lengthPivot(), entry.textExpression(), entry.retired(),
+					FieldLengthTable.fromPersistedBlocks(blocks)
 				)
 			);
 		}

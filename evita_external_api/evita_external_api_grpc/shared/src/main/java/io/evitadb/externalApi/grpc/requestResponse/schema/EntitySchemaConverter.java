@@ -769,6 +769,9 @@ public class EntitySchemaConverter {
 			javaType,
 			associatedDataSchema.getLocalized(),
 			associatedDataSchema.getNullable(),
+			//TODO JNO change it at the end of #258
+			null,
+			null,
 			EvitaEnumConverter.toConflictResolutionOverride(associatedDataSchema.getConflictResolutionOverride())
 		);
 	}

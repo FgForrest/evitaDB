@@ -24,3 +24,4 @@
 io.evitadb.api.query.expression.object.accessor.common.ListElementAccessor
 io.evitadb.api.query.expression.object.accessor.common.ArrayElementAccessor
 io.evitadb.api.query.expression.object.accessor.common.MapElementAccessor
+io.evitadb.api.query.expression.object.accessor.common.DataItemElementAccessor

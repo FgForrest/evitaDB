@@ -453,17 +453,17 @@ class FulltextIndexStoragePartSerializerTest {
 			return new FulltextIndexStoragePart(
 				12, CZECH, "czech", 25.0,
 				new FieldEntry[]{
-					new FieldEntry(attribute("title"), 8.5, true, new int[]{0, 1, 14}),
-					new FieldEntry(associatedData("body"), 400.0, false, new int[0]),
-					new FieldEntry(referenceAttribute("brand", "title"), 25.0, false, new int[]{3}),
-					new FieldEntry(attribute("title"), 25.0, false, new int[0])
+					new FieldEntry(attribute("title"), 8.5, null, true, new int[]{0, 1, 14}),
+					new FieldEntry(associatedData("body"), 400.0, "$value.blocks.*[$.text]", false, new int[0]),
+					new FieldEntry(referenceAttribute("brand", "title"), 25.0, null, false, new int[]{3}),
+					new FieldEntry(attribute("title"), 25.0, null, false, new int[0])
 				},
 				17, new int[]{3, 17, 0, 9}, null
 			);
 		}
 
 		@Test
-		@DisplayName("round-trips identity, configuration, fields and the dictionary page list")
+		@DisplayName("round-trips identity, configuration, fields with their text expression and the dictionary pages")
 		void shouldRoundTripTheRoot() {
 			final FulltextIndexStoragePart root = root();
 			final FulltextIndexStoragePart read = roundTrip(
@@ -478,6 +478,7 @@ class FulltextIndexStoragePartSerializerTest {
 				assertEquals(root.getFields()[i].key(), read.getFields()[i].key());
 				assertEquals(root.getFields()[i].retired(), read.getFields()[i].retired());
 				assertEquals(root.getFields()[i].lengthPivot(), read.getFields()[i].lengthPivot());
+				assertEquals(root.getFields()[i].textExpression(), read.getFields()[i].textExpression());
 				assertArrayEquals(root.getFields()[i].lengthBlocks(), read.getFields()[i].lengthBlocks());
 			}
 			assertEquals(17, read.getDictionaryHighWaterPageSequence());
@@ -503,14 +504,16 @@ class FulltextIndexStoragePartSerializerTest {
 				() -> new FulltextIndexStoragePart(1, CZECH, "czech", 25.0, new FieldEntry[0], 0, new int[0], null)
 			);
 			assertThrows(
-				GenericEvitaInternalError.class, () -> new FieldEntry(attribute("title"), 1.0, false, new int[]{2, 1})
-			);
-			assertThrows(
-				GenericEvitaInternalError.class, () -> new FieldEntry(attribute("title"), 1.0, false, new int[]{1, 1})
+				GenericEvitaInternalError.class,
+				() -> new FieldEntry(attribute("title"), 1.0, null, false, new int[]{2, 1})
 			);
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> new FieldEntry(attribute("title"), 1.0, false, new int[]{0x10000})
+				() -> new FieldEntry(attribute("title"), 1.0, null, false, new int[]{1, 1})
+			);
+			assertThrows(
+				GenericEvitaInternalError.class,
+				() -> new FieldEntry(attribute("title"), 1.0, null, false, new int[]{0x10000})
 			);
 		}
 
@@ -611,10 +614,12 @@ class FulltextIndexStoragePartSerializerTest {
 					3, CZECH, "czech", FulltextIndex.DEFAULT_LENGTH_PIVOT,
 					new FieldEntry[]{
 						new FieldEntry(
-							attribute("title"), index.getLengthPivot(title), false, lengthEmissions[title].blockKeys()
+							attribute("title"), index.getLengthPivot(title), null, false,
+							lengthEmissions[title].blockKeys()
 						),
 						new FieldEntry(
-							attribute("body"), index.getLengthPivot(body), false, lengthEmissions[body].blockKeys()
+							attribute("body"), index.getLengthPivot(body), null, false,
+							lengthEmissions[body].blockKeys()
 						)
 					},
 					emission.highWaterPageSequence(), emission.orderedPageSequences(), null
@@ -646,7 +651,8 @@ class FulltextIndexStoragePartSerializerTest {
 				}
 				fields.add(
 					new FulltextIndex.Field(
-						entry.key(), entry.lengthPivot(), entry.retired(), FieldLengthTable.fromPersistedBlocks(blocks)
+						entry.key(), entry.lengthPivot(), entry.textExpression(), entry.retired(),
+						FieldLengthTable.fromPersistedBlocks(blocks)
 					)
 				);
 			}

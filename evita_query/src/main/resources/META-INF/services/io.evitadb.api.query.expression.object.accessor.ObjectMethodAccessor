@@ -24,3 +24,4 @@
 io.evitadb.api.query.expression.object.accessor.common.ListMethodAccessor
 io.evitadb.api.query.expression.object.accessor.common.ArrayMethodAccessor
 io.evitadb.api.query.expression.object.accessor.common.MapMethodAccessor
+io.evitadb.api.query.expression.object.accessor.common.DataItemMethodAccessor

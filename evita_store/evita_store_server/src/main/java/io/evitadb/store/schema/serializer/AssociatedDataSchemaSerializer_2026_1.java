@@ -71,7 +71,7 @@ public class AssociatedDataSchemaSerializer_2026_1 extends Serializer<Associated
 		final String description = input.readBoolean() ? input.readString() : null;
 		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
 		return AssociatedDataSchema._internalBuild(
-			name, nameVariants, description, deprecationNotice, type, localized, nullable,
+			name, nameVariants, description, deprecationNotice, type, localized, nullable, null, null,
 			ConflictResolutionOverride.INHERITED
 		);
 	}

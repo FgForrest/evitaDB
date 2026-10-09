@@ -279,17 +279,21 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	}
 
 	/**
-	 * The state of one field. Its key and pivot never change, and it is retired at most once; its length table is
-	 * replaced by its committed copy at every commit that merges the index.
+	 * The state of one field. Its key, pivot and text expression never change, and it is retired at most once; its
+	 * length table is replaced by its committed copy at every commit that merges the index.
 	 *
-	 * @param key         the field's identity
-	 * @param lengthPivot the field's length pivot
-	 * @param retired     whether the field was retired - its key no longer resolves to it, and it takes no writes
-	 * @param lengths     the lengths of the field's indexed values
+	 * @param key            the field's identity
+	 * @param lengthPivot    the field's length pivot
+	 * @param textExpression the EvitaEL expression the field's text was selected with from the stored values (the
+	 *                       text expression of searchable associated data), `null` when the values are the text
+	 *                       themselves; see {@link #getTextExpression(int)}
+	 * @param retired        whether the field was retired - its key no longer resolves to it, and it takes no writes
+	 * @param lengths        the lengths of the field's indexed values
 	 */
 	public record Field(
 		@Nonnull FulltextFieldKey key,
 		double lengthPivot,
+		@Nullable String textExpression,
 		boolean retired,
 		@Nonnull FieldLengthTable lengths
 	) {
@@ -301,7 +305,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 		 */
 		@Nonnull
 		Field retire() {
-			return new Field(this.key, this.lengthPivot, true, this.lengths);
+			return new Field(this.key, this.lengthPivot, this.textExpression, true, this.lengths);
 		}
 
 	}
@@ -539,6 +543,28 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	 *                                                        already holds {@link #MAX_FIELD_ID} + 1 fields
 	 */
 	public int getOrAssignFieldId(@Nonnull FulltextFieldKey fieldKey, double lengthPivot) {
+		return getOrAssignFieldId(fieldKey, lengthPivot, null);
+	}
+
+	/**
+	 * Returns the id of a field, registering it with the passed pivot and text expression when it is new. The pivot
+	 * of an existing field cannot change - see {@link #getOrAssignFieldId(FulltextFieldKey, double)} - while its text
+	 * expression is simply kept: an existing field is returned whatever expression it was registered with, and the
+	 * caller reads it back through {@link #getTextExpression(int)} to keep extracting the way the field was built.
+	 *
+	 * @param fieldKey       identity of the searchable field
+	 * @param lengthPivot    the field's length pivot; must be positive and finite
+	 * @param textExpression the expression the field's text is selected with, `null` when the values are the text
+	 * @return the field's id
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the pivot is not positive and finite, differs from
+	 *                                                        the registered one, or the field is new and the index
+	 *                                                        already holds {@link #MAX_FIELD_ID} + 1 fields
+	 */
+	public int getOrAssignFieldId(
+		@Nonnull FulltextFieldKey fieldKey,
+		double lengthPivot,
+		@Nullable String textExpression
+	) {
 		assertPivotValid(lengthPivot);
 		final int existing = getFieldId(fieldKey);
 		if (existing != UNKNOWN_FIELD_ID) {
@@ -558,7 +584,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			fieldId <= MAX_FIELD_ID,
 			() -> "The fulltext index cannot address more than " + (MAX_FIELD_ID + 1) + " fields!"
 		);
-		final Field field = new Field(fieldKey, lengthPivot, false, new FieldLengthTable());
+		final Field field = new Field(fieldKey, lengthPivot, textExpression, false, new FieldLengthTable());
 		if (layer != null) {
 			layer.addField(field);
 		} else {
@@ -667,6 +693,23 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 	public double getLengthPivot(int fieldId) {
 		assertFieldKnown(fieldId);
 		return fieldAt(fieldId).lengthPivot();
+	}
+
+	/**
+	 * Returns the EvitaEL text expression a field was registered with - the way its text is selected from the stored
+	 * values of searchable associated data. A field keeps extracting with this expression even after the schema
+	 * declares another one: removing a value re-extracts its text to find the postings to drop, so extracting
+	 * differently than the add did would leave stale postings behind. Like an index keeping its analyzer, the field
+	 * keeps its expression until it is rebuilt (#409).
+	 *
+	 * @param fieldId id of the field
+	 * @return the expression text, `null` when the field's values are the text themselves
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the index never assigned the id
+	 */
+	@Nullable
+	public String getTextExpression(int fieldId) {
+		assertFieldKnown(fieldId);
+		return fieldAt(fieldId).textExpression();
 	}
 
 	/**
@@ -996,9 +1039,12 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			// the shared empty registry belongs to no index
 			size += layout.sizeOfArray(this.fields.length, layout.referenceSize());
 			for (final Field field : this.fields) {
-				// lengthPivot and retired, then the key / lengths slots
-				size += layout.sizeOfObject(Double.BYTES + 1L + 2L * layout.referenceSize())
+				// lengthPivot and retired, then the key / textExpression / lengths slots; the expression text is the
+				// field's own copy
+				final String textExpression = field.textExpression();
+				size += layout.sizeOfObject(Double.BYTES + 1L + 3L * layout.referenceSize())
 					+ getHeapSizeInBytes(field.key(), layout)
+					+ (textExpression == null ? 0L : MemoryMeasuringConstants.computeStringSize(textExpression))
 					+ field.lengths().getHeapSizeInBytes();
 			}
 		}
@@ -1068,6 +1114,7 @@ public class FulltextIndex implements TransactionalLayerProducer<FulltextIndexCh
 			mergedFields[fieldId] = new Field(
 				field.key(),
 				field.lengthPivot(),
+				field.textExpression(),
 				retired,
 				transactionalLayer.getStateCopyWithCommittedChanges(field.lengths())
 			);

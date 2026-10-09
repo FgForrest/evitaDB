@@ -29,11 +29,14 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
+import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NamingConvention;
 import lombok.RequiredArgsConstructor;
 
 import java.io.Serializable;
+import java.util.EnumSet;
 import java.util.Map;
 import java.util.Map.Entry;
 
@@ -69,6 +72,15 @@ public class AssociatedDataSchemaSerializer extends Serializer<AssociatedDataSch
 			output.writeBoolean(false);
 		}
 		kryo.writeObject(output, associatedDataSchema.getConflictResolutionOverride());
+		// the searchability section is appended last - the scopes, then the optional text expression
+		EntitySchemaSerializer.writeScopeSet(kryo, output, associatedDataSchema.getSearchableInScopes());
+		final Expression textExpression = associatedDataSchema.getTextExpression();
+		if (textExpression != null) {
+			output.writeBoolean(true);
+			kryo.writeObject(output, textExpression);
+		} else {
+			output.writeBoolean(false);
+		}
 	}
 
 	@Override
@@ -89,8 +101,11 @@ public class AssociatedDataSchemaSerializer extends Serializer<AssociatedDataSch
 		final String description = input.readBoolean() ? input.readString() : null;
 		final String deprecationNotice = input.readBoolean() ? input.readString() : null;
 		final ConflictResolutionOverride conflictResolutionOverride = kryo.readObject(input, ConflictResolutionOverride.class);
+		final EnumSet<Scope> searchableInScopes = EntitySchemaSerializer.readScopeSet(kryo, input);
+		final Expression textExpression = input.readBoolean() ? kryo.readObject(input, Expression.class) : null;
 		return AssociatedDataSchema._internalBuild(
-			name, nameVariants, description, deprecationNotice, type, localized, nullable, conflictResolutionOverride
+			name, nameVariants, description, deprecationNotice, type, localized, nullable, searchableInScopes,
+			textExpression, conflictResolutionOverride
 		);
 	}
 

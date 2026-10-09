@@ -132,6 +132,9 @@ public interface AssociatedDataEditor<W extends AssociatedDataEditor<W>> extends
 				Objects.requireNonNull(associatedDataValue.value(), "Value is required for creating implicit associated data schema.").getClass(),
 				associatedDataValue.key().localized(),
 				true,
+				// an implicitly created schema is never searchable - searchability is always declared
+				null,
+				null,
 				ConflictResolutionOverride.INHERITED
 			);
 		}

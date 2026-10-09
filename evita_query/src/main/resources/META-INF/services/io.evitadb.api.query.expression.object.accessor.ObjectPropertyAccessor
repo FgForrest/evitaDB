@@ -24,3 +24,4 @@
 io.evitadb.api.query.expression.object.accessor.common.MapPropertyAccessor
 io.evitadb.api.query.expression.object.accessor.common.MapEntryPropertyAccessor
 io.evitadb.api.query.expression.object.accessor.common.DateTimeRangePropertyAccessor
+io.evitadb.api.query.expression.object.accessor.common.DataItemPropertyAccessor

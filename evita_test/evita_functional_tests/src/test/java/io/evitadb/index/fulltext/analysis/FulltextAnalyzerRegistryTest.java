@@ -55,6 +55,7 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -238,10 +239,10 @@ class FulltextAnalyzerRegistryTest {
 			final FulltextAnalyzer search = registry.getSearchAnalyzer(ENTITY_TYPE, ENGLISH);
 			final FulltextAnalyzer phrase = registry.getPhraseAnalyzer(ENTITY_TYPE, ENGLISH);
 
-			// English is one of the languages whose default is uniform, so all three slots share one chain - and
-			// therefore produce identical terms
-			assertSame(index, search);
-			assertSame(index, phrase);
+			// the index slot strips markup and the search slot does not, so they are two chains; the phrase slot
+			// inherits the search one. On markup-free text all three produce identical terms
+			assertNotSame(index, search);
+			assertSame(search, phrase);
 			final List<String> expected = List.of("english", "book");
 			assertIterableEquals(expected, terms(index, "English Books"));
 			assertIterableEquals(expected, terms(search, "English Books"));
@@ -271,12 +272,21 @@ class FulltextAnalyzerRegistryTest {
 		}
 
 		@Test
-		@DisplayName("English, German and the generic fallback stay uniform across the slots")
-		void shouldResolveUniformBuiltInAssignmentForTheRemainingLanguages() {
+		@DisplayName("English, German and the generic fallback pair a stripping index chain with a search chain")
+		void shouldResolveIndexAndSearchPairForTheRemainingLanguages() {
 			final FulltextAnalyzerRegistry registry = createRegistry();
-			assertUniform(registry, ENGLISH, BuiltInAnalyzers.ENGLISH_ANALYZER_NAME);
-			assertUniform(registry, GERMAN, BuiltInAnalyzers.GERMAN_ANALYZER_NAME);
-			assertUniform(registry, new Locale("fi"), BuiltInAnalyzers.GENERIC_ANALYZER_NAME);
+			assertAsymmetric(
+				registry, ENGLISH,
+				BuiltInAnalyzers.ENGLISH_ANALYZER_NAME, BuiltInAnalyzers.ENGLISH_SEARCH_ANALYZER_NAME
+			);
+			assertAsymmetric(
+				registry, GERMAN,
+				BuiltInAnalyzers.GERMAN_ANALYZER_NAME, BuiltInAnalyzers.GERMAN_SEARCH_ANALYZER_NAME
+			);
+			assertAsymmetric(
+				registry, new Locale("fi"),
+				BuiltInAnalyzers.GENERIC_ANALYZER_NAME, BuiltInAnalyzers.GENERIC_SEARCH_ANALYZER_NAME
+			);
 		}
 
 		@Test
@@ -990,29 +1000,6 @@ class FulltextAnalyzerRegistryTest {
 		assertEquals(AnalysisMode.ALL, registry.getIndexAnalyzer(ENTITY_TYPE, locale).getMode());
 		assertEquals(
 			AnalysisMode.SEARCH_TIME, registry.getSearchAnalyzer(ENTITY_TYPE, locale).getMode()
-		);
-	}
-
-	/**
-	 * Asserts the built-in default of `locale` names one analyzer in all three slots.
-	 *
-	 * @param registry registry under test
-	 * @param locale   locale whose built-in default is checked
-	 * @param name     expected analyzer name in every slot
-	 */
-	private static void assertUniform(
-		@Nonnull FulltextAnalyzerRegistry registry,
-		@Nonnull Locale locale,
-		@Nonnull String name
-	) {
-		assertEquals(name, registry.getIndexAnalyzer(ENTITY_TYPE, locale).getAnalyzerName());
-		assertSame(
-			registry.getIndexAnalyzer(ENTITY_TYPE, locale),
-			registry.getSearchAnalyzer(ENTITY_TYPE, locale)
-		);
-		assertSame(
-			registry.getIndexAnalyzer(ENTITY_TYPE, locale),
-			registry.getPhraseAnalyzer(ENTITY_TYPE, locale)
 		);
 	}
 

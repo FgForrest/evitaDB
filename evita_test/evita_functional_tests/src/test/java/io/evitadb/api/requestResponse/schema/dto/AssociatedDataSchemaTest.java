@@ -73,6 +73,8 @@ class AssociatedDataSchemaTest {
 				"Use richDescription instead",
 				String.class,
 				true, true,
+				null,
+				null,
 				ConflictResolutionOverride.INHERITED
 			);
 
@@ -91,6 +93,8 @@ class AssociatedDataSchemaTest {
 				"productData", variants,
 				null, null,
 				String.class, false, false,
+				null,
+				null,
 				ConflictResolutionOverride.INHERITED
 			);
 
@@ -105,6 +109,8 @@ class AssociatedDataSchemaTest {
 		void shouldWrapPrimitiveTypes() {
 			final AssociatedDataSchema schema = AssociatedDataSchema._internalBuild(
 				"count", null, null, int.class, false, false,
+				null,
+				null,
 				ConflictResolutionOverride.INHERITED
 			);
 
@@ -116,6 +122,8 @@ class AssociatedDataSchemaTest {
 		void shouldResolvePlainTypeFromArray() {
 			final AssociatedDataSchema schema = AssociatedDataSchema._internalBuild(
 				"tags", null, null, String[].class, false, false,
+				null,
+				null,
 				ConflictResolutionOverride.INHERITED
 			);
 
@@ -128,6 +136,8 @@ class AssociatedDataSchemaTest {
 		void shouldUseComplexDataObjectForUnsupportedTypes() {
 			final AssociatedDataSchema schema = AssociatedDataSchema._internalBuild(
 				"metadata", null, null, java.util.HashMap.class, false, false,
+				null,
+				null,
 				ConflictResolutionOverride.INHERITED
 			);
 
@@ -144,10 +154,14 @@ class AssociatedDataSchemaTest {
 		void shouldBeEqual() {
 			final AssociatedDataSchema a = AssociatedDataSchema._internalBuild(
 				"data", null, null, String.class, false, false,
+				null,
+				null,
 				ConflictResolutionOverride.INHERITED
 			);
 			final AssociatedDataSchema b = AssociatedDataSchema._internalBuild(
 				"data", null, null, String.class, false, false,
+				null,
+				null,
 				ConflictResolutionOverride.INHERITED
 			);
 
@@ -160,10 +174,14 @@ class AssociatedDataSchemaTest {
 		void shouldNotBeEqualWhenNamesDiffer() {
 			final AssociatedDataSchema a = AssociatedDataSchema._internalBuild(
 				"data1", null, null, String.class, false, false,
+				null,
+				null,
 				ConflictResolutionOverride.INHERITED
 			);
 			final AssociatedDataSchema b = AssociatedDataSchema._internalBuild(
 				"data2", null, null, String.class, false, false,
+				null,
+				null,
 				ConflictResolutionOverride.INHERITED
 			);
 
@@ -175,10 +193,14 @@ class AssociatedDataSchemaTest {
 		void shouldNotBeEqualWhenLocalizedDiffers() {
 			final AssociatedDataSchema a = AssociatedDataSchema._internalBuild(
 				"data", null, null, String.class, true, false,
+				null,
+				null,
 				ConflictResolutionOverride.INHERITED
 			);
 			final AssociatedDataSchema b = AssociatedDataSchema._internalBuild(
 				"data", null, null, String.class, false, false,
+				null,
+				null,
 				ConflictResolutionOverride.INHERITED
 			);
 
@@ -190,10 +212,14 @@ class AssociatedDataSchemaTest {
 		void shouldNotBeEqualWhenConflictResolutionOverrideDiffers() {
 			final AssociatedDataSchema a = AssociatedDataSchema._internalBuild(
 				"data", null, null, String.class, false, false,
+				null,
+				null,
 				ConflictResolutionOverride.INHERITED
 			);
 			final AssociatedDataSchema b = AssociatedDataSchema._internalBuild(
 				"data", null, null, String.class, false, false,
+				null,
+				null,
 				ConflictResolutionOverride.GRANULAR
 			);
 
