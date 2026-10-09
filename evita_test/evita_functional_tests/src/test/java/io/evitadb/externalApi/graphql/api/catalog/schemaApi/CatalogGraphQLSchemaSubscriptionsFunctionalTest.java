@@ -602,6 +602,21 @@ public class CatalogGraphQLSchemaSubscriptionsFunctionalTest
 		);
 	}
 
+	@Test
+	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_CATALOG_API)
+	@DisplayName("Should refuse catalog schema changes from a resume position that lies ahead of the catalog")
+	void shouldRefuseCatalogSchemaChangesAheadOfCatalog(Evita evita, GraphQLTester tester) {
+		final String subscriptionId = createSubscriptionId();
+		assertSubscriptionRefused(
+			evita, tester, subscriptionId,
+			"onSchemaChange(sinceVersion: \\\"" + (getStartVersionForCatalogCDC(evita, TEST_CATALOG) + AHEAD_OF_CATALOG_MARGIN) + "\\\") { version index operation }",
+			session -> {
+				session.defineEntitySchema("myEntityType" + subscriptionId).updateVia(session);
+			},
+			"lies ahead of catalog"
+		);
+	}
+
 	/**
 	 * Opens a CDC subscription that is expected to be refused, commits a change afterwards and asserts that the
 	 * subscription ends with a single error event carrying the expected message and that no capture follows it.

@@ -51,6 +51,7 @@ import java.math.BigInteger;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
+import java.util.function.LongFunction;
 
 import static io.evitadb.test.TestTags.CDC;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
@@ -963,6 +964,43 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 		final String subscriptionId = createSubscriptionId();
 		final String newCatalogName = "myCatalog" + subscriptionId;
 
+		assertCatalogCaptureRefused(
+			evita, tester, subscriptionId, newCatalogName,
+			startVersion -> "onCatalogChange(catalogName: \\\"" + newCatalogName + "\\\", catalogId: \\\"" + UUID.randomUUID() + "\\\", sinceVersion: \\\"" + startVersion + "\\\") { version index operation }",
+			"was recorded on a different incarnation of the catalog"
+		);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_EMPTY_SYSTEM_FOR_SYSTEM_API)
+	@DisplayName("Should refuse catalog captures from a resume position that lies ahead of the catalog")
+	void shouldRefuseCatalogCapturesAheadOfCatalog(Evita evita, GraphQLTester tester) {
+		final String subscriptionId = createSubscriptionId();
+		final String newCatalogName = "myCatalog" + subscriptionId;
+
+		assertCatalogCaptureRefused(
+			evita, tester, subscriptionId, newCatalogName,
+			startVersion -> "onCatalogChange(catalogName: \\\"" + newCatalogName + "\\\", sinceVersion: \\\"" + (startVersion + AHEAD_OF_CATALOG_MARGIN) + "\\\") { version index operation }",
+			"lies ahead of catalog"
+		);
+	}
+
+	/**
+	 * Creates a new live catalog, opens a catalog CDC subscription on it that is expected to be refused, commits a
+	 * change afterwards and asserts that the subscription ends with a single error event carrying the expected message
+	 * and that no capture follows it. The probe change is one the subscription would deliver if it were accepted, so
+	 * that a subscription accepted by mistake fails the test on the delivered capture rather than on a timeout.
+	 *
+	 * @param subscriptionQuery builds the subscription field from the start version of the new catalog
+	 */
+	private void assertCatalogCaptureRefused(
+		@Nonnull Evita evita,
+		@Nonnull GraphQLTester tester,
+		@Nonnull String subscriptionId,
+		@Nonnull String newCatalogName,
+		@Nonnull LongFunction<String> subscriptionQuery,
+		@Nonnull String expectedMessageFragment
+	) {
 		tester.testWebSocket(
 			SYSTEM_URL,
 			ctx -> {
@@ -974,10 +1012,7 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 
 				// open subscription
 				ctx.writer().write(createConnectionInitMessage());
-				ctx.writer().write(createSubscriptionQueryMessage(
-					subscriptionId,
-					"onCatalogChange(catalogName: \\\"" + newCatalogName + "\\\", catalogId: \\\"" + UUID.randomUUID() + "\\\", sinceVersion: \\\"" + startVersion + "\\\") { version index operation }"
-				));
+				ctx.writer().write(createSubscriptionQueryMessage(subscriptionId, subscriptionQuery.apply(startVersion)));
 				ctx.awaitEvents(1);
 
 				// a change that an accepted subscription would deliver
@@ -994,7 +1029,7 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 				assertErrorEvent(receivedEvents.get(1), subscriptionId)
 					.node("payload[0].message")
 					.isString()
-					.contains("was recorded on a different incarnation of the catalog");
+					.contains(expectedMessageFragment);
 				assertErrorEvent(receivedEvents.get(1), subscriptionId)
 					.node("payload[0].extensions.errorCode")
 					.isString()
