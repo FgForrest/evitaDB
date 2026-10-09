@@ -37,7 +37,10 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract.AttributeInheritanceBehavior;
@@ -45,6 +48,7 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.requestResponse.schema.builder.SortableAttributeCompoundSchemaBuilder;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.expression.Expression;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
@@ -347,7 +351,8 @@ public class CatalogCopySupport {
 
 	/**
 	 * Adds the reflected references of the source entity schema to the target builder, reproducing the
-	 * reflected reference name, cardinality, faceting and attribute-inheritance behaviour.
+	 * reflected reference name and every setting it overrides rather than inherits: cardinality, index type, indexed
+	 * components, faceting (an explicit "not faceted" included) and attribute-inheritance behaviour.
 	 *
 	 * @param source  the source entity schema
 	 * @param builder the target entity schema builder
@@ -383,11 +388,24 @@ public class CatalogCopySupport {
 					} else {
 						editor.withAttributesInheritedExcept(inheritanceFilter);
 					}
+					if (!reflected.isIndexedInherited()) {
+						applyIndexType(reflected, editor, false);
+					}
+					if (!reflected.isIndexedComponentsInherited()) {
+						applyIndexedComponents(reflected, editor);
+					}
 					if (!reflected.isFacetedInherited()) {
 						final Scope[] facetedScopes = scopesWhere(reflected::isFacetedInScope);
 						if (facetedScopes.length > 0) {
 							editor.facetedInScope(facetedScopes);
+						} else {
+							// an explicit "not faceted" - left unset, the target would inherit the faceting (and the
+							// partial-faceting expression) of the reference it reflects; the scope-less variant is the
+							// one that works before the reflected reference's own entity schema exists
+							editor.nonFaceted();
 						}
+						// the partial-faceting expression is inherited together with faceting itself
+						applyFacetedPartially(reflected, editor);
 					}
 				}
 			);
@@ -427,8 +445,83 @@ public class CatalogCopySupport {
 	}
 
 	/**
-	 * Applies the group type, per-scope index type, faceting, attributes and sortable attribute compounds
-	 * of a plain reference onto its target reference builder.
+	 * Copies the per-scope index type of the source reference onto the target editor.
+	 *
+	 * @param reference the source reference schema
+	 * @param editor    the target reference editor
+	 * @param raised    true to promote `FOR_FILTERING` to `FOR_FILTERING_AND_PARTITIONING`
+	 * @return the scopes the target indexes `FOR_FILTERING_AND_PARTITIONING`
+	 */
+	@Nonnull
+	private static List<Scope> applyIndexType(
+		@Nonnull final ReferenceSchemaContract reference,
+		@Nonnull final ReferenceSchemaEditor<?> editor,
+		final boolean raised
+	) {
+		final List<Scope> forFiltering = new ArrayList<>(2);
+		final List<Scope> forFilteringAndPartitioning = new ArrayList<>(2);
+		for (final Scope scope : Scope.values()) {
+			switch (reference.getReferenceIndexType(scope)) {
+				case FOR_FILTERING -> (raised ? forFilteringAndPartitioning : forFiltering).add(scope);
+				case FOR_FILTERING_AND_PARTITIONING -> forFilteringAndPartitioning.add(scope);
+				case NONE -> {
+					// not indexed in this scope - nothing to do
+				}
+			}
+		}
+		if (!forFiltering.isEmpty()) {
+			editor.indexedForFilteringInScope(forFiltering.toArray(new Scope[0]));
+		}
+		if (!forFilteringAndPartitioning.isEmpty()) {
+			editor.indexedForFilteringAndPartitioningInScope(forFilteringAndPartitioning.toArray(new Scope[0]));
+		}
+		return forFilteringAndPartitioning;
+	}
+
+	/**
+	 * Copies the per-scope indexed components of the source reference onto the target editor. Without them the
+	 * target indexes the referenced entity only and builds none of the group entity indexes the source has.
+	 *
+	 * @param reference the source reference schema
+	 * @param editor    the target reference editor
+	 */
+	private static void applyIndexedComponents(
+		@Nonnull final ReferenceSchemaContract reference,
+		@Nonnull final ReferenceSchemaEditor<?> editor
+	) {
+		for (final Scope scope : Scope.values()) {
+			final Set<ReferenceIndexedComponents> components = reference.getIndexedComponents(scope);
+			// declaring components on a scope the source does not index would promote it to FOR_FILTERING
+			if (reference.getReferenceIndexType(scope) != ReferenceIndexType.NONE && !components.isEmpty()) {
+				editor.indexedWithComponentsInScope(scope, components.toArray(new ReferenceIndexedComponents[0]));
+			}
+		}
+	}
+
+	/**
+	 * Copies the per-scope `facetedPartially` expression of the source reference onto the target editor. Without it
+	 * the target facets the reference in every reduced index its owner sits in, which on a production corpus with
+	 * a partially faceted reference multiplies the facet id indexes and drives the heap of a full rebuild past any
+	 * sandbox.
+	 *
+	 * @param reference the source reference schema
+	 * @param editor    the target reference editor
+	 */
+	private static void applyFacetedPartially(
+		@Nonnull final ReferenceSchemaContract reference,
+		@Nonnull final ReferenceSchemaEditor<?> editor
+	) {
+		for (final Scope scope : Scope.values()) {
+			final Expression expression = reference.getFacetedPartiallyInScope(scope);
+			if (expression != null) {
+				editor.facetedPartiallyInScope(scope, expression);
+			}
+		}
+	}
+
+	/**
+	 * Applies the group type, per-scope index type, indexed components, faceting (including partial faceting),
+	 * attributes and sortable attribute compounds of a plain reference onto its target reference builder.
 	 *
 	 * @param reference the source reference schema
 	 * @param editor    the target reference builder
@@ -445,24 +538,8 @@ public class CatalogCopySupport {
 			}
 		}
 
-		final List<Scope> forFiltering = new ArrayList<>(2);
-		final List<Scope> forFilteringAndPartitioning = new ArrayList<>(2);
 		final boolean raised = isRaisedToPartitioning(reference.getName());
-		for (final Scope scope : Scope.values()) {
-			switch (reference.getReferenceIndexType(scope)) {
-				case FOR_FILTERING -> (raised ? forFilteringAndPartitioning : forFiltering).add(scope);
-				case FOR_FILTERING_AND_PARTITIONING -> forFilteringAndPartitioning.add(scope);
-				case NONE -> {
-					// not indexed in this scope - nothing to do
-				}
-			}
-		}
-		if (!forFiltering.isEmpty()) {
-			editor.indexedForFilteringInScope(forFiltering.toArray(new Scope[0]));
-		}
-		if (!forFilteringAndPartitioning.isEmpty()) {
-			editor.indexedForFilteringAndPartitioningInScope(forFilteringAndPartitioning.toArray(new Scope[0]));
-		}
+		final List<Scope> forFilteringAndPartitioning = applyIndexType(reference, editor, raised);
 		if (raised) {
 			// printed so a measurement run proves the promotion actually applied, rather than assuming it did:
 			// a reflected reference never reaches this method, and would be silently left at its source type
@@ -470,11 +547,13 @@ public class CatalogCopySupport {
 				"[raise] " + reference.getName() + " -> FOR_FILTERING_AND_PARTITIONING in " + forFilteringAndPartitioning
 			);
 		}
+		applyIndexedComponents(reference, editor);
 
 		final Scope[] facetedScopes = scopesWhere(reference::isFacetedInScope);
 		if (facetedScopes.length > 0) {
 			editor.facetedInScope(facetedScopes);
 		}
+		applyFacetedPartially(reference, editor);
 
 		for (final AttributeSchemaContract attribute : reference.getAttributes().values()) {
 			editor.withAttribute(
