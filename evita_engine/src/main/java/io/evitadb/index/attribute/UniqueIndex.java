@@ -25,11 +25,9 @@ package io.evitadb.index.attribute;
 
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.core.buffer.TrappedChanges;
-import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.VoidTransactionMemoryProducer;
 import io.evitadb.index.IndexDataStructure;
-import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.VMLayout;
@@ -53,9 +51,9 @@ import static io.evitadb.utils.StringUtils.unknownToString;
  * concrete shapes exist:
  *
  * - {@link OwnerUniqueIndex} — a standalone index that owns its value→record-id mapping (a value bucket B+ tree with
- *   a front-coded leaf column for String keys and granular per-leaf-page persistence) and a record-id bitmap, fully
- *   participating in the commit cycle. Used for global-unique-localized attributes whose locale-less uniqueness cannot
- *   be folded into the per-locale shared filter tree.
+ *   a front-coded leaf column for String keys and granular per-leaf-page persistence), fully participating in the
+ *   commit cycle. Used for a localized attribute unique across locales (`UNIQUE_WITHIN_COLLECTION`), whose locale-less
+ *   uniqueness cannot be folded into the per-locale shared filter tree.
  * - {@link UniqueIndexView} — a stateless view folded onto the shared `value→ValueToRecord` tree owned by
  *   {@link AttributeIndex}: it owns no data and answers every read from the shared {@link FilterIndex} view over that
  *   tree (uniqueness is enforced on the filter insert by {@link AttributeIndex}). Used for any non-localized attribute,
@@ -89,29 +87,46 @@ public abstract sealed class UniqueIndex implements
 	@Getter private final Class<? extends Serializable> type;
 
 	/**
-	 * Verifies that the component type of an array of unique values is both {@link Serializable} and
-	 * {@link Comparable} - the contract every key stored in this index must satisfy.
+	 * Verifies that a single unique key is both {@link Serializable} and {@link Comparable} - the contract every key
+	 * stored in a standalone unique index must satisfy. It is checked on the key the value is converted to, never on
+	 * the value itself: a `Currency` or a `Locale` is not comparable, while the key it is converted to is (see
+	 * `UniqueIndexBPlusTreeSupport#toKey`).
 	 *
-	 * @param value array whose component type is checked
-	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the component type is not {@link Serializable}
-	 *         or not {@link Comparable}
-	 */
-	static void verifyValueArray(@Nonnull Object value) {
-		isTrue(Serializable.class.isAssignableFrom(value.getClass().getComponentType()), "Value `" + unknownToString(value) + "` is expected to be Serializable but it is not!");
-		isTrue(Comparable.class.isAssignableFrom(value.getClass().getComponentType()), "Value `" + unknownToString(value) + "` is expected to be Comparable but it is not!");
-	}
-
-	/**
-	 * Verifies that a single unique value is both {@link Serializable} and {@link Comparable} - the contract every
-	 * key stored in this index must satisfy.
-	 *
-	 * @param value value to check
+	 * @param value key to check
 	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the value is not {@link Serializable} or not
 	 *         {@link Comparable}
 	 */
 	static void verifyValue(@Nonnull Object value) {
 		isTrue(value instanceof Serializable, "Value `" + unknownToString(value) + "` is expected to be Serializable but it is not!");
 		isTrue(value instanceof Comparable, "Value `" + unknownToString(value) + "` is expected to be Comparable but it is not!");
+	}
+
+	/**
+	 * Returns the value a standalone unique index ({@link OwnerUniqueIndex}, {@link GlobalUniqueIndex}) persists for
+	 * `value`: a value of the declared attribute type naming the key the index holds for it - see
+	 * `UniqueIndexBPlusTreeSupport#toDeclaredValue`. Two values the index treats as one unique value yield equal
+	 * results, and a value the current writer persisted yields itself.
+	 *
+	 * This is what lets code outside the index - the storage migration re-keying parts written before the unique
+	 * indexes keyed their values like the filter index - tell a persisted value already in canonical form from one that
+	 * is not, and two persisted values naming one key, without reimplementing the key space.
+	 *
+	 * @param plainType            the plain (array-unwrapped) attribute type
+	 * @param indexedDecimalPlaces the attribute schema's `indexedDecimalPlaces`
+	 * @param value                the value, in any spelling
+	 * @return the canonical persisted value
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the value cannot be a unique key
+	 */
+	@Nonnull
+	public static Serializable toPersistedValue(
+		@Nonnull Class<?> plainType,
+		int indexedDecimalPlaces,
+		@Nonnull Serializable value
+	) {
+		return UniqueIndexBPlusTreeSupport.toDeclaredValue(
+			plainType, indexedDecimalPlaces,
+			UniqueIndexBPlusTreeSupport.toKey(UniqueIndexBPlusTreeSupport.normalizerFor(plainType, indexedDecimalPlaces), value)
+		);
 	}
 
 	/**
@@ -189,18 +204,13 @@ public abstract sealed class UniqueIndex implements
 	public abstract Integer getRecordIdByUniqueValue(@Nonnull Serializable value);
 
 	/**
-	 * Returns formula that contains all records (and memoized result).
-	 */
-	public abstract Formula getRecordIdsFormula();
-
-	/**
-	 * Returns bitmap with all record ids registered in this unique index.
-	 */
-	@Nonnull
-	public abstract Bitmap getRecordIds();
-
-	/**
-	 * Returns number of records in this index.
+	 * Returns the number of distinct records owning at least one value in this index - a statistics reading. Both
+	 * variants count it by walking a value tree (the folded view walks the shared filter tree), so it is `O(values)`
+	 * and must never be called from a query path. This index offers no set of those records on purpose: "which
+	 * records carry a value" is answered by the attribute's filter indexes, which are written for every unique
+	 * attribute and removed per value.
+	 *
+	 * @return number of records covered by this index
 	 */
 	public abstract int size();
 
@@ -208,8 +218,8 @@ public abstract sealed class UniqueIndex implements
 	 * Returns the number of distinct values registered in this index.
 	 *
 	 * For a unique index this normally equals {@link #size()} - that is what makes the index unique - and the two are
-	 * reported separately precisely so the exception is visible: a `localized` attribute that is also unique globally
-	 * has one locale-less key per locale, so a single record can legitimately own several values here.
+	 * reported separately precisely so the exception is visible: a `localized` attribute unique across locales has one
+	 * locale-less key, so a single record can legitimately own several values here, one per locale.
 	 *
 	 * @return number of distinct unique keys
 	 */
@@ -223,7 +233,7 @@ public abstract sealed class UniqueIndex implements
 	/**
 	 * Returns the heap this index occupies, in bytes.
 	 *
-	 * Each variant adds its own value side — {@code OwnerUniqueIndex} the value tree and record set it owns,
+	 * Each variant adds its own value side — {@code OwnerUniqueIndex} the value tree it owns,
 	 * {@code UniqueIndexView} only a slot, because the filter view it points at belongs to the enclosing
 	 * {@code AttributeIndex}. Everything the two have in common is priced by {@link #getSharedHeapSizeInBytes}.
 	 *

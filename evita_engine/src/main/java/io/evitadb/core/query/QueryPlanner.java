@@ -24,6 +24,7 @@
 package io.evitadb.core.query;
 
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
@@ -61,7 +62,9 @@ import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.primaryKey.sorter.TranslatedPrimaryKeySorter;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.Index;
 import io.evitadb.index.bitmap.Bitmap;
@@ -82,6 +85,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -114,6 +118,12 @@ import static java.util.Optional.ofNullable;
 @Slf4j
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public class QueryPlanner {
+	/**
+	 * Description of the index set {@link #planOverEmptyIndexes} plans over: the empty indexes standing in for the
+	 * requested scopes of a query that matches nothing, planned only to check its constraints. It names that planning
+	 * pass in the query telemetry, where it would otherwise read as a regular plan.
+	 */
+	public static final String CONSTRAINT_CHECK_INDEX_DESCRIPTION = "NONE (constraints checked over empty indexes)";
 
 	/**
 	 * Method evaluates the {@link QueryPlanningContext#getEvitaRequest()} and creates an "action plan" that allows
@@ -134,18 +144,33 @@ public class QueryPlanner {
 	 * alternative, because the consistency verification needs fully built plans to execute and compare - see
 	 * {@link #verifyConsistentResultsInAllPlans}.
 	 *
+	 * A query the index selection proves to match nothing is answered by an empty plan, but its phases 1, 2 and 4
+	 * are still planned over empty indexes and thrown away - see {@link #planOverEmptyIndexes}.
+	 *
 	 * @param context planning context of the query, also the collector of the planning telemetry
 	 * @return plan ready to be executed, possibly an empty one when the filter cannot match anything
 	 */
 	@Nonnull
 	public static QueryPlan planQuery(@Nonnull QueryPlanningContext context) {
+		// structural rules the constraints cannot check themselves - they are verified on the final tree here, so
+		// that a stored query of the refused shape stays readable and a copied container cannot slip past them
+		QueryUtils.assertNoNestedScopeContainers(context.getEvitaRequest().getQuery());
 		context.pushStep(QueryPhase.PLANNING);
 		try {
+			// the facet relation settings are checked before anything else - a default relation that cannot take
+			// effect, and every declared facet group filter, which is planned here - so that a setting the engine
+			// cannot honour fails the query regardless of which parts of the query ask about it, and of an empty
+			// index short-cut
+			context.assertDefaultFacetRelationsEffective();
+			context.assertFacetGroupFiltersEvaluable();
+
 			// determine the indexes that should be used for filtering
 			final IndexSelectionResult<?> indexSelectionResult = selectIndexes(context);
 
 			// if we found empty target index, we may quickly return empty result - one key condition is not fulfilled
+			// - but only after the query was checked exactly as it is where the entities exist
 			if (indexSelectionResult.isEmpty()) {
+				planOverEmptyIndexes(context, true);
 				return QueryPlanBuilder.empty(context);
 			}
 
@@ -202,6 +227,9 @@ public class QueryPlanner {
 	 * is extra result fabrication and slicing: a nested query contributes primary keys (and sometimes a sorter) to
 	 * the enclosing query, and nobody ever asks it for a facet summary or a page.
 	 *
+	 * A nested query the index selection proves to match nothing is answered by an empty plan, but its filter and
+	 * ordering are still planned over empty indexes and thrown away - see {@link #planOverEmptyIndexes}.
+	 *
 	 * The expensive work will be executed when {@link QueryPlan#execute()} is called outside this method.
 	 *
 	 * @param context                planning context of the nested query
@@ -220,7 +248,9 @@ public class QueryPlanner {
 			final IndexSelectionResult<?> indexSelectionResult = selectIndexes(context);
 
 			// if we found empty target index, we may quickly return empty result - one key condition is not fulfilled
+			// - but only after the query was checked exactly as it is where the entities exist
 			if (indexSelectionResult.isEmpty()) {
+				planOverEmptyIndexes(context, false);
 				return QueryPlanBuilder.empty(context);
 			}
 
@@ -252,6 +282,45 @@ public class QueryPlanner {
 
 		} finally {
 			context.popStep();
+		}
+	}
+
+	/**
+	 * Plans the query of an entity type over an empty global index of every requested scope and throws the plan away.
+	 * It is called when the index selection proves that the query matches nothing - the entity type holds no entity of
+	 * the requested scopes, or a constraint the selection resolves matches no entity - and the query is about to be
+	 * answered by an empty plan without translating its constraints. The translation checks the constraints against
+	 * the schema, and a constraint that cannot be evaluated must fail the query here exactly as it fails it where the
+	 * entities exist, so that the query does not fail or pass depending on the data.
+	 *
+	 * Empty indexes stand in for the existing ones as well: the plan is never executed, so only the schema decides its
+	 * outcome, and the cost stays at one translation over indexes holding nothing. A query without an entity type is
+	 * not checked - there is no schema to check it against.
+	 *
+	 * The plan is thrown away, but the schema capabilities its translation requested stay accumulated in the context,
+	 * and {@link QueryPlanBuilder#empty(QueryPlanningContext)} counts them: a valid query that matches nothing asks the
+	 * schema for the same flags as one that matches something.
+	 *
+	 * @param context          planning context of the query
+	 * @param withExtraResults true when the extra results of the query are planned as well - false for a nested query,
+	 *                         which plans none
+	 */
+	private static void planOverEmptyIndexes(@Nonnull QueryPlanningContext context, boolean withExtraResults) {
+		final String entityType = context.getEvitaRequest().getEntityType();
+		if (entityType != null) {
+			final Set<Scope> requestedScopes = context.getScopes();
+			final List<GlobalEntityIndex> emptyIndexes = Arrays.stream(Scope.values())
+				.filter(requestedScopes::contains)
+				.map(scope -> GlobalEntityIndex.createEmptyIndex(entityType, scope))
+				.toList();
+			final List<TargetIndexes<GlobalEntityIndex>> targetIndexes = List.of(
+				new TargetIndexes<>(CONSTRAINT_CHECK_INDEX_DESCRIPTION, GlobalEntityIndex.class, emptyIndexes)
+			);
+			final List<QueryPlanBuilder> builders = createFilterFormula(context, targetIndexes);
+			createSorter(context, targetIndexes, builders);
+			if (withExtraResults) {
+				createExtraResultProducers(context, builders);
+			}
 		}
 	}
 

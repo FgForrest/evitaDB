@@ -208,7 +208,8 @@ private static final long serialVersionUID = 0L;
   private int count_ = 0;
   /**
    * <pre>
-   * Contains number of distinct entities in the response that possess any reference in this group.
+   * Contains number of distinct entities of the query result, filtered without its user filter part, that possess
+   * any reference in this group.
    * </pre>
    *
    * <code>int32 count = 4;</code>
@@ -1357,7 +1358,8 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
     private int count_ ;
     /**
      * <pre>
-     * Contains number of distinct entities in the response that possess any reference in this group.
+     * Contains number of distinct entities of the query result, filtered without its user filter part, that possess
+     * any reference in this group.
      * </pre>
      *
      * <code>int32 count = 4;</code>
@@ -1369,7 +1371,8 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
     }
     /**
      * <pre>
-     * Contains number of distinct entities in the response that possess any reference in this group.
+     * Contains number of distinct entities of the query result, filtered without its user filter part, that possess
+     * any reference in this group.
      * </pre>
      *
      * <code>int32 count = 4;</code>
@@ -1385,7 +1388,8 @@ io.evitadb.externalApi.grpc.generated.GrpcHistogram defaultValue) {
     }
     /**
      * <pre>
-     * Contains number of distinct entities in the response that possess any reference in this group.
+     * Contains number of distinct entities of the query result, filtered without its user filter part, that possess
+     * any reference in this group.
      * </pre>
      *
      * <code>int32 count = 4;</code>

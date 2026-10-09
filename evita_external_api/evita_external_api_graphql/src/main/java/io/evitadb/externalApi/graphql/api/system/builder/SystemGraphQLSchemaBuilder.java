@@ -789,6 +789,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		final GraphQLFieldDefinition onSystemChangeCaptureField = SystemRootDescriptor.ON_CATALOG_CHANGE
 			.to(this.staticEndpointBuilderTransformer)
 			.argument(OnCatalogChangeCaptureSubscriptionHeaderDescriptor.CATALOG_NAME.to(this.argumentBuilderTransformer))
+			.argument(OnCatalogChangeCaptureSubscriptionHeaderDescriptor.CATALOG_ID.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogChangeCaptureSubscriptionHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogChangeCaptureSubscriptionHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogChangeCaptureSubscriptionHeaderDescriptor.CRITERIA.to(this.argumentBuilderTransformer))
@@ -805,6 +806,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 		final GraphQLFieldDefinition onSystemChangeCaptureField = SystemRootDescriptor.ON_CATALOG_CHANGE_UNTYPED
 			.to(this.staticEndpointBuilderTransformer)
 			.argument(OnCatalogChangeCaptureSubscriptionHeaderDescriptor.CATALOG_NAME.to(this.argumentBuilderTransformer))
+			.argument(OnCatalogChangeCaptureSubscriptionHeaderDescriptor.CATALOG_ID.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogChangeCaptureSubscriptionHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogChangeCaptureSubscriptionHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
 			.argument(OnCatalogChangeCaptureSubscriptionHeaderDescriptor.CRITERIA.to(this.argumentBuilderTransformer))

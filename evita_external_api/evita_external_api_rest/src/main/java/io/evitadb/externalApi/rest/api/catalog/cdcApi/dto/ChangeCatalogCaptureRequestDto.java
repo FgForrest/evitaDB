@@ -31,6 +31,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * REST API request DTO representing {@link io.evitadb.api.requestResponse.cdc.ChangeCatalogCaptureRequest}
@@ -38,6 +39,7 @@ import java.util.Optional;
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2025
  */
 public record ChangeCatalogCaptureRequestDto(
+	@Nullable UUID catalogId,
 	@Nullable String sinceVersion,
 	@Nullable Integer sinceIndex,
 	@Nullable ChangeCatalogCaptureCriteriaDto[] criteria,
@@ -58,6 +60,6 @@ public record ChangeCatalogCaptureRequestDto(
 		final ChangeCaptureContent content = Optional.ofNullable(this.content)
 			.orElse(ChangeCaptureContent.HEADER);
 
-		return new ChangeCatalogCaptureRequest(sinceVersion, sinceIndex, criteria, content);
+		return new ChangeCatalogCaptureRequest(this.catalogId, sinceVersion, sinceIndex, criteria, content);
 	}
 }

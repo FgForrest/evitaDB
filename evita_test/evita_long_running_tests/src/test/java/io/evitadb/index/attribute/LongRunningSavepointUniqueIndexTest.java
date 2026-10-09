@@ -87,7 +87,7 @@ class LongRunningSavepointUniqueIndexTest extends AbstractSavepointFuzzTest<Uniq
 	 */
 	private static final class UniqueState implements FuzzGeneration<UniqueSnapshot> {
 		private final OwnerUniqueIndex index =
-			new OwnerUniqueIndex(Entities.PRODUCT, new AttributeIndexKey(null, "code", null), String.class);
+			new OwnerUniqueIndex(Entities.PRODUCT, new AttributeIndexKey(null, "code", null), String.class, 0);
 		// value → owning record id
 		private final Map<String, Integer> valueToRecord = new HashMap<>();
 		// monotonic sequence for random unique values / record ids

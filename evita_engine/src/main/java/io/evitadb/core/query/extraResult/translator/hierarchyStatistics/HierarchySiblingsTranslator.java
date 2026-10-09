@@ -83,7 +83,9 @@ public class HierarchySiblingsTranslator
 					extraResultPlanningVisitor
 				),
 				context.hierarchyFilterPredicateProducer(),
-				extraResultPlanningVisitor.getQueryContext().getHierarchyHavingPredicate(context.hierarchyFilter()),
+				extraResultPlanningVisitor.getQueryContext().getHierarchyHavingPredicate(
+					context.hierarchyFilter(), context.entityIndex().getIndexKey().scope()
+				),
 				scopePredicate,
 				statistics.map(HierarchyStatistics::getStatisticsBase).orElse(null),
 				statistics.map(HierarchyStatistics::getStatisticsType).orElseGet(() -> EnumSet.noneOf(StatisticsType.class))

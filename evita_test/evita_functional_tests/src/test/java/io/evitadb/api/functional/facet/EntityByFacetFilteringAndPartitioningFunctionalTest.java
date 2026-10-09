@@ -24,6 +24,7 @@
 package io.evitadb.api.functional.facet;
 
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
+import io.evitadb.dataType.Scope;
 import io.evitadb.test.annotation.IsolateDataSetBySuffix;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import lombok.extern.slf4j.Slf4j;
@@ -57,5 +58,11 @@ public class EntityByFacetFilteringAndPartitioningFunctionalTest extends Abstrac
 	@Override
 	protected ReferenceSchemaBuilder makeReferenceIndexed(ReferenceSchemaBuilder whichIs) {
 		return whichIs.indexedForFilteringAndPartitioning();
+	}
+
+	@Nonnull
+	@Override
+	protected ReferenceSchemaBuilder makeReferenceIndexedInEveryScope(@Nonnull ReferenceSchemaBuilder whichIs) {
+		return whichIs.indexedForFilteringAndPartitioningInScope(Scope.values());
 	}
 }

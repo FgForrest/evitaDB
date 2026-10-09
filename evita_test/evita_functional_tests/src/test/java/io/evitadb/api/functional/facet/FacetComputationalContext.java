@@ -52,6 +52,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -327,7 +328,10 @@ class FacetComputationalContext {
 					FacetGroupsConstraint::getFacetGroupRelationLevel,
 					Collectors.flatMapping(
 						it -> {
-							if (ArrayUtils.isEmpty(extractFacetIds(it.getFacetGroups().orElseThrow()))) {
+							// settings without a filter apply to every group of the reference; they are represented by
+							// the bucket of the options without a group, which is every option of a reference that has
+							// no group type
+							if (ArrayUtils.isEmpty(it.getFacetGroups().map(FacetComputationalContext::extractFacetIds).orElse(null))) {
 								return Stream.of(
 									new GroupReference(
 										entitySchema.getReferenceOrThrowException(it.getReferenceName()),
@@ -464,8 +468,16 @@ class FacetComputationalContext {
 			.filter(matchTypeAndGroup.negate());
 
 		if (isExclusiveAmongOtherGroups(currentFacetGroupPredicate)) {
-			// use only this facet group predicate - the group is exclusive on group level
-			return currentFacetGroupPredicate;
+			// the group is exclusive on group level - the other groups of its reference are deselected, the selections
+			// of other references stay
+			return combineFacetsIntoPredicate(
+				Stream.concat(
+					otherFacetGroupPredicates.filter(
+						it -> !facet.referenceName().equals(it.referenceSchema().getName())
+					),
+					Stream.of(currentFacetGroupPredicate)
+				).collect(toList())
+			);
 		} else {
 			// now create combined predicate upon it
 			return combineFacetsIntoPredicate(
@@ -692,21 +704,41 @@ class FacetComputationalContext {
 	}
 
 	/**
-	 * Combines a list of facet predicates into a single composite predicate by categorizing each
-	 * predicate into conjugated, disjugated, negated, or exclusive groups based on the
-	 * {@link FacetGroupRelationLevel#WITH_DIFFERENT_GROUPS} configuration. Conjugated and negated
-	 * predicates are combined with AND, disjugated and exclusive with OR, then all are merged
-	 * into the final predicate.
+	 * Combines a list of facet predicates into a single composite predicate. The relation between groups applies
+	 * between the groups of one reference only, so the predicates are composed per reference by
+	 * {@link #combineFacetsOfReferenceIntoPredicate(List)} first, and the compositions of different references are
+	 * combined with AND, the way the user filter combines its constraints.
 	 *
 	 * @param predicates the list of facet predicates to combine
 	 * @return a composite predicate that applies all facet constraints
 	 */
 	@Nonnull
 	private Predicate<SealedEntity> combineFacetsIntoPredicate(@Nonnull List<FacetPredicate> predicates) {
+		Predicate<SealedEntity> resultPredicate = Functions.alwaysTrue();
+		for (List<FacetPredicate> referencePredicates : predicates.stream()
+			.collect(groupingBy(it -> it.referenceSchema().getName(), LinkedHashMap::new, toList()))
+			.values()) {
+			resultPredicate = resultPredicate.and(combineFacetsOfReferenceIntoPredicate(referencePredicates));
+		}
+		return resultPredicate;
+	}
+
+	/**
+	 * Combines the facet predicates of one reference into a single composite predicate by categorizing each
+	 * predicate into conjugated, disjugated, negated, or exclusive groups based on the
+	 * {@link FacetGroupRelationLevel#WITH_DIFFERENT_GROUPS} configuration. Conjugated and exclusive predicates are
+	 * combined with AND - exclusivity falls back to the system default in the result - and disjugated ones with OR,
+	 * the two parts are joined by OR, and the negated predicates are applied to the whole with AND, the way the
+	 * engine composes the facet selection of one reference.
+	 *
+	 * @param predicates the facet predicates of one reference
+	 * @return a composite predicate that applies the facet constraints of the reference
+	 */
+	@Nonnull
+	private Predicate<SealedEntity> combineFacetsOfReferenceIntoPredicate(@Nonnull List<FacetPredicate> predicates) {
 		final List<Predicate<SealedEntity>> disjugatedPredicates = new ArrayList<>();
 		final List<Predicate<SealedEntity>> conjugatedPredicates = new ArrayList<>();
 		final List<Predicate<SealedEntity>> negatedPredicates = new ArrayList<>();
-		final List<Predicate<SealedEntity>> exclusivePredicates = new ArrayList<>();
 		for (FacetPredicate predicate : predicates) {
 			final GroupReference groupReference = new GroupReference(
 				predicate.referenceSchema(), predicate.facetGroupId());
@@ -715,15 +747,16 @@ class FacetComputationalContext {
 			} else if (isFacetGroupNegated(groupReference, WITH_DIFFERENT_GROUPS)) {
 				negatedPredicates.add(predicate);
 			} else if (isFacetGroupExclusive(groupReference, WITH_DIFFERENT_GROUPS)) {
-				exclusivePredicates.add(predicate);
+				// exclusivity changes only the reference summary, the result falls back to the system default between
+				// groups, which is a conjunction
+				conjugatedPredicates.add(predicate);
 			} else if (isFacetGroupDisjugated(groupReference, WITH_DIFFERENT_GROUPS)) {
 				disjugatedPredicates.add(predicate);
 			} else {
 				switch (this.defaultGroupRelationType) {
-					case CONJUNCTION -> conjugatedPredicates.add(predicate);
+					case CONJUNCTION, EXCLUSIVITY -> conjugatedPredicates.add(predicate);
 					case DISJUNCTION -> disjugatedPredicates.add(predicate);
 					case NEGATION -> negatedPredicates.add(predicate);
-					case EXCLUSIVITY -> exclusivePredicates.add(predicate);
 				}
 			}
 		}
@@ -733,23 +766,14 @@ class FacetComputationalContext {
 		final Optional<Predicate<SealedEntity>> conjugatedPredicate = conjugatedPredicates.stream().reduce(
 			Predicate::and);
 		final Optional<Predicate<SealedEntity>> negatedPredicate = negatedPredicates.stream().reduce(Predicate::and);
-		final Optional<Predicate<SealedEntity>> exclusivePredicate = exclusivePredicates.stream().reduce(Predicate::or);
 
-		Predicate<SealedEntity> resultPredicate = Functions.alwaysTrue();
-		if (conjugatedPredicate.isPresent()) {
-			resultPredicate = resultPredicate.and(conjugatedPredicate.get());
-		}
+		Predicate<SealedEntity> resultPredicate = conjugatedPredicate
+			.map(conjugated -> disjugatedPredicate.map(conjugated::or).orElse(conjugated))
+			.or(() -> disjugatedPredicate)
+			.orElseGet(Functions::alwaysTrue);
 		if (negatedPredicate.isPresent()) {
 			resultPredicate = resultPredicate.and(negatedPredicate.get());
 		}
-		if (exclusivePredicate.isPresent()) {
-			// exclusivity must be enforced on client level - it's too late here, so we fall back to system default - and
-			resultPredicate = resultPredicate.and(exclusivePredicate.get());
-		}
-		if (disjugatedPredicate.isPresent()) {
-			resultPredicate = resultPredicate.or(disjugatedPredicate.get());
-		}
-
 		return resultPredicate;
 	}
 

@@ -32,6 +32,7 @@ import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.extraResult.ExtraResultPlanningVisitor;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
+import io.evitadb.core.query.fetch.ReferencedEntityFetcher;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -47,6 +48,11 @@ import static java.util.Optional.of;
  * {@link ReferenceContent} requirement is encountered. This requirement signalizes that we would need to use
  * the {@link ReferenceFetcher} implementation to fetch referenced entities, and we'd need the information about entity
  * references already present at that moment.
+ *
+ * The filter and the ordering of the fetched references are checked against the schemas here, while the query is
+ * planned - see {@link ReferencedEntityFetcher#verifyReferenceContentConstraints}. The fetch evaluates them only when
+ * there is a reference to filter or order, so a constraint the schemas refuse would otherwise fail the query or pass
+ * depending on the data it returns.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -72,6 +78,14 @@ public class ReferenceContentTranslator implements RequireConstraintTranslator<R
 				.map(it -> it.map(schema::getReferenceOrThrowException))
 				.orElseGet(() -> schema.getReferences().values().stream())
 				.forEach(referenceSchema -> {
+					ReferencedEntityFetcher.verifyReferenceContentConstraints(
+						extraResultPlanningVisitor.getQueryContext(),
+						schema,
+						referenceSchema,
+						referenceContent.getFilterBy().orElse(null),
+						referenceContent.getOrderBy().orElse(null),
+						extraResultPlanningVisitor.getProcessingScope().getScopes()
+					);
 					extraResultPlanningVisitor.executeInContext(
 						referenceContent,
 						() -> referenceSchema,

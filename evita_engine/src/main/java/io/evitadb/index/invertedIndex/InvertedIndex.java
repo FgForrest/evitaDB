@@ -2435,6 +2435,29 @@ public class InvertedIndex implements
 	}
 
 	/**
+	 * Returns the number of distinct records held by the histogram. Unlike {@link #getLength()}, which sums the
+	 * buckets, a record present in several buckets - the owner of an array value with several distinct elements - is
+	 * counted once.
+	 *
+	 * Counted by one cursor walk into a transient bitmap that dies with the call, so it is `O(records)` and retains
+	 * nothing; it serves the index statistics and must never be called from a query path.
+	 *
+	 * @return number of distinct records in the histogram
+	 */
+	public int getDistinctRecordCount() {
+		final BaseBitmap records = new BaseBitmap();
+		final BucketCursor cursor = this.buckets.cursor();
+		while (cursor.next()) {
+			if (cursor.isSingle()) {
+				records.add(cursor.singleRecordId());
+			} else {
+				records.addAll(cursor.records());
+			}
+		}
+		return records.size();
+	}
+
+	/**
 	 * Returns `true` when this inverted index has unflushed mutations. Exposed so a {@link io.evitadb.index.attribute.FilterIndex}
 	 * VIEW can drive its persistence decision off the shared tree it wraps instead of its own (non-committed)
 	 * dirty flag, which keeps the view free of transactional state.

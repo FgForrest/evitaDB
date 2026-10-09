@@ -32,11 +32,13 @@ import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.hierarchy.HierarchyFormula;
+import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.utils.Assert;
@@ -45,8 +47,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 
 import static java.util.Optional.ofNullable;
 
@@ -57,10 +61,50 @@ import static java.util.Optional.ofNullable;
  */
 public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<HierarchyWithinRoot> {
 
+	/**
+	 * Creates the formula of the hierarchy nodes the constraint selects in all processing scopes: the union of what
+	 * {@link #createFormulaFromHierarchyIndex(HierarchyWithinRoot, FilterByVisitor, Scope)} selects in each of them.
+	 *
+	 * @param hierarchyWithinRoot the translated constraint
+	 * @param filterByVisitor     the visitor translating the constraint
+	 * @return the formula of the selected hierarchy nodes
+	 */
 	@Nonnull
 	public static Formula createFormulaFromHierarchyIndex(
 		@Nonnull HierarchyWithinRoot hierarchyWithinRoot,
 		@Nonnull FilterByVisitor filterByVisitor
+	) {
+		final Set<Scope> scopes = filterByVisitor.getProcessingScope().getScopes();
+		if (scopes.size() == 1) {
+			return createFormulaFromHierarchyIndex(hierarchyWithinRoot, filterByVisitor, scopes.iterator().next());
+		}
+		final Formula nodesOfAllScopes = FormulaFactory.or(
+			Arrays.stream(Scope.values())
+				.filter(scopes::contains)
+				.map(scope -> createFormulaFromHierarchyIndex(hierarchyWithinRoot, filterByVisitor, scope))
+				.filter(it -> it != EmptyFormula.INSTANCE)
+				.toArray(Formula[]::new)
+		);
+		// the index selection computes the nodes in the planning phase
+		nodesOfAllScopes.initialize(filterByVisitor.getInternalExecutionContext());
+		return nodesOfAllScopes;
+	}
+
+	/**
+	 * Creates the formula of the hierarchy nodes the constraint selects in the tree of one scope, exactly as a query
+	 * over that scope alone would, with the node visibility recorded for that scope and the result memoized per scope.
+	 *
+	 * @param hierarchyWithinRoot the translated constraint
+	 * @param filterByVisitor     the visitor translating the constraint
+	 * @param scope               the scope to select the nodes in
+	 * @return the formula of the nodes selected in the scope, {@link EmptyFormula} when the scope has no index - the
+	 *         node filters are then checked over an empty index
+	 */
+	@Nonnull
+	public static Formula createFormulaFromHierarchyIndex(
+		@Nonnull HierarchyWithinRoot hierarchyWithinRoot,
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull Scope scope
 	) {
 		final QueryPlanningContext queryContext = filterByVisitor.getQueryContext();
 		final Optional<String> referenceName = hierarchyWithinRoot.getReferenceName();
@@ -80,36 +124,43 @@ public class HierarchyWithinRootTranslator extends AbstractHierarchyTranslator<H
 			)
 		);
 
-		// we use only the first applicable scope here - if LIVE scope is present it always takes precedence
-		final Set<Scope> scopesToLookup = filterByVisitor.getProcessingScope().getScopes();
-		return Arrays.stream(Scope.values())
-			.filter(scopesToLookup::contains)
-			.map(scope -> queryContext.getEntityIndex(targetEntitySchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL, scope), EntityIndex.class))
-			.filter(Optional::isPresent)
-			.map(Optional::get)
+		final Set<Scope> scopeToLookup = EnumSet.of(scope);
+		final Function<EntityIndex, Formula> nodesFormulaFactory = targetEntityIndex -> createFormulaFromHierarchyIndex(
+			createAndStoreHavingPredicate(
+				hierarchyWithinRoot,
+				null,
+				queryContext,
+				scopeToLookup,
+				hierarchyWithinRoot.getHavingChildrenFilter(),
+				hierarchyWithinRoot.getHavingAnyChildFilter(),
+				hierarchyWithinRoot.getExcludedChildrenFilter(),
+				referenceSchema
+			),
+			hierarchyWithinRoot.isDirectRelation(),
+			targetEntityIndex
+		);
+		return queryContext.getEntityIndex(
+				targetEntitySchema.getName(), new EntityIndexKey(EntityIndexType.GLOBAL, scope), EntityIndex.class
+			)
 			.map(
 				targetEntityIndex ->
 					queryContext.computeOnlyOnce(
 						Collections.singletonList(targetEntityIndex),
 						hierarchyWithinRoot,
-						() -> createFormulaFromHierarchyIndex(
-							createAndStoreHavingPredicate(
-								hierarchyWithinRoot,
-								null,
-								queryContext,
-								scopesToLookup,
-								hierarchyWithinRoot.getHavingChildrenFilter(),
-								hierarchyWithinRoot.getHavingAnyChildFilter(),
-								hierarchyWithinRoot.getExcludedChildrenFilter(),
-								referenceSchema
-							),
-							hierarchyWithinRoot.isDirectRelation(),
-							targetEntityIndex
-						)
+						() -> nodesFormulaFactory.apply(targetEntityIndex),
+						scopesCacheKey(scopeToLookup)
 					)
 			)
-			.findFirst()
-			.orElse(EmptyFormula.INSTANCE);
+			.orElseGet(
+				() -> {
+					// a scope holding no entity of the hierarchy selects no node, but the node filters of the
+					// constraint are checked against the schema over an empty index all the same - the query must
+					// not fail or pass depending on the data; the scope contributes nothing, whatever the translation
+					// produced
+					nodesFormulaFactory.apply(GlobalEntityIndex.createEmptyIndex(targetEntitySchema.getName(), scope));
+					return EmptyFormula.INSTANCE;
+				}
+			);
 	}
 
 	@Nonnull

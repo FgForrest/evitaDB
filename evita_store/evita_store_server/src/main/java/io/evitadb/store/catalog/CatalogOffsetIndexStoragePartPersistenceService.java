@@ -80,11 +80,13 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	implements CatalogStoragePartPersistenceService<LogFileRecordReference, CollectionFileReference, PersistentStorageDescriptor> {
 
 	/**
-	 * The current catalog header represents the header information of a catalog, which contains all the necessary
-	 * information to fully restore the catalog state and indexes from persistent storage. The variable is initialized
-	 * lazily.
+	 * The most recent catalog header written to (or loaded from) this data file. It contains all the necessary
+	 * information to fully restore the catalog state and indexes from persistent storage. It is a cache of the
+	 * newest header only - {@link #getCatalogHeader(long)} answers a request for an older version from the offset
+	 * index instead. Volatile because it is replaced by the writer while readers of other versions (a backup, a
+	 * statistics probe) consult it from their own threads.
 	 */
-	private CatalogHeader<LogFileRecordReference, CollectionFileReference> currentCatalogHeader;
+	private volatile CatalogHeader<LogFileRecordReference, CollectionFileReference> currentCatalogHeader;
 
 	/**
 	 * Creates a CatalogOffsetIndexStoragePartPersistenceService object with the given parameters.
@@ -471,15 +473,22 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	@Nonnull
 	@Override
 	public CatalogHeader<LogFileRecordReference, CollectionFileReference> getCatalogHeader(long catalogVersion) {
-		if (this.currentCatalogHeader == null) {
-			//noinspection unchecked
-			this.currentCatalogHeader = Objects.requireNonNull(
-				(CatalogHeader<LogFileRecordReference, CollectionFileReference>) this.offsetIndex.get(
-					catalogVersion, 1L, CatalogHeader.class
-				)
-			);
+		final CatalogHeader<LogFileRecordReference, CollectionFileReference> cachedHeader = this.currentCatalogHeader;
+		// the cached header is the newest one this file holds, so it is the right answer for its own version and for
+		// every later one - but a reader pinned to an older version (a backup copying the published state while
+		// transactions keep committing) must get the header of that version, or it pairs the collection set, WAL
+		// pointer and counters of a newer catalog with data it reads at its own version
+		if (cachedHeader != null && catalogVersion >= cachedHeader.version()) {
+			return cachedHeader;
 		}
-		return this.currentCatalogHeader;
+		// deliberately not cached: only `writeCatalogHeader` knows which header is the newest one
+		//noinspection unchecked
+		return Objects.requireNonNull(
+			(CatalogHeader<LogFileRecordReference, CollectionFileReference>) this.offsetIndex.get(
+				catalogVersion, 1L, CatalogHeader.class
+			),
+			() -> "Catalog header for version " + catalogVersion + " is not present in the offset index!"
+		);
 	}
 
 	@Override

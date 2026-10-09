@@ -82,7 +82,7 @@ class LongRunningUniqueIndexTest implements TimeBoundedTestSupport {
 			new TestState(
 				new StringBuilder(256),
 				1,
-				new OwnerUniqueIndex(Entities.PRODUCT, new AttributeIndexKey(null, "code", null), String.class)
+				new OwnerUniqueIndex(Entities.PRODUCT, new AttributeIndexKey(null, "code", null), String.class, 0)
 			),
 			(random, testState) -> {
 				final StringBuilder codeBuffer = testState.code();
@@ -99,9 +99,9 @@ class LongRunningUniqueIndexTest implements TimeBoundedTestSupport {
 						final int[] expected = currentRecordSet.stream().mapToInt(it -> it).sorted().toArray();
 						assertArrayEquals(
 							expected,
-							committed.getRecordIds().getArray(),
+							UniqueIndexTestSupport.ownerRecordIds(committed),
 							"\nExpected: " + Arrays.toString(expected) + "\n" +
-								"Actual:  " + Arrays.toString(committed.getRecordIds().getArray()) + "\n\n" +
+								"Actual:  " + Arrays.toString(UniqueIndexTestSupport.ownerRecordIds(committed)) + "\n\n" +
 								codeBuffer
 						);
 
@@ -110,7 +110,7 @@ class LongRunningUniqueIndexTest implements TimeBoundedTestSupport {
 							new OwnerUniqueIndex(
 								committed.getEntityType(),
 								committed.getAttributeIndexKey(),
-								committed.getType(),
+								committed.getType(), 0,
 								snap.values(),
 								snap.recordIds()
 							)
@@ -230,7 +230,7 @@ class LongRunningUniqueIndexTest implements TimeBoundedTestSupport {
 		@Nonnull StringBuilder codeBuffer
 	) {
 		final OwnerUniqueIndex uniqueIndex =
-			new OwnerUniqueIndex(Entities.PRODUCT, new AttributeIndexKey(null, "code", null), String.class);
+			new OwnerUniqueIndex(Entities.PRODUCT, new AttributeIndexKey(null, "code", null), String.class, 0);
 		for (final Entry<String, Integer> entry : mapToCompare.entrySet()) {
 			codeBuffer.append("uniqueIndex.registerUniqueKey(\"").append(entry.getKey()).append("\", ").append(entry.getValue()).append(");\n");
 			uniqueIndex.registerUniqueKey(entry.getKey(), entry.getValue());

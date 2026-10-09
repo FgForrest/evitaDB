@@ -25,22 +25,39 @@ package io.evitadb.core.query;
 
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.StorageOptions;
+import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.FilterGroupBy;
+import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.query.require.FacetStatisticsDepth;
+import io.evitadb.api.query.require.ReferenceSummary;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
+import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor.ReflectedReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.core.exception.AttributeNotFilterableException;
+import io.evitadb.core.query.filter.translator.reference.BidirectionalReferenceRewriter;
+import io.evitadb.core.exception.AttributeNotSortableException;
 import io.evitadb.core.query.indexSelection.IndexSelectionVisitor;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.dataType.Scope;
@@ -60,32 +77,69 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.time.OffsetDateTime;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static io.evitadb.api.query.QueryConstraints.and;
 import static io.evitadb.api.query.QueryConstraints.attributeEquals;
 import static io.evitadb.api.query.QueryConstraints.attributeNatural;
 import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.debug;
+import static io.evitadb.api.query.QueryConstraints.entityFetch;
+import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
+import static io.evitadb.api.query.QueryConstraints.entityGroupFetch;
+import static io.evitadb.api.query.QueryConstraints.entityHaving;
 import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
+import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyNatural;
+import static io.evitadb.api.query.QueryConstraints.entityProperty;
 import static io.evitadb.api.query.QueryConstraints.facetHaving;
+import static io.evitadb.api.query.QueryConstraints.facetSummary;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.filterGroupBy;
+import static io.evitadb.api.query.QueryConstraints.fromNode;
+import static io.evitadb.api.query.QueryConstraints.fromRoot;
+import static io.evitadb.api.query.QueryConstraints.groupHaving;
+import static io.evitadb.api.query.QueryConstraints.having;
+import static io.evitadb.api.query.QueryConstraints.hierarchyOfReference;
+import static io.evitadb.api.query.QueryConstraints.hierarchyOfSelf;
+import static io.evitadb.api.query.QueryConstraints.hierarchyWithin;
+import static io.evitadb.api.query.QueryConstraints.hierarchyWithinSelf;
+import static io.evitadb.api.query.QueryConstraints.histogramHaving;
+import static io.evitadb.api.query.QueryConstraints.histogramStatistics;
+import static io.evitadb.api.query.QueryConstraints.node;
+import static io.evitadb.api.query.QueryConstraints.or;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
+import static io.evitadb.api.query.QueryConstraints.page;
+import static io.evitadb.api.query.QueryConstraints.orderGroupBy;
+import static io.evitadb.api.query.QueryConstraints.pickFirstByEntityProperty;
+import static io.evitadb.api.query.QueryConstraints.referenceContent;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
 import static io.evitadb.api.query.QueryConstraints.referenceProperty;
+import static io.evitadb.api.query.QueryConstraints.referenceSummary;
+import static io.evitadb.api.query.QueryConstraints.referenceSummaryOfReference;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
+import static io.evitadb.api.query.QueryConstraints.segment;
+import static io.evitadb.api.query.QueryConstraints.segments;
+import static io.evitadb.api.query.QueryConstraints.stopAt;
+import static io.evitadb.api.query.QueryConstraints.traverseByEntityProperty;
+import static io.evitadb.api.query.QueryConstraints.userFilter;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FACET;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.REFERENCE;
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -124,11 +178,70 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	private static final String CATALOG = "requestedCapabilityAccumulationTest";
 	private static final String ENTITY_PRODUCT = "product";
 	private static final String ENTITY_CATEGORY = "category";
+	/** A type whose only entity is archived and references a category, which has no archived entity. */
+	private static final String ENTITY_STOCK = "stock";
 	private static final String REFERENCE_CATEGORIES = "categories";
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_PRIORITY = "priority";
 	private static final String ATTRIBUTE_EAN = "ean";
 	private static final String ATTRIBUTE_ORDER_IN_CATEGORY = "orderInCategory";
+	/** The attribute of {@link #ENTITY_CATEGORY}, filterable and sortable in every scope. */
+	private static final String ATTRIBUTE_CATEGORY_NAME = "categoryName";
+	/** The only stock, archived. */
+	private static final int ARCHIVED_STOCK = 1;
+	/** The type the categories reference by {@link #REFERENCE_TAGS}. */
+	private static final String ENTITY_TAG = "tag";
+	/** The reference of {@link #ENTITY_CATEGORY} to the tags; category 1 references tag 1. */
+	private static final String REFERENCE_TAGS = "tags";
+	/**
+	 * A hierarchical type no entity of which exists; it references the categories by {@link #REFERENCE_CATEGORIES}, and
+	 * the products reference it by {@link #REFERENCE_BRAND}, which no product holds a row of.
+	 */
+	private static final String ENTITY_BRAND = "brand";
+	/**
+	 * The reference of {@link #ENTITY_PRODUCT} to the brands, indexed and faceted in the live scope, its groups being
+	 * the tags.
+	 */
+	private static final String REFERENCE_BRAND = "brand";
+	/**
+	 * The second reference of {@link #ENTITY_PRODUCT} to the categories, which no product holds a row of - see
+	 * {@link #addMainCategoryOfFirstProduct()} for the case adding one.
+	 */
+	private static final String REFERENCE_MAIN_CATEGORY = "mainCategory";
+	/**
+	 * The reference of {@link #ENTITY_PRODUCT} to the tags, indexed and bucketed in the live scope but not faceted, its
+	 * groups being the categories - a summary of all references describes it only for the histogram it requests. No
+	 * product holds a row of it - see {@link #addWeightedTagOfFirstProduct()} for the case adding one.
+	 */
+	private static final String REFERENCE_WEIGHTED_TAGS = "weightedTags";
+	/** The histogram {@link #REFERENCE_WEIGHTED_TAGS} maintains over the weight of the tag. */
+	private static final String HISTOGRAM_WEIGHT = "weightHistogram";
+	/**
+	 * The reflection of the products of the stocks a case declares on {@link #ENTITY_PRODUCT} - before the reference
+	 * {@link #REFERENCE_PRODUCTS} it mirrors exists, so it is not attached while the case queries.
+	 */
+	private static final String REFERENCE_REFLECTED_STOCKS = "reflectedStocks";
+	/** The reference of {@link #ENTITY_STOCK} to the products, declared only to attach the reflection of it. */
+	private static final String REFERENCE_PRODUCTS = "products";
+	/**
+	 * The attribute the categories, the brands and the tags share, filterable in the live scope - the only kind of
+	 * attribute the filter of a summary of all references can name, because it is evaluated against every summarized
+	 * entity type and every group type.
+	 */
+	private static final String ATTRIBUTE_LABEL = "label";
+	/**
+	 * The types a summary of all references of the products filters by {@link #ATTRIBUTE_LABEL}: the categories and the
+	 * brands its options are, and the tags the groups of the brands are.
+	 */
+	private static final String[] SUMMARIZED_TYPES = {ENTITY_CATEGORY, ENTITY_BRAND, ENTITY_TAG};
+	/** The attribute of the {@link #REFERENCE_TAGS} reference, filterable in the live scope. */
+	private static final String ATTRIBUTE_WEIGHT = "weight";
+	/**
+	 * The attribute the categories, the brands and the tags share, filterable and sortable in the live scope - the one
+	 * the orderings of the summaries and of the hierarchy statistics name, and the node filters of the brands besides
+	 * the label. No entity sets it.
+	 */
+	private static final String ATTRIBUTE_RANK = "rank";
 	private static final String COMPOUND_CODE_WITH_PRIORITY = "codeWithPriority";
 	private static final int CATEGORY_COUNT = 4;
 	private static final int PRODUCTS_PER_CATEGORY = 5;
@@ -171,6 +284,14 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	/** The archive counterpart of the flag above - a scope the fixture deliberately leaves undeclared. */
 	private static final SchemaCapabilityKey CATEGORIES_FACETED_ARCHIVED = SchemaCapabilityKey.reference(
 		REFERENCE_CATEGORIES, Capability.FACETED, Scope.ARCHIVED
+	);
+	/** Filtering by an attribute the `tags` reference of the categories declares. */
+	private static final SchemaCapabilityKey WEIGHT_FILTER = SchemaCapabilityKey.referenceAttribute(
+		REFERENCE_TAGS, ATTRIBUTE_WEIGHT, Capability.FILTERABLE, Scope.LIVE
+	);
+	/** The `tags` reference's own `indexed()` flag. */
+	private static final SchemaCapabilityKey TAGS_INDEXED = SchemaCapabilityKey.reference(
+		REFERENCE_TAGS, Capability.INDEXED, Scope.LIVE
 	);
 
 	private TestPaths paths;
@@ -491,21 +612,607 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("A query the planner answers without selecting any index counts nothing")
-		void shouldCountNothingWhenNoIndexIsSelected() {
-			// index selection comes back empty for a scope this catalog holds no index in, and the planner returns the
-			// empty plan before the filter is translated even once - so `code` is named by the query and still must
-			// not be counted
+		@DisplayName("A query whose reference constraint matches nothing counts what its twin matching data counts")
+		void shouldCountQueryWhoseReferenceConstraintMatchesNothing() {
+			// index selection comes back empty for a category no product references, and the planner answers with the
+			// empty plan after checking the constraints over empty indexes - the query still named `code` and
+			// `priority`, and dropping either flag would break it, so it counts exactly like its twin that matches data
 			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByExecuting(
+				productsOfCategoryOrderedByPriority(CATEGORY_COUNT + 1)
+			);
+			final Map<SchemaCapabilityKey, Long> requestedByTwin = capabilitiesRequestedByExecuting(
+				productsOfCategoryOrderedByPriority(QUERIED_CATEGORY)
+			);
+
+			assertEquals(
+				Map.of(CODE_FILTER, 1L, PRIORITY_SORT, 1L), requestedByTwin,
+				"The twin matching data must count each capability it named once"
+			);
+			assertEquals(
+				requestedByTwin, requested,
+				"The query matching nothing must count exactly what its twin matching data counts"
+			);
+		}
+
+		@Test
+		@DisplayName("A query over a scope without data counts what its twin over a scope with data counts")
+		void shouldCountQueryOverScopeWithoutData() {
+			// the categories hold no archived entity, so index selection comes back empty for the archived scope and
+			// the planner answers with the empty plan after checking the filter and the ordering over empty indexes
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY, categoriesByNameInScope(Scope.ARCHIVED)
+			);
+			final Map<SchemaCapabilityKey, Long> requestedByTwin = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY, categoriesByNameInScope(Scope.LIVE)
+			);
+
+			assertEquals(
+				Map.of(
+					categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L,
+					categoryNameKey(Capability.SORTABLE, Scope.LIVE), 1L
+				),
+				requestedByTwin,
+				"The twin over the scope with data must count each capability it named once"
+			);
+			assertEquals(
+				Map.of(
+					categoryNameKey(Capability.FILTERABLE, Scope.ARCHIVED), 1L,
+					categoryNameKey(Capability.SORTABLE, Scope.ARCHIVED), 1L
+				),
+				requested,
+				"The query over the scope without data must count each capability it named once, like its twin"
+			);
+		}
+
+		@Test
+		@DisplayName("A nested query over a scope without data counts what its twin over a scope with data counts")
+		void shouldCountNestedQueryOverScopeWithoutData() {
+			// the references of the archived stock are ordered by a nested query over the archived categories, of
+			// which there is none - that nested query is answered by the empty plan, while the same ordering of the
+			// references of a live product is planned over the live categories
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY, entityWithCategoriesOrderedByName(ENTITY_STOCK, Scope.ARCHIVED)
+			);
+			final Map<SchemaCapabilityKey, Long> requestedByTwin = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY, entityWithCategoriesOrderedByName(ENTITY_PRODUCT, Scope.LIVE)
+			);
+
+			assertEquals(
+				Map.of(categoryNameKey(Capability.SORTABLE, Scope.LIVE), 1L), requestedByTwin,
+				"The nested query over the scope with data must count the capability it named once"
+			);
+			assertEquals(
+				Map.of(categoryNameKey(Capability.SORTABLE, Scope.ARCHIVED), 1L), requested,
+				"The nested query over the scope without data must count the capability it named once, like its twin"
+			);
+		}
+
+		@Test
+		@DisplayName("A filter of the fetched references counts once, whether or not there is a reference to filter")
+		void shouldCountFilterOfFetchedReferencesOnce() {
+			// the filter is checked while the query is planned, before the winning plan drains the accumulator, and
+			// translated again by the fetch only when a fetched product references something - which must not count
+			// the same request a second time
+			final Map<SchemaCapabilityKey, Long> requestedWithReference = capabilitiesRequestedByFetching(
+				ENTITY_PRODUCT, productWithCategoriesFilteredByOrder(1)
+			);
+			final Map<SchemaCapabilityKey, Long> requestedWithoutProduct = capabilitiesRequestedByFetching(
+				ENTITY_PRODUCT, productWithCategoriesFilteredByOrder(PRODUCT_COUNT + 1)
+			);
+
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(
+				ORDER_IN_CATEGORY_FILTER, 1L, CATEGORIES_INDEXED, 1L
+			);
+			assertEquals(
+				expected, requestedWithReference,
+				"The query fetching a filtered reference must count the capabilities its filter named once"
+			);
+			assertEquals(
+				expected, requestedWithoutProduct,
+				"The query fetching no reference must count what its twin fetching one counts"
+			);
+		}
+
+		@Test
+		@DisplayName("An entity filter of the fetched references counts once on their collection, whatever is fetched")
+		void shouldCountEntityFilterOfFetchedReferencesOnceOnReferencedCollection() {
+			// the fetch plans the filter of the referenced categories as a nested query of their collection only when
+			// a fetched product references a category; the check made while the query is planned plans no nested
+			// query, so it counts what it named itself, and the nested query of the fetch skips what it counted
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(
+				categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L
+			);
+
+			assertEquals(
+				expected,
+				capabilitiesRequestedByFetching(ENTITY_CATEGORY, productWithCategoriesFilteredByName(1, "category-1")),
+				"The query fetching a filtered category must count the filter of the categories once"
+			);
+			assertEquals(
+				expected,
+				capabilitiesRequestedByFetching(ENTITY_CATEGORY, productWithCategoriesFilteredByName(1, "missing")),
+				"The query fetching a product whose categories the filter refuses must count the filter once"
+			);
+			assertEquals(
+				expected,
+				capabilitiesRequestedByFetching(
+					ENTITY_CATEGORY, productWithCategoriesFilteredByName(PRODUCT_COUNT + 1, "category-1")
+				),
+				"The query fetching no product must count the filter of the categories once"
+			);
+		}
+
+		@Test
+		@DisplayName("A group filter of the fetched references counts once on their groups, whatever is fetched")
+		void shouldCountGroupFilterOfFetchedReferencesOnceOnGroupCollection() {
+			// the groups of the brands are the tags, which hold data - the fetch evaluates the group filter only when
+			// a fetched product references a brand, so the check counts it, whether or not there is one
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				filterBy(entityPrimaryKeyInSet(1)),
+				require(
+					entityFetch(
+						referenceContent(REFERENCE_BRAND, filterBy(groupHaving(attributeEquals(ATTRIBUTE_LABEL, "x"))))
+					)
+				)
+			);
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(labelKey(), 1L);
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_TAG, query),
+				"The query fetching a product without a brand must count the group filter once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_TAG, query),
+				"The query fetching a product with a brand must count the group filter once"
+			);
+		}
+
+		@Test
+		@DisplayName("A filter of the references of the fetched referenced entities counts once on their collection")
+		void shouldCountFilterOfReferencesOfFetchedReferencedEntitiesOnce() {
+			// the categories fetched with a product own the references to the tags, so the filter of those references
+			// asks the schema of the categories - it is checked while the query is planned, in a context of the
+			// category collection, and must be counted once whether or not there is a category to fetch
+			final Map<SchemaCapabilityKey, Long> requestedWithReference = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY, productWithCategoriesWithTagsFilteredByWeight(1)
+			);
+			final Map<SchemaCapabilityKey, Long> requestedWithoutProduct = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY, productWithCategoriesWithTagsFilteredByWeight(PRODUCT_COUNT + 1)
+			);
+
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(WEIGHT_FILTER, 1L, TAGS_INDEXED, 1L);
+			assertEquals(
+				expected, requestedWithReference,
+				"The query fetching a category with filtered tags must count the capabilities the filter named once"
+			);
+			assertEquals(
+				expected, requestedWithoutProduct,
+				"The query fetching no category must count what its twin fetching one counts"
+			);
+		}
+
+		@Test
+		@DisplayName("An entity filter of a reference counts the target's flag in a scope where the target holds nothing")
+		void shouldCountEntityFilterOfReferenceInScopeWithoutTargetData() {
+			// the products of both scopes are filtered by the name of their category: the live categories are queried
+			// by a nested query, which counts the live flag it named; the categories hold no archived entity, so the
+			// filter is only checked against the archived scope - it named the archived flag all the same
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY, productsOfCategoryNamed(Scope.LIVE, Scope.ARCHIVED)
+			);
+
+			assertEquals(
+				Map.of(
+					categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L,
+					categoryNameKey(Capability.FILTERABLE, Scope.ARCHIVED), 1L
+				),
+				requested,
+				"The filter of the categories must be counted once in each scope, with and without categories there"
+			);
+		}
+
+		@Test
+		@DisplayName("An entity filter of a reference of a query matching nothing counts the target's flag")
+		void shouldCountEntityFilterOfReferenceOfQueryMatchingNothing() {
+			// the products hold no archived entity, so the query is answered by the empty plan after its filter was
+			// checked, and the categories hold no archived entity either, so their filter is only checked - the query
+			// named the archived flag of the category name all the same
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY, productsOfCategoryNamed(Scope.ARCHIVED)
+			);
+
+			assertEquals(
+				Map.of(categoryNameKey(Capability.FILTERABLE, Scope.ARCHIVED), 1L), requested,
+				"The filter of the categories must be counted once for the query matching nothing"
+			);
+		}
+
+		@Test
+		@DisplayName("An entity filter of the fetched references counts once in a scope where the target holds nothing")
+		void shouldCountEntityFilterOfFetchedReferencesInScopeWithoutTargetDataOnce() {
+			// the products of both scopes fetch their categories filtered by name: the categories hold no archived
+			// entity, so no nested query is planned for the archived scope, neither while the query is planned nor
+			// when a product is fetched - the check made while planning is the only place the archived flag is
+			// requested, and it must be counted once whether or not there is a product to fetch; the live flag is
+			// counted once by the nested query the fetch plans over the live categories
+			final Map<SchemaCapabilityKey, Long> requestedWithProduct = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY, productOfBothScopesWithCategoriesFilteredByName(1)
+			);
+			final Map<SchemaCapabilityKey, Long> requestedWithoutProduct = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY, productOfBothScopesWithCategoriesFilteredByName(PRODUCT_COUNT + 1)
+			);
+
+			assertEquals(
+				Map.of(
+					categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L,
+					categoryNameKey(Capability.FILTERABLE, Scope.ARCHIVED), 1L
+				),
+				requestedWithProduct,
+				"The query fetching a product must count the flags the filter of its categories named once"
+			);
+			assertEquals(
+				Map.of(
+					categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L,
+					categoryNameKey(Capability.FILTERABLE, Scope.ARCHIVED), 1L
+				),
+				requestedWithoutProduct,
+				"The query fetching no product must count the flags the filter of the categories named like its twin"
+			);
+		}
+
+		@Test
+		@DisplayName("An entity filter nested in a checked entity filter counts the inner target's flag where it has data")
+		void shouldCountEntityFilterNestedInCheckedEntityFilter() {
+			// the brands hold no entity, so their filter is only checked and no nested query of the brands is planned -
+			// nor of the categories the brand filter nests, although the categories hold live data: the check is the
+			// only place the live flag of the category name is requested, and it must be counted once
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY,
 				Query.query(
 					collection(ENTITY_PRODUCT),
-					filterBy(and(scope(Scope.ARCHIVED), attributeEquals(ATTRIBUTE_CODE, "product-3")))
+					filterBy(
+						referenceHaving(
+							REFERENCE_BRAND,
+							entityHaving(
+								referenceHaving(
+									REFERENCE_CATEGORIES,
+									entityHaving(attributeEquals(ATTRIBUTE_CATEGORY_NAME, "category-1"))
+								)
+							)
+						)
+					)
 				)
 			);
 
+			assertEquals(
+				Map.of(categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L), requested,
+				"The filter of the categories nested in the checked filter of the brands must be counted once"
+			);
+		}
+
+		@Test
+		@DisplayName("The filter of the options of a reference summary counts the target's flag once")
+		void shouldCountFilterOfReferenceSummaryOptionsOnce() {
+			// the filter of the summarized categories is planned in a context of the category collection while the
+			// query is planned, and that context builds no plan of its own - the query counts what it requested
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY,
+				Query.query(
+					collection(ENTITY_PRODUCT),
+					require(
+						referenceSummaryOfReference(
+							REFERENCE_CATEGORIES,
+							FacetStatisticsDepth.COUNTS,
+							filterBy(attributeEquals(ATTRIBUTE_CATEGORY_NAME, "category-1"))
+						)
+					)
+				)
+			);
+
+			assertEquals(
+				Map.of(categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L), requested,
+				"The filter of the summarized categories must be counted once on their collection"
+			);
+		}
+
+		@Test
+		@DisplayName("A hierarchy filter of the options of a reference summary counts the target's hierarchy flag once")
+		void shouldCountHierarchyFilterOfReferenceSummaryOptionsOnce() {
+			// `hierarchyWithinSelf` resolves against the tree of the summarized brands and requests their hierarchy
+			// flag in the context it is planned in - the query must count it once
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByFetching(
+				ENTITY_BRAND,
+				Query.query(
+					collection(ENTITY_PRODUCT),
+					require(
+						referenceSummaryOfReference(
+							REFERENCE_BRAND,
+							FacetStatisticsDepth.COUNTS,
+							filterBy(hierarchyWithinSelf(entityPrimaryKeyInSet(1)))
+						)
+					)
+				)
+			);
+
+			assertEquals(
+				Map.of(SchemaCapabilityKey.entity(ENTITY_BRAND, Capability.HIERARCHICAL, Scope.LIVE), 1L), requested,
+				"The hierarchy filter of the summarized brands must be counted once on their collection"
+			);
+		}
+
+		@Test
+		@DisplayName("The filters of a summary of all references count each target's flag once, with and without data")
+		void shouldCountFiltersOfSummaryOfAllReferencesOnceWithAndWithoutData() {
+			// the filter of the options is evaluated against the categories, which hold data, and against the brands,
+			// which hold none at first; the filter of the groups against the tags, the groups of the brands - each of
+			// them requests the label of its type, whether there is an option or a group to filter or not
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				require(
+					referenceSummary(
+						FacetStatisticsDepth.COUNTS,
+						filterBy(attributeEquals(ATTRIBUTE_LABEL, "label-1")),
+						filterGroupBy(attributeEquals(ATTRIBUTE_LABEL, "label-1"))
+					)
+				)
+			);
+
+			assertEquals(
+				labelRequestedOnEachSummarizedType(), capabilitiesRequestedOn(query, SUMMARIZED_TYPES),
+				"The filters of the summary must count the label of each summarized type once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				labelRequestedOnEachSummarizedType(), capabilitiesRequestedOn(query, SUMMARIZED_TYPES),
+				"The filters of the summary must count the label of each summarized type once, now that a brand exists"
+			);
+		}
+
+		@Test
+		@DisplayName("The filters of a summary of all references of a query matching nothing count each target's flag")
+		void shouldCountFiltersOfSummaryOfAllReferencesOfQueryMatchingNothing() {
+			// no product references the category, so the query is answered by the empty plan - there is no option to
+			// summarize, but the filters requested the label of every summarized type all the same
+			final Map<String, Map<SchemaCapabilityKey, Long>> requested = capabilitiesRequestedOn(
+				Query.query(
+					collection(ENTITY_PRODUCT),
+					filterBy(referenceHaving(REFERENCE_CATEGORIES, entityPrimaryKeyInSet(CATEGORY_COUNT + 1))),
+					require(
+						referenceSummary(
+							FacetStatisticsDepth.COUNTS,
+							filterBy(attributeEquals(ATTRIBUTE_LABEL, "label-1")),
+							filterGroupBy(attributeEquals(ATTRIBUTE_LABEL, "label-1"))
+						)
+					)
+				),
+				SUMMARIZED_TYPES
+			);
+
+			assertEquals(
+				labelRequestedOnEachSummarizedType(), requested,
+				"The filters of the summary of the query matching nothing must count the label of each type once"
+			);
+		}
+
+		@Test
+		@DisplayName("The filters of a facet summary of all references count each target's flag once")
+		void shouldCountFiltersOfFacetSummaryOfAllReferencesOnce() {
+			// the deprecated form shares the translation of the summary of all references
+			@SuppressWarnings("deprecation") final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				require(
+					facetSummary(
+						FacetStatisticsDepth.COUNTS,
+						filterBy(attributeEquals(ATTRIBUTE_LABEL, "label-1")),
+						filterGroupBy(attributeEquals(ATTRIBUTE_LABEL, "label-1"))
+					)
+				)
+			);
+
+			assertEquals(
+				labelRequestedOnEachSummarizedType(), capabilitiesRequestedOn(query, SUMMARIZED_TYPES),
+				"The filters of the facet summary must count the label of each summarized type once"
+			);
+		}
+
+		@Test
+		@DisplayName("The filter of summarized options an entity filter also names counts once, with and without data")
+		void shouldCountFilterOfSummarizedOptionsAlsoNamedByEntityFilterOnce() {
+			// the categories hold data, so their entity filter is evaluated by a nested query, which builds a plan of
+			// its own; the summary of the same reference names the same flag - the query asked for it once
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY,
+				productsFilteredAndSummarizedByTarget(REFERENCE_CATEGORIES, ATTRIBUTE_CATEGORY_NAME, "category-1")
+			);
+			assertEquals(
+				Map.of(categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L), requested,
+				"The name of the category named by both the entity filter and the summary must be counted once"
+			);
+
+			// the brands hold no entity at first, so their entity filter is only checked, and then one, so it is
+			// evaluated by a nested query - the count must not tell the two apart
+			final Query brandQuery = productsFilteredAndSummarizedByTarget(REFERENCE_BRAND, ATTRIBUTE_LABEL, "label-1");
+			final Map<SchemaCapabilityKey, Long> expectedOnBrand = Map.of(labelKey(), 1L);
+			assertEquals(
+				expectedOnBrand, capabilitiesRequestedByFetching(ENTITY_BRAND, brandQuery),
+				"The label of the brand named by both the entity filter and the summary must be counted once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				expectedOnBrand, capabilitiesRequestedByFetching(ENTITY_BRAND, brandQuery),
+				"The label of the brand named by both the entity filter and the summary must be counted once, now " +
+					"that a brand exists"
+			);
+		}
+
+		@Test
+		@DisplayName("An attribute two entity filters name counts once, with and without data")
+		void shouldCountAttributeNamedByTwoEntityFiltersOnce() {
+			// each entity filter of the categories is evaluated by a nested query of its own, which builds a plan of
+			// its own - the query asked for the name of the category once
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY,
+				productsFilteredTwiceByTarget(REFERENCE_CATEGORIES, ATTRIBUTE_CATEGORY_NAME, "category-1", "category-2")
+			);
+			assertEquals(
+				Map.of(categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L), requested,
+				"The name of the category named by two entity filters must be counted once"
+			);
+
+			// the brands hold no entity at first, so their entity filters are only checked, and then one, so they are
+			// evaluated by nested queries - the count must not tell the two apart
+			final Query brandQuery = productsFilteredTwiceByTarget(REFERENCE_BRAND, ATTRIBUTE_LABEL, "label-1", "label-2");
+			final Map<SchemaCapabilityKey, Long> expectedOnBrand = Map.of(labelKey(), 1L);
+			assertEquals(
+				expectedOnBrand, capabilitiesRequestedByFetching(ENTITY_BRAND, brandQuery),
+				"The label of the brand named by two entity filters must be counted once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				expectedOnBrand, capabilitiesRequestedByFetching(ENTITY_BRAND, brandQuery),
+				"The label of the brand named by two entity filters must be counted once, now that a brand exists"
+			);
+		}
+
+		@Test
+		@DisplayName("An attribute an entity filter and the filter of the fetched references name counts once")
+		void shouldCountAttributeNamedByEntityFilterAndFilterOfFetchedReferencesOnce() {
+			// the entity filter of the categories is evaluated by a nested query planned with the query, the filter of
+			// the fetched categories by another one the fetch plans - the query asked for the name of the category once
+			final Map<SchemaCapabilityKey, Long> requested = capabilitiesRequestedByFetching(
+				ENTITY_CATEGORY,
+				productsFilteredAndFetchedByTarget(REFERENCE_CATEGORIES, ATTRIBUTE_CATEGORY_NAME, "category-1")
+			);
+			assertEquals(
+				Map.of(categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L), requested,
+				"The name of the category named by the entity filter and the filter of the fetched references must " +
+					"be counted once"
+			);
+
+			// the brands hold no entity at first, so both filters are only checked, and then one, so they are evaluated
+			// by nested queries - the count must not tell the two apart
+			final Query brandQuery = productsFilteredAndFetchedByTarget(REFERENCE_BRAND, ATTRIBUTE_LABEL, "label-1");
+			final Map<SchemaCapabilityKey, Long> expectedOnBrand = Map.of(labelKey(), 1L);
+			assertEquals(
+				expectedOnBrand, capabilitiesRequestedByFetching(ENTITY_BRAND, brandQuery),
+				"The label of the brand named by the entity filter and the filter of the fetched references must be " +
+					"counted once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				expectedOnBrand, capabilitiesRequestedByFetching(ENTITY_BRAND, brandQuery),
+				"The label of the brand named by the entity filter and the filter of the fetched references must be " +
+					"counted once, now that a brand exists"
+			);
+		}
+
+		@Test
+		@DisplayName("The group filter of a summary of all references counts on a histogram-only reference once")
+		void shouldCountGroupFilterOfSummaryOfAllReferencesOnHistogramOnlyReferenceOnce() {
+			// the weighted tags are not faceted, so the summary of all references describes them only for the histogram
+			// it requests - computed for their groups, the categories, which the group filter narrows whether a product
+			// references a weighted tag or not; no other reference is grouped by the categories
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				require(
+					new ReferenceSummary(
+						FacetStatisticsDepth.COUNTS,
+						null,
+						filterGroupBy(attributeEquals(ATTRIBUTE_LABEL, "label-1")),
+						null,
+						null,
+						histogramStatistics(10, HISTOGRAM_WEIGHT)
+					)
+				)
+			);
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(labelKey(), 1L);
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_CATEGORY, query),
+				"The group filter must count the label of the categories once while no product references a " +
+					"weighted tag"
+			);
+
+			addWeightedTagOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_CATEGORY, query),
+				"The group filter must count the label of the categories once, now that a product references a " +
+					"weighted tag"
+			);
+		}
+
+		@Test
+		@DisplayName("An ordering of the fetched references by an attribute of their target counts without data")
+		void shouldCountOrderingOfFetchedReferencesByTargetAttributeWithoutData() {
+			// no product is fetched, so no comparator orders a reference and no query over the categories is planned -
+			// the ordering is only checked while the query is planned, and the query named the name of the category to
+			// order by all the same
+			assertEquals(
+				Map.of(categoryNameKey(Capability.SORTABLE, Scope.LIVE), 1L),
+				capabilitiesRequestedByFetching(
+					ENTITY_CATEGORY, productWithBothCategoryReferencesOrderedByName(PRODUCT_COUNT + 1)
+				),
+				"The query fetching no product must count the ordering of the categories once"
+			);
+		}
+
+		@Test
+		@DisplayName("Two fetched references ordered by the same attribute of their target count it once")
+		void shouldCountOrderingOfTwoFetchedReferencesByTheSameTargetAttributeOnce() {
+			// the comparator of each fetched reference holding a row plans a query over the categories to order them -
+			// the query asked for the name of the category to order by once, whichever of its references hold a row
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(
+				categoryNameKey(Capability.SORTABLE, Scope.LIVE), 1L
+			);
+
+			assertEquals(
+				expected,
+				capabilitiesRequestedByFetching(ENTITY_CATEGORY, productWithBothCategoryReferencesOrderedByName(1)),
+				"The query fetching a product holding a row of one of the references must count the ordering once"
+			);
+
+			addMainCategoryOfFirstProduct();
+
+			assertEquals(
+				expected,
+				capabilitiesRequestedByFetching(ENTITY_CATEGORY, productWithBothCategoryReferencesOrderedByName(1)),
+				"The query fetching a product holding a row of both references must count the ordering once"
+			);
+		}
+
+		@Test
+		@DisplayName("A query refused over a scope without index counts nothing")
+		void shouldCountNothingWhenQueryOverScopeWithoutIndexIsRefused() {
+			// the catalog holds no index of the archived scope, and `code` is not filterable there - the query fails
+			// exactly as it fails where the entities exist, and a refused query asked nothing
+			final Map<SchemaCapabilityKey, Long> before = requestedCounts();
+			assertThrowsExactly(
+				AttributeNotFilterableException.class,
+				() -> executeQuery(
+					Query.query(
+						collection(ENTITY_PRODUCT),
+						filterBy(and(scope(Scope.ARCHIVED), attributeEquals(ATTRIBUTE_CODE, "product-3")))
+					)
+				)
+			);
+			final Map<SchemaCapabilityKey, Long> requested = requestedCountsSince(before);
+
 			assertTrue(
 				requested.isEmpty(),
-				"The empty-plan short-circuit counted a request: " + requested
+				"The refused query counted a request: " + requested
 			);
 		}
 
@@ -545,6 +1252,911 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 
 	}
 
+	@Nested
+	@DisplayName("A reflected reference not attached yet")
+	class UnattachedReflection {
+
+		@Test
+		@DisplayName("A summary of all references filtering groups is answered past a faceted unattached reflection")
+		void shouldAnswerGroupFilterOfSummaryOfAllReferencesPastUnattachedFacetedReflection() {
+			// the reflection states its own `faceted()`, so the summary of all references covers it - but the group
+			// type of a reflection is the one of the reference it mirrors, which does not exist yet, and a reflection
+			// asked for it throws; the reflection holds no option, so its groups have nothing to filter
+			assertAnsweredWhileReflectionIsNotAttached(
+				whichIs -> whichIs.indexedInScope(Scope.LIVE).facetedInScope(Scope.LIVE),
+				Query.query(
+					collection(ENTITY_PRODUCT),
+					require(
+						new ReferenceSummary(
+							FacetStatisticsDepth.COUNTS, null, filterGroupBy(entityPrimaryKeyInSet(1)), null, null
+						)
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("A summary of all references fetching its groups is answered past a faceted unattached reflection")
+		void shouldAnswerGroupFetchOfSummaryOfAllReferencesPastUnattachedFacetedReflection() {
+			// the fetch of the groups is checked against the group type of every summarized reference, and the
+			// reflection cannot tell whether its group type is managed before it is attached
+			assertAnsweredWhileReflectionIsNotAttached(
+				whichIs -> whichIs.indexedInScope(Scope.LIVE).facetedInScope(Scope.LIVE),
+				Query.query(
+					collection(ENTITY_PRODUCT),
+					require(new ReferenceSummary(FacetStatisticsDepth.COUNTS, entityGroupFetch()))
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("A summary of all references fetching its options is answered past an unattached reflection")
+		void shouldAnswerFetchOfSummaryOfAllReferencesPastUnattachedReflectionInheritingFaceting() {
+			// the reflection inherits its `faceted()`, which it cannot tell before it is attached - the fetch of the
+			// options must step over it as the recording of the flag does, rather than ask
+			assertAnsweredWhileReflectionIsNotAttached(
+				whichIs -> {
+				},
+				Query.query(
+					collection(ENTITY_PRODUCT),
+					require(new ReferenceSummary(FacetStatisticsDepth.COUNTS, entityFetch()))
+				)
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("An ordering planned in a sorter context of its own")
+	class SorterContexts {
+
+		@Test
+		@DisplayName("An ordering nested in the ordering of fetched references counts, with and without data")
+		void shouldCountOrderingNestedInOrderingOfFetchedReferencesWithAndWithoutData() {
+			// the fetched brands are ordered by the name of the first category each brand references - the check of the
+			// ordering plans a sorter over the brands, and translating its `referenceProperty` plans another one over
+			// the categories inside it, whose context is a child of the brand sorter's context
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(
+				categoryNameKey(Capability.SORTABLE, Scope.LIVE), 1L
+			);
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_CATEGORY, productWithBrandOrderedByCategoryName()),
+				"The query fetching a product without a brand must count the nested ordering once"
+			);
+
+			addBrandOfFirstProduct();
+			addCategoryOfFirstBrand();
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_CATEGORY, productWithBrandOrderedByCategoryName()),
+				"The query fetching a product whose brand references a category must count the nested ordering once"
+			);
+		}
+
+		@Test
+		@DisplayName("A pick-first ordering by the referenced entity counts, with and without rows to order by")
+		void shouldCountPickFirstOrderingByReferencedEntityWithAndWithoutRows() {
+			// the live products hold rows of the categories, the archive holds no product at all - either way the
+			// ordering plans a sorter over the categories in a context of its own
+			assertEquals(
+				Map.of(categoryNameKey(Capability.SORTABLE, Scope.LIVE), 1L),
+				capabilitiesRequestedByFetching(
+					ENTITY_CATEGORY,
+					productsOrderedByCategoryName(Scope.LIVE, pickFirstByEntityProperty(categoryNameOrdering()))
+				),
+				"The live query ordering by the first category must count its name once"
+			);
+			assertEquals(
+				Map.of(categoryNameKey(Capability.SORTABLE, Scope.ARCHIVED), 1L),
+				capabilitiesRequestedByFetching(
+					ENTITY_CATEGORY,
+					productsOrderedByCategoryName(Scope.ARCHIVED, pickFirstByEntityProperty(categoryNameOrdering()))
+				),
+				"The archive query, with no product to order, must count the name of the category once"
+			);
+		}
+
+		@Test
+		@DisplayName("A traversal ordering by the referenced entity counts with rows to order by")
+		void shouldCountTraversalOrderingByReferencedEntityWithRows() {
+			// the categories are not hierarchical, so the traversal orders the categories the live products reference
+			// by a sorter over the categories planned in a context of its own
+			assertEquals(
+				Map.of(categoryNameKey(Capability.SORTABLE, Scope.LIVE), 1L),
+				capabilitiesRequestedByFetching(
+					ENTITY_CATEGORY,
+					productsOrderedByCategoryName(Scope.LIVE, traverseByEntityProperty(categoryNameOrdering()))
+				),
+				"The live query traversing the categories by their name must count it once"
+			);
+		}
+
+		@Test
+		@DisplayName("The orderings of a summary of one reference count the target's flags, with and without data")
+		void shouldCountOrderingsOfReferenceSummaryWithAndWithoutData() {
+			// the options of the brands and their groups, the tags, are ordered by their rank - the sorters are planned
+			// while the query is planned, whether there is an option to order or not
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				require(
+					referenceSummaryOfReference(
+						REFERENCE_BRAND,
+						FacetStatisticsDepth.COUNTS,
+						(FilterGroupBy) null,
+						orderBy(attributeNatural(ATTRIBUTE_RANK)),
+						orderGroupBy(attributeNatural(ATTRIBUTE_RANK))
+					)
+				)
+			);
+			final Map<String, Map<SchemaCapabilityKey, Long>> expected = rankSortRequestedOn(ENTITY_BRAND, ENTITY_TAG);
+
+			assertEquals(
+				expected, capabilitiesRequestedOn(query, ENTITY_BRAND, ENTITY_TAG),
+				"The orderings of the summary must count the rank of the brands and of the tags once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedOn(query, ENTITY_BRAND, ENTITY_TAG),
+				"The orderings of the summary must count the rank of the brands and of the tags once, now that a " +
+					"brand exists"
+			);
+		}
+
+		@Test
+		@DisplayName("The ordering of the statistics of the queried hierarchy counts, with and without data")
+		void shouldCountOrderingOfHierarchyOfSelfWithAndWithoutData() {
+			final Query query = Query.query(
+				collection(ENTITY_BRAND),
+				require(hierarchyOfSelf(orderBy(attributeNatural(ATTRIBUTE_RANK)), fromRoot("tree")))
+			);
+
+			assertCountedOnce(
+				capabilitiesRequestedByFetching(ENTITY_BRAND, query), rankKey(Capability.SORTABLE),
+				"The statistics of the brands without any brand must count the ordering once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertCountedOnce(
+				capabilitiesRequestedByFetching(ENTITY_BRAND, query), rankKey(Capability.SORTABLE),
+				"The statistics of the brands must count the ordering once, now that a brand exists"
+			);
+		}
+
+		@Test
+		@DisplayName("The ordering of the statistics of a referenced hierarchy counts, with and without data")
+		void shouldCountOrderingOfHierarchyOfReferenceWithAndWithoutData() {
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				require(
+					hierarchyOfReference(REFERENCE_BRAND, orderBy(attributeNatural(ATTRIBUTE_RANK)), fromRoot("tree"))
+				)
+			);
+
+			assertCountedOnce(
+				capabilitiesRequestedByFetching(ENTITY_BRAND, query), rankKey(Capability.SORTABLE),
+				"The statistics of the brands of the products without any brand must count the ordering once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertCountedOnce(
+				capabilitiesRequestedByFetching(ENTITY_BRAND, query), rankKey(Capability.SORTABLE),
+				"The statistics of the brands of the products must count the ordering once, now that a brand exists"
+			);
+		}
+
+		/**
+		 * Builds the query fetching the first product with its brand ordered by the name of the first category the
+		 * brand references - an ordering of the fetched references whose own translation plans another ordering.
+		 *
+		 * @return the query
+		 */
+		@Nonnull
+		private static Query productWithBrandOrderedByCategoryName() {
+			return Query.query(
+				collection(ENTITY_PRODUCT),
+				filterBy(entityPrimaryKeyInSet(1)),
+				require(
+					entityFetch(
+						referenceContent(
+							REFERENCE_BRAND,
+							orderBy(
+								entityProperty(
+									referenceProperty(
+										REFERENCE_CATEGORIES,
+										pickFirstByEntityProperty(categoryNameOrdering()),
+										entityProperty(entityPrimaryKeyNatural(OrderDirection.ASC))
+									)
+								)
+							)
+						)
+					)
+				)
+			);
+		}
+
+		/**
+		 * Makes the brand 1 reference the category 1 - after which the brand holds a row to order it by.
+		 */
+		private void addCategoryOfFirstBrand() {
+			RequestedCapabilityAccumulationTest.this.evita.updateCatalog(
+				CATALOG,
+				session -> {
+					session.getEntity(ENTITY_BRAND, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setReference(REFERENCE_CATEGORIES, 1)
+						.upsertVia(session);
+				}
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("A constraint translated in the context of the query against the schema of another entity")
+	class ConstraintsOfAnotherSchema {
+
+		@Test
+		@DisplayName("The parent filter of a referenced hierarchy counts on the referenced type, with and without data")
+		void shouldCountParentFilterOfHierarchyWithinReferenceWithAndWithoutData() {
+			// the parent filter selects among the brands, in the context of the query of the products - the label and
+			// the tree it depends on are declared by the brands, and they are counted there whether a brand exists or
+			// not
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				filterBy(hierarchyWithin(REFERENCE_BRAND, attributeEquals(ATTRIBUTE_LABEL, "label-1")))
+			);
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(labelKey(), 1L, brandHierarchicalKey(), 1L);
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_BRAND, query),
+				"The query of the products without any brand must count the parent filter and the tree once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_BRAND, query),
+				"The query of the products must count the parent filter and the tree once, now that a brand exists"
+			);
+		}
+
+		@Test
+		@DisplayName("The parent filter of the queried hierarchy counts, with and without data")
+		void shouldCountParentFilterOfHierarchyWithinSelfWithAndWithoutData() {
+			final Query query = Query.query(
+				collection(ENTITY_BRAND),
+				filterBy(hierarchyWithinSelf(attributeEquals(ATTRIBUTE_LABEL, "label-1")))
+			);
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(labelKey(), 1L, brandHierarchicalKey(), 1L);
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_BRAND, query),
+				"The query of the brands without any brand must count the parent filter and the tree once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_BRAND, query),
+				"The query of the brands must count the parent filter and the tree once, now that a brand exists"
+			);
+		}
+
+		@Test
+		@DisplayName("The node filter of a referenced hierarchy counts on the referenced type, with and without data")
+		void shouldCountHavingFilterOfHierarchyWithinReferenceWithAndWithoutData() {
+			// the `having` filter selects the nodes of the tree of the brands the products may sit in
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				filterBy(
+					hierarchyWithin(
+						REFERENCE_BRAND, entityPrimaryKeyInSet(1), having(attributeEquals(ATTRIBUTE_RANK, 1L))
+					)
+				)
+			);
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(
+				rankKey(Capability.FILTERABLE), 1L, brandHierarchicalKey(), 1L
+			);
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_BRAND, query),
+				"The query of the products without any brand must count the node filter and the tree once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_BRAND, query),
+				"The query of the products must count the node filter and the tree once, now that a brand exists"
+			);
+		}
+
+		@Test
+		@DisplayName("The node filters of the statistics of a referenced hierarchy count, with and without data")
+		void shouldCountNodeFiltersOfHierarchyOfReferenceWithAndWithoutData() {
+			// the statistics start at the brand the `fromNode` filter selects and stop at those the `stopAt` filter
+			// selects - both filters select among the brands, and both are planned while the query is planned
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				require(
+					hierarchyOfReference(
+						REFERENCE_BRAND,
+						fromNode(
+							"tree",
+							node(filterBy(attributeEquals(ATTRIBUTE_LABEL, "label-1"))),
+							stopAt(node(filterBy(attributeEquals(ATTRIBUTE_RANK, 1L))))
+						)
+					)
+				)
+			);
+
+			final Map<SchemaCapabilityKey, Long> withoutBrand = capabilitiesRequestedByFetching(ENTITY_BRAND, query);
+			assertCountedOnce(withoutBrand, labelKey(), "The `fromNode` filter without any brand must count once");
+			assertCountedOnce(
+				withoutBrand, rankKey(Capability.FILTERABLE), "The `stopAt` filter without any brand must count once"
+			);
+
+			addBrandOfFirstProduct();
+
+			final Map<SchemaCapabilityKey, Long> withBrand = capabilitiesRequestedByFetching(ENTITY_BRAND, query);
+			assertCountedOnce(withBrand, labelKey(), "The `fromNode` filter must count once, now that a brand exists");
+			assertCountedOnce(
+				withBrand, rankKey(Capability.FILTERABLE),
+				"The `stopAt` filter must count once, now that a brand exists"
+			);
+		}
+
+		@Test
+		@DisplayName("The entity filter of a segment counts, with and without data")
+		void shouldCountEntityFilterOfSegmentWithAndWithoutData() {
+			// the segment selects the products it orders by `code` - the filter of the query matching nothing leaves
+			// the segment no product to select, and the query is answered by the empty plan
+			assertCountedOnce(
+				capabilitiesRequestedByFetching(ENTITY_PRODUCT, productsInSegmentOfCode(null)), CODE_FILTER,
+				"The query of all products must count the filter of the segment once"
+			);
+			assertCountedOnce(
+				capabilitiesRequestedByFetching(
+					ENTITY_PRODUCT,
+					productsInSegmentOfCode(
+						filterBy(referenceHaving(REFERENCE_CATEGORIES, entityPrimaryKeyInSet(CATEGORY_COUNT + 1)))
+					)
+				),
+				CODE_FILTER,
+				"The query matching no product must count the filter of the segment once"
+			);
+		}
+
+		@Test
+		@DisplayName("The group selector of a histogram filter counts on the group type, with and without rows")
+		void shouldCountGroupSelectorOfHistogramHavingWithAndWithoutRows() {
+			// the group selector picks the category the histogram of the weighted tags is narrowed to - it is
+			// resolved among the categories while the query is planned, whether a product holds a row of the reference
+			// or not
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				filterBy(
+					histogramHaving(
+						REFERENCE_WEIGHTED_TAGS, HISTOGRAM_WEIGHT, 0L, 10L,
+						groupHaving(attributeEquals(ATTRIBUTE_CATEGORY_NAME, "category-1"))
+					)
+				)
+			);
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(
+				categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L
+			);
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_CATEGORY, query),
+				"The query without any weighted tag must count the group selector once"
+			);
+
+			addWeightedTagOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_CATEGORY, query),
+				"The query must count the group selector once, now that a product holds a weighted tag"
+			);
+		}
+
+		@Test
+		@DisplayName("An ordering of the fetched references by their own attribute counts, with and without data")
+		void shouldCountOrderingOfFetchedReferencesByReferenceAttributeWithAndWithoutData() {
+			assertCountedOnce(
+				capabilitiesRequestedByFetching(ENTITY_PRODUCT, productWithCategoriesOrderedByOrder(1)),
+				ORDER_IN_CATEGORY_SORT,
+				"The query fetching a product must count the ordering of its categories once"
+			);
+			assertCountedOnce(
+				capabilitiesRequestedByFetching(
+					ENTITY_PRODUCT, productWithCategoriesOrderedByOrder(PRODUCT_COUNT + 1)
+				),
+				ORDER_IN_CATEGORY_SORT,
+				"The query fetching no product must count the ordering of the categories once"
+			);
+		}
+
+		/**
+		 * Returns the key of the hierarchy of the brands, indexed in the live scope.
+		 *
+		 * @return the key
+		 */
+		@Nonnull
+		private static SchemaCapabilityKey brandHierarchicalKey() {
+			return SchemaCapabilityKey.entity(ENTITY_BRAND, Capability.HIERARCHICAL, Scope.LIVE);
+		}
+
+		/**
+		 * Builds the query of the products ordered by a segment of the products of one code, ordered by their
+		 * priority.
+		 *
+		 * @param filterBy the filter of the query, NULL for none
+		 * @return the query
+		 */
+		@Nonnull
+		private static Query productsInSegmentOfCode(@Nullable FilterBy filterBy) {
+			return Query.query(
+				collection(ENTITY_PRODUCT),
+				filterBy,
+				orderBy(
+					segments(
+						segment(
+							entityHaving(attributeEquals(ATTRIBUTE_CODE, "product-1")),
+							orderBy(attributeNatural(ATTRIBUTE_PRIORITY, OrderDirection.DESC))
+						)
+					)
+				)
+			);
+		}
+
+		/**
+		 * Builds the query fetching one product with its references to the categories ordered by the order of the
+		 * product in the category.
+		 *
+		 * @param productPrimaryKey the product to fetch
+		 * @return the query
+		 */
+		@Nonnull
+		private static Query productWithCategoriesOrderedByOrder(int productPrimaryKey) {
+			return Query.query(
+				collection(ENTITY_PRODUCT),
+				filterBy(entityPrimaryKeyInSet(productPrimaryKey)),
+				require(
+					entityFetch(
+						referenceContent(
+							REFERENCE_CATEGORIES,
+							orderBy(attributeNatural(ATTRIBUTE_ORDER_IN_CATEGORY, OrderDirection.ASC))
+						)
+					)
+				)
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("The orderings of a summary of all references")
+	class SummaryOfAllReferencesOrderings {
+
+		@Test
+		@DisplayName("The orderings of a summary of all references count each target's flag, with and without data")
+		void shouldCountOrderingsOfSummaryOfAllReferencesOnceWithAndWithoutData() {
+			// the options are ordered by the rank of the categories, which hold data, and of the brands, which hold
+			// none at first; the groups by the rank of the tags, the groups of the brands - each of the orderings
+			// requests the rank of its type, whether there is an option or a group to order or not
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				require(
+					referenceSummary(
+						FacetStatisticsDepth.COUNTS,
+						orderBy(attributeNatural(ATTRIBUTE_RANK)),
+						orderGroupBy(attributeNatural(ATTRIBUTE_RANK))
+					)
+				)
+			);
+			final Map<String, Map<SchemaCapabilityKey, Long>> expected = rankSortRequestedOn(SUMMARIZED_TYPES);
+
+			assertEquals(
+				expected, capabilitiesRequestedOn(query, SUMMARIZED_TYPES),
+				"The orderings of the summary must count the rank of each summarized type once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedOn(query, SUMMARIZED_TYPES),
+				"The orderings of the summary must count the rank of each summarized type once, now that a brand exists"
+			);
+		}
+
+		@Test
+		@DisplayName("An ordering of a summary of all references one target type cannot evaluate fails without data")
+		void shouldRefuseOrderingOfSummaryOfAllReferencesNamingAttributeOneTargetLacksWithAndWithoutData() {
+			// the name orders the categories, but the brands declare no such attribute - the summary of all references
+			// orders the options of both, so the query is refused whether a brand option exists to order or not
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				require(
+					referenceSummary(
+						FacetStatisticsDepth.COUNTS,
+						orderBy(attributeNatural(ATTRIBUTE_CATEGORY_NAME)),
+						(OrderGroupBy) null
+					)
+				)
+			);
+
+			assertThrows(
+				AttributeNotFoundException.class,
+				() -> executeQuery(query),
+				"The ordering naming an attribute the brands lack must be refused before any brand exists"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertThrows(
+				AttributeNotFoundException.class,
+				() -> executeQuery(query),
+				"The ordering naming an attribute the brands lack must be refused once a brand exists"
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("A traversal ordering with nothing to traverse")
+	class TraversalWithoutRows {
+		/**
+		 * An attribute of the references of the products to the brands the case declares, sortable in the live scope.
+		 */
+		private static final String ATTRIBUTE_BRAND_ORDER = "brandOrder";
+
+		@Test
+		@DisplayName("A traversal ordering by the referenced entity counts without rows to order by")
+		void shouldCountTraversalOrderingByReferencedEntityWithoutRows() {
+			// the archive holds no product, hence no row of the categories to order - the ordering of the categories is
+			// named all the same
+			assertEquals(
+				Map.of(categoryNameKey(Capability.SORTABLE, Scope.ARCHIVED), 1L),
+				capabilitiesRequestedByFetching(
+					ENTITY_CATEGORY,
+					productsOrderedByCategoryName(Scope.ARCHIVED, traverseByEntityProperty(categoryNameOrdering()))
+				),
+				"The archive query, with no product to order, must count the name of the category once"
+			);
+		}
+
+		@Test
+		@DisplayName("A traversal of a referenced tree counts with no row, a row of no entity and a row of an entity")
+		void shouldCountTraversalOfReferencedHierarchyWhateverTheData() {
+			// the brands are hierarchical, so their tree is traversed level by level - which needs a row of a product
+			// to traverse, and the tree of the brands in the scope to traverse it in
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				orderBy(
+					referenceProperty(
+						REFERENCE_BRAND,
+						traverseByEntityProperty(attributeNatural(ATTRIBUTE_RANK, OrderDirection.ASC)),
+						entityProperty(entityPrimaryKeyNatural(OrderDirection.ASC))
+					)
+				)
+			);
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(rankKey(Capability.SORTABLE), 1L);
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_BRAND, query),
+				"The query of products holding no brand must count the ordering of the brands once"
+			);
+
+			addMissingBrandOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_BRAND, query),
+				"The query of a product referencing a brand that does not exist must count the ordering once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_BRAND, query),
+				"The query of a product referencing an existing brand must count the ordering once"
+			);
+		}
+
+		@Test
+		@DisplayName("A traversal ordering the referenced entity cannot sort by fails with and without rows")
+		void shouldRefuseTraversalOrderingByUnsortableAttributeWithAndWithoutRows() {
+			// the label of the categories is not sortable - the live products hold rows of the categories to order, the
+			// archive holds none, and the query is refused in both
+			for (final Scope scope : new Scope[]{Scope.LIVE, Scope.ARCHIVED}) {
+				assertThrows(
+					AttributeNotSortableException.class,
+					() -> executeQuery(
+						productsOrderedByCategoryName(
+							scope, traverseByEntityProperty(attributeNatural(ATTRIBUTE_LABEL, OrderDirection.ASC))
+						)
+					),
+					"The traversal by an attribute the categories cannot sort by must be refused in scope " + scope
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("An attribute ordering traversed blocks counts with no row, a row of no entity and of an entity")
+		void shouldCountReferenceAttributeOfTraversalOrderingWhateverTheData() {
+			// the brands are hierarchical, so the products are ordered by the order of the brand traversing the tree of
+			// the brands - which needs a row of a product, and the tree of the brands to sit in, to have a block to
+			// sort
+			declareOrderOfBrand();
+			final Query query = Query.query(
+				collection(ENTITY_PRODUCT),
+				orderBy(referenceProperty(REFERENCE_BRAND, attributeNatural(ATTRIBUTE_BRAND_ORDER, OrderDirection.ASC)))
+			);
+			final Map<SchemaCapabilityKey, Long> expected = Map.of(
+				SchemaCapabilityKey.referenceAttribute(
+					REFERENCE_BRAND, ATTRIBUTE_BRAND_ORDER, Capability.SORTABLE, Scope.LIVE
+				), 1L,
+				SchemaCapabilityKey.reference(REFERENCE_BRAND, Capability.INDEXED, Scope.LIVE), 1L
+			);
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_PRODUCT, query),
+				"The query of products holding no brand must count the order of the brand once"
+			);
+
+			addMissingBrandOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_PRODUCT, query),
+				"The query of a product referencing a brand that does not exist must count the order once"
+			);
+
+			addBrandOfFirstProduct();
+
+			assertEquals(
+				expected, capabilitiesRequestedByFetching(ENTITY_PRODUCT, query),
+				"The query of a product referencing an existing brand must count the order once"
+			);
+		}
+
+		/**
+		 * Declares {@link #ATTRIBUTE_BRAND_ORDER} on the references of the products to the brands, sortable in the live
+		 * scope.
+		 */
+		private void declareOrderOfBrand() {
+			RequestedCapabilityAccumulationTest.this.evita.updateCatalog(
+				CATALOG,
+				session -> {
+					session.defineEntitySchema(ENTITY_PRODUCT)
+						.withReferenceToEntity(
+							REFERENCE_BRAND, ENTITY_BRAND, Cardinality.ZERO_OR_ONE,
+							whichIs -> whichIs.withAttribute(
+								ATTRIBUTE_BRAND_ORDER, Long.class,
+								thatIs -> thatIs.sortableInScope(Scope.LIVE).nullable()
+							)
+						)
+						.updateVia(session);
+				}
+			);
+		}
+
+		/**
+		 * Makes the first product reference the brand 1 in the group of the tag 1 without the brand itself existing -
+		 * after which the reference has a row whose target has no tree to sit in.
+		 */
+		private void addMissingBrandOfFirstProduct() {
+			RequestedCapabilityAccumulationTest.this.evita.updateCatalog(
+				CATALOG,
+				session -> {
+					session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setReference(REFERENCE_BRAND, 1, whichIs -> whichIs.setGroup(1))
+						.upsertVia(session);
+				}
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("A write evaluating a conditional expression")
+	class WriteEvaluation {
+
+		@Test
+		@DisplayName("A write re-evaluating a conditional facet expression counts no request")
+		void shouldCountNoRequestWhenWriteReevaluatesConditionalFacetExpression() {
+			// the categories are faceted only while their name is `category-1` - renaming the category makes the
+			// write re-evaluate the expression of every product referencing it through the query engine, which plans
+			// the filter of the referenced categories as a nested query; the write is no query and asks for nothing
+			declareCategoriesFacetedByName();
+			assertEquals(
+				PRODUCTS_PER_CATEGORY, productsFacetedByFirstCategory(),
+				"The premise is a facet of the first category held by each of its products"
+			);
+			final Map<SchemaCapabilityKey, Long> productsBefore = requestedCounts(ENTITY_PRODUCT);
+			final Map<SchemaCapabilityKey, Long> categoriesBefore = requestedCounts(ENTITY_CATEGORY);
+
+			RequestedCapabilityAccumulationTest.this.evita.updateCatalog(
+				CATALOG,
+				session -> {
+					session.getEntity(ENTITY_CATEGORY, 1, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.setAttribute(ATTRIBUTE_CATEGORY_NAME, "renamed")
+						.upsertVia(session);
+				}
+			);
+
+			final Map<SchemaCapabilityKey, Long> requestedOnProducts = requestedCountsSince(
+				ENTITY_PRODUCT, productsBefore
+			);
+			final Map<SchemaCapabilityKey, Long> requestedOnCategories = requestedCountsSince(
+				ENTITY_CATEGORY, categoriesBefore
+			);
+			assertEquals(
+				0, productsFacetedByFirstCategory(),
+				"The premise is a write that re-evaluated the expression and took the facet of the first category away"
+			);
+			assertEquals(Map.of(), requestedOnProducts, "The write must count no request on the products");
+			assertEquals(Map.of(), requestedOnCategories, "The write must count no request on the categories");
+		}
+
+		/**
+		 * Makes the references of the products to the categories faceted only while the name of the referenced
+		 * category is `category-1`.
+		 */
+		private void declareCategoriesFacetedByName() {
+			RequestedCapabilityAccumulationTest.this.evita.updateCatalog(
+				CATALOG,
+				session -> {
+					session.defineEntitySchema(ENTITY_PRODUCT)
+						.withReferenceToEntity(
+							REFERENCE_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
+							whichIs -> whichIs.facetedPartially(
+								ExpressionFactory.parse(
+									"($reference.referencedEntity.attributes['" + ATTRIBUTE_CATEGORY_NAME +
+										"'] ?? '') == 'category-1'"
+								)
+							)
+						)
+						.updateVia(session);
+				}
+			);
+		}
+
+		/**
+		 * Counts the products the facet of the first category selects.
+		 *
+		 * @return the number of the products
+		 */
+		private int productsFacetedByFirstCategory() {
+			return RequestedCapabilityAccumulationTest.this.evita.queryCatalog(
+				CATALOG,
+				session -> {
+					return session.queryList(
+						Query.query(
+							collection(ENTITY_PRODUCT),
+							filterBy(userFilter(facetHaving(REFERENCE_CATEGORIES, entityPrimaryKeyInSet(1)))),
+							require(page(1, PRODUCT_COUNT))
+						),
+						EntityClassifier.class
+					).size();
+				}
+			);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("A reference filter answered from the other end of a reflected reference")
+	class CounterpartRewrite {
+		/**
+		 * The reflection of the references of the products to the categories the case declares on the categories.
+		 */
+		private static final String REFERENCE_PRODUCTS_OF_CATEGORY = "productsOfCategory";
+
+		@Test
+		@DisplayName("A reference attribute filter answered from the counterpart counts the owner's flags once")
+		void shouldCountReferenceAttributeFilterAnsweredFromCounterpartOnce() {
+			// the categories reflect the references of the products to them, one row per product, while the products
+			// hold one reduced index per category - few enough for the filter to be answered from the products' end,
+			// which resolves the attribute on the products' reference; the query named the categories' one
+			declareProductsOfCategories();
+			final ReferenceHaving constraint = referenceHaving(
+				REFERENCE_PRODUCTS_OF_CATEGORY, attributeEquals(ATTRIBUTE_ORDER_IN_CATEGORY, 3L)
+			);
+			final Query query = Query.query(collection(ENTITY_CATEGORY), filterBy(constraint));
+			final int reflectedRows = RequestedCapabilityAccumulationTest.this.evita.queryCatalog(
+				CATALOG,
+				session -> {
+					return session.getEntity(ENTITY_CATEGORY, 1, entityFetchAllContent())
+						.orElseThrow()
+						.getReferences(REFERENCE_PRODUCTS_OF_CATEGORY)
+						.size();
+				}
+			);
+			assertTrue(reflectedRows > 0, "The premise is a reflection holding rows of the products of the category");
+			assertTrue(
+				isAnsweredFromCounterpart(query, constraint),
+				"The premise is a filter the rewrite answers from the products' end of the reference"
+			);
+
+			assertEquals(
+				Map.of(
+					SchemaCapabilityKey.referenceAttribute(
+						REFERENCE_PRODUCTS_OF_CATEGORY, ATTRIBUTE_ORDER_IN_CATEGORY, Capability.FILTERABLE, Scope.LIVE
+					), 1L,
+					SchemaCapabilityKey.reference(REFERENCE_PRODUCTS_OF_CATEGORY, Capability.INDEXED, Scope.LIVE), 1L
+				),
+				capabilitiesRequestedByFetching(ENTITY_CATEGORY, query),
+				"The filter answered from the counterpart must count the attribute of the categories' reference once"
+			);
+		}
+
+		/**
+		 * Declares the reflection {@link #REFERENCE_PRODUCTS_OF_CATEGORY} of the references of the products to the
+		 * categories on the categories, inheriting the attributes of the reference it reflects, and adds as many
+		 * products again, each referencing a category - the rows of the reflection are those of the references written
+		 * after it was declared.
+		 */
+		private void declareProductsOfCategories() {
+			RequestedCapabilityAccumulationTest.this.evita.updateCatalog(
+				CATALOG,
+				session -> {
+					session.defineEntitySchema(ENTITY_CATEGORY)
+						.withReflectedReferenceToEntity(
+							REFERENCE_PRODUCTS_OF_CATEGORY, ENTITY_PRODUCT, REFERENCE_CATEGORIES,
+							whichIs -> whichIs.withAttributesInherited()
+						)
+						.updateVia(session);
+					for (int i = PRODUCT_COUNT + 1; i <= 2 * PRODUCT_COUNT; i++) {
+						final long order = i;
+						session.upsertEntity(
+							session.createNewEntity(ENTITY_PRODUCT, i)
+								.setAttribute(ATTRIBUTE_CODE, "product-" + i)
+								.setAttribute(ATTRIBUTE_PRIORITY, order)
+								.setAttribute(ATTRIBUTE_EAN, "ean-" + i)
+								.setReference(
+									REFERENCE_CATEGORIES, ((i - 1) % CATEGORY_COUNT) + 1,
+									whichIs -> whichIs.setAttribute(ATTRIBUTE_ORDER_IN_CATEGORY, order)
+								)
+						);
+					}
+				}
+			);
+		}
+
+		/**
+		 * Tells whether the reference filter of the query of the categories is answered from the counterpart end of the
+		 * reflected reference, asked the way the index selection asks it.
+		 *
+		 * @param query      the query of the categories
+		 * @param constraint its reference filter
+		 * @return true when the rewrite takes the filter over
+		 */
+		private boolean isAnsweredFromCounterpart(@Nonnull Query query, @Nonnull ReferenceHaving constraint) {
+			final EntityCollection categories = entityCollection(ENTITY_CATEGORY);
+			final QueryPlanningContext context = categories.createQueryContext(
+				new EvitaRequest(query.normalizeQuery(), OffsetDateTime.now(), EntityReference.class, null),
+				Mockito.mock(EvitaSession.class)
+			);
+			return BidirectionalReferenceRewriter.isApplicable(
+				context,
+				categories.getSchema(),
+				categories.getSchema().getReferenceOrThrowException(REFERENCE_PRODUCTS_OF_CATEGORY),
+				constraint,
+				EnumSet.of(Scope.LIVE)
+			);
+		}
+
+	}
+
 	/**
 	 * Plans one query in a context of its own and reports the request counts it moved on the collection's registry.
 	 *
@@ -573,6 +2185,534 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Same reading as {@link #capabilitiesRequestedByExecuting(Query)}, but for a query whose entities are fetched with
+	 * their bodies, and read on the registry of the passed collection - the one whose schema declares what the query
+	 * or a nested query of it named.
+	 *
+	 * @param entityType the collection whose registry is read
+	 * @param query      the query to execute
+	 * @return the capabilities whose count the query moved on that registry, and by how much
+	 */
+	@Nonnull
+	private Map<SchemaCapabilityKey, Long> capabilitiesRequestedByFetching(
+		@Nonnull String entityType,
+		@Nonnull Query query
+	) {
+		final Map<SchemaCapabilityKey, Long> before = requestedCounts(entityType);
+		this.evita.queryCatalog(
+			CATALOG,
+			session -> {
+				session.queryList(query, EntityClassifier.class);
+			}
+		);
+		return requestedCountsSince(entityType, before);
+	}
+
+	/**
+	 * Builds the query of the products of one category filtered by `code` and ordered by `priority`.
+	 *
+	 * @param categoryPrimaryKey the category the products must reference
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query productsOfCategoryOrderedByPriority(int categoryPrimaryKey) {
+		return Query.query(
+			collection(ENTITY_PRODUCT),
+			filterBy(
+				and(
+					attributeEquals(ATTRIBUTE_CODE, "product-3"),
+					referenceHaving(REFERENCE_CATEGORIES, entityPrimaryKeyInSet(categoryPrimaryKey))
+				)
+			),
+			orderBy(attributeNatural(ATTRIBUTE_PRIORITY, OrderDirection.DESC))
+		);
+	}
+
+	/**
+	 * Builds the query of the categories of one scope filtered and ordered by their name.
+	 *
+	 * @param scope the scope to query
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query categoriesByNameInScope(@Nonnull Scope scope) {
+		return Query.query(
+			collection(ENTITY_CATEGORY),
+			filterBy(and(scope(scope), attributeEquals(ATTRIBUTE_CATEGORY_NAME, "category-1"))),
+			orderBy(attributeNatural(ATTRIBUTE_CATEGORY_NAME, OrderDirection.ASC))
+		);
+	}
+
+	/**
+	 * Builds the query fetching the first entity of one type and scope with its references to the categories ordered
+	 * by the name of the category.
+	 *
+	 * @param entityType the type of the queried entity, declaring the reference {@link #REFERENCE_CATEGORIES}
+	 * @param scope      the scope to query
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query entityWithCategoriesOrderedByName(@Nonnull String entityType, @Nonnull Scope scope) {
+		return Query.query(
+			collection(entityType),
+			filterBy(and(scope(scope), entityPrimaryKeyInSet(1))),
+			require(
+				entityFetch(
+					referenceContent(
+						REFERENCE_CATEGORIES,
+						orderBy(entityProperty(attributeNatural(ATTRIBUTE_CATEGORY_NAME, OrderDirection.ASC)))
+					)
+				)
+			)
+		);
+	}
+
+	/**
+	 * Builds the query fetching one product with both its references to the categories, each ordered by the name of the
+	 * category.
+	 *
+	 * @param productPrimaryKey the product to fetch
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query productWithBothCategoryReferencesOrderedByName(int productPrimaryKey) {
+		return Query.query(
+			collection(ENTITY_PRODUCT),
+			filterBy(entityPrimaryKeyInSet(productPrimaryKey)),
+			require(
+				entityFetch(
+					referenceContent(
+						REFERENCE_CATEGORIES,
+						orderBy(entityProperty(attributeNatural(ATTRIBUTE_CATEGORY_NAME, OrderDirection.ASC)))
+					),
+					referenceContent(
+						REFERENCE_MAIN_CATEGORY,
+						orderBy(entityProperty(attributeNatural(ATTRIBUTE_CATEGORY_NAME, OrderDirection.ASC)))
+					)
+				)
+			)
+		);
+	}
+
+	/**
+	 * Builds the query fetching one product with its references to the categories filtered by the order of the
+	 * product in the category.
+	 *
+	 * @param productPrimaryKey the product to fetch
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query productWithCategoriesFilteredByOrder(int productPrimaryKey) {
+		return Query.query(
+			collection(ENTITY_PRODUCT),
+			filterBy(entityPrimaryKeyInSet(productPrimaryKey)),
+			require(
+				entityFetch(
+					referenceContent(
+						REFERENCE_CATEGORIES, filterBy(attributeEquals(ATTRIBUTE_ORDER_IN_CATEGORY, 1L))
+					)
+				)
+			)
+		);
+	}
+
+	/**
+	 * Builds the query fetching one product with its categories, fetched with their references to the tags filtered by
+	 * the weight of the tag in the category.
+	 *
+	 * @param productPrimaryKey the product to fetch
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query productWithCategoriesWithTagsFilteredByWeight(int productPrimaryKey) {
+		return Query.query(
+			collection(ENTITY_PRODUCT),
+			filterBy(entityPrimaryKeyInSet(productPrimaryKey)),
+			require(
+				entityFetch(
+					referenceContent(
+						REFERENCE_CATEGORIES,
+						entityFetch(
+							referenceContent(REFERENCE_TAGS, filterBy(attributeEquals(ATTRIBUTE_WEIGHT, 1L)))
+						)
+					)
+				)
+			)
+		);
+	}
+
+	/**
+	 * Builds the query of the products of the passed scopes referencing a category named `category-1`.
+	 *
+	 * @param scopes the scopes of the products
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query productsOfCategoryNamed(@Nonnull Scope... scopes) {
+		return Query.query(
+			collection(ENTITY_PRODUCT),
+			filterBy(
+				and(
+					scope(scopes),
+					referenceHaving(
+						REFERENCE_CATEGORIES, entityHaving(attributeEquals(ATTRIBUTE_CATEGORY_NAME, "category-1"))
+					)
+				)
+			)
+		);
+	}
+
+	/**
+	 * Builds the query fetching one product of the live or the archived scope with its references to the categories
+	 * filtered by the name of the category.
+	 *
+	 * @param productPrimaryKey the product to fetch
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query productOfBothScopesWithCategoriesFilteredByName(int productPrimaryKey) {
+		return Query.query(
+			collection(ENTITY_PRODUCT),
+			filterBy(and(scope(Scope.LIVE, Scope.ARCHIVED), entityPrimaryKeyInSet(productPrimaryKey))),
+			require(
+				entityFetch(
+					referenceContent(
+						REFERENCE_CATEGORIES,
+						filterBy(entityHaving(attributeEquals(ATTRIBUTE_CATEGORY_NAME, "category-1")))
+					)
+				)
+			)
+		);
+	}
+
+	/**
+	 * Builds the query fetching one product with its references to the categories filtered by the name of the
+	 * category.
+	 *
+	 * @param productPrimaryKey the product to fetch
+	 * @param categoryName      the name the referenced categories must have
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query productWithCategoriesFilteredByName(int productPrimaryKey, @Nonnull String categoryName) {
+		return Query.query(
+			collection(ENTITY_PRODUCT),
+			filterBy(entityPrimaryKeyInSet(productPrimaryKey)),
+			require(
+				entityFetch(
+					referenceContent(
+						REFERENCE_CATEGORIES,
+						filterBy(entityHaving(attributeEquals(ATTRIBUTE_CATEGORY_NAME, categoryName)))
+					)
+				)
+			)
+		);
+	}
+
+	/**
+	 * Returns the key of a capability of the name of the category.
+	 *
+	 * @param capability the flag
+	 * @param scope      the scope
+	 * @return the key
+	 */
+	@Nonnull
+	private static SchemaCapabilityKey categoryNameKey(@Nonnull Capability capability, @Nonnull Scope scope) {
+		return SchemaCapabilityKey.entityAttribute(ATTRIBUTE_CATEGORY_NAME, capability, scope);
+	}
+
+	/**
+	 * Returns the key of the filterable label of the live scope - the same key on the registry of each type declaring
+	 * the label.
+	 *
+	 * @return the key
+	 */
+	@Nonnull
+	private static SchemaCapabilityKey labelKey() {
+		return SchemaCapabilityKey.entityAttribute(ATTRIBUTE_LABEL, Capability.FILTERABLE, Scope.LIVE);
+	}
+
+	/**
+	 * Returns what a query whose summary filters the options and the groups of all references by the label requests
+	 * on the summarized types: the label once on each of them.
+	 *
+	 * @return the requests, keyed by the type whose registry they land on
+	 */
+	@Nonnull
+	private static Map<String, Map<SchemaCapabilityKey, Long>> labelRequestedOnEachSummarizedType() {
+		final Map<String, Map<SchemaCapabilityKey, Long>> expected = new LinkedHashMap<>();
+		for (final String entityType : SUMMARIZED_TYPES) {
+			expected.put(entityType, Map.of(labelKey(), 1L));
+		}
+		return expected;
+	}
+
+	/**
+	 * Returns the key of the rank of the live scope - the same key on the registry of each type declaring the rank.
+	 *
+	 * @param capability the flag of the rank
+	 * @return the key
+	 */
+	@Nonnull
+	private static SchemaCapabilityKey rankKey(@Nonnull Capability capability) {
+		return SchemaCapabilityKey.entityAttribute(ATTRIBUTE_RANK, capability, Scope.LIVE);
+	}
+
+	/**
+	 * Returns what a query ordering the passed types by their rank requests on them: the sortable rank once on each.
+	 *
+	 * @param entityTypes the ordered types
+	 * @return the requests, keyed by the type whose registry they land on
+	 */
+	@Nonnull
+	private static Map<String, Map<SchemaCapabilityKey, Long>> rankSortRequestedOn(@Nonnull String... entityTypes) {
+		final Map<String, Map<SchemaCapabilityKey, Long>> expected = new LinkedHashMap<>();
+		for (final String entityType : entityTypes) {
+			expected.put(entityType, Map.of(rankKey(Capability.SORTABLE), 1L));
+		}
+		return expected;
+	}
+
+	/**
+	 * Returns the ordering of the categories by their name.
+	 *
+	 * @return the ordering
+	 */
+	@Nonnull
+	private static OrderConstraint categoryNameOrdering() {
+		return attributeNatural(ATTRIBUTE_CATEGORY_NAME, OrderDirection.ASC);
+	}
+
+	/**
+	 * Builds the query of the products of one scope ordered by the categories they reference, the categories ordered
+	 * among themselves by the passed specification.
+	 *
+	 * @param scope         the scope to query
+	 * @param specification the `pickFirstByEntityProperty` or `traverseByEntityProperty` ordering the categories
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query productsOrderedByCategoryName(@Nonnull Scope scope, @Nonnull OrderConstraint specification) {
+		return Query.query(
+			collection(ENTITY_PRODUCT),
+			filterBy(scope(scope)),
+			orderBy(
+				referenceProperty(
+					REFERENCE_CATEGORIES, specification, entityProperty(entityPrimaryKeyNatural(OrderDirection.ASC))
+				)
+			)
+		);
+	}
+
+	/**
+	 * Builds the query of the products filtered by an entity filter of a reference, summarizing the options of the same
+	 * reference filtered by the same attribute of the referenced entity.
+	 *
+	 * @param referenceName the reference of the product
+	 * @param attributeName the attribute of the referenced entity
+	 * @param value         the value of the attribute
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query productsFilteredAndSummarizedByTarget(
+		@Nonnull String referenceName,
+		@Nonnull String attributeName,
+		@Nonnull String value
+	) {
+		return Query.query(
+			collection(ENTITY_PRODUCT),
+			filterBy(referenceHaving(referenceName, entityHaving(attributeEquals(attributeName, value)))),
+			require(
+				referenceSummaryOfReference(
+					referenceName, FacetStatisticsDepth.COUNTS, filterBy(attributeEquals(attributeName, value))
+				)
+			)
+		);
+	}
+
+	/**
+	 * Builds the query of the products filtered by an entity filter of a reference, fetching the references filtered by
+	 * the same entity filter.
+	 *
+	 * @param referenceName the reference of the product
+	 * @param attributeName the attribute of the referenced entity
+	 * @param value         the value of the attribute
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query productsFilteredAndFetchedByTarget(
+		@Nonnull String referenceName,
+		@Nonnull String attributeName,
+		@Nonnull String value
+	) {
+		return Query.query(
+			collection(ENTITY_PRODUCT),
+			filterBy(referenceHaving(referenceName, entityHaving(attributeEquals(attributeName, value)))),
+			require(
+				entityFetch(
+					referenceContent(referenceName, filterBy(entityHaving(attributeEquals(attributeName, value))))
+				)
+			)
+		);
+	}
+
+	/**
+	 * Builds the query of the products filtered by two entity filters of a reference naming the same attribute of the
+	 * referenced entity with different values.
+	 *
+	 * @param referenceName the reference of the product
+	 * @param attributeName the attribute of the referenced entity
+	 * @param value         the value of the attribute the first filter asks for
+	 * @param otherValue    the value of the attribute the second filter asks for
+	 * @return the query
+	 */
+	@Nonnull
+	private static Query productsFilteredTwiceByTarget(
+		@Nonnull String referenceName,
+		@Nonnull String attributeName,
+		@Nonnull String value,
+		@Nonnull String otherValue
+	) {
+		return Query.query(
+			collection(ENTITY_PRODUCT),
+			filterBy(
+				or(
+					referenceHaving(referenceName, entityHaving(attributeEquals(attributeName, value))),
+					referenceHaving(referenceName, entityHaving(attributeEquals(attributeName, otherValue)))
+				)
+			)
+		);
+	}
+
+	/**
+	 * Adds the brand 1, labelled `label-1`, and makes the first product reference it in the group of the tag 1 - after
+	 * which the brands hold data and the reference of the products to them has an option and a group to summarize.
+	 */
+	private void addBrandOfFirstProduct() {
+		this.evita.updateCatalog(
+			CATALOG,
+			session -> {
+				session.upsertEntity(session.createNewEntity(ENTITY_BRAND, 1).setAttribute(ATTRIBUTE_LABEL, "label-1"));
+				session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setReference(REFERENCE_BRAND, 1, whichIs -> whichIs.setGroup(1))
+					.upsertVia(session);
+			}
+		);
+	}
+
+	/**
+	 * Makes the first product reference the category 1 by {@link #REFERENCE_MAIN_CATEGORY} - after which the product
+	 * holds a row of both its references to the categories.
+	 */
+	private void addMainCategoryOfFirstProduct() {
+		this.evita.updateCatalog(
+			CATALOG,
+			session -> {
+				session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setReference(REFERENCE_MAIN_CATEGORY, 1)
+					.upsertVia(session);
+			}
+		);
+	}
+
+	/**
+	 * Makes the first product reference the tag 1 by {@link #REFERENCE_WEIGHTED_TAGS} in the group of the category 1,
+	 * weighing 3 - after which the reference has a histogram to compute.
+	 */
+	private void addWeightedTagOfFirstProduct() {
+		this.evita.updateCatalog(
+			CATALOG,
+			session -> {
+				session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setReference(
+						REFERENCE_WEIGHTED_TAGS, 1, whichIs -> whichIs.setGroup(1).setAttribute(ATTRIBUTE_WEIGHT, 3L)
+					)
+					.upsertVia(session);
+			}
+		);
+	}
+
+	/**
+	 * Declares the reflection {@link #REFERENCE_REFLECTED_STOCKS} on the products before the reference of the stocks it
+	 * mirrors exists, runs the query in the same session - while the reflection is not attached - and asserts it is
+	 * answered. The reference the reflection mirrors is declared at last, so that the session closes over a valid
+	 * schema.
+	 *
+	 * @param reflection what the reflection states on its own rather than inherits
+	 * @param query      the query that must be answered
+	 */
+	private void assertAnsweredWhileReflectionIsNotAttached(
+		@Nonnull Consumer<ReflectedReferenceSchemaBuilder> reflection,
+		@Nonnull Query query
+	) {
+		this.evita.updateCatalog(
+			CATALOG,
+			session -> {
+				session.defineEntitySchema(ENTITY_PRODUCT)
+					.withReflectedReferenceToEntity(
+						REFERENCE_REFLECTED_STOCKS, ENTITY_STOCK, REFERENCE_PRODUCTS, reflection
+					)
+					.updateVia(session);
+				final ReferenceSchemaContract reflected = session.getEntitySchemaOrThrowException(ENTITY_PRODUCT)
+					.getReferenceOrThrowException(REFERENCE_REFLECTED_STOCKS);
+				assertTrue(
+					reflected instanceof ReflectedReferenceSchemaContract reflectedReference
+						&& !reflectedReference.isReflectedReferenceAvailable(),
+					"The premise is a reflection not attached yet"
+				);
+
+				assertDoesNotThrow(
+					() -> session.queryList(query, EntityReference.class),
+					"A valid query must be answered while a reflection of the queried type is not attached yet"
+				);
+
+				session.defineEntitySchema(ENTITY_STOCK)
+					.withReferenceToEntity(
+						REFERENCE_PRODUCTS, ENTITY_PRODUCT, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.indexedInScope(Scope.LIVE)
+					)
+					.updateVia(session);
+			}
+		);
+	}
+
+	/**
+	 * Same reading as {@link #capabilitiesRequestedByFetching(String, Query)}, on the registries of several
+	 * collections at once.
+	 *
+	 * @param query       the query to execute
+	 * @param entityTypes the collections whose registries are read
+	 * @return the capabilities whose count the query moved on each registry, and by how much, keyed by the type
+	 */
+	@Nonnull
+	private Map<String, Map<SchemaCapabilityKey, Long>> capabilitiesRequestedOn(
+		@Nonnull Query query,
+		@Nonnull String... entityTypes
+	) {
+		final Map<String, Map<SchemaCapabilityKey, Long>> before = new LinkedHashMap<>();
+		for (final String entityType : entityTypes) {
+			before.put(entityType, requestedCounts(entityType));
+		}
+		this.evita.queryCatalog(
+			CATALOG,
+			session -> {
+				session.queryList(query, EntityClassifier.class);
+			}
+		);
+		final Map<String, Map<SchemaCapabilityKey, Long>> result = new LinkedHashMap<>();
+		for (final String entityType : entityTypes) {
+			result.put(entityType, requestedCountsSince(entityType, before.get(entityType)));
+		}
+		return result;
+	}
+
+	/**
 	 * Executes one query the way a client would.
 	 *
 	 * @param query the query to execute
@@ -593,8 +2733,19 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private Map<SchemaCapabilityKey, Long> requestedCounts() {
+		return requestedCounts(ENTITY_PRODUCT);
+	}
+
+	/**
+	 * Reads every request count the registry of the passed collection currently holds.
+	 *
+	 * @param entityType the collection whose registry is read
+	 * @return the counts, keyed by capability
+	 */
+	@Nonnull
+	private Map<SchemaCapabilityKey, Long> requestedCounts(@Nonnull String entityType) {
 		final Map<SchemaCapabilityKey, Long> result = new HashMap<>();
-		for (final UsageEntry entry : productCollection().getUsageRegistry().listUsages()) {
+		for (final UsageEntry entry : entityCollection(entityType).getUsageRegistry().listUsages()) {
 			result.put(entry.key(), entry.usage().getRequestedCount());
 		}
 		return result;
@@ -611,8 +2762,24 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private Map<SchemaCapabilityKey, Long> requestedCountsSince(@Nonnull Map<SchemaCapabilityKey, Long> before) {
+		return requestedCountsSince(ENTITY_PRODUCT, before);
+	}
+
+	/**
+	 * Reports how much each request count of the registry of the passed collection has moved since the snapshot was
+	 * taken, dropping the ones that did not move.
+	 *
+	 * @param entityType the collection whose registry is read
+	 * @param before     counts read before the query ran
+	 * @return the capabilities whose count moved, and by how much
+	 */
+	@Nonnull
+	private Map<SchemaCapabilityKey, Long> requestedCountsSince(
+		@Nonnull String entityType,
+		@Nonnull Map<SchemaCapabilityKey, Long> before
+	) {
 		final Map<SchemaCapabilityKey, Long> result = new LinkedHashMap<>();
-		for (final UsageEntry entry : productCollection().getUsageRegistry().listUsages()) {
+		for (final UsageEntry entry : entityCollection(entityType).getUsageRegistry().listUsages()) {
 			final long delta = entry.usage().getRequestedCount() - before.getOrDefault(entry.key(), 0L);
 			if (delta != 0L) {
 				result.put(entry.key(), delta);
@@ -698,6 +2865,21 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Asserts one logical query moved the capability's request count by exactly one, whatever else it moved.
+	 *
+	 * @param requested what the query moved
+	 * @param key       the capability that must have moved
+	 * @param message   what it means if it did not
+	 */
+	private static void assertCountedOnce(
+		@Nonnull Map<SchemaCapabilityKey, Long> requested,
+		@Nonnull SchemaCapabilityKey key,
+		@Nonnull String message
+	) {
+		assertEquals(1L, (long) requested.getOrDefault(key, 0L), message + ": " + requested);
+	}
+
+	/**
 	 * Reads the holder the collection's registry keeps for the key, asserting on the way that the registry hands the
 	 * same instance back on every resolve - the identity the accumulator's deduplication rests on.
 	 *
@@ -752,10 +2934,21 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private EntityCollection productCollection() {
+		return entityCollection(ENTITY_PRODUCT);
+	}
+
+	/**
+	 * Looks a collection up behind the public API - the registry it holds is engine-internal state.
+	 *
+	 * @param entityType the type of the collection
+	 * @return the collection
+	 */
+	@Nonnull
+	private EntityCollection entityCollection(@Nonnull String entityType) {
 		return ((Catalog) this.evita.getCatalogInstanceOrThrowException(CATALOG))
-			.getCollectionForEntityInternal(ENTITY_PRODUCT)
+			.getCollectionForEntityInternal(entityType)
 			.orElseThrow(
-				() -> new AssertionError("Catalog `" + CATALOG + "` holds no collection `" + ENTITY_PRODUCT + "`")
+				() -> new AssertionError("Catalog `" + CATALOG + "` holds no collection `" + entityType + "`")
 			);
 	}
 
@@ -785,14 +2978,77 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	/**
 	 * Builds a fixture with several candidate index sets to plan against and one element of every kind the query side
 	 * can request: an entity attribute filtered on, one ordered by, a sortable compound, a reference attribute usable
-	 * both ways, and a filterable attribute nothing ever names.
+	 * both ways, and a filterable attribute nothing ever names. The categories are live only, and the only stock is
+	 * archived and references a category - so a query over the archived categories, or a nested query of the archived
+	 * stock over them, matches nothing because the scope holds no data. The categories reference the tags, the first of
+	 * them tag 1 with the weight 1. The hierarchical brands hold no entity at all; they reference the categories, and
+	 * the products reference them by a reference no product holds a row of, grouped by the tags - see
+	 * {@link #addBrandOfFirstProduct()} for the case adding one. The categories, the brands and the tags share the
+	 * filterable attribute {@link #ATTRIBUTE_LABEL} and the filterable and sortable attribute {@link #ATTRIBUTE_RANK},
+	 * which no entity sets. The products declare two more references no
+	 * product holds a row of: {@link #REFERENCE_MAIN_CATEGORY} to the categories, and {@link #REFERENCE_WEIGHTED_TAGS}
+	 * to the tags grouped by the categories, bucketed but not faceted.
 	 */
 	private void buildCatalog() {
 		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
 		this.evita.updateCatalog(
 			CATALOG,
 			session -> {
-				session.defineEntitySchema(ENTITY_CATEGORY).withoutGeneratedPrimaryKey().updateVia(session);
+				session.defineEntitySchema(ENTITY_TAG)
+					.withoutGeneratedPrimaryKey()
+					.withAttribute(
+						ATTRIBUTE_LABEL, String.class, thatIs -> thatIs.filterableInScope(Scope.LIVE).nullable()
+					)
+					.withAttribute(
+						ATTRIBUTE_RANK, Long.class,
+						thatIs -> thatIs.filterableInScope(Scope.LIVE).sortableInScope(Scope.LIVE).nullable()
+					)
+					.updateVia(session);
+				session.upsertEntity(session.createNewEntity(ENTITY_TAG, 1));
+				session.defineEntitySchema(ENTITY_CATEGORY)
+					.withoutGeneratedPrimaryKey()
+					.withAttribute(
+						ATTRIBUTE_CATEGORY_NAME, String.class,
+						thatIs -> thatIs.filterableInScope(Scope.values()).sortableInScope(Scope.values())
+					)
+					.withAttribute(
+						ATTRIBUTE_LABEL, String.class, thatIs -> thatIs.filterableInScope(Scope.LIVE).nullable()
+					)
+					.withAttribute(
+						ATTRIBUTE_RANK, Long.class,
+						thatIs -> thatIs.filterableInScope(Scope.LIVE).sortableInScope(Scope.LIVE).nullable()
+					)
+					.withReferenceToEntity(
+						REFERENCE_TAGS, ENTITY_TAG, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.indexedInScope(Scope.LIVE)
+							.withAttribute(
+								ATTRIBUTE_WEIGHT, Long.class, thatIs -> thatIs.filterableInScope(Scope.LIVE).nullable()
+							)
+					)
+					.updateVia(session);
+				session.defineEntitySchema(ENTITY_STOCK)
+					.withoutGeneratedPrimaryKey()
+					.withReferenceToEntity(REFERENCE_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE)
+					.updateVia(session);
+				session.upsertEntity(
+					session.createNewEntity(ENTITY_STOCK, ARCHIVED_STOCK).setReference(REFERENCE_CATEGORIES, 1)
+				);
+				session.archiveEntity(ENTITY_STOCK, ARCHIVED_STOCK);
+				session.defineEntitySchema(ENTITY_BRAND)
+					.withoutGeneratedPrimaryKey()
+					.withHierarchy()
+					.withAttribute(
+						ATTRIBUTE_LABEL, String.class, thatIs -> thatIs.filterableInScope(Scope.LIVE).nullable()
+					)
+					.withAttribute(
+						ATTRIBUTE_RANK, Long.class,
+						thatIs -> thatIs.filterableInScope(Scope.LIVE).sortableInScope(Scope.LIVE).nullable()
+					)
+					.withReferenceToEntity(
+						REFERENCE_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.indexedInScope(Scope.LIVE)
+					)
+					.updateVia(session);
 				session.defineEntitySchema(ENTITY_PRODUCT)
 					.withoutGeneratedPrimaryKey()
 					.withAttribute(
@@ -822,9 +3078,38 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 								thatIs -> thatIs.filterableInScope(Scope.LIVE).sortableInScope(Scope.LIVE)
 							)
 					)
+					.withReferenceToEntity(
+						REFERENCE_BRAND, ENTITY_BRAND, Cardinality.ZERO_OR_ONE,
+						whichIs -> whichIs.indexedInScope(Scope.LIVE)
+							.facetedInScope(Scope.LIVE)
+							.withGroupTypeRelatedToEntity(ENTITY_TAG)
+					)
+					.withReferenceToEntity(REFERENCE_MAIN_CATEGORY, ENTITY_CATEGORY, Cardinality.ZERO_OR_ONE)
+					.withReferenceToEntity(
+						REFERENCE_WEIGHTED_TAGS, ENTITY_TAG, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs.indexedForFilteringAndPartitioningInScope(Scope.LIVE)
+							.indexedWithComponentsInScope(
+								Scope.LIVE,
+								ReferenceIndexedComponents.REFERENCED_ENTITY,
+								ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+							)
+							.withGroupTypeRelatedToEntity(ENTITY_CATEGORY)
+							.withAttribute(
+								ATTRIBUTE_WEIGHT, Long.class, thatIs -> thatIs.filterableInScope(Scope.LIVE).nullable()
+							)
+							.bucketed(
+								HISTOGRAM_WEIGHT,
+								ExpressionFactory.parse("$reference.attributes['" + ATTRIBUTE_WEIGHT + "']")
+							)
+					)
 					.updateVia(session);
 				for (int i = 1; i <= CATEGORY_COUNT; i++) {
-					session.upsertEntity(session.createNewEntity(ENTITY_CATEGORY, i));
+					final EntityBuilder category = session.createNewEntity(ENTITY_CATEGORY, i)
+						.setAttribute(ATTRIBUTE_CATEGORY_NAME, "category-" + i);
+					if (i == 1) {
+						category.setReference(REFERENCE_TAGS, 1, whichIs -> whichIs.setAttribute(ATTRIBUTE_WEIGHT, 1L));
+					}
+					session.upsertEntity(category);
 				}
 				for (int i = 1; i <= PRODUCT_COUNT; i++) {
 					final int productPrimaryKey = i;

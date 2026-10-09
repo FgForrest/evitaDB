@@ -57,6 +57,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 
 /**
  * This interface extends the public interface and adds a few methods that are targeted for internal use of EvitaDB
@@ -219,6 +220,18 @@ public interface EvitaInternalSessionContract extends EvitaSessionContract, Traf
 	 */
 	@Nonnull
 	List<WriteAheadLogVersionDescriptor> getCatalogVersionDescriptors(long... catalogVersion);
+
+	/**
+	 * Creates a supplier of the newest version the catalog incarnation this session is bound to has reached in
+	 * the live view - see {@link io.evitadb.core.catalog.Catalog#createLiveVersionSupplier()}. Unlike
+	 * {@link #getCatalogVersion()}, which stays at the version the session started with, the supplier follows
+	 * the incarnation as it moves on, and it keeps doing so after this session is closed - which is what a
+	 * long-lived change capture stream registered through the session needs for its heartbeats.
+	 *
+	 * @return the supplier, which never throws
+	 */
+	@Nonnull
+	LongSupplier createLiveCatalogVersionSupplier();
 
 	/**
 	 * Method registers RAW input query and assigns a unique identifier to it. All queries in this session that are

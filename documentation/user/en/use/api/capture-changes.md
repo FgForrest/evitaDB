@@ -40,11 +40,65 @@ Once subscribed, the change stream remains active until one of the following occ
 2. the client can't keep up with the rate of incoming changes (backpressure)
 3. the client throws an exception during processing
 4. the client doesn't react within a timeout
-5. the server shuts down or the catalogue is deleted
+5. the server shuts down, or the catalogue is deleted or replaced
 6. the server doesn't react within a timeout
 7. the subscription TTL (time-to-live) expires - see [configuration settings](../connectors/java.md#configuration)
+8. the position the subscription is asked to start at can't be served - see [resuming a catalogue subscription](#resuming-a-catalogue-subscription)
 
-As you can see, there are many reasons why a subscription may end. Therefore, clients should be prepared to handle such situations gracefully. The standard approach is to implement the `AutoCloseable` interface in your subscriber and re-establish the subscription in the `close()` method or schedule a re-establishment by another application service. Your subscriber should also track the last successfully processed version and index so that it can resume from the correct point when re-establishing the subscription. The criteria handle version and index as inclusive, so you should skip the first event after resumption if it matches the last processed version and index.
+As you can see, there are many reasons why a subscription may end. Therefore, clients should be prepared to handle such situations gracefully. The standard approach is to implement the `AutoCloseable` interface in your subscriber and re-establish the subscription in the `close()` method or schedule a re-establishment by another application service. Your subscriber should also track the resume position of the last successfully processed event - for a catalogue subscription the `catalogId`, `version` and `index` of the capture - so that it can resume from the correct point when re-establishing the subscription. The criteria handle version and index as inclusive, so you should skip the first event after resumption if it matches the last processed version and index.
+
+### Resuming a catalogue subscription
+
+A catalogue version means something only within one incarnation of the catalogue. Replacing a catalogue (for example at the end of a full reindex into a temporary catalogue), restoring it from a backup or duplicating it puts a catalogue with a different identity and its own version sequence under the name. Renaming a catalogue or restarting the server keeps both its identity and its versions. The resume position of a catalogue subscription is therefore the triple `(catalogId, version, index)`:
+
+- every catalogue capture carries `catalogId` - the identity of the catalogue incarnation that produced it,
+- store it together with the `version` and `index` of the last processed capture,
+- and pass all three back in the request - as `catalogId`, `sinceVersion` and `sinceIndex` - when you re-subscribe.
+
+A position the catalogue can't serve ends the subscription with <SourceClass>evita_api/src/main/java/io/evitadb/api/exception/ChangeCaptureResumePositionInvalidException.java</SourceClass>. Its reason tells you why:
+
+<dl>
+  <dt>`DIFFERENT_INCARNATION`</dt>
+  <dd>
+    The `catalogId` of the request differs from the identity of the catalogue that bears the name - the catalogue has been replaced, restored or duplicated since the position was recorded. The decision is driven by identity alone: the position is refused whether the versions of the new incarnation happen to be lower or higher than the requested one.
+  </dd>
+  <dt>`AHEAD_OF_CATALOG`</dt>
+  <dd>
+    The `sinceVersion` lies more than one version past the current catalogue version. A position recorded on this incarnation is at most one version past it (the version the next change will carry, which is also where a subscription without `sinceVersion` starts), so such a position was recorded elsewhere. This check applies with or without `catalogId` and is the only protection a request without `catalogId` has - and it catches only a stale position that happens to lie ahead. A stale position that lies behind the current version of the new incarnation would be served from an unrelated version sequence, so always pass `catalogId`.
+  </dd>
+  <dt>`OUTSIDE_RETENTION`</dt>
+  <dd>
+    The write-ahead log no longer holds the changes the position points at. The position belongs to this incarnation, but the consumer fell too far behind and the changes it missed cannot be replayed. This is detected when the subscription catches up from the write-ahead log, so it can also end a subscription that is already running.
+  </dd>
+</dl>
+
+The exception extends <SourceClass>evita_api/src/main/java/io/evitadb/api/exception/TemporalDataNotAvailableException.java</SourceClass>, so a handler written for data that is no longer available catches every reason. It also carries the `catalogId` and the `currentCatalogVersion` of the catalogue the position was checked against; the inherited `catalogVersion` is the oldest catalogue version still available, when it is known.
+
+<LS to="j">
+
+In the embedded engine, `registerChangeCatalogCapture` throws the exception for a position from a different incarnation or ahead of the catalogue, and a position outside the retention reaches the subscriber's `onError`. The Java client contacts the server only when you call `subscribe()` on the publisher, so there the refusal is thrown from `subscribe()` and delivered to the subscriber's `onError` as well. The exception type and its fields are the same in all cases.
+
+</LS>
+<LS to="g,r">
+
+The subscription ends with an error whose message names the reason, the requested position, and the current identity and version of the catalogue.
+
+</LS>
+
+Whatever the reason, the consumer can't continue where it left off: the changes between its position and the present are either gone or belong to a different dataset that merely carries the same name. Don't rewind the position silently - a consumer that holds state derived from the stream (a cache, a projection) has a gap in it and must rebuild it:
+
+1. drop the derived state together with the stored resume position,
+2. rebuild the state from one consistent snapshot of the catalogue - the data read by a single session, which always reads one catalogue version,
+3. resume right after that snapshot: with the snapshot's `catalogId`, `sinceVersion` one past the snapshot's catalogue version and `sinceIndex` `0`,
+4. if this position is refused too - the rebuild took longer than the write-ahead log retains changes - rebuild again.
+
+<LS to="j">
+
+In Java, the snapshot's identity and version are `getCatalogId()` and `getCatalogVersion()` of the session the rebuild reads its data from.
+
+</LS>
+
+Subscribing from the head of the stream (without `sinceVersion`) once the rebuild has finished loses changes: the head has moved on while the rebuild ran, so the changes committed in the meantime never reach the derived state. Alternatively, you can register the subscription first, buffer its captures while the rebuild runs, and apply them once the rebuild has finished - as long as applying a change the rebuild has already seen does no harm.
 
 ## Hierarchy of mutations
 
@@ -410,9 +464,13 @@ instances representing the changes made to the catalogue.
 Request allows you to specify the following parameters:
 
 <dl>
+  <dt>UUID `catalogId` (optional)</dt>
+  <dd>
+    The identity of the catalogue incarnation the starting point was recorded on - the `catalogId` of the last processed capture. When it differs from the identity of the catalogue the subscription is opened for, the subscription is refused rather than served from an unrelated version sequence. See [resuming a catalogue subscription](#resuming-a-catalogue-subscription).
+  </dd>
   <dt>long `sinceVersion` (optional)</dt>
   <dd>
-    The catalogue version (inclusive) from which you want to start receiving changes. If not specified, the change stream will start from the next version of the catalogue (i.e. the changes made to the catalogue in the future).
+    The catalogue version (inclusive) from which you want to start receiving changes. If not specified, the change stream will start from the next version of the catalogue (i.e. the changes made to the catalogue in the future). A version more than one past the current catalogue version is refused.
   </dd>
   <dt>int `sinceIndex` (optional)</dt>
   <dd>
@@ -441,6 +499,10 @@ Catalogue capture events are represented by <SourceClass>evita_api/src/main/java
 <LS to="j">
 
 <dl>
+  <dt>UUID `catalogId`</dt>
+  <dd>
+    The identity of the catalogue incarnation that produced the capture. Store it together with `version` and `index` as the resume position - see [resuming a catalogue subscription](#resuming-a-catalogue-subscription).
+  </dd>
   <dt>long `version`</dt>
   <dd>
     The version of the catalogue where the mutation occurs.
@@ -485,6 +547,10 @@ Catalogue capture events are represented by <SourceClass>evita_api/src/main/java
 <LS to="r">
 
 <dl>
+  <dt>UUID `catalogId`</dt>
+  <dd>
+    The identity of the catalogue incarnation that produced the capture. Store it together with `version` and `index` as the resume position - see [resuming a catalogue subscription](#resuming-a-catalogue-subscription).
+  </dd>
   <dt>long `version`</dt>
   <dd>
     The version of the catalogue where the mutation occurs.
@@ -831,6 +897,8 @@ used to open a live subscription, and both return a closeable stream — always 
 try-with-resources block, since it holds an open file handle onto the write-ahead log for as long as
 it stays open.
 
+The `catalogId` of the request is honoured here too: a request stating the identity of another catalogue incarnation than the one the session is bound to fails with <SourceClass>evita_api/src/main/java/io/evitadb/api/exception/ChangeCaptureResumePositionInvalidException.java</SourceClass> and the `DIFFERENT_INCARNATION` reason, and every returned capture carries the session's `catalogId`. A version ahead of the catalogue isn't refused: a forward `sinceVersion` past the newest version simply yields an empty stream.
+
 This capability is reachable only through the Java driver — there is no GraphQL or REST equivalent.
 
 Direction changes more than iteration order:
@@ -897,6 +965,18 @@ The publisher freezes the CDC request parameters (including the starting version
 
 <NoteTitle toggles="true">
 
+##### Can I subscribe to changes starting at a future catalogue version?
+
+</NoteTitle>
+
+Only to the next one. A subscription can start at most one version past the current catalogue version - the version the next change will carry. A `sinceVersion` further ahead is refused with the `AHEAD_OF_CATALOG` reason, because it can't be told apart from a position recorded on a catalogue that has been replaced since - see [resuming a catalogue subscription](#resuming-a-catalogue-subscription).
+
+</Note>
+
+<Note type="question">
+
+<NoteTitle toggles="true">
+
 ##### How to properly close and release resources?
 
 </NoteTitle>
@@ -917,6 +997,10 @@ instances representing the changes made to the catalogue.
 Catalogue capture events are represented by <SourceClass>evita_api/src/main/java/io/evitadb/api/requestResponse/cdc/ChangeCatalogCapture.java</SourceClass> instances that contain the following information:
 
 <dl>
+  <dt>UUID `catalogId`</dt>
+  <dd>
+    The identity of the catalogue incarnation that produced the capture. Store it together with `version` and `index` as the resume position - see [resuming a catalogue subscription](#resuming-a-catalogue-subscription).
+  </dd>
   <dt>long `version`</dt>
   <dd>
     The version of the catalogue where the mutation occurs.
@@ -973,9 +1057,13 @@ The subscription accepts the following parameters:
   <dd>
     The name of the catalogue to subscribe to.
   </dd>
+  <dt>UUID `catalogId` (optional)</dt>
+  <dd>
+    The identity of the catalogue incarnation the starting point was recorded on - the `catalogId` of the last processed capture. When it differs from the identity of the catalogue the subscription is opened for, the subscription is refused rather than served from an unrelated version sequence. See [resuming a catalogue subscription](#resuming-a-catalogue-subscription).
+  </dd>
   <dt>long `sinceVersion` (optional)</dt>
   <dd>
-    The catalogue version (inclusive) from which you want to start receiving changes. If not specified, the change stream will start from the next version of the catalogue (i.e. the changes made to the catalogue in the future).
+    The catalogue version (inclusive) from which you want to start receiving changes. If not specified, the change stream will start from the next version of the catalogue (i.e. the changes made to the catalogue in the future). A version more than one past the current catalogue version is refused.
   </dd>
   <dt>int `sinceIndex` (optional)</dt>
   <dd>
@@ -1161,9 +1249,13 @@ with a smaller set of mutations to worry about.
 The subscription accepts the following parameters:
 
 <dl>
+  <dt>UUID `catalogId` (optional)</dt>
+  <dd>
+    The identity of the catalogue incarnation the starting point was recorded on - the `catalogId` of the last processed capture. When it differs from the identity of the catalogue the subscription is opened for, the subscription is refused rather than served from an unrelated version sequence. See [resuming a catalogue subscription](#resuming-a-catalogue-subscription).
+  </dd>
   <dt>long `sinceVersion` (optional)</dt>
   <dd>
-    The catalogue version (inclusive) from which you want to start receiving changes. If not specified, the change stream will start from the next version of the catalogue (i.e. the changes made to the catalogue in the future).
+    The catalogue version (inclusive) from which you want to start receiving changes. If not specified, the change stream will start from the next version of the catalogue (i.e. the changes made to the catalogue in the future). A version more than one past the current catalogue version is refused.
   </dd>
   <dt>int `sinceIndex` (optional)</dt>
   <dd>
@@ -1208,9 +1300,13 @@ The subscription accepts the following parameters:
   <dd>
     Filter by specific entity primary key. If not specified, changes to all entities are captured.
   </dd>
+  <dt>UUID `catalogId` (optional)</dt>
+  <dd>
+    The identity of the catalogue incarnation the starting point was recorded on - the `catalogId` of the last processed capture. When it differs from the identity of the catalogue the subscription is opened for, the subscription is refused rather than served from an unrelated version sequence. See [resuming a catalogue subscription](#resuming-a-catalogue-subscription).
+  </dd>
   <dt>long `sinceVersion` (optional)</dt>
   <dd>
-    The catalogue version (inclusive) from which you want to start receiving changes. If not specified, the change stream will start from the next version of the catalogue (i.e. the changes made to the catalogue in the future).
+    The catalogue version (inclusive) from which you want to start receiving changes. If not specified, the change stream will start from the next version of the catalogue (i.e. the changes made to the catalogue in the future). A version more than one past the current catalogue version is refused.
   </dd>
   <dt>int `sinceIndex` (optional)</dt>
   <dd>
@@ -1290,9 +1386,13 @@ with a smaller set of mutations to worry about.
 The subscription accepts the following parameters:
 
 <dl>
+  <dt>UUID `catalogId` (optional)</dt>
+  <dd>
+    The identity of the catalogue incarnation the starting point was recorded on - the `catalogId` of the last processed capture. When it differs from the identity of the catalogue the subscription is opened for, the subscription is refused rather than served from an unrelated version sequence. See [resuming a catalogue subscription](#resuming-a-catalogue-subscription).
+  </dd>
   <dt>long `sinceVersion` (optional)</dt>
   <dd>
-    The catalogue version (inclusive) from which you want to start receiving changes. If not specified, the change stream will start from the next version of the catalogue (i.e. the changes made to the catalogue in the future).
+    The catalogue version (inclusive) from which you want to start receiving changes. If not specified, the change stream will start from the next version of the catalogue (i.e. the changes made to the catalogue in the future). A version more than one past the current catalogue version is refused.
   </dd>
   <dt>int `sinceIndex` (optional)</dt>
   <dd>
@@ -1330,9 +1430,13 @@ this subscription provides a simpler interface with a smaller set of mutations t
 The subscription accepts the following parameters:
 
 <dl>
+  <dt>UUID `catalogId` (optional)</dt>
+  <dd>
+    The identity of the catalogue incarnation the starting point was recorded on - the `catalogId` of the last processed capture. When it differs from the identity of the catalogue the subscription is opened for, the subscription is refused rather than served from an unrelated version sequence. See [resuming a catalogue subscription](#resuming-a-catalogue-subscription).
+  </dd>
   <dt>long `sinceVersion` (optional)</dt>
   <dd>
-    The catalogue version (inclusive) from which you want to start receiving changes. If not specified, the change stream will start from the next version of the catalogue (i.e. the changes made to the catalogue in the future).
+    The catalogue version (inclusive) from which you want to start receiving changes. If not specified, the change stream will start from the next version of the catalogue (i.e. the changes made to the catalogue in the future). A version more than one past the current catalogue version is refused.
   </dd>
   <dt>int `sinceIndex` (optional)</dt>
   <dd>

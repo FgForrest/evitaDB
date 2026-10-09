@@ -54,8 +54,12 @@ The visualization mirrors the structure of the summary itself:
 2. The calculation respects every filter constraint placed outside the
    [`userFilter`](../filtering/behavioral.md#user-filter) container.
 3. The default relation between options within a group is logical disjunction (logical OR), unless changed.
-4. The default relation between options in different groups / references is logical conjunction (logical AND),
-   unless changed.
+4. The default relation between options in different groups of the same reference is logical conjunction
+   (logical AND), unless changed.
+5. Options of different references are always combined by logical conjunction (logical AND), because the
+   [`userFilter`](../filtering/behavioral.md#user-filter) combines its constraints the way
+   [`and`](../filtering/logical.md#and) does. The relation between groups applies only between the groups of one
+   reference.
 
 <Note type="info">
 
@@ -63,7 +67,25 @@ You can change the default calculation relations with [`facetCalculationRules`](
 require part of the query. The historical `facet*` naming is kept on the four behaviour-altering constraints
 (`facetGroupsConjunction`, `facetGroupsDisjunction`, `facetGroupsNegation`, `facetGroupsExclusivity`,
 `facetCalculationRules`) for backwards compatibility — they apply to references regardless of the
-constraint's name.
+constraint's name. A `facetGroups*` constraint naming a reference that the queried entity type doesn't have makes
+the query fail.
+
+</Note>
+
+<Note type="question">
+
+<NoteTitle toggles="true">
+
+##### Can I combine options of different references by logical OR?
+</NoteTitle>
+
+Not yet. Neither [`facetCalculationRules`](#facet-calculation-rules) nor the `facetGroups*` constraints change the
+relation between references: selecting a brand and a parameter value always returns only the entities that have
+both, even when every group of both references is set to logical disjunction (logical OR).
+
+A new relation level that combines the options of a group with the selections of all other references by logical
+OR is proposed in [issue #1698](https://github.com/FgForrest/evitaDB/issues/1698). If your filter needs it, vote
+for the issue with a 👍 reaction and describe your use case there — it helps us prioritize it.
 
 </Note>
 
@@ -91,7 +113,9 @@ referenceSummary(
         <p>optional argument of type <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetStatisticsDepth.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/FacetStatisticsDepth.cs</SourceClass></LS>
             controlling how deep the per-option statistics go:</p>
         <p>
-        - **COUNTS** *(default, implicit)*: each option carries only the number of returned entities that contain it
+        - **COUNTS** *(default, implicit)*: each option carries only the number of entities that contain it, out of
+            the entities the query returns without its [`userFilter`](../filtering/behavioral.md#user-filter) part
+            (the number of entities that don't contain it, in a [negated](#facet-groups-negation) group)
         - **IMPACT**: each non-selected option additionally carries an impact prediction (`matchCount`,
             `difference`, `hasSense`) showing what would happen if the user selected it; affected by
             [conjunction](#facet-groups-conjunction), [disjunction](#facet-groups-disjunction),
@@ -245,8 +269,9 @@ groups (the reference lacks group information), the summary contains a single gr
 #### 2nd tier: reference group
 
 A reference group lists every [reference option](#3rd-tier-reference-option) available for the given group /
-reference combination. It also carries a `count` of all entities in the current query result that match at least
-one option in the group / reference.
+reference combination. It also carries a `count` of all entities in the current query result, excluding the effect
+of the [`userFilter`](../filtering/behavioral.md#user-filter) part, that match at least one option in the group /
+reference.
 <LS to="e,j,c,r">
 Optionally, it includes the body of the group entity if the [`entityGroupFetch`](#entity-group-fetch) requirement
 is specified.
@@ -263,6 +288,13 @@ This group sits on the summary as a `nonGroupedStatistics` property.
 This group is returned as a single group inside the reference.
 </LS>
 
+The group belongs to the reference, not to the option: an option referenced under several groups — or under a group
+by some entities and without one by others — is listed in each of these groups. Each of these entries counts the
+entities referencing the option under its own group (in a negated group, the entities that don't reference it under
+that group), so the entries of one option may show different counts, and an entry whose count is zero is left out. Selecting the option selects it in all of its groups (see
+[facet groups belong to references](../filtering/references.md#facet-groups-belong-to-references)), so the impact of
+every entry predicts the same selection.
+
 #### 3rd tier: reference option
 
 A reference option contains the per-option statistics:
@@ -270,8 +302,13 @@ A reference option contains the per-option statistics:
 <dl>
   <dt>count</dt>
   <dd>
-    The number of entities in the current query result (including user-filter constraints) that have this option
-    (i.e. reference an entity with this primary key).
+    The number of entities in the current query result, excluding the effect of the
+    [`userFilter`](../filtering/behavioral.md#user-filter) part, that have this option (i.e. reference an entity
+    with this primary key).
+
+    In a group the query negates — by [`facetGroupsNegation`](#facet-groups-negation) at either level, or by
+    NEGATION set as the default in [`facetCalculationRules`](#facet-calculation-rules) — the count is the number of
+    those entities that **don't** have the option.
   </dd>
   <dt>requested</dt>
   <dd>
@@ -842,15 +879,21 @@ facetGroupsConjunction(
     <dd>
         <p>**Default: `WITH_DIFFERENT_FACETS_IN_GROUP`**</p>
         <p>Optional enumeration argument specifying whether the relationship type should be applied to options at
-        a particular level (within the same reference group, or to options in different reference groups /
-        references).</p>
+        a particular level (within the same reference group, or to options in different groups of the same
+        reference).</p>
     </dd>
     <dt>filterConstraint:filterBy</dt>
     <dd>
         Optional filter constraint that selects one or more reference groups whose options will be combined with
         logical AND instead of the default logical OR.
 
-        If the filter is not defined, the behaviour applies to all groups of a given reference in the summary.
+        If the filter is not defined, the behaviour applies to all groups of a given reference, including the
+        options that belong to no group.
+
+        A filter that cannot be evaluated makes the query fail: a filter on a reference that has no group type,
+        a filter on a group type not managed by evitaDB that targets anything other than the group primary keys
+        (the `entityPrimaryKey*` constraints, also inside `and`, `or` and `not`), or a filter on a group attribute
+        that is not filterable.
     </dd>
 </dl>
 
@@ -937,8 +980,8 @@ facetGroupsDisjunction(
     <dd>
         <p>**Default: `WITH_DIFFERENT_GROUPS`**</p>
         <p>Optional enumeration argument specifying whether the relationship type should be applied to options at
-        a particular level (within the same reference group, or to options in different reference groups /
-        references).</p>
+        a particular level (within the same reference group, or to options in different groups of the same
+        reference).</p>
         <p>This is the one constraint of the four whose default is `WITH_DIFFERENT_GROUPS`, and it defaults there
         for the same reason the others default to `WITH_DIFFERENT_FACETS_IN_GROUP`: a constraint defaults to the
         level at which it changes something. Disjunction is already the
@@ -952,7 +995,13 @@ facetGroupsDisjunction(
         logical disjunction (logical OR) with options from different groups instead of the default logical
         conjunction (logical AND).
 
-        If the filter is not defined, the behaviour applies to all groups of a given reference in the summary.
+        If the filter is not defined, the behaviour applies to all groups of a given reference, including the
+        options that belong to no group.
+
+        A filter that cannot be evaluated makes the query fail: a filter on a reference that has no group type,
+        a filter on a group type not managed by evitaDB that targets anything other than the group primary keys
+        (the `entityPrimaryKey*` constraints, also inside `and`, `or` and `not`), or a filter on a group attribute
+        that is not filterable.
     </dd>
 </dl>
 
@@ -1030,8 +1079,8 @@ facetGroupsNegation(
     <dd>
         <p>**Default: `WITH_DIFFERENT_FACETS_IN_GROUP`**</p>
         <p>Optional enumeration argument specifying whether the relationship type should be applied to options at
-        a particular level (within the same reference group, or to options in different reference groups /
-        references).</p>
+        a particular level (within the same reference group, or to options in different groups of the same
+        reference).</p>
     </dd>
     <dt>filterConstraint:filterBy</dt>
     <dd>
@@ -1039,7 +1088,13 @@ facetGroupsNegation(
         returning items that reference the entity in question, the result returns items that **do not** reference
         it.
 
-        If the filter is not defined, the behaviour applies to all groups of a given reference in the summary.
+        If the filter is not defined, the behaviour applies to all groups of a given reference, including the
+        options that belong to no group.
+
+        A filter that cannot be evaluated makes the query fail: a filter on a reference that has no group type,
+        a filter on a group type not managed by evitaDB that targets anything other than the group primary keys
+        (the `entityPrimaryKey*` constraints, also inside `and`, `or` and `not`), or a filter on a group attribute
+        that is not filterable.
     </dd>
 </dl>
 
@@ -1060,8 +1115,10 @@ laws](https://en.wikipedia.org/wiki/De_Morgan%27s_laws) the result is the same (
 `!(a || b)`).
 
 Because the two are equivalent, evitaDB honours a `facetGroupsNegation` at **both** levels regardless of which one
-you wrote, so the level you pick cannot change the answer. This is the single exception to the rule that the two
-levels are orthogonal, and it exists only because negation is the one relation for which they provably are not.
+you wrote, so the level you pick cannot change the answer. When you write one `facetGroupsNegation` for each level,
+both of them apply: a group is negated when the filter of either of them selects it. This is the single exception to
+the rule that the two levels are orthogonal, and it exists only because negation is the one relation for which they
+provably are not.
 If [`facetCalculationRules`](#facet-calculation-rules) moves the other level away from its system default the
 equivalence no longer holds, and a query that changes the defaults should state the level it means.
 
@@ -1136,14 +1193,21 @@ facetGroupsExclusivity(
     <dd>
         <p>**Default: `WITH_DIFFERENT_FACETS_IN_GROUP`**</p>
         <p>Optional enumeration argument specifying whether the relationship type should be applied to options at
-        a particular level (within the same reference group, or to options in different reference groups /
-        references).</p>
+        a particular level (within the same reference group, or to options in different groups of the same
+        reference).</p>
     </dd>
     <dt>filterConstraint:filterBy</dt>
     <dd>
         Optional filter constraint that selects one or more reference groups whose options are mutually exclusive.
 
-        If the filter is not defined, the behaviour applies to all groups of a given reference in the summary.
+        If the filter is not defined, the behaviour applies to all groups of a given reference, including the
+        options that belong to no group. Either way, the relation changes only the reference summary, never the
+        query result.
+
+        A filter that cannot be evaluated makes the query fail, even though the relation does not affect the query
+        result: a filter on a reference that has no group type, a filter on a group type not managed by evitaDB that
+        targets anything other than the group primary keys (the `entityPrimaryKey*` constraints, also inside `and`,
+        `or` and `not`), or a filter on a group attribute that is not filterable.
     </dd>
 </dl>
 
@@ -1154,7 +1218,8 @@ more than one, the system falls back to the [system defaults](#default-reference
 within the same group, logical AND between different groups).
 
 The [impact statistics](#3rd-tier-reference-option) are calculated for the situation in which only this particular
-option is selected and no others in the same group / different groups are.
+option is selected and no others in the same group / different groups of the same reference are. The selected options
+of other references and the other constraints of the `userFilter` stay as they are.
 
 <Note type="info">
 
@@ -1223,15 +1288,19 @@ facetCalculationRules(
     </dd>
     <dt>argument:enum(DISJUNCTION|CONJUNCTION|NEGATION|EXCLUSIVITY)!</dt>
     <dd>
-        Mandatory argument specifying the default relationship behaviour for options between different reference
-        groups or references. You can change the default logical conjunction (logical AND) to a different value.
+        Mandatory argument specifying the default relationship behaviour for options between different groups of
+        the same reference. You can change the default logical conjunction (logical AND) to a different value.
+        Options of different references are always combined by logical conjunction (logical AND).
     </dd>
 </dl>
 
 The <LS to="j,e,r,g"><SourceClass>evita_query/src/main/java/io/evitadb/api/query/require/FacetCalculationRules.java</SourceClass></LS><LS to="c"><SourceClass>EvitaDB.Client/Queries/Requires/FacetCalculationRules.cs</SourceClass></LS>
 requirement changes the [default behaviour](#default-reference-calculation-rules) of the reference summary
 calculation to the specified logical operators. The first argument sets the default relationship for options within
-the same reference group; the second sets it for options between different groups or references.
+the same reference group; the second sets it for options between different groups of the same reference. Options of
+different references are always combined by logical conjunction (logical AND), whatever the second argument is,
+because the [`userFilter`](../filtering/behavioral.md#user-filter) combines its constraints the way
+[`and`](../filtering/logical.md#and) does.
 
 **Supported logical operators:**
 
@@ -1268,6 +1337,11 @@ the same reference group; the second sets it for options between different group
         different groups: by [De Morgan's laws](https://en.wikipedia.org/wiki/De_Morgan%27s_laws) the result is the
         same (`!a && !b` is equivalent to `!(a || b)`).
 
+        NEGATION within the same reference group takes effect only together with CONJUNCTION or NEGATION between
+        different groups. The query fails when the second argument is DISJUNCTION or EXCLUSIVITY, because a group
+        is negated by its relation to the other groups, and with these operators between them no option could be
+        negated. Set NEGATION between the groups instead.
+
         Effect on [impact statistics](#3rd-tier-reference-option): logical AND NOT is likely to expand the number of
         results when entities tend to carry only a small fraction of all possible options on average.
     </dd>
@@ -1282,7 +1356,7 @@ the same reference group; the second sets it for options between different group
 
         Effect on [impact statistics](#3rd-tier-reference-option): the calculated match count and impact will be
         computed for the situation where only this particular option is selected and no others in the same group /
-        in different groups are.
+        in different groups of the same reference are. The selected options of other references stay.
 
         **Note**: because this operator doesn't affect the actual result-set output, it can only be used for the
         specific impact calculation if you want to see the impact of selecting only one option at a particular
@@ -1299,6 +1373,11 @@ relationship via dedicated requirements:
 - [Facet groups disjunction](#facet-groups-disjunction)
 - [Facet groups negation](#facet-groups-negation)
 - [Facet groups exclusivity](#facet-groups-exclusivity)
+
+A relationship one of these requirements sets for a group at a given level takes precedence over the defaults set by
+`facetCalculationRules`, which apply only to the groups none of them selects at that level. If several of them select
+the same group between different groups, negation takes precedence over disjunction, disjunction over exclusivity, and
+exclusivity over conjunction. The query result and the reference summary resolve the relationship the same way.
 
 </Note>
 

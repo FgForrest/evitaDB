@@ -644,7 +644,6 @@ classDiagram
         -Scope scope
         -AttributeKey attributeKey
         -TransactionalMap~Serializable, EntityWithTypeTuple~ uniqueValueToEntityTuple
-        -TransactionalMap~Integer, TransactionalBitmap~ entitiesPerType
         +registerUniqueKey(value, entityType, locale, recordId)
         +unregisterUniqueKey(value, entityType, locale, recordId)
         +getEntityReferenceByUniqueValue(value, locale) Optional

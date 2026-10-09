@@ -119,7 +119,7 @@ class GlobalUniqueIndexStaleLeafPageTwinTest {
 			pageSequences[i] = i;
 		}
 		return GlobalUniqueIndex.fromPersistedPages(
-			Scope.LIVE, URL_KEY, Integer.class, pageSequences, valuePages, payloadPages, valuePages.length - 1, Map.of()
+			Scope.LIVE, URL_KEY, Integer.class, 0, pageSequences, valuePages, payloadPages, valuePages.length - 1, Map.of()
 		);
 	}
 

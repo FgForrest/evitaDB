@@ -923,6 +923,8 @@ When you allow definition of *duplicate* references using one of the cardinality
 
 There are situations when duplicate references come in handy. Imagine you have an entity type `Product` that has a reference `medias` to an entity of type `Media`. You want to be able to link multiple media items to a single product, and you also want to be able to distinguish between them based on their role (e.g., "thumbnail", "gallery", "video", etc.). In such a case you can define reference attribute `role` as `representative`, and then you'll be able to create multiple references to the same `Media` entity with different `role` values.
 
+A [reflected reference](#reference-directionality) allows duplicates exactly when the original reference it reflects does. It inherits the cardinality of the original reference by default; when it declares its own cardinality, both cardinalities must either allow duplicates or disallow them, and a reflected reference allowing duplicates must also inherit all representative attributes of the original reference. A schema whose two references disagree - whether the mismatch is declared directly or arises later by changing the cardinality of either reference - is refused with an `InvalidSchemaMutationException` when the session that changed the schema closes.
+
 ## Scopes
 
 Scopes are separate areas of memory where entity indexes are stored. Scopes are used to separate live data from archived 
