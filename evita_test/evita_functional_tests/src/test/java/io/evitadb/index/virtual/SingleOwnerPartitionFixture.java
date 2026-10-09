@@ -64,15 +64,15 @@ import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-final class SingleOwnerPartitionFixture {
-	static final String ENTITY_PRODUCT = "product";
-	static final String ENTITY_CATEGORY = "category";
+public final class SingleOwnerPartitionFixture {
+	public static final String ENTITY_PRODUCT = "product";
+	public static final String ENTITY_CATEGORY = "category";
 	static final String ENTITY_MEDIA = "media";
 	static final String ENTITY_BRAND = "brand";
 	/**
 	 * Every entity type of the fixture.
 	 */
-	static final Set<String> ENTITY_TYPES = Set.of(ENTITY_PRODUCT, ENTITY_CATEGORY, ENTITY_MEDIA, ENTITY_BRAND);
+	public static final Set<String> ENTITY_TYPES = Set.of(ENTITY_PRODUCT, ENTITY_CATEGORY, ENTITY_MEDIA, ENTITY_BRAND);
 	static final String ENTITY_SECTION = "section";
 	/**
 	 * Every entity type of the fixture extended by {@link #setUpWithEveryReadRoute(EvitaSessionContract)}.
@@ -107,13 +107,13 @@ final class SingleOwnerPartitionFixture {
 	 * times fewer partitions than the reflection, which is when the bidirectional rewrite answers the reflection.
 	 */
 	static final int FILLER_PRODUCT_COUNT = 40;
-	static final String REFERENCE_CATEGORIES = "categories";
+	public static final String REFERENCE_CATEGORIES = "categories";
 	static final String REFERENCE_GALLERY = "gallery";
 	static final String REFERENCE_BRAND = "brand";
 	static final String REFERENCE_PRODUCTS = "products";
 	static final String ATTRIBUTE_CODE = "code";
 	static final String ATTRIBUTE_RANK = "rank";
-	static final String ATTRIBUTE_ORDER = "orderInCategory";
+	public static final String ATTRIBUTE_ORDER = "orderInCategory";
 	static final String ATTRIBUTE_ROLE = "role";
 	static final String HISTOGRAM_ORDER = "orderInCategoryHistogram";
 	static final String ROLE_GALLERY = "gallery";
@@ -173,7 +173,7 @@ final class SingleOwnerPartitionFixture {
 	 *
 	 * @param session the session to write in
 	 */
-	static void setUpWithReflectedProducts(@Nonnull EvitaSessionContract session) {
+	public static void setUpWithReflectedProducts(@Nonnull EvitaSessionContract session) {
 		setUp(session, categories -> { }, true);
 	}
 
@@ -193,7 +193,7 @@ final class SingleOwnerPartitionFixture {
 	 *
 	 * @param session the session to write in
 	 */
-	static void setUpWithEveryReadRoute(@Nonnull EvitaSessionContract session) {
+	public static void setUpWithEveryReadRoute(@Nonnull EvitaSessionContract session) {
 		setUpWithReflectedProducts(session);
 		session.defineEntitySchema(ENTITY_SECTION)
 			.withHierarchyIndexedInScope(Scope.LIVE, Scope.ARCHIVED)
@@ -359,7 +359,7 @@ final class SingleOwnerPartitionFixture {
 	 * @return the entity builder
 	 */
 	@Nonnull
-	static EntityBuilder newProduct(@Nonnull EvitaSessionContract session, int primaryKey) {
+	public static EntityBuilder newProduct(@Nonnull EvitaSessionContract session, int primaryKey) {
 		final EntityBuilder product = session
 			.createNewEntity(ENTITY_PRODUCT, primaryKey)
 			.setAttribute(ATTRIBUTE_CODE, "P" + primaryKey)
@@ -389,7 +389,7 @@ final class SingleOwnerPartitionFixture {
 	 * @return the step
 	 */
 	@Nonnull
-	static Consumer<EvitaSessionContract> updateProduct(
+	public static Consumer<EvitaSessionContract> updateProduct(
 		int primaryKey,
 		@Nonnull Consumer<EntityBuilder> change
 	) {

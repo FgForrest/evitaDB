@@ -40,6 +40,7 @@ import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.TransitionSt
 import io.evitadb.dataType.ChainableType;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
+import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.ReferencePartition;
@@ -47,6 +48,7 @@ import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.VirtualReferencePartitionIndex;
+import io.evitadb.index.VirtualReferencePartitionSlot;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.SortIndex;
@@ -63,6 +65,7 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
+import java.util.PrimitiveIterator.OfInt;
 import java.util.function.Function;
 
 /**
@@ -266,14 +269,10 @@ public final class VirtualReferencePartitionWriter {
 				final VirtualReferencePartitionIndex registry =
 					((ReferencedTypeEntityIndex) executor.getIndexForSideWrite(referencedTypeIndex.getIndexKey()))
 						.getVirtualReferencePartitionIndex();
-				final int ownerPrimaryKey = current.getAllPrimaryKeys().getFirst();
-				partitionEntered(
-					registry, partitionPrimaryKey, ownerPrimaryKey, current.getRepresentativeReferenceKey()
-				);
 				final EntitySchemaContract entitySchema = executor.getEntitySchema();
-				extractValuesOfOwner(
+				demoteToRow(
 					registry, entitySchema, entitySchema.getReferenceOrThrowException(referenceName), current,
-					currentIndex, ownerPrimaryKey
+					currentIndex
 				);
 			}
 		}
@@ -320,6 +319,70 @@ public final class VirtualReferencePartitionWriter {
 		) {
 			mutation.transitionPassed(TransitionStage.DEMOTED, referenceName, scope, partition.getPrimaryKey());
 		}
+	}
+
+	/**
+	 * Demotes a materialized partition with a single owner into its row: registers the row for that owner - with the
+	 * entity the partition references and the representative attribute values its key carries - and fills it by
+	 * extraction (see {@link #extractValuesOfOwner}). This is the one conversion of an index object into a row: the
+	 * demotion of a partition left with one owner of two runs it, and so does the conversion of a catalog representing
+	 * its single-owner partitions by index objects into one representing them virtually. Only the registry is
+	 * written - what becomes of the index object is the caller's decision.
+	 *
+	 * @param registry        the registry of the partition's reference in the partition's scope, holding no row of
+	 *                        the partition
+	 * @param entitySchema    the schema of the owner entity, its reflected references bound to the references they
+	 *                        reflect
+	 * @param referenceSchema the reference the partition belongs to, as the owner entity schema declares it
+	 * @param partition       the partition
+	 * @param partitionIndex  the index object of the partition, whose sort and chain indexes are read
+	 * @throws GenericEvitaInternalError when the partition does not have exactly one owner, or already has a row
+	 */
+	public static void demoteToRow(
+		@Nonnull VirtualReferencePartitionIndex registry,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferencePartition partition,
+		@Nonnull EntityIndex partitionIndex
+	) {
+		final int partitionPrimaryKey = partition.getPrimaryKey();
+		if (partition.size() != 1) {
+			throw new GenericEvitaInternalError(
+				"Partition " + partitionPrimaryKey + " `" + partition.getIndexKey() + "` has " + partition.size() +
+					" owners - only a partition with a single owner can be demoted into a row!"
+			);
+		}
+		if (registry.getPartitionOwner(partitionPrimaryKey).isPresent()) {
+			throw new GenericEvitaInternalError(
+				"Partition " + partitionPrimaryKey + " `" + partition.getIndexKey() + "` already has a row in the " +
+					"registry of single-owner partitions!"
+			);
+		}
+		final int ownerPrimaryKey = partition.getAllPrimaryKeys().getFirst();
+		partitionEntered(registry, partitionPrimaryKey, ownerPrimaryKey, partition.getRepresentativeReferenceKey());
+		extractValuesOfOwner(registry, entitySchema, referenceSchema, partition, partitionIndex, ownerPrimaryKey);
+	}
+
+	/**
+	 * Discards every row of the registry - each one as a partition leaving it is dropped, so the declared sort and
+	 * chain keys are retired once no row is left. The conversion of a catalog representing its single-owner partitions
+	 * by index objects runs it before it demotes them: rows a catalog of index objects kept next to its objects are
+	 * never trusted, the objects are.
+	 *
+	 * @param registry the registry
+	 * @return how many rows it held
+	 */
+	public static int discardAllRows(@Nonnull VirtualReferencePartitionIndex registry) {
+		final CompositeIntArray rows = new CompositeIntArray();
+		registry.forEachEntry(
+			VirtualReferencePartitionSlot.PARTITION_OWNER,
+			(partitionPrimaryKey, payload) -> rows.add(partitionPrimaryKey)
+		);
+		final OfInt it = rows.iterator();
+		while (it.hasNext()) {
+			dropPartition(registry, it.nextInt());
+		}
+		return rows.getSize();
 	}
 
 	/**

@@ -55,16 +55,41 @@ public final class VirtualReferencePartitionLoader implements ComponentLoader {
 	@Override
 	@Nonnull
 	public LoadedComponentBundle load(@Nonnull LoadContext context) {
-		final String referenceName = Objects.requireNonNull((String) context.entityIndexKey().discriminator());
-		final StoragePartPersistenceService<?> service = context.storagePartService();
+		return new LoadedComponentBundle.VirtualReferencePartitions(
+			loadIndex(
+				context.storagePartService(),
+				context.catalogVersion(),
+				context.entityIndexId(),
+				Objects.requireNonNull((String) context.entityIndexKey().discriminator())
+			)
+		);
+	}
+
+	/**
+	 * Reloads the index of one referenced-type entity index on its own, without the rest of that entity index - the
+	 * way the storage protocol migration reads a registry it rewrites, holding no more than the registry itself.
+	 * {@link #load(LoadContext)} loads the index of a loading entity index through this method too.
+	 *
+	 * @param service        the storage part service of the collection
+	 * @param catalogVersion the catalog version to read at
+	 * @param entityIndexId  the primary key of the referenced-type entity index carrying the index
+	 * @param referenceName  the reference of that entity index
+	 * @return the loaded index, empty when it has no root on disk
+	 */
+	@Nonnull
+	public static VirtualReferencePartitionIndex loadIndex(
+		@Nonnull StoragePartPersistenceService<?> service,
+		long catalogVersion,
+		int entityIndexId,
+		@Nonnull String referenceName
+	) {
 		final KeyCompressor keyCompressor = service.getReadOnlyKeyCompressor();
-		final int entityIndexId = context.entityIndexId();
 
 		// a reference name the compressor never saw proves no root was ever written
 		final OptionalInt referenceNameId = keyCompressor.getIdIfExists(new ReferenceNameKey(referenceName));
 		final VirtualReferencePartitionIndexStoragePart part = referenceNameId.isPresent() ?
 			service.getStoragePart(
-				context.catalogVersion(),
+				catalogVersion,
 				VirtualReferencePartitionIndexStoragePart.computeUniquePartId(
 					entityIndexId, referenceNameId.getAsInt()
 				),
@@ -72,7 +97,7 @@ public final class VirtualReferencePartitionLoader implements ComponentLoader {
 			) :
 			null;
 		if (part == null) {
-			return new LoadedComponentBundle.VirtualReferencePartitions(new VirtualReferencePartitionIndex());
+			return new VirtualReferencePartitionIndex();
 		}
 
 		final String indexDescription = "reference `" + referenceName + "` of entity index `" + entityIndexId + "`";
@@ -89,7 +114,7 @@ public final class VirtualReferencePartitionLoader implements ComponentLoader {
 			for (int i = 0; i < orderedPageSequences.length; i++) {
 				final int pageSequence = orderedPageSequences[i];
 				final VirtualReferencePartitionIndexLeafPagePart leaf = service.getStoragePart(
-					context.catalogVersion(),
+					catalogVersion,
 					VirtualReferencePartitionIndexLeafPagePart.computeUniquePartId(streamId, pageSequence),
 					VirtualReferencePartitionIndexLeafPagePart.class
 				);
@@ -114,7 +139,7 @@ public final class VirtualReferencePartitionLoader implements ComponentLoader {
 				part.getChainPredecessorSlots()
 			);
 		}
-		return new LoadedComponentBundle.VirtualReferencePartitions(index);
+		return index;
 	}
 
 }

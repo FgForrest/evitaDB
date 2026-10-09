@@ -720,7 +720,7 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 			TransactionOptions.builder().checkpointIntervalInMillis(NEVER_ELAPSES_MILLIS).build()
 		);
 		this.engines = theEngines;
-		theEngines.addMaintainingEngineCheck(VirtualPartitionSingletonLifecycleTest::assertNoPartitionObjectBelowTwoOwners);
+		theEngines.addMaintainingEngineCheck(VirtualPartitionInvariants::assertNoPartitionObjectBelowTwoOwners);
 		theEngines.prepare(CatalogState.ALIVE, VirtualPartitionSingletonLifecycleTest::setUp);
 		// going live is deferred like any other round; the clean close publishes it
 		theEngines.restart();
@@ -993,7 +993,7 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 	) {
 		final DifferentialEngines theEngines = DifferentialEngines.writtenVirtually(this, label, entityTypes, null);
 		this.engines = theEngines;
-		theEngines.addMaintainingEngineCheck(VirtualPartitionSingletonLifecycleTest::assertNoPartitionObjectBelowTwoOwners);
+		theEngines.addMaintainingEngineCheck(VirtualPartitionInvariants::assertNoPartitionObjectBelowTwoOwners);
 		theEngines.prepare(state, setup);
 		return theEngines;
 	}

@@ -24,7 +24,6 @@
 // TODO JNO - remove at the end of #1615 (the whole file)
 package io.evitadb.index.virtual;
 
-import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
@@ -44,13 +43,11 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.VirtualReferencePartitionIndex;
-import io.evitadb.index.VirtualReferencePartitionSlot;
-import io.evitadb.index.membership.ReducedIndexMembership;
+import io.evitadb.index.virtual.VirtualPartitionInvariants.RegisteredRow;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
@@ -76,9 +73,7 @@ import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.Map.Entry;
@@ -103,6 +98,12 @@ import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.ENTITY_PRODUC
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.REFERENCE_CATEGORIES;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.newProduct;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.updateProduct;
+import static io.evitadb.index.virtual.VirtualPartitionInvariants.assertInvariants;
+import static io.evitadb.index.virtual.VirtualPartitionInvariants.assertUnchanged;
+import static io.evitadb.index.virtual.VirtualPartitionInvariants.catalogOf;
+import static io.evitadb.index.virtual.VirtualPartitionInvariants.collectionOf;
+import static io.evitadb.index.virtual.VirtualPartitionInvariants.describeIndexes;
+import static io.evitadb.index.virtual.VirtualPartitionInvariants.registeredRowsOf;
 import static io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService.ENTITY_COLLECTION_FILE_SUFFIX;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
@@ -111,25 +112,18 @@ import static io.evitadb.test.TestTags.WAL;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Proves that a catalog writing its single-owner reference partitions as registry rows survives every event of its
  * lifecycle with every row, the primary key of every row and the membership of every owner intact, and that nothing on
  * the way silently brings an index object of a single-owner partition back or loses a row.
  *
- * After every event the catalog must keep the invariants a reload relies on (see {@link #assertInvariants}):
- *
- * - no index object of a partition with fewer than two owners of a reference whose partitions may be virtual;
- * - every registered partition has no index object, is not among the indexes its collection header lists as stored,
- *   and no entity index storage part is stored under its primary key;
- * - the index primary key sequence the collection header persists is at least every registered primary key;
- * - the reduced-index membership covers every registered partition with its owner and holds none of them as residual.
+ * After every event the catalog must keep the invariants a reload relies on (see
+ * {@link VirtualPartitionInvariants}).
  *
  * The index-level description of every collection (see {@link DifferentialEngines#describeIndexesOf}) - the registry
  * rows with their primary keys, owners, sort values and chain predecessors, the advertised partitions, the index
@@ -296,133 +290,6 @@ class VirtualPartitionReloadInvariantTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Asserts the invariants of every collection of a committed catalog - see the class documentation - and that the
-	 * catalog has registered partitions at all, so the invariants are not satisfied vacuously.
-	 *
-	 * @param label       names the moment in failure messages
-	 * @param evita       the engine
-	 * @param catalogName the catalog, representing its single-owner partitions virtually
-	 */
-	static void assertInvariants(@Nonnull String label, @Nonnull Evita evita, @Nonnull String catalogName) {
-		final Catalog catalog = catalogOf(evita, catalogName);
-		assertTrue(
-			catalog.getVirtualReferencePartitionMaintenance().isVirtual(),
-			label + ": the catalog `" + catalogName + "` must represent its single-owner partitions virtually"
-		);
-		int registered = 0;
-		for (final String entityType : catalog.getEntityTypes()) {
-			registered += assertInvariants(label, collectionOf(evita, catalogName, entityType), catalog.getVersion());
-		}
-		assertTrue(registered > 0, label + ": the catalog `" + catalogName + "` must hold registered partitions");
-	}
-
-	/**
-	 * Asserts the invariants of one collection of a committed catalog - see the class documentation.
-	 *
-	 * @param label          names the moment in failure messages
-	 * @param collection     the collection
-	 * @param catalogVersion the version of the catalog the storage is read at
-	 * @return how many registered partitions the collection holds
-	 */
-	static int assertInvariants(@Nonnull String label, @Nonnull EntityCollection collection, long catalogVersion) {
-		final String prefix = label + ": collection `" + collection.getEntityType() + "`";
-		VirtualPartitionSingletonLifecycleTest.assertNoPartitionObjectBelowTwoOwners(label, collection);
-		final EntityCollectionHeader header = collection.getEntityCollectionHeader();
-		final Set<Integer> storedIndexes = Set.copyOf(header.usedEntityIndexPrimaryKeys());
-		final Integer globalIndexPrimaryKey = header.globalEntityIndexPrimaryKey();
-		if (globalIndexPrimaryKey != null) {
-			// the storage read below must be able to find an index that is stored, or its silence proves nothing
-			assertNotNull(
-				collection.getStoragePartPersistenceService().getStoragePart(
-					catalogVersion, globalIndexPrimaryKey, EntityIndexStoragePart.class
-				),
-				prefix + " must find the stored global index " + globalIndexPrimaryKey
-			);
-		}
-		final List<String> violations = new ArrayList<>(4);
-		int registered = 0;
-		for (final Entry<Integer, RegisteredRow> entry : registeredRowsOf(collection).entrySet()) {
-			registered++;
-			final int partitionPrimaryKey = entry.getKey();
-			final RegisteredRow row = entry.getValue();
-			if (collection.getIndexByPrimaryKeyIfExists(partitionPrimaryKey) != null) {
-				violations.add(row + " has an index object");
-			}
-			if (partitionPrimaryKey > header.lastEntityIndexPrimaryKey()) {
-				violations.add(row + " is above the persisted sequence " + header.lastEntityIndexPrimaryKey());
-			}
-			if (storedIndexes.contains(partitionPrimaryKey)) {
-				violations.add(row + " is listed among the stored indexes of the collection header");
-			}
-			if (
-				collection.getStoragePartPersistenceService().getStoragePart(
-					catalogVersion, partitionPrimaryKey, EntityIndexStoragePart.class
-				) != null
-			) {
-				violations.add(row + " has a stored entity index");
-			}
-			final ReducedIndexMembership membership = membershipOf(collection, row.scope(), row.referenceName());
-			if (membership == null) {
-				violations.add(row + " has no membership lookup of its reference");
-			} else {
-				if (!membership.getCoveredIndexPrimaryKeys().contains(partitionPrimaryKey)) {
-					violations.add(row + " is not covered by the membership");
-				}
-				if (membership.getResidualIndexPrimaryKeys().contains(partitionPrimaryKey)) {
-					violations.add(row + " is residual in the membership");
-				}
-				if (!membership.getIndexPrimaryKeys(row.owner()).contains(partitionPrimaryKey)) {
-					violations.add(row + " is not among the partitions the membership lists for its owner");
-				}
-			}
-		}
-		if (!violations.isEmpty()) {
-			fail(prefix + " breaks " + violations.size() + " invariant(s):\n" + String.join("\n", violations));
-		}
-		return registered;
-	}
-
-	/**
-	 * Returns every registered partition of a collection - in both scopes, of every reference.
-	 *
-	 * @param collection the collection
-	 * @return the registered rows by the primary key of their partition
-	 */
-	@Nonnull
-	static SortedMap<Integer, RegisteredRow> registeredRowsOf(@Nonnull EntityCollection collection) {
-		final SortedMap<Integer, RegisteredRow> rows = new TreeMap<>();
-		for (final Scope scope : Scope.values()) {
-			for (final ReferenceSchemaContract referenceSchema : collection.getSchema().getReferences().values()) {
-				final EntityIndex typeIndex = collection.getIndexByKeyIfExists(
-					new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceSchema.getName())
-				);
-				if (typeIndex instanceof final ReferencedTypeEntityIndex referencedTypeIndex) {
-					final VirtualReferencePartitionIndex registry =
-						referencedTypeIndex.getVirtualReferencePartitionIndex();
-					registry.forEachEntry(
-						VirtualReferencePartitionSlot.PARTITION_OWNER,
-						(partitionPrimaryKey, payload) -> {
-							final RegisteredRow previous = rows.put(
-								partitionPrimaryKey,
-								new RegisteredRow(
-									scope, referenceSchema.getName(), partitionPrimaryKey,
-									NumberUtils.unpackHigh(payload), NumberUtils.unpackLow(payload)
-								)
-							);
-							assertNull(
-								previous,
-								"collection `" + collection.getEntityType() + "` registers partition " +
-									partitionPrimaryKey + " twice: " + previous
-							);
-						}
-					);
-				}
-			}
-		}
-		return rows;
-	}
-
-	/**
 	 * Returns every index primary key a collection uses - the stored indexes its header lists, its global index and
 	 * every registered partition.
 	 *
@@ -438,24 +305,6 @@ class VirtualPartitionReloadInvariantTest implements EvitaTestSupport {
 		}
 		used.addAll(registeredRowsOf(collection).keySet());
 		return used;
-	}
-
-	/**
-	 * Describes the indexes of every collection of a committed catalog - see
-	 * {@link DifferentialEngines#describeIndexesOf(EntityCollection)}.
-	 *
-	 * @param evita       the engine
-	 * @param catalogName the catalog
-	 * @return the lines of every collection, sorted by path
-	 */
-	@Nonnull
-	static SortedMap<String, String> describeIndexes(@Nonnull Evita evita, @Nonnull String catalogName) {
-		final SortedMap<String, String> lines = new TreeMap<>();
-		final Catalog catalog = catalogOf(evita, catalogName);
-		for (final String entityType : catalog.getEntityTypes()) {
-			lines.putAll(DifferentialEngines.describeIndexesOf(collectionOf(evita, catalogName, entityType)));
-		}
-		return lines;
 	}
 
 	/**
@@ -547,42 +396,6 @@ class VirtualPartitionReloadInvariantTest implements EvitaTestSupport {
 				);
 				assertNull(previous, "two partitions of one key: " + path);
 			}
-		}
-	}
-
-	/**
-	 * Asserts that two descriptions are equal, listing the lines that differ.
-	 *
-	 * @param label    names the moment in the failure message
-	 * @param expected the description before the event
-	 * @param actual   the description after it
-	 */
-	static void assertUnchanged(
-		@Nonnull String label,
-		@Nonnull SortedMap<String, String> expected,
-		@Nonnull SortedMap<String, String> actual
-	) {
-		final List<String> differences = new ArrayList<>(8);
-		for (final Entry<String, String> line : expected.entrySet()) {
-			final String actualValue = actual.get(line.getKey());
-			if (actualValue == null) {
-				differences.add("lost: " + line.getKey() + " = " + line.getValue());
-			} else if (!actualValue.equals(line.getValue())) {
-				differences.add(
-					"changed: " + line.getKey() + "\n   before: " + line.getValue() + "\n   after:  " + actualValue
-				);
-			}
-		}
-		for (final Entry<String, String> line : actual.entrySet()) {
-			if (!expected.containsKey(line.getKey())) {
-				differences.add("new: " + line.getKey() + " = " + line.getValue());
-			}
-		}
-		if (!differences.isEmpty()) {
-			fail(
-				label + ": " + differences.size() + " line(s) differ:\n" +
-					String.join("\n", differences.subList(0, Math.min(differences.size(), 40)))
-			);
 		}
 	}
 
@@ -698,26 +511,6 @@ class VirtualPartitionReloadInvariantTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Returns the reduced-index membership of a reference of a collection in a scope.
-	 *
-	 * @param collection    the collection
-	 * @param scope         the scope
-	 * @param referenceName the reference
-	 * @return the membership, `null` when the collection has none for the reference in the scope
-	 */
-	@Nullable
-	private static ReducedIndexMembership membershipOf(
-		@Nonnull EntityCollection collection,
-		@Nonnull Scope scope,
-		@Nonnull String referenceName
-	) {
-		final EntityIndex globalIndex =
-			collection.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, scope));
-		return globalIndex instanceof final GlobalEntityIndex typedGlobalIndex ?
-			typedGlobalIndex.getReducedIndexMembership(referenceName) : null;
-	}
-
-	/**
 	 * Creates the key of a category partition.
 	 *
 	 * @param category the category
@@ -726,36 +519,6 @@ class VirtualPartitionReloadInvariantTest implements EvitaTestSupport {
 	@Nonnull
 	private static RepresentativeReferenceKey categoryKey(int category) {
 		return VirtualReferencePartitionTransitionTest.category(category);
-	}
-
-	/**
-	 * Returns a loaded catalog of an engine.
-	 *
-	 * @param evita       the engine
-	 * @param catalogName the catalog
-	 * @return the catalog
-	 */
-	@Nonnull
-	static Catalog catalogOf(@Nonnull Evita evita, @Nonnull String catalogName) {
-		final CatalogContract catalog = evita.getCatalogInstanceOrThrowException(catalogName);
-		return assertInstanceOf(Catalog.class, catalog, "catalog `" + catalogName + "` must be loaded");
-	}
-
-	/**
-	 * Returns a collection of a loaded catalog of an engine.
-	 *
-	 * @param evita       the engine
-	 * @param catalogName the catalog
-	 * @param entityType  the entity type
-	 * @return the collection
-	 */
-	@Nonnull
-	static EntityCollection collectionOf(
-		@Nonnull Evita evita,
-		@Nonnull String catalogName,
-		@Nonnull String entityType
-	) {
-		return (EntityCollection) catalogOf(evita, catalogName).getCollectionForEntityOrThrowException(entityType);
 	}
 
 	/**
@@ -980,7 +743,7 @@ class VirtualPartitionReloadInvariantTest implements EvitaTestSupport {
 			);
 			this.engines = theEngines;
 			theEngines.addMaintainingEngineCheck(
-				VirtualPartitionSingletonLifecycleTest::assertNoPartitionObjectBelowTwoOwners
+				VirtualPartitionInvariants::assertNoPartitionObjectBelowTwoOwners
 			);
 			theEngines.prepare(state, setUp);
 			return theEngines;
@@ -1504,28 +1267,4 @@ class VirtualPartitionReloadInvariantTest implements EvitaTestSupport {
 		Evita get();
 	}
 
-	/**
-	 * One registered partition of a collection.
-	 *
-	 * @param scope               the scope of the partition
-	 * @param referenceName       the reference of the partition
-	 * @param partitionPrimaryKey the primary key of the partition
-	 * @param owner               the only owner
-	 * @param target              the referenced entity
-	 */
-	record RegisteredRow(
-		@Nonnull Scope scope,
-		@Nonnull String referenceName,
-		int partitionPrimaryKey,
-		int owner,
-		int target
-	) {
-
-		@Nonnull
-		@Override
-		public String toString() {
-			return "row " + this.partitionPrimaryKey + " (" + this.referenceName + " -> " + this.target + " in " +
-				this.scope + ", owner " + this.owner + ")";
-		}
-	}
 }

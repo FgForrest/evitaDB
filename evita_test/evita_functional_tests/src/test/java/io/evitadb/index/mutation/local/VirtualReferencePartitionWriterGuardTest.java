@@ -66,6 +66,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  * `evita_store_server`, only {@link VirtualReferencePartitionWriter} and the index mutators that decide the
  * transitions of a partition's owner count - the reference, attribute and entity index mutators - and the registry
  * itself may call the writer or a mutator of {@link VirtualReferencePartitionIndex}, directly or by a method reference.
+ * The one caller outside the engine is the storage protocol migration converting a catalog that represents its
+ * single-owner partitions by index objects: it demotes each of them through the writer, as the write path demotes a
+ * partition left with one owner, and writes the registry through the writer only.
  * The writer's predicate telling whether a reference's partitions may be virtual writes nothing and may be called from
  * anywhere.
  *
@@ -125,7 +128,9 @@ class VirtualReferencePartitionWriterGuardTest {
 		REGISTRY,
 		"io/evitadb/index/mutation/local/ReferenceIndexMutator",
 		"io/evitadb/index/mutation/local/AttributeIndexMutator",
-		"io/evitadb/index/mutation/local/EntityIndexLocalMutationExecutor"
+		"io/evitadb/index/mutation/local/EntityIndexLocalMutationExecutor",
+		// the storage protocol migration demoting the stored single-owner partitions of a catalog of index objects
+		"io/evitadb/store/catalog/VirtualReferencePartitionConversion"
 	);
 	/**
 	 * The scan must read at least this many classes of the two modules together, or it read the wrong code source.

@@ -105,7 +105,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(INDEXING)
 @Tag(REFERENCE)
 @Tag(TRANSACTION)
-class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
+public class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 	private static final String ENTITY_PRODUCT = SingleOwnerPartitionFixture.ENTITY_PRODUCT;
 	private static final String ENTITY_CATEGORY = SingleOwnerPartitionFixture.ENTITY_CATEGORY;
 	private static final Set<String> ENTITY_TYPES = Set.of(ENTITY_PRODUCT, ENTITY_CATEGORY);
@@ -619,7 +619,7 @@ class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 	 *
 	 * @param session the session to write in
 	 */
-	static void setUpTypes(@Nonnull EvitaSessionContract session) {
+	public static void setUpTypes(@Nonnull EvitaSessionContract session) {
 		session.defineEntitySchema(ENTITY_CATEGORY).updateVia(session);
 		session.defineEntitySchema(ENTITY_PRODUCT)
 			.withLocale(Locale.ENGLISH, CZECH)
@@ -685,7 +685,7 @@ class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 	 *
 	 * @param session the session to write in
 	 */
-	static void setUpChains(@Nonnull EvitaSessionContract session) {
+	public static void setUpChains(@Nonnull EvitaSessionContract session) {
 		session.defineEntitySchema(ENTITY_CATEGORY).updateVia(session);
 		session.defineEntitySchema(ENTITY_PRODUCT)
 			.withReferenceToEntity(

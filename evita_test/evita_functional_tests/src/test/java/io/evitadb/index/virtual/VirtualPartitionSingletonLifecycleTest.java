@@ -41,13 +41,8 @@ import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMut
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
-import io.evitadb.api.statistics.BrowsedIndex;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
-import io.evitadb.api.statistics.IndexBrowseCriteria;
-import io.evitadb.api.statistics.IndexBrowseOrdering;
-import io.evitadb.api.statistics.IndexBrowseResult;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.TransitionStage;
 import io.evitadb.core.collection.EntityCollection;
@@ -76,8 +71,6 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -92,7 +85,6 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 // TODO JNO - remove at the end of #1615
 /**
@@ -611,7 +603,7 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 		);
 		this.engines = theEngines;
 		theEngines.addMaintainingEngineCheck(
-			VirtualPartitionSingletonLifecycleTest::assertNoPartitionObjectBelowTwoOwners
+			VirtualPartitionInvariants::assertNoPartitionObjectBelowTwoOwners
 		);
 		theEngines.prepare(CatalogState.ALIVE, VirtualPartitionSingletonLifecycleTest::setUp);
 		// going live is deferred like any other round; the clean close publishes it
@@ -834,36 +826,6 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Fails when the collection holds an index object of a partition with a single owner, or with none, of a reference
-	 * whose partitions may be virtual in the partition's scope - a catalog writing its single-owner partitions
-	 * virtually represents every such partition by its registry row alone, and no checkpoint falls inside a mutation,
-	 * where a partition object may be left without owners until the mutation sweeps it away.
-	 *
-	 * @param label      names the checkpoint in the failure message
-	 * @param collection the collection of the catalog writing virtually
-	 */
-	static void assertNoPartitionObjectBelowTwoOwners(@Nonnull String label, @Nonnull EntityCollection collection) {
-		final List<String> found = new ArrayList<>(2);
-		forEachPartitionObjectOfVirtualReference(
-			collection,
-			(scope, partition) -> {
-				if (partition.getAllPrimaryKeys().size() <= 1) {
-					found.add(
-						partition.getIndexKey() + " (" + partition.getPrimaryKey() + ", " +
-							partition.getAllPrimaryKeys().size() + " owners)"
-					);
-				}
-			}
-		);
-		if (!found.isEmpty()) {
-			fail(
-				label + ": collection `" + collection.getEntityType() + "` holds index objects of partitions with " +
-					"fewer than two owners it writes virtually: " + found
-			);
-		}
-	}
-
-	/**
 	 * Asserts that no collection of the committed catalog of the engine holds an index object of a partition of a
 	 * reference whose partitions may be virtual - every partition of the fixture has a single owner, so the catalog
 	 * writing virtually represents every one of them by its row.
@@ -877,7 +839,7 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 				continue;
 			}
 			final List<String> found = new ArrayList<>(2);
-			forEachPartitionObjectOfVirtualReference(
+			VirtualPartitionInvariants.forEachPartitionObjectOfVirtualReference(
 				collection,
 				(scope, partition) -> found.add(partition.getIndexKey() + " (" + partition.getPrimaryKey() + ")")
 			);
@@ -886,61 +848,6 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 				"collection `" + entityType + "` must hold no partition object of a reference whose partitions " +
 					"may be virtual, but holds " + found
 			);
-		}
-	}
-
-	/**
-	 * Passes every index object of a partition of a reference whose partitions may be virtual in the partition's scope
-	 * the collection holds to the consumer - advertised or not, so an object a write created and left without owners is
-	 * found too.
-	 *
-	 * The browse of the indexes reads the committed state only, while a check inside an open transaction must see the
-	 * state of the transaction: so the primary keys the browse lists are joined with those the type index advertises
-	 * in the transaction, and each is resolved in the transaction - an index object the transaction installed is
-	 * found through its advertisement, and one it retired is not found at all.
-	 *
-	 * @param collection the collection
-	 * @param consumer   receives the scope and the index object
-	 */
-	private static void forEachPartitionObjectOfVirtualReference(
-		@Nonnull EntityCollection collection,
-		@Nonnull PartitionObjectConsumer consumer
-	) {
-		for (final Scope scope : Scope.values()) {
-			for (final ReferenceSchemaContract referenceSchema : collection.getSchema().getReferences().values()) {
-				if (!VirtualReferencePartitionOracle.isShadowed(referenceSchema, scope)) {
-					continue;
-				}
-				final SortedSet<Integer> primaryKeys = new TreeSet<>();
-				int pageNumber = 1;
-				IndexBrowseResult page;
-				do {
-					page = collection.browseIndexes(
-						new IndexBrowseCriteria(
-							pageNumber++, IndexBrowseCriteria.MAX_PAGE_SIZE, IndexBrowseOrdering.MAP_ORDER,
-							OrderDirection.ASC, EnumSet.of(EntityIndexType.REFERENCED_ENTITY), EnumSet.of(scope),
-							Set.of(referenceSchema.getName())
-						)
-					);
-					for (final BrowsedIndex browsed : page.indexes()) {
-						primaryKeys.add(browsed.indexPrimaryKey());
-					}
-				} while (page.indexes().length == IndexBrowseCriteria.MAX_PAGE_SIZE);
-				if (
-					collection.getIndexByKeyIfExists(
-						new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceSchema.getName())
-					) instanceof final ReferencedTypeEntityIndex typeIndex
-				) {
-					typeIndex.forEachReferenceIndexPrimaryKey(primaryKeys::add);
-				}
-				for (final Integer primaryKey : primaryKeys) {
-					// a primary key of a row without an object, or of an object the transaction retired
-					final EntityIndex partition = collection.getIndexByPrimaryKeyIfExists(primaryKey);
-					if (partition != null && partition.getIndexKey().type() == EntityIndexType.REFERENCED_ENTITY) {
-						consumer.accept(scope, partition);
-					}
-				}
-			}
 		}
 	}
 
@@ -1212,25 +1119,10 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 		final DifferentialEngines theEngines = DifferentialEngines.writtenVirtually(this, label, ENTITY_TYPES, null);
 		this.engines = theEngines;
 		theEngines.addMaintainingEngineCheck(
-			VirtualPartitionSingletonLifecycleTest::assertNoPartitionObjectBelowTwoOwners
+			VirtualPartitionInvariants::assertNoPartitionObjectBelowTwoOwners
 		);
 		theEngines.prepare(state, VirtualPartitionSingletonLifecycleTest::setUp);
 		return theEngines;
-	}
-
-	/**
-	 * Receives an index object of a partition with its scope.
-	 */
-	@FunctionalInterface
-	private interface PartitionObjectConsumer {
-
-		/**
-		 * Receives one index object.
-		 *
-		 * @param scope     the scope of the partition
-		 * @param partition the index object
-		 */
-		void accept(@Nonnull Scope scope, @Nonnull EntityIndex partition);
 	}
 
 }

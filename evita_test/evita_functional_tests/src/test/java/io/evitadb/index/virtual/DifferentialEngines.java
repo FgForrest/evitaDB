@@ -281,7 +281,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-final class DifferentialEngines implements AutoCloseable {
+public final class DifferentialEngines implements AutoCloseable {
 	/**
 	 * Name of the catalog both engines host.
 	 */
@@ -835,7 +835,7 @@ final class DifferentialEngines implements AutoCloseable {
 	 * @return the lines, sorted by path
 	 */
 	@Nonnull
-	static SortedMap<String, String> describeQueriesOf(@Nonnull Evita evita, @Nonnull String catalogName) {
+	public static SortedMap<String, String> describeQueriesOf(@Nonnull Evita evita, @Nonnull String catalogName) {
 		return evita.queryCatalog(
 			catalogName,
 			(Function<EvitaSessionContract, SortedMap<String, String>>) session -> {

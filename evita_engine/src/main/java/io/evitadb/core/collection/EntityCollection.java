@@ -1623,17 +1623,42 @@ public final class EntityCollection implements
 	 */
 	public void initSchema() {
 		final EntitySchema originalSchema = getInternalSchema();
-		final Collection<ReferenceSchemaContract> referenceSchemas = originalSchema.getReferences().values();
+		final EntitySchema boundSchema = bindReflectedReferences(
+			originalSchema,
+			entityType -> this.catalog.getCollectionForEntity(entityType).map(EntityCollectionContract::getSchema)
+		);
+		// exchange schema if it was updated
+		if (boundSchema != originalSchema) {
+			exchangeSchema(originalSchema, boundSchema);
+		}
+	}
+
+	/**
+	 * Binds every reflected reference of a stored schema to the reference it reflects, so that whatever the reflected
+	 * reference inherits from it - its indexing, its indexed components, its attributes - can be answered. A reflected
+	 * reference whose source entity type or source reference cannot be found is left as it is. This is the binding
+	 * {@link #initSchema()} performs when a catalog loads; the storage protocol migrations use it to classify the
+	 * stored indexes of a collection against the very schema the loaded catalog will have.
+	 *
+	 * @param schema       the schema as stored
+	 * @param schemaLookup finds the schema of another entity type of the catalog by its name
+	 * @return the schema with its reflected references bound, or the very same instance when there is nothing to bind
+	 */
+	@Nonnull
+	public static EntitySchema bindReflectedReferences(
+		@Nonnull EntitySchema schema,
+		@Nonnull Function<String, Optional<? extends EntitySchemaContract>> schemaLookup
+	) {
+		final Collection<ReferenceSchemaContract> referenceSchemas = schema.getReferences().values();
 		final List<ReferenceSchemaContract> updatedReferenceSchemas = new ArrayList<>(referenceSchemas.size());
 		for (ReferenceSchemaContract referenceSchema : referenceSchemas) {
 			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
-				final Optional<EntitySchemaContract> targetEntitySchema;
-				if (originalSchema.getName().equals(reflectedReferenceSchema.getReferencedEntityType())) {
+				final Optional<? extends EntitySchemaContract> targetEntitySchema;
+				if (schema.getName().equals(reflectedReferenceSchema.getReferencedEntityType())) {
 					// self referenced schema
-					targetEntitySchema = of(originalSchema);
+					targetEntitySchema = of(schema);
 				} else {
-					targetEntitySchema = this.catalog.getCollectionForEntity(reflectedReferenceSchema.getReferencedEntityType())
-						.map(EntityCollectionContract::getSchema);
+					targetEntitySchema = schemaLookup.apply(reflectedReferenceSchema.getReferencedEntityType());
 				}
 				// the plain binding, never `withReferencedSchemaAfterSchemaChange`: this runs on catalog load (and on the
 				// goLive / handover rebuilds), where the schema is the stored one and nothing about it has changed - a
@@ -1644,15 +1669,9 @@ public final class EntityCollection implements
 					.ifPresent(originalReference -> updatedReferenceSchemas.add(reflectedReferenceSchema.withReferencedSchema(originalReference)));
 			}
 		}
-		// exchange schema if it was updated
-		if (!updatedReferenceSchemas.isEmpty()) {
-			exchangeSchema(
-				originalSchema,
-				originalSchema.withReplacedReferenceSchema(
-					updatedReferenceSchemas.toArray(ReferenceSchemaContract[]::new)
-				)
-			);
-		}
+		return updatedReferenceSchemas.isEmpty() ?
+			schema :
+			schema.withReplacedReferenceSchema(updatedReferenceSchemas.toArray(ReferenceSchemaContract[]::new));
 	}
 
 	/**

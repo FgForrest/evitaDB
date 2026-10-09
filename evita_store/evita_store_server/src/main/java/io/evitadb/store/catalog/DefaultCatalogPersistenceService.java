@@ -5500,6 +5500,70 @@ public class DefaultCatalogPersistenceService
 		}
 	}
 
+	// TODO JNO - remove at the end of #1615 (the conversion is wired into the one 6 -> 8 protocol migration then)
+	/**
+	 * Converts the catalog from the representation of its single-owner reference partitions by index objects
+	 * ({@link PersistenceService#STORAGE_PROTOCOL_VERSION}) to the virtual one
+	 * ({@link PersistenceService#VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION}) - see
+	 * {@link VirtualReferencePartitionConversion}. A catalog already representing them virtually is left exactly as it
+	 * is: nothing of it is read or written. The conversion is not part of the load path yet; it runs on a service that
+	 * opened the catalog without the engine and has not opened any collection data store, which must not be used for
+	 * anything else afterwards.
+	 *
+	 * @return TRUE when the catalog was converted, FALSE when it already represented its single-owner partitions
+	 * virtually
+	 */
+	public boolean convertToVirtualReferencePartitions() {
+		return convertToVirtualReferencePartitions(
+			VirtualReferencePartitionConversion.Observer.NONE,
+			VirtualReferencePartitionConversion.DEFAULT_FLUSH_THRESHOLD
+		);
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Converts the catalog like {@link #convertToVirtualReferencePartitions()}, reporting the progress to the observer
+	 * and flushing the collection data stores at the given threshold.
+	 *
+	 * @param observer       observes the conversion
+	 * @param flushThreshold how many records the conversion may write into a collection data store before it flushes
+	 * @return TRUE when the catalog was converted, FALSE when it already represented its single-owner partitions
+	 * virtually
+	 */
+	boolean convertToVirtualReferencePartitions(
+		@Nonnull VirtualReferencePartitionConversion.Observer observer,
+		int flushThreshold
+	) {
+		final long catalogVersion = this.bootstrapUsed.catalogVersion();
+		final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService =
+			getStoragePartPersistenceService(catalogVersion);
+		final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader =
+			storagePartPersistenceService.getCatalogHeader(catalogVersion);
+		// dispatch by the protocol of the header: a virtual catalog has nothing to convert, and the conversion would
+		// discard its rows - the registry is the only representation of its single-owner partitions
+		if (catalogHeader.storageProtocolVersion() == VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION) {
+			return false;
+		}
+		// the conversion opens every collection data store on its own - a second open handle of one of them would
+		// write into the same file behind the conversion's back
+		Assert.isPremiseValid(
+			this.entityCollectionPersistenceServices.isEmpty(),
+			() -> "Catalog `" + this.catalogName + "` cannot be converted while a collection data store is open!"
+		);
+		VirtualReferencePartitionConversion.convertCatalog(
+			catalogHeader,
+			storagePartPersistenceService,
+			this::createEntityCollectionPersistenceService,
+			newCatalogHeader -> updateStorageProtocolInCatalogHeader(
+				newCatalogHeader, storagePartPersistenceService, VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION,
+				newCatalogHeader.walFileReference(), true
+			),
+			observer,
+			flushThreshold
+		);
+		return true;
+	}
+
 	// TODO JNO - remove at the end of #1615
 	/**
 	 * Returns the storage protocol a rewrite of the given catalog header is written under. The header of a catalog
@@ -5559,6 +5623,31 @@ public class DefaultCatalogPersistenceService
 		int storageProtocolVersion,
 		@Nullable LogFileRecordReference walFileReference
 	) {
+		updateStorageProtocolInCatalogHeader(
+			catalogHeader, storagePartPersistenceService, storageProtocolVersion, walFileReference, false
+		);
+	}
+
+	/**
+	 * Updates the storage protocol version in the catalog header and persists the updated information, like
+	 * {@link #updateStorageProtocolInCatalogHeader(CatalogHeader, CatalogOffsetIndexStoragePartPersistenceService, int,
+	 * LogFileRecordReference)}, stating whether the header is the one that converts the catalog to the virtual
+	 * representation of its single-owner reference partitions.
+	 *
+	 * @param catalogHeader                 the catalog header containing metadata about the catalog
+	 * @param storagePartPersistenceService the service used to manage persistence of the catalog
+	 *                                      header and related storage parts
+	 * @param storageProtocolVersion        the new storage protocol version to be set
+	 * @param walFileReference              the WAL file reference to store in the header
+	 * @param representationConverted       TRUE only for the header publishing that conversion
+	 */
+	private void updateStorageProtocolInCatalogHeader(
+		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
+		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService,
+		int storageProtocolVersion,
+		@Nullable LogFileRecordReference walFileReference,
+		boolean representationConverted
+	) {
 		storagePartPersistenceService.writeCatalogHeader(
 			storageProtocolVersion,
 			catalogHeader.version(),
@@ -5568,7 +5657,8 @@ public class DefaultCatalogPersistenceService
 			catalogHeader.catalogId(),
 			catalogHeader.catalogName(),
 			catalogHeader.catalogState(),
-			catalogHeader.lastEntityCollectionPrimaryKey()
+			catalogHeader.lastEntityCollectionPrimaryKey(),
+			representationConverted
 		);
 		final OffsetIndexDescriptor flushedDescriptor = storagePartPersistenceService.flush(catalogHeader.version());
 		this.bootstrapUsed = writeCatalogBootstrap(
