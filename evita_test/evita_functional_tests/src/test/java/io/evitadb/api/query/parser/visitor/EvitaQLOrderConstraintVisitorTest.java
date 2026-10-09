@@ -33,6 +33,7 @@ import io.evitadb.api.query.parser.ParserExecutor;
 import io.evitadb.api.query.parser.ParserFactory;
 import io.evitadb.api.query.parser.exception.EvitaSyntaxException;
 import io.evitadb.dataType.Scope;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -273,6 +274,31 @@ class EvitaQLOrderConstraintVisitorTest {
         assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("random('a')"));
         assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("randomWithSeed()"));
         assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("randomWithSeed(42, 4)"));
+    }
+
+    @Test
+    @DisplayName("Should parse relevance constraint")
+    void shouldParseRelevanceConstraint() {
+        final OrderConstraint constraint1 = parseOrderConstraint("relevance()");
+        assertEquals(relevance(), constraint1);
+
+        final OrderConstraint constraint2 = parseOrderConstraint("relevance (  )");
+        assertEquals(relevance(), constraint2);
+
+        final OrderConstraint constraint3 = parseOrderConstraint("orderBy(relevance(), random())");
+        assertEquals(orderBy(relevance(), random()), constraint3);
+
+        // relevance is allowed inside a segment, the filtering formula is available there
+        final OrderConstraint constraint4 = parseOrderConstraint("segments(segment(orderBy(relevance())))");
+        assertEquals(segments(segment(orderBy(relevance()))), constraint4);
+    }
+
+    @Test
+    @DisplayName("Should not parse invalid relevance constraint")
+    void shouldNotParseRelevanceConstraint() {
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("relevance"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("relevance('a')"));
+        assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraintUnsafe("relevance(random())"));
     }
 
     @Test

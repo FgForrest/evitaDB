@@ -224,6 +224,11 @@ public class EvitaQLOrderConstraintVisitor extends EvitaQLBaseConstraintVisitor<
 	}
 
 	@Override
+	public OrderConstraint visitRelevanceConstraint(RelevanceConstraintContext ctx) {
+		return parse(ctx, Relevance::new);
+	}
+
+	@Override
 	public OrderConstraint visitReferencePropertyConstraint(EvitaQLParser.ReferencePropertyConstraintContext ctx) {
 		return parse(
 			ctx,

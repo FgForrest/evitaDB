@@ -96,6 +96,8 @@ filterConstraint
     | 'groupHaving'                         args = filterConstraintArgs                                     # groupHavingConstraint
     | 'inScope'                             args = inScopeFilterArgs                                        # filterInScopeConstraint
     | 'scope'                               args = valueListArgs                                            # entityScopeConstraint
+    | 'textMatches'                         args = textMatchesArgs                                          # textMatchesConstraint
+    | 'inField'                             args = classifierArgs                                           # inFieldConstraint
     ;
 
 orderConstraint
@@ -120,6 +122,7 @@ orderConstraint
     | 'segment'                             args = segmentArgs                                              # segmentConstraint
     | 'limit'                               args = valueArgs                                                # segmentLimitConstraint
     | 'inScope'                             args = inScopeOrderArgs                                         # orderInScopeConstraint
+    | 'relevance'                           emptyArgs                                                       # relevanceConstraint
     ;
 
 requireConstraint
@@ -458,6 +461,8 @@ gapRequireConstraintArgs :                          argsOpening size = valueToke
 segmentArgs:                                        argsOpening (entityHaving = filterConstraint ARGS_DELIMITER)? orderBy = orderConstraint (ARGS_DELIMITER limit = orderConstraint)? argsClosing ;
 
 inScopeFilterArgs:                                  argsOpening scope = valueToken (ARGS_DELIMITER filterConstraints += filterConstraint)* argsClosing ;
+
+textMatchesArgs:                                    argsOpening text = valueToken (ARGS_DELIMITER constraints += filterConstraint)* argsClosing ;
 
 inScopeOrderArgs:                                   argsOpening scope = valueToken (ARGS_DELIMITER orderConstraints += orderConstraint)* argsClosing ;
 

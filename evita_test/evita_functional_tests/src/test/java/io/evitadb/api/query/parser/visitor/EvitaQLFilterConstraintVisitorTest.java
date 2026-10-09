@@ -2040,6 +2040,82 @@ class EvitaQLFilterConstraintVisitorTest {
 
 	}
 
+	@Nested
+	@DisplayName("Fulltext constraints")
+	class FulltextConstraints {
+
+		@Test
+		@DisplayName("Should parse textMatches constraint")
+		void shouldParseTextMatchesConstraint() {
+			final FilterConstraint constraint1 = parseFilterConstraintUnsafe("textMatches('black leather jacket')");
+			assertEquals(textMatches("black leather jacket"), constraint1);
+
+			final FilterConstraint constraint2 = parseFilterConstraintUnsafe(
+				"textMatches ( 'jacket' , inField('name') )"
+			);
+			assertEquals(textMatches("jacket", inField("name")), constraint2);
+
+			final FilterConstraint constraint3 = parseFilterConstraintUnsafe(
+				"textMatches('černá kožená bunda',inField('name'),inField('description'))"
+			);
+			assertEquals(textMatches("černá kožená bunda", inField("name"), inField("description")), constraint3);
+
+			final FilterConstraint constraint4 = parseFilterConstraint("textMatches(?)", "jacket");
+			assertEquals(textMatches("jacket"), constraint4);
+
+			final FilterConstraint constraint5 = parseFilterConstraint(
+				"textMatches(?, inField(?), inField(?))", "jacket", "name", "brand"
+			);
+			assertEquals(textMatches("jacket", inField("name"), inField("brand")), constraint5);
+
+			final FilterConstraint constraint6 = parseFilterConstraint(
+				"textMatches(@text, inField(@field))", Map.of("text", "jacket", "field", "name")
+			);
+			assertEquals(textMatches("jacket", inField("name")), constraint6);
+		}
+
+		@Test
+		@DisplayName("Should not parse invalid textMatches constraint")
+		void shouldNotParseTextMatchesConstraint() {
+			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("textMatches"));
+			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("textMatches()"));
+			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("textMatches(1)"));
+			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("textMatches('')"));
+			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("textMatches('  ')"));
+			// only `inField` is accepted as a child
+			assertThrows(
+				EvitaSyntaxException.class,
+				() -> parseFilterConstraintUnsafe("textMatches('a', attributeEquals('b','c'))")
+			);
+			// literals are not allowed in safe mode
+			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("textMatches('a')"));
+		}
+
+		@Test
+		@DisplayName("Should parse inField constraint")
+		void shouldParseInFieldConstraint() {
+			final FilterConstraint constraint1 = parseFilterConstraintUnsafe("inField('name')");
+			assertEquals(inField("name"), constraint1);
+
+			final FilterConstraint constraint2 = parseFilterConstraint("inField ( ? )", "name");
+			assertEquals(inField("name"), constraint2);
+
+			final FilterConstraint constraint3 = parseFilterConstraint("inField(@a)", Map.of("a", "name"));
+			assertEquals(inField("name"), constraint3);
+		}
+
+		@Test
+		@DisplayName("Should not parse invalid inField constraint")
+		void shouldNotParseInFieldConstraint() {
+			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraint("inField"));
+			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inField()"));
+			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inField(1)"));
+			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inField('')"));
+			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inField('a','b')"));
+		}
+
+	}
+
     /**
      * Using generated EvitaQL parser tries to parse string as grammar rule "filterConstraint"
      *

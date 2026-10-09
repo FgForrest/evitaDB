@@ -1560,6 +1560,47 @@ public interface QueryConstraints {
 		return ArrayUtils.isEmptyOrItsValuesNull(scope) ? null : new EntityScope(scope);
 	}
 
+	/**
+	 * Fulltext search: matches entities whose searchable fields contain every word of the text, analyzed the same way
+	 * the fields were indexed. Without `inField` children every searchable field is searched. Requires the query
+	 * locale and is forbidden inside `userFilter`. A `null` or blank text drops the constraint from the query.
+	 *
+	 * ```evitaql
+	 * filterBy(
+	 *     entityLocaleEquals("en"),
+	 *     textMatches("black leather jacket", inField("name"))
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/fulltext#text-matches)
+	 *
+	 * @see io.evitadb.api.query.filter.TextMatches
+	 */
+	@Nullable
+	static TextMatches textMatches(
+		@Nullable String text,
+		@Nullable TextMatchesSpecificationFilterConstraint... specifications
+	) {
+		return text == null || text.isBlank() ? null : new TextMatches(text, specifications);
+	}
+
+	/**
+	 * Restricts the enclosing `textMatches` fulltext search to a single searchable field. Usable only as a child of
+	 * `textMatches`; several `inField` children search all the named fields.
+	 *
+	 * ```evitaql
+	 * textMatches("black leather jacket", inField("name"), inField("description"))
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/filtering/fulltext#in-field)
+	 *
+	 * @see io.evitadb.api.query.filter.InField
+	 */
+	@Nullable
+	static InField inField(@Nullable String fieldName) {
+		return fieldName == null ? null : new InField(fieldName);
+	}
+
 	/*
 		ORDERING
 	 */
@@ -2177,6 +2218,26 @@ public interface QueryConstraints {
 	@Nonnull
 	static Random randomWithSeed(long seed) {
 		return new Random(seed);
+	}
+
+	/**
+	 * Sorts entities by the fulltext relevance computed by the `textMatches` filter, most relevant first. Without
+	 * a `textMatches` filter it passes all entities on to the next ordering constraint unchanged. Not usable inside
+	 * ordering containers that sort by properties of referenced entities.
+	 *
+	 * ```evitaql
+	 * orderBy(
+	 *     relevance()
+	 * )
+	 * ```
+	 *
+	 * [Visit detailed user documentation](https://evitadb.io/documentation/query/ordering/relevance#relevance)
+	 *
+	 * @see io.evitadb.api.query.order.Relevance
+	 */
+	@Nonnull
+	static Relevance relevance() {
+		return new Relevance();
 	}
 
 	/*
