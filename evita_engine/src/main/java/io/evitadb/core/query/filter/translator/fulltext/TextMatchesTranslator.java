@@ -75,8 +75,8 @@ import java.util.function.Supplier;
  * The text is analyzed into **tokens** - the analyzer emits a term per word, and the extra terms it emits at the same
  * position (`positionIncrement == 0`, the variant stems of the search-side chain) belong to the word before them. Each
  * token then looks its terms up in every searched field of the {@link FulltextIndex} of the query's locale; every
- * (field, term) with postings becomes one {@link ExpandedTerm} of the token. This slice expands exact terms and stem
- * variants only - prefix completion and typo tolerance come later and only add terms to a token.
+ * (field, term) with postings becomes one {@link ExpandedTerm} of the token. Only exact terms and stem variants are
+ * expanded - prefix completion and typo tolerance would only add terms to a token.
  *
  * ## Which analyzer reads the text
  *
@@ -156,18 +156,18 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 		final EntitySchemaContract entitySchema = processingScope.getEntitySchemaOrThrowException();
 		final Set<Scope> scopes = processingScope.getScopes();
 		final Map<Scope, FulltextFieldKey[]> fieldsByScope = resolveFields(textMatches, entitySchema, scopes);
-		if (filterByVisitor.isConstraintCheckOnly()) {
-			// the constraint has been checked against the schema - a check reads no index holding data
-			return EmptyFormula.INSTANCE;
-		}
 
 		final QueryPlanningContext queryContext = filterByVisitor.getQueryContext();
 		final FulltextAnalyzerRegistry analyzerRegistry = queryContext.getFulltextAnalyzerRegistry();
 		final String entityType = entitySchema.getName();
 		// the text is analyzed and its word count checked whether or not any scope keeps an index for the locale, so
-		// that a query never fails or passes depending on the data
+		// that a query never fails or passes depending on the data - a check included, the analyzer is configuration
 		final FulltextAnalyzer searchAnalyzer = analyzerRegistry.getSearchAnalyzer(entityType, locale);
 		final QueryToken[] searchTokens = analyze(searchAnalyzer, textMatches.getText());
+		if (filterByVisitor.isConstraintCheckOnly()) {
+			// the constraint has been checked against the schema - a check reads no index holding data
+			return EmptyFormula.INSTANCE;
+		}
 
 		final Map<Scope, Formula> formulasByScope = new EnumMap<>(Scope.class);
 		for (Map.Entry<Scope, FulltextFieldKey[]> entry : fieldsByScope.entrySet()) {
@@ -205,10 +205,11 @@ public class TextMatchesTranslator implements FilteringConstraintTranslator<Text
 	 * Resolves the fields the constraint searches in every processed scope, and verifies they may be searched there.
 	 *
 	 * Without `inField` the constraint searches every searchable field of the collection in the scope: its entity
-	 * attributes (global attributes included) and the attributes of its references. With `inField` it searches the
-	 * named entity or global attributes only - duplicates are de-duplicated, and each must be searchable in every
-	 * processed scope, as an attribute filter must be filterable in every one. Reference attributes are reachable only
-	 * through the default in this slice; naming them needs its own specification constraint.
+	 * attributes (global attributes included), the attributes of its references and its associated data. With
+	 * `inField` it searches the named entity or global attributes only - duplicates are de-duplicated, and each must be
+	 * searchable in every processed scope, as an attribute filter must be filterable in every one. Reference attributes
+	 * and associated data are reachable only through the default; naming them needs a specification constraint of
+	 * their own.
 	 *
 	 * @param textMatches  the constraint
 	 * @param entitySchema schema of the queried collection

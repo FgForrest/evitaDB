@@ -37,6 +37,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
@@ -125,6 +126,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * 11 → brand 2. The primary keys are chosen so that scoring owners against the brands' postings - owner 2 read as
  * brand 2 - would produce an order different both from the right one and from no ordering at all.
  *
+ * The `placements` reference of a product points at a category and is grouped by a brand, so that `groupHaving`
+ * searches the brands: 1 → category 1 in brand 3, 4 → category 2 in brand 2, 8 → category 2 in brand 1 and
+ * category 3 in brand 2, 9 → category 3 in brand 1.
+ *
  * Expected rankings are not hand-coded where the impact arithmetic decides them: they are computed by running
  * {@link FulltextPhaseOneScorer} directly over the postings of the catalog's own fulltext index (see
  * {@link #expectedRanking}), so the tests pin the plumbing - analysis, field resolution, the accessor lookup, the
@@ -147,6 +152,7 @@ public class FulltextQueryFunctionalTest {
 	private static final String BRAND = "brand";
 	private static final String REFERENCE_BRANDS = "brands";
 	private static final String REFERENCE_CATEGORIES = "categories";
+	private static final String REFERENCE_PLACEMENTS = "placements";
 	private static final String ATTRIBUTE_NAME = "name";
 	private static final String ATTRIBUTE_DESCRIPTION = "description";
 	private static final String ATTRIBUTE_HEADLINE = "headline";
@@ -232,6 +238,16 @@ public class FulltextQueryFunctionalTest {
 	);
 
 	/**
+	 * The placements of each product as (category, brand group) pairs, see the class documentation.
+	 */
+	private static final Map<Integer, int[][]> PRODUCT_PLACEMENTS = Map.of(
+		1, new int[][]{{1, 3}},
+		4, new int[][]{{2, 2}},
+		8, new int[][]{{2, 1}, {3, 2}},
+		9, new int[][]{{3, 1}}
+	);
+
+	/**
 	 * Builds the fixture described on the class.
 	 *
 	 * @param evita the evita instance
@@ -290,6 +306,16 @@ public class FulltextQueryFunctionalTest {
 						REFERENCE_BRANDS, BRAND, Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs.indexedForFilteringAndPartitioningInScope(Scope.LIVE, Scope.ARCHIVED)
 					)
+					.withReferenceToEntity(
+						REFERENCE_PLACEMENTS, CATEGORY, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs
+							.indexedForFilteringAndPartitioning()
+							.indexedWithComponents(
+								ReferenceIndexedComponents.REFERENCED_ENTITY,
+								ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+							)
+							.withGroupTypeRelatedToEntity(BRAND)
+					)
 					.updateVia(session);
 				for (Map.Entry<Integer, String> brand : BRAND_NAMES.entrySet()) {
 					session.upsertEntity(
@@ -322,6 +348,11 @@ public class FulltextQueryFunctionalTest {
 					}
 					for (int brand : PRODUCT_BRANDS.getOrDefault(product.primaryKey(), new int[0])) {
 						builder.setReference(REFERENCE_BRANDS, brand);
+					}
+					for (int[] placement : PRODUCT_PLACEMENTS.getOrDefault(product.primaryKey(), new int[0][])) {
+						builder.setReference(
+							REFERENCE_PLACEMENTS, placement[0], whichIs -> whichIs.setGroup(placement[1])
+						);
 					}
 					if (product.headline() != null) {
 						builder.setAttribute(ATTRIBUTE_HEADLINE, Locale.ENGLISH, product.headline());
@@ -657,6 +688,36 @@ public class FulltextQueryFunctionalTest {
 					assertMatches(
 						session, new int[]{1, 2, 4, 6, 8, 10},
 						textMatches("tea ".repeat(FulltextPhaseOneScorer.MAX_QUERY_TOKENS))
+					);
+					return null;
+				}
+			);
+		}
+
+		@DisplayName("Should refuse a text with too many words in entityHaving over a scope holding no target")
+		@UseDataSet(FULLTEXT_DATASET)
+		@Test
+		void shouldRefuseTooManyWordsInsideEntityHavingWithoutTargetData(Evita evita) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					// no brand is archived, so the nested filter is only checked in the archived scope
+					final String text = "green ".repeat(FulltextPhaseOneScorer.MAX_QUERY_TOKENS + 1);
+					final EvitaInvalidUsageException exception = assertThrows(
+						EvitaInvalidUsageException.class,
+						() -> queryPks(
+							session,
+							new FilterConstraint[]{
+								entityLocaleEquals(Locale.ENGLISH),
+								scope(Scope.ARCHIVED),
+								referenceHaving(REFERENCE_BRANDS, entityHaving(textMatches(text)))
+							},
+							null
+						)
+					);
+					assertTrue(
+						exception.getMessage().contains(String.valueOf(FulltextPhaseOneScorer.MAX_QUERY_TOKENS)),
+						exception.getMessage()
 					);
 					return null;
 				}
@@ -1069,6 +1130,37 @@ public class FulltextQueryFunctionalTest {
 			);
 		}
 
+		@DisplayName("Should answer the same text in the owner and in a referenced collection from their own indexes")
+		@UseDataSet(FULLTEXT_DATASET)
+		@Test
+		void shouldNotShareTheFormulaOfTheSameTextAcrossCollections(Evita evita) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final FilterConstraint sameTextTwice = or(
+						textMatches("green"),
+						referenceHaving(REFERENCE_BRANDS, entityHaving(textMatches("green")))
+					);
+					// 1, 3, 4, 7, 8 and 10 by their own text, 1, 2 and 6 through brand 1, 3, 6 and 7 through brand 2
+					final int[] candidates = {1, 2, 3, 4, 6, 7, 8, 10};
+					assertMatches(session, candidates, sameTextTwice);
+					final Map<Integer, Long> scores = new HashMap<>(
+						scoresOf(evita, PRODUCT, Locale.ENGLISH, "green", candidates, Scope.LIVE)
+					);
+					brandScoresOfOwners(evita, "green", candidates)
+						.forEach((pk, score) -> scores.merge(pk, score, FulltextQueryFunctionalTest::better));
+					final int[] expected = orderByScores(scores, candidates);
+					for (PlanPreference plan : PlanPreference.values()) {
+						assertArrayEquals(
+							expected, queryOnPlan(session, plan, relevance(), sameTextTwice),
+							"Order on the " + plan + " plan"
+						);
+					}
+					return null;
+				}
+			);
+		}
+
 		@DisplayName("Should rank the owners of both scopes")
 		@UseDataSet(FULLTEXT_DATASET)
 		@Test
@@ -1089,6 +1181,70 @@ public class FulltextQueryFunctionalTest {
 							relevance()
 						)
 					);
+					return null;
+				}
+			);
+		}
+	}
+
+	@DisplayName("Relevance through groupHaving")
+	@Nested
+	class RelevanceThroughGroupHaving {
+
+		@DisplayName("Should rank the owners by the best score of the groups they reference, on both plans")
+		@UseDataSet(FULLTEXT_DATASET)
+		@Test
+		void shouldRankOwnersByTheirGroups(Evita evita) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final int[] owners = {4, 8, 9};
+					final int[] expected = orderByScores(placementGroupScoresOfOwners(evita, "green", owners), owners);
+					// 1 is placed in `Mountain Roasters` (3) only and does not match; `Green` (2) outranks
+					// `Green Valley Farms` (1), and 8 takes the better of the two groups it has
+					assertArrayEquals(new int[]{4, 8, 9}, expected);
+					for (PlanPreference plan : PlanPreference.values()) {
+						assertArrayEquals(
+							expected,
+							queryOnPlan(
+								session, plan, relevance(),
+								referenceHaving(REFERENCE_PLACEMENTS, groupHaving(textMatches("green")))
+							),
+							"Order on the " + plan + " plan"
+						);
+					}
+					return null;
+				}
+			);
+		}
+
+		@DisplayName("Should combine the owner's own scores with the scores of its groups")
+		@UseDataSet(FULLTEXT_DATASET)
+		@Test
+		void shouldCombineOwnScoresWithGroupScores(Evita evita) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final int[] candidates = {1, 2, 4, 6, 8, 9, 10};
+					final Map<Integer, Long> scores = new HashMap<>(
+						scoresOf(evita, PRODUCT, Locale.ENGLISH, "tea", candidates, Scope.LIVE)
+					);
+					placementGroupScoresOfOwners(evita, "green", candidates)
+						.forEach((pk, score) -> scores.merge(pk, score, FulltextQueryFunctionalTest::better));
+					final int[] expected = orderByScores(scores, candidates);
+					for (PlanPreference plan : PlanPreference.values()) {
+						assertArrayEquals(
+							expected,
+							queryOnPlan(
+								session, plan, relevance(),
+								or(
+									textMatches("tea"),
+									referenceHaving(REFERENCE_PLACEMENTS, groupHaving(textMatches("green")))
+								)
+							),
+							"Order on the " + plan + " plan"
+						);
+					}
 					return null;
 				}
 			);
@@ -1372,11 +1528,55 @@ public class FulltextQueryFunctionalTest {
 		@Nonnull String text,
 		@Nonnull int[] owners
 	) {
+		return brandScoresOfOwners(evita, text, owners, PRODUCT_BRANDS);
+	}
+
+	/**
+	 * Computes the scores the owners get through the brands grouping their placements - see
+	 * {@link #brandScoresOfOwners(Evita, String, int[], Map)}.
+	 *
+	 * @param evita  the evita instance
+	 * @param text   the English text searched in the brands
+	 * @param owners the owners to score
+	 * @return the composite of every owner with a placement in a matching brand, by primary key
+	 */
+	@Nonnull
+	private static Map<Integer, Long> placementGroupScoresOfOwners(
+		@Nonnull Evita evita,
+		@Nonnull String text,
+		@Nonnull int[] owners
+	) {
+		final Map<Integer, int[]> groupsByOwner = new HashMap<>(PRODUCT_PLACEMENTS.size() * 2);
+		PRODUCT_PLACEMENTS.forEach(
+			(owner, placements) -> groupsByOwner.put(
+				owner, Arrays.stream(placements).mapToInt(placement -> placement[1]).toArray()
+			)
+		);
+		return brandScoresOfOwners(evita, text, owners, groupsByOwner);
+	}
+
+	/**
+	 * Computes the scores the owners get through the brands they are related to: every brand matching the text is
+	 * scored as {@link #scoresOf} does, and an owner keeps the best composite of the matching brands it relates to.
+	 *
+	 * @param evita         the evita instance
+	 * @param text          the English text searched in the brands
+	 * @param owners        the owners to score
+	 * @param brandsByOwner the brands each owner relates to
+	 * @return the composite of every owner related to a matching brand, by primary key
+	 */
+	@Nonnull
+	private static Map<Integer, Long> brandScoresOfOwners(
+		@Nonnull Evita evita,
+		@Nonnull String text,
+		@Nonnull int[] owners,
+		@Nonnull Map<Integer, int[]> brandsByOwner
+	) {
 		final int[] brands = BRAND_NAMES.keySet().stream().mapToInt(Integer::intValue).sorted().toArray();
 		final Map<Integer, Long> brandScores = scoresOf(evita, BRAND, Locale.ENGLISH, text, brands, Scope.LIVE);
 		final Map<Integer, Long> ownerScores = new HashMap<>(owners.length * 2);
 		for (int owner : owners) {
-			for (int brand : PRODUCT_BRANDS.getOrDefault(owner, new int[0])) {
+			for (int brand : brandsByOwner.getOrDefault(owner, new int[0])) {
 				final Long brandScore = brandScores.get(brand);
 				if (brandScore != null) {
 					ownerScores.merge(owner, brandScore, FulltextQueryFunctionalTest::better);
