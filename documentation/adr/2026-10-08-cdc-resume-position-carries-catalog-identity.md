@@ -1,7 +1,7 @@
 ---
 title: A catalog CDC resume position names the catalog incarnation it belongs to, and a position the catalog cannot serve is refused with a typed reason
 date: 2026-10-08
-updated: 2026-10-08 23:45
+updated: 2026-10-09 10:05
 status: accepted
 kind: fix
 issues: [1680]
@@ -230,7 +230,9 @@ of two incarnations - which `TransactionManager#notifyCatalogPresentInLiveView` 
   with a terminal error frame and no capture. REST + engine CDC 662 tests, GraphQL 645 tests, 0 failures. With the
   `catalogId` pass-through dropped in the five fetchers and the REST request, all six different-incarnation tests
   receive the probe capture instead of the error (`expected: <"error"> but was: <"next">`). The REST capture
-  serializer wrote `entityPrimaryKey` under the `entityType` key and lost it; fixed and covered on the way.
+  serializer wrote `entityPrimaryKey` under the `entityType` key and lost it; fixed and covered on the way. The
+  position-ahead refusal over the GraphQL schema and system catalog subscriptions was added after PR review; with
+  `sinceVersion` dropped in their two fetchers, both tests receive no error frame (only `connection_ack`) and fail.
 - End gates: the Codex adversarial review of the branch approved with no findings. A full `evita_functional_tests`
   run of 26,842 tests found one flaky test, `ClientChangeCatalogCaptureSubscriberTest#shouldSurfaceTypedRefusalBeforeAcknowledgement`
   (the consumer's error was `null`), caused by a driver race older than this work. That race and the defects listed
@@ -293,6 +295,8 @@ of two incarnations - which `TransactionManager#notifyCatalogPresentInLiveView` 
     mid-round, and `replayMutationsOnCatalog` re-reads it per transaction.
   - Passing the round's catalog to the replay would only change which wrong outcome results. The rename needs to
     drain or hold trunk incorporation, which needs its own design.
+  - Tracked as #1730, which proposes performing the rename inside trunk incorporation: a name-change record in the
+    catalog's WAL, handed over when the round reaches it.
 - **The server's error code is not transported** to the driver; the rebuilt exception computes its own on the client
   (`EvitaInvalidUsageException` has no setter, so carrying it would need an `evita_common` change).
 - **REST and GraphQL deliver only the message** of a refusal over the stream, not its fields (GraphQL adds the evitaDB
