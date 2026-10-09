@@ -35,9 +35,11 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 
 import javax.annotation.Nonnull;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicReference;
@@ -536,7 +538,7 @@ class LongRunningTransactionalBucketBPlusTreeTest implements TimeBoundedTestSupp
 		final String key = IMPACT_KEYS[random.nextInt(hot ? HOT_IMPACT_KEYS : IMPACT_KEYS.length)];
 		final TreeMap<Integer, Integer> bucket = reference.get(key);
 		final int size = bucket == null ? 0 : bucket.size();
-		final int growPercent = !hot ? 50 : size < 40 ? 70 : size > 200 ? 30 : 50;
+		final int growPercent = growPercentOf(hot, size);
 		final int dice = random.nextInt(100);
 		if (bucket == null || dice < growPercent) {
 			final TreeMap<Integer, Integer> target = bucket == null ? new TreeMap<>() : bucket;
@@ -551,7 +553,7 @@ class LongRunningTransactionalBucketBPlusTreeTest implements TimeBoundedTestSupp
 			code.append("A:").append(key).append('x').append(count).append(' ');
 		} else if (dice < growPercent + 10) {
 			// a new impact for a record the bucket holds replaces the old one in place of the record
-			final int record = pickFromKeys(bucket, random);
+			final int record = pickFromSet(bucket.keySet(), random);
 			final int impact = 1 + random.nextInt(255);
 			tree.addRecord(key, record, (byte) impact);
 			bucket.put(record, impact);
@@ -564,7 +566,7 @@ class LongRunningTransactionalBucketBPlusTreeTest implements TimeBoundedTestSupp
 			final int count = Math.min(bucket.size(), hot ? 1 + random.nextInt(40) : 1);
 			final TreeSet<Integer> victims = new TreeSet<>();
 			while (victims.size() < count) {
-				victims.add(pickFromKeys(bucket, random));
+				victims.add(pickFromSet(bucket.keySet(), random));
 			}
 			tree.removeRecord(key, toArray(victims));
 			bucket.keySet().removeAll(victims);
@@ -642,20 +644,24 @@ class LongRunningTransactionalBucketBPlusTreeTest implements TimeBoundedTestSupp
 	}
 
 	/**
-	 * Picks a random key of the given map.
+	 * Returns the percentage of impact operations that add records: an even split for a cold bucket, while a hot one
+	 * leans towards growing while small and towards shrinking while large.
 	 *
-	 * @param map    the map
-	 * @param random the randomizer
-	 * @return a key the map holds
+	 * @param hot  whether the operation targets a hot bucket
+	 * @param size the number of records the bucket holds
+	 * @return the chance of an add, in percent
 	 */
-	private static int pickFromKeys(@Nonnull TreeMap<Integer, Integer> map, @Nonnull Random random) {
-		final int index = random.nextInt(map.size());
-		final Iterator<Integer> it = map.keySet().iterator();
-		int value = 0;
-		for (int i = 0; i <= index; i++) {
-			value = it.next();
+	private static int growPercentOf(boolean hot, int size) {
+		if (!hot) {
+			return 50;
 		}
-		return value;
+		if (size < 40) {
+			return 70;
+		}
+		if (size > 200) {
+			return 30;
+		}
+		return 50;
 	}
 
 	/**
@@ -665,7 +671,7 @@ class LongRunningTransactionalBucketBPlusTreeTest implements TimeBoundedTestSupp
 	 * @return the record ids as an array
 	 */
 	@Nonnull
-	private static int[] toArray(@Nonnull java.util.Collection<Integer> records) {
+	private static int[] toArray(@Nonnull Collection<Integer> records) {
 		final int[] array = new int[records.size()];
 		int index = 0;
 		for (final Integer value : records) {
@@ -693,13 +699,14 @@ class LongRunningTransactionalBucketBPlusTreeTest implements TimeBoundedTestSupp
 	}
 
 	/**
-	 * Picks a random record id present in the given set.
+	 * Picks a random record id present in the given set. The pick depends on the set's iteration order, so callers pass
+	 * sorted sets - a `TreeSet` or a `TreeMap` key set - to keep seeded runs reproducible.
 	 *
-	 * @param set    the record set
+	 * @param set    the record set, sorted
 	 * @param random the randomizer
 	 * @return a record id that currently exists in the set
 	 */
-	private static int pickFromSet(@Nonnull TreeSet<Integer> set, @Nonnull Random random) {
+	private static int pickFromSet(@Nonnull Set<Integer> set, @Nonnull Random random) {
 		final int index = random.nextInt(set.size());
 		final Iterator<Integer> it = set.iterator();
 		int value = 0;
@@ -707,22 +714,6 @@ class LongRunningTransactionalBucketBPlusTreeTest implements TimeBoundedTestSupp
 			value = it.next();
 		}
 		return value;
-	}
-
-	/**
-	 * Converts an ordered set of record ids into a sorted primitive array.
-	 *
-	 * @param set the record set
-	 * @return the ascending record ids
-	 */
-	@Nonnull
-	private static int[] toArray(@Nonnull TreeSet<Integer> set) {
-		final int[] array = new int[set.size()];
-		int index = 0;
-		for (final Integer value : set) {
-			array[index++] = value;
-		}
-		return array;
 	}
 
 	/**
