@@ -644,6 +644,36 @@ public class VirtualReferencePartitionIndex
 		return this.entries.size() == 0 && this.sortKeys.isEmpty() && this.chainKeys.isEmpty();
 	}
 
+	/**
+	 * Counts the partitions the index records an owner of - the single-owner partitions held as registry rows. Each of
+	 * them has exactly one {@link VirtualReferencePartitionSlot#PARTITION_OWNER} entry whatever else the index records
+	 * about it, so its representative tuple, its sort values and its chain predecessors do not add to the count.
+	 *
+	 * **Cost: `O(single-owner partitions)`, not `O(1)`.** The entry tree counts only all of its keys at once, which
+	 * mixes every slot, so the owner entries are walked. They form the leftmost run of the tree - the slot is the high
+	 * half of every key and the owner slot has the lowest id - so the walk ends at the first key of another slot and
+	 * never visits an entry of the other slots. Meant for the statistics, which are requested explicitly and never
+	 * polled; nothing on a query or a write path may call it.
+	 *
+	 * The walk takes the tree's full forward cursor, the one {@link TransactionalBucketBPlusTree#recordCount()} takes,
+	 * because a statistics call reads the index without a session while a warm-up writer may be mutating it in place.
+	 * That cursor bounds every leaf by the leaf's own live columns and steps over a subtree being unlinked, so a torn
+	 * read under-counts instead of failing: the count is advisory under such a writer and exact otherwise.
+	 *
+	 * @return the number of partitions with an owner recorded
+	 */
+	public int countRegisteredPartitions() {
+		final int ownerSlotId = VirtualReferencePartitionSlot.PARTITION_OWNER.getId();
+		int count = 0;
+		// the cursor has no primitive accessor of the key, so every step reads the key boxed - the payload, which
+		// would be primitive, is never read
+		final BucketCursor cursor = this.entries.cursor();
+		while (cursor.next() && NumberUtils.unpackHigh((Long) cursor.value()) == ownerSlotId) {
+			count++;
+		}
+		return count;
+	}
+
 	// TODO JNO - remove at the end of #1615
 	/**
 	 * Returns how many times the current thread has recorded or forgotten an owner row or a representative tuple of any

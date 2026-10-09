@@ -1271,7 +1271,9 @@ public final class EntityCollection implements
 				// report a negative count, and this is a management call, not a query path
 				case INDEX_CARDINALITY -> builder.withIndexCardinality(
 					IndexCardinalityProjection.describe(
-						ManagementReads.snapshotOf(this.indexes), getInternalSchema().getReferences().keySet()
+						ManagementReads.snapshotOf(this.indexes), getInternalSchema().getReferences().keySet(),
+						// TODO JNO - remove at the end of #1615
+						this.catalog.getVirtualReferencePartitionMaintenance().isVirtual()
 					)
 				);
 				// unreachable - all of these are catalog-level only and the assertion above already rejected them
@@ -1327,7 +1329,11 @@ public final class EntityCollection implements
 		if (index == null) {
 			throw new IndexNotFoundException(getEntityType(), indexPrimaryKey);
 		}
-		return IndexDetailProjection.describe(getEntityType(), index);
+		return IndexDetailProjection.describe(
+			getEntityType(), index,
+			// TODO JNO - remove at the end of #1615
+			this.catalog.getVirtualReferencePartitionMaintenance().isVirtual()
+		);
 	}
 
 	@Nonnull

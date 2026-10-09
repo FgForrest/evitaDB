@@ -242,7 +242,7 @@ class UsageStatisticsTrackingTest {
 				() -> new IndexDetail(
 					"product", 1, 4_096L,
 					new IndexCardinality(
-						EntityIndexType.GLOBAL, Scope.LIVE, null, 10, 1, new AttributeCardinality[0]
+						EntityIndexType.GLOBAL, Scope.LIVE, null, 10, 1, null, new AttributeCardinality[0]
 					),
 					3L, 0L, null, null, null, false
 				),

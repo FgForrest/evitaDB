@@ -29,6 +29,7 @@ import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionRootRemoval;
 import io.evitadb.utils.NumberUtils;
@@ -589,6 +590,89 @@ class VirtualReferencePartitionIndexTest {
 				(partitionPrimaryKey, payload) -> visited.add(partitionPrimaryKey)
 			);
 			assertTrue(visited.isEmpty());
+		}
+	}
+
+	@Nested
+	@DisplayName("Registered partition count")
+	class RegisteredPartitionCount {
+
+		@Test
+		@DisplayName("counts no partition when no owner is recorded, whatever the other slots hold")
+		void shouldCountNothingWithoutAnOwnerRow() {
+			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
+			assertEquals(0, index.countRegisteredPartitions());
+
+			// entries of later slots only: the walk meets a key of another slot first and counts nothing
+			index.putRepresentativeTuple(1, GALLERY);
+			index.putRepresentativeTuple(2, THUMBNAIL);
+			assertEquals(0, index.countRegisteredPartitions());
+		}
+
+		@Test
+		@DisplayName("counts each partition once, however many slots hold an entry of it")
+		void shouldCountEachPartitionOnceAcrossItsSlots() {
+			final AttributeIndexKey chain = new AttributeIndexKey(REFERENCE_NAME, "chain", null);
+			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
+			index.declareSortKey(
+				VirtualReferencePartitionIndexSortValueTest.ORDER,
+				VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC,
+				0
+			);
+			index.declareChainKey(chain);
+			for (int partition = 1; partition <= 3; partition++) {
+				index.putPartitionOwner(partition, partition * 10, partition * 100);
+				index.putRepresentativeTuple(partition, GALLERY);
+				index.putSortValue(VirtualReferencePartitionIndexSortValueTest.ORDER, partition, partition * 5);
+				index.putChainPredecessor(chain, partition, -1);
+			}
+
+			assertEquals(3, index.countRegisteredPartitions());
+
+			index.removePartitionOwner(2);
+			assertEquals(2, index.countRegisteredPartitions(), "Only the owner row makes a partition count");
+		}
+
+		@Test
+		@DisplayName("counts the rows of a tree spanning many leaves, followed by as many entries of another slot")
+		void shouldCountRowsAcrossManyLeaves() {
+			// far above one leaf of 256 entries, so the walk crosses leaves inside the owner slot and stops inside the
+			// leaf where the tuple slot begins
+			final int partitions = 1_000;
+			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
+			for (int partition = 1; partition <= partitions; partition++) {
+				index.putPartitionOwner(partition, partition, -partition);
+				index.putRepresentativeTuple(partition, partition % 2 == 0 ? GALLERY : THUMBNAIL);
+			}
+
+			assertEquals(partitions, index.countRegisteredPartitions());
+		}
+
+		@Test
+		@DisplayName("a transaction counts its own rows, and only a commit shows them to others")
+		@Tag(TRANSACTION)
+		void shouldCountTheRowsOfTheStateItReads() {
+			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
+			index.putPartitionOwner(1, 10, 100);
+			index.resetDirty();
+
+			assertStateAfterCommit(
+				index,
+				original -> {
+					original.putPartitionOwner(2, 20, 200);
+					original.putPartitionOwner(3, 30, 300);
+					assertEquals(3, original.countRegisteredPartitions(), "The transaction sees its own rows");
+				},
+				(original, committed) -> {
+					assertEquals(1, original.countRegisteredPartitions(), "The original must not see the commit");
+					assertEquals(3, committed.countRegisteredPartitions());
+				}
+			);
+			assertStateAfterRollback(
+				index,
+				original -> original.removePartitionOwner(1),
+				(original, committed) -> assertEquals(1, original.countRegisteredPartitions())
+			);
 		}
 	}
 

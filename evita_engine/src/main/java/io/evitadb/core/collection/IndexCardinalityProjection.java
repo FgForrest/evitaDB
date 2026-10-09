@@ -77,6 +77,11 @@ import java.util.function.BiConsumer;
  * count from. That is `O(values)`, which is acceptable only because this component is requested explicitly and never
  * polled.
  *
+ * **The single-owner partitions of a reference indexed for filtering only are not indexes.** They are rows of the
+ * registry the reference type index carries, so they are neither described nor counted as omitted; the reference type
+ * index reports how many it holds instead (`virtualPartitionCount`). Counting them walks the rows, which makes that
+ * reading `O(single-owner partitions)` of the reference - the other exception to the `O(1)` readings.
+ *
  * A consequence worth knowing: an index whose reference name is no longer in the schema - a reference dropped whose
  * index has not been reclaimed yet - is counted as omitted rather than described. That is the accurate reading; it is
  * not a live part of the schema any more.
@@ -100,27 +105,32 @@ final class IndexCardinalityProjection {
 	 * @param indexes        a sealed snapshot of the collection's index map, never the live one
 	 * @param referenceNames names of the reference schemas the collection declares, which is what bounds the number
 	 *                       of reference indexes that can be described
+	 * @param virtualCatalog TRUE when the catalog represents its single-owner partitions as registry rows - see
+	 *                       {@link #describeIndex}
 	 * @return the {@link io.evitadb.api.statistics.CatalogStatisticsComponent#INDEX_CARDINALITY} component
 	 */
 	@Nonnull
 	static CollectionIndexCardinality describe(
 		@Nonnull Map<EntityIndexKey, EntityIndex> indexes,
-		@Nonnull Set<String> referenceNames
+		@Nonnull Set<String> referenceNames,
+		boolean virtualCatalog
 	) {
 		final Scope[] scopes = Scope.values();
 		final List<IndexCardinality> described =
 			new ArrayList<>(scopes.length * (1 + 2 * referenceNames.size()));
 		for (final Scope scope : scopes) {
-			describeIfPresent(indexes, new EntityIndexKey(EntityIndexType.GLOBAL, scope), described);
+			describeIfPresent(indexes, new EntityIndexKey(EntityIndexType.GLOBAL, scope), virtualCatalog, described);
 			for (final String referenceName : referenceNames) {
 				describeIfPresent(
 					indexes,
 					new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName),
+					virtualCatalog,
 					described
 				);
 				describeIfPresent(
 					indexes,
 					new EntityIndexKey(EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, scope, referenceName),
+					virtualCatalog,
 					described
 				);
 			}
@@ -140,18 +150,21 @@ final class IndexCardinalityProjection {
 	 * A miss is the ordinary case rather than an error - a reference declared but never indexed has no index, and
 	 * neither does a scope nothing has been written into yet.
 	 *
-	 * @param indexes   the collection's live index map
-	 * @param indexKey  key of the index to describe
-	 * @param described accumulator the readings are appended to
+	 * @param indexes        the collection's live index map
+	 * @param indexKey       key of the index to describe
+	 * @param virtualCatalog TRUE when the catalog represents its single-owner partitions as registry rows - see
+	 *                       {@link #describeIndex}
+	 * @param described      accumulator the readings are appended to
 	 */
 	private static void describeIfPresent(
 		@Nonnull Map<EntityIndexKey, EntityIndex> indexes,
 		@Nonnull EntityIndexKey indexKey,
+		boolean virtualCatalog,
 		@Nonnull List<IndexCardinality> described
 	) {
 		final EntityIndex entityIndex = indexes.get(indexKey);
 		if (entityIndex != null) {
-			described.add(describeIndex(indexKey, describeDiscriminator(indexKey), entityIndex));
+			described.add(describeIndex(indexKey, describeDiscriminator(indexKey), entityIndex, virtualCatalog));
 		}
 	}
 
@@ -171,16 +184,25 @@ final class IndexCardinalityProjection {
 	 * single index and needs the full rendering `BrowsedIndex` carries. Deriving it here would force one of the two
 	 * to be wrong.
 	 *
-	 * @param indexKey      key identifying the index
-	 * @param discriminator rendered discriminator of the index, or null for one that carries none
-	 * @param entityIndex   the index itself
+	 * **Only a catalog representing its single-owner partitions virtually reports them.** A catalog with index objects
+	 * can keep the registry next to its objects, as a test instrument comparing the two representations; its rows then
+	 * duplicate partitions that are indexes already, and reporting them would count those partitions twice. Its
+	 * reference type index therefore reports `0`.
+	 *
+	 * @param indexKey       key identifying the index
+	 * @param discriminator  rendered discriminator of the index, or null for one that carries none
+	 * @param entityIndex    the index itself
+	 * @param virtualCatalog TRUE when the catalog represents its single-owner partitions as registry rows, FALSE when
+	 *                       it represents them as index objects
 	 * @return the readings of this one index
 	 */
 	@Nonnull
 	static IndexCardinality describeIndex(
 		@Nonnull EntityIndexKey indexKey,
 		@Nullable String discriminator,
-		@Nonnull EntityIndex entityIndex
+		@Nonnull EntityIndex entityIndex,
+		// TODO JNO - remove at the end of #1615 (every catalog represents its partitions virtually then)
+		boolean virtualCatalog
 	) {
 		final List<AttributeCardinality> attributes = new ArrayList<>(16);
 		// `forEachAttributeIndexKey` rather than the set-returning accessors: those hand out a map view the backing
@@ -235,8 +257,42 @@ final class IndexCardinalityProjection {
 			entityIndex.size(),
 			entityIndex instanceof ReferencedTypeEntityIndex referencedTypeIndex ?
 				referencedTypeIndex.getAllTrackedReferencedEntityPrimaryKeys().size() : null,
+			describeVirtualPartitionCount(indexKey, entityIndex, virtualCatalog),
 			attributes.toArray(AttributeCardinality[]::new)
 		);
+	}
+
+	/**
+	 * Counts the single-owner partitions the index holds as registry rows. Only the
+	 * {@link EntityIndexType#REFERENCED_ENTITY_TYPE} index carries the registry - the group family never holds a
+	 * partition as a row - so every other index reports none at all rather than `0`.
+	 *
+	 * @param indexKey       key identifying the index
+	 * @param entityIndex    the index itself
+	 * @param virtualCatalog TRUE when the catalog represents its single-owner partitions as registry rows
+	 * @return the number of rows, `0` in a catalog representing its partitions as index objects, or null for an index
+	 * that carries no registry
+	 */
+	@Nullable
+	private static Integer describeVirtualPartitionCount(
+		@Nonnull EntityIndexKey indexKey,
+		@Nonnull EntityIndex entityIndex,
+		boolean virtualCatalog
+	) {
+		if (indexKey.type() != EntityIndexType.REFERENCED_ENTITY_TYPE) {
+			return null;
+		}
+		Assert.isPremiseValid(
+			entityIndex instanceof ReferencedTypeEntityIndex,
+			() -> "Index `" + indexKey + "` is expected to be a referenced type entity index!"
+		);
+		// TODO JNO - remove at the end of #1615 (the condition, the count stays)
+		if (!virtualCatalog) {
+			return 0;
+		}
+		// a walk of the rows, `O(single-owner partitions)` - see the class javadoc
+		return ((ReferencedTypeEntityIndex) entityIndex).getVirtualReferencePartitionIndex()
+			.countRegisteredPartitions();
 	}
 
 	/**
