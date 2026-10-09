@@ -35,7 +35,7 @@ import java.io.Serial;
 /**
  * Exception is thrown when there is attempt to search the text of an attribute that is not marked as `searchable` -
  * in general, or in one of the scopes the query targets. A fulltext search is answered only from the fulltext index,
- * which is kept for searchable attributes alone.
+ * which is kept for searchable fields only - attributes and associated data.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

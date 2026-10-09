@@ -69,10 +69,10 @@ import java.util.Set;
 
 /**
  * Keeps the per-locale {@link FulltextIndex fulltext indexes} of {@link GlobalEntityIndex} in step with the searchable
- * attributes of an entity. The fulltext structures live in the global index only, so every method here works on the
- * global index of the scope being written and never fans out over the reduced indexes.
+ * attributes and associated data of an entity. The fulltext structures live in the global index only, so every
+ * method here works on the global index of the scope being written and never fans out over the reduced indexes.
  *
- * Three kinds of write reach it:
+ * Four kinds of write reach it:
  *
  * - **an entity attribute** (global attributes included) - the field is
  *   {@link FulltextFieldKey#attribute(String) the attribute itself}, and an update is the removal of the old value
@@ -99,10 +99,10 @@ import java.util.Set;
  * reference fan-out, because the fulltext structures live in the global index whether the reference is indexed or
  * not. The local mutations of an entity arrive ordered as removals, then a scope change, then upserts.
  *
- * **Withdrawal retires lazily.** A write to an attribute that is no longer searchable in the scope retires its field in
- * the locale's index, if the index still knows it: the field keeps its postings as dead weight until #409 rebuilds the
- * index, and a later re-declaration starts with an empty field - results are only ever incomplete, never phantom. See
- * {@link FulltextIndex#retireField(FulltextFieldKey)}.
+ * **Withdrawal retires lazily.** A write to an attribute or associated data that is no longer searchable in the scope
+ * retires its field in the locale's index, if the index still knows it: the field keeps its postings as dead weight
+ * until #409 rebuilds the index, and a later re-declaration starts with an empty field - results are only ever
+ * incomplete, never phantom. See {@link FulltextIndex#retireField(FulltextFieldKey)}.
  *
  * Only localized `String` and `String[]` attributes can be searchable - the schema refuses any other - so a write of a
  * non-localized attribute or of a delta returns immediately. The same holds for non-localized associated data.
@@ -173,7 +173,9 @@ public interface FulltextIndexMutator {
 	 * removes - or retires the field when the associated data is no longer searchable in the scope. An upsert of the
 	 * very value the entity already holds touches nothing. The upserted value is extracted in the
 	 * {@link ExtractionMode#STRICT strict} mode, so a value its text expression cannot select text from fails the
-	 * write; the old value in the {@link ExtractionMode#LENIENT lenient} one.
+	 * write - unless the field still extracts with an expression other than the one the schema declares now, which
+	 * the client cannot see and which therefore extracts the upserted value in the
+	 * {@link ExtractionMode#LENIENT lenient} mode. The old value is always extracted in the lenient mode.
 	 *
 	 * The value the entity holds is read from its associated data storage part. The storage executor fetches the same
 	 * part right after this method to apply the mutation, and the part is cached between the two, so reading it here

@@ -36,7 +36,7 @@ import io.evitadb.api.query.FilterConstraint;
  * **Why a marker and not a concrete child type**
  *
  * The `textMatches` creator is typed by this interface rather than by `InField`, so that further refinements of the
- * search (a searchable associated data field, an adaptive relaxation of the strict match) arrive as new
+ * search (such as an adaptive relaxation of the strict match) arrive as new
  * implementations of this interface instead of as a change of the `textMatches` signature.
  *
  * **Containment**

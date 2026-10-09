@@ -39,7 +39,8 @@ import java.util.Map;
 /**
  * This {@link Serializer} implementation reads {@link AssociatedDataSchema} from the pre-2026.2
  * binary format that predates the granular conflict-resolution field. It is retained to keep
- * released 2026.1 data readable after an in-place upgrade; writing is unsupported.
+ * released 2026.1 data readable after an in-place upgrade; writing is unsupported. Associated data read through it is
+ * searchable nowhere.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  * @deprecated the current version stores the associated data conflict-resolution override

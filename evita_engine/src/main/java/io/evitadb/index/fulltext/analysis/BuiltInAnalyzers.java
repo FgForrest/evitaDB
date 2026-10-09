@@ -70,7 +70,7 @@ import static java.util.Map.entry;
  * exception — full-text over an unknown language is still better than a failing query — and the substitution is
  * reported to the log once per language, never silently skipped.
  *
- * **Four languages use a different chain on each side of the pipeline.** Czech, Slovak, Polish and Romanian
+ * **Four languages stem and fold differently on each side of the pipeline.** Czech, Slovak, Polish and Romanian
  * all write diacritics that users routinely omit when typing a query, and they all have stemmers whose rules
  * read those diacritics. The two facts together rule out a single symmetric chain:
  *
@@ -92,8 +92,8 @@ import static java.util.Map.entry;
  * | `sk`     | {@link SlovakStemmer} + folding                              | fold, Slovak stem variants            |
  * | `pl`     | stop, {@link PolishSnowballStemmer}, folding                 | stop, fold, Polish stem variants      |
  * | `ro`     | {@link CommaBelowNormalizationFilter}, stop, Snowball, folding| comma-below, stop, fold, Romanian stem variants |
- * | `en`     | `EnglishAnalyzer`                                            | `EnglishAnalyzer`                     |
- * | `de`     | `GermanAnalyzer`                                             | `GermanAnalyzer`                      |
+ * | `en`     | `EnglishAnalyzer`                                            | `EnglishAnalyzer`, no markup stripping |
+ * | `de`     | `GermanAnalyzer`                                             | `GermanAnalyzer`, no markup stripping  |
  *
  * **Every index chain strips markup, no search chain does.** Each index-side analyzer — `generic` included — is
  * wrapped in {@link HtmlStrippingAnalyzerWrapper}, so tags, attributes and entities of a stored HTML value never

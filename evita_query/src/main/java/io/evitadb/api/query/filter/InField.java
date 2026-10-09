@@ -62,7 +62,8 @@ import java.io.Serializable;
  * ```
  *
  * The constraint has no `attribute` prefix, because a searchable field is not necessarily an entity attribute — the
- * fulltext index also covers reference attributes and is designed to cover associated data.
+ * fulltext index also covers reference attributes and associated data, which a `textMatches` without `inField`
+ * searches. `inField` itself names an entity or global attribute of the queried collection.
  *
  * Naming the same field twice is accepted and has the same effect as naming it once.
  *
@@ -75,8 +76,8 @@ import java.io.Serializable;
 	shortDescription = "The constraint restricts the enclosing `textMatches` fulltext search to a single " +
 		"searchable field.",
 	userDocsLink = "/documentation/query/filtering/fulltext#in-field",
-	// the ENTITY domain would also offer `inField` inside every logical container of the external APIs, F1c must give
-	// it a domain only `textMatches` switches into before the constraint is registered
+	// the ENTITY domain would also offer `inField` inside every logical container of the external APIs, so it needs
+	// a domain only `textMatches` switches into before the constraint is registered
 	//TODO JNO change it at the end of #258
 	supportedIn = ConstraintDomain.ENTITY
 )

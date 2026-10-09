@@ -154,8 +154,10 @@ public interface AssociatedDataSchemaContract extends NamedSchemaWithDeprecation
 	/**
 	 * Returns the EvitaEL expression selecting the text of a {@link ComplexDataObject} value, with the stored value
 	 * bound to `$value` (see {@link #TEXT_EXPRESSION_VARIABLE}), e.g. `$value.title` or `$value.blocks.*[$.text]`.
-	 * The expression is expected to yield a `String`, an array or list of strings, or nested lists of them; a missing
-	 * property and a `null` contribute no text. A written value for which the expression yields anything else, or
+	 * The expression is expected to yield a `String`, an array or list of strings (an array node of the stored value
+	 * included), the values of a spread map, or nested collections of them; a missing property and a `null` contribute
+	 * no text, and a map node of the stored value is an object rather than text - `.*[$]` spreads its values. A
+	 * written value for which the expression yields anything else, or
 	 * over which it cannot be evaluated, fails the write - a plain spread over a missing collection does, so use `?.*`
 	 * for an optional one. Values the engine re-reads on its own (a scope change, a removal) never fail: what does not
 	 * fit simply contributes no text. The expression applies to every scope the associated data is searchable in.

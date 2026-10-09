@@ -47,10 +47,12 @@ import java.util.function.IntConsumer;
  *
  * ## Where the scores come from
  *
- * The scores are not entity content: the planner found the {@link FulltextScoreAccessor}s in the filter tree, and this
- * sorter asks them to rank the entities it is handed only when it sorts. Because the score is keyed by primary key, the
- * same sorter serves the index path and the prefetch path alike, so there is no prefetch twin - the prefetch wrappers
- * delegate the accessor inwards (see {@link FulltextScoreAccessor}).
+ * The scores are not entity content: the planner found the {@link FulltextScoreAccessor}s in the filter tree, and
+ * the filter visitor carried over those of the `entityHaving` / `groupHaving` nested queries, already translated to
+ * the owners ({@link io.evitadb.core.query.algebra.fulltext.ReferenceOwnerFulltextScoreAccessor}), whose formulas are
+ * not part of the tree. This sorter asks them to rank the entities it is handed only when it sorts. Because the score
+ * is keyed by primary key, the same sorter serves the index path and the prefetch path alike, so there is no prefetch
+ * twin - the prefetch wrappers delegate the accessor inwards (see {@link FulltextScoreAccessor}).
  *
  * ## Top N, not a full sort
  *
@@ -64,10 +66,11 @@ import java.util.function.IntConsumer;
  * ## Several accessors
  *
  * Each scope's `textMatches` yields its own formula, so a LIVE + ARCHIVED query has two accessors over disjoint
- * entities, and two `textMatches` in one filter have two accessors over overlapping ones. Each accessor ranks its own
- * top N, an entity ranked by several keeps its best composite, and the union is ordered by composite (unsigned, best
- * first), ties by ascending primary key - the scorer's own rule. The merge is exact: an entity in the true top N of
- * the merged order is in the top N of the accessor that gave it its best composite.
+ * entities, and two `textMatches` in one filter - or a `textMatches` beside an `entityHaving` carrying one - have two
+ * accessors over overlapping ones. Each accessor ranks its own top N, an entity ranked by several keeps its best
+ * composite, and the union is ordered by composite (unsigned, best first), ties by ascending primary key - the
+ * scorer's own rule. The merge is exact: an entity in the true top N of the merged order is in the top N of the
+ * accessor that gave it its best composite.
  *
  * ## Scope restriction
  *

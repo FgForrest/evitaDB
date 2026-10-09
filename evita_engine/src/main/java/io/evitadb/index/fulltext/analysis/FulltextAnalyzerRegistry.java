@@ -435,8 +435,8 @@ public class FulltextAnalyzerRegistry implements Closeable {
 
 	/**
 	 * Resolves the analyzer names for the given combination: the schema's choice when there is one, the built-in
-	 * language default otherwise. The built-in default is **not** necessarily uniform — four languages prescribe
-	 * a different chain for indexing than for querying, see {@link BuiltInAnalyzers}.
+	 * language default otherwise. The built-in default is **never** uniform — every index chain strips markup and no
+	 * search chain does, and four languages also stem and fold differently on each side, see {@link BuiltInAnalyzers}.
 	 *
 	 * @param entityType entity collection the value / query text belongs to
 	 * @param locale     locale of the text
