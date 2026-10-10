@@ -1794,9 +1794,22 @@ referenceContent(
     </dd>
     <dt>filterConstraint:filterBy?</dt>
     <dd>
+        <p>
         optional filter constraint that allows you to filter the references to be fetched for the entity;
         the filter constraint is targeted at the reference attributes, so if you want to filter by properties of the referenced
         entity, you must use the [`entityHaving`](../filtering/references.md#entity-having) constraint
+        </p>
+        <p>
+        a bare [`entityLocaleEquals`](../filtering/locale.md#entity-locale-equals) in this filter is evaluated against
+        the locales of the entity owning the references. An entity without data in that locale gets no references at all,
+        while an entity with data in it keeps even the references to entities that have none. To filter the references
+        by the locale of the referenced entity, wrap the constraint in `entityHaving`.
+        </p>
+        <p>
+        the locale of a bare `entityLocaleEquals` in this filter is also the locale in which the referenced entities
+        fetched by this `referenceContent` return their localized data, even when the query itself filters by another
+        locale, unless [`dataInLocales`](#data-in-locales) in their `entityFetch` names a different one
+        </p>
     </dd>
     <dt>orderConstraint:orderBy?</dt>
     <dd>
