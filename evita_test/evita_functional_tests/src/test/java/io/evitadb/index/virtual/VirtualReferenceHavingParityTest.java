@@ -25,20 +25,30 @@ package io.evitadb.index.virtual;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.Query;
 import io.evitadb.api.query.filter.AttributeSpecialValue;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.QueryPlanner;
+import io.evitadb.core.query.QueryPlanningContext;
+import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.debug.CacheableVariantsGeneratingVisitor;
+import io.evitadb.core.query.algebra.reference.ReferencedOwnerExistenceFormula;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartitionSlot;
+import io.evitadb.index.virtual.ReadRouteActivation.ReadRoute;
 import io.evitadb.index.virtual.VirtualReadParity.Comparison;
+import io.evitadb.index.virtual.VirtualReadParity.VirtualReading;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -51,13 +61,18 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -93,6 +108,26 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Every case runs in the scope sets its constraints admit, and must read virtual rows in at least one of them - an
  * equal answer of a run that read nothing virtually would compare the object reading with itself.
  *
+ * The two verification debug modes run on a representative subset only - the cases marked with the read routes they
+ * represent (see {@link ParityCase#verifying(ReadRoute, ReadRoute...)}) and the routes of
+ * {@link #ROUTES_OF_THE_TEST_METHODS}, together covering {@link #VERIFIED_ROUTES}; every other case is compared plain.
+ * On the whole case list the modes cost several minutes and almost all of it is spent by a handful of negated bodies
+ * over the generated catalog: the caching-tree verification re-executes the plan once per cacheable formula, and such
+ * a body holds one per materialized partition. What the modes add over the plain comparison:
+ *
+ * - `VERIFY_POSSIBLE_CACHING_TREES` executes the plan once more for every cacheable formula of its filter tree, with
+ *   that formula exchanged for a constant of its result: the formulas above it are recreated with the constant as
+ *   their child and computed again, the rest of the tree keeps its results, and the answers are compared. A plain run
+ *   recreates nothing - the cache of this test's engine is off. Each verified case must therefore leave the mode a
+ *   cacheable formula in a plan reading virtual rows, which a bare constant of virtual owners does not. A
+ *   `facetHaving` is answered by a facet formula that is never cacheable, so no plan holding one has a variant to
+ *   verify - the mode leaves the translation of partitions to targets behind it unverified.
+ * - `VERIFY_ALTERNATIVE_INDEX_RESULTS` executes the plan of every eligible alternative index set, and in this class
+ *   there is none: only a reference indexed for filtering gets virtual partitions, the reduced-index option of such
+ *   a reference is never eligible for a plan of its own, and every reference the cases query is one - so each
+ *   planning step, nested ones included, has the global index alone. The mode stays on the verified cases, where it
+ *   costs one execution more.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("Read parity of referenceHaving over virtual reference partitions")
@@ -113,6 +148,50 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 	 * The page large enough to hold every entity of every catalog.
 	 */
 	private static final int PAGE_SIZE = 100_000;
+	/**
+	 * The read routes the debug modes verify in this class - every route of {@link ReadRoute} but the ones excluded
+	 * below, each with its reason. Deriving the set rather than listing it makes a route added later fail
+	 * `shouldVerifyEveryRouteUnderTheDebugModes` until somebody decides whether this class verifies it.
+	 */
+	private static final Set<ReadRoute> VERIFIED_ROUTES = Collections.unmodifiableSet(
+		EnumSet.complementOf(
+			EnumSet.of(
+				// `facetHaving` is answered by a FacetHavingFormula, a NonCacheableFormula, so no plan holding it
+				// leaves the modes a variant - and no reference of the class has an alternative index set
+				ReadRoute.PARTITION_TO_TARGET,
+				// fetch routes - this filter parity class fetches no reference content
+				ReadRoute.REFERENCE_CONTENT_FILTER,
+				ReadRoute.REFERENCE_CONTENT_CHAIN,
+				// hierarchy routes - no case filters or summarizes by a hierarchy
+				ReadRoute.HIERARCHY_WITHIN,
+				ReadRoute.HIERARCHY_STATISTICS,
+				ReadRoute.HIERARCHY_TRAVERSE_PLANNING_SET,
+				// ordering routes - no case orders by a reference property
+				ReadRoute.PICK_FIRST_GATHER,
+				ReadRoute.PICK_FIRST_CLAIM,
+				ReadRoute.PICK_FIRST_VALUE,
+				ReadRoute.PICK_FIRST_REFERENCED_PRIMARY_KEY,
+				ReadRoute.PICK_FIRST_TARGET_RANK,
+				ReadRoute.TRAVERSE_PLANNING_SET,
+				ReadRoute.SEQUENTIAL_BLOCKS,
+				ReadRoute.BLOCK_PROVIDERS,
+				ReadRoute.BLOCK_REFERENCED_PRIMARY_KEY,
+				ReadRoute.BLOCK_EXACT_ATTRIBUTE_SET,
+				// facet summaries, histograms and entity bodies read nothing a virtual partition answers differently,
+				// and no case asks for them
+				ReadRoute.FACETS_AND_HISTOGRAMS,
+				ReadRoute.ENTITY_BODY
+			)
+		)
+	);
+	/**
+	 * The read routes a test method verifies under the debug modes rather than a case - the bidirectional rewrite,
+	 * whose plans over the generated catalog consist of the existence formula alone and hold no cacheable formula, is
+	 * verified by the owner reached through both representations, whose plan leaves a variant recreating it.
+	 */
+	private static final Set<ReadRoute> ROUTES_OF_THE_TEST_METHODS = Collections.unmodifiableSet(
+		EnumSet.of(ReadRoute.BIDIRECTIONAL_REWRITE)
+	);
 
 	private TestPaths paths;
 	private Evita evita;
@@ -120,12 +199,14 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 	/**
 	 * A positive parity case - one filter over one collection, compared in each of its scope sets.
 	 *
-	 * @param name            the name of the case
-	 * @param catalog         the catalog queried
-	 * @param entityType      the collection queried
-	 * @param scopeSets       the scope sets the case runs in
+	 * @param name             the name of the case
+	 * @param catalog          the catalog queried
+	 * @param entityType       the collection queried
+	 * @param scopeSets        the scope sets the case runs in
 	 * @param readsVirtualRows TRUE when the read-on arm must read virtual rows in at least one scope set
-	 * @param constraints     the filter constraints following the scope
+	 * @param verifiedRoutes   the read routes the case represents under the verification debug modes, empty when it
+	 *                         is compared plain
+	 * @param constraints      the filter constraints following the scope
 	 */
 	private record ParityCase(
 		@Nonnull String name,
@@ -133,8 +214,54 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 		@Nonnull String entityType,
 		@Nonnull Scope[][] scopeSets,
 		boolean readsVirtualRows,
+		@Nonnull Set<ReadRoute> verifiedRoutes,
 		@Nonnull FilterConstraint... constraints
 	) {
+
+		/**
+		 * Creates a case compared plain, without the verification debug modes.
+		 *
+		 * @param name             the name of the case
+		 * @param catalog          the catalog queried
+		 * @param entityType       the collection queried
+		 * @param scopeSets        the scope sets the case runs in
+		 * @param readsVirtualRows TRUE when the read-on arm must read virtual rows in at least one scope set
+		 * @param constraints      the filter constraints following the scope
+		 */
+		ParityCase(
+			@Nonnull String name,
+			@Nonnull String catalog,
+			@Nonnull String entityType,
+			@Nonnull Scope[][] scopeSets,
+			boolean readsVirtualRows,
+			@Nonnull FilterConstraint... constraints
+		) {
+			this(name, catalog, entityType, scopeSets, readsVirtualRows, Set.of(), constraints);
+		}
+
+		/**
+		 * Returns this case verified by the debug modes as the representative of the given read routes.
+		 *
+		 * @param route  a route the case represents
+		 * @param routes further routes the case represents
+		 * @return the verified case
+		 */
+		@Nonnull
+		ParityCase verifying(@Nonnull ReadRoute route, @Nonnull ReadRoute... routes) {
+			return new ParityCase(
+				this.name, this.catalog, this.entityType, this.scopeSets, this.readsVirtualRows,
+				Collections.unmodifiableSet(EnumSet.of(route, routes)), this.constraints
+			);
+		}
+
+		/**
+		 * Tells whether the queries of the case run with the verification debug modes.
+		 *
+		 * @return TRUE when the case represents a read route under the debug modes
+		 */
+		boolean isVerified() {
+			return !this.verifiedRoutes.isEmpty();
+		}
 
 		@Nonnull
 		@Override
@@ -142,6 +269,21 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 			return this.name;
 		}
 
+	}
+
+	/**
+	 * What the caching-tree verification has to work with in one plan - the plan the verification debug modes plan,
+	 * censused without executing a single variant.
+	 *
+	 * @param variants           the cacheable variants of the plan's filter tree, each one tree the verification
+	 *                           executes
+	 * @param carrierFlattens    the variants exchanging a subtree that holds a counterpart existence formula of the
+	 *                           bidirectional rewrite - the existence formula answers through the constant of the
+	 *                           subtree's result
+	 * @param carrierRecreations the variants exchanging a formula inside a counterpart existence formula - the
+	 *                           existence formula is recreated over the constant and computed again
+	 */
+	private record VariantCensus(int variants, int carrierFlattens, int carrierRecreations) {
 	}
 
 	@BeforeAll
@@ -208,7 +350,7 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 			new ParityCase(
 				"related: attributeEquals", CATALOG_RELATED, relatedProduct, EVERY_SCOPE_SET, true,
 				referenceHaving(related, attributeEquals(relationType, RelatedProductsShapedFixture.TYPE_ACCESSORY))
-			),
+			).verifying(ReadRoute.REFERENCE_HAVING_BODY, ReadRoute.REFERENCE_HAVING_TARGET_INDEXES),
 			new ParityCase(
 				"related: attributeInSet", CATALOG_RELATED, relatedProduct, EVERY_SCOPE_SET, true,
 				referenceHaving(
@@ -249,7 +391,7 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 			new ParityCase(
 				"related: entityHaving", CATALOG_RELATED, relatedProduct, EVERY_SCOPE_SET, true,
 				referenceHaving(related, entityHaving(attributeLessThan(rank, 3_000)))
-			),
+			).verifying(ReadRoute.REFERENCED_ENTITY_IN_BODY),
 			new ParityCase(
 				"related: entityPrimaryKeyInSet with missing targets", CATALOG_RELATED, relatedProduct,
 				EVERY_SCOPE_SET, true,
@@ -276,7 +418,7 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 			new ParityCase(
 				"related: negated referenceHaving", CATALOG_RELATED, relatedProduct, EVERY_SCOPE_SET, true,
 				not(referenceHaving(related, attributeEquals(relationType, RelatedProductsShapedFixture.TYPE_ACCESSORY)))
-			),
+			).verifying(ReadRoute.REFERENCE_HAVING_BODY),
 			new ParityCase(
 				"related: referenceHaving in a conjunction", CATALOG_RELATED, relatedProduct, EVERY_SCOPE_SET, true,
 				attributeLessThan(rank, 20_000),
@@ -401,7 +543,7 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 			new ParityCase(
 				"related: not", CATALOG_RELATED, relatedProduct, EVERY_SCOPE_SET, true,
 				referenceHaving(related, not(accessories))
-			),
+			).verifying(ReadRoute.NEGATION_IN_BODY),
 			new ParityCase(
 				"related: and with a negated sibling", CATALOG_RELATED, relatedProduct, EVERY_SCOPE_SET, true,
 				referenceHaving(related, spares, not(attributeLessThan(order, 50)))
@@ -429,7 +571,7 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 				"related: not entityPrimaryKeyInSet of missing targets", CATALOG_RELATED, relatedProduct,
 				EVERY_SCOPE_SET, true,
 				referenceHaving(related, not(entityPrimaryKeyInSet(missingOnly)))
-			),
+			).verifying(ReadRoute.NEGATION_IN_BODY, ReadRoute.REFERENCED_ENTITY_IN_BODY),
 			new ParityCase(
 				"related: not of or with entityPrimaryKeyInSet of missing targets", CATALOG_RELATED, relatedProduct,
 				EVERY_SCOPE_SET, true,
@@ -453,7 +595,7 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 				"categories: groupHaving and an attribute of the same row", CATALOG_RELATED, relatedProduct,
 				new Scope[][]{LIVE}, true,
 				referenceHaving(categories, groupHaving(entityPrimaryKeyInSet(2, 3)), attributeEquals(priority, 6))
-			),
+			).verifying(ReadRoute.GROUP_IN_BODY),
 			new ParityCase(
 				"categories: not groupHaving", CATALOG_RELATED, relatedProduct, new Scope[][]{LIVE}, true,
 				referenceHaving(categories, not(groupHaving(entityPrimaryKeyInSet(1, 3, 5))))
@@ -498,7 +640,7 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 				referenceHaving(
 					related, or(entityLocaleEquals(RelatedProductsShapedFixture.LOCALE_DE), attributeLessThan(order, 3))
 				)
-			),
+			).verifying(ReadRoute.LOCALE_IN_BODY),
 			// inScope
 			new ParityCase(
 				"related: inScope of the live scope", CATALOG_RELATED, relatedProduct, liveAndBoth, true,
@@ -507,11 +649,11 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 			new ParityCase(
 				"related: inScope of the archive", CATALOG_RELATED, relatedProduct, archivedAndBoth, true,
 				referenceHaving(related, inScope(Scope.ARCHIVED, spares))
-			),
+			).verifying(ReadRoute.REFERENCE_HAVING_BODY),
 			new ParityCase(
 				"related: not inScope of the live scope", CATALOG_RELATED, relatedProduct, liveAndBoth, true,
 				referenceHaving(related, not(inScope(Scope.LIVE, spares)))
-			),
+			).verifying(ReadRoute.NEGATION_IN_BODY),
 			new ParityCase(
 				"related: inScope of each scope inside or", CATALOG_RELATED, relatedProduct, new Scope[][]{BOTH}, true,
 				referenceHaving(
@@ -598,12 +740,25 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 	}
 
 	@Test
+	@DisplayName("the debug modes verify every read route they can verify in this class")
+	void shouldVerifyEveryRouteUnderTheDebugModes() {
+		final Set<ReadRoute> verifiedRoutes = EnumSet.copyOf(ROUTES_OF_THE_TEST_METHODS);
+		Stream.of(positiveCases(), exactCases(), bidirectionalCases())
+			.flatMap(Function.identity())
+			.forEach(parityCase -> verifiedRoutes.addAll(parityCase.verifiedRoutes()));
+		assertEquals(
+			VERIFIED_ROUTES, verifiedRoutes,
+			"Every read route the debug modes can verify must have a case or a test method verified by them"
+		);
+	}
+
+	@Test
 	@DisplayName("the bidirectional rewrite reaches the categories held only by single-owner partitions")
 	void shouldReachTheSingletonCategoriesThroughTheRewrite() {
 		final Comparison<List<Integer>> comparison = VirtualReadParity.compare(
 			maintenance(CATALOG_RELATED), Set.of(RelatedProductsShapedFixture.ENTITY_PRODUCT),
 			() -> queryPrimaryKeys(
-				CATALOG_RELATED, RelatedProductsShapedFixture.ENTITY_CATEGORY, LIVE,
+				CATALOG_RELATED, RelatedProductsShapedFixture.ENTITY_CATEGORY, LIVE, false,
 				referenceHaving(RelatedProductsShapedFixture.REFERENCE_PRODUCTS)
 			)
 		);
@@ -625,11 +780,13 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 	void shouldUniteTheMaterializedAndTheVirtualRowsOfOneOwner() {
 		final FilterConstraint referenceHaving = referenceHaving(SingleOwnerPartitionFixture.REFERENCE_PRODUCTS);
 		long virtualRowsRead = 0;
+		long verifiedVariants = 0;
+		long carrierVariants = 0;
 		for (final Scope[] scopes : new Scope[][]{LIVE, BOTH}) {
 			final Comparison<List<Integer>> comparison = VirtualReadParity.compare(
 				maintenance(CATALOG_EVERY_ROUTE), Set.of(SingleOwnerPartitionFixture.ENTITY_PRODUCT),
 				() -> queryPrimaryKeys(
-					CATALOG_EVERY_ROUTE, SingleOwnerPartitionFixture.ENTITY_CATEGORY, scopes, referenceHaving
+					CATALOG_EVERY_ROUTE, SingleOwnerPartitionFixture.ENTITY_CATEGORY, scopes, true, referenceHaving
 				)
 			);
 			assertEquals(
@@ -642,25 +799,48 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 				comparison.objectReading().toString()
 			);
 			virtualRowsRead += comparison.virtualReading().virtualRowsRead();
+			final VirtualReading<VariantCensus> census = VirtualReadParity.readVirtually(
+				maintenance(CATALOG_EVERY_ROUTE), Set.of(SingleOwnerPartitionFixture.ENTITY_PRODUCT),
+				() -> planCensus(
+					CATALOG_EVERY_ROUTE, SingleOwnerPartitionFixture.ENTITY_CATEGORY, scopes, referenceHaving
+				)
+			);
+			verifiedVariants += countVerifiedVariants(census);
+			if (census.virtualRowsRead() > 0) {
+				carrierVariants += census.answer().carrierFlattens() + census.answer().carrierRecreations();
+			}
 		}
 		// only the product side is read virtually, so the virtual rows are the rewrite's alone
 		assertTrue(virtualRowsRead > 0, "The rewrite must read the counterpart rows virtually");
+		assertTrue(verifiedVariants > 0, "The rewrite must leave the debug modes a cacheable variant to verify");
+		// the test verifies the rewrite for the class, so a variant must reach the existence formula it builds - the
+		// one formula of a virtual reading a planned tree tells apart
+		assertTrue(
+			carrierVariants > 0,
+			"The rewrite must leave the debug modes a variant exchanging or recreating its existence formula"
+		);
 	}
 
 	/**
 	 * Asserts a case answers the same read-off and read-on in each of its scope sets, and - when it must - that the
-	 * read-on run read virtual rows and some scope set matched an owner.
+	 * read-on run read virtual rows and some scope set matched an owner. A case verified by the debug modes must
+	 * also leave them a cacheable variant of a plan that read virtual rows - otherwise the modes verified nothing of
+	 * the virtual reading the case represents.
 	 *
 	 * @param parityCase  the case
 	 * @param entityTypes the collections read virtually in the read-on run
 	 */
 	private void assertParity(@Nonnull ParityCase parityCase, @Nonnull Set<String> entityTypes) {
 		long virtualRowsRead = 0;
+		long verifiedVariants = 0;
 		boolean matchedAny = false;
 		for (final Scope[] scopes : parityCase.scopeSets()) {
 			final Comparison<List<Integer>> comparison = VirtualReadParity.compare(
 				maintenance(parityCase.catalog()), entityTypes,
-				() -> queryPrimaryKeys(parityCase.catalog(), parityCase.entityType(), scopes, parityCase.constraints())
+				() -> queryPrimaryKeys(
+					parityCase.catalog(), parityCase.entityType(), scopes, parityCase.isVerified(),
+					parityCase.constraints()
+				)
 			);
 			assertEquals(
 				comparison.objectReading(), comparison.virtualReading().answer(),
@@ -668,10 +848,131 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 			);
 			virtualRowsRead += comparison.virtualReading().virtualRowsRead();
 			matchedAny |= !comparison.objectReading().isEmpty();
+			if (parityCase.isVerified()) {
+				verifiedVariants += countVerifiedVariants(
+					VirtualReadParity.readVirtually(
+						maintenance(parityCase.catalog()), entityTypes,
+						() -> planCensus(
+							parityCase.catalog(), parityCase.entityType(), scopes, parityCase.constraints()
+						)
+					)
+				);
+			}
 		}
 		if (parityCase.readsVirtualRows()) {
 			assertTrue(virtualRowsRead > 0, parityCase + " must read virtual rows in at least one scope set");
 			assertTrue(matchedAny, parityCase + " must match an owner in at least one scope set");
+		}
+		if (parityCase.isVerified()) {
+			assertTrue(
+				verifiedVariants > 0,
+				parityCase + " is verified by the debug modes, so a plan of it reading virtual rows must leave them " +
+					"a cacheable variant to verify"
+			);
+		}
+	}
+
+	/**
+	 * Returns the variants a census leaves the caching-tree verification - none when its plan read no virtual row,
+	 * since the variants of such a plan verify nothing of the virtual reading.
+	 *
+	 * @param census the census of a read-on plan, with the virtual rows its planning read
+	 * @return the variants of the plan, or zero
+	 */
+	private static int countVerifiedVariants(@Nonnull VirtualReading<VariantCensus> census) {
+		return census.virtualRowsRead() > 0 ? census.answer().variants() : 0;
+	}
+
+	/**
+	 * Plans a query the way the verification debug modes plan it - under the planning policy they share with
+	 * `PREFER_INDEX_SCAN`, which favours bitmaps and bypasses the cache - computes its filter tree and runs the
+	 * engine's own generator of cacheable variants over it, without executing a variant. The planning context takes
+	 * the engine's own session only, which the engine hands to the logic of a read-write session; the session writes
+	 * nothing, so its transaction commits nothing and the catalog version stays.
+	 *
+	 * @param catalog     the catalog
+	 * @param entityType  the collection
+	 * @param scopes      the scopes
+	 * @param constraints the filter constraints following the scope
+	 * @return the census of the plan
+	 */
+	@Nonnull
+	private VariantCensus planCensus(
+		@Nonnull String catalog,
+		@Nonnull String entityType,
+		@Nonnull Scope[] scopes,
+		@Nonnull FilterConstraint... constraints
+	) {
+		final EntityCollection entityCollection = (EntityCollection) this.evita.getCatalogInstance(catalog)
+			.orElseThrow()
+			.getCollectionForEntity(entityType)
+			.orElseThrow();
+		final Query planned = query(
+			collection(entityType),
+			filterBy(filterOf(scopes, constraints)),
+			require(page(1, PAGE_SIZE), debug(DebugMode.PREFER_INDEX_SCAN))
+		);
+		return this.evita.updateCatalog(
+			catalog,
+			session -> {
+				final QueryPlanningContext context = entityCollection.createQueryContext(
+					new EvitaRequest(planned.normalizeQuery(), OffsetDateTime.now(), EntityReference.class, null),
+					session
+				);
+				final Formula filter = QueryPlanner.planQuery(context).getFilter();
+				try (final QueryExecutionContext executionContext = context.createExecutionContext()) {
+					// the verification derives the variants from the computed tree of the plan it executed first
+					filter.initialize(executionContext);
+					filter.compute();
+					final CacheableVariantsGeneratingVisitor generator = new CacheableVariantsGeneratingVisitor();
+					filter.accept(generator);
+					final List<Formula> variants = generator.getFormulaVariants();
+					final Set<Formula> carriers = counterpartExistenceFormulasOf(filter);
+					int carrierFlattens = 0;
+					int carrierRecreations = 0;
+					if (!carriers.isEmpty()) {
+						for (final Formula variant : variants) {
+							// the cloner keeps every formula off the path to the exchanged one, so a variant
+							// missing an existence formula of the plan either left it out or recreated it
+							final Set<Formula> variantCarriers = counterpartExistenceFormulasOf(variant);
+							if (variantCarriers.size() < carriers.size()) {
+								carrierFlattens++;
+							} else if (!variantCarriers.containsAll(carriers)) {
+								carrierRecreations++;
+							}
+						}
+					}
+					return new VariantCensus(variants.size(), carrierFlattens, carrierRecreations);
+				}
+			}
+		);
+	}
+
+	/**
+	 * Returns the counterpart existence formulas of the bidirectional rewrite in a formula tree, by identity.
+	 *
+	 * @param formula the root of the tree
+	 * @return the existence formulas of the tree
+	 */
+	@Nonnull
+	private static Set<Formula> counterpartExistenceFormulasOf(@Nonnull Formula formula) {
+		final Set<Formula> result = Collections.newSetFromMap(new IdentityHashMap<>());
+		collectCounterpartExistenceFormulas(formula, result);
+		return result;
+	}
+
+	/**
+	 * Collects the counterpart existence formulas of the bidirectional rewrite in a formula tree.
+	 *
+	 * @param formula the root of the tree
+	 * @param result  the collected existence formulas
+	 */
+	private static void collectCounterpartExistenceFormulas(@Nonnull Formula formula, @Nonnull Set<Formula> result) {
+		if (formula instanceof ReferencedOwnerExistenceFormula) {
+			result.add(formula);
+		}
+		for (final Formula innerFormula : formula.getInnerFormulas()) {
+			collectCounterpartExistenceFormulas(innerFormula, result);
 		}
 	}
 
@@ -716,6 +1017,14 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 		assertEquals(comparison.objectReading(), comparison.virtualReading().answer());
 		assertTrue(comparison.virtualReading().virtualRowsRead() > 0);
 		assertTrue(comparison.objectReading().stream().allMatch(it -> it.size() == 97));
+		// the ordering and the page leave the filter tree as it is, so the census of the filter alone stands for it
+		final VirtualReading<VariantCensus> census = VirtualReadParity.readVirtually(
+			maintenance(CATALOG_RELATED), entityTypesOf(CATALOG_RELATED),
+			() -> planCensus(CATALOG_RELATED, RelatedProductsShapedFixture.ENTITY_PRODUCT, BOTH, referenceHaving)
+		);
+		assertTrue(
+			countVerifiedVariants(census) > 0, "The pages must leave the debug modes a cacheable variant to verify"
+		);
 	}
 
 	@Test
@@ -773,6 +1082,7 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 	 * @param catalog     the catalog
 	 * @param entityType  the collection
 	 * @param scopes      the scopes
+	 * @param verified    TRUE to run the query with the verification debug modes
 	 * @param constraints the filter constraints following the scope
 	 * @return the primary keys in the order the query returns them
 	 */
@@ -781,32 +1091,45 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 		@Nonnull String catalog,
 		@Nonnull String entityType,
 		@Nonnull Scope[] scopes,
+		boolean verified,
 		@Nonnull FilterConstraint... constraints
 	) {
-		final FilterConstraint[] filter = new FilterConstraint[constraints.length + 1];
-		filter[0] = scope(scopes);
-		System.arraycopy(constraints, 0, filter, 1, constraints.length);
+		final Query theQuery = query(
+			collection(entityType),
+			filterBy(filterOf(scopes, constraints)),
+			verified ?
+				// every alternative index set and every cacheable subtree must answer the same
+				require(
+					page(1, PAGE_SIZE),
+					debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
+				) :
+				require(page(1, PAGE_SIZE))
+		);
 		return this.evita.queryCatalog(
 			catalog,
 			session -> {
-				return session.query(
-						query(
-							collection(entityType),
-							filterBy(filter),
-							// every alternative index set and every cacheable subtree must answer the same
-							require(
-								page(1, PAGE_SIZE),
-								debug(DebugMode.VERIFY_ALTERNATIVE_INDEX_RESULTS, DebugMode.VERIFY_POSSIBLE_CACHING_TREES)
-							)
-						),
-						EntityReference.class
-					)
+				return session.query(theQuery, EntityReference.class)
 					.getRecordData()
 					.stream()
 					.map(EntityReference::getPrimaryKey)
 					.toList();
 			}
 		);
+	}
+
+	/**
+	 * Returns the filter constraints of a query - the scope followed by the constraints.
+	 *
+	 * @param scopes      the scopes
+	 * @param constraints the filter constraints following the scope
+	 * @return the filter constraints
+	 */
+	@Nonnull
+	private static FilterConstraint[] filterOf(@Nonnull Scope[] scopes, @Nonnull FilterConstraint... constraints) {
+		final FilterConstraint[] filter = new FilterConstraint[constraints.length + 1];
+		filter[0] = scope(scopes);
+		System.arraycopy(constraints, 0, filter, 1, constraints.length);
+		return filter;
 	}
 
 	/**
