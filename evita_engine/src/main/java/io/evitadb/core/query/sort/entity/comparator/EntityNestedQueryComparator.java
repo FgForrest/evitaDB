@@ -27,8 +27,10 @@ import com.carrotsearch.hppc.IntContainer;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.LongIntHashMap;
+import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.QueryConstraints;
 import io.evitadb.api.query.order.EntityGroupProperty;
+import io.evitadb.api.query.order.EntityPrimaryKeyNatural;
 import io.evitadb.api.query.order.EntityProperty;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -90,6 +92,12 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	 * constraint later to this point of execution.
 	 */
 	@Nullable @Getter private EntityGroupPropertyWithScopes groupOrderBy;
+	/**
+	 * TRUE when {@link #groupOrderBy} orders the groups by their primary key - every group then has a value to be
+	 * ordered by, so the group sorters rank all of them and none joins the references without a group. The ascending
+	 * primary key order has no sorter of its own: it is the default sorter closing the plan's sorters.
+	 */
+	private boolean groupOrderByPrimaryKey;
 	/**
 	 * Locale valid for nested scope (if set on particular scope level).
 	 */
@@ -186,6 +194,7 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 		this.nextComparator = nextComparator;
 		this.orderBy = base.orderBy;
 		this.groupOrderBy = base.groupOrderBy;
+		this.groupOrderByPrimaryKey = base.groupOrderByPrimaryKey;
 		this.sorter = base.sorter;
 		this.groupSorter = base.groupSorter;
 	}
@@ -208,6 +217,12 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 			"Sorting by group property in a second dimension has no sense! It will have no effect."
 		);
 		this.groupOrderBy = new EntityGroupPropertyWithScopes(groupOrderBy, scope);
+		for (final OrderConstraint groupOrdering : groupOrderBy.getChildren()) {
+			if (groupOrdering instanceof EntityPrimaryKeyNatural) {
+				this.groupOrderByPrimaryKey = true;
+				break;
+			}
+		}
 	}
 
 	/**
@@ -279,8 +294,11 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 				);
 			} else {
 				// a group the sorters cannot rank - one that does not exist, or lacks every value they order by - has
-				// no value to be ordered by, so its entities are left to join the ungrouped ones below
-				final int[] sortedGroupEntities = getSortedEntities(filteredEntityGroups, this.groupSorter, false);
+				// no value to be ordered by, so its entities are left to join the ungrouped ones below; an ordering by
+				// the primary key leaves no group without a value
+				final int[] sortedGroupEntities = getSortedEntities(
+					filteredEntityGroups, this.groupSorter, this.groupOrderByPrimaryKey
+				);
 				final int[] sortedEntities = getSortedEntities(filteredEntities, this.sorter, true);
 				final IntSet filteredEntitySet = new IntHashSet(filteredEntities.length);
 				for (int entityPk : filteredEntities) {
@@ -331,7 +349,9 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 		@Nonnull int[] filteredEntityGroups,
 		@Nonnull Function<Integer, int[]> groupToReferencedEntityIdTranslator
 	) {
-		final int[] sortedGroupEntities = getSortedEntities(filteredEntityGroups, this.groupSorter, false);
+		final int[] sortedGroupEntities = getSortedEntities(
+			filteredEntityGroups, this.groupSorter, this.groupOrderByPrimaryKey
+		);
 		final int[] sortedEntities = getSortedEntities(filteredEntities, this.sorter, true);
 		final LongIntHashMap positions = new LongIntHashMap(filteredEntities.length);
 		int position = 0;

@@ -27,6 +27,7 @@ import io.evitadb.api.SessionTraits.SessionFlags;
 import io.evitadb.api.exception.ContextMissingException;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
 import io.evitadb.api.query.require.ReferenceContent;
@@ -939,6 +940,37 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 		);
 	}
 
+	@DisplayName("References are ordered by the primary key of their group when the group ordering asks for it")
+	@ParameterizedTest(name = "fetching referenced entity bodies: {0}")
+	@ValueSource(booleans = {false, true})
+	@UseDataSet(UNGROUPED_REFERENCES)
+	void shouldOrderReferencesByGroupPrimaryKeyAscending(boolean fetchReferencedBodies, Evita evita) {
+		// groups by primary key: 1 (3), 2 (5 "Zy", 2 "Ab" by name descending), then the references without a group by
+		// name descending: 4 "Zz", 1 "Aa" - the group `3` of product 5 has no name, but it has a primary key, so its
+		// parameter 1 precedes the parameter 4 without a group
+		assertReferencedParameterOrder(
+			evita, ManagedReferencesBehaviour.ANY,
+			orderBy(
+				entityGroupProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
+				entityProperty(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
+			),
+			fetchReferencedBodies,
+			Map.of(1, new int[]{3, 5, 2, 4, 1}, 5, new int[]{3, 1, 4})
+		);
+		// the primary key ranks the groups the name does not - the group `3` without a name follows the named ones
+		assertReferencedParameterOrder(
+			evita, ManagedReferencesBehaviour.ANY,
+			orderBy(
+				entityGroupProperty(
+					attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC), entityPrimaryKeyNatural(OrderDirection.ASC)
+				),
+				entityProperty(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
+			),
+			fetchReferencedBodies,
+			Map.of(1, new int[]{3, 5, 2, 4, 1}, 5, new int[]{3, 1, 4})
+		);
+	}
+
 	@DisplayName("References are ordered by the group each owner assigns them to")
 	@ParameterizedTest(name = "fetching referenced entity bodies: {0}")
 	@ValueSource(booleans = {false, true})
@@ -1056,6 +1088,34 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 		boolean fetchReferencedBodies,
 		@Nonnull Map<Integer, int[]> expectedOrderByProduct
 	) {
+		assertReferencedParameterOrder(
+			evita, managedReferencesBehaviour,
+			orderBy(
+				entityGroupProperty(attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC)),
+				entityProperty(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
+			),
+			fetchReferencedBodies, expectedOrderByProduct
+		);
+	}
+
+	/**
+	 * Fetches the parameter references of the products in a single query, ordered by the passed ordering, and asserts
+	 * the primary keys of the referenced parameters of each product come in the expected order.
+	 *
+	 * @param evita                      the evitaDB instance holding {@link #UNGROUPED_REFERENCES}
+	 * @param managedReferencesBehaviour behaviour applied to references pointing to non-existing entities
+	 * @param referenceOrderBy           the ordering of the parameter references
+	 * @param fetchReferencedBodies      TRUE when the referenced parameter bodies are fetched too
+	 * @param expectedOrderByProduct     the expected primary keys of the referenced parameters in order, indexed by
+	 *                                   the primary key of the product
+	 */
+	private static void assertReferencedParameterOrder(
+		@Nonnull Evita evita,
+		@Nonnull ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nonnull OrderBy referenceOrderBy,
+		boolean fetchReferencedBodies,
+		@Nonnull Map<Integer, int[]> expectedOrderByProduct
+	) {
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -1069,10 +1129,7 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 								referenceContent(
 									managedReferencesBehaviour,
 									Entities.PARAMETER,
-									orderBy(
-										entityGroupProperty(attributeNatural(ATTRIBUTE_NAME, OrderDirection.ASC)),
-										entityProperty(attributeNatural(ATTRIBUTE_NAME, OrderDirection.DESC))
-									),
+									referenceOrderBy,
 									fetchReferencedBodies ? entityFetch(attributeContent(ATTRIBUTE_NAME)) : null
 								)
 							)
