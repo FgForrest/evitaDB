@@ -95,7 +95,7 @@ R2 | io.evitadb.index.EntityIndexKey$1#<clinit> | enum switch map of the index k
 R2 | io.evitadb.index.ReferencePartitions#createKey | the partition resolver implementation itself
 R2 | io.evitadb.store.catalog.DefaultEntityCollectionPersistenceService$3#<clinit> | evita_store deserializes indexes by EntityIndexType (physical storage)
 R2 | io.evitadb.store.catalog.Migration_2025_6#upgradeFromStorageProtocolVersion_3_to_4 | key and storage-part serialization (physical storage format)
-R2 | io.evitadb.store.catalog.VirtualReferencePartitionConversion#convertCollection | the storage protocol migration classifies the stored entity indexes by the type of their key (physical storage format)
+R2 | io.evitadb.store.catalog.VirtualReferencePartitionConversion#classifyIndexes | the storage protocol migration classifies the stored entity indexes by the type of their key (physical storage format)
 R2 | io.evitadb.store.index.serializer.EntityIndexStoragePartSerializer_2024_11$1#<clinit> | key and storage-part serialization (physical storage format)
 R2 | io.evitadb.store.index.serializer.EntityIndexStoragePartSerializer_2025_6#read | key and storage-part serialization (physical storage format)
 R2 | io.evitadb.store.index.serializer.EntityIndexTypeSerializer#read | key and storage-part serialization (physical storage format)

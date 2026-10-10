@@ -371,7 +371,7 @@ class VirtualRepresentationPersistenceTest implements EvitaTestSupport {
 				VirtualRepresentationPersistenceTest.class.getSimpleName() + "_image"
 			);
 			allocated.add(image);
-			copyRecursively(deferringPaths.storage(), image.storage());
+			DifferentialEngines.copyRecursively(deferringPaths.storage(), image.storage());
 			this.evita.close();
 
 			// a fresh engine told nothing about the catalog boots from the image and replays the tail
@@ -694,32 +694,6 @@ class VirtualRepresentationPersistenceTest implements EvitaTestSupport {
 			.pollInterval(50, TimeUnit.MILLISECONDS)
 			.until(() -> evita.getCatalogInstance(catalogName).orElse(null) instanceof Catalog);
 		assertNotNull(evita.getCatalogInstance(catalogName).orElse(null));
-	}
-
-	/**
-	 * Copies a directory tree, creating the target if it does not exist.
-	 *
-	 * @param source tree to copy from
-	 * @param target tree to copy into
-	 */
-	private static void copyRecursively(@Nonnull Path source, @Nonnull Path target) {
-		try {
-			final List<Path> entries;
-			try (Stream<Path> tree = Files.walk(source)) {
-				entries = tree.toList();
-			}
-			for (final Path entry : entries) {
-				final Path destination = target.resolve(source.relativize(entry).toString());
-				if (Files.isDirectory(entry)) {
-					Files.createDirectories(destination);
-				} else {
-					Files.createDirectories(destination.getParent());
-					Files.copy(entry, destination);
-				}
-			}
-		} catch (IOException ex) {
-			throw new IllegalStateException("Cannot copy `" + source + "` to `" + target + "`!", ex);
-		}
 	}
 
 	/**

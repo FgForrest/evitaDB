@@ -74,7 +74,6 @@ import java.io.Serial;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
@@ -937,7 +936,7 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 			catalogs.put(catalogName, catalog);
 		}
 		final SortedMap<String, String> beforeCopy = listFiles(paths.storage());
-		copyRecursively(paths.storage(), image.storage());
+		DifferentialEngines.copyRecursively(paths.storage(), image.storage());
 		assertEquals(
 			beforeCopy, listFiles(paths.storage()),
 			"the storage changed while it was being copied - the image is not the state of one moment"
@@ -972,27 +971,6 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 			throw new UncheckedIOException(e);
 		}
 		return files;
-	}
-
-	/**
-	 * Copies a directory tree, keeping the modification times.
-	 *
-	 * @param source the directory to copy
-	 * @param target the directory receiving the copy
-	 */
-	private static void copyRecursively(@Nonnull Path source, @Nonnull Path target) {
-		try (Stream<Path> walk = Files.walk(source)) {
-			for (final Path path : walk.toList()) {
-				final Path copy = target.resolve(source.relativize(path).toString());
-				if (Files.isDirectory(path)) {
-					Files.createDirectories(copy);
-				} else {
-					Files.copy(path, copy, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES);
-				}
-			}
-		} catch (IOException e) {
-			throw new UncheckedIOException(e);
-		}
 	}
 
 	/**

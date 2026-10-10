@@ -858,10 +858,8 @@ public final class ReferencePartitions {
 			final OptionalLong row = registryTypeIndex.getVirtualReferencePartitionIndex()
 				.getPartitionOwner(partitionPrimaryKey);
 			if (row.isPresent()) {
-				final long ownerAndTarget = row.getAsLong();
 				final VirtualReferencePartition partition = toUncountedPartition(
-					registryTypeIndex, partitionPrimaryKey, NumberUtils.unpackHigh(ownerAndTarget),
-					readRepresentativeReferenceKey(registryTypeIndex, partitionPrimaryKey, ownerAndTarget)
+					registryTypeIndex, partitionPrimaryKey, row.getAsLong()
 				);
 				// TODO JNO - remove at the end of #1615
 				assertOwnerReadParity(partition, partitionByPrimaryKey.apply(partitionPrimaryKey));
@@ -922,10 +920,8 @@ public final class ReferencePartitions {
 			}
 			final OptionalLong row = registry.getPartitionOwner(partitionPrimaryKey);
 			if (row.isPresent()) {
-				final long ownerAndTarget = row.getAsLong();
 				final VirtualReferencePartition partition = toUncountedPartition(
-					typeIndex, partitionPrimaryKey, NumberUtils.unpackHigh(ownerAndTarget),
-					readRepresentativeReferenceKey(typeIndex, partitionPrimaryKey, ownerAndTarget)
+					typeIndex, partitionPrimaryKey, row.getAsLong()
 				);
 				// TODO JNO - remove at the end of #1615
 				assertOwnerReadParity(
@@ -990,9 +986,7 @@ public final class ReferencePartitions {
 			assertNoRowModifiedSince(rowModificationsAtCreation, referenceName, scope);
 			final ReferencePartition object = resolveIfExists(indexByKey, scope, representativeReferenceKey);
 			final Serializable[] tuple = representativeReferenceKey.representativeAttributeValues();
-			// the empty tuple is never in the dictionary - the registry stands for it by the absence of a tuple id
-			final int tupleId = tuple.length == 0 ?
-				VirtualReferencePartitionIndex.NO_TUPLE_ID : registry.getTupleId(tuple);
+			final int tupleId = tupleIdOf(registry, tuple);
 			if (tuple.length > 0 && tupleId == VirtualReferencePartitionIndex.NO_TUPLE_ID) {
 				// no registered partition holds the tuple
 				return object;
@@ -1087,6 +1081,20 @@ public final class ReferencePartitions {
 	}
 
 	/**
+	 * Returns the tuple id the registry records the representative attribute values under. The empty tuple is never in
+	 * the dictionary - the registry stands for it by the absence of a tuple id - so both the empty tuple and a tuple no
+	 * registered partition holds answer {@link VirtualReferencePartitionIndex#NO_TUPLE_ID}; the caller tells them apart
+	 * by the length of the tuple.
+	 *
+	 * @param registry the registry of single-owner partitions
+	 * @param tuple    the representative attribute values
+	 * @return the tuple id, or {@link VirtualReferencePartitionIndex#NO_TUPLE_ID}
+	 */
+	private static int tupleIdOf(@Nonnull VirtualReferencePartitionIndex registry, @Nonnull Serializable[] tuple) {
+		return tuple.length == 0 ? VirtualReferencePartitionIndex.NO_TUPLE_ID : registry.getTupleId(tuple);
+	}
+
+	/**
 	 * Reads the registry row of one member of a target's family - a primary key the type index lists for the target -
 	 * and checks that the row names that target.
 	 *
@@ -1138,9 +1146,7 @@ public final class ReferencePartitions {
 			return null;
 		}
 		final Serializable[] tuple = representativeReferenceKey.representativeAttributeValues();
-		// the empty tuple is never in the dictionary - the registry stands for it by the absence of a tuple id
-		final int tupleId = tuple.length == 0 ?
-			VirtualReferencePartitionIndex.NO_TUPLE_ID : registry.getTupleId(tuple);
+		final int tupleId = tupleIdOf(registry, tuple);
 		if (tuple.length > 0 && tupleId == VirtualReferencePartitionIndex.NO_TUPLE_ID) {
 			// no registered partition holds the tuple
 			return null;
@@ -1174,14 +1180,7 @@ public final class ReferencePartitions {
 		int partitionPrimaryKey
 	) {
 		final OptionalLong row = typeIndex.getVirtualReferencePartitionIndex().getPartitionOwner(partitionPrimaryKey);
-		if (row.isEmpty()) {
-			return null;
-		}
-		final long ownerAndTarget = row.getAsLong();
-		return toUncountedPartition(
-			typeIndex, partitionPrimaryKey, NumberUtils.unpackHigh(ownerAndTarget),
-			readRepresentativeReferenceKey(typeIndex, partitionPrimaryKey, ownerAndTarget)
-		);
+		return row.isEmpty() ? null : toUncountedPartition(typeIndex, partitionPrimaryKey, row.getAsLong());
 	}
 
 	/**
@@ -1206,6 +1205,29 @@ public final class ReferencePartitions {
 		@Nonnull RepresentativeReferenceKey representativeReferenceKey
 	) {
 		return toUncountedPartition(typeIndex, partitionPrimaryKey, ownerPrimaryKey, representativeReferenceKey);
+	}
+
+	/**
+	 * Builds the handle of a registered partition an owner read or a write answers from its registry row - the
+	 * representative attribute values are read from the registry's tuple dictionary, see
+	 * {@link #toVirtualPartition(ReferencedTypeEntityIndex, int, long)}. Unlike the handles of the read resolvers it is
+	 * not counted as resolved by a query.
+	 *
+	 * @param typeIndex           the referenced-type entity index whose registry holds the row
+	 * @param partitionPrimaryKey the primary key of the partition
+	 * @param ownerAndTarget      the row, `pack(ownerPrimaryKey, targetPrimaryKey)`
+	 * @return the virtual partition
+	 */
+	@Nonnull
+	private static VirtualReferencePartition toUncountedPartition(
+		@Nonnull ReferencedTypeEntityIndex typeIndex,
+		int partitionPrimaryKey,
+		long ownerAndTarget
+	) {
+		return toUncountedPartition(
+			typeIndex, partitionPrimaryKey, NumberUtils.unpackHigh(ownerAndTarget),
+			readRepresentativeReferenceKey(typeIndex, partitionPrimaryKey, ownerAndTarget)
+		);
 	}
 
 	/**

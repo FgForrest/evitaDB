@@ -5506,7 +5506,8 @@ public class DefaultCatalogPersistenceService
 	 * ({@link PersistenceService#STORAGE_PROTOCOL_VERSION}) to the virtual one
 	 * ({@link PersistenceService#VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION}) - see
 	 * {@link VirtualReferencePartitionConversion}. A catalog already representing them virtually is left exactly as it
-	 * is: nothing of it is read or written. The conversion is not part of the load path yet; it runs on a service that
+	 * is: only its catalog header is read, to tell its representation, and no collection data store is opened, read or
+	 * written. The conversion is not part of the load path yet; it runs on a service that
 	 * opened the catalog without the engine and has not opened any collection data store, which must not be used for
 	 * anything else afterwards.
 	 *

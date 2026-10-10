@@ -1106,10 +1106,10 @@ public final class ContainerizedLocalMutationExecutor
 	 * returns a cached entity storage part or fetches it from the data store if it's not cached.
 	 * Additionally, it validates the existence of the entity based on the expectation provided.
 	 *
-	 * When the requested `entityType` differs from the entity type being mutated by this executor,
-	 * the method delegates to the cross-entity data store reader, without caching the part in this executor. This
-	 * enables expression evaluation proxies to transparently read storage parts from referenced or group
-	 * entity collections.
+	 * When the requested entity is another one than the entity mutated by this executor - of another type, or of the
+	 * same type under another primary key - the part is not cached in this executor, and an entity of another type is
+	 * read through the cross-entity data store reader. This enables expression evaluation proxies to transparently read
+	 * storage parts from referenced or group entity collections.
 	 *
 	 * Every read of another entity - of any type, this method and its siblings alike - first asks the
 	 * {@link InFlightEntityAccessorLookup} whether that entity is mutated within the same root mutation. If it is,

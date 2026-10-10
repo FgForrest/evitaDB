@@ -313,7 +313,82 @@ final class VirtualReferencePartitionConversion {
 		);
 		final List<String> leftovers = new ArrayList<>(0);
 
-		// classify every stored entity index by its key - only the manifest is read
+		final IndexClassification classification = classifyIndexes(
+			catalogVersion, collectionHeader, storage, entitySchema
+		);
+		for (final Entry<ReferenceInScope, int[]> reference : classification.notShadowed().entrySet()) {
+			leftovers.add(
+				reference.getKey() + ": " + reference.getValue()[0] + " partition(s) of a reference the schema does " +
+					"not index for filtering with the referenced entity in the scope"
+			);
+		}
+
+		// convert the partitions of one referenced-type entity index at a time
+		int converted = 0;
+		int shared = 0;
+		int discardedRows = 0;
+		for (final Entry<ReferenceInScope, Integer> typeIndex : classification.typeIndexes().entrySet()) {
+			final ReferenceInScope reference = typeIndex.getKey();
+			final int typeIndexPrimaryKey = typeIndex.getValue();
+			final VirtualReferencePartitionIndex registry = VirtualReferencePartitionLoader.loadIndex(
+				storage, catalogVersion, typeIndexPrimaryKey, reference.referenceName()
+			);
+			writer.heldRegistries++;
+			observer.registryLoaded(entityType, reference.referenceName(), reference.scope());
+			// rows kept next to objects are never trusted - every partition gets its row from its object below
+			discardedRows += VirtualReferencePartitionWriter.discardAllRows(registry);
+			final CompositeIntArray partitions = classification.candidates().remove(reference);
+			if (partitions != null) {
+				final PartitionCounts counts = convertPartitions(
+					catalogVersion, entityType, collectionService, entitySchema, observer, writer,
+					entitySchema.getReferenceOrThrowException(reference.referenceName()), registry, partitions
+				);
+				converted += counts.converted();
+				shared += counts.shared();
+				if (counts.ownerless() > 0) {
+					leftovers.add(reference + ": " + counts.ownerless() + " partition(s) without an owner");
+				}
+			}
+			final TrappedChanges registryParts = new TrappedChanges();
+			registry.appendStorageParts(typeIndexPrimaryKey, reference.referenceName(), registryParts);
+			writer.write(registryParts);
+			observer.checkpoint(writer.checkpoint(entityType));
+			writer.heldRegistries--;
+		}
+		for (final Entry<ReferenceInScope, CompositeIntArray> reference : classification.candidates().entrySet()) {
+			leftovers.add(
+				reference.getKey() + ": " + reference.getValue().getSize() + " partition(s) without a " +
+					"referenced-type entity index to carry their rows"
+			);
+		}
+
+		final boolean changed = writer.finish();
+		return new CollectionConversion(
+			entityType, changed, converted, shared, classification.partitioned(), discardedRows,
+			writer.intermediateFlushes, leftovers
+		);
+	}
+
+	/**
+	 * Classifies every entity index the collection header lists by its key - only the manifest of each is read: the
+	 * referenced-type entity indexes carrying the registries, the partitions to convert by the reference they belong
+	 * to, the partitions of references indexed for partitioning, which stay index objects by design, and the
+	 * partitions of the other references, which stay index objects although their kind is not kept.
+	 *
+	 * @param catalogVersion   the catalog version being converted
+	 * @param collectionHeader the collection header as published
+	 * @param storage          the storage part service of the collection data store
+	 * @param entitySchema     the schema of the collection, its reflected references bound
+	 * @return the classification
+	 * @throws GenericEvitaInternalError when the manifest of a listed entity index is missing
+	 */
+	@Nonnull
+	private static IndexClassification classifyIndexes(
+		long catalogVersion,
+		@Nonnull EntityCollectionFileHeader collectionHeader,
+		@Nonnull OffsetIndexStoragePartPersistenceService storage,
+		@Nonnull EntitySchema entitySchema
+	) {
 		final SortedMap<ReferenceInScope, Integer> typeIndexes = new TreeMap<>(ReferenceInScope.ORDER);
 		final Map<ReferenceInScope, CompositeIntArray> candidates = CollectionUtils.createHashMap(8);
 		final SortedMap<ReferenceInScope, int[]> notShadowed = new TreeMap<>(ReferenceInScope.ORDER);
@@ -324,8 +399,8 @@ final class VirtualReferencePartitionConversion {
 			);
 			if (manifest == null) {
 				throw new GenericEvitaInternalError(
-					"Entity index storage part for primary key " + indexPrimaryKey + " of collection `" + entityType +
-						"` is missing!"
+					"Entity index storage part for primary key " + indexPrimaryKey + " of collection `" +
+						collectionHeader.entityType() + "` is missing!"
 				);
 			}
 			final EntityIndexKey indexKey = manifest.getEntityIndexKey();
@@ -345,84 +420,73 @@ final class VirtualReferencePartitionConversion {
 				}
 			}
 		}
-		for (final Entry<ReferenceInScope, int[]> reference : notShadowed.entrySet()) {
-			leftovers.add(
-				reference.getKey() + ": " + reference.getValue()[0] + " partition(s) of a reference the schema does " +
-					"not index for filtering with the referenced entity in the scope"
-			);
-		}
+		return new IndexClassification(typeIndexes, candidates, notShadowed, partitioned);
+	}
 
-		// convert the partitions of one referenced-type entity index at a time
+	/**
+	 * Converts the partitions of one reference in one scope: reads each of them, demotes one with a single owner into
+	 * a row of the registry and removes its index object, and keeps one with several owners - or none - as it is. The
+	 * observer is given a checkpoint after every partition, while the partition is still held.
+	 *
+	 * @param catalogVersion    the catalog version being converted
+	 * @param entityType        the entity type of the collection
+	 * @param collectionService the data store of the collection
+	 * @param entitySchema      the schema of the collection, its reflected references bound
+	 * @param observer          observes the conversion
+	 * @param writer            writes into the data store of the collection
+	 * @param referenceSchema   the reference the partitions belong to
+	 * @param registry          the registry of the reference in the scope, receiving the rows
+	 * @param partitions        the primary keys of the partitions
+	 * @return how many partitions were converted, kept as shared, and found without an owner
+	 * @throws GenericEvitaInternalError when a listed partition does not load as a partition
+	 */
+	@Nonnull
+	private static PartitionCounts convertPartitions(
+		long catalogVersion,
+		@Nonnull String entityType,
+		@Nonnull DefaultEntityCollectionPersistenceService collectionService,
+		@Nonnull EntitySchema entitySchema,
+		@Nonnull Observer observer,
+		@Nonnull CollectionWriter writer,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull VirtualReferencePartitionIndex registry,
+		@Nonnull CompositeIntArray partitions
+	) {
 		int converted = 0;
 		int shared = 0;
-		int discardedRows = 0;
-		for (final Entry<ReferenceInScope, Integer> typeIndex : typeIndexes.entrySet()) {
-			final ReferenceInScope reference = typeIndex.getKey();
-			final int typeIndexPrimaryKey = typeIndex.getValue();
-			final VirtualReferencePartitionIndex registry = VirtualReferencePartitionLoader.loadIndex(
-				storage, catalogVersion, typeIndexPrimaryKey, reference.referenceName()
+		int ownerless = 0;
+		final OfInt it = partitions.iterator();
+		while (it.hasNext()) {
+			final int partitionPrimaryKey = it.nextInt();
+			final EntityIndex index = collectionService.readEntityIndex(
+				catalogVersion, partitionPrimaryKey, entitySchema, false
 			);
-			writer.heldRegistries++;
-			observer.registryLoaded(entityType, reference.referenceName(), reference.scope());
-			// rows kept next to objects are never trusted - every partition gets its row from its object below
-			discardedRows += VirtualReferencePartitionWriter.discardAllRows(registry);
-			final CompositeIntArray partitions = candidates.remove(reference);
-			if (partitions != null) {
-				final ReferenceSchemaContract referenceSchema =
-					entitySchema.getReferenceOrThrowException(reference.referenceName());
-				int ownerless = 0;
-				final OfInt it = partitions.iterator();
-				while (it.hasNext()) {
-					final int partitionPrimaryKey = it.nextInt();
-					final EntityIndex index = collectionService.readEntityIndex(
-						catalogVersion, partitionPrimaryKey, entitySchema, false
-					);
-					writer.heldPartitions++;
-					observer.partitionRead(entityType, partitionPrimaryKey);
-					final ReferencePartition partition = ReferencePartitions.asPartition(index);
-					if (partition == null) {
-						throw new GenericEvitaInternalError(
-							"Entity index " + partitionPrimaryKey + " of collection `" + entityType + "` is listed " +
-								"as a partition, but loads as `" + index.getClass().getName() + "`!"
-						);
-					}
-					final int owners = partition.size();
-					if (owners == 1) {
-						VirtualReferencePartitionWriter.demoteToRow(
-							registry, entitySchema, referenceSchema, partition, index
-						);
-						writer.removeIndex(index);
-						converted++;
-					} else if (owners > 1) {
-						shared++;
-					} else {
-						ownerless++;
-					}
-					// the checkpoint comes while the partition is still held - the peak the observer measures
-					observer.checkpoint(writer.checkpoint(entityType));
-					writer.heldPartitions--;
-				}
-				if (ownerless > 0) {
-					leftovers.add(reference + ": " + ownerless + " partition(s) without an owner");
-				}
+			writer.heldPartitions++;
+			observer.partitionRead(entityType, partitionPrimaryKey);
+			final ReferencePartition partition = ReferencePartitions.asPartition(index);
+			if (partition == null) {
+				throw new GenericEvitaInternalError(
+					"Entity index " + partitionPrimaryKey + " of collection `" + entityType + "` is listed " +
+						"as a partition, but loads as `" + index.getClass().getName() + "`!"
+				);
 			}
-			final TrappedChanges registryParts = new TrappedChanges();
-			registry.appendStorageParts(typeIndexPrimaryKey, reference.referenceName(), registryParts);
-			writer.write(registryParts);
+			final int owners = partition.size();
+			if (owners == 1) {
+				VirtualReferencePartitionWriter.demoteToRow(
+					registry, entitySchema, referenceSchema, partition, index
+				);
+				writer.removeIndex(index);
+				converted++;
+			} else if (owners > 1) {
+				shared++;
+			} else {
+				ownerless++;
+			}
+			// the checkpoint comes while the partition is still held - the peak the observer measures
 			observer.checkpoint(writer.checkpoint(entityType));
-			writer.heldRegistries--;
+			writer.heldPartitions--;
 		}
-		for (final Entry<ReferenceInScope, CompositeIntArray> reference : candidates.entrySet()) {
-			leftovers.add(
-				reference.getKey() + ": " + reference.getValue().getSize() + " partition(s) without a " +
-					"referenced-type entity index to carry their rows"
-			);
-		}
-
-		final boolean changed = writer.finish();
-		return new CollectionConversion(
-			entityType, changed, converted, shared, partitioned, discardedRows, writer.intermediateFlushes, leftovers
-		);
+		return new PartitionCounts(converted, shared, ownerless);
 	}
 
 	/**
@@ -631,6 +695,32 @@ final class VirtualReferencePartitionConversion {
 		public String toString() {
 			return "`" + this.referenceName + "` in " + this.scope;
 		}
+	}
+
+	/**
+	 * The entity indexes of one collection classified by their key - see `classifyIndexes`.
+	 *
+	 * @param typeIndexes the primary keys of the referenced-type entity indexes, in the order of their references
+	 * @param candidates  the primary keys of the partitions to convert, by the reference they belong to
+	 * @param notShadowed how many partitions of a reference whose kind is not kept each reference has, in one slot
+	 * @param partitioned how many partitions belong to references indexed for partitioning
+	 */
+	private record IndexClassification(
+		@Nonnull SortedMap<ReferenceInScope, Integer> typeIndexes,
+		@Nonnull Map<ReferenceInScope, CompositeIntArray> candidates,
+		@Nonnull SortedMap<ReferenceInScope, int[]> notShadowed,
+		int partitioned
+	) {
+	}
+
+	/**
+	 * What the conversion did with the partitions of one reference in one scope - see `convertPartitions`.
+	 *
+	 * @param converted the single-owner partitions converted into registry rows
+	 * @param shared    the partitions with several owners kept as index objects
+	 * @param ownerless the partitions without an owner kept as index objects
+	 */
+	private record PartitionCounts(int converted, int shared, int ownerless) {
 	}
 
 	/**

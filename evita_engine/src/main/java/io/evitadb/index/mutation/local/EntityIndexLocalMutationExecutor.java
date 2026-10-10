@@ -109,7 +109,6 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodySt
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.spi.store.catalog.shared.model.PriceWithInternalIds;
-import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.Functions;
@@ -2030,13 +2029,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			}
 			return partition;
 		}
-		final VirtualReferencePartition rowOfFormerIndexing = findRowOfFormerIndexing(
-			scope, representativeReferenceKey
-		);
-		if (rowOfFormerIndexing != null) {
-			return releaseRowOfFormerIndexing(rowOfFormerIndexing, writeKind);
-		}
-		return createPartitionObjectIfMissing(scope, representativeReferenceKey);
+		return getPartitionNotWrittenVirtually(scope, representativeReferenceKey, writeKind);
 	}
 
 	/**
@@ -2092,6 +2085,29 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			}
 			return mintPartitionWrittenVirtually(scope, representativeReferenceKey, writeSite);
 		}
+		return getPartitionNotWrittenVirtually(scope, representativeReferenceKey, writeKind);
+	}
+
+	/**
+	 * Returns the partition of the representative reference key in the scope for a mutation that does not write the
+	 * single-owner partitions of the reference virtually: the row the reference left for it while it was indexed for
+	 * filtering only, decided as {@link #releaseRowOfFormerIndexing} decides it, when there is one, and the index
+	 * object of the partition, created when the collection holds none yet, otherwise.
+	 *
+	 * @param scope                      the scope of the partition
+	 * @param representativeReferenceKey the representative reference key of the partition
+	 * @param writeKind                  whether the write may put content into the partition or only takes content
+	 *                                   out of it
+	 * @return the row of the former indexing, or the existing or newly created index object
+	 * @throws ReferencePartitionReindexRequiredException when the partition is a row of the former indexing of the
+	 *                                                    reference and the write may put content into it
+	 */
+	@Nonnull
+	private ReferencePartition getPartitionNotWrittenVirtually(
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey,
+		@Nonnull PartitionWriteKind writeKind
+	) {
 		final VirtualReferencePartition rowOfFormerIndexing = findRowOfFormerIndexing(
 			scope, representativeReferenceKey
 		);
@@ -2544,10 +2560,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			return new ReferencePartition[]{
 				createPartitionObjectIfMissing(
 					scope,
-					new RepresentativeReferenceKey(
-						new ReferenceKey(referenceSchema.getName(), targetPrimaryKey),
-						ArrayUtils.EMPTY_SERIALIZABLE_ARRAY
-					)
+					new RepresentativeReferenceKey(new ReferenceKey(referenceSchema.getName(), targetPrimaryKey))
 				)
 			};
 		}
@@ -2581,9 +2594,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		if (!referenceSchema.getCardinality().allowsDuplicates()) {
 			final ReferencePartition partition = findPartitionWrittenVirtually(
 				scope,
-				new RepresentativeReferenceKey(
-					new ReferenceKey(referenceName, targetPrimaryKey), ArrayUtils.EMPTY_SERIALIZABLE_ARRAY
-				)
+				new RepresentativeReferenceKey(new ReferenceKey(referenceName, targetPrimaryKey))
 			);
 			return partition == null ?
 				ReferencePartitions.EMPTY_PARTITIONS : new ReferencePartition[]{partition};

@@ -1126,7 +1126,7 @@ public final class DifferentialEngines implements AutoCloseable {
 	 * @param source tree to copy from
 	 * @param target tree to copy into
 	 */
-	private static void copyRecursively(@Nonnull Path source, @Nonnull Path target) {
+	public static void copyRecursively(@Nonnull Path source, @Nonnull Path target) {
 		try {
 			final List<Path> entries;
 			try (final Stream<Path> tree = Files.walk(source)) {

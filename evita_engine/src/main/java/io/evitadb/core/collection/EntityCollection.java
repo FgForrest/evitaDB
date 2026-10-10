@@ -4825,27 +4825,22 @@ public final class EntityCollection implements
 			final int lastAssignedPrimaryKey = EntityCollection.this.indexPkSequence.get();
 			Assert.isPremiseValid(
 				primaryKey > 0 && primaryKey <= lastAssignedPrimaryKey,
-				() -> new GenericEvitaInternalError(
-					"Entity index `" + entityIndexKey + "` cannot be installed under primary key " + primaryKey +
-						" in collection `" + getEntityType() + "` - the index sequence has handed out primary keys " +
-						"up to " + lastAssignedPrimaryKey + " only!"
+				() -> installRefusal(
+					entityIndexKey, primaryKey,
+					"the index sequence has handed out primary keys up to " + lastAssignedPrimaryKey + " only!"
 				)
 			);
 			Assert.isPremiseValid(
 				EntityCollection.this.getIndexByKeyIfExists(entityIndexKey) == null,
-				() -> new GenericEvitaInternalError(
-					"Entity index `" + entityIndexKey + "` cannot be installed under primary key " + primaryKey +
-						" in collection `" + getEntityType() + "` - an index is already registered under its key!"
-				)
+				() -> installRefusal(entityIndexKey, primaryKey, "an index is already registered under its key!")
 			);
 			final EntityIndex indexUnderPrimaryKey = EntityCollection.this.getIndexByPrimaryKeyIfExists(primaryKey);
 			Assert.isPremiseValid(
 				indexUnderPrimaryKey == null,
-				() -> new GenericEvitaInternalError(
-					"Entity index `" + entityIndexKey + "` cannot be installed under primary key " + primaryKey +
-						" in collection `" + getEntityType() + "` - index `" +
-						Objects.requireNonNull(indexUnderPrimaryKey).getIndexKey() + "` is already registered under " +
-						"that primary key!"
+				() -> installRefusal(
+					entityIndexKey, primaryKey,
+					"index `" + Objects.requireNonNull(indexUnderPrimaryKey).getIndexKey() + "` is already registered " +
+						"under that primary key!"
 				)
 			);
 			return EntityCollection.this.dataStoreBuffer.getOrCreateIndexForModification(
@@ -4854,10 +4849,10 @@ public final class EntityCollection implements
 					final EntityIndex entityIndex = factory.apply(primaryKey);
 					Assert.isPremiseValid(
 						entityIndex.getPrimaryKey() == primaryKey && eik.equals(entityIndex.getIndexKey()),
-						() -> new GenericEvitaInternalError(
-							"Entity index `" + eik + "` cannot be installed under primary key " + primaryKey +
-								" in collection `" + getEntityType() + "` - the factory created index `" +
-								entityIndex.getIndexKey() + "` with primary key " + entityIndex.getPrimaryKey() + "!"
+						() -> installRefusal(
+							eik, primaryKey,
+							"the factory created index `" + entityIndex.getIndexKey() + "` with primary key " +
+								entityIndex.getPrimaryKey() + "!"
 						)
 					);
 					// both absences were verified above, so these puts register the index rather than replace one
@@ -4869,6 +4864,27 @@ public final class EntityCollection implements
 					}
 					return entityIndex;
 				}
+			);
+		}
+
+		/**
+		 * Creates the error refusing to install an index - see {@link #installIndex}. Called only when the
+		 * installation is refused, so the valid path builds no message.
+		 *
+		 * @param entityIndexKey the key of the index being installed
+		 * @param primaryKey     the primary key the index was to be installed under
+		 * @param reason         why it cannot be installed, completing the message
+		 * @return the error to throw
+		 */
+		@Nonnull
+		private GenericEvitaInternalError installRefusal(
+			@Nonnull EntityIndexKey entityIndexKey,
+			int primaryKey,
+			@Nonnull String reason
+		) {
+			return new GenericEvitaInternalError(
+				"Entity index `" + entityIndexKey + "` cannot be installed under primary key " + primaryKey +
+					" in collection `" + getEntityType() + "` - " + reason
 			);
 		}
 
