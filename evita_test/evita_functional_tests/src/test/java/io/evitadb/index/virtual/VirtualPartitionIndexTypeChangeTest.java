@@ -178,6 +178,16 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 	 */
 	private static final String FACETED_WHEN =
 		"($entity.attributes['visible'] ?? false) == true || ($entity.attributes['pinned'] ?? false) == true";
+	/**
+	 * A reference to a category indexed for filtering in both scopes, faceted only while {@link #SHOWN_WHEN} holds -
+	 * added by the test that needs a facet re-evaluated by a change of another entity, so the fixture of the other
+	 * tests stays as it is.
+	 */
+	private static final String REFERENCE_LABELS = "labels";
+	/**
+	 * The expression {@link #REFERENCE_LABELS} is faceted by - a referenced category titled `SHOWN`.
+	 */
+	private static final String SHOWN_WHEN = "($reference.referencedEntity.attributes['title'] ?? '') == 'SHOWN'";
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_NAME = "name";
 	private static final String ATTRIBUTE_TITLE = "title";
@@ -347,6 +357,51 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 			updateProduct(other, it -> it.removeAttribute(ATTRIBUTE_PINNED))
 		);
 		assertEquals(otherPartition, assertRow(theEvita, ENTITY_PRODUCT, changedScope, category(other), other));
+	}
+
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("a facet re-evaluation caused by another entity passes a row of the former indexing over unless a facet would enter it")
+	void shouldRefuseCrossEntityFacetReEvaluationOnlyWhenAFacetWouldEnterARowOfTheFormerIndexing(CatalogState state) {
+		final Evita theEvita = start(
+			"crossEntityFacetReEvaluation", state, false,
+			session -> session.defineEntitySchema(ENTITY_PRODUCT)
+				.withReferenceToEntity(
+					REFERENCE_LABELS, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
+					whichIs -> whichIs
+						.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
+						.facetedInScope(Scope.LIVE, Scope.ARCHIVED)
+						.facetedPartiallyInScope(Scope.LIVE, ExpressionFactory.parse(SHOWN_WHEN))
+						.facetedPartiallyInScope(Scope.ARCHIVED, ExpressionFactory.parse(SHOWN_WHEN))
+				)
+				.updateVia(session)
+		);
+		final int owner = ownerIn(Scope.LIVE);
+		update(theEvita, updateProduct(owner, it -> it.setReference(REFERENCE_LABELS, FREE_CATEGORY)));
+		final int categoryPartition = assertRow(theEvita, ENTITY_PRODUCT, Scope.LIVE, category(owner), owner);
+		final int labelPartition = assertRow(theEvita, ENTITY_PRODUCT, Scope.LIVE, label(FREE_CATEGORY), owner);
+
+		// the category is a partition of another reference of the owner the label's facet belongs into
+		changeIndexType(theEvita, ENTITY_PRODUCT, REFERENCE_CATEGORIES, Scope.LIVE, true);
+		update(theEvita, retitleCategory(FREE_CATEGORY, "HIDDEN"));
+		assertEquals(categoryPartition, assertRow(theEvita, ENTITY_PRODUCT, Scope.LIVE, category(owner), owner));
+		assertRefused(
+			theEvita, ENTITY_PRODUCT, REFERENCE_CATEGORIES, Scope.LIVE,
+			"the retitled category puts the facet of the label into the row of the category partition",
+			retitleCategory(FREE_CATEGORY, "SHOWN")
+		);
+		assertEquals(categoryPartition, assertRow(theEvita, ENTITY_PRODUCT, Scope.LIVE, category(owner), owner));
+
+		// the label partition itself is the row the facet of the label belongs into
+		changeIndexType(theEvita, ENTITY_PRODUCT, REFERENCE_LABELS, Scope.LIVE, true);
+		update(theEvita, retitleCategory(FREE_CATEGORY, "STILL HIDDEN"));
+		assertEquals(labelPartition, assertRow(theEvita, ENTITY_PRODUCT, Scope.LIVE, label(FREE_CATEGORY), owner));
+		assertRefused(
+			theEvita, ENTITY_PRODUCT, REFERENCE_LABELS, Scope.LIVE,
+			"the retitled category puts the facet of the label into the row of the label partition",
+			retitleCategory(FREE_CATEGORY, "SHOWN")
+		);
+		assertEquals(labelPartition, assertRow(theEvita, ENTITY_PRODUCT, Scope.LIVE, label(FREE_CATEGORY), owner));
 	}
 
 	@ParameterizedTest(name = "{0}, {1}")
@@ -781,6 +836,26 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private Evita start(@Nonnull String label, @Nonnull CatalogState state, boolean partitioning) {
+		return start(label, state, partitioning, session -> {});
+	}
+
+	/**
+	 * Starts an engine as {@link #start(String, CatalogState, boolean)} does, extending the fixture with a write applied
+	 * right after it, while the catalog is still warming up.
+	 *
+	 * @param label        a label naming the engine's directories
+	 * @param state        the catalog state the engine should end in
+	 * @param partitioning TRUE to index the source reference for partitioning
+	 * @param extension    the write extending the fixture
+	 * @return the engine
+	 */
+	@Nonnull
+	private Evita start(
+		@Nonnull String label,
+		@Nonnull CatalogState state,
+		boolean partitioning,
+		@Nonnull Consumer<EvitaSessionContract> extension
+	) {
 		final TestPaths thePaths = createTestPaths(getClass().getSimpleName() + "_" + label);
 		this.paths = thePaths;
 		final Evita theEvita = new Evita(configuration(thePaths));
@@ -788,6 +863,7 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 		theEvita.createCatalogWithVirtualReferencePartitions(CATALOG, true);
 		theEvita.defineCatalog(CATALOG).updateViaNewSession(theEvita);
 		update(theEvita, session -> setUp(session, partitioning));
+		update(theEvita, extension);
 		if (state == CatalogState.ALIVE) {
 			theEvita.updateCatalog(CATALOG, EvitaSessionContract::goLiveAndClose);
 		}
@@ -1239,6 +1315,22 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Creates a write changing the title of a category.
+	 *
+	 * @param primaryKey the category primary key
+	 * @param title      the new title
+	 * @return the write
+	 */
+	@Nonnull
+	private static Consumer<EvitaSessionContract> retitleCategory(int primaryKey, @Nonnull String title) {
+		return session -> session.getEntity(ENTITY_CATEGORY, primaryKey, entityFetchAllContent())
+			.orElseThrow()
+			.openForWrite()
+			.setAttribute(ATTRIBUTE_TITLE, title)
+			.upsertVia(session);
+	}
+
+	/**
 	 * Creates a write moving a product to a scope.
 	 *
 	 * @param scope      the scope to move to
@@ -1571,6 +1663,17 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 	@Nonnull
 	private static RepresentativeReferenceKey category(int category) {
 		return new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_CATEGORIES, category));
+	}
+
+	/**
+	 * Creates the key of a label partition of the product.
+	 *
+	 * @param category the labelling category
+	 * @return the key
+	 */
+	@Nonnull
+	private static RepresentativeReferenceKey label(int category) {
+		return new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_LABELS, category));
 	}
 
 	/**
