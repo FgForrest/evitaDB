@@ -583,6 +583,23 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 
 	/**
 	 * The memory the conversion holds while it runs.
+	 *
+	 * What the case bounds:
+	 *
+	 * - the partition index objects and the registries the conversion loads: each one is weakly referenced and, after
+	 *   a garbage collection, at most one of each may still be reachable - whoever keeps it, the conversion, the data
+	 *   store or anything they hand it to;
+	 * - the records a collection data store holds unflushed, measured by the data store itself.
+	 *
+	 * What it does not bound:
+	 *
+	 * - the storage parts decoded on the way to an index object or a registry once they are detached from it - a part
+	 *   retained on its own would go unseen. Nothing retains one today: every read deserializes a fresh part, and what
+	 *   the data store holds between flushes are the records written since the last one, which the second bound
+	 *   counts. A component that starts keeping decoded reads must bound its own memory;
+	 * - retention shorter than the probe interval: reachability is sampled once per
+	 *   {@link RecordingObserver#PROBE_EVERY} checkpoints, so it is not the peak of the heap;
+	 * - the peak heap and the duration of the conversion, which depend on the catalog and are not measured here.
 	 */
 	@Nested
 	@DisplayName("The conversion holds one partition, one registry and a bounded number of unflushed records")
