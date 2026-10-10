@@ -1494,20 +1494,24 @@ public interface ReferenceIndexMutator {
 		// partition holds after the removal, `null` when the entity was not one of them
 		final Bitmap ownersAfterRemoval = switch (partition) {
 			case ReducedEntityIndex referenceIndex -> {
-				final boolean removed = referenceIndex.removePrimaryKey(entityPrimaryKey);
-				if (removed) {
-					removeAllExistingData(
-						executor, referenceIndex,
-						entitySchema, referenceSchema,
-						referenceKey,
-						entityPrimaryKey,
-						true,
-						existingDataSupplierFactory
-					);
-					// the owner's data is gone from the partition, the registry follows the owner count
-					ownerRemovedFromPartition(executor, referenceSchema, referenceTypeIndex, referenceIndex);
+				if (!referenceIndex.removePrimaryKey(entityPrimaryKey)) {
+					yield null;
 				}
-				yield removed ? referenceIndex.getAllPrimaryKeys() : null;
+				removeAllExistingData(
+					executor, referenceIndex,
+					entitySchema, referenceSchema,
+					referenceKey,
+					entityPrimaryKey,
+					true,
+					existingDataSupplierFactory
+				);
+				// read before the registry follows: an emptied index object is retired there, and within a transaction
+				// the retirement discards the layer of its owners, so a read after it would see the committed owners
+				final Bitmap remainingOwners = referenceIndex.getAllPrimaryKeys();
+				final Bitmap ownersLeft = remainingOwners.isEmpty() ? EmptyBitmap.INSTANCE : remainingOwners;
+				// the owner's data is gone from the partition, the registry follows the owner count
+				ownerRemovedFromPartition(executor, referenceSchema, referenceTypeIndex, referenceIndex);
+				yield ownersLeft;
 			}
 			// TODO JNO - remove at the end of #1615 (the arm stays, `requireWrittenVirtually` loses its condition)
 			case VirtualReferencePartition virtual -> {

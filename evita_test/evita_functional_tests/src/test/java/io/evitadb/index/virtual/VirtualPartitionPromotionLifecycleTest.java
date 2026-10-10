@@ -47,6 +47,8 @@ import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.index.virtual.TransitionHistory.Transition;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -86,6 +88,7 @@ import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -304,6 +307,42 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 		theEngines.restart();
 		assertRegisteredUnder(theEngines, ENTITY_PRODUCT, category(2), 1, partition);
 		assertPromoted(theEngines, ENTITY_CATEGORY, Scope.LIVE, product(1), 1, 2);
+	}
+
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("a shared partition both owners leave in one root mutation leaves the reduced-index membership too")
+	void shouldDropAPartitionBothOwnersLeaveInOneRootMutationFromTheMembership(CatalogState state) {
+		final DifferentialEngines theEngines = start("bothOwnersLeave", state);
+		theEngines.step("product 1 joins category 3", joinCategory(1, 3));
+		final int partition = assertPromoted(theEngines, ENTITY_PRODUCT, Scope.LIVE, category(3), 1, 3);
+		assertCovered(theEngines.getMaintaining(), partition, true, "the shared partition before both owners leave");
+		final int committedBefore = theEngines.getMaintainingHistory().getCommitted().size();
+
+		// the reflected removals: product 1 leaves the shared partition (2 -> 1), product 3 leaves it empty (1 -> 0),
+		// which retires its index object while the root mutation still runs - and nothing enters it again
+		theEngines.step(
+			"category 3 stops listing products 1 and 3 in one root mutation",
+			session -> session.upsertEntity(
+				new EntityUpsertMutation(
+					ENTITY_CATEGORY, 3, EntityExistence.MUST_EXIST,
+					new RemoveReferenceMutation(new ReferenceKey(REFERENCE_PRODUCTS, 1)),
+					new RemoveReferenceMutation(new ReferenceKey(REFERENCE_PRODUCTS, 3))
+				)
+			)
+		);
+
+		assertTrue(
+			stagesOfPartitionSince(theEngines, committedBefore, ENTITY_PRODUCT, partition)
+				.contains(TransitionStage.VACATED),
+			"the root mutation must have emptied the partition"
+		);
+		assertNoRegisteredPartition(theEngines, ENTITY_PRODUCT, Scope.LIVE, category(3));
+		assertCovered(theEngines.getMaintaining(), partition, false, "the emptied partition");
+		assertCovered(theEngines.getReference(), partition, false, "the emptied partition of the twin");
+
+		theEngines.restart();
+		assertCovered(theEngines.getMaintaining(), partition, false, "the emptied partition after a reload");
 	}
 
 	@ParameterizedTest(name = "{0}")
@@ -935,6 +974,35 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 		return collection == null ?
 			null :
 			collection.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, key));
+	}
+
+	/**
+	 * Asserts whether the reduced-index membership of the product's category reference in the live scope of the
+	 * committed catalog of an engine covers a partition.
+	 *
+	 * @param evita               the engine
+	 * @param partitionPrimaryKey the primary key of the partition
+	 * @param expected            TRUE when the membership must cover the partition
+	 * @param label               names the partition in the failure message
+	 */
+	private static void assertCovered(
+		@Nonnull Evita evita,
+		int partitionPrimaryKey,
+		boolean expected,
+		@Nonnull String label
+	) {
+		final EntityCollection collection = collectionOf(evita, ENTITY_PRODUCT);
+		assertNotNull(collection, label + ": the product collection must exist");
+		final EntityIndex globalIndex =
+			collection.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE));
+		final ReducedIndexMembership membership = assertInstanceOf(GlobalEntityIndex.class, globalIndex)
+			.getReducedIndexMembership(REFERENCE_CATEGORIES);
+		assertNotNull(membership, label + ": the category reference must have its membership lookup");
+		assertEquals(
+			expected, membership.getCoveredIndexPrimaryKeys().contains(partitionPrimaryKey),
+			label + " " + partitionPrimaryKey + (expected ? " must" : " must not") + " be covered by the membership, " +
+				"covered: " + membership.getCoveredIndexPrimaryKeys()
+		);
 	}
 
 	/**
