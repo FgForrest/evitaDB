@@ -334,7 +334,7 @@ final class VirtualReferencePartitionConversion {
 				storage, catalogVersion, typeIndexPrimaryKey, reference.referenceName()
 			);
 			writer.heldRegistries++;
-			observer.registryLoaded(entityType, reference.referenceName(), reference.scope());
+			observer.registryLoaded(entityType, reference.referenceName(), reference.scope(), registry);
 			// rows kept next to objects are never trusted - every partition gets its row from its object below
 			discardedRows += VirtualReferencePartitionWriter.discardAllRows(registry);
 			final CompositeIntArray partitions = classification.candidates().remove(reference);
@@ -462,7 +462,7 @@ final class VirtualReferencePartitionConversion {
 				catalogVersion, partitionPrimaryKey, entitySchema, false
 			);
 			writer.heldPartitions++;
-			observer.partitionRead(entityType, partitionPrimaryKey);
+			observer.partitionRead(entityType, partitionPrimaryKey, index);
 			final ReferencePartition partition = ReferencePartitions.asPartition(index);
 			if (partition == null) {
 				throw new GenericEvitaInternalError(
@@ -598,20 +598,33 @@ final class VirtualReferencePartitionConversion {
 		/**
 		 * The registry of a referenced-type entity index was loaded.
 		 *
+		 * An observer must not keep the registry reachable: whether the conversion releases it is exactly what an
+		 * observer may want to check, through a weak reference.
+		 *
 		 * @param entityType    the entity type of the collection
 		 * @param referenceName the reference of the registry
 		 * @param scope         the scope of the registry
+		 * @param registry      the registry, as loaded
 		 */
-		default void registryLoaded(@Nonnull String entityType, @Nonnull String referenceName, @Nonnull Scope scope) {
+		default void registryLoaded(
+			@Nonnull String entityType,
+			@Nonnull String referenceName,
+			@Nonnull Scope scope,
+			@Nonnull VirtualReferencePartitionIndex registry
+		) {
 		}
 
 		/**
 		 * The index object of a partition was loaded.
 		 *
+		 * An observer must not keep the index object reachable: whether the conversion releases it is exactly what an
+		 * observer may want to check, through a weak reference.
+		 *
 		 * @param entityType          the entity type of the collection
 		 * @param partitionPrimaryKey the primary key of the partition
+		 * @param partition           the index object of the partition, as loaded
 		 */
-		default void partitionRead(@Nonnull String entityType, int partitionPrimaryKey) {
+		default void partitionRead(@Nonnull String entityType, int partitionPrimaryKey, @Nonnull EntityIndex partition) {
 		}
 
 		/**
