@@ -69,7 +69,6 @@ import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -78,8 +77,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies how the index statistics report the single-owner partitions of a reference indexed for filtering only,
- * which a catalog representing them virtually holds as rows of the registry its reference type index carries rather
- * than as index objects.
+ * which a catalog holds as rows of the registry its reference type index carries rather than as index objects.
  *
  * Two claims are checked against each other. The rows are counted - by `virtualPartitionCount` of the reference type
  * index, and by nothing else - and they are *not* indexes: neither `omittedIndexCount`, nor the index summary, nor a
@@ -87,8 +85,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * that is right while the physical counts still include the rows would report the same partition twice.
  *
  * The fixture references five categories from seven products: three categories have one owner each (single-owner
- * partitions, rows in a virtual catalog) and two have two owners each (index objects in every catalog). Every
- * reference carries the same group, so the reference group indexes exist next to the reference ones.
+ * partitions, registry rows) and two have two owners each (index objects). Every reference carries the same group, so
+ * the reference group indexes exist next to the reference ones.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -151,7 +149,7 @@ class VirtualPartitionStatisticsTest implements EvitaTestSupport {
 
 		@BeforeEach
 		void buildVirtualCatalog() {
-			buildCatalog(true);
+			buildCatalog();
 			assertTrue(
 				catalog().getVirtualReferencePartitionMaintenance().isVirtual(),
 				"The catalog must represent its single-owner partitions virtually"
@@ -295,29 +293,6 @@ class VirtualPartitionStatisticsTest implements EvitaTestSupport {
 
 	}
 
-	@Nested
-	@DisplayName("A catalog holding its partitions as index objects")
-	class ObjectsCatalog {
-
-		@BeforeEach
-		void buildObjectsCatalog() {
-			buildCatalog(false);
-			assertFalse(
-				catalog().getVirtualReferencePartitionMaintenance().isVirtual(),
-				"The catalog must represent its single-owner partitions as index objects"
-			);
-		}
-
-		@Test
-		@DisplayName("No partition is reported as a row, and every partition is an index")
-		void shouldReportNoRowAndEveryPartitionAsAnIndex() {
-			// zero rather than absent: the reference type index is where the count lives, and this one holds no
-			// partition as a row - every partition, single-owner or not, is an index object
-			assertPartitions(0, SINGLE_OWNER_PARTITIONS + MULTI_OWNER_PARTITIONS, "in a catalog with index objects");
-		}
-
-	}
-
 	/**
 	 * Asserts how the partitions of the category reference split between registry rows and index objects, against
 	 * every statistic that sees either half: the count on the reference type index, the omitted index count, the
@@ -355,13 +330,8 @@ class VirtualPartitionStatisticsTest implements EvitaTestSupport {
 
 	/**
 	 * Defines the catalog and fills it with the fixture described in the class documentation.
-	 *
-	 * @param virtual TRUE to create the catalog representing its single-owner partitions as registry rows, FALSE to
-	 *                create it with index objects
 	 */
-	private void buildCatalog(boolean virtual) {
-		// TODO JNO - remove at the end of #1615
-		this.evita.createCatalogWithVirtualReferencePartitions(CATALOG, virtual);
+	private void buildCatalog() {
 		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
 		this.evita.updateCatalog(
 			CATALOG,

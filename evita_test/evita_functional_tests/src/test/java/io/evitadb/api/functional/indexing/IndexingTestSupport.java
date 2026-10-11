@@ -36,10 +36,18 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReferencePartitions;
+import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.VirtualReferencePartition;
+import io.evitadb.index.VirtualReferencePartitionIndex;
+import io.evitadb.index.VirtualReferencePartitionSlot;
 import io.evitadb.index.attribute.UniqueIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.NumberUtils;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -49,8 +57,11 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.Currency;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -177,7 +188,6 @@ public interface IndexingTestSupport {
 		);
 	}
 
-	// TODO JNO - remove at the end of #1615 (the lookup through the registry stays)
 	/**
 	 * Retrieves the partition of the referenced entity for the given collection, scope, reference and record id - its
 	 * index object, or the virtual handle of its registry row when the partition is a single-owner one of a catalog
@@ -196,10 +206,118 @@ public interface IndexingTestSupport {
 		@Nonnull String referenceName,
 		int recordId
 	) {
+		return getReferencedEntityPartition(
+			collection, scope, new RepresentativeReferenceKey(new ReferenceKey(referenceName, recordId))
+		);
+	}
+
+	// TODO JNO - remove at the end of #1615 (the lookup through the registry stays)
+	/**
+	 * Retrieves the partition of a representative reference key for the given collection and scope - its index
+	 * object, or the virtual handle of its registry row when the partition is a single-owner one of a catalog
+	 * representing those as rows. Its identity and owners read alike for both, nothing else it holds does.
+	 *
+	 * @param collection the entity collection to query
+	 * @param scope      the scope to search in
+	 * @param key        the representative reference key of the partition
+	 * @return the partition, or null if not found
+	 */
+	@Nullable
+	static ReferencePartition getReferencedEntityPartition(
+		@Nonnull EntityCollectionContract collection,
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey key
+	) {
 		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
 		return ReferencePartitions.resolverByKeyForOwnerRead(
-			((EntityCollection) collection).getDataStoreReader(), scope, referenceName, true
-		).apply(new RepresentativeReferenceKey(new ReferenceKey(referenceName, recordId)));
+			((EntityCollection) collection).getDataStoreReader(), scope, key.referenceName(), true
+		).apply(key);
+	}
+
+	/**
+	 * Tells whether the registry of single-owner partitions of the reference holds a row of the representative
+	 * reference key in the scope. The rows are read themselves rather than through the partitions the referenced-type
+	 * entity index advertises, which is how {@link #getReferencedEntityPartition} finds a row, so a row left behind by
+	 * a partition that is no longer advertised is found too.
+	 *
+	 * @param collection the entity collection to query
+	 * @param scope      the scope to search in
+	 * @param key        the representative reference key of the partition
+	 * @return TRUE when the registry holds a row naming the target of the key with its representative values
+	 */
+	static boolean hasRegistryRow(
+		@Nonnull EntityCollectionContract collection,
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey key
+	) {
+		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
+		final EntityIndex typeIndex = ((EntityCollection) collection).getIndexByKeyIfExists(
+			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, key.referenceName())
+		);
+		if (!(typeIndex instanceof ReferencedTypeEntityIndex referencedTypeIndex)) {
+			return false;
+		}
+		final VirtualReferencePartitionIndex registry = referencedTypeIndex.getVirtualReferencePartitionIndex();
+		final boolean[] found = {false};
+		registry.forEachEntry(
+			VirtualReferencePartitionSlot.PARTITION_OWNER,
+			(partitionPrimaryKey, ownerAndTarget) -> {
+				if (NumberUtils.unpackLow(ownerAndTarget) == key.primaryKey()) {
+					final int tupleId = registry.getRepresentativeTupleId(partitionPrimaryKey);
+					final Serializable[] tuple = tupleId == VirtualReferencePartitionIndex.NO_TUPLE_ID ?
+						new Serializable[0] : registry.getTuple(tupleId);
+					found[0] |= Arrays.equals(tuple, key.representativeAttributeValues());
+				}
+			}
+		);
+		return found[0];
+	}
+
+	/**
+	 * Describes what the sort indexes of the partition of a representative reference key hold - every sort key with
+	 * the records it sorts - the same way whichever way the partition is represented:
+	 *
+	 * - an index object answers its own sort indexes;
+	 * - a row of the registry of single-owner partitions answers every sort key the registry of its reference holds a
+	 *   value of the row under, each sorting the row's only owner - the registry keeps the sort values of a
+	 *   single-owner partition in place of the sort indexes of an index object.
+	 *
+	 * @param collection the entity collection to query
+	 * @param scope      the scope to search in
+	 * @param key        the representative reference key of the partition
+	 * @return the sorted records by sort key, or null when the collection holds no partition of the key
+	 */
+	@Nullable
+	static Map<AttributeIndexKey, int[]> getSortedRecordsOfPartition(
+		@Nonnull EntityCollectionContract collection,
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey key
+	) {
+		final ReferencePartition partition = getReferencedEntityPartition(collection, scope, key);
+		if (partition == null) {
+			return null;
+		}
+		final Map<AttributeIndexKey, int[]> sortedRecords = CollectionUtils.createHashMap(8);
+		switch (partition) {
+			case ReducedEntityIndex index -> {
+				for (final AttributeIndexKey sortKey : index.getSortIndexes()) {
+					sortedRecords.put(sortKey, index.getSortIndex(sortKey).getSortedRecords());
+				}
+			}
+			case VirtualReferencePartition row -> {
+				final EntityIndex typeIndex = ((EntityCollection) collection).getIndexByKeyIfExists(
+					new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, key.referenceName())
+				);
+				final VirtualReferencePartitionIndex registry =
+					((ReferencedTypeEntityIndex) Objects.requireNonNull(typeIndex)).getVirtualReferencePartitionIndex();
+				for (final AttributeIndexKey sortKey : registry.getDeclaredSortKeys()) {
+					if (registry.hasSortValue(sortKey, row.getPrimaryKey())) {
+						sortedRecords.put(sortKey, row.getAllPrimaryKeys().getArray());
+					}
+				}
+			}
+		}
+		return sortedRecords;
 	}
 
 	/**

@@ -30,7 +30,6 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
-import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -47,8 +46,6 @@ import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.Functions;
@@ -66,6 +63,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.UnaryOperator;
 import java.util.stream.Stream;
 
@@ -82,11 +80,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Checks that a localized sortable attribute compound declared on a reference keeps its per-locale entries in the
- * reduced index of every referenced entity through the whole life of the owner, whichever level the reference is
- * indexed at. The reference-level compound lives in the reduced index for both
- * {@link ReferenceIndexType#FOR_FILTERING} and {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} - only the
- * entity-level compounds are reserved to partitioning - so ordering by it on the index route must agree with the
- * prefetch route, which computes the value from the stored reference attributes, at both levels.
+ * partition of every referenced entity through the whole life of the owner, whichever level the reference is indexed
+ * at. The reference-level compound lives in the partition for both {@link ReferenceIndexType#FOR_FILTERING} and
+ * {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} - only the entity-level compounds are reserved to
+ * partitioning - so ordering by it on the index route must agree with the prefetch route, which computes the value
+ * from the stored reference attributes, at both levels. A partition is read alike whether it is an index object or,
+ * as a single-owner partition of a reference indexed for filtering is, a row of the registry of single-owner
+ * partitions (see {@link IndexingTestSupport#getSortedRecordsOfPartition}).
  *
  * Each scenario drives one path that adds or removes the per-locale entries: the owner inserted with a locale, a
  * reference added to an owner that already has one, a locale the owner gains or loses after the reference exists,
@@ -151,10 +151,6 @@ public class ReferenceLocalizedCompoundIndexingTest implements EvitaTestSupport 
 		cleanTestSubDirectoryWithRethrow(DIR);
 		cleanTestSubDirectoryWithRethrow(DIR_EXPORT);
 		this.evita = new Evita(getEvitaConfiguration());
-		// TODO JNO - remove at the end of #1615
-		// the tests read the sort indexes of the index objects of single-owner partitions, which only a catalog with
-		// objects has
-		this.evita.createCatalogWithVirtualReferencePartitions(TEST_CATALOG, false);
 		this.evita.defineCatalog(TEST_CATALOG);
 	}
 
@@ -341,10 +337,17 @@ public class ReferenceLocalizedCompoundIndexingTest implements EvitaTestSupport 
 		});
 		assertCompoundOrder(BASE_ORDER);
 		assertCompoundEntry(1, 1, true);
-		// the archived partition had no other owner, so it leaves together with the entry
+		// the archived partition had no other owner, so it leaves together with the entry - and with its registry
+		// row, which is read out of the registry itself
 		assertNull(
-			IndexingTestSupport.getReferencedEntityIndex(ownerCollection(), Scope.ARCHIVED, REFERENCE_ITEMS, 1),
+			IndexingTestSupport.getReferencedEntityPartition(ownerCollection(), Scope.ARCHIVED, REFERENCE_ITEMS, 1),
 			"The archived partition of target 1 must be gone once its only owner is restored."
+		);
+		assertFalse(
+			IndexingTestSupport.hasRegistryRow(
+				ownerCollection(), Scope.ARCHIVED, new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_ITEMS, 1))
+			),
+			"The archived partition of target 1 must leave no row in the registry once its only owner is restored."
 		);
 
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
@@ -434,8 +437,8 @@ public class ReferenceLocalizedCompoundIndexingTest implements EvitaTestSupport 
 		);
 		createOwnersWithLocale();
 		final boolean partitioned = indexType == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING;
-		assertEntry(requireReducedIndex(Scope.LIVE, 1), ENTITY_COMPOUND_KEY, 1, partitioned, "target 1");
-		assertEntry(requireReducedIndex(Scope.LIVE, 1), ENTITY_COMPOUND_KEY, 2, partitioned, "target 1");
+		assertEntry(requireSortedRecords(Scope.LIVE, 1), ENTITY_COMPOUND_KEY, 1, partitioned, "target 1");
+		assertEntry(requireSortedRecords(Scope.LIVE, 1), ENTITY_COMPOUND_KEY, 2, partitioned, "target 1");
 
 		// owner 1 loses the locale - its reference label and its name go in one upsert
 		this.evita.updateCatalog(
@@ -451,8 +454,8 @@ public class ReferenceLocalizedCompoundIndexingTest implements EvitaTestSupport 
 					.upsertVia(session);
 			}
 		);
-		assertEntry(requireReducedIndex(Scope.LIVE, 1), ENTITY_COMPOUND_KEY, 1, false, "target 1");
-		assertEntry(requireReducedIndex(Scope.LIVE, 1), ENTITY_COMPOUND_KEY, 2, partitioned, "target 1");
+		assertEntry(requireSortedRecords(Scope.LIVE, 1), ENTITY_COMPOUND_KEY, 1, false, "target 1");
+		assertEntry(requireSortedRecords(Scope.LIVE, 1), ENTITY_COMPOUND_KEY, 2, partitioned, "target 1");
 	}
 
 	@DisplayName("Should keep the group index free of compound entries while the owner gains and loses the locale")
@@ -776,19 +779,17 @@ public class ReferenceLocalizedCompoundIndexingTest implements EvitaTestSupport 
 	 * compound entry of owner 1.
 	 */
 	private void assertDuplicateCompoundEntries(boolean expectedPresent) {
-		final EntityCollection collection = ownerCollection();
 		for (String country : DUPLICATE_COUNTRIES) {
-			final EntityIndex partition = collection.getIndexByKeyIfExists(
-				new EntityIndexKey(
-					EntityIndexType.REFERENCED_ENTITY,
-					Scope.LIVE,
-					new RepresentativeReferenceKey(
-						new ReferenceKey(REFERENCE_ITEMS, DUPLICATE_TARGET), new Serializable[]{country}
-					)
+			final Map<AttributeIndexKey, int[]> sortedRecords = IndexingTestSupport.getSortedRecordsOfPartition(
+				ownerCollection(), Scope.LIVE,
+				new RepresentativeReferenceKey(
+					new ReferenceKey(REFERENCE_ITEMS, DUPLICATE_TARGET), new Serializable[]{country}
 				)
 			);
-			assertNotNull(partition, "The partition of target " + DUPLICATE_TARGET + " in " + country + " must exist.");
-			assertEntry(partition, REFERENCE_COMPOUND_KEY, 1, expectedPresent, "the " + country + " partition");
+			assertNotNull(
+				sortedRecords, "The partition of target " + DUPLICATE_TARGET + " in " + country + " must exist."
+			);
+			assertEntry(sortedRecords, REFERENCE_COMPOUND_KEY, 1, expectedPresent, "the " + country + " partition");
 		}
 	}
 
@@ -1012,53 +1013,54 @@ public class ReferenceLocalizedCompoundIndexingTest implements EvitaTestSupport 
 	}
 
 	/**
-	 * Asserts whether the live reduced index of `target` holds a per-locale compound entry of `owner`. The index must
-	 * exist - another owner keeps it alive - so an absent entry is never mistaken for an absent index.
+	 * Asserts whether the live partition of `target` holds a per-locale compound entry of `owner`. The partition must
+	 * exist - another owner keeps it alive - so an absent entry is never mistaken for an absent partition.
 	 */
 	private void assertCompoundEntry(int target, int owner, boolean expectedPresent) {
 		assertCompoundEntry(Scope.LIVE, target, owner, expectedPresent);
 	}
 
 	/**
-	 * Asserts whether the reduced index of `target` in `scope` holds a per-locale compound entry of `owner`. The index
-	 * must exist, so an absent entry is never mistaken for an absent index.
+	 * Asserts whether the partition of `target` in `scope` holds a per-locale compound entry of `owner`. The partition
+	 * must exist, so an absent entry is never mistaken for an absent partition.
 	 */
 	private void assertCompoundEntry(@Nonnull Scope scope, int target, int owner, boolean expectedPresent) {
 		assertEntry(
-			requireReducedIndex(scope, target), REFERENCE_COMPOUND_KEY, owner, expectedPresent, "target " + target
+			requireSortedRecords(scope, target), REFERENCE_COMPOUND_KEY, owner, expectedPresent, "target " + target
 		);
 	}
 
 	/**
-	 * Returns the reduced index of `target` in `scope`, which must exist.
+	 * Returns what the sort indexes of the partition of `target` in `scope` hold, which must exist - read alike from an
+	 * index object and from a row of the registry of single-owner partitions (see
+	 * {@link IndexingTestSupport#getSortedRecordsOfPartition}).
 	 */
 	@Nonnull
-	private EntityIndex requireReducedIndex(@Nonnull Scope scope, int target) {
-		final EntityIndex reducedIndex = IndexingTestSupport.getReferencedEntityIndex(
-			ownerCollection(), scope, REFERENCE_ITEMS, target
+	private Map<AttributeIndexKey, int[]> requireSortedRecords(@Nonnull Scope scope, int target) {
+		final Map<AttributeIndexKey, int[]> sortedRecords = IndexingTestSupport.getSortedRecordsOfPartition(
+			ownerCollection(), scope, new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_ITEMS, target))
 		);
-		assertNotNull(reducedIndex, "The " + scope + " reduced index of target " + target + " must exist.");
-		return reducedIndex;
+		assertNotNull(sortedRecords, "The " + scope + " partition of target " + target + " must exist.");
+		return sortedRecords;
 	}
 
 	/**
-	 * Asserts whether the sort index of `index` under `key` holds an entry of `owner`; `indexName` names the index in
-	 * the failure message.
+	 * Asserts whether the records a partition sorts under `key` hold an entry of `owner`; `partitionName` names the
+	 * partition in the failure message.
 	 */
 	private static void assertEntry(
-		@Nonnull EntityIndex index,
+		@Nonnull Map<AttributeIndexKey, int[]> sortedRecords,
 		@Nonnull AttributeIndexKey key,
 		int owner,
 		boolean expectedPresent,
-		@Nonnull String indexName
+		@Nonnull String partitionName
 	) {
-		final SortIndex sortIndex = index.getSortIndex(key);
-		final boolean present = sortIndex != null &&
-			Arrays.stream(sortIndex.getSortedRecords()).anyMatch(it -> it == owner);
+		final int[] records = sortedRecords.get(key);
+		final boolean present = records != null && Arrays.stream(records).anyMatch(it -> it == owner);
 		if (expectedPresent) {
-			assertTrue(present, "Owner " + owner + " must have a compound entry in " + indexName + ".");
+			assertTrue(present, "Owner " + owner + " must have a compound entry in " + partitionName + ".");
 		} else {
-			assertFalse(present, "Owner " + owner + " must have no compound entry in " + indexName + ".");
+			assertFalse(present, "Owner " + owner + " must have no compound entry in " + partitionName + ".");
 		}
 	}
 

@@ -722,15 +722,9 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 		assertMembershipEngaged(REF_CATEGORIES);
 	}
 
-	// TODO JNO - remove at the end of #1615 (the creation switch; the test stays)
 	@Test
 	@DisplayName("a reloaded catalog with virtual partitions registers each single-owner partition as covered by its owner")
 	void reloadOfVirtualCatalogRegistersSingleOwnerPartitionsAsCovered() {
-		// the catalog the set-up defined is created with objects unless the forced mode says otherwise - replace it
-		// by one representing its single-owner partitions virtually, persisted under the virtual storage protocol
-		this.evita.deleteCatalogIfExists(TEST_CATALOG);
-		this.evita.createCatalogWithVirtualReferencePartitions(TEST_CATALOG, true);
-		this.evita.defineCatalog(TEST_CATALOG);
 		prepare(CatalogState.ALIVE, "CHECKBOX");
 		tx(session -> session.createNewEntity(ENTITY_BRAND, SECOND_BRAND_PK).upsertVia(session));
 		// each brand is referenced by one product alone - two single-owner partitions of the `brand` reference
@@ -790,14 +784,10 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 		assertMembershipMatchesIndexes();
 	}
 
-	// TODO JNO - remove at the end of #1615 (the creation switch; the test stays)
 	@ParameterizedTest
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 	@DisplayName("single-owner partitions written as registry rows keep the lookup complete before any reload")
 	void virtuallyWrittenSingleOwnerPartitionsKeepTheLookupComplete(@Nonnull CatalogState state) {
-		this.evita.deleteCatalogIfExists(TEST_CATALOG);
-		this.evita.createCatalogWithVirtualReferencePartitions(TEST_CATALOG, true);
-		this.evita.defineCatalog(TEST_CATALOG);
 		prepare(state, "CHECKBOX");
 		tx(session -> session.createNewEntity(ENTITY_BRAND, SECOND_BRAND_PK).upsertVia(session));
 		// each brand is referenced by one product alone - two single-owner partitions, each its registry row only
@@ -826,7 +816,6 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 		assertMembershipMatchesIndexes();
 	}
 
-	// TODO JNO - remove at the end of #1615
 	/**
 	 * Asserts that the partitions of `brand` exist as registry rows only, in both scopes together - none of them has
 	 * an index object.

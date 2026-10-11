@@ -31,6 +31,8 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -40,11 +42,12 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.EvitaTestSupport.TestPaths;
-import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -54,6 +57,8 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
@@ -524,11 +529,6 @@ class IndexInvariantsTest implements EvitaTestSupport, IndexingTestSupport {
 		@Test
 		@DisplayName("Only reference data should propagate for filtering-only references")
 		void shouldPropagateOnlyReferenceDataToReducedIndexForFilteringOnlyReference() {
-			// TODO JNO - remove at the end of #1615
-			// the test reads the index object of a single-owner partition, which only a catalog with objects has
-			IndexInvariantsTest.this.evita.deleteCatalogIfExists(TEST_CATALOG);
-			IndexInvariantsTest.this.evita.createCatalogWithVirtualReferencePartitions(TEST_CATALOG, false);
-			IndexInvariantsTest.this.evita.defineCatalog(TEST_CATALOG);
 			IndexInvariantsTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
@@ -538,6 +538,7 @@ class IndexInvariantsTest implements EvitaTestSupport, IndexingTestSupport {
 						.updateVia(session);
 
 					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1));
+					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 2));
 
 					// define PRODUCT with reference to CATEGORY that is
 					// indexedForFiltering only (no partitioning)
@@ -560,26 +561,43 @@ class IndexInvariantsTest implements EvitaTestSupport, IndexingTestSupport {
 						)
 						.updateVia(session);
 
-					session.upsertEntity(
-						session.createNewEntity(Entities.PRODUCT, 1)
+					// both products share category 1, whose partition is therefore an index object; product 1
+					// alone references category 2, whose partition is therefore a registry row
+					for (int productPk = 1; productPk <= 2; productPk++) {
+						final EntityBuilder product = session.createNewEntity(Entities.PRODUCT, productPk)
 							.setPriceInnerRecordHandling(PriceInnerRecordHandling.NONE)
 							.setPrice(
-								1, PRICE_LIST_BASIC, CURRENCY_CZK,
+								productPk, PRICE_LIST_BASIC, CURRENCY_CZK,
 								BigDecimal.ONE, BigDecimal.ZERO,
 								BigDecimal.ONE, true
 							)
-							.setAttribute(ATTRIBUTE_EAN, "EAN_001")
+							.setAttribute(ATTRIBUTE_EAN, "EAN_00" + productPk)
 							.setReference(
 								Entities.CATEGORY, 1,
 								thatIs -> thatIs.setAttribute(
 									ATTRIBUTE_CATEGORY_PRIORITY, 1L
 								)
-							)
-					);
+							);
+						if (productPk == 1) {
+							product.setReference(
+								Entities.CATEGORY, 2,
+								thatIs -> thatIs.setAttribute(
+									ATTRIBUTE_CATEGORY_PRIORITY, 2L
+								)
+							);
+						}
+						session.upsertEntity(product);
+					}
 
 					final EntityCollectionContract productCollection = getProductCollection();
+					final EntitySchemaContract productSchema =
+						session.getEntitySchemaOrThrow(Entities.PRODUCT);
+					final ReferenceSchemaContract categoryRef =
+						productSchema.getReference(Entities.CATEGORY).orElseThrow();
+					final AttributeSchemaContract priorityAttr =
+						categoryRef.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY).orElseThrow();
 
-					// for filtering-only references, a reduced index IS created
+					// for filtering-only references, a reduced index IS created for a shared partition
 					// but contains only entity PKs and reference attributes --
 					// entity-level attributes and prices are NOT propagated
 					final EntityIndex categoryIndex =
@@ -588,33 +606,24 @@ class IndexInvariantsTest implements EvitaTestSupport, IndexingTestSupport {
 						);
 					assertNotNull(
 						categoryIndex,
-						"REFERENCED_ENTITY index must exist for filtering-only references"
+						"REFERENCED_ENTITY index must exist for a shared partition of a filtering-only reference"
 					);
 
-					// entity PK must be present in the reduced index
-					assertTrue(
-						categoryIndex.getAllPrimaryKeys().contains(1),
-						"Reduced index must contain the referencing entity's PK"
+					// entity PKs must be present in the reduced index
+					assertArrayEquals(
+						new int[]{1, 2}, categoryIndex.getAllPrimaryKeys().getArray(),
+						"Reduced index must contain the referencing entities' PKs"
 					);
 
 					// reference attribute (categoryPriority) must be present
-					final EntitySchemaContract productSchema =
-						session.getEntitySchemaOrThrow(Entities.PRODUCT);
-					final ReferenceSchemaContract categoryRef =
-						productSchema.getReference(Entities.CATEGORY).orElseThrow();
-					final AttributeSchemaContract priorityAttr =
-						categoryRef.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY).orElseThrow();
 					assertNotNull(
 						categoryIndex.getSortIndex(categoryRef, priorityAttr, null),
 						"Reference attribute sort index must exist in reduced index"
 					);
-					assertTrue(
-						ArrayUtils.contains(
-							categoryIndex.getSortIndex(categoryRef, priorityAttr, null)
-								.getSortedRecords(),
-							1
-						),
-						"Reference attribute sort index must contain the entity PK"
+					assertArrayEquals(
+						new int[]{1, 2},
+						categoryIndex.getSortIndex(categoryRef, priorityAttr, null).getSortedRecords(),
+						"Reference attribute sort index must contain the entity PKs"
 					);
 
 					// entity-level attribute (EAN) must NOT be present
@@ -647,6 +656,38 @@ class IndexInvariantsTest implements EvitaTestSupport, IndexingTestSupport {
 							PriceInnerRecordHandling.NONE
 						),
 						"Prices must not exist in FOR_FILTERING reduced index"
+					);
+
+					// the single-owner partition of category 2 is a registry row, which holds the owner and the sort
+					// value of the reference attribute only - nothing of the entity, no prices
+					assertNull(
+						IndexingTestSupport.getReferencedEntityIndex(productCollection, Entities.CATEGORY, 2),
+						"A single-owner partition of a filtering-only reference must have no index object"
+					);
+					final RepresentativeReferenceKey rowKey =
+						new RepresentativeReferenceKey(new ReferenceKey(Entities.CATEGORY, 2));
+					final ReferencePartition row = IndexingTestSupport.getReferencedEntityPartition(
+						productCollection, Scope.LIVE, rowKey
+					);
+					assertNotNull(row, "The single-owner partition must exist as a registry row");
+					assertArrayEquals(
+						new int[]{1}, row.getAllPrimaryKeys().getArray(),
+						"The row must name the referencing entity's PK"
+					);
+					final Map<AttributeIndexKey, int[]> rowSortedRecords =
+						IndexingTestSupport.getSortedRecordsOfPartition(productCollection, Scope.LIVE, rowKey);
+					assertNotNull(rowSortedRecords);
+					assertEquals(
+						Set.of(new AttributeIndexKey(Entities.CATEGORY, ATTRIBUTE_CATEGORY_PRIORITY, null)),
+						rowSortedRecords.keySet(),
+						"The row must hold the sort value of the reference attribute and nothing entity-level"
+					);
+					assertArrayEquals(
+						new int[]{1},
+						rowSortedRecords.get(
+							new AttributeIndexKey(Entities.CATEGORY, ATTRIBUTE_CATEGORY_PRIORITY, null)
+						),
+						"The sort value of the row must belong to the referencing entity"
 					);
 				}
 			);

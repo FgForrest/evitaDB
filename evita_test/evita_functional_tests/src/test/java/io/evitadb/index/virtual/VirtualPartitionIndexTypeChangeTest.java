@@ -129,7 +129,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
-// TODO JNO - remove at the end of #1615
 /**
  * Changes the indexing of a reference between `FOR_FILTERING` and `FOR_FILTERING_AND_PARTITIONING` in a catalog that
  * writes its single-owner partitions as registry rows, and writes through the partitions the reference had before the
@@ -860,7 +859,6 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 		this.paths = thePaths;
 		final Evita theEvita = new Evita(configuration(thePaths));
 		this.evita = theEvita;
-		theEvita.createCatalogWithVirtualReferencePartitions(CATALOG, true);
 		theEvita.defineCatalog(CATALOG).updateViaNewSession(theEvita);
 		update(theEvita, session -> setUp(session, partitioning));
 		update(theEvita, extension);
@@ -868,10 +866,6 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 			theEvita.updateCatalog(CATALOG, EvitaSessionContract::goLiveAndClose);
 		}
 		assertEquals(state, catalogOf(theEvita).getCatalogState());
-		assertTrue(
-			catalogOf(theEvita).getVirtualReferencePartitionMaintenance().isWrittenVirtually(),
-			"the catalog must write its single-owner partitions virtually"
-		);
 		return theEvita;
 	}
 

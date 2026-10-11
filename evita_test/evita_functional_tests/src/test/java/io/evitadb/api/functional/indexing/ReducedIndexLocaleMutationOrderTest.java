@@ -30,6 +30,7 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
@@ -50,6 +51,7 @@ import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.ReferencePartition;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.CollectionUtils;
@@ -59,7 +61,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -70,6 +74,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestTags.INDEXING;
@@ -128,10 +133,6 @@ class ReducedIndexLocaleMutationOrderTest implements EvitaTestSupport {
 	void setUp() {
 		this.paths = createTestPaths("ReducedIndexLocaleMutationOrderTest");
 		this.evita = new Evita(getEvitaConfiguration());
-		// TODO JNO - remove at the end of #1615
-		// the tests read the sort indexes of the index objects of single-owner partitions, which only a catalog with
-		// objects has
-		this.evita.createCatalogWithVirtualReferencePartitions(TEST_CATALOG, false);
 		this.evita.defineCatalog(TEST_CATALOG);
 	}
 
@@ -141,11 +142,11 @@ class ReducedIndexLocaleMutationOrderTest implements EvitaTestSupport {
 		cleanupTestPaths(this.paths);
 	}
 
-	@ParameterizedTest(name = "{0}")
-	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@ParameterizedTest(name = "{0}, remaining partition shared: {1}")
+	@MethodSource("statesAndSharing")
 	@DisplayName("a category drops a reflected reference after another reflected reference enters a new locale")
-	void shouldRemoveReflectedReferenceWhenAnotherOneEntersNewLocaleFirst(CatalogState state) {
-		prepareReflectedCategories(state);
+	void shouldRemoveReflectedReferenceWhenAnotherOneEntersNewLocaleFirst(CatalogState state, boolean shared) {
+		prepareReflectedCategories(state, shared);
 		assertEquals(
 			Set.of(COMPOUND_LABEL_AND_ORDER),
 			this.evita.queryCatalog(
@@ -178,22 +179,43 @@ class ReducedIndexLocaleMutationOrderTest implements EvitaTestSupport {
 			);
 		});
 
+		final EntityCollection categories = collectionOf(ENTITY_CATEGORY);
 		assertNull(
-			partitionOf(ENTITY_CATEGORY, REF_PRODUCTS, 2),
+			IndexingTestSupport.getReferencedEntityPartition(categories, Scope.LIVE, REF_PRODUCTS, 2),
 			"the partition its only owner left must be swept"
 		);
-		final EntityIndex remaining = partitionOf(ENTITY_CATEGORY, REF_PRODUCTS, 1);
-		assertNotNull(remaining, "the partition of the remaining reference must exist");
-		assertEquals(
-			Set.of(
-				new AttributeIndexKey(REF_PRODUCTS, COMPOUND_LABEL_AND_ORDER, LOCALE),
-				new AttributeIndexKey(REF_PRODUCTS, COMPOUND_LABEL_AND_ORDER, OTHER_LOCALE)
+		assertFalse(
+			IndexingTestSupport.hasRegistryRow(
+				categories, Scope.LIVE, new RepresentativeReferenceKey(new ReferenceKey(REF_PRODUCTS, 2))
 			),
-			remaining.getSortIndexes()
+			"the partition its only owner left must leave no row in the registry"
 		);
-		for (AttributeIndexKey key : remaining.getSortIndexes()) {
-			assertArrayEquals(new int[]{1}, remaining.getSortIndex(key).getSortedRecords(), "records of " + key);
-		}
+		// the remaining partition is a registry row of category 1, or an index object of categories 1 and 2 - its
+		// sort content reads alike for both
+		final ReferencePartition remaining =
+			IndexingTestSupport.getReferencedEntityPartition(categories, Scope.LIVE, REF_PRODUCTS, 1);
+		assertNotNull(remaining, "the partition of the remaining reference must exist");
+		assertArrayEquals(
+			shared ? new int[]{1, 2} : new int[]{1}, remaining.getAllPrimaryKeys().getArray(),
+			"owners of the remaining partition"
+		);
+		assertEquals(
+			shared, remaining instanceof EntityIndex,
+			"the remaining partition must be an index object exactly when it is shared"
+		);
+		final Map<AttributeIndexKey, int[]> sortedRecords = IndexingTestSupport.getSortedRecordsOfPartition(
+			categories, Scope.LIVE, remaining.getRepresentativeReferenceKey()
+		);
+		assertNotNull(sortedRecords);
+		final AttributeIndexKey inLocale = new AttributeIndexKey(REF_PRODUCTS, COMPOUND_LABEL_AND_ORDER, LOCALE);
+		final AttributeIndexKey inOtherLocale =
+			new AttributeIndexKey(REF_PRODUCTS, COMPOUND_LABEL_AND_ORDER, OTHER_LOCALE);
+		assertEquals(Set.of(inLocale, inOtherLocale), sortedRecords.keySet());
+		assertArrayEquals(
+			shared ? new int[]{1, 2} : new int[]{1}, sortedRecords.get(inLocale), "records of " + inLocale
+		);
+		// only category 1 entered the other locale
+		assertArrayEquals(new int[]{1}, sortedRecords.get(inOtherLocale), "records of " + inOtherLocale);
 	}
 
 	@ParameterizedTest(name = "{0}")
@@ -609,6 +631,18 @@ class ReducedIndexLocaleMutationOrderTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Returns the collection of the given entity type in the test catalog.
+	 *
+	 * @param entityType the entity type
+	 * @return the collection
+	 */
+	@Nonnull
+	private EntityCollection collectionOf(@Nonnull String entityType) {
+		final CatalogContract catalog = this.evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
+		return (EntityCollection) catalog.getCollectionForEntity(entityType).orElseThrow();
+	}
+
+	/**
 	 * Resolves the reduced index of the given referenced entity in the given collection.
 	 *
 	 * @param entityType    the collection owning the reference
@@ -724,13 +758,31 @@ class ReducedIndexLocaleMutationOrderTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Returns every catalog state combined with a single-owner and a shared partition of the reflected reference.
+	 *
+	 * @return the arguments
+	 */
+	@Nonnull
+	private static Stream<Arguments> statesAndSharing() {
+		return Stream.of(
+			Arguments.of(CatalogState.WARMING_UP, false),
+			Arguments.of(CatalogState.WARMING_UP, true),
+			Arguments.of(CatalogState.ALIVE, false),
+			Arguments.of(CatalogState.ALIVE, true)
+		);
+	}
+
+	/**
 	 * Creates products whose category reference carries an order and a localized label combined in a localized
 	 * compound, reflected on the category with all attributes - and so the compound - inherited; then creates products
-	 * 1 and 2, both in category 1 with a label in the first locale only.
+	 * 1 and 2, both in category 1 with a label in the first locale only. With `shared`, product 1 is in category 2
+	 * too, with a label in the first locale only, so its reflected partition has categories 1 and 2 for owners - an
+	 * index object - rather than category 1 alone - a registry row.
 	 *
-	 * @param state target catalog state
+	 * @param state  target catalog state
+	 * @param shared TRUE to give the reflected partition of product 1 a second owner
 	 */
-	private void prepareReflectedCategories(@Nonnull CatalogState state) {
+	private void prepareReflectedCategories(@Nonnull CatalogState state, boolean shared) {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
 			(Consumer<EvitaSessionContract>) session -> {
@@ -757,15 +809,22 @@ class ReducedIndexLocaleMutationOrderTest implements EvitaTestSupport {
 					)
 					.updateVia(session);
 				session.createNewEntity(ENTITY_CATEGORY, 1).upsertVia(session);
+				session.createNewEntity(ENTITY_CATEGORY, 2).upsertVia(session);
 				for (int pk = 1; pk <= 2; pk++) {
 					final int productPk = pk;
-					session.createNewEntity(ENTITY_PRODUCT, pk)
+					final EntityBuilder product = session.createNewEntity(ENTITY_PRODUCT, pk)
 						.setReference(
 							REF_CATEGORIES, 1,
 							whichIs -> whichIs.setAttribute(ATTR_ORDER, productPk)
 								.setAttribute(ATTR_LABEL, LOCALE, "label" + productPk)
-						)
-						.upsertVia(session);
+						);
+					if (shared && productPk == 1) {
+						product.setReference(
+							REF_CATEGORIES, 2,
+							whichIs -> whichIs.setAttribute(ATTR_ORDER, 10).setAttribute(ATTR_LABEL, LOCALE, "other")
+						);
+					}
+					product.upsertVia(session);
 				}
 				if (state == CatalogState.ALIVE) {
 					session.goLiveAndClose();
