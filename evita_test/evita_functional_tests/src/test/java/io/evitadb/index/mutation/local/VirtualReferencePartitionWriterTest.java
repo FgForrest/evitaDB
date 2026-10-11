@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.VirtualReferencePartitionIndex;
+import io.evitadb.index.VirtualReferencePartitionIndexEntries;
 import io.evitadb.index.VirtualReferencePartitionSlot;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -215,7 +216,7 @@ class VirtualReferencePartitionWriterTest {
 			assertArrayEquals(
 				new Serializable[]{"detail"}, registry.getTuple(registry.getRepresentativeTupleId(7))
 			);
-			assertEquals(2, registry.getEntryCount());
+			assertEquals(2, VirtualReferencePartitionIndexEntries.count(registry));
 		}
 
 		@Test
@@ -227,7 +228,7 @@ class VirtualReferencePartitionWriterTest {
 
 			assertTrue(registry.getPartitionOwner(7).isPresent());
 			assertEquals(VirtualReferencePartitionIndex.NO_TUPLE_ID, registry.getRepresentativeTupleId(7));
-			assertEquals(1, registry.getEntryCount());
+			assertEquals(1, VirtualReferencePartitionIndexEntries.count(registry));
 		}
 	}
 
@@ -245,7 +246,10 @@ class VirtualReferencePartitionWriterTest {
 			assertTrue(registry.getPartitionOwner(1).isEmpty());
 			assertEquals(Set.of(ORDER), registry.getDeclaredSortKeys());
 			assertEquals(Set.of(CHAIN), registry.getDeclaredChainKeys());
-			assertEquals(4, registry.getEntryCount(), "row, tuple, sort value and predecessor of partition 2");
+			assertEquals(
+				4, VirtualReferencePartitionIndexEntries.count(registry),
+				"row, tuple, sort value and predecessor of partition 2"
+			);
 		}
 
 		@Test

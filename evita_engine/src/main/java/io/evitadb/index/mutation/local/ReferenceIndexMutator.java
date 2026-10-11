@@ -41,10 +41,6 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
-// TODO JNO - remove at the end of #1615
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.MutationHandle;
-// TODO JNO - remove at the end of #1615
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.TransitionStage;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramValueDescriptor;
@@ -1010,7 +1006,6 @@ public interface ReferenceIndexMutator {
 		);
 		// a partition kept as the registry row of another owner gains its second owner here, which takes an index
 		// object holding that owner - the owner then enters the object as it enters any other
-		// TODO JNO - remove at the end of #1615 (the promotion stays, `requireWrittenVirtually` loses its condition)
 		final ReferencePartition target = partition instanceof final VirtualReferencePartition virtual ?
 			promoteWhenJoiningAnotherOwner(
 				executor, referenceSchema, referenceTypeIndex,
@@ -1040,7 +1035,6 @@ public interface ReferenceIndexMutator {
 				}
 				yield firstIndexed;
 			}
-			// TODO JNO - remove at the end of #1615 (the arm stays, `requireWrittenVirtually` loses its condition)
 			case VirtualReferencePartition virtual -> ownerEnteredVirtualPartition(
 				executor, referenceSchema, referenceTypeIndex,
 				requireWrittenVirtually(executor, referenceSchema, virtual, "referenceInsertPerComponent"),
@@ -1065,8 +1059,8 @@ public interface ReferenceIndexMutator {
 	 * partition's primary key (see {@link EntityIndexLocalMutationExecutor#installPartitionObject}) and filled with what
 	 * it holds of the first owner (see {@link #populatePartitionWithOwner}): read as the root mutation sees that owner,
 	 * from the locales it had before the running root mutation, and written by an executor writing as the first owner
-	 * that maintains no registry - the row holds the first owner's values already, and is dropped once the entering
-	 * owner makes the partition a shared one.
+	 * that writes no registry (see {@link EntityIndexLocalMutationExecutor#isPartitionRegistryWritten()}) - the row
+	 * holds the first owner's values already, and is dropped once the entering owner makes the partition a shared one.
 	 *
 	 * Nothing outside the partition learns of the first owner again: the referenced-type index advertised the
 	 * partition and the membership of the reduced indexes recorded its owner when the first owner entered it.
@@ -1124,52 +1118,30 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
 		@Nonnull ReferencePartition partition
 	) {
-		// TODO JNO - remove at the end of #1615
-		final MutationHandle mutation = executor.getVirtualReferencePartitionMutation();
-		// TODO JNO - remove at the end of #1615 (the whole condition)
-		if (!mutation.maintained() && mutation.probe() == null) {
-			return;
-		}
 		final Scope scope = referenceTypeIndex.getIndexKey().scope();
 		if (!VirtualReferencePartitionWriter.isShadowed(referenceSchema, scope)) {
 			return;
 		}
 		final int ownerCount = partition.size();
 		if (ownerCount == 1) {
-			// TODO JNO - remove at the end of #1615 (the condition, its body stays)
-			if (mutation.maintained()) {
-				VirtualReferencePartitionWriter.partitionEntered(
-					referenceTypeIndex.getVirtualReferencePartitionIndex(),
-					partition.getPrimaryKey(),
-					partition.getAllPrimaryKeys().getFirst(),
-					partition.getRepresentativeReferenceKey()
-				);
-			}
-			// TODO JNO - remove at the end of #1615
-			mutation.transitionPassed(
-				TransitionStage.ENTERED, referenceSchema.getName(), scope, partition.getPrimaryKey()
+			VirtualReferencePartitionWriter.partitionEntered(
+				referenceTypeIndex.getVirtualReferencePartitionIndex(),
+				partition.getPrimaryKey(),
+				partition.getAllPrimaryKeys().getFirst(),
+				partition.getRepresentativeReferenceKey()
 			);
 		} else if (ownerCount == 2) {
-			// TODO JNO - remove at the end of #1615
-			mutation.promotionPointPassed(() -> new PartitionPromotionRehearsal(executor, referenceSchema, partition));
-			// TODO JNO - remove at the end of #1615 (the condition, its body stays)
-			if (mutation.maintained()) {
-				VirtualReferencePartitionWriter.partitionShared(
-					referenceTypeIndex.getVirtualReferencePartitionIndex(), partition.getPrimaryKey()
-				);
-			}
-			// TODO JNO - remove at the end of #1615
-			mutation.transitionPassed(
-				TransitionStage.SHARED, referenceSchema.getName(), scope, partition.getPrimaryKey()
+			VirtualReferencePartitionWriter.partitionShared(
+				referenceTypeIndex.getVirtualReferencePartitionIndex(), partition.getPrimaryKey()
 			);
 		}
 	}
 
 	/**
 	 * Keeps the registry of single-owner partitions in step with a partition that has just lost an owner: a partition
-	 * left without any owner (1 -> 0) gets its row dropped, and a mutation writing its single-owner partitions
-	 * virtually also retires the partition's emptied index object and reserves its primary key for the root mutation,
-	 * exactly as for a vacated row. A partition left with one owner (2 -> 1) is handed to the
+	 * left without any owner (1 -> 0) gets its row dropped, its emptied index object retired and its primary key
+	 * reserved for the root mutation, exactly as for a vacated row. A partition left with one owner (2 -> 1) is handed
+	 * to the
 	 * executor, which demotes it when it applies its changes - whether it is a single-owner one again is known only
 	 * once the mutation has finished (see {@link VirtualReferencePartitionWriter#partitionLeftWithOneOwner}). Any
 	 * other owner count leaves the registry alone. Only partitions of a reference whose partitions may be virtual are
@@ -1186,12 +1158,6 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
 		@Nonnull ReferencePartition partition
 	) {
-		// TODO JNO - remove at the end of #1615
-		final MutationHandle mutation = executor.getVirtualReferencePartitionMutation();
-		// TODO JNO - remove at the end of #1615 (the whole condition)
-		if (!mutation.maintained() && mutation.probe() == null) {
-			return;
-		}
 		final Scope scope = referenceTypeIndex.getIndexKey().scope();
 		if (!VirtualReferencePartitionWriter.isShadowed(referenceSchema, scope)) {
 			return;
@@ -1203,25 +1169,15 @@ public interface ReferenceIndexMutator {
 		if (ownerCount != 0) {
 			return;
 		}
-		// TODO JNO - remove at the end of #1615 (the condition, its body stays)
-		if (mutation.maintained()) {
-			VirtualReferencePartitionWriter.partitionVacated(
-				referenceTypeIndex.getVirtualReferencePartitionIndex(), partition.getPrimaryKey()
-			);
-		}
-		// TODO JNO - remove at the end of #1615 (the condition, its body stays)
-		if (mutation.writtenVirtually()) {
-			// a single-owner partition is never kept as an index object, an emptied one neither - typically one the
-			// former indexing for partitioning left, whose content of that indexing keeps it from the sweep of empty
-			// indexes; it is retired and its primary key reserved as a vacated row's, so an owner entering the
-			// partition again within the root mutation enters its row under the same primary key
-			executor.retirePartitionObject(partition);
-			executor.reserveVacatedPartition(partition);
-		}
-		// TODO JNO - remove at the end of #1615
-		mutation.transitionPassed(
-			TransitionStage.VACATED, referenceSchema.getName(), scope, partition.getPrimaryKey()
+		VirtualReferencePartitionWriter.partitionVacated(
+			referenceTypeIndex.getVirtualReferencePartitionIndex(), partition.getPrimaryKey()
 		);
+		// a single-owner partition is never kept as an index object, an emptied one neither - typically one the former
+		// indexing for partitioning left, whose content of that indexing keeps it from the sweep of empty indexes; it
+		// is retired and its primary key reserved as a vacated row's, so an owner entering the partition again within
+		// the root mutation enters its row under the same primary key
+		executor.retirePartitionObject(partition);
+		executor.reserveVacatedPartition(partition);
 	}
 
 	/**
@@ -1370,11 +1326,10 @@ public interface ReferenceIndexMutator {
 		}
 	}
 
-	// TODO JNO - remove at the end of #1615 (the condition on the virtual writing, the rest stays)
 	/**
 	 * Returns the virtual partition a write path met, provided the mutation writes the single-owner partitions of the
-	 * partition's reference virtually: the mutation writes virtually, the partition belongs to the reference and
-	 * either the reference's partitions may be virtual in the partition's scope - so the reference is not indexed for
+	 * partition's reference virtually: the partition belongs to the reference and either the reference's partitions
+	 * may be virtual in the partition's scope - so the reference is not indexed for
 	 * partitioning there and the partition holds nothing but what its registry row keeps - or the acquisition released
 	 * the partition to a write taking content out of it as a row the reference left while it was indexed for filtering
 	 * only (see {@link EntityIndexLocalMutationExecutor#isReleasedRowOfFormerIndexing}). Any other virtual partition on
@@ -1395,8 +1350,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull String writeSite
 	) {
 		if (
-			executor.getVirtualReferencePartitionMutation().writtenVirtually() &&
-				referenceSchema.getName().equals(partition.getRepresentativeReferenceKey().referenceName()) &&
+			referenceSchema.getName().equals(partition.getRepresentativeReferenceKey().referenceName()) &&
 				(
 					VirtualReferencePartitionWriter.isShadowed(referenceSchema, partition.getIndexKey().scope()) ||
 						executor.isReleasedRowOfFormerIndexing(partition)
@@ -1513,7 +1467,6 @@ public interface ReferenceIndexMutator {
 				ownerRemovedFromPartition(executor, referenceSchema, referenceTypeIndex, referenceIndex);
 				yield ownersLeft;
 			}
-			// TODO JNO - remove at the end of #1615 (the arm stays, `requireWrittenVirtually` loses its condition)
 			case VirtualReferencePartition virtual -> {
 				ownerLeftVirtualPartition(
 					executor, referenceSchema, referenceTypeIndex,
@@ -1533,7 +1486,6 @@ public interface ReferenceIndexMutator {
 		}
 	}
 
-	// TODO JNO - remove at the end of #1615 (the probe call and the condition of `requireWrittenVirtually` only)
 	/**
 	 * Brings an owner into a partition represented by its registry row only - the virtual arm of the partition-local
 	 * half of a reference insertion. Three cases, by the partition's row:
@@ -1593,10 +1545,6 @@ public interface ReferenceIndexMutator {
 		VirtualReferencePartitionWriter.partitionEntered(
 			registry, partitionPrimaryKey, entityPrimaryKey, partition.getRepresentativeReferenceKey()
 		);
-		// TODO JNO - remove at the end of #1615
-		executor.getVirtualReferencePartitionMutation().transitionPassed(
-			TransitionStage.ENTERED, referenceSchema.getName(), partition.getIndexKey().scope(), partitionPrimaryKey
-		);
 		populateFilteringPartitionWithOwner(
 			executor, partition, referenceSchema,
 			new RepresentativeReferenceKey(
@@ -1607,7 +1555,6 @@ public interface ReferenceIndexMutator {
 		return true;
 	}
 
-	// TODO JNO - remove at the end of #1615 (the probe call and the condition of `requireWrittenVirtually` only)
 	/**
 	 * Takes the last owner out of a partition represented by its registry row only - the virtual arm of the
 	 * partition-local half of a reference removal (1 -> 0). The row is dropped together with every sort value and
@@ -1640,10 +1587,6 @@ public interface ReferenceIndexMutator {
 				" - only the only owner of a partition without an index object can leave it!"
 		);
 		VirtualReferencePartitionWriter.partitionVacated(registry, partitionPrimaryKey);
-		// TODO JNO - remove at the end of #1615
-		executor.getVirtualReferencePartitionMutation().transitionPassed(
-			TransitionStage.VACATED, referenceSchema.getName(), partition.getIndexKey().scope(), partitionPrimaryKey
-		);
 		executor.reserveVacatedPartition(partition);
 	}
 

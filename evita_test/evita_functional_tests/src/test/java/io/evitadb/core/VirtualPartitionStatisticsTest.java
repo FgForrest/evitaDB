@@ -150,10 +150,6 @@ class VirtualPartitionStatisticsTest implements EvitaTestSupport {
 		@BeforeEach
 		void buildVirtualCatalog() {
 			buildCatalog();
-			assertTrue(
-				catalog().getVirtualReferencePartitionMaintenance().isVirtual(),
-				"The catalog must represent its single-owner partitions virtually"
-			);
 		}
 
 		@Test
@@ -237,10 +233,6 @@ class VirtualPartitionStatisticsTest implements EvitaTestSupport {
 			goLive();
 			reload();
 
-			assertTrue(
-				catalog().getVirtualReferencePartitionMaintenance().isVirtual(),
-				"The reloaded catalog must still represent its single-owner partitions virtually"
-			);
 			assertPartitions(SINGLE_OWNER_PARTITIONS, MULTI_OWNER_PARTITIONS, "after the reload");
 		}
 

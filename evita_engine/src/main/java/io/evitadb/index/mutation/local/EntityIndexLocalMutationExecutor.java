@@ -72,8 +72,6 @@ import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefiniti
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.core.catalog.CatalogExpressionTriggerRegistry;
-// TODO JNO - remove at the end of #1615
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.MutationHandle;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
@@ -263,14 +261,16 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * lookup per touched element and a CAS per touched index from every entity mutation.
 	 */
 	private final boolean usageStatisticsTracking;
-	// TODO JNO - remove at the end of #1615
 	/**
-	 * Whether this mutation maintains the virtual reference partitions of the collection it writes into - the
-	 * collection's test switch, resolved once when the executor is built - and the probe it reports the transitions
-	 * of their partitions to. See {@link io.evitadb.core.catalog.VirtualReferencePartitionMaintenance}.
+	 * Whether this executor writes the registry of single-owner partitions - mirrors the sort values and chain
+	 * predecessors it writes into a partition into the partition's registry row (see
+	 * {@link VirtualReferencePartitionWriter}). TRUE for every executor but one writing as another owner of a partition
+	 * (see {@link #createExecutorOfOtherOwner(int)}): that executor populates the index object of a partition gaining
+	 * its second owner with what the partition holds of its first owner, and the first owner's row holds those values
+	 * already - mirroring them again would write them into the row a second time. The row is dropped once the
+	 * entering owner makes the partition a shared one.
 	 */
-	// TODO JNO - remove at the end of #1615
-	@Nonnull private final MutationHandle virtualReferencePartitionMutation;
+	private final boolean partitionRegistryWritten;
 	/**
 	 * The primary keys of the partitions without an index object the root mutation has vacated, reserved for an owner
 	 * entering them again, and whether the root mutation is finishing - shared by every executor of the root mutation,
@@ -466,18 +466,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		return globalIndex.insertPrimaryKeyIfMissing(entityPrimaryKey);
 	}
 
-	// TODO JNO - remove at the end of #1615 (the parameter's documentation)
 	/**
 	 * Creates the index executor of one entity's local mutations that runs on its own rather than as a part of a root
 	 * mutation shared with other executors - its reservations of vacated partitions are its own. See
 	 * {@link #EntityIndexLocalMutationExecutor(WritableEntityStorageContainerAccessor, int, IndexMaintainer,
 	 * IndexMaintainer, Supplier, IntSupplier, Supplier, Supplier, BiFunction, Function, EntityTypeClassifierResolver,
-	 * SchemaCapabilityUsageRegistry, SchemaCapabilityUsageRegistry, boolean, MutationHandle, PartitionReservations)}.
-	 *
-	 * @param virtualReferencePartitionMutation the collection's virtual-reference-partition test switch, resolved
-	 *                                          once when the executor is built, and the probe it reports the
-	 *                                          transitions of this mutation's partitions to; see
-	 *                                          {@link io.evitadb.core.catalog.VirtualReferencePartitionMaintenance}
+	 * SchemaCapabilityUsageRegistry, SchemaCapabilityUsageRegistry, boolean, PartitionReservations)}.
 	 */
 	public EntityIndexLocalMutationExecutor(
 		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
@@ -493,29 +487,22 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull EntityTypeClassifierResolver entityTypeClassifierResolver,
 		@Nonnull SchemaCapabilityUsageRegistry usageRegistry,
 		@Nonnull SchemaCapabilityUsageRegistry catalogUsageRegistry,
-		boolean usageStatisticsTracking,
-		// TODO JNO - remove at the end of #1615
-		@Nonnull MutationHandle virtualReferencePartitionMutation
+		boolean usageStatisticsTracking
 	) {
 		this(
 			containerAccessor, entityPrimaryKey, entityIndexCreatingAccessor, catalogIndexCreatingAccessor,
 			schemaAccessor, priceInternalIdSupplier, fullEntitySupplier, triggerRegistrySupplier,
 			localFacetTriggerSupplier, crossEntitySchemaResolver, entityTypeClassifierResolver, usageRegistry,
-			catalogUsageRegistry, usageStatisticsTracking, virtualReferencePartitionMutation,
-			new PartitionReservations()
+			catalogUsageRegistry, usageStatisticsTracking, new PartitionReservations()
 		);
 	}
 
-	// TODO JNO - remove at the end of #1615 (the documentation of the handle parameter)
 	/**
-	 * Creates the index executor of one entity's local mutations.
+	 * Creates the index executor of one entity's local mutations, which writes the registry of single-owner
+	 * partitions.
 	 *
-	 * @param virtualReferencePartitionMutation the collection's virtual-reference-partition test switch, resolved
-	 *                                          once when the executor is built, and the probe it reports the
-	 *                                          transitions of this mutation's partitions to; see
-	 *                                          {@link io.evitadb.core.catalog.VirtualReferencePartitionMaintenance}
-	 * @param partitionReservations             the reservations of the root mutation the executor belongs to, shared
-	 *                                          by all its executors - see {@link PartitionReservations}
+	 * @param partitionReservations the reservations of the root mutation the executor belongs to, shared by all its
+	 *                              executors - see {@link PartitionReservations}
 	 */
 	public EntityIndexLocalMutationExecutor(
 		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
@@ -532,8 +519,41 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull SchemaCapabilityUsageRegistry usageRegistry,
 		@Nonnull SchemaCapabilityUsageRegistry catalogUsageRegistry,
 		boolean usageStatisticsTracking,
-		// TODO JNO - remove at the end of #1615
-		@Nonnull MutationHandle virtualReferencePartitionMutation,
+		@Nonnull PartitionReservations partitionReservations
+	) {
+		this(
+			containerAccessor, entityPrimaryKey, entityIndexCreatingAccessor, catalogIndexCreatingAccessor,
+			schemaAccessor, priceInternalIdSupplier, fullEntitySupplier, triggerRegistrySupplier,
+			localFacetTriggerSupplier, crossEntitySchemaResolver, entityTypeClassifierResolver, usageRegistry,
+			catalogUsageRegistry, usageStatisticsTracking, true, partitionReservations
+		);
+	}
+
+	/**
+	 * Creates the index executor of one entity's local mutations.
+	 *
+	 * @param partitionRegistryWritten TRUE when the executor writes the registry of single-owner partitions, FALSE
+	 *                                 only for an executor writing as another owner of a partition - see
+	 *                                 {@link #partitionRegistryWritten}
+	 * @param partitionReservations    the reservations of the root mutation the executor belongs to, shared by all its
+	 *                                 executors - see {@link PartitionReservations}
+	 */
+	private EntityIndexLocalMutationExecutor(
+		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
+		int entityPrimaryKey,
+		@Nonnull IndexMaintainer<EntityIndexKey, EntityIndex> entityIndexCreatingAccessor,
+		@Nonnull IndexMaintainer<CatalogIndexKey, CatalogIndex> catalogIndexCreatingAccessor,
+		@Nonnull Supplier<EntitySchema> schemaAccessor,
+		@Nonnull IntSupplier priceInternalIdSupplier,
+		@Nonnull Supplier<Entity> fullEntitySupplier,
+		@Nullable Supplier<CatalogExpressionTriggerRegistry> triggerRegistrySupplier,
+		@Nullable BiFunction<String, Scope, FacetExpressionTrigger> localFacetTriggerSupplier,
+		@Nullable Function<String, EntitySchemaContract> crossEntitySchemaResolver,
+		@Nonnull EntityTypeClassifierResolver entityTypeClassifierResolver,
+		@Nonnull SchemaCapabilityUsageRegistry usageRegistry,
+		@Nonnull SchemaCapabilityUsageRegistry catalogUsageRegistry,
+		boolean usageStatisticsTracking,
+		boolean partitionRegistryWritten,
 		@Nonnull PartitionReservations partitionReservations
 	) {
 		this.containerAccessor = containerAccessor;
@@ -552,22 +572,18 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		this.usageRegistry = usageRegistry;
 		this.catalogUsageRegistry = catalogUsageRegistry;
 		this.usageStatisticsTracking = usageStatisticsTracking;
-		// TODO JNO - remove at the end of #1615
-		this.virtualReferencePartitionMutation = virtualReferencePartitionMutation;
+		this.partitionRegistryWritten = partitionRegistryWritten;
 		this.partitionReservations = partitionReservations;
 	}
 
-	// TODO JNO - remove at the end of #1615
 	/**
-	 * Returns whether this mutation maintains the virtual reference partitions of its collection, and the probe it
-	 * reports their transitions to.
+	 * Returns TRUE when this executor writes the registry of single-owner partitions - FALSE only for an executor
+	 * writing as another owner of a partition, see {@link #partitionRegistryWritten}.
 	 *
-	 * @return the handle of this mutation
+	 * @return TRUE when the registry is written
 	 */
-	// TODO JNO - remove at the end of #1615
-	@Nonnull
-	MutationHandle getVirtualReferencePartitionMutation() {
-		return this.virtualReferencePartitionMutation;
+	boolean isPartitionRegistryWritten() {
+		return this.partitionRegistryWritten;
 	}
 
 	/**
@@ -611,6 +627,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 *   indexes handed to it surfaces instead of joining this mutation's indexes, their persistence or their sweep;
 	 * - it counts no usage, assigns no price identifier and resolves no full entity;
 	 * - it vacates no partition and brings no owner into one, so it refuses the reservations of the root mutation;
+	 * - it writes no registry of single-owner partitions (see {@link #isPartitionRegistryWritten()});
 	 * - it keeps its own bookkeeping, which nothing applies or commits.
 	 *
 	 * It is the executor that writes a partition's existing owner into the partition when the partition is built
@@ -677,8 +694,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			this.usageRegistry,
 			this.catalogUsageRegistry,
 			false,
-			// TODO JNO - remove at the end of #1615
-			MutationHandle.OFF,
+			false,
 			PartitionReservations.REFUSING
 		);
 	}
@@ -1937,8 +1953,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		int indexPrimaryKey
 	) {
 		final EntityIndex index = getEntityIndexByPrimaryKeyForModification(indexPrimaryKey);
-		// TODO JNO - remove at the end of #1615
-		if (index == null && this.virtualReferencePartitionMutation.writtenVirtually()) {
+		if (index == null) {
 			final ReferencedTypeEntityIndex typeIndex = getReferencedTypeIndexIfExists(scope, referenceName);
 			isPremiseValid(
 				typeIndex == null ||
@@ -2010,7 +2025,6 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull String writeSite,
 		@Nonnull PartitionWriteKind writeKind
 	) {
-		// TODO JNO - remove at the end of #1615
 		if (isWrittenVirtually(scope, representativeReferenceKey.referenceName())) {
 			final ReferencePartition partition = findPartitionWrittenVirtually(scope, representativeReferenceKey);
 			if (partition == null) {
@@ -2070,7 +2084,6 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull String writeSite,
 		@Nonnull PartitionWriteKind writeKind
 	) {
-		// TODO JNO - remove at the end of #1615
 		if (isWrittenVirtually(scope, representativeReferenceKey.referenceName())) {
 			isPremiseValid(
 				!this.partitionReservations.isFinishing(),
@@ -2125,9 +2138,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * row of such a reference is one of its former indexing. A partition with an index object is never such a row: the
 	 * object wins - one the reference created since its indexing changed, or one with several owners from before.
 	 *
-	 * Only a mutation that writes the single-owner partitions virtually leaves rows without index objects, and only
-	 * such a mutation looks for them. Unless the registry of the reference holds a row, the lookup costs a lookup of
-	 * the referenced-type index; the scan of the target's family runs only when it does.
+	 * Unless the registry of the reference holds a row, the lookup costs a lookup of the referenced-type index; the
+	 * scan of the target's family runs only when it does.
 	 *
 	 * @param scope                      the scope of the partition
 	 * @param representativeReferenceKey the representative reference key of the partition, of a reference whose
@@ -2154,24 +2166,19 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Returns the referenced-type index of the reference in the scope when its registry holds a row while the
 	 * reference's partitions may not be virtual there - a row of the reference's former indexing, see
-	 * {@link #findRowOfFormerIndexing}. Constant time: the type index is looked up only by a mutation that writes the
-	 * single-owner partitions virtually, and only its registry's emptiness is read.
+	 * {@link #findRowOfFormerIndexing}. Constant time: the type index is looked up and only its registry's emptiness is
+	 * read.
 	 *
 	 * @param scope         the scope
 	 * @param referenceName the reference of this collection's entity type, whose partitions may not be virtual in the
 	 *                      scope
-	 * @return the type index, or `null` when the mutation does not write virtually, the reference has no type index
-	 * in the scope or its registry holds no row
+	 * @return the type index, or `null` when the reference has no type index in the scope or its registry holds no row
 	 */
 	@Nullable
 	private ReferencedTypeEntityIndex findTypeIndexWithRowsOfFormerIndexing(
 		@Nonnull Scope scope,
 		@Nonnull String referenceName
 	) {
-		// TODO JNO - remove at the end of #1615 (the condition only - every catalog writes virtually then)
-		if (!this.virtualReferencePartitionMutation.writtenVirtually()) {
-			return null;
-		}
 		final ReferencedTypeEntityIndex typeIndex = getReferencedTypeIndexIfExists(scope, referenceName);
 		return typeIndex == null || typeIndex.getVirtualReferencePartitionIndex().isEmpty() ? null : typeIndex;
 	}
@@ -2225,7 +2232,6 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			this.rowsOfFormerIndexingReleased.contains(partition.getPrimaryKey());
 	}
 
-	// TODO JNO - remove at the end of #1615
 	/**
 	 * Brings a partition the reference holds neither as an index object nor as a registry row into existence as a
 	 * virtual handle without a row, named after this executor's entity as its owner - see
@@ -2263,7 +2269,6 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		);
 	}
 
-	// TODO JNO - remove at the end of #1615
 	/**
 	 * Reserves the primary key of a partition whose last owner - this executor's entity - has just left it and that
 	 * has no index object any more - its row was dropped, or its index object retired - so that an owner entering a
@@ -2353,23 +2358,20 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		);
 	}
 
-	// TODO JNO - remove at the end of #1615
 	/**
 	 * Returns TRUE when this mutation writes the single-owner partitions of the reference in the scope virtually - the
-	 * mutation writes virtually and the partitions of the reference in the scope may be virtual.
+	 * partitions of the reference in the scope may be virtual (see {@link VirtualReferencePartitionWriter#isShadowed}).
 	 *
 	 * @param scope         the scope of the partitions
 	 * @param referenceName the reference of this collection's entity type
 	 * @return TRUE when the partitions are written virtually
 	 */
 	private boolean isWrittenVirtually(@Nonnull Scope scope, @Nonnull String referenceName) {
-		return this.virtualReferencePartitionMutation.writtenVirtually() &&
-			VirtualReferencePartitionWriter.isShadowed(
-				getEntitySchema().getReferenceOrThrowException(referenceName), scope
-			);
+		return VirtualReferencePartitionWriter.isShadowed(
+			getEntitySchema().getReferenceOrThrowException(referenceName), scope
+		);
 	}
 
-	// TODO JNO - remove at the end of #1615
 	/**
 	 * Looks up the partition of the representative reference key in the scope for a mutation that writes it virtually,
 	 * creating nothing: the index object when there is one - registered for modification tracking and for the
@@ -2396,7 +2398,6 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			null : ReferencePartitions.findRegisteredForWrite(typeIndex, representativeReferenceKey);
 	}
 
-	// TODO JNO - remove at the end of #1615
 	/**
 	 * Looks up the partition of a primary key the type index lists for a mutation that writes it virtually, creating
 	 * nothing: the index object when there is one - registered as {@link #getIndexByPrimaryKey(int)} registers it -
@@ -2444,7 +2445,6 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		return registered;
 	}
 
-	// TODO JNO - remove at the end of #1615
 	/**
 	 * Returns the referenced-type entity index of the reference in the scope without creating it and without
 	 * registering it for modification tracking.
@@ -2507,7 +2507,6 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull Consumer<ReferencePartition> consumer
 	) {
 		final ReferencePartition[] partitions;
-		// TODO JNO - remove at the end of #1615
 		if (isWrittenVirtually(scope, referenceSchema.getName())) {
 			partitions = findPartitionsOfTargetWrittenVirtually(scope, referenceSchema, targetPrimaryKey);
 		} else if (findTypeIndexWithRowsOfFormerIndexing(scope, referenceSchema.getName()) != null) {
@@ -2572,7 +2571,6 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		return partitions;
 	}
 
-	// TODO JNO - remove at the end of #1615
 	/**
 	 * Finds every partition of the target for a mutation that writes the single-owner partitions of the reference in
 	 * the scope virtually - see {@link #forEachPartitionOfTargetForWrite}. The lookup follows the cardinality of the

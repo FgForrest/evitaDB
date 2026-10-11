@@ -259,16 +259,6 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 	 * Lazily allocated — stays null for the overwhelming majority of mutations, which fire no histogram trigger.
 	 */
 	@Nullable private Map<ConditionStateKey, Map<String, ContributionVerdicts>> preMutationConditionState;
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Whether the root entity mutation replays a committed transaction - onto the trunk after a commit, or from the
-	 * write-ahead log at load - which is the root mutation that opted out of atomic rollback. Reported with the
-	 * outcome of the root mutation to the probe of virtual reference partitions, see
-	 * {@link io.evitadb.core.catalog.VirtualReferencePartitionMaintenance#rootMutationFinished(Catalog, Object,
-	 * boolean, boolean)}.
-	 */
-	// TODO JNO - remove at the end of #1615
-	private boolean trunkReplay;
 
 	/**
 	 * Key of {@link #inFlightExecutors} and {@link #foreignStorageParts} — identifies an entity of the root mutation.
@@ -499,8 +489,6 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 			// first entity after the failure instead of letting it pour in hours of work that can never be saved -
 			// which is what happened while the refusal lived at the flush entry points alone
 			this.catalog.assertPublishable();
-			// TODO JNO - remove at the end of #1615
-			this.trunkReplay = !atomicRollback;
 			addToWAL = true;
 			// root level changes are applied immediately
 			changeCollector.setTrapChanges(false);
@@ -829,11 +817,6 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 			} else {
 				rollback();
 			}
-			// TODO JNO - remove at the end of #1615
-			this.catalog.getVirtualReferencePartitionMaintenance().rootMutationFinished(
-				// TODO JNO - remove at the end of #1615
-				this.catalog, this, this.exception == null, this.trunkReplay
-			);
 		} finally {
 			// the executors are committed or rolled back - none of them is in flight any longer, the parts read of
 			// the other entities may be outdated by the commit, and the partitions vacated by the root mutation

@@ -175,9 +175,7 @@ class HeldPartsJournalPreconditionTest {
 			entityType -> null,
 			(entityType, entityPrimaryKey) -> null,
 			() -> 1,
-			false,
-			false,
-			() -> {}
+			false
 		);
 	}
 

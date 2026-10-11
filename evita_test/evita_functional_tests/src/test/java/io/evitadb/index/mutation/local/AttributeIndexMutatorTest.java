@@ -35,8 +35,6 @@ import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.core.buffer.TrappedChanges;
-// TODO JNO - remove at the end of #1615
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.MutationHandle;
 import io.evitadb.index.attribute.EntityReferenceWithLocale;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
@@ -438,9 +436,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						this.usageRegistry,
 						this.catalogUsageRegistry,
 
-						true,
-						// TODO JNO - remove at the end of #1615
-						MutationHandle.OFF
+						true
 					),
 					null,
 					this.productAttributeSchemaProvider,
@@ -472,9 +468,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						this.usageRegistry,
 						this.catalogUsageRegistry,
 
-						true,
-						// TODO JNO - remove at the end of #1615
-						MutationHandle.OFF
+						true
 					),
 					null,
 					this.productAttributeSchemaProvider,
@@ -511,9 +505,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.usageRegistry,
 				this.catalogUsageRegistry,
 
-				true,
-				// TODO JNO - remove at the end of #1615
-				MutationHandle.OFF
+				true
 			),
 			null,
 			this.productAttributeSchemaProvider,
@@ -540,9 +532,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.usageRegistry,
 				this.catalogUsageRegistry,
 
-				true,
-				// TODO JNO - remove at the end of #1615
-				MutationHandle.OFF
+				true
 			),
 			null,
 			this.productAttributeSchemaProvider,
@@ -674,9 +664,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.usageRegistry,
 				this.catalogUsageRegistry,
 
-				true,
-				// TODO JNO - remove at the end of #1615
-				MutationHandle.OFF
+				true
 			),
 			null,
 			this.productAttributeSchemaProvider,

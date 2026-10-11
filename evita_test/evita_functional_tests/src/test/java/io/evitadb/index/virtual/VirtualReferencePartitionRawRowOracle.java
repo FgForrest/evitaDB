@@ -146,22 +146,6 @@ public final class VirtualReferencePartitionRawRowOracle {
 	 */
 	private static final int NO_PARTITION = 0;
 
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * How the catalog the oracle checks represents a partition with a single owner.
-	 */
-	enum SingleOwnerForm {
-		/**
-		 * As a registry row without an index object - a catalog writing its single-owner partitions virtually.
-		 */
-		ROW,
-		/**
-		 * As an index object with a registry row next to it, under the primary key of the object - a catalog writing
-		 * its partitions as index objects and maintaining the registry next to them.
-		 */
-		ROW_AND_OBJECT
-	}
-
 	/**
 	 * One partition as the bodies describe it.
 	 *
@@ -249,30 +233,7 @@ public final class VirtualReferencePartitionRawRowOracle {
 		@Nonnull EntityCollection collection,
 		@Nullable PartitionIdentityLedger ledger
 	) {
-		failOnFindings(label, collection, inspect(session, collection, SingleOwnerForm.ROW, ledger, PAGE_SIZE));
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Fails when the partitions of a collection writing them as index objects and maintaining the registry next to
-	 * them disagree with the bodies of its entities or - given a ledger - with the primary keys the ledger observed
-	 * before: a single-owner partition is then an index object with a row next to it under the same primary key.
-	 *
-	 * @param label      names the checkpoint in the failure message
-	 * @param session    the session to read the bodies in - inside an open session the one its steps ran in
-	 * @param collection the collection
-	 * @param ledger     the identity of the partitions observed at the earlier checkpoints of the history, which
-	 *                   records this one; `null` to leave the identity unchecked
-	 */
-	static void assertConsistentNextToObjects(
-		@Nonnull String label,
-		@Nonnull EvitaSessionContract session,
-		@Nonnull EntityCollection collection,
-		@Nullable PartitionIdentityLedger ledger
-	) {
-		failOnFindings(
-			label, collection, inspect(session, collection, SingleOwnerForm.ROW_AND_OBJECT, ledger, PAGE_SIZE)
-		);
+		failOnFindings(label, collection, inspect(session, collection, ledger, PAGE_SIZE));
 	}
 
 	/**
@@ -327,29 +288,6 @@ public final class VirtualReferencePartitionRawRowOracle {
 		@Nullable PartitionIdentityLedger ledger,
 		int pageSize
 	) {
-		return inspect(session, collection, SingleOwnerForm.ROW, ledger, pageSize);
-	}
-
-	/**
-	 * Checks the partitions of every shadowed reference of the collection in every scope against the bodies and -
-	 * given a ledger - their primary keys against those it observed before.
-	 *
-	 * @param session    the session to read the bodies in
-	 * @param collection the collection
-	 * @param form       how the collection represents a single-owner partition
-	 * @param ledger     the identity of the partitions observed at the earlier checkpoints of the history, which
-	 *                   records this one; `null` to leave the identity unchecked
-	 * @param pageSize   how many bodies one query reads
-	 * @return every disagreement found
-	 */
-	@Nonnull
-	private static List<String> inspect(
-		@Nonnull EvitaSessionContract session,
-		@Nonnull EntityCollection collection,
-		@Nonnull SingleOwnerForm form,
-		@Nullable PartitionIdentityLedger ledger,
-		int pageSize
-	) {
 		final List<String> findings = new ArrayList<>(4);
 		final String entityType = collection.getEntityType();
 		final EntitySchemaContract schema = session.getEntitySchemaOrThrowException(entityType);
@@ -372,7 +310,7 @@ public final class VirtualReferencePartitionRawRowOracle {
 					inspect(
 						collection, referenceSchema, scope, bodies,
 						objects.getOrDefault(scope + "/" + referenceSchema.getName(), List.of()),
-						form, identities, findings
+						identities, findings
 					);
 				}
 			}
@@ -463,7 +401,6 @@ public final class VirtualReferencePartitionRawRowOracle {
 	 * @param scope           the scope
 	 * @param bodies          the bodies of every entity of the collection in the scope
 	 * @param objects         the index objects of the reference in the scope
-	 * @param form            how the collection represents a single-owner partition
 	 * @param identities      receives the primary key of every matched partition by its identity key
 	 * @param findings        receives the disagreements
 	 */
@@ -473,7 +410,6 @@ public final class VirtualReferencePartitionRawRowOracle {
 		@Nonnull Scope scope,
 		@Nonnull List<SealedEntity> bodies,
 		@Nonnull List<EntityIndex> objects,
-		@Nonnull SingleOwnerForm form,
 		@Nonnull SortedMap<String, Integer> identities,
 		@Nonnull List<String> findings
 	) {
@@ -501,7 +437,7 @@ public final class VirtualReferencePartitionRawRowOracle {
 			final ExpectedPartition expected = entry.getValue();
 			final EntityIndex object = objectsByKey.remove(entry.getKey());
 			final int primaryKey = matchPartition(
-				expected, rowsByKey.remove(entry.getKey()), object, form, prefix, rowsToCheck, findings
+				expected, rowsByKey.remove(entry.getKey()), object, prefix, rowsToCheck, findings
 			);
 			if (primaryKey != NO_PARTITION) {
 				identities.put(PartitionIdentityLedger.identityKeyOf(scope, expected.key()), primaryKey);
@@ -576,13 +512,13 @@ public final class VirtualReferencePartitionRawRowOracle {
 
 	/**
 	 * Matches a partition the bodies produce to its row and its index object and reports every way they disagree with
-	 * the form the collection represents the partition in. A single-owner partition whose row the match finds is put
-	 * among the rows whose values are checked.
+	 * the representation of the partition - a row without an index object while it has a single owner, an index object
+	 * without a row once it has more. A single-owner partition whose row the match finds is put among the rows whose
+	 * values are checked.
 	 *
 	 * @param expected    the partition as the bodies describe it
 	 * @param rows        the rows of the partition's key, `null` when it has none
 	 * @param object      the index object of the partition's key, `null` when it has none
-	 * @param form        how the collection represents a single-owner partition
 	 * @param prefix      the prefix of every finding
 	 * @param rowsToCheck receives the owner of a matched single-owner row by the row's primary key
 	 * @param findings    receives the disagreements
@@ -593,7 +529,6 @@ public final class VirtualReferencePartitionRawRowOracle {
 		@Nonnull ExpectedPartition expected,
 		@Nullable List<RegistryRow> rows,
 		@Nullable EntityIndex object,
-		@Nonnull SingleOwnerForm form,
 		@Nonnull String prefix,
 		@Nonnull SortedMap<Integer, OwnerRow> rowsToCheck,
 		@Nonnull List<String> findings
@@ -615,19 +550,10 @@ public final class VirtualReferencePartitionRawRowOracle {
 				}
 				rowsToCheck.put(row.partitionPrimaryKey(), expected.owners().get(0));
 			}
-			if (form == SingleOwnerForm.ROW && object != null) {
+			if (object != null) {
 				findings.add(
 					prefix + "the single-owner partition " + key + " has the index object " + object.getPrimaryKey()
 				);
-			} else if (form == SingleOwnerForm.ROW_AND_OBJECT) {
-				if (object == null) {
-					findings.add(prefix + "the single-owner partition " + key + " has no index object");
-				} else if (row != null && row.partitionPrimaryKey() != object.getPrimaryKey()) {
-					findings.add(
-						prefix + "the single-owner partition " + key + " has the " + row + " and the index object " +
-							object.getPrimaryKey()
-					);
-				}
 			}
 			if (row != null) {
 				return row.partitionPrimaryKey();

@@ -38,8 +38,6 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
-// TODO JNO - remove at the end of #1615
-import io.evitadb.index.cardinality.AttributeCardinalityIndex.AttributeCardinalityKey;
 import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
 import io.evitadb.index.component.AttributeCardinalityIndexMapComponent;
 import io.evitadb.index.component.HistogramIndexMapComponent;
@@ -83,8 +81,6 @@ import java.io.Serializable;
 import java.lang.reflect.Array;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
-// TODO JNO - remove at the end of #1615
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -514,38 +510,6 @@ public class ReferencedTypeEntityIndex extends EntityIndex implements
 	 */
 	public void forEachReferenceIndexPrimaryKey(@Nonnull IntConsumer consumer) {
 		this.indexPrimaryKeyCardinality.forEachIndexPrimaryKey(consumer);
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Returns how many times each reduced-index primary key is registered here, keyed as the cardinality index keys
-	 * it: `pack(indexPrimaryKey, 0)` for the overall count of the index and `-pack(indexPrimaryKey,
-	 * referencedEntityPrimaryKey)` for the count per referenced entity. Meant for tests comparing two indexes.
-	 *
-	 * @return a fresh map of every composed key to its count
-	 */
-	// TODO JNO - remove at the end of #1615
-	@Nonnull
-	public Map<Long, Integer> getIndexPrimaryKeyCardinalities() {
-		return this.indexPrimaryKeyCardinality.getCardinalities();
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Returns, per filterable attribute, how many times each reduced-index primary key carries each of its values.
-	 * Meant for tests comparing two indexes.
-	 *
-	 * @return a fresh map of every attribute key to a copy of its value cardinalities
-	 */
-	// TODO JNO - remove at the end of #1615
-	@Nonnull
-	public Map<AttributeIndexKey, Map<AttributeCardinalityKey, Integer>> getAttributeCardinalities() {
-		final Map<AttributeIndexKey, Map<AttributeCardinalityKey, Integer>> result =
-			CollectionUtils.createHashMap(this.cardinalityIndexes.size());
-		for (final Map.Entry<AttributeIndexKey, AttributeCardinalityIndex> entry : this.cardinalityIndexes.entrySet()) {
-			result.put(entry.getKey(), new HashMap<>(entry.getValue().getCardinalities()));
-		}
-		return result;
 	}
 
 	/**

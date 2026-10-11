@@ -382,18 +382,17 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 		}
 	}
 
-	// TODO JNO - remove at the end of #1615 (the counter assertions only, the resolutions they check stay)
 	@Nested
 	@DisplayName("Resolution among many references")
-	class ResolutionCost {
+	class ResolutionAmongManyReferences {
 		/**
 		 * How many references of distinct targets the entity holds.
 		 */
 		private static final int N = 300;
 
 		@Test
-		@DisplayName("should find any reference of a key by a binary search over all references")
-		void shouldFindAnyReferenceByBinarySearchWhenEntityHoldsManyReferences() {
+		@DisplayName("should find any reference of a key among all references")
+		void shouldFindAnyReferenceWhenEntityHoldsManyReferences() {
 			final ReferenceSchema referenceSchema = referenceSchema(
 				Cardinality.ZERO_OR_MORE, Map.of(ATTRIBUTE_CODE, attribute(ATTRIBUTE_CODE, false, false))
 			);
@@ -405,33 +404,21 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 				);
 			}
 			final StubContainerAccessor accessor = new StubContainerAccessor(storagePart(references));
-			// one reference per key - the walk over the run compares a single key
-			final int bound = binarySearchComparisons(N) + 1;
 
 			for (final int target : new int[]{1, 2, N / 2, N - 1, N}) {
-				final ReferenceResolutionCounter counter = ReferenceResolutionCounter.start();
-				try {
-					final ExistingAttributeValueSupplier supplier = supplier(
-						accessor, referenceSchema, key(target), key(target)
-					);
-					assertEquals(
-						"code " + target,
-						supplier.getAttributeValue(new AttributeKey(ATTRIBUTE_CODE)).orElseThrow().value()
-					);
-				} finally {
-					ReferenceResolutionCounter.stop();
-				}
-				assertEquals(1, counter.getResolutions(), "one resolution of reference " + target);
-				assertTrue(
-					counter.getComparisons() <= bound,
-					"reference " + target + " compared more than " + bound + " keys: " + counter
+				final ExistingAttributeValueSupplier supplier = supplier(
+					accessor, referenceSchema, key(target), key(target)
+				);
+				assertEquals(
+					"code " + target,
+					supplier.getAttributeValue(new AttributeKey(ATTRIBUTE_CODE)).orElseThrow().value()
 				);
 			}
 		}
 
 		@Test
-		@DisplayName("should report a missing key after a binary search and one look at the next key")
-		void shouldReportMissingKeyAfterBinarySearchWhenNoReferenceTargetsIt() {
+		@DisplayName("should report a missing key that sits between two present ones")
+		void shouldReportMissingKeyWhenNoReferenceTargetsIt() {
 			final ReferenceSchema referenceSchema = referenceSchema(
 				Cardinality.ZERO_OR_MORE, Map.of(ATTRIBUTE_CODE, attribute(ATTRIBUTE_CODE, false, false))
 			);
@@ -444,19 +431,8 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 				);
 			}
 			final StubContainerAccessor accessor = new StubContainerAccessor(storagePart(references));
-			final ReferenceResolutionCounter counter = ReferenceResolutionCounter.start();
-			try {
-				final ExistingAttributeValueSupplier supplier = supplier(
-					accessor, referenceSchema, key(N + 1), key(N + 1)
-				);
-				assertTrue(supplier.getAttributeValue(new AttributeKey(ATTRIBUTE_CODE)).isEmpty());
-			} finally {
-				ReferenceResolutionCounter.stop();
-			}
-			assertTrue(
-				counter.getComparisons() <= binarySearchComparisons(N) + 1,
-				"the missing reference compared too many keys: " + counter
-			);
+			final ExistingAttributeValueSupplier supplier = supplier(accessor, referenceSchema, key(N + 1), key(N + 1));
+			assertTrue(supplier.getAttributeValue(new AttributeKey(ATTRIBUTE_CODE)).isEmpty());
 		}
 
 		@Test
@@ -484,23 +460,14 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 				}
 			}
 			final StubContainerAccessor accessor = new StubContainerAccessor(storagePart(references));
-			final ReferenceResolutionCounter counter = ReferenceResolutionCounter.start();
-			try {
-				// the last of the duplicates - every other one of the key is walked over first
-				final ExistingAttributeValueSupplier supplier = supplier(
-					accessor, referenceSchema, key(target, "variant " + (duplicates - 1)),
-					key(target, "variant " + (duplicates - 1))
-				);
-				assertEquals(
-					"variant " + (duplicates - 1),
-					supplier.getAttributeValue(new AttributeKey(ATTRIBUTE_VARIANT)).orElseThrow().value()
-				);
-			} finally {
-				ReferenceResolutionCounter.stop();
-			}
-			assertTrue(
-				counter.getComparisons() <= binarySearchComparisons(references.length) + duplicates,
-				"the duplicates were not reached by a binary search: " + counter
+			// the last of the duplicates - every other one of the key is walked over first
+			final ExistingAttributeValueSupplier supplier = supplier(
+				accessor, referenceSchema, key(target, "variant " + (duplicates - 1)),
+				key(target, "variant " + (duplicates - 1))
+			);
+			assertEquals(
+				"variant " + (duplicates - 1),
+				supplier.getAttributeValue(new AttributeKey(ATTRIBUTE_VARIANT)).orElseThrow().value()
 			);
 		}
 
@@ -532,17 +499,6 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 					.getAttributeValue(new AttributeKey(ATTRIBUTE_CODE)).orElseThrow().value(),
 				"the current key's reference comes first in the array"
 			);
-		}
-
-		/**
-		 * Returns `ceil(log2(n + 1))` - the most key comparisons a binary search for the lower bound of a run takes
-		 * among `n` sorted references.
-		 *
-		 * @param n the number of references
-		 * @return the number of comparisons
-		 */
-		private static int binarySearchComparisons(int n) {
-			return 32 - Integer.numberOfLeadingZeros(n);
 		}
 	}
 

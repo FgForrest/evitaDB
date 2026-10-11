@@ -115,11 +115,10 @@ public class EntityByDuplicateReferencesFunctionalTest {
 	private final static int CATEGORY_COUNT = 10;
 	private final static int BRAND_COUNT = 10;
 
-	// TODO JNO - remove at the end of #1615 (the lookup through the registry stays)
 	/**
 	 * Retrieves the partition of the referenced entity based on the provided parameters - its index object, or the
-	 * virtual handle of its registry row when the partition is a single-owner one of a catalog representing those as
-	 * rows. Meant for checking that the partition exists, not for reading what it holds.
+	 * virtual handle of its registry row when the partition is a single-owner one. Meant for checking that the
+	 * partition exists, not for reading what it holds.
 	 *
 	 * @param evita                         the evita instance, must not be null
 	 * @param scope                         the scope in which the index resides, must not be null
@@ -141,7 +140,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 		final EntityCollectionContract collection = catalog.getCollectionForEntity(entityType).orElseThrow();
 		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
 		return ReferencePartitions.resolverByKeyForOwnerRead(
-			((EntityCollection) collection).getDataStoreReader(), scope, referenceName, true
+			((EntityCollection) collection).getDataStoreReader(), scope, referenceName
 		).apply(
 			new RepresentativeReferenceKey(new ReferenceKey(referenceName, recordId), representativeAttributeValues)
 		);

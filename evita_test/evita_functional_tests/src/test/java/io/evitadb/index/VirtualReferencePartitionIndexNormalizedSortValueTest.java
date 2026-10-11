@@ -443,7 +443,10 @@ class VirtualReferencePartitionIndexNormalizedSortValueTest {
 			"The sort index of " + sortKey + " must not tell the twins apart " + stage
 		);
 		assertMatchesModel(sortKey, normalizedSortIndex, model);
-		assertEquals(raw.getEntryCount(), normalized.getEntryCount(), "Entry counts " + stage);
+		assertEquals(
+			VirtualReferencePartitionIndexEntries.count(raw), VirtualReferencePartitionIndexEntries.count(normalized),
+			"Entry counts " + stage
+		);
 
 		final Comparator<Serializable> comparator = comparatorOf(sortKey);
 		for (final Map.Entry<Integer, Serializable> entry : model.entrySet()) {
@@ -665,7 +668,7 @@ class VirtualReferencePartitionIndexNormalizedSortValueTest {
 			final VirtualReferencePartitionIndex index = declared(compound);
 			plain.declare(index);
 			index.putNormalizedSortValue(WEIGHT, 1, 150);
-			final int entryCount = index.getEntryCount();
+			final int entryCount = VirtualReferencePartitionIndexEntries.count(index, 1, 2);
 
 			assertThrows(
 				GenericEvitaInternalError.class, () -> index.putNormalizedSortValue(ROLE_WEIGHT, 2, "gallery")
@@ -686,7 +689,10 @@ class VirtualReferencePartitionIndexNormalizedSortValueTest {
 				() -> index.putNormalizedSortValue(new AttributeIndexKey(REFERENCE_NAME, "undeclared", null), 2, 1)
 			);
 
-			assertEquals(entryCount, index.getEntryCount(), "A refused value must not leave an entry behind");
+			assertEquals(
+				entryCount, VirtualReferencePartitionIndexEntries.count(index, 1, 2),
+				"A refused value must not leave an entry behind"
+			);
 			assertTrue(index.getSortIndex(ROLE_WEIGHT).isEmpty());
 			assertEquals(List.of(1), snapshotOf(index.getSortIndex(WEIGHT)).records());
 			assertEquals(new BigDecimal("1.50"), denormalizedWeightOf(index));

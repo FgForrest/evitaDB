@@ -36,8 +36,6 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.core.catalog.Catalog;
-// TODO JNO - remove at the end of #1615
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.MutationHandle;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.dataType.Scope;
@@ -170,9 +168,7 @@ abstract class AbstractMutatorTestBase {
 			this.usageRegistry,
 			this.catalogUsageRegistry,
 
-			true,
-			// TODO JNO - remove at the end of #1615
-			MutationHandle.OFF
+			true
 		);
 
 		final EntityCollection productCollection = Mockito.mock(EntityCollection.class);

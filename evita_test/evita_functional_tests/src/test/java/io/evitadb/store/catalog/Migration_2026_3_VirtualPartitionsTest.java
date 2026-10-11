@@ -1402,7 +1402,7 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Asserts that both catalogs of the engine carry the current storage protocol and represent their single-owner
+	 * Asserts that both catalogs of the engine carry the current storage protocol - the one representing single-owner
 	 * partitions as rows.
 	 *
 	 * @param engine the engine
@@ -1419,10 +1419,6 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 				defaultPersistenceService.getCatalogHeader(defaultPersistenceService.getLastCatalogVersion())
 					.storageProtocolVersion(),
 				"the storage protocol of `" + catalogName + "`"
-			);
-			assertTrue(
-				catalog.getVirtualReferencePartitionMaintenance().isVirtual(),
-				"`" + catalogName + "` must represent its single-owner partitions as rows"
 			);
 		}
 	}

@@ -427,14 +427,6 @@ public final class Catalog
 	 * CatalogSchema)}.
 	 */
 	@Nonnull private final SchemaCapabilityUsageRegistry usageRegistry;
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * The switch saying which collections of this catalog maintain virtual reference partitions. Carried by reference
-	 * across catalog versions like {@link #usageRegistry}, and keyed by entity type name so that it reaches a collection
-	 * the commit replay creates anew - see {@link VirtualReferencePartitionMaintenance}.
-	 */
-	// TODO JNO - remove at the end of #1615
-	@Nonnull private final VirtualReferencePartitionMaintenance virtualReferencePartitionMaintenance;
 	/**
 	 * Last persisted schema version of the catalog.
 	 */
@@ -781,11 +773,6 @@ public final class Catalog
 		// nothing today; it is here so that a future constructor accepting a populated schema cannot skip it
 		this.usageRegistry = new SchemaCapabilityUsageRegistry();
 		this.usageRegistry.alignWith(internalCatalogSchema);
-		// TODO JNO - remove at the end of #1615
-		// every catalog is created with its single-owner reference partitions as registry rows
-		this.virtualReferencePartitionMaintenance = VirtualReferencePartitionMaintenance.forNewCatalog(
-			this.catalogId, true
-		);
 		this.proxyFactory = proxyFactory;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = internalCatalogSchema.version();
@@ -876,18 +863,6 @@ public final class Catalog
 		// has its row before the first query arrives rather than from whenever one first names it
 		this.usageRegistry = new SchemaCapabilityUsageRegistry();
 		this.usageRegistry.alignWith(catalogSchema);
-		// every catalog this version loads carries the current storage protocol - the store migrates an older one and
-		// refuses any other - so it keeps its single-owner reference partitions as registry rows, and maintains every
-		// collection virtually for good. Decided here, before any collection is attached and before the write-ahead log
-		// is replayed onto this catalog, so the replayed mutations - those creating a collection among them - see it as
-		// well
-		// TODO JNO - remove at the end of #1615
-		this.virtualReferencePartitionMaintenance = VirtualReferencePartitionMaintenance.forLoadedCatalog(
-			this.catalogId,
-			true,
-			evita.getEntityTypesMaintainingVirtualReferencePartitionsOnLoad(catalogName),
-			evita.getVirtualReferencePartitionProbeOnLoad(catalogName)
-		);
 		this.persistenceService.readCatalogIndex(this, Scope.ARCHIVED)
 			.filter(it -> !it.isEmpty())
 			.ifPresent(this.archiveCatalogIndex::set);
@@ -964,8 +939,6 @@ public final class Catalog
 		// the registry travels with it exactly as the catalog index's own activity holder does. Minting one here would
 		// reset the counters on every commit, which is to say on precisely the catalogs worth measuring
 		this.usageRegistry = previousCatalogVersion.usageRegistry;
-		// TODO JNO - remove at the end of #1615
-		this.virtualReferencePartitionMaintenance = previousCatalogVersion.virtualReferencePartitionMaintenance;
 		this.archiveCatalogIndex.set(archiveCatalogIndex);
 		this.persistenceService = persistenceService;
 		this.cacheSupervisor = previousCatalogVersion.cacheSupervisor;
@@ -2275,19 +2248,6 @@ public final class Catalog
 	@Nonnull
 	public SchemaCapabilityUsageRegistry getUsageRegistry() {
 		return this.usageRegistry;
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Returns the switch saying which collections of this catalog maintain virtual reference partitions. It is the
-	 * same instance for every version of one logical catalog, and a fresh one after the catalog is loaded from disk.
-	 *
-	 * @return the switch of this catalog lineage
-	 */
-	// TODO JNO - remove at the end of #1615
-	@Nonnull
-	public VirtualReferencePartitionMaintenance getVirtualReferencePartitionMaintenance() {
-		return this.virtualReferencePartitionMaintenance;
 	}
 
 	/**
@@ -3669,10 +3629,6 @@ public final class Catalog
 			sessionId,
 			getSchema(),
 			modifyEntitySchemaName
-		);
-		// TODO JNO - remove at the end of #1615
-		this.virtualReferencePartitionMaintenance.carryOver(
-			entityCollectionNameToBeReplacedWith, entityCollectionNameToBeReplaced
 		);
 		Assert.isPremiseValid(
 			this.entityCollections.remove(entityCollectionNameToBeReplacedWith) == entityCollectionToBeReplacedWith,

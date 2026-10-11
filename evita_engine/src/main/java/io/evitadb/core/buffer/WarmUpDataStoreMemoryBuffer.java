@@ -35,8 +35,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.function.Supplier;
 import java.util.OptionalLong;
-// TODO JNO - remove at the end of #1615
-import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -92,13 +90,6 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 	@Override
 	public <IK extends IndexKey, I extends Index<IK>> I getOrCreateIndexForModification(@Nonnull IK entityIndexKey, @Nonnull Function<IK, I> accessorWhenMissing) {
 		return this.dataStoreChanges.getOrCreateIndexForModification(entityIndexKey, accessorWhenMissing);
-	}
-
-	// TODO JNO - remove at the end of #1615
-	@Nonnull
-	@Override
-	public Set<IndexKey> getDirtyIndexKeys() {
-		return this.dataStoreChanges.getDirtyIndexKeys();
 	}
 
 	@Override

@@ -85,7 +85,7 @@ class VirtualReferencePartitionIndexRemovePartitionTest {
 	@DisplayName("removing a partition forgets its row, tuple, sort values and predecessors and nothing else")
 	void shouldForgetEverythingAboutOnePartition() {
 		final VirtualReferencePartitionIndex index = twoPartitions();
-		assertEquals(8, index.getEntryCount());
+		assertEquals(8, VirtualReferencePartitionIndexEntries.count(index));
 
 		assertTrue(index.removePartition(1));
 
@@ -93,7 +93,9 @@ class VirtualReferencePartitionIndexRemovePartitionTest {
 		assertEquals(VirtualReferencePartitionIndex.NO_TUPLE_ID, index.getRepresentativeTupleId(1));
 		assertEquals(OptionalInt.empty(), index.getChainPredecessor(CHAIN, 1));
 		assertArrayEquals(new int[]{2}, index.getSortIndex(ORDER).getSortedRecords());
-		assertEquals(4, index.getEntryCount(), "only the four entries of partition 2 remain");
+		assertEquals(
+			4, VirtualReferencePartitionIndexEntries.count(index, 1), "only the four entries of partition 2 remain"
+		);
 		// the tuple of partition 1 had no other user and leaves the dictionary
 		assertEquals(VirtualReferencePartitionIndex.NO_TUPLE_ID, index.getTupleId(new Serializable[]{"role1"}));
 		assertEquals(Set.of(ORDER), index.getDeclaredSortKeys(), "the keys stay declared");
@@ -107,7 +109,7 @@ class VirtualReferencePartitionIndexRemovePartitionTest {
 
 		assertFalse(index.removePartition(3));
 
-		assertEquals(8, index.getEntryCount());
+		assertEquals(8, VirtualReferencePartitionIndexEntries.count(index));
 	}
 
 	@Test
@@ -165,7 +167,10 @@ class VirtualReferencePartitionIndexRemovePartitionTest {
 				assertTrue(original.isEmpty());
 			},
 			(original, committed) -> {
-				assertEquals(8, original.getEntryCount(), "the original is untouched by the transaction");
+				assertEquals(
+					8, VirtualReferencePartitionIndexEntries.count(original),
+					"the original is untouched by the transaction"
+				);
 				assertTrue(committed.isEmpty());
 				assertEquals(Set.of(), committed.getDeclaredSortKeys());
 			}
@@ -188,7 +193,7 @@ class VirtualReferencePartitionIndexRemovePartitionTest {
 				assertFalse(original.removePartitionOwner(3));
 				assertFalse(original.removeChainPredecessor(CHAIN, 3));
 			},
-			(original, committed) -> assertEquals(8, committed.getEntryCount())
+			(original, committed) -> assertEquals(8, VirtualReferencePartitionIndexEntries.count(committed))
 		);
 	}
 
@@ -205,7 +210,7 @@ class VirtualReferencePartitionIndexRemovePartitionTest {
 			},
 			(original, committed) -> {
 				assertNull(committed);
-				assertEquals(8, original.getEntryCount());
+				assertEquals(8, VirtualReferencePartitionIndexEntries.count(original));
 				assertEquals(Set.of(ORDER), original.getDeclaredSortKeys());
 				assertTrue(original.getPartitionOwner(1).isPresent());
 			}

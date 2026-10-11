@@ -44,8 +44,6 @@ import io.evitadb.api.requestResponse.schema.EvolutionMode;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.catalog.CatalogExpressionTriggerRegistry;
-// TODO JNO - remove at the end of #1615
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.MutationHandle;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -316,9 +314,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			NOOP_CLASSIFIER_RESOLVER,
 			new SchemaCapabilityUsageRegistry(),
 			new SchemaCapabilityUsageRegistry(),
-			true,
-			// TODO JNO - remove at the end of #1615
-			MutationHandle.OFF
+			true
 		);
 	}
 
@@ -1252,9 +1248,7 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			NOOP_CLASSIFIER_RESOLVER,
 			new SchemaCapabilityUsageRegistry(),
 			new SchemaCapabilityUsageRegistry(),
-			true,
-			// TODO JNO - remove at the end of #1615
-			MutationHandle.OFF
+			true
 		);
 	}
 

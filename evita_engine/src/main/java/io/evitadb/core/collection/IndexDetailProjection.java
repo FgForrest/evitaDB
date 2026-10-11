@@ -62,18 +62,14 @@ final class IndexDetailProjection {
 	/**
 	 * Describes the given index.
 	 *
-	 * @param entityType     name of the collection holding the index
-	 * @param index          the index to describe, already resolved by the caller from its primary key
-	 * @param virtualCatalog TRUE when the catalog represents its single-owner partitions as registry rows - see
-	 *                       {@link IndexCardinalityProjection#describeIndex}
+	 * @param entityType name of the collection holding the index
+	 * @param index      the index to describe, already resolved by the caller from its primary key
 	 * @return the full description of that one index
 	 */
 	@Nonnull
 	static IndexDetail describe(
 		@Nonnull String entityType,
-		@Nonnull EntityIndex index,
-		// TODO JNO - remove at the end of #1615 (every catalog represents its partitions virtually then)
-		boolean virtualCatalog
+		@Nonnull EntityIndex index
 	) {
 		// read off the live index rather than off a snapshot, which is exactly right for counters that are shared
 		// across catalog versions and deliberately outside the transactional diff layer. Null when the server does not
@@ -86,8 +82,7 @@ final class IndexDetailProjection {
 			IndexCardinalityProjection.describeIndex(
 				index.getIndexKey(),
 				IndexBrowseProjection.renderDiscriminator(index.getIndexKey()),
-				index,
-				virtualCatalog
+				index
 			),
 			activity == null ? 0L : activity.getQueryCount(),
 			activity == null ? 0L : activity.getUpdateCount(),

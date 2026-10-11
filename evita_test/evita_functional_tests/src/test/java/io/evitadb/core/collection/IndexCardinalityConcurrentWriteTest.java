@@ -146,7 +146,7 @@ class IndexCardinalityConcurrentWriteTest {
 	@Nonnull
 	private static Map<String, Reading> describe(@Nonnull WritingEntityIndex index, @Nonnull AttributeIndexType type) {
 		final IndexCardinality cardinality = IndexCardinalityProjection.describeIndex(
-			index.getIndexKey(), null, index, false
+			index.getIndexKey(), null, index
 		);
 		assertTrue(index.hasWritten(), "the write must have landed during the walk");
 		return Arrays.stream(cardinality.attributes())

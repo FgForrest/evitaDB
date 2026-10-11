@@ -211,11 +211,10 @@ public interface IndexingTestSupport {
 		);
 	}
 
-	// TODO JNO - remove at the end of #1615 (the lookup through the registry stays)
 	/**
 	 * Retrieves the partition of a representative reference key for the given collection and scope - its index
-	 * object, or the virtual handle of its registry row when the partition is a single-owner one of a catalog
-	 * representing those as rows. Its identity and owners read alike for both, nothing else it holds does.
+	 * object, or the virtual handle of its registry row when the partition is a single-owner one. Its identity and
+	 * owners read alike for both, nothing else it holds does.
 	 *
 	 * @param collection the entity collection to query
 	 * @param scope      the scope to search in
@@ -230,7 +229,7 @@ public interface IndexingTestSupport {
 	) {
 		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
 		return ReferencePartitions.resolverByKeyForOwnerRead(
-			((EntityCollection) collection).getDataStoreReader(), scope, key.referenceName(), true
+			((EntityCollection) collection).getDataStoreReader(), scope, key.referenceName()
 		).apply(key);
 	}
 

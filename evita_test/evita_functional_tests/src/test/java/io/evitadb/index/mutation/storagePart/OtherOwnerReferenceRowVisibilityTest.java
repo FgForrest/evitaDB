@@ -703,8 +703,6 @@ class OtherOwnerReferenceRowVisibilityTest implements EvitaTestSupport {
 						openMutationOfSecondOwner(session, rootMutation);
 					final ContainerizedLocalMutationExecutor thirdOwner =
 						rootMutation.openNested(ENTITY_PRODUCT, THIRD_OWNER_PK);
-					final long fetchesBefore =
-						catalog.getVirtualReferencePartitionMaintenance().getForeignReferencesFetchCount();
 
 					final ReferencesStoragePart references =
 						secondOwner.getReferencesStoragePart(ENTITY_PRODUCT, FIRST_OWNER_PK);
@@ -731,11 +729,6 @@ class OtherOwnerReferenceRowVisibilityTest implements EvitaTestSupport {
 							secondOwner.getAttributeStoragePart(ENTITY_PRODUCT, FIRST_OWNER_PK, Locale.ENGLISH),
 							thirdOwner.getAttributeStoragePart(ENTITY_PRODUCT, FIRST_OWNER_PK, Locale.ENGLISH)
 						)
-					);
-					assertEquals(
-						fetchesBefore + 1,
-						catalog.getVirtualReferencePartitionMaintenance().getForeignReferencesFetchCount(),
-						"the references of the entity must have been fetched once"
 					);
 				}
 			);
@@ -1066,9 +1059,7 @@ class OtherOwnerReferenceRowVisibilityTest implements EvitaTestSupport {
 				.orElse(null),
 			inFlightAccessorLookup,
 			internalPriceIds::incrementAndGet,
-			false,
-			catalog.getVirtualReferencePartitionMaintenance().isVirtual(),
-			catalog.getVirtualReferencePartitionMaintenance()::recordForeignReferencesFetch
+			false
 		);
 	}
 

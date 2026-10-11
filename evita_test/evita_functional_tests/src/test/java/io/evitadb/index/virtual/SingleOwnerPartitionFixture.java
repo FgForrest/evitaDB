@@ -48,6 +48,7 @@ import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.VirtualReferencePartitionIndex;
+import io.evitadb.index.VirtualReferencePartitionIndexEntries;
 import io.evitadb.index.VirtualReferencePartitionSlot;
 import io.evitadb.utils.NumberUtils;
 
@@ -825,7 +826,7 @@ public final class SingleOwnerPartitionFixture {
 					(partition, payload) -> description.append(' ').append(partition).append("#")
 						.append(Arrays.toString(registry.getTuple((int) payload)))
 				);
-				description.append(" entries=").append(registry.getEntryCount());
+				description.append(" entries=").append(VirtualReferencePartitionIndexEntries.count(registry));
 			}
 			description.append('\n');
 		}

@@ -51,6 +51,7 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartitionIndex;
+import io.evitadb.index.VirtualReferencePartitionIndexEntries;
 import io.evitadb.index.VirtualReferencePartitionSlot;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.FilterIndex;
@@ -1138,7 +1139,7 @@ public final class CatalogDescriber {
 		}
 		lines.put(path + "/sortKeys", sortKeys.toString());
 		lines.put(path + "/chainKeys", chainKeys.toString());
-		lines.put(path + "/entries", String.valueOf(registry.getEntryCount()));
+		lines.put(path + "/entries", String.valueOf(VirtualReferencePartitionIndexEntries.count(registry)));
 		for (final Entry<Integer, Long> row : rows.entrySet()) {
 			final int partitionPrimaryKey = row.getKey();
 			final int tupleId = registry.getRepresentativeTupleId(partitionPrimaryKey);

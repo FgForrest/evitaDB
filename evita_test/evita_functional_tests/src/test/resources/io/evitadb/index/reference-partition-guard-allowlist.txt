@@ -119,7 +119,6 @@ R3 | io.evitadb.core.query.QueryPlanningContext#getIndexByPrimaryKeyOf | the pla
 R3 | io.evitadb.core.query.QueryPlanningContext#getIndexByPrimaryKeyReader | partition resolver surface over the collection's or the query's indexes
 R3 | io.evitadb.index.IndexMaintainer#getIndexByPrimaryKey | generic throwing by-pk default of IndexMaintainer
 R3 | io.evitadb.index.ReferencePartitions#resolveOfTarget (overloads (Lio/evitadb/core/buffer/DataStoreReader;Lio/evitadb/dataType/Scope;Ljava/lang/String;ZI)[Lio/evitadb/index/ReferencePartition;) | the partition resolver implementation itself
-R3 | io.evitadb.index.ReferencePartitions#resolveOfTargetForOwnerRead | the partition resolver implementation itself - the owner read compares a registered partition with its index object
 R3 | io.evitadb.index.mutation.IndexMutationTarget#resolvePartitionIfExists | partition resolver surface of IndexMutationTarget for cross-entity maintenance
 R3 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#addFromReferenceAttributeForLocale | group family: reduced group entity indexes have no partition handle (histograms and group resolution of the cross-entity trigger)
 R3 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#applyFacetToReducedIndexFamily | facet decision into the mutated reference's reduced indexes, reached only for partitioned references
@@ -170,5 +169,5 @@ R7 | io.evitadb.index.mutation.IndexMutationTarget#resolvePartitionForOwnerReadI
 R7 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#resolveForParentUngrouped | owners of the partitions of a reference re-evaluated for a parent mutation
 R7 | io.evitadb.index.mutation.ReevaluateExpressionExecutor#resolveForRefEntityAttrUngrouped | owners of the partitions of a target re-evaluated for a referenced entity mutation
 R7 | io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor#createAndRegisterReferencePropagationMutation | owners and keys of the counterpart partitions a reflected reference is propagated from
-R7 | io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor#createCounterpartPresencePredicate | owners of the counterpart partition tested for the presence of the counterpart reference
+R7 | io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor#createCounterpartPresencePredicate | owners of the counterpart partition tested for the presence of the counterpart reference - the by-key resolution remembers the rows it read, and the predicate lives for one generateMissing or removeExistingEntityPks pass, which only collects mutations and writes no registry row
 R7 | io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor#propagateReferenceModification | keys of the own partitions of a counterpart target a reflected reference is generated for

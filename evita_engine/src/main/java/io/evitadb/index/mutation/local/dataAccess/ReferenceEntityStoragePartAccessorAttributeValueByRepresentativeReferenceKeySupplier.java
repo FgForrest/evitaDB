@@ -60,12 +60,6 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 	@SuppressWarnings("OptionalUsedAsFieldOrParameterType")
 	private Optional<ReferenceContract> memoizedReference;
 	private int memoizedReferenceIndex = -1;
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * How many reference keys the resolution running in {@link #getMemoizedReference()} has compared so far - see
-	 * {@link ReferenceResolutionCounter}.
-	 */
-	private int comparisons;
 
 	public ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceKeySupplier(
 		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
@@ -163,8 +157,6 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 		// we need to check the memoized instance is still the same, when the reference or its contents are modified
 		// the entire reference is replaced, so we need to retrieve it again
 		if (isReferenceNullOrObsolete(references)) {
-			// TODO JNO - remove at the end of #1615
-			this.comparisons = 0;
 			final ReferenceKey currentTargetKey = this.currentReferenceKey.referenceKey();
 			final ReferenceKey storedTargetKey = this.storedReferenceKey.referenceKey();
 			final int currentMatch = findMatchInRunOf(references, currentTargetKey);
@@ -177,8 +169,6 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 				? storedMatch : currentMatch;
 			this.memoizedReference = this.memoizedReferenceIndex == -1
 				? Optional.empty() : Optional.of(references[this.memoizedReferenceIndex]);
-			// TODO JNO - remove at the end of #1615
-			ReferenceResolutionCounter.record(this.comparisons, references.length);
 		}
 		return this.memoizedReference;
 	}
@@ -198,8 +188,6 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 		int high = references.length;
 		while (low < high) {
 			final int middle = (low + high) >>> 1;
-			// TODO JNO - remove at the end of #1615
-			this.comparisons++;
 			if (ReferenceKey.GENERIC_COMPARATOR.compare(references[middle].getReferenceKey(), targetKey) < 0) {
 				low = middle + 1;
 			} else {
@@ -209,8 +197,6 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 		for (int i = low; i < references.length; i++) {
 			final ReferenceContract reference = references[i];
 			final ReferenceKey referenceKey = reference.getReferenceKey();
-			// TODO JNO - remove at the end of #1615
-			this.comparisons++;
 			if (!referenceKey.equalsInGeneral(targetKey)) {
 				// the end of the run
 				return -1;

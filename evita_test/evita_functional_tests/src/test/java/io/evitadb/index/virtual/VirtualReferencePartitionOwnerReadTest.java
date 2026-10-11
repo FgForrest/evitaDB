@@ -325,7 +325,7 @@ class VirtualReferencePartitionOwnerReadTest implements EvitaTestSupport {
 				for (final Map.Entry<Integer, List<ExpectedPartition>> entry : byTarget.entrySet()) {
 					assertNotNull(typeIndex);
 					final ReferencePartition[] resolved = ReferencePartitions.resolveOfTargetForOwnerRead(
-						collection.getDataStoreReader(), scope, reference[1], allowsDuplicates, entry.getKey(), true
+						collection.getDataStoreReader(), scope, reference[1], allowsDuplicates, entry.getKey()
 					);
 					assertEquals(
 						entry.getValue().size(), resolved.length,
@@ -367,7 +367,7 @@ class VirtualReferencePartitionOwnerReadTest implements EvitaTestSupport {
 			// a duplicates-allowing reference told apart by its representative attribute
 			final Function<RepresentativeReferenceKey, ReferencePartition> gallery =
 				ReferencePartitions.resolverByKeyForOwnerRead(
-					products.getDataStoreReader(), scope, REFERENCE_GALLERY, true
+					products.getDataStoreReader(), scope, REFERENCE_GALLERY
 				);
 			final ReferencedTypeEntityIndex galleryTypeIndex = typeIndexOf(products, REFERENCE_GALLERY, scope);
 			assertNotNull(galleryTypeIndex);
@@ -399,7 +399,7 @@ class VirtualReferencePartitionOwnerReadTest implements EvitaTestSupport {
 			// a reference without representative attributes - product `n` alone is in category `n`
 			final Function<RepresentativeReferenceKey, ReferencePartition> categories =
 				ReferencePartitions.resolverByKeyForOwnerRead(
-					products.getDataStoreReader(), scope, REFERENCE_CATEGORIES, true
+					products.getDataStoreReader(), scope, REFERENCE_CATEGORIES
 				);
 			final ReferencedTypeEntityIndex categoryTypeIndex = typeIndexOf(products, REFERENCE_CATEGORIES, scope);
 			assertNotNull(categoryTypeIndex);

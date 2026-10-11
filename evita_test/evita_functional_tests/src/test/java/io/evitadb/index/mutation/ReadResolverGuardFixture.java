@@ -138,7 +138,7 @@ public final class ReadResolverGuardFixture {
 	static Function<RepresentativeReferenceKey, ReferencePartition> ownerReadByKeyShape(
 		@Nonnull DataStoreReader dataStoreReader
 	) {
-		return ReferencePartitions.resolverByKeyForOwnerRead(dataStoreReader, Scope.LIVE, "any", true);
+		return ReferencePartitions.resolverByKeyForOwnerRead(dataStoreReader, Scope.LIVE, "any");
 	}
 
 	/**

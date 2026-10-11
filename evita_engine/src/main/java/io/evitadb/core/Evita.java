@@ -73,8 +73,6 @@ import io.evitadb.core.cache.HeapMemoryCacheSupervisor;
 import io.evitadb.core.cache.NoCacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.catalog.UnusableCatalog;
-// TODO JNO - remove at the end of #1615
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.TransitionProbe;
 import io.evitadb.core.cdc.EngineStatisticsPublisher;
 import io.evitadb.core.cdc.SystemChangeObserver;
 import io.evitadb.core.engine.CatalogFolderContext;
@@ -319,23 +317,6 @@ public final class Evita implements EvitaContract {
 	 * a programming error (would deadlock) and is rejected with a fail-fast exception.
 	 */
 	private final AtomicBoolean catalogLoadingScheduled = new AtomicBoolean(false);
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * The entity types whose collections maintain virtual reference partitions from the moment their catalog is
-	 * loaded, keyed by catalog name - see {@link #maintainVirtualReferencePartitionsOnLoad(String, Set)}. Scoped to
-	 * this instance, so two engines in one process never see each other's switch.
-	 */
-	// TODO JNO - remove at the end of #1615
-	private final Map<String, Set<String>> virtualReferencePartitionsMaintainedOnLoad =
-		CollectionUtils.createConcurrentHashMap(4);
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * The probes installed on the virtual reference partitions of a catalog from the moment it is loaded, keyed by
-	 * catalog name - see {@link #maintainVirtualReferencePartitionsOnLoad(String, Set, TransitionProbe)}.
-	 */
-	// TODO JNO - remove at the end of #1615
-	private final Map<String, TransitionProbe> virtualReferencePartitionProbesOnLoad =
-		CollectionUtils.createConcurrentHashMap(4);
 	/**
 	 * Flag that is set to TRUE when Evita fully loads all catalogs, that should be active after startup.
 	 */
@@ -749,93 +730,6 @@ public final class Evita implements EvitaContract {
 				loadCatalogFuture.execute(unrejectableExecutor);
 			}
 		}
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Turns maintenance of virtual reference partitions on for the given collections of a catalog from the moment the
-	 * catalog is loaded - before its collections are attached and before the write-ahead log it has not yet
-	 * incorporated is replayed onto it, so the replayed mutations are maintained as well. Turning the switch on once
-	 * the catalog is loaded would leave those mutations unmaintained.
-	 *
-	 * Meant for tests only, and callable only before the initial catalog loading is scheduled: construct the engine
-	 * with `new Evita(configuration, false)`, call this method, then {@link #scheduleInitialCatalogLoading()}. Every
-	 * later load of the catalog by this instance is seeded the same way. A later call for the same catalog replaces
-	 * the entity types of the earlier one.
-	 *
-	 * @param catalogName the name of the catalog
-	 * @param entityTypes the entity types whose collections maintain virtual reference partitions; a collection does
-	 *                    not have to exist yet
-	 * @throws GenericEvitaInternalError when the initial catalog loading has already been scheduled
-	 */
-	// TODO JNO - remove at the end of #1615
-	public void maintainVirtualReferencePartitionsOnLoad(
-		@Nonnull String catalogName,
-		@Nonnull Set<String> entityTypes
-	) {
-		maintainVirtualReferencePartitionsOnLoad(catalogName, entityTypes, null);
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Same as {@link #maintainVirtualReferencePartitionsOnLoad(String, Set)}, and also installs the given probe on the
-	 * virtual reference partitions of the catalog from the moment it is loaded, so the probe observes the transitions
-	 * the write-ahead log replays at load - and whatever the load itself does - as well.
-	 *
-	 * @param catalogName the name of the catalog
-	 * @param entityTypes the entity types whose collections maintain virtual reference partitions; a collection does
-	 *                    not have to exist yet
-	 * @param probe       the probe to install, `null` for none
-	 * @throws GenericEvitaInternalError when the initial catalog loading has already been scheduled
-	 */
-	// TODO JNO - remove at the end of #1615
-	public void maintainVirtualReferencePartitionsOnLoad(
-		@Nonnull String catalogName,
-		@Nonnull Set<String> entityTypes,
-		@Nullable TransitionProbe probe
-	) {
-		Assert.isPremiseValid(
-			!this.catalogLoadingScheduled.get(),
-			() -> new GenericEvitaInternalError(
-				"Catalog loading has already been scheduled - the switch maintaining virtual reference partitions " +
-					"of catalog `" + catalogName + "` must be turned on before scheduleInitialCatalogLoading() is " +
-					"called."
-			)
-		);
-		this.virtualReferencePartitionsMaintainedOnLoad.put(catalogName, Set.copyOf(entityTypes));
-		if (probe == null) {
-			this.virtualReferencePartitionProbesOnLoad.remove(catalogName);
-		} else {
-			this.virtualReferencePartitionProbesOnLoad.put(catalogName, probe);
-		}
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Returns the probe installed on the virtual reference partitions of the given catalog from the moment it is
-	 * loaded - see {@link #maintainVirtualReferencePartitionsOnLoad(String, Set, TransitionProbe)}.
-	 *
-	 * @param catalogName the name of the catalog
-	 * @return the probe, `null` when none was set for the catalog
-	 */
-	// TODO JNO - remove at the end of #1615
-	@Nullable
-	public TransitionProbe getVirtualReferencePartitionProbeOnLoad(@Nonnull String catalogName) {
-		return this.virtualReferencePartitionProbesOnLoad.get(catalogName);
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Returns the entity types whose collections maintain virtual reference partitions from the moment the given
-	 * catalog is loaded - see {@link #maintainVirtualReferencePartitionsOnLoad(String, Set)}.
-	 *
-	 * @param catalogName the name of the catalog
-	 * @return the entity types, empty when none were set for the catalog
-	 */
-	// TODO JNO - remove at the end of #1615
-	@Nonnull
-	public Set<String> getEntityTypesMaintainingVirtualReferencePartitionsOnLoad(@Nonnull String catalogName) {
-		return this.virtualReferencePartitionsMaintainedOnLoad.getOrDefault(catalogName, Set.of());
 	}
 
 	/**

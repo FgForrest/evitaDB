@@ -716,45 +716,6 @@ public final class EntityCollection implements
 		return this.usageRegistry;
 	}
 
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Returns TRUE when writes into this collection maintain virtual reference partitions. The switch is held by the
-	 * catalog under this collection's entity type name rather than by the collection itself, so every instance of the
-	 * collection - after a commit, going live, a rename, or the one a commit replay creates anew - reads the same one.
-	 *
-	 * @return TRUE when the switch is on for this collection
-	 */
-	// TODO JNO - remove at the end of #1615
-	public boolean isVirtualReferencePartitionsMaintained() {
-		return this.catalog.getVirtualReferencePartitionMaintenance().isMaintained(getEntityType());
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Turns maintenance of virtual reference partitions on or off for this collection. Meant for tests only: turning
-	 * it on maintains nothing retroactively, so it is safe only on a collection that is empty or whose partitions were
-	 * maintained ever since it was last loaded.
-	 *
-	 * @param maintained TRUE to maintain virtual reference partitions, FALSE to stop
-	 */
-	// TODO JNO - remove at the end of #1615
-	public void setVirtualReferencePartitionsMaintained(boolean maintained) {
-		this.catalog.getVirtualReferencePartitionMaintenance().setMaintained(getEntityType(), maintained);
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Returns the keys of the indexes of this collection acquired for modification and not flushed yet - within a
-	 * transaction those the transaction acquired. Meant for tests comparing what two engines enroll.
-	 *
-	 * @return a copy of the dirty index keys
-	 */
-	// TODO JNO - remove at the end of #1615
-	@Nonnull
-	public Set<IndexKey> getDirtyIndexKeys() {
-		return this.dataStoreBuffer.getDirtyIndexKeys();
-	}
-
 	@Override
 	@Nonnull
 	public <S extends Serializable, T extends EvitaResponse<S>> T getEntities(@Nonnull EvitaRequest evitaRequest, @Nonnull EvitaSessionContract session) {
@@ -1246,9 +1207,7 @@ public final class EntityCollection implements
 				// report a negative count, and this is a management call, not a query path
 				case INDEX_CARDINALITY -> builder.withIndexCardinality(
 					IndexCardinalityProjection.describe(
-						ManagementReads.snapshotOf(this.indexes), getInternalSchema().getReferences().keySet(),
-						// TODO JNO - remove at the end of #1615
-						this.catalog.getVirtualReferencePartitionMaintenance().isVirtual()
+						ManagementReads.snapshotOf(this.indexes), getInternalSchema().getReferences().keySet()
 					)
 				);
 				// unreachable - all of these are catalog-level only and the assertion above already rejected them
@@ -1304,11 +1263,7 @@ public final class EntityCollection implements
 		if (index == null) {
 			throw new IndexNotFoundException(getEntityType(), indexPrimaryKey);
 		}
-		return IndexDetailProjection.describe(
-			getEntityType(), index,
-			// TODO JNO - remove at the end of #1615
-			this.catalog.getVirtualReferencePartitionMaintenance().isVirtual()
-		);
+		return IndexDetailProjection.describe(getEntityType(), index);
 	}
 
 	@Nonnull
@@ -2022,8 +1977,6 @@ public final class EntityCollection implements
 				}
 				final ReducedIndexMembership membership =
 					typedGlobalIndex.getOrCreateReducedIndexMembership(referenceSchema.getName());
-				// TODO JNO - remove at the end of #1615 (the variable, the virtual catalog is the only one left)
-				final boolean virtualCatalog = this.catalog.getVirtualReferencePartitionMaintenance().isVirtual();
 				for (final EntityIndexType family : ReducedIndexMembership.REFERENCED_TYPE_INDEX_FAMILIES) {
 					final EntityIndexKey typeIndexKey = new EntityIndexKey(family, scope, referenceSchema.getName());
 					final ReferencedTypeEntityIndex typedTypeIndex = asReferencedTypeEntityIndexIfExists(
@@ -2034,9 +1987,8 @@ public final class EntityCollection implements
 					}
 					if (family == EntityIndexType.REFERENCED_ENTITY_TYPE) {
 						// the type index listing the partitions carries their registry - no other one is read
-						final ReferencedTypeEntityIndex registryTypeIndex = virtualCatalog ? typedTypeIndex : null;
 						typedTypeIndex.forEachReferenceIndexPrimaryKey(
-							partitionPk -> registerPartition(membership, registryTypeIndex, partitionPk)
+							partitionPk -> registerPartition(membership, typedTypeIndex, partitionPk)
 						);
 					} else {
 						typedTypeIndex.forEachReferenceIndexPrimaryKey(
@@ -2054,18 +2006,16 @@ public final class EntityCollection implements
 	 * advertised but not resolvable is recorded as residual, a repeat surfaces as a programming error.
 	 *
 	 * Only the owners of the partition are read, so a partition the registry of the given type index holds a row for
-	 * is registered from its row - covered, with its only owner - whether or not it has an index object, which a
-	 * catalog representing its single-owner partitions virtually need not have. It is never recorded as residual for
-	 * want of one.
+	 * is registered from its row - covered, with its only owner - as a single-owner partition has no index object. It
+	 * is never recorded as residual for want of one.
 	 *
 	 * @param membership        the lookup being built
-	 * @param registryTypeIndex the referenced-type entity index listing the partition, whose registry is read, when
-	 *                          the catalog represents its single-owner partitions virtually, `null` when it does not
+	 * @param registryTypeIndex the referenced-type entity index listing the partition, whose registry is read
 	 * @param partitionPk       primary key of the advertised partition
 	 */
 	private void registerPartition(
 		@Nonnull ReducedIndexMembership membership,
-		@Nullable ReferencedTypeEntityIndex registryTypeIndex,
+		@Nonnull ReferencedTypeEntityIndex registryTypeIndex,
 		int partitionPk
 	) {
 		final ReferencePartition partition = ReferencePartitions.resolveForOwnerReadIfExists(
@@ -3984,11 +3934,7 @@ public final class EntityCollection implements
 			// mutate in other collections as well, and keeps the parts read of the entities none of them mutates
 			localMutationExecutorCollector,
 			this::nextInternalPriceId,
-			entityMutation instanceof EntityRemoveMutation,
-			// TODO JNO - remove at the end of #1615
-			this.catalog.getVirtualReferencePartitionMaintenance().isVirtual(),
-			// TODO JNO - remove at the end of #1615
-			this.catalog.getVirtualReferencePartitionMaintenance()::recordForeignReferencesFetch
+			entityMutation instanceof EntityRemoveMutation
 		);
 		final String entityType = getInternalSchema().getName();
 		final EntityIndexLocalMutationExecutor entityIndexUpdater = new EntityIndexLocalMutationExecutor(
@@ -4014,11 +3960,6 @@ public final class EntityCollection implements
 			// their counters belong to the catalog rather than to whichever collection happened to write one
 			this.catalog.getUsageRegistry(),
 			this.catalog.isUsageStatisticsTracked(),
-			// TODO JNO - remove at the end of #1615
-			// the collector is shared by the whole root mutation, so it identifies the root mutation for the probe
-			this.catalog.getVirtualReferencePartitionMaintenance().forMutation(
-				entityType, localMutationExecutorCollector
-			),
 			// the collector is shared by the whole root mutation, so its executors share the reservations too
 			localMutationExecutorCollector.getPartitionReservations()
 		);
@@ -4652,7 +4593,6 @@ public final class EntityCollection implements
 									((RepresentativeReferenceKey) Objects.requireNonNull(eikAgain.discriminator()))
 										.referenceName();
 								assertReferenceIndexPrerequisites(referenceName);
-								// TODO JNO - remove at the end of #1615
 								assertPartitionObjectMayBeCreated(eikAgain, referenceName);
 								entityIndex = new ReducedEntityIndex(
 									EntityCollection.this.getNextIndexPrimaryKey(),
@@ -5002,36 +4942,27 @@ public final class EntityCollection implements
 			return sourceCollection.getInternalSchema().getLocales();
 		}
 
-		// TODO JNO - remove at the end of #1615
 		/**
-		 * Returns TRUE when the catalog of this collection represents its single-owner reference partitions virtually.
-		 */
-		@Override
-		public boolean isInVirtualCatalog() {
-			return EntityCollection.this.catalog.getVirtualReferencePartitionMaintenance().isVirtual();
-		}
-
-		// TODO JNO - remove at the end of #1615
-		/**
-		 * Refuses to create the index object of a reference partition the catalog writes virtually - a partition of a
-		 * reference whose partitions may be virtual in the key's scope, while the catalog represents its single-owner
-		 * partitions virtually and writes them so. Such a partition with a single owner is a registry row and nothing
-		 * else; only the creation is refused, an index object that already exists is still returned.
+		 * Refuses to create the index object of a partition of a reference whose partitions may be virtual in the key's
+		 * scope. Such a partition with a single owner is a registry row and nothing else, and one gaining its second
+		 * owner receives its index object under the primary key its row carries (see
+		 * `EntityIndexLocalMutationExecutor#installPartitionObject`) - a generic creation here would mint the object
+		 * under a second primary key. Only the creation is refused; an index object that already exists is still
+		 * returned.
 		 *
 		 * @param partitionKey  the key of the partition about to be created
 		 * @param referenceName the reference of the partition
-		 * @throws GenericEvitaInternalError when the catalog writes the partition virtually
+		 * @throws GenericEvitaInternalError when the partitions of the reference may be virtual in the key's scope
 		 */
 		private void assertPartitionObjectMayBeCreated(
 			@Nonnull EntityIndexKey partitionKey,
 			@Nonnull String referenceName
 		) {
 			if (
-				EntityCollection.this.catalog.getVirtualReferencePartitionMaintenance().isWrittenVirtually() &&
-					VirtualReferencePartitionWriter.isShadowed(
-						EntityCollection.this.getSchema().getReferenceOrThrowException(referenceName),
-						partitionKey.scope()
-					)
+				VirtualReferencePartitionWriter.isShadowed(
+					EntityCollection.this.getSchema().getReferenceOrThrowException(referenceName),
+					partitionKey.scope()
+				)
 			) {
 				throw new GenericEvitaInternalError(
 					"Collection `" + getEntityType() + "` writes the single-owner partitions of reference `" +

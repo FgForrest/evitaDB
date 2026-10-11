@@ -860,7 +860,11 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 					sortKey, actualIndex, models.getOrDefault(sortKey.key(), Map.of())
 				);
 			}
-			assertEquals(expected.getEntryCount(), actual.getEntryCount(), "Entry counts " + stage);
+			assertEquals(
+				VirtualReferencePartitionIndexEntries.count(expected),
+				VirtualReferencePartitionIndexEntries.count(actual),
+				"Entry counts " + stage
+			);
 		}
 
 		@Test

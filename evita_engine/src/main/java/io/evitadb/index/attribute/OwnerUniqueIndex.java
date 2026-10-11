@@ -58,8 +58,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
-// TODO JNO - remove at the end of #1615
-import java.util.function.ObjIntConsumer;
 
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.collidingKeysError;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.findFirstNonAscendingKey;
@@ -340,25 +338,6 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 		return getSharedHeapSizeInBytes(5L * layout.referenceSize() + Integer.BYTES)
 			+ this.dirty.getHeapSizeInBytes()
 			+ this.tree.getHeapSizeInBytes(IndexHeapSize.OWNED_KEY_SIZER);
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Visits every unique value this index holds together with the record it belongs to, in the value order of the
-	 * index. Each tree key is converted back to a value of the attribute's declared type (see
-	 * {@link UniqueIndexBPlusTreeSupport#toDeclaredValue}). Meant for tests comparing two indexes value by value.
-	 *
-	 * @param consumer invoked with each value and the record id it maps to
-	 */
-	// TODO JNO - remove at the end of #1615
-	public void forEachValueToRecord(@Nonnull ObjIntConsumer<Serializable> consumer) {
-		final BucketCursor cursor = this.tree.cursor();
-		while (cursor.next()) {
-			Assert.isPremiseValid(cursor.isSingle(), "A unique index bucket must hold exactly one record!");
-			consumer.accept(
-				toDeclaredValue(this.plainType, this.indexedDecimalPlaces, cursor.value()), cursor.singleRecordId()
-			);
-		}
 	}
 
 	/**

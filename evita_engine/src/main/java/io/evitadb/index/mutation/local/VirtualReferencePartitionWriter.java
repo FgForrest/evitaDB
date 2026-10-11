@@ -33,10 +33,6 @@ import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
-// TODO JNO - remove at the end of #1615
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.MutationHandle;
-// TODO JNO - remove at the end of #1615
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.TransitionStage;
 import io.evitadb.dataType.ChainableType;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
@@ -70,10 +66,8 @@ import java.util.function.Function;
  * the transitions of a partition's owner count the reference index mutator decides, and about the sort values and
  * chain predecessors the attribute index mutator writes into a partition, and about nothing else.
  *
- * In a catalog representing its single-owner partitions virtually the row is the only representation of a
- * single-owner partition - the partition has no index object while it has one owner - so what is written here is the
- * partition itself. In a catalog with objects that maintains the registry, and in a virtual catalog a test switched to
- * writing objects, the row is kept next to the partition's index object and must say what the object says.
+ * The row is the only representation of a single-owner partition - the partition has no index object while it has
+ * one owner - so what is written here is the partition itself.
  *
  * # Owner rows
  *
@@ -84,9 +78,9 @@ import java.util.function.Function;
  *   the owner's data into the partition, so the row is in place while that data is being written;
  * - **shared** (1 -> 2) - the partition gained a second owner and is no longer a single-owner one: everything the
  *   index records about it is dropped at once;
- * - **vacated** (1 -> 0) - the partition lost its last owner: everything the index records about it is dropped. A
- *   mutation writing its single-owner partitions virtually also retires the partition's emptied index object, when
- *   it has one, and reserves its primary key for the root mutation as for a row.
+ * - **vacated** (1 -> 0) - the partition lost its last owner: everything the index records about it is dropped. The
+ *   partition's emptied index object, when it has one, is retired too, and its primary key reserved for the root
+ *   mutation as for a row.
  *
  * Every drop is followed by the retirement of the declared sort and chain keys when no partition has an owner row
  * left, so an index without a single row declares no key either - a key nothing can hold would keep the index, and the
@@ -104,8 +98,8 @@ import java.util.function.Function;
  *   owner. The values are copied as the partition's sort indexes store them, in their normalized form, and recorded
  *   as such (see {@link VirtualReferencePartitionIndex#putNormalizedSortValue}). A partition that has a row by then -
  *   another executor of the root mutation demoted it already, or it was vacated and entered again meanwhile - keeps
- *   it, and one that has no owner or several owners by then gets none. A mutation writing its single-owner
- *   partitions virtually then retires the partition's index object, so the row alone represents the partition.
+ *   it, and one that has no owner or several owners by then gets none. The partition's index object is then retired,
+ *   so the row alone represents the partition.
  *
  * The opposite move - a partition kept as a row gaining its second owner - is the reference index mutator's: it
  * installs the partition's index object and writes the first owner into it before the second owner enters, and the
@@ -145,7 +139,7 @@ import java.util.function.Function;
  * A write may be directed at a {@link VirtualReferencePartition} - a partition represented by its row only, with no
  * index object to receive the write. The attribute index mutator then skips the object write and the mirror is the
  * only writer of the value, so nothing it would otherwise pass over may be passed over silently: the write fails
- * when the mutation does not maintain the registry, when the partition is not one of the written reference whose
+ * when the executor writes no registry, when the partition is not one of the written reference whose
  * partitions may be virtual, when the value belongs to the owner entity rather than to the reference, or when the
  * partition's row is missing or names another owner. An attribute of the reference that is not sortable in the
  * partition's scope is the only value a virtual partition takes nothing of: an index object puts it into its filter
@@ -223,9 +217,9 @@ public final class VirtualReferencePartitionWriter {
 	 * Demotes a partition the mutation left with one owner of two (2 -> 1), once every mutation of the root mutation
 	 * has been dispatched: when the partition still has exactly one owner and no row, its row is registered for that
 	 * owner and filled by extraction - see the class documentation. The partition is resolved anew by its key, so a
-	 * partition removed since, or replaced by another one of the same key, is left alone. A mutation writing its
-	 * single-owner partitions virtually retires the partition's index object once its row is in place - this runs while
-	 * the root mutation is finishing, when an index object may be retired but none may be installed.
+	 * partition removed since, or replaced by another one of the same key, is left alone. The partition's index object
+	 * is retired once its row is in place - this runs while the root mutation is finishing, when an index object may
+	 * be retired but none may be installed.
 	 *
 	 * @param executor  the mutation executor that left the partition with one owner
 	 * @param partition the partition as it was when it was left with one owner - only its key and primary key are read
@@ -241,81 +235,36 @@ public final class VirtualReferencePartitionWriter {
 		final ReferencePartition current = ReferencePartitions.asPartition(currentIndex);
 		// emptied or shared again since it was left with one owner - there is nothing to demote
 		if (current == null || current.getPrimaryKey() != partitionPrimaryKey || current.size() != 1) {
-			// TODO JNO - remove at the end of #1615
-			reportDemotionOfRetiredObject(executor, partition);
 			return;
 		}
 		final String referenceName = current.getRepresentativeReferenceKey().referenceName();
 		final Scope scope = current.getIndexKey().scope();
-		// TODO JNO - remove at the end of #1615 (the condition, its body stays)
-		if (executor.getVirtualReferencePartitionMutation().maintained()) {
-			final EntityIndex typeIndex = executor.getIndexIfExists(
-				ReferenceIndexMutator.getReferencedTypeIndexKey(referenceName, scope)
-			);
-			if (!(typeIndex instanceof final ReferencedTypeEntityIndex referencedTypeIndex)) {
-				throw new GenericEvitaInternalError(
-					"Partition " + partitionPrimaryKey + " of `" + referenceName + "` in " + scope + " has an owner, " +
-						"but the reference has no referenced-type entity index to carry its row!"
-				);
-			}
-			final OptionalLong row = referencedTypeIndex.getVirtualReferencePartitionIndex()
-				.getPartitionOwner(partitionPrimaryKey);
-			// a partition another executor of the root mutation demoted already, or one vacated and entered again
-			// since, has its row - filled by that demotion or by the mirror
-			if (row.isEmpty()) {
-				final VirtualReferencePartitionIndex registry =
-					((ReferencedTypeEntityIndex) executor.getIndexForSideWrite(referencedTypeIndex.getIndexKey()))
-						.getVirtualReferencePartitionIndex();
-				final EntitySchemaContract entitySchema = executor.getEntitySchema();
-				demoteToRow(
-					registry, entitySchema, entitySchema.getReferenceOrThrowException(referenceName), current,
-					currentIndex
-				);
-			}
-		}
-		// TODO JNO - remove at the end of #1615 (the condition, its body stays)
-		if (executor.getVirtualReferencePartitionMutation().writtenVirtually()) {
-			// the row holds everything the object holds of the only owner now, so the row alone represents the
-			// partition - an index object of a single-owner partition is never kept
-			executor.retirePartitionObject(current);
-		}
-		// TODO JNO - remove at the end of #1615
-		executor.getVirtualReferencePartitionMutation().transitionPassed(
-			TransitionStage.DEMOTED, referenceName, scope, partitionPrimaryKey
-		);
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Reports the demotion of a partition whose index object a mutation writing its single-owner partitions virtually
-	 * retired when its last owner left it, and that an owner entered again within the root mutation as its row under
-	 * the same primary key: the partition has one owner, as the index object an engine maintaining nothing keeps would
-	 * have, so the transition is reported at the very same point, although there is nothing left to demote.
-	 *
-	 * @param executor  the mutation executor that left the partition with one owner
-	 * @param partition the partition as it was when it was left with one owner - only its key and primary key are read
-	 */
-	private static void reportDemotionOfRetiredObject(
-		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull ReferencePartition partition
-	) {
-		final MutationHandle mutation = executor.getVirtualReferencePartitionMutation();
-		if (!mutation.writtenVirtually() || executor.getIndexIfExists(partition.getIndexKey()) != null) {
-			return;
-		}
-		final String referenceName = partition.getRepresentativeReferenceKey().referenceName();
-		final Scope scope = partition.getIndexKey().scope();
 		final EntityIndex typeIndex = executor.getIndexIfExists(
 			ReferenceIndexMutator.getReferencedTypeIndexKey(referenceName, scope)
 		);
-		if (
-			typeIndex instanceof final ReferencedTypeEntityIndex referencedTypeIndex &&
-				referencedTypeIndex.getVirtualReferencePartitionIndex()
-					.getPartitionOwner(partition.getPrimaryKey())
-					.isPresent()
-		) {
-			mutation.transitionPassed(TransitionStage.DEMOTED, referenceName, scope, partition.getPrimaryKey());
+		if (!(typeIndex instanceof final ReferencedTypeEntityIndex referencedTypeIndex)) {
+			throw new GenericEvitaInternalError(
+				"Partition " + partitionPrimaryKey + " of `" + referenceName + "` in " + scope + " has an owner, " +
+					"but the reference has no referenced-type entity index to carry its row!"
+			);
 		}
+		final OptionalLong row = referencedTypeIndex.getVirtualReferencePartitionIndex()
+			.getPartitionOwner(partitionPrimaryKey);
+		// a partition another executor of the root mutation demoted already, or one vacated and entered again since,
+		// has its row - filled by that demotion or by the mirror
+		if (row.isEmpty()) {
+			final VirtualReferencePartitionIndex registry =
+				((ReferencedTypeEntityIndex) executor.getIndexForSideWrite(referencedTypeIndex.getIndexKey()))
+					.getVirtualReferencePartitionIndex();
+			final EntitySchemaContract entitySchema = executor.getEntitySchema();
+			demoteToRow(
+				registry, entitySchema, entitySchema.getReferenceOrThrowException(referenceName), current,
+				currentIndex
+			);
+		}
+		// the row holds everything the object holds of the only owner now, so the row alone represents the partition -
+		// an index object of a single-owner partition is never kept
+		executor.retirePartitionObject(current);
 	}
 
 	/**
@@ -486,6 +435,10 @@ public final class VirtualReferencePartitionWriter {
 	 * reference left while it was indexed for filtering only, which the acquisition released to a write taking content
 	 * out of it (see {@link EntityIndexLocalMutationExecutor#isReleasedRowOfFormerIndexing}).
 	 *
+	 * An executor writing as another owner of a partition mirrors nothing (see
+	 * {@link EntityIndexLocalMutationExecutor#isPartitionRegistryWritten()}): it populates the index object of a
+	 * partition gaining its second owner with what the first owner's row holds already.
+	 *
 	 * @param executor        the mutation executor
 	 * @param referenceSchema the reference the written attribute or compound belongs to, `null` for an entity one
 	 * @param partition       the partition written into, `null` when the write is directed at an index that is not a
@@ -500,12 +453,9 @@ public final class VirtualReferencePartitionWriter {
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nullable ReferencePartition partition
 	) {
-		// TODO JNO - remove at the end of #1615
-		final MutationHandle mutation = executor.getVirtualReferencePartitionMutation();
-		// TODO JNO - remove at the end of #1615 (the whole condition)
-		if (!mutation.maintained() && mutation.probe() == null) {
+		if (!executor.isPartitionRegistryWritten()) {
 			if (partition instanceof final VirtualReferencePartition virtual) {
-				throw virtualPartitionWriteLost(virtual, "the mutation does not maintain the registry");
+				throw virtualPartitionWriteLost(virtual, "the executor writes no registry");
 			}
 			return null;
 		}
@@ -579,10 +529,6 @@ public final class VirtualReferencePartitionWriter {
 				registry.putSortValue(key, partitionPrimaryKey, value);
 			}
 		}
-		// TODO JNO - remove at the end of #1615
-		executor.getVirtualReferencePartitionMutation().transitionPassed(
-			TransitionStage.MIRRORED, referenceName, scope, partitionPrimaryKey
-		);
 	}
 
 	/**
@@ -635,10 +581,6 @@ public final class VirtualReferencePartitionWriter {
 				registry.removeSortValue(key, partitionPrimaryKey);
 			}
 		}
-		// TODO JNO - remove at the end of #1615
-		executor.getVirtualReferencePartitionMutation().transitionPassed(
-			TransitionStage.MIRRORED, referenceName, scope, partitionPrimaryKey
-		);
 	}
 
 	/**
@@ -711,10 +653,6 @@ public final class VirtualReferencePartitionWriter {
 			assertNoSortValue(registry, key, partitionPrimaryKey, values);
 			registry.putSortValue(key, partitionPrimaryKey, values);
 		}
-		// TODO JNO - remove at the end of #1615
-		executor.getVirtualReferencePartitionMutation().transitionPassed(
-			TransitionStage.MIRRORED, referenceName, scope, partitionPrimaryKey
-		);
 	}
 
 	/**
@@ -761,10 +699,6 @@ public final class VirtualReferencePartitionWriter {
 			assertSortValue(registry, key, partitionPrimaryKey, values);
 			registry.removeSortValue(key, partitionPrimaryKey);
 		}
-		// TODO JNO - remove at the end of #1615
-		executor.getVirtualReferencePartitionMutation().transitionPassed(
-			TransitionStage.MIRRORED, referenceName, scope, partitionPrimaryKey
-		);
 	}
 
 	/**
@@ -806,7 +740,9 @@ public final class VirtualReferencePartitionWriter {
 	 * @param referenceName       the reference
 	 * @param scope               the scope of the partition
 	 * @param partitionPrimaryKey the primary key of the partition
-	 * @return the registry, or `null` when the partition has no row or its row names another owner
+	 * @return the registry, or `null` when the executor writes no registry (see
+	 * {@link EntityIndexLocalMutationExecutor#isPartitionRegistryWritten()}), the partition has no row or its row names
+	 * another owner
 	 */
 	@Nullable
 	private static VirtualReferencePartitionIndex findRegistryOfOwnPartition(
@@ -815,8 +751,7 @@ public final class VirtualReferencePartitionWriter {
 		@Nonnull Scope scope,
 		int partitionPrimaryKey
 	) {
-		// TODO JNO - remove at the end of #1615 (the whole condition)
-		if (!executor.getVirtualReferencePartitionMutation().maintained()) {
+		if (!executor.isPartitionRegistryWritten()) {
 			return null;
 		}
 		final EntityIndex typeIndex = executor.getIndexIfExists(

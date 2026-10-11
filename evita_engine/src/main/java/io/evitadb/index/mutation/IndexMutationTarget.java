@@ -150,9 +150,8 @@ public interface IndexMutationTarget extends IndexProvider<EntityIndexKey, Entit
 	/**
 	 * Returns the reference partition of this collection registered under the primary key for an owner read, leniently
 	 * - see the owner reads of {@link ReferencePartitions}. Cross-entity maintenance asks a partition the type index
-	 * lists only who its owners are; in a catalog representing its single-owner partitions virtually a partition the
-	 * registry of the type index holds a row for answers its read-only virtual handle, any other one is resolved as
-	 * {@link #resolvePartitionIfExists(int)} resolves it.
+	 * lists only who its owners are; a partition the registry of the type index holds a row for answers its read-only
+	 * virtual handle, any other one is resolved as {@link #resolvePartitionIfExists(int)} resolves it.
 	 *
 	 * @param typeIndex           the referenced-type entity index of this collection listing the primary key
 	 * @param partitionPrimaryKey primary key of the partition in this collection
@@ -164,17 +163,8 @@ public interface IndexMutationTarget extends IndexProvider<EntityIndexKey, Entit
 		int partitionPrimaryKey
 	) {
 		return ReferencePartitions.resolveForOwnerReadIfExists(
-			this::resolvePartitionIfExists, isInVirtualCatalog() ? typeIndex : null, partitionPrimaryKey
+			this::resolvePartitionIfExists, typeIndex, partitionPrimaryKey
 		);
 	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Returns TRUE when this collection belongs to a catalog representing its single-owner reference partitions
-	 * virtually - see {@link io.evitadb.core.catalog.VirtualReferencePartitionMaintenance#isVirtual()}.
-	 *
-	 * @return TRUE in a virtual catalog
-	 */
-	boolean isInVirtualCatalog();
 
 }

@@ -639,19 +639,6 @@ public class DataStoreChanges
 		}
 	}
 
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Returns the keys of the indexes acquired for modification since the last flush - the indexes the next flush
-	 * will persist. Meant for tests comparing what two engines enroll.
-	 *
-	 * @return a copy of the dirty index keys
-	 */
-	// TODO JNO - remove at the end of #1615
-	@Nonnull
-	public Set<IndexKey> getDirtyIndexKeys() {
-		return Set.copyOf(this.dirtyEntityIndexes.keySet());
-	}
-
 	/**
 	 * Consumes the snapshot of {@link IndexKey}s that were dirty at the most recent {@link #popTrappedUpdates()} — i.e.
 	 * the indexes changed by the transaction whose flush just ran. The commit-time trunk merge reads this to carry

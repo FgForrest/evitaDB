@@ -90,9 +90,9 @@ final class VirtualReferencePartitionWriterGuardFixture {
 	 * Only reads the registry, which the guard must not report.
 	 *
 	 * @param registry the registry
-	 * @return the number of entries
+	 * @return the number of registered partitions, one more when partition 1 is one of them
 	 */
 	static int readShape(@Nonnull VirtualReferencePartitionIndex registry) {
-		return registry.getEntryCount() + (registry.getPartitionOwner(1).isPresent() ? 1 : 0);
+		return registry.countRegisteredPartitions() + (registry.getPartitionOwner(1).isPresent() ? 1 : 0);
 	}
 }

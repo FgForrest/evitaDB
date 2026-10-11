@@ -31,8 +31,6 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-// TODO JNO - remove at the end of #1615
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.MutationHandle;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
@@ -74,16 +72,15 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-// TODO JNO - remove at the end of #1615
 /**
- * Pins the acquisition of reference partitions on the write path of a mutation that writes the single-owner
- * partitions of its catalog virtually: every acquisition looks the partition up and creates nothing - its index object
- * when there is one, the virtual handle built from its registry row otherwise - and fails, naming the write path, when
- * there is neither. The lookups read the registry and nothing else: no index is created and no primary key is
- * allocated. A mutation that does not write virtually, and a reference whose partitions are never virtual, acquire
- * their partitions exactly as before - creating what they do not find. The one exception is a registry row of a
- * reference indexed for partitioning, which its former indexing for filtering only left behind: a write adding to it
- * is refused with the error asking for a reindex, a write removing from it gets the row, released to it.
+ * Pins the acquisition of reference partitions on the write path, which writes the single-owner partitions virtually:
+ * every acquisition of a partition of a reference whose partitions may be virtual looks the partition up and creates
+ * nothing - its index object when there is one, the virtual handle built from its registry row otherwise - and fails,
+ * naming the write path, when there is neither. The lookups read the registry and nothing else: no index is created
+ * and no primary key is allocated. A reference whose partitions are never virtual acquires its partitions by creating
+ * what it does not find. The one exception is a registry row of a reference indexed for partitioning, which its former
+ * indexing for filtering only left behind: a write adding to it is refused with the error asking for a reindex, a write
+ * removing from it gets the row, released to it.
  *
  * The index maintainer is a real map of real indexes that counts every index it creates and every primary key it
  * allocates; a registry row without an index object is seeded the way a partition entering its first owner registers
@@ -130,18 +127,13 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 	private static final String WRITE_SITE = "funnelTestSite";
 
 	/**
-	 * The index maintainer both executors write through.
+	 * The index maintainer the executors write through.
 	 */
 	@Nonnull private final CountingIndexMaintainer indexMaintainer = new CountingIndexMaintainer();
 	/**
-	 * The executor of a mutation writing the single-owner partitions virtually.
+	 * The executor under test, writing the single-owner partitions virtually.
 	 */
-	@Nonnull private final EntityIndexLocalMutationExecutor virtualExecutor =
-		createExecutor(MutationHandle.WRITTEN_VIRTUALLY);
-	/**
-	 * The executor of a mutation writing every partition as an index object.
-	 */
-	@Nonnull private final EntityIndexLocalMutationExecutor objectExecutor = createExecutor(MutationHandle.MAINTAINED);
+	@Nonnull private final EntityIndexLocalMutationExecutor virtualExecutor = createExecutor();
 
 	@Override
 	protected void alterCatalogSchema(@Nonnull CatalogSchemaEditor.CatalogSchemaBuilder schemaBuilder) {
@@ -177,27 +169,22 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 	/**
 	 * Creates an executor of the product collection writing through {@link #indexMaintainer}.
 	 *
-	 * @param handle the handle of the mutation
 	 * @return the executor
 	 */
 	@Nonnull
-	private EntityIndexLocalMutationExecutor createExecutor(@Nonnull MutationHandle handle) {
-		return createExecutor(handle, new PartitionReservations());
+	private EntityIndexLocalMutationExecutor createExecutor() {
+		return createExecutor(new PartitionReservations());
 	}
 
 	/**
 	 * Creates an executor of the product collection writing through {@link #indexMaintainer} with the given
 	 * reservations of its root mutation.
 	 *
-	 * @param handle       the handle of the mutation
 	 * @param reservations the reservations of the root mutation
 	 * @return the executor
 	 */
 	@Nonnull
-	private EntityIndexLocalMutationExecutor createExecutor(
-		@Nonnull MutationHandle handle,
-		@Nonnull PartitionReservations reservations
-	) {
+	private EntityIndexLocalMutationExecutor createExecutor(@Nonnull PartitionReservations reservations) {
 		final AtomicInteger sequencer = new AtomicInteger(1);
 		return new EntityIndexLocalMutationExecutor(
 			this.containerAccessor,
@@ -216,7 +203,6 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			this.usageRegistry,
 			this.catalogUsageRegistry,
 			true,
-			handle,
 			reservations
 		);
 	}
@@ -601,7 +587,7 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
 			final PartitionReservations reservations = new PartitionReservations();
 			final EntityIndexLocalMutationExecutor executor =
-				outer.createExecutor(MutationHandle.WRITTEN_VIRTUALLY, reservations);
+				outer.createExecutor(reservations);
 			final RepresentativeReferenceKey key = keyOf(SINGLE_REFERENCE);
 			final int primaryKey = outer.seedRow(key);
 			reservations.setFinishing(true);
@@ -654,7 +640,7 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
 			final PartitionReservations reservations = new PartitionReservations();
 			final EntityIndexLocalMutationExecutor executor =
-				outer.createExecutor(MutationHandle.WRITTEN_VIRTUALLY, reservations);
+				outer.createExecutor(reservations);
 			final RepresentativeReferenceKey key = keyOf(SINGLE_REFERENCE);
 			outer.seedRow(key);
 			final VirtualReferencePartition handle = assertInstanceOf(
@@ -670,22 +656,6 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			assertTrue(error.getPrivateMessage().contains(WRITE_SITE), error.getPrivateMessage());
 			assertTrue(error.getPrivateMessage().contains("finishing"), error.getPrivateMessage());
 			assertEquals(indexCount, outer.indexMaintainer.indexCount(), "a refused promotion installs nothing");
-		}
-
-		@Test
-		@DisplayName("a mutation not writing virtually creates the index object a row stands for, as before")
-		void shouldCreateIndexObjectWhenNotWritingVirtually() {
-			final RepresentativeReferenceKey key = keyOf(SINGLE_REFERENCE);
-			final int primaryKey = seedRow(key);
-			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
-			final ReferencePartition looked = outer.objectExecutor.getPartitionForWrite(
-				Scope.LIVE, key, WRITE_SITE, ADDING
-			);
-			final ReducedEntityIndex created = assertInstanceOf(ReducedEntityIndex.class, looked);
-			assertTrue(primaryKey != created.getPrimaryKey(), "the created index object must not take the row's key");
-			assertSame(created, outer.objectExecutor.getOrCreatePartitionForInsert(
-				Scope.LIVE, key, WRITE_SITE, ADDING
-			));
 		}
 
 		@Test
@@ -802,7 +772,7 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			final RepresentativeReferenceKey key = keyOf(PARTITIONING_REFERENCE);
 			final int primaryKey = outer.seedRow(key);
 			final int indexCount = outer.indexMaintainer.indexCount();
-			final EntityIndexLocalMutationExecutor executor = outer.createExecutor(MutationHandle.WRITTEN_VIRTUALLY);
+			final EntityIndexLocalMutationExecutor executor = outer.createExecutor();
 			final VirtualReferencePartition row = ReferencePartitions.findRegisteredForWrite(
 				outer.typeIndexOf(PARTITIONING_REFERENCE), key
 			);
@@ -880,21 +850,6 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 		}
 
 		@Test
-		@DisplayName("a mutation not writing virtually never looks for rows and creates the index object as before")
-		void shouldCreateIndexObjectNextToRowWhenNotWritingVirtually() {
-			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
-			final RepresentativeReferenceKey key = keyOf(PARTITIONING_REFERENCE);
-			final int primaryKey = outer.seedRow(key);
-
-			final ReducedEntityIndex created = assertInstanceOf(
-				ReducedEntityIndex.class,
-				outer.objectExecutor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE, ADDING)
-			);
-
-			assertTrue(primaryKey != created.getPrimaryKey(), "the created index object must not take the row's key");
-		}
-
-		@Test
 		@DisplayName("a row reaching a write path without being released by the acquisition is still refused")
 		void shouldRefuseRowOfFormerIndexingThatWasNotReleased() {
 			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
@@ -904,7 +859,7 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 				outer.typeIndexOf(PARTITIONING_REFERENCE), key
 			);
 			assertNotNull(leaked);
-			final EntityIndexLocalMutationExecutor executor = outer.createExecutor(MutationHandle.WRITTEN_VIRTUALLY);
+			final EntityIndexLocalMutationExecutor executor = outer.createExecutor();
 			final ReferenceSchemaContract referenceSchema =
 				outer.productSchema.getReferenceOrThrowException(PARTITIONING_REFERENCE);
 
@@ -962,11 +917,6 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			seedRow(keyOf(SINGLE_REFERENCE));
 			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
 			assertNull(outer.virtualExecutor.getGroupIndexByPrimaryKeyForModification(Scope.LIVE, SINGLE_REFERENCE, 77));
-			final int primaryKey = outer.indexMaintainer.nextPrimaryKey() - 1;
-			assertNull(
-				outer.objectExecutor.getGroupIndexByPrimaryKeyForModification(Scope.LIVE, SINGLE_REFERENCE, primaryKey),
-				"a mutation not writing virtually does not consult the registry"
-			);
 		}
 	}
 

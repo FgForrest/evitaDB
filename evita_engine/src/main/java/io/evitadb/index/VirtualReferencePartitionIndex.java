@@ -194,14 +194,6 @@ public class VirtualReferencePartitionIndex
 	 * so the sort index map holds no function of its own.
 	 */
 	private static final Function<SortIndex, OwnerSortIndex> TO_OWNER_SORT_INDEX = OwnerSortIndex.class::cast;
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * How many owner rows and representative tuples the current thread has recorded or forgotten, over every instance -
-	 * see {@link #getRowModificationCountOfThread()}. Per thread rather than per instance, because a transaction writes
-	 * the instance it shares with every other transaction through its own layer: only the writes of the thread running
-	 * a mutation are visible to that mutation, and a count shared by every thread would see the others' writes too.
-	 */
-	private static final ThreadLocal<int[]> ROW_MODIFICATIONS_OF_THREAD = ThreadLocal.withInitial(() -> new int[1]);
 	/**
 	 * Marks, during the load-time walk over the persisted entries, a run of entries that belongs to a chain predecessor
 	 * slot rather than to a sort value slot.
@@ -658,40 +650,6 @@ public class VirtualReferencePartitionIndex
 		return count;
 	}
 
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Returns how many times the current thread has recorded or forgotten an owner row or a representative tuple of any
-	 * instance so far - the premise of a memo built from the rows: a memo records the count when it is built and asks
-	 * again on every probe, so a row written while the memo is in use, which the memo would not see, fails the probe
-	 * instead of being answered from stale rows. Only the difference of two readings on one thread means anything.
-	 *
-	 * @return the number of row modifications made by the current thread
-	 */
-	public static int getRowModificationCountOfThread() {
-		return ROW_MODIFICATIONS_OF_THREAD.get()[0];
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Counts one modification of an owner row or a representative tuple made by the current thread - see
-	 * {@link #getRowModificationCountOfThread()}.
-	 */
-	private static void rowModifiedByThread() {
-		ROW_MODIFICATIONS_OF_THREAD.get()[0]++;
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Returns how many entries the index holds across all its slots - owner rows, representative tuples, sort values
-	 * and chain predecessors together. The dictionaries and the declared keys are not entries.
-	 *
-	 * @return the number of entries
-	 */
-	// TODO JNO - remove at the end of #1615
-	public int getEntryCount() {
-		return this.entries.size();
-	}
-
 	/**
 	 * Returns the declared sort keys - the attributes and compounds, with their locales, the partitions are sorted by.
 	 *
@@ -731,8 +689,6 @@ public class VirtualReferencePartitionIndex
 	 * @param targetPrimaryKey    the primary key of the referenced entity
 	 */
 	public void putPartitionOwner(int partitionPrimaryKey, int ownerPrimaryKey, int targetPrimaryKey) {
-		// TODO JNO - remove at the end of #1615
-		rowModifiedByThread();
 		putPayload(
 			key(VirtualReferencePartitionSlot.PARTITION_OWNER, partitionPrimaryKey),
 			NumberUtils.pack(ownerPrimaryKey, targetPrimaryKey)
@@ -746,8 +702,6 @@ public class VirtualReferencePartitionIndex
 	 * @return true if the partition had an owner recorded
 	 */
 	public boolean removePartitionOwner(int partitionPrimaryKey) {
-		// TODO JNO - remove at the end of #1615
-		rowModifiedByThread();
 		return removePayload(key(VirtualReferencePartitionSlot.PARTITION_OWNER, partitionPrimaryKey));
 	}
 
@@ -817,8 +771,6 @@ public class VirtualReferencePartitionIndex
 	 * @param tuple               the representative attribute values
 	 */
 	public void putRepresentativeTuple(int partitionPrimaryKey, @Nonnull Serializable[] tuple) {
-		// TODO JNO - remove at the end of #1615
-		rowModifiedByThread();
 		final long key = key(VirtualReferencePartitionSlot.REPRESENTATIVE_TUPLE, partitionPrimaryKey);
 		final Integer knownTupleId = this.tupleIds.get(new ComparableArray(tuple));
 		final OptionalLong previousTupleId = this.entries.getLongRecordEqualTo(key);
@@ -843,8 +795,6 @@ public class VirtualReferencePartitionIndex
 	 * @return true if the partition had representative attribute values recorded
 	 */
 	public boolean removeRepresentativeTuple(int partitionPrimaryKey) {
-		// TODO JNO - remove at the end of #1615
-		rowModifiedByThread();
 		final long key = key(VirtualReferencePartitionSlot.REPRESENTATIVE_TUPLE, partitionPrimaryKey);
 		final OptionalLong previousTupleId = this.entries.getLongRecordEqualTo(key);
 		if (previousTupleId.isEmpty()) {
