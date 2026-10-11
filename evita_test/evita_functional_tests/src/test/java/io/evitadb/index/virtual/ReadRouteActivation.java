@@ -39,14 +39,12 @@ import java.util.TreeSet;
 import java.util.function.Supplier;
 
 /**
- * Decides with which read switch a query line of the differential twin harness runs. Every query line carries the query
- * routes it exercises; a line runs with the read switch of every collection of the engine on only when every one of its
- * routes has **landed** - when the route reads virtual partitions - and with the switch off otherwise, on the same
- * engine and the same snapshot. Adding a route to {@link #LANDED_ROUTES} is how a
- * step makes the harness compare the virtual reading of its routes with the reference engine's object reading.
+ * Decides with which read switch a query line runs. Every query line carries the query routes it exercises; a line
+ * runs with the read switch of every collection of the engine on only when every one of its routes has **landed** -
+ * when the route reads virtual partitions - and with the switch off otherwise, on the same engine and the same
+ * snapshot. {@link #LANDED_ROUTES} lists the routes that have landed.
  *
- * The switch is turned on just for the query and off again after it, so the writes of the harness never run with it -
- * write isolation is proven separately, by the write isolation test of the virtual partitions.
+ * The switch is turned on just for the query and off again after it, so no write runs with it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -87,7 +85,7 @@ final class ReadRouteActivation {
 
 	/**
 	 * The query routes of the virtual reading, numbered as the read-route inventory below numbers them. Only the
-	 * routes a query line of the harness or a read parity test exercises are listed.
+	 * routes a query line or a read parity test exercises are listed.
 	 */
 	enum ReadRoute {
 		/**

@@ -47,7 +47,8 @@ import java.util.UUID;
 
 /**
  * Encodes a value an index holds into a string that two values share exactly when they are the same value - the
- * comparison the differential harness and the partition oracle decide equality by.
+ * comparison the index descriptions of {@link CatalogDescriber} and the body-derived oracle
+ * {@link VirtualReferencePartitionRawRowOracle} decide equality by.
  *
  * `toString` will not do: it is lossy for exactly the values an index normalizes. A `BigDecimalNumberRange` prints its
  * original endpoints while the index orders and compares it by the bounds encoded at its retained decimal places, so

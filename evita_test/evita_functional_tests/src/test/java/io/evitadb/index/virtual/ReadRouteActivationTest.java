@@ -45,14 +45,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies how {@link ReadRouteActivation} sets the read switch of a query line of the differential harness: on for
- * the line alone when every route of the line has landed, off for any other line, and never for an engine that
- * maintains nothing - and how it counts, per named line, the virtual rows read and what each consuming stage of the
- * declared routes answered.
+ * Verifies how {@link ReadRouteActivation} sets the read switch of a query line: on for the line alone when every
+ * route of the line has landed, off for any other line, and never for an engine that maintains nothing - and how it
+ * counts, per named line, the virtual rows read and what each consuming stage of the declared routes answered.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Read route activation of the differential harness")
+@DisplayName("Read route activation of a query line")
 @Tag(TEST_HARNESS)
 @Tag(QUERY)
 class ReadRouteActivationTest {

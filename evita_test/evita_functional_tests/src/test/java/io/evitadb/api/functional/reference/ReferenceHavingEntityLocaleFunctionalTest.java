@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.virtual.MaterializedPartitionTwin;
 import io.evitadb.index.virtual.VirtualPartitionInvariants;
 import io.evitadb.index.virtual.VirtualPartitionInvariants.RegisteredRow;
 import io.evitadb.test.EvitaTestSupport;
@@ -54,6 +55,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -72,8 +74,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * its references satisfies the body, and a bare `entityLocaleEquals` inside a reference body is satisfied by every
  * reference of an owner having data in that locale.
  *
- * The same history is written into two catalogs of one engine: one representing its single-owner partitions as
- * registry rows (the default for a new catalog) and one representing every partition by an index object. Each holds:
+ * The same history is written into two catalogs of one engine by {@link MaterializedPartitionTwin}: the row catalog, a
+ * new catalog representing its single-owner partitions as registry rows and its shared ones as index objects, and the
+ * object catalog, which then receives a clone of every owner, so every partition there has at least two owners and is
+ * an index object. Each catalog is checked against its own entity bodies, the clones included. Each holds:
  *
  * | owner  | locales | `parts` row (target/type, order) | written | what it exercises                        |
  * |--------|---------|----------------------------------|---------|------------------------------------------|
@@ -92,6 +96,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The relation type is the representative attribute of the reference, so the partitions of one target and different
  * relation types are siblings: they share the target and hold different owners.
  *
+ * In the object catalog every owner `o` also has its clone `o + 1,000,000` with the same locales and reference; the
+ * clone of an archived owner is created live and archived in the same transaction.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @DisplayName("referenceHaving with the locale of the owner in its body")
@@ -100,8 +107,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(REFERENCE)
 @TestInstance(Lifecycle.PER_CLASS)
 class ReferenceHavingEntityLocaleFunctionalTest implements EvitaTestSupport {
-	private static final String CATALOG_VIRTUAL = "referenceHavingEntityLocaleVirtual";
-	private static final String CATALOG_OBJECTS = "referenceHavingEntityLocaleObjects";
+	private static final String CATALOG = "referenceHavingEntityLocale";
 	private static final String ENTITY_PRODUCT = "product";
 	private static final String ENTITY_PART = "part";
 	private static final String REFERENCE_PARTS = "parts";
@@ -119,24 +125,19 @@ class ReferenceHavingEntityLocaleFunctionalTest implements EvitaTestSupport {
 
 	private TestPaths paths;
 	private Evita evita;
+	/**
+	 * The row catalog and the object catalog built from the same history.
+	 */
+	private MaterializedPartitionTwin twin;
 
 	/**
 	 * The representation of the single-owner partitions of a catalog.
 	 */
 	enum Representation {
-		/** a single-owner partition is a registry row, a shared one an index object */
-		ROWS(CATALOG_VIRTUAL),
-		/** every partition is an index object */
-		OBJECTS(CATALOG_OBJECTS);
-
-		/**
-		 * The catalog holding the representation.
-		 */
-		private final String catalog;
-
-		Representation(@Nonnull String catalog) {
-			this.catalog = catalog;
-		}
+		/** a single-owner partition is a registry row, a shared one an index object - the row catalog */
+		ROWS,
+		/** every partition is an index object - the object catalog */
+		OBJECTS
 	}
 
 	/**
@@ -239,29 +240,24 @@ class ReferenceHavingEntityLocaleFunctionalTest implements EvitaTestSupport {
 	void setUp() {
 		this.paths = createTestPaths("ReferenceHavingEntityLocaleFunctionalTest");
 		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
-		// TODO JNO - remove at the end of #1615
-		this.evita.createCatalogWithVirtualReferencePartitions(CATALOG_OBJECTS, false);
-		for (final Representation representation : Representation.values()) {
-			final String catalog = representation.catalog;
-			this.evita.defineCatalog(catalog).updateViaNewSession(this.evita);
-			this.evita.updateCatalog(catalog, ReferenceHavingEntityLocaleFunctionalTest::warmUp);
-			this.evita.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
-			this.evita.updateCatalog(
-				catalog,
-				session -> {
-					session.upsertEntity(newProduct(session, 10, true, 6, SPARE, 30));
-					session.upsertEntity(newProduct(session, 12, true, 7, SPARE, 60));
+		final List<Consumer<EvitaSessionContract>> liveTransactions = List.of(
+			session -> {
+				session.upsertEntity(newProduct(session, 10, true, 6, SPARE, 30));
+				session.upsertEntity(newProduct(session, 12, true, 7, SPARE, 60));
+			},
+			session -> {
+				for (final int owner : ARCHIVED_OWNERS) {
+					session.archiveEntity(ENTITY_PRODUCT, owner);
 				}
-			);
-			this.evita.updateCatalog(
-				catalog,
-				session -> {
-					for (final int owner : ARCHIVED_OWNERS) {
-						session.archiveEntity(ENTITY_PRODUCT, owner);
-					}
-				}
-			);
-		}
+			}
+		);
+		MaterializedPartitionTwin.createRowCatalog(
+			this.evita, CATALOG, ReferenceHavingEntityLocaleFunctionalTest::warmUp, liveTransactions
+		);
+		this.twin = MaterializedPartitionTwin.create(
+			this.evita, CATALOG, ReferenceHavingEntityLocaleFunctionalTest::warmUp, liveTransactions,
+			ENTITY_PRODUCT, REFERENCE_PARTS
+		);
 	}
 
 	@AfterAll
@@ -271,15 +267,20 @@ class ReferenceHavingEntityLocaleFunctionalTest implements EvitaTestSupport {
 	}
 
 	@Test
-	@DisplayName("represents the single-owner partitions of the default catalog as rows and shared ones as objects")
-	void shouldHoldRowsAndObjectsInTheDefaultCatalog() {
+	@DisplayName("represents single-owner partitions as rows in the row catalog and none in the object catalog")
+	void shouldHoldRowsOnlyInTheRowCatalog() {
 		final Collection<RegisteredRow> rows = VirtualPartitionInvariants.registeredRowsOf(
-			VirtualPartitionInvariants.collectionOf(this.evita, CATALOG_VIRTUAL, ENTITY_PRODUCT)
+			VirtualPartitionInvariants.collectionOf(this.evita, catalogOf(Representation.ROWS), ENTITY_PRODUCT)
 		).values();
 		// the single-owner partitions of owners 1 and 8 are rows, the partition shared by 5 and 6 is not
 		assertTrue(rows.stream().anyMatch(it -> it.owner() == 1 && it.scope() == Scope.LIVE), "rows: " + rows);
 		assertTrue(rows.stream().anyMatch(it -> it.owner() == 8 && it.scope() == Scope.LIVE), "rows: " + rows);
 		assertFalse(rows.stream().anyMatch(it -> it.owner() == 5 || it.owner() == 6), "rows: " + rows);
+		// every partition of the object catalog has an owner and its clone, so none is a row
+		final Collection<RegisteredRow> objectCatalogRows = VirtualPartitionInvariants.registeredRowsOf(
+			VirtualPartitionInvariants.collectionOf(this.evita, catalogOf(Representation.OBJECTS), ENTITY_PRODUCT)
+		).values();
+		assertTrue(objectCatalogRows.isEmpty(), "rows of the object catalog: " + objectCatalogRows);
 	}
 
 	@ParameterizedTest(name = "{0} {1} {2}")
@@ -292,7 +293,8 @@ class ReferenceHavingEntityLocaleFunctionalTest implements EvitaTestSupport {
 	) {
 		final Set<Integer> expected = new TreeSet<>();
 		final Set<Scope> queriedScopes = Set.of(scopes);
-		for (final SealedEntity owner : readOwners(representation.catalog)) {
+		final String catalog = catalogOf(representation);
+		for (final SealedEntity owner : readOwners(catalog)) {
 			if (queriedScopes.contains(owner.getScope()) &&
 				owner.getReferences(REFERENCE_PARTS).stream().anyMatch(it -> body.isSatisfiedBy(owner, it))
 			) {
@@ -303,7 +305,7 @@ class ReferenceHavingEntityLocaleFunctionalTest implements EvitaTestSupport {
 		final FilterConstraint filter = referenceHaving(REFERENCE_PARTS, body.constraint());
 		final Set<Integer> actual = new TreeSet<>(
 			this.evita.queryCatalog(
-				representation.catalog,
+				catalog,
 				(Function<EvitaSessionContract, List<Integer>>) session -> session.query(
 					query(collection(ENTITY_PRODUCT), filterBy(scope(scopes), filter), require(page(1, 100))),
 					EntityReference.class
@@ -319,6 +321,20 @@ class ReferenceHavingEntityLocaleFunctionalTest implements EvitaTestSupport {
 			filter + " in " + List.of(scopes) + " of the " + representation + " catalog: missing " + missing +
 				", extra " + extra
 		);
+	}
+
+	/**
+	 * Returns the catalog holding a representation.
+	 *
+	 * @param representation the representation
+	 * @return the name of the catalog
+	 */
+	@Nonnull
+	private String catalogOf(@Nonnull Representation representation) {
+		return switch (representation) {
+			case ROWS -> this.twin.rowCatalog();
+			case OBJECTS -> this.twin.objectCatalog();
+		};
 	}
 
 	/**

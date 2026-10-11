@@ -32,7 +32,6 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.OwnerSortIndex;
-import io.evitadb.index.attribute.OwnerUniqueIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
@@ -373,7 +372,7 @@ class DifferentialComparisonTest {
 		}
 
 		/**
-		 * Renders a sort index the way the differential harness did before it walked sort indexes position by
+		 * Renders a sort index the way the index descriptions did before they walked sort indexes position by
 		 * position: the records in order, then the distinct values by their `toString`.
 		 *
 		 * @param sortIndex the sort index
@@ -398,34 +397,6 @@ class DifferentialComparisonTest {
 					new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 				},
 				KEY
-			);
-		}
-	}
-
-	/**
-	 * The value-to-record mapping of a standalone unique index - a line only the differential twin describes (see
-	 * {@link DifferentialEngines#describeUniqueMapping(OwnerUniqueIndex)}), not {@link CatalogDescriber}.
-	 */
-	@Nested
-	@DisplayName("Unique index mapping")
-	class UniqueMappingTest {
-
-		@Test
-		@DisplayName("two values swapped between the same two records are found")
-		void shouldFindSwappedValues() {
-			final OwnerUniqueIndex original = new OwnerUniqueIndex("product", KEY, String.class, 0);
-			original.registerUniqueKey("a", 1);
-			original.registerUniqueKey("b", 2);
-			final OwnerUniqueIndex swapped = new OwnerUniqueIndex("product", KEY, String.class, 0);
-			swapped.registerUniqueKey("a", 2);
-			swapped.registerUniqueKey("b", 1);
-
-			assertEquals(original.size(), swapped.size(), "the premise: as many records");
-			assertEquals(
-				original.getDistinctValueCount(), swapped.getDistinctValueCount(), "the premise: as many values"
-			);
-			assertNotEquals(
-				DifferentialEngines.describeUniqueMapping(original), DifferentialEngines.describeUniqueMapping(swapped)
 			);
 		}
 	}

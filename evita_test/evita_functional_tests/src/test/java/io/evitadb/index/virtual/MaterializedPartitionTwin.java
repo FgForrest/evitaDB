@@ -212,16 +212,37 @@ public final class MaterializedPartitionTwin {
 		@Nonnull Consumer<EvitaSessionContract> warmUp,
 		@Nonnull Consumer<EvitaSessionContract> live
 	) {
-		evita.defineCatalog(catalog).updateViaNewSession(evita);
-		evita.updateCatalog(catalog, warmUp);
-		evita.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
-		evita.updateCatalog(catalog, live);
+		createRowCatalog(evita, catalog, warmUp, List.of(live));
 	}
 
 	/**
-	 * Creates the object catalog of a row catalog built by {@link #createRowCatalog} from the same fixture: builds it
-	 * the same way, clones every owner of the collection, and asserts the non-vacuity of the twin for the references
-	 * the cases read and the consistency of both catalogs - see the class documentation.
+	 * Creates a new catalog - which keeps its single-owner partitions as registry rows - fills it in warm-up, takes it
+	 * live and applies the transactions of the live catalog, each committed before the next one starts.
+	 *
+	 * @param evita            the engine
+	 * @param catalog          the catalog
+	 * @param warmUp           fills the catalog in warm-up
+	 * @param liveTransactions change the live catalog, one transaction each, in this order
+	 */
+	public static void createRowCatalog(
+		@Nonnull Evita evita,
+		@Nonnull String catalog,
+		@Nonnull Consumer<EvitaSessionContract> warmUp,
+		@Nonnull List<Consumer<EvitaSessionContract>> liveTransactions
+	) {
+		evita.defineCatalog(catalog).updateViaNewSession(evita);
+		evita.updateCatalog(catalog, warmUp);
+		evita.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
+		for (final Consumer<EvitaSessionContract> live : liveTransactions) {
+			evita.updateCatalog(catalog, live);
+		}
+	}
+
+	/**
+	 * Creates the object catalog of a row catalog built by {@link #createRowCatalog(Evita, String, Consumer, Consumer)}
+	 * from the same fixture: builds it the same way, clones every owner of the collection, and asserts the
+	 * non-vacuity of the twin for the references the cases read and the consistency of both catalogs - see the class
+	 * documentation.
 	 *
 	 * @param evita          the engine holding the row catalog
 	 * @param rowCatalog     the row catalog
@@ -241,8 +262,36 @@ public final class MaterializedPartitionTwin {
 		@Nonnull String ownerType,
 		@Nonnull String... readReferences
 	) {
+		return create(evita, rowCatalog, warmUp, List.of(live), ownerType, readReferences);
+	}
+
+	/**
+	 * Creates the object catalog of a row catalog built by {@link #createRowCatalog(Evita, String, Consumer, List)}
+	 * from the same fixture: builds it the same way, clones every owner of the collection, and asserts the
+	 * non-vacuity of the twin for the references the cases read and the consistency of both catalogs - see the class
+	 * documentation.
+	 *
+	 * @param evita            the engine holding the row catalog
+	 * @param rowCatalog       the row catalog
+	 * @param warmUp           fills a catalog in warm-up - the fixture the row catalog was filled by
+	 * @param liveTransactions change a live catalog, one transaction each - the transactions the row catalog went
+	 *                         through, in the same order
+	 * @param ownerType        the collection whose owners are cloned
+	 * @param readReferences   the references of the collection the cases read - each must hold rows in the row catalog
+	 *                         and none in the object catalog
+	 * @return the twin
+	 */
+	@Nonnull
+	public static MaterializedPartitionTwin create(
+		@Nonnull Evita evita,
+		@Nonnull String rowCatalog,
+		@Nonnull Consumer<EvitaSessionContract> warmUp,
+		@Nonnull List<Consumer<EvitaSessionContract>> liveTransactions,
+		@Nonnull String ownerType,
+		@Nonnull String... readReferences
+	) {
 		final String objectCatalog = rowCatalog + "ObjectsOf" + StringUtils.capitalize(ownerType);
-		createRowCatalog(evita, objectCatalog, warmUp, live);
+		createRowCatalog(evita, objectCatalog, warmUp, liveTransactions);
 		cloneOwners(evita, objectCatalog, ownerType);
 		final MaterializedPartitionTwin twin = new MaterializedPartitionTwin(evita, rowCatalog, objectCatalog, ownerType);
 		for (final String referenceName : readReferences) {
