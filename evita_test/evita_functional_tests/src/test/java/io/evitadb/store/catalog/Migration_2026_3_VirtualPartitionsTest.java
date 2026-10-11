@@ -69,7 +69,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexSt
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;
-import io.evitadb.store.catalog.LegacyTemporalSortImages.LegacySortIndex;
+import io.evitadb.store.catalog.LegacyOwnerSortImages.LegacySortIndex;
 import io.evitadb.store.catalog.Migration_2025_6.NoChangeHeaderInfoSupplier;
 import io.evitadb.store.catalog.Migration_2026_3_UniqueUpgradeRoundTripTest.Shape;
 import io.evitadb.store.catalog.Migration_2026_3_UniqueUpgradeRoundTripTest.Spellings;
@@ -138,9 +138,9 @@ import static io.evitadb.index.virtual.VirtualPartitionInvariants.catalogOf;
 import static io.evitadb.index.virtual.VirtualPartitionInvariants.collectionOf;
 import static io.evitadb.index.virtual.VirtualPartitionInvariants.describeIndexes;
 import static io.evitadb.index.virtual.VirtualPartitionInvariants.registeredRowsOf;
-import static io.evitadb.store.catalog.LegacyTemporalSortImages.assertRewritten;
-import static io.evitadb.store.catalog.LegacyTemporalSortImages.assertStillRaw;
-import static io.evitadb.store.catalog.LegacyTemporalSortImages.writeRawSortIndexes;
+import static io.evitadb.store.catalog.LegacyOwnerSortImages.assertRewritten;
+import static io.evitadb.store.catalog.LegacyOwnerSortImages.assertStillAsWritten;
+import static io.evitadb.store.catalog.LegacyOwnerSortImages.writeLegacySortIndexes;
 import static io.evitadb.store.catalog.OfflineCatalogImages.assertOnlyAppended;
 import static io.evitadb.store.catalog.OfflineCatalogImages.catalogFolder;
 import static io.evitadb.store.catalog.OfflineCatalogImages.filesHeldOpenIn;
@@ -819,7 +819,7 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 				spellings.raw(ATTRIBUTE_URL, urlOf(owner));
 			}
 			respellOwnerUniqueIndex(configuration, spellings);
-			final List<LegacySortIndex> legacy = writeRawSortIndexes(
+			final List<LegacySortIndex> legacy = writeLegacySortIndexes(
 				configuration, GENERATED_CATALOG, ENTITY_OWNER, Set.of(ATTRIBUTE_MOMENT, ATTRIBUTE_SINCE),
 				Migration_2026_3_VirtualPartitionsTest::momentOf
 			);
@@ -864,7 +864,7 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 			assertOnlyAppended("after the failed migration", before, storedFiles(folder), true);
 			assertEquals(publishedBefore, lastBootstrap(configuration, GENERATED_CATALOG));
 			assertOwnerUrlsStored("after the failed migration", configuration, false);
-			assertStillRaw("after the failed migration", configuration, GENERATED_CATALOG, ENTITY_OWNER, legacy);
+			assertStillAsWritten("after the failed migration", configuration, GENERATED_CATALOG, ENTITY_OWNER, legacy);
 			assertEquals(
 				inventory.converted().keySet(),
 				inventoryPartitions(configuration, GENERATED_CATALOG).converted().keySet(),

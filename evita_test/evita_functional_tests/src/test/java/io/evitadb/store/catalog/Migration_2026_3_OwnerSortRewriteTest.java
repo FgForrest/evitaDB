@@ -34,7 +34,7 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.core.Evita;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
-import io.evitadb.store.catalog.LegacyTemporalSortImages.LegacySortIndex;
+import io.evitadb.store.catalog.LegacyOwnerSortImages.LegacySortIndex;
 import io.evitadb.store.catalog.OfflineCatalogImages.StoredFile;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.test.EvitaTestSupport;
@@ -60,6 +60,7 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.stream.IntStream;
 
 import static io.evitadb.api.query.Query.query;
@@ -72,9 +73,10 @@ import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.api.query.QueryConstraints.page;
 import static io.evitadb.api.query.QueryConstraints.require;
-import static io.evitadb.store.catalog.LegacyTemporalSortImages.assertRewritten;
-import static io.evitadb.store.catalog.LegacyTemporalSortImages.assertStillRaw;
-import static io.evitadb.store.catalog.LegacyTemporalSortImages.writeRawSortIndexes;
+import static io.evitadb.store.catalog.LegacyOwnerSortImages.assertRewritten;
+import static io.evitadb.store.catalog.LegacyOwnerSortImages.assertStillAsWritten;
+import static io.evitadb.store.catalog.LegacyOwnerSortImages.pageValues;
+import static io.evitadb.store.catalog.LegacyOwnerSortImages.writeLegacySortIndexes;
 import static io.evitadb.store.catalog.OfflineCatalogImages.assertOnlyAppended;
 import static io.evitadb.store.catalog.OfflineCatalogImages.catalogFolder;
 import static io.evitadb.store.catalog.OfflineCatalogImages.lastBootstrap;
@@ -91,35 +93,39 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * Drives the rewrite of owner sort indexes storing temporal values raw that the storage migration to protocol 8
- * ({@link Migration_2026_3#upgradeFromStorageProtocolVersion_6_to_8}) performs, over a catalog whose only change in the
- * migration is that rewrite: a collection of events with a sort-only `OffsetDateTime` attribute, no reference and no
- * unique attribute, so nothing is re-keyed and nothing converted. Without its own term in the publication decision such
- * a collection would keep its old collection header, and protocol 8 would be published over the raw parts.
+ * Drives the rewrite of the owner sort indexes release 2026.2 wrote that the storage migration to protocol 8
+ * ({@link Migration_2026_3#upgradeFromStorageProtocolVersion_6_to_8}) performs, over catalogs whose only change in the
+ * migration is that rewrite: no reference and no unique attribute, so nothing is re-keyed and nothing converted.
+ * Without its own term in the publication decision such a collection would keep its old collection header, and
+ * protocol 8 would be published over the legacy parts.
  *
- * The catalog is written by the engine, its sort index replaced offline by the parts a release storing raw values
- * wrote ({@link LegacyTemporalSortImages}), and stamped with storage protocol 6 ({@link OfflineCatalogImages#stamp});
- * its next start runs the real migration. Every pair of events `2k + 1` and `2k + 2` carries one moment written at
- * +02:00 and +01:00: raw, the earlier local time orders the even event first; normalized, the two tie and are ordered
- * by primary key. The order the sort index serves therefore tells the two forms apart.
+ * The catalog is written by the engine, its sort index replaced offline by the parts release 2026.2 wrote
+ * ({@link LegacyOwnerSortImages}), and stamped with storage protocol 6 ({@link OfflineCatalogImages#stamp}); its next
+ * start runs the real migration.
  *
- * A localized compound shows that the order of the legacy pages is checked by the comparator of the release that
- * wrote them, while the index is rebuilt by the current one. It also characterizes the one input the migration does
- * not reach: a catalog of protocol 8 holding raw temporal sort values, which only a development build of 2026.3 can
- * have written.
+ * A collection of events with a sort-only `OffsetDateTime` attribute covers the raw temporal values: every pair of
+ * events `2k + 1` and `2k + 2` carries one moment written at +02:00 and +01:00 - raw, the earlier local time orders the
+ * even event first; normalized, the two tie and are ordered by primary key. The order the sort index serves therefore
+ * tells the two forms apart.
+ *
+ * Localized compounds cover the order of the bare collator the release compared a localized text by: the order of the
+ * legacy pages is checked by the comparator of the release that wrote them, while the index is rebuilt by the current
+ * one, and a compound with no temporal element at all is re-sorted too - its pages would not load as they were
+ * written. The class also characterizes the one input the migration does not reach: a catalog of protocol 8 holding
+ * raw temporal sort values, which only a development build of 2026.3 can have written.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Migration_2026_3 — sort indexes storing temporal values raw are rewritten normalized (v6→v8)")
+@DisplayName("Migration_2026_3 — owner sort indexes of 2026.2 are rewritten in the current form and order (v6→v8)")
 @Tag(STORAGE)
 @Tag(ATTRIBUTE)
 @Tag(ORDER)
 @SuppressWarnings("removal") // the migration is @Deprecated(forRemoval); testing it is the point
-class Migration_2026_3_TemporalSortRewriteTest implements EvitaTestSupport {
+class Migration_2026_3_OwnerSortRewriteTest implements EvitaTestSupport {
 	/**
 	 * The catalog of every case.
 	 */
-	private static final String CATALOG = "temporalSortCatalog";
+	private static final String CATALOG = "ownerSortCatalog";
 	/**
 	 * The collection of events.
 	 */
@@ -141,9 +147,23 @@ class Migration_2026_3_TemporalSortRewriteTest implements EvitaTestSupport {
 	 */
 	private static final String COMPOUND_LABEL_MOMENT = "labelThenMoment";
 	/**
+	 * The integer rank of an entry - an element of {@link #COMPOUND_LABEL_RANK}.
+	 */
+	private static final String ATTRIBUTE_RANK = "rank";
+	/**
+	 * The compound of the label ascending and the rank ascending - a localized owner sort index with no temporal
+	 * element.
+	 */
+	private static final String COMPOUND_LABEL_RANK = "labelThenRank";
+	/**
 	 * How many entries the localized compound case writes - enough to page its sort index.
 	 */
 	private static final int ENTRY_COUNT = 600;
+	/**
+	 * The entry whose label and that of the next entry are the only two spellings the collator equates in the case of
+	 * a pair straddling a page boundary - placed so that the legacy index ends its first leaf page with it.
+	 */
+	private static final int STRADDLING_ENTRY = 128;
 	/**
 	 * The storage protocol of 2026.2 - the one the migration starts from.
 	 */
@@ -230,7 +250,7 @@ class Migration_2026_3_TemporalSortRewriteTest implements EvitaTestSupport {
 			);
 			assertOnlyAppended("after the failed migration", before, storedFiles(folder), true);
 			assertEquals(publishedBefore, lastBootstrap(configuration, CATALOG), "nothing may be published");
-			assertStillRaw("after the failed migration", configuration, CATALOG, ENTITY_EVENT, legacy);
+			assertStillAsWritten("after the failed migration", configuration, CATALOG, ENTITY_EVENT, legacy);
 
 			// the rerun from the same published state, through the load path
 			stamp(configuration, CATALOG, RELEASED_PROTOCOL, RELEASED_PROTOCOL);
@@ -299,7 +319,7 @@ class Migration_2026_3_TemporalSortRewriteTest implements EvitaTestSupport {
 			);
 			engine.updateCatalog(CATALOG, EvitaSessionContract::goLiveAndClose);
 			engine.close();
-			final List<LegacySortIndex> legacy = writeRawSortIndexes(
+			final List<LegacySortIndex> legacy = writeLegacySortIndexes(
 				configuration, CATALOG, ENTITY_ENTRY, Set.of(COMPOUND_LABEL_MOMENT),
 				entry -> new ComparableArray(new Serializable[]{labelOf(entry), entryMomentOf(entry)})
 			);
@@ -316,7 +336,7 @@ class Migration_2026_3_TemporalSortRewriteTest implements EvitaTestSupport {
 				IntStream.of(legacy.getFirst().writer().toCurrentOwner().getSortedRecords()).boxed().toList(),
 				"the current comparator must reverse every pair the release ordered by its moment"
 			);
-			assertStillRaw("as written", configuration, CATALOG, ENTITY_ENTRY, legacy);
+			assertStillAsWritten("as written", configuration, CATALOG, ENTITY_ENTRY, legacy);
 
 			stamp(configuration, CATALOG, RELEASED_PROTOCOL, RELEASED_PROTOCOL);
 			// the open migrates the catalog - and refuses it, were the pages checked by the current comparator
@@ -331,8 +351,112 @@ class Migration_2026_3_TemporalSortRewriteTest implements EvitaTestSupport {
 			);
 
 			final Evita migrated = start(configuration);
-			assertEquals(currentOrder, orderedEntries(migrated), "the migrated sort index");
+			assertEquals(currentOrder, orderedEntries(migrated, COMPOUND_LABEL_MOMENT), "the migrated sort index");
 			migrated.close();
+			assertRewritten("after a reload", configuration, CATALOG, ENTITY_ENTRY, legacy);
+		}
+
+		/**
+		 * The same pairs of labels in a localized compound whose next element is an integer rank, so the index holds
+		 * no temporal value at all. The release ordered every pair by its rank, `2k + 1` first; the current comparator
+		 * orders it `2k + 2` first, so the pages fail to load as they were written - the bulk load of a leaf page
+		 * refuses keys that do not ascend. The migration must re-sort the index, and the reload that follows must find
+		 * nothing left to write.
+		 */
+		@Test
+		@DisplayName("re-sorts a paged compound without a temporal element a release ordered by the bare collator")
+		void shouldResortALocalizedCompoundWithoutATemporalElement() {
+			final EvitaConfiguration configuration = configurationOf(allocatePaths("localizedCompound"));
+			final List<LegacySortIndex> legacy = writeLabelAndRankImage(
+				configuration, Migration_2026_3_OwnerSortRewriteTest::labelOf
+			);
+			// the premise: the current comparator orders every pair the other way than the release did
+			final List<Integer> currentOrder = new ArrayList<>(ENTRY_COUNT);
+			for (int entry = 1; entry <= ENTRY_COUNT; entry += 2) {
+				currentOrder.add(entry + 1);
+				currentOrder.add(entry);
+			}
+			assertEquals(
+				currentOrder,
+				IntStream.of(legacy.getFirst().writer().toCurrentOwner().getSortedRecords()).boxed().toList(),
+				"the current comparator must reverse every pair the release ordered by its rank"
+			);
+
+			assertResortedByTheMigration(configuration, legacy, currentOrder);
+		}
+
+		/**
+		 * One pair of labels the collator equates, the only one of the index, placed so that the legacy index ends
+		 * its first leaf page with the first of them and starts the second with the other. Each page ascends on its
+		 * own under the current comparator; only the boundary between them does not. The migration must re-sort the
+		 * index across the boundary.
+		 */
+		@Test
+		@DisplayName("re-sorts a pair a release ordered by the bare collator across a leaf page boundary")
+		void shouldResortALocalizedPairStraddlingALeafPageBoundary() {
+			final EvitaConfiguration configuration = configurationOf(allocatePaths("straddlingPair"));
+			final List<LegacySortIndex> legacy = writeLabelAndRankImage(
+				configuration, Migration_2026_3_OwnerSortRewriteTest::straddlingLabelOf
+			);
+			// the premise: the pair is split by a page boundary of the legacy index, the first of it ending a page
+			final List<List<Serializable>> pages = pageValues(configuration, CATALOG, ENTITY_ENTRY, legacy.getFirst());
+			final Serializable first = new ComparableArray(
+				new Serializable[]{straddlingLabelOf(STRADDLING_ENTRY), STRADDLING_ENTRY}
+			);
+			final Serializable second = new ComparableArray(
+				new Serializable[]{straddlingLabelOf(STRADDLING_ENTRY + 1), STRADDLING_ENTRY + 1}
+			);
+			assertTrue(
+				IntStream.range(1, pages.size()).anyMatch(
+					page -> first.equals(pages.get(page - 1).getLast()) && second.equals(pages.get(page).getFirst())
+				),
+				"the pair must straddle a page boundary of the legacy index, its pages end with " +
+					pages.stream().map(List::getLast).toList()
+			);
+			final List<Integer> currentOrder = new ArrayList<>(ENTRY_COUNT);
+			for (int entry = 1; entry <= ENTRY_COUNT; entry++) {
+				currentOrder.add(
+					entry == STRADDLING_ENTRY ? entry + 1 : entry == STRADDLING_ENTRY + 1 ? entry - 1 : entry
+				);
+			}
+			assertEquals(
+				currentOrder,
+				IntStream.of(legacy.getFirst().writer().toCurrentOwner().getSortedRecords()).boxed().toList(),
+				"the current comparator must reverse the pair the release ordered by its rank"
+			);
+
+			assertResortedByTheMigration(configuration, legacy, currentOrder);
+		}
+
+		/**
+		 * Migrates the catalog holding the legacy compound of the label and the rank through the load path and asserts
+		 * that it loads, serves the order of the current comparator, holds no legacy page, and that a reload neither
+		 * changes the order nor writes anything.
+		 *
+		 * @param configuration the configuration of the engine
+		 * @param legacy        the legacy sort indexes written
+		 * @param currentOrder  the order of the entries under the current comparator
+		 */
+		private void assertResortedByTheMigration(
+			@Nonnull EvitaConfiguration configuration,
+			@Nonnull List<LegacySortIndex> legacy,
+			@Nonnull List<Integer> currentOrder
+		) {
+			stamp(configuration, CATALOG, RELEASED_PROTOCOL, RELEASED_PROTOCOL);
+			final Evita migrated = start(configuration);
+			assertEquals(currentOrder, orderedEntries(migrated, COMPOUND_LABEL_RANK), "the migrated sort index");
+			migrated.close();
+			final CatalogBootstrap published = lastBootstrap(configuration, CATALOG);
+			assertEquals(PersistenceService.STORAGE_PROTOCOL_VERSION, published.storageProtocolVersion());
+			assertEquals(
+				1, assertRewritten("after the migration", configuration, CATALOG, ENTITY_ENTRY, legacy),
+				"the sort index of the entries must have been rewritten"
+			);
+
+			final Evita reloaded = start(configuration);
+			assertEquals(currentOrder, orderedEntries(reloaded, COMPOUND_LABEL_RANK), "the reloaded sort index");
+			reloaded.close();
+			assertEquals(published, lastBootstrap(configuration, CATALOG), "a reload must publish nothing");
 			assertRewritten("after a reload", configuration, CATALOG, ENTITY_ENTRY, legacy);
 		}
 	}
@@ -403,7 +527,7 @@ class Migration_2026_3_TemporalSortRewriteTest implements EvitaTestSupport {
 				"the failed write must have been rolled back"
 			);
 			engine.close();
-			assertStillRaw("after the catalog was used", configuration, CATALOG, ENTITY_EVENT, legacy);
+			assertStillAsWritten("after the catalog was used", configuration, CATALOG, ENTITY_EVENT, legacy);
 		}
 	}
 
@@ -434,13 +558,13 @@ class Migration_2026_3_TemporalSortRewriteTest implements EvitaTestSupport {
 		engine.updateCatalog(CATALOG, EvitaSessionContract::goLiveAndClose);
 		assertEventsInInstantOrder("as written", engine, shape);
 		engine.close();
-		final List<LegacySortIndex> legacy = writeRawSortIndexes(
+		final List<LegacySortIndex> legacy = writeLegacySortIndexes(
 			configuration, CATALOG, ENTITY_EVENT, Set.of(ATTRIBUTE_MOMENT),
-			Migration_2026_3_TemporalSortRewriteTest::momentOf
+			Migration_2026_3_OwnerSortRewriteTest::momentOf
 		);
 		assertEquals(1, legacy.size(), "the events hold one sort index: " + legacy);
 		assertEquals(shape == Shape.PAGED, legacy.getFirst().paged(), "the legacy sort index must be " + shape);
-		assertStillRaw("as written", configuration, CATALOG, ENTITY_EVENT, legacy);
+		assertStillAsWritten("as written", configuration, CATALOG, ENTITY_EVENT, legacy);
 		return legacy;
 	}
 
@@ -472,6 +596,22 @@ class Migration_2026_3_TemporalSortRewriteTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Returns the label of an entry in the case of a pair straddling a page boundary: `ab` followed by the primary key,
+	 * except that {@link #STRADDLING_ENTRY} carries a zero-width space between the letters and the entry after it the
+	 * number of {@link #STRADDLING_ENTRY} - the only two labels of the index the collator equates.
+	 *
+	 * @param entry the primary key of the entry
+	 * @return the label
+	 */
+	@Nonnull
+	private static String straddlingLabelOf(int entry) {
+		if (entry == STRADDLING_ENTRY) {
+			return "a​b" + String.format("%04d", entry);
+		}
+		return "ab" + String.format("%04d", entry == STRADDLING_ENTRY + 1 ? STRADDLING_ENTRY : entry);
+	}
+
+	/**
 	 * Returns the moment of an entry, one second after that of the previous entry, written at +02:00.
 	 *
 	 * @param entry the primary key of the entry
@@ -483,13 +623,64 @@ class Migration_2026_3_TemporalSortRewriteTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Lists the entries in the order of their English compound of the label and the moment, served by the sort index.
+	 * Writes a catalog of entries sorted by the localized compound of their label and their rank - the primary key -
+	 * with the engine, takes it live, closes the engine, and replaces the sort index of the compound with the parts
+	 * release 2026.2 wrote, ordered by its bare collator - published under the current storage protocol.
 	 *
-	 * @param engine the engine
+	 * @param configuration the configuration of the engine
+	 * @param labelOfEntry  the label of an entry
+	 * @return the identities of the legacy sort indexes written - one, paged
+	 */
+	@Nonnull
+	private List<LegacySortIndex> writeLabelAndRankImage(
+		@Nonnull EvitaConfiguration configuration,
+		@Nonnull IntFunction<String> labelOfEntry
+	) {
+		final Evita engine = start(configuration);
+		engine.defineCatalog(CATALOG).updateViaNewSession(engine);
+		engine.updateCatalog(
+			CATALOG,
+			session -> {
+				session.defineEntitySchema(ENTITY_ENTRY)
+					.withoutGeneratedPrimaryKey()
+					.withLocale(Locale.ENGLISH)
+					.withAttribute(ATTRIBUTE_LABEL, String.class, thatIs -> thatIs.localized().nullable())
+					.withAttribute(ATTRIBUTE_RANK, Integer.class, thatIs -> thatIs.nullable())
+					.withSortableAttributeCompound(
+						COMPOUND_LABEL_RANK,
+						AttributeElement.attributeElement(ATTRIBUTE_LABEL, OrderDirection.ASC),
+						AttributeElement.attributeElement(ATTRIBUTE_RANK, OrderDirection.ASC)
+					)
+					.updateVia(session);
+				for (int entry = 1; entry <= ENTRY_COUNT; entry++) {
+					session.createNewEntity(ENTITY_ENTRY, entry)
+						.setAttribute(ATTRIBUTE_LABEL, Locale.ENGLISH, labelOfEntry.apply(entry))
+						.setAttribute(ATTRIBUTE_RANK, entry)
+						.upsertVia(session);
+				}
+			}
+		);
+		engine.updateCatalog(CATALOG, EvitaSessionContract::goLiveAndClose);
+		engine.close();
+		final List<LegacySortIndex> legacy = writeLegacySortIndexes(
+			configuration, CATALOG, ENTITY_ENTRY, Set.of(COMPOUND_LABEL_RANK),
+			entry -> new ComparableArray(new Serializable[]{labelOfEntry.apply(entry), entry})
+		);
+		assertEquals(1, legacy.size(), "the entries hold one sort index: " + legacy);
+		assertTrue(legacy.getFirst().paged(), "the legacy sort index must span several leaf pages");
+		assertStillAsWritten("as written", configuration, CATALOG, ENTITY_ENTRY, legacy);
+		return legacy;
+	}
+
+	/**
+	 * Lists the entries in the order of an English compound of theirs, served by the sort index.
+	 *
+	 * @param engine   the engine
+	 * @param compound the compound to order by
 	 * @return the primary keys in order
 	 */
 	@Nonnull
-	private static List<Integer> orderedEntries(@Nonnull Evita engine) {
+	private static List<Integer> orderedEntries(@Nonnull Evita engine, @Nonnull String compound) {
 		return engine.queryCatalog(
 			CATALOG,
 			(Function<EvitaSessionContract, List<Integer>>) session -> session
@@ -497,7 +688,7 @@ class Migration_2026_3_TemporalSortRewriteTest implements EvitaTestSupport {
 					query(
 						collection(ENTITY_ENTRY),
 						filterBy(entityLocaleEquals(Locale.ENGLISH)),
-						orderBy(attributeNatural(COMPOUND_LABEL_MOMENT)),
+						orderBy(attributeNatural(compound)),
 						require(page(1, 10_000), debug(DebugMode.PREFER_INDEX_SCAN))
 					)
 				)
@@ -630,7 +821,7 @@ class Migration_2026_3_TemporalSortRewriteTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private TestPaths allocatePaths(@Nonnull String label) {
-		final TestPaths paths = createTestPaths("Migration_2026_3_TemporalSortRewrite_" + label);
+		final TestPaths paths = createTestPaths("Migration_2026_3_OwnerSortRewrite_" + label);
 		this.allocatedPaths.add(paths);
 		return paths;
 	}

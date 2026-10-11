@@ -69,6 +69,7 @@ import java.util.function.IntFunction;
 import static io.evitadb.store.catalog.OfflineCatalogImages.lastBootstrap;
 import static io.evitadb.store.catalog.OfflineCatalogImages.withOfflineCatalog;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -76,8 +77,9 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * Writes into a catalog on disk, with the engine stopped, the owner sort indexes a release up to 2026.2 wrote - every
- * temporal value stored as it was written, not in its millisecond form - and reads back what the storage migration
- * to protocol 8 made of them. The legacy parts are built by {@link LegacyOwnerSortIndexWriter}, a replica of the old
+ * temporal value stored as it was written, not in its millisecond form, and the values ordered by the comparator of
+ * that release, a localized `String` element by the bare collator - and reads back what the storage migration to
+ * protocol 8 made of them. The legacy parts are built by {@link LegacyOwnerSortIndexWriter}, a replica of the old
  * writer, over the records the current engine indexed: no binary fixture is involved.
  *
  * Each sort index replaced is remembered by its identity - the entity index holding it, the primary key of its root
@@ -86,14 +88,14 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-final class LegacyTemporalSortImages {
+final class LegacyOwnerSortImages {
 
-	private LegacyTemporalSortImages() {
+	private LegacyOwnerSortImages() {
 	}
 
 	/**
 	 * Replaces every owner sort index of the named attributes, in every entity index the collection lists, with the
-	 * parts a release storing raw temporal values wrote for the same records - inline when the replaced index is
+	 * parts release 2026.2 wrote for the same records - inline when the replaced index is
 	 * inline, as leaf pages and a paged root when it is paged - and publishes the result under the current storage
 	 * protocol, through the same flush-and-re-address sequence a migration publishes a rewritten collection with. A
 	 * sort index with a filter index under the same key is a view and is left alone, as the load path ignores its
@@ -108,7 +110,7 @@ final class LegacyTemporalSortImages {
 	 * @return the identities of the legacy sort indexes written
 	 */
 	@Nonnull
-	static List<LegacySortIndex> writeRawSortIndexes(
+	static List<LegacySortIndex> writeLegacySortIndexes(
 		@Nonnull EvitaConfiguration configuration,
 		@Nonnull String catalogName,
 		@Nonnull String entityType,
@@ -140,7 +142,7 @@ final class LegacyTemporalSortImages {
 					);
 					for (final AttributeIndexKey attributeKey : ownerSortKeys(manifest, attributeNames)) {
 						written.add(
-							replaceWithRawSortIndex(
+							replaceWithLegacySortIndex(
 								catalogVersion, storage, manifest, indexPrimaryKey, attributeKey, rawValueOfRecord
 							)
 						);
@@ -172,7 +174,7 @@ final class LegacyTemporalSortImages {
 
 	/**
 	 * Asserts that the published state of the catalog still holds every legacy sort index exactly as it was written:
-	 * its root with raw values, and every leaf page it listed.
+	 * its root, every leaf page it listed, and the values the release stored, in the order it stored them.
 	 *
 	 * @param label          names the moment in failure messages
 	 * @param configuration  the configuration of the engine
@@ -180,7 +182,7 @@ final class LegacyTemporalSortImages {
 	 * @param entityType     the collection
 	 * @param legacyIndexes  the legacy sort indexes written
 	 */
-	static void assertStillRaw(
+	static void assertStillAsWritten(
 		@Nonnull String label,
 		@Nonnull EvitaConfiguration configuration,
 		@Nonnull String catalogName,
@@ -209,13 +211,54 @@ final class LegacyTemporalSortImages {
 							label + ": the legacy leaf page " + pagePrimaryKey + " of " + legacy + " must be stored"
 						);
 					}
-					final List<Serializable> values = readValues(catalogVersion, storage, legacy, root);
-					assertTrue(
-						values.stream().anyMatch(value -> !isNormalized(root.getComparatorBase(), value)),
-						label + ": " + legacy + " must still hold raw values: " + values
+					assertEquals(
+						legacy.writer().getPersistedValues(), readValues(catalogVersion, storage, legacy, root),
+						label + ": " + legacy + " must still hold the values the release stored, in its order"
 					);
 				}
 				return Boolean.TRUE;
+			}
+		);
+	}
+
+	/**
+	 * Returns the values of every leaf page of a legacy paged sort index, page by page in the order its published root
+	 * lists them - which tells a test where the page boundaries of the legacy index fall.
+	 *
+	 * @param configuration the configuration of the engine
+	 * @param catalogName   the catalog
+	 * @param entityType    the collection
+	 * @param legacy        the legacy sort index, paged
+	 * @return the values of each leaf page
+	 */
+	@Nonnull
+	static List<List<Serializable>> pageValues(
+		@Nonnull EvitaConfiguration configuration,
+		@Nonnull String catalogName,
+		@Nonnull String entityType,
+		@Nonnull LegacySortIndex legacy
+	) {
+		return withOfflineCatalog(
+			configuration, catalogName,
+			service -> {
+				final long catalogVersion = service.getLastCatalogVersion();
+				final OffsetIndexStoragePartPersistenceService storage =
+					collectionServiceOf(service, catalogVersion, entityType).getStoragePartPersistenceService();
+				final SortIndexStoragePart root = Objects.requireNonNull(
+					storage.getStoragePart(catalogVersion, legacy.rootPrimaryKey(), SortIndexStoragePart.class),
+					"the root of " + legacy + " must be stored"
+				);
+				final ValueToRecord[][] buckets =
+					readPages(catalogVersion, storage, legacy.entityIndexPrimaryKey(), root);
+				final List<List<Serializable>> pages = new ArrayList<>(buckets.length);
+				for (final ValueToRecord[] page : buckets) {
+					final List<Serializable> values = new ArrayList<>(page.length);
+					for (final ValueToRecord bucket : page) {
+						values.add(bucket.getValue());
+					}
+					pages.add(values);
+				}
+				return pages;
 			}
 		);
 	}
@@ -332,7 +375,7 @@ final class LegacyTemporalSortImages {
 	}
 
 	/**
-	 * Replaces one owner sort index with the parts a release storing raw temporal values wrote for its records.
+	 * Replaces one owner sort index with the parts release 2026.2 wrote for its records.
 	 *
 	 * @param catalogVersion   the catalog version
 	 * @param storage          the storage of the collection
@@ -343,7 +386,7 @@ final class LegacyTemporalSortImages {
 	 * @return the identity of the legacy sort index written
 	 */
 	@Nonnull
-	private static LegacySortIndex replaceWithRawSortIndex(
+	private static LegacySortIndex replaceWithLegacySortIndex(
 		long catalogVersion,
 		@Nonnull OffsetIndexStoragePartPersistenceService storage,
 		@Nonnull EntityIndexStoragePart manifest,

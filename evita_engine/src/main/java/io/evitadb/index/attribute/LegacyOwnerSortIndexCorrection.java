@@ -48,27 +48,48 @@ import java.util.Map;
 import java.util.function.Function;
 
 /**
- * Rewrites an owner {@link SortIndex} persisted before its temporal values were normalized into the form the index
+ * Rewrites an owner {@link SortIndex} persisted by release 2026.2 or an older one into the form and the order the index
  * works with now. It is one step of the storage migration to protocol 8 (`Migration_2026_3`), which runs it for every
- * owner sort index of a catalog written by 2026.2 or an older release before it converts the collection's single-owner
- * reference partitions, so the load path never meets a raw temporal sort value of such a catalog.
+ * owner sort index of a catalog written by such a release before it converts the collection's single-owner reference
+ * partitions, so the load path never meets an owner sort index of such a catalog in its old form or order.
  *
- * An owner sort index - a sort-only attribute, every sortable attribute compound - used to store `OffsetDateTime`,
- * `LocalDateTime` and `LocalTime` values verbatim, while the filter index and every sort index viewing it stored their
- * millisecond form. (A sortable attribute that is filterable too stored them so as well, but it loads as a view over
- * its filter index, which ignores the values its part carries - there is nothing to rewrite.) The rewrite brings an
- * owner sort index to the form the current engine writes:
+ * An owner sort index - a sort-only attribute, every sortable attribute compound - of those releases differs from the
+ * one the current engine writes in two ways. (A sortable attribute that is filterable too loads as a view over its
+ * filter index, which ignores the values its part carries - there is nothing to rewrite.)
+ *
+ * - **Raw temporal values.** It stored `OffsetDateTime`, `LocalDateTime` and `LocalTime` values verbatim, while the
+ *   filter index and every sort index viewing it stored their millisecond form.
+ * - **The order of a localized `String` element.** It compared a `String` element of a localized index by the bare
+ *   collator ({@link LocalizedStringComparator}), which equates two spellings such as `ab` with and without a
+ *   zero-width space between its letters; the current index breaks that tie
+ *   ({@link EqualsConsistentLocalizedStringComparator}). A compound holding such a pair was ordered by its next
+ *   element, which the current comparator may reverse. The load path builds the leaves of a paged index from its pages
+ *   as they are stored, so it refuses such a pair as damage - by the bulk load of a page, or by the check of the
+ *   boundary between two pages - and an inline index loads with its positional record order disagreeing with its
+ *   values.
+ *
+ * The rewrite brings such an index to the form and the order the current engine writes:
  *
  * - every value is normalized by the very normalizer the index applies to a new value;
  * - values that now coincide - one moment written at two offsets, or two values differing only below the
  *   millisecond - are merged into one, and their records are ordered by record id within it as in any other block;
- * - the values are re-sorted, because the normalization may reorder them: two compound values tying on a temporal
- *   element only after it was normalized are decided by the next element, which may order them the other way;
+ * - the values are re-sorted by the current comparator - two compound values tying on a temporal element only after
+ *   it was normalized, or on a localized `String` element only under the bare collator, are decided by the next
+ *   element, which may order them the other way;
  * - the index is rebuilt afresh and written whole: an inline index as a new inline part, a paged one as new leaf pages
  *   whose page sequences lie above the persisted high-water, a new root, and the removal of every persisted leaf page
  *   - so no legacy page survives, and no new page reuses the identity of an old one.
  *
- * An index holding no temporal value, or holding only values already normalized, is left as it is.
+ * An index holding no raw temporal value whose values already ascend strictly under the current comparator is left
+ * as it is: it is read, and nothing is written for it.
+ *
+ * # Buckets the release merged
+ *
+ * The release kept two values its comparator found equal in one bucket - `ab` and `ab` with a zero-width space, held
+ * by two records, in a plain localized sort index or in a compound whose other elements tie too. Such a bucket stays
+ * exactly as the release wrote it, under the spelling it stored and with every record it holds, whether the index is
+ * left as it is or rewritten: the bucket does not say which of its records holds which spelling, and this rewrite
+ * reads no entity body to find out.
  *
  * # The rewrite emits its parts itself
  *
@@ -86,16 +107,15 @@ import java.util.function.Function;
  * corruption: merging it would resurrect records that were deliberately removed.
  *
  * The test must use the released comparator, not the current one, because the two differ: a localized `String`
- * element was ordered by the bare collator, which equates two spellings such as `ab` with and without a zero-width
- * space between its letters, and the current index breaks that tie. A released compound holding such a pair, ordered
- * by its next element, is in a legitimate order the current comparator reverses. The rebuilt index is ordered by the
- * current comparator, as every index is.
+ * element was ordered by the bare collator, so a released compound holding two spellings it equates, ordered by its
+ * next element, is in a legitimate order the current comparator may reverse - the very order this rewrite exists to
+ * correct. The rebuilt index is ordered by the current comparator, as every index is.
  *
  * # What it does not cover
  *
- * Nothing on the load path normalizes a raw temporal sort value any more. A catalog that reaches the load path at
- * protocol 8 holding one - which only a development build of 2026.3 can have written, directly or through an archive
- * of such a catalog - is not supported: its values are read as they are stored.
+ * Nothing on the load path normalizes a raw temporal sort value or re-sorts persisted values any more. A catalog that
+ * reaches the load path at protocol 8 holding either - which only a development build of 2026.3 can have written,
+ * directly or through an archive of such a catalog - is not supported: its values are read as they are stored.
  *
  * The class performs no IO: the migration reads the parts and drains the sink into the collection data store.
  *
@@ -105,22 +125,26 @@ import java.util.function.Function;
  * and with {@link InvertedIndex#supersedePersistedPages(int, int[])}, which exists only for it
  */
 @Deprecated(since = "2026.3", forRemoval = true)
-public final class LegacyTemporalSortValueCorrection {
+public final class LegacyOwnerSortIndexCorrection {
 
-	private LegacyTemporalSortValueCorrection() {
+	private LegacyOwnerSortIndexCorrection() {
 		// static helpers only
 	}
 
 	/**
-	 * Returns `true` when an owner sort index of the passed elements may hold raw temporal values - when any element
-	 * is an `OffsetDateTime`, `LocalDateTime` or `LocalTime`.
+	 * Returns `true` when an owner sort index of the passed elements may differ from the one the current engine
+	 * writes - when any element is an `OffsetDateTime`, `LocalDateTime` or `LocalTime`, which the release stored raw,
+	 * or a `String` of a localized index, which the release ordered by the bare collator. A `String` element is
+	 * localized exactly when {@link SortIndex#createComparatorFor} compares it by a collator: when the attribute index
+	 * key of the index carries a locale.
 	 *
 	 * @param comparatorBase one descriptor per element (a single entry for plain attributes)
+	 * @param locale         the locale of the attribute index key of the index, `null` when it is not localized
 	 * @return `true` when the persisted values have to be checked and possibly rewritten
 	 */
-	public static boolean isApplicable(@Nonnull ComparatorSource[] comparatorBase) {
+	public static boolean isApplicable(@Nonnull ComparatorSource[] comparatorBase, @Nullable Locale locale) {
 		for (final ComparatorSource comparatorSource : comparatorBase) {
-			if (SortIndex.isTemporal(comparatorSource.type())) {
+			if (SortIndex.isTemporal(comparatorSource.type()) || isCollated(comparatorSource, locale)) {
 				return true;
 			}
 		}
@@ -128,19 +152,20 @@ public final class LegacyTemporalSortValueCorrection {
 	}
 
 	/**
-	 * Rewrites one persisted owner sort index whose values may still be raw - see the class documentation - and
-	 * emits its parts into `sink`: the root, every leaf page of a paged result, and a removal of every leaf page the
-	 * persisted root lists. When every persisted value is normalized already nothing is emitted.
+	 * Rewrites one persisted owner sort index whose values may still be raw, or ordered by the bare collator - see the
+	 * class documentation - and emits its parts into `sink`: the root, every leaf page of a paged result, and a removal
+	 * of every leaf page the persisted root lists. When every persisted value is normalized already and the values
+	 * ascend strictly under the current comparator, nothing is emitted.
 	 *
 	 * @param root           the persisted root part of an owner sort index - inline, or paged - never the slim part of
 	 *                       a sort index viewing a filter index, which carries no values of its own
 	 * @param perPageBuckets the buckets of every leaf page the paged root lists, in the order it lists them, or `null`
 	 *                       for an inline root
 	 * @param sink           receives the parts of the rewritten index and the removals of the persisted leaf pages
-	 * @return `true` when the index held a raw value and its parts were emitted, `false` when it was left as it is
-	 * @throws GenericEvitaInternalError when the root does not belong to a temporal owner sort index, the leaf pages do
-	 *                                   not match the root, or the persisted values of a paged index are not strictly
-	 *                                   ascending
+	 * @return `true` when the index was rewritten and its parts were emitted, `false` when it was left as it is
+	 * @throws GenericEvitaInternalError when the index has neither a temporal nor a localized `String` element, the
+	 *                                   leaf pages do not match the root, or the persisted values of a paged index
+	 *                                   to rewrite are not strictly ascending under the released comparator
 	 */
 	public static boolean rewrite(
 		@Nonnull SortIndexStoragePart root,
@@ -148,12 +173,14 @@ public final class LegacyTemporalSortValueCorrection {
 		@Nonnull TrappedChanges sink
 	) {
 		final ComparatorSource[] comparatorBase = root.getComparatorBase();
+		final Locale locale = root.getAttributeIndexKey().locale();
 		Assert.isPremiseValid(
-			isApplicable(comparatorBase),
-			() -> "The sort index of `" + root.getAttributeIndexKey() + "` holds no temporal value to rewrite!"
+			isApplicable(comparatorBase, locale),
+			() -> "The sort index of `" + root.getAttributeIndexKey() + "` holds neither a temporal nor a localized " +
+				"text element to rewrite!"
 		);
 		final Function<Object, Serializable> normalizer = createNormalizer(comparatorBase);
-		final Comparator<?> comparator = createComparator(comparatorBase, root);
+		final Comparator<?> comparator = createComparator(comparatorBase, locale);
 		final InvertedIndex ownedTree;
 		if (root.isPaged()) {
 			final int[] pageSequences = root.getLeafPageSequencesOrThrowException();
@@ -162,10 +189,11 @@ public final class LegacyTemporalSortValueCorrection {
 				() -> "The sort index of `" + root.getAttributeIndexKey() + "` lists " + pageSequences.length +
 					" leaf pages, but " + (perPageBuckets == null ? "none" : perPageBuckets.length) + " were read!"
 			);
-			if (!holdsRawValue(perPageBuckets, normalizer)) {
+			// the order is checked only when every value is normalized - the current comparator orders normalized ones
+			if (!holdsRawValue(perPageBuckets, normalizer) && isStrictlyAscending(perPageBuckets, comparator)) {
 				return false;
 			}
-			assertStrictlyAscending(root, perPageBuckets, createReleasedComparator(comparatorBase, root));
+			assertStrictlyAscending(root, perPageBuckets, createReleasedComparator(comparatorBase, locale));
 			ownedTree = OwnerSortIndex.createOwnedTree(comparatorBase, comparator, root.getIndexedDecimalPlaces());
 			for (final ValueToRecord[] buckets : perPageBuckets) {
 				for (final ValueToRecord bucket : buckets) {
@@ -183,7 +211,8 @@ public final class LegacyTemporalSortValueCorrection {
 				() -> "The sort index of `" + root.getAttributeIndexKey() + "` is inline, but leaf pages were passed!"
 			);
 			final Serializable[] sortedRecordValues = root.getSortedRecordsValues();
-			if (!holdsRawValue(sortedRecordValues, normalizer)) {
+			// the order is checked only when every value is normalized - the current comparator orders normalized ones
+			if (!holdsRawValue(sortedRecordValues, normalizer) && isStrictlyAscending(sortedRecordValues, comparator)) {
 				return false;
 			}
 			ownedTree = OwnerSortIndex.createOwnedTree(comparatorBase, comparator, root.getIndexedDecimalPlaces());
@@ -199,9 +228,9 @@ public final class LegacyTemporalSortValueCorrection {
 				offset += cardinality;
 			}
 		}
-		// the persisted positional array orders the records by the raw values - it is rebuilt from the tree, which
-		// orders merged blocks by record id like every other block; the index only emits its parts, which do not carry
-		// the reference key, so none is passed
+		// the persisted positional array orders the records by the persisted values - it is rebuilt from the tree,
+		// which orders merged blocks by record id like every other block; the index only emits its parts, which do not
+		// carry the reference key, so none is passed
 		final OwnerSortIndex rewritten = new OwnerSortIndex(
 			comparatorBase, null, root.getAttributeIndexKey(), root.getIndexedDecimalPlaces(),
 			new TransactionalUnorderedIntArray(SortIndexView.reconstructSortedRecords(ownedTree)), ownedTree
@@ -209,6 +238,18 @@ public final class LegacyTemporalSortValueCorrection {
 		// emitted here and now rather than flagged dirty for a later flush - see the class documentation
 		rewritten.doAppendStorageParts(root.getEntityIndexPrimaryKey(), sink);
 		return true;
+	}
+
+	/**
+	 * Returns `true` when the element is a `String` compared by a collator - one of an index whose attribute index key
+	 * carries a locale, exactly as {@link SortIndex#createComparatorFor} decides it.
+	 *
+	 * @param comparatorSource the descriptor of the element
+	 * @param locale           the locale of the attribute index key of the index, `null` when it is not localized
+	 * @return `true` for a localized `String` element
+	 */
+	private static boolean isCollated(@Nonnull ComparatorSource comparatorSource, @Nullable Locale locale) {
+		return locale != null && String.class.isAssignableFrom(comparatorSource.type());
 	}
 
 	/**
@@ -250,6 +291,49 @@ public final class LegacyTemporalSortValueCorrection {
 			}
 		}
 		return false;
+	}
+
+	/**
+	 * Returns `true` when the persisted values of an inline index ascend strictly under the passed comparator.
+	 *
+	 * @param values     the persisted values, in the order they are stored in
+	 * @param comparator the comparator the current index orders its values by
+	 * @return `true` when every value sorts strictly before the next one
+	 */
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private static boolean isStrictlyAscending(@Nonnull Serializable[] values, @Nonnull Comparator comparator) {
+		for (int i = 1; i < values.length; i++) {
+			if (comparator.compare(values[i - 1], values[i]) >= 0) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Returns `true` when the persisted values of a paged index ascend strictly across all its pages under the passed
+	 * comparator - the boundaries between two pages included, which the load path checks as well.
+	 *
+	 * @param perPageBuckets the buckets of every leaf page, in the order the root lists them
+	 * @param comparator     the comparator the current index orders its values by
+	 * @return `true` when every value sorts strictly before the next one
+	 */
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private static boolean isStrictlyAscending(
+		@Nonnull ValueToRecord[][] perPageBuckets,
+		@Nonnull Comparator comparator
+	) {
+		Serializable previousValue = null;
+		for (final ValueToRecord[] buckets : perPageBuckets) {
+			for (final ValueToRecord bucket : buckets) {
+				final Serializable value = bucket.getValue();
+				if (previousValue != null && comparator.compare(previousValue, value) >= 0) {
+					return false;
+				}
+				previousValue = value;
+			}
+		}
+		return true;
 	}
 
 	/**
@@ -300,20 +384,19 @@ public final class LegacyTemporalSortValueCorrection {
 	 * order of its declared type.
 	 *
 	 * @param comparatorBase one descriptor per element (a single entry for plain attributes)
-	 * @param root           the persisted root, whose attribute index key carries the locale
+	 * @param locale         the locale of the attribute index key of the index, `null` when it is not localized
 	 * @return the comparator the release ordered the index by
 	 */
 	@Nonnull
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private static Comparator createReleasedComparator(
 		@Nonnull ComparatorSource[] comparatorBase,
-		@Nonnull SortIndexStoragePart root
+		@Nullable Locale locale
 	) {
-		final Locale locale = root.getAttributeIndexKey().locale();
 		final Comparator[] elementComparators = new Comparator[comparatorBase.length];
 		for (int i = 0; i < comparatorBase.length; i++) {
 			final ComparatorSource source = comparatorBase[i];
-			final Comparator natural = String.class.isAssignableFrom(source.type()) && locale != null ?
+			final Comparator natural = isCollated(source, locale) ?
 				new LocalizedStringComparator(locale) : Comparator.naturalOrder();
 			final Comparator directed = source.orderDirection() == OrderDirection.ASC ? natural : natural.reversed();
 			elementComparators[i] = source.orderBehaviour() == OrderBehaviour.NULLS_LAST ?
@@ -340,25 +423,26 @@ public final class LegacyTemporalSortValueCorrection {
 	 * {@link SortIndex} derives for itself.
 	 *
 	 * @param comparatorBase one descriptor per element (a single entry for plain attributes)
-	 * @param root           the persisted root, whose attribute index key carries the locale
+	 * @param locale         the locale of the attribute index key of the index, `null` when it is not localized
 	 * @return the value comparator
 	 */
 	@Nonnull
 	private static Comparator<?> createComparator(
 		@Nonnull ComparatorSource[] comparatorBase,
-		@Nonnull SortIndexStoragePart root
+		@Nullable Locale locale
 	) {
 		return comparatorBase.length == 1
-			? SortIndex.createComparatorFor(root.getAttributeIndexKey().locale(), comparatorBase[0])
-			: SortIndex.createCombinedComparatorFor(root.getAttributeIndexKey().locale(), comparatorBase);
+			? SortIndex.createComparatorFor(locale, comparatorBase[0])
+			: SortIndex.createCombinedComparatorFor(locale, comparatorBase);
 	}
 
 	/**
 	 * Creates the normalizer of persisted values: the temporal normalizer the sort index applies to a new value
 	 * ({@link FilterIndex#getNormalizer(Class, int)}), applied to a persisted plain value or to the temporal elements
 	 * of a persisted {@link ComparableArray}. Every other element is left as persisted - it was normalized when it was
-	 * written, and not every normalizer accepts its own output. The function returns the very instance it is given
-	 * when that is normalized already, which is how a raw value is told apart from a current one.
+	 * written, and not every normalizer accepts its own output - so an index with no temporal element gets the
+	 * identity. The function returns the very instance it is given when that is normalized already, which is how a raw
+	 * value is told apart from a current one.
 	 *
 	 * @param comparatorBase one descriptor per element (a single entry for plain attributes)
 	 * @return the normalizer of persisted values
@@ -367,11 +451,17 @@ public final class LegacyTemporalSortValueCorrection {
 	private static Function<Object, Serializable> createNormalizer(@Nonnull ComparatorSource[] comparatorBase) {
 		//noinspection unchecked
 		final Function<Object, Serializable>[] elementNormalizers = new Function[comparatorBase.length];
+		boolean temporal = false;
 		for (int i = 0; i < comparatorBase.length; i++) {
 			final Class<?> type = comparatorBase[i].type();
-			elementNormalizers[i] = SortIndex.isTemporal(type) ? FilterIndex.getNormalizer(type, 0) : null;
+			if (SortIndex.isTemporal(type)) {
+				elementNormalizers[i] = FilterIndex.getNormalizer(type, 0);
+				temporal = true;
+			}
 		}
-		if (comparatorBase.length == 1) {
+		if (!temporal) {
+			return Serializable.class::cast;
+		} else if (comparatorBase.length == 1) {
 			return elementNormalizers[0];
 		} else {
 			return value -> {

@@ -176,9 +176,10 @@ public final class OwnerSortIndex extends SortIndex {
 	 * NULL handling) {@link #createOwnedTree} uses, so the reloaded tree is indistinguishable from a freshly built one: the
 	 * persisted leaf values are ALREADY normalized (the base normalizes before the value-side hooks), so the identity
 	 * normalizer stores them verbatim, and the comparator orders those normalized keys. Nothing here normalizes a raw
-	 * temporal value the pages of 2026.2 or an older release hold: the storage migration to protocol 8 rewrites every
-	 * such page before a catalog of that release loads. A catalog that reaches protocol 8 with raw values otherwise -
-	 * only a development build of 2026.3 writes one - is not supported, and its values are read as they are stored.
+	 * temporal value the pages of 2026.2 or an older release hold, nor re-sorts the localized texts such a release
+	 * ordered by the bare collator: the storage migration to protocol 8 rewrites every such page before a catalog of
+	 * that release loads. A catalog that reaches protocol 8 with such pages otherwise - only a development build of
+	 * 2026.3 writes one - is not supported, and its values are read as they are stored.
 	 *
 	 * @param comparatorBase        one descriptor per element (a single entry for plain attributes)
 	 * @param referenceKey          owning reference discriminator, or `null` for the global index

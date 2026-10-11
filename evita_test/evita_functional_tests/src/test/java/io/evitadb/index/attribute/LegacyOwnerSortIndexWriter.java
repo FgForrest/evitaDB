@@ -55,10 +55,10 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 
 /**
- * A test-only replica of the owner sort index as it was written before temporal sort values were normalized: an owned
- * value tree storing every value verbatim, ordered by the comparator the release ordered it by, persisted as the
- * inline part or as leaf pages exactly as the owner emitted them. The parts it produces are what a catalog written by
- * such a version holds.
+ * A test-only replica of the owner sort index as release 2026.2 and older wrote it: an owned value tree storing every
+ * value verbatim - a temporal value raw, not in its millisecond form - ordered by the comparator the release ordered it
+ * by, persisted as the inline part or as leaf pages exactly as the owner emitted them. The parts it produces are what a
+ * catalog written by such a version holds.
  *
  * The comparator is the one of the release tag `v2026.2.20` (`SortIndex#createComparatorFor` and
  * `SortIndex#createCombinedComparatorFor`), not the current one: a `String` element of a localized index is compared by
@@ -176,6 +176,21 @@ public final class LegacyOwnerSortIndexWriter {
 	@Nonnull
 	public SortedMap<Integer, Serializable> getValuesByRecord() {
 		return Collections.unmodifiableSortedMap(this.valuesByRecord);
+	}
+
+	/**
+	 * Returns the distinct values in the order the release persisted them - the order of its comparator.
+	 *
+	 * @return the persisted values in persisted order
+	 */
+	@Nonnull
+	public List<Serializable> getPersistedValues() {
+		final List<Serializable> values = new ArrayList<>(this.tree.getBucketCount());
+		final Iterator<ValueToRecord> it = this.tree.getValueIterator();
+		while (it.hasNext()) {
+			values.add(it.next().getValue());
+		}
+		return values;
 	}
 
 	/**

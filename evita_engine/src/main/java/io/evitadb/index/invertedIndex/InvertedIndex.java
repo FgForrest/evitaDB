@@ -2634,9 +2634,9 @@ public class InvertedIndex implements
 	 * @throws io.evitadb.exception.GenericEvitaInternalError when this index knows a page stream already - it was
 	 *                                                        flushed, or reassembled from persisted pages, so it is
 	 *                                                        no successor built afresh
-	 * @deprecated exists only for the rewrite of owner sort indexes persisted with raw temporal values: its only caller
-	 * is `LegacyTemporalSortValueCorrection#rewrite`, which only the storage migration `Migration_2026_3` calls, and it
-	 * is removed together with them
+	 * @deprecated exists only for the rewrite of owner sort indexes 2026.2 or an older release persisted: its only
+	 * caller is `LegacyOwnerSortIndexCorrection#rewrite`, which only the storage migration `Migration_2026_3` calls,
+	 * and it is removed together with them
 	 */
 	@Deprecated(since = "2026.3", forRemoval = true)
 	public void supersedePersistedPages(int highWaterPageSequence, @Nonnull int[] persistedPageSequences) {
