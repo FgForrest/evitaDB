@@ -4780,8 +4780,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			PartitionWriteKind.ADDING,
 			(referenceSchema, target) -> {
 				// a virtual partition keeps no language records - the locales of its only owner are those of the
-				// owner in the global index
-				if (target instanceof EntityIndex index) {
+				// owner in the global index. Every partition of the target is visited, including the siblings other
+				// owners hold under another representative key, and only a partition holding the entity may take
+				// its language: a sibling would keep it after the entity left and answer `entityLocaleEquals` with
+				// an entity it does not hold
+				if (target instanceof EntityIndex index && index.contains(epk)) {
 					upsertEntityLocaleInTargetIndex(locale, entitySchema, index, epk);
 				}
 			}
@@ -4806,8 +4809,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			existingDataSupplierFactory.getReferenceSupplier(),
 			PartitionWriteKind.REMOVING,
 			(referenceSchema, target) -> {
-				// a virtual partition keeps no language records, see `upsertEntityLocale`
-				if (target instanceof EntityIndex index) {
+				// a virtual partition keeps no language records, and a sibling the entity does not own never received
+				// it, see `upsertEntityLocale`
+				if (target instanceof EntityIndex index && index.contains(epk)) {
 					removeEntityLocaleInTargetIndex(locale, entitySchema, index, epk);
 				}
 			}
