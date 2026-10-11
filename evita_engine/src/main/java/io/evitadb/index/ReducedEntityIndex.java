@@ -41,8 +41,6 @@ import io.evitadb.index.component.loader.LoadedComponentBundle;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.price.PriceRefIndex;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.StringUtils;
 
@@ -52,7 +50,6 @@ import java.io.Serializable;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
@@ -375,26 +372,6 @@ public final class ReducedEntityIndex extends AbstractReducedEntityIndex impleme
 	) {
 		assertPartitioningIndex(referenceSchema, attributeSchema);
 		delegateRemoveUniqueAttribute(referenceSchema, attributeSchema, allowedLocales, scope, locale, value, recordId);
-	}
-
-	/**
-	 * Hands the key of every sort index the partition maintains over its owners - of reference attributes and sortable
-	 * attribute compounds alike, in every locale - to the consumer. The registry of single-owner partitions reads them
-	 * by key when it copies the values of a partition's only owner.
-	 *
-	 * @param consumer invoked once per key
-	 */
-	public void forEachSortIndexKey(@Nonnull Consumer<AttributeIndexKey> consumer) {
-		forEachAttributeIndexKey(AttributeIndexType.SORT, consumer);
-	}
-
-	/**
-	 * Hands the key of every chain index the partition maintains over its owners to the consumer.
-	 *
-	 * @param consumer invoked once per key
-	 */
-	public void forEachChainIndexKey(@Nonnull Consumer<AttributeIndexKey> consumer) {
-		forEachAttributeIndexKey(AttributeIndexType.CHAIN, consumer);
 	}
 
 	/**

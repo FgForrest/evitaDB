@@ -180,7 +180,8 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 			this.usageRegistry,
 			this.catalogUsageRegistry,
 
-			true
+			true,
+			new PartitionReservations()
 		);
 	}
 

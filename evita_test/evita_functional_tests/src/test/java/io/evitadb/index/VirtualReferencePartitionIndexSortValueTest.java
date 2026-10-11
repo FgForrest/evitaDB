@@ -25,14 +25,12 @@ package io.evitadb.index;
 
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
-import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.attribute.OwnerSortIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
@@ -64,6 +62,7 @@ import java.util.Random;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
+import java.util.stream.IntStream;
 
 import static io.evitadb.index.VirtualReferencePartitionIndexTest.flush;
 import static io.evitadb.index.VirtualReferencePartitionIndexTest.rootOf;
@@ -246,7 +245,19 @@ class VirtualReferencePartitionIndexSortValueTest {
 	}
 
 	/**
-	 * The observable ordering of a sort index: its record ids in sort order, its distinct values in sort order and the
+	 * The partitions a reading of a sort key probes besides those an owner row names: every partition the tests of the
+	 * index write sort values under lies in `1..2 000`. The index has no reading that lists the partitions holding a
+	 * value (see {@link VirtualReferencePartitionIndexEntries#forEachSortValueBlock}), so a value held only beyond
+	 * them would show as an empty block of the snapshot.
+	 */
+	static final int[] PROBED_PARTITIONS = IntStream.rangeClosed(1, 2_000).toArray();
+	/**
+	 * The snapshot of a declared sort key no partition holds a value of.
+	 */
+	static final SortSnapshot NO_VALUES = new SortSnapshot(List.of(), List.of(), List.of());
+
+	/**
+	 * The observable ordering of a sort key: its partitions in sort order, its distinct values in sort order and the
 	 * size of each value's block.
 	 *
 	 * @param records    the record ids in sort order
@@ -275,45 +286,65 @@ class VirtualReferencePartitionIndexSortValueTest {
 	}
 
 	/**
-	 * Reads the observable ordering of a sort index - the block sizes through the same forward seeker a sort uses.
+	 * Reads the observable ordering of a declared sort key through the public reading surface of the index - the values
+	 * in the order of the key's sort index and the partitions holding each, among the owner rows and
+	 * {@link #PROBED_PARTITIONS} (see {@link VirtualReferencePartitionIndexEntries#forEachSortValueBlock}).
 	 *
-	 * @param sortIndex the sort index
+	 * @param index   the index
+	 * @param sortKey the sort key, which must be declared
 	 * @return the snapshot
 	 */
 	@Nonnull
-	static SortSnapshot snapshotOf(@Nonnull OwnerSortIndex sortIndex) {
-		final List<Integer> records = Arrays.stream(sortIndex.getSortedRecords()).boxed().toList();
-		final List<Serializable> values = Arrays.asList(sortIndex.getSortedRecordValues());
-		final List<Integer> blockSizes = new ArrayList<>(values.size());
-		final SortedComparableForwardSeeker seeker = sortIndex.createSortedComparableForwardSeeker();
-		Serializable previous = null;
-		int blockSize = 0;
-		for (int position = 0; position < records.size(); position++) {
-			final Serializable value = seeker.getValueToCompareOn(position);
-			if (position > 0 && !value.equals(previous)) {
-				blockSizes.add(blockSize);
-				blockSize = 0;
-			}
-			previous = value;
-			blockSize++;
-		}
-		if (blockSize > 0) {
-			blockSizes.add(blockSize);
-		}
+	static SortSnapshot snapshotOf(@Nonnull VirtualReferencePartitionIndex index, @Nonnull AttributeIndexKey sortKey) {
+		assertTrue(index.getDeclaredSortKeys().contains(sortKey), "Sort key " + sortKey + " must be declared");
+		final List<Integer> records = new ArrayList<>(16);
+		final List<Serializable> values = new ArrayList<>(16);
+		final List<Integer> blockSizes = new ArrayList<>(16);
+		VirtualReferencePartitionIndexEntries.forEachSortValueBlock(
+			index, sortKey,
+			(value, partitions) -> {
+				values.add(value);
+				blockSizes.add(partitions.length);
+				for (final int partition : partitions) {
+					records.add(partition);
+				}
+			},
+			PROBED_PARTITIONS
+		);
 		return new SortSnapshot(records, values, blockSizes);
 	}
 
 	/**
-	 * Asserts the sort index orders exactly the partitions of the model, by their normalized values, with ascending
-	 * partitions inside each block of values its comparator orders as one.
+	 * Returns the value a partition holds for a sort key, normalized as the index stores it - the value its value id
+	 * names in the dictionary of the key.
 	 *
-	 * @param fixture   the sort key
-	 * @param sortIndex the sort index of the key
-	 * @param model     the raw value of every partition holding one
+	 * @param index     the index
+	 * @param sortKey   the sort key
+	 * @param partition the partition primary key
+	 * @return the value, or `null` when the key is not declared or the partition holds no value for it
+	 */
+	@Nullable
+	static Serializable storedValueOf(
+		@Nonnull VirtualReferencePartitionIndex index,
+		@Nonnull AttributeIndexKey sortKey,
+		int partition
+	) {
+		final int valueId = index.getSortValueId(sortKey, partition);
+		return valueId == VirtualReferencePartitionIndex.NO_SORT_VALUE_ID ?
+			null : index.getNormalizedSortValue(sortKey, valueId);
+	}
+
+	/**
+	 * Asserts the declared sort key orders exactly the partitions of the model, by their normalized values, with
+	 * ascending partitions inside each block of values its comparator orders as one.
+	 *
+	 * @param fixture the sort key
+	 * @param index   the index declaring the key
+	 * @param model   the raw value of every partition holding one
 	 */
 	static void assertMatchesModel(
 		@Nonnull SortKeyFixture fixture,
-		@Nonnull OwnerSortIndex sortIndex,
+		@Nonnull VirtualReferencePartitionIndex index,
 		@Nonnull Map<Integer, Serializable> model
 	) {
 		final ComparatorSource[] base = fixture.comparatorBase();
@@ -339,7 +370,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 			}
 		}
 
-		final SortSnapshot actual = snapshotOf(sortIndex);
+		final SortSnapshot actual = snapshotOf(index, fixture.key());
 		assertEquals(expectedRecords, actual.records(), "Records of " + fixture + " must follow the model");
 		assertEquals(expectedBlockSizes, actual.blockSizes(), "Blocks of " + fixture + " must follow the model");
 		assertEquals(expectedValues.size(), actual.values().size(), "Distinct values of " + fixture);
@@ -433,9 +464,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 		@Nonnull Map<AttributeIndexKey, Map<Integer, Serializable>> models
 	) {
 		for (final SortKeyFixture fixture : FIXTURES) {
-			final OwnerSortIndex sortIndex = index.getSortIndex(fixture.key());
-			assertNotNull(sortIndex, "Sort key " + fixture + " must be declared");
-			assertMatchesModel(fixture, sortIndex, models.getOrDefault(fixture.key(), Map.of()));
+			assertMatchesModel(fixture, index, models.getOrDefault(fixture.key(), Map.of()));
 		}
 	}
 
@@ -485,12 +514,11 @@ class VirtualReferencePartitionIndexSortValueTest {
 		@DisplayName("a declared key has an empty sort index, its own slot, and keeps the index from being empty")
 		void shouldDeclareKeyWithEmptySortIndex() {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
-			assertNull(index.getSortIndex(ORDER));
+			assertFalse(index.getDeclaredSortKeys().contains(ORDER));
 			index.declareSortKey(ORDER, INTEGER_ASC, 0);
 
-			final OwnerSortIndex sortIndex = index.getSortIndex(ORDER);
-			assertNotNull(sortIndex);
-			assertTrue(sortIndex.isEmpty());
+			assertEquals(NO_VALUES, snapshotOf(index, ORDER));
+			assertEquals(0, index.getDistinctSortValueCount(ORDER));
 			assertFalse(index.isEmpty(), "A declared sort key is state the index must persist");
 			final SortValueSlot slot = persistedSlot(flush(index), ORDER);
 			assertNotNull(slot);
@@ -504,13 +532,15 @@ class VirtualReferencePartitionIndexSortValueTest {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
 			index.declareSortKey(ORDER, INTEGER_ASC, 0);
 			index.putSortValue(ORDER, 1, 5);
-			final OwnerSortIndex sortIndex = index.getSortIndex(ORDER);
+			final SortSnapshot before = snapshotOf(index, ORDER);
+			final int valueId = index.getSortValueId(ORDER, 1);
 			index.resetDirty();
 
 			index.declareSortKey(
 				ORDER, new ComparatorSource[]{new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)}, 0
 			);
-			assertSame(sortIndex, index.getSortIndex(ORDER));
+			assertEquals(before, snapshotOf(index, ORDER));
+			assertEquals(valueId, index.getSortValueId(ORDER, 1), "A repeated declaration must keep the value ids");
 			assertTrue(flush(index).isEmpty(), "A repeated declaration must not dirty the index");
 
 			assertThrows(
@@ -548,7 +578,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 
 			assertTrue(index.retireSortKey(retired.key()));
 			assertFalse(index.retireSortKey(retired.key()), "A second retirement finds nothing");
-			assertNull(index.getSortIndex(retired.key()));
+			assertFalse(index.getDeclaredSortKeys().contains(retired.key()));
 			assertThrows(GenericEvitaInternalError.class, () -> index.putSortValue(retired.key(), 1, 1));
 			assertThrows(GenericEvitaInternalError.class, () -> index.removeSortValue(retired.key(), 1));
 
@@ -566,12 +596,12 @@ class VirtualReferencePartitionIndexSortValueTest {
 				);
 			}
 			for (final SortKeyFixture fixture : FIXTURES.subList(1, FIXTURES.size())) {
-				assertMatchesModel(fixture, index.getSortIndex(fixture.key()), models.getOrDefault(fixture.key(), Map.of()));
+				assertMatchesModel(fixture, index, models.getOrDefault(fixture.key(), Map.of()));
 			}
 
 			// a key declared afresh starts empty
 			retired.declare(index);
-			assertTrue(index.getSortIndex(retired.key()).isEmpty());
+			assertEquals(NO_VALUES, snapshotOf(index, retired.key()));
 		}
 
 		@Test
@@ -613,7 +643,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 			final SortValueSlot slot = persistedSlot(flush(index), title.key());
 			assertNotNull(slot);
 			assertEquals(1, slot.values().length, "Both spellings must share one dictionary value");
-			assertEquals(List.of(2), snapshotOf(index.getSortIndex(title.key())).blockSizes());
+			assertEquals(List.of(2), snapshotOf(index, title.key()).blockSizes());
 		}
 
 		@Test
@@ -631,7 +661,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 				new Serializable[]{new ComparableArray(new Serializable[]{"video", new BigDecimal("1.0"), 1})},
 				slot.values()
 			);
-			assertEquals(List.of(2), snapshotOf(index.getSortIndex(compound.key())).blockSizes());
+			assertEquals(List.of(2), snapshotOf(index, compound.key()).blockSizes());
 
 			// switching a partition between the two scales is no change at all
 			index.resetDirty();
@@ -675,14 +705,14 @@ class VirtualReferencePartitionIndexSortValueTest {
 				persistedSlot(parts, currency.key()).values()[0].getClass().getName()
 			);
 			// a locale orders by its language tag: `de` before `en`
-			assertEquals(List.of(1, 2), snapshotOf(index.getSortIndex(language.key())).records());
+			assertEquals(List.of(1, 2), snapshotOf(index, language.key()).records());
 
 			// removal hands the sort index a value it can normalize again
 			assertTrue(index.removeSortValue(language.key(), 1));
 			assertTrue(index.removeSortValue(currency.key(), 1));
 			language.put(index, 2, Locale.FRENCH);
-			assertEquals(List.of(2), snapshotOf(index.getSortIndex(language.key())).records());
-			assertTrue(index.getSortIndex(currency.key()).isEmpty());
+			assertEquals(List.of(2), snapshotOf(index, language.key()).records());
+			assertEquals(NO_VALUES, snapshotOf(index, currency.key()));
 		}
 
 		@Test
@@ -708,14 +738,14 @@ class VirtualReferencePartitionIndexSortValueTest {
 				}
 			}
 			// `de` before `en`, and the missing currency first among the `de` values
-			assertEquals(List.of(3, 1, 2), snapshotOf(index.getSortIndex(languageCurrency.key())).records());
-			assertMatchesModel(languageCurrency, index.getSortIndex(languageCurrency.key()), model);
+			assertEquals(List.of(3, 1, 2), snapshotOf(index, languageCurrency.key()).records());
+			assertMatchesModel(languageCurrency, index, model);
 
 			// removal hands the sort index values it can normalize again
 			for (final int partition : List.of(1, 2, 3)) {
 				assertTrue(index.removeSortValue(languageCurrency.key(), partition));
 			}
-			assertTrue(index.getSortIndex(languageCurrency.key()).isEmpty());
+			assertEquals(NO_VALUES, snapshotOf(index, languageCurrency.key()));
 			assertEquals(0, persistedSlot(flush(index), languageCurrency.key()).values().length);
 		}
 
@@ -725,7 +755,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 			final VirtualReferencePartitionIndex index = declaredIndex();
 			FIXTURES.get(0).put(index, 1, 5);
 			index.resetDirty();
-			final SortSnapshot before = snapshotOf(index.getSortIndex(ORDER));
+			final SortSnapshot before = snapshotOf(index, ORDER);
 
 			assertThrows(GenericEvitaInternalError.class, () -> index.putSortValue(ORDER, 1, "five"));
 			assertThrows(GenericEvitaInternalError.class, () -> index.putSortValue(ORDER, 1, new Serializable[]{5}));
@@ -744,8 +774,8 @@ class VirtualReferencePartitionIndexSortValueTest {
 				() -> index.putSortValue(new AttributeIndexKey(REFERENCE_NAME, "undeclared", null), 1, 1)
 			);
 
-			assertEquals(before, snapshotOf(index.getSortIndex(ORDER)));
-			assertTrue(index.getSortIndex(compoundKey).isEmpty());
+			assertEquals(before, snapshotOf(index, ORDER));
+			assertEquals(NO_VALUES, snapshotOf(index, compoundKey));
 			assertTrue(flush(index).isEmpty(), "A refused value must leave the index clean");
 		}
 
@@ -792,7 +822,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 			index.putSortValue(ORDER, 1, 7);
 			index.putSortValue(ORDER, 1, 9);
 			assertArrayEquals(new Serializable[]{9}, persistedSlot(flush(index), ORDER).values());
-			assertEquals(List.of(1), snapshotOf(index.getSortIndex(ORDER)).records());
+			assertEquals(List.of(1), snapshotOf(index, ORDER).records());
 		}
 
 		@Test
@@ -840,7 +870,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 			churn(index, models, new Random(5), 500, 100);
 			index.resetDirty();
 			final Map<AttributeIndexKey, SortSnapshot> before = new HashMap<>();
-			FIXTURES.forEach(fixture -> before.put(fixture.key(), snapshotOf(index.getSortIndex(fixture.key()))));
+			FIXTURES.forEach(fixture -> before.put(fixture.key(), snapshotOf(index, fixture.key())));
 
 			assertStateAfterCommit(
 				index,
@@ -853,7 +883,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 					assertNotSame(original, committed);
 					FIXTURES.forEach(
 						fixture -> assertEquals(
-							before.get(fixture.key()), snapshotOf(original.getSortIndex(fixture.key())),
+							before.get(fixture.key()), snapshotOf(original, fixture.key()),
 							"The original must not see the committed changes of " + fixture
 						)
 					);
@@ -878,10 +908,10 @@ class VirtualReferencePartitionIndexSortValueTest {
 					original.putSortValue(ORDER, 1, 7);
 				},
 				(original, committed) -> {
-					assertEquals(List.of(1), snapshotOf(original.getSortIndex(ORDER)).records());
+					assertEquals(List.of(1), snapshotOf(original, ORDER).records());
 					assertEquals(
 						new SortSnapshot(List.of(2, 1), List.of(5, 7), List.of(1, 1)),
-						snapshotOf(committed.getSortIndex(ORDER))
+						snapshotOf(committed, ORDER)
 					);
 				}
 			);
@@ -900,8 +930,8 @@ class VirtualReferencePartitionIndexSortValueTest {
 				index,
 				original -> original.removeSortValue(ORDER, 1),
 				(original, committed) -> {
-					assertEquals(List.of(1, 2), snapshotOf(original.getSortIndex(ORDER)).records());
-					assertEquals(List.of(2), snapshotOf(committed.getSortIndex(ORDER)).records());
+					assertEquals(List.of(1, 2), snapshotOf(original, ORDER).records());
+					assertEquals(List.of(2), snapshotOf(committed, ORDER).records());
 				}
 			);
 		}
@@ -927,10 +957,10 @@ class VirtualReferencePartitionIndexSortValueTest {
 					original.retireSortKey(ORDER);
 				},
 				(original, committed) -> {
-					assertEquals(List.of(1), snapshotOf(original.getSortIndex(ORDER)).records());
-					assertNull(original.getSortIndex(title.key()));
-					assertNull(committed.getSortIndex(ORDER));
-					assertEquals(List.of(1), snapshotOf(committed.getSortIndex(title.key())).records());
+					assertEquals(List.of(1), snapshotOf(original, ORDER).records());
+					assertFalse(original.getDeclaredSortKeys().contains(title.key()));
+					assertFalse(committed.getDeclaredSortKeys().contains(ORDER));
+					assertEquals(List.of(1), snapshotOf(committed, title.key()).records());
 				}
 			);
 		}
@@ -994,7 +1024,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 				restored -> {
 					final Map<AttributeIndexKey, SortSnapshot> snapshots = new HashMap<>();
 					FIXTURES.forEach(
-						fixture -> snapshots.put(fixture.key(), snapshotOf(restored.getSortIndex(fixture.key())))
+						fixture -> snapshots.put(fixture.key(), snapshotOf(restored, fixture.key()))
 					);
 					return snapshots;
 				},
@@ -1005,7 +1035,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 				}
 			);
 			assertMatchesModels(index, models);
-			assertNull(index.getSortIndex(new AttributeIndexKey(REFERENCE_NAME, "fresh", null)));
+			assertFalse(index.getDeclaredSortKeys().contains(new AttributeIndexKey(REFERENCE_NAME, "fresh", null)));
 			// the restored dictionary counts its users again: removing every partition must drain it exactly
 			final Map<Integer, Serializable> orderModel = models.getOrDefault(ORDER, Map.of());
 			orderModel.keySet().forEach(partition -> assertTrue(index.removeSortValue(ORDER, partition)));

@@ -692,18 +692,6 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Returns the maintainer of this collection's entity indexes - the very instance every entity index mutation
-	 * executor of this collection creates, installs, retires and looks up the indexes through. Exposed to this package
-	 * for the tests of the index lifecycle those executors drive.
-	 *
-	 * @return the maintainer of this collection's entity indexes
-	 */
-	@Nonnull
-	IndexMaintainer<EntityIndexKey, EntityIndex> getEntityIndexMaintainer() {
-		return this.entityIndexCreator;
-	}
-
-	/**
 	 * The per-capability usage counters of this collection - see {@link #usageRegistry} for what they mean and how long
 	 * they live. The registry is the same instance for every catalog version of one logical collection, so a caller may
 	 * hold on to it across a commit; what it must not do is assume the numbers relate to a particular catalog version,
@@ -2194,33 +2182,6 @@ public final class EntityCollection implements
 	@Nullable
 	public ReferencePartition resolvePartitionIfExists(int partitionPrimaryKey) {
 		return ReferencePartitions.asPartition(getIndexByPrimaryKeyIfExists(partitionPrimaryKey));
-	}
-
-	/**
-	 * Returns the reference partition of this collection with the primary key, when it is a partition of the reference
-	 * in the scope, for a read by a query of another collection - see the read resolution of
-	 * {@link ReferencePartitions}. The indexes are read as {@link #getIndexByPrimaryKeyIfExists(int)} reads them.
-	 *
-	 * @param scope               the scope of the partition
-	 * @param referenceName       the reference the partition belongs to
-	 * @param partitionPrimaryKey the primary key of the partition in this collection
-	 * @return the virtual partition when the registry holds the partition's row, its reduced entity index when it is a
-	 *         partition of the reference in the scope, `null` otherwise
-	 */
-	@Nullable
-	public ReferencePartition resolvePartitionForReadIfExists(
-		@Nonnull Scope scope,
-		@Nonnull String referenceName,
-		int partitionPrimaryKey
-	) {
-		final EntityIndex typeIndex = getIndexByKeyIfExists(
-			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName)
-		);
-		return ReferencePartitions.resolveForReadIfExists(
-			this::resolvePartitionIfExists,
-			typeIndex instanceof ReferencedTypeEntityIndex referencedTypeIndex ? referencedTypeIndex : null,
-			scope, referenceName, partitionPrimaryKey
-		);
 	}
 
 	/**

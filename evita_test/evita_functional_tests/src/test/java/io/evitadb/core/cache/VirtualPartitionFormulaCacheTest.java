@@ -48,7 +48,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.ReferencedTypeEntityIndex;
-import io.evitadb.index.VirtualReferencePartitionSlot;
+import io.evitadb.index.VirtualReferencePartitionIndexEntries;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.virtual.MaterializedPartitionTwin;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -1161,8 +1161,9 @@ class VirtualPartitionFormulaCacheTest implements EvitaTestSupport {
 	@Nonnull
 	private Set<Integer> registeredPartitions(@Nonnull String entityType, @Nonnull Scope scope, @Nonnull String reference) {
 		final Set<Integer> partitions = new TreeSet<>();
-		typeIndexOf(entityType, scope, reference).getVirtualReferencePartitionIndex().forEachEntry(
-			VirtualReferencePartitionSlot.PARTITION_OWNER, (partition, row) -> partitions.add(partition)
+		VirtualReferencePartitionIndexEntries.forEachOwnerRow(
+			typeIndexOf(entityType, scope, reference).getVirtualReferencePartitionIndex(),
+			(partition, row) -> partitions.add(partition)
 		);
 		return partitions;
 	}
@@ -1178,8 +1179,9 @@ class VirtualPartitionFormulaCacheTest implements EvitaTestSupport {
 	@Nonnull
 	private Set<Integer> registeredOwners(@Nonnull String entityType, @Nonnull Scope scope, @Nonnull String reference) {
 		final Set<Integer> owners = new TreeSet<>();
-		typeIndexOf(entityType, scope, reference).getVirtualReferencePartitionIndex().forEachEntry(
-			VirtualReferencePartitionSlot.PARTITION_OWNER, (partition, row) -> owners.add((int) (row >>> 32))
+		VirtualReferencePartitionIndexEntries.forEachOwnerRow(
+			typeIndexOf(entityType, scope, reference).getVirtualReferencePartitionIndex(),
+			(partition, row) -> owners.add((int) (row >>> 32))
 		);
 		return owners;
 	}

@@ -48,7 +48,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.ReferencedTypeEntityIndex;
-import io.evitadb.index.VirtualReferencePartitionSlot;
+import io.evitadb.index.VirtualReferencePartitionIndexEntries;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -1003,8 +1003,8 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 			final ReferencedTypeEntityIndex typeIndex = (ReferencedTypeEntityIndex) index;
 			final int registeredBefore = registered.size();
 			typeIndex.forEachReferenceIndexPrimaryKey(advertised::add);
-			typeIndex.getVirtualReferencePartitionIndex().forEachEntry(
-				VirtualReferencePartitionSlot.PARTITION_OWNER, registered::put
+			VirtualReferencePartitionIndexEntries.forEachOwnerRow(
+				typeIndex.getVirtualReferencePartitionIndex(), registered::put
 			);
 			assertTrue(registered.size() > registeredBefore, "The " + scope + " scope must hold registered partitions");
 		}

@@ -243,7 +243,7 @@ class VirtualReferencePartitionIndexIdOverflowTest {
 			index.putSortValue(ORDER, 2, 7);
 			assertEquals(LAST_ID, index.getSortValueId(ORDER, 2));
 			index.resetDirty();
-			final SortSnapshot before = snapshotOf(index.getSortIndex(ORDER));
+			final SortSnapshot before = snapshotOf(index, ORDER);
 
 			assertOverflow(SORT_VALUE_SPACE, PUBLIC_SORT_VALUE_SPACE, () -> index.putSortValue(ORDER, 3, 9));
 			// a partition holding a value keeps it when its replacement is refused
@@ -251,7 +251,7 @@ class VirtualReferencePartitionIndexIdOverflowTest {
 
 			assertEquals(NO_SORT_VALUE_ID, index.getSortValueId(ORDER, 3));
 			assertEquals(LAST_ID - 1, index.getSortValueId(ORDER, 1));
-			assertEquals(before, snapshotOf(index.getSortIndex(ORDER)));
+			assertEquals(before, snapshotOf(index, ORDER));
 			assertTrue(flush(index).isEmpty(), "A refused value must not mark the index dirty");
 
 			// a value the dictionary knows needs no new id

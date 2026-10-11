@@ -40,7 +40,7 @@ import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.VirtualReferencePartitionIndex;
-import io.evitadb.index.VirtualReferencePartitionSlot;
+import io.evitadb.index.VirtualReferencePartitionIndexEntries;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.api.index.EntityIndexType;
@@ -258,8 +258,8 @@ public interface IndexingTestSupport {
 		}
 		final VirtualReferencePartitionIndex registry = referencedTypeIndex.getVirtualReferencePartitionIndex();
 		final boolean[] found = {false};
-		registry.forEachEntry(
-			VirtualReferencePartitionSlot.PARTITION_OWNER,
+		VirtualReferencePartitionIndexEntries.forEachOwnerRow(
+			registry,
 			(partitionPrimaryKey, ownerAndTarget) -> {
 				if (NumberUtils.unpackLow(ownerAndTarget) == key.primaryKey()) {
 					final int tupleId = registry.getRepresentativeTupleId(partitionPrimaryKey);

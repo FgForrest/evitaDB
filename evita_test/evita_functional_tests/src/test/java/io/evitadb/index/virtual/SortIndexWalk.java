@@ -24,9 +24,13 @@
 package io.evitadb.index.virtual;
 
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedComparableForwardSeeker;
+import io.evitadb.index.VirtualReferencePartitionIndex;
+import io.evitadb.index.VirtualReferencePartitionIndexEntries;
 import io.evitadb.index.attribute.SortIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.List;
@@ -82,6 +86,46 @@ record SortIndexWalk(
 			blocks.add(new Block(values[blockStart], blockStart, records.length - blockStart));
 		}
 		return new SortIndexWalk(records, values, blocks);
+	}
+
+	/**
+	 * Walks a sort key of a registry of single-owner partitions through its public reading surface - see
+	 * {@link VirtualReferencePartitionIndexEntries#forEachSortValueBlock}: the values in the order of the key's sort
+	 * index, each the very instance the registry's value dictionary stores, with the partitions an owner row names or
+	 * the caller probes holding it, in ascending order. The registry has no reading that lists the holders of a value,
+	 * so the walk sees only those partitions - a value none of them holds forms an empty block.
+	 *
+	 * @param registry                   the registry
+	 * @param sortKey                    the sort key
+	 * @param probedPartitionPrimaryKeys partitions read even when no owner row names them
+	 * @return the content of the sort key, position by position, `null` when the registry does not declare the key
+	 */
+	@Nullable
+	static SortIndexWalk ofRegistry(
+		@Nonnull VirtualReferencePartitionIndex registry,
+		@Nonnull AttributeIndexKey sortKey,
+		@Nonnull int... probedPartitionPrimaryKeys
+	) {
+		if (!registry.getDeclaredSortKeys().contains(sortKey)) {
+			return null;
+		}
+		final List<Integer> records = new ArrayList<>(16);
+		final List<Serializable> values = new ArrayList<>(16);
+		final List<Block> blocks = new ArrayList<>(16);
+		VirtualReferencePartitionIndexEntries.forEachSortValueBlock(
+			registry, sortKey,
+			(value, partitionPrimaryKeys) -> {
+				blocks.add(new Block(value, records.size(), partitionPrimaryKeys.length));
+				for (final int partitionPrimaryKey : partitionPrimaryKeys) {
+					records.add(partitionPrimaryKey);
+					values.add(value);
+				}
+			},
+			probedPartitionPrimaryKeys
+		);
+		return new SortIndexWalk(
+			records.stream().mapToInt(Integer::intValue).toArray(), values.toArray(Serializable[]::new), blocks
+		);
 	}
 
 	/**

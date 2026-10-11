@@ -140,7 +140,8 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 			this.classifierResolver,
 			this.usageRegistry,
 			this.catalogUsageRegistry,
-			true
+			true,
+			new PartitionReservations()
 		);
 	}
 

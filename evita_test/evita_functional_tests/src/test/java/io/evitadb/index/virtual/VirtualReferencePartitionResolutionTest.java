@@ -38,7 +38,6 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.dataType.Scope;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.ReducedEntityIndex;
@@ -48,7 +47,7 @@ import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.VirtualReferencePartitionIndex;
-import io.evitadb.index.VirtualReferencePartitionSlot;
+import io.evitadb.index.VirtualReferencePartitionIndexEntries;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.NumberUtils;
@@ -90,7 +89,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -208,20 +206,9 @@ class VirtualReferencePartitionResolutionTest implements EvitaTestSupport {
 						final int primaryKey = registeredPrimaryKeyOf(collection, partition);
 						assertShape(
 							partition, primaryKey,
-							queryContext.resolvePartitionForReadIfExists(
-								partition.entityType(), partition.scope(), partition.referenceName(), primaryKey
-							)
-						);
-						assertShape(
-							partition, primaryKey,
-							queryContext.resolvePartitionForRead(
-								partition.entityType(), partition.scope(), partition.referenceName(), primaryKey
-							)
-						);
-						assertShape(
-							partition, primaryKey,
-							collection.resolvePartitionForReadIfExists(
-								partition.scope(), partition.referenceName(), primaryKey
+							readPartition(
+								queryContext, partition.entityType(), partition.scope(), partition.referenceName(),
+								primaryKey
 							)
 						);
 						visited.merge(partition.shape(), 1, Integer::sum);
@@ -366,25 +353,15 @@ class VirtualReferencePartitionResolutionTest implements EvitaTestSupport {
 				final int partitionPrimaryKey = registered.getPrimaryKey();
 				assertInstanceOf(
 					VirtualReferencePartition.class,
-					queryContext.resolvePartitionForReadIfExists(
-						ENTITY_PRODUCT, Scope.LIVE, REFERENCE_CATEGORIES, partitionPrimaryKey
+					readPartition(queryContext, ENTITY_PRODUCT, Scope.LIVE, REFERENCE_CATEGORIES, partitionPrimaryKey)
+				);
+				assertNull(
+					readPartition(
+						queryContext, ENTITY_PRODUCT, Scope.ARCHIVED, REFERENCE_CATEGORIES, partitionPrimaryKey
 					)
 				);
 				assertNull(
-					queryContext.resolvePartitionForReadIfExists(
-						ENTITY_PRODUCT, Scope.ARCHIVED, REFERENCE_CATEGORIES, partitionPrimaryKey
-					)
-				);
-				assertNull(
-					queryContext.resolvePartitionForReadIfExists(
-						ENTITY_PRODUCT, Scope.LIVE, REFERENCE_GALLERY, partitionPrimaryKey
-					)
-				);
-				assertThrows(
-					GenericEvitaInternalError.class,
-					() -> queryContext.resolvePartitionForRead(
-						ENTITY_PRODUCT, Scope.LIVE, REFERENCE_GALLERY, partitionPrimaryKey
-					)
+					readPartition(queryContext, ENTITY_PRODUCT, Scope.LIVE, REFERENCE_GALLERY, partitionPrimaryKey)
 				);
 			}
 		);
@@ -404,8 +381,8 @@ class VirtualReferencePartitionResolutionTest implements EvitaTestSupport {
 						final ReferencedTypeEntityIndex typeIndex = typeIndexOf(collection, reference[1], scope);
 						if (typeIndex != null) {
 							typeIndex.forEachReferenceIndexPrimaryKey(advertised::add);
-							typeIndex.getVirtualReferencePartitionIndex().forEachEntry(
-								VirtualReferencePartitionSlot.PARTITION_OWNER, registered::put
+							VirtualReferencePartitionIndexEntries.forEachOwnerRow(
+								typeIndex.getVirtualReferencePartitionIndex(), registered::put
 							);
 						}
 					}
@@ -651,6 +628,46 @@ class VirtualReferencePartitionResolutionTest implements EvitaTestSupport {
 			session -> {
 				check.accept(newQueryContext(session));
 			}
+		);
+	}
+
+	/**
+	 * Reads a partition by its primary key for a query, as the read resolution of {@link ReferencePartitions} answers
+	 * it: through the planning context's own type index for the queried collection - the products - and through the
+	 * collection's own indexes for any other one, as a query of another collection reads it.
+	 *
+	 * @param queryContext        the planning context of a query over the products
+	 * @param entityType          the collection owning the partition
+	 * @param scope               the scope of the partition
+	 * @param referenceName       the reference the partition belongs to
+	 * @param partitionPrimaryKey the primary key of the partition
+	 * @return the partition, or `null` when the primary key names no partition of the reference in the scope
+	 */
+	@Nullable
+	private ReferencePartition readPartition(
+		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull String entityType,
+		@Nonnull Scope scope,
+		@Nonnull String referenceName,
+		int partitionPrimaryKey
+	) {
+		final EntityIndexKey typeIndexKey = new EntityIndexKey(
+			EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName
+		);
+		if (ENTITY_PRODUCT.equals(entityType)) {
+			final ReferencedTypeEntityIndex typeIndex = queryContext
+				.getIndexIfExists(typeIndexKey, ReferencedTypeEntityIndex.class)
+				.orElse(null);
+			return typeIndex == null ?
+				ReferencePartitions.resolveForReadIfExists(
+					queryContext::resolvePartitionIfExists, null, scope, referenceName, partitionPrimaryKey
+				) :
+				queryContext.resolvePartitionForReadIfExists(typeIndex, partitionPrimaryKey);
+		}
+		final EntityCollection collection = collectionOf(entityType);
+		return ReferencePartitions.resolveForReadIfExists(
+			collection::resolvePartitionIfExists, typeIndexOf(collection, referenceName, scope), scope, referenceName,
+			partitionPrimaryKey
 		);
 	}
 

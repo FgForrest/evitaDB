@@ -741,26 +741,6 @@ public final class ReferencePartitions {
 	}
 
 	/**
-	 * Resolves the partition of a representative reference key through another collection's data store reader,
-	 * leniently. The reader layers the in-flight indexes of that collection's current mutation over its committed
-	 * maps, which a read of the collection's maps alone would miss.
-	 *
-	 * @param dataStoreReader            the reader of the collection owning the partition
-	 * @param scope                      the scope of the partition
-	 * @param representativeReferenceKey the representative reference key of the partition
-	 * @return the partition or `null` when the collection holds none under the key
-	 * @throws GenericEvitaInternalError when the key holds an index that is not a reference partition
-	 */
-	@Nullable
-	public static ReferencePartition resolveIfExists(
-		@Nonnull DataStoreReader dataStoreReader,
-		@Nonnull Scope scope,
-		@Nonnull RepresentativeReferenceKey representativeReferenceKey
-	) {
-		return resolveIfExists(indexByKey(dataStoreReader), scope, representativeReferenceKey);
-	}
-
-	/**
 	 * Resolves every partition of one target entity of a reference in a scope, strictly: a missing type index or
 	 * partition yields no element, but a primary key the type index lists must resolve to a partition.
 	 *
@@ -834,8 +814,7 @@ public final class ReferencePartitions {
 	 *
 	 * @param partitionByPrimaryKey the lenient object-only resolution of the collection's partitions by primary key,
 	 *                              answering `null` when the primary key names no partition
-	 * @param registryTypeIndex     the referenced-type entity index listing the primary key, whose registry is read,
-	 *                              `null` when the collection holds none
+	 * @param registryTypeIndex     the referenced-type entity index listing the primary key, whose registry is read
 	 * @param partitionPrimaryKey   the primary key of the partition
 	 * @return the virtual partition when the registry holds the partition's row, the partition the object-only
 	 *         resolution answers otherwise, `null` when there is none
@@ -843,15 +822,13 @@ public final class ReferencePartitions {
 	@Nullable
 	public static ReferencePartition resolveForOwnerReadIfExists(
 		@Nonnull IntFunction<? extends ReferencePartition> partitionByPrimaryKey,
-		@Nullable ReferencedTypeEntityIndex registryTypeIndex,
+		@Nonnull ReferencedTypeEntityIndex registryTypeIndex,
 		int partitionPrimaryKey
 	) {
-		if (registryTypeIndex != null) {
-			final OptionalLong row = registryTypeIndex.getVirtualReferencePartitionIndex()
-				.getPartitionOwner(partitionPrimaryKey);
-			if (row.isPresent()) {
-				return toVirtualPartition(registryTypeIndex, partitionPrimaryKey, row.getAsLong());
-			}
+		final OptionalLong row = registryTypeIndex.getVirtualReferencePartitionIndex()
+			.getPartitionOwner(partitionPrimaryKey);
+		if (row.isPresent()) {
+			return toVirtualPartition(registryTypeIndex, partitionPrimaryKey, row.getAsLong());
 		}
 		return partitionByPrimaryKey.apply(partitionPrimaryKey);
 	}
@@ -920,8 +897,8 @@ public final class ReferencePartitions {
 	 * Creates the resolution of the partitions of one reference in one scope of another collection by their
 	 * representative reference keys for owner reads, leniently - see the class documentation on owner reads. Every key
 	 * is resolved by the object-only by-key lookup
-	 * ({@link #resolveIfExists(DataStoreReader, Scope, RepresentativeReferenceKey)}), except a key whose partition the
-	 * registry holds a row for, which answers the partition's virtual handle.
+	 * ({@link #resolveIfExists(Function, Scope, RepresentativeReferenceKey)}) over the reader's indexes, except a key
+	 * whose partition the registry holds a row for, which answers the partition's virtual handle.
 	 *
 	 * The registry has no `(target, representative values) -> partition` structure, so the resolution finds a
 	 * registered partition among the partitions of its target and remembers, **once per target**, the map from the

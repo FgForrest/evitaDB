@@ -63,6 +63,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -70,9 +71,11 @@ import java.util.stream.Stream;
 import static io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.CAJ_COMPOSED;
 import static io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.CAJ_DECOMPOSED;
 import static io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.CZECH;
+import static io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.NO_VALUES;
 import static io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.REFERENCE_NAME;
 import static io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.assertMatchesModel;
 import static io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.snapshotOf;
+import static io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.storedValueOf;
 import static io.evitadb.index.VirtualReferencePartitionIndexTest.flush;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
@@ -434,15 +437,11 @@ class VirtualReferencePartitionIndexNormalizedSortValueTest {
 		@Nonnull String stage
 	) {
 		final SortKeyFixture sortKey = fixture.sortKey();
-		final OwnerSortIndex rawSortIndex = raw.getSortIndex(sortKey.key());
-		final OwnerSortIndex normalizedSortIndex = normalized.getSortIndex(sortKey.key());
-		assertNotNull(rawSortIndex);
-		assertNotNull(normalizedSortIndex);
 		assertEquals(
-			snapshotOf(rawSortIndex), snapshotOf(normalizedSortIndex),
+			snapshotOf(raw, sortKey.key()), snapshotOf(normalized, sortKey.key()),
 			"The sort index of " + sortKey + " must not tell the twins apart " + stage
 		);
-		assertMatchesModel(sortKey, normalizedSortIndex, model);
+		assertMatchesModel(sortKey, normalized, model);
 		assertEquals(
 			VirtualReferencePartitionIndexEntries.count(raw), VirtualReferencePartitionIndexEntries.count(normalized),
 			"Entry counts " + stage
@@ -451,9 +450,10 @@ class VirtualReferencePartitionIndexNormalizedSortValueTest {
 		final Comparator<Serializable> comparator = comparatorOf(sortKey);
 		for (final Map.Entry<Integer, Serializable> entry : model.entrySet()) {
 			final int partition = entry.getKey();
-			final Serializable stored = normalizedSortIndex.getValueOfRecord(partition).orElseThrow();
+			final Serializable stored = storedValueOf(normalized, sortKey.key(), partition);
+			assertNotNull(stored, "Partition " + partition + " of " + sortKey + " must hold a value " + stage);
 			assertEquals(
-				rawSortIndex.getValueOfRecord(partition).orElseThrow(), stored,
+				storedValueOf(raw, sortKey.key(), partition), stored,
 				"Partition " + partition + " of " + sortKey + " " + stage
 			);
 			// the block keeps the first of the values it orders as one, so the value space is compared by order
@@ -543,7 +543,7 @@ class VirtualReferencePartitionIndexNormalizedSortValueTest {
 			assertTwinsAgree(fixture, raw, normalized, model, "after every value was removed");
 		assertNotNull(emptied, "Retiring the last value rewrites the root");
 		assertEquals(0, emptied.values().length, "The dictionary is emptied together with the slot");
-		assertTrue(normalized.getSortIndex(fixture.sortKey().key()).isEmpty());
+		assertEquals(NO_VALUES, snapshotOf(normalized, fixture.sortKey().key()));
 	}
 
 	@Nested
@@ -567,8 +567,7 @@ class VirtualReferencePartitionIndexNormalizedSortValueTest {
 				VALID_FROM, 4, normalizedBySortIndex(sortKey, OffsetDateTime.parse("2024-01-01T08:00:00Z"))
 			);
 
-			final VirtualReferencePartitionIndexSortValueTest.SortSnapshot snapshot =
-				snapshotOf(index.getSortIndex(VALID_FROM));
+			final VirtualReferencePartitionIndexSortValueTest.SortSnapshot snapshot = snapshotOf(index, VALID_FROM);
 			assertEquals(List.of(4, 1, 2, 3), snapshot.records());
 			assertEquals(List.of(1, 3), snapshot.blockSizes(), "The three writings of 09:00Z are one block");
 			assertEquals(
@@ -594,8 +593,7 @@ class VirtualReferencePartitionIndexNormalizedSortValueTest {
 			index.putSortValue(WEIGHT, 4, new BigDecimal("-1.24"));
 			index.putNormalizedSortValue(WEIGHT, 5, normalizedBySortIndex(sortKey, new BigDecimal("-0.005")));
 
-			final VirtualReferencePartitionIndexSortValueTest.SortSnapshot snapshot =
-				snapshotOf(index.getSortIndex(WEIGHT));
+			final VirtualReferencePartitionIndexSortValueTest.SortSnapshot snapshot = snapshotOf(index, WEIGHT);
 			// descending
 			assertEquals(List.of(1, 2, 5, 3, 4), snapshot.records());
 			assertEquals(List.of(124, -1, -124), snapshot.values());
@@ -616,8 +614,7 @@ class VirtualReferencePartitionIndexNormalizedSortValueTest {
 				ROLE_WEIGHT, 3, normalizedBySortIndex(sortKey, compoundOf(new BigDecimal("1.2340")))
 			);
 
-			final VirtualReferencePartitionIndexSortValueTest.SortSnapshot snapshot =
-				snapshotOf(index.getSortIndex(ROLE_WEIGHT));
+			final VirtualReferencePartitionIndexSortValueTest.SortSnapshot snapshot = snapshotOf(index, ROLE_WEIGHT);
 			assertEquals(List.of(2, 1, 3), snapshot.records());
 			assertEquals(List.of(1, 2), snapshot.blockSizes(), "1.234 and 1.2340 are one value, 1.23 is not");
 		}
@@ -649,10 +646,8 @@ class VirtualReferencePartitionIndexNormalizedSortValueTest {
 			final VirtualReferencePartitionIndex index = declared(sortKey);
 			index.putNormalizedSortValue(TITLE, 1, stored);
 			index.putSortValue(TITLE, 2, CAJ_COMPOSED);
-			final OwnerSortIndex registrySortIndex = index.getSortIndex(TITLE);
-			assertNotNull(registrySortIndex);
-			assertEquals(decomposed, registrySortIndex.getValueOfRecord(1).orElseThrow());
-			assertEquals(List.of(2), snapshotOf(registrySortIndex).blockSizes());
+			assertEquals(decomposed, storedValueOf(index, TITLE, 1));
+			assertEquals(List.of(2), snapshotOf(index, TITLE).blockSizes());
 		}
 	}
 
@@ -693,8 +688,8 @@ class VirtualReferencePartitionIndexNormalizedSortValueTest {
 				entryCount, VirtualReferencePartitionIndexEntries.count(index, 1, 2),
 				"A refused value must not leave an entry behind"
 			);
-			assertTrue(index.getSortIndex(ROLE_WEIGHT).isEmpty());
-			assertEquals(List.of(1), snapshotOf(index.getSortIndex(WEIGHT)).records());
+			assertEquals(NO_VALUES, snapshotOf(index, ROLE_WEIGHT));
+			assertEquals(List.of(1), snapshotOf(index, WEIGHT).records());
 			assertEquals(new BigDecimal("1.50"), denormalizedWeightOf(index));
 		}
 
@@ -706,7 +701,7 @@ class VirtualReferencePartitionIndexNormalizedSortValueTest {
 		 */
 		@Nullable
 		private static BigDecimal denormalizedWeightOf(@Nonnull VirtualReferencePartitionIndex index) {
-			return index.getSortIndex(WEIGHT).getValueOfRecord(1)
+			return Optional.ofNullable(storedValueOf(index, WEIGHT, 1))
 				.map(Integer.class::cast)
 				.map(scaled -> BigDecimal.valueOf(scaled, DECIMAL_PLACES))
 				.orElse(null);

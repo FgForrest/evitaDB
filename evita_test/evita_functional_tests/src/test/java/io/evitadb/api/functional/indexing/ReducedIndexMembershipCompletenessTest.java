@@ -49,7 +49,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
-import io.evitadb.index.VirtualReferencePartitionSlot;
+import io.evitadb.index.VirtualReferencePartitionIndexEntries;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.membership.ReducedIndexMembership;
@@ -853,8 +853,8 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 	@Nonnull
 	private static Map<Integer, Integer> registeredOwners(@Nonnull ReferencedTypeEntityIndex typeIndex) {
 		final Map<Integer, Integer> result = new TreeMap<>();
-		typeIndex.getVirtualReferencePartitionIndex().forEachEntry(
-			VirtualReferencePartitionSlot.PARTITION_OWNER,
+		VirtualReferencePartitionIndexEntries.forEachOwnerRow(
+			typeIndex.getVirtualReferencePartitionIndex(),
 			(partitionPrimaryKey, ownerAndTarget) -> result.put(
 				partitionPrimaryKey, NumberUtils.unpackHigh(ownerAndTarget)
 			)

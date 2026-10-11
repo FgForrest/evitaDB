@@ -271,16 +271,6 @@ public final class VirtualPartitionRows {
 	}
 
 	/**
-	 * Returns the partition primary key of a row.
-	 *
-	 * @param row the position of the row
-	 * @return the partition primary key
-	 */
-	public int getPartitionPrimaryKey(int row) {
-		return this.partitionPrimaryKeys[row];
-	}
-
-	/**
 	 * Returns the only owner of a row.
 	 *
 	 * @param row the position of the row

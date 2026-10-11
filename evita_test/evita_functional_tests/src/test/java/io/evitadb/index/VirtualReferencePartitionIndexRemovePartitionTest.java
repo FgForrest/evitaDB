@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
+import java.util.List;
 import java.util.OptionalInt;
 import java.util.Set;
 
@@ -41,7 +42,6 @@ import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -92,7 +92,7 @@ class VirtualReferencePartitionIndexRemovePartitionTest {
 		assertTrue(index.getPartitionOwner(1).isEmpty());
 		assertEquals(VirtualReferencePartitionIndex.NO_TUPLE_ID, index.getRepresentativeTupleId(1));
 		assertEquals(OptionalInt.empty(), index.getChainPredecessor(CHAIN, 1));
-		assertArrayEquals(new int[]{2}, index.getSortIndex(ORDER).getSortedRecords());
+		assertEquals(List.of(2), VirtualReferencePartitionIndexSortValueTest.snapshotOf(index, ORDER).records());
 		assertEquals(
 			4, VirtualReferencePartitionIndexEntries.count(index, 1), "only the four entries of partition 2 remain"
 		);
@@ -137,7 +137,7 @@ class VirtualReferencePartitionIndexRemovePartitionTest {
 		assertTrue(index.retireAllKeysIfNoPartition());
 		assertEquals(Set.of(), index.getDeclaredSortKeys());
 		assertEquals(Set.of(), index.getDeclaredChainKeys());
-		assertNull(index.getSortIndex(ORDER));
+		assertEquals(0, index.getDistinctSortValueCount(ORDER));
 		assertTrue(index.isEmpty(), "an index without rows and keys is empty and persists nothing");
 
 		assertFalse(index.retireAllKeysIfNoPartition(), "nothing is left to retire");

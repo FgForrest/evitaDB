@@ -31,13 +31,9 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.dataType.Scope;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.IndexMaintainer;
 import io.evitadb.index.ReducedEntityIndex;
-import io.evitadb.index.virtual.VirtualPartitionInvariants;
-import io.evitadb.index.virtual.VirtualPartitionInvariants.RegisteredRow;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,28 +44,30 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import java.util.function.Consumer;
 
+import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.REFERENCE;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies that a collection refuses to create the index object of a partition of a reference whose single-owner
- * partitions are registry rows - a reference indexed for filtering only. Such a partition with one owner is a registry
- * row and nothing else, so generic index creation must not mint an object, and with it a second primary key, for it.
- * An index object that already exists - a partition with two owners - is still answered, and the partitions of a
- * reference indexed for partitioning are created as always.
+ * Verifies the index objects a collection writes into next to the registry rows of a reference indexed for filtering
+ * only: a write into a partition with two owners reaches its existing index object, and the partitions of a reference
+ * indexed for partitioning are created as index objects as always.
+ *
+ * The collection also refuses to create the index object of a partition whose single-owner partitions are registry
+ * rows, so that generic index creation never mints an object, and with it a second primary key, for a row. No write a
+ * client can make asks for such an object - a partition gaining its second owner receives its object under the primary
+ * key of its row instead - so the refusal is a premise of the write path and has no case here.
  *
  * The catalog is a new one, so it keeps its single-owner partitions as registry rows from the first write on.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Refused creation of partition objects of registry rows")
+@DisplayName("Creation of partition objects next to registry rows")
 @Tag(ENGINE)
 @Tag(REFERENCE)
 class VirtualPartitionObjectCreationTest implements EvitaTestSupport {
@@ -90,6 +88,8 @@ class VirtualPartitionObjectCreationTest implements EvitaTestSupport {
 	private static final int PRODUCT_PK = 100;
 	/** The product referencing {@link #SHARED_CATEGORY_PK} only. */
 	private static final int OTHER_PRODUCT_PK = 101;
+	/** The product referencing nothing at first. */
+	private static final int UNREFERENCING_PRODUCT_PK = 102;
 
 	private TestPaths paths;
 	private Evita evita;
@@ -108,23 +108,6 @@ class VirtualPartitionObjectCreationTest implements EvitaTestSupport {
 			Scope.LIVE,
 			new RepresentativeReferenceKey(new ReferenceKey(referenceName, categoryPk))
 		);
-	}
-
-	/**
-	 * Asserts that the collection refuses to create the index object of a partition of {@link #REF_CATEGORIES} and
-	 * that no object of it exists afterwards.
-	 *
-	 * @param products the product collection
-	 * @param key      the key of the partition
-	 */
-	private static void assertCreationRefused(@Nonnull EntityCollection products, @Nonnull EntityIndexKey key) {
-		final IndexMaintainer<EntityIndexKey, EntityIndex> maintainer = products.getEntityIndexMaintainer();
-		final GenericEvitaInternalError error = assertThrows(
-			GenericEvitaInternalError.class, () -> maintainer.getOrCreateIndex(key)
-		);
-		assertTrue(error.getPrivateMessage().contains("must not be created"), error.getPrivateMessage());
-		assertTrue(error.getPrivateMessage().contains(REF_CATEGORIES), error.getPrivateMessage());
-		assertNull(products.getIndexByKeyIfExists(key), "the refused index must not exist");
 	}
 
 	@BeforeEach
@@ -159,6 +142,7 @@ class VirtualPartitionObjectCreationTest implements EvitaTestSupport {
 				session.createNewEntity(ENTITY_PRODUCT, OTHER_PRODUCT_PK)
 					.setReference(REF_CATEGORIES, SHARED_CATEGORY_PK)
 					.upsertVia(session);
+				session.createNewEntity(ENTITY_PRODUCT, UNREFERENCING_PRODUCT_PK).upsertVia(session);
 			}
 		);
 	}
@@ -192,66 +176,54 @@ class VirtualPartitionObjectCreationTest implements EvitaTestSupport {
 			.orElseThrow(() -> new AssertionError("The test catalog holds no product collection"));
 	}
 
-	@Test
-	@DisplayName("the existing index object of a partition with two owners is answered")
-	void shouldAnswerExistingPartitionObject() {
+	/**
+	 * Lets the product referencing nothing join a category through the given reference.
+	 *
+	 * @param referenceName the reference
+	 * @param categoryPk    the category
+	 */
+	private void joinCategory(@Nonnull String referenceName, int categoryPk) {
 		this.evita.updateCatalog(
 			CATALOG,
 			session -> {
-				final EntityCollection products = products();
-				final EntityIndexKey key = partitionKey(REF_CATEGORIES, SHARED_CATEGORY_PK);
-				final EntityIndex existing = products.getIndexByKeyIfExists(key);
-				assertNotNull(existing, "self-check: the partition with two owners must be an index object");
-				assertSame(existing, products.getEntityIndexMaintainer().getOrCreateIndex(key));
+				session.getEntity(ENTITY_PRODUCT, UNREFERENCING_PRODUCT_PK, entityFetchAllContent())
+					.orElseThrow()
+					.openForWrite()
+					.setReference(referenceName, categoryPk)
+					.upsertVia(session);
 			}
 		);
 	}
 
 	@Test
-	@DisplayName("the index object of a single-owner partition, which is a registry row, is not created")
-	void shouldRefuseCreatingObjectOfSingleOwnerPartition() {
-		this.evita.updateCatalog(
-			CATALOG,
-			session -> {
-				final EntityCollection products = products();
-				final RegisteredRow row = VirtualPartitionInvariants.registeredRowsOf(products)
-					.values()
-					.stream()
-					.filter(
-						it -> it.scope() == Scope.LIVE && REF_CATEGORIES.equals(it.referenceName()) &&
-							it.target() == SINGLE_OWNER_CATEGORY_PK
-					)
-					.findFirst()
-					.orElseThrow(() -> new AssertionError("self-check: the single-owner partition must be a row"));
-				assertEquals(PRODUCT_PK, row.owner(), "self-check: the row must name its only owner");
-				assertCreationRefused(products, partitionKey(REF_CATEGORIES, SINGLE_OWNER_CATEGORY_PK));
-			}
-		);
-	}
+	@DisplayName("a write into a partition with two owners reaches its existing index object")
+	void shouldWriteIntoExistingPartitionObject() {
+		final EntityIndexKey key = partitionKey(REF_CATEGORIES, SHARED_CATEGORY_PK);
+		final EntityIndex existing = products().getIndexByKeyIfExists(key);
+		assertNotNull(existing, "self-check: the partition with two owners must be an index object");
 
-	@Test
-	@DisplayName("the index object of a partition no product owns is not created")
-	void shouldRefuseCreatingObjectOfUnreferencedPartition() {
-		this.evita.updateCatalog(
-			CATALOG,
-			session -> {
-				assertCreationRefused(products(), partitionKey(REF_CATEGORIES, UNREFERENCED_CATEGORY_PK));
-			}
+		joinCategory(REF_CATEGORIES, SHARED_CATEGORY_PK);
+
+		final EntityIndex written = assertInstanceOf(ReducedEntityIndex.class, products().getIndexByKeyIfExists(key));
+		assertEquals(
+			existing.getPrimaryKey(), written.getPrimaryKey(),
+			"The write must reach the existing index object, not one created under another primary key."
+		);
+		assertArrayEquals(
+			new int[]{PRODUCT_PK, OTHER_PRODUCT_PK, UNREFERENCING_PRODUCT_PK}, written.getAllPrimaryKeys().getArray()
 		);
 	}
 
 	@Test
 	@DisplayName("the index object of a partition of a reference indexed for partitioning is created as always")
 	void shouldCreatePartitionObjectOfPartitioningReference() {
-		this.evita.updateCatalog(
-			CATALOG,
-			session -> {
-				final EntityCollection products = products();
-				final EntityIndexKey key = partitionKey(REF_PARTITIONED_CATEGORIES, UNREFERENCED_CATEGORY_PK);
-				assertInstanceOf(ReducedEntityIndex.class, products.getEntityIndexMaintainer().getOrCreateIndex(key));
-				assertNotNull(products.getIndexByKeyIfExists(key));
-			}
-		);
+		final EntityIndexKey key = partitionKey(REF_PARTITIONED_CATEGORIES, UNREFERENCED_CATEGORY_PK);
+		assertNull(products().getIndexByKeyIfExists(key), "self-check: no product references the category yet");
+
+		joinCategory(REF_PARTITIONED_CATEGORIES, UNREFERENCED_CATEGORY_PK);
+
+		final EntityIndex created = assertInstanceOf(ReducedEntityIndex.class, products().getIndexByKeyIfExists(key));
+		assertArrayEquals(new int[]{UNREFERENCING_PRODUCT_PK}, created.getAllPrimaryKeys().getArray());
 	}
 
 }

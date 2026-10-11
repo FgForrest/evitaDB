@@ -236,10 +236,8 @@ class ReferencePartitionAccessGuardTest {
 		"io/evitadb/index/ReferencePartitionSplit", Set.of(),
 		"io/evitadb/index/VirtualReferencePartition", Set.of("<init>"),
 		"io/evitadb/core/query/QueryPlanningContext", Set.of(
-			"resolvePartitionForReadIfExists", "resolvePartitionForRead", "resolvePartitionsOfTargetForRead",
-			"splitPartitionsForRead"
-		),
-		"io/evitadb/core/collection/EntityCollection", Set.of("resolvePartitionForReadIfExists")
+			"resolvePartitionForReadIfExists", "resolvePartitionsOfTargetForRead", "splitPartitionsForRead"
+		)
 	);
 	/**
 	 * The owner read resolvers by the internal name of their owner, rule R7.
@@ -427,10 +425,6 @@ class ReferencePartitionAccessGuardTest {
 		expected.put(
 			"R6 " + fixture + "queryContextShape",
 			"call io/evitadb/core/query/QueryPlanningContext.resolvePartitionForReadIfExists"
-		);
-		expected.put(
-			"R6 " + fixture + "collectionShape",
-			"call io/evitadb/core/collection/EntityCollection.resolvePartitionForReadIfExists"
 		);
 		expected.put(
 			"R7 " + fixture + "ownerReadShape",

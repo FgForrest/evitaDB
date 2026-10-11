@@ -95,22 +95,15 @@ public final class ReadResolverGuardFixture {
 	 * A read resolution through the planning context of a query.
 	 *
 	 * @param queryContext any planning context
+	 * @param typeIndex    any type index
 	 * @return the partition
 	 */
 	@Nullable
-	static ReferencePartition queryContextShape(@Nonnull QueryPlanningContext queryContext) {
-		return queryContext.resolvePartitionForReadIfExists("any", Scope.LIVE, "any", 1);
-	}
-
-	/**
-	 * A read resolution through another collection.
-	 *
-	 * @param collection any collection
-	 * @return the partition
-	 */
-	@Nullable
-	static ReferencePartition collectionShape(@Nonnull EntityCollection collection) {
-		return collection.resolvePartitionForReadIfExists(Scope.LIVE, "any", 1);
+	static ReferencePartition queryContextShape(
+		@Nonnull QueryPlanningContext queryContext,
+		@Nonnull ReferencedTypeEntityIndex typeIndex
+	) {
+		return queryContext.resolvePartitionForReadIfExists(typeIndex, 1);
 	}
 
 	/**

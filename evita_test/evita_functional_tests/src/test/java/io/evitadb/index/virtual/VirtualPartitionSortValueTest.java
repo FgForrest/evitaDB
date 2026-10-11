@@ -38,7 +38,6 @@ import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.VirtualReferencePartitionIndex;
-import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.EvitaTestSupport;
@@ -145,21 +144,21 @@ class VirtualPartitionSortValueTest implements EvitaTestSupport {
 		assertEquals(Set.of(), registry.getDeclaredChainKeys());
 		for (final AttributeIndexKey sortKey : SORT_KEYS) {
 			assertEquals(
-				PRODUCT_COUNT, sortIndexOf(registry, sortKey).size(),
+				PRODUCT_COUNT, walkOf(registry, sortKey).records().length,
 				"every single-owner category partition has a value of " + sortKey
 			);
 		}
 		// the premises of the order the body oracle checks: equal values of different partitions tie as one block
 		assertEquals(
-			2, SortIndexWalk.of(sortIndexOf(registry, key(ATTRIBUTE_ORDER, null))).blocks().size(),
+			2, walkOf(registry, key(ATTRIBUTE_ORDER, null)).blocks().size(),
 			"two blocks of two partitions each"
 		);
 		assertEquals(
-			3, SortIndexWalk.of(sortIndexOf(registry, key(ATTRIBUTE_VALID_FROM, null))).blocks().size(),
+			3, walkOf(registry, key(ATTRIBUTE_VALID_FROM, null)).blocks().size(),
 			"the same instant at two offsets is one block"
 		);
 		assertEquals(
-			3, SortIndexWalk.of(sortIndexOf(registry, key(ATTRIBUTE_LABEL, Locale.ENGLISH))).blocks().size(),
+			3, walkOf(registry, key(ATTRIBUTE_LABEL, Locale.ENGLISH)).blocks().size(),
 			"the composed and the decomposed form of a word are one block"
 		);
 
@@ -211,7 +210,7 @@ class VirtualPartitionSortValueTest implements EvitaTestSupport {
 			updateProduct(2, it -> it.updateReference(REFERENCE_CATEGORIES, 2, ref -> fillReference(ref, 2)))
 		);
 		assertEquals(
-			PRODUCT_COUNT, sortIndexOf(productRegistry(theHistory.getEvita()), key(COMPOUND_TYPED, null)).size()
+			PRODUCT_COUNT, walkOf(productRegistry(theHistory.getEvita()), key(COMPOUND_TYPED, null)).records().length
 		);
 	}
 
@@ -554,8 +553,8 @@ class VirtualPartitionSortValueTest implements EvitaTestSupport {
 	 */
 	private static void assertSpanAtIndexedScale(@Nonnull Evita evita, int partition) {
 		final VirtualReferencePartitionIndex registry = productRegistry(evita);
-		final SortIndexWalk spans = SortIndexWalk.of(sortIndexOf(registry, key(ATTRIBUTE_SPAN, null)));
-		final SortIndexWalk compounds = SortIndexWalk.of(sortIndexOf(registry, key(COMPOUND_TYPED, null)));
+		final SortIndexWalk spans = walkOf(registry, key(ATTRIBUTE_SPAN, null));
+		final SortIndexWalk compounds = walkOf(registry, key(COMPOUND_TYPED, null));
 		int found = 0;
 		for (int i = 0; i < spans.records().length; i++) {
 			if (spans.records()[i] == partition) {
@@ -643,20 +642,21 @@ class VirtualPartitionSortValueTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Returns the sort index of a declared key of the registry.
+	 * Walks a declared key of the registry through its public reading surface - the values in sort order, each with
+	 * the rows holding it (see {@link SortIndexWalk#ofRegistry}).
 	 *
 	 * @param registry the registry
 	 * @param sortKey  the key
-	 * @return the sort index
+	 * @return the content of the key, position by position
 	 */
 	@Nonnull
-	private static SortIndex sortIndexOf(
+	private static SortIndexWalk walkOf(
 		@Nonnull VirtualReferencePartitionIndex registry,
 		@Nonnull AttributeIndexKey sortKey
 	) {
-		final SortIndex sortIndex = registry.getSortIndex(sortKey);
-		assertNotNull(sortIndex, "the key " + sortKey + " is not declared: " + registry.getDeclaredSortKeys());
-		return sortIndex;
+		final SortIndexWalk walk = SortIndexWalk.ofRegistry(registry, sortKey);
+		assertNotNull(walk, "the key " + sortKey + " is not declared: " + registry.getDeclaredSortKeys());
+		return walk;
 	}
 
 	/**

@@ -52,7 +52,6 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.VirtualReferencePartitionIndexEntries;
-import io.evitadb.index.VirtualReferencePartitionSlot;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.SortIndex;
@@ -1128,7 +1127,7 @@ public final class CatalogDescriber {
 		@Nonnull VirtualReferencePartitionIndex registry
 	) {
 		final SortedMap<Integer, Long> rows = new TreeMap<>();
-		registry.forEachEntry(VirtualReferencePartitionSlot.PARTITION_OWNER, rows::put);
+		VirtualReferencePartitionIndexEntries.forEachOwnerRow(registry, rows::put);
 		final SortedSet<String> sortKeys = new TreeSet<>();
 		for (final AttributeIndexKey key : registry.getDeclaredSortKeys()) {
 			sortKeys.add(key.toString());

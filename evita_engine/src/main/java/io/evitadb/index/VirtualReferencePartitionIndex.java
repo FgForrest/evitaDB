@@ -844,16 +844,6 @@ public class VirtualReferencePartitionIndex
 	}
 
 	/**
-	 * Visits every entry of the slot in ascending partition primary key order.
-	 *
-	 * @param slot     the slot to visit
-	 * @param consumer invoked with the partition primary key and the payload of each entry
-	 */
-	public void forEachEntry(@Nonnull VirtualReferencePartitionSlot slot, @Nonnull EntryConsumer consumer) {
-		forEachEntry(slot.getId(), consumer);
-	}
-
-	/**
 	 * Declares a sort key: gives it a slot of its own and an empty sort index. Declaring a key that is already
 	 * declared with the same comparator base and decimal places does nothing; declaring it with different ones is a
 	 * programming error, because the values already in its slot were normalized and ordered by the old ones.
@@ -1056,18 +1046,6 @@ public class VirtualReferencePartitionIndex
 		return valueId.isPresent() &&
 			getSortValueEntry(sortKey.slotId(), (int) valueId.getAsLong()).key()
 				.equals(new SortValueKey(sortKey.slotId(), normalize(sortKey, value)));
-	}
-
-	/**
-	 * Returns the sort index of a sort key, its record ids being the primary keys of the partitions holding a sort value
-	 * for the key.
-	 *
-	 * @param attributeIndexKey the sort key
-	 * @return the sort index, or `null` when the key is not declared
-	 */
-	@Nullable
-	public OwnerSortIndex getSortIndex(@Nonnull AttributeIndexKey attributeIndexKey) {
-		return this.sortIndexes.get(attributeIndexKey);
 	}
 
 	/**
@@ -2544,7 +2522,7 @@ public class VirtualReferencePartitionIndex
 	 * Receives one entry of a slot.
 	 */
 	@FunctionalInterface
-	public interface EntryConsumer {
+	private interface EntryConsumer {
 
 		/**
 		 * Receives one entry of a slot.

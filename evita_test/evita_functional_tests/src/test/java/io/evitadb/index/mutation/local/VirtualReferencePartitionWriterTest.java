@@ -36,7 +36,6 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.VirtualReferencePartitionIndexEntries;
-import io.evitadb.index.VirtualReferencePartitionSlot;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.NumberUtils;
@@ -276,7 +275,7 @@ class VirtualReferencePartitionWriterTest {
 
 			assertTrue(registry.isEmpty());
 			final int[] owners = {0};
-			registry.forEachEntry(VirtualReferencePartitionSlot.PARTITION_OWNER, (partition, payload) -> owners[0]++);
+			VirtualReferencePartitionIndexEntries.forEachOwnerRow(registry, (partition, payload) -> owners[0]++);
 			assertEquals(0, owners[0]);
 		}
 	}

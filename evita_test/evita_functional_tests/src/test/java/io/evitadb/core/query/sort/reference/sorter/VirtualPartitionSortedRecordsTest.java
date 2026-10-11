@@ -36,6 +36,7 @@ import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.VirtualReferencePartitionIndex;
+import io.evitadb.index.VirtualReferencePartitionIndexEntries;
 import io.evitadb.index.attribute.ReferenceSortedRecordsProvider;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -247,9 +248,13 @@ class VirtualPartitionSortedRecordsTest {
 			VirtualPartitionSortedRecordsTest.this.registry.putSortValue(PRICE, PARTITION, new BigDecimal("1.5"));
 			final VirtualReferencePartition partition = handleOf(PARTITION);
 			final VirtualReferencePartitionIndex registry = VirtualPartitionSortedRecordsTest.this.registry;
+			final int[] holders = {0};
+			VirtualReferencePartitionIndexEntries.forEachSortValueBlock(
+				registry, PRICE, (value, partitions) -> holders[0] += partitions.length
+			);
+			assertEquals(1, registry.getDistinctSortValueCount(PRICE), "The premise of the case: one value");
 			assertEquals(
-				familySize,
-				Objects.requireNonNull(registry.getSortIndex(PRICE)).getRecordsEqualTo(new BigDecimal("1.5")).size(),
+				familySize, holders[0],
 				"The premise of the case: the value bucket of the registry's sort index holds the whole family"
 			);
 

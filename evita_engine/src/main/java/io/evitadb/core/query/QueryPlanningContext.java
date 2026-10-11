@@ -1183,33 +1183,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns the reference partition of the named collection holding the rows of the representative reference key
-	 * in the scope. The queried collection is read from the index maps this context was created with, any other
-	 * collection from its live indexes (dirty buffer first).
-	 *
-	 * @param entityType                 the collection owning the partition
-	 * @param scope                      the scope of the partition
-	 * @param representativeReferenceKey the representative reference key of the partition
-	 * @return the partition or `null` when the collection holds none
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key holds an index that is not a reference
-	 *                                                         partition
-	 */
-	@Nullable
-	public ReferencePartition resolvePartitionIfExists(
-		@Nonnull String entityType,
-		@Nonnull Scope scope,
-		@Nonnull RepresentativeReferenceKey representativeReferenceKey
-	) {
-		return ReferencePartitions.resolveIfExists(getIndexByKeyReader(entityType), scope, representativeReferenceKey);
-	}
-
-	/**
 	 * Returns every reference partition of the entity type holding rows of the reference that point to the target
 	 * entity in the scope. When duplicates are allowed, one target may be covered by several partitions, so they are
 	 * enumerated through the `REFERENCED_ENTITY_TYPE` index; otherwise there is at most one, addressed directly by
 	 * the key built from the reference key. A missing type index or partition yields no element; a primary key the
-	 * type index lists must resolve. The collection is read as
-	 * {@link #resolvePartitionIfExists(String, Scope, RepresentativeReferenceKey)} reads it.
+	 * type index lists must resolve. The queried collection is read from the index maps this context was created
+	 * with, any other collection from its live indexes (dirty buffer first).
 	 *
 	 * The primary keys the type index lists are resolved in the same collection. Index primary keys come from a
 	 * per-collection sequence ({@link io.evitadb.core.sequence.SequenceType#INDEX} is requested per entity type), so
@@ -1246,36 +1225,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns the reference partition of the named collection with the primary key, when it is a partition of the
-	 * reference in the scope, for a read - see the read resolution of {@link ReferencePartitions}. A partition the
-	 * registry holds a row for answers its {@link VirtualReferencePartition}, read out of the row; any other one
-	 * answers its reduced entity index. The collection is read as
-	 * {@link #resolvePartitionIfExists(String, Scope, RepresentativeReferenceKey)} reads it.
-	 *
-	 * @param entityType          the collection owning the partition
-	 * @param scope               the scope of the partition
-	 * @param referenceName       the reference the partition belongs to
-	 * @param partitionPrimaryKey the primary key of the partition
-	 * @return the partition, or `null` when the primary key names no partition of the reference in the scope
-	 */
-	@Nullable
-	public ReferencePartition resolvePartitionForReadIfExists(
-		@Nonnull String entityType,
-		@Nonnull Scope scope,
-		@Nonnull String referenceName,
-		int partitionPrimaryKey
-	) {
-		if (Objects.equals(this.entityType, entityType)) {
-			return ReferencePartitions.resolveForReadIfExists(
-				this::resolvePartitionIfExists, getVirtualTypeIndex(entityType, scope, referenceName),
-				scope, referenceName, partitionPrimaryKey
-			);
-		}
-		return getEntityCollectionOrThrowException(entityType, "access entity index")
-			.resolvePartitionForReadIfExists(scope, referenceName, partitionPrimaryKey);
-	}
-
-	/**
 	 * Returns the reference partition of the **queried** collection with the primary key, when it is a partition of the
 	 * reference of the type index in the type index's scope, for a read - see the read resolution of
 	 * {@link ReferencePartitions}. The type index must be the queried collection's own, as
@@ -1301,45 +1250,13 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns the reference partition of the named collection with a primary key that must name a partition of the
-	 * reference in the scope, for a read - see
-	 * {@link #resolvePartitionForReadIfExists(String, Scope, String, int)}.
-	 *
-	 * @param entityType          the collection owning the partition
-	 * @param scope               the scope of the partition
-	 * @param referenceName       the reference the partition belongs to
-	 * @param partitionPrimaryKey the primary key of the partition
-	 * @return the partition
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when the primary key names no partition of the reference
-	 *                                                         in the scope
-	 */
-	@Nonnull
-	public ReferencePartition resolvePartitionForRead(
-		@Nonnull String entityType,
-		@Nonnull Scope scope,
-		@Nonnull String referenceName,
-		int partitionPrimaryKey
-	) {
-		final ReferencePartition partition = resolvePartitionForReadIfExists(
-			entityType, scope, referenceName, partitionPrimaryKey
-		);
-		if (partition == null) {
-			throw new GenericEvitaInternalError(
-				"Expected a reference partition of `" + referenceName + "` in scope `" + scope + "` with primary key " +
-					partitionPrimaryKey + " in collection `" + entityType + "`, but found none!"
-			);
-		}
-		return partition;
-	}
-
-	/**
 	 * Returns the reference partition of the named collection holding the rows of the representative reference key in
 	 * the scope, for a read. A partition the registry holds a row for answers its
 	 * {@link VirtualReferencePartition}; the lookup goes through the memo of this context (see
 	 * {@link PartitionKeyMemo}), which builds the registered partitions of a target once per query, so a query
 	 * resolving the keys of many owners sharing one target costs one pass over the target's partitions. Any other key
-	 * answers its reduced entity index. The collection is read as
-	 * {@link #resolvePartitionIfExists(String, Scope, RepresentativeReferenceKey)} reads it.
+	 * answers its reduced entity index. The queried collection is read from the index maps this context was created
+	 * with, any other collection from its live indexes (dirty buffer first).
 	 *
 	 * @param entityType                 the collection owning the partition
 	 * @param scope                      the scope of the partition

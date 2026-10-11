@@ -47,7 +47,7 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartitionIndex;
-import io.evitadb.index.VirtualReferencePartitionSlot;
+import io.evitadb.index.VirtualReferencePartitionIndexEntries;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.NumberUtils;
@@ -572,8 +572,8 @@ class VirtualPartitionStatisticsTest implements EvitaTestSupport {
 	 */
 	private static int rowOf(@Nonnull VirtualReferencePartitionIndex registry, int category) {
 		final int[] partition = {-1};
-		registry.forEachEntry(
-			VirtualReferencePartitionSlot.PARTITION_OWNER,
+		VirtualReferencePartitionIndexEntries.forEachOwnerRow(
+			registry,
 			(partitionPrimaryKey, payload) -> {
 				if (NumberUtils.unpackLow(payload) == category) {
 					partition[0] = partitionPrimaryKey;

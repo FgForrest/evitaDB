@@ -54,7 +54,7 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartitionIndex;
-import io.evitadb.index.VirtualReferencePartitionSlot;
+import io.evitadb.index.VirtualReferencePartitionIndexEntries;
 import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
@@ -655,8 +655,8 @@ public final class VirtualPartitionInvariants {
 				if (typeIndex instanceof final ReferencedTypeEntityIndex referencedTypeIndex) {
 					final VirtualReferencePartitionIndex registry =
 						referencedTypeIndex.getVirtualReferencePartitionIndex();
-					registry.forEachEntry(
-						VirtualReferencePartitionSlot.PARTITION_OWNER,
+					VirtualReferencePartitionIndexEntries.forEachOwnerRow(
+						registry,
 						(partitionPrimaryKey, payload) -> {
 							final RegisteredRow previous = rows.put(
 								partitionPrimaryKey,

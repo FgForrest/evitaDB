@@ -33,7 +33,6 @@ import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.core.Evita;
 import io.evitadb.core.collection.EntityCollection;
-import io.evitadb.core.collection.EntityCollectionTestAccess;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
@@ -42,6 +41,7 @@ import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.VirtualReferencePartitionIndex;
+import io.evitadb.index.VirtualReferencePartitionIndexEntries;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -195,9 +195,9 @@ class VirtualReferencePartitionRawRowOracleTest implements EvitaTestSupport {
 				assertNull(objectOf(category), "the single-owner partition of category " + category + " is a row only");
 			}
 			final VirtualReferencePartitionIndex registry = registry();
-			assertEquals(PRODUCTS, registry.getSortIndex(ORDER_KEY).size());
-			assertEquals(2, registry.getSortIndex(LABEL_KEY).size());
-			assertEquals(2, registry.getSortIndex(COMPOUND_KEY).size());
+			assertEquals(PRODUCTS, holdersOf(registry, ORDER_KEY));
+			assertEquals(2, holdersOf(registry, LABEL_KEY));
+			assertEquals(2, holdersOf(registry, COMPOUND_KEY));
 			assertEquals(-1, registry.getChainPredecessor(CHAIN_KEY, rowOf(7)).orElseThrow());
 			assertEquals(7, registry.getChainPredecessor(CHAIN_KEY, rowOf(8)).orElseThrow());
 			// ... and the shared category is an index object whose values the oracle compares owner by owner
@@ -349,11 +349,19 @@ class VirtualReferencePartitionRawRowOracleTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("a partition with several owners in the bodies and no index object is reported")
 		void shouldReportAMissingSharedObject() {
-			EntityCollectionTestAccess.removeIndex(
-				products(), new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, Scope.LIVE, category(SHARED_CATEGORY))
-			);
+			final EntityIndex shared = objectOf(SHARED_CATEGORY);
+			assertNotNull(shared, "The premise of the case: the shared category is an index object");
 
+			// the oracle reads every index object of the collection but the shared category's
 			assertFindings(
+				VirtualReferencePartitionRawRowOracleTest.this.evita.queryCatalog(
+					CATALOG,
+					(Function<EvitaSessionContract, List<String>>) session ->
+						VirtualReferencePartitionRawRowOracle.inspect(
+							session, products(), null, VirtualReferencePartitionRawRowOracle.PAGE_SIZE,
+							object -> object != shared
+						)
+				),
 				"the partition " + category(SHARED_CATEGORY) + " with the owners [1, 2, 3] has no index object"
 			);
 		}
@@ -372,7 +380,9 @@ class VirtualReferencePartitionRawRowOracleTest implements EvitaTestSupport {
 
 			// the row of category 4 moves to another primary key with everything it holds
 			final VirtualReferencePartitionIndex registry = registry();
-			final Serializable order = registry.getSortIndex(ORDER_KEY).getValueOfRecord(row).orElseThrow();
+			final Serializable order = registry.getNormalizedSortValue(
+				ORDER_KEY, registry.getSortValueId(ORDER_KEY, row)
+			);
 			registry.removeSortValue(ORDER_KEY, row);
 			registry.removePartitionOwner(row);
 			registry.putPartitionOwner(UNUSED_PRIMARY_KEY, 4, 4);
@@ -580,6 +590,24 @@ class VirtualReferencePartitionRawRowOracleTest implements EvitaTestSupport {
 				new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_CATEGORIES, category))
 			)
 		);
+	}
+
+	/**
+	 * Counts the rows holding a value of a sort key of the registry.
+	 *
+	 * @param registry the registry
+	 * @param sortKey  the sort key
+	 * @return the number of rows holding a value of the key
+	 */
+	private static int holdersOf(
+		@Nonnull VirtualReferencePartitionIndex registry,
+		@Nonnull AttributeIndexKey sortKey
+	) {
+		final int[] holders = {0};
+		VirtualReferencePartitionIndexEntries.forEachSortValueBlock(
+			registry, sortKey, (value, partitions) -> holders[0] += partitions.length
+		);
+		return holders[0];
 	}
 
 	/**

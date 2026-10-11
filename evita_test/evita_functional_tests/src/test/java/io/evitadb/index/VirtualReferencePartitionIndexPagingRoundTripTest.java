@@ -35,7 +35,6 @@ import io.evitadb.function.Functions;
 import io.evitadb.index.VirtualReferencePartitionIndexNormalizedSortValueTest.ValueFixture;
 import io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.SortKeyFixture;
 import io.evitadb.index.VirtualReferencePartitionIndexSortValueTest.SortSnapshot;
-import io.evitadb.index.attribute.OwnerSortIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndexView;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -447,8 +446,8 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 			VirtualReferencePartitionIndexTest.contentOf(reloaded)
 		);
 		assertEquals(
-			VirtualReferencePartitionIndexSortValueTest.snapshotOf(live.getSortIndex(order)),
-			VirtualReferencePartitionIndexSortValueTest.snapshotOf(reloaded.getSortIndex(order))
+			VirtualReferencePartitionIndexSortValueTest.snapshotOf(live, order),
+			VirtualReferencePartitionIndexSortValueTest.snapshotOf(reloaded, order)
 		);
 		for (int partition = 1; partition <= partitions; partition++) {
 			assertEquals(
@@ -570,17 +569,13 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 			@Nonnull Map<AttributeIndexKey, Map<Integer, Serializable>> models
 		) {
 			for (final SortKeyFixture fixture : VirtualReferencePartitionIndexSortValueTest.FIXTURES) {
-				final OwnerSortIndex liveIndex = live.getSortIndex(fixture.key());
-				final OwnerSortIndex reloadedIndex = reloaded.getSortIndex(fixture.key());
-				assertNotNull(liveIndex, "Sort key " + fixture + " must be declared on the live index");
-				assertNotNull(reloadedIndex, "Sort key " + fixture + " must be declared on the reloaded index");
 				assertEquals(
-					VirtualReferencePartitionIndexSortValueTest.snapshotOf(liveIndex),
-					VirtualReferencePartitionIndexSortValueTest.snapshotOf(reloadedIndex),
+					VirtualReferencePartitionIndexSortValueTest.snapshotOf(live, fixture.key()),
+					VirtualReferencePartitionIndexSortValueTest.snapshotOf(reloaded, fixture.key()),
 					"The rebuilt sort index of " + fixture + " must equal the live one"
 				);
 				VirtualReferencePartitionIndexSortValueTest.assertMatchesModel(
-					fixture, reloadedIndex, models.getOrDefault(fixture.key(), Map.of())
+					fixture, reloaded, models.getOrDefault(fixture.key(), Map.of())
 				);
 			}
 		}
@@ -686,8 +681,8 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 			persist(newValueChange);
 			persist(lastUserRemoval);
 			assertEquals(
-				VirtualReferencePartitionIndexSortValueTest.snapshotOf(reloaded.getSortIndex(order)),
-				VirtualReferencePartitionIndexSortValueTest.snapshotOf(reloadThroughLoader().getSortIndex(order))
+				VirtualReferencePartitionIndexSortValueTest.snapshotOf(reloaded, order),
+				VirtualReferencePartitionIndexSortValueTest.snapshotOf(reloadThroughLoader(), order)
 			);
 		}
 
@@ -714,21 +709,20 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 			source.putSortValue(priority, 6, 7);
 			flushAndPersist(source);
 
-			final OwnerSortIndex rebuilt = reloadThroughLoader().getSortIndex(priority);
-			assertNotNull(rebuilt);
+			final VirtualReferencePartitionIndex rebuilt = reloadThroughLoader();
 			final SortSnapshot expected = new SortSnapshot(List.of(3, 4, 6), List.of(5, 7), List.of(2, 1));
-			assertEquals(expected, VirtualReferencePartitionIndexSortValueTest.snapshotOf(source.getSortIndex(priority)));
-			assertEquals(expected, VirtualReferencePartitionIndexSortValueTest.snapshotOf(rebuilt));
+			assertEquals(expected, VirtualReferencePartitionIndexSortValueTest.snapshotOf(source, priority));
+			assertEquals(expected, VirtualReferencePartitionIndexSortValueTest.snapshotOf(rebuilt, priority));
 
 			// the negative control: the same persisted blocks folded onto the shared tree as a view take their block
 			// boundaries from the real partitions too
 			final SortIndex view = SortIndex.create(
-				integerAsc, null, priority, 0, rebuilt.getSortedRecords(), rebuilt.getSortedRecordValues(),
-				Map.<Serializable, Integer>of(5, 2), () -> sharedTree
+				integerAsc, null, priority, 0, expected.records().stream().mapToInt(Integer::intValue).toArray(),
+				expected.values().toArray(Serializable[]::new), Map.<Serializable, Integer>of(5, 2), () -> sharedTree
 			);
 			assertInstanceOf(SortIndexView.class, view);
 			assertNotEquals(
-				rebuilt.getRecordsEqualTo(5).size(), view.getRecordsEqualTo(5).size(),
+				expected.blockSizes().get(0), view.getRecordsEqualTo(5).size(),
 				"A view counts the real partitions of the shared value as its own"
 			);
 		}
@@ -756,13 +750,13 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 
 			// the loader refuses entries of a slot the root does not declare, so a clean load proves the reclaim
 			final VirtualReferencePartitionIndex afterRetirement = reloadThroughLoader();
-			assertNull(afterRetirement.getSortIndex(retired.key()));
+			assertFalse(afterRetirement.getDeclaredSortKeys().contains(retired.key()));
 			for (final SortKeyFixture fixture : VirtualReferencePartitionIndexSortValueTest.FIXTURES.subList(
 				1, VirtualReferencePartitionIndexSortValueTest.FIXTURES.size()
 			)) {
 				assertEquals(
-					VirtualReferencePartitionIndexSortValueTest.snapshotOf(live.getSortIndex(fixture.key())),
-					VirtualReferencePartitionIndexSortValueTest.snapshotOf(afterRetirement.getSortIndex(fixture.key()))
+					VirtualReferencePartitionIndexSortValueTest.snapshotOf(live, fixture.key()),
+					VirtualReferencePartitionIndexSortValueTest.snapshotOf(afterRetirement, fixture.key())
 				);
 			}
 		}
@@ -778,9 +772,10 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 			assertEquals(0, root.getKeys().length);
 
 			final VirtualReferencePartitionIndex reloaded = reloadThroughLoader();
-			final OwnerSortIndex sortIndex = reloaded.getSortIndex(order);
-			assertNotNull(sortIndex);
-			assertTrue(sortIndex.isEmpty());
+			assertEquals(
+				VirtualReferencePartitionIndexSortValueTest.NO_VALUES,
+				VirtualReferencePartitionIndexSortValueTest.snapshotOf(reloaded, order)
+			);
 
 			reloaded.retireSortKey(order);
 			final List<StoragePart> retirement = flush(reloaded);
@@ -847,17 +842,17 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 		) {
 			for (final ValueFixture fixture : VirtualReferencePartitionIndexNormalizedSortValueTest.FIXTURES) {
 				final SortKeyFixture sortKey = fixture.sortKey();
-				final OwnerSortIndex expectedIndex = expected.getSortIndex(sortKey.key());
-				final OwnerSortIndex actualIndex = actual.getSortIndex(sortKey.key());
-				assertNotNull(expectedIndex);
-				assertNotNull(actualIndex, "Sort key " + sortKey + " must be declared " + stage);
+				assertTrue(
+					actual.getDeclaredSortKeys().contains(sortKey.key()),
+					"Sort key " + sortKey + " must be declared " + stage
+				);
 				assertEquals(
-					VirtualReferencePartitionIndexSortValueTest.snapshotOf(expectedIndex),
-					VirtualReferencePartitionIndexSortValueTest.snapshotOf(actualIndex),
+					VirtualReferencePartitionIndexSortValueTest.snapshotOf(expected, sortKey.key()),
+					VirtualReferencePartitionIndexSortValueTest.snapshotOf(actual, sortKey.key()),
 					"The sort index of " + sortKey + " " + stage
 				);
 				VirtualReferencePartitionIndexSortValueTest.assertMatchesModel(
-					sortKey, actualIndex, models.getOrDefault(sortKey.key(), Map.of())
+					sortKey, actual, models.getOrDefault(sortKey.key(), Map.of())
 				);
 			}
 			assertEquals(

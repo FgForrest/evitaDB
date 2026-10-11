@@ -740,9 +740,7 @@ public final class VirtualReferencePartitionWriter {
 	 * @param referenceName       the reference
 	 * @param scope               the scope of the partition
 	 * @param partitionPrimaryKey the primary key of the partition
-	 * @return the registry, or `null` when the executor writes no registry (see
-	 * {@link EntityIndexLocalMutationExecutor#isPartitionRegistryWritten()}), the partition has no row or its row names
-	 * another owner
+	 * @return the registry, or `null` when the partition has no row or its row names another owner
 	 */
 	@Nullable
 	private static VirtualReferencePartitionIndex findRegistryOfOwnPartition(
@@ -751,9 +749,6 @@ public final class VirtualReferencePartitionWriter {
 		@Nonnull Scope scope,
 		int partitionPrimaryKey
 	) {
-		if (!executor.isPartitionRegistryWritten()) {
-			return null;
-		}
 		final EntityIndex typeIndex = executor.getIndexIfExists(
 			ReferenceIndexMutator.getReferencedTypeIndexKey(referenceName, scope)
 		);

@@ -134,28 +134,6 @@ class BitmapSlicer {
 	private boolean groupAssignmentVarying;
 
 	/**
-	 * Creates a slicer that does not track whether the group of a referenced entity varies between its references.
-	 *
-	 * @param entityPrimaryKey                    source entity primary keys indexed by their scope
-	 * @param referenceName                       the name of the sliced reference
-	 * @param referencedEntityIdsFormula          returns all referenced entity ids of a source entity
-	 * @param referencedEntityToGroupIdTranslator returns the groups of a referenced entity of a source entity
-	 * @param chunkTransformer                    the page / strip mathematics of the slice
-	 */
-	public BitmapSlicer(
-		@Nonnull Map<Scope, int[]> entityPrimaryKey,
-		@Nonnull String referenceName,
-		@Nonnull BiFunction<String, Integer, Formula> referencedEntityIdsFormula,
-		@Nonnull TriFunction<Integer, String, Integer, IntStream> referencedEntityToGroupIdTranslator,
-		@Nonnull ChunkTransformer chunkTransformer
-	) {
-		this(
-			entityPrimaryKey, referenceName, referencedEntityIdsFormula, referencedEntityToGroupIdTranslator,
-			chunkTransformer, false
-		);
-	}
-
-	/**
 	 * Creates a slicer.
 	 *
 	 * @param entityPrimaryKey                    source entity primary keys indexed by their scope

@@ -436,7 +436,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						this.usageRegistry,
 						this.catalogUsageRegistry,
 
-						true
+						true,
+						new PartitionReservations()
 					),
 					null,
 					this.productAttributeSchemaProvider,
@@ -468,7 +469,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						this.usageRegistry,
 						this.catalogUsageRegistry,
 
-						true
+						true,
+						new PartitionReservations()
 					),
 					null,
 					this.productAttributeSchemaProvider,
@@ -505,7 +507,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.usageRegistry,
 				this.catalogUsageRegistry,
 
-				true
+				true,
+				new PartitionReservations()
 			),
 			null,
 			this.productAttributeSchemaProvider,
@@ -532,7 +535,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.usageRegistry,
 				this.catalogUsageRegistry,
 
-				true
+				true,
+				new PartitionReservations()
 			),
 			null,
 			this.productAttributeSchemaProvider,
@@ -664,7 +668,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.usageRegistry,
 				this.catalogUsageRegistry,
 
-				true
+				true,
+				new PartitionReservations()
 			),
 			null,
 			this.productAttributeSchemaProvider,

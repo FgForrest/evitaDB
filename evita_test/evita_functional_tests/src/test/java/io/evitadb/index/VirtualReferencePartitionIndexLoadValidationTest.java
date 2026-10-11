@@ -206,7 +206,7 @@ class VirtualReferencePartitionIndexLoadValidationTest {
 		assertEquals(OptionalLong.of(NumberUtils.pack(10, 100)), index.getPartitionOwner(1));
 		assertEquals(1, index.getRepresentativeTupleId(1));
 		assertArrayEquals(GALLERY, index.getTuple(1));
-		assertEquals(List.of(1, 2), snapshotOf(index.getSortIndex(ORDER)).records());
+		assertEquals(List.of(1, 2), snapshotOf(index, ORDER).records());
 		assertEquals(OptionalInt.of(5), index.getChainPredecessor(CHAIN, 1));
 	}
 

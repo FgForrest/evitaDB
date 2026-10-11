@@ -147,27 +147,6 @@ public class TargetIndexes<T extends Index<?>> {
 	}
 
 	/**
-	 * Creates a set representing a constraint, with its indexes already resolved.
-	 *
-	 * @param indexDescription      human readable description of the index set
-	 * @param representedConstraint the constraint the indexes answer
-	 * @param scopes                the processing scopes the set was built for
-	 * @param indexType             type of the indexes
-	 * @param indexes               the indexes
-	 * @param eligibilityObstacle   obstacles that make this set ineligible for a separate query plan
-	 */
-	public TargetIndexes(
-		@Nonnull String indexDescription,
-		@Nonnull FilterConstraint representedConstraint,
-		@Nonnull Set<Scope> scopes,
-		@Nonnull Class<T> indexType,
-		@Nonnull List<T> indexes,
-		@Nonnull EligibilityObstacle... eligibilityObstacle
-	) {
-		this(indexDescription, representedConstraint, scopes, indexType, indexes, null, eligibilityObstacle);
-	}
-
-	/**
 	 * Creates a set of already resolved indexes of a `referenceHaving` option that also keeps the candidates discovery
 	 * named - see {@link #reducedIndexCandidates}.
 	 *
@@ -176,7 +155,7 @@ public class TargetIndexes<T extends Index<?>> {
 	 * @param scopes                 the processing scopes the set was built for
 	 * @param indexType              type of the indexes
 	 * @param indexes                the resolved indexes
-	 * @param reducedIndexCandidates the candidates the indexes were resolved from, `null` for an option of another kind
+	 * @param reducedIndexCandidates the candidates the indexes were resolved from
 	 * @param eligibilityObstacle    obstacles that make this set ineligible for a separate query plan
 	 */
 	public TargetIndexes(
@@ -185,7 +164,7 @@ public class TargetIndexes<T extends Index<?>> {
 		@Nonnull Set<Scope> scopes,
 		@Nonnull Class<T> indexType,
 		@Nonnull List<T> indexes,
-		@Nullable ReducedIndexCandidates reducedIndexCandidates,
+		@Nonnull ReducedIndexCandidates reducedIndexCandidates,
 		@Nonnull EligibilityObstacle... eligibilityObstacle
 	) {
 		this.indexDescription = indexDescription;

@@ -121,7 +121,8 @@ class BitmapSlicerTest {
 					REFERENCE_NAME,
 					(refName, epk) -> EmptyFormula.INSTANCE,
 					emptyGroupTranslator(),
-					unsupported
+					unsupported,
+					false
 				)
 			);
 
@@ -147,7 +148,8 @@ class BitmapSlicerTest {
 				REFERENCE_NAME,
 				referencedEntityIdsFormula(refsByEntity),
 				emptyGroupTranslator(),
-				NoTransformer.INSTANCE
+				NoTransformer.INSTANCE,
+				false
 			);
 
 			// act — NoTransformer must not chunk, so the sorted-slice returns all candidates
@@ -413,7 +415,8 @@ class BitmapSlicerTest {
 				REFERENCE_NAME,
 				referencedEntityIdsFormula(refsByEntity),
 				emptyGroupTranslator(),
-				new PageTransformer(new Page(1, 5), new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0])
+				new PageTransformer(new Page(1, 5), new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0]),
+				false
 			);
 
 			slicer.sliceEntityIdsSorted(
@@ -472,7 +475,8 @@ class BitmapSlicerTest {
 				REFERENCE_NAME,
 				referencedEntityIdsFormula(refsByEntity),
 				emptyGroupTranslator(),
-				new PageTransformer(new Page(1, 1), new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0])
+				new PageTransformer(new Page(1, 1), new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0]),
+				false
 			);
 
 			final Bitmap result = slicer.sliceEntityIdsSorted(
@@ -507,7 +511,8 @@ class BitmapSlicerTest {
 				new PageTransformer(
 					new Page(1, 1),
 					new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0]
-				)
+				),
+				false
 			);
 
 			slicer.sliceEntityIdsSorted(
@@ -551,7 +556,8 @@ class BitmapSlicerTest {
 				new PageTransformer(
 					new Page(1, 5),
 					new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0]
-				)
+				),
+				false
 			);
 
 			final Bitmap result = slicer.sliceEntityIdsSorted(
@@ -615,7 +621,8 @@ class BitmapSlicerTest {
 				REFERENCE_NAME,
 				referencedEntityIdsFormula(refsByEntity),
 				(epk, refName, refId) -> IntStream.empty(),
-				new PageTransformer(new Page(1, 5), new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0])
+				new PageTransformer(new Page(1, 5), new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0]),
+				false
 			);
 
 			slicer.sliceEntityIdsSorted(
@@ -685,7 +692,8 @@ class BitmapSlicerTest {
 				REFERENCE_NAME,
 				referencedEntityIdsFormula(refsByEntity),
 				emptyGroupTranslator(),
-				new PageTransformer(new Page(1, 5), new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0])
+				new PageTransformer(new Page(1, 5), new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0]),
+				false
 			);
 			final ReferenceComparator chained = new ReversedPkComparator();
 			final ReferenceComparator leaky = new MonotoneNonSortedAccumulator(chained);
@@ -874,7 +882,8 @@ class BitmapSlicerTest {
 			REFERENCE_NAME,
 			referencedEntityIdsFormula(refsByEntity),
 			emptyGroupTranslator(),
-			new PageTransformer(page, new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0])
+			new PageTransformer(page, new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0]),
+			false
 		);
 	}
 
@@ -892,7 +901,8 @@ class BitmapSlicerTest {
 			REFERENCE_NAME,
 			referencedEntityIdsFormula(refsByEntity),
 			emptyGroupTranslator(),
-			new StripTransformer(strip)
+			new StripTransformer(strip),
+			false
 		);
 	}
 

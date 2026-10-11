@@ -27,6 +27,7 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.RollbackException;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -39,14 +40,17 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.Evita;
+import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReferencePartitions;
+import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.Functions;
@@ -211,12 +215,6 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 				assertSame(
 					category,
 					queryContext.resolvePartitionIfExists(Scope.LIVE, category.getRepresentativeReferenceKey())
-				);
-				assertSame(
-					category,
-					queryContext.resolvePartitionIfExists(
-						ENTITY_PRODUCT, Scope.LIVE, category.getRepresentativeReferenceKey()
-					)
 				);
 				// and answers a primary key of another index kind as the collection does - null or a named failure
 				final int globalPrimaryKey = products.getGlobalIndex().getPrimaryKey();
@@ -489,14 +487,11 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 				);
 				assertSame(
 					reflected,
-					queryContext.resolvePartitionIfExists(ENTITY_CATEGORY, Scope.LIVE, reflectedKey)
+					queryContext.resolvePartitionForReadIfExists(ENTITY_CATEGORY, Scope.LIVE, reflectedKey)
 				);
 				// by key in the queried collection - read from the query's index snapshot, which must carry the
 				// partitions the session created before the query was planned
 				assertSame(newCategory, queryContext.resolvePartitionIfExists(Scope.LIVE, newCategoryKey));
-				assertSame(
-					newCategory, queryContext.resolvePartitionIfExists(ENTITY_PRODUCT, Scope.LIVE, newCategoryKey)
-				);
 				assertArrayEquals(
 					new ReferencePartition[]{newCategory},
 					queryContext.resolvePartitionsOfTarget(
@@ -666,10 +661,6 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 		// no resolver of index objects answers its key
 		assertNull(partitionOf(products, Scope.LIVE, key), key + ": the object resolver over the data store reader");
 		assertNull(queryContext.resolvePartitionIfExists(Scope.LIVE, key), key + ": the planning context by key");
-		assertNull(
-			queryContext.resolvePartitionIfExists(ENTITY_PRODUCT, Scope.LIVE, key),
-			key + ": the planning context by key in the named collection"
-		);
 		// the owner read answers its virtual handle
 		final ReferencePartition row = readPartitionOf(ENTITY_PRODUCT, key);
 		assertInstanceOf(VirtualReferencePartition.class, row, key + ": the owner read");
@@ -681,11 +672,14 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 			queryContext.resolvePartitionIfExists(row.getPrimaryKey()), key + ": the planning context by primary key"
 		);
 		// the read resolution of the planning context answers the same row by key and by primary key
+		final ReferencedTypeEntityIndex typeIndex = queryContext.getIndexIfExists(
+				new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, key.referenceName()),
+				ReferencedTypeEntityIndex.class
+			)
+			.orElseThrow();
 		for (final ReferencePartition forRead : new ReferencePartition[]{
 			queryContext.resolvePartitionForReadIfExists(ENTITY_PRODUCT, Scope.LIVE, key),
-			queryContext.resolvePartitionForReadIfExists(
-				ENTITY_PRODUCT, Scope.LIVE, key.referenceName(), row.getPrimaryKey()
-			)
+			queryContext.resolvePartitionForReadIfExists(typeIndex, row.getPrimaryKey())
 		}) {
 			assertInstanceOf(VirtualReferencePartition.class, forRead, key + ": the read resolution");
 			assertEquals(row.getPrimaryKey(), forRead.getPrimaryKey());
@@ -924,7 +918,10 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 		@Nonnull Scope scope,
 		@Nonnull RepresentativeReferenceKey representativeReferenceKey
 	) {
-		return ReferencePartitions.resolveIfExists(collection.getDataStoreReader(), scope, representativeReferenceKey);
+		final DataStoreReader dataStoreReader = collection.getDataStoreReader();
+		return ReferencePartitions.resolveIfExists(
+			key -> dataStoreReader.getIndexIfExists(key, __ -> null), scope, representativeReferenceKey
+		);
 	}
 
 	/**

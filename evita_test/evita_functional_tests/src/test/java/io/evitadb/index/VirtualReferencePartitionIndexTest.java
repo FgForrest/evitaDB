@@ -105,10 +105,10 @@ class VirtualReferencePartitionIndexTest {
 	@Nonnull
 	static Content contentOf(@Nonnull VirtualReferencePartitionIndex index) {
 		final Map<Integer, Long> owners = new TreeMap<>();
-		index.forEachEntry(VirtualReferencePartitionSlot.PARTITION_OWNER, owners::put);
+		VirtualReferencePartitionIndexEntries.forEachOwnerRow(index, owners::put);
 		final Map<Integer, List<Serializable>> tuples = new TreeMap<>();
-		index.forEachEntry(
-			VirtualReferencePartitionSlot.REPRESENTATIVE_TUPLE,
+		VirtualReferencePartitionIndexEntries.forEachRepresentativeTuple(
+			index,
 			(partitionPrimaryKey, tupleId) -> {
 				final Serializable[] tuple = index.getTuple((int) tupleId);
 				assertTrue(
@@ -544,12 +544,12 @@ class VirtualReferencePartitionIndexTest {
 	}
 
 	@Nested
-	@DisplayName("Slot iteration")
-	class SlotIteration {
+	@DisplayName("Owner row iteration")
+	class OwnerRowIteration {
 
 		@Test
-		@DisplayName("visits exactly the entries of one slot in ascending partition order")
-		void shouldVisitOneSlotInPartitionOrder() {
+		@DisplayName("the owner cursor visits exactly the owner rows in ascending partition order")
+		void shouldVisitTheOwnerRowsInPartitionOrder() {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
 			index.putPartitionOwner(Integer.MAX_VALUE, -1, -2);
 			index.putPartitionOwner(7, 70, 700);
@@ -559,8 +559,8 @@ class VirtualReferencePartitionIndexTest {
 
 			final List<Integer> ownerPartitions = new ArrayList<>();
 			final List<Long> ownerPayloads = new ArrayList<>();
-			index.forEachEntry(
-				VirtualReferencePartitionSlot.PARTITION_OWNER,
+			VirtualReferencePartitionIndexEntries.forEachOwnerRow(
+				index,
 				(partitionPrimaryKey, payload) -> {
 					ownerPartitions.add(partitionPrimaryKey);
 					ownerPayloads.add(payload);
@@ -572,24 +572,23 @@ class VirtualReferencePartitionIndexTest {
 			);
 
 			final List<Integer> tuplePartitions = new ArrayList<>();
-			index.forEachEntry(
-				VirtualReferencePartitionSlot.REPRESENTATIVE_TUPLE,
-				(partitionPrimaryKey, payload) -> tuplePartitions.add(partitionPrimaryKey)
+			VirtualReferencePartitionIndexEntries.forEachRepresentativeTuple(
+				index, (partitionPrimaryKey, payload) -> tuplePartitions.add(partitionPrimaryKey)
 			);
 			assertEquals(List.of(1, Integer.MAX_VALUE), tuplePartitions);
 		}
 
 		@Test
-		@DisplayName("visits nothing for a slot without entries")
-		void shouldVisitNothingForAnEmptySlot() {
+		@DisplayName("the owner cursor visits nothing when only the other slots hold entries")
+		void shouldVisitNothingWithoutOwnerRows() {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
-			index.putPartitionOwner(1, 10, 100);
+			index.putRepresentativeTuple(1, GALLERY);
 			final List<Integer> visited = new ArrayList<>();
-			index.forEachEntry(
-				VirtualReferencePartitionSlot.REPRESENTATIVE_TUPLE,
-				(partitionPrimaryKey, payload) -> visited.add(partitionPrimaryKey)
+			VirtualReferencePartitionIndexEntries.forEachOwnerRow(
+				index, (partitionPrimaryKey, payload) -> visited.add(partitionPrimaryKey)
 			);
 			assertTrue(visited.isEmpty());
+			assertFalse(index.isEmpty(), "The premise of the case: another slot holds an entry");
 		}
 	}
 

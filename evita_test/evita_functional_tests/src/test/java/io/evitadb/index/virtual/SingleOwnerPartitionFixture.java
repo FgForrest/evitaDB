@@ -49,7 +49,6 @@ import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.VirtualReferencePartitionIndexEntries;
-import io.evitadb.index.VirtualReferencePartitionSlot;
 import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
@@ -816,13 +815,13 @@ public final class SingleOwnerPartitionFixture {
 			final VirtualReferencePartitionIndex registry = registryOf(evita, entityType, scope, referenceName);
 			description.append(scope).append(':');
 			if (registry != null) {
-				registry.forEachEntry(
-					VirtualReferencePartitionSlot.PARTITION_OWNER,
+				VirtualReferencePartitionIndexEntries.forEachOwnerRow(
+					registry,
 					(partition, payload) -> description.append(' ').append(partition).append("->")
 						.append(NumberUtils.unpackHigh(payload)).append('/').append(NumberUtils.unpackLow(payload))
 				);
-				registry.forEachEntry(
-					VirtualReferencePartitionSlot.REPRESENTATIVE_TUPLE,
+				VirtualReferencePartitionIndexEntries.forEachRepresentativeTuple(
+					registry,
 					(partition, payload) -> description.append(' ').append(partition).append("#")
 						.append(Arrays.toString(registry.getTuple((int) payload)))
 				);
