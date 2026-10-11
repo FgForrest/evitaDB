@@ -96,10 +96,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(TASK)
 class BackupTaskStorageProtocolTest implements EvitaTestSupport {
 	/**
-	 * The protocol the fixture's pre-upgrade version is published under - the one immediately preceding the current
-	 * protocol, i.e. the version whose migration a restore must still run.
+	 * The protocol the fixture's pre-upgrade version is published under - the protocol of the previous release,
+	 * 2026.2, whose migration a restore must still run. Named rather than derived from the current protocol: the
+	 * protocol right below the current one was written by development builds only and is refused, not migrated.
 	 */
-	private static final int PREVIOUS_PROTOCOL = PersistenceService.STORAGE_PROTOCOL_VERSION - 1;
+	private static final int PREVIOUS_PROTOCOL = 6;
 	/**
 	 * Name the backup is restored under.
 	 */
@@ -125,8 +126,6 @@ class BackupTaskStorageProtocolTest implements EvitaTestSupport {
 	void setUp() throws InterruptedException {
 		this.paths = createTestPaths(BackupTaskStorageProtocolTest.class.getSimpleName());
 		this.evita = new Evita(getEvitaConfiguration());
-		// TODO JNO - remove at the end of #1615
-		this.evita.createCatalogWithVirtualReferencePartitions(TEST_CATALOG, false);
 		this.evita.defineCatalog(TEST_CATALOG);
 		this.evita.updateCatalog(TEST_CATALOG, session -> {
 			session.defineEntitySchema(Entities.BRAND);

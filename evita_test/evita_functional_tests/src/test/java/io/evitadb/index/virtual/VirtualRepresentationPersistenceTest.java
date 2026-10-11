@@ -42,14 +42,10 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.export.file.configuration.FileSystemExportOptions;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.ReferencedTypeEntityIndex;
-import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
-import io.evitadb.store.catalog.CatalogOffsetIndexStoragePartPersistenceService;
 import io.evitadb.store.catalog.DefaultCatalogPersistenceService;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
-import io.evitadb.store.model.header.CollectionFileReference;
-import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.store.settings.StorageSettings;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -69,7 +65,6 @@ import java.nio.file.Path;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
@@ -98,7 +93,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Proves that the representation of the single-owner reference partitions of a catalog is the storage protocol of its
  * catalog header: a catalog created virtual is written under
  * {@link PersistenceService#VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION}, any other under
- * {@link PersistenceService#STORAGE_PROTOCOL_VERSION}, and every later header write - a commit, going live, a
+ * {@link PersistenceService#OBJECT_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION}, and every later header write - a
+ * commit, going live, a
  * collection or catalog rename, a catalog replacement, a duplicate, a backup and its restore - keeps the protocol the
  * catalog was created under. A catalog loaded from disk takes its representation from that header alone, before any
  * of its collections exists and before the write-ahead log is replayed onto it.
@@ -260,8 +256,11 @@ class VirtualRepresentationPersistenceTest implements EvitaTestSupport {
 		);
 	}
 
+	// a virtual catalog only: a point-in-time backup stamps its bootstrap record with the protocol of the backed-up
+	// header, and a record of the protocol of index objects is refused as the protocol of development builds (see
+	// StorageProtocolRefusalTest)
 	@ParameterizedTest(name = "created virtual: {0}")
-	@ValueSource(booleans = {true, false})
+	@ValueSource(booleans = true)
 	@DisplayName("a point-in-time backup restored under a new name keeps the protocol, in its bootstrap record too")
 	void shouldKeepProtocolWhenPointInTimeBackupIsRestored(boolean virtual) throws Exception {
 		final int expectedProtocol = protocolOf(virtual);
@@ -424,7 +423,7 @@ class VirtualRepresentationPersistenceTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * The switches of a virtual catalog are on for good, and the store refuses to change the protocol of a header.
+	 * The switches of a virtual catalog are on for good.
 	 */
 	@Nested
 	@DisplayName("Refusals")
@@ -468,41 +467,6 @@ class VirtualRepresentationPersistenceTest implements EvitaTestSupport {
 			assertTrue(maintenance.isMaintained(ENTITY_PRODUCT));
 			assertTrue(maintenance.isReadVirtually(ENTITY_PRODUCT));
 		}
-
-		@ParameterizedTest(name = "created virtual: {0}")
-		@ValueSource(booleans = {true, false})
-		@DisplayName("the store refuses to rewrite a header under the protocol of the other representation")
-		void shouldRefuseRewritingHeaderUnderProtocolOfOtherRepresentation(boolean virtual) {
-			createLiveCatalog(CATALOG, virtual);
-			final DefaultCatalogPersistenceService persistenceService = persistenceService(CATALOG);
-			final long version = persistenceService.getLastCatalogVersion();
-			final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService =
-				persistenceService.getStoragePartPersistenceService(version);
-			final CatalogHeader<LogFileRecordReference, CollectionFileReference> header =
-				storagePartPersistenceService.getCatalogHeader(version);
-
-			final GenericEvitaInternalError refusal = assertThrows(
-				GenericEvitaInternalError.class,
-				() -> storagePartPersistenceService.writeCatalogHeader(
-					protocolOf(!virtual),
-					version,
-					persistenceService.getCatalogStoragePath(),
-					header.walFileReference(),
-					header.collectionFileIndex(),
-					header.catalogId(),
-					header.catalogName(),
-					header.catalogState(),
-					header.lastEntityCollectionPrimaryKey()
-				)
-			);
-			assertTrue(
-				Objects.requireNonNull(refusal.getPrivateMessage()).contains("never changes"), refusal.getMessage()
-			);
-			assertEquals(
-				protocolOf(virtual), storagePartPersistenceService.getCatalogHeader(version).storageProtocolVersion(),
-				"the refused write must have left the header as it was"
-			);
-		}
 	}
 
 	/**
@@ -514,7 +478,7 @@ class VirtualRepresentationPersistenceTest implements EvitaTestSupport {
 	private static int protocolOf(boolean virtual) {
 		return virtual ?
 			PersistenceService.VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION :
-			PersistenceService.STORAGE_PROTOCOL_VERSION;
+			PersistenceService.OBJECT_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION;
 	}
 
 	/**

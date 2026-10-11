@@ -560,45 +560,6 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nonnull CatalogState catalogState,
 		int lastEntityCollectionPrimaryKey
 	) {
-		writeCatalogHeader(
-			storageProtocolVersion, catalogVersion, catalogStoragePath, walFileLocation, collectionFileReferenceIndex,
-			catalogId, catalogName, catalogState, lastEntityCollectionPrimaryKey, false
-		);
-	}
-
-	// TODO JNO - remove at the end of #1615 (the representation flag, the method body stays as the overload above)
-	/**
-	 * Writes the catalog header like {@link #writeCatalogHeader(int, long, Path, LogFileRecordReference, Map, UUID,
-	 * String, CatalogState, int)}, and lets the storage protocol migration that converts the catalog to the virtual
-	 * representation of its single-owner reference partitions write the one header that changes the representation.
-	 *
-	 * @param storageProtocolVersion         the storage protocol of the header
-	 * @param catalogVersion                 the catalog version of the header
-	 * @param catalogStoragePath             the folder of the catalog files
-	 * @param walFileLocation                the position of the write-ahead log the header refers to
-	 * @param collectionFileReferenceIndex   the data stores of the collections by entity type
-	 * @param catalogId                      the identifier of the catalog
-	 * @param catalogName                    the name of the catalog
-	 * @param catalogState                   the state of the catalog
-	 * @param lastEntityCollectionPrimaryKey the last primary key assigned to a collection
-	 * @param representationConverted        TRUE only for the header that converts a catalog representing its
-	 *                                       single-owner partitions by index objects into one representing them
-	 *                                       virtually - see {@link #assertRepresentationKept(int, String, boolean)}
-	 */
-	void writeCatalogHeader(
-		int storageProtocolVersion,
-		long catalogVersion,
-		@Nonnull Path catalogStoragePath,
-		@Nullable LogFileRecordReference walFileLocation,
-		@Nonnull Map<String, CollectionFileReference> collectionFileReferenceIndex,
-		@Nonnull UUID catalogId,
-		@Nonnull String catalogName,
-		@Nonnull CatalogState catalogState,
-		int lastEntityCollectionPrimaryKey,
-		boolean representationConverted
-	) {
-		// TODO JNO - remove at the end of #1615
-		assertRepresentationKept(storageProtocolVersion, catalogName, representationConverted);
 		final CatalogHeader<LogFileRecordReference, CollectionFileReference> newCatalogHeader = new CatalogHeader<LogFileRecordReference, CollectionFileReference>(
 			storageProtocolVersion,
 			catalogVersion,
@@ -613,53 +574,6 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		);
 		putStoragePart(catalogVersion, newCatalogHeader);
 		this.currentCatalogHeader = newCatalogHeader;
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Verifies the premise that a persisted catalog never changes the representation of its single-owner reference
-	 * partitions: a header of the {@link PersistenceService#VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION}
-	 * is only ever rewritten under the same protocol, and any other header never under that one. The representation
-	 * is decided once, when the catalog is created, and the engine reads it from the header at every load - a header
-	 * written under the other protocol would silently load the catalog in the other representation. The migrations
-	 * between older protocols are not affected: none of them reaches or leaves the virtual protocol.
-	 *
-	 * The one exception is the conversion: the storage protocol migration that turns the index objects of a catalog's
-	 * single-owner partitions into registry rows publishes its result by rewriting a header of the
-	 * {@link PersistenceService#STORAGE_PROTOCOL_VERSION} under the virtual protocol, and says so. That header, and
-	 * only that one, must move from the one protocol to the other.
-	 *
-	 * @param storageProtocolVersion  the storage protocol of the header about to be written
-	 * @param catalogName             the name of the catalog, for the error message
-	 * @param representationConverted TRUE when the header is the one the conversion publishes
-	 */
-	private void assertRepresentationKept(
-		int storageProtocolVersion,
-		@Nonnull String catalogName,
-		boolean representationConverted
-	) {
-		final CatalogHeader<LogFileRecordReference, CollectionFileReference> theCurrentHeader =
-			this.currentCatalogHeader;
-		if (theCurrentHeader != null) {
-			final int currentVersion = theCurrentHeader.storageProtocolVersion();
-			final int virtualVersion = PersistenceService.VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION;
-			if (representationConverted) {
-				final int objectsVersion = PersistenceService.STORAGE_PROTOCOL_VERSION;
-				Assert.isPremiseValid(
-					currentVersion == objectsVersion && storageProtocolVersion == virtualVersion,
-					() -> "The conversion of catalog `" + catalogName + "` rewrites a header of the storage protocol " +
-						objectsVersion + " under the storage protocol " + virtualVersion + ", not one of the storage " +
-						"protocol " + currentVersion + " under the storage protocol " + storageProtocolVersion + "!"
-				);
-				return;
-			}
-			Assert.isPremiseValid(
-				(currentVersion == virtualVersion) == (storageProtocolVersion == virtualVersion),
-				() -> "The header of catalog `" + catalogName + "` carries the storage protocol " + currentVersion +
-					" and must not be rewritten under the storage protocol " + storageProtocolVersion +
-					" - the representation of the single-owner reference partitions of a catalog never changes!"
-			);
-		}
 	}
 
 	@Override

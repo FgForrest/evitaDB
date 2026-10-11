@@ -762,7 +762,7 @@ public final class Catalog
 						// TODO JNO - remove at the end of #1615
 						virtualReferencePartitions ?
 							PersistenceService.VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION :
-							PersistenceService.STORAGE_PROTOCOL_VERSION
+							PersistenceService.OBJECT_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION
 					)
 				)
 				.orElseThrow(StorageImplementationNotFoundException::new);

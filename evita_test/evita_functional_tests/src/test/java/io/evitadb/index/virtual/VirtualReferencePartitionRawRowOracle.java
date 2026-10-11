@@ -136,7 +136,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-final class VirtualReferencePartitionRawRowOracle {
+public final class VirtualReferencePartitionRawRowOracle {
 	/**
 	 * How many bodies of one collection and scope one query reads.
 	 */
@@ -224,7 +224,7 @@ final class VirtualReferencePartitionRawRowOracle {
 	 * @param session    the session to read the bodies in - inside an open session the one its steps ran in
 	 * @param collection the collection
 	 */
-	static void assertConsistent(
+	public static void assertConsistent(
 		@Nonnull String label,
 		@Nonnull EvitaSessionContract session,
 		@Nonnull EntityCollection collection

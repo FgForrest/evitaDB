@@ -29,11 +29,11 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
-import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
@@ -150,13 +150,26 @@ public final class SortValueAndChainFixture {
 	 * @param session the session to write in
 	 */
 	public static void setUpTypes(@Nonnull EvitaSessionContract session) {
+		setUpTypesIndexedAs(session, ReferenceIndexType.FOR_FILTERING);
+	}
+
+	/**
+	 * Same as {@link #setUpTypes(EvitaSessionContract)}, with the category reference indexed in both scopes by the
+	 * given index type instead of for filtering.
+	 *
+	 * @param session   the session to write in
+	 * @param indexType the index type of the category reference
+	 */
+	public static void setUpTypesIndexedAs(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull ReferenceIndexType indexType
+	) {
 		session.defineEntitySchema(ENTITY_CATEGORY).updateVia(session);
 		session.defineEntitySchema(ENTITY_PRODUCT)
 			.withLocale(Locale.ENGLISH, CZECH)
 			.withReferenceToEntity(
 				REFERENCE_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs
-					.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
+				whichIs -> SingleOwnerPartitionFixture.indexedInBothScopes(whichIs, indexType)
 					.withAttribute(ATTRIBUTE_ORDER, Integer.class, thatIs -> thatIs.filterable().sortable().nullable())
 					.withAttribute(
 						ATTRIBUTE_PRICE, BigDecimal.class,
@@ -216,12 +229,25 @@ public final class SortValueAndChainFixture {
 	 * @param session the session to write in
 	 */
 	public static void setUpChains(@Nonnull EvitaSessionContract session) {
+		setUpChainsIndexedAs(session, ReferenceIndexType.FOR_FILTERING);
+	}
+
+	/**
+	 * Same as {@link #setUpChains(EvitaSessionContract)}, with the category reference and its reflection indexed in
+	 * both scopes by the given index type instead of for filtering.
+	 *
+	 * @param session   the session to write in
+	 * @param indexType the index type of the category reference and its reflection
+	 */
+	public static void setUpChainsIndexedAs(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull ReferenceIndexType indexType
+	) {
 		session.defineEntitySchema(ENTITY_CATEGORY).updateVia(session);
 		session.defineEntitySchema(ENTITY_PRODUCT)
 			.withReferenceToEntity(
 				REFERENCE_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs
-					.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
+				whichIs -> SingleOwnerPartitionFixture.indexedInBothScopes(whichIs, indexType)
 					.withAttribute(ATTRIBUTE_ORDER, Integer.class, thatIs -> thatIs.filterable().sortable().nullable())
 					.withAttribute(ATTRIBUTE_PRODUCT_ORDER, Predecessor.class, thatIs -> thatIs.sortable().nullable())
 					.withAttribute(
@@ -233,10 +259,9 @@ public final class SortValueAndChainFixture {
 		session.defineEntitySchema(ENTITY_CATEGORY)
 			.withReflectedReferenceToEntity(
 				REFERENCE_PRODUCTS, ENTITY_PRODUCT, REFERENCE_CATEGORIES,
-				whichIs -> whichIs
-					.withCardinality(Cardinality.ZERO_OR_MORE)
-					.withAttributesInherited()
-					.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
+				whichIs -> SingleOwnerPartitionFixture.indexedInBothScopes(
+					whichIs.withCardinality(Cardinality.ZERO_OR_MORE).withAttributesInherited(), indexType
+				)
 			)
 			.updateVia(session);
 		for (int pk = 1; pk <= FREE_CATEGORY; pk++) {

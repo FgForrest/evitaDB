@@ -55,31 +55,45 @@ sealed public interface PersistenceService
 	 *
 	 * This means that the data needs to be converted from old to new protocol version first.
 	 */
-	int STORAGE_PROTOCOL_VERSION = 7;
+	int STORAGE_PROTOCOL_VERSION = 8;
 
 	// TODO JNO - remove at the end of #1615
 	/**
 	 * The storage protocol of a catalog whose single-owner reference partitions are represented virtually - by the
 	 * rows of the registry on their referenced-type entity index - rather than by reduced entity indexes of their own.
-	 * Until it becomes {@link #STORAGE_PROTOCOL_VERSION} itself, both protocols are current: a catalog header carries
-	 * one of the two, which one is decided once when the catalog is created, and every later write of the header
-	 * keeps it. The protocol of the header is therefore the representation of the catalog, and the engine reads it
-	 * at load before any collection is constructed.
+	 * It is the current {@link #STORAGE_PROTOCOL_VERSION}: every catalog is created so, except one a test asks to be
+	 * created with index objects (see {@link #OBJECT_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION}). Which of the
+	 * two a catalog header carries is decided once when the catalog is created, and every later write of the header
+	 * keeps it. The protocol of the header is therefore the representation of the catalog, and the engine reads it at
+	 * load before any collection is constructed. Exists only while the test API
+	 * `Evita#createCatalogWithVirtualReferencePartitions` can create a catalog of index objects, and goes with it.
 	 */
-	int VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION = 8;
+	int VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION = STORAGE_PROTOCOL_VERSION;
+
+	/**
+	 * The storage protocol of a catalog whose single-owner reference partitions are represented by reduced entity
+	 * indexes of their own. Development builds of evitaDB 2026.3 wrote every catalog under it, and the store refuses
+	 * such a catalog; it reads a header of this protocol only in a catalog this version created itself, on the request
+	 * of a test - its bootstrap record carries the {@link #STORAGE_PROTOCOL_VERSION}, which no build writing this
+	 * protocol stamped. Exists only while the test API `Evita#createCatalogWithVirtualReferencePartitions` can create
+	 * a catalog of index objects, and goes with it.
+	 */
+	int OBJECT_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION = 7;
 
 	// TODO JNO - remove at the end of #1615
 	/**
-	 * Returns TRUE when the given storage protocol is one the store reads and writes without any migration - the
-	 * {@link #STORAGE_PROTOCOL_VERSION} of a catalog representing its single-owner reference partitions by objects,
-	 * or the {@link #VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION} of one representing them virtually.
+	 * Returns TRUE when the given storage protocol is one a catalog header may carry without any migration - the
+	 * {@link #STORAGE_PROTOCOL_VERSION} of a catalog representing its single-owner reference partitions virtually, or
+	 * the {@link #OBJECT_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION} of one a test created with index objects.
+	 * Exists only while the test API `Evita#createCatalogWithVirtualReferencePartitions` can create a catalog of index
+	 * objects, and goes with it.
 	 *
-	 * @param storageProtocolVersion the storage protocol of a catalog header or a bootstrap record
+	 * @param storageProtocolVersion the storage protocol of a catalog header
 	 * @return TRUE when the protocol is current
 	 */
 	static boolean isCurrentStorageProtocolVersion(int storageProtocolVersion) {
 		return storageProtocolVersion == STORAGE_PROTOCOL_VERSION ||
-			storageProtocolVersion == VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION;
+			storageProtocolVersion == OBJECT_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION;
 	}
 
 	/**

@@ -47,14 +47,14 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins the pure transform the v6→v7 migration re-keys a persisted standalone unique index with
+ * Pins the pure transform the v6→v8 migration re-keys a persisted standalone unique index with
  * ({@link Migration_2026_3#rekeyUniqueKeys}): every value is mapped onto the canonical form the engine now persists,
  * a part already in that form is left alone, and two values naming one key are folded only when they provably are
  * the same entry - otherwise they are reported as a collision.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Migration_2026_3 — standalone unique index re-key (v6→v7)")
+@DisplayName("Migration_2026_3 — standalone unique index re-key (v6→v8)")
 @Tag(STORAGE)
 @Tag(INDEXING)
 @SuppressWarnings("removal") // the migration interface is @Deprecated(forRemoval); testing it is the point

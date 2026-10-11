@@ -113,9 +113,9 @@ import java.util.function.Supplier;
  *
  * A catalog may also represent its single-owner partitions **virtually** for good: its catalog header carries the
  * storage protocol {@link PersistenceService#VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION} instead of
- * {@link PersistenceService#STORAGE_PROTOCOL_VERSION}. Which one is decided once, when the catalog is created (see
- * {@link #isNewCatalogVirtual(Boolean)}), and never changes - the store refuses to rewrite the header under the other
- * protocol. The holder of a virtual catalog (see
+ * {@link PersistenceService#OBJECT_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION}. Which one is decided once, when the
+ * catalog is created (see {@link #isNewCatalogVirtual(Boolean)}), and never changes - every header the store writes
+ * for the catalog keeps it. The holder of a virtual catalog (see
  * {@link #isVirtual()}) maintains **and** reads virtually every collection of the catalog, those created later
  * included, and refuses to be switched off for any of them: once the registry is the only representation of a
  * single-owner partition, a collection that stopped maintaining it would lose the partition, and one that stopped

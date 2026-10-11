@@ -1777,8 +1777,7 @@ public class DefaultCatalogPersistenceService
 			// ctor already ran the v4→v5 migration inline — try-with-resources releases handles.
 			// The body deliberately has no content; the work is a side effect of construction.
 			Assert.isPremiseValid(
-				// TODO JNO - remove at the end of #1615
-				PersistenceService.isCurrentStorageProtocolVersion(svc.bootstrapUsed.storageProtocolVersion()),
+				svc.bootstrapUsed.storageProtocolVersion() == STORAGE_PROTOCOL_VERSION,
 				"Upgrade for catalog `" + catalogName + "` completed but bootstrap still reports " +
 					"storage protocol version " + svc.bootstrapUsed.storageProtocolVersion() +
 					" (expected " + STORAGE_PROTOCOL_VERSION + ")."
@@ -1897,6 +1896,14 @@ public class DefaultCatalogPersistenceService
 			this.storagePrefix, this.catalogStoragePath, this.bootstrapStorageSettings, this.storageSettings,
 			exportService
 		);
+		// before any migration replaces the bootstrap record it reads, and before the bootstrap file is opened for
+		// writing - a refused catalog keeps every byte it had
+		try {
+			refuseDevelopmentStorageProtocol(catalogName, this.bootstrapUsed);
+		} catch (ObsoleteStorageProtocolException ex) {
+			closeOnConstructorFailure();
+			throw ex;
+		}
 		this.bootstrapWriteHandle = new AtomicReference<>(
 			createBootstrapWriteOnlyHandle(catalogName, this.bootstrapStorageSettings,this.catalogStoragePath)
 		);
@@ -1935,8 +1942,7 @@ public class DefaultCatalogPersistenceService
 			throw t;
 		}
 
-		// TODO JNO - remove at the end of #1615
-		if (!PersistenceService.isCurrentStorageProtocolVersion(this.bootstrapUsed.storageProtocolVersion())) {
+		if (this.bootstrapUsed.storageProtocolVersion() != STORAGE_PROTOCOL_VERSION) {
 			closeOnConstructorFailure();
 			IOUtils.closeQuietly(catalogStoragePartPersistenceService::close);
 			throw new StoredProtocolVersionNotSupportedException(
@@ -2070,6 +2076,14 @@ public class DefaultCatalogPersistenceService
 			this.storagePrefix, this.catalogStoragePath, this.bootstrapStorageSettings, this.storageSettings,
 			this.exportService
 		);
+		// see the sibling constructor above - refused before any migration and before the bootstrap file is opened
+		// for writing
+		try {
+			refuseDevelopmentStorageProtocol(catalogName, this.bootstrapUsed);
+		} catch (ObsoleteStorageProtocolException ex) {
+			closeOnConstructorFailure();
+			throw ex;
+		}
 		this.bootstrapWriteHandle = new AtomicReference<>(
 			createBootstrapWriteOnlyHandle(catalogName, this.bootstrapStorageSettings, this.catalogStoragePath)
 		);
@@ -2100,8 +2114,7 @@ public class DefaultCatalogPersistenceService
 			false
 		);
 
-		// TODO JNO - remove at the end of #1615
-		if (!PersistenceService.isCurrentStorageProtocolVersion(this.bootstrapUsed.storageProtocolVersion())) {
+		if (this.bootstrapUsed.storageProtocolVersion() != STORAGE_PROTOCOL_VERSION) {
 			throw new StoredProtocolVersionNotSupportedException(
 				this.bootstrapUsed.storageProtocolVersion(), STORAGE_PROTOCOL_VERSION
 			);
@@ -5395,7 +5408,14 @@ public class DefaultCatalogPersistenceService
 	 * it is driven by {@link io.evitadb.api.requestResponse.schema.mutation.engine.UpgradeCatalogFormatMutation}
 	 * through the engine WAL. This method therefore throws {@link CatalogRequiresUpgradeException} on a v4 catalog
 	 * unless {@code allowInlineV4ToV5Upgrade} explicitly permits the inline upgrade (used only by the mutation
-	 * operator's work phase via {@link #runStorageProtocolUpgrade}).
+	 * operator's work phase via {@link #runStorageProtocolUpgrade}). The v5→v6 and v6→v8 migrations run inline
+	 * again.
+	 *
+	 * **Refusals:** a header of {@link Migration_2026_3#DEVELOPMENT_STORAGE_PROTOCOL_VERSION} was written only by
+	 * development builds and is refused with its own diagnosis (the bootstrap record of such a catalog is refused by
+	 * {@link #refuseDevelopmentStorageProtocol(String, CatalogBootstrap)} before this method runs; a header can still
+	 * carry the protocol under another bootstrap record). A header of any protocol no migration starts from is refused
+	 * as unknown - without the refusal the loop would read the same header again and again.
 	 *
 	 * @param storagePartPersistenceFactory the factory for the storage part persistence service
 	 * @param catalogVersion                the version of the catalog
@@ -5415,9 +5435,20 @@ public class DefaultCatalogPersistenceService
 		CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = storagePartPersistenceFactory.get();
 		CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = storagePartPersistenceService.getCatalogHeader(
 			catalogVersion);
+		final int headerStorageProtocolVersion = catalogHeader.storageProtocolVersion();
 		// TODO JNO - remove at the end of #1615
-		if (PersistenceService.isCurrentStorageProtocolVersion(catalogHeader.storageProtocolVersion())) {
+		if (
+			headerStorageProtocolVersion == STORAGE_PROTOCOL_VERSION ||
+				// a catalog of index objects a test asked this version to create: its bootstrap record - the one read
+				// at the open, no migration has run yet - carries the current protocol, which no build writing the
+				// protocol of index objects stamped
+				(headerStorageProtocolVersion == OBJECT_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION &&
+					this.bootstrapUsed.storageProtocolVersion() == STORAGE_PROTOCOL_VERSION)
+		) {
 			return storagePartPersistenceService;
+		} else if (headerStorageProtocolVersion == Migration_2026_3.DEVELOPMENT_STORAGE_PROTOCOL_VERSION) {
+			IOUtils.closeQuietly(storagePartPersistenceService::close);
+			throw developmentStorageProtocolRefusal(catalogHeader.catalogName());
 		} else {
 			CatalogOffsetIndexStoragePartPersistenceService currentService = storagePartPersistenceService;
 			do {
@@ -5483,12 +5514,18 @@ public class DefaultCatalogPersistenceService
 						newCatalogHeader -> updateStorageProtocolInCatalogHeader(newCatalogHeader, currentService, 6)
 					);
 				} else if (catalogStorageProtocolVersion == 6) {
-					Migration_2026_3.upgradeFromStorageProtocolVersion_6_to_7(
+					Migration_2026_3.upgradeFromStorageProtocolVersion_6_to_8(
 						catalogHeader,
 						currentService,
 						this::createEntityCollectionPersistenceService,
-						newCatalogHeader -> updateStorageProtocolInCatalogHeader(newCatalogHeader, currentService, 7)
+						newCatalogHeader -> updateStorageProtocolInCatalogHeader(
+							newCatalogHeader, currentService, STORAGE_PROTOCOL_VERSION
+						)
 					);
+				} else {
+					// no migration starts from this protocol - reading the header again would find it unchanged
+					IOUtils.closeQuietly(storagePartPersistenceService::close);
+					throw unknownStorageProtocolRefusal(catalogHeader.catalogName(), catalogStorageProtocolVersion);
 				}
 				// try to initialize the persistence service again - it should now have the correct storage protocol version
 				storagePartPersistenceService = storagePartPersistenceFactory.get();
@@ -5500,86 +5537,86 @@ public class DefaultCatalogPersistenceService
 		}
 	}
 
-	// TODO JNO - remove at the end of #1615 (the conversion is wired into the one 6 -> 8 protocol migration then)
 	/**
-	 * Converts the catalog from the representation of its single-owner reference partitions by index objects
-	 * ({@link PersistenceService#STORAGE_PROTOCOL_VERSION}) to the virtual one
-	 * ({@link PersistenceService#VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION}) - see
-	 * {@link VirtualReferencePartitionConversion}. A catalog already representing them virtually is left exactly as it
-	 * is: only its catalog header is read, to tell its representation, and no collection data store is opened, read or
-	 * written. The conversion is not part of the load path yet; it runs on a service that
-	 * opened the catalog without the engine and has not opened any collection data store, which must not be used for
-	 * anything else afterwards.
+	 * Refuses a catalog whose bootstrap record carries {@link Migration_2026_3#DEVELOPMENT_STORAGE_PROTOCOL_VERSION} -
+	 * a catalog written by a development build, whatever the protocol of its catalog header. A development build that
+	 * was interrupted between two migrations published a header of an older protocol under such a record, so the
+	 * header alone does not tell. Called by both constructors loading a catalog, on the bootstrap record read from the
+	 * disk, before any migration runs: every migration publishes a new bootstrap record of the current protocol, after
+	 * which the origin of the catalog could no longer be told.
 	 *
-	 * @return TRUE when the catalog was converted, FALSE when it already represented its single-owner partitions
-	 * virtually
-	 */
-	public boolean convertToVirtualReferencePartitions() {
-		return convertToVirtualReferencePartitions(
-			VirtualReferencePartitionConversion.Observer.NONE,
-			VirtualReferencePartitionConversion.DEFAULT_FLUSH_THRESHOLD
-		);
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Converts the catalog like {@link #convertToVirtualReferencePartitions()}, reporting the progress to the observer
-	 * and flushing the collection data stores at the given threshold.
+	 * A bootstrap record of the current protocol over a header of an older one is legitimate - a migration of this
+	 * version that published one step and failed in the next - so only the protocol of the record itself is checked.
 	 *
-	 * @param observer       observes the conversion
-	 * @param flushThreshold how many records the conversion may write into a collection data store before it flushes
-	 * @return TRUE when the catalog was converted, FALSE when it already represented its single-owner partitions
-	 * virtually
+	 * @param catalogName the name of the catalog
+	 * @param bootstrap   the bootstrap record read from the disk
+	 * @throws ObsoleteStorageProtocolException when the record carries the protocol of development builds
 	 */
-	boolean convertToVirtualReferencePartitions(
-		@Nonnull VirtualReferencePartitionConversion.Observer observer,
-		int flushThreshold
-	) {
-		final long catalogVersion = this.bootstrapUsed.catalogVersion();
-		final CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService =
-			getStoragePartPersistenceService(catalogVersion);
-		final CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader =
-			storagePartPersistenceService.getCatalogHeader(catalogVersion);
-		// dispatch by the protocol of the header: a virtual catalog has nothing to convert, and the conversion would
-		// discard its rows - the registry is the only representation of its single-owner partitions
-		if (catalogHeader.storageProtocolVersion() == VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION) {
-			return false;
+	static void refuseDevelopmentStorageProtocol(@Nonnull String catalogName, @Nonnull CatalogBootstrap bootstrap)
+		throws ObsoleteStorageProtocolException {
+		if (bootstrap.storageProtocolVersion() == Migration_2026_3.DEVELOPMENT_STORAGE_PROTOCOL_VERSION) {
+			throw developmentStorageProtocolRefusal(catalogName);
 		}
-		// the conversion opens every collection data store on its own - a second open handle of one of them would
-		// write into the same file behind the conversion's back
-		Assert.isPremiseValid(
-			this.entityCollectionPersistenceServices.isEmpty(),
-			() -> "Catalog `" + this.catalogName + "` cannot be converted while a collection data store is open!"
+	}
+
+	/**
+	 * Creates the refusal of a catalog written under {@link Migration_2026_3#DEVELOPMENT_STORAGE_PROTOCOL_VERSION}. The
+	 * message names the format and what to do, never damage: nothing of the catalog is wrong, it is only of a format
+	 * no release wrote and this version does not read.
+	 *
+	 * @param catalogName the name of the catalog
+	 * @return the exception to throw
+	 */
+	@Nonnull
+	private static ObsoleteStorageProtocolException developmentStorageProtocolRefusal(@Nonnull String catalogName) {
+		return new ObsoleteStorageProtocolException(
+			"Catalog `" + catalogName + "` was written under storage protocol " +
+				Migration_2026_3.DEVELOPMENT_STORAGE_PROTOCOL_VERSION + ", an intermediate format written only by " +
+				"development builds of evitaDB 2026.3 and never by a release. It cannot be upgraded: restore the " +
+				"catalog from a backup made by evitaDB 2026.2 or older and let this version upgrade it, or recreate " +
+				"it.",
+			"Catalog `" + catalogName + "` was written under storage protocol " +
+				Migration_2026_3.DEVELOPMENT_STORAGE_PROTOCOL_VERSION + " by a development build of evitaDB and " +
+				"cannot be upgraded - restore it from a backup made by evitaDB 2026.2 or older, or recreate it."
 		);
-		VirtualReferencePartitionConversion.convertCatalog(
-			catalogHeader,
-			storagePartPersistenceService,
-			this::createEntityCollectionPersistenceService,
-			newCatalogHeader -> updateStorageProtocolInCatalogHeader(
-				newCatalogHeader, storagePartPersistenceService, VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION,
-				newCatalogHeader.walFileReference(), true
-			),
-			observer,
-			flushThreshold
+	}
+
+	/**
+	 * Creates the refusal of a catalog whose header carries a storage protocol no migration starts from and this
+	 * version does not read.
+	 *
+	 * @param catalogName            the name of the catalog
+	 * @param storageProtocolVersion the storage protocol of the catalog header
+	 * @return the exception to throw
+	 */
+	@Nonnull
+	private static ObsoleteStorageProtocolException unknownStorageProtocolRefusal(
+		@Nonnull String catalogName,
+		int storageProtocolVersion
+	) {
+		return new ObsoleteStorageProtocolException(
+			"Catalog `" + catalogName + "` carries the storage protocol " + storageProtocolVersion + " in its " +
+				"catalog header, which this version of evitaDB (storage protocol " + STORAGE_PROTOCOL_VERSION + ") " +
+				"neither reads nor upgrades. A catalog written by a newer version of evitaDB must be opened by that " +
+				"version.",
+			"Catalog `" + catalogName + "` carries the unknown storage protocol " + storageProtocolVersion + "."
 		);
-		return true;
 	}
 
 	// TODO JNO - remove at the end of #1615
 	/**
-	 * Returns the storage protocol a rewrite of the given catalog header is written under. The header of a catalog
-	 * representing its single-owner reference partitions virtually keeps
-	 * {@link PersistenceService#VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION} for the life of the catalog;
-	 * any other header is written under {@link PersistenceService#STORAGE_PROTOCOL_VERSION}, as every header was
-	 * before the virtual representation existed. Only the protocol migrations write a header under another protocol,
-	 * and they do it explicitly.
+	 * Returns the storage protocol a rewrite of the given catalog header is written under. The header of a catalog a
+	 * test created with index objects keeps
+	 * {@link PersistenceService#OBJECT_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION} for the life of the catalog; any
+	 * other header is written under {@link PersistenceService#STORAGE_PROTOCOL_VERSION}. Only the protocol migrations
+	 * write a header under another protocol, and they do it explicitly.
 	 *
 	 * @param catalogHeader the header being rewritten
 	 * @return the storage protocol the rewritten header carries
 	 */
 	private static int storageProtocolVersionKeptBy(@Nonnull CatalogHeader<?, ?> catalogHeader) {
-		return catalogHeader.storageProtocolVersion() == VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION ?
-			VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION : STORAGE_PROTOCOL_VERSION;
+		return catalogHeader.storageProtocolVersion() == OBJECT_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION ?
+			OBJECT_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION : STORAGE_PROTOCOL_VERSION;
 	}
 
 	/**
@@ -5624,31 +5661,6 @@ public class DefaultCatalogPersistenceService
 		int storageProtocolVersion,
 		@Nullable LogFileRecordReference walFileReference
 	) {
-		updateStorageProtocolInCatalogHeader(
-			catalogHeader, storagePartPersistenceService, storageProtocolVersion, walFileReference, false
-		);
-	}
-
-	/**
-	 * Updates the storage protocol version in the catalog header and persists the updated information, like
-	 * {@link #updateStorageProtocolInCatalogHeader(CatalogHeader, CatalogOffsetIndexStoragePartPersistenceService, int,
-	 * LogFileRecordReference)}, stating whether the header is the one that converts the catalog to the virtual
-	 * representation of its single-owner reference partitions.
-	 *
-	 * @param catalogHeader                 the catalog header containing metadata about the catalog
-	 * @param storagePartPersistenceService the service used to manage persistence of the catalog
-	 *                                      header and related storage parts
-	 * @param storageProtocolVersion        the new storage protocol version to be set
-	 * @param walFileReference              the WAL file reference to store in the header
-	 * @param representationConverted       TRUE only for the header publishing that conversion
-	 */
-	private void updateStorageProtocolInCatalogHeader(
-		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
-		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService,
-		int storageProtocolVersion,
-		@Nullable LogFileRecordReference walFileReference,
-		boolean representationConverted
-	) {
 		storagePartPersistenceService.writeCatalogHeader(
 			storageProtocolVersion,
 			catalogHeader.version(),
@@ -5658,8 +5670,7 @@ public class DefaultCatalogPersistenceService
 			catalogHeader.catalogId(),
 			catalogHeader.catalogName(),
 			catalogHeader.catalogState(),
-			catalogHeader.lastEntityCollectionPrimaryKey(),
-			representationConverted
+			catalogHeader.lastEntityCollectionPrimaryKey()
 		);
 		final OffsetIndexDescriptor flushedDescriptor = storagePartPersistenceService.flush(catalogHeader.version());
 		this.bootstrapUsed = writeCatalogBootstrap(

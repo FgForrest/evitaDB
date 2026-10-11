@@ -32,7 +32,9 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor.ReferenceSchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.core.Evita;
@@ -205,7 +207,7 @@ public final class SingleOwnerPartitionFixture {
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Consumer<ReferenceSchemaBuilder> categories
 	) {
-		setUp(session, categories, false);
+		setUp(session, categories, false, ReferenceIndexType.FOR_FILTERING);
 	}
 
 	/**
@@ -215,7 +217,23 @@ public final class SingleOwnerPartitionFixture {
 	 * @param session the session to write in
 	 */
 	public static void setUpWithReflectedProducts(@Nonnull EvitaSessionContract session) {
-		setUp(session, categories -> { }, true);
+		setUpWithReflectedProductsIndexedAs(session, ReferenceIndexType.FOR_FILTERING);
+	}
+
+	/**
+	 * Same as {@link #setUpWithReflectedProducts(EvitaSessionContract)}, with every reference the fixture indexes for
+	 * filtering - `categories`, `gallery` and the reflected `products` - indexed in both scopes by the given index
+	 * type instead. Indexed for partitioning, every partition of them is an index object, the single-owner ones
+	 * included: the shape a catalog written by 2026.2 holds once those references are changed to filtering only.
+	 *
+	 * @param session   the session to write in
+	 * @param indexType the index type of the references the fixture otherwise indexes for filtering
+	 */
+	public static void setUpWithReflectedProductsIndexedAs(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull ReferenceIndexType indexType
+	) {
+		setUp(session, categories -> { }, true, indexType);
 	}
 
 	/**
@@ -236,7 +254,23 @@ public final class SingleOwnerPartitionFixture {
 	 * @param session the session to write in
 	 */
 	public static void setUpWithEveryReadRoute(@Nonnull EvitaSessionContract session) {
-		setUpWithReflectedProducts(session);
+		setUpWithEveryReadRouteIndexedAs(session, ReferenceIndexType.FOR_FILTERING);
+	}
+
+	/**
+	 * Same as {@link #setUpWithEveryReadRoute(EvitaSessionContract)}, with every reference the fixture indexes for
+	 * filtering - `categories`, `gallery`, `sections` and the reflected `products` - indexed in both scopes by the
+	 * given index type instead (see
+	 * {@link #setUpWithReflectedProductsIndexedAs(EvitaSessionContract, ReferenceIndexType)}).
+	 *
+	 * @param session   the session to write in
+	 * @param indexType the index type of the references the fixture otherwise indexes for filtering
+	 */
+	public static void setUpWithEveryReadRouteIndexedAs(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull ReferenceIndexType indexType
+	) {
+		setUpWithReflectedProductsIndexedAs(session, indexType);
 		session.defineEntitySchema(ENTITY_SECTION)
 			.withHierarchyIndexedInScope(Scope.LIVE, Scope.ARCHIVED)
 			.updateVia(session);
@@ -244,8 +278,7 @@ public final class SingleOwnerPartitionFixture {
 			.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().nullable())
 			.withReferenceToEntity(
 				REFERENCE_SECTIONS, ENTITY_SECTION, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs
-					.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
+				whichIs -> indexedInBothScopes(whichIs, indexType)
 					.indexedWithComponentsInScope(
 						Scope.LIVE,
 						ReferenceIndexedComponents.REFERENCED_ENTITY, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
@@ -472,11 +505,13 @@ public final class SingleOwnerPartitionFixture {
 	 * @param session           the session to write in
 	 * @param categories        extends the definition of the category reference
 	 * @param reflectedProducts TRUE to define the reflected `products` reference on the category
+	 * @param indexType         the index type of the references indexed for filtering otherwise
 	 */
 	private static void setUp(
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Consumer<ReferenceSchemaBuilder> categories,
-		boolean reflectedProducts
+		boolean reflectedProducts,
+		@Nonnull ReferenceIndexType indexType
 	) {
 		session.defineEntitySchema(ENTITY_CATEGORY).updateVia(session);
 		session.defineEntitySchema(ENTITY_MEDIA).updateVia(session);
@@ -487,8 +522,7 @@ public final class SingleOwnerPartitionFixture {
 			.withReferenceToEntity(
 				REFERENCE_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
 				whichIs -> categories.accept(
-					whichIs
-						.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
+					indexedInBothScopes(whichIs, indexType)
 						.faceted()
 						.withAttribute(
 							ATTRIBUTE_ORDER, Integer.class,
@@ -502,8 +536,7 @@ public final class SingleOwnerPartitionFixture {
 			)
 			.withReferenceToEntity(
 				REFERENCE_GALLERY, ENTITY_MEDIA, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
-				whichIs -> whichIs
-					.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
+				whichIs -> indexedInBothScopes(whichIs, indexType)
 					.withAttribute(ATTRIBUTE_ROLE, String.class, thatIs -> thatIs.filterable().representative())
 			)
 			.withReferenceToEntity(
@@ -515,10 +548,9 @@ public final class SingleOwnerPartitionFixture {
 			session.defineEntitySchema(ENTITY_CATEGORY)
 				.withReflectedReferenceToEntity(
 					REFERENCE_PRODUCTS, ENTITY_PRODUCT, REFERENCE_CATEGORIES,
-					whichIs -> whichIs
-						.withCardinality(Cardinality.ZERO_OR_MORE)
-						.withAttributesInherited()
-						.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
+					whichIs -> indexedInBothScopes(
+						whichIs.withCardinality(Cardinality.ZERO_OR_MORE).withAttributesInherited(), indexType
+					)
 				)
 				.updateVia(session);
 		}
@@ -532,6 +564,27 @@ public final class SingleOwnerPartitionFixture {
 		for (int pk = 1; pk <= PRODUCT_COUNT; pk++) {
 			session.upsertEntity(newProduct(session, pk));
 		}
+	}
+
+	/**
+	 * Indexes a reference in both scopes by the given index type - for filtering, or for filtering and partitioning.
+	 *
+	 * @param reference the builder of the reference
+	 * @param indexType the index type
+	 * @param <T>       the type of the builder
+	 * @return the builder
+	 */
+	@Nonnull
+	static <T extends ReferenceSchemaEditor<T>> T indexedInBothScopes(
+		@Nonnull T reference,
+		@Nonnull ReferenceIndexType indexType
+	) {
+		return switch (indexType) {
+			case FOR_FILTERING -> reference.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED);
+			case FOR_FILTERING_AND_PARTITIONING ->
+				reference.indexedForFilteringAndPartitioningInScope(Scope.LIVE, Scope.ARCHIVED);
+			case NONE -> throw new IllegalArgumentException("The fixture indexes every reference it defines.");
+		};
 	}
 
 	/**

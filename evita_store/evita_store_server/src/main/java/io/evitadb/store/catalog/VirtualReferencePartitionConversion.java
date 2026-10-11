@@ -26,7 +26,6 @@ package io.evitadb.store.catalog;
 import com.carrotsearch.hppc.IntHashSet;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -44,101 +43,85 @@ import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.component.loader.VirtualReferencePartitionLoader;
 import io.evitadb.index.mutation.local.VirtualReferencePartitionWriter;
 import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
-import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
-import io.evitadb.spi.store.catalog.persistence.PersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;
 import io.evitadb.store.catalog.Migration_2025_6.NoChangeHeaderInfoSupplier;
-import io.evitadb.store.model.header.CollectionFileReference;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
-import io.evitadb.store.model.reference.LogFileRecordReference;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
-import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Objects;
-import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.function.Consumer;
-import java.util.function.Function;
 
 /**
- * Converts a catalog representing the single-owner partitions of its references by index objects (storage protocol
- * {@link PersistenceService#STORAGE_PROTOCOL_VERSION}) into one representing them virtually, as rows of the registry
- * of single-owner partitions (storage protocol
- * {@link PersistenceService#VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION}).
+ * Converts the single-owner reference partitions of one collection written by evitaDB 2026.2 (storage protocol 6),
+ * where every partition is an index object of its own, into rows of the registry of single-owner partitions - the
+ * representation this version keeps them in. It is one step of the storage protocol migration
+ * {@link Migration_2026_3#upgradeFromStorageProtocolVersion_6_to_8}, which runs it for each collection after it
+ * re-keyed the collection's other indexes, and publishes the result of both.
  *
  * # What it converts
  *
  * Every index object of a partition with a single owner, of a reference indexed for filtering with the referenced
  * entity component in the partition's scope ({@link VirtualReferencePartitionWriter#isShadowed}), is replaced by the
- * row the write path of a virtual catalog keeps for it: the same primary key, the same owner, the same referenced
- * entity and representative attribute values, and the sort values and chain predecessors the partition holds for its
- * owner. The row is written by {@link VirtualReferencePartitionWriter#demoteToRow} - the very demotion the write path
- * runs when a partition is left with one owner of two - so the conversion and the write path cannot drift apart. The
- * partition's storage parts are removed and its collection header no longer lists it; the referenced-type entity
- * index keeps advertising its primary key, as it advertises every partition of a virtual catalog, and the membership
- * of its owner is rebuilt from the row at every load.
+ * row the write path keeps for it: the same primary key, the same owner, the same referenced entity and
+ * representative attribute values, and the sort values and chain predecessors the partition holds for its owner. The
+ * row is written by {@link VirtualReferencePartitionWriter#demoteToRow} - the very demotion the write path runs when a
+ * partition is left with one owner of two - so the conversion and the write path cannot drift apart. The partition's
+ * storage parts are removed and its collection header no longer lists it; the referenced-type entity index keeps
+ * advertising its primary key, as it advertises every partition, and the membership of its owner is rebuilt from the
+ * row at every load.
  *
- * The partitions are classified against the schema the loaded catalog will have: reflected references are bound to the
- * references they reflect ({@link EntityCollection#bindReflectedReferences}) before anything is decided, because a
- * reflected reference may inherit its indexing from the reference it reflects, and the stored schema alone does not
- * say what it inherits.
+ * The partitions are classified against the schema the loaded catalog will have: the migration binds reflected
+ * references to the references they reflect ({@link EntityCollection#bindReflectedReferences}) before it hands the
+ * schema over, because a reflected reference may inherit its indexing from the reference it reflects, and the stored
+ * schema alone does not say what it inherits.
  *
- * Registry rows a catalog of this protocol may already carry - the shadow registry a test mode maintains next to the
- * objects - are never trusted: every row of every registry is discarded and the rows are rebuilt from the objects.
+ * A catalog of protocol 6 holds no registry row: 2026.2 kept no registry, and a registry without a stored root loads
+ * empty. A registry row met on the way is therefore a premise failure rather than something to rebuild - it would mean
+ * the catalog was stamped with a protocol it was not written under.
  *
  * # What it leaves as it is
  *
- * A partition with several owners stays an index object, as it does in a virtual catalog, and so does every partition
- * of a reference indexed for partitioning. A partition of a reference that is neither - the reference is gone from the
+ * A partition with several owners stays an index object, as the write path keeps it, and so does every partition of a
+ * reference indexed for partitioning. A partition of a reference that is neither - the reference is gone from the
  * schema, or no longer indexed with the referenced entity component in the scope, or a partition without an owner or
  * without a referenced-type entity index to carry its row - is left as it is, and the operator is warned. Such a
  * partition never aborts the conversion.
  *
  * # Durability
  *
- * Nothing written here is published by it. The collection data stores are only ever flushed through
+ * Nothing written here is published by it. The collection data store is only ever flushed through
  * {@link DefaultEntityCollectionPersistenceService#flush}, which appends records and an offset-index fragment no
  * published header names yet - it neither compacts a data store nor retires or deletes a file; compaction and file
  * retirement live in the catalog persistence service's own collection flush and bootstrap preparation, which the
- * conversion never calls. The new collection headers are put into the catalog data store unflushed, and the caller's
- * post-upgrade action publishes all of it at once with the catalog header of the virtual protocol and one bootstrap
- * record. A failure anywhere before that leaves the last published bootstrap record pointing at the catalog as it
- * was, so it loads as it was and a later run starts from it again.
+ * conversion never calls. Removals are offset-index records, not files. The migration puts the new collection header
+ * into the catalog data store unflushed and publishes all of it at once, with the catalog header of the current
+ * protocol and one bootstrap record. A failure anywhere before that leaves the last published bootstrap record
+ * pointing at the catalog as it was, so it loads as it was and a later run starts from it again.
  *
  * # Memory
  *
- * One collection data store, one registry and one partition are held at a time: the collections are converted one by
- * one, the referenced-type entity indexes of a collection one by one - loading only their registries, never the
- * entity indexes carrying them - and their partitions one by one. The records written into a collection data store
- * wait in memory until it is flushed, so the conversion flushes it whenever the records it wrote since the last flush
- * reach a threshold.
- *
- * # Wiring
- *
- * The conversion is not part of the load path yet -
- * {@link DefaultCatalogPersistenceService#convertToVirtualReferencePartitions()} runs it on demand. Once every storage
- * change of the release is folded into one migration from the protocol of the previous release,
- * {@link #convertCollection} is the step that migration runs for each collection, after it rewrote the collection's
- * other indexes.
+ * One registry and one partition are held at a time: the referenced-type entity indexes of a collection are converted
+ * one by one - loading only their registries, never the entity indexes carrying them - and their partitions one by
+ * one. The records written into the collection data store wait in memory until it is flushed, so the conversion
+ * flushes it whenever the records it wrote since the last flush reach a threshold. The migration holds every
+ * collection data store open while it runs, and the records the re-key wrote into one wait unflushed until the
+ * conversion's first flush.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @deprecated removable together with {@link Migration_2026_3}, once no catalog older than 2026.3 can be encountered -
@@ -155,139 +138,13 @@ final class VirtualReferencePartitionConversion {
 	}
 
 	/**
-	 * Converts the whole catalog - see the class documentation - and hands the catalog header of the virtual protocol,
-	 * addressing every converted collection data store, to the post-upgrade action, which publishes it. The catalog
-	 * must represent its single-owner partitions by index objects: the conversion discards every registry row it finds,
-	 * which in a virtual catalog are the only representation of its single-owner partitions.
-	 *
-	 * @param catalogHeader            the catalog header, of the storage protocol representing partitions by objects
-	 * @param catalogStorage           the catalog-level storage part service
-	 * @param collectionServiceFactory opens the data store of one collection - a new instance on every call, closed by
-	 *                                 the conversion
-	 * @param postUpgradeAction        publishes the catalog header the conversion produced
-	 * @param observer                 observes the conversion
-	 * @param flushThreshold           how many records the conversion may write into a collection data store before
-	 *                                 it flushes it
-	 * @throws GenericEvitaInternalError when the catalog header is of another storage protocol
-	 */
-	static void convertCatalog(
-		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
-		@Nonnull CatalogOffsetIndexStoragePartPersistenceService catalogStorage,
-		@Nonnull
-		Function<EntityCollectionFileHeader, DefaultEntityCollectionPersistenceService> collectionServiceFactory,
-		@Nonnull Consumer<CatalogHeader<LogFileRecordReference, CollectionFileReference>> postUpgradeAction,
-		@Nonnull Observer observer,
-		int flushThreshold
-	) {
-		final String catalogName = catalogHeader.catalogName();
-		Assert.isPremiseValid(
-			catalogHeader.storageProtocolVersion() == PersistenceService.STORAGE_PROTOCOL_VERSION,
-			() -> "Catalog `" + catalogName + "` has the storage protocol " + catalogHeader.storageProtocolVersion() +
-				" - only a catalog of the storage protocol " + PersistenceService.STORAGE_PROTOCOL_VERSION +
-				" represents its single-owner reference partitions by index objects and can be converted!"
-		);
-		Assert.isPremiseValid(flushThreshold > 0, "The flush threshold must be positive!");
-		ConsoleWriter.writeLine(
-			"Catalog `" + catalogName + "` uses storage protocol version " +
-				PersistenceService.STORAGE_PROTOCOL_VERSION + "; converting its single-owner reference partitions " +
-				"into registry rows (protocol " +
-				PersistenceService.VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION + ").",
-			ConsoleColor.BRIGHT_BLUE
-		);
-
-		final long catalogVersion = catalogHeader.version();
-		final Collection<CollectionFileReference> fileReferences = catalogHeader.getEntityTypeFileIndexes();
-		// the first pass reads every stored schema - a reflected reference is bound to the schema of another collection
-		final Map<String, EntityCollectionFileHeader> collectionHeaders =
-			CollectionUtils.createHashMap(fileReferences.size());
-		final Map<String, EntitySchema> storedSchemas = CollectionUtils.createHashMap(fileReferences.size());
-		for (final CollectionFileReference fileReference : fileReferences) {
-			final EntityCollectionFileHeader collectionHeader =
-				readCollectionHeader(catalogName, catalogVersion, catalogStorage, fileReference);
-			collectionHeaders.put(fileReference.entityType(), collectionHeader);
-			try (
-				final DefaultEntityCollectionPersistenceService collectionService =
-					collectionServiceFactory.apply(collectionHeader)
-			) {
-				storedSchemas.put(
-					fileReference.entityType(),
-					readStoredSchema(catalogVersion, collectionService, fileReference.entityType())
-				);
-			}
-		}
-		final Function<String, Optional<? extends EntitySchemaContract>> schemaLookup =
-			entityType -> Optional.ofNullable(storedSchemas.get(entityType));
-
-		// the second pass converts the collections one by one
-		final Map<String, CollectionFileReference> newCollectionFileIndex =
-			CollectionUtils.createHashMap(fileReferences.size());
-		for (final CollectionFileReference fileReference : fileReferences) {
-			final String entityType = fileReference.entityType();
-			final EntityCollectionFileHeader collectionHeader = collectionHeaders.get(entityType);
-			final EntitySchema entitySchema = EntityCollection.bindReflectedReferences(
-				storedSchemas.get(entityType), schemaLookup
-			);
-			final CollectionConversion conversion;
-			try (
-				final DefaultEntityCollectionPersistenceService collectionService =
-					collectionServiceFactory.apply(collectionHeader)
-			) {
-				conversion = convertCollection(
-					catalogVersion, collectionHeader, collectionService, entitySchema, observer, flushThreshold
-				);
-				if (conversion.changed()) {
-					final EntityCollectionFileHeader newCollectionHeader =
-						collectionService.getEntityCollectionHeader();
-					catalogStorage.putStoragePart(catalogVersion, newCollectionHeader);
-					newCollectionFileIndex.put(
-						entityType,
-						new CollectionFileReference(
-							entityType,
-							fileReference.entityTypePrimaryKey(),
-							fileReference.fileIndex(),
-							newCollectionHeader.fileLocation()
-						)
-					);
-				} else {
-					newCollectionFileIndex.put(entityType, fileReference);
-				}
-			}
-			report(catalogName, conversion);
-			observer.collectionConverted(conversion);
-		}
-
-		// the single publication of everything above
-		postUpgradeAction.accept(
-			new CatalogHeader<>(
-				PersistenceService.VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION,
-				catalogVersion,
-				catalogHeader.walFileReference(),
-				newCollectionFileIndex,
-				catalogHeader.compressedKeys(),
-				catalogHeader.catalogId(),
-				catalogName,
-				catalogHeader.catalogState(),
-				catalogHeader.lastEntityCollectionPrimaryKey(),
-				catalogHeader.activeRecordShare()
-			)
-		);
-
-		ConsoleWriter.writeLine(
-			"Catalog `" + catalogName + "` was successfully converted to the protocol version " +
-				PersistenceService.VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION + ".",
-			ConsoleColor.BRIGHT_BLUE, ConsoleDecoration.BOLD
-		);
-	}
-
-	/**
 	 * Converts the single-owner partitions of one collection into registry rows - see the class documentation - and,
 	 * when it wrote anything, flushes the collection data store with a collection header that no longer lists the
 	 * converted partitions. Nothing is published: the caller puts the collection header the data store holds afterwards
 	 * into the catalog data store and publishes it with the catalog header.
 	 *
-	 * A migration running other steps over the collection runs this one after them: it reads only the entity indexes
-	 * the collection header lists, and removes the ones it converts. Its final flush writes whatever those steps left
-	 * unflushed too.
+	 * The migration runs it after its other steps over the collection: it reads only the entity indexes the collection
+	 * header lists, and removes the ones it converts. Its final flush writes whatever those steps left unflushed too.
 	 *
 	 * @param catalogVersion   the catalog version being converted
 	 * @param collectionHeader the collection header as published
@@ -296,6 +153,8 @@ final class VirtualReferencePartitionConversion {
 	 * @param observer         observes the conversion
 	 * @param flushThreshold   how many records may be written into the data store before it is flushed
 	 * @return what the conversion did
+	 * @throws GenericEvitaInternalError when a registry of the collection holds a row - see the class documentation -
+	 *                                   or the flush threshold is not positive
 	 */
 	@Nonnull
 	static CollectionConversion convertCollection(
@@ -306,6 +165,7 @@ final class VirtualReferencePartitionConversion {
 		@Nonnull Observer observer,
 		int flushThreshold
 	) {
+		Assert.isPremiseValid(flushThreshold > 0, "The flush threshold must be positive!");
 		final String entityType = collectionHeader.entityType();
 		final OffsetIndexStoragePartPersistenceService storage = collectionService.getStoragePartPersistenceService();
 		final CollectionWriter writer = new CollectionWriter(
@@ -326,7 +186,6 @@ final class VirtualReferencePartitionConversion {
 		// convert the partitions of one referenced-type entity index at a time
 		int converted = 0;
 		int shared = 0;
-		int discardedRows = 0;
 		for (final Entry<ReferenceInScope, Integer> typeIndex : classification.typeIndexes().entrySet()) {
 			final ReferenceInScope reference = typeIndex.getKey();
 			final int typeIndexPrimaryKey = typeIndex.getValue();
@@ -335,8 +194,13 @@ final class VirtualReferencePartitionConversion {
 			);
 			writer.heldRegistries++;
 			observer.registryLoaded(entityType, reference.referenceName(), reference.scope(), registry);
-			// rows kept next to objects are never trusted - every partition gets its row from its object below
-			discardedRows += VirtualReferencePartitionWriter.discardAllRows(registry);
+			// the rows are written from the objects below - a registry already holding anything was written by no
+			// release, so the catalog does not carry the protocol it was written under
+			Assert.isPremiseValid(
+				registry.isEmpty(),
+				() -> "The protocol-6 catalog holds a registry row of " + reference + " of collection `" + entityType +
+					"`, which no release writes - the catalog was not written under the protocol its header carries!"
+			);
 			final CompositeIntArray partitions = classification.candidates().remove(reference);
 			if (partitions != null) {
 				final PartitionCounts counts = convertPartitions(
@@ -364,8 +228,7 @@ final class VirtualReferencePartitionConversion {
 
 		final boolean changed = writer.finish();
 		return new CollectionConversion(
-			entityType, changed, converted, shared, classification.partitioned(), discardedRows,
-			writer.intermediateFlushes, leftovers
+			entityType, changed, converted, shared, classification.partitioned(), writer.intermediateFlushes, leftovers
 		);
 	}
 
@@ -503,67 +366,18 @@ final class VirtualReferencePartitionConversion {
 	}
 
 	/**
-	 * Reads the published header of a collection, resolved against the catalog header - the stored copy may name a
-	 * data file generation a compaction has already replaced, the catalog header cannot lag.
-	 *
-	 * @param catalogName    the name of the catalog
-	 * @param catalogVersion the catalog version being converted
-	 * @param catalogStorage the catalog-level storage part service
-	 * @param fileReference  the collection's entry in the catalog header
-	 * @return the collection header
-	 */
-	@Nonnull
-	private static EntityCollectionFileHeader readCollectionHeader(
-		@Nonnull String catalogName,
-		long catalogVersion,
-		@Nonnull CatalogOffsetIndexStoragePartPersistenceService catalogStorage,
-		@Nonnull CollectionFileReference fileReference
-	) {
-		return EntityCollectionHeaderReconciler.reconcile(
-			catalogName,
-			fileReference,
-			Objects.requireNonNull(
-				catalogStorage.getStoragePart(
-					catalogVersion, fileReference.entityTypePrimaryKey(), EntityCollectionFileHeader.class
-				),
-				"Collection header of `" + fileReference.entityType() + "` is missing!"
-			)
-		);
-	}
-
-	/**
-	 * Reads the schema of a collection as it is stored - always under part id 1.
-	 *
-	 * @param catalogVersion    the catalog version being converted
-	 * @param collectionService the data store of the collection
-	 * @param entityType        the entity type, for the error message
-	 * @return the stored schema
-	 */
-	@Nonnull
-	private static EntitySchema readStoredSchema(
-		long catalogVersion,
-		@Nonnull DefaultEntityCollectionPersistenceService collectionService,
-		@Nonnull String entityType
-	) {
-		return Objects.requireNonNull(
-			collectionService.getStoragePartPersistenceService()
-				.getStoragePart(catalogVersion, 1, EntitySchemaStoragePart.class),
-			"Entity schema storage part is missing for collection `" + entityType + "`!"
-		).entitySchema();
-	}
-
-	/**
-	 * Tells the operator what the conversion did with one collection holding partitions, and warns about every
-	 * partition it left as an index object although its reference is not one whose partitions are always index
-	 * objects.
+	 * Tells the operator what the conversion did with one collection holding partitions - including how many times it
+	 * flushed the collection data store before its final flush, which tells the operator of a large collection that
+	 * the conversion bounds what it keeps in memory - and warns about every partition it left as an index object
+	 * although its reference is not one whose partitions are always index objects.
 	 *
 	 * @param catalogName the name of the catalog
 	 * @param conversion  what the conversion did
 	 */
-	private static void report(@Nonnull String catalogName, @Nonnull CollectionConversion conversion) {
+	static void report(@Nonnull String catalogName, @Nonnull CollectionConversion conversion) {
 		if (
-			conversion.convertedPartitions() + conversion.sharedPartitions() + conversion.partitionedPartitions() +
-				conversion.discardedRows() == 0 && conversion.leftovers().isEmpty()
+			conversion.convertedPartitions() + conversion.sharedPartitions() +
+				conversion.partitionedPartitions() == 0 && conversion.leftovers().isEmpty()
 		) {
 			// a collection without partitions has nothing to report
 			return;
@@ -572,7 +386,8 @@ final class VirtualReferencePartitionConversion {
 			"Entity collection `" + conversion.entityType() + "`: " + conversion.convertedPartitions() +
 				" single-owner partition(s) converted into registry rows, " + conversion.sharedPartitions() +
 				" shared and " + conversion.partitionedPartitions() + " partitioned partition(s) kept as index " +
-				"objects, " + conversion.discardedRows() + " registry row(s) found and rebuilt.",
+				"objects, the data store flushed " + conversion.intermediateFlushes() + " time(s) before the " +
+				"final flush.",
 			ConsoleColor.BRIGHT_BLUE
 		);
 		if (!conversion.leftovers().isEmpty()) {
@@ -674,7 +489,6 @@ final class VirtualReferencePartitionConversion {
 	 * @param convertedPartitions   the single-owner partitions converted into registry rows
 	 * @param sharedPartitions      the partitions with several owners kept as index objects
 	 * @param partitionedPartitions the partitions of references indexed for partitioning kept as index objects
-	 * @param discardedRows         the registry rows found and discarded before the rows were rebuilt
 	 * @param intermediateFlushes   how many times the data store was flushed before the final flush
 	 * @param leftovers             the partitions left as index objects although their kind is not kept, described
 	 */
@@ -684,7 +498,6 @@ final class VirtualReferencePartitionConversion {
 		int convertedPartitions,
 		int sharedPartitions,
 		int partitionedPartitions,
-		int discardedRows,
 		int intermediateFlushes,
 		@Nonnull List<String> leftovers
 	) {

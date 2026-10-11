@@ -119,9 +119,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * Drives the REAL v6→v7 upgrade of the standalone unique indexes end to end - the boot-time
+ * Drives the REAL v6→v8 upgrade of the standalone unique indexes end to end - the boot-time
  * `DefaultCatalogPersistenceService#verifyAndUpgradeStorageFormat` dispatch into
- * {@link Migration_2026_3#upgradeFromStorageProtocolVersion_6_to_7}, its collision pre-pass, its rewrite and its
+ * {@link Migration_2026_3#upgradeFromStorageProtocolVersion_6_to_8}, its collision pre-pass, its rewrite and its
  * flush - over a protocol-6 catalog built in code, with no binary fixture.
  *
  * {@link Migration_2026_3_UniqueRekeyTest} pins the re-key as a pure transform; it proves nothing about the
@@ -147,7 +147,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Migration_2026_3 — standalone unique indexes through the real v6→v7 upgrade")
+@DisplayName("Migration_2026_3 — standalone unique indexes through the real v6→v8 upgrade")
 @Tag(STORAGE)
 @Tag(INDEXING)
 @Tag(ATTRIBUTE)
@@ -314,7 +314,12 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 			assertEquals(CatalogState.CORRUPTED, evita.getCatalogState(CATALOG).orElseThrow());
 			final ObsoleteStorageProtocolException refusal = findCause(failure, ObsoleteStorageProtocolException.class);
 			final String message = refusal.getMessage();
-			assertTrue(message.contains("cannot be upgraded to storage protocol version 7"), message);
+			assertTrue(
+				message.contains(
+					"cannot be upgraded to storage protocol version " + PersistenceService.STORAGE_PROTOCOL_VERSION
+				),
+				message
+			);
 			assertTrue(message.contains("6 unique value(s)"), message);
 			final List<String> pairs = List.of(
 				message.substring(message.indexOf("Collisions: ") + "Collisions: ".length(), message.length() - 1)
@@ -367,7 +372,7 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 				final CatalogOffsetIndexStoragePartPersistenceService catalogParts =
 					service.getStoragePartPersistenceService(catalogVersion);
 				try {
-					Migration_2026_3.upgradeFromStorageProtocolVersion_6_to_7(
+					Migration_2026_3.upgradeFromStorageProtocolVersion_6_to_8(
 						catalogParts.getCatalogHeader(catalogVersion),
 						catalogParts,
 						collectionHeader -> {
@@ -676,7 +681,7 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Asserts that the upgrade left the catalog at storage protocol 7 and every standalone unique index holding only
+	 * Asserts that the upgrade left the catalog at storage protocol 8 and every standalone unique index holding only
 	 * the canonical form of its values - the rewrite itself, not merely a load that tolerates raw values.
 	 */
 	@Nonnull
@@ -684,7 +689,7 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 		final long catalogVersion = service.getLastCatalogVersion();
 		final CatalogHeader<LogFileRecordReference, CollectionFileReference> header =
 			service.getCatalogHeader(catalogVersion);
-		assertEquals(7, header.storageProtocolVersion());
+		assertEquals(PersistenceService.STORAGE_PROTOCOL_VERSION, header.storageProtocolVersion());
 		final List<StoredUniqueIndex> indexes = new ArrayList<>(
 			readGlobalUniqueIndexes(catalogVersion, service.getStoragePartPersistenceService(catalogVersion))
 		);
@@ -796,7 +801,7 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 	 * @param respelled receives the label of the index when any value changed
 	 * @return `true` when any value changed
 	 */
-	private static boolean respellIntoLegacyOrder(
+	static boolean respellIntoLegacyOrder(
 		@Nonnull StoredUniqueIndex index,
 		@Nonnull Spellings spellings,
 		@Nonnull Shape shape,
@@ -917,7 +922,7 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 	 * (views over the filter index) carry no values of their own and are skipped.
 	 */
 	@Nonnull
-	private static List<StoredUniqueIndex> readOwnerUniqueIndexes(
+	static List<StoredUniqueIndex> readOwnerUniqueIndexes(
 		long catalogVersion,
 		@Nonnull DefaultEntityCollectionPersistenceService collection
 	) {
@@ -1050,9 +1055,6 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 	 */
 	private void writeCatalog(@Nonnull TestPaths paths, @Nonnull Consumer<EvitaSessionContract> writer) {
 		try (Evita evita = boot(paths)) {
-			// TODO JNO - remove at the end of #1615
-			// the catalog is re-stamped as a 2026.2 catalog, which never represents its partitions virtually
-			evita.createCatalogWithVirtualReferencePartitions(CATALOG, false);
 			evita.defineCatalog(CATALOG);
 			try (EvitaSessionContract session = evita.createReadWriteSession(CATALOG)) {
 				session.getCatalogSchema().openForWrite()
@@ -1133,7 +1135,7 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 	 * Writes the values of one page of a stored unique index back to storage.
 	 */
 	@FunctionalInterface
-	private interface PageWriter {
+	interface PageWriter {
 
 		/**
 		 * Stores `values` with their `owners` as page `page` (the root, for an inline index).
@@ -1156,7 +1158,7 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 	 * @param pageOwners    the owners of every page, positionally aligned with `pageValues`
 	 * @param writer        writes a page back
 	 */
-	private record StoredUniqueIndex(
+	record StoredUniqueIndex(
 		@Nonnull String label,
 		@Nonnull String attributeName,
 		boolean paged,
@@ -1170,7 +1172,7 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 	 * Remembers, per attribute, which spelling a 2026.2 unique index kept for each value the current engine persists -
 	 * keyed by the canonical value the current engine stores ({@link UniqueIndex#toPersistedValue}).
 	 */
-	private static final class Spellings {
+	static final class Spellings {
 		private final Map<String, Map<Serializable, Serializable>> byAttribute = new HashMap<>();
 
 		/**

@@ -40,7 +40,6 @@ import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.TransitionSt
 import io.evitadb.dataType.ChainableType;
 import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
-import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.ReferencePartition;
@@ -48,7 +47,6 @@ import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.VirtualReferencePartitionIndex;
-import io.evitadb.index.VirtualReferencePartitionSlot;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.SortIndex;
@@ -65,7 +63,6 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.OptionalInt;
 import java.util.OptionalLong;
-import java.util.PrimitiveIterator.OfInt;
 import java.util.function.Function;
 
 /**
@@ -325,9 +322,9 @@ public final class VirtualReferencePartitionWriter {
 	 * Demotes a materialized partition with a single owner into its row: registers the row for that owner - with the
 	 * entity the partition references and the representative attribute values its key carries - and fills it by
 	 * extraction (see {@link #extractValuesOfOwner}). This is the one conversion of an index object into a row: the
-	 * demotion of a partition left with one owner of two runs it, and so does the conversion of a catalog representing
-	 * its single-owner partitions by index objects into one representing them virtually. Only the registry is
-	 * written - what becomes of the index object is the caller's decision.
+	 * demotion of a partition left with one owner of two runs it, and so does the storage protocol migration
+	 * converting the single-owner partitions of a catalog written by 2026.2, where every partition is an index object.
+	 * Only the registry is written - what becomes of the index object is the caller's decision.
 	 *
 	 * @param registry        the registry of the partition's reference in the partition's scope, holding no row of
 	 *                        the partition
@@ -361,28 +358,6 @@ public final class VirtualReferencePartitionWriter {
 		final int ownerPrimaryKey = partition.getAllPrimaryKeys().getFirst();
 		partitionEntered(registry, partitionPrimaryKey, ownerPrimaryKey, partition.getRepresentativeReferenceKey());
 		extractValuesOfOwner(registry, entitySchema, referenceSchema, partition, partitionIndex, ownerPrimaryKey);
-	}
-
-	/**
-	 * Discards every row of the registry - each one as a partition leaving it is dropped, so the declared sort and
-	 * chain keys are retired once no row is left. The conversion of a catalog representing its single-owner partitions
-	 * by index objects runs it before it demotes them: rows a catalog of index objects kept next to its objects are
-	 * never trusted, the objects are.
-	 *
-	 * @param registry the registry
-	 * @return how many rows it held
-	 */
-	public static int discardAllRows(@Nonnull VirtualReferencePartitionIndex registry) {
-		final CompositeIntArray rows = new CompositeIntArray();
-		registry.forEachEntry(
-			VirtualReferencePartitionSlot.PARTITION_OWNER,
-			(partitionPrimaryKey, payload) -> rows.add(partitionPrimaryKey)
-		);
-		final OfInt it = rows.iterator();
-		while (it.hasNext()) {
-			dropPartition(registry, it.nextInt());
-		}
-		return rows.getSize();
 	}
 
 	/**
