@@ -96,7 +96,7 @@ public final class OfflineCatalogImages {
 	 * @param <T>           the type of the result
 	 * @return the result of the work
 	 */
-	static <T> T withOfflineCatalog(
+	public static <T> T withOfflineCatalog(
 		@Nonnull EvitaConfiguration configuration,
 		@Nonnull String catalogName,
 		@Nonnull Function<DefaultCatalogPersistenceService, T> work
@@ -171,7 +171,10 @@ public final class OfflineCatalogImages {
 	 * @return the last record
 	 */
 	@Nonnull
-	static CatalogBootstrap lastBootstrap(@Nonnull EvitaConfiguration configuration, @Nonnull String catalogName) {
+	public static CatalogBootstrap lastBootstrap(
+		@Nonnull EvitaConfiguration configuration,
+		@Nonnull String catalogName
+	) {
 		final List<CatalogBootstrap> records = bootstrapRecords(configuration, catalogName);
 		assertTrue(!records.isEmpty(), "catalog `" + catalogName + "` holds no bootstrap record");
 		return records.getLast();
