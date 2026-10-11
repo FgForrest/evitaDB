@@ -170,9 +170,14 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 	private static final int REMAINING_OWNER = 2;
 
 	@Nullable private DifferentialEngines engines;
+	@Nullable private VirtualPartitionHistory history;
 
 	@AfterEach
 	void tearDown() {
+		if (this.history != null) {
+			this.history.close();
+			this.history = null;
+		}
 		if (this.engines != null) {
 			try {
 				// what the history left on disk - against the indexes it holds and a history-free rebuild
@@ -279,6 +284,44 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 			stages.contains(TransitionStage.DEMOTED),
 			"a partition with two owners when the mutation finishes is not demoted: " + stages
 		);
+	}
+
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+	@DisplayName("an owner leaving a shared partition as another enters it in one root mutation keeps it an object")
+	void shouldKeepAPartitionSharedWhenAnotherOwnerEntersItAsOneLeaves(CatalogState state) {
+		// one engine, checked at every moment of the history by the body oracle, the identity ledger, the invariants
+		// and the stored parts - no twin
+		final VirtualPartitionHistory theHistory = new VirtualPartitionHistory(this, "anotherOwnerEnters", null);
+		this.history = theHistory;
+		theHistory.prepare(state, SingleOwnerPartitionFixture::setUpWithReflectedProducts);
+		// the reflected partition of product 1 on the category side is owned by category 1 and the shared one
+		final int partition = theHistory.assertIndexObject(
+			ENTITY_CATEGORY, Scope.LIVE, product(1), 1, SingleOwnerPartitionFixture.SHARED_CATEGORY
+		);
+
+		// the reflected mutations follow the order of the product's: the shared category leaves the partition first,
+		// leaving it with one owner, and the free one enters it next - so when the root mutation finishes the partition
+		// has two owners again and must not be demoted
+		theHistory.step(
+			"the shared category leaves the partition and a free one enters it in one root mutation",
+			session -> session.upsertEntity(
+				new EntityUpsertMutation(
+					ENTITY_PRODUCT, 1, EntityExistence.MUST_EXIST,
+					new RemoveReferenceMutation(
+						new ReferenceKey(REFERENCE_CATEGORIES, SingleOwnerPartitionFixture.SHARED_CATEGORY)
+					),
+					new InsertReferenceMutation(new ReferenceKey(REFERENCE_CATEGORIES, SECOND_FREE_TARGET, -1))
+				)
+			)
+		);
+
+		assertEquals(
+			partition,
+			theHistory.assertIndexObject(ENTITY_CATEGORY, Scope.LIVE, product(1), 1, SECOND_FREE_TARGET),
+			"the partition shared all along keeps its primary key"
+		);
+		theHistory.assertRow(ENTITY_PRODUCT, Scope.LIVE, category(SECOND_FREE_TARGET), 1);
 	}
 
 	@ParameterizedTest(name = "{0}")
