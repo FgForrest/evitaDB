@@ -311,16 +311,16 @@ public final class VirtualReferencePartitionMaintenance {
 
 	// TODO JNO - remove at the end of #1615
 	/**
-	 * Decides the representation of a catalog about to be created: virtual when the engine was told so for the
-	 * catalog, objects when it was told that, and otherwise virtual exactly in the forced mode. Decided before the
-	 * catalog writes its first header, which carries the decision for the rest of the catalog's life.
+	 * Decides the representation of a catalog about to be created: virtual unless the engine was told to create the
+	 * catalog with objects. Decided before the catalog writes its first header, which carries the decision for the
+	 * rest of the catalog's life.
 	 *
 	 * @param requested the representation the engine was told to create the catalog in - TRUE for virtual, FALSE for
 	 *                  objects - or `null` when it was told nothing
 	 * @return TRUE when the catalog is created virtual
 	 */
 	public static boolean isNewCatalogVirtual(@Nullable Boolean requested) {
-		return requested == null ? FORCED : requested;
+		return requested == null || requested;
 	}
 
 	// TODO JNO - remove at the end of #1615
