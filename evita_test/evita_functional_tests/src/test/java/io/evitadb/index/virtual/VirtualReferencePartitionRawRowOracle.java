@@ -60,6 +60,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -100,12 +101,14 @@ import static org.junit.jupiter.api.Assertions.fail;
  * - **the sort values of a row**: for every attribute of the reference sortable in the scope, the value of the owner's
  *   reference at its locale, and for every sortable attribute compound of the reference indexed in the scope, its
  *   elements - per attribute locale of the owner for a localized compound - unless all of them are missing. The
- *   registry must hold exactly these values under exactly these keys, and nothing under a primary key without a row;
+ *   registry must hold exactly these values under exactly these keys, and nothing under a primary key without a row,
+ *   and must order the rows of every key as these values order them - rows whose values compare equal forming one
+ *   block;
  * - **the chain predecessors of a row**: for every chainable attribute of the reference sortable in the scope, the
  *   predecessor the owner's reference declares;
  * - **the content of an index object**: its owners, and per owner the same sort values and chain predecessors a row of
- *   the owner would hold - so a promotion that populates the object of a partition gaining its second owner is held
- *   to what the first owner's body says, not to what its row said.
+ *   the owner would hold, its owners ordered as those values order them - so a promotion that populates the object of
+ *   a partition gaining its second owner is held to what the first owner's body says, not to what its row said.
  *
  * A `ReferencedEntityPredecessor` chain is left out: the chain index keys it by the referenced entity, and a partition
  * that had a second owner may have lost the predecessor (#1691).
@@ -121,9 +124,11 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * A body value is compared in the space the index stores it in. It is taken through the conversions an indexed value
  * goes through - {@link NumberUtils#normalizeForIndexing(Serializable, int)} at the attribute's indexed decimal places,
- * then the normalizer of the sort index - and compared by {@link CanonicalValue#encodeIndexed(Object)}. Those are pure
- * functions of a value; which values reach which index, and for which partition, is what the oracle derives on its
- * own.
+ * then the normalizer of the sort index - and compared by {@link CanonicalValue#encodeIndexed(Object)}. The values are
+ * ordered by the comparator a sort index of the key is created with (see
+ * {@link SortIndex#createComparatorFor(Locale, ComparatorSource)}), built from the schema of the attribute or compound.
+ * Those are pure functions of a value and a schema; which values reach which index, for which partition, and in which
+ * order they end up, is what the oracle derives on its own.
  *
  * The oracle holds for histories without drift only: a schema change that leaves existing partitions as they were -
  * an attribute turned sortable, a reference turned shadowed or another scale - makes the bodies and the partitions
@@ -748,8 +753,9 @@ final class VirtualReferencePartitionRawRowOracle {
 		@Nonnull List<String> findings
 	) {
 		final Map<AttributeIndexKey, Map<Integer, Serializable>> expectedValues = new TreeMap<>();
+		final Map<AttributeIndexKey, Comparator<Serializable>> comparators = new TreeMap<>();
 		for (final Map.Entry<Integer, OwnerRow> entry : rows.entrySet()) {
-			collectSortValues(referenceSchema, scope, entry.getKey(), entry.getValue(), expectedValues);
+			collectSortValues(referenceSchema, scope, entry.getKey(), entry.getValue(), expectedValues, comparators);
 		}
 		final Set<AttributeIndexKey> declared = registry.getDeclaredSortKeys();
 		final Set<AttributeIndexKey> keys = new TreeSet<>(declared);
@@ -757,40 +763,48 @@ final class VirtualReferencePartitionRawRowOracle {
 		for (final AttributeIndexKey key : keys) {
 			final SortIndex sortIndex = declared.contains(key) ? registry.getSortIndex(key) : null;
 			compareSortValues(
-				prefix + "sort key " + key + " of partition ", sortIndex,
-				expectedValues.getOrDefault(key, Map.of()), "the registry holds ", "the body of its owner holds ",
-				findings
+				prefix + "sort key " + key, " of partition ", sortIndex, expectedValues.getOrDefault(key, Map.of()),
+				comparators.get(key), "the registry holds ", "the body of its owner holds ", findings
 			);
 		}
 	}
 
 	/**
-	 * Compares the values a sort index holds with those the bodies call for, record by record.
+	 * Compares the values a sort index holds with those the bodies call for, record by record, and - when every record
+	 * holds the value the bodies call for - the order it keeps them in with the order the comparator of the key puts
+	 * those values in (see {@link #compareSortOrder}).
 	 *
-	 * @param subject        names the sort index and precedes the record in a finding
+	 * @param keySubject     names the sort index in a finding
+	 * @param recordSubject  follows the key subject and precedes the record in a finding
 	 * @param sortIndex      the sort index, `null` when there is none
 	 * @param expectedValues the values the bodies call for, by record
+	 * @param comparator     orders the values the bodies call for as a sort index of the key does, `null` when the
+	 *                       bodies call for no value of the key
 	 * @param actualPrefix   precedes the value the index holds in a finding
 	 * @param expectedPrefix precedes the value the bodies call for in a finding
 	 * @param findings       receives the disagreements
 	 */
 	private static void compareSortValues(
-		@Nonnull String subject,
+		@Nonnull String keySubject,
+		@Nonnull String recordSubject,
 		@Nullable SortIndex sortIndex,
 		@Nonnull Map<Integer, Serializable> expectedValues,
+		@Nullable Comparator<Serializable> comparator,
 		@Nonnull String actualPrefix,
 		@Nonnull String expectedPrefix,
 		@Nonnull List<String> findings
 	) {
+		final String subject = keySubject + recordSubject;
 		final Map<Integer, Serializable> actual = new TreeMap<>();
-		if (sortIndex != null) {
-			final SortIndexWalk walk = SortIndexWalk.of(sortIndex);
+		final SortIndexWalk walk = sortIndex == null ? null : SortIndexWalk.of(sortIndex);
+		if (walk != null) {
 			for (int i = 0; i < walk.records().length; i++) {
 				actual.put(walk.records()[i], walk.values()[i]);
 			}
 		}
 		final Set<Integer> records = new TreeSet<>(actual.keySet());
 		records.addAll(expectedValues.keySet());
+		boolean valuesAgree = true;
 		for (final Integer record : records) {
 			final Serializable expectedValue = expectedValues.get(record);
 			final Serializable actualValue = actual.get(record);
@@ -799,15 +813,73 @@ final class VirtualReferencePartitionRawRowOracle {
 			final String actualEncoding = actualValue == null ?
 				"absent" : CanonicalValue.encodeIndexed(actualValue);
 			if (!expectedEncoding.equals(actualEncoding)) {
+				valuesAgree = false;
 				findings.add(
 					subject + record + ": " + actualPrefix + actualEncoding + ", " + expectedPrefix + expectedEncoding
 				);
 			}
 		}
+		// a wrong, missing or surplus value is reported above and would only shift the order - the order is compared
+		// once every record holds the value the bodies call for
+		if (walk != null && comparator != null && valuesAgree) {
+			compareSortOrder(keySubject, walk, expectedValues, comparator, findings);
+		}
 	}
 
 	/**
-	 * Adds the sort values the row of an owner calls for: its sortable attributes and compounds.
+	 * Compares the order a sort index keeps its records in with the order the values the bodies call for put them in:
+	 * the records sorted by those values under the comparator of the key, the records whose values it finds equal
+	 * forming one block. A sort index that holds the right value of every record still orders them wrongly when it
+	 * compares by another comparator - another collation, direction or placement of missing elements - or splits one
+	 * value into several blocks.
+	 *
+	 * @param keySubject     names the sort index in a finding
+	 * @param walk           the content of the sort index, holding exactly the values the bodies call for
+	 * @param expectedValues the values the bodies call for, by record
+	 * @param comparator     orders the values as a sort index of the key does
+	 * @param findings       receives the disagreement
+	 */
+	private static void compareSortOrder(
+		@Nonnull String keySubject,
+		@Nonnull SortIndexWalk walk,
+		@Nonnull Map<Integer, Serializable> expectedValues,
+		@Nonnull Comparator<Serializable> comparator,
+		@Nonnull List<String> findings
+	) {
+		final List<Map.Entry<Integer, Serializable>> ordered = new ArrayList<>(expectedValues.entrySet());
+		ordered.sort(
+			(first, second) -> {
+				final int byValue = comparator.compare(first.getValue(), second.getValue());
+				return byValue == 0 ? Integer.compare(first.getKey(), second.getKey()) : byValue;
+			}
+		);
+		final List<List<Integer>> expectedBlocks = new ArrayList<>(ordered.size());
+		for (int i = 0; i < ordered.size(); i++) {
+			if (i == 0 || comparator.compare(ordered.get(i - 1).getValue(), ordered.get(i).getValue()) != 0) {
+				expectedBlocks.add(new ArrayList<>(2));
+			}
+			expectedBlocks.get(expectedBlocks.size() - 1).add(ordered.get(i).getKey());
+		}
+		final List<List<Integer>> actualBlocks = new ArrayList<>(walk.blocks().size());
+		for (final SortIndexWalk.Block block : walk.blocks()) {
+			final List<Integer> recordsOfBlock = new ArrayList<>(block.length());
+			for (int i = block.start(); i < block.start() + block.length(); i++) {
+				recordsOfBlock.add(walk.records()[i]);
+			}
+			recordsOfBlock.sort(Comparator.naturalOrder());
+			actualBlocks.add(recordsOfBlock);
+		}
+		if (!expectedBlocks.equals(actualBlocks)) {
+			findings.add(
+				keySubject + " orders the records in the blocks " + actualBlocks + ", the values of their bodies in " +
+					"the blocks " + expectedBlocks
+			);
+		}
+	}
+
+	/**
+	 * Adds the sort values the row of an owner calls for: its sortable attributes and compounds, and the comparator a
+	 * sort index of each of their keys orders the values by.
 	 *
 	 * @param referenceSchema the reference
 	 * @param scope           the scope
@@ -815,13 +887,15 @@ final class VirtualReferencePartitionRawRowOracle {
 	 *                        registry, the primary key of the owner in an index object
 	 * @param row             the row of the owner
 	 * @param expectedValues  receives the values by key and record, in the space the index stores them in
+	 * @param comparators     receives the comparator of every key a value is received for
 	 */
 	private static void collectSortValues(
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Scope scope,
 		int record,
 		@Nonnull OwnerRow row,
-		@Nonnull Map<AttributeIndexKey, Map<Integer, Serializable>> expectedValues
+		@Nonnull Map<AttributeIndexKey, Map<Integer, Serializable>> expectedValues,
+		@Nonnull Map<AttributeIndexKey, Comparator<Serializable>> comparators
 	) {
 		final String referenceName = referenceSchema.getName();
 		for (final AttributeValue attributeValue : row.reference().getAttributeValues()) {
@@ -835,16 +909,22 @@ final class VirtualReferencePartitionRawRowOracle {
 			) {
 				continue;
 			}
+			// a sort index of a plain attribute orders ascending with missing values last - the query decides the rest
+			final ComparatorSource comparatorSource = new ComparatorSource(
+				attribute.getPlainType(), OrderDirection.ASC, OrderBehaviour.NULLS_LAST
+			);
 			final UnaryOperator<Serializable> normalizer = SortIndex.createNormalizerFor(
-				new ComparatorSource(attribute.getPlainType(), OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
-				attribute.getIndexedDecimalPlaces()
+				comparatorSource, attribute.getIndexedDecimalPlaces()
 			).orElseGet(UnaryOperator::identity);
+			final AttributeIndexKey key = new AttributeIndexKey(
+				referenceName, attribute.getName(), attributeValue.key().locale()
+			);
 			expectedValues
-				.computeIfAbsent(
-					new AttributeIndexKey(referenceName, attribute.getName(), attributeValue.key().locale()),
-					__ -> new TreeMap<>()
-				)
+				.computeIfAbsent(key, __ -> new TreeMap<>())
 				.put(record, normalizer.apply(indexed(attribute, attributeValue.value())));
+			comparators.computeIfAbsent(
+				key, __ -> comparatorOf(SortIndex.createComparatorFor(key.locale(), comparatorSource))
+			);
 		}
 		for (final SortableAttributeCompoundSchemaContract compound :
 			referenceSchema.getSortableAttributeCompounds().values()) {
@@ -859,16 +939,21 @@ final class VirtualReferencePartitionRawRowOracle {
 			// a localized compound is indexed per attribute locale of the owner, a language-agnostic one once
 			final List<Locale> locales = localized ?
 				new ArrayList<>(attributeLocalesOf(row.entity())) : Arrays.asList((Locale) null);
+			final ComparatorSource[] comparatorBase = comparatorBaseOf(referenceSchema, elements);
 			for (final Locale locale : locales) {
-				final Serializable[] values = compoundValues(referenceSchema, row.reference(), elements, locale);
+				final Serializable[] values = compoundValues(
+					referenceSchema, row.reference(), elements, comparatorBase, locale
+				);
 				if (Arrays.stream(values).allMatch(Objects::isNull)) {
 					continue;
 				}
+				final AttributeIndexKey key = new AttributeIndexKey(referenceName, compound.getName(), locale);
 				expectedValues
-					.computeIfAbsent(
-						new AttributeIndexKey(referenceName, compound.getName(), locale), __ -> new TreeMap<>()
-					)
+					.computeIfAbsent(key, __ -> new TreeMap<>())
 					.put(record, new ComparableArray(values));
+				comparators.computeIfAbsent(
+					key, __ -> comparatorOf(SortIndex.createCombinedComparatorFor(locale, comparatorBase))
+				);
 			}
 		}
 	}
@@ -890,11 +975,49 @@ final class VirtualReferencePartitionRawRowOracle {
 	}
 
 	/**
+	 * Returns the comparator base of a sortable attribute compound: per element, the type of its attribute, its
+	 * direction and its placement of a missing value.
+	 *
+	 * @param referenceSchema the reference
+	 * @param elements        the elements of the compound
+	 * @return the comparator base
+	 */
+	@Nonnull
+	private static ComparatorSource[] comparatorBaseOf(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull List<AttributeElement> elements
+	) {
+		final ComparatorSource[] comparatorBase = new ComparatorSource[elements.size()];
+		for (int i = 0; i < comparatorBase.length; i++) {
+			final AttributeElement element = elements.get(i);
+			comparatorBase[i] = new ComparatorSource(
+				referenceSchema.getAttribute(element.attributeName()).orElseThrow().getPlainType(),
+				element.direction(), element.behaviour()
+			);
+		}
+		return comparatorBase;
+	}
+
+	/**
+	 * Views a comparator of sort index values as one of any value - the values the oracle orders by it are of the type
+	 * it compares.
+	 *
+	 * @param comparator the comparator a sort index factory created
+	 * @return the same comparator
+	 */
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	@Nonnull
+	private static Comparator<Serializable> comparatorOf(@Nonnull Comparator comparator) {
+		return (Comparator<Serializable>) comparator;
+	}
+
+	/**
 	 * Builds the value of a sortable attribute compound from a row, in the space the index stores it in.
 	 *
 	 * @param referenceSchema the reference
 	 * @param reference       the row
 	 * @param elements        the elements of the compound
+	 * @param comparatorBase  the comparator base of the compound (see {@link #comparatorBaseOf})
 	 * @param locale          the locale of a localized compound, `null` for a language-agnostic one
 	 * @return the values of the elements, `null` for a missing one
 	 */
@@ -903,17 +1026,14 @@ final class VirtualReferencePartitionRawRowOracle {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull ReferenceContract reference,
 		@Nonnull List<AttributeElement> elements,
+		@Nonnull ComparatorSource[] comparatorBase,
 		@Nullable Locale locale
 	) {
 		final Serializable[] values = new Serializable[elements.size()];
-		final ComparatorSource[] comparatorBase = new ComparatorSource[elements.size()];
 		for (int i = 0; i < values.length; i++) {
 			final AttributeElement element = elements.get(i);
 			final AttributeSchemaContract attribute = referenceSchema.getAttribute(element.attributeName())
 				.orElseThrow();
-			comparatorBase[i] = new ComparatorSource(
-				attribute.getPlainType(), element.direction(), element.behaviour()
-			);
 			final Serializable value = (
 				attribute.isLocalized() ?
 					reference.getAttributeValue(element.attributeName(), locale) :
@@ -1057,8 +1177,9 @@ final class VirtualReferencePartitionRawRowOracle {
 
 		// the sort values, kept under the owner's primary key
 		final Map<AttributeIndexKey, Map<Integer, Serializable>> expectedValues = new TreeMap<>();
+		final Map<AttributeIndexKey, Comparator<Serializable>> comparators = new TreeMap<>();
 		for (final Map.Entry<Integer, OwnerRow> owner : ownerRows.entrySet()) {
-			collectSortValues(referenceSchema, scope, owner.getKey(), owner.getValue(), expectedValues);
+			collectSortValues(referenceSchema, scope, owner.getKey(), owner.getValue(), expectedValues, comparators);
 		}
 		final Set<AttributeIndexKey> sortKeys = new TreeSet<>(expectedValues.keySet());
 		object.forEachAttributeIndexKey(
@@ -1071,9 +1192,9 @@ final class VirtualReferencePartitionRawRowOracle {
 		);
 		for (final AttributeIndexKey key : sortKeys) {
 			compareSortValues(
-				objectPrefix + "sort key " + key + " of owner ", object.getSortIndex(key),
-				expectedValues.getOrDefault(key, Map.of()), "the object holds ", "the body of the owner holds ",
-				findings
+				objectPrefix + "sort key " + key, " of owner ", object.getSortIndex(key),
+				expectedValues.getOrDefault(key, Map.of()), comparators.get(key), "the object holds ",
+				"the body of the owner holds ", findings
 			);
 		}
 
