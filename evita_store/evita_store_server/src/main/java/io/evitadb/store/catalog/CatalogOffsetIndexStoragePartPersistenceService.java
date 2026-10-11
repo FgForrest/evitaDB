@@ -30,7 +30,6 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogStoragePartPersistenceService;
-import io.evitadb.spi.store.catalog.persistence.PersistenceService;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.index.SharedIndexStoragePartConfigurer;
 import io.evitadb.store.kryo.ObservableInput;
@@ -92,7 +91,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	/**
 	 * Creates a CatalogOffsetIndexStoragePartPersistenceService object with the given parameters.
 	 * The code cannot be directly in the constructor, because we need to execute
-	 * {@link #loadOffsetIndex(int, String, Path, StorageSettings, CatalogBootstrap, OffsetIndexRecordTypeRegistry, ObservableOutputKeeper, Function, Consumer, Consumer, Consumer, PendingSyncRegistry)}
+	 * {@link #loadOffsetIndex(String, Path, StorageSettings, CatalogBootstrap, OffsetIndexRecordTypeRegistry, ObservableOutputKeeper, Function, Consumer, Consumer, Consumer, PendingSyncRegistry)}
 	 * and within it initialize the {@link #currentCatalogHeader} variable. This cannot be done in the consturctor
 	 * because the super constructor needs to be called first.
 	 *
@@ -124,61 +123,8 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 		@Nullable Consumer<Optional<OffsetDateTime>> historyKeptObserver,
 		@Nullable PendingSyncRegistry pendingSyncRegistry
 	) {
-		return create(
-			PersistenceService.STORAGE_PROTOCOL_VERSION,
-			catalogName, catalogFilePath, storageSettings, catalogBootstrap, recordRegistry, offHeapMemoryManager,
-			observableOutputKeeper, kryoFactory, nonFlushedBlockObserver, historyKeptObserver, pendingSyncRegistry
-		);
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Same as {@link #create(String, Path, StorageSettings, CatalogBootstrap, OffsetIndexRecordTypeRegistry,
-	 * CatalogOffHeapMemoryManager, ObservableOutputKeeper, Function, Consumer, Consumer, PendingSyncRegistry)}, and
-	 * when the bootstrap record publishes no catalog file yet - a brand-new catalog - the header the service starts
-	 * with carries the given storage protocol, so that the very first header the catalog writes already carries the
-	 * protocol it keeps for the rest of its life. The protocol of an existing catalog is read from its header and the
-	 * argument is ignored. Exists only while the test API `Evita#createCatalogWithVirtualReferencePartitions` can
-	 * create a catalog of index objects, and goes with it.
-	 *
-	 * @param newCatalogStorageProtocolVersion the storage protocol of a brand-new catalog, one of the current ones
-	 * @param catalogName                      The name of the catalog.
-	 * @param catalogFilePath                  The file path of the catalog.
-	 * @param storageSettings                  The storage options.
-	 * @param catalogBootstrap                 The last catalog bootstrap.
-	 * @param recordRegistry                   The record type registry for offset index.
-	 * @param offHeapMemoryManager             The off-heap memory manager.
-	 * @param observableOutputKeeper           The observable output keeper.
-	 * @param kryoFactory                      The factory to create Kryo instances.
-	 * @param nonFlushedBlockObserver          Observer notified about the volume of data not yet promoted, or null.
-	 * @param historyKeptObserver              Observer notified about the oldest record still retained, or null.
-	 * @param pendingSyncRegistry              Registry taking over the device flush of the catalog data file, or
-	 *                                         null to have each write flushed to the device inline.
-	 * @return A CatalogOffsetIndexStoragePartPersistenceService object.
-	 */
-	@Nonnull
-	public static CatalogOffsetIndexStoragePartPersistenceService create(
-		int newCatalogStorageProtocolVersion,
-		@Nonnull String catalogName,
-		@Nonnull Path catalogFilePath,
-		@Nonnull StorageSettings storageSettings,
-		@Nonnull CatalogBootstrap catalogBootstrap,
-		@Nonnull OffsetIndexRecordTypeRegistry recordRegistry,
-		@Nonnull CatalogOffHeapMemoryManager offHeapMemoryManager,
-		@Nonnull ObservableOutputKeeper observableOutputKeeper,
-		@Nonnull Function<VersionedKryoKeyInputs, VersionedKryo> kryoFactory,
-		@Nullable Consumer<NonFlushedBlock> nonFlushedBlockObserver,
-		@Nullable Consumer<Optional<OffsetDateTime>> historyKeptObserver,
-		@Nullable PendingSyncRegistry pendingSyncRegistry
-	) {
-		Assert.isPremiseValid(
-			PersistenceService.isCurrentStorageProtocolVersion(newCatalogStorageProtocolVersion),
-			() -> "A new catalog `" + catalogName + "` cannot be created under the storage protocol " +
-				newCatalogStorageProtocolVersion + "!"
-		);
 		final AtomicReference<CatalogHeader<LogFileRecordReference, CollectionFileReference>> catalogHeaderRef = new AtomicReference<>();
 		final OffsetIndex offsetIndex = loadOffsetIndex(
-			newCatalogStorageProtocolVersion,
 			catalogName, catalogFilePath, storageSettings,
 			catalogBootstrap, recordRegistry, observableOutputKeeper,
 			kryoFactory, nonFlushedBlockObserver, historyKeptObserver,
@@ -394,7 +340,6 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	/**
 	 * Loads an offset index based on the given parameters.
 	 *
-	 * @param newCatalogStorageProtocolVersion The storage protocol of the header of a brand-new catalog.
 	 * @param catalogName            The name of the catalog.
 	 * @param catalogFilePath        The file path of the catalog.
 	 * @param storageSettings         The storage options.
@@ -409,7 +354,6 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	 */
 	@Nonnull
 	private static OffsetIndex loadOffsetIndex(
-		int newCatalogStorageProtocolVersion,
 		@Nonnull String catalogName,
 		@Nonnull Path catalogFilePath,
 		@Nonnull StorageSettings storageSettings,
@@ -457,9 +401,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 				nonFlushedBlockObserver,
 				historyKeptObserver
 			);
-			final CatalogHeader<LogFileRecordReference, CollectionFileReference> newHeader = new CatalogHeader<>(
-				newCatalogStorageProtocolVersion, UUID.randomUUID(), catalogName
-			);
+			final CatalogHeader<LogFileRecordReference, CollectionFileReference> newHeader = new CatalogHeader<>(UUID.randomUUID(), catalogName);
 			newOffsetIndex.put(0L, newHeader);
 			catalogHeaderConsumer.accept(newHeader);
 			return newOffsetIndex;

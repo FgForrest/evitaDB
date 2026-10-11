@@ -1617,36 +1617,6 @@ public class DefaultCatalogPersistenceService
 		@Nonnull Scheduler scheduler,
 		@Nonnull ExportService exportService
 	) {
-		this(
-			STORAGE_PROTOCOL_VERSION, catalogName, catalogFolderId, storageOptions, transactionOptions, scheduler,
-			exportService
-		);
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Same as {@link #DefaultCatalogPersistenceService(String, CatalogFolderId, StorageOptions, TransactionOptions,
-	 * Scheduler, ExportService)}, for a brand-new catalog created under the given storage protocol - the very first
-	 * header the catalog writes carries it, and every later one keeps it.
-	 *
-	 * @param storageProtocolVersion the storage protocol of the new catalog, one of the current ones (see
-	 *                               {@link PersistenceService#isCurrentStorageProtocolVersion(int)})
-	 * @param catalogName            the name of the catalog to load
-	 * @param catalogFolderId        token identifying the folder the catalog's files live in
-	 * @param storageOptions         storage configuration including checksum and compression settings
-	 * @param transactionOptions     transaction configuration for memory buffers and WAL settings
-	 * @param scheduler              scheduler for background tasks
-	 * @param exportService          service for exporting catalog data
-	 */
-	public DefaultCatalogPersistenceService(
-		int storageProtocolVersion,
-		@Nonnull String catalogName,
-		@Nonnull CatalogFolderId catalogFolderId,
-		@Nonnull StorageOptions storageOptions,
-		@Nonnull TransactionOptions transactionOptions,
-		@Nonnull Scheduler scheduler,
-		@Nonnull ExportService exportService
-	) {
 		this.storageSettings = new StorageSettings(storageOptions, transactionOptions);
 		this.bootstrapStorageSettings = this.storageSettings.modifyForBootstrapFile();
 		this.scheduler = scheduler;
@@ -1702,8 +1672,6 @@ public class DefaultCatalogPersistenceService
 		this.catalogStoragePartPersistenceService.put(
 			catalogVersion,
 			CatalogOffsetIndexStoragePartPersistenceService.create(
-				// TODO JNO - remove at the end of #1615
-				storageProtocolVersion,
 				this.catalogName,
 				catalogFilePath,
 				this.storageSettings,
@@ -2433,8 +2401,7 @@ public class DefaultCatalogPersistenceService
 			}
 
 			storagePartPersistenceService.writeCatalogHeader(
-				// TODO JNO - remove at the end of #1615
-				storageProtocolVersionKeptBy(currentCatalogHeader),
+				STORAGE_PROTOCOL_VERSION,
 				catalogVersion,
 				this.catalogStoragePath,
 				ofNullable(this.catalogWal)
@@ -2748,8 +2715,7 @@ public class DefaultCatalogPersistenceService
 		);
 
 		storagePartPersistenceService.writeCatalogHeader(
-			// TODO JNO - remove at the end of #1615
-			storageProtocolVersionKeptBy(currentCatalogHeader),
+			STORAGE_PROTOCOL_VERSION,
 			catalogVersion,
 			this.catalogStoragePath,
 			currentCatalogHeader.walFileReference(),
@@ -2812,8 +2778,7 @@ public class DefaultCatalogPersistenceService
 					)
 				);
 			storagePartPersistenceService.writeCatalogHeader(
-				// TODO JNO - remove at the end of #1615
-				storageProtocolVersionKeptBy(currentCatalogHeader),
+				STORAGE_PROTOCOL_VERSION,
 				currentCatalogHeader.version(),
 				this.catalogStoragePath,
 				currentCatalogHeader.walFileReference(),
@@ -3026,8 +2991,7 @@ public class DefaultCatalogPersistenceService
 		// stop compensating when it sees the marker and declare the catalog unusable until a restart.
 		try {
 			storagePartPersistenceService.writeCatalogHeader(
-				// TODO JNO - remove at the end of #1615
-				storageProtocolVersionKeptBy(catalogHeader),
+				STORAGE_PROTOCOL_VERSION,
 				newCatalogVersion,
 				this.catalogStoragePath,
 				catalogHeader.walFileReference(),
@@ -5231,8 +5195,7 @@ public class DefaultCatalogPersistenceService
 			}
 			// update name in the catalog header
 			storagePartPersistenceService.writeCatalogHeader(
-				// TODO JNO - remove at the end of #1615
-				storageProtocolVersionKeptBy(catalogHeader),
+				STORAGE_PROTOCOL_VERSION,
 				catalogVersion,
 				this.catalogStoragePath,
 				ofNullable(catalogHeader.walFileReference())
@@ -5491,17 +5454,7 @@ public class DefaultCatalogPersistenceService
 		CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = storagePartPersistenceService.getCatalogHeader(
 			catalogVersion);
 		final int headerStorageProtocolVersion = catalogHeader.storageProtocolVersion();
-		// TODO JNO - remove at the end of #1615
-		if (
-			headerStorageProtocolVersion == STORAGE_PROTOCOL_VERSION ||
-				// a catalog of index objects a test asked this version to create: its bootstrap record - the one read
-				// at the open, no migration has run yet - carries the current protocol, which no build writing the
-				// protocol of index objects stamped. This clause exists only while the test API
-				// `Evita#createCatalogWithVirtualReferencePartitions` can create a catalog of index objects, and goes
-				// with it
-				(headerStorageProtocolVersion == OBJECT_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION &&
-					this.bootstrapUsed.storageProtocolVersion() == STORAGE_PROTOCOL_VERSION)
-		) {
+		if (headerStorageProtocolVersion == STORAGE_PROTOCOL_VERSION) {
 			return storagePartPersistenceService;
 		} else if (headerStorageProtocolVersion == Migration_2026_3.DEVELOPMENT_STORAGE_PROTOCOL_VERSION) {
 			throw developmentStorageProtocolRefusal(catalogHeader.catalogName());
@@ -5656,23 +5609,6 @@ public class DefaultCatalogPersistenceService
 				"version.",
 			"Catalog `" + catalogName + "` carries the unknown storage protocol " + storageProtocolVersion + "."
 		);
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Returns the storage protocol a rewrite of the given catalog header is written under. The header of a catalog a
-	 * test created with index objects keeps
-	 * {@link PersistenceService#OBJECT_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION} for the life of the catalog; any
-	 * other header is written under {@link PersistenceService#STORAGE_PROTOCOL_VERSION}. Only the protocol migrations
-	 * write a header under another protocol, and they do it explicitly. Exists only while the test API
-	 * `Evita#createCatalogWithVirtualReferencePartitions` can create a catalog of index objects, and goes with it.
-	 *
-	 * @param catalogHeader the header being rewritten
-	 * @return the storage protocol the rewritten header carries
-	 */
-	private static int storageProtocolVersionKeptBy(@Nonnull CatalogHeader<?, ?> catalogHeader) {
-		return catalogHeader.storageProtocolVersion() == OBJECT_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION ?
-			OBJECT_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION : STORAGE_PROTOCOL_VERSION;
 	}
 
 	/**

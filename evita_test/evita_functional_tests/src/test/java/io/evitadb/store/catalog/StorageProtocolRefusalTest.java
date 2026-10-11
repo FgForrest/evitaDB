@@ -129,6 +129,10 @@ class StorageProtocolRefusalTest implements EvitaTestSupport {
 	 */
 	private static final int RELEASED_PROTOCOL = 6;
 	/**
+	 * The protocol this version writes.
+	 */
+	private static final int CURRENT_PROTOCOL = PersistenceService.STORAGE_PROTOCOL_VERSION;
+	/**
 	 * A protocol no version of evitaDB has written yet.
 	 */
 	private static final int UNKNOWN_PROTOCOL = PersistenceService.STORAGE_PROTOCOL_VERSION + 1;
@@ -297,14 +301,19 @@ class StorageProtocolRefusalTest implements EvitaTestSupport {
 	class UnmigratableHeader {
 
 		/**
-		 * A header of 7 under a record of another protocol - a state no build writes - reaches the verification of the
-		 * storage format, which refuses it with the diagnosis of the development protocol rather than as unknown.
+		 * A header of 7 under a record of another protocol reaches the verification of the storage format, which
+		 * refuses it with the diagnosis of the development protocol rather than as unknown. No release writes either
+		 * state; under a record of the current protocol it is a catalog a development build created with index objects
+		 * on the request of a test, which no longer loads either.
+		 *
+		 * @param recordStorageProtocolVersion the storage protocol of the bootstrap record
 		 */
-		@Test
-		@DisplayName("a header of protocol 7 under a record of the released protocol is refused with its own diagnosis")
-		void shouldRefuseHeaderOfDevelopmentProtocolUnderRecordOfReleasedProtocol() {
-			final EvitaConfiguration configuration = writeImage("record6header7");
-			stamp(configuration, CATALOG, DEVELOPMENT_PROTOCOL, RELEASED_PROTOCOL);
+		@ParameterizedTest(name = "record of protocol {0}")
+		@ValueSource(ints = {RELEASED_PROTOCOL, CURRENT_PROTOCOL})
+		@DisplayName("a header of protocol 7 under a record of another protocol is refused with its own diagnosis")
+		void shouldRefuseHeaderOfDevelopmentProtocolUnderRecordOfAnotherProtocol(int recordStorageProtocolVersion) {
+			final EvitaConfiguration configuration = writeImage("record" + recordStorageProtocolVersion + "header7");
+			stamp(configuration, CATALOG, DEVELOPMENT_PROTOCOL, recordStorageProtocolVersion);
 			final SortedMap<String, StoredFile> before = storedFiles(catalogFolder(configuration, CATALOG));
 
 			assertRefused(configuration, DEVELOPMENT_DIAGNOSIS);

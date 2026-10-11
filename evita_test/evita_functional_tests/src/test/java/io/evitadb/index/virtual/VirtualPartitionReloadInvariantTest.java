@@ -1026,8 +1026,8 @@ class VirtualPartitionReloadInvariantTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Asserts the header of a loaded catalog carries the storage protocol of a catalog writing its single-owner
-	 * partitions as registry rows.
+	 * Asserts the header of a loaded catalog carries the current storage protocol, under which every catalog writes its
+	 * single-owner partitions as registry rows.
 	 *
 	 * @param label       names the moment in the failure message
 	 * @param catalogName the catalog
@@ -1039,7 +1039,7 @@ class VirtualPartitionReloadInvariantTest implements EvitaTestSupport {
 		final DefaultCatalogPersistenceService defaultPersistenceService =
 			(DefaultCatalogPersistenceService) persistenceService;
 		assertEquals(
-			PersistenceService.VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION,
+			PersistenceService.STORAGE_PROTOCOL_VERSION,
 			defaultPersistenceService.getCatalogHeader(defaultPersistenceService.getLastCatalogVersion())
 				.storageProtocolVersion(),
 			label + ": the storage protocol of `" + catalogName + "`"

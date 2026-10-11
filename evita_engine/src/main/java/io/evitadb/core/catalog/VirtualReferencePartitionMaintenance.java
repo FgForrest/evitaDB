@@ -90,14 +90,14 @@ import java.util.function.Supplier;
  *
  * # Forced mode
  *
- * When the JVM runs with the system property {@link #FORCE_PROPERTY} set to `true`, every catalog the engine creates
- * is created virtual (see the next section) unless the engine was told to create it with objects - the whole functional
- * suite then reads every registered single-owner partition through the registry. The holder of a catalog created with
- * objects in the forced mode follows a forced default: every collection of the catalog is maintained **and** read
- * virtually from the moment the catalog exists. A holder leaves the forced default the first time a test sets either
- * switch of it explicitly ({@link #setMaintained(String, boolean)}, {@link #setReadVirtually(String, boolean)}) and
- * from then on holds exactly what the test sets, starting from nothing - so the tests that drive the switch themselves
- * see the holder they expect. Holders created by the public constructors never follow the forced default.
+ * When the JVM runs with the system property {@link #FORCE_PROPERTY} set to `true`, the holder of a catalog with
+ * objects follows a forced default: every collection of the catalog is maintained **and** read virtually from the
+ * moment the catalog exists. The engine creates and loads every catalog virtual (see the next section), so only a
+ * holder a factory method was asked to build for a catalog with objects follows it. A holder leaves the forced default
+ * the first time a test sets either switch of it explicitly ({@link #setMaintained(String, boolean)},
+ * {@link #setReadVirtually(String, boolean)}) and from then on holds exactly what the test sets, starting from
+ * nothing - so the tests that drive the switch themselves see the holder they expect. Holders created by the public
+ * constructors never follow the forced default.
  *
  * The registry is persisted, but the switch is not, so a registry read back from disk is complete only when every
  * mutation of the catalog's history was maintained. The forced mode knows that only for catalogs born in this JVM
@@ -111,18 +111,16 @@ import java.util.function.Supplier;
  *
  * # Virtual catalogs
  *
- * A catalog may also represent its single-owner partitions **virtually** for good: its catalog header carries the
- * storage protocol {@link PersistenceService#VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION} instead of
- * {@link PersistenceService#OBJECT_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION}. Which one is decided once, when the
- * catalog is created (see {@link #isNewCatalogVirtual(Boolean)}), and never changes - every header the store writes
- * for the catalog keeps it. The holder of a virtual catalog (see
- * {@link #isVirtual()}) maintains **and** reads virtually every collection of the catalog, those created later
+ * Every catalog the engine creates or loads represents its single-owner partitions **virtually** for good: no storage
+ * protocol this version reads represents them otherwise - the store migrates a catalog of an older protocol to the
+ * current {@link PersistenceService#STORAGE_PROTOCOL_VERSION} and refuses any other. The holder of a virtual catalog
+ * (see {@link #isVirtual()}) maintains **and** reads virtually every collection of the catalog, those created later
  * included, and refuses to be switched off for any of them: once the registry is the only representation of a
  * single-owner partition, a collection that stopped maintaining it would lose the partition, and one that stopped
- * reading it would read a partition that is not there. A catalog loaded from disk takes its representation from its
- * header before any of its collections is constructed and before the write-ahead log is replayed onto it, so the
- * replayed mutations - those creating a collection among them - are virtual as well. Everything above about the
- * switch and the forced default concerns the other catalogs only.
+ * reading it would read a partition that is not there. The holder of a catalog loaded from disk is built before any of
+ * its collections is constructed and before the write-ahead log is replayed onto it, so the replayed mutations - those
+ * creating a collection among them - are virtual as well. Everything above about the switch and the forced default
+ * concerns the other catalogs only.
  *
  * A virtual catalog also **writes** its single-owner partitions virtually: a partition of a reference whose
  * partitions may be virtual is a registry row without an index object while it has one owner, and an index object
@@ -311,27 +309,13 @@ public final class VirtualReferencePartitionMaintenance {
 
 	// TODO JNO - remove at the end of #1615
 	/**
-	 * Decides the representation of a catalog about to be created: virtual unless the engine was told to create the
-	 * catalog with objects. Decided before the catalog writes its first header, which carries the decision for the
-	 * rest of the catalog's life.
-	 *
-	 * @param requested the representation the engine was told to create the catalog in - TRUE for virtual, FALSE for
-	 *                  objects - or `null` when it was told nothing
-	 * @return TRUE when the catalog is created virtual
-	 */
-	public static boolean isNewCatalogVirtual(@Nullable Boolean requested) {
-		return requested == null || requested;
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
 	 * Creates the holder of a brand-new catalog. The holder of a virtual catalog maintains and reads virtually every
 	 * collection for good. Any other holder is switched off for every collection, unless the JVM runs in the forced
 	 * mode, in which case the holder follows the forced default and the catalog is remembered as one whose registry
 	 * is maintained from its birth.
 	 *
 	 * @param catalogId the identifier of the new catalog
-	 * @param virtual   TRUE when the catalog is created virtual - see {@link #isNewCatalogVirtual(Boolean)}
+	 * @param virtual   TRUE when the catalog is created virtual, as the engine creates every catalog
 	 * @return the holder
 	 */
 	@Nonnull
@@ -349,15 +333,15 @@ public final class VirtualReferencePartitionMaintenance {
 
 	// TODO JNO - remove at the end of #1615
 	/**
-	 * Creates the holder of a catalog loaded from disk. The holder of a virtual catalog - one whose header carries the
-	 * virtual storage protocol - maintains and reads virtually every collection for good, whatever the engine was told
-	 * about the entity types, and only installs the probe. Any other holder is seeded as the engine was told before
-	 * the load. In the forced mode a catalog the engine was told nothing about - no entity types and no probe -
-	 * follows the forced default when it was born in this JVM under the forced default and never left it; any other
-	 * such catalog is not eligible: it maintains and reads nothing, and the load is counted.
+	 * Creates the holder of a catalog loaded from disk. The holder of a virtual catalog - every catalog the engine
+	 * loads is one - maintains and reads virtually every collection for good, whatever the engine was told about the
+	 * entity types, and only installs the probe. Any other holder is seeded as the engine was told before the load. In
+	 * the forced mode a catalog the engine was told nothing about - no entity types and no probe - follows the forced
+	 * default when it was born in this JVM under the forced default and never left it; any other such catalog is not
+	 * eligible: it maintains and reads nothing, and the load is counted.
 	 *
 	 * @param catalogId             the identifier of the loaded catalog
-	 * @param virtual               TRUE when the header of the catalog carries the virtual storage protocol
+	 * @param virtual               TRUE when the catalog is virtual, as every catalog the engine loads is
 	 * @param maintainedEntityTypes the entity types the engine was told to maintain from the load on
 	 * @param probe                 the probe the engine was told to install, `null` for none
 	 * @return the holder
@@ -799,9 +783,9 @@ public final class VirtualReferencePartitionMaintenance {
 
 	// TODO JNO - remove at the end of #1615
 	/**
-	 * Returns TRUE when the catalog represents its single-owner reference partitions virtually - when its header
-	 * carries the virtual storage protocol. Every collection of such a catalog is maintained and read virtually, and
-	 * the holder refuses to be switched off for any of them.
+	 * Returns TRUE when the catalog represents its single-owner reference partitions virtually, as every catalog the
+	 * engine creates or loads does. Every collection of such a catalog is maintained and read virtually, and the holder
+	 * refuses to be switched off for any of them.
 	 *
 	 * @return TRUE for the holder of a virtual catalog
 	 */

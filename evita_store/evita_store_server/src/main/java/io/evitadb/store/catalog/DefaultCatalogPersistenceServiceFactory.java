@@ -58,12 +58,10 @@ public class DefaultCatalogPersistenceServiceFactory implements CatalogPersisten
 		@Nonnull StorageOptions storageOptions,
 		@Nonnull TransactionOptions transactionOptions,
 		@Nonnull Scheduler scheduler,
-		@Nonnull ExportService exportService,
-		int storageProtocolVersion
+		@Nonnull ExportService exportService
 	) {
 		return new DefaultCatalogPersistenceService(
-			storageProtocolVersion, catalogName, catalogFolderId, storageOptions, transactionOptions, scheduler,
-			exportService
+			catalogName, catalogFolderId, storageOptions, transactionOptions, scheduler, exportService
 		);
 	}
 

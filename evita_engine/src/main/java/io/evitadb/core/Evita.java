@@ -336,14 +336,6 @@ public final class Evita implements EvitaContract {
 	// TODO JNO - remove at the end of #1615
 	private final Map<String, TransitionProbe> virtualReferencePartitionProbesOnLoad =
 		CollectionUtils.createConcurrentHashMap(4);
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * The representation of the single-owner reference partitions a catalog is created in, keyed by catalog name -
-	 * see {@link #createCatalogWithVirtualReferencePartitions(String, boolean)}.
-	 */
-	// TODO JNO - remove at the end of #1615
-	private final Map<String, Boolean> virtualReferencePartitionsOnCatalogCreation =
-		CollectionUtils.createConcurrentHashMap(4);
 	/**
 	 * Flag that is set to TRUE when Evita fully loads all catalogs, that should be active after startup.
 	 */
@@ -816,38 +808,6 @@ public final class Evita implements EvitaContract {
 		} else {
 			this.virtualReferencePartitionProbesOnLoad.put(catalogName, probe);
 		}
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Sets the representation of the single-owner reference partitions the given catalog is created in by this
-	 * instance from now on: virtually - the catalog header carries the virtual storage protocol, and every collection
-	 * of the catalog is maintained and read virtually for good - or by objects, whatever the forced test mode says.
-	 * The representation is decided when the catalog is created and kept for the rest of its life, so the call must
-	 * precede the definition of the catalog; it changes nothing about a catalog that exists already.
-	 *
-	 * Meant for tests only.
-	 *
-	 * @param catalogName the name of the catalog
-	 * @param virtual     TRUE to create the catalog virtual, FALSE to create it with objects
-	 */
-	// TODO JNO - remove at the end of #1615
-	public void createCatalogWithVirtualReferencePartitions(@Nonnull String catalogName, boolean virtual) {
-		this.virtualReferencePartitionsOnCatalogCreation.put(catalogName, virtual);
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Returns the representation of the single-owner reference partitions the given catalog is to be created in - see
-	 * {@link #createCatalogWithVirtualReferencePartitions(String, boolean)}.
-	 *
-	 * @param catalogName the name of the catalog
-	 * @return TRUE for virtual, FALSE for objects, `null` when nothing was set for the catalog
-	 */
-	// TODO JNO - remove at the end of #1615
-	@Nullable
-	public Boolean getVirtualReferencePartitionsOnCatalogCreation(@Nonnull String catalogName) {
-		return this.virtualReferencePartitionsOnCatalogCreation.get(catalogName);
 	}
 
 	// TODO JNO - remove at the end of #1615

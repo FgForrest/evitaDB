@@ -108,23 +108,8 @@ public record CatalogHeader<S extends LogRecordReference, T extends CollectionRe
 	 * @param catalogName human-readable catalog name matching {@link CatalogSchema#getName()}; must not be `null`
 	 */
 	public CatalogHeader(@Nonnull UUID catalogId, @Nonnull String catalogName) {
-		this(PersistenceService.STORAGE_PROTOCOL_VERSION, catalogId, catalogName);
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Same as {@link #CatalogHeader(UUID, String)}, but for a catalog created under the given storage protocol - one
-	 * of the current protocols (see {@link PersistenceService#isCurrentStorageProtocolVersion(int)}), which the
-	 * catalog keeps for the rest of its life.
-	 *
-	 * @param storageProtocolVersion the storage protocol the new catalog is created under
-	 * @param catalogId              stable unique identifier assigned at catalog creation time; must not be `null`
-	 * @param catalogName            human-readable catalog name matching {@link CatalogSchema#getName()}; must not
-	 *                               be `null`
-	 */
-	public CatalogHeader(int storageProtocolVersion, @Nonnull UUID catalogId, @Nonnull String catalogName) {
 		this(
-			storageProtocolVersion,
+			PersistenceService.STORAGE_PROTOCOL_VERSION,
 			0L,
 			null,
 			Map.of(),
