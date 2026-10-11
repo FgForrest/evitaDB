@@ -39,7 +39,6 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttribute
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
-import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Predecessor;
@@ -66,7 +65,6 @@ import java.util.SortedMap;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.api.query.QueryConstraints.referenceContentAll;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.*;
 import static io.evitadb.test.TestTags.INDEXING;
@@ -94,9 +92,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * A root mutation failing at its end must leave every row, index object, primary key and the reduced-index membership
  * as they were (see {@link VirtualPartitionHistory#failingStep(String, Consumer, Class)}). Its failure is a mandatory
- * reference left missing, which the consistency check of the root mutation finds after every reference write of the
- * mutation - the reflected ones included - so the rollback has everything the mutation wrote of the partitions to
- * revert.
+ * reference left missing (see {@link SingleOwnerPartitionFixture#withoutTheMandatoryBrand}), which the consistency
+ * check of the root mutation finds after every reference write of the mutation - the reflected ones included - so the
+ * rollback has everything the mutation wrote of the partitions to revert.
  *
  * Every partition of the fixture has a single owner - a partition gaining a second owner is not part of this
  * lifecycle, except inside a failing root mutation whose rollback reverts it.
@@ -257,7 +255,9 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 	@DisplayName("a new owner failing at the end of its mutation leaves no row behind, reflected ones included")
 	void shouldLeaveNoRowBehindANewOwnerFailingAtTheEnd(CatalogState state) {
-		final VirtualPartitionHistory theHistory = startWithMandatoryBrand("newOwnerFailure", state);
+		final VirtualPartitionHistory theHistory = start(
+			"newOwnerFailure", state, SingleOwnerPartitionFixture::setUpLocalizedSingleOwnersWithMandatoryBrand
+		);
 
 		// 0 -> 1, in the product's partitions and in the reflected one of the category
 		theHistory.failingStep(
@@ -282,14 +282,18 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 	@DisplayName("an owner failing to leave at the end of its mutation keeps its row, the reflected one included")
 	void shouldKeepTheRowsAnOwnerFailsToLeaveAtTheEnd(CatalogState state) {
-		final VirtualPartitionHistory theHistory = startWithMandatoryBrand("leavingOwnerFailure", state);
+		final VirtualPartitionHistory theHistory = start(
+			"leavingOwnerFailure", state, SingleOwnerPartitionFixture::setUpLocalizedSingleOwnersWithMandatoryBrand
+		);
 		final int partition = theHistory.assertRow(ENTITY_PRODUCT, Scope.LIVE, category(4), 4);
 		final int reflectedPartition = theHistory.assertRow(ENTITY_CATEGORY, Scope.LIVE, product(4), 4);
 
 		// 1 -> 0, in the product's partition and in the reflected one
 		theHistory.failingStep(
 			"the product leaves its category and its mandatory brand",
-			withoutTheMandatoryBrand(session -> openForWrite(session, 4).removeReference(REFERENCE_CATEGORIES, 4)),
+			withoutTheMandatoryBrand(
+				session -> openProductForWrite(session, 4).removeReference(REFERENCE_CATEGORIES, 4)
+			),
 			ReferenceCardinalityViolatedException.class
 		);
 
@@ -308,7 +312,9 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 	@DisplayName("an owner failing at the end of entering two partitions leaves neither row behind")
 	void shouldLeaveNoRowBehindAnOwnerFailingToEnterTwoPartitions(CatalogState state) {
-		final VirtualPartitionHistory theHistory = startWithMandatoryBrand("twoPartitionsFailure", state);
+		final VirtualPartitionHistory theHistory = start(
+			"twoPartitionsFailure", state, SingleOwnerPartitionFixture::setUpLocalizedSingleOwnersWithMandatoryBrand
+		);
 		final int reflectedPartition = theHistory.assertRow(ENTITY_CATEGORY, Scope.LIVE, product(4), 4);
 
 		// 0 -> 1 twice, the first partition entered and populated before the second - and the product's reflected
@@ -316,7 +322,7 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 		theHistory.failingStep(
 			"a product enters two free categories and leaves its mandatory brand",
 			withoutTheMandatoryBrand(
-				session -> openForWrite(session, 4)
+				session -> openProductForWrite(session, 4)
 					.setReference(REFERENCE_CATEGORIES, SECOND_FREE_TARGET, ref -> ref.setAttribute(ATTRIBUTE_ORDER, 1))
 					.setReference(REFERENCE_CATEGORIES, THIRD_FREE_TARGET, ref -> ref.setAttribute(ATTRIBUTE_ORDER, 2))
 			),
@@ -800,34 +806,6 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Creates a step that upserts the change of a product the builder describes without the product's brand, which
-	 * the schema of the failure histories makes mandatory. The consistency check of the root mutation refuses the
-	 * missing brand once the mutation has written every reference - the reflected ones included - so the step fails
-	 * at its very end.
-	 *
-	 * @param change builds the change of the product in the session
-	 * @return the step
-	 */
-	@Nonnull
-	private static Consumer<EvitaSessionContract> withoutTheMandatoryBrand(
-		@Nonnull Function<EvitaSessionContract, EntityBuilder> change
-	) {
-		return session -> change.apply(session).removeReference(REFERENCE_BRAND, BRAND_PK).upsertVia(session);
-	}
-
-	/**
-	 * Opens an existing product for writing in the session.
-	 *
-	 * @param session    the session
-	 * @param primaryKey the product
-	 * @return the builder of the product
-	 */
-	@Nonnull
-	private static EntityBuilder openForWrite(@Nonnull EvitaSessionContract session, int primaryKey) {
-		return session.getEntity(ENTITY_PRODUCT, primaryKey, entityFetchAllContent()).orElseThrow().openForWrite();
-	}
-
-	/**
 	 * Asserts whether the committed row of a partition of the products holds a value of a sortable attribute or
 	 * compound of its reference.
 	 *
@@ -979,31 +957,6 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 	@Nonnull
 	private VirtualPartitionHistory start(@Nonnull String label, @Nonnull CatalogState state) {
 		return start(label, state, SingleOwnerPartitionFixture::setUpLocalizedSingleOwners);
-	}
-
-	/**
-	 * Starts the history in the fixture of single-owner partitions in two locales whose brand reference is mandatory -
-	 * every product of the fixture has its brand - so a mutation leaving a product without its brand fails at the
-	 * consistency check that ends its root mutation (see {@link #withoutTheMandatoryBrand(Function)}).
-	 *
-	 * @param label a label naming the engine's directories
-	 * @param state the catalog state the history should continue in
-	 * @return the history
-	 */
-	@Nonnull
-	private VirtualPartitionHistory startWithMandatoryBrand(@Nonnull String label, @Nonnull CatalogState state) {
-		return start(
-			label, state,
-			session -> {
-				setUpLocalizedSingleOwners(session);
-				session.defineEntitySchema(ENTITY_PRODUCT)
-					.withReferenceToEntity(
-						REFERENCE_BRAND, ENTITY_BRAND, Cardinality.EXACTLY_ONE,
-						whichIs -> whichIs.indexedForFilteringAndPartitioningInScope(Scope.LIVE, Scope.ARCHIVED)
-					)
-					.updateVia(session);
-			}
-		);
 	}
 
 	/**

@@ -57,6 +57,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -584,6 +585,53 @@ public final class SingleOwnerPartitionFixture {
 			change.accept(builder);
 			builder.upsertVia(session);
 		};
+	}
+
+	/**
+	 * Defines the schema and the data of {@link #setUpLocalizedSingleOwners(EvitaSessionContract)}, then makes the
+	 * brand reference mandatory - every product of the fixture has its brand - so that a mutation can be made to fail
+	 * at its very end (see {@link #withoutTheMandatoryBrand(Function)}).
+	 *
+	 * @param session the session to write in
+	 */
+	static void setUpLocalizedSingleOwnersWithMandatoryBrand(@Nonnull EvitaSessionContract session) {
+		setUpLocalizedSingleOwners(session);
+		session.defineEntitySchema(ENTITY_PRODUCT)
+			.withReferenceToEntity(
+				REFERENCE_BRAND, ENTITY_BRAND, Cardinality.EXACTLY_ONE,
+				whichIs -> whichIs.indexedForFilteringAndPartitioningInScope(Scope.LIVE, Scope.ARCHIVED)
+			)
+			.updateVia(session);
+	}
+
+	/**
+	 * Creates a step that upserts the change of a product the builder describes without the product's brand, which
+	 * {@link #setUpLocalizedSingleOwnersWithMandatoryBrand(EvitaSessionContract)} makes mandatory. The consistency
+	 * check of the root mutation refuses the missing brand once the mutation has written every reference - the
+	 * reflected ones included - so the step fails at its very end with a `ReferenceCardinalityViolatedException`. The
+	 * check precedes the finalization of the root mutation - the locale changes of its owners, the demotions of the
+	 * partitions it left with one owner and the sweep of emptied indexes - which a failing step never reaches.
+	 *
+	 * @param change builds the change of the product in the session
+	 * @return the step
+	 */
+	@Nonnull
+	static Consumer<EvitaSessionContract> withoutTheMandatoryBrand(
+		@Nonnull Function<EvitaSessionContract, EntityBuilder> change
+	) {
+		return session -> change.apply(session).removeReference(REFERENCE_BRAND, BRAND_PK).upsertVia(session);
+	}
+
+	/**
+	 * Opens an existing product for writing in the session.
+	 *
+	 * @param session    the session
+	 * @param primaryKey the product primary key
+	 * @return the builder of the product
+	 */
+	@Nonnull
+	static EntityBuilder openProductForWrite(@Nonnull EvitaSessionContract session, int primaryKey) {
+		return session.getEntity(ENTITY_PRODUCT, primaryKey, entityFetchAllContent()).orElseThrow().openForWrite();
 	}
 
 	/**
