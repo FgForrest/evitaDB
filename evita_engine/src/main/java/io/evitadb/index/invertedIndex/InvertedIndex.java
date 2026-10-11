@@ -679,7 +679,7 @@ public class InvertedIndex implements
 	 * @return the rebuilt, boundary-stable `PAGED` inverted index
 	 */
 	@Nonnull
-	@SuppressWarnings("rawtypes")
+	@SuppressWarnings({"unchecked", "rawtypes"})
 	public static InvertedIndex fromPersistedPages(
 		@Nonnull Class<?> plainType,
 		@Nonnull int[] orderedPageSequences,
@@ -689,80 +689,6 @@ public class InvertedIndex implements
 		@Nonnull Function<Object, Serializable> normalizer,
 		@Nonnull Comparator comparator,
 		int indexedDecimalPlaces
-	) {
-		return fromPersistedPages(
-			plainType, orderedPageSequences, perPageBuckets, perPageValueIds, highWaterPageSequence,
-			normalizer, comparator, indexedDecimalPlaces, false
-		);
-	}
-
-	/**
-	 * Rebuilds a `PAGED` inverted index exactly as {@link #fromPersistedPages(Class, int[], ValueToRecord[][], int[][],
-	 * int, Function, Comparator, int)} does, for a tree whose persisted keys may still be in a **legacy form** the
-	 * `normalizer` now maps onto another one - the raw temporal values an owner sort index stored before its temporal
-	 * values were normalized to their millisecond form.
-	 *
-	 * Such a normalization is not monotone in general: within a sortable attribute compound, two elements that tie
-	 * only after the normalization hand the decision to the next element, which may order the pair the other way. So
-	 * whenever any persisted key is not already in the normalized form (`normalizer` returns a different instance), the
-	 * whole index is re-sorted, its colliding buckets merged and every page given up for rewrite by the next flush that
-	 * writes the tree - the path a second-granularity range order takes, see the "When the persisted order is no longer
-	 * the order the keys compare in" section of the sibling method. The re-sort is permitted only when the persisted
-	 * keys are **strictly ascending** under `comparator`, which is the order every owner wrote its pages in; a stale
-	 * leaf-page twin fails that test and keeps reaching the corruption diagnostics. A tree whose keys are all
-	 * normalized already is loaded exactly as the sibling method loads it, and is not flagged dirty.
-	 *
-	 * @param plainType             the plain (non-array) declared attribute type
-	 * @param orderedPageSequences  the persisted leaf-page sequences in ascending key order (the root's leaf list)
-	 * @param perPageBuckets        the buckets of each leaf page, positionally aligned with `orderedPageSequences`
-	 * @param perPageValueIds       the persisted value ids of each leaf page, or `null` when the tree carries none
-	 * @param highWaterPageSequence the persisted stream high-water (largest page sequence ever allocated)
-	 * @param normalizer            the value normalizer, returning the very instance it is given for a normalized key
-	 * @param comparator            the value order
-	 * @param indexedDecimalPlaces  the frozen decimal-places scale (0 for non-`BigDecimal` types)
-	 * @return the rebuilt `PAGED` inverted index, dirty when a legacy key had to be normalized
-	 * @deprecated exists only to normalize owner sort indexes persisted before their temporal values were normalized;
-	 * it can be removed together with {@link #isLegacyOwnerOrder} once every such index has been mutated by a version
-	 * that normalizes them
-	 */
-	@Deprecated(since = "2026.3", forRemoval = true)
-	@Nonnull
-	@SuppressWarnings("rawtypes")
-	public static InvertedIndex fromPersistedPagesNormalizingLegacyKeys(
-		@Nonnull Class<?> plainType,
-		@Nonnull int[] orderedPageSequences,
-		@Nonnull ValueToRecord[][] perPageBuckets,
-		@Nullable int[][] perPageValueIds,
-		int highWaterPageSequence,
-		@Nonnull Function<Object, Serializable> normalizer,
-		@Nonnull Comparator comparator,
-		int indexedDecimalPlaces
-	) {
-		return fromPersistedPages(
-			plainType, orderedPageSequences, perPageBuckets, perPageValueIds, highWaterPageSequence,
-			normalizer, comparator, indexedDecimalPlaces, true
-		);
-	}
-
-	/**
-	 * Shared implementation of {@link #fromPersistedPages(Class, int[], ValueToRecord[][], int[][], int, Function,
-	 * Comparator, int)} and {@link #fromPersistedPagesNormalizingLegacyKeys}; see both for the contract.
-	 *
-	 * @param legacyKeysPermitted `true` when persisted keys not yet in the normalized form re-sort the whole index -
-	 *                            see {@link #isLegacyOwnerOrder}; the parameter goes away together with it
-	 */
-	@Nonnull
-	@SuppressWarnings({"unchecked", "rawtypes"})
-	private static InvertedIndex fromPersistedPages(
-		@Nonnull Class<?> plainType,
-		@Nonnull int[] orderedPageSequences,
-		@Nonnull ValueToRecord[][] perPageBuckets,
-		@Nullable int[][] perPageValueIds,
-		int highWaterPageSequence,
-		@Nonnull Function<Object, Serializable> normalizer,
-		@Nonnull Comparator comparator,
-		int indexedDecimalPlaces,
-		boolean legacyKeysPermitted
 	) {
 		Assert.isPremiseValid(
 			orderedPageSequences.length == perPageBuckets.length,
@@ -814,11 +740,8 @@ public class InvertedIndex implements
 			normalizedKeys[i] = keys;
 		}
 		// an inversion is repaired ONLY when the persisted sequence is the one a second-granularity release would
-		// have written; every other inversion is corruption and must reach the diagnostics below untouched. A legacy
-		// key, when permitted, re-sorts the whole index for the same reason - but again only over a persisted
-		// sequence a writer could have produced
-		final boolean resorted = (inverted && isSecondGranularityRangeOrder(normalizedKeys)) ||
-			(legacyKeysPermitted && isLegacyOwnerOrder(perPageBuckets, normalizedKeys, comparator));
+		// have written; every other inversion is corruption and must reach the diagnostics below untouched
+		final boolean resorted = inverted && isSecondGranularityRangeOrder(normalizedKeys);
 
 		int[] loadedPageSequences = orderedPageSequences;
 		Object[][] loadedKeys = normalizedKeys;
@@ -942,48 +865,6 @@ public class InvertedIndex implements
 		final PageStreamRegistry registry = new PageStreamRegistry();
 		registry.restore(BUCKET_PAGE_STREAM, highWaterPageSequence, orderedPageSequences);
 		return registry;
-	}
-
-	/**
-	 * Tells whether the persisted keys are the ones an owner sort index wrote before its temporal values were
-	 * normalized, and may therefore be re-sorted rather than reported as corruption. Two facts have to hold together:
-	 * at least one persisted key is not in the normalized form (`normalizedKeys` holds a different instance for it),
-	 * and the persisted keys themselves are **strictly ascending** under `comparator` across all pages - the order
-	 * every owner wrote its pages in. A stale leaf-page twin fails the second test, its keys overlapping those of the
-	 * page it is a twin of, and keeps reaching the corruption diagnostics.
-	 *
-	 * The re-sort then runs whether or not the normalization reordered anything: it is also what gives up the identity
-	 * of every page, so the first flush writing the index writes all of them in normalized form rather than leaving
-	 * raw and normalized pages side by side.
-	 *
-	 * @param perPageBuckets the persisted buckets of each page, in persisted page order
-	 * @param normalizedKeys the normalized key of each persisted bucket, aligned with `perPageBuckets`
-	 * @param comparator     the value order
-	 * @return `true` when the pages hold legacy keys in a legacy writer's order
-	 * @deprecated exists only for {@link #fromPersistedPagesNormalizingLegacyKeys} and is removed together with it
-	 */
-	@Deprecated(since = "2026.3", forRemoval = true)
-	@SuppressWarnings({"unchecked", "rawtypes"})
-	private static boolean isLegacyOwnerOrder(
-		@Nonnull ValueToRecord[][] perPageBuckets,
-		@Nonnull Object[][] normalizedKeys,
-		@Nonnull Comparator comparator
-	) {
-		boolean legacyKeyFound = false;
-		Comparable previousPersistedKey = null;
-		for (int i = 0; i < perPageBuckets.length; i++) {
-			final ValueToRecord[] buckets = perPageBuckets[i];
-			for (int j = 0; j < buckets.length; j++) {
-				final Comparable persistedKey = (Comparable) buckets[j].getValue();
-				//noinspection NonShortCircuitBooleanExpression
-				legacyKeyFound |= normalizedKeys[i][j] != persistedKey;
-				if (previousPersistedKey != null && comparator.compare(previousPersistedKey, persistedKey) >= 0) {
-					return false;
-				}
-				previousPersistedKey = persistedKey;
-			}
-		}
-		return legacyKeyFound;
 	}
 
 	/**
@@ -2738,6 +2619,33 @@ public class InvertedIndex implements
 	 */
 	public void forgetPageStream() {
 		this.pageStreamRegistry.forget(BUCKET_PAGE_STREAM);
+	}
+
+	/**
+	 * Makes this index - built afresh and never flushed - the successor of a persisted `PAGED` index it replaces whole,
+	 * reusing none of its pages: the page stream continues from the persisted high-water, and the persisted pages
+	 * become the live set the first emission diffs against. That emission therefore gives every leaf a page sequence
+	 * above `highWaterPageSequence`, frees every persisted page and re-emits the root - or, when this index fits one
+	 * leaf, frees every persisted page through {@link #currentLeafPageSequences()} before it falls back to the inline
+	 * shape. Page sequences stay advance-only, so a persisted page and a page of the successor never share an identity.
+	 *
+	 * @param highWaterPageSequence  the persisted stream high-water (largest page sequence ever allocated)
+	 * @param persistedPageSequences the leaf-page sequences the persisted root lists, in its order
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when this index knows a page stream already - it was
+	 *                                                        flushed, or reassembled from persisted pages, so it is
+	 *                                                        no successor built afresh
+	 * @deprecated exists only for the rewrite of owner sort indexes persisted with raw temporal values: its only caller
+	 * is `LegacyTemporalSortValueCorrection#rewrite`, which only the storage migration `Migration_2026_3` calls, and it
+	 * is removed together with them
+	 */
+	@Deprecated(since = "2026.3", forRemoval = true)
+	public void supersedePersistedPages(int highWaterPageSequence, @Nonnull int[] persistedPageSequences) {
+		Assert.isPremiseValid(
+			!this.pageStreamRegistry.isKnown(BUCKET_PAGE_STREAM),
+			"Only an inverted index built afresh can supersede persisted pages - this one knows its page stream " +
+				"already."
+		);
+		this.pageStreamRegistry.restore(BUCKET_PAGE_STREAM, highWaterPageSequence, persistedPageSequences);
 	}
 
 	/**

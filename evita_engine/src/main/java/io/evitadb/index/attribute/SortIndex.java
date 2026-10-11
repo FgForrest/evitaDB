@@ -439,7 +439,10 @@ public abstract sealed class SortIndex
 	 * Rehydrates a sort index from its persisted state in **owner** or **view** mode. When `sharedSupplier` resolves a
 	 * shared tree the persisted `sortedRecordValues` / `cardinalities` are IGNORED (the slim part omits them) and a
 	 * {@link SortIndexView} is built; otherwise an {@link OwnerSortIndex} is rebuilt from the persisted arrays.
-	 * `sortedRecords` is always taken as-is.
+	 * `sortedRecords` is always taken as-is, and so are the persisted values - nothing here normalizes a raw temporal
+	 * value an owner part of 2026.2 or an older release stored: the storage migration to protocol 8 rewrites every such
+	 * part before a catalog of that release loads. A catalog that reaches protocol 8 with raw values otherwise - only a
+	 * development build of 2026.3 writes one - is not supported, and its values are read as they are stored.
 	 *
 	 * @param comparatorBase       one descriptor per element (a single entry for plain attributes)
 	 * @param referenceKey         owning reference discriminator, or `null` for the global index
@@ -468,12 +471,6 @@ public abstract sealed class SortIndex
 		return sharedTree != null
 			? new SortIndexView(
 			comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces, sortedRecords, sharedTree)
-			: LegacyTemporalSortValueCorrection.isApplicable(comparatorBase)
-			// a part persisted before temporal sort values were normalized is normalized on load
-			? LegacyTemporalSortValueCorrection.fromPersistedArrays(
-				comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces,
-				sortedRecords, sortedRecordValues, cardinalities
-			)
 			: new OwnerSortIndex(
 				comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces,
 				sortedRecords, sortedRecordValues, cardinalities

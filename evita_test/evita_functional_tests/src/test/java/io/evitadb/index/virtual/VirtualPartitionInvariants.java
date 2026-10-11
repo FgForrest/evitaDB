@@ -347,6 +347,10 @@ public final class VirtualPartitionInvariants {
 	 * catalog has flushed everything it applied: after the session of a catalog warming up closed, after a
 	 * transaction of a live catalog whose checkpoints are not deferred committed, or after a reload.
 	 *
+	 * The counts are no proof that a removed footprint was reclaimed: a subsidiary part of an index - a sort root, a
+	 * leaf page - is neither an entity index part nor an entity part, so one left behind changes no count here. Tests
+	 * that remove such parts check them by their identities, through storage reads.
+	 *
 	 * @param label       names the moment in failure messages
 	 * @param evita       the engine
 	 * @param catalogName the catalog

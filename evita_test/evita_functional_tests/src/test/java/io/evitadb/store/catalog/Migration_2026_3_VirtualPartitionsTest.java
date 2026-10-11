@@ -66,7 +66,10 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;
+import io.evitadb.store.catalog.LegacyTemporalSortImages.LegacySortIndex;
 import io.evitadb.store.catalog.Migration_2025_6.NoChangeHeaderInfoSupplier;
 import io.evitadb.store.catalog.Migration_2026_3_UniqueUpgradeRoundTripTest.Shape;
 import io.evitadb.store.catalog.Migration_2026_3_UniqueUpgradeRoundTripTest.Spellings;
@@ -96,6 +99,8 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.Normalizer;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -117,6 +122,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.ATTRIBUTE_ORDER;
@@ -132,10 +138,14 @@ import static io.evitadb.index.virtual.VirtualPartitionInvariants.catalogOf;
 import static io.evitadb.index.virtual.VirtualPartitionInvariants.collectionOf;
 import static io.evitadb.index.virtual.VirtualPartitionInvariants.describeIndexes;
 import static io.evitadb.index.virtual.VirtualPartitionInvariants.registeredRowsOf;
+import static io.evitadb.store.catalog.LegacyTemporalSortImages.assertRewritten;
+import static io.evitadb.store.catalog.LegacyTemporalSortImages.assertStillRaw;
+import static io.evitadb.store.catalog.LegacyTemporalSortImages.writeRawSortIndexes;
 import static io.evitadb.store.catalog.OfflineCatalogImages.assertOnlyAppended;
 import static io.evitadb.store.catalog.OfflineCatalogImages.catalogFolder;
 import static io.evitadb.store.catalog.OfflineCatalogImages.filesHeldOpenIn;
 import static io.evitadb.store.catalog.OfflineCatalogImages.lastBootstrap;
+import static io.evitadb.store.catalog.OfflineCatalogImages.migrateOffline;
 import static io.evitadb.store.catalog.OfflineCatalogImages.stamp;
 import static io.evitadb.store.catalog.OfflineCatalogImages.storedFiles;
 import static io.evitadb.store.catalog.OfflineCatalogImages.withOfflineCatalog;
@@ -262,6 +272,19 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 	 * whose partitions are converted. Named as the attribute of the precedent whose respelling the case reuses.
 	 */
 	private static final String ATTRIBUTE_URL = "url";
+	/**
+	 * A sort-only moment of the owners - in the global index, and in every partition object of a reference indexed for
+	 * partitioning, which carries the attributes of its owners.
+	 */
+	private static final String ATTRIBUTE_MOMENT = "moment";
+	/**
+	 * A sort-only moment of the reference - in every partition object, and in every registry row.
+	 */
+	private static final String ATTRIBUTE_SINCE = "since";
+	/**
+	 * 09:00Z of the first day the moments use.
+	 */
+	private static final OffsetDateTime NINE_AT_UTC = OffsetDateTime.parse("2024-01-01T09:00:00Z");
 	/**
 	 * The target the first owners share.
 	 */
@@ -764,6 +787,116 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 		}
 
 		/**
+		 * Case (iv): the collection of the combined case above also holds owner sort indexes storing temporal values
+		 * raw, as every release up to 2026.2 wrote them - the moment of the owners in the global index and in every
+		 * partition object, and the moment of the reference in every partition object. So one collection is rewritten,
+		 * re-keyed and converted: the sort indexes of the single-owner partition objects are rewritten and then removed
+		 * with the objects the conversion turns into rows, those of the global index and of the shared object are
+		 * rewritten and kept. The migration must publish all three, and a first attempt failing at its publication
+		 * must leave the published raw state exactly as it was.
+		 *
+		 * The rows the conversion writes carry normalized sort values whatever the objects store: the registry
+		 * normalizes every value it receives. What the order of the steps decides is that the rewrite is published -
+		 * it writes into the data store before the conversion's final flush, which the publication addresses.
+		 */
+		@Test
+		@DisplayName("a collection rewritten, re-keyed and converted publishes all three, also after a failed attempt")
+		void shouldRewriteRekeyAndConvertOneCollectionAndRetryAfterAFailure() {
+			final EvitaConfiguration configuration = configurationOf(
+				allocatePaths("rewriteRekeyAndConvert"), null, null
+			);
+			final Evita engine = start(configuration);
+			buildCatalogs(
+				engine, CatalogState.ALIVE,
+				(session, indexType) -> setUpOwners(
+					session, REFLECTED_OWNER_COUNT, SHARING_OWNER_COUNT, false, indexType, true, true
+				),
+				List.of()
+			);
+			engine.close();
+			final Spellings spellings = new Spellings();
+			for (int owner = 1; owner <= REFLECTED_OWNER_COUNT; owner++) {
+				spellings.raw(ATTRIBUTE_URL, urlOf(owner));
+			}
+			respellOwnerUniqueIndex(configuration, spellings);
+			final List<LegacySortIndex> legacy = writeRawSortIndexes(
+				configuration, GENERATED_CATALOG, ENTITY_OWNER, Set.of(ATTRIBUTE_MOMENT, ATTRIBUTE_SINCE),
+				Migration_2026_3_VirtualPartitionsTest::momentOf
+			);
+			final PartitionInventory inventory = inventoryPartitions(configuration, GENERATED_CATALOG);
+			assertEquals(Set.of(ENTITY_OWNER), inventory.collectionsWithConverted(), inventory.toString());
+			final Set<Long> legacyRoots = new HashSet<>();
+			for (final LegacySortIndex legacyIndex : legacy) {
+				legacyRoots.add(legacyIndex.rootPrimaryKey());
+			}
+			// the raw parts must reach every kind of entity index the rewrite covers, or the case proves less
+			assertTrue(
+				legacy.stream().anyMatch(it -> it.entityIndexKey().type() == EntityIndexType.GLOBAL),
+				"the global index must hold a raw sort index: " + legacy
+			);
+			assertTrue(
+				inventory.converted().keySet().stream().anyMatch(
+					it -> it.type() == SortIndexStoragePart.class && legacyRoots.contains(it.partPrimaryKey())
+				),
+				"a single-owner partition object must hold a raw sort index: " + legacy
+			);
+			assertTrue(
+				inventory.kept().keySet().stream().anyMatch(
+					it -> it.type() == SortIndexStoragePart.class && legacyRoots.contains(it.partPrimaryKey())
+				),
+				"the shared partition object must hold a raw sort index: " + legacy
+			);
+			final Path folder = catalogFolder(configuration, GENERATED_CATALOG);
+			final SortedMap<String, StoredFile> before = storedFiles(folder);
+			final CatalogBootstrap publishedBefore = lastBootstrap(configuration, GENERATED_CATALOG);
+
+			// the first attempt fails at its publication: neither step may be published
+			assertThrows(
+				InjectedFailure.class,
+				() -> migrateOffline(
+					configuration, GENERATED_CATALOG,
+					header -> {
+						throw new InjectedFailure();
+					},
+					new HashMap<>()
+				)
+			);
+			assertOnlyAppended("after the failed migration", before, storedFiles(folder), true);
+			assertEquals(publishedBefore, lastBootstrap(configuration, GENERATED_CATALOG));
+			assertOwnerUrlsStored("after the failed migration", configuration, false);
+			assertStillRaw("after the failed migration", configuration, GENERATED_CATALOG, ENTITY_OWNER, legacy);
+			assertEquals(
+				inventory.converted().keySet(),
+				inventoryPartitions(configuration, GENERATED_CATALOG).converted().keySet(),
+				"after the failed migration every object to convert must still be stored and listed"
+			);
+
+			// the rerun from the same published state, through the load path
+			stamp(configuration, GENERATED_CATALOG, RELEASED_PROTOCOL, RELEASED_PROTOCOL);
+			final Evita migrated = start(configuration);
+			assertMigratedLikeTheTwin("after the migration", migrated);
+			migrated.close();
+			assertOwnerUrlsStored("after the migration", configuration, true);
+			assertTrue(
+				assertRewritten("after the migration", configuration, GENERATED_CATALOG, ENTITY_OWNER, legacy) >= 2,
+				"the sort indexes of the global index and of the shared object must have been rewritten and kept"
+			);
+			// every part of a kept object is byte-identical but the ones another step rewrites on purpose: the owner
+			// unique part of the URLs the re-key rewrites, and the raw sort parts, checked above by what they hold
+			assertConversionFootprint(
+				"after the migration", configuration, inventory,
+				part -> part.type() == UniqueIndexStoragePart.class ||
+					(part.type() == SortIndexStoragePart.class && legacyRoots.contains(part.partPrimaryKey()))
+			);
+
+			final Evita reloaded = start(configuration);
+			assertMigratedLikeTheTwin("after a reload", reloaded);
+			reloaded.close();
+			assertOwnerUrlsStored("after a reload", configuration, true);
+			assertRewritten("after a reload", configuration, GENERATED_CATALOG, ENTITY_OWNER, legacy);
+		}
+
+		/**
 		 * The published state is migrated before the write-ahead log tail - written over the objects of the former
 		 * indexing - is replayed onto it.
 		 */
@@ -891,6 +1024,33 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 		@Nonnull ReferenceIndexType indexType,
 		boolean withUrl
 	) {
+		setUpOwners(session, ownerCount, sharingOwnerCount, reflected, indexType, withUrl, false);
+	}
+
+	/**
+	 * The variant of {@link #setUpOwners(EvitaSessionContract, int, int, boolean, ReferenceIndexType, boolean)} that
+	 * optionally gives every owner a sort-only moment of its own and every reference a sort-only moment, both the
+	 * moment {@link #momentOf(int)} names for the owner. A partition object of a reference indexed for partitioning
+	 * then holds an owner sort index of both - with the indexed attributes of the owner the object holds the entity
+	 * attribute too.
+	 *
+	 * @param session           the session to write in
+	 * @param ownerCount        how many owners to create
+	 * @param sharingOwnerCount how many of them reference the shared target too
+	 * @param reflected         TRUE to reflect the reference on the targets
+	 * @param indexType         the index type of the reference in both scopes
+	 * @param withUrl           TRUE to give every owner a localized URL unique across locales (see {@link #urlOf(int)})
+	 * @param withMoments       TRUE to give every owner and every reference a sort-only `OffsetDateTime`
+	 */
+	private static void setUpOwners(
+		@Nonnull EvitaSessionContract session,
+		int ownerCount,
+		int sharingOwnerCount,
+		boolean reflected,
+		@Nonnull ReferenceIndexType indexType,
+		boolean withUrl,
+		boolean withMoments
+	) {
 		session.defineEntitySchema(ENTITY_TARGET).updateVia(session);
 		final EntitySchemaBuilder ownerSchema = session.defineEntitySchema(ENTITY_OWNER)
 			.withReferenceToEntity(
@@ -905,12 +1065,21 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 						ATTRIBUTE_RANK, Integer.class,
 						thatIs -> thatIs.filterableInScope(Scope.LIVE).sortableInScope(Scope.LIVE).nullable()
 					);
+					if (withMoments) {
+						whichIs.withAttribute(
+							ATTRIBUTE_SINCE, OffsetDateTime.class,
+							thatIs -> thatIs.sortableInScope(Scope.LIVE).nullable()
+						);
+					}
 				}
 			);
 		if (withUrl) {
 			ownerSchema
 				.withLocale(Locale.ENGLISH)
 				.withAttribute(ATTRIBUTE_URL, String.class, whichIs -> whichIs.localized().unique().nullable());
+		}
+		if (withMoments) {
+			ownerSchema.withAttribute(ATTRIBUTE_MOMENT, OffsetDateTime.class, thatIs -> thatIs.sortable().nullable());
 		}
 		ownerSchema.updateVia(session);
 		if (reflected) {
@@ -933,15 +1102,30 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 			final int ownerPrimaryKey = owner;
 			final EntityBuilder builder = session.createNewEntity(ENTITY_OWNER, owner)
 				.setReference(
-					REFERENCE_TARGETS, ownerPrimaryKey, ref -> ref.setAttribute(ATTRIBUTE_RANK, ownerPrimaryKey)
+					REFERENCE_TARGETS, ownerPrimaryKey,
+					ref -> {
+						ref.setAttribute(ATTRIBUTE_RANK, ownerPrimaryKey);
+						if (withMoments) {
+							ref.setAttribute(ATTRIBUTE_SINCE, momentOf(ownerPrimaryKey));
+						}
+					}
 				);
 			if (owner <= sharingOwnerCount) {
 				builder.setReference(
-					REFERENCE_TARGETS, SHARED_TARGET, ref -> ref.setAttribute(ATTRIBUTE_RANK, -ownerPrimaryKey)
+					REFERENCE_TARGETS, SHARED_TARGET,
+					ref -> {
+						ref.setAttribute(ATTRIBUTE_RANK, -ownerPrimaryKey);
+						if (withMoments) {
+							ref.setAttribute(ATTRIBUTE_SINCE, momentOf(ownerPrimaryKey));
+						}
+					}
 				);
 			}
 			if (withUrl) {
 				builder.setAttribute(ATTRIBUTE_URL, Locale.ENGLISH, urlOf(owner));
+			}
+			if (withMoments) {
+				builder.setAttribute(ATTRIBUTE_MOMENT, momentOf(owner));
 			}
 			builder.upsertVia(session);
 		}
@@ -950,6 +1134,21 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 				session.archiveEntity(ENTITY_TARGET, target);
 			}
 		}
+	}
+
+	/**
+	 * Returns the moment of an owner: owners `2k + 1` and `2k + 2` share one moment, the odd one written at +02:00 and
+	 * the even one at +01:00 - so the raw values a release stored order them by their local time, while the normalized
+	 * ones tie.
+	 *
+	 * @param owner the primary key of the owner
+	 * @return the moment
+	 */
+	@Nonnull
+	private static OffsetDateTime momentOf(int owner) {
+		return NINE_AT_UTC.toInstant()
+			.plusSeconds((owner - 1) / 2)
+			.atOffset(owner % 2 == 1 ? ZoneOffset.ofHours(2) : ZoneOffset.ofHours(1));
 	}
 
 	/**
@@ -1354,6 +1553,25 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 		@Nonnull PartitionInventory inventory,
 		boolean keptUnchanged
 	) {
+		assertConversionFootprint(label, configuration, inventory, part -> !keptUnchanged);
+	}
+
+	/**
+	 * Asserts what the published state of the catalog stores of the partitions an inventory listed: no part of an
+	 * object the migration converted, and every part of an object it kept with the bytes it had - but the parts another
+	 * step of the migration rewrites on purpose, which the caller checks by what they hold.
+	 *
+	 * @param label              names the moment in failure messages
+	 * @param configuration      the configuration of the engine
+	 * @param inventory          the inventory taken before the migration
+	 * @param rewrittenOnPurpose TRUE for a part of a kept object the migration rewrites on purpose
+	 */
+	private static void assertConversionFootprint(
+		@Nonnull String label,
+		@Nonnull EvitaConfiguration configuration,
+		@Nonnull PartitionInventory inventory,
+		@Nonnull Predicate<PartitionPart> rewrittenOnPurpose
+	) {
 		withOfflineCatalog(
 			configuration, GENERATED_CATALOG,
 			service -> {
@@ -1368,16 +1586,17 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 						violations.add("still stored: " + part);
 					}
 				}
-				if (keptUnchanged) {
-					for (final Entry<PartitionPart, byte[]> part : inventory.kept().entrySet()) {
-						final byte[] bytes = collectionServiceOf(service, catalogVersion, part.getKey().entityType())
-							.getStoragePartPersistenceService()
-							.getStoragePartAsBinary(
-								catalogVersion, part.getKey().partPrimaryKey(), part.getKey().type()
-							);
-						if (!Arrays.equals(part.getValue(), bytes)) {
-							violations.add("changed or gone: " + part.getKey());
-						}
+				for (final Entry<PartitionPart, byte[]> part : inventory.kept().entrySet()) {
+					if (rewrittenOnPurpose.test(part.getKey())) {
+						continue;
+					}
+					final byte[] bytes = collectionServiceOf(service, catalogVersion, part.getKey().entityType())
+						.getStoragePartPersistenceService()
+						.getStoragePartAsBinary(
+							catalogVersion, part.getKey().partPrimaryKey(), part.getKey().type()
+						);
+					if (!Arrays.equals(part.getValue(), bytes)) {
+						violations.add("changed or gone: " + part.getKey());
 					}
 				}
 				if (!violations.isEmpty()) {
@@ -1386,39 +1605,6 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 							String.join("\n", violations.subList(0, Math.min(violations.size(), 40)))
 					);
 				}
-				return Boolean.TRUE;
-			}
-		);
-	}
-
-	/**
-	 * Runs the migration of the published state of a catalog of the current storage protocol with the engine stopped,
-	 * handing its result to the given publication instead of publishing it - the migration the load path runs, minus
-	 * the publication.
-	 *
-	 * @param configuration     the configuration of the engine
-	 * @param catalogName       the catalog
-	 * @param postUpgradeAction receives the catalog header the migration would publish
-	 * @param published         receives the collection references the published catalog header holds
-	 */
-	private static void migrateOffline(
-		@Nonnull EvitaConfiguration configuration,
-		@Nonnull String catalogName,
-		@Nonnull Consumer<CatalogHeader<LogFileRecordReference, CollectionFileReference>> postUpgradeAction,
-		@Nonnull Map<String, CollectionFileReference> published
-	) {
-		withOfflineCatalog(
-			configuration, catalogName,
-			service -> {
-				final long catalogVersion = service.getLastCatalogVersion();
-				final CatalogOffsetIndexStoragePartPersistenceService catalogParts =
-					service.getStoragePartPersistenceService(catalogVersion);
-				final CatalogHeader<LogFileRecordReference, CollectionFileReference> header =
-					catalogParts.getCatalogHeader(catalogVersion);
-				published.putAll(header.collectionFileIndex());
-				Migration_2026_3.upgradeFromStorageProtocolVersion_6_to_8(
-					header, catalogParts, service::createEntityCollectionPersistenceService, postUpgradeAction
-				);
 				return Boolean.TRUE;
 			}
 		);

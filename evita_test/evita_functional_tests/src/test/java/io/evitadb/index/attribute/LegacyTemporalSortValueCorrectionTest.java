@@ -72,6 +72,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -105,16 +106,21 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies that an owner sort index persisted before its temporal values were normalized - its parts written as the
- * owner used to write them, with the raw `OffsetDateTime`, `LocalDateTime` and `LocalTime` values - loads normalized,
- * and is written back normalized by the next flush, after which it loads without needing any correction.
+ * Verifies the rewrite the storage migration to protocol 8 performs on an owner sort index persisted before its
+ * temporal values were normalized - its parts written as the owner used to write them, with the raw `OffsetDateTime`,
+ * `LocalDateTime` and `LocalTime` values: the rewrite emits parts holding only normalized values, and those parts,
+ * stored and loaded again by the load path - which corrects nothing - hold the records in the order of their
+ * millisecond instants, exactly as an index the current engine wrote from the same values. A paged index is rewritten
+ * whole: every legacy leaf page is removed, and no rewritten page takes the identity of a legacy one.
  *
  * The legacy parts are produced by {@link LegacyOwnerSortIndexWriter}, a test-only replica of the old writer, and pass
- * through the real Kryo serializers and the real offset index.
+ * through the real Kryo serializers and the real offset index; the rewrite is
+ * {@link LegacyTemporalSortValueCorrection#rewrite}, the very call the migration makes, and its emission is applied the
+ * way the migration drains it into a collection data store.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Owner sort indexes persisted with raw temporal values load normalized")
+@DisplayName("Owner sort indexes persisted with raw temporal values are rewritten normalized by the storage migration")
 @Tag(STORAGE)
 @Tag(INDEXING)
 @Tag(ORDER)
@@ -169,22 +175,19 @@ class LegacyTemporalSortValueCorrectionTest {
 				.add(NINE.plusSeconds(3600).plusNanos(500_000).atOffset(ZoneOffset.UTC), 4)
 				.add(NINE.plusSeconds(3600).plusNanos(900_000).atOffset(ZoneOffset.UTC), 1, 3);
 
-			final OwnerSortIndex corrected = loadLegacyInline(legacy);
-			assertArrayEquals(new int[]{7, 2, 5, 9, 1, 3, 4}, corrected.getSortedRecords());
-			assertArrayEquals(
-				new Serializable[]{NINE.minusSeconds(3600), NINE, NINE.plusSeconds(3600)},
-				corrected.getSortedRecordValues()
-			);
-
-			// the raw value of either offset finds the merged block
 			final OwnerSortIndex rewritten = roundTripInline(
-				legacy, ownerOf(base, legacy),
+				legacy, legacy.toCurrentOwner(),
+				// the raw value of either offset finds the merged block
 				index -> {
 					index.removeRecord(NINE.atOffset(PLUS_TWO), 5);
 					index.addRecord(NINE.atOffset(PLUS_ONE), 6);
 				}
 			);
 			assertArrayEquals(new int[]{7, 2, 6, 9, 1, 3, 4}, rewritten.getSortedRecords());
+			assertArrayEquals(
+				new Serializable[]{NINE.minusSeconds(3600), NINE, NINE.plusSeconds(3600)},
+				rewritten.getSortedRecordValues()
+			);
 		}
 
 		@Test
@@ -196,16 +199,16 @@ class LegacyTemporalSortValueCorrectionTest {
 				.add(ten.plusNanos(100_000), 3)
 				.add(ten.plusNanos(200_000), 1)
 				.add(ten.plusSeconds(1), 2);
-			final OwnerSortIndex correctedDateTimes = roundTripInline(
-				dateTimes, ownerOf(dateTimeBase, dateTimes), index -> index.addRecord(ten.plusSeconds(2), 4)
+			final OwnerSortIndex rewrittenDateTimes = roundTripInline(
+				dateTimes, dateTimes.toCurrentOwner(), index -> index.addRecord(ten.plusSeconds(2), 4)
 			);
-			assertArrayEquals(new int[]{1, 3, 2, 4}, correctedDateTimes.getSortedRecords());
+			assertArrayEquals(new int[]{1, 3, 2, 4}, rewrittenDateTimes.getSortedRecords());
 			assertArrayEquals(
 				new Serializable[]{
 					ten.toInstant(ZoneOffset.UTC), ten.plusSeconds(1).toInstant(ZoneOffset.UTC),
 					ten.plusSeconds(2).toInstant(ZoneOffset.UTC)
 				},
-				correctedDateTimes.getSortedRecordValues()
+				rewrittenDateTimes.getSortedRecordValues()
 			);
 
 			final ComparatorSource[] timeBase = single(LocalTime.class);
@@ -213,15 +216,15 @@ class LegacyTemporalSortValueCorrectionTest {
 				.add(ten.toLocalTime().plusNanos(100_000), 3)
 				.add(ten.toLocalTime().plusNanos(200_000), 1)
 				.add(ten.toLocalTime().plusSeconds(1), 2);
-			final OwnerSortIndex correctedTimes = roundTripInline(
-				times, ownerOf(timeBase, times), index -> index.addRecord(ten.toLocalTime().plusSeconds(2), 4)
+			final OwnerSortIndex rewrittenTimes = roundTripInline(
+				times, times.toCurrentOwner(), index -> index.addRecord(ten.toLocalTime().plusSeconds(2), 4)
 			);
-			assertArrayEquals(new int[]{1, 3, 2, 4}, correctedTimes.getSortedRecords());
+			assertArrayEquals(new int[]{1, 3, 2, 4}, rewrittenTimes.getSortedRecords());
 			assertArrayEquals(
 				new Serializable[]{
 					ten.toLocalTime(), ten.toLocalTime().plusSeconds(1), ten.toLocalTime().plusSeconds(2)
 				},
-				correctedTimes.getSortedRecordValues()
+				rewrittenTimes.getSortedRecordValues()
 			);
 		}
 
@@ -241,16 +244,17 @@ class LegacyTemporalSortValueCorrectionTest {
 				.add(new ComparableArray(new Serializable[]{NINE.plusSeconds(1800).atOffset(ZoneOffset.UTC), 1}), 3);
 
 			// normalized: (09:00Z, 3), (09:00Z, 5), (09:00Z, 7) merged, (09:30Z, 1)
-			assertArrayEquals(new int[]{2, 1, 4, 5, 3}, loadLegacyInline(legacy).getSortedRecords());
+			final OwnerSortIndex expected = legacy.toCurrentOwner();
+			assertArrayEquals(new int[]{2, 1, 4, 5, 3}, expected.getSortedRecords());
 			final OwnerSortIndex rewritten = roundTripInline(
-				legacy, ownerOf(base, legacy),
+				legacy, expected,
 				index -> index.addRecord(new Serializable[]{NINE.atOffset(ZoneOffset.UTC), 6}, 6)
 			);
 			assertArrayEquals(new int[]{2, 1, 6, 4, 5, 3}, rewritten.getSortedRecords());
 		}
 
 		@Test
-		@DisplayName("leaves an index without raw temporal values untouched and clean")
+		@DisplayName("leaves an index without raw temporal values as it is")
 		void shouldLeaveNormalizedIndexUntouched() {
 			final ComparatorSource[] base = single(OffsetDateTime.class);
 			final OwnerSortIndex current = new OwnerSortIndex(OffsetDateTime.class, ATTRIBUTE_KEY);
@@ -258,10 +262,13 @@ class LegacyTemporalSortValueCorrectionTest {
 			current.addRecord(NINE.atOffset(PLUS_TWO), 1);
 			final SortIndexStoragePart part = root(emit(current));
 
-			final OwnerSortIndex loaded = loadInline(part);
-
-			assertArrayEquals(new int[]{1, 2}, loaded.getSortedRecords());
-			assertTrue(emit(loaded).isEmpty(), "an index loaded without correction must not be flagged dirty");
+			final TrappedChanges sink = new TrappedChanges();
+			assertFalse(
+				LegacyTemporalSortValueCorrection.rewrite(part, null, sink),
+				"an index holding normalized values only must not be rewritten"
+			);
+			assertEquals(0, sink.getTrappedChangesCount(), "nothing may be emitted for it");
+			assertArrayEquals(new int[]{1, 2}, loadInline(part).getSortedRecords());
 			assertFalse(LegacyTemporalSortValueCorrection.isApplicable(single(Integer.class)));
 			assertTrue(LegacyTemporalSortValueCorrection.isApplicable(base));
 		}
@@ -282,7 +289,7 @@ class LegacyTemporalSortValueCorrectionTest {
 			}
 
 			roundTripPaged(
-				legacy, ownerOf(base, legacy), index -> index.addRecord(NINE.minusSeconds(1).atOffset(PLUS_ONE), 1)
+				legacy, legacy.toCurrentOwner(), index -> index.addRecord(NINE.minusSeconds(1).atOffset(PLUS_ONE), 1)
 			);
 		}
 
@@ -296,7 +303,7 @@ class LegacyTemporalSortValueCorrectionTest {
 				legacy.add(ten.plusSeconds(i), i + 1);
 			}
 
-			roundTripPaged(legacy, ownerOf(base, legacy), index -> index.addRecord(ten.minusSeconds(1), 100_000));
+			roundTripPaged(legacy, legacy.toCurrentOwner(), index -> index.addRecord(ten.minusSeconds(1), 100_000));
 		}
 
 		@Test
@@ -324,7 +331,7 @@ class LegacyTemporalSortValueCorrectionTest {
 			);
 
 			roundTripPaged(
-				legacyParts, ownerOf(base, legacy),
+				legacyParts, legacy.toCurrentOwner(),
 				index -> index.addRecord(new Serializable[]{NINE.minusSeconds(1).atOffset(PLUS_ONE), -1}, 100_000)
 			);
 		}
@@ -351,7 +358,7 @@ class LegacyTemporalSortValueCorrectionTest {
 			for (int i = 0; i < PAGED_VALUE_COUNT; i++) {
 				legacyOrder[i] = PAGED_VALUE_COUNT - i;
 			}
-			final OwnerSortIndex expected = ownerOf(base, legacy);
+			final OwnerSortIndex expected = legacy.toCurrentOwner();
 			assertArrayEquals(legacyOrder, expected.getSortedRecords(), "the normalization must not reorder anything");
 
 			roundTripPaged(
@@ -361,7 +368,70 @@ class LegacyTemporalSortValueCorrectionTest {
 		}
 
 		@Test
-		@DisplayName("refuses a stale leaf page twin listed after the pages it overlaps instead of healing it")
+		@DisplayName("collapses a paged index whose values all fall within one millisecond into one inline part")
+		void shouldCollapsePagedIndexIntoInlinePart() {
+			final ComparatorSource[] base = single(LocalTime.class);
+			final LocalTime ten = LocalTime.of(10, 0);
+			// distinct raw values a microsecond apart span several leaf pages, and all normalize onto 10:00:00.000
+			final LegacyOwnerSortIndexWriter legacy = legacy(base);
+			for (int i = 0; i < PAGED_VALUE_COUNT; i++) {
+				legacy.add(ten.plusNanos(i * 1_000L), i + 1);
+			}
+			final OwnerSortIndex expected = legacy.toCurrentOwner();
+			assertArrayEquals(new Serializable[]{ten}, expected.getSortedRecordValues(), "one bucket is expected");
+
+			final OffsetIndex offsetIndex = openWritableOffsetIndex();
+			final OffsetIndexDescriptor rewrittenDescriptor;
+			final Set<Long> legacyPages = new HashSet<>();
+			try {
+				writeEmission(offsetIndex, LEGACY_VERSION, legacy.toPagedParts(0));
+				offsetIndex.flush(LEGACY_VERSION);
+				final SortIndexStoragePart legacyRoot = readRoot(offsetIndex, LEGACY_VERSION);
+				assertTrue(legacyRoot.isPaged(), "the legacy part must be paged");
+				assertTrue(legacyRoot.getLeafPageSequences().length >= 2, "the legacy index must span several pages");
+				final int legacyStreamId = streamId(offsetIndex);
+				for (int sequence : legacyRoot.getLeafPageSequences()) {
+					legacyPages.add(AbstractLeafPagePart.computeUniquePartId(legacyStreamId, sequence));
+				}
+
+				final List<StoragePart> emission = rewrite(
+					legacyRoot, readPages(offsetIndex, LEGACY_VERSION, legacyRoot)
+				);
+				assertFalse(root(emission).isPaged(), "the rewritten index must fall back to one inline part");
+				final Set<Long> removedPages = new HashSet<>();
+				for (StoragePart part : emission) {
+					assertFalse(part instanceof SortIndexLeafPagePart, "an inline index writes no leaf page: " + part);
+					if (part instanceof DeferredRemovalStoragePart removal) {
+						removedPages.add(removal.computeUniquePartIdAndSet(offsetIndex.getReadOnlyKeyCompressor()));
+					}
+				}
+				assertEquals(legacyPages, removedPages, "every legacy page, and nothing else, must be removed");
+				writeEmission(offsetIndex, REWRITTEN_VERSION, emission);
+				rewrittenDescriptor = offsetIndex.flush(REWRITTEN_VERSION);
+			} finally {
+				IOUtils.closeQuietly(offsetIndex::close);
+			}
+
+			final OffsetIndex reopened = loadOffsetIndex(rewrittenDescriptor, REWRITTEN_VERSION);
+			try {
+				for (long pagePrimaryKey : legacyPages) {
+					assertNull(
+						reopened.get(REWRITTEN_VERSION, pagePrimaryKey, SortIndexLeafPagePart.class),
+						"legacy page " + pagePrimaryKey + " must be removed by the rewrite"
+					);
+				}
+				final SortIndexStoragePart rewrittenRoot = readRoot(reopened, REWRITTEN_VERSION);
+				assertFalse(rewrittenRoot.isPaged(), "the stored root must be inline");
+				final OwnerSortIndex reloaded = loadInline(rewrittenRoot);
+				assertEquals(PAGED_VALUE_COUNT, reloaded.getSortedRecords().length, "every record must be kept");
+				assertSameSortIndex(expected, reloaded, "the collapsed inline part");
+			} finally {
+				IOUtils.closeQuietly(reopened::close);
+			}
+		}
+
+		@Test
+		@DisplayName("refuses a stale leaf page twin listed after the pages it overlaps instead of merging it")
 		void shouldRefuseStaleLeafPageTwin() {
 			final ComparatorSource[] base = single(OffsetDateTime.class);
 			final LegacyOwnerSortIndexWriter legacy = legacy(base);
@@ -398,7 +468,7 @@ class LegacyTemporalSortValueCorrectionTest {
 		}
 
 		@Test
-		@DisplayName("refuses legacy pages whose persisted order is not ascending instead of healing them")
+		@DisplayName("refuses legacy pages whose persisted order is not ascending instead of merging them")
 		void shouldRefuseLegacyPagesWhosePersistedOrderIsNotAscending() {
 			final ComparatorSource[] base = single(OffsetDateTime.class);
 			final LegacyOwnerSortIndexWriter legacy = legacy(base);
@@ -451,50 +521,15 @@ class LegacyTemporalSortValueCorrectionTest {
 	}
 
 	/**
-	 * Builds the owner the current engine builds from the same raw values written one by one - the index the
-	 * corrected legacy index must equal.
-	 *
-	 * @param base   the comparator base
-	 * @param legacy the legacy index whose raw values are written
-	 * @return the expected owner sort index
-	 */
-	@Nonnull
-	private static OwnerSortIndex ownerOf(
-		@Nonnull ComparatorSource[] base, @Nonnull LegacyOwnerSortIndexWriter legacy
-	) {
-		final OwnerSortIndex owner = base.length == 1 ?
-			new OwnerSortIndex(base[0].type(), ATTRIBUTE_KEY) : new OwnerSortIndex(base, ATTRIBUTE_KEY);
-		for (Map.Entry<Integer, Serializable> entry : legacy.getValuesByRecord().entrySet()) {
-			if (entry.getValue() instanceof ComparableArray compound) {
-				owner.addRecord(compound.array().clone(), entry.getKey());
-			} else {
-				owner.addRecord(entry.getValue(), entry.getKey());
-			}
-		}
-		return owner;
-	}
-
-	/**
-	 * Loads the legacy index from its inline part, without persisting it.
-	 *
-	 * @param legacy the legacy index
-	 * @return the corrected index
-	 */
-	@Nonnull
-	private static OwnerSortIndex loadLegacyInline(@Nonnull LegacyOwnerSortIndexWriter legacy) {
-		return loadInline(legacy.toInlinePart());
-	}
-
-	/**
-	 * Persists the legacy index as an inline part and loads it through the inline load path, asserting it equals the
-	 * expected owner and is not flagged dirty - so the emission every entity index runs into a discarded sink right
-	 * after it is loaded writes nothing. Then applies the same write to both, persists what the corrected index emits
-	 * and asserts that this loads equal again, with normalized values only.
+	 * Persists the legacy index as an inline part, rewrites it as the migration does and stores the emission, then
+	 * loads the stored part through the load path - which corrects nothing - and asserts it equals the owner the
+	 * current engine builds from the same raw values and holds normalized values only. Then applies the same write to
+	 * both and asserts they stay equal.
 	 *
 	 * @param legacy   the legacy index
 	 * @param expected the owner the current engine builds from the same values
 	 * @param write    the write applied to both indexes
-	 * @return the index loaded from the rewritten part
+	 * @return the index loaded from the rewritten part, the write applied
 	 */
 	@Nonnull
 	private OwnerSortIndex roundTripInline(
@@ -510,13 +545,12 @@ class LegacyTemporalSortValueCorrectionTest {
 			final SortIndexStoragePart legacyPart = readRoot(offsetIndex, LEGACY_VERSION);
 			assertNotNull(legacyPart);
 			assertFalse(legacyPart.isPaged(), "the legacy part must be inline");
-			final OwnerSortIndex corrected = loadInline(legacyPart);
-			assertSameSortIndex(expected, corrected, "legacy inline part");
-			assertTrue(emit(corrected).isEmpty(), "a corrected index must not be flagged dirty at load");
+			assertRaw(legacyPart.getComparatorBase(), List.of(legacyPart.getSortedRecordsValues()));
 
-			write.accept(expected);
-			write.accept(corrected);
-			final List<StoragePart> emission = emit(corrected);
+			final List<StoragePart> emission = rewrite(legacyPart, null);
+			assertEquals(1, emission.size(), "an inline index must be rewritten as one inline part: " + emission);
+			final SortIndexStoragePart emittedPart = root(emission);
+			assertFalse(emittedPart.isPaged(), "the rewritten part must be inline");
 			writeEmission(offsetIndex, REWRITTEN_VERSION, emission);
 			offsetIndex.flush(REWRITTEN_VERSION);
 
@@ -524,6 +558,10 @@ class LegacyTemporalSortValueCorrectionTest {
 			assertNormalized(rewrittenPart.getComparatorBase(), List.of(rewrittenPart.getSortedRecordsValues()));
 			final OwnerSortIndex reloaded = loadInline(rewrittenPart);
 			assertSameSortIndex(expected, reloaded, "rewritten inline part");
+
+			write.accept(expected);
+			write.accept(reloaded);
+			assertSameSortIndex(expected, reloaded, "rewritten inline part after a write");
 			return reloaded;
 		} finally {
 			IOUtils.closeQuietly(offsetIndex::close);
@@ -531,10 +569,12 @@ class LegacyTemporalSortValueCorrectionTest {
 	}
 
 	/**
-	 * Persists the legacy index as leaf pages and loads it through the paged load path, asserting it equals the
-	 * expected owner and is not flagged dirty. Then applies the same write to both, persists what the corrected index
-	 * emits - asserting that every legacy page is retired and every live page rewritten with normalized values - and
-	 * asserts that the rewritten pages load equal again after the offset index is reopened.
+	 * Persists the legacy index as leaf pages, rewrites it as the migration does - asserting that the emission
+	 * removes every legacy page and writes every page of the rewritten root afresh, with normalized values, under page
+	 * sequences above the legacy high-water - and stores the emission. Then reopens the offset index, asserts that no
+	 * legacy page is stored any more, loads the rewritten pages through the load path - which corrects nothing - and
+	 * asserts they equal the owner the current engine builds from the same raw values. Then applies the same write to
+	 * both and asserts they stay equal.
 	 *
 	 * @param legacy   the legacy index
 	 * @param expected the owner the current engine builds from the same values
@@ -564,6 +604,7 @@ class LegacyTemporalSortValueCorrectionTest {
 		final OffsetIndex offsetIndex = openWritableOffsetIndex();
 		final OffsetIndexDescriptor rewrittenDescriptor;
 		final int[] legacyPageSequences;
+		final int[] rewrittenPageSequences;
 		try {
 			writeEmission(offsetIndex, LEGACY_VERSION, legacyParts);
 			offsetIndex.flush(LEGACY_VERSION);
@@ -573,29 +614,50 @@ class LegacyTemporalSortValueCorrectionTest {
 			assertTrue(legacyRoot.isPaged(), "the legacy part must be paged");
 			legacyPageSequences = legacyRoot.getLeafPageSequences();
 			assertTrue(legacyPageSequences.length >= 2, "the legacy index must span several leaf pages");
-			final OwnerSortIndex corrected = loadPaged(offsetIndex, LEGACY_VERSION, legacyRoot);
-			assertSameSortIndex(expected, corrected, "legacy paged part");
-			assertTrue(emit(corrected).isEmpty(), "a corrected index must not be flagged dirty at load");
+			final ValueToRecord[][] legacyBuckets = readPages(offsetIndex, LEGACY_VERSION, legacyRoot);
+			final List<Serializable> legacyValues = new ArrayList<>(PAGED_VALUE_COUNT);
+			for (ValueToRecord[] page : legacyBuckets) {
+				for (ValueToRecord bucket : page) {
+					legacyValues.add(bucket.getValue());
+				}
+			}
+			assertRaw(legacyRoot.getComparatorBase(), legacyValues);
 
-			write.accept(expected);
-			write.accept(corrected);
-			final List<StoragePart> emission = emit(corrected);
+			final List<StoragePart> emission = rewrite(legacyRoot, legacyBuckets);
 			final SortIndexStoragePart rewrittenRoot = root(emission);
-			final Set<Integer> rewrittenPages = new HashSet<>();
-			for (int sequence : rewrittenRoot.getLeafPageSequences()) {
-				rewrittenPages.add(sequence);
-			}
-			for (int sequence : legacyPageSequences) {
-				assertFalse(rewrittenPages.contains(sequence), "legacy page " + sequence + " must not stay live");
-			}
-			int emittedPages = 0;
+			assertTrue(rewrittenRoot.isPaged(), "the rewritten index must still span several leaf pages");
+			rewrittenPageSequences = rewrittenRoot.getLeafPageSequences();
+			final Set<Long> removedPages = new HashSet<>();
+			final Set<Integer> emittedPages = new HashSet<>();
 			for (StoragePart part : emission) {
 				if (part instanceof SortIndexLeafPagePart page) {
 					assertNormalized(rewrittenRoot.getComparatorBase(), List.of(page.getBuckets()));
-					emittedPages++;
+					emittedPages.add(page.getPageSequence());
+				} else if (part instanceof DeferredRemovalStoragePart removal) {
+					assertSame(SortIndexLeafPagePart.class, removal.removedContainerType());
+					removedPages.add(removal.computeUniquePartIdAndSet(offsetIndex.getReadOnlyKeyCompressor()));
 				}
 			}
-			assertEquals(rewrittenPages.size(), emittedPages, "every live page must be written by the first flush");
+			final int legacyStreamId = streamId(offsetIndex);
+			final Set<Long> legacyPages = new HashSet<>();
+			for (int sequence : legacyPageSequences) {
+				legacyPages.add(AbstractLeafPagePart.computeUniquePartId(legacyStreamId, sequence));
+			}
+			assertEquals(legacyPages, removedPages, "every legacy page, and nothing else, must be removed");
+			final Set<Integer> rewrittenPageSet = new HashSet<>();
+			for (int sequence : rewrittenPageSequences) {
+				rewrittenPageSet.add(sequence);
+				assertFalse(
+					legacyPages.contains(AbstractLeafPagePart.computeUniquePartId(legacyStreamId, sequence)),
+					"rewritten page " + sequence + " must not reuse the identity of a legacy page"
+				);
+				assertTrue(
+					sequence > legacyRoot.getHighWaterPageSequence(),
+					"rewritten page " + sequence + " must lie above the legacy high-water " +
+						legacyRoot.getHighWaterPageSequence()
+				);
+			}
+			assertEquals(rewrittenPageSet, emittedPages, "every live page must be written by the rewrite");
 			writeEmission(offsetIndex, REWRITTEN_VERSION, emission);
 			rewrittenDescriptor = offsetIndex.flush(REWRITTEN_VERSION);
 		} finally {
@@ -611,20 +673,24 @@ class LegacyTemporalSortValueCorrectionTest {
 						REWRITTEN_VERSION, AbstractLeafPagePart.computeUniquePartId(streamId, sequence),
 						SortIndexLeafPagePart.class
 					),
-					"legacy page " + sequence + " must be removed by the rewriting flush"
+					"legacy page " + sequence + " must be removed by the rewrite"
 				);
 			}
-			final OwnerSortIndex reloaded =
-				loadPaged(reopened, REWRITTEN_VERSION, readRoot(reopened, REWRITTEN_VERSION));
+			final SortIndexStoragePart reloadedRoot = readRoot(reopened, REWRITTEN_VERSION);
+			assertArrayEquals(rewrittenPageSequences, reloadedRoot.getLeafPageSequences());
+			final OwnerSortIndex reloaded = loadPaged(reopened, REWRITTEN_VERSION, reloadedRoot);
 			assertSameSortIndex(expected, reloaded, "rewritten paged part");
+
+			write.accept(expected);
+			write.accept(reloaded);
+			assertSameSortIndex(expected, reloaded, "rewritten paged part after a write");
 		} finally {
 			IOUtils.closeQuietly(reopened::close);
 		}
 	}
 
 	/**
-	 * Persists the parts and asserts that loading them fails with the corruption diagnostics of the paged tree rather
-	 * than being normalized and healed.
+	 * Persists the parts and asserts that the rewrite refuses them as corruption rather than merging them.
 	 *
 	 * @param corruptedParts leaf pages and a paged root no writer produces
 	 */
@@ -634,15 +700,44 @@ class LegacyTemporalSortValueCorrectionTest {
 			writeEmission(offsetIndex, LEGACY_VERSION, corruptedParts);
 			offsetIndex.flush(LEGACY_VERSION);
 			final SortIndexStoragePart corruptedRoot = readRoot(offsetIndex, LEGACY_VERSION);
+			final ValueToRecord[][] corruptedPages = readPages(offsetIndex, LEGACY_VERSION, corruptedRoot);
+			final TrappedChanges sink = new TrappedChanges();
 			final GenericEvitaInternalError error = assertThrows(
 				GenericEvitaInternalError.class,
-				() -> loadPaged(offsetIndex, LEGACY_VERSION, corruptedRoot),
-				"pages out of order are corruption, not a legacy form to normalize"
+				() -> LegacyTemporalSortValueCorrection.rewrite(corruptedRoot, corruptedPages, sink),
+				"pages out of order are corruption, not a legacy form to rewrite"
 			);
-			assertNotNull(error.getMessage());
+			assertTrue(error.getPrivateMessage().contains("not in ascending order"), error.getPrivateMessage());
+			assertEquals(0, sink.getTrappedChangesCount(), "nothing may be emitted for a refused index");
 		} finally {
 			IOUtils.closeQuietly(offsetIndex::close);
 		}
+	}
+
+	/**
+	 * Rewrites a persisted root as the migration does and returns what the rewrite emitted, asserting that it emitted
+	 * anything at all.
+	 *
+	 * @param root           the persisted root
+	 * @param perPageBuckets the buckets of its leaf pages, or `null` for an inline root
+	 * @return the emitted parts and removals
+	 */
+	@Nonnull
+	private static List<StoragePart> rewrite(
+		@Nonnull SortIndexStoragePart root,
+		@Nullable ValueToRecord[][] perPageBuckets
+	) {
+		final TrappedChanges sink = new TrappedChanges();
+		assertTrue(
+			LegacyTemporalSortValueCorrection.rewrite(root, perPageBuckets, sink),
+			"an index holding raw values must be rewritten"
+		);
+		final List<StoragePart> parts = new ArrayList<>(sink.getTrappedChangesCount());
+		final Iterator<StoragePart> iterator = sink.getTrappedChangesIterator();
+		while (iterator.hasNext()) {
+			parts.add(iterator.next());
+		}
+		return parts;
 	}
 
 	/**
@@ -675,7 +770,7 @@ class LegacyTemporalSortValueCorrectionTest {
 
 	/**
 	 * Asserts every temporal value or compound element is in its normalized form - the form the normalizer maps onto
-	 * itself, which is what makes a load skip the correction.
+	 * itself, which is what the load path, correcting nothing, needs to find.
 	 *
 	 * @param base   the comparator base
 	 * @param values the persisted values, or buckets holding them
@@ -697,7 +792,30 @@ class LegacyTemporalSortValueCorrectionTest {
 	}
 
 	/**
-	 * Loads an inline part the way the attribute index loader loads an owner part.
+	 * Asserts some temporal value or compound element is raw - the premise of a case: without one the rewrite has
+	 * nothing to do and the case proves nothing.
+	 *
+	 * @param base   the comparator base
+	 * @param values the persisted values
+	 */
+	private static void assertRaw(@Nonnull ComparatorSource[] base, @Nonnull List<Serializable> values) {
+		for (Serializable value : values) {
+			final Serializable[] elements = value instanceof ComparableArray compound ?
+				compound.array() : new Serializable[]{value};
+			for (int i = 0; i < base.length; i++) {
+				if (
+					SortIndex.isTemporal(base[i].type()) && elements[i] != null &&
+						FilterIndex.getNormalizer(base[i].type(), 0).apply(elements[i]) != elements[i]
+				) {
+					return;
+				}
+			}
+		}
+		throw new AssertionError("the legacy part must hold a raw temporal value: " + values);
+	}
+
+	/**
+	 * Loads an inline part the way the attribute index loader loads an owner part - which corrects nothing.
 	 *
 	 * @param part the persisted part
 	 * @return the loaded owner sort index
@@ -714,7 +832,7 @@ class LegacyTemporalSortValueCorrectionTest {
 	}
 
 	/**
-	 * Loads a paged part the way the attribute index loader loads it.
+	 * Loads a paged part the way the attribute index loader loads it - which corrects nothing.
 	 *
 	 * @param offsetIndex    the offset index holding the leaf pages
 	 * @param catalogVersion the version to read at
@@ -723,6 +841,24 @@ class LegacyTemporalSortValueCorrectionTest {
 	 */
 	@Nonnull
 	private static OwnerSortIndex loadPaged(
+		@Nonnull OffsetIndex offsetIndex, long catalogVersion, @Nonnull SortIndexStoragePart root
+	) {
+		return OwnerSortIndex.fromPersistedPages(
+			root.getComparatorBase(), null, root.getAttributeIndexKey(), root.getIndexedDecimalPlaces(),
+			root.getLeafPageSequences(), readPages(offsetIndex, catalogVersion, root), root.getHighWaterPageSequence()
+		);
+	}
+
+	/**
+	 * Reads the buckets of every leaf page a paged root lists, in the order it lists them.
+	 *
+	 * @param offsetIndex    the offset index holding the leaf pages
+	 * @param catalogVersion the version to read at
+	 * @param root           the paged root part
+	 * @return the buckets of every leaf page
+	 */
+	@Nonnull
+	private static ValueToRecord[][] readPages(
 		@Nonnull OffsetIndex offsetIndex, long catalogVersion, @Nonnull SortIndexStoragePart root
 	) {
 		final int streamId = streamId(offsetIndex);
@@ -736,10 +872,7 @@ class LegacyTemporalSortValueCorrectionTest {
 			assertNotNull(leafPage, "leaf page " + orderedPageSequences[i] + " must be readable");
 			perPageBuckets[i] = leafPage.getBuckets();
 		}
-		return OwnerSortIndex.fromPersistedPages(
-			root.getComparatorBase(), null, root.getAttributeIndexKey(), root.getIndexedDecimalPlaces(),
-			orderedPageSequences, perPageBuckets, root.getHighWaterPageSequence()
-		);
+		return perPageBuckets;
 	}
 
 	/**

@@ -23,6 +23,11 @@
 
 package io.evitadb.index.attribute;
 
+import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.comparator.LocalizedStringComparator;
+import io.evitadb.comparator.NullsFirstComparatorWrapper;
+import io.evitadb.comparator.NullsLastComparatorWrapper;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.index.invertedIndex.InvertedIndex;
@@ -37,20 +42,28 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStor
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
 /**
  * A test-only replica of the owner sort index as it was written before temporal sort values were normalized: an owned
- * value tree storing every value verbatim, ordered by the owner's comparator, persisted as the inline part or as leaf
- * pages exactly as the owner emitted them. The parts it produces are what a catalog written by such a version holds.
+ * value tree storing every value verbatim, ordered by the comparator the release ordered it by, persisted as the
+ * inline part or as leaf pages exactly as the owner emitted them. The parts it produces are what a catalog written by
+ * such a version holds.
+ *
+ * The comparator is the one of the release tag `v2026.2.20` (`SortIndex#createComparatorFor` and
+ * `SortIndex#createCombinedComparatorFor`), not the current one: a `String` element of a localized index is compared by
+ * the bare collator, which equates two spellings the current index tells apart, so a released compound may hold two
+ * such values ordered by its next element, which the current comparator would order the other way.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -91,14 +104,52 @@ public final class LegacyOwnerSortIndexWriter {
 		this.entityIndexPrimaryKey = entityIndexPrimaryKey;
 		this.attributeIndexKey = attributeIndexKey;
 		this.comparatorBase = comparatorBase;
-		@SuppressWarnings("rawtypes") final Comparator comparator = comparatorBase.length == 1 ?
-			SortIndex.createComparatorFor(attributeIndexKey.locale(), comparatorBase[0]) :
-			SortIndex.createCombinedComparatorFor(attributeIndexKey.locale(), comparatorBase);
-		// the owner used to store the values as it received them - an identity normalizer
+		// the owner used to store the values as it received them - an identity normalizer - ordered by the comparator
+		// of the release
 		this.tree = new InvertedIndex(
 			comparatorBase.length == 1 ? comparatorBase[0].type() : Comparable.class,
-			Serializable.class::cast, comparator, 0
+			Serializable.class::cast, releasedComparator(attributeIndexKey.locale(), comparatorBase), 0
 		);
+	}
+
+	/**
+	 * Builds the comparator release 2026.2 ordered an owner sort index by - `SortIndex#createComparatorFor` and
+	 * `SortIndex#createCombinedComparatorFor` of the tag `v2026.2.20`: a `String` element of a localized index by the
+	 * bare collator, every other element naturally, each in its own direction and with its own NULL handling.
+	 *
+	 * @param locale         the locale of the index, or `null`
+	 * @param comparatorBase the comparator base
+	 * @return the comparator of the release
+	 */
+	@Nonnull
+	@SuppressWarnings({"rawtypes", "unchecked"})
+	private static Comparator releasedComparator(
+		@Nullable Locale locale,
+		@Nonnull ComparatorSource[] comparatorBase
+	) {
+		final Comparator[] elementComparators = new Comparator[comparatorBase.length];
+		for (int i = 0; i < comparatorBase.length; i++) {
+			final ComparatorSource source = comparatorBase[i];
+			final Comparator natural = String.class.isAssignableFrom(source.type()) && locale != null ?
+				new LocalizedStringComparator(locale) : Comparator.naturalOrder();
+			final Comparator directed = source.orderDirection() == OrderDirection.ASC ? natural : natural.reversed();
+			elementComparators[i] = source.orderBehaviour() == OrderBehaviour.NULLS_LAST ?
+				new NullsLastComparatorWrapper(directed) : new NullsFirstComparatorWrapper(directed);
+		}
+		if (comparatorBase.length == 1) {
+			return elementComparators[0];
+		}
+		return (left, right) -> {
+			final Serializable[] leftElements = ((ComparableArray) left).array();
+			final Serializable[] rightElements = ((ComparableArray) right).array();
+			for (int i = 0; i < elementComparators.length; i++) {
+				final int comparison = elementComparators[i].compare(leftElements[i], rightElements[i]);
+				if (comparison != 0) {
+					return comparison;
+				}
+			}
+			return 0;
+		};
 	}
 
 	/**
@@ -125,6 +176,27 @@ public final class LegacyOwnerSortIndexWriter {
 	@Nonnull
 	public SortedMap<Integer, Serializable> getValuesByRecord() {
 		return Collections.unmodifiableSortedMap(this.valuesByRecord);
+	}
+
+	/**
+	 * Builds the owner sort index the current engine builds from the same raw values, written one by one and normalized
+	 * on the way - the index a rewrite of the parts this writer produces must equal.
+	 *
+	 * @return the owner sort index of the current engine
+	 */
+	@Nonnull
+	public OwnerSortIndex toCurrentOwner() {
+		final OwnerSortIndex owner = this.comparatorBase.length == 1 ?
+			new OwnerSortIndex(this.comparatorBase[0].type(), this.attributeIndexKey) :
+			new OwnerSortIndex(this.comparatorBase, this.attributeIndexKey);
+		for (Map.Entry<Integer, Serializable> entry : this.valuesByRecord.entrySet()) {
+			if (entry.getValue() instanceof ComparableArray compound) {
+				owner.addRecord(compound.array().clone(), entry.getKey());
+			} else {
+				owner.addRecord(entry.getValue(), entry.getKey());
+			}
+		}
+		return owner;
 	}
 
 	/**

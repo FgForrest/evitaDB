@@ -54,6 +54,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeKeyW
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.LeafStreamKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
+import io.evitadb.store.catalog.OfflineCatalogImages;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -71,8 +72,10 @@ import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.IntFunction;
@@ -91,8 +94,10 @@ import static io.evitadb.test.TestTags.ORDER;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -483,8 +488,10 @@ class TemporalSortValueFunctionalTest implements EvitaTestSupport {
 	class LegacyCatalog {
 		/** Enough owners to spread every legacy owner sort index over several leaf pages. */
 		private static final int OWNER_COUNT = 600;
-		/** The owner added after the legacy catalog was loaded. */
+		/** The owner added after the legacy catalog was upgraded. */
 		private static final int LATE_OWNER = 1_000;
+		/** The storage protocol of 2026.2, which the storage migration to protocol 8 starts from. */
+		private static final int RELEASED_PROTOCOL = 6;
 
 		/**
 		 * The moment of a legacy owner: owners `2k + 1` and `2k + 2` share one moment, the odd one written at +02:00
@@ -512,10 +519,19 @@ class TemporalSortValueFunctionalTest implements EvitaTestSupport {
 			return OWNER_COUNT + 1 - owner;
 		}
 
+		/**
+		 * A catalog written by a release storing raw temporal sort values is upgraded by the storage migration to
+		 * protocol 8, which rewrites every such sort index - the paged ones of a sort-only attribute and of a compound
+		 * in the global index, and the paged one of a reference attribute in a partition with many owners - in
+		 * normalized form. The load path corrects nothing, so the order every later load serves is the one the
+		 * rewritten parts hold, and no legacy leaf page may be left behind.
+		 *
+		 * @param state the state the catalog is in when it is stamped
+		 */
 		@ParameterizedTest(name = "{0}")
 		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
-		@DisplayName("loads raw sort values normalized and writes them back with the next flush of their index")
-		void shouldLoadRawSortValuesNormalizedAndRewriteThemWithNextFlush(@Nonnull CatalogState state) {
+		@DisplayName("the storage migration rewrites raw sort values normalized, and every later load reads them so")
+		void shouldRewriteRawSortValuesWhenTheCatalogIsUpgraded(@Nonnull CatalogState state) {
 			defineAndPopulate(
 				CatalogState.WARMING_UP,
 				session -> {
@@ -527,7 +543,7 @@ class TemporalSortValueFunctionalTest implements EvitaTestSupport {
 			// replace the sort indexes the current engine wrote with the ones a version storing raw values wrote; the
 			// next flush of the catalog - closing it in warm-up, or going live - publishes them
 			restart();
-			writeLegacySortIndexes();
+			final List<LegacyPages> legacyPages = writeLegacySortIndexes();
 			if (state == CatalogState.ALIVE) {
 				TemporalSortValueFunctionalTest.this.evita.updateCatalog(
 					TEST_CATALOG, EvitaSessionContract::goLiveAndClose
@@ -535,21 +551,26 @@ class TemporalSortValueFunctionalTest implements EvitaTestSupport {
 			}
 			restart();
 			assertSortValueTypes(OffsetDateTime.class, OffsetDateTime.class, "the legacy catalog");
-
-			final List<Integer> byPrimaryKey = IntStream.rangeClosed(1, OWNER_COUNT).boxed().toList();
-			assertOrder(byPrimaryKey, attributeNatural(SORT_ONLY_MOMENT), "the loaded legacy catalog");
-			assertOrder(byPrimaryKey, attributeNatural(MOMENT_THEN_PRIORITY), "the loaded legacy catalog");
-			assertOrder(
-				byPrimaryKey, referenceProperty(TARGETS, attributeNatural(SORT_ONLY_MOMENT)),
-				"the loaded legacy catalog"
+			TemporalSortValueFunctionalTest.this.evita.close();
+			// the catalog is stamped as the release that wrote such indexes left it, so its next start upgrades it
+			OfflineCatalogImages.stamp(
+				newTestEvitaConfigurationBuilder(TemporalSortValueFunctionalTest.this.paths).build(), TEST_CATALOG,
+				RELEASED_PROTOCOL, RELEASED_PROTOCOL
 			);
 
-			// nothing reached the indexes, so nothing was flushed: the disk still holds the raw values
-			restart();
-			assertSortValueTypes(OffsetDateTime.class, OffsetDateTime.class, "a legacy catalog loaded and closed");
+			final List<Integer> byPrimaryKey = IntStream.rangeClosed(1, OWNER_COUNT).boxed().toList();
+			for (String moment : new String[]{"the upgraded catalog", "the upgraded catalog reloaded"}) {
+				restart();
+				assertSortValueTypes(Instant.class, Instant.class, moment);
+				assertLegacyPagesRemoved(legacyPages, moment);
+				assertOrder(byPrimaryKey, attributeNatural(SORT_ONLY_MOMENT), moment);
+				assertOrder(byPrimaryKey, attributeNatural(MOMENT_THEN_PRIORITY), moment);
+				assertOrder(byPrimaryKey, referenceProperty(TARGETS, attributeNatural(SORT_ONLY_MOMENT)), moment);
+			}
 
-			// the late owner touches the global index and creates the reduced index of target 2, but leaves the
-			// reduced index of target 1 alone; the pick-first merge compares a corrected run with a new one
+			// the late owner writes into every rewritten sort index of the global index - a write the raw keys of a
+			// legacy index would refuse - and its single reference to target 2 becomes a row merged with the
+			// partition of target 1 when picking the first row
 			TemporalSortValueFunctionalTest.this.evita.updateCatalog(
 				TEST_CATALOG,
 				session -> {
@@ -559,23 +580,14 @@ class TemporalSortValueFunctionalTest implements EvitaTestSupport {
 			final List<Integer> withLateOwner = IntStream.concat(
 				IntStream.of(LATE_OWNER), IntStream.rangeClosed(1, OWNER_COUNT)
 			).boxed().toList();
-			assertOrder(
-				withLateOwner, referenceProperty(TARGETS, attributeNatural(SORT_ONLY_MOMENT)),
-				"after a reduced index was created"
-			);
-
-			restart();
-			// the flush that persisted the late owner rewrote the global sort indexes it touched in normalized form,
-			// and left the untouched reduced index of target 1 as it was
-			assertSortValueTypes(Instant.class, OffsetDateTime.class, "after the global index was flushed");
-			// the late owner must have reached the disk together with the rewrite - it sorts first everywhere. This is
-			// what a sort index flagged dirty at load breaks: the emission an entity index runs into a discarded sink
-			// right after loading would stage the rewritten pages, and the late owner would be lost on the restart
-			assertOrder(withLateOwner, attributeNatural(SORT_ONLY_MOMENT), "after the rewrite");
-			assertOrder(withLateOwner, attributeNatural(MOMENT_THEN_PRIORITY), "after the rewrite");
-			assertOrder(
-				withLateOwner, referenceProperty(TARGETS, attributeNatural(SORT_ONLY_MOMENT)), "after the rewrite"
-			);
+			for (String moment : new String[]{"after a late owner", "after a late owner reloaded"}) {
+				assertOrder(withLateOwner, attributeNatural(SORT_ONLY_MOMENT), moment);
+				assertOrder(withLateOwner, attributeNatural(MOMENT_THEN_PRIORITY), moment);
+				assertOrder(
+					withLateOwner, referenceProperty(TARGETS, attributeNatural(SORT_ONLY_MOMENT)), moment
+				);
+				restart();
+			}
 		}
 
 		/**
@@ -583,28 +595,40 @@ class TemporalSortValueFunctionalTest implements EvitaTestSupport {
 		 * of the sort-only moment in the reduced index of target 1, with the leaf pages a version storing raw values
 		 * wrote for the same owners. The pages are written straight into the storage of the owner collection; the
 		 * catalog publishes them with its next flush.
+		 *
+		 * @return the leaf pages written, for every sort index
 		 */
-		private void writeLegacySortIndexes() {
+		@Nonnull
+		private List<LegacyPages> writeLegacySortIndexes() {
 			final EntityCollection collection = ownerCollection();
 			final ReferenceSchemaContract referenceSchema =
 				collection.getSchema().getReferenceOrThrowException(TARGETS);
-			writeLegacySortIndex(
-				collection, globalIndex(), attributeKey(globalIndex(), SORT_ONLY_MOMENT), LegacyCatalog::legacyMoment
+			final List<LegacyPages> written = new ArrayList<>(3);
+			written.add(
+				writeLegacySortIndex(
+					collection, globalIndex(), attributeKey(globalIndex(), SORT_ONLY_MOMENT),
+					LegacyCatalog::legacyMoment
+				)
 			);
-			writeLegacySortIndex(
-				collection, globalIndex(), attributeKey(globalIndex(), MOMENT_THEN_PRIORITY),
-				owner -> new ComparableArray(new Serializable[]{legacyMoment(owner), legacyPriority(owner)})
+			written.add(
+				writeLegacySortIndex(
+					collection, globalIndex(), attributeKey(globalIndex(), MOMENT_THEN_PRIORITY),
+					owner -> new ComparableArray(new Serializable[]{legacyMoment(owner), legacyPriority(owner)})
+				)
 			);
 			final EntityIndex reducedIndex = reducedIndexOfFirstTarget();
-			writeLegacySortIndex(
-				collection, reducedIndex,
-				Objects.requireNonNull(
-					reducedIndex.getSortIndex(
-						referenceSchema, referenceSchema.getAttribute(SORT_ONLY_MOMENT).orElseThrow(), null
-					)
-				).getAttributeIndexKey(),
-				LegacyCatalog::legacyMoment
+			written.add(
+				writeLegacySortIndex(
+					collection, reducedIndex,
+					Objects.requireNonNull(
+						reducedIndex.getSortIndex(
+							referenceSchema, referenceSchema.getAttribute(SORT_ONLY_MOMENT).orElseThrow(), null
+						)
+					).getAttributeIndexKey(),
+					LegacyCatalog::legacyMoment
+				)
 			);
+			return written;
 		}
 
 		/**
@@ -614,8 +638,10 @@ class TemporalSortValueFunctionalTest implements EvitaTestSupport {
 		 * @param entityIndex     the entity index the sort index belongs to
 		 * @param attributeKey    the attribute or compound of the sort index
 		 * @param rawValueOfOwner the raw value the old version stored for an owner
+		 * @return the leaf pages written
 		 */
-		private void writeLegacySortIndex(
+		@Nonnull
+		private LegacyPages writeLegacySortIndex(
 			@Nonnull EntityCollection collection,
 			@Nonnull EntityIndex entityIndex,
 			@Nonnull AttributeIndexKey attributeKey,
@@ -630,8 +656,65 @@ class TemporalSortValueFunctionalTest implements EvitaTestSupport {
 			for (int owner = 1; owner <= OWNER_COUNT; owner++) {
 				legacy.add(rawValueOfOwner.apply(owner), owner);
 			}
+			SortIndexStoragePart legacyRoot = null;
 			for (StoragePart part : legacy.toPagedParts(currentRoot.getHighWaterPageSequence())) {
 				collection.getStoragePartPersistenceService().putStoragePart(catalogVersion, part);
+				if (part instanceof SortIndexStoragePart root) {
+					legacyRoot = root;
+				}
+			}
+			return new LegacyPages(
+				entityIndex.getIndexKey(), attributeKey, Objects.requireNonNull(legacyRoot).getHighWaterPageSequence(),
+				legacyRoot.getLeafPageSequences()
+			);
+		}
+
+		/**
+		 * Asserts that no leaf page a legacy sort index listed is stored any more, and that every leaf page the
+		 * rewritten sort index lists has an identity of its own, above the legacy high-water - read from the storage
+		 * of the owner collection, page by page, rather than counted.
+		 *
+		 * @param legacyPages the leaf pages written for every legacy sort index
+		 * @param label       describes the moment of the assertion
+		 */
+		private void assertLegacyPagesRemoved(@Nonnull List<LegacyPages> legacyPages, @Nonnull String label) {
+			final EntityCollection collection = ownerCollection();
+			for (LegacyPages legacy : legacyPages) {
+				final EntityIndex entityIndex = Objects.requireNonNull(
+					collection.getIndexByKeyIfExists(legacy.entityIndexKey())
+				);
+				final int streamId = collection.getStoragePartPersistenceService().getReadOnlyKeyCompressor().getId(
+					new LeafStreamKey(
+						entityIndex.getPrimaryKey(),
+						new AttributeKeyWithIndexType(legacy.attributeKey(), AttributeIndexType.SORT)
+					)
+				);
+				for (int pageSequence : legacy.pageSequences()) {
+					assertNull(
+						collection.getDataStoreReader().fetch(
+							catalog().getVersion(), AbstractLeafPagePart.computeUniquePartId(streamId, pageSequence),
+							SortIndexLeafPagePart.class
+						),
+						"legacy leaf page " + pageSequence + " of `" + legacy.attributeKey() + "` is still stored in " +
+							label
+					);
+				}
+				final Set<Integer> legacySequences = new HashSet<>();
+				for (int pageSequence : legacy.pageSequences()) {
+					legacySequences.add(pageSequence);
+				}
+				for (int pageSequence : onDiskRoot(entityIndex, legacy.attributeKey()).getLeafPageSequences()) {
+					assertFalse(
+						legacySequences.contains(pageSequence),
+						"leaf page " + pageSequence + " of `" + legacy.attributeKey() + "` in " + label +
+							" reuses the identity of a legacy page"
+					);
+					assertTrue(
+						pageSequence > legacy.highWaterPageSequence(),
+						"leaf page " + pageSequence + " of `" + legacy.attributeKey() + "` in " + label +
+							" must lie above the legacy high-water " + legacy.highWaterPageSequence()
+					);
+				}
 			}
 		}
 
@@ -758,6 +841,22 @@ class TemporalSortValueFunctionalTest implements EvitaTestSupport {
 					)
 				)
 			);
+		}
+
+		/**
+		 * The leaf pages written for one legacy sort index.
+		 *
+		 * @param entityIndexKey        the key of the entity index the sort index belongs to
+		 * @param attributeKey          the attribute or compound of the sort index
+		 * @param highWaterPageSequence the high-water of the legacy page stream
+		 * @param pageSequences         the leaf pages the legacy root lists
+		 */
+		private record LegacyPages(
+			@Nonnull EntityIndexKey entityIndexKey,
+			@Nonnull AttributeIndexKey attributeKey,
+			int highWaterPageSequence,
+			@Nonnull int[] pageSequences
+		) {
 		}
 	}
 }

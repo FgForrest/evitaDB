@@ -23,60 +23,89 @@
 
 package io.evitadb.index.attribute;
 
-import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.schema.OrderBehaviour;
+import io.evitadb.comparator.LocalizedStringComparator;
+import io.evitadb.comparator.NullsFirstComparatorWrapper;
+import io.evitadb.comparator.NullsLastComparatorWrapper;
+import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueToRecord;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
 /**
- * Loads an owner {@link SortIndex} persisted before its temporal values were normalized, normalizing them on the way.
+ * Rewrites an owner {@link SortIndex} persisted before its temporal values were normalized into the form the index
+ * works with now. It is one step of the storage migration to protocol 8 (`Migration_2026_3`), which runs it for every
+ * owner sort index of a catalog written by 2026.2 or an older release before it converts the collection's single-owner
+ * reference partitions, so the load path never meets a raw temporal sort value of such a catalog.
  *
- * An owner sort index - a sort-only attribute, every sortable attribute compound, and a sortable attribute that is
- * filterable too until the catalog is next loaded - used to store `OffsetDateTime`, `LocalDateTime` and `LocalTime`
- * values verbatim, while the filter index and every sort index viewing it stored their millisecond form. Such a
- * catalog still holds the raw values on disk. This class brings them to the form the index works with now:
+ * An owner sort index - a sort-only attribute, every sortable attribute compound - used to store `OffsetDateTime`,
+ * `LocalDateTime` and `LocalTime` values verbatim, while the filter index and every sort index viewing it stored their
+ * millisecond form. (A sortable attribute that is filterable too stored them so as well, but it loads as a view over
+ * its filter index, which ignores the values its part carries - there is nothing to rewrite.) The rewrite brings an
+ * owner sort index to the form the current engine writes:
  *
  * - every value is normalized by the very normalizer the index applies to a new value;
  * - values that now coincide - one moment written at two offsets, or two values differing only below the
  *   millisecond - are merged into one, and their records are ordered by record id within it as in any other block;
  * - the values are re-sorted, because the normalization may reorder them: two compound values tying on a temporal
  *   element only after it was normalized are decided by the next element, which may order them the other way;
- * - a paged index gives up the identity of every leaf page, so the first flush that writes the index again writes all
- *   its pages in normalized form and frees the legacy ones.
+ * - the index is rebuilt afresh and written whole: an inline index as a new inline part, a paged one as new leaf pages
+ *   whose page sequences lie above the persisted high-water, a new root, and the removal of every persisted leaf page
+ *   - so no legacy page survives, and no new page reuses the identity of an old one.
  *
- * The correction is made in memory only and repeats on every load until the index is written again, which happens
- * the first time a record of it changes. **The sort index is not flagged dirty at load**, and its own dirty flag is
- * what gates its emission, so a flush of the owning entity index for any other reason - a write to a sibling
- * attribute, say - leaves the legacy pages on disk untouched. Until the index is written, a paged one keeps every leaf
- * released and its page registry seeded from the persisted root's page list, so the first write that does flush it
- * frees every legacy page and writes the normalized ones, and dropping the emptied index reclaims the legacy pages the
- * root still lists. Nothing between the load and that write consumes the released leaves: the baseline an entity
- * index captures when it is built only announces keys (`IndexComponent#announceKeys`) and collects nothing.
+ * An index holding no temporal value, or holding only values already normalized, is left as it is.
  *
- * An index holding no temporal value, or holding only values already normalized, is loaded exactly as before.
+ * # The rewrite emits its parts itself
+ *
+ * The rebuilt index hands its parts to the caller's sink directly ({@link SortIndex#doAppendStorageParts}); it is
+ * never flagged dirty for a later flush to write. Collecting the parts of an index is a persistence step - it stamps
+ * page sequences, clears leaf flags and stages the next page list - so a rewrite left to a flush would be at the mercy
+ * of whatever collects the index first; a collect into a discarded sink would stage the rewritten leaves without
+ * writing them, and they would be lost.
+ *
+ * # What it refuses
+ *
+ * A paged index is rewritten only when its persisted values are **strictly ascending** across all its pages under the
+ * comparator the release that wrote them ordered the index by - the order every owner wrote its pages in. A stale
+ * leaf-page twin fails that test, its values overlapping those of the page it is a twin of, and is refused as
+ * corruption: merging it would resurrect records that were deliberately removed.
+ *
+ * The test must use the released comparator, not the current one, because the two differ: a localized `String`
+ * element was ordered by the bare collator, which equates two spellings such as `ab` with and without a zero-width
+ * space between its letters, and the current index breaks that tie. A released compound holding such a pair, ordered
+ * by its next element, is in a legitimate order the current comparator reverses. The rebuilt index is ordered by the
+ * current comparator, as every index is.
+ *
+ * # What it does not cover
+ *
+ * Nothing on the load path normalizes a raw temporal sort value any more. A catalog that reaches the load path at
+ * protocol 8 holding one - which only a development build of 2026.3 can have written, directly or through an archive
+ * of such a catalog - is not supported: its values are read as they are stored.
+ *
+ * The class performs no IO: the migration reads the parts and drains the sink into the collection data store.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
- * @deprecated the correction is needed only for catalogs written before temporal sort values were normalized; it can
- * be removed only once every such sort index has been MUTATED - a record added to it or removed from it - by a
- * version containing it: merely loading and flushing a catalog does not rewrite an index nobody wrote to (see above).
- * It goes together with the call sites in {@link SortIndex#create(ComparatorSource[], RepresentativeReferenceKey,
- * AttributeIndexKey, int, int[], Serializable[], Map, java.util.function.Supplier)} and
- * {@link OwnerSortIndex#fromPersistedPages}, and with {@link InvertedIndex#fromPersistedPagesNormalizingLegacyKeys}
- * (whose legacy-order gate is part of the same unit)
+ * @deprecated its only caller is `Migration_2026_3`, the storage migration of catalogs written by 2026.2 and older
+ * releases; it is public only because that migration lives in another module, and it is removed together with it -
+ * and with {@link InvertedIndex#supersedePersistedPages(int, int[])}, which exists only for it
  */
 @Deprecated(since = "2026.3", forRemoval = true)
-final class LegacyTemporalSortValueCorrection {
+public final class LegacyTemporalSortValueCorrection {
 
 	private LegacyTemporalSortValueCorrection() {
 		// static helpers only
@@ -87,9 +116,9 @@ final class LegacyTemporalSortValueCorrection {
 	 * is an `OffsetDateTime`, `LocalDateTime` or `LocalTime`.
 	 *
 	 * @param comparatorBase one descriptor per element (a single entry for plain attributes)
-	 * @return `true` when the persisted values have to be checked and possibly corrected
+	 * @return `true` when the persisted values have to be checked and possibly rewritten
 	 */
-	static boolean isApplicable(@Nonnull ComparatorSource[] comparatorBase) {
+	public static boolean isApplicable(@Nonnull ComparatorSource[] comparatorBase) {
 		for (final ComparatorSource comparatorSource : comparatorBase) {
 			if (SortIndex.isTemporal(comparatorSource.type())) {
 				return true;
@@ -99,113 +128,229 @@ final class LegacyTemporalSortValueCorrection {
 	}
 
 	/**
-	 * Rehydrates an owner sort index from its persisted inline arrays, normalizing them when any value is raw. When
-	 * every value is normalized already, the index is built from the arrays exactly as before.
+	 * Rewrites one persisted owner sort index whose values may still be raw - see the class documentation - and
+	 * emits its parts into `sink`: the root, every leaf page of a paged result, and a removal of every leaf page the
+	 * persisted root lists. When every persisted value is normalized already nothing is emitted.
 	 *
-	 * @param comparatorBase       one descriptor per element (a single entry for plain attributes)
-	 * @param referenceKey         owning reference discriminator, or `null` for the global index
-	 * @param attributeIndexKey    identifies the indexed attribute / compound
-	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
-	 * @param sortedRecords        record ids ordered by their associated values, blocked per value
-	 * @param sortedRecordValues   the persisted distinct values backing `sortedRecords`
-	 * @param cardinalities        counts for values shared by more than one record (cardinality `1` is implicit)
-	 * @return the rehydrated owner sort index
+	 * @param root           the persisted root part of an owner sort index - inline, or paged - never the slim part of
+	 *                       a sort index viewing a filter index, which carries no values of its own
+	 * @param perPageBuckets the buckets of every leaf page the paged root lists, in the order it lists them, or `null`
+	 *                       for an inline root
+	 * @param sink           receives the parts of the rewritten index and the removals of the persisted leaf pages
+	 * @return `true` when the index held a raw value and its parts were emitted, `false` when it was left as it is
+	 * @throws GenericEvitaInternalError when the root does not belong to a temporal owner sort index, the leaf pages do
+	 *                                   not match the root, or the persisted values of a paged index are not strictly
+	 *                                   ascending
 	 */
-	@Nonnull
-	static OwnerSortIndex fromPersistedArrays(
-		@Nonnull ComparatorSource[] comparatorBase,
-		@Nullable RepresentativeReferenceKey referenceKey,
-		@Nonnull AttributeIndexKey attributeIndexKey,
-		int indexedDecimalPlaces,
-		@Nonnull int[] sortedRecords,
-		@Nonnull Serializable[] sortedRecordValues,
-		@Nonnull Map<Serializable, Integer> cardinalities
+	public static boolean rewrite(
+		@Nonnull SortIndexStoragePart root,
+		@Nullable ValueToRecord[][] perPageBuckets,
+		@Nonnull TrappedChanges sink
 	) {
+		final ComparatorSource[] comparatorBase = root.getComparatorBase();
+		Assert.isPremiseValid(
+			isApplicable(comparatorBase),
+			() -> "The sort index of `" + root.getAttributeIndexKey() + "` holds no temporal value to rewrite!"
+		);
 		final Function<Object, Serializable> normalizer = createNormalizer(comparatorBase);
-		final Serializable[] normalizedValues = new Serializable[sortedRecordValues.length];
-		boolean legacyValueFound = false;
-		for (int i = 0; i < sortedRecordValues.length; i++) {
-			normalizedValues[i] = normalizer.apply(sortedRecordValues[i]);
-			//noinspection NonShortCircuitBooleanExpression
-			legacyValueFound |= normalizedValues[i] != sortedRecordValues[i];
-		}
-		if (!legacyValueFound) {
-			return new OwnerSortIndex(
-				comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces,
-				sortedRecords, sortedRecordValues, cardinalities
+		final Comparator<?> comparator = createComparator(comparatorBase, root);
+		final InvertedIndex ownedTree;
+		if (root.isPaged()) {
+			final int[] pageSequences = root.getLeafPageSequencesOrThrowException();
+			Assert.isPremiseValid(
+				perPageBuckets != null && perPageBuckets.length == pageSequences.length,
+				() -> "The sort index of `" + root.getAttributeIndexKey() + "` lists " + pageSequences.length +
+					" leaf pages, but " + (perPageBuckets == null ? "none" : perPageBuckets.length) + " were read!"
 			);
+			if (!holdsRawValue(perPageBuckets, normalizer)) {
+				return false;
+			}
+			assertStrictlyAscending(root, perPageBuckets, createReleasedComparator(comparatorBase, root));
+			ownedTree = OwnerSortIndex.createOwnedTree(comparatorBase, comparator, root.getIndexedDecimalPlaces());
+			for (final ValueToRecord[] buckets : perPageBuckets) {
+				for (final ValueToRecord bucket : buckets) {
+					// a value that coincides with one inserted already joins its bucket, and the tree keeps the values
+					// in the order they compare in now, whatever the persisted one
+					ownedTree.addRecord(normalizer.apply(bucket.getValue()), bucket.getRecordIds().getArray());
+				}
+			}
+			// the rebuilt leaves continue the persisted page stream: their pages lie above the persisted high-water,
+			// and every persisted page is freed by the emission below
+			ownedTree.supersedePersistedPages(root.getHighWaterPageSequence(), pageSequences);
+		} else {
+			Assert.isPremiseValid(
+				perPageBuckets == null,
+				() -> "The sort index of `" + root.getAttributeIndexKey() + "` is inline, but leaf pages were passed!"
+			);
+			final Serializable[] sortedRecordValues = root.getSortedRecordsValues();
+			if (!holdsRawValue(sortedRecordValues, normalizer)) {
+				return false;
+			}
+			ownedTree = OwnerSortIndex.createOwnedTree(comparatorBase, comparator, root.getIndexedDecimalPlaces());
+			final int[] sortedRecords = root.getSortedRecords();
+			final Map<Serializable, Integer> cardinalities = root.getValueCardinalities();
+			int offset = 0;
+			for (final Serializable value : sortedRecordValues) {
+				// the cardinalities are keyed by the persisted value, not by the normalized one
+				final int cardinality = cardinalities.getOrDefault(value, 1);
+				ownedTree.addRecord(
+					normalizer.apply(value), Arrays.copyOfRange(sortedRecords, offset, offset + cardinality)
+				);
+				offset += cardinality;
+			}
 		}
-		// the tree inserts each block under its normalized value: a value that coincides with one already inserted
-		// joins its bucket, and the tree keeps the values in the order they compare in now, whatever the persisted one
-		final Comparator<?> comparator = createComparator(comparatorBase, attributeIndexKey);
-		final InvertedIndex ownedTree =
-			OwnerSortIndex.createOwnedTree(comparatorBase, comparator, indexedDecimalPlaces);
-		int offset = 0;
-		for (int i = 0; i < sortedRecordValues.length; i++) {
-			// the cardinalities are keyed by the persisted value, not by the normalized one
-			final int cardinality = cardinalities.getOrDefault(sortedRecordValues[i], 1);
-			ownedTree.addRecord(normalizedValues[i], Arrays.copyOfRange(sortedRecords, offset, offset + cardinality));
-			offset += cardinality;
-		}
-		// the persisted positional array orders the records by the raw values - rebuild it from the tree, which
-		// orders merged blocks by record id like every other block
-		return new OwnerSortIndex(
-			comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces,
+		// the persisted positional array orders the records by the raw values - it is rebuilt from the tree, which
+		// orders merged blocks by record id like every other block; the index only emits its parts, which do not carry
+		// the reference key, so none is passed
+		final OwnerSortIndex rewritten = new OwnerSortIndex(
+			comparatorBase, null, root.getAttributeIndexKey(), root.getIndexedDecimalPlaces(),
 			new TransactionalUnorderedIntArray(SortIndexView.reconstructSortedRecords(ownedTree)), ownedTree
 		);
+		// emitted here and now rather than flagged dirty for a later flush - see the class documentation
+		rewritten.doAppendStorageParts(root.getEntityIndexPrimaryKey(), sink);
+		return true;
 	}
 
 	/**
-	 * Rebuilds an owner sort index from its persisted leaf pages, normalizing them when any value is raw - see
-	 * {@link InvertedIndex#fromPersistedPagesNormalizingLegacyKeys} for how the pages are re-sorted and rewritten.
+	 * Returns `true` when any of the persisted values is raw - when the normalizer maps it onto another instance.
 	 *
-	 * @param comparatorBase        one descriptor per element (a single entry for plain attributes)
-	 * @param referenceKey          owning reference discriminator, or `null` for the global index
-	 * @param attributeIndexKey     identifies the indexed attribute / compound
-	 * @param indexedDecimalPlaces  decimal-places scale used to encode `BigDecimal` values (0 for other types)
-	 * @param orderedPageSequences  the persisted leaf-page sequences in ascending key order (the root's leaf list)
-	 * @param perPageBuckets        the buckets of each leaf page, positionally aligned with `orderedPageSequences`
-	 * @param highWaterPageSequence the persisted stream high-water (largest page sequence ever allocated)
-	 * @return the rehydrated owner sort index
+	 * @param values     the persisted values
+	 * @param normalizer the normalizer of persisted values
+	 * @return `true` when a value is not in its normalized form
+	 */
+	private static boolean holdsRawValue(
+		@Nonnull Serializable[] values,
+		@Nonnull Function<Object, Serializable> normalizer
+	) {
+		for (final Serializable value : values) {
+			if (normalizer.apply(value) != value) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Returns `true` when any value of the persisted leaf pages is raw - when the normalizer maps it onto another
+	 * instance.
+	 *
+	 * @param perPageBuckets the buckets of every leaf page
+	 * @param normalizer     the normalizer of persisted values
+	 * @return `true` when a value is not in its normalized form
+	 */
+	private static boolean holdsRawValue(
+		@Nonnull ValueToRecord[][] perPageBuckets,
+		@Nonnull Function<Object, Serializable> normalizer
+	) {
+		for (final ValueToRecord[] buckets : perPageBuckets) {
+			for (final ValueToRecord bucket : buckets) {
+				if (normalizer.apply(bucket.getValue()) != bucket.getValue()) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Asserts that the persisted values of a paged index are strictly ascending across all its pages under the
+	 * comparator the release that wrote them ordered the index by - the order every owner wrote its pages in (see
+	 * {@link #createReleasedComparator}). Pages out of that order are corruption - a stale leaf-page twin is the known
+	 * cause - and are refused rather than merged, see the class documentation.
+	 *
+	 * @param root           the persisted root, which names the index in the message
+	 * @param perPageBuckets the buckets of every leaf page, in the order the root lists them
+	 * @param comparator     the comparator the release that wrote the pages ordered the index by
+	 * @throws GenericEvitaInternalError when two consecutive values are not strictly ascending
+	 */
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private static void assertStrictlyAscending(
+		@Nonnull SortIndexStoragePart root,
+		@Nonnull ValueToRecord[][] perPageBuckets,
+		@Nonnull Comparator comparator
+	) {
+		Serializable previousValue = null;
+		for (int i = 0; i < perPageBuckets.length; i++) {
+			for (final ValueToRecord bucket : perPageBuckets[i]) {
+				final Serializable value = bucket.getValue();
+				if (previousValue != null && comparator.compare(previousValue, value) >= 0) {
+					throw new GenericEvitaInternalError(
+						"The leaf pages of the sort index of `" + root.getAttributeIndexKey() + "` in entity index " +
+							root.getEntityIndexPrimaryKey() + " are not in ascending order - `" + previousValue +
+							"` is followed by `" + value + "` on leaf page " +
+							root.getLeafPageSequencesOrThrowException()[i] + ". No release writes its pages so, so " +
+							"the index is damaged and is not rewritten: rebuild the entity collection with the " +
+							"release that wrote the catalog, and start this version again.",
+						"The persisted pages of a sort index are not in ascending order."
+					);
+				}
+				previousValue = value;
+			}
+		}
+	}
+
+	/**
+	 * Creates the comparator the releases that wrote paged owner sort indexes - 2026.2, the first one to page them -
+	 * ordered such an index by, which is the order its persisted pages are in. It is `SortIndex#createComparatorFor`
+	 * and `SortIndex#createCombinedComparatorFor` of the release tag `v2026.2.20`: a `String` element of a localized
+	 * index compared by the bare collator ({@link LocalizedStringComparator}) - with no tie-break between two spellings
+	 * the collator equates, which the current index adds ({@link EqualsConsistentLocalizedStringComparator}) - every
+	 * other element in its natural order, each in its own direction and with its own NULL handling, a compound element
+	 * by element. The values are the raw ones the release stored, so the natural order of a raw temporal value is the
+	 * order of its declared type.
+	 *
+	 * @param comparatorBase one descriptor per element (a single entry for plain attributes)
+	 * @param root           the persisted root, whose attribute index key carries the locale
+	 * @return the comparator the release ordered the index by
 	 */
 	@Nonnull
-	static OwnerSortIndex fromPersistedPages(
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	private static Comparator createReleasedComparator(
 		@Nonnull ComparatorSource[] comparatorBase,
-		@Nullable RepresentativeReferenceKey referenceKey,
-		@Nonnull AttributeIndexKey attributeIndexKey,
-		int indexedDecimalPlaces,
-		@Nonnull int[] orderedPageSequences,
-		@Nonnull ValueToRecord[][] perPageBuckets,
-		int highWaterPageSequence
+		@Nonnull SortIndexStoragePart root
 	) {
-		final Comparator<?> comparator = createComparator(comparatorBase, attributeIndexKey);
-		final Class<?> plainType = comparatorBase.length == 1 ? comparatorBase[0].type() : Comparable.class;
-		final InvertedIndex ownedTree = InvertedIndex.fromPersistedPagesNormalizingLegacyKeys(
-			plainType, orderedPageSequences, perPageBuckets, null, highWaterPageSequence,
-			createNormalizer(comparatorBase), comparator, indexedDecimalPlaces
-		);
-		return new OwnerSortIndex(
-			comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces,
-			new TransactionalUnorderedIntArray(SortIndexView.reconstructSortedRecords(ownedTree)), ownedTree
-		);
+		final Locale locale = root.getAttributeIndexKey().locale();
+		final Comparator[] elementComparators = new Comparator[comparatorBase.length];
+		for (int i = 0; i < comparatorBase.length; i++) {
+			final ComparatorSource source = comparatorBase[i];
+			final Comparator natural = String.class.isAssignableFrom(source.type()) && locale != null ?
+				new LocalizedStringComparator(locale) : Comparator.naturalOrder();
+			final Comparator directed = source.orderDirection() == OrderDirection.ASC ? natural : natural.reversed();
+			elementComparators[i] = source.orderBehaviour() == OrderBehaviour.NULLS_LAST ?
+				new NullsLastComparatorWrapper(directed) : new NullsFirstComparatorWrapper(directed);
+		}
+		if (comparatorBase.length == 1) {
+			return elementComparators[0];
+		}
+		return (left, right) -> {
+			final Serializable[] leftElements = ((ComparableArray) left).array();
+			final Serializable[] rightElements = ((ComparableArray) right).array();
+			for (int i = 0; i < elementComparators.length; i++) {
+				final int comparison = elementComparators[i].compare(leftElements[i], rightElements[i]);
+				if (comparison != 0) {
+					return comparison;
+				}
+			}
+			return 0;
+		};
 	}
 
 	/**
 	 * Creates the comparator an owner sort index of the passed elements orders its values by - the one
 	 * {@link SortIndex} derives for itself.
 	 *
-	 * @param comparatorBase    one descriptor per element (a single entry for plain attributes)
-	 * @param attributeIndexKey identifies the indexed attribute / compound, and its locale
+	 * @param comparatorBase one descriptor per element (a single entry for plain attributes)
+	 * @param root           the persisted root, whose attribute index key carries the locale
 	 * @return the value comparator
 	 */
 	@Nonnull
 	private static Comparator<?> createComparator(
 		@Nonnull ComparatorSource[] comparatorBase,
-		@Nonnull AttributeIndexKey attributeIndexKey
+		@Nonnull SortIndexStoragePart root
 	) {
 		return comparatorBase.length == 1
-			? SortIndex.createComparatorFor(attributeIndexKey.locale(), comparatorBase[0])
-			: SortIndex.createCombinedComparatorFor(attributeIndexKey.locale(), comparatorBase);
+			? SortIndex.createComparatorFor(root.getAttributeIndexKey().locale(), comparatorBase[0])
+			: SortIndex.createCombinedComparatorFor(root.getAttributeIndexKey().locale(), comparatorBase);
 	}
 
 	/**
@@ -213,7 +358,7 @@ final class LegacyTemporalSortValueCorrection {
 	 * ({@link FilterIndex#getNormalizer(Class, int)}), applied to a persisted plain value or to the temporal elements
 	 * of a persisted {@link ComparableArray}. Every other element is left as persisted - it was normalized when it was
 	 * written, and not every normalizer accepts its own output. The function returns the very instance it is given
-	 * when that is normalized already, which is how a legacy value is told apart from a current one.
+	 * when that is normalized already, which is how a raw value is told apart from a current one.
 	 *
 	 * @param comparatorBase one descriptor per element (a single entry for plain attributes)
 	 * @return the normalizer of persisted values

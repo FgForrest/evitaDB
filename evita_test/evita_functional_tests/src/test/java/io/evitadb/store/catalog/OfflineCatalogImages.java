@@ -62,6 +62,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -78,7 +79,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-final class OfflineCatalogImages {
+public final class OfflineCatalogImages {
 
 	private OfflineCatalogImages() {
 	}
@@ -190,7 +191,7 @@ final class OfflineCatalogImages {
 	 * @return the bootstrap record now publishing the catalog
 	 */
 	@Nonnull
-	static CatalogBootstrap stamp(
+	public static CatalogBootstrap stamp(
 		@Nonnull EvitaConfiguration configuration,
 		@Nonnull String catalogName,
 		int headerProtocol,
@@ -231,6 +232,39 @@ final class OfflineCatalogImages {
 			"the stamped record must be the last one, or the image is not the state it claims to be"
 		);
 		return record;
+	}
+
+	/**
+	 * Runs the migration of the published state of a catalog of the current storage protocol with the engine stopped,
+	 * handing its result to the given publication instead of publishing it - the migration the load path runs, minus
+	 * the publication.
+	 *
+	 * @param configuration     the configuration of the engine
+	 * @param catalogName       the catalog
+	 * @param postUpgradeAction receives the catalog header the migration would publish
+	 * @param published         receives the collection references the published catalog header holds
+	 */
+	static void migrateOffline(
+		@Nonnull EvitaConfiguration configuration,
+		@Nonnull String catalogName,
+		@Nonnull Consumer<CatalogHeader<LogFileRecordReference, CollectionFileReference>> postUpgradeAction,
+		@Nonnull Map<String, CollectionFileReference> published
+	) {
+		withOfflineCatalog(
+			configuration, catalogName,
+			service -> {
+				final long catalogVersion = service.getLastCatalogVersion();
+				final CatalogOffsetIndexStoragePartPersistenceService catalogParts =
+					service.getStoragePartPersistenceService(catalogVersion);
+				final CatalogHeader<LogFileRecordReference, CollectionFileReference> header =
+					catalogParts.getCatalogHeader(catalogVersion);
+				published.putAll(header.collectionFileIndex());
+				Migration_2026_3.upgradeFromStorageProtocolVersion_6_to_8(
+					header, catalogParts, service::createEntityCollectionPersistenceService, postUpgradeAction
+				);
+				return Boolean.TRUE;
+			}
+		);
 	}
 
 	/**
