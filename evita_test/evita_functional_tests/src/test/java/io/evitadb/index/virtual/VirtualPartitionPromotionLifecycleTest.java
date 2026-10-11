@@ -60,6 +60,7 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -103,8 +104,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The harness compares the two engines at every checkpoint - inside the session after every step, after a caught
  * failure, after the session closes, after a restart and after a crash recovery - so a promoted partition must hold
  * exactly what the twin's partition holds of both owners, and a demoted one must have the row the twin keeps next to
- * its object. A check run on the catalog writing virtually at every checkpoint refuses any index object with fewer than
- * two owners of a partition of a reference whose partitions may be virtual. Every test asserts what its history must
+ * its object. Checks run on the catalog writing virtually at every checkpoint refuse any index object with fewer than
+ * two owners of a partition of a reference whose partitions may be virtual, and any partition the reduced-index
+ * membership knows that is neither a row nor an index object; the body oracle of the harness holds the primary key of
+ * every partition across the checkpoints (see {@link PartitionIdentityLedger}). What a history left on disk is checked
+ * once it ends (see {@link VirtualPartitionInvariants#assertStoredParts}). Every test asserts what its history must
  * have produced - an index object with both owners and no row after a promotion, a row and no index object after a
  * demotion, the primary key the partition had all along - so that no test passes by not exercising what it names.
  *
@@ -170,8 +174,15 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 	@AfterEach
 	void tearDown() {
 		if (this.engines != null) {
-			this.engines.close();
-			this.engines = null;
+			try {
+				// what the history left on disk - against the indexes it holds and a history-free rebuild
+				VirtualPartitionInvariants.assertStoredParts(
+					"at the end of the history", this.engines.getMaintaining(), SingleOwnerPartitionFixture.CATALOG
+				);
+			} finally {
+				this.engines.close();
+				this.engines = null;
+			}
 		}
 	}
 
@@ -759,7 +770,7 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 			TransactionOptions.builder().checkpointIntervalInMillis(NEVER_ELAPSES_MILLIS).build()
 		);
 		this.engines = theEngines;
-		theEngines.addMaintainingEngineCheck(VirtualPartitionInvariants::assertNoPartitionObjectBelowTwoOwners);
+		watchPartitions(theEngines);
 		theEngines.prepare(CatalogState.ALIVE, SingleOwnerPartitionFixture::setUpLocalizedSingleOwners);
 		// going live is deferred like any other round; the clean close publishes it
 		theEngines.restart();
@@ -780,6 +791,18 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 				.upsertVia(session)
 		);
 
+		// the recovery replays the tail of the write-ahead log, which mints the partitions the tail created anew
+		final PartitionIdentityLedger ledger = theEngines.trackPartitionIdentity();
+		ledger.declareReplayed(ENTITY_CATEGORY, Scope.LIVE, product(NEW_PRODUCT));
+		ledger.declareReplayed(ENTITY_PRODUCT, Scope.LIVE, category(FREE_TARGET));
+		ledger.declareReplayed(ENTITY_PRODUCT, Scope.LIVE, category(SECOND_FREE_TARGET));
+		ledger.declareReplayed(
+			ENTITY_PRODUCT, Scope.LIVE,
+			new RepresentativeReferenceKey(
+				new ReferenceKey(SingleOwnerPartitionFixture.REFERENCE_GALLERY, FREE_TARGET),
+				new Serializable[]{SingleOwnerPartitionFixture.ROLE_GALLERY}
+			)
+		);
 		final DifferentialEngines.Reload recovered = theEngines.crashAndRecover();
 		assertTrue(
 			recovered.maintaining().loadedVersion() > recovered.maintaining().imageVersion(),
@@ -1061,9 +1084,23 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 	) {
 		final DifferentialEngines theEngines = DifferentialEngines.writtenVirtually(this, label, entityTypes, null);
 		this.engines = theEngines;
-		theEngines.addMaintainingEngineCheck(VirtualPartitionInvariants::assertNoPartitionObjectBelowTwoOwners);
+		watchPartitions(theEngines);
 		theEngines.prepare(state, setup);
 		return theEngines;
+	}
+
+	/**
+	 * Adds the checks every history of this class runs on the catalog writing virtually at every checkpoint: no index
+	 * object of a partition with fewer than two owners, no partition the reduced-index membership knows that is
+	 * neither a row nor an index object, and the primary key of every partition held across the checkpoints by the
+	 * body oracle.
+	 *
+	 * @param engines the engines, not prepared yet
+	 */
+	private static void watchPartitions(@Nonnull DifferentialEngines engines) {
+		engines.addMaintainingEngineCheck(VirtualPartitionInvariants::assertNoPartitionObjectBelowTwoOwners);
+		engines.addMaintainingEngineCheck(VirtualPartitionInvariants::assertMembershipKnowsOnlyExistingPartitions);
+		engines.trackPartitionIdentity();
 	}
 
 }

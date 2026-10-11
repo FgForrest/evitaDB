@@ -21,7 +21,7 @@
  *   limitations under the License.
  */
 
-package io.evitadb.performance.warmupload;
+package io.evitadb.test.builder;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.require.EntityContentRequire;
@@ -75,13 +75,14 @@ import static io.evitadb.api.query.QueryConstraints.referenceContentWithAttribut
  * Shared, transport-agnostic building blocks for copying one catalog into another: faithful schema
  * reconstruction and the full-content fetch requirement used to read the entities being copied.
  *
- * Extracted so both target modes of {@link IsolatedWarmupLoadBenchmark} - `remote`, which drives a
+ * Extracted so both target modes of the `IsolatedWarmupLoadBenchmark` - `remote`, which drives a
  * separate server over gRPC, and `embedded`, which drives an in-process engine - share exactly one
- * implementation, and so the older all-in-one {@link io.evitadb.spike.WarmupCopyCatalogBenchmark} can
- * adopt it without a second copy. The schema-replication rules encoded here are load-bearing and were
- * arrived at empirically; every non-obvious one carries the reason it exists at its site (see
- * {@link #replicateReflectedReferences} in particular). Duplicating them would mean rediscovering the
- * same engine rejections.
+ * implementation, and so the older all-in-one `WarmupCopyCatalogBenchmark` can adopt it without a second
+ * copy. It lives in the test support so the functional tests share it too: the persisted-storage check of
+ * the virtual reference partitions rebuilds a catalog from its entity bodies through it. The
+ * schema-replication rules encoded here are load-bearing and were arrived at empirically; every non-obvious
+ * one carries the reason it exists at its site (see {@link #replicateReflectedReferences} in particular).
+ * Duplicating them would mean rediscovering the same engine rejections.
  *
  * Everything here operates on an open {@link EvitaSessionContract}, so the caller owns session
  * lifecycle and this class stays usable from both the embedded ({@code Evita}) and the remote

@@ -26,6 +26,7 @@ package io.evitadb.index.virtual;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -43,16 +44,15 @@ import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
-import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.VirtualReferencePartitionSlot;
-import io.evitadb.index.attribute.OwnerSortIndex;
+import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
@@ -66,7 +66,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
-import java.util.OptionalLong;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -83,29 +82,42 @@ import static io.evitadb.api.query.QueryConstraints.scope;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * Checks the registry of single-owner reference partitions of one collection against the stored entity bodies - the
- * rows the registry must describe, derived from what the owners say they reference, not from any index.
+ * Checks the reference partitions of one collection against the stored entity bodies - the partitions the indexes
+ * must hold, derived from what the owners say they reference, not from any index.
  *
- * A check of the registry against the real partitions, and a comparison of an engine maintaining the registry with one
- * that does not, are both blind to a defect of the indexing path the two engines and the mirror share: a sortable value
- * the path never writes is missing from the real partition, from the registry and from the other engine alike, while
- * the body still holds it. This oracle reads the bodies through the public query API and derives, for every reference
- * shadowed in a scope (see {@link VirtualPartitionInvariants#isShadowed}):
+ * A check of the registry against the index objects, and a comparison of an engine writing the partitions as rows
+ * with one writing them as objects, are both blind to a defect of the indexing path the two share: a sortable value
+ * the path never writes is missing from the object, from the row and from the other engine alike, while the body still
+ * holds it. This oracle reads the bodies through the public query API - every page of them, in both scopes - and
+ * derives, for every reference shadowed in a scope (see {@link VirtualPartitionInvariants#isShadowed}):
  *
- * - the partitions: the rows of the owners in the scope grouped by referenced entity and - for a reference allowing
- *   duplicates - by the values of its representative attributes, a missing one taking its default. A group of one
- *   owner is a single-owner partition, which must have an owner row naming that owner, the referenced entity and the
- *   representative attribute values; no other partition may have one;
- * - the sort values: for every attribute of the reference sortable in the scope, the value of the owner's row at its
- *   locale, and for every sortable attribute compound of the reference indexed in the scope, its elements - per
- *   attribute locale of the owner for a localized compound - unless all of them are missing. The registry must hold
- *   exactly these values under exactly these keys;
- * - the chain predecessors: for every chainable attribute of the reference sortable in the scope, the predecessor
- *   the owner's row declares.
+ * - **the closed world of the partitions**: the rows of the owners grouped by referenced entity and - for a reference
+ *   allowing duplicates - by the values of its representative attributes, a missing one taking its default. Every
+ *   group is a partition with the group's owners. A partition with one owner must be a registry row naming that owner,
+ *   and must have no index object; a partition with more owners must be an index object holding exactly them, and
+ *   must have no row. Every row and every index object of the reference the bodies produce no partition for is
+ *   reported, as is every representative tuple the registry keeps for a primary key without a row;
+ * - **the sort values of a row**: for every attribute of the reference sortable in the scope, the value of the owner's
+ *   reference at its locale, and for every sortable attribute compound of the reference indexed in the scope, its
+ *   elements - per attribute locale of the owner for a localized compound - unless all of them are missing. The
+ *   registry must hold exactly these values under exactly these keys, and nothing under a primary key without a row;
+ * - **the chain predecessors of a row**: for every chainable attribute of the reference sortable in the scope, the
+ *   predecessor the owner's reference declares;
+ * - **the content of an index object**: its owners, and per owner the same sort values and chain predecessors a row of
+ *   the owner would hold - so a promotion that populates the object of a partition gaining its second owner is held
+ *   to what the first owner's body says, not to what its row said.
  *
- * A `ReferencedEntityPredecessor` chain is left out: the real chain index keys it by the referenced entity, and a
- * single-owner partition that had a second owner may have lost the predecessor (#1691) - the registry copies the real
- * chain, not what the bodies declare.
+ * A `ReferencedEntityPredecessor` chain is left out: the chain index keys it by the referenced entity, and a partition
+ * that had a second owner may have lost the predecessor (#1691).
+ *
+ * **What it is independent of, and what not.** The partitions, their owners and every value are derived from the
+ * bodies. The primary key of a partition is not: it is whatever its row or its object carries, because the bodies
+ * know nothing of primary keys. A transition that hands a partition another primary key and keeps every structure in
+ * step with it passes this oracle; the identity is held by a {@link PartitionIdentityLedger}, which the caller may pass
+ * to compare the primary keys with those observed at earlier checkpoints. Every sort value and representative tuple
+ * the registry holds is enumerated and accounted for; the chain predecessors are read under the primary keys of the
+ * matched rows only, because the registry offers no enumeration of the entries of a chain - one it keeps under a
+ * primary key without a row is not found.
  *
  * A body value is compared in the space the index stores it in. It is taken through the conversions an indexed value
  * goes through - {@link NumberUtils#normalizeForIndexing(Serializable, int)} at the attribute's indexed decimal places,
@@ -121,21 +133,52 @@ import static org.junit.jupiter.api.Assertions.fail;
  */
 final class VirtualReferencePartitionRawRowOracle {
 	/**
-	 * How many bodies of one collection and scope are read at most.
+	 * How many bodies of one collection and scope one query reads.
 	 */
 	private static final int PAGE_SIZE = 10_000;
 	/**
-	 * Returned by the partition lookup when the key has no partition - partition primary keys are positive.
+	 * Stands for a partition that has neither a row nor an index object - partition primary keys are positive.
 	 */
 	private static final int NO_PARTITION = 0;
 
+	// TODO JNO - remove at the end of #1615
 	/**
-	 * One single-owner partition as the bodies describe it.
-	 *
-	 * @param key   the key of the partition
-	 * @param owner the owner and its row referencing the entity
+	 * How the catalog the oracle checks represents a partition with a single owner.
 	 */
-	private record ExpectedPartition(@Nonnull RepresentativeReferenceKey key, @Nonnull OwnerRow owner) {
+	enum SingleOwnerForm {
+		/**
+		 * As a registry row without an index object - a catalog writing its single-owner partitions virtually.
+		 */
+		ROW,
+		/**
+		 * As an index object with a registry row next to it, under the primary key of the object - a catalog writing
+		 * its partitions as index objects and maintaining the registry next to them.
+		 */
+		ROW_AND_OBJECT
+	}
+
+	/**
+	 * One partition as the bodies describe it.
+	 *
+	 * @param key    the key of the partition
+	 * @param owners the rows of its owners referencing the entity, by ascending owner primary key
+	 */
+	private record ExpectedPartition(@Nonnull RepresentativeReferenceKey key, @Nonnull List<OwnerRow> owners) {
+
+		/**
+		 * Returns the primary keys of the owners in ascending order.
+		 *
+		 * @return the owner primary keys
+		 */
+		@Nonnull
+		int[] ownerPrimaryKeys() {
+			final int[] primaryKeys = new int[this.owners.size()];
+			for (int i = 0; i < primaryKeys.length; i++) {
+				primaryKeys[i] = primaryKeyOf(this.owners.get(i));
+			}
+			Arrays.sort(primaryKeys);
+			return primaryKeys;
+		}
 	}
 
 	/**
@@ -147,11 +190,30 @@ final class VirtualReferencePartitionRawRowOracle {
 	private record OwnerRow(@Nonnull SealedEntity entity, @Nonnull ReferenceContract reference) {
 	}
 
+	/**
+	 * One owner row of the registry with the representative tuple of its partition.
+	 *
+	 * @param partitionPrimaryKey the primary key of the partition
+	 * @param owner               the owner the row names
+	 * @param target              the referenced entity the row names
+	 * @param tuple               the representative tuple of the partition, empty when it has none
+	 */
+	private record RegistryRow(int partitionPrimaryKey, int owner, int target, @Nonnull Serializable[] tuple) {
+
+		@Nonnull
+		@Override
+		public String toString() {
+			return "row " + this.partitionPrimaryKey + " (owner " + this.owner + " -> " + this.target +
+				(this.tuple.length == 0 ? "" : ", tuple " + Arrays.toString(this.tuple)) + ")";
+		}
+	}
+
 	private VirtualReferencePartitionRawRowOracle() {
 	}
 
 	/**
-	 * Fails when the registry of the collection disagrees with the bodies of its entities, listing every disagreement.
+	 * Fails when the partitions of the collection disagree with the bodies of its entities, listing every
+	 * disagreement. The collection must represent its single-owner partitions as rows only.
 	 *
 	 * @param label      names the checkpoint in the failure message
 	 * @param session    the session to read the bodies in - inside an open session the one its steps ran in
@@ -162,48 +224,242 @@ final class VirtualReferencePartitionRawRowOracle {
 		@Nonnull EvitaSessionContract session,
 		@Nonnull EntityCollection collection
 	) {
-		final List<String> findings = inspect(session, collection);
-		if (!findings.isEmpty()) {
-			fail(
-				label + ": the virtual reference partitions of `" + collection.getEntityType() + "` disagree with " +
-					"the entity bodies in " + findings.size() + " place(s):\n" + String.join("\n", findings)
-			);
-		}
+		assertConsistent(label, session, collection, null);
 	}
 
 	/**
-	 * Checks the registry of every shadowed reference of the collection in every scope against the bodies.
+	 * Fails when the partitions of the collection disagree with the bodies of its entities or - given a ledger - with
+	 * the primary keys the ledger observed before, listing every disagreement. The collection must represent its
+	 * single-owner partitions as rows only.
+	 *
+	 * @param label      names the checkpoint in the failure message
+	 * @param session    the session to read the bodies in - inside an open session the one its steps ran in
+	 * @param collection the collection
+	 * @param ledger     the identity of the partitions observed at the earlier checkpoints of the history, which
+	 *                   records this one; `null` to leave the identity unchecked
+	 */
+	static void assertConsistent(
+		@Nonnull String label,
+		@Nonnull EvitaSessionContract session,
+		@Nonnull EntityCollection collection,
+		@Nullable PartitionIdentityLedger ledger
+	) {
+		failOnFindings(label, collection, inspect(session, collection, SingleOwnerForm.ROW, ledger, PAGE_SIZE));
+	}
+
+	// TODO JNO - remove at the end of #1615
+	/**
+	 * Fails when the partitions of a collection writing them as index objects and maintaining the registry next to
+	 * them disagree with the bodies of its entities or - given a ledger - with the primary keys the ledger observed
+	 * before: a single-owner partition is then an index object with a row next to it under the same primary key.
+	 *
+	 * @param label      names the checkpoint in the failure message
+	 * @param session    the session to read the bodies in - inside an open session the one its steps ran in
+	 * @param collection the collection
+	 * @param ledger     the identity of the partitions observed at the earlier checkpoints of the history, which
+	 *                   records this one; `null` to leave the identity unchecked
+	 */
+	static void assertConsistentNextToObjects(
+		@Nonnull String label,
+		@Nonnull EvitaSessionContract session,
+		@Nonnull EntityCollection collection,
+		@Nullable PartitionIdentityLedger ledger
+	) {
+		failOnFindings(
+			label, collection, inspect(session, collection, SingleOwnerForm.ROW_AND_OBJECT, ledger, PAGE_SIZE)
+		);
+	}
+
+	/**
+	 * Checks the partitions of every shadowed reference of the collection in every scope against the bodies. The
+	 * collection must represent its single-owner partitions as rows only.
 	 *
 	 * @param session    the session to read the bodies in
 	 * @param collection the collection
-	 * @return every disagreement found; empty when the registry agrees with the bodies
+	 * @return every disagreement found; empty when the partitions agree with the bodies
 	 */
 	@Nonnull
 	static List<String> inspect(@Nonnull EvitaSessionContract session, @Nonnull EntityCollection collection) {
+		return inspect(session, collection, null, PAGE_SIZE);
+	}
+
+	/**
+	 * Checks the partitions of every shadowed reference of the collection in every scope against the bodies and -
+	 * given a ledger - their primary keys against those it observed before. The collection must represent its
+	 * single-owner partitions as rows only.
+	 *
+	 * @param session    the session to read the bodies in
+	 * @param collection the collection
+	 * @param ledger     the identity of the partitions observed at the earlier checkpoints of the history, which
+	 *                   records this one; `null` to leave the identity unchecked
+	 * @return every disagreement found; empty when the partitions agree with the bodies and the ledger
+	 */
+	@Nonnull
+	static List<String> inspect(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull EntityCollection collection,
+		@Nullable PartitionIdentityLedger ledger
+	) {
+		return inspect(session, collection, ledger, PAGE_SIZE);
+	}
+
+	/**
+	 * Checks the partitions of every shadowed reference of the collection in every scope against the bodies, read
+	 * page by page, and - given a ledger - their primary keys against those it observed before. The collection must
+	 * represent its single-owner partitions as rows only.
+	 *
+	 * @param session    the session to read the bodies in
+	 * @param collection the collection
+	 * @param ledger     the identity of the partitions observed at the earlier checkpoints of the history, which
+	 *                   records this one; `null` to leave the identity unchecked
+	 * @param pageSize   how many bodies one query reads
+	 * @return every disagreement found; empty when the partitions agree with the bodies and the ledger
+	 */
+	@Nonnull
+	static List<String> inspect(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull EntityCollection collection,
+		@Nullable PartitionIdentityLedger ledger,
+		int pageSize
+	) {
+		return inspect(session, collection, SingleOwnerForm.ROW, ledger, pageSize);
+	}
+
+	/**
+	 * Checks the partitions of every shadowed reference of the collection in every scope against the bodies and -
+	 * given a ledger - their primary keys against those it observed before.
+	 *
+	 * @param session    the session to read the bodies in
+	 * @param collection the collection
+	 * @param form       how the collection represents a single-owner partition
+	 * @param ledger     the identity of the partitions observed at the earlier checkpoints of the history, which
+	 *                   records this one; `null` to leave the identity unchecked
+	 * @param pageSize   how many bodies one query reads
+	 * @return every disagreement found
+	 */
+	@Nonnull
+	private static List<String> inspect(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull EntityCollection collection,
+		@Nonnull SingleOwnerForm form,
+		@Nullable PartitionIdentityLedger ledger,
+		int pageSize
+	) {
 		final List<String> findings = new ArrayList<>(4);
 		final String entityType = collection.getEntityType();
 		final EntitySchemaContract schema = session.getEntitySchemaOrThrowException(entityType);
+		// the index objects of every reference whose partitions may be virtual, by scope and reference
+		final Map<String, List<EntityIndex>> objects = new TreeMap<>();
+		VirtualPartitionInvariants.forEachPartitionObjectOfVirtualReference(
+			collection,
+			(scope, partition) -> objects.computeIfAbsent(
+				scope + "/" + ((RepresentativeReferenceKey) Objects.requireNonNull(
+					partition.getIndexKey().discriminator()
+				)).referenceName(),
+				__ -> new ArrayList<>(4)
+			).add(partition)
+		);
+		final SortedMap<String, Integer> identities = new TreeMap<>();
 		for (final Scope scope : Scope.values()) {
-			final List<SealedEntity> bodies = session.queryList(
-				query(collection(entityType), filterBy(scope(scope)), require(page(1, PAGE_SIZE), entityFetchAll())),
-				SealedEntity.class
-			);
+			final List<SealedEntity> bodies = readBodies(session, entityType, scope, pageSize);
 			for (final ReferenceSchemaContract referenceSchema : schema.getReferences().values()) {
 				if (VirtualPartitionInvariants.isShadowed(referenceSchema, scope)) {
-					inspect(collection, referenceSchema, scope, bodies, findings);
+					inspect(
+						collection, referenceSchema, scope, bodies,
+						objects.getOrDefault(scope + "/" + referenceSchema.getName(), List.of()),
+						form, identities, findings
+					);
 				}
 			}
+		}
+		if (ledger != null) {
+			ledger.check(entityType, identities, findings);
 		}
 		return findings;
 	}
 
 	/**
-	 * Checks the registry of one shadowed reference in one scope against the bodies.
+	 * Fails when the oracle found any disagreement, listing every one.
 	 *
-	 * @param collection      the collection resolving the partitions
+	 * @param label      names the checkpoint in the failure message
+	 * @param collection the collection checked
+	 * @param findings   the disagreements
+	 */
+	private static void failOnFindings(
+		@Nonnull String label,
+		@Nonnull EntityCollection collection,
+		@Nonnull List<String> findings
+	) {
+		if (!findings.isEmpty()) {
+			fail(
+				label + ": the reference partitions of `" + collection.getEntityType() + "` disagree with the " +
+					"entity bodies in " + findings.size() + " place(s):\n" + String.join("\n", findings)
+			);
+		}
+	}
+
+	/**
+	 * Reads the body of every entity of the collection in one scope, page by page until the total the query reports.
+	 *
+	 * @param session    the session to read the bodies in
+	 * @param entityType the entity type of the collection
+	 * @param scope      the scope
+	 * @param pageSize   how many bodies one query reads
+	 * @return every body of the scope
+	 */
+	@Nonnull
+	private static List<SealedEntity> readBodies(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull String entityType,
+		@Nonnull Scope scope,
+		int pageSize
+	) {
+		final List<SealedEntity> bodies = new ArrayList<>(Math.min(pageSize, 64));
+		final Set<Integer> primaryKeys = new HashSet<>(64);
+		int pageNumber = 1;
+		int total;
+		do {
+			final EvitaResponse<SealedEntity> response = session.querySealedEntity(
+				query(
+					collection(entityType),
+					filterBy(scope(scope)),
+					require(page(pageNumber++, pageSize), entityFetchAll())
+				)
+			);
+			total = response.getTotalRecordCount();
+			for (final SealedEntity body : response.getRecordData()) {
+				if (!primaryKeys.add(body.getPrimaryKeyOrThrowException())) {
+					fail(
+						"The body of `" + entityType + "` " + body.getPrimaryKey() + " in " + scope + " was read twice"
+					);
+				}
+				bodies.add(body);
+			}
+			if (response.getRecordData().isEmpty()) {
+				break;
+			}
+		} while (bodies.size() < total);
+		if (bodies.size() != total) {
+			fail(
+				"The bodies of `" + entityType + "` in " + scope + " were read incompletely: " + bodies.size() +
+					" of " + total
+			);
+		}
+		return bodies;
+	}
+
+	/**
+	 * Checks the partitions of one shadowed reference in one scope against the bodies: matches every partition the
+	 * bodies produce to its row or its index object, reports the rows and objects no body produces, records the
+	 * primary key of every matched partition and checks the values of every matched row and object.
+	 *
+	 * @param collection      the collection of the partitions
 	 * @param referenceSchema the reference
 	 * @param scope           the scope
 	 * @param bodies          the bodies of every entity of the collection in the scope
+	 * @param objects         the index objects of the reference in the scope
+	 * @param form            how the collection represents a single-owner partition
+	 * @param identities      receives the primary key of every matched partition by its identity key
 	 * @param findings        receives the disagreements
 	 */
 	private static void inspect(
@@ -211,6 +467,9 @@ final class VirtualReferencePartitionRawRowOracle {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Scope scope,
 		@Nonnull List<SealedEntity> bodies,
+		@Nonnull List<EntityIndex> objects,
+		@Nonnull SingleOwnerForm form,
+		@Nonnull SortedMap<String, Integer> identities,
 		@Nonnull List<String> findings
 	) {
 		final String referenceName = referenceSchema.getName();
@@ -218,65 +477,170 @@ final class VirtualReferencePartitionRawRowOracle {
 		final EntityIndex typeIndex = collection.getIndexByKeyIfExists(
 			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName)
 		);
-		final SortedMap<Integer, ExpectedPartition> expected = new TreeMap<>();
-		for (final List<OwnerRow> group : groupRows(referenceSchema, bodies).values()) {
-			if (group.size() != 1) {
-				continue;
-			}
-			final OwnerRow row = group.get(0);
-			final RepresentativeReferenceKey key = keyOf(referenceSchema, row.reference());
-			final int partitionPrimaryKey = findPartitionPrimaryKey(collection, typeIndex, scope, key);
-			if (partitionPrimaryKey == NO_PARTITION) {
-				findings.add(prefix + "the single owner " + primaryKeyOf(row) + " of " + key + " has no partition");
-			} else {
-				expected.put(partitionPrimaryKey, new ExpectedPartition(key, row));
-			}
+		final VirtualReferencePartitionIndex registry =
+			typeIndex instanceof final ReferencedTypeEntityIndex referencedTypeIndex ?
+				referencedTypeIndex.getVirtualReferencePartitionIndex() : null;
+		final Map<String, List<RegistryRow>> rowsByKey = registry == null ?
+			new TreeMap<>() : rowsByKey(registry, prefix, findings);
+		final Map<String, EntityIndex> objectsByKey = new TreeMap<>();
+		for (final EntityIndex object : objects) {
+			objectsByKey.put(
+				encodingOf((RepresentativeReferenceKey) Objects.requireNonNull(object.getIndexKey().discriminator())),
+				object
+			);
 		}
 
-		if (!(typeIndex instanceof final ReferencedTypeEntityIndex referencedTypeIndex)) {
-			if (!expected.isEmpty()) {
-				findings.add(prefix + "single-owner partitions " + expected.keySet() + " but no registry");
+		// the closed world: every partition the bodies produce is matched to its row or its index object
+		final SortedMap<Integer, OwnerRow> rowsToCheck = new TreeMap<>();
+		for (final Map.Entry<String, ExpectedPartition> entry : groupRows(referenceSchema, bodies).entrySet()) {
+			final ExpectedPartition expected = entry.getValue();
+			final EntityIndex object = objectsByKey.remove(entry.getKey());
+			final int primaryKey = matchPartition(
+				expected, rowsByKey.remove(entry.getKey()), object, form, prefix, rowsToCheck, findings
+			);
+			if (primaryKey != NO_PARTITION) {
+				identities.put(PartitionIdentityLedger.identityKeyOf(scope, expected.key()), primaryKey);
 			}
-			return;
+			if (object != null) {
+				inspectObject(referenceSchema, scope, object, expected, prefix, findings);
+			}
 		}
-		final VirtualReferencePartitionIndex registry = referencedTypeIndex.getVirtualReferencePartitionIndex();
-		inspectRows(registry, expected, prefix, findings);
-		inspectSortValues(referenceSchema, scope, registry, expected, prefix, findings);
-		inspectChains(referenceSchema, scope, registry, expected, prefix, findings);
+		// ... and nothing else is a partition
+		for (final List<RegistryRow> rows : rowsByKey.values()) {
+			for (final RegistryRow row : rows) {
+				findings.add(prefix + row + " is a partition no body produces");
+			}
+		}
+		for (final EntityIndex object : objectsByKey.values()) {
+			findings.add(
+				prefix + "the index object " + object.getPrimaryKey() + " of " + object.getIndexKey().discriminator() +
+					" with the owners " + Arrays.toString(object.getAllPrimaryKeys().getArray()) + " is a partition " +
+					"no body produces"
+			);
+		}
+
+		if (registry != null) {
+			inspectSortValues(referenceSchema, scope, registry, rowsToCheck, prefix, findings);
+			inspectChains(referenceSchema, scope, registry, rowsToCheck, prefix, findings);
+		}
 	}
 
 	/**
-	 * Finds the primary key of the partition of a key: the primary key of its index object, or - in a catalog writing
-	 * its single-owner partitions virtually, where such a partition has no index object - of its registry row.
+	 * Reads the owner rows of the registry by the key of their partition - the referenced entity they name and the
+	 * representative tuple of the partition - and reports every representative tuple of a primary key without a row.
 	 *
-	 * @param collection the collection resolving the partitions
-	 * @param typeIndex  the referenced-type entity index of the reference in the scope, `null` when there is none
-	 * @param scope      the scope
-	 * @param key        the key of the partition
-	 * @return the primary key of the partition, or {@link #NO_PARTITION} when it has neither an index object nor a row
+	 * @param registry the registry
+	 * @param prefix   the prefix of every finding
+	 * @param findings receives the disagreements
+	 * @return the rows by the encoding of their partition key (see {@link #encodingOf(int, Serializable[])})
 	 */
-	private static int findPartitionPrimaryKey(
-		@Nonnull EntityCollection collection,
-		@Nullable EntityIndex typeIndex,
-		@Nonnull Scope scope,
-		@Nonnull RepresentativeReferenceKey key
+	@Nonnull
+	private static Map<String, List<RegistryRow>> rowsByKey(
+		@Nonnull VirtualReferencePartitionIndex registry,
+		@Nonnull String prefix,
+		@Nonnull List<String> findings
 	) {
-		final EntityIndex partition = collection.getIndexByKeyIfExists(
-			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, key)
+		final Map<String, List<RegistryRow>> rows = new TreeMap<>();
+		final Set<Integer> rowPrimaryKeys = new TreeSet<>();
+		registry.forEachEntry(
+			VirtualReferencePartitionSlot.PARTITION_OWNER,
+			(partition, payload) -> {
+				rowPrimaryKeys.add(partition);
+				final int tupleId = registry.getRepresentativeTupleId(partition);
+				final Serializable[] tuple = tupleId == VirtualReferencePartitionIndex.NO_TUPLE_ID ?
+					new Serializable[0] : registry.getTuple(tupleId);
+				final RegistryRow row = new RegistryRow(
+					partition, NumberUtils.unpackHigh(payload), NumberUtils.unpackLow(payload), tuple
+				);
+				rows.computeIfAbsent(encodingOf(row.target(), tuple), __ -> new ArrayList<>(1)).add(row);
+			}
 		);
-		if (partition != null) {
-			return partition.getPrimaryKey();
+		registry.forEachEntry(
+			VirtualReferencePartitionSlot.REPRESENTATIVE_TUPLE,
+			(partition, payload) -> {
+				if (!rowPrimaryKeys.contains(partition)) {
+					findings.add(
+						prefix + "the registry holds the tuple " + Arrays.toString(registry.getTuple((int) payload)) +
+							" of partition " + partition + ", which has no row"
+					);
+				}
+			}
+		);
+		return rows;
+	}
+
+	/**
+	 * Matches a partition the bodies produce to its row and its index object and reports every way they disagree with
+	 * the form the collection represents the partition in. A single-owner partition whose row the match finds is put
+	 * among the rows whose values are checked.
+	 *
+	 * @param expected    the partition as the bodies describe it
+	 * @param rows        the rows of the partition's key, `null` when it has none
+	 * @param object      the index object of the partition's key, `null` when it has none
+	 * @param form        how the collection represents a single-owner partition
+	 * @param prefix      the prefix of every finding
+	 * @param rowsToCheck receives the owner of a matched single-owner row by the row's primary key
+	 * @param findings    receives the disagreements
+	 * @return the primary key of the partition - of its row when it has a single owner and a row, of its object
+	 * otherwise - or {@link #NO_PARTITION} when it has neither
+	 */
+	private static int matchPartition(
+		@Nonnull ExpectedPartition expected,
+		@Nullable List<RegistryRow> rows,
+		@Nullable EntityIndex object,
+		@Nonnull SingleOwnerForm form,
+		@Nonnull String prefix,
+		@Nonnull SortedMap<Integer, OwnerRow> rowsToCheck,
+		@Nonnull List<String> findings
+	) {
+		final RepresentativeReferenceKey key = expected.key();
+		final int[] owners = expected.ownerPrimaryKeys();
+		final RegistryRow row = rows == null || rows.isEmpty() ? null : rows.get(0);
+		if (rows != null && rows.size() > 1) {
+			findings.add(prefix + "the partition " + key + " has " + rows.size() + " rows: " + rows);
 		}
-		// TODO JNO - remove at the end of #1615
-		if (typeIndex instanceof final ReferencedTypeEntityIndex referencedTypeIndex) {
-			final VirtualReferencePartition registered = ReferencePartitions.findRegisteredForWrite(
-				referencedTypeIndex, key
-			);
-			if (registered != null) {
-				return registered.getPrimaryKey();
+		if (owners.length == 1) {
+			if (row == null) {
+				findings.add(prefix + "the single owner " + owners[0] + " of " + key + " has no row");
+			} else {
+				if (row.owner() != owners[0]) {
+					findings.add(
+						prefix + "the " + row + " of " + key + " names another owner than its single owner " + owners[0]
+					);
+				}
+				rowsToCheck.put(row.partitionPrimaryKey(), expected.owners().get(0));
+			}
+			if (form == SingleOwnerForm.ROW && object != null) {
+				findings.add(
+					prefix + "the single-owner partition " + key + " has the index object " + object.getPrimaryKey()
+				);
+			} else if (form == SingleOwnerForm.ROW_AND_OBJECT) {
+				if (object == null) {
+					findings.add(prefix + "the single-owner partition " + key + " has no index object");
+				} else if (row != null && row.partitionPrimaryKey() != object.getPrimaryKey()) {
+					findings.add(
+						prefix + "the single-owner partition " + key + " has the " + row + " and the index object " +
+							object.getPrimaryKey()
+					);
+				}
+			}
+			if (row != null) {
+				return row.partitionPrimaryKey();
+			}
+		} else {
+			if (row != null) {
+				findings.add(
+					prefix + "the partition " + key + " with the owners " + Arrays.toString(owners) + " has the " + row
+				);
+			}
+			if (object == null) {
+				findings.add(
+					prefix + "the partition " + key + " with the owners " + Arrays.toString(owners) + " has no " +
+						"index object"
+				);
 			}
 		}
-		return NO_PARTITION;
+		return object == null ? (row == null ? NO_PARTITION : row.partitionPrimaryKey()) : object.getPrimaryKey();
 	}
 
 	/**
@@ -284,24 +648,46 @@ final class VirtualReferencePartitionRawRowOracle {
 	 *
 	 * @param referenceSchema the reference
 	 * @param bodies          the bodies of the owners
-	 * @return the rows by the canonical encoding of their partition key
+	 * @return the partitions by the encoding of their key (see {@link #encodingOf(RepresentativeReferenceKey)})
 	 */
 	@Nonnull
-	private static Map<String, List<OwnerRow>> groupRows(
+	private static SortedMap<String, ExpectedPartition> groupRows(
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull List<SealedEntity> bodies
 	) {
-		final Map<String, List<OwnerRow>> groups = new TreeMap<>();
+		final SortedMap<String, ExpectedPartition> partitions = new TreeMap<>();
 		for (final SealedEntity body : bodies) {
 			for (final ReferenceContract reference : body.getReferences(referenceSchema.getName())) {
 				final RepresentativeReferenceKey key = keyOf(referenceSchema, reference);
-				groups.computeIfAbsent(
-					key.primaryKey() + "/" + CanonicalValue.encode(key.representativeAttributeValues()),
-					__ -> new ArrayList<>(2)
-				).add(new OwnerRow(body, reference));
+				partitions.computeIfAbsent(
+					encodingOf(key), __ -> new ExpectedPartition(key, new ArrayList<>(2))
+				).owners().add(new OwnerRow(body, reference));
 			}
 		}
-		return groups;
+		return partitions;
+	}
+
+	/**
+	 * Encodes the key of a partition for matching: its referenced entity and representative attribute values.
+	 *
+	 * @param key the key of the partition
+	 * @return the encoding
+	 */
+	@Nonnull
+	private static String encodingOf(@Nonnull RepresentativeReferenceKey key) {
+		return encodingOf(key.primaryKey(), key.representativeAttributeValues());
+	}
+
+	/**
+	 * Encodes the key of a partition for matching: its referenced entity and representative attribute values.
+	 *
+	 * @param target the referenced entity
+	 * @param tuple  the representative attribute values, empty for a reference without them
+	 * @return the encoding
+	 */
+	@Nonnull
+	private static String encodingOf(int target, @Nonnull Serializable[] tuple) {
+		return target + "/" + CanonicalValue.encode(tuple);
 	}
 
 	/**
@@ -343,73 +729,13 @@ final class VirtualReferencePartitionRawRowOracle {
 	}
 
 	/**
-	 * Checks the owner rows and representative tuples of the registry: one per single-owner partition, naming its
-	 * owner, referenced entity and representative attribute values, and none for any other partition.
-	 *
-	 * @param registry the registry
-	 * @param expected the single-owner partitions by primary key
-	 * @param prefix   the prefix of every finding
-	 * @param findings receives the disagreements
-	 */
-	private static void inspectRows(
-		@Nonnull VirtualReferencePartitionIndex registry,
-		@Nonnull SortedMap<Integer, ExpectedPartition> expected,
-		@Nonnull String prefix,
-		@Nonnull List<String> findings
-	) {
-		final Set<Integer> owned = new TreeSet<>();
-		registry.forEachEntry(
-			VirtualReferencePartitionSlot.PARTITION_OWNER, (partition, payload) -> owned.add(partition)
-		);
-		for (final Integer partition : owned) {
-			if (!expected.containsKey(partition)) {
-				findings.add(
-					prefix + "partition " + partition + " has an owner row, but no single owner in the bodies"
-				);
-			}
-		}
-		for (final Map.Entry<Integer, ExpectedPartition> entry : expected.entrySet()) {
-			final int partition = entry.getKey();
-			final ExpectedPartition expectedPartition = entry.getValue();
-			final OptionalLong row = registry.getPartitionOwner(partition);
-			final int owner = primaryKeyOf(expectedPartition.owner());
-			final int target = expectedPartition.key().primaryKey();
-			if (row.isEmpty()) {
-				findings.add(
-					prefix + "partition " + partition + " of " + expectedPartition.key() + " has no owner row, its " +
-						"single owner is " + owner
-				);
-				continue;
-			}
-			final int actualOwner = NumberUtils.unpackHigh(row.getAsLong());
-			final int actualTarget = NumberUtils.unpackLow(row.getAsLong());
-			if (actualOwner != owner || actualTarget != target) {
-				findings.add(
-					prefix + "partition " + partition + " has the owner row " + actualOwner + " -> " + actualTarget +
-						", the bodies say " + owner + " -> " + target
-				);
-			}
-			final int tupleId = registry.getRepresentativeTupleId(partition);
-			final Serializable[] tuple = tupleId == VirtualReferencePartitionIndex.NO_TUPLE_ID ?
-				new Serializable[0] : registry.getTuple(tupleId);
-			final Serializable[] expectedTuple = expectedPartition.key().representativeAttributeValues();
-			if (!CanonicalValue.encode(tuple).equals(CanonicalValue.encode(expectedTuple))) {
-				findings.add(
-					prefix + "partition " + partition + " has the tuple " + Arrays.toString(tuple) + ", the bodies " +
-						"say " + Arrays.toString(expectedTuple)
-				);
-			}
-		}
-	}
-
-	/**
 	 * Checks the sort values of the registry: under every key it declares or the bodies call for, exactly the values
-	 * the single owners' rows hold.
+	 * the rows of the single owners hold, and none under a primary key without such a row.
 	 *
 	 * @param referenceSchema the reference
 	 * @param scope           the scope
 	 * @param registry        the registry
-	 * @param expected        the single-owner partitions by primary key
+	 * @param rows            the single owners by the primary key of their row
 	 * @param prefix          the prefix of every finding
 	 * @param findings        receives the disagreements
 	 */
@@ -417,59 +743,83 @@ final class VirtualReferencePartitionRawRowOracle {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Scope scope,
 		@Nonnull VirtualReferencePartitionIndex registry,
-		@Nonnull SortedMap<Integer, ExpectedPartition> expected,
+		@Nonnull SortedMap<Integer, OwnerRow> rows,
 		@Nonnull String prefix,
 		@Nonnull List<String> findings
 	) {
 		final Map<AttributeIndexKey, Map<Integer, Serializable>> expectedValues = new TreeMap<>();
-		for (final Map.Entry<Integer, ExpectedPartition> entry : expected.entrySet()) {
-			collectSortValues(referenceSchema, scope, entry.getKey(), entry.getValue().owner(), expectedValues);
+		for (final Map.Entry<Integer, OwnerRow> entry : rows.entrySet()) {
+			collectSortValues(referenceSchema, scope, entry.getKey(), entry.getValue(), expectedValues);
 		}
 		final Set<AttributeIndexKey> declared = registry.getDeclaredSortKeys();
 		final Set<AttributeIndexKey> keys = new TreeSet<>(declared);
 		keys.addAll(expectedValues.keySet());
 		for (final AttributeIndexKey key : keys) {
-			final OwnerSortIndex sortIndex = declared.contains(key) ? registry.getSortIndex(key) : null;
-			final Map<Integer, Serializable> actual = new TreeMap<>();
-			if (sortIndex != null) {
-				final SortIndexWalk walk = SortIndexWalk.of(sortIndex);
-				for (int i = 0; i < walk.records().length; i++) {
-					actual.put(walk.records()[i], walk.values()[i]);
-				}
+			final SortIndex sortIndex = declared.contains(key) ? registry.getSortIndex(key) : null;
+			compareSortValues(
+				prefix + "sort key " + key + " of partition ", sortIndex,
+				expectedValues.getOrDefault(key, Map.of()), "the registry holds ", "the body of its owner holds ",
+				findings
+			);
+		}
+	}
+
+	/**
+	 * Compares the values a sort index holds with those the bodies call for, record by record.
+	 *
+	 * @param subject        names the sort index and precedes the record in a finding
+	 * @param sortIndex      the sort index, `null` when there is none
+	 * @param expectedValues the values the bodies call for, by record
+	 * @param actualPrefix   precedes the value the index holds in a finding
+	 * @param expectedPrefix precedes the value the bodies call for in a finding
+	 * @param findings       receives the disagreements
+	 */
+	private static void compareSortValues(
+		@Nonnull String subject,
+		@Nullable SortIndex sortIndex,
+		@Nonnull Map<Integer, Serializable> expectedValues,
+		@Nonnull String actualPrefix,
+		@Nonnull String expectedPrefix,
+		@Nonnull List<String> findings
+	) {
+		final Map<Integer, Serializable> actual = new TreeMap<>();
+		if (sortIndex != null) {
+			final SortIndexWalk walk = SortIndexWalk.of(sortIndex);
+			for (int i = 0; i < walk.records().length; i++) {
+				actual.put(walk.records()[i], walk.values()[i]);
 			}
-			final Map<Integer, Serializable> expectedOfKey = expectedValues.getOrDefault(key, Map.of());
-			final Set<Integer> partitions = new TreeSet<>(actual.keySet());
-			partitions.addAll(expectedOfKey.keySet());
-			for (final Integer partition : partitions) {
-				final Serializable expectedValue = expectedOfKey.get(partition);
-				final Serializable actualValue = actual.get(partition);
-				final String expectedEncoding = expectedValue == null ?
-					"absent" : CanonicalValue.encodeIndexed(expectedValue);
-				final String actualEncoding = actualValue == null ?
-					"absent" : CanonicalValue.encodeIndexed(actualValue);
-				if (!expectedEncoding.equals(actualEncoding)) {
-					findings.add(
-						prefix + "sort key " + key + " of partition " + partition + ": the registry holds " +
-							actualEncoding + ", the body of its owner holds " + expectedEncoding
-					);
-				}
+		}
+		final Set<Integer> records = new TreeSet<>(actual.keySet());
+		records.addAll(expectedValues.keySet());
+		for (final Integer record : records) {
+			final Serializable expectedValue = expectedValues.get(record);
+			final Serializable actualValue = actual.get(record);
+			final String expectedEncoding = expectedValue == null ?
+				"absent" : CanonicalValue.encodeIndexed(expectedValue);
+			final String actualEncoding = actualValue == null ?
+				"absent" : CanonicalValue.encodeIndexed(actualValue);
+			if (!expectedEncoding.equals(actualEncoding)) {
+				findings.add(
+					subject + record + ": " + actualPrefix + actualEncoding + ", " + expectedPrefix + expectedEncoding
+				);
 			}
 		}
 	}
 
 	/**
-	 * Adds the sort values the row of a single owner calls for: its sortable attributes and compounds.
+	 * Adds the sort values the row of an owner calls for: its sortable attributes and compounds.
 	 *
 	 * @param referenceSchema the reference
 	 * @param scope           the scope
-	 * @param partition       the partition primary key
-	 * @param row             the row of the single owner
-	 * @param expectedValues  receives the values by key and partition, in the space the index stores them in
+	 * @param record          the record the values are kept under - the primary key of the partition in the
+	 *                        registry, the primary key of the owner in an index object
+	 * @param row             the row of the owner
+	 * @param expectedValues  receives the values by key and record, in the space the index stores them in
 	 */
 	private static void collectSortValues(
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Scope scope,
-		int partition,
+		int record,
 		@Nonnull OwnerRow row,
 		@Nonnull Map<AttributeIndexKey, Map<Integer, Serializable>> expectedValues
 	) {
@@ -494,7 +844,7 @@ final class VirtualReferencePartitionRawRowOracle {
 					new AttributeIndexKey(referenceName, attribute.getName(), attributeValue.key().locale()),
 					__ -> new TreeMap<>()
 				)
-				.put(partition, normalizer.apply(indexed(attribute, attributeValue.value())));
+				.put(record, normalizer.apply(indexed(attribute, attributeValue.value())));
 		}
 		for (final SortableAttributeCompoundSchemaContract compound :
 			referenceSchema.getSortableAttributeCompounds().values()) {
@@ -518,7 +868,7 @@ final class VirtualReferencePartitionRawRowOracle {
 					.computeIfAbsent(
 						new AttributeIndexKey(referenceName, compound.getName(), locale), __ -> new TreeMap<>()
 					)
-					.put(partition, new ComparableArray(values));
+					.put(record, new ComparableArray(values));
 			}
 		}
 	}
@@ -591,12 +941,12 @@ final class VirtualReferencePartitionRawRowOracle {
 
 	/**
 	 * Checks the chain predecessors of the registry: for every chain key it declares or the bodies call for, the
-	 * predecessor each single owner's row declares, or none.
+	 * predecessor the row of each single owner declares, or none.
 	 *
 	 * @param referenceSchema the reference
 	 * @param scope           the scope
 	 * @param registry        the registry
-	 * @param expected        the single-owner partitions by primary key
+	 * @param rows            the single owners by the primary key of their row
 	 * @param prefix          the prefix of every finding
 	 * @param findings        receives the disagreements
 	 */
@@ -604,30 +954,12 @@ final class VirtualReferencePartitionRawRowOracle {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull Scope scope,
 		@Nonnull VirtualReferencePartitionIndex registry,
-		@Nonnull SortedMap<Integer, ExpectedPartition> expected,
+		@Nonnull SortedMap<Integer, OwnerRow> rows,
 		@Nonnull String prefix,
 		@Nonnull List<String> findings
 	) {
-		final String referenceName = referenceSchema.getName();
-		final Map<AttributeIndexKey, Map<Integer, Integer>> expectedPredecessors = new TreeMap<>();
-		for (final AttributeSchemaContract attribute : referenceSchema.getAttributes().values()) {
-			if (isComparedChain(attribute, scope)) {
-				expectedPredecessors.put(
-					new AttributeIndexKey(referenceName, attribute.getName(), null), new TreeMap<>()
-				);
-			}
-		}
-		for (final Map.Entry<Integer, ExpectedPartition> entry : expected.entrySet()) {
-			for (final AttributeIndexKey key : expectedPredecessors.keySet()) {
-				entry.getValue().owner().reference().getAttributeValue(key.attributeName())
-					.filter(AttributeValue::exists)
-					.map(AttributeValue::value)
-					.ifPresent(
-						value -> expectedPredecessors.get(key)
-							.put(entry.getKey(), ((ChainableType) value).predecessorPk())
-					);
-			}
-		}
+		final Map<AttributeIndexKey, Map<Integer, Integer>> expectedPredecessors =
+			collectPredecessors(referenceSchema, scope, rows);
 		final Set<AttributeIndexKey> declared = registry.getDeclaredChainKeys();
 		final Set<AttributeIndexKey> keys = new TreeSet<>(expectedPredecessors.keySet());
 		for (final AttributeIndexKey key : declared) {
@@ -641,16 +973,145 @@ final class VirtualReferencePartitionRawRowOracle {
 		}
 		for (final AttributeIndexKey key : keys) {
 			final Map<Integer, Integer> expectedOfKey = expectedPredecessors.getOrDefault(key, Map.of());
-			for (final Integer partition : expected.keySet()) {
-				final Integer expectedPredecessor = expectedOfKey.get(partition);
+			for (final Integer partition : rows.keySet()) {
 				final OptionalInt actual = declared.contains(key) ?
 					registry.getChainPredecessor(key, partition) : OptionalInt.empty();
+				final Integer expectedPredecessor = expectedOfKey.get(partition);
 				final OptionalInt expectedOptional = expectedPredecessor == null ?
 					OptionalInt.empty() : OptionalInt.of(expectedPredecessor);
 				if (!expectedOptional.equals(actual)) {
 					findings.add(
 						prefix + "chain key " + key + " of partition " + partition + ": the registry holds " + actual +
 							", the body of its owner declares " + expectedOptional
+					);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Collects the predecessors the rows of owners declare for every compared chain of the reference.
+	 *
+	 * @param referenceSchema the reference
+	 * @param scope           the scope
+	 * @param rows            the rows of the owners by the record their predecessors are kept under
+	 * @return the predecessors by chain key and record - every compared chain key present, possibly empty
+	 */
+	@Nonnull
+	private static Map<AttributeIndexKey, Map<Integer, Integer>> collectPredecessors(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Scope scope,
+		@Nonnull Map<Integer, OwnerRow> rows
+	) {
+		final String referenceName = referenceSchema.getName();
+		final Map<AttributeIndexKey, Map<Integer, Integer>> predecessors = new TreeMap<>();
+		for (final AttributeSchemaContract attribute : referenceSchema.getAttributes().values()) {
+			if (isComparedChain(attribute, scope)) {
+				predecessors.put(new AttributeIndexKey(referenceName, attribute.getName(), null), new TreeMap<>());
+			}
+		}
+		for (final Map.Entry<Integer, OwnerRow> entry : rows.entrySet()) {
+			for (final Map.Entry<AttributeIndexKey, Map<Integer, Integer>> chain : predecessors.entrySet()) {
+				entry.getValue().reference().getAttributeValue(chain.getKey().attributeName())
+					.filter(AttributeValue::exists)
+					.map(AttributeValue::value)
+					.ifPresent(value -> chain.getValue().put(entry.getKey(), ((ChainableType) value).predecessorPk()));
+			}
+		}
+		return predecessors;
+	}
+
+	/**
+	 * Checks an index object of a partition the bodies produce: its owners, and per owner the sort values and chain
+	 * predecessors of the reference - under every key the object holds or the bodies call for.
+	 *
+	 * @param referenceSchema the reference
+	 * @param scope           the scope
+	 * @param object          the index object
+	 * @param expected        the partition as the bodies describe it
+	 * @param prefix          the prefix of every finding
+	 * @param findings        receives the disagreements
+	 */
+	private static void inspectObject(
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Scope scope,
+		@Nonnull EntityIndex object,
+		@Nonnull ExpectedPartition expected,
+		@Nonnull String prefix,
+		@Nonnull List<String> findings
+	) {
+		final String referenceName = referenceSchema.getName();
+		final String objectPrefix = prefix + "index object " + object.getPrimaryKey() + " of " + expected.key() + ", ";
+		final int[] owners = expected.ownerPrimaryKeys();
+		final int[] actualOwners = object.getAllPrimaryKeys().getArray();
+		if (!Arrays.equals(owners, actualOwners)) {
+			findings.add(
+				objectPrefix + "the object holds the owners " + Arrays.toString(actualOwners) + ", the bodies " +
+					Arrays.toString(owners)
+			);
+		}
+		final Map<Integer, OwnerRow> ownerRows = new TreeMap<>();
+		for (final OwnerRow owner : expected.owners()) {
+			ownerRows.put(primaryKeyOf(owner), owner);
+		}
+
+		// the sort values, kept under the owner's primary key
+		final Map<AttributeIndexKey, Map<Integer, Serializable>> expectedValues = new TreeMap<>();
+		for (final Map.Entry<Integer, OwnerRow> owner : ownerRows.entrySet()) {
+			collectSortValues(referenceSchema, scope, owner.getKey(), owner.getValue(), expectedValues);
+		}
+		final Set<AttributeIndexKey> sortKeys = new TreeSet<>(expectedValues.keySet());
+		object.forEachAttributeIndexKey(
+			AttributeIndexType.SORT,
+			key -> {
+				if (referenceName.equals(key.referenceName())) {
+					sortKeys.add(key);
+				}
+			}
+		);
+		for (final AttributeIndexKey key : sortKeys) {
+			compareSortValues(
+				objectPrefix + "sort key " + key + " of owner ", object.getSortIndex(key),
+				expectedValues.getOrDefault(key, Map.of()), "the object holds ", "the body of the owner holds ",
+				findings
+			);
+		}
+
+		// the chain predecessors, the chain elements being the owners
+		final Map<AttributeIndexKey, Map<Integer, Integer>> expectedPredecessors =
+			collectPredecessors(referenceSchema, scope, ownerRows);
+		final Set<AttributeIndexKey> chainKeys = new TreeSet<>(expectedPredecessors.keySet());
+		object.forEachAttributeIndexKey(
+			AttributeIndexType.CHAIN,
+			key -> {
+				// a chain the oracle leaves out, see the class documentation
+				final boolean compared = referenceSchema.getAttribute(key.attributeName())
+					.map(it -> isComparedChain(it, scope))
+					.orElse(true);
+				if (referenceName.equals(key.referenceName()) && compared) {
+					chainKeys.add(key);
+				}
+			}
+		);
+		for (final AttributeIndexKey key : chainKeys) {
+			final ChainIndex chainIndex = object.getChainIndex(key);
+			final Map<Integer, Integer> expectedOfKey = expectedPredecessors.getOrDefault(key, Map.of());
+			final Set<Integer> elements = new TreeSet<>(expectedOfKey.keySet());
+			if (chainIndex != null) {
+				for (final int element : chainIndex.getUnorderedLookup().getArray()) {
+					elements.add(element);
+				}
+			}
+			for (final Integer element : elements) {
+				final OptionalInt actual = chainIndex == null ?
+					OptionalInt.empty() : chainIndex.getPredecessorPrimaryKey(element);
+				final Integer expectedPredecessor = expectedOfKey.get(element);
+				final OptionalInt expectedOptional = expectedPredecessor == null ?
+					OptionalInt.empty() : OptionalInt.of(expectedPredecessor);
+				if (!expectedOptional.equals(actual)) {
+					findings.add(
+						objectPrefix + "chain key " + key + " of owner " + element + ": the object holds " + actual +
+							", the body of the owner declares " + expectedOptional
 					);
 				}
 			}

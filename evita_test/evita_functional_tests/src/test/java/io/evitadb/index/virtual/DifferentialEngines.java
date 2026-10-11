@@ -235,12 +235,14 @@ import static org.junit.jupiter.api.Assertions.fail;
  * At every checkpoint the registry of single-owner partitions of every collection of the maintaining engine is checked
  * against its partitions by {@link VirtualReferencePartitionOracle}, exactly: every single-owner partition must have
  * its row, inside the open session too, because a partition left with one owner of two is demoted by the very mutation
- * that left it so. It is checked against the entity bodies by {@link VirtualReferencePartitionRawRowOracle} too, so a
- * defect of the indexing path both engines and the mirror share - which leaves the partitions, the registry and the
- * other engine in agreement - is found as well. Both engines report every transition of their partitions and the
- * outcome of every root mutation to a history of their own (see {@link TransitionHistory}), installed before the
- * catalog is defined and before every load, which tests read to prove what a history exercised. Any further check can
- * be added by {@link #addMaintainingEngineCheck(MaintainingEngineCheck)}.
+ * that left it so. Its partitions - rows and index objects - are checked against the entity bodies by
+ * {@link VirtualReferencePartitionRawRowOracle} too, so a defect of the indexing path both engines and the mirror
+ * share - which leaves the partitions, the registry and the other engine in agreement - is found as well; a test may
+ * have that oracle check the identity of the partitions across the checkpoints (see {@link #trackPartitionIdentity()}).
+ * Both engines report every transition of their partitions and the outcome of every root mutation to a history of
+ * their own (see {@link TransitionHistory}), installed before the catalog is defined and before every load, which
+ * tests read to prove what a history exercised. Any further check can be added by
+ * {@link #addMaintainingEngineCheck(MaintainingEngineCheck)}.
  *
  * Failures can be injected right after a transition, in both engines at once (see
  * {@link #failingStepAfter(String, TransitionStage, String, int, Consumer)}): the engine that maintains nothing passes
@@ -475,6 +477,12 @@ public final class DifferentialEngines implements AutoCloseable {
 	 */
 	private final SortedMap<String, LineConsumption> consumptionPerLine = new TreeMap<>();
 	/**
+	 * The identity of the partitions of the maintaining engine observed at the checkpoints so far, which
+	 * {@link VirtualReferencePartitionRawRowOracle} checks at every checkpoint - `null` until a test asks for it (see
+	 * {@link #trackPartitionIdentity()}).
+	 */
+	@Nullable private PartitionIdentityLedger identityLedger;
+	/**
 	 * The engine with the switch off.
 	 */
 	private Evita reference;
@@ -616,6 +624,22 @@ public final class DifferentialEngines implements AutoCloseable {
 	 */
 	void addMaintainingEngineCheck(@Nonnull MaintainingEngineCheck check) {
 		this.maintainingEngineChecks.add(check);
+	}
+
+	/**
+	 * Makes the body oracle of every later checkpoint of the maintaining engine check the identity of its partitions
+	 * too: the primary key of a partition whose key the bodies produce at two checkpoints in a row must not change
+	 * between them, unless the test declares the key emptied or replayed in between (see
+	 * {@link PartitionIdentityLedger}). A live catalog is held to it at the committed checkpoints only.
+	 *
+	 * @return the ledger, for the test to declare the keys its history empties and enters again, or has replayed
+	 */
+	@Nonnull
+	PartitionIdentityLedger trackPartitionIdentity() {
+		if (this.identityLedger == null) {
+			this.identityLedger = new PartitionIdentityLedger();
+		}
+		return this.identityLedger;
 	}
 
 	/**
@@ -1360,16 +1384,25 @@ public final class DifferentialEngines implements AutoCloseable {
 				for (final MaintainingEngineCheck check : this.maintainingEngineChecks) {
 					check.check(label, collection);
 				}
+				// a transaction of a live catalog is executed once more on the trunk when it commits, which mints the
+				// primary keys of the partitions it creates anew from the collection's sequence - what the open
+				// transaction shows of them is provisional, so only the committed state is held to the ledger
+				final PartitionIdentityLedger ledger =
+					committed || catalog.getCatalogState() == CatalogState.WARMING_UP ? this.identityLedger : null;
 				// the partitions of a catalog writing virtually are no index objects to check the registry against
-				if (!this.writtenVirtually) {
+				if (this.writtenVirtually) {
+					VirtualReferencePartitionRawRowOracle.assertConsistent(label, session, collection, ledger);
+				} else {
 					VirtualReferencePartitionOracle.assertConsistent(label, collection);
+					VirtualReferencePartitionRawRowOracle.assertConsistentNextToObjects(
+						label, session, collection, ledger
+					);
 				}
-				VirtualReferencePartitionRawRowOracle.assertConsistent(label, session, collection);
 			} else if (this.writtenVirtually) {
 				// the twin's registry is checked against its real partitions, and the snapshot then compares it with
 				// the registry of the catalog writing virtually
 				VirtualReferencePartitionOracle.assertConsistent(label, collection);
-				VirtualReferencePartitionRawRowOracle.assertConsistent(label, session, collection);
+				VirtualReferencePartitionRawRowOracle.assertConsistentNextToObjects(label, session, collection, null);
 			}
 			final EntitySchemaContract schema = session.getEntitySchemaOrThrowException(entityType);
 			// the maintaining engine reads virtually on the query lines whose routes have landed, and only there - a

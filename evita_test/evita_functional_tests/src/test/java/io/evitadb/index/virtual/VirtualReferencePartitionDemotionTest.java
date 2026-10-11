@@ -88,9 +88,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * still carries (#1691).
  *
  * The harness checks the registry exactly against the partitions at every checkpoint - every single-owner partition
- * must have its row, with every sort value and chain predecessor the partition holds for its owner - and compares the
- * two engines everywhere else. On top of that, every test asserts the demotions and values its history must have
- * produced, so no test passes by demoting nothing.
+ * must have its row, with every sort value and chain predecessor the partition holds for its owner - checks the rows
+ * and the index objects against the entity bodies, with the primary key of every partition held across the
+ * checkpoints (see {@link PartitionIdentityLedger}), and compares the two engines everywhere else. What the history
+ * left on disk is checked once it ends (see {@link VirtualPartitionInvariants#assertStoredParts}). On top of that,
+ * every test asserts the demotions and values its history must have produced, so no test passes by demoting nothing.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -161,8 +163,15 @@ class VirtualReferencePartitionDemotionTest implements EvitaTestSupport {
 	@AfterEach
 	void tearDown() {
 		if (this.engines != null) {
-			this.engines.close();
-			this.engines = null;
+			try {
+				// what the history left on disk - against the indexes it holds and a history-free rebuild
+				VirtualPartitionInvariants.assertStoredParts(
+					"at the end of the history", this.engines.getMaintaining(), SingleOwnerPartitionFixture.CATALOG
+				);
+			} finally {
+				this.engines.close();
+				this.engines = null;
+			}
 		}
 	}
 
@@ -490,6 +499,7 @@ class VirtualReferencePartitionDemotionTest implements EvitaTestSupport {
 	) {
 		final DifferentialEngines theEngines = new DifferentialEngines(this, label, ENTITY_TYPES);
 		this.engines = theEngines;
+		theEngines.trackPartitionIdentity();
 		theEngines.prepare(state, setup);
 		return theEngines;
 	}

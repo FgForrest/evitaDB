@@ -24,15 +24,27 @@
 package io.evitadb.index.virtual;
 
 import io.evitadb.api.CatalogContract;
+import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.InitialEntityBuilder;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.statistics.BrowsedIndex;
+import io.evitadb.api.statistics.CatalogStatisticsComponent;
+import io.evitadb.api.statistics.EntityCollectionStatistics;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
 import io.evitadb.api.statistics.IndexBrowseOrdering;
 import io.evitadb.api.statistics.IndexBrowseResult;
+import io.evitadb.api.statistics.StoragePartUsage;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
@@ -45,7 +57,14 @@ import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.VirtualReferencePartitionSlot;
 import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AttributesStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.test.builder.CatalogCopySupport;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
@@ -53,13 +72,22 @@ import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.function.Function;
 
+import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.collection;
+import static io.evitadb.api.query.QueryConstraints.entityFetchAll;
+import static io.evitadb.api.query.QueryConstraints.filterBy;
+import static io.evitadb.api.query.QueryConstraints.page;
+import static io.evitadb.api.query.QueryConstraints.require;
+import static io.evitadb.api.query.QueryConstraints.scope;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -77,7 +105,13 @@ import static org.junit.jupiter.api.Assertions.fail;
  * - every registered partition has no index object, is not among the indexes its collection header lists as stored,
  *   and no entity index storage part is stored under its primary key;
  * - the index primary key sequence the collection header persists is at least every registered primary key;
- * - the reduced-index membership covers every registered partition with its owner and holds none of them as residual.
+ * - the reduced-index membership covers every registered partition with its owner and holds none of them as residual;
+ * - the reduced-index membership knows no partition that is neither a registry row nor an index object of its
+ *   reference (see {@link #assertMembershipKnowsOnlyExistingPartitions(String, EntityCollection)}).
+ *
+ * What a catalog stores is checked through the public management statistics (see
+ * {@link #assertStoredParts(String, Evita, String)}): a collection stores as many entity index parts as it holds
+ * indexes, and as many entity parts of each type as a history-free rebuild of its entity bodies stores.
  *
  * The description (see {@link #describeIndexes(Evita, String)}) is the index level of {@link CatalogDescriber}: the
  * registry rows with their primary keys, owners, sort values and chain predecessors, the advertised partitions, the
@@ -86,6 +120,25 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public final class VirtualPartitionInvariants {
+	/**
+	 * The storage part types of the entities themselves - the parts {@link #assertStoredParts(String, Evita, String)}
+	 * compares with a history-free rebuild.
+	 */
+	private static final List<String> ENTITY_PART_TYPES = List.of(
+		EntityBodyStoragePart.class.getSimpleName(),
+		AttributesStoragePart.class.getSimpleName(),
+		AssociatedDataStoragePart.class.getSimpleName(),
+		PricesStoragePart.class.getSimpleName(),
+		ReferencesStoragePart.class.getSimpleName()
+	);
+	/**
+	 * The storage part type of the manifest of an entity index - one per index the collection holds.
+	 */
+	private static final String INDEX_PART_TYPE = EntityIndexStoragePart.class.getSimpleName();
+	/**
+	 * How many bodies one query of the rebuild reads.
+	 */
+	private static final int REBUILD_PAGE_SIZE = 1_000;
 
 	private VirtualPartitionInvariants() {
 	}
@@ -135,8 +188,10 @@ public final class VirtualPartitionInvariants {
 			);
 		}
 		final List<String> violations = new ArrayList<>(4);
+		final SortedMap<Integer, RegisteredRow> rows = registeredRowsOf(collection);
+		collectPartitionsOnlyTheMembershipKnows(collection, rows, violations);
 		int registered = 0;
-		for (final Entry<Integer, RegisteredRow> entry : registeredRowsOf(collection).entrySet()) {
+		for (final Entry<Integer, RegisteredRow> entry : rows.entrySet()) {
 			registered++;
 			final int partitionPrimaryKey = entry.getKey();
 			final RegisteredRow row = entry.getValue();
@@ -175,6 +230,305 @@ public final class VirtualPartitionInvariants {
 			fail(prefix + " breaks " + violations.size() + " invariant(s):\n" + String.join("\n", violations));
 		}
 		return registered;
+	}
+
+	/**
+	 * Fails when the reduced-index membership of a reference of the collection knows a partition - covered or
+	 * residual - that is neither a registry row nor an index object of the reference in the membership's scope. Such
+	 * a partition no longer exists, yet a query selecting partitions through the membership would still visit it; it
+	 * is what a reference index mutator reading the owners of an emptied index object after its retirement left
+	 * behind when both owners of a shared partition left it in one root mutation.
+	 *
+	 * Reads only what the collection holds in memory, so it holds inside an open session as well as after a commit.
+	 *
+	 * @param label      names the checkpoint in the failure message
+	 * @param collection the collection
+	 */
+	public static void assertMembershipKnowsOnlyExistingPartitions(
+		@Nonnull String label,
+		@Nonnull EntityCollection collection
+	) {
+		final List<String> violations = new ArrayList<>(2);
+		collectPartitionsOnlyTheMembershipKnows(collection, registeredRowsOf(collection), violations);
+		if (!violations.isEmpty()) {
+			fail(
+				label + ": collection `" + collection.getEntityType() + "` breaks " + violations.size() +
+					" invariant(s):\n" + String.join("\n", violations)
+			);
+		}
+	}
+
+	/**
+	 * Adds a violation for every partition the reduced-index membership of a reference of the collection knows that
+	 * is neither a registry row nor an index object of the reference in the membership's scope - see
+	 * {@link #assertMembershipKnowsOnlyExistingPartitions(String, EntityCollection)}.
+	 *
+	 * @param collection the collection
+	 * @param rows       the registered rows of the collection by the primary key of their partition
+	 * @param violations receives the violations
+	 */
+	private static void collectPartitionsOnlyTheMembershipKnows(
+		@Nonnull EntityCollection collection,
+		@Nonnull SortedMap<Integer, RegisteredRow> rows,
+		@Nonnull List<String> violations
+	) {
+		for (final Scope scope : Scope.values()) {
+			for (final ReferenceSchemaContract referenceSchema : collection.getSchema().getReferences().values()) {
+				final String referenceName = referenceSchema.getName();
+				final ReducedIndexMembership membership = membershipOf(collection, scope, referenceName);
+				if (membership == null) {
+					continue;
+				}
+				final SortedSet<Integer> known = new TreeSet<>();
+				for (final int partitionPrimaryKey : membership.getCoveredIndexPrimaryKeys().getArray()) {
+					known.add(partitionPrimaryKey);
+				}
+				for (final int partitionPrimaryKey : membership.getResidualIndexPrimaryKeys().getArray()) {
+					known.add(partitionPrimaryKey);
+				}
+				for (final Integer partitionPrimaryKey : known) {
+					final RegisteredRow row = rows.get(partitionPrimaryKey);
+					final EntityIndex index = collection.getIndexByPrimaryKeyIfExists(partitionPrimaryKey);
+					final boolean isRow = row != null && row.scope() == scope &&
+						row.referenceName().equals(referenceName);
+					if (!isRow && !isPartitionObjectOf(index, scope, referenceName)) {
+						violations.add(
+							"partition " + partitionPrimaryKey + " the membership of `" + referenceName + "` in " +
+								scope + " knows is neither a row nor an index object of the reference" +
+								(row == null ? "" : ", it is the " + row) +
+								(index == null ? "" : ", it is the index " + index.getIndexKey())
+						);
+					}
+				}
+			}
+		}
+	}
+
+	/**
+	 * Tells whether an index is an index object of a partition of the reference in the scope - of the referenced
+	 * entity or of the referenced group entity.
+	 *
+	 * @param index         the index, possibly `null`
+	 * @param scope         the scope
+	 * @param referenceName the reference
+	 * @return TRUE for an index object of a partition of the reference in the scope
+	 */
+	private static boolean isPartitionObjectOf(
+		@Nullable EntityIndex index,
+		@Nonnull Scope scope,
+		@Nonnull String referenceName
+	) {
+		if (index == null) {
+			return false;
+		}
+		final EntityIndexKey indexKey = index.getIndexKey();
+		return indexKey.scope() == scope &&
+			(indexKey.type() == EntityIndexType.REFERENCED_ENTITY ||
+				indexKey.type() == EntityIndexType.REFERENCED_GROUP_ENTITY) &&
+			indexKey.discriminator() instanceof final RepresentativeReferenceKey key &&
+			key.referenceName().equals(referenceName);
+	}
+
+	/**
+	 * Asserts what a catalog stores, read through the public management statistics of its collections
+	 * (`STORAGE_COMPOSITION` and `INDEX_SUMMARY`):
+	 *
+	 * - every collection stores as many entity index parts as it holds indexes - `INDEX_SUMMARY` counts the index
+	 *   objects only, a registry row is none - so an index a transition retired but whose part stayed stored shows as
+	 *   a surplus, and an index object whose part was never stored as a shortfall;
+	 * - every collection stores as many records of each entity storage part type - body, attributes, associated
+	 *   data, prices and references - as a history-free rebuild stores: the same schema (see
+	 *   {@link CatalogCopySupport}), the entity bodies of both scopes upserted once into a fresh catalog of the same
+	 *   engine. How many entity parts the bodies take does not depend on the history that wrote them, so an orphaned
+	 *   or duplicated entity record shows as a surplus.
+	 *
+	 * The bytes are not compared - an entity part written by a history carries other versions than one written once.
+	 * The composition describes the data stores as they were last flushed, so the check is meaningful once the
+	 * catalog has flushed everything it applied: after the session of a catalog warming up closed, after a
+	 * transaction of a live catalog whose checkpoints are not deferred committed, or after a reload.
+	 *
+	 * @param label       names the moment in failure messages
+	 * @param evita       the engine
+	 * @param catalogName the catalog
+	 */
+	public static void assertStoredParts(@Nonnull String label, @Nonnull Evita evita, @Nonnull String catalogName) {
+		final SortedSet<String> entityTypes = new TreeSet<>(catalogOf(evita, catalogName).getEntityTypes());
+		final SortedMap<String, Map<String, Integer>> rebuilt = countEntityPartsOfRebuild(evita, catalogName);
+		final List<String> violations = new ArrayList<>(4);
+		int storedIndexParts = 0;
+		int storedBodies = 0;
+		for (final String entityType : entityTypes) {
+			final EntityCollectionStatistics statistics = evita.management().getEntityCollectionStatistics(
+				catalogName, entityType,
+				EnumSet.of(CatalogStatisticsComponent.STORAGE_COMPOSITION, CatalogStatisticsComponent.INDEX_SUMMARY)
+			);
+			final Map<String, Integer> counts = countStoredParts(statistics);
+			final int indexCount = statistics.indexSummaryIfPresent().orElseThrow().totalIndexCount();
+			final int indexParts = counts.getOrDefault(INDEX_PART_TYPE, 0);
+			storedIndexParts += indexParts;
+			if (indexParts != indexCount) {
+				violations.add(
+					"`" + entityType + "` stores " + indexParts + " " + INDEX_PART_TYPE + " records, but holds " +
+						indexCount + " indexes"
+				);
+			}
+			final Map<String, Integer> rebuiltCounts = rebuilt.getOrDefault(entityType, Map.of());
+			for (final String partType : ENTITY_PART_TYPES) {
+				final int count = counts.getOrDefault(partType, 0);
+				final int rebuiltCount = rebuiltCounts.getOrDefault(partType, 0);
+				if (count != rebuiltCount) {
+					violations.add(
+						"`" + entityType + "` stores " + count + " " + partType + " records, a history-free rebuild " +
+							"of its bodies " + rebuiltCount
+					);
+				}
+			}
+			storedBodies += counts.getOrDefault(EntityBodyStoragePart.class.getSimpleName(), 0);
+		}
+		// the statistics answer from the flushed data stores - a catalog that flushed nothing would pass vacuously
+		assertTrue(
+			storedIndexParts > 0 && storedBodies > 0,
+			label + ": the catalog `" + catalogName + "` must store indexes and entities, it stores " +
+				storedIndexParts + " index parts and " + storedBodies + " bodies"
+		);
+		if (!violations.isEmpty()) {
+			fail(
+				label + ": the stored parts of the catalog `" + catalogName + "` break " + violations.size() +
+					" invariant(s):\n" + String.join("\n", violations)
+			);
+		}
+	}
+
+	/**
+	 * Rebuilds a catalog without its history - a fresh catalog of the same engine with the same schema, into which
+	 * the entity bodies of both scopes are upserted once - and counts the records of every entity storage part type
+	 * each collection of the rebuild stores. The rebuild is removed afterwards.
+	 *
+	 * The bodies are upserted without their reflected references: the rebuild creates those itself from the
+	 * references they reflect, as the catalog did.
+	 *
+	 * @param evita       the engine
+	 * @param catalogName the catalog to rebuild
+	 * @return the record count per entity storage part type, by entity type
+	 */
+	@Nonnull
+	private static SortedMap<String, Map<String, Integer>> countEntityPartsOfRebuild(
+		@Nonnull Evita evita,
+		@Nonnull String catalogName
+	) {
+		final String rebuildName = catalogName + "HistoryFreeRebuild";
+		final CatalogContent content = evita.queryCatalog(
+			catalogName,
+			(Function<EvitaSessionContract, CatalogContent>) VirtualPartitionInvariants::readContent
+		);
+		evita.deleteCatalogIfExists(rebuildName);
+		try {
+			evita.defineCatalog(rebuildName).updateViaNewSession(evita);
+			evita.updateCatalog(
+				rebuildName,
+				session -> {
+					CatalogCopySupport.replicateSchema(session, content.catalogSchema(), content.entitySchemas());
+					for (final SealedEntity body : content.bodies()) {
+						session.upsertEntity(copyWithoutReflectedReferences(body));
+					}
+				}
+			);
+			final SortedMap<String, Map<String, Integer>> counts = new TreeMap<>();
+			for (final EntitySchemaContract entitySchema : content.entitySchemas()) {
+				counts.put(
+					entitySchema.getName(),
+					countStoredParts(
+						evita.management().getEntityCollectionStatistics(
+							rebuildName, entitySchema.getName(),
+							EnumSet.of(CatalogStatisticsComponent.STORAGE_COMPOSITION)
+						)
+					)
+				);
+			}
+			return counts;
+		} finally {
+			evita.deleteCatalogIfExists(rebuildName);
+		}
+	}
+
+	/**
+	 * Builds the entity a history-free rebuild upserts for a body: everything the body holds but its reflected
+	 * references, which the rebuild creates itself from the references they reflect.
+	 *
+	 * @param body the body, fetched with all its content
+	 * @return the builder of the new entity
+	 */
+	@Nonnull
+	private static InitialEntityBuilder copyWithoutReflectedReferences(@Nonnull SealedEntity body) {
+		final EntitySchemaContract schema = body.getSchema();
+		final List<ReferenceContract> references = new ArrayList<>(body.getReferences().size());
+		for (final ReferenceContract reference : body.getReferences()) {
+			if (!(schema.getReferenceOrThrowException(reference.getReferenceName())
+				instanceof ReflectedReferenceSchemaContract)) {
+				references.add(reference);
+			}
+		}
+		return new InitialEntityBuilder(
+			schema, body.getPrimaryKeyOrThrowException(), body.getScope(),
+			body.getAttributeValues(), body.getAssociatedDataValues(), references,
+			body.getPriceInnerRecordHandling(), schema.isWithPrice() ? body.getPrices() : List.of()
+		);
+	}
+
+	/**
+	 * Reads what a history-free rebuild of a catalog needs: its schema and the body of every entity in both scopes
+	 * with all its content, page by page.
+	 *
+	 * @param session a session of the catalog
+	 * @return the schema and the bodies
+	 */
+	@Nonnull
+	private static CatalogContent readContent(@Nonnull EvitaSessionContract session) {
+		final List<EntitySchemaContract> entitySchemas = new ArrayList<>(8);
+		final List<SealedEntity> bodies = new ArrayList<>(64);
+		for (final String entityType : new TreeSet<>(session.getAllEntityTypes())) {
+			final EntitySchemaContract entitySchema = session.getEntitySchemaOrThrowException(entityType);
+			entitySchemas.add(entitySchema);
+			final int before = bodies.size();
+			int pageNumber = 1;
+			int total;
+			do {
+				final EvitaResponse<SealedEntity> response = session.querySealedEntity(
+					query(
+						collection(entityType),
+						filterBy(scope(Scope.values())),
+						require(page(pageNumber++, REBUILD_PAGE_SIZE), entityFetchAll())
+					)
+				);
+				total = response.getTotalRecordCount();
+				bodies.addAll(response.getRecordData());
+				if (response.getRecordData().isEmpty()) {
+					break;
+				}
+			} while (bodies.size() - before < total);
+			assertTrue(
+				bodies.size() - before == total,
+				"the rebuild must read every body of `" + entityType + "`: " + (bodies.size() - before) + " of " +
+					total
+			);
+		}
+		return new CatalogContent(session.getCatalogSchema(), entitySchemas, bodies);
+	}
+
+	/**
+	 * Returns the record count of every storage part type a collection stores.
+	 *
+	 * @param statistics the statistics of the collection with its storage composition
+	 * @return the record count by storage part type
+	 */
+	@Nonnull
+	private static Map<String, Integer> countStoredParts(@Nonnull EntityCollectionStatistics statistics) {
+		final StoragePartUsage[] parts = statistics.storageCompositionIfPresent().orElseThrow().parts();
+		final Map<String, Integer> counts = CollectionUtils.createHashMap(parts.length);
+		for (final StoragePartUsage part : parts) {
+			counts.put(part.storagePartType(), part.count());
+		}
+		return counts;
 	}
 
 	/**
@@ -447,6 +801,20 @@ public final class VirtualPartitionInvariants {
 			return "row " + this.partitionPrimaryKey + " (" + this.referenceName + " -> " + this.target + " in " +
 				this.scope + ", owner " + this.owner + ")";
 		}
+	}
+
+	/**
+	 * What a history-free rebuild of a catalog is made from.
+	 *
+	 * @param catalogSchema the schema of the catalog
+	 * @param entitySchemas the schema of every collection
+	 * @param bodies        the body of every entity in both scopes, without the reflected references
+	 */
+	private record CatalogContent(
+		@Nonnull CatalogSchemaContract catalogSchema,
+		@Nonnull List<EntitySchemaContract> entitySchemas,
+		@Nonnull List<SealedEntity> bodies
+	) {
 	}
 
 	/**
