@@ -33,11 +33,8 @@ import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
-import io.evitadb.core.catalog.Catalog;
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.virtual.VirtualReadParity.Comparison;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -57,7 +54,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -73,17 +69,22 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies that `referenceContent(filterBy)` keeps the same rows of every owner with the read switch on as with it off,
- * on the same engine and the same data. The rows of one representative reference key may be held by a partition read
- * virtually and by a reduced entity index - in one scope or in two - and the owners matching each must be united before
- * the key is restricted, exactly once: restricting it once per partition keeps only the owners of the last one. A
- * partition read virtually contributes its owner only when its single row satisfies the body - from the candidate set
- * for a row-exact body, by the exact evaluation for a negation, `attributeIs`, `groupHaving` or `inScope`, the last
- * read as this route reads it, one copy of the body per requested scope.
+ * Verifies that `referenceContent(filterBy)` keeps the same rows of every owner when the single-owner partitions are
+ * registry rows as when every partition is an index object. The rows of one representative reference key may be held
+ * by a registry row and by a reduced entity index - in one scope or in two - and the owners matching each must be
+ * united before the key is restricted, exactly once: restricting it once per partition keeps only the owners of the
+ * last one. A registry row contributes its owner only when the row satisfies the body - from the candidate set for a
+ * row-exact body, by the exact evaluation for a negation, `attributeIs`, `groupHaving` or `inScope`, the last read as
+ * this route reads it, one copy of the body per requested scope.
  *
- * Two catalogs, each maintained from its first write: {@link CrossScopeSingletonFixture} for the hand-built shapes of
- * one key in both scopes, with the expected rows spelled out, and {@link RelatedProductsShapedFixture} for thousands of
- * generated owners, chunked.
+ * Every catalog is built twice in one engine, as the {@link MaterializedPartitionTwin} describes: the row catalog as
+ * the fixture builds it, and the object catalog with every owner cloned, so every partition of its references is an
+ * index object; the rows the object catalog keeps of every original are the rows the row catalog must keep. The
+ * fixtures: {@link CrossScopeSingletonFixture} for the hand-built shapes of one key in both scopes, with the expected
+ * rows spelled out, {@link RelatedProductsShapedFixture} for thousands of generated owners, chunked, and a catalog of
+ * localized targets for the locale the filter orders the references by. Every case must select a single-owner
+ * partition - a row its filter keeps must be a registry row of the row catalog - or an equal answer would compare the
+ * index objects with themselves.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -98,10 +99,6 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 	private static final String CATALOG_LOCALIZED_TARGETS = "virtualContentParityLocalizedTargets";
 	private static final String ENTITY_PRODUCT = "product";
 	private static final String ENTITY_BRAND = "brand";
-	/**
-	 * The collections of {@link #CATALOG_LOCALIZED_TARGETS}.
-	 */
-	private static final Set<String> LOCALIZED_TARGET_ENTITY_TYPES = Set.of(ENTITY_PRODUCT, ENTITY_BRAND);
 	private static final String REFERENCE_BRANDS = "brands";
 	private static final String ATTRIBUTE_NAME = "name";
 	private static final String ATTRIBUTE_LABEL = "label";
@@ -118,10 +115,25 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 	private static final Scope[] ARCHIVED = {Scope.ARCHIVED};
 	private static final Scope[] BOTH = {Scope.LIVE, Scope.ARCHIVED};
 	private static final Scope[][] EVERY_SCOPE_SET = {LIVE, ARCHIVED, BOTH};
+	/**
+	 * The page large enough to hold every entity of every catalog, clones included.
+	 */
 	private static final int PAGE_SIZE = 100_000;
 
 	private TestPaths paths;
 	private Evita evita;
+	/**
+	 * The twin of {@link #CATALOG_CROSS_SCOPE}, cloning its owners.
+	 */
+	private MaterializedPartitionTwin crossScope;
+	/**
+	 * The twin of {@link #CATALOG_RELATED}, cloning its products.
+	 */
+	private MaterializedPartitionTwin related;
+	/**
+	 * The twin of {@link #CATALOG_LOCALIZED_TARGETS}, cloning its product.
+	 */
+	private MaterializedPartitionTwin localizedTargets;
 
 	/**
 	 * A parity case of the generated catalog - one reference filter, optionally chunked.
@@ -161,18 +173,22 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 	void setUp() {
 		this.paths = createTestPaths("VirtualReferenceContentFilterParityTest");
 		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
-		build(
-			CATALOG_CROSS_SCOPE, CrossScopeSingletonFixture.ENTITY_TYPES,
-			CrossScopeSingletonFixture::setUp, CrossScopeSingletonFixture::archive
+		this.crossScope = build(
+			CATALOG_CROSS_SCOPE, CrossScopeSingletonFixture::setUp, CrossScopeSingletonFixture::archive,
+			CrossScopeSingletonFixture.ENTITY_OWNER,
+			CrossScopeSingletonFixture.REFERENCE_ITEMS, CrossScopeSingletonFixture.REFERENCE_MEDIA,
+			CrossScopeSingletonFixture.REFERENCE_SOLO
 		);
-		build(
-			CATALOG_RELATED, RelatedProductsShapedFixture.ENTITY_TYPES,
-			RelatedProductsShapedFixture::setUp, RelatedProductsShapedFixture::archive
+		this.related = build(
+			CATALOG_RELATED, RelatedProductsShapedFixture::setUp, RelatedProductsShapedFixture::archive,
+			RelatedProductsShapedFixture.ENTITY_PRODUCT,
+			RelatedProductsShapedFixture.REFERENCE_RELATED, RelatedProductsShapedFixture.REFERENCE_CATEGORIES
 		);
-		build(
-			CATALOG_LOCALIZED_TARGETS, LOCALIZED_TARGET_ENTITY_TYPES,
-			VirtualReferenceContentFilterParityTest::setUpLocalizedTargets, session -> {
-			}
+		this.localizedTargets = build(
+			CATALOG_LOCALIZED_TARGETS, VirtualReferenceContentFilterParityTest::setUpLocalizedTargets,
+			session -> {
+			},
+			ENTITY_PRODUCT, REFERENCE_BRANDS
 		);
 	}
 
@@ -183,12 +199,12 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 	}
 
 	@Test
-	@DisplayName("two virtual singletons of one key in two scopes keep the reference of both owners")
+	@DisplayName("two single-owner partitions of one key in two scopes keep the reference of both owners")
 	void shouldKeepTheKeyOfTwoVirtualSingletonsInTwoScopes() {
 		final Map<Integer, List<String>> expected = new TreeMap<>();
 		expected.put(1, List.of(String.valueOf(CrossScopeSingletonFixture.TARGET_TWO_SINGLETONS)));
 		expected.put(2, List.of(String.valueOf(CrossScopeSingletonFixture.TARGET_TWO_SINGLETONS)));
-		// a virtual singleton of the archive next to a shared live partition of the same key
+		// a single-owner partition of the archive next to a shared live partition of the same key
 		expected.put(3, List.of(String.valueOf(CrossScopeSingletonFixture.TARGET_SHARED_AND_SINGLETON)));
 		expected.put(4, List.of(String.valueOf(CrossScopeSingletonFixture.TARGET_SHARED_AND_SINGLETON)));
 		expected.put(5, List.of(String.valueOf(CrossScopeSingletonFixture.TARGET_SHARED_AND_SINGLETON)));
@@ -216,9 +232,9 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 	}
 
 	@Test
-	@DisplayName("the hand-built shapes keep the same rows in every scope set with the read switch on")
+	@DisplayName("the hand-built shapes keep the same rows in every scope set as their index objects do")
 	void shouldKeepTheSameCrossScopeRowsInEveryScopeSet() {
-		long virtualRowsRead = 0;
+		boolean selectedRows = false;
 		for (final String referenceName : new String[]{
 			CrossScopeSingletonFixture.REFERENCE_ITEMS, CrossScopeSingletonFixture.REFERENCE_MEDIA,
 			CrossScopeSingletonFixture.REFERENCE_SOLO
@@ -227,21 +243,14 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 				final FilterConstraint filter = CrossScopeSingletonFixture.REFERENCE_SOLO.equals(referenceName) ?
 					entityPrimaryKeyInSet(101, 102, 103, 105) :
 					attributeGreaterThan(CrossScopeSingletonFixture.ATTRIBUTE_WEIGHT, 0);
-				final Comparison<Map<Integer, List<String>>> comparison = VirtualReadParity.compare(
-					maintenance(CATALOG_CROSS_SCOPE), CrossScopeSingletonFixture.ENTITY_TYPES,
-					() -> queryRows(
-						CATALOG_CROSS_SCOPE, CrossScopeSingletonFixture.ENTITY_OWNER, scopes, referenceName,
-						roleOf(referenceName), filter, null
-					)
-				);
-				assertEquals(
-					comparison.objectReading(), comparison.virtualReading().answer(),
+				assertSameRows(
+					this.crossScope, scopes, referenceName, roleOf(referenceName), filter, null,
 					referenceName + " in " + Arrays.toString(scopes)
 				);
-				virtualRowsRead += comparison.virtualReading().virtualRowsRead();
+				selectedRows |= this.crossScope.selectsSingleOwnerRow(scopes, referenceName, filter, null);
 			}
 		}
-		assertTrue(virtualRowsRead > 0, "The cases must read virtual rows");
+		assertTrue(selectedRows, "The cases must select a single-owner partition");
 	}
 
 	/**
@@ -319,50 +328,43 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 		);
 	}
 
-	@DisplayName("the generated catalog keeps the same rows of every owner with the read switch on")
+	@DisplayName("the generated catalog keeps the same rows of every owner as its index objects do")
 	@ParameterizedTest(name = "{0}")
 	@MethodSource("relatedProductsCases")
 	void shouldKeepTheSameRowsOfTheGeneratedCatalog(@Nonnull ParityCase parityCase) {
-		long virtualRowsRead = 0;
+		boolean selectedRows = false;
 		boolean keptAny = false;
 		for (final Scope[] scopes : parityCase.scopeSets()) {
-			final Comparison<Map<Integer, List<String>>> comparison = VirtualReadParity.compare(
-				maintenance(CATALOG_RELATED), Set.of(RelatedProductsShapedFixture.ENTITY_PRODUCT),
-				() -> queryRows(
-					CATALOG_RELATED, RelatedProductsShapedFixture.ENTITY_PRODUCT, scopes,
-					RelatedProductsShapedFixture.REFERENCE_RELATED, RelatedProductsShapedFixture.ATTRIBUTE_RELATION_TYPE,
-					parityCase.filter(), parityCase.chunk()
-				)
-			);
-			assertEquals(
-				comparison.objectReading(), comparison.virtualReading().answer(),
+			final Map<Integer, List<String>> expected = assertSameRows(
+				this.related, scopes, RelatedProductsShapedFixture.REFERENCE_RELATED,
+				RelatedProductsShapedFixture.ATTRIBUTE_RELATION_TYPE, parityCase.filter(), parityCase.chunk(),
 				parityCase + " in " + Arrays.toString(scopes)
 			);
-			keptAny |= comparison.objectReading().values().stream().anyMatch(it -> !it.isEmpty());
-			virtualRowsRead += comparison.virtualReading().virtualRowsRead();
+			keptAny |= expected.values().stream().anyMatch(it -> it.stream().anyMatch(row -> !isTotal(row)));
+			selectedRows |= this.related.selectsSingleOwnerRow(
+				scopes, RelatedProductsShapedFixture.REFERENCE_RELATED, parityCase.filter(), null
+			);
 		}
 		assertTrue(keptAny, "The premise of the case: some owner keeps a row in some scope set");
-		assertTrue(virtualRowsRead > 0, parityCase + " must read virtual rows");
+		assertTrue(selectedRows, parityCase + " must select a single-owner partition");
 	}
 
-	@DisplayName("the categories of every product keep the same rows under a group filter with the read switch on")
+	@DisplayName("the categories of every product keep the same rows under a group filter as their index objects do")
 	@ParameterizedTest(name = "{0}")
 	@MethodSource("groupFilters")
 	void shouldKeepTheSameCategoryRowsUnderAGroupFilter(@Nonnull String name, @Nonnull FilterConstraint filter) {
-		// `categories` is indexed in the live scope only - its singleton categories are the rows read virtually
-		final Comparison<Map<Integer, List<String>>> comparison = VirtualReadParity.compare(
-			maintenance(CATALOG_RELATED), Set.of(RelatedProductsShapedFixture.ENTITY_PRODUCT),
-			() -> queryRows(
-				CATALOG_RELATED, RelatedProductsShapedFixture.ENTITY_PRODUCT, LIVE,
-				RelatedProductsShapedFixture.REFERENCE_CATEGORIES, null, filter, null
-			)
+		// `categories` is indexed in the live scope only - its singleton categories are the registry rows
+		final Map<Integer, List<String>> expected = assertSameRows(
+			this.related, LIVE, RelatedProductsShapedFixture.REFERENCE_CATEGORIES, null, filter, null, name
 		);
-		assertEquals(comparison.objectReading(), comparison.virtualReading().answer(), name);
 		assertTrue(
-			comparison.objectReading().values().stream().anyMatch(it -> !it.isEmpty()),
+			expected.values().stream().anyMatch(it -> !it.isEmpty()),
 			"The premise of the case: some owner keeps a row"
 		);
-		assertTrue(comparison.virtualReading().virtualRowsRead() > 0, name + " must read virtual rows");
+		assertTrue(
+			this.related.selectsSingleOwnerRow(LIVE, RelatedProductsShapedFixture.REFERENCE_CATEGORIES, filter, null),
+			name + " must select a single-owner partition"
+		);
 	}
 
 	/**
@@ -389,33 +391,11 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 	@Test
 	@DisplayName("a filter locale orders the references by the localized attribute of their entities")
 	void shouldOrderTheReferencesByTheFilterLocale() {
-		final VirtualReferencePartitionMaintenance maintenance = maintenance(CATALOG_LOCALIZED_TARGETS);
+		assertBrandsAreSingleOwnerPartitions();
 		// without a locale of the query itself, the filter locale is the only one the ordering can use
-		final Comparison<List<Integer>> withoutQueryLocale = VirtualReadParity.compare(
-			maintenance, Set.of(ENTITY_PRODUCT), () -> queryBrandOrder(null)
-		);
-		assertEquals(List.of(3, 2, 1), withoutQueryLocale.objectReading(), "The index objects order by Czech names");
-		assertEquals(
-			withoutQueryLocale.objectReading(), withoutQueryLocale.virtualReading().answer(),
-			"The virtual reading must order by the filter locale too"
-		);
-		assertTrue(
-			withoutQueryLocale.virtualReading().virtualRowsRead() > 0,
-			"Every brand partition is single-owner, so the fetch must read virtual rows"
-		);
-
-		final Comparison<List<Integer>> withQueryLocale = VirtualReadParity.compare(
-			maintenance, Set.of(ENTITY_PRODUCT), () -> queryBrandOrder(Locale.ENGLISH)
-		);
-		assertEquals(List.of(3, 2, 1), withQueryLocale.objectReading(), "The filter locale wins over the query one");
-		assertEquals(
-			withQueryLocale.objectReading(), withQueryLocale.virtualReading().answer(),
-			"The virtual reading must order by the filter locale too"
-		);
-		assertTrue(
-			withQueryLocale.virtualReading().virtualRowsRead() > 0,
-			"Every brand partition is single-owner, so the fetch must read virtual rows"
-		);
+		assertBrandOrder("without a query locale", null, LIVE, entityLocaleEquals(CZECH));
+		// the filter locale wins over the query one
+		assertBrandOrder("with a query locale", Locale.ENGLISH, LIVE, entityLocaleEquals(CZECH));
 	}
 
 	@DisplayName("a filter locale inside an inScope the rows are not decided by visiting orders the references")
@@ -425,21 +405,10 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 		@Nonnull String name,
 		@Nonnull FilterConstraint referenceFilter
 	) {
+		assertBrandsAreSingleOwnerPartitions();
 		// both scopes requested, so the reference filter is evaluated in a copy per scope, and the query locale
 		// conflicts with the Czech one of the filter
-		final Comparison<List<Integer>> comparison = VirtualReadParity.compare(
-			maintenance(CATALOG_LOCALIZED_TARGETS), Set.of(ENTITY_PRODUCT),
-			() -> queryBrandOrder(Locale.ENGLISH, BOTH, referenceFilter)
-		);
-		assertEquals(List.of(3, 2, 1), comparison.objectReading(), name + ": the index objects order by Czech names");
-		assertEquals(
-			comparison.objectReading(), comparison.virtualReading().answer(),
-			name + ": the virtual reading must order by the filter locale too"
-		);
-		assertTrue(
-			comparison.virtualReading().virtualRowsRead() > 0,
-			name + ": every brand partition is single-owner, so the fetch must read virtual rows"
-		);
+		assertBrandOrder(name, Locale.ENGLISH, BOTH, referenceFilter);
 	}
 
 	/**
@@ -475,26 +444,59 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 
 	/**
 	 * Asserts the rows `referenceContent(filterBy(attributeGreaterThan(weight, 0)))` keeps of every owner of the
-	 * hand-built catalog, read over both scopes with the read switch off and on, and that the read-on run read virtual
-	 * rows.
+	 * hand-built catalog, read over both scopes from the rows and from the index objects, and that the filter selects
+	 * a single-owner partition.
 	 *
 	 * @param referenceName the reference
 	 * @param expected      the kept rows of every owner, `target` or `target/role`
 	 */
 	private void assertCrossScopeRows(@Nonnull String referenceName, @Nonnull Map<Integer, List<String>> expected) {
-		final Comparison<Map<Integer, List<String>>> comparison = VirtualReadParity.compare(
-			maintenance(CATALOG_CROSS_SCOPE), CrossScopeSingletonFixture.ENTITY_TYPES,
-			() -> queryRows(
-				CATALOG_CROSS_SCOPE, CrossScopeSingletonFixture.ENTITY_OWNER, BOTH, referenceName, roleOf(referenceName),
-				attributeGreaterThan(CrossScopeSingletonFixture.ATTRIBUTE_WEIGHT, 0), null
-			)
+		final FilterConstraint filter = attributeGreaterThan(CrossScopeSingletonFixture.ATTRIBUTE_WEIGHT, 0);
+		final Map<Integer, List<String>> objectRows = assertSameRows(
+			this.crossScope, BOTH, referenceName, roleOf(referenceName), filter, null, referenceName
 		);
-		assertEquals(expected, sorted(comparison.objectReading()), "The index objects must keep the expected rows");
+		assertEquals(expected, sorted(objectRows), "The index objects must keep the expected rows");
+		assertTrue(
+			this.crossScope.selectsSingleOwnerRow(BOTH, referenceName, filter, null),
+			referenceName + " must select a single-owner partition"
+		);
+	}
+
+	/**
+	 * Asserts the rows kept of every owner are the same - in the same order - when the single-owner partitions are
+	 * registry rows as when every partition is an index object.
+	 *
+	 * @param twin          the twin of the catalog
+	 * @param scopes        the scopes
+	 * @param referenceName the reference
+	 * @param roleAttribute the representative attribute of the reference, `null` for a reference without one
+	 * @param filter        the reference filter
+	 * @param chunk         the chunk of the references of each owner, `null` for all of them
+	 * @param label         names the case in the failure message
+	 * @return the kept rows of every owner, as the index objects keep them
+	 */
+	@Nonnull
+	private Map<Integer, List<String>> assertSameRows(
+		@Nonnull MaterializedPartitionTwin twin,
+		@Nonnull Scope[] scopes,
+		@Nonnull String referenceName,
+		@Nullable String roleAttribute,
+		@Nonnull FilterConstraint filter,
+		@Nullable ChunkingRequireConstraint chunk,
+		@Nonnull String label
+	) {
+		// an original and its clone may list the same rows in another order - they are compared sorted; a chunk of
+		// them may then hold other duplicates of one target, so a chunked answer is compared by its size and total
+		final Map<Integer, List<String>> expected = twin.expectedAnswerPerOwner(
+			queryRows(twin.objectCatalog(), twin.ownerType(), scopes, referenceName, roleAttribute, filter, chunk),
+			rows -> chunk == null ? rows.stream().sorted().toList() : List.of(rows.size(), rows.getLast())
+		);
 		assertEquals(
-			comparison.objectReading(), comparison.virtualReading().answer(),
-			"The virtual reading must keep the same rows, in the same order"
+			expected,
+			queryRows(twin.rowCatalog(), twin.ownerType(), scopes, referenceName, roleAttribute, filter, chunk),
+			label + ": the rows must keep what the index objects keep, in the same order"
 		);
-		assertTrue(comparison.virtualReading().virtualRowsRead() > 0, "The read-on run must read virtual rows");
+		return expected;
 	}
 
 	/**
@@ -509,6 +511,16 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 		final Map<Integer, List<String>> result = new TreeMap<>();
 		rows.forEach((owner, kept) -> result.put(owner, kept.stream().sorted().toList()));
 		return result;
+	}
+
+	/**
+	 * Tells whether a description of a kept row is the total of a chunk rather than a row.
+	 *
+	 * @param description the description
+	 * @return TRUE for the total of a chunk
+	 */
+	private static boolean isTotal(@Nonnull String description) {
+		return description.startsWith("total ");
 	}
 
 	/**
@@ -630,21 +642,46 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Fetches product 1 of {@link #CATALOG_LOCALIZED_TARGETS} with its brands filtered by the Czech locale and ordered
-	 * by their localized name, and returns the brands in the order the product returns them.
-	 *
-	 * @param queryLocale the locale of the query itself, `null` for none
-	 * @return the brand primary keys in reference order
+	 * Asserts that every partition of `brands` is single-owner in the row catalog of the localized targets - the order
+	 * of the brands is then read from registry rows there and from index objects in the object catalog.
 	 */
-	@Nonnull
-	private List<Integer> queryBrandOrder(@Nullable Locale queryLocale) {
-		return queryBrandOrder(queryLocale, LIVE, entityLocaleEquals(CZECH));
+	private void assertBrandsAreSingleOwnerPartitions() {
+		assertTrue(
+			this.localizedTargets.singleOwnerTargets(REFERENCE_BRANDS, Scope.LIVE).containsAll(List.of(1, 2, 3)),
+			"Every brand must be referenced by product 1 alone"
+		);
 	}
 
 	/**
-	 * Fetches product 1 of {@link #CATALOG_LOCALIZED_TARGETS} with its brands filtered by a reference filter and ordered
+	 * Asserts product 1 of {@link #CATALOG_LOCALIZED_TARGETS} lists its brands in the Czech order of their names -
+	 * from the index objects and from the rows alike.
+	 *
+	 * @param label           names the case in failure messages
+	 * @param queryLocale     the locale of the query itself, `null` for none
+	 * @param scopes          the scopes the query requests
+	 * @param referenceFilter the filter of the brands
+	 */
+	private void assertBrandOrder(
+		@Nonnull String label,
+		@Nullable Locale queryLocale,
+		@Nonnull Scope[] scopes,
+		@Nonnull FilterConstraint referenceFilter
+	) {
+		final List<Integer> objectOrder = queryBrandOrder(
+			this.localizedTargets.objectCatalog(), queryLocale, scopes, referenceFilter
+		);
+		assertEquals(List.of(3, 2, 1), objectOrder, label + ": the index objects order by Czech names");
+		assertEquals(
+			objectOrder, queryBrandOrder(this.localizedTargets.rowCatalog(), queryLocale, scopes, referenceFilter),
+			label + ": the rows must order by the filter locale too"
+		);
+	}
+
+	/**
+	 * Fetches product 1 of a catalog of localized targets with its brands filtered by a reference filter and ordered
 	 * by their localized name, and returns the brands in the order the product returns them.
 	 *
+	 * @param catalog         the catalog
 	 * @param queryLocale     the locale of the query itself, `null` for none
 	 * @param scopes          the scopes the query requests
 	 * @param referenceFilter the filter of the brands
@@ -652,12 +689,13 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private List<Integer> queryBrandOrder(
+		@Nonnull String catalog,
 		@Nullable Locale queryLocale,
 		@Nonnull Scope[] scopes,
 		@Nonnull FilterConstraint referenceFilter
 	) {
 		return this.evita.queryCatalog(
-			CATALOG_LOCALIZED_TARGETS,
+			catalog,
 			session -> {
 				final SealedEntity product = session.queryOne(
 					query(
@@ -688,41 +726,25 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Creates a catalog maintained from its first write, fills it in warm-up, takes it live and then applies the
-	 * changes of the live catalog.
+	 * Builds the row catalog of a fixture and its twin cloning the owners of the read references.
 	 *
-	 * @param catalog     the catalog
-	 * @param entityTypes its collections, all maintained
-	 * @param warmUp      fills the catalog in warm-up
-	 * @param live        changes the live catalog
-	 */
-	private void build(
-		@Nonnull String catalog,
-		@Nonnull Set<String> entityTypes,
-		@Nonnull Consumer<EvitaSessionContract> warmUp,
-		@Nonnull Consumer<EvitaSessionContract> live
-	) {
-		// TODO JNO - remove at the end of #1615
-		this.evita.createCatalogWithVirtualReferencePartitions(catalog, false);
-		this.evita.defineCatalog(catalog).updateViaNewSession(this.evita);
-		for (final String entityType : entityTypes) {
-			maintenance(catalog).setMaintained(entityType, true);
-		}
-		this.evita.updateCatalog(catalog, warmUp);
-		this.evita.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
-		this.evita.updateCatalog(catalog, live);
-	}
-
-	/**
-	 * Returns the switch holder of a catalog.
-	 *
-	 * @param catalog the catalog
-	 * @return the switch holder
+	 * @param catalog        the row catalog
+	 * @param warmUp         fills a catalog in warm-up
+	 * @param live           changes a live catalog
+	 * @param ownerType      the collection owning the read references
+	 * @param readReferences the references the cases read
+	 * @return the twin
 	 */
 	@Nonnull
-	private VirtualReferencePartitionMaintenance maintenance(@Nonnull String catalog) {
-		return ((Catalog) this.evita.getCatalogInstance(catalog).orElseThrow())
-			.getVirtualReferencePartitionMaintenance();
+	private MaterializedPartitionTwin build(
+		@Nonnull String catalog,
+		@Nonnull Consumer<EvitaSessionContract> warmUp,
+		@Nonnull Consumer<EvitaSessionContract> live,
+		@Nonnull String ownerType,
+		@Nonnull String... readReferences
+	) {
+		MaterializedPartitionTwin.createRowCatalog(this.evita, catalog, warmUp, live);
+		return MaterializedPartitionTwin.create(this.evita, catalog, warmUp, live, ownerType, readReferences);
 	}
 
 }
