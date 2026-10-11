@@ -34,9 +34,6 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.TransitionProbe;
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.TransitionStage;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer.Savepoint;
@@ -47,7 +44,12 @@ import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.IndexMaintainer;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencePartitions;
+import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.VirtualReferencePartition;
+import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -60,11 +62,15 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
-import java.util.function.IntSupplier;
 
+import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
+import static io.evitadb.index.virtual.VirtualPartitionInvariants.assertInvariants;
+import static io.evitadb.index.virtual.VirtualPartitionInvariants.assertStoredParts;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.STORAGE;
@@ -85,9 +91,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * or of a transactional savepoint - takes the installation back out of both maps, and a retirement followed by a
  * re-installation under the same primary key within one flush window leaves exactly the last installed index on disk.
  *
- * Every scenario runs against a real engine. The transactional replacement runs inside the replay of a committed
- * transaction - the only transaction whose changes are merged and flushed - reached through a transition probe that
- * the replay reports every finished root mutation to.
+ * Every scenario runs against a real engine. The transactional replacement is driven by real mutations: in one live
+ * transaction a shared partition stored as an index object loses an owner, gains another one, loses it and gains a
+ * third one, so the replay of the committed transaction - the only transaction whose changes are merged and flushed -
+ * retires the stored object and installs another one under its primary key twice over: the first owner keeps the
+ * partition as a row of the registry of its referenced-type entity index between the two.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -101,6 +109,8 @@ class IndexInstallRetireTest implements EvitaTestSupport {
 	private static final String ENTITY_CATEGORY = "category";
 	private static final String REF_CATEGORIES = "categories";
 	private static final String ATTRIBUTE_CODE = "code";
+	/** Filterable attribute of the reference whose single-owner partitions are registry rows. */
+	private static final String ATTRIBUTE_ORDER = "order";
 	/** Category whose partition the scenarios retire and install again. */
 	private static final int FIRST_CATEGORY_PK = 1;
 	/** Category whose partition no scenario touches. */
@@ -111,8 +121,10 @@ class IndexInstallRetireTest implements EvitaTestSupport {
 	private static final int FIRST_PRODUCT_PK = 100;
 	/** Product referencing {@link #SECOND_CATEGORY_PK}. */
 	private static final int SECOND_PRODUCT_PK = 101;
-	/** Product without references, upserted to give a transaction something to replay. */
+	/** Product without references, upserted to give a transaction something to replay or to join a partition. */
 	private static final int UNREFERENCING_PRODUCT_PK = 102;
+	/** Product without references that joins a partition last. */
+	private static final int LAST_JOINING_PRODUCT_PK = 103;
 	private static final EntityIndexKey FIRST_PARTITION = partitionKey(FIRST_CATEGORY_PK);
 	private static final EntityIndexKey UNREFERENCED_PARTITION = partitionKey(UNREFERENCED_CATEGORY_PK);
 	private static final AttributeIndexKey CODE = new AttributeIndexKey(null, ATTRIBUTE_CODE, null);
@@ -246,6 +258,71 @@ class IndexInstallRetireTest implements EvitaTestSupport {
 				.getFilterIndex(CODE),
 			"self-check: the first category's partition must hold a filter sub-index of the code"
 		);
+	}
+
+	/**
+	 * Creates the schema and the baseline of the scenario driving index objects through real mutations: a reference
+	 * indexed for filtering, whose single-owner partitions are rows of the registry of its referenced-type entity
+	 * index, with a filterable reference attribute, so an index object of a partition persists a filter sub-index of
+	 * its own. The first two products share the first category, whose partition is therefore an index object, and the
+	 * second product references the second category alone, whose partition is a row. The two last products reference
+	 * no category. The catalog is taken live, which stores the index object.
+	 */
+	private void prepareSharedPartition() {
+		this.evita.updateCatalog(
+			TEST_CATALOG,
+			(Consumer<EvitaSessionContract>) session -> {
+				session.defineEntitySchema(ENTITY_CATEGORY)
+					.withoutGeneratedPrimaryKey()
+					.updateVia(session);
+				session.defineEntitySchema(ENTITY_PRODUCT)
+					.withoutGeneratedPrimaryKey()
+					.withReferenceToEntity(
+						REF_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
+						whichIs -> whichIs
+							.indexedForFiltering()
+							.withAttribute(ATTRIBUTE_ORDER, Integer.class, thatIs -> thatIs.filterable())
+					)
+					.updateVia(session);
+				session.createNewEntity(ENTITY_CATEGORY, FIRST_CATEGORY_PK).upsertVia(session);
+				session.createNewEntity(ENTITY_CATEGORY, SECOND_CATEGORY_PK).upsertVia(session);
+				session.createNewEntity(ENTITY_PRODUCT, FIRST_PRODUCT_PK)
+					.setReference(
+						REF_CATEGORIES, FIRST_CATEGORY_PK, ref -> ref.setAttribute(ATTRIBUTE_ORDER, FIRST_PRODUCT_PK)
+					)
+					.upsertVia(session);
+				session.createNewEntity(ENTITY_PRODUCT, SECOND_PRODUCT_PK)
+					.setReference(
+						REF_CATEGORIES, FIRST_CATEGORY_PK, ref -> ref.setAttribute(ATTRIBUTE_ORDER, SECOND_PRODUCT_PK)
+					)
+					.setReference(
+						REF_CATEGORIES, SECOND_CATEGORY_PK, ref -> ref.setAttribute(ATTRIBUTE_ORDER, SECOND_PRODUCT_PK)
+					)
+					.upsertVia(session);
+				session.createNewEntity(ENTITY_PRODUCT, UNREFERENCING_PRODUCT_PK).upsertVia(session);
+				session.createNewEntity(ENTITY_PRODUCT, LAST_JOINING_PRODUCT_PK).upsertVia(session);
+				session.goLiveAndClose();
+			}
+		);
+	}
+
+	/**
+	 * Returns the primary key of the registry row of a category's partition of the products.
+	 *
+	 * @param categoryPk the primary key of the category
+	 * @return the primary key of the partition, `-1` when the registry holds no row of it
+	 */
+	private int registeredPartitionOf(int categoryPk) {
+		final EntityIndex typeIndex = products().getIndexByKeyIfExists(
+			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, REF_CATEGORIES)
+		);
+		final VirtualReferencePartition partition =
+			typeIndex instanceof final ReferencedTypeEntityIndex referencedTypeIndex ?
+				ReferencePartitions.findRegisteredForWrite(
+					referencedTypeIndex, new RepresentativeReferenceKey(new ReferenceKey(REF_CATEGORIES, categoryPk))
+				) :
+				null;
+		return partition == null ? -1 : partition.getPrimaryKey();
 	}
 
 	/**
@@ -526,37 +603,137 @@ class IndexInstallRetireTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("the index installed last survives a commit and a reload, the retired one does not")
-		void shouldKeepIndexInstalledLastAfterCommitAndReload() {
-			prepare(CatalogState.ALIVE);
-			final int primaryKey = products().getIndexByKeyIfExists(FIRST_PARTITION).getPrimaryKey();
+		@DisplayName("the object installed last under the primary key of a stored one survives a commit and a reload")
+		void shouldKeepIndexObjectInstalledLastAfterCommitAndReload() {
+			prepareSharedPartition();
+			final EntityIndex stored = assertPartitionObject(
+				products().getIndexByKeyIfExists(FIRST_PARTITION).getPrimaryKey(), SECOND_PRODUCT_PK,
+				"self-check: the shared partition must be an index object"
+			);
+			final int primaryKey = stored.getPrimaryKey();
 			final int indexCountBefore = products().getIndexCount();
 			final int filterRootsBefore = countPersistedFilterRoots();
-			final ScenarioInReplay probe = new ScenarioInReplay(() -> retireAndReinstallTwice(products()));
-			final VirtualReferencePartitionMaintenance maintenance =
-				catalog().getVirtualReferencePartitionMaintenance();
-			maintenance.setProbe(probe);
-			try {
-				update(
-					session -> session.createNewEntity(ENTITY_PRODUCT, UNREFERENCING_PRODUCT_PK)
-						.setAttribute(ATTRIBUTE_CODE, "code-" + UNREFERENCING_PRODUCT_PK)
-						.upsertVia(session)
-				);
-			} finally {
-				maintenance.setProbe(null);
-			}
-			probe.assertRanOnce();
 
-			assertReplacementInstalledLast(primaryKey, probe.getResult());
-			assertEquals(indexCountBefore + 1, products().getIndexCount(), "replaced one, installed one");
+			// the replay of the committed transaction retires the stored object and installs another one under its
+			// primary key, retires that one and installs the last one under it - one flush window
+			update(session -> {
+				assertTrue(Transaction.isTransactionAvailable(), "self-check: the steps must share one transaction");
+				leaveFirstCategory(session, SECOND_PRODUCT_PK, primaryKey);
+				joinFirstCategory(session, UNREFERENCING_PRODUCT_PK);
+				assertPartitionObject(primaryKey, UNREFERENCING_PRODUCT_PK, "self-check: a new owner promotes the row");
+				leaveFirstCategory(session, UNREFERENCING_PRODUCT_PK, primaryKey);
+				joinFirstCategory(session, LAST_JOINING_PRODUCT_PK);
+				assertPartitionObject(
+					primaryKey, LAST_JOINING_PRODUCT_PK, "self-check: another new owner promotes the row again"
+				);
+			});
+
+			assertObjectInstalledLast(primaryKey);
+			assertEquals(indexCountBefore, products().getIndexCount(), "one index object in place of another");
 
 			reload();
 
-			assertReplacementInstalledLast(primaryKey, probe.getResult());
-			assertEquals(indexCountBefore + 1, products().getIndexCount(), "replaced one, installed one");
+			assertObjectInstalledLast(primaryKey);
+			assertEquals(indexCountBefore, products().getIndexCount(), "one index object in place of another");
 			assertEquals(
-				filterRootsBefore - 1, countPersistedFilterRoots(),
-				"The filter sub-index root of the retired partition must have been reclaimed."
+				filterRootsBefore, countPersistedFilterRoots(),
+				"Only the filter sub-index root of the object installed last may be stored in place of the retired one."
+			);
+			assertInvariants("after the reload", IndexInstallRetireTest.this.evita, TEST_CATALOG);
+			assertStoredParts("after the reload", IndexInstallRetireTest.this.evita, TEST_CATALOG);
+		}
+
+		/**
+		 * Lets a product leave the first category's partition, which the first product keeps, and asserts the
+		 * partition was demoted to a row under its primary key, its index object retired.
+		 *
+		 * @param session    the session to write in
+		 * @param product    the leaving product
+		 * @param primaryKey the primary key of the partition
+		 */
+		private void leaveFirstCategory(@Nonnull EvitaSessionContract session, int product, int primaryKey) {
+			session.getEntity(ENTITY_PRODUCT, product, entityFetchAllContent())
+				.orElseThrow()
+				.openForWrite()
+				.removeReference(REF_CATEGORIES, FIRST_CATEGORY_PK)
+				.upsertVia(session);
+			assertNull(
+				products().getIndexByPrimaryKeyIfExists(primaryKey),
+				"self-check: an owner leaving demotes the partition, retiring its index object"
+			);
+			assertEquals(
+				primaryKey, registeredPartitionOf(FIRST_CATEGORY_PK),
+				"self-check: the demoted partition must be a row under its primary key"
+			);
+		}
+
+		/**
+		 * Lets a product join the first category's partition, which the first product owns, with a value of the
+		 * filterable reference attribute of its own.
+		 *
+		 * @param session the session to write in
+		 * @param product the joining product
+		 */
+		private static void joinFirstCategory(@Nonnull EvitaSessionContract session, int product) {
+			session.getEntity(ENTITY_PRODUCT, product, entityFetchAllContent())
+				.orElseThrow()
+				.openForWrite()
+				.setReference(REF_CATEGORIES, FIRST_CATEGORY_PK, ref -> ref.setAttribute(ATTRIBUTE_ORDER, product))
+				.upsertVia(session);
+		}
+
+		/**
+		 * Asserts that the first category's partition is an index object under the given primary key, owned by the
+		 * first product and the given second owner.
+		 *
+		 * @param primaryKey  the primary key of the partition
+		 * @param secondOwner the second owner
+		 * @param message     the failure message
+		 * @return the index object
+		 */
+		@Nonnull
+		private EntityIndex assertPartitionObject(int primaryKey, int secondOwner, @Nonnull String message) {
+			final EntityCollection products = products();
+			final EntityIndex partition = products.getIndexByPrimaryKeyIfExists(primaryKey);
+			assertInstanceOf(ReducedEntityIndex.class, partition, message + ": the partition must be an index object");
+			assertEquals(FIRST_PARTITION, partition.getIndexKey(), message + ": the key of the index object");
+			assertSame(
+				partition, products.getIndexByKeyIfExists(FIRST_PARTITION), message + ": by key and by primary key"
+			);
+			assertArrayEquals(
+				new int[]{FIRST_PRODUCT_PK, secondOwner}, partition.getAllPrimaryKeys().getArray(),
+				message + ": the owners of the index object"
+			);
+			return partition;
+		}
+
+		/**
+		 * Asserts that the first category's partition is the index object installed last: owned by the first product
+		 * and the product that joined last - neither the stored object the transaction retired nor the interim one it
+		 * installed and retired - with a filter sub-index holding the values of its own owners only.
+		 *
+		 * @param primaryKey the primary key of the partition
+		 */
+		private void assertObjectInstalledLast(int primaryKey) {
+			final EntityIndex partition = assertPartitionObject(
+				primaryKey, LAST_JOINING_PRODUCT_PK,
+				"The partition must be the object installed last, not a retired one"
+			);
+			final SortedSet<Integer> filtered = new TreeSet<>();
+			partition.forEachAttributeIndexKey(
+				AttributeIndexType.FILTER,
+				key -> {
+					final FilterIndex filterIndex = partition.getFilterIndex(key);
+					if (filterIndex != null) {
+						for (final int owner : filterIndex.getAllRecords().getArray()) {
+							filtered.add(owner);
+						}
+					}
+				}
+			);
+			assertEquals(
+				Set.of(FIRST_PRODUCT_PK, LAST_JOINING_PRODUCT_PK), filtered,
+				"The filter sub-index of the object installed last must hold the values of its own owners only."
 			);
 		}
 	}
@@ -690,86 +867,6 @@ class IndexInstallRetireTest implements EvitaTestSupport {
 				allocatedPrimaryKey + 1, products.getEntityIndexMaintainer().allocatePartitionPrimaryKey(),
 				"The installations must not have advanced the index sequence."
 			);
-		}
-	}
-
-	/**
-	 * Runs a scenario once, inside the replay of the first root mutation a committed transaction replays - the replay
-	 * whose changes the commit merges into the next catalog version and flushes to disk. A failure of the scenario is
-	 * recorded rather than thrown into the replay, and reported by {@link #assertRanOnce()}.
-	 */
-	private static final class ScenarioInReplay implements TransitionProbe {
-		/**
-		 * The scenario, returning a primary key the test needs afterwards.
-		 */
-		private final IntSupplier scenario;
-		/**
-		 * How many times the scenario ran.
-		 */
-		private int runs;
-		/**
-		 * What the scenario returned.
-		 */
-		private int result;
-		/**
-		 * The failure of the scenario, `null` when it succeeded or did not run.
-		 */
-		@Nullable private Throwable failure;
-
-		/**
-		 * Creates the probe.
-		 *
-		 * @param scenario the scenario
-		 */
-		ScenarioInReplay(@Nonnull IntSupplier scenario) {
-			this.scenario = scenario;
-		}
-
-		@Override
-		public void transitionPassed(
-			@Nonnull TransitionStage stage,
-			@Nonnull String entityType,
-			@Nonnull String referenceName,
-			@Nonnull Scope scope,
-			int partitionPrimaryKey,
-			@Nonnull Object rootMutation
-		) {
-			// no transition is of interest
-		}
-
-		@Override
-		public synchronized void rootMutationFinished(
-			@Nonnull TransitionStage stage,
-			@Nonnull Object rootMutation,
-			boolean trunkReplay
-		) {
-			if (trunkReplay && stage == TransitionStage.ROOT_COMMITTED && this.runs++ == 0) {
-				try {
-					assertTrue(Transaction.isTransactionAvailable(), "The replay must run in a transaction.");
-					this.result = this.scenario.getAsInt();
-				} catch (Throwable ex) {
-					this.failure = ex;
-				}
-			}
-		}
-
-		/**
-		 * Asserts that the scenario ran exactly once and succeeded.
-		 */
-		synchronized void assertRanOnce() {
-			if (this.failure != null) {
-				throw new AssertionError("The scenario failed inside the replay.", this.failure);
-			}
-			assertEquals(1, this.runs, "The scenario must have run in the replay of exactly one root mutation.");
-		}
-
-		/**
-		 * Returns what the scenario returned.
-		 *
-		 * @return the result of the scenario
-		 */
-		synchronized int getResult() {
-			return this.result;
 		}
 	}
 

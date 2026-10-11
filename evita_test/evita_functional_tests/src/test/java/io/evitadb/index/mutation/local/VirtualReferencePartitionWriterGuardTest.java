@@ -78,8 +78,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  * the places that see a partition's owner count change, and it catches a new direct write from anywhere else - a schema
  * change, a load step, a query. It does **not** prove that no other path reaches the registry: a method of
  * `EntityCollection` calling an allowed helper of the reference index mutator that writes the registry passes it. That
- * behaviour is proven by running the paths with the maintenance on - see
- * `io.evitadb.index.virtual.VirtualReferencePartitionEnabledLoadTest`.
+ * behaviour is proven by running the paths: a clean reload followed by a close leaves every file of a catalog byte for
+ * byte as it was, and going live leaves its registry as it was - see
+ * `io.evitadb.index.virtual.VirtualPartitionReloadInvariantTest`.
  *
  * ## Honesty checks
  *
