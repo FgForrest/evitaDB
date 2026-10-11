@@ -38,12 +38,15 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.CollectionIndexCardinality;
 import io.evitadb.api.statistics.CollectionIndexCardinality.IndexCardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
+import io.evitadb.dataType.ChainableType;
 import io.evitadb.dataType.Predecessor;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.Functions;
@@ -53,6 +56,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -109,6 +113,10 @@ import static org.junit.jupiter.api.Assertions.fail;
  * - a predecessor of the owner chain - a {@link Predecessor} names another owner, so the clone of an owner follows the
  *   clone of its predecessor, and the clones form a chain of their own next to the originals; a
  *   `ReferencedEntityPredecessor` names a referenced entity and is carried as it is;
+ * - a row of a reflected reference as a write of the clone - the target receives a copy of its own row of the
+ *   original reference instead, pointing at the clone: writing the reflected row would create that row without the
+ *   attributes the original side may require. On the original side the roles of the chains swap, so there a
+ *   `ReferencedEntityPredecessor` names an entity of the cloned collection and moves to its clone;
  * - prices, which no fixture of the twin holds - they are refused.
  *
  * Only the references of the cloned collection are materialized. Cloning products, for example, makes every partition
@@ -253,6 +261,39 @@ public final class MaterializedPartitionTwin {
 	 */
 	public static int cloneOf(int ownerPrimaryKey) {
 		return ownerPrimaryKey + OWNER_OFFSET;
+	}
+
+	/**
+	 * Returns owners together with their clones - the primary keys a selection naming the owners names in the object
+	 * catalog, so the object catalog selects every clone with its original.
+	 *
+	 * @param owners the primary keys of the originals
+	 * @return the originals followed by their clones
+	 */
+	@Nonnull
+	public static Integer[] withClones(@Nonnull Integer... owners) {
+		final Integer[] result = Arrays.copyOf(owners, owners.length * 2);
+		for (int i = 0; i < owners.length; i++) {
+			result[owners.length + i] = cloneOf(owners[i]);
+		}
+		return result;
+	}
+
+	/**
+	 * Returns the page of an expected order a page request answers: the slice of the page, or the first page when the
+	 * requested one lies past the last, as the engine answers such a request.
+	 *
+	 * @param expectedOrder the expected full order
+	 * @param pageNumber    the page, counted from one
+	 * @param pageSize      the size of a page
+	 * @return the expected page
+	 */
+	@Nonnull
+	public static List<Integer> pageOf(@Nonnull List<Integer> expectedOrder, int pageNumber, int pageSize) {
+		final int from = (pageNumber - 1) * pageSize;
+		return from < expectedOrder.size() ?
+			expectedOrder.subList(from, Math.min(from + pageSize, expectedOrder.size())) :
+			expectedOrder.subList(0, Math.min(pageSize, expectedOrder.size()));
 	}
 
 	/**
@@ -679,6 +720,16 @@ public final class MaterializedPartitionTwin {
 						for (final SealedEntity body : bodies) {
 							session.upsertEntity(cloneOf(session, schema, body));
 						}
+						// a reflected row of a clone is written on the original side, where its attributes belong
+						final Map<String, Map<Integer, EntityBuilder>> counterparts = new TreeMap<>();
+						for (final SealedEntity body : bodies) {
+							addCounterpartsOfReflectedRows(session, schema, body, counterparts);
+						}
+						for (final Map<Integer, EntityBuilder> targets : counterparts.values()) {
+							for (final EntityBuilder target : targets.values()) {
+								session.upsertEntity(target);
+							}
+						}
 						if (scope == Scope.ARCHIVED) {
 							for (final Integer original : batch) {
 								session.archiveEntity(ownerType, cloneOf(original));
@@ -718,7 +769,8 @@ public final class MaterializedPartitionTwin {
 				final AttributeSchemaContract attributeSchema = schema.getAttribute(value.key().attributeName())
 					.orElseThrow();
 				final Serializable cloned = clonedValue(
-					value.valueOrThrowException(), isUnique(attributeSchema), schema.getName() + "." + value.key()
+					value.valueOrThrowException(), isUnique(attributeSchema), Predecessor.class,
+					schema.getName() + "." + value.key()
 				);
 				final Locale locale = value.key().locale();
 				if (cloned instanceof Serializable[] array) {
@@ -748,57 +800,174 @@ public final class MaterializedPartitionTwin {
 			final ReferenceSchemaContract referenceSchema = schema.getReferenceOrThrowException(
 				reference.getReferenceName()
 			);
-			final Consumer<ReferenceBuilder> copy = builder -> {
-				reference.getGroup()
-					.filter(group -> !group.dropped())
-					.ifPresent(group -> builder.setGroup(group.referencedEntity(), group.primaryKey()));
-				for (final AttributeValue value : reference.getAttributeValues()) {
-					if (!value.dropped()) {
-						final Serializable cloned = clonedValue(
-							value.valueOrThrowException(), false,
-							schema.getName() + "." + reference.getReferenceName() + "." + value.key()
-						);
-						final Locale locale = value.key().locale();
-						if (cloned instanceof Serializable[] array) {
-							if (locale == null) {
-								builder.setAttribute(value.key().attributeName(), array);
-							} else {
-								builder.setAttribute(value.key().attributeName(), locale, array);
-							}
-						} else if (locale == null) {
-							builder.setAttribute(value.key().attributeName(), cloned);
-						} else {
-							builder.setAttribute(value.key().attributeName(), locale, cloned);
-						}
-					}
-				}
-			};
-			if (referenceSchema.getCardinality().allowsDuplicates()) {
-				// every row of a reference allowing duplicates is a reference of its own - none is ever updated
-				clone.setOrUpdateReference(
-					reference.getReferenceName(), reference.getReferencedPrimaryKey(), Functions.alwaysFalse(), copy
-				);
-			} else {
-				clone.setReference(reference.getReferenceName(), reference.getReferencedPrimaryKey(), copy);
+			if (referenceSchema instanceof ReflectedReferenceSchemaContract) {
+				// written on the original side - see addCounterpartsOfReflectedRows
+				continue;
 			}
+			// the clone references the very targets its original does
+			copyRow(
+				clone, referenceSchema, reference, reference.getReferencedPrimaryKey(), Predecessor.class,
+				schema.getName()
+			);
 		}
 		return clone;
 	}
 
 	/**
-	 * Returns the value a clone carries in place of a value of its original: a predecessor of the owner chain moved
-	 * by the offset, a unique string with a suffix, anything else as it is.
+	 * Adds the counterpart of every reflected row of an original to the clone of the original: the row of the
+	 * original reference the target holds to the original, copied to the clone with its group and attributes. Writing
+	 * the reflected row on the clone would create the counterpart without the attributes the original side may
+	 * require.
+	 *
+	 * @param session      the session to write in
+	 * @param schema       the schema of the cloned collection
+	 * @param body         the body of the original
+	 * @param counterparts the builders of the targets, by entity type and primary key - opened on first use
+	 */
+	private static void addCounterpartsOfReflectedRows(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull EntitySchemaContract schema,
+		@Nonnull SealedEntity body,
+		@Nonnull Map<String, Map<Integer, EntityBuilder>> counterparts
+	) {
+		final int original = body.getPrimaryKeyOrThrowException();
+		// the reflected rows of one target - duplicates told apart by their representative attributes - mirror all the
+		// rows the target holds to the original, which are copied once
+		final Set<String> copiedTargets = new TreeSet<>();
+		for (final ReferenceContract reference : body.getReferences()) {
+			if (
+				schema.getReferenceOrThrowException(reference.getReferenceName()) instanceof
+					ReflectedReferenceSchemaContract reflected &&
+					copiedTargets.add(reference.getReferenceName() + "/" + reference.getReferencedPrimaryKey())
+			) {
+				final String targetType = reflected.getReferencedEntityType();
+				final int targetPrimaryKey = reference.getReferencedPrimaryKey();
+				final EntityBuilder target = counterparts.computeIfAbsent(targetType, __ -> new TreeMap<>())
+					.computeIfAbsent(targetPrimaryKey, __ -> openForWrite(session, targetType, targetPrimaryKey));
+				final ReferenceSchemaContract originalSchema = session.getEntitySchemaOrThrowException(targetType)
+					.getReferenceOrThrowException(reflected.getReflectedReferenceName());
+				final List<ReferenceContract> rows = target.getReferences(originalSchema.getName())
+					.stream()
+					.filter(it -> it.getReferencedPrimaryKey() == original)
+					.toList();
+				assertTrue(
+					!rows.isEmpty(),
+					"`" + targetType + "` " + targetPrimaryKey + " must hold the row reflected by `" + schema.getName() +
+						"` " + original
+				);
+				for (final ReferenceContract row : rows) {
+					// on the original side the chain naming the cloned collection is the referenced entity one
+					copyRow(
+						target, originalSchema, row, cloneOf(original), ReferencedEntityPredecessor.class,
+						targetType
+					);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Opens an entity of either scope for write.
+	 *
+	 * @param session    the session
+	 * @param entityType the collection
+	 * @param primaryKey the entity
+	 * @return the builder
+	 */
+	@Nonnull
+	private static EntityBuilder openForWrite(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull String entityType,
+		int primaryKey
+	) {
+		final List<SealedEntity> entities = session.querySealedEntity(
+			query(
+				collection(entityType),
+				filterBy(scope(Scope.values()), entityPrimaryKeyInSet(primaryKey)),
+				require(page(1, 1), entityFetchAll())
+			)
+		).getRecordData();
+		assertEquals(1, entities.size(), "`" + entityType + "` " + primaryKey + " must exist");
+		return entities.get(0).openForWrite();
+	}
+
+	/**
+	 * Adds a copy of a reference row, with its group and attributes, to an entity under another referenced entity.
+	 *
+	 * @param entity          the entity receiving the copy
+	 * @param referenceSchema the reference of the row
+	 * @param row             the row copied
+	 * @param target          the referenced entity of the copy
+	 * @param clonedChain     the chain type whose values name an entity of the cloned collection - moved to its clone
+	 * @param description     names the entity in a failure message
+	 */
+	private static void copyRow(
+		@Nonnull EntityBuilder entity,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferenceContract row,
+		int target,
+		@Nonnull Class<? extends ChainableType> clonedChain,
+		@Nonnull String description
+	) {
+		final Consumer<ReferenceBuilder> copy = builder -> {
+			row.getGroup()
+				.filter(group -> !group.dropped())
+				.ifPresent(group -> builder.setGroup(group.referencedEntity(), group.primaryKey()));
+			for (final AttributeValue value : row.getAttributeValues()) {
+				if (!value.dropped()) {
+					final Serializable copied = clonedValue(
+						value.valueOrThrowException(), false, clonedChain,
+						description + "." + row.getReferenceName() + "." + value.key()
+					);
+					final Locale locale = value.key().locale();
+					if (copied instanceof Serializable[] array) {
+						if (locale == null) {
+							builder.setAttribute(value.key().attributeName(), array);
+						} else {
+							builder.setAttribute(value.key().attributeName(), locale, array);
+						}
+					} else if (locale == null) {
+						builder.setAttribute(value.key().attributeName(), copied);
+					} else {
+						builder.setAttribute(value.key().attributeName(), locale, copied);
+					}
+				}
+			}
+		};
+		if (referenceSchema.getCardinality().allowsDuplicates()) {
+			// every row of a reference allowing duplicates is a reference of its own - none is ever updated
+			entity.setOrUpdateReference(referenceSchema.getName(), target, Functions.alwaysFalse(), copy);
+		} else {
+			entity.setReference(referenceSchema.getName(), target, copy);
+		}
+	}
+
+	/**
+	 * Returns the value a clone carries in place of a value of its original: a chain value naming an entity of the
+	 * cloned collection moved to the clone of that entity, a unique string with a suffix, anything else as it is.
 	 *
 	 * @param value       the value of the original
 	 * @param unique      TRUE when the value belongs to a unique attribute
+	 * @param clonedChain the chain type whose values name an entity of the cloned collection
 	 * @param description names the value in a failure message
 	 * @return the value of the clone
 	 */
 	@Nonnull
-	private static Serializable clonedValue(@Nonnull Serializable value, boolean unique, @Nonnull String description) {
-		if (value instanceof Predecessor predecessor) {
-			// the predecessor names another owner - the clone follows the clone of that owner
-			return predecessor.isHead() ? predecessor : new Predecessor(cloneOf(predecessor.predecessorPk()));
+	private static Serializable clonedValue(
+		@Nonnull Serializable value,
+		boolean unique,
+		@Nonnull Class<? extends ChainableType> clonedChain,
+		@Nonnull String description
+	) {
+		if (clonedChain.isInstance(value)) {
+			// the predecessor names another entity of the cloned collection - the clone follows the clone of that one
+			final ChainableType chainable = (ChainableType) value;
+			if (chainable.isHead()) {
+				return value;
+			}
+			return value instanceof Predecessor ?
+				new Predecessor(cloneOf(chainable.predecessorPk())) :
+				new ReferencedEntityPredecessor(cloneOf(chainable.predecessorPk()));
 		} else if (unique) {
 			if (value instanceof String string) {
 				return string + UNIQUE_VALUE_SUFFIX;

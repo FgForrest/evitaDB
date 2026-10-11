@@ -21,24 +21,26 @@
  *   limitations under the License.
  */
 
+
 package io.evitadb.index.virtual;
 
-import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.filter.And;
+import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
+import io.evitadb.api.query.filter.Not;
+import io.evitadb.api.query.filter.Or;
+import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.query.require.EmptyHierarchicalEntityBehaviour;
 import io.evitadb.api.query.require.StatisticsBase;
 import io.evitadb.api.query.require.StatisticsType;
-import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.core.Evita;
-import io.evitadb.core.catalog.Catalog;
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
-import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.virtual.VirtualReadParity.Comparison;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -54,6 +56,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
@@ -66,18 +72,25 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies that the hierarchy routes of a reference answer the same with the read switch on as with it off, on the
- * same engine and the same data: `hierarchyWithin` / `hierarchyWithinRoot` of a reference - both the
- * branch index selection prepares and the one computed when the constraint is nested where index selection does not
- * reach - and the statistics `hierarchyOfReference` counts per node. With the switch on, the registered single-owner
- * partitions of the hierarchy nodes contribute their owners read out of the registry rather than through their reduced
- * entity indexes.
+ * Verifies that the hierarchy routes of a reference answer from the registry rows of single-owner partitions exactly
+ * what they answer from index objects holding the same data: `hierarchyWithin` / `hierarchyWithinRoot` of a reference
+ * - both the branch index selection prepares and the one computed when the constraint is nested where index selection
+ * does not reach - and the statistics `hierarchyOfReference` counts per node, to which a single-owner partition of a
+ * node contributes its owner read out of the registry.
  *
  * The catalog is {@link RelatedProductsShapedFixture}, whose `sections` reference places products in a live and an
  * archived tree of sections where roughly half of the partitions of the nodes are single-owner - singleton leaves, an
- * inner node and a root held by one product each - next to shared ones. Every case runs in the scope sets it admits
- * and must read virtual rows and match an owner in at least one of them; an equal answer of a run that read nothing
- * virtually would compare the object reading with itself.
+ * inner node and a root held by one product each - next to shared ones. It is built twice in one engine, as the
+ * {@link MaterializedPartitionTwin} describes: the row catalog as the fixture builds it, and the object catalog with
+ * every product cloned. The products the object catalog answers, mapped back to the originals, are what the row catalog
+ * must answer; every statistic counting the products of a node counts twice as many there - the original and its
+ * clone - and is compared halved.
+ *
+ * Every case runs in the scope sets it admits, must match an owner and must reach a single-owner partition in at least
+ * one of them: its answer holds a product holding a single-owner partition of a node, its complement does for a negated
+ * filter, or its statistics count a single-owner node. An equal answer of a case reaching none would compare the index
+ * objects with themselves. A product primary key a case names names the clone of the product too in the object
+ * catalog.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -94,12 +107,16 @@ class VirtualHierarchyParityTest implements EvitaTestSupport {
 	private static final Scope[] BOTH = {Scope.LIVE, Scope.ARCHIVED};
 	private static final Scope[][] SINGLE_SCOPES = {LIVE, ARCHIVED};
 	/**
-	 * The page large enough to hold every product.
+	 * The page large enough to hold every product, clones included.
 	 */
 	private static final int PAGE_SIZE = 100_000;
 
 	private TestPaths paths;
 	private Evita evita;
+	/**
+	 * The twin of the catalog, cloning its products.
+	 */
+	private MaterializedPartitionTwin twin;
 
 	/**
 	 * A parity case - a filter, optionally a hierarchy requirement, over the products, compared in each of its scope
@@ -138,22 +155,13 @@ class VirtualHierarchyParityTest implements EvitaTestSupport {
 	void setUp() {
 		this.paths = createTestPaths("VirtualHierarchyParityTest");
 		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
-		// TODO JNO - remove at the end of #1615
-		this.evita.createCatalogWithVirtualReferencePartitions(CATALOG, false);
-		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
-		for (final String entityType : RelatedProductsShapedFixture.ENTITY_TYPES) {
-			maintenance().setMaintained(entityType, true);
-		}
-		this.evita.updateCatalog(CATALOG, RelatedProductsShapedFixture::setUp);
-		this.evita.updateCatalog(CATALOG, EvitaSessionContract::goLiveAndClose);
-		this.evita.updateCatalog(CATALOG, RelatedProductsShapedFixture::archive);
-		for (final String entityType : RelatedProductsShapedFixture.ENTITY_TYPES) {
-			final EntityCollection collection = (EntityCollection) this.evita.getCatalogInstance(CATALOG)
-				.orElseThrow()
-				.getCollectionForEntity(entityType)
-				.orElseThrow();
-			VirtualReferencePartitionOracle.assertConsistent(CATALOG, collection);
-		}
+		MaterializedPartitionTwin.createRowCatalog(
+			this.evita, CATALOG, RelatedProductsShapedFixture::setUp, RelatedProductsShapedFixture::archive
+		);
+		this.twin = MaterializedPartitionTwin.create(
+			this.evita, CATALOG, RelatedProductsShapedFixture::setUp, RelatedProductsShapedFixture::archive,
+			RelatedProductsShapedFixture.ENTITY_PRODUCT, SECTIONS
+		);
 	}
 
 	@AfterAll
@@ -367,43 +375,38 @@ class VirtualHierarchyParityTest implements EvitaTestSupport {
 
 	@ParameterizedTest(name = "{0}")
 	@MethodSource("filterCases")
-	@DisplayName("hierarchyWithin answers the same owners read virtually")
+	@DisplayName("hierarchyWithin answers from the rows the owners it answers from the index objects")
 	void shouldAnswerHierarchyWithinTheSame(@Nonnull ParityCase parityCase) {
 		assertParity(parityCase);
 	}
 
 	@ParameterizedTest(name = "{0}")
 	@MethodSource("statisticsCases")
-	@DisplayName("hierarchyOfReference counts the same owners read virtually")
+	@DisplayName("hierarchyOfReference counts from the rows the owners it counts from the index objects")
 	void shouldCountHierarchyStatisticsTheSame(@Nonnull ParityCase parityCase) {
 		assertParity(parityCase);
 	}
 
 	@Test
-	@DisplayName("the statistics alone read the singleton nodes virtually")
+	@DisplayName("the statistics alone count the singleton nodes from their rows")
 	void shouldReadTheSingletonNodesInTheStatistics() {
-		// no hierarchy constraint in the filter, so every virtual row the read-on run reads is read by the statistics
+		// no hierarchy constraint in the filter, so every row is reached by the statistics alone
 		for (final Scope[] scopes : SINGLE_SCOPES) {
-			final Comparison<Answer> comparison = VirtualReadParity.compare(
-				maintenance(), RelatedProductsShapedFixture.ENTITY_TYPES,
-				() -> queryProducts(
-					scopes,
-					hierarchyOfReference(
-						SECTIONS, EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY,
-						fromRoot("tree", statistics(StatisticsType.QUERIED_ENTITY_COUNT))
-					)
-				)
+			final RequireConstraint statistics = hierarchyOfReference(
+				SECTIONS, EmptyHierarchicalEntityBehaviour.REMOVE_EMPTY,
+				fromRoot("tree", statistics(StatisticsType.QUERIED_ENTITY_COUNT))
 			);
-			assertEquals(comparison.objectReading(), comparison.virtualReading().answer());
-			assertTrue(
-				comparison.virtualReading().virtualRowsRead() > 0,
-				"The statistics in " + Arrays.toString(scopes) + " must read the singleton nodes virtually"
-			);
-			final Hierarchy hierarchy = comparison.objectReading().hierarchy();
+			final Answer rows = queryProducts(this.twin.rowCatalog(), scopes, statistics);
+			assertEquals(expectedAnswer(scopes, statistics), describe(rows, false));
+			final Hierarchy hierarchy = rows.hierarchy();
 			assertNotNull(hierarchy);
 			// the singleton root of each tree holds exactly its one owner and keeps its node only through it
 			final int singletonRoot = scopes[0] == Scope.LIVE ?
 				RelatedProductsShapedFixture.SINGLETON_LIVE_ROOT : RelatedProductsShapedFixture.ARCHIVED_SECTION_ROOT;
+			assertTrue(
+				this.twin.singleOwnerTargets(SECTIONS, scopes[0]).contains(singletonRoot),
+				"The root " + singletonRoot + " must be a single-owner partition in " + Arrays.toString(scopes)
+			);
 			assertTrue(
 				hierarchy.getReferenceHierarchy(SECTIONS, "tree")
 					.stream()
@@ -415,33 +418,225 @@ class VirtualHierarchyParityTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Asserts a case answers the same read-off and read-on in each of its scope sets, that the read-on run read virtual
-	 * rows and that some scope set matched an owner.
+	 * Asserts a case answers from the rows what it answers from the index objects in each of its scope sets, that
+	 * some scope set matched an owner and that the case reaches a single-owner partition - see the class
+	 * documentation.
 	 *
 	 * @param parityCase the case
 	 */
 	private void assertParity(@Nonnull ParityCase parityCase) {
-		long virtualRowsRead = 0;
 		boolean matchedAny = false;
+		boolean reachedRows = false;
+		final boolean negated = Arrays.stream(parityCase.constraints()).anyMatch(Not.class::isInstance);
 		for (final Scope[] scopes : parityCase.scopeSets()) {
-			final Comparison<Answer> comparison = VirtualReadParity.compare(
-				maintenance(), RelatedProductsShapedFixture.ENTITY_TYPES,
-				() -> queryProducts(scopes, parityCase.require(), parityCase.constraints())
+			final Answer rows = queryProducts(
+				this.twin.rowCatalog(), scopes, parityCase.require(), parityCase.constraints()
 			);
 			assertEquals(
-				comparison.objectReading(), comparison.virtualReading().answer(),
-				parityCase + " in " + Arrays.toString(scopes) + " must answer the same with the read switch on"
+				expectedAnswer(scopes, parityCase.require(), parityCase.constraints()), describe(rows, false),
+				parityCase + " in " + Arrays.toString(scopes) + " must answer from the rows what it answers from the " +
+					"index objects"
 			);
-			virtualRowsRead += comparison.virtualReading().virtualRowsRead();
-			matchedAny |= !comparison.objectReading().primaryKeys().isEmpty();
+			matchedAny |= !rows.primaryKeys().isEmpty();
+			final Set<Integer> rowOwners = ownersOfSingleOwnerPartitions(scopes);
+			if (negated) {
+				final Set<Integer> excluded = new TreeSet<>(rowOwners);
+				rows.primaryKeys().forEach(excluded::remove);
+				reachedRows |= !excluded.isEmpty();
+			} else {
+				reachedRows |= rows.primaryKeys().stream().anyMatch(rowOwners::contains);
+			}
+			reachedRows |= countsSingleOwnerNode(rows.hierarchy(), scopes);
 		}
-		assertTrue(virtualRowsRead > 0, parityCase + " must read virtual rows in at least one scope set");
 		assertTrue(matchedAny, parityCase + " must match an owner in at least one scope set");
+		assertTrue(reachedRows, parityCase + " must reach a single-owner partition in at least one scope set");
 	}
 
 	/**
-	 * Queries the products matching the constraints in the scopes, with the hierarchy requirement when there is one.
+	 * Returns what the row catalog must answer for a query: the answer of the object catalog with every clone mapped
+	 * back to its original and every count of products halved, described.
 	 *
+	 * @param scopes      the scopes
+	 * @param require     the hierarchy requirement, `null` for none
+	 * @param constraints the filter constraints following the scope
+	 * @return the description of the expected answer
+	 */
+	@Nonnull
+	private String expectedAnswer(
+		@Nonnull Scope[] scopes,
+		@Nullable RequireConstraint require,
+		@Nonnull FilterConstraint... constraints
+	) {
+		final FilterConstraint[] objectConstraints = new FilterConstraint[constraints.length];
+		for (int i = 0; i < constraints.length; i++) {
+			objectConstraints[i] = withClones(constraints[i]);
+		}
+		final Answer objects = queryProducts(this.twin.objectCatalog(), scopes, require, objectConstraints);
+		return describe(
+			new Answer(
+				this.twin.expectedAnswer(RelatedProductsShapedFixture.ENTITY_PRODUCT, objects.primaryKeys()),
+				objects.hierarchy()
+			),
+			true
+		);
+	}
+
+	/**
+	 * Returns a filter as the object catalog must read it: a product primary key it names - directly or inside a
+	 * logical container - names the clone of the product too. Primary keys inside a hierarchy constraint name sections,
+	 * which are not cloned, and stay as they are.
+	 *
+	 * @param constraint the filter of the row catalog
+	 * @return the filter of the object catalog
+	 */
+	@SuppressWarnings("unchecked")
+	@Nonnull
+	private static FilterConstraint withClones(@Nonnull FilterConstraint constraint) {
+		if (constraint instanceof EntityPrimaryKeyInSet primaryKeys) {
+			return entityPrimaryKeyInSet(
+				MaterializedPartitionTwin.withClones(
+					Arrays.stream(primaryKeys.getPrimaryKeys()).boxed().toArray(Integer[]::new)
+				)
+			);
+		} else if (constraint instanceof And || constraint instanceof Or || constraint instanceof Not) {
+			final ConstraintContainer<FilterConstraint> container = (ConstraintContainer<FilterConstraint>) constraint;
+			final FilterConstraint[] children = container.getChildren();
+			final FilterConstraint[] cloned = new FilterConstraint[children.length];
+			for (int i = 0; i < children.length; i++) {
+				cloned[i] = withClones(children[i]);
+			}
+			return (FilterConstraint) container.getCopyWithNewChildren(cloned, container.getAdditionalChildren());
+		} else {
+			return constraint;
+		}
+	}
+
+	/**
+	 * Describes an answer: the matching products and, per output of the hierarchy of `sections`, every node with its
+	 * flags and counts, depth first.
+	 *
+	 * @param answer the answer
+	 * @param halve  TRUE to halve every count of products - each must be even
+	 * @return the description
+	 */
+	@Nonnull
+	private static String describe(@Nonnull Answer answer, boolean halve) {
+		final StringBuilder description = new StringBuilder(1024).append(answer.primaryKeys()).append('\n');
+		if (answer.hierarchy() != null) {
+			final Map<String, List<LevelInfo>> outputs = new TreeMap<>(
+				answer.hierarchy().getReferenceHierarchy(SECTIONS)
+			);
+			for (final Map.Entry<String, List<LevelInfo>> output : outputs.entrySet()) {
+				description.append(output.getKey()).append(":\n");
+				describe(output.getValue(), halve, 1, description);
+			}
+		}
+		return description.toString();
+	}
+
+	/**
+	 * Describes the nodes of one level of a hierarchy output and their children.
+	 *
+	 * @param nodes       the nodes
+	 * @param halve       TRUE to halve every count of products - each must be even
+	 * @param depth       the depth of the level, indenting it
+	 * @param description receives the description
+	 */
+	private static void describe(
+		@Nonnull List<LevelInfo> nodes,
+		boolean halve,
+		int depth,
+		@Nonnull StringBuilder description
+	) {
+		for (final LevelInfo node : nodes) {
+			final Integer count = node.queriedEntityCount();
+			if (halve && count != null) {
+				assertEquals(0, count % 2, "The object catalog must count every clone with its original: " + node);
+			}
+			description.append("  ".repeat(depth))
+				.append(node.entity().getPrimaryKey())
+				.append(node.requested() ? " requested" : "")
+				.append(" products=").append(count == null ? null : halve ? count / 2 : count)
+				.append(" children=").append(node.childrenCount())
+				.append('\n');
+			describe(node.children(), halve, depth + 1, description);
+		}
+	}
+
+	/**
+	 * Returns the products of the scopes that hold a single-owner partition of `sections` - a filter matching such a
+	 * product may reach it through a registry row of the row catalog.
+	 *
+	 * @param scopes the scopes
+	 * @return the primary keys of the products
+	 */
+	@Nonnull
+	private Set<Integer> ownersOfSingleOwnerPartitions(@Nonnull Scope[] scopes) {
+		final Set<Integer> result = new TreeSet<>();
+		for (final Scope scope : scopes) {
+			final Set<Integer> singleOwnerSections = this.twin.singleOwnerTargets(SECTIONS, scope);
+			for (int product = 1; product <= RelatedProductsShapedFixture.PRODUCT_COUNT; product++) {
+				if (
+					RelatedProductsShapedFixture.isArchived(product) == (scope == Scope.ARCHIVED) &&
+						Arrays.stream(RelatedProductsShapedFixture.sectionsOf(product)).anyMatch(singleOwnerSections::contains)
+				) {
+					result.add(product);
+				}
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Tells whether the statistics of an answer count the products of a single-owner node of the scopes.
+	 *
+	 * @param hierarchy the hierarchy of the answer, `null` when it asked for none
+	 * @param scopes    the scopes
+	 * @return TRUE when a single-owner node is counted
+	 */
+	private boolean countsSingleOwnerNode(@Nullable Hierarchy hierarchy, @Nonnull Scope[] scopes) {
+		if (hierarchy == null) {
+			return false;
+		}
+		final Set<Integer> singleOwnerSections = new TreeSet<>();
+		for (final Scope scope : scopes) {
+			singleOwnerSections.addAll(this.twin.singleOwnerTargets(SECTIONS, scope));
+		}
+		for (final List<LevelInfo> output : hierarchy.getReferenceHierarchy(SECTIONS).values()) {
+			if (countsAny(output, singleOwnerSections)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Tells whether a level of a hierarchy output or a level below it counts the products of one of the nodes.
+	 *
+	 * @param nodes    the nodes of the level
+	 * @param sections the nodes looked for
+	 * @return TRUE when one of them is counted
+	 */
+	private static boolean countsAny(@Nonnull List<LevelInfo> nodes, @Nonnull Set<Integer> sections) {
+		for (final LevelInfo node : nodes) {
+			if (
+				sections.contains(node.entity().getPrimaryKey()) && node.queriedEntityCount() != null &&
+					node.queriedEntityCount() > 0
+			) {
+				return true;
+			}
+			if (countsAny(node.children(), sections)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Queries the products of a catalog matching the constraints in the scopes, with the hierarchy requirement when
+	 * there is one.
+	 *
+	 * @param catalog     the catalog
 	 * @param scopes      the scopes
 	 * @param require     the hierarchy requirement, `null` for none
 	 * @param constraints the filter constraints following the scope
@@ -449,6 +644,7 @@ class VirtualHierarchyParityTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private Answer queryProducts(
+		@Nonnull String catalog,
 		@Nonnull Scope[] scopes,
 		@Nullable RequireConstraint require,
 		@Nonnull FilterConstraint... constraints
@@ -457,7 +653,7 @@ class VirtualHierarchyParityTest implements EvitaTestSupport {
 		filter[0] = scope(scopes);
 		System.arraycopy(constraints, 0, filter, 1, constraints.length);
 		return this.evita.queryCatalog(
-			CATALOG,
+			catalog,
 			session -> {
 				final EvitaResponse<EntityReference> response = session.query(
 					query(
@@ -482,17 +678,6 @@ class VirtualHierarchyParityTest implements EvitaTestSupport {
 				);
 			}
 		);
-	}
-
-	/**
-	 * Returns the switch holder of the catalog.
-	 *
-	 * @return the switch holder
-	 */
-	@Nonnull
-	private VirtualReferencePartitionMaintenance maintenance() {
-		return ((Catalog) this.evita.getCatalogInstance(CATALOG).orElseThrow())
-			.getVirtualReferencePartitionMaintenance();
 	}
 
 }

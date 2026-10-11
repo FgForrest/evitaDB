@@ -24,8 +24,6 @@
 package io.evitadb.api.functional.attribute;
 
 import io.evitadb.core.Evita;
-import io.evitadb.core.catalog.Catalog;
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
@@ -73,7 +71,6 @@ import static io.evitadb.test.TestTags.ORDER;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Checks `pickFirstByEntityProperty` ordering by a reference attribute against an oracle computed from the rows the
@@ -286,11 +283,6 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 
 	@DataSet(value = PICK_FIRST_ORACLE, destroyAfterClass = true)
 	DataCarrier setUp(Evita evita) {
-		// TODO JNO - remove at the end of #1615 (the registry of single-owner partitions is maintained from the first
-		// write, so the virtual reading can be compared with the object reading on the very same data)
-		final VirtualReferencePartitionMaintenance maintenance =
-			((Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow()).getVirtualReferencePartitionMaintenance();
-		maintenance.setMaintained(ENTITY_OWNER, true);
 		return evita.updateCatalog(
 			TEST_CATALOG,
 			session -> {
@@ -420,8 +412,7 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 					archived[owner] = true;
 				}
 				return new DataCarrier(
-					"oracleFixture", new OracleFixture(rowsByOwner, targetRank, archived),
-					"maintenance", maintenance
+					"oracleFixture", new OracleFixture(rowsByOwner, targetRank, archived)
 				);
 			}
 		);
@@ -468,65 +459,6 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 					)
 				);
 			}
-		}
-		assertAll(assertions);
-	}
-
-	// TODO JNO - remove at the end of #1615
-	@DisplayName("Should order owners identically with single-owner partitions read virtually")
-	@UseDataSet(PICK_FIRST_ORACLE)
-	@ParameterizedTest(name = "{0} via {1}, targets {2}, value {3}")
-	@MethodSource("oracleCombinations")
-	void shouldOrderOwnersIdenticallyWhenReadVirtually(
-		String referenceName,
-		SortRoute route,
-		TargetOrder targetOrder,
-		SortedValue sortedValue,
-		EvitaSessionContract session,
-		OracleFixture oracleFixture,
-		VirtualReferencePartitionMaintenance maintenance
-	) {
-		final List<Executable> assertions = new ArrayList<>(Selection.values().length * 2);
-		final long rowsBefore = maintenance.getVirtualRowsRead();
-		for (Selection selection : Selection.values()) {
-			for (OrderDirection direction : OrderDirection.values()) {
-				final int[] expected = oracle(oracleFixture, selection, targetOrder, sortedValue, direction);
-				final OrderConstraint ordering =
-					createOrdering(referenceName, targetOrder, valueOrdering(sortedValue, direction));
-				final int[] actual;
-				// a catalog representing its partitions virtually - as the forced test mode creates it - is read
-				// virtually for good and refuses the switch to be turned off
-				final boolean switched = !maintenance.isVirtual();
-				if (switched) {
-					maintenance.setReadVirtually(ENTITY_OWNER, true);
-				}
-				try {
-					actual = queryOrder(session, route, selection, referenceName, ordering);
-				} finally {
-					if (switched) {
-						maintenance.setReadVirtually(ENTITY_OWNER, false);
-					}
-				}
-				assertions.add(
-					() -> assertArrayEquals(
-						expected, actual,
-						() -> selection + " " + direction + ": expected " + Arrays.toString(expected) +
-							" but was " + Arrays.toString(actual)
-					)
-				);
-			}
-		}
-		// only the reference indexed for filtering keeps single-owner partitions in the registry, and only the index
-		// route - or a target order computed over the gathered partitions - resolves them
-		if (
-			REFERENCE_ITEMS_FILTERING.equals(referenceName) &&
-				(route == SortRoute.INDEX || targetOrder == TargetOrder.TARGET_ATTRIBUTE)
-		) {
-			assertions.add(
-				() -> assertTrue(
-					maintenance.getVirtualRowsRead() > rowsBefore, "The virtual partitions must have been read."
-				)
-			);
 		}
 		assertAll(assertions);
 	}

@@ -21,6 +21,7 @@
  *   limitations under the License.
  */
 
+
 package io.evitadb.index.virtual;
 
 import io.evitadb.api.EvitaSessionContract;
@@ -31,15 +32,7 @@ import io.evitadb.api.query.order.TraversalMode;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
-import io.evitadb.core.catalog.Catalog;
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.VirtualRowConsumer;
-import io.evitadb.core.collection.EntityCollection;
-import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.ReferencedTypeEntityIndex;
-import io.evitadb.index.virtual.VirtualReadParity.Comparison;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -55,8 +48,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -73,23 +64,40 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies that the block-by-block orderings by a reference - `traverseByEntityProperty` over the partitions of the
- * reference, each block sorted by an attribute, a compound or the referenced primary key - answer the same with the
- * read switch on as with it off, on the same engine and the same data: with the switch on, the planning set of the
- * ordering - the candidates of a `referenceHaving`, or the partitions of the nodes of a hierarchy filter - carries the
- * registered single-owner partitions as virtual handles and every block provider of a virtual partition is the
- * singleton read out of its registry row.
+ * reference, each block sorted by an attribute, a compound, a chain, an exact attribute set or the referenced primary
+ * key - order the owners of single-owner partitions kept as registry rows exactly as they order them when every
+ * partition is an index object: the planning set of the ordering - the candidates of a `referenceHaving`, or the
+ * partitions of the nodes of a hierarchy filter - carries the rows as virtual handles, and every block provider of a
+ * row is the singleton read out of the registry.
  *
- * Two catalogs, each maintained from its first write so every single-owner partition has its row:
+ * Every catalog is built twice in one engine, as the {@link MaterializedPartitionTwin} describes - the row catalog as
+ * the fixture builds it, and the object catalog with every product cloned. The whole order of the object catalog,
+ * mapped back to the originals, is the expected order; the row catalog answers real page requests, each of which must
+ * be the matching slice of it. The fixtures:
  *
  * - {@link RelatedProductsShapedFixture} - thousands of generated owners mixing single-owner and shared partitions of
  *   `relatedProducts` (a non-hierarchical target, duplicates told apart by their representative attribute, value-less
  *   rows, a plain, a localized, a compound and a localized compound sort value) and of `sections` (a hierarchical
  *   target with single-owner nodes in both trees), both scopes;
  * - {@link ParameterValuesShapedFixture} - the parameter-values shape: nearly every partition single-owner, hundreds
- *   of rows per owner, a hierarchical target, ordered unnarrowed.
+ *   of rows per owner, a hierarchical target, ordered unnarrowed - by the chain the products of a value form, whose
+ *   order through the object catalog `VirtualChainParityTest` proves equal to the order the bodies give.
  *
- * Every case compares whole result lists and two page windows in both directions and must read virtual rows - an
- * equal answer of a run that read nothing virtually would compare the object reading with itself.
+ * Every case compares the whole order and two page windows in both directions and must select a single-owner
+ * partition of the row catalog - an equal answer of a run that read no row would compare the index objects with
+ * themselves.
+ *
+ * The stages consuming rows on these routes, and what shows that the class reads each of them: a case goes red when
+ * the stage stops reading rows correctly for
+ *
+ * - the attribute, compound and chain providers of a block (`AttributeNaturalTranslator`);
+ * - the referenced primary key providers of a block (`EntityPrimaryKeyNaturalTranslator`);
+ * - the partitions of the nodes of a hierarchy option (`ReferencePropertyTranslator`).
+ *
+ * The lookup of `attributeSetExact` in a block of one partition (`AttributeSetExactTranslator`) has no such case and
+ * cannot have one: the engine sorts by an exact attribute set only when a single partition is sorted, and a row has a
+ * single owner, so the answer is that owner whatever the lookup finds - an exact set over a traverse or over a
+ * selection reaching beyond the partition is refused. Nothing shows at runtime that this stage reads rows.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -105,16 +113,31 @@ class VirtualTraverseParityTest implements EvitaTestSupport {
 	private static final Scope[] ARCHIVED = {Scope.ARCHIVED};
 	private static final Scope[] BOTH = {Scope.LIVE, Scope.ARCHIVED};
 	/**
-	 * The page large enough to hold every entity of every catalog.
+	 * The page large enough to hold every entity of every catalog, clones included.
 	 */
 	private static final int PAGE_SIZE = 100_000;
 	/**
-	 * The page windows every case compares.
+	 * The page windows every case requests from the row catalog - the whole order, a page with an offset and a short
+	 * first page.
 	 */
 	private static final int[][] WINDOWS = {{1, PAGE_SIZE}, {3, 17}, {1, 5}};
+	/**
+	 * The owners the small selection names.
+	 */
+	private static final Integer[] SMALL_SELECTION = IntStream.iterate(
+		3, it -> it <= RelatedProductsShapedFixture.PRODUCT_COUNT, it -> it + 97
+	).boxed().toArray(Integer[]::new);
 
 	private TestPaths paths;
 	private Evita evita;
+	/**
+	 * The twin of {@link #CATALOG_RELATED}, cloning its products.
+	 */
+	private MaterializedPartitionTwin related;
+	/**
+	 * The twin of {@link #CATALOG_PARAMETERS}, cloning its products.
+	 */
+	private MaterializedPartitionTwin parameters;
 
 	/**
 	 * The owners a case selects.
@@ -161,14 +184,22 @@ class VirtualTraverseParityTest implements EvitaTestSupport {
 	void setUp() {
 		this.paths = createTestPaths("VirtualTraverseParityTest");
 		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
-		build(
-			CATALOG_RELATED, RelatedProductsShapedFixture.ENTITY_TYPES,
-			RelatedProductsShapedFixture::setUp, RelatedProductsShapedFixture::archive
+		MaterializedPartitionTwin.createRowCatalog(
+			this.evita, CATALOG_RELATED, RelatedProductsShapedFixture::setUp, RelatedProductsShapedFixture::archive
 		);
-		build(
-			CATALOG_PARAMETERS, ParameterValuesShapedFixture.ENTITY_TYPES,
-			ParameterValuesShapedFixture::setUp, session -> {
+		this.related = MaterializedPartitionTwin.create(
+			this.evita, CATALOG_RELATED, RelatedProductsShapedFixture::setUp, RelatedProductsShapedFixture::archive,
+			RelatedProductsShapedFixture.ENTITY_PRODUCT,
+			RelatedProductsShapedFixture.REFERENCE_RELATED, RelatedProductsShapedFixture.REFERENCE_SECTIONS
+		);
+		MaterializedPartitionTwin.createRowCatalog(
+			this.evita, CATALOG_PARAMETERS, ParameterValuesShapedFixture::setUp, session -> {
 			}
+		);
+		this.parameters = MaterializedPartitionTwin.create(
+			this.evita, CATALOG_PARAMETERS, ParameterValuesShapedFixture::setUp, session -> {
+			},
+			ParameterValuesShapedFixture.ENTITY_PRODUCT, ParameterValuesShapedFixture.REFERENCE_PARAMETER_VALUES
 		);
 	}
 
@@ -245,48 +276,40 @@ class VirtualTraverseParityTest implements EvitaTestSupport {
 
 	@ParameterizedTest(name = "{0}")
 	@MethodSource("orderingCases")
-	@DisplayName("should traverse the related products identically with the read switch on")
+	@DisplayName("should traverse the related products from the rows as from the index objects")
 	void shouldTraverseRelatedProductsIdentically(@Nonnull OrderingCase orderingCase) {
 		final List<String> differences = new ArrayList<>(16);
-		long virtualRowsRead = 0;
 		for (Selection selection : Selection.values()) {
 			for (Scope[] scopes : new Scope[][]{LIVE, ARCHIVED, BOTH}) {
 				for (OrderDirection direction : OrderDirection.values()) {
 					final OrderConstraint ordering = orderingCase.ordering().apply(direction);
-					final FilterConstraint selectionConstraint = switch (selection) {
-						case ALL -> null;
-						case SMALL -> entityPrimaryKeyInSet(
-							IntStream.iterate(3, it -> it <= RelatedProductsShapedFixture.PRODUCT_COUNT, it -> it + 97)
-								.boxed()
-								.toArray(Integer[]::new)
-						);
-						case NARROWED -> orderingCase.narrowing();
-					};
-					for (int[] window : WINDOWS) {
-						final Comparison<List<Integer>> comparison = VirtualReadParity.compare(
-							maintenance(CATALOG_RELATED), RelatedProductsShapedFixture.ENTITY_TYPES,
-							() -> queryPrimaryKeys(
-								CATALOG_RELATED, RelatedProductsShapedFixture.ENTITY_PRODUCT, scopes,
-								orderingCase.localized(), selectionConstraint, ordering, window
-							)
-						);
-						if (!comparison.objectReading().equals(comparison.virtualReading().answer())) {
-							differences.add(
-								selection + " " + scopes.length + " scope(s) " + direction + " page " + window[0] +
-									"/" + window[1] + ": " + comparison.objectReading() + " vs " +
-									comparison.virtualReading().answer()
-							);
-						}
-						virtualRowsRead += comparison.virtualReading().virtualRowsRead();
-						if (window[1] == PAGE_SIZE && selection == Selection.ALL) {
-							assertFalse(comparison.objectReading().isEmpty(), "The selection must not be empty.");
-						}
+					final List<Integer> expected = this.related.expectedAnswer(
+						RelatedProductsShapedFixture.ENTITY_PRODUCT,
+						queryPrimaryKeys(
+							this.related.objectCatalog(), RelatedProductsShapedFixture.ENTITY_PRODUCT, scopes,
+							orderingCase.localized(), selectionOf(selection, orderingCase, true), ordering, WINDOWS[0]
+						)
+					);
+					if (selection == Selection.ALL) {
+						assertFalse(expected.isEmpty(), "The selection must not be empty.");
 					}
+					compareWindows(
+						this.related.rowCatalog(), RelatedProductsShapedFixture.ENTITY_PRODUCT, scopes,
+						orderingCase.localized(), selectionOf(selection, orderingCase, false), ordering, expected,
+						selection + " " + scopes.length + " scope(s) " + direction, differences
+					);
 				}
 			}
 		}
 		assertTrue(differences.isEmpty(), () -> differences.size() + " differences: " + differences);
-		assertTrue(virtualRowsRead > 0, "The ordering must have read virtual rows.");
+		final String referenceName = orderingCase.name().startsWith("hierarchical target") ?
+			RelatedProductsShapedFixture.REFERENCE_SECTIONS : RelatedProductsShapedFixture.REFERENCE_RELATED;
+		assertTrue(
+			this.related.selectsSingleOwnerRow(
+				BOTH, referenceName, null, orderingCase.localized() ? RelatedProductsShapedFixture.LOCALE_EN : null
+			),
+			"The traversed rows must include a single-owner partition"
+		);
 	}
 
 	@Test
@@ -299,115 +322,69 @@ class VirtualTraverseParityTest implements EvitaTestSupport {
 		// an ordering by another reference than the hierarchy filter names finds no planning set of its own
 		cases.add(orderingCases().findFirst().orElseThrow());
 		final List<String> differences = new ArrayList<>(16);
-		long virtualRowsRead = 0;
 		for (OrderingCase orderingCase : cases) {
 			for (Scope[] scopes : new Scope[][]{LIVE, ARCHIVED, BOTH}) {
-				final long consumedBefore = maintenance(CATALOG_RELATED).getVirtualRowsConsumed(
-					VirtualRowConsumer.HIERARCHY_OPTION_PARTITIONS
-				);
 				for (OrderDirection direction : OrderDirection.values()) {
 					final OrderConstraint ordering = orderingCase.ordering().apply(direction);
-					for (int[] window : WINDOWS) {
-						final Comparison<List<Integer>> comparison = VirtualReadParity.compare(
-							maintenance(CATALOG_RELATED), RelatedProductsShapedFixture.ENTITY_TYPES,
-							() -> queryPrimaryKeys(
-								CATALOG_RELATED, RelatedProductsShapedFixture.ENTITY_PRODUCT, scopes,
-								orderingCase.localized(), hierarchy, ordering, window
-							)
-						);
-						if (!comparison.objectReading().equals(comparison.virtualReading().answer())) {
-							differences.add(
-								orderingCase + " " + scopes.length + " scope(s) " + direction + " page " + window[0] +
-									"/" + window[1] + ": " + comparison.objectReading() + " vs " +
-									comparison.virtualReading().answer()
-							);
-						}
-						virtualRowsRead += comparison.virtualReading().virtualRowsRead();
-						if (window[1] == PAGE_SIZE) {
-							assertFalse(comparison.objectReading().isEmpty(), "The selection must not be empty.");
-						}
-					}
-				}
-				if (scopes == BOTH && orderingCase.name().startsWith("hierarchical target")) {
-					// the partitions of both scopes reach the ordering through the hierarchy option - the one route
-					// on which the splits of two scopes are merged into one list
-					assertTrue(
-						maintenance(CATALOG_RELATED).getVirtualRowsConsumed(VirtualRowConsumer.HIERARCHY_OPTION_PARTITIONS) >
-							consumedBefore,
-						orderingCase + " over both scopes must hand the virtual partitions of the hierarchy option over"
+					final List<Integer> expected = this.related.expectedAnswer(
+						RelatedProductsShapedFixture.ENTITY_PRODUCT,
+						queryPrimaryKeys(
+							this.related.objectCatalog(), RelatedProductsShapedFixture.ENTITY_PRODUCT, scopes,
+							orderingCase.localized(), hierarchy, ordering, WINDOWS[0]
+						)
+					);
+					assertFalse(expected.isEmpty(), "The selection must not be empty.");
+					compareWindows(
+						this.related.rowCatalog(), RelatedProductsShapedFixture.ENTITY_PRODUCT, scopes,
+						orderingCase.localized(), hierarchy, ordering, expected,
+						orderingCase + " " + scopes.length + " scope(s) " + direction, differences
 					);
 				}
 			}
 		}
 		assertTrue(differences.isEmpty(), () -> differences.size() + " differences: " + differences);
-		assertTrue(virtualRowsRead > 0, "The ordering must have read virtual rows.");
+		// the nodes of both trees hold single-owner partitions the hierarchy option hands over as rows
+		for (Scope scope : Scope.values()) {
+			assertFalse(
+				this.related.singleOwnerTargets(RelatedProductsShapedFixture.REFERENCE_SECTIONS, scope).isEmpty(),
+				"The sections of " + scope + " must hold single-owner partitions"
+			);
+		}
 	}
 
 	@Test
-	@DisplayName("should traverse the all-virtual parameter values shape identically, unnarrowed")
+	@DisplayName("should traverse the parameter values shape by the chain of the products of a value identically")
 	void shouldTraverseParameterValuesShapeIdentically() {
 		final List<String> differences = new ArrayList<>(16);
-		long virtualRowsRead = 0;
 		// the parameter values shape is live only - see ParameterValuesShapedFixture
 		for (Scope[] scopes : new Scope[][]{LIVE, BOTH}) {
 			for (OrderDirection direction : OrderDirection.values()) {
-				for (OrderConstraint ordering : new OrderConstraint[]{
-					referenceProperty(
-						ParameterValuesShapedFixture.REFERENCE_PARAMETER_VALUES,
-						traverseByEntityProperty(TraversalMode.BREADTH_FIRST, entityPrimaryKeyNatural(direction)),
-						attributeNatural(ParameterValuesShapedFixture.ATTRIBUTE_ORDER, direction)
-					)
-				}) {
-					for (int[] window : WINDOWS) {
-						final Comparison<List<Integer>> comparison = VirtualReadParity.compare(
-							maintenance(CATALOG_PARAMETERS), ParameterValuesShapedFixture.ENTITY_TYPES,
-							() -> queryPrimaryKeys(
-								CATALOG_PARAMETERS, ParameterValuesShapedFixture.ENTITY_PRODUCT, scopes, false, null,
-								ordering, window
-							)
-						);
-						if (!comparison.objectReading().equals(comparison.virtualReading().answer())) {
-							differences.add(
-								ordering + " " + scopes.length + " scope(s) page " + window[0] + "/" + window[1] +
-									": " + comparison.objectReading() + " vs " + comparison.virtualReading().answer()
-							);
-						}
-						virtualRowsRead += comparison.virtualReading().virtualRowsRead();
-						if (window[1] == PAGE_SIZE) {
-							assertFalse(comparison.objectReading().isEmpty(), "The selection must not be empty.");
-						}
-					}
-				}
+				final OrderConstraint ordering = referenceProperty(
+					ParameterValuesShapedFixture.REFERENCE_PARAMETER_VALUES,
+					traverseByEntityProperty(TraversalMode.BREADTH_FIRST, entityPrimaryKeyNatural(direction)),
+					attributeNatural(ParameterValuesShapedFixture.ATTRIBUTE_ORDER, direction)
+				);
+				assertParameterValuesOrder(scopes, ordering, scopes.length + " scope(s) " + direction, differences);
 			}
 		}
 		assertTrue(differences.isEmpty(), () -> differences.size() + " differences: " + differences);
-		assertTrue(virtualRowsRead > 0, "The ordering must have read virtual rows.");
-	}
-
-	@Test
-	@DisplayName("should never walk the registry's sort index of a key on a block route")
-	void shouldNeverWalkRegistrySortIndexOnBlockRoute() {
-		final int walksBefore = getSortValueWalkCount();
-		final long virtualRowsRead = orderingCases()
-			.filter(it -> it.name().contains("attribute") || it.name().contains("compound"))
-			.mapToLong(
-				orderingCase -> VirtualReadParity.readVirtually(
-					maintenance(CATALOG_RELATED), RelatedProductsShapedFixture.ENTITY_TYPES,
-					() -> queryPrimaryKeys(
-						CATALOG_RELATED, RelatedProductsShapedFixture.ENTITY_PRODUCT, BOTH, orderingCase.localized(),
-						null, orderingCase.ordering().apply(OrderDirection.ASC), WINDOWS[0]
-					)
-				).virtualRowsRead()
-			)
-			.sum();
-		assertTrue(virtualRowsRead > 0, "The block routes must have read virtual rows.");
-		assertEquals(walksBefore, getSortValueWalkCount(), "No block route may walk the sort index of a key.");
+		assertTrue(
+			this.parameters.selectsSingleOwnerRow(
+				LIVE, ParameterValuesShapedFixture.REFERENCE_PARAMETER_VALUES, null, null
+			),
+			"The traversed rows must include a single-owner partition"
+		);
 	}
 
 	@Test
 	@DisplayName("should order the only partition of a reference block by an exact attribute set identically")
 	void shouldOrderSinglePartitionBlockByAttributeSetExactIdentically() {
 		final int target = ParameterValuesShapedFixture.LONELY_PARAMETER_VALUE;
+		assertTrue(
+			this.parameters.singleOwnerTargets(ParameterValuesShapedFixture.REFERENCE_PARAMETER_VALUES, Scope.LIVE)
+				.contains(target),
+			"The lonely value must be a single-owner partition"
+		);
 		for (OrderConstraint ordering : new OrderConstraint[]{
 			referenceProperty(
 				ParameterValuesShapedFixture.REFERENCE_PARAMETER_VALUES,
@@ -418,22 +395,128 @@ class VirtualTraverseParityTest implements EvitaTestSupport {
 				attributeSetExact(ParameterValuesShapedFixture.ATTRIBUTE_CODE, "z")
 			)
 		}) {
-			final Comparison<List<Integer>> comparison = VirtualReadParity.compare(
-				maintenance(CATALOG_PARAMETERS), ParameterValuesShapedFixture.ENTITY_TYPES,
-				() -> queryPrimaryKeys(
-					CATALOG_PARAMETERS, ParameterValuesShapedFixture.ENTITY_PRODUCT, LIVE, false,
-					referenceHaving(ParameterValuesShapedFixture.REFERENCE_PARAMETER_VALUES, entityPrimaryKeyInSet(target)),
+			final FilterConstraint selection = referenceHaving(
+				ParameterValuesShapedFixture.REFERENCE_PARAMETER_VALUES, entityPrimaryKeyInSet(target)
+			);
+			final List<Integer> expected = this.parameters.expectedAnswer(
+				ParameterValuesShapedFixture.ENTITY_PRODUCT,
+				queryPrimaryKeys(
+					this.parameters.objectCatalog(), ParameterValuesShapedFixture.ENTITY_PRODUCT, LIVE, false,
+					selection, ordering, WINDOWS[0]
+				)
+			);
+			assertEquals(List.of(ParameterValuesShapedFixture.LONELY_OWNER), expected);
+			assertEquals(
+				expected,
+				queryPrimaryKeys(
+					this.parameters.rowCatalog(), ParameterValuesShapedFixture.ENTITY_PRODUCT, LIVE, false, selection,
 					ordering, WINDOWS[0]
 				)
 			);
-			assertEquals(List.of(ParameterValuesShapedFixture.LONELY_OWNER), comparison.objectReading());
-			assertEquals(comparison.objectReading(), comparison.virtualReading().answer());
-			assertTrue(comparison.virtualReading().virtualRowsRead() > 0, "The virtual row must have been read.");
 		}
 	}
 
 	/**
+	 * Compares the order of every product of the parameter values shape in the scopes with the order the index objects
+	 * give, in every page window.
+	 *
+	 * @param scopes      the scopes
+	 * @param ordering    the ordering
+	 * @param label       names the comparison in a difference
+	 * @param differences receives the differences
+	 */
+	private void assertParameterValuesOrder(
+		@Nonnull Scope[] scopes,
+		@Nonnull OrderConstraint ordering,
+		@Nonnull String label,
+		@Nonnull List<String> differences
+	) {
+		final List<Integer> expected = this.parameters.expectedAnswer(
+			ParameterValuesShapedFixture.ENTITY_PRODUCT,
+			queryPrimaryKeys(
+				this.parameters.objectCatalog(), ParameterValuesShapedFixture.ENTITY_PRODUCT, scopes, false, null,
+				ordering, WINDOWS[0]
+			)
+		);
+		assertFalse(expected.isEmpty(), "The selection must not be empty.");
+		compareWindows(
+			this.parameters.rowCatalog(), ParameterValuesShapedFixture.ENTITY_PRODUCT, scopes, false, null, ordering,
+			expected, ordering + " " + label, differences
+		);
+	}
+
+	/**
+	 * Requests every page window from the row catalog and records each one that is not the matching slice of the
+	 * expected order.
+	 *
+	 * @param catalog     the row catalog
+	 * @param entityType  the collection
+	 * @param scopes      the scopes
+	 * @param localized   TRUE when the query needs a locale
+	 * @param selection   the selection, `null` for every entity of the scopes
+	 * @param ordering    the ordering
+	 * @param expected    the expected whole order
+	 * @param label       names the comparison in a difference
+	 * @param differences receives the differences
+	 */
+	private void compareWindows(
+		@Nonnull String catalog,
+		@Nonnull String entityType,
+		@Nonnull Scope[] scopes,
+		boolean localized,
+		@Nullable FilterConstraint selection,
+		@Nonnull OrderConstraint ordering,
+		@Nonnull List<Integer> expected,
+		@Nonnull String label,
+		@Nonnull List<String> differences
+	) {
+		for (int[] window : WINDOWS) {
+			final List<Integer> actual = queryPrimaryKeys(
+				catalog, entityType, scopes, localized, selection, ordering, window
+			);
+			final List<Integer> expectedPage = MaterializedPartitionTwin.pageOf(expected, window[0], window[1]);
+			if (!expectedPage.equals(actual)) {
+				differences.add(
+					label + " page " + window[0] + "/" + window[1] + ": " + expectedPage + " vs " + actual
+				);
+			}
+		}
+	}
+
+	/**
+	 * Returns the selection constraint of a case.
+	 *
+	 * @param selection    the selection
+	 * @param orderingCase the case
+	 * @param withClones   TRUE to name the clones next to the owners a small selection names
+	 * @return the constraint, `null` for every owner
+	 */
+	@Nullable
+	private static FilterConstraint selectionOf(
+		@Nonnull Selection selection,
+		@Nonnull OrderingCase orderingCase,
+		boolean withClones
+	) {
+		return switch (selection) {
+			case ALL -> null;
+			case SMALL -> entityPrimaryKeyInSet(
+				withClones ? MaterializedPartitionTwin.withClones(SMALL_SELECTION) : SMALL_SELECTION
+			);
+			case NARROWED -> orderingCase.narrowing();
+		};
+	}
+
+	/**
 	 * Queries a collection of a catalog in the scopes on the index route and returns the primary keys of the page.
+	 *
+	 * @param catalog    the catalog
+	 * @param entityType the collection
+	 * @param scopes     the scopes
+	 * @param localized  TRUE when the query needs a locale
+	 * @param selection  the selection, `null` for every entity of the scopes
+	 * @param ordering   the ordering
+	 * @param window     the page number and the page size
+	 * @return the primary keys of the page in the order the query returns them
 	 */
 	@Nonnull
 	private List<Integer> queryPrimaryKeys(
@@ -465,76 +548,6 @@ class VirtualTraverseParityTest implements EvitaTestSupport {
 				.map(EntityReference::getPrimaryKey)
 				.toList()
 		);
-	}
-
-	/**
-	 * Creates a catalog maintained from its first write, fills it in warm-up, takes it live and then applies the
-	 * changes of the live catalog.
-	 *
-	 * @param catalog     the catalog
-	 * @param entityTypes its collections, all maintained
-	 * @param warmUp      fills the catalog in warm-up
-	 * @param live        changes the live catalog
-	 */
-	private void build(
-		@Nonnull String catalog,
-		@Nonnull Set<String> entityTypes,
-		@Nonnull Consumer<EvitaSessionContract> warmUp,
-		@Nonnull Consumer<EvitaSessionContract> live
-	) {
-		// TODO JNO - remove at the end of #1615
-		this.evita.createCatalogWithVirtualReferencePartitions(catalog, false);
-		this.evita.defineCatalog(catalog).updateViaNewSession(this.evita);
-		for (final String entityType : entityTypes) {
-			maintenance(catalog).setMaintained(entityType, true);
-		}
-		this.evita.updateCatalog(catalog, warmUp);
-		this.evita.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
-		this.evita.updateCatalog(catalog, live);
-		for (final String entityType : entityTypes) {
-			final EntityCollection collection = (EntityCollection) this.evita.getCatalogInstance(catalog)
-				.orElseThrow()
-				.getCollectionForEntity(entityType)
-				.orElseThrow();
-			VirtualReferencePartitionOracle.assertConsistent(catalog, collection);
-		}
-	}
-
-	/**
-	 * Returns how many walks over the values of the registry's sort indexes of `relatedProducts` the registries of both
-	 * scopes have started.
-	 *
-	 * @return the number of walks
-	 */
-	private int getSortValueWalkCount() {
-		final EntityCollection collection = (EntityCollection) this.evita.getCatalogInstance(CATALOG_RELATED)
-			.orElseThrow()
-			.getCollectionForEntity(RelatedProductsShapedFixture.ENTITY_PRODUCT)
-			.orElseThrow();
-		int walks = 0;
-		for (Scope scope : Scope.values()) {
-			final ReferencedTypeEntityIndex typeIndex = (ReferencedTypeEntityIndex) collection.getIndexByKeyIfExists(
-				new EntityIndexKey(
-					EntityIndexType.REFERENCED_ENTITY_TYPE, scope, RelatedProductsShapedFixture.REFERENCE_RELATED
-				)
-			);
-			if (typeIndex != null) {
-				walks += typeIndex.getVirtualReferencePartitionIndex().getSortValueWalkCount();
-			}
-		}
-		return walks;
-	}
-
-	/**
-	 * Returns the switch holder of a catalog.
-	 *
-	 * @param catalog the catalog
-	 * @return the switch holder
-	 */
-	@Nonnull
-	private VirtualReferencePartitionMaintenance maintenance(@Nonnull String catalog) {
-		return ((Catalog) this.evita.getCatalogInstance(catalog).orElseThrow())
-			.getVirtualReferencePartitionMaintenance();
 	}
 
 }

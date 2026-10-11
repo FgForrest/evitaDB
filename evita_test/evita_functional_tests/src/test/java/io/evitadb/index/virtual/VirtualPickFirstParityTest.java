@@ -32,11 +32,7 @@ import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
-import io.evitadb.core.catalog.Catalog;
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
-import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.virtual.VirtualReadParity.Comparison;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -54,8 +50,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -71,22 +65,26 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies that a `pickFirst` ordering by a reference - the index route resolving its partitions at execution time and
- * the prefetch route ranking the targets the same way - answers the same with the read switch on as with it off, on the
- * same engine and the same data: with the switch on, the registered single-owner partitions are
- * gathered as virtual handles, ranked among the materialized ones, and claim their owners through the registry.
+ * the prefetch route ranking the targets the same way - orders the owners of single-owner partitions kept as registry
+ * rows exactly as it orders them when every partition is an index object: the rows are gathered as virtual handles,
+ * ranked among the index objects, and claim their owners through the registry.
  *
- * Two catalogs, each maintained from its first write so every single-owner partition has its row:
+ * Every catalog is built twice in one engine, as the {@link MaterializedPartitionTwin} describes - the row catalog as
+ * the fixture builds it, and the object catalog with every owner of the ordered collection cloned. The whole order of
+ * the object catalog, mapped back to the originals, is the expected order; the row catalog answers real page requests,
+ * each of which must be the matching slice of it. The fixtures:
  *
  * - {@link RelatedProductsShapedFixture} - thousands of generated owners mixing single-owner and shared partitions,
  *   duplicates ordered by their representative attribute, value-less rows, a plain, a localized, a compound and a
  *   localized compound sort value, both scopes;
- * - a hand-built witness catalog: in `owner`, the selected owners 1 and 2 share a materialized partition while the
- *   unselected owner 3 holds the lowest value in a single-owner partition the gather hands over because the selection
- *   covers the whole family; in `tieOwner`, a block of owners far larger than a page, each in a single-owner partition
- *   of its own carrying one shared value, created in reverse owner order.
+ * - a hand-built witness catalog: in `owner`, the selected owners 1 and 2 share a partition while the unselected owner
+ *   3 holds the lowest value in a single-owner partition the gather hands over because the selection covers the whole
+ *   family; in `tieOwner`, a block of owners far larger than a page, each in a single-owner partition of its own
+ *   carrying one shared value, created in reverse owner order.
  *
- * Every case compares whole result lists and two page windows in both directions and must read virtual rows - an
- * equal answer of a run that read nothing virtually would compare the object reading with itself.
+ * Every case compares the whole order and two page windows in both directions and must select a single-owner
+ * partition of the row catalog - an equal answer of a run that read no row would compare the index objects with
+ * themselves.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -103,7 +101,6 @@ class VirtualPickFirstParityTest implements EvitaTestSupport {
 	private static final String ENTITY_TIE_OWNER = "tieOwner";
 	private static final String REFERENCE_ITEMS = "items";
 	private static final String ATTRIBUTE_ORDER = "order";
-	private static final Set<String> WITNESS_ENTITY_TYPES = Set.of(ENTITY_TARGET, ENTITY_OWNER, ENTITY_TIE_OWNER);
 	/**
 	 * The owners of the tie block, each holding one single-owner partition with {@link #TIE_VALUE}.
 	 */
@@ -124,12 +121,35 @@ class VirtualPickFirstParityTest implements EvitaTestSupport {
 	private static final Scope[] ARCHIVED = {Scope.ARCHIVED};
 	private static final Scope[] BOTH = {Scope.LIVE, Scope.ARCHIVED};
 	/**
-	 * The page large enough to hold every entity of every catalog.
+	 * The page large enough to hold every entity of every catalog, clones included.
 	 */
 	private static final int PAGE_SIZE = 100_000;
+	/**
+	 * The page windows every case requests from the row catalog - the whole order, a page with an offset and a short
+	 * first page.
+	 */
+	private static final int[][] WINDOWS = {{1, PAGE_SIZE}, {3, 17}, {1, 5}};
+	/**
+	 * The owners the small selection names.
+	 */
+	private static final Integer[] SMALL_SELECTION = IntStream.iterate(
+		3, it -> it <= RelatedProductsShapedFixture.PRODUCT_COUNT, it -> it + 97
+	).boxed().toArray(Integer[]::new);
 
 	private TestPaths paths;
 	private Evita evita;
+	/**
+	 * The twin of {@link #CATALOG_RELATED}, cloning its products.
+	 */
+	private MaterializedPartitionTwin related;
+	/**
+	 * The twin of {@link #CATALOG_WITNESS}, cloning its owners.
+	 */
+	private MaterializedPartitionTwin witnessOwners;
+	/**
+	 * The twin of {@link #CATALOG_WITNESS}, cloning its tie owners.
+	 */
+	private MaterializedPartitionTwin witnessTieOwners;
 
 	/**
 	 * The route a case forces the engine to take.
@@ -183,12 +203,27 @@ class VirtualPickFirstParityTest implements EvitaTestSupport {
 	void setUp() {
 		this.paths = createTestPaths("VirtualPickFirstParityTest");
 		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
-		build(
-			CATALOG_RELATED, RelatedProductsShapedFixture.ENTITY_TYPES,
-			RelatedProductsShapedFixture::setUp, RelatedProductsShapedFixture::archive
+		MaterializedPartitionTwin.createRowCatalog(
+			this.evita, CATALOG_RELATED, RelatedProductsShapedFixture::setUp, RelatedProductsShapedFixture::archive
 		);
-		build(CATALOG_WITNESS, WITNESS_ENTITY_TYPES, VirtualPickFirstParityTest::setUpWitness, session -> {
-		});
+		this.related = MaterializedPartitionTwin.create(
+			this.evita, CATALOG_RELATED, RelatedProductsShapedFixture::setUp, RelatedProductsShapedFixture::archive,
+			RelatedProductsShapedFixture.ENTITY_PRODUCT, RelatedProductsShapedFixture.REFERENCE_RELATED
+		);
+		MaterializedPartitionTwin.createRowCatalog(
+			this.evita, CATALOG_WITNESS, VirtualPickFirstParityTest::setUpWitness, session -> {
+			}
+		);
+		this.witnessOwners = MaterializedPartitionTwin.create(
+			this.evita, CATALOG_WITNESS, VirtualPickFirstParityTest::setUpWitness, session -> {
+			},
+			ENTITY_OWNER, REFERENCE_ITEMS
+		);
+		this.witnessTieOwners = MaterializedPartitionTwin.create(
+			this.evita, CATALOG_WITNESS, VirtualPickFirstParityTest::setUpWitness, session -> {
+			},
+			ENTITY_TIE_OWNER, REFERENCE_ITEMS
+		);
 	}
 
 	@AfterAll
@@ -239,10 +274,9 @@ class VirtualPickFirstParityTest implements EvitaTestSupport {
 
 	@ParameterizedTest(name = "{0}")
 	@MethodSource("orderingCases")
-	@DisplayName("should order the related products identically with the read switch on")
+	@DisplayName("should order the related products from the rows as from the index objects")
 	void shouldOrderRelatedProductsIdentically(@Nonnull OrderingCase orderingCase) {
 		final List<String> differences = new ArrayList<>(16);
-		long indexRouteRowsRead = 0;
 		for (Route route : Route.values()) {
 			for (Selection selection : Selection.values()) {
 				for (Scope[] scopes : new Scope[][]{LIVE, ARCHIVED, BOTH}) {
@@ -253,23 +287,30 @@ class VirtualPickFirstParityTest implements EvitaTestSupport {
 								.filter(Objects::nonNull)
 								.toArray(OrderConstraint[]::new)
 						);
-						for (int[] window : new int[][]{{1, PAGE_SIZE}, {3, 17}, {1, 5}}) {
-							final Comparison<List<Integer>> comparison = VirtualReadParity.compare(
-								maintenance(CATALOG_RELATED), RelatedProductsShapedFixture.ENTITY_TYPES,
-								() -> queryRelated(route, selection, scopes, orderingCase.localized(), ordering, window)
+						// the whole order of the index objects, obtained without a page offset
+						final List<Integer> expected = this.related.expectedAnswer(
+							RelatedProductsShapedFixture.ENTITY_PRODUCT,
+							queryRelated(
+								this.related.objectCatalog(), route, selection, true, scopes,
+								orderingCase.localized(), ordering, WINDOWS[0]
+							)
+						);
+						if (selection == Selection.ALL) {
+							assertFalse(expected.isEmpty(), "The selection must not be empty.");
+						}
+						for (int[] window : WINDOWS) {
+							final List<Integer> actual = queryRelated(
+								this.related.rowCatalog(), route, selection, false, scopes, orderingCase.localized(),
+								ordering, window
 							);
-							if (!comparison.objectReading().equals(comparison.virtualReading().answer())) {
+							final List<Integer> expectedPage = MaterializedPartitionTwin.pageOf(
+								expected, window[0], window[1]
+							);
+							if (!expectedPage.equals(actual)) {
 								differences.add(
 									route + " " + selection + " " + scopes.length + " scope(s) " + direction +
-										" page " + window[0] + "/" + window[1] + ": " + comparison.objectReading() +
-										" vs " + comparison.virtualReading().answer()
+										" page " + window[0] + "/" + window[1] + ": " + expectedPage + " vs " + actual
 								);
-							}
-							if (route == Route.INDEX) {
-								indexRouteRowsRead += comparison.virtualReading().virtualRowsRead();
-							}
-							if (window[1] == PAGE_SIZE && selection == Selection.ALL) {
-								assertFalse(comparison.objectReading().isEmpty(), "The selection must not be empty.");
 							}
 						}
 					}
@@ -277,31 +318,46 @@ class VirtualPickFirstParityTest implements EvitaTestSupport {
 			}
 		}
 		assertTrue(differences.isEmpty(), () -> differences.size() + " differences: " + differences);
-		assertTrue(indexRouteRowsRead > 0, "The index route must have read virtual rows.");
+		assertTrue(
+			this.related.selectsSingleOwnerRow(
+				BOTH, RelatedProductsShapedFixture.REFERENCE_RELATED, null,
+				orderingCase.localized() ? RelatedProductsShapedFixture.LOCALE_EN : null
+			),
+			"The ordered rows must include a single-owner partition"
+		);
 	}
 
 	@Test
 	@DisplayName("should never sort an unselected owner of a single-owner partition the gather handed over")
 	void shouldNeverSortUnselectedOwnerOfWholeFamilyFallback() {
+		// owner 3 holds target 10 alone - a registry row the gather of the selected family hands over
+		assertTrue(
+			this.witnessOwners.singleOwnerTargets(REFERENCE_ITEMS, Scope.LIVE).contains(10),
+			"The partition of target 10 must be single-owner"
+		);
 		for (OrderConstraint value : new OrderConstraint[]{
 			attributeNatural(ATTRIBUTE_ORDER), entityPrimaryKeyNatural(OrderDirection.ASC)
 		}) {
-			final Comparison<List<Integer>> comparison = VirtualReadParity.compare(
-				maintenance(CATALOG_WITNESS), WITNESS_ENTITY_TYPES,
-				() -> queryWitness(
-					ENTITY_OWNER, entityPrimaryKeyInSet(1, 2), referenceProperty(REFERENCE_ITEMS, value), 1, 2
+			final OrderConstraint ordering = referenceProperty(REFERENCE_ITEMS, value);
+			final List<Integer> expected = this.witnessOwners.expectedAnswer(
+				ENTITY_OWNER,
+				queryWitness(
+					this.witnessOwners.objectCatalog(), ENTITY_OWNER,
+					entityPrimaryKeyInSet(MaterializedPartitionTwin.withClones(1, 2)), ordering, 1, PAGE_SIZE
 				)
 			);
-			assertEquals(comparison.objectReading(), comparison.virtualReading().answer());
-			assertEquals(2, comparison.virtualReading().answer().size());
-			assertFalse(comparison.virtualReading().answer().contains(3), "The unselected owner must not appear.");
-			assertTrue(comparison.virtualReading().virtualRowsRead() > 0, "The virtual row must have been read.");
+			final List<Integer> actual = queryWitness(
+				this.witnessOwners.rowCatalog(), ENTITY_OWNER, entityPrimaryKeyInSet(1, 2), ordering, 1, 2
+			);
+			assertEquals(MaterializedPartitionTwin.pageOf(expected, 1, 2), actual);
+			assertEquals(2, actual.size());
+			assertFalse(actual.contains(3), "The unselected owner must not appear.");
 		}
 		// the order of the witness: owner 2 has the smaller value, both share the referenced primary key
 		assertEquals(
 			List.of(2, 1),
 			queryWitness(
-				ENTITY_OWNER, entityPrimaryKeyInSet(1, 2),
+				this.witnessOwners.rowCatalog(), ENTITY_OWNER, entityPrimaryKeyInSet(1, 2),
 				referenceProperty(REFERENCE_ITEMS, attributeNatural(ATTRIBUTE_ORDER)), 1, 2
 			)
 		);
@@ -311,6 +367,13 @@ class VirtualPickFirstParityTest implements EvitaTestSupport {
 	@DisplayName("should break ties of single-owner partitions by owner primary key on every page")
 	void shouldBreakTiesByOwnerOnEveryPage() {
 		final Integer[] owners = IntStream.rangeClosed(1, TIE_OWNER_COUNT).boxed().toArray(Integer[]::new);
+		// every row of the tie block is a single-owner partition of its own
+		assertTrue(
+			this.witnessTieOwners.singleOwnerTargets(REFERENCE_ITEMS, Scope.LIVE).containsAll(
+				IntStream.rangeClosed(TIE_TARGET_BASE + 1, TIE_TARGET_BASE + TIE_OWNER_COUNT).boxed().toList()
+			),
+			"Every partition of the tie block must be single-owner"
+		);
 		for (OrderDirection direction : OrderDirection.values()) {
 			final List<Integer> expected = new ArrayList<>(IntStream.rangeClosed(1, TIE_OWNER_COUNT).boxed().toList());
 			if (direction == OrderDirection.DESC) {
@@ -319,19 +382,24 @@ class VirtualPickFirstParityTest implements EvitaTestSupport {
 			final OrderConstraint ordering = referenceProperty(
 				REFERENCE_ITEMS, attributeNatural(ATTRIBUTE_ORDER, direction)
 			);
-			for (int pageNumber = 1; pageNumber <= TIE_OWNER_COUNT / TIE_PAGE_SIZE; pageNumber++) {
-				final int thePage = pageNumber;
-				final Comparison<List<Integer>> comparison = VirtualReadParity.compare(
-					maintenance(CATALOG_WITNESS), WITNESS_ENTITY_TYPES,
-					() -> queryWitness(ENTITY_TIE_OWNER, entityPrimaryKeyInSet(owners), ordering, thePage, TIE_PAGE_SIZE)
-				);
-				assertEquals(
-					expected.subList((pageNumber - 1) * TIE_PAGE_SIZE, pageNumber * TIE_PAGE_SIZE),
-					comparison.objectReading()
-				);
-				assertEquals(comparison.objectReading(), comparison.virtualReading().answer());
-				assertTrue(comparison.virtualReading().virtualRowsRead() > 0, "The virtual rows must have been read.");
-			}
+			assertEquals(
+				expected,
+				this.witnessTieOwners.expectedAnswer(
+					ENTITY_TIE_OWNER,
+					queryWitness(
+						this.witnessTieOwners.objectCatalog(), ENTITY_TIE_OWNER,
+						entityPrimaryKeyInSet(MaterializedPartitionTwin.withClones(owners)), ordering, 1, PAGE_SIZE
+					)
+				),
+				"The index objects must break the ties by owner primary key"
+			);
+			MaterializedPartitionTwin.assertPages(
+				"tie block " + direction, expected, TIE_PAGE_SIZE,
+				pageNumber -> queryWitness(
+					this.witnessTieOwners.rowCatalog(), ENTITY_TIE_OWNER, entityPrimaryKeyInSet(owners), ordering,
+					pageNumber, TIE_PAGE_SIZE
+				)
+			);
 		}
 	}
 
@@ -378,13 +446,25 @@ class VirtualPickFirstParityTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Queries the related products of the selection in the scopes, forcing the route, and returns the primary keys of
-	 * the requested page.
+	 * Queries the related products of the selection in the scopes of a catalog, forcing the route, and returns the
+	 * primary keys of the requested page.
+	 *
+	 * @param catalog      the catalog
+	 * @param route        the route the query is forced to take
+	 * @param selection    the owners the query selects
+	 * @param withClones   TRUE to name the clones next to the owners a small selection names
+	 * @param scopes       the scopes
+	 * @param localized    TRUE when the query needs a locale
+	 * @param ordering     the ordering
+	 * @param window       the page number and the page size
+	 * @return the primary keys of the page in the order the query returns them
 	 */
 	@Nonnull
 	private List<Integer> queryRelated(
+		@Nonnull String catalog,
 		@Nonnull Route route,
 		@Nonnull Selection selection,
+		boolean withClones,
 		@Nonnull Scope[] scopes,
 		boolean localized,
 		@Nonnull OrderConstraint ordering,
@@ -393,9 +473,7 @@ class VirtualPickFirstParityTest implements EvitaTestSupport {
 		final FilterConstraint selectionConstraint = switch (selection) {
 			case ALL -> null;
 			case SMALL -> entityPrimaryKeyInSet(
-				IntStream.iterate(3, it -> it <= RelatedProductsShapedFixture.PRODUCT_COUNT, it -> it + 97)
-					.boxed()
-					.toArray(Integer[]::new)
+				withClones ? MaterializedPartitionTwin.withClones(SMALL_SELECTION) : SMALL_SELECTION
 			);
 			case NARROWED -> referenceHaving(
 				RelatedProductsShapedFixture.REFERENCE_RELATED,
@@ -405,7 +483,7 @@ class VirtualPickFirstParityTest implements EvitaTestSupport {
 			);
 		};
 		return this.evita.queryCatalog(
-			CATALOG_RELATED,
+			catalog,
 			(Function<EvitaSessionContract, List<Integer>>) session -> session.query(
 					query(
 						collection(RelatedProductsShapedFixture.ENTITY_PRODUCT),
@@ -430,10 +508,19 @@ class VirtualPickFirstParityTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Queries a collection of the witness catalog on the index route.
+	 * Queries a collection of a witness catalog on the index route.
+	 *
+	 * @param catalog    the catalog
+	 * @param entityType the collection
+	 * @param selection  the owners the query selects
+	 * @param ordering   the ordering
+	 * @param pageNumber the page, counted from one
+	 * @param pageSize   the size of the page
+	 * @return the primary keys of the page in the order the query returns them
 	 */
 	@Nonnull
 	private List<Integer> queryWitness(
+		@Nonnull String catalog,
 		@Nonnull String entityType,
 		@Nonnull FilterConstraint selection,
 		@Nonnull OrderConstraint ordering,
@@ -441,7 +528,7 @@ class VirtualPickFirstParityTest implements EvitaTestSupport {
 		int pageSize
 	) {
 		return this.evita.queryCatalog(
-			CATALOG_WITNESS,
+			catalog,
 			(Function<EvitaSessionContract, List<Integer>>) session -> session.query(
 					query(
 						collection(entityType),
@@ -456,51 +543,6 @@ class VirtualPickFirstParityTest implements EvitaTestSupport {
 				.map(EntityReference::getPrimaryKey)
 				.toList()
 		);
-	}
-
-	/**
-	 * Creates a catalog maintained from its first write, fills it in warm-up, takes it live and then applies the
-	 * changes of the live catalog.
-	 *
-	 * @param catalog     the catalog
-	 * @param entityTypes its collections, all maintained
-	 * @param warmUp      fills the catalog in warm-up
-	 * @param live        changes the live catalog
-	 */
-	private void build(
-		@Nonnull String catalog,
-		@Nonnull Set<String> entityTypes,
-		@Nonnull Consumer<EvitaSessionContract> warmUp,
-		@Nonnull Consumer<EvitaSessionContract> live
-	) {
-		// TODO JNO - remove at the end of #1615
-		this.evita.createCatalogWithVirtualReferencePartitions(catalog, false);
-		this.evita.defineCatalog(catalog).updateViaNewSession(this.evita);
-		for (final String entityType : entityTypes) {
-			maintenance(catalog).setMaintained(entityType, true);
-		}
-		this.evita.updateCatalog(catalog, warmUp);
-		this.evita.updateCatalog(catalog, EvitaSessionContract::goLiveAndClose);
-		this.evita.updateCatalog(catalog, live);
-		for (final String entityType : entityTypes) {
-			final EntityCollection collection = (EntityCollection) this.evita.getCatalogInstance(catalog)
-				.orElseThrow()
-				.getCollectionForEntity(entityType)
-				.orElseThrow();
-			VirtualReferencePartitionOracle.assertConsistent(catalog, collection);
-		}
-	}
-
-	/**
-	 * Returns the switch holder of a catalog.
-	 *
-	 * @param catalog the catalog
-	 * @return the switch holder
-	 */
-	@Nonnull
-	private VirtualReferencePartitionMaintenance maintenance(@Nonnull String catalog) {
-		return ((Catalog) this.evita.getCatalogInstance(catalog).orElseThrow())
-			.getVirtualReferencePartitionMaintenance();
 	}
 
 }
