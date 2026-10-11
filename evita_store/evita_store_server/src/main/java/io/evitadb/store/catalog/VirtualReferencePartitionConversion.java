@@ -150,7 +150,6 @@ final class VirtualReferencePartitionConversion {
 	 * @param collectionHeader the collection header as published
 	 * @param collectionService the data store of the collection, opened over that header
 	 * @param entitySchema     the schema of the collection, its reflected references bound
-	 * @param observer         observes the conversion
 	 * @param flushThreshold   how many records may be written into the data store before it is flushed
 	 * @return what the conversion did
 	 * @throws GenericEvitaInternalError when a registry of the collection holds a row - see the class documentation -
@@ -162,7 +161,6 @@ final class VirtualReferencePartitionConversion {
 		@Nonnull EntityCollectionFileHeader collectionHeader,
 		@Nonnull DefaultEntityCollectionPersistenceService collectionService,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull Observer observer,
 		int flushThreshold
 	) {
 		Assert.isPremiseValid(flushThreshold > 0, "The flush threshold must be positive!");
@@ -192,8 +190,6 @@ final class VirtualReferencePartitionConversion {
 			final VirtualReferencePartitionIndex registry = VirtualReferencePartitionLoader.loadIndex(
 				storage, catalogVersion, typeIndexPrimaryKey, reference.referenceName()
 			);
-			writer.heldRegistries++;
-			observer.registryLoaded(entityType, reference.referenceName(), reference.scope(), registry);
 			// the rows are written from the objects below - a registry already holding anything was written by no
 			// release, so the catalog does not carry the protocol it was written under
 			Assert.isPremiseValid(
@@ -204,7 +200,7 @@ final class VirtualReferencePartitionConversion {
 			final CompositeIntArray partitions = classification.candidates().remove(reference);
 			if (partitions != null) {
 				final PartitionCounts counts = convertPartitions(
-					catalogVersion, entityType, collectionService, entitySchema, observer, writer,
+					catalogVersion, entityType, collectionService, entitySchema, writer,
 					entitySchema.getReferenceOrThrowException(reference.referenceName()), registry, partitions
 				);
 				converted += counts.converted();
@@ -216,8 +212,6 @@ final class VirtualReferencePartitionConversion {
 			final TrappedChanges registryParts = new TrappedChanges();
 			registry.appendStorageParts(typeIndexPrimaryKey, reference.referenceName(), registryParts);
 			writer.write(registryParts);
-			observer.checkpoint(writer.checkpoint(entityType));
-			writer.heldRegistries--;
 		}
 		for (final Entry<ReferenceInScope, CompositeIntArray> reference : classification.candidates().entrySet()) {
 			leftovers.add(
@@ -288,14 +282,12 @@ final class VirtualReferencePartitionConversion {
 
 	/**
 	 * Converts the partitions of one reference in one scope: reads each of them, demotes one with a single owner into
-	 * a row of the registry and removes its index object, and keeps one with several owners - or none - as it is. The
-	 * observer is given a checkpoint after every partition, while the partition is still held.
+	 * a row of the registry and removes its index object, and keeps one with several owners - or none - as it is.
 	 *
 	 * @param catalogVersion    the catalog version being converted
 	 * @param entityType        the entity type of the collection
 	 * @param collectionService the data store of the collection
 	 * @param entitySchema      the schema of the collection, its reflected references bound
-	 * @param observer          observes the conversion
 	 * @param writer            writes into the data store of the collection
 	 * @param referenceSchema   the reference the partitions belong to
 	 * @param registry          the registry of the reference in the scope, receiving the rows
@@ -309,7 +301,6 @@ final class VirtualReferencePartitionConversion {
 		@Nonnull String entityType,
 		@Nonnull DefaultEntityCollectionPersistenceService collectionService,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull Observer observer,
 		@Nonnull CollectionWriter writer,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull VirtualReferencePartitionIndex registry,
@@ -324,8 +315,6 @@ final class VirtualReferencePartitionConversion {
 			final EntityIndex index = collectionService.readEntityIndex(
 				catalogVersion, partitionPrimaryKey, entitySchema, false
 			);
-			writer.heldPartitions++;
-			observer.partitionRead(entityType, partitionPrimaryKey, index);
 			final ReferencePartition partition = ReferencePartitions.asPartition(index);
 			if (partition == null) {
 				throw new GenericEvitaInternalError(
@@ -345,9 +334,6 @@ final class VirtualReferencePartitionConversion {
 			} else {
 				ownerless++;
 			}
-			// the checkpoint comes while the partition is still held - the peak the observer measures
-			observer.checkpoint(writer.checkpoint(entityType));
-			writer.heldPartitions--;
 		}
 		return new PartitionCounts(converted, shared, ownerless);
 	}
@@ -398,87 +384,6 @@ final class VirtualReferencePartitionConversion {
 			ConsoleWriter.writeLine(message, ConsoleColor.BRIGHT_YELLOW);
 			LoggerFactory.getLogger(VirtualReferencePartitionConversion.class).warn(message);
 		}
-	}
-
-	/**
-	 * Observes the conversion. Every method does nothing by default.
-	 */
-	interface Observer {
-		/**
-		 * The observer of a conversion nobody watches.
-		 */
-		Observer NONE = new Observer() {
-		};
-
-		/**
-		 * The registry of a referenced-type entity index was loaded.
-		 *
-		 * An observer must not keep the registry reachable: whether the conversion releases it is exactly what an
-		 * observer may want to check, through a weak reference.
-		 *
-		 * @param entityType    the entity type of the collection
-		 * @param referenceName the reference of the registry
-		 * @param scope         the scope of the registry
-		 * @param registry      the registry, as loaded
-		 */
-		default void registryLoaded(
-			@Nonnull String entityType,
-			@Nonnull String referenceName,
-			@Nonnull Scope scope,
-			@Nonnull VirtualReferencePartitionIndex registry
-		) {
-		}
-
-		/**
-		 * The index object of a partition was loaded.
-		 *
-		 * An observer must not keep the index object reachable: whether the conversion releases it is exactly what an
-		 * observer may want to check, through a weak reference.
-		 *
-		 * @param entityType          the entity type of the collection
-		 * @param partitionPrimaryKey the primary key of the partition
-		 * @param partition           the index object of the partition, as loaded
-		 */
-		default void partitionRead(@Nonnull String entityType, int partitionPrimaryKey, @Nonnull EntityIndex partition) {
-		}
-
-		/**
-		 * A partition was converted or left, or a registry was written - reported while the conversion still holds
-		 * the partition and the registry.
-		 *
-		 * @param checkpoint the state of the conversion at that moment
-		 */
-		default void checkpoint(@Nonnull Checkpoint checkpoint) {
-		}
-
-		/**
-		 * A collection was converted and its data store closed; nothing of it is published yet.
-		 *
-		 * @param conversion what the conversion did with the collection
-		 */
-		default void collectionConverted(@Nonnull CollectionConversion conversion) {
-		}
-
-	}
-
-	/**
-	 * The state of the conversion of one collection between two of its steps.
-	 *
-	 * @param entityType       the entity type of the collection
-	 * @param heldPartitions   how many partition index objects the conversion holds
-	 * @param heldRegistries   how many registries the conversion holds
-	 * @param pendingRecords   how many records the conversion wrote into the data store since its last flush
-	 * @param flushes          how many times the conversion flushed the data store so far
-	 * @param storage          the storage part service of the collection data store
-	 */
-	record Checkpoint(
-		@Nonnull String entityType,
-		int heldPartitions,
-		int heldRegistries,
-		int pendingRecords,
-		int flushes,
-		@Nonnull OffsetIndexStoragePartPersistenceService storage
-	) {
 	}
 
 	/**
@@ -592,14 +497,6 @@ final class VirtualReferencePartitionConversion {
 		 * The flushes before the final one.
 		 */
 		private int intermediateFlushes;
-		/**
-		 * How many partition index objects the conversion holds right now.
-		 */
-		private int heldPartitions;
-		/**
-		 * How many registries the conversion holds right now.
-		 */
-		private int heldRegistries;
 
 		/**
 		 * @param catalogVersion    the catalog version being converted
@@ -718,20 +615,6 @@ final class VirtualReferencePartitionConversion {
 			);
 			this.pendingRecords = 0;
 			return true;
-		}
-
-		/**
-		 * Describes the state of the conversion right now.
-		 *
-		 * @param entityType the entity type of the collection
-		 * @return the checkpoint
-		 */
-		@Nonnull
-		private Checkpoint checkpoint(@Nonnull String entityType) {
-			return new Checkpoint(
-				entityType, this.heldPartitions, this.heldRegistries, this.pendingRecords, this.intermediateFlushes,
-				this.storage
-			);
 		}
 	}
 

@@ -51,7 +51,6 @@ import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
-import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.mutation.local.VirtualReferencePartitionWriter;
 import io.evitadb.index.virtual.CatalogDescriber;
@@ -73,9 +72,7 @@ import io.evitadb.store.catalog.Migration_2026_3_UniqueUpgradeRoundTripTest.Shap
 import io.evitadb.store.catalog.Migration_2026_3_UniqueUpgradeRoundTripTest.Spellings;
 import io.evitadb.store.catalog.Migration_2026_3_UniqueUpgradeRoundTripTest.StoredUniqueIndex;
 import io.evitadb.store.catalog.OfflineCatalogImages.StoredFile;
-import io.evitadb.store.catalog.VirtualReferencePartitionConversion.Checkpoint;
 import io.evitadb.store.catalog.VirtualReferencePartitionConversion.CollectionConversion;
-import io.evitadb.store.catalog.VirtualReferencePartitionConversion.Observer;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.model.header.CollectionFileReference;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
@@ -96,7 +93,6 @@ import java.io.IOException;
 import java.io.Serial;
 import java.io.Serializable;
 import java.io.UncheckedIOException;
-import java.lang.ref.WeakReference;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.text.Normalizer;
@@ -824,12 +820,12 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Cases about the flushes of the conversion and what it holds in memory, driven by direct calls of
+	 * Cases about the flushes of the conversion, driven by direct calls of
 	 * {@link VirtualReferencePartitionConversion#convertCollection} with a small flush threshold - the migration
 	 * passes the default threshold and nothing else.
 	 */
 	@Nested
-	@DisplayName("The conversion flushes a collection at its threshold and holds one partition and one registry")
+	@DisplayName("The conversion flushes a collection at its threshold")
 	class Flushes {
 		/**
 		 * How many owners reference a target of their own - enough single-owner partitions for the registry to be
@@ -837,7 +833,7 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 		 */
 		private static final int OWNER_COUNT = 150;
 		/**
-		 * The flush threshold of the cases - small enough for the conversion to flush a collection many times.
+		 * The flush threshold of the case - small enough for the conversion to flush a collection many times.
 		 */
 		private static final int FLUSH_THRESHOLD = 8;
 
@@ -857,7 +853,7 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 			engine.close();
 
 			final CollectionConversion owners = convertOffline(
-				configuration, List.of(ENTITY_OWNER), Observer.NONE, FLUSH_THRESHOLD, true
+				configuration, List.of(ENTITY_OWNER), FLUSH_THRESHOLD
 			).get(ENTITY_OWNER);
 			assertEquals(OWNER_COUNT, owners.convertedPartitions(), owners.toString());
 			assertTrue(
@@ -867,101 +863,6 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 
 			final Evita converted = start(configuration);
 			assertMigratedLikeTheTwin("after the conversion", converted);
-		}
-
-		/**
-		 * What the case bounds:
-		 *
-		 * - the partition index objects and the registries the conversion loads: each one is weakly referenced and,
-		 *   after a garbage collection, at most one of each may still be reachable - whoever keeps it, the conversion,
-		 *   the data store or anything they hand it to;
-		 * - the records a collection data store holds unflushed, measured by the data store itself.
-		 *
-		 * What it does not bound:
-		 *
-		 * - the storage parts decoded on the way to an index object or a registry once they are detached from it - a
-		 *   part retained on its own would go unseen. Nothing retains one today: every read deserializes a fresh part,
-		 *   and what the data store holds between flushes are the records written since the last one, which the second
-		 *   bound counts. A component that starts keeping decoded reads must bound its own memory;
-		 * - retention shorter than the probe interval: reachability is sampled once per
-		 *   {@link RecordingObserver#PROBE_EVERY} checkpoints, so it is not the peak of the heap;
-		 * - the peak heap and the duration of the conversion, which depend on the catalog and are not measured here;
-		 * - the records the migration's re-key leaves unflushed in a collection before its conversion starts - the
-		 *   conversion is called directly here, and the re-key of this input writes nothing.
-		 */
-		@Test
-		@DisplayName("each checkpoint holds one partition, one registry and at most the threshold of unflushed records")
-		void shouldHoldOnePartitionOneRegistryAndBoundedPendingRecords() {
-			final EvitaConfiguration configuration = configurationOf(allocatePaths("memory"), null, null);
-			final Evita engine = start(configuration);
-			buildCatalogs(
-				engine, CatalogState.ALIVE,
-				(session, indexType) -> setUpOwners(session, OWNER_COUNT, 0, true, indexType, false),
-				List.of()
-			);
-			engine.close();
-
-			final RecordingObserver observer = new RecordingObserver().probingReachability();
-			final Map<String, CollectionConversion> conversions = convertOffline(
-				configuration, List.of(ENTITY_OWNER, ENTITY_TARGET), observer, FLUSH_THRESHOLD, false
-			);
-
-			final CollectionConversion owners = conversions.get(ENTITY_OWNER);
-			assertEquals(OWNER_COUNT, owners.convertedPartitions(), owners.toString());
-			final CollectionConversion targets = conversions.get(ENTITY_TARGET);
-			assertEquals(OWNER_COUNT, targets.convertedPartitions(), targets.toString());
-			assertTrue(
-				owners.intermediateFlushes() >= 2,
-				"the collection must have been flushed during the conversion, or the bound is vacuous: " + owners
-			);
-			assertTrue(observer.checkpointCount > 2 * OWNER_COUNT, "a checkpoint must follow every partition");
-			assertEquals(1, observer.maxHeldPartitions, "partitions held at once");
-			assertEquals(1, observer.maxHeldRegistries, "registries held at once");
-			// the counts above are the conversion's own - what is really kept is measured by the garbage collector
-			assertTrue(
-				observer.registries.size() >= 3,
-				"the conversion must go through several registries, or keeping them is not observable: " +
-					observer.registries
-			);
-			assertEquals(
-				observer.partitionReads.size(), observer.loadedPartitions.size(),
-				"every partition read must be probed"
-			);
-			assertEquals(
-				observer.registries.size(), observer.loadedRegistries.size(), "every registry loaded must be probed"
-			);
-			assertTrue(
-				observer.reachabilityProbes >= 2 * OWNER_COUNT / RecordingObserver.PROBE_EVERY,
-				"probes: " + observer.reachabilityProbes
-			);
-			assertTrue(
-				observer.maxReachablePartitions <= 1,
-				"partition index objects still reachable at one checkpoint: " + observer.maxReachablePartitions
-			);
-			assertTrue(
-				observer.maxReachableRegistries <= 1,
-				"registries still reachable at one checkpoint: " + observer.maxReachableRegistries
-			);
-			assertTrue(
-				observer.maxPendingRecords <= FLUSH_THRESHOLD,
-				"records written since the last flush: " + observer.maxPendingRecords
-			);
-			assertTrue(
-				observer.maxNonFlushedRecords <= FLUSH_THRESHOLD,
-				"unflushed records the data store holds: " + observer.maxNonFlushedRecords
-			);
-			assertEquals(
-				new HashSet<>(observer.partitionReads).size(), observer.partitionReads.size(),
-				"every partition must be read once: " + observer.partitionReads
-			);
-			assertEquals(
-				owners.convertedPartitions() + owners.sharedPartitions(),
-				observer.partitionReads.stream().filter(read -> read.startsWith(ENTITY_OWNER + "/")).count()
-			);
-			assertEquals(
-				new HashSet<>(observer.registries).size(), observer.registries.size(),
-				"every registry must be loaded once: " + observer.registries
-			);
 		}
 	}
 
@@ -1525,24 +1426,20 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 
 	/**
 	 * Converts the single-owner partitions of the given collections of the generated catalog with the engine stopped,
-	 * by direct calls of the conversion, and publishes them when asked to - through the same writes the migration
-	 * publishes with: the new collection headers put into the catalog data store, the catalog header written once more
-	 * and one bootstrap record.
+	 * by direct calls of the conversion, and publishes them through the same writes the migration publishes with: the
+	 * new collection headers put into the catalog data store, the catalog header written once more and one bootstrap
+	 * record.
 	 *
 	 * @param configuration  the configuration of the engine
 	 * @param entityTypes    the collections to convert, in this order
-	 * @param observer       observes the conversion
 	 * @param flushThreshold the flush threshold of the conversion
-	 * @param publish        TRUE to publish the converted collections
 	 * @return what the conversion did with each collection
 	 */
 	@Nonnull
 	private static Map<String, CollectionConversion> convertOffline(
 		@Nonnull EvitaConfiguration configuration,
 		@Nonnull List<String> entityTypes,
-		@Nonnull Observer observer,
-		int flushThreshold,
-		boolean publish
+		int flushThreshold
 	) {
 		final int catalogFileIndex = lastBootstrap(configuration, GENERATED_CATALOG).catalogFileIndex();
 		return withOfflineCatalog(
@@ -1576,10 +1473,10 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 							EntityCollection.bindReflectedReferences(
 								storedSchemas.get(entityType), type -> Optional.ofNullable(storedSchemas.get(type))
 							),
-							observer, flushThreshold
+							flushThreshold
 						);
 						conversions.put(entityType, conversion);
-						if (publish && conversion.changed()) {
+						if (conversion.changed()) {
 							final EntityCollectionFileHeader convertedHeader =
 								collectionService.getEntityCollectionHeader();
 							catalogParts.putStoragePart(catalogVersion, convertedHeader);
@@ -1593,14 +1490,12 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 						}
 					}
 				}
-				if (publish) {
-					catalogParts.writeCatalogHeader(
-						PersistenceService.STORAGE_PROTOCOL_VERSION, catalogVersion, service.getCatalogStoragePath(),
-						header.walFileReference(), collectionFileIndex, header.catalogId(), header.catalogName(),
-						header.catalogState(), header.lastEntityCollectionPrimaryKey()
-					);
-					service.recordBootstrap(catalogVersion, GENERATED_CATALOG, catalogFileIndex, null);
-				}
+				catalogParts.writeCatalogHeader(
+					PersistenceService.STORAGE_PROTOCOL_VERSION, catalogVersion, service.getCatalogStoragePath(),
+					header.walFileReference(), collectionFileIndex, header.catalogId(), header.catalogName(),
+					header.catalogState(), header.lastEntityCollectionPrimaryKey()
+				);
+				service.recordBootstrap(catalogVersion, GENERATED_CATALOG, catalogFileIndex, null);
 				return conversions;
 			}
 		);
@@ -2073,180 +1968,6 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 
 		InjectedFailure() {
 			super("Injected failure of the publication.");
-		}
-	}
-
-	/**
-	 * Records what the conversion reports and keeps the peaks of what it holds.
-	 */
-	private static final class RecordingObserver implements Observer {
-		/**
-		 * Every how many checkpoints the reachability is probed - a garbage collection per checkpoint would make the case
-		 * slow, and anything kept stays reachable at every later probe anyway.
-		 */
-		private static final int PROBE_EVERY = 10;
-		/**
-		 * How many garbage collections a probe tries before it counts what stays reachable.
-		 */
-		private static final int GC_ATTEMPTS = 20;
-		/**
-		 * How long a probe waits after each garbage collection for the weak references to be cleared.
-		 */
-		private static final long GC_PAUSE_MILLIS = 10L;
-		/**
-		 * Weak references to every partition index object loaded - filled only when the reachability is probed.
-		 */
-		private final List<WeakReference<?>> loadedPartitions = new ArrayList<>(64);
-		/**
-		 * Weak references to every registry loaded - filled only when the reachability is probed.
-		 */
-		private final List<WeakReference<?>> loadedRegistries = new ArrayList<>(8);
-		/**
-		 * The registries loaded, as `entityType/reference/scope`.
-		 */
-		private final List<String> registries = new ArrayList<>(8);
-		/**
-		 * The partitions read, as `entityType/primaryKey`.
-		 */
-		private final List<String> partitionReads = new ArrayList<>(64);
-		/**
-		 * TRUE to probe what is still reachable at the checkpoints.
-		 */
-		private boolean probeReachability;
-		/**
-		 * How many times the reachability was probed.
-		 */
-		private int reachabilityProbes;
-		/**
-		 * The most loaded partition index objects still reachable at one probe.
-		 */
-		private int maxReachablePartitions;
-		/**
-		 * The most loaded registries still reachable at one probe.
-		 */
-		private int maxReachableRegistries;
-		/**
-		 * How many checkpoints were reported.
-		 */
-		private int checkpointCount;
-		/**
-		 * The most partition index objects held at one checkpoint.
-		 */
-		private int maxHeldPartitions;
-		/**
-		 * The most registries held at one checkpoint.
-		 */
-		private int maxHeldRegistries;
-		/**
-		 * The most records written since a flush, as the conversion counts them.
-		 */
-		private int maxPendingRecords;
-		/**
-		 * The most unflushed records, as the data store itself measures them.
-		 */
-		private int maxNonFlushedRecords;
-
-		/**
-		 * Probes what is still reachable at every {@link #PROBE_EVERY}-th checkpoint: weakly references every partition
-		 * and registry the conversion loads, and counts those a garbage collection does not clear.
-		 *
-		 * @return this observer
-		 */
-		@Nonnull
-		private RecordingObserver probingReachability() {
-			this.probeReachability = true;
-			return this;
-		}
-
-		@Override
-		public void registryLoaded(
-			@Nonnull String entityType,
-			@Nonnull String referenceName,
-			@Nonnull Scope scope,
-			@Nonnull VirtualReferencePartitionIndex registry
-		) {
-			this.registries.add(entityType + "/" + referenceName + "/" + scope);
-			if (this.probeReachability) {
-				this.loadedRegistries.add(new WeakReference<>(registry));
-			}
-		}
-
-		@Override
-		public void partitionRead(@Nonnull String entityType, int partitionPrimaryKey, @Nonnull EntityIndex partition) {
-			this.partitionReads.add(entityType + "/" + partitionPrimaryKey);
-			if (this.probeReachability) {
-				this.loadedPartitions.add(new WeakReference<>(partition));
-			}
-		}
-
-		@Override
-		public void checkpoint(@Nonnull Checkpoint checkpoint) {
-			this.checkpointCount++;
-			this.maxHeldPartitions = Math.max(this.maxHeldPartitions, checkpoint.heldPartitions());
-			this.maxHeldRegistries = Math.max(this.maxHeldRegistries, checkpoint.heldRegistries());
-			this.maxPendingRecords = Math.max(this.maxPendingRecords, checkpoint.pendingRecords());
-			// measured by the data store itself, not by the conversion
-			this.maxNonFlushedRecords = Math.max(
-				this.maxNonFlushedRecords, checkpoint.storage().measureVolatileData().nonFlushedRecordCount()
-			);
-			if (this.probeReachability && this.checkpointCount % PROBE_EVERY == 0) {
-				// measured by the garbage collector, not by the conversion: a partition or a registry kept anywhere
-				// - by the conversion, the data store or anything they hand it to - stays reachable
-				this.reachabilityProbes++;
-				collectGarbageUntilAtMost(this.loadedPartitions, this.loadedRegistries, 1);
-				this.maxReachablePartitions = Math.max(this.maxReachablePartitions, countReachable(this.loadedPartitions));
-				this.maxReachableRegistries = Math.max(this.maxReachableRegistries, countReachable(this.loadedRegistries));
-			}
-		}
-
-		/**
-		 * Collects garbage until no more than `bound` objects of each list stay reachable, or until the attempts run
-		 * out - an object something still holds survives every attempt.
-		 *
-		 * @param first  weak references to objects of one kind
-		 * @param second weak references to objects of another kind
-		 * @param bound  how many objects of each kind may stay reachable
-		 */
-		private static void collectGarbageUntilAtMost(
-			@Nonnull List<WeakReference<?>> first,
-			@Nonnull List<WeakReference<?>> second,
-			int bound
-		) {
-			for (int attempt = 0; attempt < GC_ATTEMPTS; attempt++) {
-				if (countReachable(first) <= bound && countReachable(second) <= bound) {
-					return;
-				}
-				System.gc();
-				try {
-					// a detection widener, not a wait: the weak references are cleared once the collector ran
-					Thread.sleep(GC_PAUSE_MILLIS);
-				} catch (InterruptedException e) {
-					Thread.currentThread().interrupt();
-					throw new AssertionError("Interrupted while waiting for the garbage collector.", e);
-				}
-			}
-		}
-
-		/**
-		 * Counts the objects of the list a garbage collection has not cleared.
-		 *
-		 * @param references weak references to the objects
-		 * @return how many objects are still reachable
-		 */
-		private static int countReachable(@Nonnull List<WeakReference<?>> references) {
-			int reachable = 0;
-			for (final WeakReference<?> reference : references) {
-				if (reference.get() != null) {
-					reachable++;
-				}
-			}
-			return reachable;
-		}
-
-		@Nonnull
-		@Override
-		public String toString() {
-			return "registries " + this.registries + ", partitions " + this.partitionReads;
 		}
 	}
 

@@ -75,7 +75,6 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexSt
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;
 import io.evitadb.store.catalog.Migration_2025_6.NoChangeHeaderInfoSupplier;
 import io.evitadb.store.catalog.VirtualReferencePartitionConversion.CollectionConversion;
-import io.evitadb.store.catalog.VirtualReferencePartitionConversion.Observer;
 import io.evitadb.store.model.header.CollectionFileReference;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
 import io.evitadb.store.model.reference.LogFileRecordReference;
@@ -469,7 +468,7 @@ public interface Migration_2026_3 {
 			final CollectionConversion conversion = VirtualReferencePartitionConversion.convertCollection(
 				catalogVersion, entityCollectionHeader, collectionPersistenceService,
 				EntityCollection.bindReflectedReferences(entitySchema, schemaLookup),
-				Observer.NONE, VirtualReferencePartitionConversion.DEFAULT_FLUSH_THRESHOLD
+				VirtualReferencePartitionConversion.DEFAULT_FLUSH_THRESHOLD
 			);
 
 			// the reference published for the collection: the conversion's final flush when it wrote anything,
