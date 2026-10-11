@@ -1023,7 +1023,7 @@ public interface ReferenceIndexMutator {
 					// the registry of single-owner partitions follows the owner count before the owner's data is
 					// replicated into the partition, so a partition that has just become a single-owner one has its
 					// row while that data is written
-					ownerAddedToPartition(executor, referenceSchema, referenceTypeIndex, referenceIndex);
+					ownerAddedToPartition(referenceSchema, referenceTypeIndex, referenceIndex);
 					indexAllExistingData(
 						executor, referenceIndex,
 						entitySchema, referenceSchema,
@@ -1107,13 +1107,11 @@ public interface ReferenceIndexMutator {
 	 * its row dropped. Any other owner count leaves the registry alone. Only partitions of a reference whose partitions
 	 * may be virtual are concerned - see {@link VirtualReferencePartitionWriter}.
 	 *
-	 * @param executor           the mutation executor
 	 * @param referenceSchema    the schema of the partition's reference
 	 * @param referenceTypeIndex the `REFERENCED_ENTITY_TYPE` index of the reference, carrying the registry
 	 * @param partition          the partition that has just gained an owner
 	 */
 	private static void ownerAddedToPartition(
-		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
 		@Nonnull ReferencePartition partition
@@ -1469,7 +1467,7 @@ public interface ReferenceIndexMutator {
 			}
 			case VirtualReferencePartition virtual -> {
 				ownerLeftVirtualPartition(
-					executor, referenceSchema, referenceTypeIndex,
+					executor, referenceTypeIndex,
 					requireWrittenVirtually(executor, referenceSchema, virtual, "referenceRemovalPerComponent"),
 					entityPrimaryKey
 				);
@@ -1563,7 +1561,6 @@ public interface ReferenceIndexMutator {
 	 * object in place until the root mutation sweeps it.
 	 *
 	 * @param executor           the mutation executor writing as the owner
-	 * @param referenceSchema    the schema of the reference
 	 * @param referenceTypeIndex the `REFERENCED_ENTITY_TYPE` index of the reference, carrying the registry
 	 * @param partition          the virtual partition the owner leaves
 	 * @param entityPrimaryKey   the primary key of the owner
@@ -1571,7 +1568,6 @@ public interface ReferenceIndexMutator {
 	 */
 	private static void ownerLeftVirtualPartition(
 		@Nonnull EntityIndexLocalMutationExecutor executor,
-		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull ReferencedTypeEntityIndex referenceTypeIndex,
 		@Nonnull VirtualReferencePartition partition,
 		int entityPrimaryKey

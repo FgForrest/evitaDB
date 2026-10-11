@@ -36,6 +36,8 @@ import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.StatisticsType;
+import io.evitadb.api.requestResponse.EvitaResponse;
+import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -46,6 +48,10 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.extraResult.FacetSummary;
+import io.evitadb.api.requestResponse.extraResult.Hierarchy;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
+import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -55,6 +61,7 @@ import io.evitadb.api.requestResponse.schema.mutation.reference.SetReferenceSche
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
+import io.evitadb.core.query.indexSelection.TargetIndexes.EligibilityObstacle;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
@@ -63,6 +70,7 @@ import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.test.EvitaTestSupport.TestPaths;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.ExceptionUtils;
+import io.evitadb.utils.Functions;
 import io.evitadb.utils.NumberUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
@@ -74,6 +82,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -82,6 +91,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.function.Consumer;
@@ -109,6 +119,7 @@ import static io.evitadb.api.query.QueryConstraints.pickFirstByEntityProperty;
 import static io.evitadb.api.query.QueryConstraints.priceInCurrency;
 import static io.evitadb.api.query.QueryConstraints.priceInPriceLists;
 import static io.evitadb.api.query.QueryConstraints.priceNatural;
+import static io.evitadb.api.query.QueryConstraints.queryTelemetry;
 import static io.evitadb.api.query.QueryConstraints.referenceContentAll;
 import static io.evitadb.api.query.QueryConstraints.referenceContentWithAttributes;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
@@ -121,6 +132,7 @@ import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.CATALOG;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.SCHEMA;
+import static io.evitadb.utils.CollectionUtils.createHashSet;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -187,6 +199,22 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 	 * The expression {@link #REFERENCE_LABELS} is faceted by - a referenced category titled `SHOWN`.
 	 */
 	private static final String SHOWN_WHEN = "($reference.referencedEntity.attributes['title'] ?? '') == 'SHOWN'";
+	/**
+	 * A reference to a category allowing duplicates told apart by {@link #ATTRIBUTE_SLOT}, indexed for filtering in
+	 * both scopes - added by the test that needs one, so the fixture of the other tests stays as it is.
+	 */
+	private static final String REFERENCE_PLACEMENTS = "placements";
+	/**
+	 * The representative attribute of {@link #REFERENCE_PLACEMENTS}.
+	 */
+	private static final String ATTRIBUTE_SLOT = "slot";
+	/**
+	 * A filterable entity attribute of the product that is not localized, each product ranked by its primary key -
+	 * added by the tests that filter it, so the fixture of the other tests stays as it is. A hierarchy query filters it
+	 * rather than a localized attribute: the locale of the query also restricts the parent filter of its hierarchy
+	 * constraint, and the categories of the fixture hold no localized data, so a query with a locale selects no node.
+	 */
+	private static final String ATTRIBUTE_RANK = "rank";
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_NAME = "name";
 	private static final String ATTRIBUTE_TITLE = "title";
@@ -223,6 +251,10 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 	 * The prefix of an answer of a read that failed otherwise.
 	 */
 	private static final String READ_FAILED = "failed with ";
+	/**
+	 * The answer of a read that found nothing.
+	 */
+	private static final String EMPTY_ANSWER = "[]";
 
 	@Nullable private Evita evita;
 	@Nullable private TestPaths paths;
@@ -665,6 +697,8 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 	@DisplayName("every read of rows of a reference now indexed for partitioning answers as before or fails loudly")
 	void shouldNeverReadARowOfTheFormerIndexingSilentlyWrong(CatalogState state, Scope changedScope) {
 		final Evita theEvita = start("staleRowReads", state, false);
+		final int owner = ownerIn(changedScope);
+		final int other = otherIn(changedScope);
 		update(
 			theEvita,
 			session -> {
@@ -675,10 +709,13 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 						.setAttribute(ATTRIBUTE_TITLE, "Category " + pk)
 						.upsertVia(session);
 				}
+				rankProducts(session);
+				// the reads of the categories, their trees and the reference content read the categories of both
+				// products in the scope
+				placeCategoryIn(session, owner, changedScope);
+				placeCategoryIn(session, other, changedScope);
 			}
 		);
-		final int owner = ownerIn(changedScope);
-		final int other = otherIn(changedScope);
 		final int ownerPartition = assertRow(theEvita, ENTITY_PRODUCT, changedScope, category(owner), owner);
 		final int otherPartition = assertRow(theEvita, ENTITY_PRODUCT, changedScope, category(other), other);
 		final SortedMap<String, String> before = readsOfPartitionContent(theEvita, changedScope, owner, other);
@@ -687,6 +724,12 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 			.map(it -> it.getKey() + " = " + it.getValue())
 			.toList();
 		assertTrue(failedBefore.isEmpty(), "every read must answer before the change: " + failedBefore);
+		// a read answering nothing before the change compares nothing with nothing after it
+		final List<String> emptyBefore = before.entrySet().stream()
+			.filter(it -> EMPTY_ANSWER.equals(it.getValue()))
+			.map(Map.Entry::getKey)
+			.toList();
+		assertTrue(emptyBefore.isEmpty(), "every read must find something before the change: " + emptyBefore);
 		assertTrue(
 			before.get("product/entityAttribute/filter").contains(String.valueOf(owner)),
 			"the reads must find the owner before the change: " + before
@@ -722,6 +765,74 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 			),
 			"a read needing the entity attributes of a row must have been refused: " + after
 		);
+	}
+
+	@ParameterizedTest(name = "{0}, {1}")
+	@MethodSource("statesAndScopes")
+	@DisplayName("a hierarchy query over a row of the former indexing answers as before")
+	void shouldAnswerAHierarchyQueryOverARowOfTheFormerIndexingAsBefore(CatalogState state, Scope changedScope) {
+		final int owner = ownerIn(changedScope);
+		final Evita theEvita = start(
+			"hierarchyOverRow", state, false,
+			session -> {
+				rankProducts(session);
+				placeCategoryIn(session, owner, changedScope);
+			}
+		);
+		final int partition = assertRow(theEvita, ENTITY_PRODUCT, changedScope, category(owner), owner);
+		assertHierarchyQueryAnswersAsTheBodies(
+			theEvita, changedScope, REFERENCE_CATEGORIES, owner, "before the change"
+		);
+
+		changeIndexType(theEvita, ENTITY_PRODUCT, REFERENCE_CATEGORIES, changedScope, true);
+		assertEquals(partition, assertRow(theEvita, ENTITY_PRODUCT, changedScope, category(owner), owner));
+		assertHierarchyQueryAnswersAsTheBodies(theEvita, changedScope, REFERENCE_CATEGORIES, owner, "after the change");
+	}
+
+	@ParameterizedTest(name = "{0}, {1}")
+	@MethodSource("statesAndScopes")
+	@DisplayName("a hierarchy query over a duplicate-allowing row of the former indexing answers as before")
+	void shouldAnswerAHierarchyQueryOverARowOfTheFormerIndexingAllowingDuplicatesAsBefore(
+		CatalogState state,
+		Scope changedScope
+	) {
+		final int owner = ownerIn(changedScope);
+		final Evita theEvita = start(
+			"hierarchyOverDuplicateRow", state, false,
+			session -> {
+				session.defineEntitySchema(ENTITY_PRODUCT)
+					.withReferenceToEntity(
+						REFERENCE_PLACEMENTS, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+						whichIs -> whichIs
+							.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
+							.withAttribute(
+								ATTRIBUTE_SLOT, String.class,
+								thatIs -> thatIs.filterableInScope(Scope.LIVE, Scope.ARCHIVED).representative()
+							)
+					)
+					.updateVia(session);
+				updateProduct(
+					owner,
+					it -> it.setOrUpdateReference(
+						REFERENCE_PLACEMENTS, owner, Functions.alwaysFalse(),
+						ref -> ref.setAttribute(ATTRIBUTE_SLOT, "A")
+					)
+				).accept(session);
+				rankProducts(session);
+				placeCategoryIn(session, owner, changedScope);
+			}
+		);
+		final RepresentativeReferenceKey placement = new RepresentativeReferenceKey(
+			new ReferenceKey(REFERENCE_PLACEMENTS, owner), new Serializable[]{"A"}
+		);
+		final int partition = assertRow(theEvita, ENTITY_PRODUCT, changedScope, placement, owner);
+		assertHierarchyQueryAnswersAsTheBodies(
+			theEvita, changedScope, REFERENCE_PLACEMENTS, owner, "before the change"
+		);
+
+		changeIndexType(theEvita, ENTITY_PRODUCT, REFERENCE_PLACEMENTS, changedScope, true);
+		assertEquals(partition, assertRow(theEvita, ENTITY_PRODUCT, changedScope, placement, owner));
+		assertHierarchyQueryAnswersAsTheBodies(theEvita, changedScope, REFERENCE_PLACEMENTS, owner, "after the change");
 	}
 
 	/**
@@ -875,7 +986,10 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 	 * of a target, the facet summary of a target, a reference attribute, the `pickFirst` and the block-by-block
 	 * orderings, the filtered reference content, and the same through the reflected reference of the category - and
 	 * describes the answer of each, or the failure it raised, together with the query lines of the whole catalog (see
-	 * {@link CatalogDescriber#describeQueriesOf}).
+	 * {@link CatalogDescriber#describeQueriesOf}). A read that finds nothing answers {@link #EMPTY_ANSWER}.
+	 *
+	 * The categories of both products must be in the scope, so that the trees, the reference content and the reads of
+	 * the categories find them.
 	 *
 	 * @param theEvita the engine
 	 * @param scope    the scope to read
@@ -929,12 +1043,14 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 			filterBy(scope(scope), hierarchyWithin(REFERENCE_CATEGORIES, entityPrimaryKeyInSet(owner))),
 			null
 		);
+		// a non-localized attribute - the locale of a query also restricts the parent filter of its hierarchy
+		// constraint, and the categories hold no localized data, so a query with a locale selects no node
 		readOwners(
 			answers, theEvita, "product/hierarchyWithin/entityAttribute", ENTITY_PRODUCT,
 			filterBy(
-				scope(scope), entityLocaleEquals(Locale.ENGLISH),
+				scope(scope),
 				hierarchyWithin(REFERENCE_CATEGORIES, entityPrimaryKeyInSet(owner)),
-				attributeEquals(ATTRIBUTE_NAME, "Product " + owner)
+				attributeEquals(ATTRIBUTE_RANK, owner)
 			),
 			null
 		);
@@ -945,21 +1061,26 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 		);
 		read(
 			answers, theEvita, "product/hierarchyStatistics",
-			session -> session.query(
-				query(
-					collection(ENTITY_PRODUCT),
-					filterBy(scope(scope)),
-					require(
-						hierarchyOfReference(
-							REFERENCE_CATEGORIES,
-							fromRoot(
-								"tree", statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(ENTITY_PRODUCT),
+						filterBy(scope(scope)),
+						require(
+							hierarchyOfReference(
+								REFERENCE_CATEGORIES,
+								fromRoot(
+									"tree",
+									statistics(StatisticsType.CHILDREN_COUNT, StatisticsType.QUERIED_ENTITY_COUNT)
+								)
 							)
 						)
-					)
-				),
-				EntityReference.class
-			).getExtraResults().toString()
+					),
+					EntityReference.class
+				);
+				return response.getExtraResult(Hierarchy.class).getReferenceHierarchy(REFERENCE_CATEGORIES, "tree")
+					.isEmpty() ? EMPTY_ANSWER : response.getExtraResults().toString();
+			}
 		);
 		readOwners(
 			answers, theEvita, "product/price/filter", ENTITY_PRODUCT,
@@ -973,14 +1094,18 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 		);
 		read(
 			answers, theEvita, "product/facetSummary",
-			session -> session.query(
-				query(
-					collection(ENTITY_PRODUCT),
-					filterBy(scope(scope), referenceHaving(REFERENCE_CATEGORIES, entityPrimaryKeyInSet(owner))),
-					require(facetSummary(FacetStatisticsDepth.COUNTS))
-				),
-				EntityReference.class
-			).getExtraResults().toString()
+			session -> {
+				final EvitaResponse<EntityReference> response = session.query(
+					query(
+						collection(ENTITY_PRODUCT),
+						filterBy(scope(scope), referenceHaving(REFERENCE_CATEGORIES, entityPrimaryKeyInSet(owner))),
+						require(facetSummary(FacetStatisticsDepth.COUNTS))
+					),
+					EntityReference.class
+				);
+				return response.getExtraResult(FacetSummary.class).getReferenceStatistics().isEmpty() ?
+					EMPTY_ANSWER : response.getExtraResults().toString();
+			}
 		);
 		readOwners(
 			answers, theEvita, "product/referenceAttribute", ENTITY_PRODUCT,
@@ -1009,32 +1134,36 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 		);
 		read(
 			answers, theEvita, "product/referenceContent",
-			session -> session.query(
-				query(
-					collection(ENTITY_PRODUCT),
-					filterBy(scope(scope)),
-					require(
-						entityFetch(
-							referenceContentWithAttributes(
-								REFERENCE_CATEGORIES, filterBy(entityPrimaryKeyInSet(owner, other))
+			session -> {
+				final List<SealedEntity> products = session.query(
+					query(
+						collection(ENTITY_PRODUCT),
+						filterBy(scope(scope)),
+						require(
+							entityFetch(
+								referenceContentWithAttributes(
+									REFERENCE_CATEGORIES, filterBy(entityPrimaryKeyInSet(owner, other))
+								)
 							)
 						)
-					)
-				),
-				SealedEntity.class
-			).getRecordData().toString()
+					),
+					SealedEntity.class
+				).getRecordData();
+				return products.stream().allMatch(it -> it.getReferences(REFERENCE_CATEGORIES).isEmpty()) ?
+					EMPTY_ANSWER : products.toString();
+			}
 		);
 		final FilterConstraint ofBothProducts = referenceHaving(
 			REFERENCE_PRODUCTS, entityPrimaryKeyInSet(owner, other)
 		);
 		readOwners(
 			answers, theEvita, "category/entityAttribute/filter", ENTITY_CATEGORY,
-			filterBy(ofBothProducts, attributeEquals(ATTRIBUTE_TITLE, "Category " + owner)),
+			filterBy(scope(scope), ofBothProducts, attributeEquals(ATTRIBUTE_TITLE, "Category " + owner)),
 			null
 		);
 		readOwners(
 			answers, theEvita, "category/entityAttribute/order", ENTITY_CATEGORY,
-			filterBy(ofBothProducts), orderBy(attributeNatural(ATTRIBUTE_TITLE, OrderDirection.DESC))
+			filterBy(scope(scope), ofBothProducts), orderBy(attributeNatural(ATTRIBUTE_TITLE, OrderDirection.DESC))
 		);
 		read(answers, "catalog/queryLines", () -> CatalogDescriber.describeQueriesOf(theEvita, CATALOG).toString());
 		return answers;
@@ -1067,6 +1196,206 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 				EntityReference.class
 			).getRecordData().stream().map(EntityReference::getPrimaryKey).toList().toString()
 		);
+	}
+
+	/**
+	 * Asserts that a query of the products of the scope within the subtree of a category through the reference,
+	 * combined with the rank of the owner, answers what the entity bodies answer - and what the same query answers with
+	 * the hierarchy constraint swapped for the primary keys of the products whose bodies reference the subtree.
+	 *
+	 * The swapped query has no hierarchy constraint, so no plan within the partitions of the nodes is offered for it
+	 * and the global index answers it alone; a hierarchy query answering differently from it answers from a plan within
+	 * the partitions of the nodes. That plan is offered only within the cardinality limit, so the telemetry of the
+	 * hierarchy query must show the option of the nodes registered and within the limit - otherwise the limit alone
+	 * would keep it out of a separate plan and the query would prove nothing about the rows.
+	 *
+	 * @param theEvita      the engine
+	 * @param scope         the scope to query
+	 * @param referenceName the reference to the categories the hierarchy constraint names
+	 * @param owner         the product whose category is the node of the hierarchy constraint and whose rank is
+	 *                      filtered
+	 * @param when          names the moment in failure messages
+	 */
+	private static void assertHierarchyQueryAnswersAsTheBodies(
+		@Nonnull Evita theEvita,
+		@Nonnull Scope scope,
+		@Nonnull String referenceName,
+		int owner,
+		@Nonnull String when
+	) {
+		final List<Integer> referencing = productsReferencingSubtreeByBodies(theEvita, scope, referenceName, owner);
+		final List<Integer> expected = theEvita.queryCatalog(
+			CATALOG,
+			(Function<EvitaSessionContract, List<Integer>>) session -> referencing.stream()
+				.filter(
+					pk -> Integer.valueOf(owner).equals(
+						session.getEntity(ENTITY_PRODUCT, pk, new Scope[]{scope}, entityFetchAllContent())
+							.orElseThrow()
+							.getAttribute(ATTRIBUTE_RANK)
+					)
+				)
+				.toList()
+		);
+		assertEquals(List.of(owner), expected, when + ": the bodies must select the owner alone");
+		assertEquals(
+			expected,
+			theEvita.queryCatalog(
+				CATALOG,
+				(Function<EvitaSessionContract, List<Integer>>) session -> session.queryList(
+					query(
+						collection(ENTITY_PRODUCT),
+						filterBy(
+							scope(scope),
+							entityPrimaryKeyInSet(referencing.stream().mapToInt(Integer::intValue).toArray()),
+							attributeEquals(ATTRIBUTE_RANK, owner)
+						)
+					),
+					EntityReference.class
+				).stream().map(EntityReference::getPrimaryKey).toList()
+			),
+			when + ": the query over the primary keys the hierarchy constraint selects"
+		);
+
+		final EvitaResponse<EntityReference> response = theEvita.queryCatalog(
+			CATALOG,
+			(Function<EvitaSessionContract, EvitaResponse<EntityReference>>) session -> session.query(
+				query(
+					collection(ENTITY_PRODUCT),
+					filterBy(
+						scope(scope),
+						hierarchyWithin(referenceName, entityPrimaryKeyInSet(owner)),
+						attributeEquals(ATTRIBUTE_RANK, owner)
+					),
+					require(queryTelemetry())
+				),
+				EntityReference.class
+			)
+		);
+		final QueryTelemetry telemetry = response.getExtraResult(QueryTelemetry.class);
+		assertNotNull(telemetry, when + ": the telemetry of the hierarchy query must be present");
+		final List<String> options = new ArrayList<>(1);
+		collectReducedIndexOptions(telemetry, options);
+		assertEquals(1, options.size(), when + ": the option of the nodes must be registered once: " + options);
+		assertFalse(
+			options.getFirst().contains(EligibilityObstacle.HIGH_CARDINALITY.name()) ||
+				options.getFirst().contains(EligibilityObstacle.PARTIAL_SCOPE_COVERAGE.name()),
+			when + ": the option of the nodes must be within the cardinality limit and cover the scope: " + options
+		);
+		assertEquals(
+			expected,
+			response.getRecordData().stream().map(EntityReference::getPrimaryKey).toList(),
+			when + ": the hierarchy query, planned as " + options
+		);
+	}
+
+	/**
+	 * Walks a telemetry tree collecting the description of every planned alternative within the partitions of reduced
+	 * indexes - the `REFERENCED_ENTITY` options index selection registers for a hierarchy or reference constraint. The
+	 * step summarizing the selection repeats the description of the winner, so only the alternatives are read.
+	 *
+	 * @param node the node to walk
+	 * @param sink the collected descriptions
+	 */
+	private static void collectReducedIndexOptions(@Nonnull QueryTelemetry node, @Nonnull List<String> sink) {
+		if (node.getOperation() == QueryPhase.PLANNING_FILTER_ALTERNATIVE) {
+			for (final String argument : node.getArguments()) {
+				if (argument.contains(EntityIndexType.REFERENCED_ENTITY.name() + " composed of")) {
+					sink.add(argument);
+				}
+			}
+		}
+		for (final QueryTelemetry step : node.getSteps()) {
+			collectReducedIndexOptions(step, sink);
+		}
+	}
+
+	/**
+	 * Returns the products of the scope whose bodies reference, through the reference, the category or a category of
+	 * its subtree, ascending. The subtree is derived from the parents the category bodies of the scope name.
+	 *
+	 * @param theEvita      the engine
+	 * @param scope         the scope
+	 * @param referenceName the reference to the categories
+	 * @param category      the root of the subtree
+	 * @return the primary keys of the products
+	 */
+	@Nonnull
+	private static List<Integer> productsReferencingSubtreeByBodies(
+		@Nonnull Evita theEvita,
+		@Nonnull Scope scope,
+		@Nonnull String referenceName,
+		int category
+	) {
+		return theEvita.queryCatalog(
+			CATALOG,
+			(Function<EvitaSessionContract, List<Integer>>) session -> {
+				final Map<Integer, Integer> parents = new TreeMap<>();
+				for (int pk = 1; pk <= CATEGORY_COUNT; pk++) {
+					session.getEntity(ENTITY_CATEGORY, pk, new Scope[]{scope}, entityFetchAllContent())
+						.ifPresent(
+							body -> parents.put(
+								body.getPrimaryKeyOrThrowException(),
+								body.getParentEntity().map(EntityClassifier::getPrimaryKeyOrThrowException).orElse(null)
+							)
+						);
+				}
+				assertTrue(parents.containsKey(category), "the tree of " + scope + " must hold category " + category);
+				final Set<Integer> subtree = createHashSet(CATEGORY_COUNT);
+				subtree.add(category);
+				boolean grown = true;
+				while (grown) {
+					grown = false;
+					for (final Map.Entry<Integer, Integer> node : parents.entrySet()) {
+						if (node.getValue() != null && subtree.contains(node.getValue())) {
+							grown |= subtree.add(node.getKey());
+						}
+					}
+				}
+				final List<Integer> result = new ArrayList<>(PRODUCT_COUNT);
+				for (int pk = 1; pk <= PRODUCT_COUNT; pk++) {
+					session.getEntity(ENTITY_PRODUCT, pk, new Scope[]{scope}, entityFetchAllContent())
+						.filter(
+							body -> body.getReferences(referenceName)
+								.stream()
+								.anyMatch(it -> subtree.contains(it.getReferencedPrimaryKey()))
+						)
+						.ifPresent(body -> result.add(body.getPrimaryKeyOrThrowException()));
+				}
+				return result;
+			}
+		);
+	}
+
+	/**
+	 * Defines {@link #ATTRIBUTE_RANK} on the product and ranks every product of the fixture by its primary key.
+	 *
+	 * @param session the session to write in
+	 */
+	private static void rankProducts(@Nonnull EvitaSessionContract session) {
+		session.defineEntitySchema(ENTITY_PRODUCT)
+			.withAttribute(
+				ATTRIBUTE_RANK, Integer.class,
+				whichIs -> whichIs.filterableInScope(Scope.LIVE, Scope.ARCHIVED).nullable()
+			)
+			.updateVia(session);
+		for (int pk = 1; pk <= PRODUCT_COUNT; pk++) {
+			final int rank = pk;
+			updateProduct(pk, it -> it.setAttribute(ATTRIBUTE_RANK, rank)).accept(session);
+		}
+	}
+
+	/**
+	 * Archives the category when the scope is the archived one, so that the tree of the scope holds it - the categories
+	 * of the fixture all live.
+	 *
+	 * @param session  the session to write in
+	 * @param category the category
+	 * @param scope    the scope whose tree must hold the category
+	 */
+	private static void placeCategoryIn(@Nonnull EvitaSessionContract session, int category, @Nonnull Scope scope) {
+		if (scope == Scope.ARCHIVED) {
+			session.archiveEntity(ENTITY_CATEGORY, category);
+		}
 	}
 
 	/**

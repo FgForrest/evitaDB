@@ -180,6 +180,11 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 	 * Inside an `inScope(...)` container of a query over more scopes the candidate is built for the container's
 	 * scope only: it is registered with {@link EligibilityObstacle#PARTIAL_SCOPE_COVERAGE} when it holds any index,
 	 * and not at all when it holds none.
+	 *
+	 * An option some of whose node partitions are registry rows is registered with
+	 * {@link EligibilityObstacle#NOT_PARTITIONED_INDEX} even when the reference is indexed for partitioning - the rows
+	 * were left by its former indexing for filtering only. It stays registered, because the translation of the
+	 * constraint and the orderings narrowed by it read the rows, so the query falls back to the global index.
 	 */
 	private void addHierarchyIndexOption(@Nonnull HierarchyFilterConstraint constraint) {
 		constraint.getReferenceName().ifPresent(
@@ -233,7 +238,12 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 						return;
 					}
 					final long cardinalityLimit = (long) this.mainIndexCardinality / 2;
-					final boolean partitioned = allIndexesArePartitioned(scopes, referenceSchema);
+					// a partition of the nodes the registry holds a row of was left there while the reference was
+					// indexed for filtering only, and it holds none of the content an index object of the partitioning
+					// keeps - a plan within the option would answer the other constraints from the index objects alone
+					// and miss the row's owner, so the option is not partitioned while any of its partitions is a row
+					final boolean partitioned = partitions.virtualCount() == 0 &&
+						allIndexesArePartitioned(scopes, referenceSchema);
 					final boolean withinCardinalityLimit = partitions.getOwnerRowCount() <= cardinalityLimit;
 					// without a virtual partition the materialized ones are every partition of the nodes; otherwise the
 					// consumers needing the object of every partition resolve them on demand, as they always were

@@ -394,6 +394,11 @@ public class TargetIndexes<T extends Index<?>> {
 		/**
 		 * Indicates that the index is not partitioned by the reference schema definition. Such index doesn't contain
 		 * all necessary data to execute correct filtering / sorting operations.
+		 *
+		 * A hierarchy option of a reference indexed for partitioning carries it too while some partitions of its
+		 * nodes are registry rows. Those single-owner partitions were left in the registry while the reference was
+		 * indexed for filtering only; nothing converts them when the indexing changes, and a row holds none of the
+		 * content an index object of the partitioning keeps.
 		 */
 		NOT_PARTITIONED_INDEX,
 		/**
