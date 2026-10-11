@@ -138,7 +138,8 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	 * when the bootstrap record publishes no catalog file yet - a brand-new catalog - the header the service starts
 	 * with carries the given storage protocol, so that the very first header the catalog writes already carries the
 	 * protocol it keeps for the rest of its life. The protocol of an existing catalog is read from its header and the
-	 * argument is ignored.
+	 * argument is ignored. Exists only while the test API `Evita#createCatalogWithVirtualReferencePartitions` can
+	 * create a catalog of index objects, and goes with it.
 	 *
 	 * @param newCatalogStorageProtocolVersion the storage protocol of a brand-new catalog, one of the current ones
 	 * @param catalogName                      The name of the catalog.

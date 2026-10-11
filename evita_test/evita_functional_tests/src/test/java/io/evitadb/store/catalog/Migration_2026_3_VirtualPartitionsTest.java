@@ -138,6 +138,7 @@ import static io.evitadb.index.virtual.VirtualPartitionInvariants.describeIndexe
 import static io.evitadb.index.virtual.VirtualPartitionInvariants.registeredRowsOf;
 import static io.evitadb.store.catalog.OfflineCatalogImages.assertOnlyAppended;
 import static io.evitadb.store.catalog.OfflineCatalogImages.catalogFolder;
+import static io.evitadb.store.catalog.OfflineCatalogImages.filesHeldOpenIn;
 import static io.evitadb.store.catalog.OfflineCatalogImages.lastBootstrap;
 import static io.evitadb.store.catalog.OfflineCatalogImages.stamp;
 import static io.evitadb.store.catalog.OfflineCatalogImages.storedFiles;
@@ -155,6 +156,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
  * Drives the storage protocol migration of a catalog written by evitaDB 2026.2 (storage protocol 6) to protocol 8 -
@@ -276,6 +278,11 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 	 * How many of them reference the shared target too - their reflected partitions have two owners.
 	 */
 	private static final int SHARING_OWNER_COUNT = 3;
+	/**
+	 * How many times the case of the failed migration opens the image - more than once, because what a failed open
+	 * leaves behind accumulates over the retries of an engine.
+	 */
+	private static final int FAILED_OPEN_ATTEMPTS = 3;
 	/**
 	 * The history every equivalence case runs on top of its fixture, each change in a session of its own: an owner
 	 * archived (partitions in both scopes), a single-owner partition gaining a second owner and losing it again (a
@@ -531,19 +538,8 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("a protocol-6 catalog holding a registry row is refused, and nothing is published")
 		void shouldRefuseAReleasedCatalogHoldingARegistryRow() {
-			final EvitaConfiguration configuration = configurationOf(allocatePaths("registryRow"), null, null);
-			final Evita engine = start(configuration);
-			// a catalog of this version writing its single-owner partitions as rows, mislabelled as one of 2026.2
-			buildCatalog(
-				engine, GENERATED_CATALOG, ReferenceIndexType.FOR_FILTERING, CatalogState.ALIVE,
-				(session, indexType) -> setUpOwners(session, SHARING_OWNER_COUNT, 0, false, indexType, false),
-				List.of()
-			);
-			assertFalse(registeredRowsOf(collectionOf(engine, GENERATED_CATALOG, ENTITY_OWNER)).isEmpty());
-			engine.close();
-			final CatalogBootstrap stamped = stamp(
-				configuration, GENERATED_CATALOG, RELEASED_PROTOCOL, RELEASED_PROTOCOL
-			);
+			final EvitaConfiguration configuration = writeReleasedImageHoldingARegistryRow("registryRow");
+			final CatalogBootstrap stamped = lastBootstrap(configuration, GENERATED_CATALOG);
 
 			final Evita refusing = new Evita(configuration);
 			Migration_2026_3_VirtualPartitionsTest.this.evita = refusing;
@@ -564,6 +560,41 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 			);
 			refusing.close();
 			assertEquals(stamped, lastBootstrap(configuration, GENERATED_CATALOG), "nothing may be published");
+		}
+
+		/**
+		 * The storage part services of the catalog data file a failing migration opened must be closed before the
+		 * failure propagates - the constructor's own cleanup cannot reach them, and an engine retrying the activation
+		 * of a catalog that fails to load would otherwise leave another set of read handles behind at every attempt.
+		 * The migration of the mislabelled image fails in the conversion, after it read the catalog-level parts.
+		 *
+		 * Read from the file descriptors the platform lists for the process (`/proc/self/fd`); skipped where it lists
+		 * none.
+		 */
+		@Test
+		@DisplayName("a failed migration leaves no file of the catalog open, however often the open is repeated")
+		void shouldLeaveNoFileOfTheCatalogOpenWhenTheMigrationFails() {
+			final EvitaConfiguration configuration = writeReleasedImageHoldingARegistryRow("registryRowHandles");
+			final Path folder = catalogFolder(configuration, GENERATED_CATALOG);
+			final Set<String> heldBefore = filesHeldOpenIn(folder);
+			assumeTrue(heldBefore != null, "the platform does not list the open file descriptors of the process");
+			for (int attempt = 1; attempt <= FAILED_OPEN_ATTEMPTS; attempt++) {
+				final GenericEvitaInternalError failure = assertThrows(
+					GenericEvitaInternalError.class,
+					() -> withOfflineCatalog(
+						configuration, GENERATED_CATALOG, service -> fail("The migration of the image must fail.")
+					)
+				);
+				assertTrue(
+					failure.getPrivateMessage().contains("holds a registry row"), failure.getPrivateMessage()
+				);
+				final Set<String> held = Objects.requireNonNull(filesHeldOpenIn(folder));
+				held.removeAll(heldBefore);
+				assertTrue(
+					held.isEmpty(),
+					"attempt " + attempt + ": the failed migration left files of the catalog open: " + held
+				);
+			}
 		}
 	}
 
@@ -1030,6 +1061,29 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 	@Nonnull
 	private static String urlOf(int owner) {
 		return Normalizer.normalize("/čaj-" + owner, Normalizer.Form.NFC);
+	}
+
+	/**
+	 * Writes the image of a catalog of this version writing its single-owner partitions as rows - owners each holding
+	 * a partition of their own - and stamps it as a catalog of 2026.2, which no release could have written: its
+	 * registry holds rows. The engine that wrote it is closed again.
+	 *
+	 * @param label names the directories of the image
+	 * @return the configuration of an engine over the image
+	 */
+	@Nonnull
+	private EvitaConfiguration writeReleasedImageHoldingARegistryRow(@Nonnull String label) {
+		final EvitaConfiguration configuration = configurationOf(allocatePaths(label), null, null);
+		final Evita engine = start(configuration);
+		buildCatalog(
+			engine, GENERATED_CATALOG, ReferenceIndexType.FOR_FILTERING, CatalogState.ALIVE,
+			(session, indexType) -> setUpOwners(session, SHARING_OWNER_COUNT, 0, false, indexType, false),
+			List.of()
+		);
+		assertFalse(registeredRowsOf(collectionOf(engine, GENERATED_CATALOG, ENTITY_OWNER)).isEmpty());
+		engine.close();
+		stamp(configuration, GENERATED_CATALOG, RELEASED_PROTOCOL, RELEASED_PROTOCOL);
+		return configuration;
 	}
 
 	/**

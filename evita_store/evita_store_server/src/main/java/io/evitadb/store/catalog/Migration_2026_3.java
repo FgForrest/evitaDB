@@ -459,21 +459,27 @@ public interface Migration_2026_3 {
 				);
 			}
 			final boolean rekeyed = rekeyedCounters > 0 || !uniqueIndexRekeys.isEmpty();
+			// whether the steps running before the conversion left anything unflushed in the data store - each such
+			// step adds its own term here, the publication below does not need to know which of them wrote
+			final boolean changedBeforeConversion = rekeyed;
 
-			// the re-keyed parts are still unflushed - the conversion reads them like any other part (the offset index
-			// serves a record before it is flushed), removes those of the partitions it converts, and its final flush
-			// writes the rest together with its own
+			// the parts written so far are still unflushed - the conversion reads them like any other part (the offset
+			// index serves a record before it is flushed), removes those of the partitions it converts, and its final
+			// flush writes the rest together with its own
 			final CollectionConversion conversion = VirtualReferencePartitionConversion.convertCollection(
 				catalogVersion, entityCollectionHeader, collectionPersistenceService,
 				EntityCollection.bindReflectedReferences(entitySchema, schemaLookup),
 				Observer.NONE, VirtualReferencePartitionConversion.DEFAULT_FLUSH_THRESHOLD
 			);
 
-			if (conversion.changed() || rekeyed) {
+			// the reference published for the collection: the conversion's final flush when it wrote anything,
+			// otherwise a flush of its own when an earlier step wrote anything, otherwise the published reference
+			if (conversion.changed() || changedBeforeConversion) {
 				final FileLocation collectionFileLocation;
 				if (conversion.changed()) {
-					// the final flush of the conversion wrote the re-keyed parts too, with a collection header that no
-					// longer lists the converted partitions - flushing again would only write that header once more
+					// the final flush of the conversion wrote the parts of the earlier steps too, with a collection
+					// header that no longer lists the converted partitions - flushing again would only write that
+					// header once more
 					collectionFileLocation = collectionPersistenceService.getEntityCollectionHeader().fileLocation();
 				} else {
 					collectionFileLocation = collectionPersistenceService.flush(
@@ -494,8 +500,8 @@ public interface Migration_2026_3 {
 					)
 				);
 			} else {
-				// nothing to do - every counter and unique key of this collection was already canonical, and it holds
-				// no single-owner partition to convert
+				// nothing to do - no step changed anything in this collection: every counter and unique key was already
+				// canonical, and it holds no single-owner partition to convert
 				newCollectionFileIndex.put(entityTypeFileIndex.entityType(), entityTypeFileIndex);
 			}
 			if (rekeyed) {

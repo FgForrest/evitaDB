@@ -470,7 +470,9 @@ class VirtualRepresentationPersistenceTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Returns the storage protocol of the representation.
+	 * Returns the storage protocol of the representation. The protocol of index objects exists only while the test API
+	 * `Evita#createCatalogWithVirtualReferencePartitions` can create a catalog of index objects, and goes with it -
+	 * together with this test.
 	 *
 	 * @param virtual TRUE for the virtual representation
 	 * @return the protocol

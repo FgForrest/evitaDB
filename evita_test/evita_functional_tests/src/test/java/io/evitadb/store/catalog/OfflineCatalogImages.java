@@ -41,6 +41,7 @@ import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.test.EvitaTestSupport;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -55,8 +56,10 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.TreeSet;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
@@ -320,6 +323,38 @@ final class OfflineCatalogImages {
 					label + ": nothing may be published - the bootstrap file must not change"
 				);
 			}
+		}
+	}
+
+	/**
+	 * Returns the names of the files of the folder the process holds open, read from the file descriptors the platform
+	 * lists for the process (`/proc/self/fd`), or `null` where it lists none.
+	 *
+	 * @param folder the folder
+	 * @return the names of the files held open, or `null` when the platform does not tell
+	 */
+	@Nullable
+	static Set<String> filesHeldOpenIn(@Nonnull Path folder) {
+		final Path descriptors = Path.of("/proc/self/fd");
+		if (!Files.isDirectory(descriptors)) {
+			return null;
+		}
+		try (Stream<Path> list = Files.list(descriptors)) {
+			final Path realFolder = folder.toRealPath();
+			final Set<String> held = new TreeSet<>();
+			for (final Path descriptor : list.toList()) {
+				try {
+					final Path target = Files.readSymbolicLink(descriptor);
+					if (target.startsWith(realFolder)) {
+						held.add(realFolder.relativize(target).toString());
+					}
+				} catch (IOException e) {
+					// the descriptor was closed while the list was read - it is not held
+				}
+			}
+			return held;
+		} catch (IOException e) {
+			throw new UncheckedIOException(e);
 		}
 	}
 

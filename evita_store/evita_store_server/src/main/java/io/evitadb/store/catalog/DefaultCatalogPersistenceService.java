@@ -2096,25 +2096,36 @@ public class DefaultCatalogPersistenceService
 		final Path catalogFilePath = this.catalogStoragePath.resolve(catalogFileName);
 
 		this.catalogStoragePartPersistenceService = CollectionUtils.createConcurrentHashMap(16);
-		final CatalogOffsetIndexStoragePartPersistenceService catalogStoragePartPersistenceService = verifyAndUpgradeStorageFormat(
-			() -> CatalogOffsetIndexStoragePartPersistenceService.create(
-				this.catalogName,
-				catalogFilePath,
-				this.storageSettings,
-				this.bootstrapUsed,
-				this.recordTypeRegistry,
-				this.offHeapMemoryManager,
-				this.observableOutputKeeper,
-				VERSIONED_KRYO_FACTORY,
-				nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
-				oldestRecordTimestamp -> reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null)),
-				this.checkpointCoordinator
-			),
-			this.bootstrapUsed.catalogVersion(),
-			false
-		);
+		// a refusal or a failed migration releases what this constructor opened, exactly as the sibling constructor
+		// does - see the explanation there
+		final CatalogOffsetIndexStoragePartPersistenceService catalogStoragePartPersistenceService;
+		try {
+			catalogStoragePartPersistenceService = verifyAndUpgradeStorageFormat(
+				() -> CatalogOffsetIndexStoragePartPersistenceService.create(
+					this.catalogName,
+					catalogFilePath,
+					this.storageSettings,
+					this.bootstrapUsed,
+					this.recordTypeRegistry,
+					this.offHeapMemoryManager,
+					this.observableOutputKeeper,
+					VERSIONED_KRYO_FACTORY,
+					nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
+					oldestRecordTimestamp ->
+						reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null)),
+					this.checkpointCoordinator
+				),
+				this.bootstrapUsed.catalogVersion(),
+				false
+			);
+		} catch (Throwable t) {
+			closeOnConstructorFailure();
+			throw t;
+		}
 
 		if (this.bootstrapUsed.storageProtocolVersion() != STORAGE_PROTOCOL_VERSION) {
+			closeOnConstructorFailure();
+			IOUtils.closeQuietly(catalogStoragePartPersistenceService::close);
 			throw new StoredProtocolVersionNotSupportedException(
 				this.bootstrapUsed.storageProtocolVersion(), STORAGE_PROTOCOL_VERSION
 			);
@@ -5417,6 +5428,12 @@ public class DefaultCatalogPersistenceService
 	 * carry the protocol under another bootstrap record). A header of any protocol no migration starts from is refused
 	 * as unknown - without the refusal the loop would read the same header again and again.
 	 *
+	 * **Ownership:** every storage part service this method opens is its own until it returns one - none of them is in
+	 * the constructor's service map yet, so the constructor's cleanup cannot reach them. A failure of any kind - a
+	 * refusal, a failed migration, the deferral of the v4→v5 upgrade - closes every service the method opened before
+	 * it propagates; otherwise their read handles of the catalog data file outlive the failed open, and every retry of
+	 * the open leaves another set behind.
+	 *
 	 * @param storagePartPersistenceFactory the factory for the storage part persistence service
 	 * @param catalogVersion                the version of the catalog
 	 * @param allowInlineV4ToV5Upgrade      when {@code true} the method runs the v4→v5 WAL rewrite
@@ -5432,7 +5449,45 @@ public class DefaultCatalogPersistenceService
 		long catalogVersion,
 		boolean allowInlineV4ToV5Upgrade
 	) throws ObsoleteStorageProtocolException {
-		CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = storagePartPersistenceFactory.get();
+		final List<CatalogOffsetIndexStoragePartPersistenceService> openedServices = new ArrayList<>(2);
+		try {
+			return migrateToCurrentStorageFormat(
+				() -> {
+					final CatalogOffsetIndexStoragePartPersistenceService service = storagePartPersistenceFactory.get();
+					openedServices.add(service);
+					return service;
+				},
+				catalogVersion,
+				allowInlineV4ToV5Upgrade
+			);
+		} catch (Throwable t) {
+			IOUtils.closeQuietly(
+				openedServices.stream()
+					.map(service -> (ExceptionThrowingRunnable) service::close)
+					.toArray(ExceptionThrowingRunnable[]::new)
+			);
+			throw t;
+		}
+	}
+
+	/**
+	 * Does the work of {@link #verifyAndUpgradeStorageFormat(Supplier, long, boolean)}, opening every storage part
+	 * service through the given supplier, which records it for the cleanup on failure.
+	 *
+	 * @param openService              opens a storage part service of the catalog data file
+	 * @param catalogVersion           the version of the catalog
+	 * @param allowInlineV4ToV5Upgrade TRUE to run the v4→v5 WAL rewrite inline
+	 * @return the storage part persistence service of the catalog at the current protocol
+	 * @throws ObsoleteStorageProtocolException if the storage protocol version is not compatible with the current one
+	 * @throws CatalogRequiresUpgradeException  when the catalog is on v4 and inline v4→v5 is not permitted
+	 */
+	@Nonnull
+	private CatalogOffsetIndexStoragePartPersistenceService migrateToCurrentStorageFormat(
+		@Nonnull Supplier<CatalogOffsetIndexStoragePartPersistenceService> openService,
+		long catalogVersion,
+		boolean allowInlineV4ToV5Upgrade
+	) throws ObsoleteStorageProtocolException {
+		CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = openService.get();
 		CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = storagePartPersistenceService.getCatalogHeader(
 			catalogVersion);
 		final int headerStorageProtocolVersion = catalogHeader.storageProtocolVersion();
@@ -5441,13 +5496,14 @@ public class DefaultCatalogPersistenceService
 			headerStorageProtocolVersion == STORAGE_PROTOCOL_VERSION ||
 				// a catalog of index objects a test asked this version to create: its bootstrap record - the one read
 				// at the open, no migration has run yet - carries the current protocol, which no build writing the
-				// protocol of index objects stamped
+				// protocol of index objects stamped. This clause exists only while the test API
+				// `Evita#createCatalogWithVirtualReferencePartitions` can create a catalog of index objects, and goes
+				// with it
 				(headerStorageProtocolVersion == OBJECT_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION &&
 					this.bootstrapUsed.storageProtocolVersion() == STORAGE_PROTOCOL_VERSION)
 		) {
 			return storagePartPersistenceService;
 		} else if (headerStorageProtocolVersion == Migration_2026_3.DEVELOPMENT_STORAGE_PROTOCOL_VERSION) {
-			IOUtils.closeQuietly(storagePartPersistenceService::close);
 			throw developmentStorageProtocolRefusal(catalogHeader.catalogName());
 		} else {
 			CatalogOffsetIndexStoragePartPersistenceService currentService = storagePartPersistenceService;
@@ -5524,11 +5580,10 @@ public class DefaultCatalogPersistenceService
 					);
 				} else {
 					// no migration starts from this protocol - reading the header again would find it unchanged
-					IOUtils.closeQuietly(storagePartPersistenceService::close);
 					throw unknownStorageProtocolRefusal(catalogHeader.catalogName(), catalogStorageProtocolVersion);
 				}
 				// try to initialize the persistence service again - it should now have the correct storage protocol version
-				storagePartPersistenceService = storagePartPersistenceFactory.get();
+				storagePartPersistenceService = openService.get();
 				catalogHeader = storagePartPersistenceService.getCatalogHeader(catalogVersion);
 				// rinse and repeat
 			} while (catalogHeader.storageProtocolVersion() < PersistenceService.STORAGE_PROTOCOL_VERSION);
@@ -5609,7 +5664,8 @@ public class DefaultCatalogPersistenceService
 	 * test created with index objects keeps
 	 * {@link PersistenceService#OBJECT_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION} for the life of the catalog; any
 	 * other header is written under {@link PersistenceService#STORAGE_PROTOCOL_VERSION}. Only the protocol migrations
-	 * write a header under another protocol, and they do it explicitly.
+	 * write a header under another protocol, and they do it explicitly. Exists only while the test API
+	 * `Evita#createCatalogWithVirtualReferencePartitions` can create a catalog of index objects, and goes with it.
 	 *
 	 * @param catalogHeader the header being rewritten
 	 * @return the storage protocol the rewritten header carries

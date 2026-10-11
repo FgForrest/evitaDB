@@ -27,9 +27,14 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.core.Evita;
+import io.evitadb.core.catalog.UnusableCatalog;
+import io.evitadb.core.executor.Scheduler;
 import io.evitadb.exception.ObsoleteStorageProtocolException;
+import io.evitadb.export.file.ExportFileService;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
+import io.evitadb.spi.store.engine.CatalogFolderOperations;
+import io.evitadb.spi.store.engine.model.CatalogFolderId;
 import io.evitadb.store.catalog.OfflineCatalogImages.StoredFile;
 import io.evitadb.store.catalog.model.CatalogBootstrap;
 import io.evitadb.store.shared.model.FileLocation;
@@ -56,16 +61,17 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 import static io.evitadb.store.catalog.OfflineCatalogImages.catalogFolder;
+import static io.evitadb.store.catalog.OfflineCatalogImages.filesHeldOpenIn;
 import static io.evitadb.store.catalog.OfflineCatalogImages.lastBootstrap;
 import static io.evitadb.store.catalog.OfflineCatalogImages.stamp;
 import static io.evitadb.store.catalog.OfflineCatalogImages.storedFiles;
-import static io.evitadb.store.catalog.OfflineCatalogImages.withOfflineCatalog;
 import static io.evitadb.test.TestTags.SERIALIZATION;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.TASK;
@@ -373,8 +379,10 @@ class StorageProtocolRefusalTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Opens the catalog with the engine stopped and asserts that the open is refused promptly with the given
-	 * diagnosis.
+	 * Opens the catalog with the engine stopped, through the persistence service the engine loads it with, and asserts
+	 * that the open is refused promptly with the given diagnosis and leaves nothing behind: no task scheduled on the
+	 * scheduler it was given and - where the platform lists the open file descriptors of the process - no file of the
+	 * catalog folder held open. The bytes of the folder are compared by the callers.
 	 *
 	 * @param configuration the configuration of the engine
 	 * @param diagnosis     a part of the message the refusal must carry
@@ -385,18 +393,54 @@ class StorageProtocolRefusalTest implements EvitaTestSupport {
 		@Nonnull EvitaConfiguration configuration,
 		@Nonnull String diagnosis
 	) {
-		final ObsoleteStorageProtocolException refusal = assertTimeoutPreemptively(
-			PROMPTLY,
-			() -> assertThrows(
-				ObsoleteStorageProtocolException.class,
-				() -> withOfflineCatalog(
-					configuration, CATALOG, service -> fail("The catalog must be refused, but it was opened.")
-				)
-			),
-			"the open of the catalog must end - a verification that reads one header again and again never does"
-		);
-		assertTrue(refusal.getPrivateMessage().contains(diagnosis), refusal.getPrivateMessage());
-		return refusal;
+		final Path folder = catalogFolder(configuration, CATALOG);
+		final CatalogFolderId folderId = new CatalogFolderId(folder.getFileName().toString());
+		final ScheduledThreadPoolExecutor executor = new ScheduledThreadPoolExecutor(1);
+		final Scheduler scheduler = new Scheduler(executor);
+		try (ExportFileService exportService = new ExportFileService(configuration.export(), scheduler)) {
+			// taken after the export service scheduled its own purge, so everything that differs is the open's doing
+			final Set<String> heldBefore = filesHeldOpenIn(folder);
+			final long tasksBefore = executor.getTaskCount();
+			final ObsoleteStorageProtocolException refusal = assertTimeoutPreemptively(
+				PROMPTLY,
+				() -> assertThrows(
+					ObsoleteStorageProtocolException.class,
+					() -> {
+						try (
+							DefaultCatalogPersistenceService service = new DefaultCatalogPersistenceService(
+								new UnusableCatalog(
+									CATALOG, CatalogState.ALIVE, folderId, configuration.storage().storageDirectory(),
+									CatalogFolderOperations.unsupported("The test only opens the catalog."),
+									(name, folderToken, root) -> new IllegalStateException("The test never queries it.")
+								),
+								CATALOG, folderId, configuration.storage(), configuration.transaction(), scheduler,
+								exportService
+							)
+						) {
+							fail("The catalog must be refused, but it was opened: " + service.getLastCatalogVersion());
+						}
+					}
+				),
+				"the open of the catalog must end - a verification that reads one header again and again never does"
+			);
+			assertTrue(refusal.getPrivateMessage().contains(diagnosis), refusal.getPrivateMessage());
+			assertEquals(tasksBefore, executor.getTaskCount(), "the refused open must leave no task scheduled");
+			final Set<String> heldAfter = filesHeldOpenIn(folder);
+			if (heldBefore != null && heldAfter != null) {
+				heldAfter.removeAll(heldBefore);
+				assertTrue(
+					heldAfter.isEmpty(), "the refused open must leave no file of the catalog open: " + heldAfter
+				);
+			}
+			return refusal;
+		} finally {
+			scheduler.shutdownNow();
+			try {
+				assertTrue(executor.awaitTermination(30, TimeUnit.SECONDS), "the offline scheduler did not stop");
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+			}
+		}
 	}
 
 	/**

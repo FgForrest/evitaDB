@@ -760,6 +760,8 @@ public final class Catalog
 						this.scheduler,
 						exportService,
 						// TODO JNO - remove at the end of #1615
+						// the protocol of index objects exists only while the test API
+						// `Evita#createCatalogWithVirtualReferencePartitions` can create such a catalog
 						virtualReferencePartitions ?
 							PersistenceService.VIRTUAL_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION :
 							PersistenceService.OBJECT_REFERENCE_PARTITIONS_STORAGE_PROTOCOL_VERSION
