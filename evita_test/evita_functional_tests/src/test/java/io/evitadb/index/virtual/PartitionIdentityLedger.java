@@ -51,7 +51,8 @@ import java.util.TreeMap;
  *   differs from the one it had there - unless the history declared the key emptied in between (see
  *   {@link #declareEmptied(String, Scope, RepresentativeReferenceKey)}) or replayed by a crash recovery (see
  *   {@link #declareReplayed(String, Scope, RepresentativeReferenceKey)});
- * - a primary key observed under another key than the one it was first observed under, at any earlier checkpoint.
+ * - a primary key observed under another key than the one it was first observed under, at any earlier checkpoint -
+ *   unless that key was declared replayed (see below).
  *
  * A key the bodies stop producing is forgotten: a partition emptied between two checkpoints may come back under any
  * primary key the sequence hands out. A key emptied and entered again between two checkpoints cannot be told apart
@@ -63,7 +64,10 @@ import java.util.TreeMap;
  * A crash recovery is the other event that changes the primary key of a partition legitimately. The primary key a
  * partition created after the last checkpoint has is not durable: the recovery replays the mutations that created it
  * from the write-ahead log, which mints its primary key anew from the sequence the checkpoint persisted. A partition
- * the checkpoint published keeps its primary key.
+ * the checkpoint published keeps its primary key. Minted anew, one replayed partition may receive the primary key
+ * another replayed partition had before the crash - so the primary key a key declared replayed held is released when
+ * the next checkpoint consumes the declaration, and may then be observed under another key. The primary key of a key
+ * declared emptied is not released: the sequence never hands it out again, so seeing it under another key is a reuse.
  *
  * The ledger must be given states whose primary keys are final. An open transaction of a live catalog is not one: the
  * commit executes the transaction once more on the trunk, which mints the primary keys of the partitions the
@@ -84,6 +88,11 @@ final class PartitionIdentityLedger {
 	 * The partition keys declared emptied or replayed since the last checkpoint, per entity type.
 	 */
 	private final Map<String, Set<String>> declaredChanges = CollectionUtils.createHashMap(8);
+	/**
+	 * The partition keys declared replayed since the last checkpoint, per entity type - their primary keys are
+	 * released for any key at the next checkpoint.
+	 */
+	private final Map<String, Set<String>> declaredReplays = CollectionUtils.createHashMap(8);
 	/**
 	 * How many partitions were observed at a checkpoint whose key had been observed at the previous one - the
 	 * comparisons the ledger has actually made.
@@ -119,7 +128,7 @@ final class PartitionIdentityLedger {
 	/**
 	 * Declares that the history created the partition of a key after the last checkpoint of the catalog and a crash
 	 * recovery replays its creation from the write-ahead log before the next checkpoint of the ledger - the next
-	 * checkpoint accepts any primary key for it.
+	 * checkpoint accepts any primary key for it, and releases the primary key it had for another key replayed with it.
 	 *
 	 * @param entityType the entity type owning the reference
 	 * @param scope      the scope of the partition
@@ -127,6 +136,7 @@ final class PartitionIdentityLedger {
 	 */
 	void declareReplayed(@Nonnull String entityType, @Nonnull Scope scope, @Nonnull RepresentativeReferenceKey key) {
 		allowAnotherPrimaryKey(entityType, scope, key);
+		this.declaredReplays.computeIfAbsent(entityType, __ -> new HashSet<>(4)).add(identityKeyOf(scope, key));
 	}
 
 	/**
@@ -157,7 +167,8 @@ final class PartitionIdentityLedger {
 	/**
 	 * Compares the primary keys of the partitions of one collection at a checkpoint with what was observed before,
 	 * reports every change of identity and records the observation as the last one of the collection. Consumes the
-	 * declarations of emptied and replayed keys of the collection.
+	 * declarations of emptied and replayed keys of the collection; the primary key a replayed key had at the previous
+	 * checkpoint is released before the observation is compared, so another replayed key may hold it now.
 	 *
 	 * @param entityType the entity type of the collection
 	 * @param observed   the primary key of every partition the bodies produce, by its identity key (see
@@ -174,6 +185,15 @@ final class PartitionIdentityLedger {
 			entityType, __ -> CollectionUtils.createHashMap(observed.size())
 		);
 		final Set<String> declared = this.declaredChanges.getOrDefault(entityType, Set.of());
+		if (previous != null) {
+			// a crash recovery mints every replayed partition anew, so one may take the primary key another had
+			for (final String replayed : this.declaredReplays.getOrDefault(entityType, Set.of())) {
+				final Integer previousPrimaryKey = previous.get(replayed);
+				if (previousPrimaryKey != null) {
+					firstKeys.remove(previousPrimaryKey, replayed);
+				}
+			}
+		}
 		for (final Entry<String, Integer> entry : observed.entrySet()) {
 			final String key = entry.getKey();
 			final int primaryKey = entry.getValue();
@@ -198,5 +218,6 @@ final class PartitionIdentityLedger {
 		}
 		this.primaryKeysByKey.put(entityType, new TreeMap<>(observed));
 		this.declaredChanges.remove(entityType);
+		this.declaredReplays.remove(entityType);
 	}
 }
