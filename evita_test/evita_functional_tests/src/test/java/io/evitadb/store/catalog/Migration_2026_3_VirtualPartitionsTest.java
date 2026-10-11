@@ -42,9 +42,10 @@ import io.evitadb.export.file.ExportFileService;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.mutation.local.VirtualReferencePartitionWriter;
-import io.evitadb.index.virtual.DifferentialEngines;
+import io.evitadb.index.virtual.CatalogDescriber;
+import io.evitadb.index.virtual.CatalogReloadTestSupport;
 import io.evitadb.index.virtual.SingleOwnerPartitionFixture;
-import io.evitadb.index.virtual.VirtualReferencePartitionMirrorTest;
+import io.evitadb.index.virtual.SortValueAndChainFixture;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
@@ -132,7 +133,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * again. The converted catalog must then be indistinguishable from its twin: the same registry rows under the same
  * primary keys, with the same owners, representative attribute values, sort values and chain predecessors, the same
  * index objects of the partitions with several owners, the same membership, the same answers to every query line of
- * {@link DifferentialEngines}, and the invariants every virtual catalog keeps
+ * {@link CatalogDescriber}, and the invariants every virtual catalog keeps
  * ({@link io.evitadb.index.virtual.VirtualPartitionInvariants}).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -249,11 +250,11 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 		/**
 		 * A sortable attribute of every type a sort index normalizes in its own way, and two compounds.
 		 */
-		EVERY_SORT_TYPE(VirtualReferencePartitionMirrorTest::setUpTypes),
+		EVERY_SORT_TYPE(SortValueAndChainFixture::setUpTypes),
 		/**
 		 * Both chain types on a reference reflected with its attributes inherited.
 		 */
-		CHAINS(VirtualReferencePartitionMirrorTest::setUpChains);
+		CHAINS(SortValueAndChainFixture::setUpChains);
 
 		/**
 		 * Defines the schema and writes the data.
@@ -480,7 +481,7 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 				);
 			}
 			final SortedMap<String, String> indexes = describeIndexes(engine, OBJECTS_CATALOG);
-			final SortedMap<String, String> queries = DifferentialEngines.describeQueriesOf(engine, OBJECTS_CATALOG);
+			final SortedMap<String, String> queries = CatalogDescriber.describeQueriesOf(engine, OBJECTS_CATALOG);
 			engine.close();
 			// opening the catalog lets the store settle what it owes on its own - with time travel off it trims the
 			// bootstrap file to the published record - so the files are taken after one plain open, and everything
@@ -515,7 +516,7 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 			assertUnchanged("after the failed conversion", indexes, describeIndexes(afterFailure, OBJECTS_CATALOG));
 			assertUnchanged(
 				"after the failed conversion: the query lines", queries,
-				DifferentialEngines.describeQueriesOf(afterFailure, OBJECTS_CATALOG)
+				CatalogDescriber.describeQueriesOf(afterFailure, OBJECTS_CATALOG)
 			);
 			afterFailure.close();
 
@@ -800,8 +801,8 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 	private static void assertTwinsAnswerAlike(@Nonnull Evita engine, @Nonnull String label) {
 		assertUnchanged(
 			label + ": the catalog of index objects answering as its virtual twin",
-			DifferentialEngines.describeQueriesOf(engine, VIRTUAL_CATALOG),
-			DifferentialEngines.describeQueriesOf(engine, OBJECTS_CATALOG)
+			CatalogDescriber.describeQueriesOf(engine, VIRTUAL_CATALOG),
+			CatalogDescriber.describeQueriesOf(engine, OBJECTS_CATALOG)
 		);
 	}
 
@@ -820,8 +821,8 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 		);
 		assertUnchanged(
 			label + ": the query lines of the converted catalog against its virtual twin",
-			DifferentialEngines.describeQueriesOf(engine, VIRTUAL_CATALOG),
-			DifferentialEngines.describeQueriesOf(engine, OBJECTS_CATALOG)
+			CatalogDescriber.describeQueriesOf(engine, VIRTUAL_CATALOG),
+			CatalogDescriber.describeQueriesOf(engine, OBJECTS_CATALOG)
 		);
 		assertInvariants(label, engine, OBJECTS_CATALOG);
 	}
@@ -984,7 +985,7 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 			catalogs.put(catalogName, catalog);
 		}
 		final SortedMap<String, String> beforeCopy = listFiles(paths.storage());
-		DifferentialEngines.copyRecursively(paths.storage(), image.storage());
+		CatalogReloadTestSupport.copyRecursively(paths.storage(), image.storage());
 		assertEquals(
 			beforeCopy, listFiles(paths.storage()),
 			"the storage changed while it was being copied - the image is not the state of one moment"

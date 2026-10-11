@@ -186,7 +186,7 @@ class DifferentialEnginesTest implements EvitaTestSupport {
 		// the landed query lines of the maintaining engine read virtual rows - since its restart, which starts the count
 		// afresh - rather than comparing the object reading with itself
 		assertTrue(
-			((Catalog) this.engines.getMaintaining().getCatalogInstance(DifferentialEngines.CATALOG).orElseThrow())
+			((Catalog) this.engines.getMaintaining().getCatalogInstance(CATALOG).orElseThrow())
 				.getVirtualReferencePartitionMaintenance()
 				.getVirtualRowsRead() > 0,
 			"The maintaining engine must read virtual rows on the landed query lines"

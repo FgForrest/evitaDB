@@ -38,16 +38,11 @@ import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMut
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.TransitionStage;
-import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.ReferencedTypeEntityIndex;
-import io.evitadb.index.VirtualReferencePartitionIndex;
-import io.evitadb.index.VirtualReferencePartitionSlot;
 import io.evitadb.index.virtual.TransitionHistory.Transition;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.utils.NumberUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -60,19 +55,16 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.OptionalLong;
 import java.util.function.Consumer;
 
 import static io.evitadb.api.query.QueryConstraints.referenceContentAll;
-import static io.evitadb.index.virtual.DifferentialEngines.CATALOG;
+import static io.evitadb.index.virtual.DifferentialEngines.assertNoRow;
+import static io.evitadb.index.virtual.DifferentialEngines.assertRow;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.*;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -665,17 +657,6 @@ class VirtualReferencePartitionTransitionTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Creates the key of a category partition.
-	 *
-	 * @param category the category
-	 * @return the key
-	 */
-	@Nonnull
-	static RepresentativeReferenceKey category(int category) {
-		return new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_CATEGORIES, category));
-	}
-
-	/**
 	 * Creates the key of a gallery partition.
 	 *
 	 * @param media the media
@@ -685,53 +666,6 @@ class VirtualReferencePartitionTransitionTest implements EvitaTestSupport {
 	@Nonnull
 	static RepresentativeReferenceKey media(int media, @Nonnull String role) {
 		return new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_GALLERY, media), new Serializable[]{role});
-	}
-
-	/**
-	 * Creates the key of a reflected product partition of the category.
-	 *
-	 * @param product the product
-	 * @return the key
-	 */
-	@Nonnull
-	static RepresentativeReferenceKey product(int product) {
-		return new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_PRODUCTS, product));
-	}
-
-	/**
-	 * Returns a collection of the committed catalog of an engine.
-	 *
-	 * @param evita      the engine
-	 * @param entityType the entity type
-	 * @return the collection
-	 */
-	@Nonnull
-	static EntityCollection collectionOf(@Nonnull Evita evita, @Nonnull String entityType) {
-		return (EntityCollection) evita.getCatalogInstance(CATALOG)
-			.orElseThrow()
-			.getCollectionForEntity(entityType)
-			.orElseThrow();
-	}
-
-	/**
-	 * Returns the primary key of a partition in the committed catalog of an engine.
-	 *
-	 * @param evita      the engine
-	 * @param entityType the entity type owning the reference
-	 * @param scope      the scope
-	 * @param key        the key of the partition
-	 * @return the partition primary key, or `-1` when there is no such partition
-	 */
-	static int partitionOf(
-		@Nonnull Evita evita,
-		@Nonnull String entityType,
-		@Nonnull Scope scope,
-		@Nonnull RepresentativeReferenceKey key
-	) {
-		final EntityIndex partition = collectionOf(evita, entityType).getIndexByKeyIfExists(
-			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, key)
-		);
-		return partition == null ? -1 : partition.getPrimaryKey();
 	}
 
 	/**
@@ -758,83 +692,6 @@ class VirtualReferencePartitionTransitionTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Returns the registry of a reference in the committed catalog of an engine.
-	 *
-	 * @param evita         the engine
-	 * @param entityType    the entity type owning the reference
-	 * @param scope         the scope
-	 * @param referenceName the reference
-	 * @return the registry, `null` when the reference has no referenced-type entity index in the scope
-	 */
-	@Nullable
-	static VirtualReferencePartitionIndex registryOf(
-		@Nonnull Evita evita,
-		@Nonnull String entityType,
-		@Nonnull Scope scope,
-		@Nonnull String referenceName
-	) {
-		final EntityIndex typeIndex = collectionOf(evita, entityType).getIndexByKeyIfExists(
-			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName)
-		);
-		return typeIndex == null ?
-			null : assertInstanceOf(ReferencedTypeEntityIndex.class, typeIndex).getVirtualReferencePartitionIndex();
-	}
-
-	/**
-	 * Asserts the maintaining engine's committed registry holds the row of the partition, naming the owner and the
-	 * referenced entity of the key, and that the reference engine's registry holds nothing.
-	 *
-	 * @param engines    the engines
-	 * @param entityType the entity type owning the reference
-	 * @param scope      the scope
-	 * @param key        the key of the partition
-	 * @param owner      the expected owner
-	 */
-	static void assertRow(
-		@Nonnull DifferentialEngines engines,
-		@Nonnull String entityType,
-		@Nonnull Scope scope,
-		@Nonnull RepresentativeReferenceKey key,
-		int owner
-	) {
-		final int partition = partitionOf(engines.getMaintaining(), entityType, scope, key);
-		assertNotEquals(-1, partition, "No partition for " + key + " in " + scope);
-		final VirtualReferencePartitionIndex registry =
-			registryOf(engines.getMaintaining(), entityType, scope, key.referenceName());
-		assertNotNull(registry);
-		final OptionalLong row = registry.getPartitionOwner(partition);
-		assertTrue(row.isPresent(), "The partition of " + key + " in " + scope + " must have its row");
-		assertEquals(owner, NumberUtils.unpackHigh(row.getAsLong()), "owner of " + key);
-		assertEquals(key.primaryKey(), NumberUtils.unpackLow(row.getAsLong()), "referenced entity of " + key);
-		assertReferenceEngineRegistryEmpty(engines, entityType, scope, key.referenceName());
-	}
-
-	/**
-	 * Asserts the partition exists and the maintaining engine's committed registry holds no row for it.
-	 *
-	 * @param engines    the engines
-	 * @param entityType the entity type owning the reference
-	 * @param scope      the scope
-	 * @param key        the key of the partition
-	 */
-	static void assertNoRow(
-		@Nonnull DifferentialEngines engines,
-		@Nonnull String entityType,
-		@Nonnull Scope scope,
-		@Nonnull RepresentativeReferenceKey key
-	) {
-		final int partition = partitionOf(engines.getMaintaining(), entityType, scope, key);
-		assertNotEquals(-1, partition, "No partition for " + key + " in " + scope);
-		final VirtualReferencePartitionIndex registry =
-			registryOf(engines.getMaintaining(), entityType, scope, key.referenceName());
-		assertNotNull(registry);
-		assertFalse(
-			registry.getPartitionOwner(partition).isPresent(),
-			"The partition of " + key + " in " + scope + " must have no row"
-		);
-	}
-
-	/**
 	 * Asserts the partition does not exist in the maintaining engine, or exists without owner and row.
 	 *
 	 * @param engines    the engines
@@ -853,57 +710,6 @@ class VirtualReferencePartitionTransitionTest implements EvitaTestSupport {
 			assertEquals(List.of(), ownersOf(engines.getMaintaining(), entityType, scope, key));
 			assertNoRow(engines, entityType, scope, key);
 		}
-	}
-
-	/**
-	 * Asserts the reference engine, which maintains nothing, has an empty registry for the reference.
-	 *
-	 * @param engines       the engines
-	 * @param entityType    the entity type owning the reference
-	 * @param scope         the scope
-	 * @param referenceName the reference
-	 */
-	private static void assertReferenceEngineRegistryEmpty(
-		@Nonnull DifferentialEngines engines,
-		@Nonnull String entityType,
-		@Nonnull Scope scope,
-		@Nonnull String referenceName
-	) {
-		final VirtualReferencePartitionIndex registry =
-			registryOf(engines.getReference(), entityType, scope, referenceName);
-		assertTrue(registry == null || registry.isEmpty(), "the reference engine must write no registry");
-	}
-
-	/**
-	 * Describes the owner rows and tuples of a reference in both scopes of the committed catalog of an engine.
-	 *
-	 * @param evita         the engine
-	 * @param entityType    the entity type owning the reference
-	 * @param referenceName the reference
-	 * @return the description
-	 */
-	@Nonnull
-	static String describeRows(@Nonnull Evita evita, @Nonnull String entityType, @Nonnull String referenceName) {
-		final StringBuilder description = new StringBuilder(256);
-		for (final Scope scope : Scope.values()) {
-			final VirtualReferencePartitionIndex registry = registryOf(evita, entityType, scope, referenceName);
-			description.append(scope).append(':');
-			if (registry != null) {
-				registry.forEachEntry(
-					VirtualReferencePartitionSlot.PARTITION_OWNER,
-					(partition, payload) -> description.append(' ').append(partition).append("->")
-						.append(NumberUtils.unpackHigh(payload)).append('/').append(NumberUtils.unpackLow(payload))
-				);
-				registry.forEachEntry(
-					VirtualReferencePartitionSlot.REPRESENTATIVE_TUPLE,
-					(partition, payload) -> description.append(' ').append(partition).append("#")
-						.append(Arrays.toString(registry.getTuple((int) payload)))
-				);
-				description.append(" entries=").append(registry.getEntryCount());
-			}
-			description.append('\n');
-		}
-		return description.toString();
 	}
 
 	/**

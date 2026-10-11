@@ -89,10 +89,10 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
-import static io.evitadb.index.virtual.DifferentialEngines.CATALOG;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.ATTRIBUTE_CODE;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.ATTRIBUTE_ORDER;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.ATTRIBUTE_RANK;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.CATALOG;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.ENTITY_CATEGORY;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.ENTITY_PRODUCT;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.REFERENCE_CATEGORIES;
@@ -125,7 +125,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * After every event the catalog must keep the invariants a reload relies on (see
  * {@link VirtualPartitionInvariants}).
  *
- * The index-level description of every collection (see {@link DifferentialEngines#describeIndexesOf}) - the registry
+ * The index-level description of every collection (see {@link CatalogDescriber#describeIndexesOf}) - the registry
  * rows with their primary keys, owners, sort values and chain predecessors, the advertised partitions, the index
  * objects and the membership - must be exactly what it was before the event, and a partition an owner enters after the
  * event must get a primary key greater than every primary key the collection used before it, which a reload must keep
@@ -518,7 +518,7 @@ class VirtualPartitionReloadInvariantTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private static RepresentativeReferenceKey categoryKey(int category) {
-		return VirtualReferencePartitionTransitionTest.category(category);
+		return SingleOwnerPartitionFixture.category(category);
 	}
 
 	/**
@@ -751,7 +751,7 @@ class VirtualPartitionReloadInvariantTest implements EvitaTestSupport {
 
 		/**
 		 * Describes the indexes of one collection of the catalog writing virtually - see
-		 * {@link DifferentialEngines#describeIndexesOf(EntityCollection)}.
+		 * {@link CatalogDescriber#describeIndexesOf(EntityCollection)}.
 		 *
 		 * @param engines    the engines
 		 * @param entityType the entity type
@@ -762,7 +762,7 @@ class VirtualPartitionReloadInvariantTest implements EvitaTestSupport {
 			@Nonnull DifferentialEngines engines,
 			@Nonnull String entityType
 		) {
-			return DifferentialEngines.describeIndexesOf(collectionOf(engines.getMaintaining(), CATALOG, entityType));
+			return CatalogDescriber.describeIndexesOf(collectionOf(engines.getMaintaining(), CATALOG, entityType));
 		}
 
 		/**
@@ -919,13 +919,13 @@ class VirtualPartitionReloadInvariantTest implements EvitaTestSupport {
 
 			assertRepresentation(VIRTUAL_CATALOG, false);
 			assertUnchanged("after the replacement", before, describeIndexes(engine(), VIRTUAL_CATALOG));
-			assertEquals(queries, DifferentialEngines.describeQueriesOf(engine(), VIRTUAL_CATALOG));
+			assertEquals(queries, CatalogDescriber.describeQueriesOf(engine(), VIRTUAL_CATALOG));
 			restart();
 			assertRepresentation(VIRTUAL_CATALOG, false);
 			assertUnchanged(
 				"after the reload of the replaced catalog", before, describeIndexes(engine(), VIRTUAL_CATALOG)
 			);
-			assertEquals(queries, DifferentialEngines.describeQueriesOf(engine(), VIRTUAL_CATALOG));
+			assertEquals(queries, CatalogDescriber.describeQueriesOf(engine(), VIRTUAL_CATALOG));
 
 			// the replaced catalog writes index objects from now on - a new single-owner partition is one
 			engine().updateCatalog(VIRTUAL_CATALOG, mintingStep(ENTITY_PRODUCT));
@@ -967,7 +967,7 @@ class VirtualPartitionReloadInvariantTest implements EvitaTestSupport {
 			);
 			assertUnchanged(
 				"after the duplication: the query lines", queries,
-				DifferentialEngines.describeQueriesOf(engine(), PRODUCED_CATALOG)
+				CatalogDescriber.describeQueriesOf(engine(), PRODUCED_CATALOG)
 			);
 			assertInvariants("after the duplication", engine(), PRODUCED_CATALOG);
 			final SortedMap<String, String> duplicated = describeIndexes(engine(), PRODUCED_CATALOG);
@@ -1082,10 +1082,10 @@ class VirtualPartitionReloadInvariantTest implements EvitaTestSupport {
 		 */
 		@Nonnull
 		private SortedMap<String, String> assertTwinsAnswerAlike(@Nonnull String label) {
-			final SortedMap<String, String> queries = DifferentialEngines.describeQueriesOf(engine(), VIRTUAL_CATALOG);
+			final SortedMap<String, String> queries = CatalogDescriber.describeQueriesOf(engine(), VIRTUAL_CATALOG);
 			assertUnchanged(
 				label + ": the catalog of index objects answering as the virtual one",
-				queries, DifferentialEngines.describeQueriesOf(engine(), OBJECTS_CATALOG)
+				queries, CatalogDescriber.describeQueriesOf(engine(), OBJECTS_CATALOG)
 			);
 			return queries;
 		}
@@ -1107,7 +1107,7 @@ class VirtualPartitionReloadInvariantTest implements EvitaTestSupport {
 		) {
 			assertUnchanged(label, indexes, describeIndexes(engine(), catalogName));
 			assertUnchanged(
-				label + ": the query lines", queries, DifferentialEngines.describeQueriesOf(engine(), catalogName)
+				label + ": the query lines", queries, CatalogDescriber.describeQueriesOf(engine(), catalogName)
 			);
 			assertInvariants(label, engine(), catalogName);
 		}

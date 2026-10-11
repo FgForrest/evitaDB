@@ -25,18 +25,12 @@ package io.evitadb.index.virtual;
 
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
-import io.evitadb.api.query.order.OrderDirection;
-import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
-import io.evitadb.api.requestResponse.data.ReferenceEditor.ReferenceBuilder;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.attribute.ApplyDeltaAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttributeMutation;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
-import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.OrderBehaviour;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.TransitionStage;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.Predecessor;
@@ -60,12 +54,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.text.Normalizer;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
-import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -73,11 +61,12 @@ import java.util.TreeSet;
 import java.util.function.Consumer;
 
 import static io.evitadb.api.query.QueryConstraints.referenceContentAll;
+import static io.evitadb.index.virtual.DifferentialEngines.assertNoRow;
+import static io.evitadb.index.virtual.DifferentialEngines.assertRow;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.partitionOf;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.registryOf;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.updateProduct;
-import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.assertNoRow;
-import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.assertRow;
-import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.partitionOf;
-import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.registryOf;
+import static io.evitadb.index.virtual.SortValueAndChainFixture.*;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.TRANSACTION;
@@ -112,81 +101,9 @@ public class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 	private static final String REFERENCE_CATEGORIES = SingleOwnerPartitionFixture.REFERENCE_CATEGORIES;
 	private static final String REFERENCE_PRODUCTS = SingleOwnerPartitionFixture.REFERENCE_PRODUCTS;
 	/**
-	 * Filterable and sortable - the partition's sort index is a view over its filter index.
-	 */
-	static final String ATTRIBUTE_ORDER = "order";
-	/**
-	 * Sortable only, scaled to two decimal places in the sort index.
-	 */
-	static final String ATTRIBUTE_PRICE = "price";
-	private static final String ATTRIBUTE_VALID_FROM = "validFrom";
-	/**
-	 * Filterable and sortable.
-	 */
-	private static final String ATTRIBUTE_RELEASED_AT = "releasedAt";
-	private static final String ATTRIBUTE_OPENS_AT = "opensAt";
-	/**
-	 * Localized.
-	 */
-	static final String ATTRIBUTE_LABEL = "label";
-	private static final String ATTRIBUTE_LANGUAGE = "language";
-	private static final String ATTRIBUTE_CURRENCY = "currency";
-	/**
-	 * Sortable, two indexed decimal places, written at an intrinsic scale of one.
-	 */
-	static final String ATTRIBUTE_SPAN = "span";
-	/**
-	 * Filterable only - never in a sort index, never mirrored.
-	 */
-	private static final String ATTRIBUTE_FILTERED = "filtered";
-	/**
-	 * Unique only - never in a sort index, never mirrored.
-	 */
-	private static final String ATTRIBUTE_UNIQUE_CODE = "uniqueCode";
-	/**
-	 * A `Predecessor` - the reflected reference inherits it as a `ReferencedEntityPredecessor`.
-	 */
-	static final String ATTRIBUTE_PRODUCT_ORDER = "productOrder";
-	/**
-	 * A `ReferencedEntityPredecessor` - the reflected reference inherits it as a `Predecessor`.
-	 */
-	static final String ATTRIBUTE_CATEGORY_ORDER = "categoryOrder";
-	/**
-	 * A localized compound: the label, then the price descending with nulls first.
-	 */
-	static final String COMPOUND_LABEL_AND_PRICE = "labelAndPrice";
-	/**
-	 * A compound of the types a sort index wraps or rescales: the language, the currency descending with nulls first,
-	 * the validity, the span and the exact price.
-	 */
-	static final String COMPOUND_TYPED = "typed";
-	/**
-	 * The category the first two products share - a partition with two owners and therefore no row.
-	 */
-	static final int SHARED_CATEGORY = 100;
-	/**
-	 * Categories no product of the fixture references.
-	 */
-	static final int FREE_CATEGORY = 11;
-	/**
-	 * How many products the fixture starts with, each the only owner of the category of its own primary key.
-	 */
-	static final int PRODUCT_COUNT = 4;
-	/**
 	 * A product the fixture does not create.
 	 */
 	private static final int NEW_PRODUCT = 9;
-	/**
-	 * The schema scale of the price and the span.
-	 */
-	static final int DECIMAL_PLACES = 2;
-	static final Locale CZECH = Locale.forLanguageTag("cs");
-	/**
-	 * A Czech word written precomposed - the decomposed form of {@link #DECOMPOSED_LABEL} is the same string to a sort
-	 * index.
-	 */
-	private static final String COMPOSED_LABEL = "Žluťoučký";
-	private static final String DECOMPOSED_LABEL = Normalizer.normalize(COMPOSED_LABEL, Normalizer.Form.NFD);
 	/**
 	 * Every sort key the fixture's products declare in English.
 	 */
@@ -211,7 +128,7 @@ public class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 	@DisplayName("every sortable type and compound is mirrored through insert, replace, delta, removal and reload")
 	void shouldMirrorEverySortableTypeAndCompound(CatalogState state) {
-		final DifferentialEngines theEngines = start("types", state, VirtualReferencePartitionMirrorTest::setUpTypes);
+		final DifferentialEngines theEngines = start("types", state, SortValueAndChainFixture::setUpTypes);
 
 		// the population of every single-owner partition went through the mirror, keyed exactly as the partition
 		final VirtualReferencePartitionIndex registry = productRegistry(theEngines);
@@ -273,7 +190,7 @@ public class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 		theEngines.step(
 			"every value of the second product's partition is removed",
 			updateProduct(
-				2, it -> it.updateReference(REFERENCE_CATEGORIES, 2, VirtualReferencePartitionMirrorTest::clear)
+				2, it -> it.updateReference(REFERENCE_CATEGORIES, 2, SortValueAndChainFixture::clear)
 			)
 		);
 		final VirtualReferencePartitionIndex afterRemoval = productRegistry(theEngines);
@@ -300,7 +217,7 @@ public class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 	@DisplayName("a range is mirrored at the indexed scale once populated and once updated, plain and in a compound")
 	void shouldMirrorRangesAtTheirIndexedScale(CatalogState state) {
-		final DifferentialEngines theEngines = start("ranges", state, VirtualReferencePartitionMirrorTest::setUpTypes);
+		final DifferentialEngines theEngines = start("ranges", state, SortValueAndChainFixture::setUpTypes);
 		final BigDecimalNumberRange written = spanOf(1);
 		assertNotEquals(
 			DECIMAL_PLACES, written.getEffectiveRetainedDecimalPlaces(),
@@ -331,7 +248,7 @@ public class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 	@DisplayName("chains are mirrored on both sides of a reflected reference, an emptied chain key stays declared")
 	void shouldMirrorChainsOnBothSidesOfAReflectedReference(CatalogState state) {
-		final DifferentialEngines theEngines = start("chains", state, VirtualReferencePartitionMirrorTest::setUpChains);
+		final DifferentialEngines theEngines = start("chains", state, SortValueAndChainFixture::setUpChains);
 		final AttributeIndexKey productOrder = key(ATTRIBUTE_PRODUCT_ORDER, null);
 		final AttributeIndexKey categoryOrder = key(ATTRIBUTE_CATEGORY_ORDER, null);
 		assertEquals(Set.of(productOrder, categoryOrder), productRegistry(theEngines).getDeclaredChainKeys());
@@ -401,7 +318,7 @@ public class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 	@DisplayName("a partition left with one of two owners gets every sortable type and compound by extraction")
 	void shouldExtractEverySortableTypeAndCompoundOfADemotedPartition(CatalogState state) {
 		final DifferentialEngines theEngines = start(
-			"demoted", state, VirtualReferencePartitionMirrorTest::setUpTypes
+			"demoted", state, SortValueAndChainFixture::setUpTypes
 		);
 		final int shared = partitionOfCategory(SHARED_CATEGORY);
 		// the demotion below starts from a registry loaded from disk
@@ -453,7 +370,7 @@ public class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 	@DisplayName("a demoted partition gets its ranges at the indexed scale once populated and once updated")
 	void shouldExtractRangesAtTheirIndexedScale(CatalogState state) {
 		final DifferentialEngines theEngines = start(
-			"demotedRanges", state, VirtualReferencePartitionMirrorTest::setUpTypes
+			"demotedRanges", state, SortValueAndChainFixture::setUpTypes
 		);
 		assertNotEquals(
 			DECIMAL_PLACES, spanOf(sharedVariantOf(1)).getEffectiveRetainedDecimalPlaces(),
@@ -513,7 +430,7 @@ public class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 	@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
 	@DisplayName("the declared keys are retired with the last row, whether it is vacated or shared")
 	void shouldRetireEveryKeyWithTheLastRow(CatalogState state) {
-		final DifferentialEngines theEngines = start("retire", state, VirtualReferencePartitionMirrorTest::setUpTypes);
+		final DifferentialEngines theEngines = start("retire", state, SortValueAndChainFixture::setUpTypes);
 
 		theEngines.transaction(
 			"all products but the fourth are removed",
@@ -554,7 +471,7 @@ public class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 	@DisplayName("a failure injected in the middle of a population rolls the mirrored values back with the partition")
 	void shouldRollBackTheMirroredValuesOfAFailedPopulation(CatalogState state) {
 		final DifferentialEngines theEngines = start(
-			"failedMirror", state, VirtualReferencePartitionMirrorTest::setUpTypes
+			"failedMirror", state, SortValueAndChainFixture::setUpTypes
 		);
 		theEngines.step("a product moves to the archive", session -> session.archiveEntity(ENTITY_PRODUCT, 4));
 		final String before = describeRegistry(productRegistry(theEngines));
@@ -608,250 +525,6 @@ public class VirtualReferencePartitionMirrorTest implements EvitaTestSupport {
 		this.engines = theEngines;
 		theEngines.prepare(state, setup);
 		return theEngines;
-	}
-
-	/**
-	 * Defines products in two locales with a category reference indexed for filtering that carries a sortable
-	 * attribute of every type a sort index normalizes in its own way, two compounds, and a filterable and a unique
-	 * attribute that are not sortable; then creates product `n` (1 to {@link #PRODUCT_COUNT}) as the only owner of
-	 * category `n`, the first two also sharing {@link #SHARED_CATEGORY} with values of every type (see
-	 * {@link #sharedVariantOf(int)}).
-	 *
-	 * @param session the session to write in
-	 */
-	public static void setUpTypes(@Nonnull EvitaSessionContract session) {
-		session.defineEntitySchema(ENTITY_CATEGORY).updateVia(session);
-		session.defineEntitySchema(ENTITY_PRODUCT)
-			.withLocale(Locale.ENGLISH, CZECH)
-			.withReferenceToEntity(
-				REFERENCE_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs
-					.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
-					.withAttribute(ATTRIBUTE_ORDER, Integer.class, thatIs -> thatIs.filterable().sortable().nullable())
-					.withAttribute(
-						ATTRIBUTE_PRICE, BigDecimal.class,
-						thatIs -> thatIs.sortable().indexDecimalPlaces(DECIMAL_PLACES).nullable()
-					)
-					.withAttribute(ATTRIBUTE_VALID_FROM, OffsetDateTime.class, thatIs -> thatIs.sortable().nullable())
-					.withAttribute(
-						ATTRIBUTE_RELEASED_AT, LocalDateTime.class, thatIs -> thatIs.filterable().sortable().nullable()
-					)
-					.withAttribute(ATTRIBUTE_OPENS_AT, LocalTime.class, thatIs -> thatIs.sortable().nullable())
-					.withAttribute(ATTRIBUTE_LABEL, String.class, thatIs -> thatIs.localized().sortable().nullable())
-					.withAttribute(ATTRIBUTE_LANGUAGE, Locale.class, thatIs -> thatIs.sortable().nullable())
-					.withAttribute(ATTRIBUTE_CURRENCY, Currency.class, thatIs -> thatIs.sortable().nullable())
-					.withAttribute(
-						ATTRIBUTE_SPAN, BigDecimalNumberRange.class,
-						thatIs -> thatIs.sortable().indexDecimalPlaces(DECIMAL_PLACES).nullable()
-					)
-					.withAttribute(ATTRIBUTE_FILTERED, Integer.class, thatIs -> thatIs.filterable().nullable())
-					.withAttribute(ATTRIBUTE_UNIQUE_CODE, String.class, thatIs -> thatIs.unique().nullable())
-					.withSortableAttributeCompound(
-						COMPOUND_LABEL_AND_PRICE,
-						new AttributeElement(ATTRIBUTE_LABEL, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
-						new AttributeElement(ATTRIBUTE_PRICE, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
-					)
-					.withSortableAttributeCompound(
-						COMPOUND_TYPED,
-						new AttributeElement(ATTRIBUTE_LANGUAGE, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
-						new AttributeElement(ATTRIBUTE_CURRENCY, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST),
-						new AttributeElement(ATTRIBUTE_VALID_FROM, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
-						new AttributeElement(ATTRIBUTE_SPAN, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
-						new AttributeElement(ATTRIBUTE_PRICE, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
-					)
-			)
-			.updateVia(session);
-		for (int pk = 1; pk <= FREE_CATEGORY; pk++) {
-			session.upsertEntity(session.createNewEntity(ENTITY_CATEGORY, pk));
-		}
-		session.upsertEntity(session.createNewEntity(ENTITY_CATEGORY, SHARED_CATEGORY));
-		for (int pk = 1; pk <= PRODUCT_COUNT; pk++) {
-			final int productPrimaryKey = pk;
-			final EntityBuilder product = session.createNewEntity(ENTITY_PRODUCT, pk)
-				.setReference(REFERENCE_CATEGORIES, pk, ref -> fillReference(ref, productPrimaryKey));
-			if (pk <= 2) {
-				product.setReference(
-					REFERENCE_CATEGORIES, SHARED_CATEGORY, ref -> fillReference(ref, sharedVariantOf(productPrimaryKey))
-				);
-			}
-			session.upsertEntity(product);
-		}
-	}
-
-	/**
-	 * Defines products whose category reference carries an order and both chain types, reflected on the category with
-	 * its attributes inherited; then creates product `n` (1 to 3) as the only owner of category `n`, chained after
-	 * product `n - 1` and after category `n - 1`.
-	 *
-	 * @param session the session to write in
-	 */
-	public static void setUpChains(@Nonnull EvitaSessionContract session) {
-		session.defineEntitySchema(ENTITY_CATEGORY).updateVia(session);
-		session.defineEntitySchema(ENTITY_PRODUCT)
-			.withReferenceToEntity(
-				REFERENCE_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs
-					.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
-					.withAttribute(ATTRIBUTE_ORDER, Integer.class, thatIs -> thatIs.filterable().sortable().nullable())
-					.withAttribute(ATTRIBUTE_PRODUCT_ORDER, Predecessor.class, thatIs -> thatIs.sortable().nullable())
-					.withAttribute(
-						ATTRIBUTE_CATEGORY_ORDER, ReferencedEntityPredecessor.class,
-						thatIs -> thatIs.sortable().nullable()
-					)
-			)
-			.updateVia(session);
-		session.defineEntitySchema(ENTITY_CATEGORY)
-			.withReflectedReferenceToEntity(
-				REFERENCE_PRODUCTS, ENTITY_PRODUCT, REFERENCE_CATEGORIES,
-				whichIs -> whichIs
-					.withCardinality(Cardinality.ZERO_OR_MORE)
-					.withAttributesInherited()
-					.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
-			)
-			.updateVia(session);
-		for (int pk = 1; pk <= FREE_CATEGORY; pk++) {
-			session.upsertEntity(session.createNewEntity(ENTITY_CATEGORY, pk));
-		}
-		for (int pk = 1; pk <= 3; pk++) {
-			final int productPrimaryKey = pk;
-			session.upsertEntity(
-				session.createNewEntity(ENTITY_PRODUCT, pk)
-					.setReference(
-						REFERENCE_CATEGORIES, pk,
-						ref -> ref.setAttribute(ATTRIBUTE_ORDER, productPrimaryKey)
-							.setAttribute(
-								ATTRIBUTE_PRODUCT_ORDER,
-								productPrimaryKey == 1 ? Predecessor.HEAD : new Predecessor(productPrimaryKey - 1)
-							)
-							.setAttribute(
-								ATTRIBUTE_CATEGORY_ORDER,
-								productPrimaryKey == 1 ?
-									ReferencedEntityPredecessor.HEAD :
-									new ReferencedEntityPredecessor(productPrimaryKey - 1)
-							)
-					)
-			);
-		}
-	}
-
-	/**
-	 * Returns the variant of the values product `n` has in {@link #SHARED_CATEGORY} - one no single-owner partition of
-	 * the fixture uses.
-	 *
-	 * @param product the product, 1 or 2
-	 * @return the variant
-	 */
-	static int sharedVariantOf(int product) {
-		return PRODUCT_COUNT + product;
-	}
-
-	/**
-	 * Sets every attribute of a category reference to the variant `n` of its values. The variants tie on purpose:
-	 * variants 1 and 3, and 2 and 4, share their order; 1 and 2 share their price and their instant of validity at
-	 * different offsets; 3 and 4 share their label, once composed and once decomposed.
-	 *
-	 * @param reference the reference to fill
-	 * @param variant   the variant of the values
-	 * @return the reference
-	 */
-	@Nonnull
-	static ReferenceBuilder fillReference(@Nonnull ReferenceBuilder reference, int variant) {
-		return reference
-			.setAttribute(ATTRIBUTE_ORDER, variant % 2 + 1)
-			.setAttribute(ATTRIBUTE_PRICE, priceOf(variant))
-			.setAttribute(ATTRIBUTE_VALID_FROM, validFromOf(variant))
-			.setAttribute(
-				ATTRIBUTE_RELEASED_AT, LocalDateTime.of(2026, 3, 29, 2, 30, 0, 123_456_789).plusDays(variant)
-			)
-			.setAttribute(ATTRIBUTE_OPENS_AT, LocalTime.of(8, variant, 0, 999_999_999))
-			.setAttribute(ATTRIBUTE_LABEL, Locale.ENGLISH, labelOf(variant))
-			.setAttribute(ATTRIBUTE_LANGUAGE, variant % 2 == 0 ? Locale.ENGLISH : CZECH)
-			.setAttribute(ATTRIBUTE_CURRENCY, Currency.getInstance(variant % 2 == 0 ? "CZK" : "EUR"))
-			.setAttribute(ATTRIBUTE_SPAN, spanOf(variant))
-			.setAttribute(ATTRIBUTE_FILTERED, variant)
-			.setAttribute(ATTRIBUTE_UNIQUE_CODE, "U" + variant + "-" + reference.getReferencedPrimaryKey());
-	}
-
-	/**
-	 * Removes every attribute of a category reference.
-	 *
-	 * @param reference the reference to clear
-	 */
-	private static void clear(@Nonnull ReferenceBuilder reference) {
-		reference
-			.removeAttribute(ATTRIBUTE_ORDER)
-			.removeAttribute(ATTRIBUTE_PRICE)
-			.removeAttribute(ATTRIBUTE_VALID_FROM)
-			.removeAttribute(ATTRIBUTE_RELEASED_AT)
-			.removeAttribute(ATTRIBUTE_OPENS_AT)
-			.removeAttribute(ATTRIBUTE_LABEL, Locale.ENGLISH)
-			.removeAttribute(ATTRIBUTE_LANGUAGE)
-			.removeAttribute(ATTRIBUTE_CURRENCY)
-			.removeAttribute(ATTRIBUTE_SPAN)
-			.removeAttribute(ATTRIBUTE_FILTERED)
-			.removeAttribute(ATTRIBUTE_UNIQUE_CODE);
-	}
-
-	/**
-	 * Returns the price of a variant - variants 1 and 2 have the same price at different scales, variant 3 a negative
-	 * one rounded at the schema scale.
-	 *
-	 * @param variant the variant
-	 * @return the price
-	 */
-	@Nonnull
-	private static BigDecimal priceOf(int variant) {
-		return switch (variant) {
-			case 1 -> new BigDecimal("1.25");
-			case 2 -> new BigDecimal("1.250");
-			case 3 -> new BigDecimal("-1.235");
-			default -> new BigDecimal(variant).movePointLeft(1);
-		};
-	}
-
-	/**
-	 * Returns the validity of a variant - variants 1 and 2 are the same instant at different offsets, variant 3 is
-	 * before 1970 and finer than a millisecond.
-	 *
-	 * @param variant the variant
-	 * @return the validity
-	 */
-	@Nonnull
-	private static OffsetDateTime validFromOf(int variant) {
-		return switch (variant) {
-			case 1 -> OffsetDateTime.of(2026, 1, 1, 10, 0, 0, 0, ZoneOffset.ofHours(2));
-			case 2 -> OffsetDateTime.of(2026, 1, 1, 8, 0, 0, 0, ZoneOffset.UTC);
-			case 3 -> OffsetDateTime.of(1969, 12, 31, 23, 59, 59, 999_999, ZoneOffset.UTC);
-			default -> OffsetDateTime.of(2026, 6, variant % 28 + 1, 0, 0, 0, 123_456_789, ZoneOffset.ofHours(-5));
-		};
-	}
-
-	/**
-	 * Returns the English label of a variant - variants 3 and 4 are the same word, composed and decomposed.
-	 *
-	 * @param variant the variant
-	 * @return the label
-	 */
-	@Nonnull
-	private static String labelOf(int variant) {
-		return switch (variant) {
-			case 3 -> COMPOSED_LABEL;
-			case 4 -> DECOMPOSED_LABEL;
-			default -> "label " + variant;
-		};
-	}
-
-	/**
-	 * Returns the span of a variant, written at an intrinsic scale of one decimal place.
-	 *
-	 * @param variant the variant
-	 * @return the span
-	 */
-	@Nonnull
-	static BigDecimalNumberRange spanOf(int variant) {
-		return BigDecimalNumberRange.between(
-			new BigDecimal(variant).add(new BigDecimal("0.5")), new BigDecimal(variant).add(new BigDecimal("3.4"))
-		);
 	}
 
 	/**

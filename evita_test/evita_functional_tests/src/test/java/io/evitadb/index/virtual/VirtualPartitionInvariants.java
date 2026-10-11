@@ -26,6 +26,8 @@ package io.evitadb.index.virtual;
 import io.evitadb.api.CatalogContract;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.statistics.BrowsedIndex;
 import io.evitadb.api.statistics.IndexBrowseCriteria;
@@ -77,9 +79,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  * - the index primary key sequence the collection header persists is at least every registered primary key;
  * - the reduced-index membership covers every registered partition with its owner and holds none of them as residual.
  *
- * The description (see {@link #describeIndexes(Evita, String)}) is the one {@link DifferentialEngines} compares twin
- * engines by: the registry rows with their primary keys, owners, sort values and chain predecessors, the advertised
- * partitions, the index objects and the membership.
+ * The description (see {@link #describeIndexes(Evita, String)}) is the index level of {@link CatalogDescriber}: the
+ * registry rows with their primary keys, owners, sort values and chain predecessors, the advertised partitions, the
+ * index objects and the membership.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -98,10 +100,6 @@ public final class VirtualPartitionInvariants {
 	 */
 	public static void assertInvariants(@Nonnull String label, @Nonnull Evita evita, @Nonnull String catalogName) {
 		final Catalog catalog = catalogOf(evita, catalogName);
-		assertTrue(
-			catalog.getVirtualReferencePartitionMaintenance().isVirtual(),
-			label + ": the catalog `" + catalogName + "` must represent its single-owner partitions virtually"
-		);
 		int registered = 0;
 		for (final String entityType : catalog.getEntityTypes()) {
 			registered += assertInvariants(label, collectionOf(evita, catalogName, entityType), catalog.getVersion());
@@ -231,7 +229,7 @@ public final class VirtualPartitionInvariants {
 	) {
 		for (final Scope scope : Scope.values()) {
 			for (final ReferenceSchemaContract referenceSchema : collection.getSchema().getReferences().values()) {
-				if (!VirtualReferencePartitionOracle.isShadowed(referenceSchema, scope)) {
+				if (!isShadowed(referenceSchema, scope)) {
 					continue;
 				}
 				final SortedSet<Integer> primaryKeys = new TreeSet<>();
@@ -265,6 +263,21 @@ public final class VirtualPartitionInvariants {
 				}
 			}
 		}
+	}
+
+	/**
+	 * Returns TRUE when the registry may hold rows for the reference in the scope - the reference is indexed
+	 * `FOR_FILTERING`, not for partitioning, and with the referenced entity component. It restates the predicate of the
+	 * writer of the registry on purpose, so the invariants do not take the writer's word for which references they
+	 * cover.
+	 *
+	 * @param referenceSchema the reference
+	 * @param scope           the scope
+	 * @return TRUE when the reference is shadowed in the scope
+	 */
+	static boolean isShadowed(@Nonnull ReferenceSchemaContract referenceSchema, @Nonnull Scope scope) {
+		return referenceSchema.getReferenceIndexType(scope) == ReferenceIndexType.FOR_FILTERING &&
+			referenceSchema.getIndexedComponents(scope).contains(ReferenceIndexedComponents.REFERENCED_ENTITY);
 	}
 
 	/**
@@ -309,7 +322,7 @@ public final class VirtualPartitionInvariants {
 
 	/**
 	 * Describes the indexes of every collection of a committed catalog - see
-	 * {@link DifferentialEngines#describeIndexesOf(EntityCollection)}.
+	 * {@link CatalogDescriber#describeIndexesOf(EntityCollection)}.
 	 *
 	 * @param evita       the engine
 	 * @param catalogName the catalog
@@ -320,7 +333,7 @@ public final class VirtualPartitionInvariants {
 		final SortedMap<String, String> lines = new TreeMap<>();
 		final Catalog catalog = catalogOf(evita, catalogName);
 		for (final String entityType : catalog.getEntityTypes()) {
-			lines.putAll(DifferentialEngines.describeIndexesOf(collectionOf(evita, catalogName, entityType)));
+			lines.putAll(CatalogDescriber.describeIndexesOf(collectionOf(evita, catalogName, entityType)));
 		}
 		return lines;
 	}

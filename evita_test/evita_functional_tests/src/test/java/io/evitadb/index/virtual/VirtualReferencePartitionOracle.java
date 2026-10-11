@@ -28,8 +28,6 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
-import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
@@ -242,19 +240,6 @@ final class VirtualReferencePartitionOracle {
 	}
 
 	private VirtualReferencePartitionOracle() {
-	}
-
-	/**
-	 * Returns TRUE when the registry may hold rows for the reference in the scope - the reference is indexed
-	 * `FOR_FILTERING`, not for partitioning, and with the referenced entity component.
-	 *
-	 * @param referenceSchema the reference
-	 * @param scope           the scope
-	 * @return TRUE when the reference is shadowed in the scope
-	 */
-	static boolean isShadowed(@Nonnull ReferenceSchemaContract referenceSchema, @Nonnull Scope scope) {
-		return referenceSchema.getReferenceIndexType(scope) == ReferenceIndexType.FOR_FILTERING &&
-			referenceSchema.getIndexedComponents(scope).contains(ReferenceIndexedComponents.REFERENCED_ENTITY);
 	}
 
 	/**
@@ -480,7 +465,7 @@ final class VirtualReferencePartitionOracle {
 				}
 			}
 		);
-		if (!isShadowed(referenceSchema, scope)) {
+		if (!VirtualPartitionInvariants.isShadowed(referenceSchema, scope)) {
 			inspectUnshadowed(referenceSchema, scope, registry, owned, findings);
 			return;
 		}

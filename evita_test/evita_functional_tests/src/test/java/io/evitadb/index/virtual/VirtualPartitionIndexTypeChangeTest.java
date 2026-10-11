@@ -117,7 +117,7 @@ import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
 import static io.evitadb.api.query.QueryConstraints.statistics;
 import static io.evitadb.api.query.QueryConstraints.traverseByEntityProperty;
-import static io.evitadb.index.virtual.DifferentialEngines.CATALOG;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.CATALOG;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.SCHEMA;
@@ -881,7 +881,7 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 	 * of a target, the facet summary of a target, a reference attribute, the `pickFirst` and the block-by-block
 	 * orderings, the filtered reference content, and the same through the reflected reference of the category - and
 	 * describes the answer of each, or the failure it raised, together with the query lines of the whole catalog (see
-	 * {@link DifferentialEngines#describeQueriesOf}).
+	 * {@link CatalogDescriber#describeQueriesOf}).
 	 *
 	 * @param theEvita the engine
 	 * @param scope    the scope to read
@@ -1042,7 +1042,7 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 			answers, theEvita, "category/entityAttribute/order", ENTITY_CATEGORY,
 			filterBy(ofBothProducts), orderBy(attributeNatural(ATTRIBUTE_TITLE, OrderDirection.DESC))
 		);
-		read(answers, "catalog/queryLines", () -> DifferentialEngines.describeQueriesOf(theEvita, CATALOG).toString());
+		read(answers, "catalog/queryLines", () -> CatalogDescriber.describeQueriesOf(theEvita, CATALOG).toString());
 		return answers;
 	}
 
@@ -1165,7 +1165,7 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 		theEvita.close();
 		final Evita restarted = new Evita(configuration(Objects.requireNonNull(this.paths)));
 		this.evita = restarted;
-		DifferentialEngines.awaitCatalogLoaded(restarted);
+		CatalogReloadTestSupport.awaitCatalogLoaded(restarted, CATALOG);
 		return restarted;
 	}
 
@@ -1255,7 +1255,7 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 
 	/**
 	 * Describes the catalog of the engine as the session sees it: the indexes of both collections, the registry
-	 * included (see {@link DifferentialEngines#describeIndexesOf}), and the version of every entity.
+	 * included (see {@link CatalogDescriber#describeIndexesOf}), and the version of every entity.
 	 *
 	 * @param theEvita the engine
 	 * @param session  the session
@@ -1268,7 +1268,7 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 			final EntityCollection collection = (EntityCollection) catalogOf(theEvita)
 				.getCollectionForEntity(entityType)
 				.orElseThrow();
-			lines.putAll(DifferentialEngines.describeIndexesOf(collection));
+			lines.putAll(CatalogDescriber.describeIndexesOf(collection));
 			final int count = ENTITY_PRODUCT.equals(entityType) ? PRODUCT_COUNT : CATEGORY_COUNT;
 			for (int pk = 1; pk <= count; pk++) {
 				final SealedEntity entity = session.getEntity(entityType, pk, Scope.values(), entityFetchAllContent())
@@ -1366,11 +1366,11 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 		@Nonnull RepresentativeReferenceKey key,
 		int owner
 	) {
-		final int partition = VirtualPartitionSingletonLifecycleTest.registeredPartitionOf(
+		final int partition = SingleOwnerPartitionFixture.registeredPartitionOf(
 			theEvita, entityType, scope, key
 		);
 		assertTrue(partition > 0, "the registry must hold the row of " + key + " in " + scope);
-		final EntityCollection collection = VirtualPartitionSingletonLifecycleTest.collectionOf(theEvita, entityType);
+		final EntityCollection collection = SingleOwnerPartitionFixture.findCollectionOf(theEvita, entityType);
 		assertNotNull(collection);
 		final EntityIndex typeIndex = collection.getIndexByKeyIfExists(
 			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, key.referenceName())
@@ -1401,7 +1401,7 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 		@Nonnull RepresentativeReferenceKey key
 	) {
 		assertEquals(
-			-1, VirtualPartitionSingletonLifecycleTest.registeredPartitionOf(theEvita, entityType, scope, key),
+			-1, SingleOwnerPartitionFixture.registeredPartitionOf(theEvita, entityType, scope, key),
 			"the registry must hold no row of " + key + " in " + scope
 		);
 	}
@@ -1423,7 +1423,7 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 		@Nonnull RepresentativeReferenceKey key,
 		int... owners
 	) {
-		final EntityCollection collection = VirtualPartitionSingletonLifecycleTest.collectionOf(theEvita, entityType);
+		final EntityCollection collection = SingleOwnerPartitionFixture.findCollectionOf(theEvita, entityType);
 		assertNotNull(collection);
 		final EntityIndex partition = collection.getIndexByKeyIfExists(ReferencePartitions.createKey(scope, key));
 		assertNotNull(partition, "the partition of " + key + " in " + scope + " must be an index object");
@@ -1449,7 +1449,7 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 		@Nonnull Scope scope,
 		@Nonnull RepresentativeReferenceKey key
 	) {
-		final EntityCollection collection = VirtualPartitionSingletonLifecycleTest.collectionOf(theEvita, entityType);
+		final EntityCollection collection = SingleOwnerPartitionFixture.findCollectionOf(theEvita, entityType);
 		assertNotNull(collection);
 		assertNull(
 			collection.getIndexByKeyIfExists(ReferencePartitions.createKey(scope, key)),
@@ -1499,7 +1499,7 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 		@Nonnull Scope scope,
 		int partition
 	) {
-		final EntityCollection collection = VirtualPartitionSingletonLifecycleTest.collectionOf(theEvita, entityType);
+		final EntityCollection collection = SingleOwnerPartitionFixture.findCollectionOf(theEvita, entityType);
 		assertNotNull(collection);
 		final EntityIndex typeIndex = collection.getIndexByKeyIfExists(
 			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName)
@@ -1529,11 +1529,11 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 		final String prefix = "index/" + ENTITY_PRODUCT + "/" + scope + "/" +
 			EntityIndexType.REFERENCED_ENTITY_TYPE + "/" + REFERENCE_CATEGORIES + "/registry/row/" + partition +
 			"/sort/";
-		final EntityCollection collection = VirtualPartitionSingletonLifecycleTest.collectionOf(
+		final EntityCollection collection = SingleOwnerPartitionFixture.findCollectionOf(
 			theEvita, ENTITY_PRODUCT
 		);
 		assertNotNull(collection);
-		return DifferentialEngines.describeIndexesOf(collection).keySet().stream()
+		return CatalogDescriber.describeIndexesOf(collection).keySet().stream()
 			.anyMatch(path -> path.startsWith(prefix) && path.substring(prefix.length()).contains(keyText));
 	}
 
@@ -1558,10 +1558,10 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 					}
 					product.getReferences(REFERENCE_CATEGORIES).forEach(reference -> {
 						final RepresentativeReferenceKey key = category(reference.getReferencedPrimaryKey());
-						final int row = VirtualPartitionSingletonLifecycleTest.registeredPartitionOf(
+						final int row = SingleOwnerPartitionFixture.registeredPartitionOf(
 							theEvita, ENTITY_PRODUCT, scope, key
 						);
-						final EntityCollection collection = VirtualPartitionSingletonLifecycleTest.collectionOf(
+						final EntityCollection collection = SingleOwnerPartitionFixture.findCollectionOf(
 							theEvita, ENTITY_PRODUCT
 						);
 						assertNotNull(collection);

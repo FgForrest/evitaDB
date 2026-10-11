@@ -63,7 +63,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Proves that the index-level comparisons of {@link DifferentialEngines} can fail where the renderings they replaced
+ * Proves that the index-level descriptions of {@link CatalogDescriber} can fail where the renderings they replaced
  * could not. Each test builds two indexes that differ in exactly one respect and asserts, first, that the old rendering
  * finds them equal - the premise that makes the test worth having - and then that the comparison tells them apart.
  *
@@ -251,7 +251,7 @@ class DifferentialComparisonTest {
 				oldRendering(atOnePlace), oldRendering(atTwoPlaces), "the premise: the old rendering is blind"
 			);
 			assertNotEquals(
-				DifferentialEngines.describeSortIndex(atOnePlace), DifferentialEngines.describeSortIndex(atTwoPlaces)
+				CatalogDescriber.describeSortIndex(atOnePlace), CatalogDescriber.describeSortIndex(atTwoPlaces)
 			);
 		}
 
@@ -267,7 +267,7 @@ class DifferentialComparisonTest {
 				oldRendering(atOnePlace), oldRendering(atTwoPlaces), "the premise: the old rendering is blind"
 			);
 			assertNotEquals(
-				DifferentialEngines.describeSortIndex(atOnePlace), DifferentialEngines.describeSortIndex(atTwoPlaces)
+				CatalogDescriber.describeSortIndex(atOnePlace), CatalogDescriber.describeSortIndex(atTwoPlaces)
 			);
 		}
 
@@ -285,7 +285,7 @@ class DifferentialComparisonTest {
 
 			assertEquals(oldRendering(oneThenTwo), oldRendering(twoThenOne), "the premise: the old rendering is blind");
 			assertNotEquals(
-				DifferentialEngines.describeSortIndex(oneThenTwo), DifferentialEngines.describeSortIndex(twoThenOne)
+				CatalogDescriber.describeSortIndex(oneThenTwo), CatalogDescriber.describeSortIndex(twoThenOne)
 			);
 			assertEquals(
 				List.of(new Block(10, 0, 1), new Block(20, 1, 2)), SortIndexWalk.of(oneThenTwo).blocks()
@@ -402,6 +402,10 @@ class DifferentialComparisonTest {
 		}
 	}
 
+	/**
+	 * The value-to-record mapping of a standalone unique index - a line only the differential twin describes (see
+	 * {@link DifferentialEngines#describeUniqueMapping(OwnerUniqueIndex)}), not {@link CatalogDescriber}.
+	 */
 	@Nested
 	@DisplayName("Unique index mapping")
 	class UniqueMappingTest {
@@ -447,8 +451,8 @@ class DifferentialComparisonTest {
 				"the premise: the materialized order is the same"
 			);
 			assertNotEquals(
-				DifferentialEngines.describeChainPredecessors(linked),
-				DifferentialEngines.describeChainPredecessors(dangling)
+				CatalogDescriber.describeChainPredecessors(linked),
+				CatalogDescriber.describeChainPredecessors(dangling)
 			);
 		}
 	}

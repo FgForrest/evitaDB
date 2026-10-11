@@ -74,14 +74,14 @@ import java.util.OptionalLong;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
-import static io.evitadb.index.virtual.DifferentialEngines.CATALOG;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.CATALOG;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.ENTITY_CATEGORY;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.ENTITY_PRODUCT;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.REFERENCE_CATEGORIES;
-import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.category;
-import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.collectionOf;
-import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.describeRows;
-import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.partitionOf;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.category;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.collectionOf;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.describeRows;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.partitionOf;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.STORAGE;
@@ -371,7 +371,7 @@ class VirtualRepresentationPersistenceTest implements EvitaTestSupport {
 				VirtualRepresentationPersistenceTest.class.getSimpleName() + "_image"
 			);
 			allocated.add(image);
-			DifferentialEngines.copyRecursively(deferringPaths.storage(), image.storage());
+			CatalogReloadTestSupport.copyRecursively(deferringPaths.storage(), image.storage());
 			this.evita.close();
 
 			// a fresh engine told nothing about the catalog boots from the image and replays the tail

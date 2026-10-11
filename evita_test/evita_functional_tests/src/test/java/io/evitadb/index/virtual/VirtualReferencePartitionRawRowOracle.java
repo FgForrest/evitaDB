@@ -86,11 +86,11 @@ import static org.junit.jupiter.api.Assertions.fail;
  * Checks the registry of single-owner reference partitions of one collection against the stored entity bodies - the
  * rows the registry must describe, derived from what the owners say they reference, not from any index.
  *
- * {@link VirtualReferencePartitionOracle} compares the registry with the real partitions and the differential engines
- * compare an engine maintaining the registry with one that does not. Both are blind to a defect of the indexing path
- * the two engines and the mirror share: a sortable value the path never writes is missing from the real partition,
- * from the registry and from the other engine alike, while the body still holds it. This oracle reads the bodies
- * through the public query API and derives, for every reference shadowed in a scope:
+ * A check of the registry against the real partitions, and a comparison of an engine maintaining the registry with one
+ * that does not, are both blind to a defect of the indexing path the two engines and the mirror share: a sortable value
+ * the path never writes is missing from the real partition, from the registry and from the other engine alike, while
+ * the body still holds it. This oracle reads the bodies through the public query API and derives, for every reference
+ * shadowed in a scope (see {@link VirtualPartitionInvariants#isShadowed}):
  *
  * - the partitions: the rows of the owners in the scope grouped by referenced entity and - for a reference allowing
  *   duplicates - by the values of its representative attributes, a missing one taking its default. A group of one
@@ -105,7 +105,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * A `ReferencedEntityPredecessor` chain is left out: the real chain index keys it by the referenced entity, and a
  * single-owner partition that had a second owner may have lost the predecessor (#1691) - the registry copies the real
- * chain, which {@link VirtualReferencePartitionOracle} checks.
+ * chain, not what the bodies declare.
  *
  * A body value is compared in the space the index stores it in. It is taken through the conversions an indexed value
  * goes through - {@link NumberUtils#normalizeForIndexing(Serializable, int)} at the attribute's indexed decimal places,
@@ -189,7 +189,7 @@ final class VirtualReferencePartitionRawRowOracle {
 				SealedEntity.class
 			);
 			for (final ReferenceSchemaContract referenceSchema : schema.getReferences().values()) {
-				if (VirtualReferencePartitionOracle.isShadowed(referenceSchema, scope)) {
+				if (VirtualPartitionInvariants.isShadowed(referenceSchema, scope)) {
 					inspect(collection, referenceSchema, scope, bodies, findings);
 				}
 			}

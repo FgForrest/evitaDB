@@ -63,6 +63,7 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexKey;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.VirtualReferencePartitionSlot;
 import io.evitadb.index.attribute.ChainIndex;
@@ -101,7 +102,6 @@ import java.io.IOException;
 import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -113,6 +113,7 @@ import java.util.Locale;
 import java.util.Map.Entry;
 import java.util.Map;
 import java.util.OptionalInt;
+import java.util.OptionalLong;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
@@ -157,10 +158,19 @@ import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
 import static io.evitadb.api.query.QueryConstraints.statistics;
 import static io.evitadb.api.query.QueryConstraints.traverseByEntityProperty;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.CATALOG;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.findCollectionOf;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.findRegistered;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.partitionOf;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.registryOf;
 import static org.awaitility.Awaitility.await;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
@@ -282,10 +292,6 @@ import static org.junit.jupiter.api.Assertions.fail;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public final class DifferentialEngines implements AutoCloseable {
-	/**
-	 * Name of the catalog both engines host.
-	 */
-	static final String CATALOG = "differentialEngines";
 	/**
 	 * Storage part types only the maintaining engine may persist - the root and leaf pages of the registry of
 	 * single-owner partitions. Excluded from the storage-level comparison.
@@ -804,53 +810,6 @@ public final class DifferentialEngines implements AutoCloseable {
 		return committedSnapshot(this.reference, false).lines();
 	}
 
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Reduces the indexes of one collection of a catalog writing its single-owner partitions virtually to the
-	 * index-level lines of the comparison - in every scope, registry included (see {@link #describeIndexes}) - without
-	 * running a query. Read inside a session, the lines describe the state of the session's transaction.
-	 *
-	 * @param collection the collection
-	 * @return the lines, sorted by path
-	 */
-	@Nonnull
-	static SortedMap<String, String> describeIndexesOf(@Nonnull EntityCollection collection) {
-		final Snapshot snapshot = new Snapshot();
-		for (final Scope scope : Scope.values()) {
-			describeIndexes(snapshot, collection, collection.getSchema(), scope, true);
-		}
-		return snapshot.lines();
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Reduces the committed state of any catalog of an engine - not only the one the engines host - to the query-level
-	 * lines of the comparison (see {@link #describeQueries}), every collection in every scope. Each line runs with the
-	 * read switch of the catalog itself: a catalog representing its single-owner partitions virtually reads them
-	 * virtually, any other one reads its index objects. Two catalogs holding the same data must have equal lines,
-	 * whatever their representations.
-	 *
-	 * @param evita       the engine
-	 * @param catalogName the catalog
-	 * @return the lines, sorted by path
-	 */
-	@Nonnull
-	public static SortedMap<String, String> describeQueriesOf(@Nonnull Evita evita, @Nonnull String catalogName) {
-		return evita.queryCatalog(
-			catalogName,
-			(Function<EvitaSessionContract, SortedMap<String, String>>) session -> {
-				final Snapshot snapshot = new Snapshot();
-				for (final String entityType : new TreeSet<>(session.getAllEntityTypes())) {
-					final EntitySchemaContract schema = session.getEntitySchemaOrThrowException(entityType);
-					for (final Scope scope : Scope.values()) {
-						describeQueries(snapshot, session, schema, scope, ReadRouteActivation.OFF);
-					}
-				}
-				return snapshot.lines();
-			}
-		);
-	}
-
 	/**
 	 * Returns the engine with the switch off.
 	 *
@@ -915,6 +874,142 @@ public final class DifferentialEngines implements AutoCloseable {
 		return this.maintainingHistory;
 	}
 
+	/**
+	 * Asserts the maintaining engine's committed registry holds the row of the partition, naming the owner and the
+	 * referenced entity of the key, and that the reference engine's registry holds nothing.
+	 *
+	 * @param engines    the engines
+	 * @param entityType the entity type owning the reference
+	 * @param scope      the scope
+	 * @param key        the key of the partition
+	 * @param owner      the expected owner
+	 */
+	static void assertRow(
+		@Nonnull DifferentialEngines engines,
+		@Nonnull String entityType,
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey key,
+		int owner
+	) {
+		final int partition = partitionOf(engines.getMaintaining(), entityType, scope, key);
+		assertNotEquals(-1, partition, "No partition for " + key + " in " + scope);
+		final VirtualReferencePartitionIndex registry =
+			registryOf(engines.getMaintaining(), entityType, scope, key.referenceName());
+		assertNotNull(registry);
+		final OptionalLong row = registry.getPartitionOwner(partition);
+		assertTrue(row.isPresent(), "The partition of " + key + " in " + scope + " must have its row");
+		assertEquals(owner, NumberUtils.unpackHigh(row.getAsLong()), "owner of " + key);
+		assertEquals(key.primaryKey(), NumberUtils.unpackLow(row.getAsLong()), "referenced entity of " + key);
+		assertReferenceEngineRegistryEmpty(engines, entityType, scope, key.referenceName());
+	}
+
+	/**
+	 * Asserts the partition exists and the maintaining engine's committed registry holds no row for it.
+	 *
+	 * @param engines    the engines
+	 * @param entityType the entity type owning the reference
+	 * @param scope      the scope
+	 * @param key        the key of the partition
+	 */
+	static void assertNoRow(
+		@Nonnull DifferentialEngines engines,
+		@Nonnull String entityType,
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey key
+	) {
+		final int partition = partitionOf(engines.getMaintaining(), entityType, scope, key);
+		assertNotEquals(-1, partition, "No partition for " + key + " in " + scope);
+		final VirtualReferencePartitionIndex registry =
+			registryOf(engines.getMaintaining(), entityType, scope, key.referenceName());
+		assertNotNull(registry);
+		assertFalse(
+			registry.getPartitionOwner(partition).isPresent(),
+			"The partition of " + key + " in " + scope + " must have no row"
+		);
+	}
+
+	/**
+	 * Asserts that the catalog writing virtually holds the row of the key's partition naming the owner, and that the
+	 * twin holds the index object of the partition under the same primary key with the owner as its only member.
+	 *
+	 * @param engines    the engines
+	 * @param entityType the entity type owning the reference
+	 * @param scope      the scope
+	 * @param key        the key of the partition
+	 * @param owner      the expected owner
+	 */
+	static void assertRegistered(
+		@Nonnull DifferentialEngines engines,
+		@Nonnull String entityType,
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey key,
+		int owner
+	) {
+		final VirtualReferencePartition registered = findRegistered(engines.getMaintaining(), entityType, scope, key);
+		assertNotNull(registered, "the catalog writing virtually must hold the row of " + key + " in " + scope);
+		assertEquals(owner, registered.ownerPrimaryKey(), "the owner of the row of " + key + " in " + scope);
+		final EntityCollection twinCollection = findCollectionOf(engines.getReference(), entityType);
+		assertNotNull(twinCollection);
+		final EntityIndex twinPartition = twinCollection.getIndexByKeyIfExists(
+			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, key)
+		);
+		assertNotNull(twinPartition, "the twin must hold the index object of " + key + " in " + scope);
+		assertEquals(
+			twinPartition.getPrimaryKey(), registered.getPrimaryKey(),
+			"the row of " + key + " in " + scope + " must carry the primary key of the twin's index object"
+		);
+		assertEquals(
+			List.of(owner),
+			Arrays.stream(twinPartition.getAllPrimaryKeys().getArray()).boxed().toList(),
+			"the twin's partition of " + key + " in " + scope + " has the owner as its only member"
+		);
+		final EntityCollection collection = findCollectionOf(engines.getMaintaining(), entityType);
+		assertNotNull(collection);
+		assertNull(
+			collection.getIndexByPrimaryKeyIfExists(registered.getPrimaryKey()),
+			"the partition of " + key + " in " + scope + " must have no index object in the catalog writing virtually"
+		);
+	}
+
+	/**
+	 * Asserts that the catalog writing virtually holds no row of the key's partition.
+	 *
+	 * @param engines    the engines
+	 * @param entityType the entity type owning the reference
+	 * @param scope      the scope
+	 * @param key        the key of the partition
+	 */
+	static void assertNoRegisteredPartition(
+		@Nonnull DifferentialEngines engines,
+		@Nonnull String entityType,
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey key
+	) {
+		assertNull(
+			findRegistered(engines.getMaintaining(), entityType, scope, key),
+			"the catalog writing virtually must hold no row of " + key + " in " + scope
+		);
+	}
+
+	/**
+	 * Asserts the reference engine, which maintains nothing, has an empty registry for the reference.
+	 *
+	 * @param engines       the engines
+	 * @param entityType    the entity type owning the reference
+	 * @param scope         the scope
+	 * @param referenceName the reference
+	 */
+	private static void assertReferenceEngineRegistryEmpty(
+		@Nonnull DifferentialEngines engines,
+		@Nonnull String entityType,
+		@Nonnull Scope scope,
+		@Nonnull String referenceName
+	) {
+		final VirtualReferencePartitionIndex registry =
+			registryOf(engines.getReference(), entityType, scope, referenceName);
+		assertTrue(registry == null || registry.isEmpty(), "the reference engine must write no registry");
+	}
+
 	@Override
 	public void close() {
 		try {
@@ -977,7 +1072,7 @@ public final class DifferentialEngines implements AutoCloseable {
 			CATALOG, this.writtenVirtually ? this.entityTypes : Set.of(), this.referenceHistory
 		);
 		this.reference.scheduleInitialCatalogLoading();
-		awaitCatalogLoaded(this.reference);
+		CatalogReloadTestSupport.awaitCatalogLoaded(this.reference, CATALOG);
 		return describeLoad(this.reference, appliedVersion, persistedVersion, imageVersion);
 	}
 
@@ -995,7 +1090,7 @@ public final class DifferentialEngines implements AutoCloseable {
 		this.maintaining = new Evita(configurationOf(this.maintainingPaths), false);
 		this.maintaining.maintainVirtualReferencePartitionsOnLoad(CATALOG, this.entityTypes, this.maintainingHistory);
 		this.maintaining.scheduleInitialCatalogLoading();
-		awaitCatalogLoaded(this.maintaining);
+		CatalogReloadTestSupport.awaitCatalogLoaded(this.maintaining, CATALOG);
 		return describeLoad(this.maintaining, appliedVersion, persistedVersion, imageVersion);
 	}
 
@@ -1077,7 +1172,7 @@ public final class DifferentialEngines implements AutoCloseable {
 
 		final TestPaths image = allocatePaths(paths.storage().getFileName() + suffix);
 		final SortedMap<String, String> beforeCopy = listFiles(paths.storage());
-		copyRecursively(paths.storage(), image.storage());
+		CatalogReloadTestSupport.copyRecursively(paths.storage(), image.storage());
 		final SortedMap<String, String> afterCopy = listFiles(paths.storage());
 
 		assertEquals(
@@ -1117,35 +1212,6 @@ public final class DifferentialEngines implements AutoCloseable {
 			throw new IllegalStateException("Cannot list `" + root + "`!", ex);
 		}
 		return listing;
-	}
-
-	/**
-	 * Copies a directory tree, creating the target if it does not exist, and keeps the modification time of every
-	 * file so the copy can be compared with its source.
-	 *
-	 * @param source tree to copy from
-	 * @param target tree to copy into
-	 */
-	public static void copyRecursively(@Nonnull Path source, @Nonnull Path target) {
-		try {
-			final List<Path> entries;
-			try (final Stream<Path> tree = Files.walk(source)) {
-				entries = tree.toList();
-			}
-			for (final Path entry : entries) {
-				final Path destination = target.resolve(source.relativize(entry).toString());
-				if (Files.isDirectory(entry)) {
-					Files.createDirectories(destination);
-				} else {
-					Files.createDirectories(destination.getParent());
-					Files.copy(
-						entry, destination, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.COPY_ATTRIBUTES
-					);
-				}
-			}
-		} catch (IOException ex) {
-			throw new IllegalStateException("Cannot copy `" + source + "` to `" + target + "`!", ex);
-		}
 	}
 
 	/**
@@ -2457,7 +2523,7 @@ public final class DifferentialEngines implements AutoCloseable {
 					withoutVirtualPartitions && entityIndexKey.type() == EntityIndexType.REFERENCED_ENTITY &&
 						entityIndexKey.discriminator() instanceof final RepresentativeReferenceKey key &&
 						collection.getSchema().getReference(key.referenceName())
-							.map(it -> VirtualReferencePartitionOracle.isShadowed(it, entityIndexKey.scope()))
+							.map(it -> VirtualPartitionInvariants.isShadowed(it, entityIndexKey.scope()))
 							.orElse(false)
 				) {
 					continue;
@@ -2519,7 +2585,7 @@ public final class DifferentialEngines implements AutoCloseable {
 		index.forEachAttributeIndexKey(AttributeIndexType.SORT, key -> {
 			final SortIndex sortIndex = index.getSortIndex(key);
 			if (sortIndex != null) {
-				snapshot.put(path + "/sort/" + key, describeSortIndex(sortIndex));
+				snapshot.put(path + "/sort/" + key, CatalogDescriber.describeSortIndex(sortIndex));
 			}
 		});
 		index.forEachAttributeIndexKey(AttributeIndexType.UNIQUE, key -> {
@@ -2538,7 +2604,9 @@ public final class DifferentialEngines implements AutoCloseable {
 			final ChainIndex chainIndex = index.getChainIndex(key);
 			if (chainIndex != null) {
 				snapshot.put(path + "/chain/" + key, Arrays.toString(chainIndex.getUnorderedLookup().getArray()));
-				snapshot.put(path + "/chain/" + key + "/predecessors", describeChainPredecessors(chainIndex));
+				snapshot.put(
+					path + "/chain/" + key + "/predecessors", CatalogDescriber.describeChainPredecessors(chainIndex)
+				);
 			}
 		});
 	}
@@ -2612,17 +2680,6 @@ public final class DifferentialEngines implements AutoCloseable {
 	}
 
 	/**
-	 * Renders a sort index position by position - see {@link SortIndexWalk#describe()}.
-	 *
-	 * @param sortIndex the sort index
-	 * @return its rendering
-	 */
-	@Nonnull
-	static String describeSortIndex(@Nonnull SortIndex sortIndex) {
-		return SortIndexWalk.of(sortIndex).describe();
-	}
-
-	/**
 	 * Renders the value-to-record mapping of a standalone unique index, in the value order of the index.
 	 *
 	 * @param uniqueIndex the unique index
@@ -2635,26 +2692,6 @@ public final class DifferentialEngines implements AutoCloseable {
 			(value, recordId) -> mapping.append(CanonicalValue.encode(value)).append('=').append(recordId).append("; ")
 		);
 		return mapping.toString();
-	}
-
-	/**
-	 * Renders the predecessor every element of a chain index declares, by ascending element primary key.
-	 *
-	 * @param chainIndex the chain index
-	 * @return its rendering
-	 */
-	@Nonnull
-	static String describeChainPredecessors(@Nonnull ChainIndex chainIndex) {
-		final int[] elements = chainIndex.getUnorderedLookup().getArray().clone();
-		Arrays.sort(elements);
-		final StringBuilder predecessors = new StringBuilder(16 * elements.length + 2);
-		for (final int element : elements) {
-			final OptionalInt predecessor = chainIndex.getPredecessorPrimaryKey(element);
-			predecessors.append(element).append("<-")
-				.append(predecessor.isPresent() ? String.valueOf(predecessor.getAsInt()) : "NONE")
-				.append("; ");
-		}
-		return predecessors.toString();
 	}
 
 	/**
@@ -2703,26 +2740,6 @@ public final class DifferentialEngines implements AutoCloseable {
 					String.join("\n", differences.subList(0, Math.min(differences.size(), REPORTED_DIFFERENCES)))
 			);
 		}
-	}
-
-	/**
-	 * Blocks until a reopened engine has finished loading the catalog - the engine returns from its constructor while
-	 * the catalog is still being activated on the service pool.
-	 *
-	 * @param evita the reopened engine
-	 */
-	static void awaitCatalogLoaded(@Nonnull Evita evita) {
-		evita.waitUntilFullyInitialized();
-		await()
-			.atMost(30, TimeUnit.SECONDS)
-			.pollInterval(50, TimeUnit.MILLISECONDS)
-			.until(
-				() -> !evita.management()
-					.getCatalogStatistics(CATALOG, EnumSet.of(CatalogStatisticsComponent.IDENTITY))
-					.identity()
-					.unusable()
-			);
-		assertNotNull(evita.getCatalogInstance(CATALOG).orElse(null), "The catalog must be loaded again");
 	}
 
 	/**

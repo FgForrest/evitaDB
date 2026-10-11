@@ -39,14 +39,14 @@ import java.util.TreeSet;
 import java.util.function.Supplier;
 
 /**
- * Decides with which read switch a query line of {@link DifferentialEngines} runs. Every query line carries the query
+ * Decides with which read switch a query line of the differential twin harness runs. Every query line carries the query
  * routes it exercises; a line runs with the read switch of every collection of the engine on only when every one of its
  * routes has **landed** - when the route reads virtual partitions - and with the switch off otherwise, on the same
  * engine and the same snapshot. Adding a route to {@link #LANDED_ROUTES} is how a
  * step makes the harness compare the virtual reading of its routes with the reference engine's object reading.
  *
  * The switch is turned on just for the query and off again after it, so the writes of the harness never run with it -
- * write isolation is proven separately, by {@link VirtualPartitionWriteIsolationTest}.
+ * write isolation is proven separately, by the write isolation test of the virtual partitions.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

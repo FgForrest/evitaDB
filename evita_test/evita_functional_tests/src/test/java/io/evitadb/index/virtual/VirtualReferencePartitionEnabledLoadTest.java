@@ -45,7 +45,6 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-import static io.evitadb.index.virtual.DifferentialEngines.CATALOG;
 import static io.evitadb.index.virtual.DifferentialEngines.EXCLUDED_STORAGE_PART_TYPES;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.*;
 import static io.evitadb.test.TestTags.ENGINE;
@@ -143,7 +142,7 @@ class VirtualReferencePartitionEnabledLoadTest implements EvitaTestSupport {
 		this.evita = new Evita(configuration(), false);
 		this.evita.maintainVirtualReferencePartitionsOnLoad(CATALOG, ENTITY_TYPES, history);
 		this.evita.scheduleInitialCatalogLoading();
-		DifferentialEngines.awaitCatalogLoaded(this.evita);
+		CatalogReloadTestSupport.awaitCatalogLoaded(this.evita, CATALOG);
 		for (final String entityType : ENTITY_TYPES) {
 			assertTrue(
 				collectionOf(entityType).isVirtualReferencePartitionsMaintained(),
@@ -192,7 +191,7 @@ class VirtualReferencePartitionEnabledLoadTest implements EvitaTestSupport {
 			for (final String referenceName : collectionOf(entityType).getSchema().getReferences().keySet()) {
 				description.put(
 					entityType + "/" + referenceName,
-					VirtualReferencePartitionTransitionTest.describeRows(this.evita, entityType, referenceName)
+					SingleOwnerPartitionFixture.describeRows(this.evita, entityType, referenceName)
 				);
 			}
 			final StoragePartUsage[] parts = this.evita.management()
@@ -222,7 +221,7 @@ class VirtualReferencePartitionEnabledLoadTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private EntityCollection collectionOf(@Nonnull String entityType) {
-		return VirtualReferencePartitionTransitionTest.collectionOf(this.evita, entityType);
+		return SingleOwnerPartitionFixture.collectionOf(this.evita, entityType);
 	}
 
 	/**

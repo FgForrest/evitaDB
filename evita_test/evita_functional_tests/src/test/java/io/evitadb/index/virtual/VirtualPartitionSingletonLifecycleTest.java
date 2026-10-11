@@ -26,9 +26,6 @@ package io.evitadb.index.virtual;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.TransactionOptions;
-import io.evitadb.api.index.EntityIndexType;
-import io.evitadb.api.query.order.OrderDirection;
-import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
 import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
@@ -39,20 +36,10 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttribute
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
-import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.OrderBehaviour;
-import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.TransitionStage;
-import io.evitadb.core.collection.EntityCollection;
-import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.ReferencePartitions;
-import io.evitadb.index.ReferencedTypeEntityIndex;
-import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.virtual.TransitionHistory.Transition;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterEach;
@@ -65,25 +52,21 @@ import org.junit.jupiter.params.provider.EnumSource;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.api.query.QueryConstraints.referenceContentAll;
-import static io.evitadb.index.virtual.DifferentialEngines.CATALOG;
+import static io.evitadb.index.virtual.DifferentialEngines.assertNoRegisteredPartition;
+import static io.evitadb.index.virtual.DifferentialEngines.assertRegistered;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.*;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 // TODO JNO - remove at the end of #1615
@@ -112,58 +95,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(REFERENCE)
 @Tag(TRANSACTION)
 class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
-	static final String ENTITY_PRODUCT = "product";
-	static final String ENTITY_CATEGORY = "category";
-	static final String ENTITY_MEDIA = "media";
-	static final String ENTITY_BRAND = "brand";
-	/**
-	 * Every entity type of the fixture.
-	 */
-	static final Set<String> ENTITY_TYPES = Set.of(ENTITY_PRODUCT, ENTITY_CATEGORY, ENTITY_MEDIA, ENTITY_BRAND);
-	/**
-	 * A reference indexed for filtering in both scopes, faceted, with a sortable attribute, a localized sortable one,
-	 * a chained one and a localized compound of the first two.
-	 */
-	static final String REFERENCE_CATEGORIES = "categories";
-	/**
-	 * A reference indexed for filtering in both scopes, allowing duplicates told apart by the representative `role`.
-	 */
-	static final String REFERENCE_GALLERY = "gallery";
-	/**
-	 * A reference indexed for partitioning - its partitions are always index objects, shared by every product.
-	 */
-	static final String REFERENCE_BRAND = "brand";
-	/**
-	 * The reflection of {@link #REFERENCE_CATEGORIES} on the category, indexed for filtering in both scopes.
-	 */
-	static final String REFERENCE_PRODUCTS = "products";
-
-	static final String ATTRIBUTE_CODE = "code";
-	static final String ATTRIBUTE_NAME = "name";
-	static final String ATTRIBUTE_ORDER = "orderInCategory";
-	static final String ATTRIBUTE_LABEL = "label";
-	static final String ATTRIBUTE_POSITION = "position";
-	static final String ATTRIBUTE_ROLE = "role";
-	static final String ATTRIBUTE_WEIGHT = "weight";
-	static final String COMPOUND_LABEL_AND_ORDER = "labelAndOrder";
-	static final String ATTRIBUTE_CAPTION = "caption";
-	static final String COMPOUND_CAPTION_AND_WEIGHT = "captionAndWeight";
-
-	static final String ROLE_GALLERY = "gallery";
-	static final String ROLE_DETAIL = "detail";
-	/**
-	 * How many products the fixture starts with - product `n` references category `n` and shows media `n`, so every
-	 * partition has a single owner.
-	 */
-	static final int PRODUCT_COUNT = 6;
-	/**
-	 * How many categories and media exist - enough for products and references added later.
-	 */
-	static final int REFERENCED_ENTITY_COUNT = 20;
-	/**
-	 * The brand every product belongs to.
-	 */
-	static final int BRAND_PK = 1;
 	/**
 	 * A product the fixture does not create.
 	 */
@@ -605,7 +536,7 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 		theEngines.addMaintainingEngineCheck(
 			VirtualPartitionInvariants::assertNoPartitionObjectBelowTwoOwners
 		);
-		theEngines.prepare(CatalogState.ALIVE, VirtualPartitionSingletonLifecycleTest::setUp);
+		theEngines.prepare(CatalogState.ALIVE, SingleOwnerPartitionFixture::setUpLocalizedSingleOwners);
 		// going live is deferred like any other round; the clean close publishes it
 		theEngines.restart();
 
@@ -651,156 +582,6 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Defines the schema, the referenced entities and the initial products - see {@link #ENTITY_TYPES} and the
-	 * reference constants. Product `n` is in category `n` and shows media `n` in the gallery role; the even products
-	 * have a German name and a German label of their category reference besides the English ones.
-	 *
-	 * @param session the session to write in
-	 */
-	static void setUp(@Nonnull EvitaSessionContract session) {
-		session.defineEntitySchema(ENTITY_CATEGORY).updateVia(session);
-		session.defineEntitySchema(ENTITY_MEDIA).updateVia(session);
-		session.defineEntitySchema(ENTITY_BRAND).updateVia(session);
-		session.defineEntitySchema(ENTITY_PRODUCT)
-			.withLocale(Locale.ENGLISH, Locale.GERMAN)
-			.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.unique())
-			.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().nullable())
-			.withReferenceToEntity(
-				REFERENCE_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
-				whichIs -> whichIs
-					.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
-					.faceted()
-					.withAttribute(
-						ATTRIBUTE_ORDER, Integer.class,
-						thatIs -> thatIs.filterableInScope(Scope.LIVE, Scope.ARCHIVED)
-							.sortableInScope(Scope.LIVE, Scope.ARCHIVED).nullable()
-					)
-					.withAttribute(
-						ATTRIBUTE_LABEL, String.class,
-						thatIs -> thatIs.localized().sortableInScope(Scope.LIVE, Scope.ARCHIVED).nullable()
-					)
-					.withAttribute(
-						ATTRIBUTE_POSITION, Predecessor.class,
-						thatIs -> thatIs.sortableInScope(Scope.LIVE, Scope.ARCHIVED).nullable()
-					)
-					.withSortableAttributeCompound(
-						COMPOUND_LABEL_AND_ORDER,
-						new AttributeElement[]{
-							new AttributeElement(ATTRIBUTE_LABEL, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
-							new AttributeElement(ATTRIBUTE_ORDER, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
-						},
-						thatIs -> thatIs.indexedInScope(Scope.LIVE, Scope.ARCHIVED)
-					)
-			)
-			.withReferenceToEntity(
-				REFERENCE_GALLERY, ENTITY_MEDIA, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
-				whichIs -> whichIs
-					.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
-					.withAttribute(ATTRIBUTE_ROLE, String.class, thatIs -> thatIs.filterable().representative())
-					.withAttribute(
-						ATTRIBUTE_WEIGHT, Integer.class,
-						thatIs -> thatIs.sortableInScope(Scope.LIVE, Scope.ARCHIVED).nullable()
-					)
-					.withAttribute(
-						ATTRIBUTE_CAPTION, String.class,
-						thatIs -> thatIs.localized().sortableInScope(Scope.LIVE, Scope.ARCHIVED).nullable()
-					)
-					.withSortableAttributeCompound(
-						COMPOUND_CAPTION_AND_WEIGHT,
-						new AttributeElement[]{
-							new AttributeElement(ATTRIBUTE_CAPTION, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
-							new AttributeElement(ATTRIBUTE_WEIGHT, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
-						},
-						thatIs -> thatIs.indexedInScope(Scope.LIVE, Scope.ARCHIVED)
-					)
-			)
-			.withReferenceToEntity(
-				REFERENCE_BRAND, ENTITY_BRAND, Cardinality.ZERO_OR_ONE,
-				whichIs -> whichIs.indexedForFilteringAndPartitioningInScope(Scope.LIVE, Scope.ARCHIVED)
-			)
-			.updateVia(session);
-		session.defineEntitySchema(ENTITY_CATEGORY)
-			.withReflectedReferenceToEntity(
-				REFERENCE_PRODUCTS, ENTITY_PRODUCT, REFERENCE_CATEGORIES,
-				whichIs -> whichIs
-					.withCardinality(Cardinality.ZERO_OR_MORE)
-					.withAttributesInherited(ATTRIBUTE_ORDER)
-					.indexedForFilteringInScope(Scope.LIVE, Scope.ARCHIVED)
-			)
-			.updateVia(session);
-		for (int pk = 1; pk <= REFERENCED_ENTITY_COUNT; pk++) {
-			session.upsertEntity(session.createNewEntity(ENTITY_CATEGORY, pk));
-			session.upsertEntity(session.createNewEntity(ENTITY_MEDIA, pk));
-		}
-		session.upsertEntity(session.createNewEntity(ENTITY_BRAND, BRAND_PK));
-		for (int pk = 1; pk <= PRODUCT_COUNT; pk++) {
-			newProduct(session, pk, pk, pk % 2 == 0).upsertVia(session);
-		}
-	}
-
-	/**
-	 * Creates a product in category `target`, showing media `target` in the gallery role, of the fixture's brand.
-	 *
-	 * @param session    the session to create the entity in
-	 * @param primaryKey the product primary key
-	 * @param target     the category and the media the product references
-	 * @param german     TRUE to give the product a German name and its category reference a German label too
-	 * @return the entity builder
-	 */
-	@Nonnull
-	static EntityBuilder newProduct(
-		@Nonnull EvitaSessionContract session,
-		int primaryKey,
-		int target,
-		boolean german
-	) {
-		final EntityBuilder product = session
-			.createNewEntity(ENTITY_PRODUCT, primaryKey)
-			.setAttribute(ATTRIBUTE_CODE, "P" + primaryKey)
-			.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Product " + primaryKey)
-			.setReference(
-				REFERENCE_CATEGORIES, target,
-				whichIs -> {
-					whichIs.setAttribute(ATTRIBUTE_ORDER, target)
-						.setAttribute(ATTRIBUTE_LABEL, Locale.ENGLISH, "Label " + target)
-						.setAttribute(ATTRIBUTE_POSITION, Predecessor.HEAD);
-					if (german) {
-						whichIs.setAttribute(ATTRIBUTE_LABEL, Locale.GERMAN, "Etikett " + target);
-					}
-				}
-			)
-			.setOrUpdateReference(
-				REFERENCE_GALLERY, target,
-				ref -> ROLE_GALLERY.equals(ref.getAttribute(ATTRIBUTE_ROLE)),
-				whichIs -> whichIs.setAttribute(ATTRIBUTE_ROLE, ROLE_GALLERY).setAttribute(ATTRIBUTE_WEIGHT, target)
-			)
-			.setReference(REFERENCE_BRAND, BRAND_PK);
-		if (german) {
-			product.setAttribute(ATTRIBUTE_NAME, Locale.GERMAN, "Produkt " + primaryKey);
-		}
-		return product;
-	}
-
-	/**
-	 * Creates a step updating one product.
-	 *
-	 * @param primaryKey the product primary key
-	 * @param change     the change to make
-	 * @return the step
-	 */
-	@Nonnull
-	static Consumer<EvitaSessionContract> updateProduct(int primaryKey, @Nonnull Consumer<EntityBuilder> change) {
-		return session -> {
-			final EntityBuilder builder = session
-				.getEntity(ENTITY_PRODUCT, primaryKey, entityFetchAllContent())
-				.orElseThrow()
-				.openForWrite();
-			change.accept(builder);
-			builder.upsertVia(session);
-		};
-	}
-
-	/**
 	 * Returns the products a category of the committed catalog of an engine reflects.
 	 *
 	 * @param evita    the engine
@@ -822,157 +603,6 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 						.toList()
 				)
 				.orElse(List.of())
-		);
-	}
-
-	/**
-	 * Asserts that no collection of the committed catalog of the engine holds an index object of a partition of a
-	 * reference whose partitions may be virtual - every partition of the fixture has a single owner, so the catalog
-	 * writing virtually represents every one of them by its row.
-	 *
-	 * @param evita the engine of the catalog writing virtually
-	 */
-	static void assertNoPartitionObjectOfVirtualReference(@Nonnull Evita evita) {
-		for (final String entityType : ENTITY_TYPES) {
-			final EntityCollection collection = collectionOf(evita, entityType);
-			if (collection == null) {
-				continue;
-			}
-			final List<String> found = new ArrayList<>(2);
-			VirtualPartitionInvariants.forEachPartitionObjectOfVirtualReference(
-				collection,
-				(scope, partition) -> found.add(partition.getIndexKey() + " (" + partition.getPrimaryKey() + ")")
-			);
-			assertTrue(
-				found.isEmpty(),
-				"collection `" + entityType + "` must hold no partition object of a reference whose partitions " +
-					"may be virtual, but holds " + found
-			);
-		}
-	}
-
-	/**
-	 * Returns a collection of the committed catalog of an engine.
-	 *
-	 * @param evita      the engine
-	 * @param entityType the entity type
-	 * @return the collection, `null` when the catalog holds none of the type
-	 */
-	@Nullable
-	static EntityCollection collectionOf(@Nonnull Evita evita, @Nonnull String entityType) {
-		return (EntityCollection) evita.getCatalogInstance(CATALOG)
-			.orElseThrow()
-			.getCollectionForEntity(entityType)
-			.orElse(null);
-	}
-
-	/**
-	 * Returns the primary key of the registered partition of a key in the committed catalog of an engine - the
-	 * partition whose registry row names the key's target and representative attribute values.
-	 *
-	 * @param evita      the engine
-	 * @param entityType the entity type owning the reference
-	 * @param scope      the scope
-	 * @param key        the key of the partition
-	 * @return the partition primary key, or `-1` when the registry holds no row of the key
-	 */
-	static int registeredPartitionOf(
-		@Nonnull Evita evita,
-		@Nonnull String entityType,
-		@Nonnull Scope scope,
-		@Nonnull RepresentativeReferenceKey key
-	) {
-		final VirtualReferencePartition partition = findRegistered(evita, entityType, scope, key);
-		return partition == null ? -1 : partition.getPrimaryKey();
-	}
-
-	/**
-	 * Finds the registered partition of a key in the committed catalog of an engine.
-	 *
-	 * @param evita      the engine
-	 * @param entityType the entity type owning the reference
-	 * @param scope      the scope
-	 * @param key        the key of the partition
-	 * @return the partition, or `null` when the registry holds no row of the key
-	 */
-	@Nullable
-	private static VirtualReferencePartition findRegistered(
-		@Nonnull Evita evita,
-		@Nonnull String entityType,
-		@Nonnull Scope scope,
-		@Nonnull RepresentativeReferenceKey key
-	) {
-		final EntityCollection collection = collectionOf(evita, entityType);
-		if (collection == null) {
-			return null;
-		}
-		final EntityIndex typeIndex = collection.getIndexByKeyIfExists(
-			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, key.referenceName())
-		);
-		return typeIndex instanceof final ReferencedTypeEntityIndex referencedTypeIndex ?
-			ReferencePartitions.findRegisteredForWrite(referencedTypeIndex, key) : null;
-	}
-
-	/**
-	 * Asserts that the catalog writing virtually holds the row of the key's partition naming the owner, and that the
-	 * twin holds the index object of the partition under the same primary key with the owner as its only member.
-	 *
-	 * @param engines    the engines
-	 * @param entityType the entity type owning the reference
-	 * @param scope      the scope
-	 * @param key        the key of the partition
-	 * @param owner      the expected owner
-	 */
-	static void assertRegistered(
-		@Nonnull DifferentialEngines engines,
-		@Nonnull String entityType,
-		@Nonnull Scope scope,
-		@Nonnull RepresentativeReferenceKey key,
-		int owner
-	) {
-		final VirtualReferencePartition registered = findRegistered(engines.getMaintaining(), entityType, scope, key);
-		assertNotNull(registered, "the catalog writing virtually must hold the row of " + key + " in " + scope);
-		assertEquals(owner, registered.ownerPrimaryKey(), "the owner of the row of " + key + " in " + scope);
-		final EntityCollection twinCollection = collectionOf(engines.getReference(), entityType);
-		assertNotNull(twinCollection);
-		final EntityIndex twinPartition = twinCollection.getIndexByKeyIfExists(
-			new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, key)
-		);
-		assertNotNull(twinPartition, "the twin must hold the index object of " + key + " in " + scope);
-		assertEquals(
-			twinPartition.getPrimaryKey(), registered.getPrimaryKey(),
-			"the row of " + key + " in " + scope + " must carry the primary key of the twin's index object"
-		);
-		assertEquals(
-			List.of(owner),
-			Arrays.stream(twinPartition.getAllPrimaryKeys().getArray()).boxed().toList(),
-			"the twin's partition of " + key + " in " + scope + " has the owner as its only member"
-		);
-		final EntityCollection collection = collectionOf(engines.getMaintaining(), entityType);
-		assertNotNull(collection);
-		assertNull(
-			collection.getIndexByPrimaryKeyIfExists(registered.getPrimaryKey()),
-			"the partition of " + key + " in " + scope + " must have no index object in the catalog writing virtually"
-		);
-	}
-
-	/**
-	 * Asserts that the catalog writing virtually holds no row of the key's partition.
-	 *
-	 * @param engines    the engines
-	 * @param entityType the entity type owning the reference
-	 * @param scope      the scope
-	 * @param key        the key of the partition
-	 */
-	static void assertNoRegisteredPartition(
-		@Nonnull DifferentialEngines engines,
-		@Nonnull String entityType,
-		@Nonnull Scope scope,
-		@Nonnull RepresentativeReferenceKey key
-	) {
-		assertNull(
-			findRegistered(engines.getMaintaining(), entityType, scope, key),
-			"the catalog writing virtually must hold no row of " + key + " in " + scope
 		);
 	}
 
@@ -1073,17 +703,6 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Creates the key of a category partition.
-	 *
-	 * @param category the category
-	 * @return the key
-	 */
-	@Nonnull
-	static RepresentativeReferenceKey category(int category) {
-		return new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_CATEGORIES, category));
-	}
-
-	/**
 	 * Creates the key of a gallery partition.
 	 *
 	 * @param media the media
@@ -1093,17 +712,6 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 	@Nonnull
 	static RepresentativeReferenceKey media(int media, @Nonnull String role) {
 		return new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_GALLERY, media), new Serializable[]{role});
-	}
-
-	/**
-	 * Creates the key of a reflected product partition of the category.
-	 *
-	 * @param product the product
-	 * @return the key
-	 */
-	@Nonnull
-	static RepresentativeReferenceKey product(int product) {
-		return new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_PRODUCTS, product));
 	}
 
 	/**
@@ -1121,7 +729,7 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 		theEngines.addMaintainingEngineCheck(
 			VirtualPartitionInvariants::assertNoPartitionObjectBelowTwoOwners
 		);
-		theEngines.prepare(state, VirtualPartitionSingletonLifecycleTest::setUp);
+		theEngines.prepare(state, SingleOwnerPartitionFixture::setUpLocalizedSingleOwners);
 		return theEngines;
 	}
 

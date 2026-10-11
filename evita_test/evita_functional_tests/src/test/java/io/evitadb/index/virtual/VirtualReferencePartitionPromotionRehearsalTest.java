@@ -57,16 +57,16 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.category;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.partitionOf;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.product;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.updateProduct;
-import static io.evitadb.index.virtual.VirtualReferencePartitionMirrorTest.ATTRIBUTE_CATEGORY_ORDER;
-import static io.evitadb.index.virtual.VirtualReferencePartitionMirrorTest.ATTRIBUTE_PRODUCT_ORDER;
-import static io.evitadb.index.virtual.VirtualReferencePartitionMirrorTest.ATTRIBUTE_SPAN;
-import static io.evitadb.index.virtual.VirtualReferencePartitionMirrorTest.DECIMAL_PLACES;
-import static io.evitadb.index.virtual.VirtualReferencePartitionMirrorTest.fillReference;
-import static io.evitadb.index.virtual.VirtualReferencePartitionMirrorTest.spanOf;
-import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.category;
-import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.partitionOf;
-import static io.evitadb.index.virtual.VirtualReferencePartitionTransitionTest.product;
+import static io.evitadb.index.virtual.SortValueAndChainFixture.ATTRIBUTE_CATEGORY_ORDER;
+import static io.evitadb.index.virtual.SortValueAndChainFixture.ATTRIBUTE_PRODUCT_ORDER;
+import static io.evitadb.index.virtual.SortValueAndChainFixture.ATTRIBUTE_SPAN;
+import static io.evitadb.index.virtual.SortValueAndChainFixture.DECIMAL_PLACES;
+import static io.evitadb.index.virtual.SortValueAndChainFixture.fillReference;
+import static io.evitadb.index.virtual.SortValueAndChainFixture.spanOf;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.TRANSACTION;
@@ -111,11 +111,11 @@ class VirtualReferencePartitionPromotionRehearsalTest implements EvitaTestSuppor
 	/**
 	 * Filterable and sortable.
 	 */
-	private static final String ATTRIBUTE_ORDER = VirtualReferencePartitionMirrorTest.ATTRIBUTE_ORDER;
+	private static final String ATTRIBUTE_ORDER = SortValueAndChainFixture.ATTRIBUTE_ORDER;
 	/**
 	 * Localized and sortable.
 	 */
-	private static final String ATTRIBUTE_LABEL = VirtualReferencePartitionMirrorTest.ATTRIBUTE_LABEL;
+	private static final String ATTRIBUTE_LABEL = SortValueAndChainFixture.ATTRIBUTE_LABEL;
 	/**
 	 * The main category of a product, reflected on the category as {@link #REFERENCE_MAIN_PRODUCTS}.
 	 */
@@ -133,7 +133,7 @@ class VirtualReferencePartitionPromotionRehearsalTest implements EvitaTestSuppor
 	 * A product none of the fixtures creates.
 	 */
 	private static final int NEW_PRODUCT = 9;
-	private static final Locale CZECH = VirtualReferencePartitionMirrorTest.CZECH;
+	private static final Locale CZECH = SortValueAndChainFixture.CZECH;
 
 	@Nullable private DifferentialEngines engines;
 	@Nullable private PromotionRehearsalInspector inspector;
@@ -152,7 +152,7 @@ class VirtualReferencePartitionPromotionRehearsalTest implements EvitaTestSuppor
 	@DisplayName("every sortable type and compound of the first owner is rebuilt exactly, before and after a restart")
 	void shouldRebuildEverySortableTypeOfTheFirstOwnerWhenASecondOwnerJoins(CatalogState state) {
 		final DifferentialEngines theEngines = start(
-			"types", state, VirtualReferencePartitionMirrorTest::setUpTypes
+			"types", state, SortValueAndChainFixture::setUpTypes
 		);
 
 		theEngines.step(
@@ -197,7 +197,7 @@ class VirtualReferencePartitionPromotionRehearsalTest implements EvitaTestSuppor
 	@DisplayName("a range compound element updated incrementally is rebuilt from storage at the same scale")
 	void shouldRebuildAnIncrementallyUpdatedRangeCompoundElement(CatalogState state) {
 		final DifferentialEngines theEngines = start(
-			"ranges", state, VirtualReferencePartitionMirrorTest::setUpTypes
+			"ranges", state, SortValueAndChainFixture::setUpTypes
 		);
 		assertNotEquals(
 			DECIMAL_PLACES, spanOf(1).getEffectiveRetainedDecimalPlaces(),
@@ -237,7 +237,7 @@ class VirtualReferencePartitionPromotionRehearsalTest implements EvitaTestSuppor
 	@DisplayName("a first owner mutated by the same root mutation is rebuilt from its staged reference")
 	void shouldRebuildAFirstOwnerStagedInTheSameRootMutation(CatalogState state) {
 		final DifferentialEngines theEngines = start(
-			"sameRoot", state, VirtualReferencePartitionMirrorTest::setUpChains
+			"sameRoot", state, SortValueAndChainFixture::setUpChains
 		);
 
 		// one product upsert adds two new categories: each category gets the reflected reference in an executor of
@@ -359,7 +359,7 @@ class VirtualReferencePartitionPromotionRehearsalTest implements EvitaTestSuppor
 	@DisplayName("a rehearsal inside a mutation that fails afterwards leaves both engines alike, a retry rehearses")
 	void shouldRehearseInsideAMutationThatFailsAfterwards(CatalogState state) {
 		final DifferentialEngines theEngines = start(
-			"failure", state, VirtualReferencePartitionMirrorTest::setUpTypes
+			"failure", state, SortValueAndChainFixture::setUpTypes
 		);
 		final Consumer<EvitaSessionContract> join = updateProduct(
 			2, it -> it.setReference(REFERENCE_CATEGORIES, 1, ref -> fillReference(ref, 6))
@@ -381,7 +381,7 @@ class VirtualReferencePartitionPromotionRehearsalTest implements EvitaTestSuppor
 	@DisplayName("a transaction goes on after a rehearsal and commits, the trunk replay rehearses it again")
 	void shouldGoOnAndCommitAfterARehearsal(CatalogState state) {
 		final DifferentialEngines theEngines = start(
-			"goOn", state, VirtualReferencePartitionMirrorTest::setUpTypes
+			"goOn", state, SortValueAndChainFixture::setUpTypes
 		);
 
 		theEngines.transaction(

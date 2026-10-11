@@ -66,23 +66,23 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static io.evitadb.index.virtual.VirtualPartitionSingletonLifecycleTest.ATTRIBUTE_LABEL;
-import static io.evitadb.index.virtual.VirtualPartitionSingletonLifecycleTest.ATTRIBUTE_ORDER;
-import static io.evitadb.index.virtual.VirtualPartitionSingletonLifecycleTest.ATTRIBUTE_POSITION;
-import static io.evitadb.index.virtual.VirtualPartitionSingletonLifecycleTest.ENTITY_CATEGORY;
-import static io.evitadb.index.virtual.VirtualPartitionSingletonLifecycleTest.ENTITY_PRODUCT;
-import static io.evitadb.index.virtual.VirtualPartitionSingletonLifecycleTest.ENTITY_TYPES;
-import static io.evitadb.index.virtual.VirtualPartitionSingletonLifecycleTest.REFERENCE_CATEGORIES;
-import static io.evitadb.index.virtual.VirtualPartitionSingletonLifecycleTest.REFERENCE_PRODUCTS;
-import static io.evitadb.index.virtual.VirtualPartitionSingletonLifecycleTest.assertNoPartitionObjectOfVirtualReference;
-import static io.evitadb.index.virtual.VirtualPartitionSingletonLifecycleTest.assertNoRegisteredPartition;
-import static io.evitadb.index.virtual.VirtualPartitionSingletonLifecycleTest.assertRegistered;
-import static io.evitadb.index.virtual.VirtualPartitionSingletonLifecycleTest.category;
-import static io.evitadb.index.virtual.VirtualPartitionSingletonLifecycleTest.collectionOf;
-import static io.evitadb.index.virtual.VirtualPartitionSingletonLifecycleTest.newProduct;
-import static io.evitadb.index.virtual.VirtualPartitionSingletonLifecycleTest.product;
-import static io.evitadb.index.virtual.VirtualPartitionSingletonLifecycleTest.registeredPartitionOf;
-import static io.evitadb.index.virtual.VirtualPartitionSingletonLifecycleTest.updateProduct;
+import static io.evitadb.index.virtual.DifferentialEngines.assertNoRegisteredPartition;
+import static io.evitadb.index.virtual.DifferentialEngines.assertRegistered;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.ATTRIBUTE_LABEL;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.ATTRIBUTE_ORDER;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.ATTRIBUTE_POSITION;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.ENTITY_CATEGORY;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.ENTITY_PRODUCT;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.ENTITY_TYPES;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.REFERENCE_CATEGORIES;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.REFERENCE_PRODUCTS;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.assertNoPartitionObjectOfVirtualReference;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.category;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.findCollectionOf;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.newProduct;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.product;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.registeredPartitionOf;
+import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.updateProduct;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.TRANSACTION;
@@ -428,8 +428,8 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 		theEngines.step(
 			"another new product joins categories 1 and 2",
 			session -> session.createNewEntity(ENTITY_PRODUCT, NEW_PRODUCT + 1)
-				.setAttribute(VirtualPartitionSingletonLifecycleTest.ATTRIBUTE_CODE, "P" + (NEW_PRODUCT + 1))
-				.setAttribute(VirtualPartitionSingletonLifecycleTest.ATTRIBUTE_NAME, Locale.GERMAN, "Neu")
+				.setAttribute(SingleOwnerPartitionFixture.ATTRIBUTE_CODE, "P" + (NEW_PRODUCT + 1))
+				.setAttribute(SingleOwnerPartitionFixture.ATTRIBUTE_NAME, Locale.GERMAN, "Neu")
 				.setReference(
 					REFERENCE_CATEGORIES, 1,
 					whichIs -> whichIs.setAttribute(ATTRIBUTE_ORDER, 101)
@@ -475,7 +475,7 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 			"the first owner loses German",
 			updateProduct(
 				4,
-				it -> it.removeAttribute(VirtualPartitionSingletonLifecycleTest.ATTRIBUTE_NAME, Locale.GERMAN)
+				it -> it.removeAttribute(SingleOwnerPartitionFixture.ATTRIBUTE_NAME, Locale.GERMAN)
 					.setReference(
 						REFERENCE_CATEGORIES, 4, ref -> ref.removeAttribute(ATTRIBUTE_LABEL, Locale.GERMAN)
 					)
@@ -506,9 +506,9 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 	@DisplayName("a partition of every sort type and a range compound is promoted and demoted exactly")
 	void shouldPromoteAndDemoteEverySortType(CatalogState state) {
 		final DifferentialEngines theEngines = startWith(
-			"sortTypes", state, Set.of(ENTITY_PRODUCT, ENTITY_CATEGORY), VirtualReferencePartitionMirrorTest::setUpTypes
+			"sortTypes", state, Set.of(ENTITY_PRODUCT, ENTITY_CATEGORY), SortValueAndChainFixture::setUpTypes
 		);
-		final int shared = VirtualReferencePartitionMirrorTest.SHARED_CATEGORY;
+		final int shared = SortValueAndChainFixture.SHARED_CATEGORY;
 		// the fixture's shared category was promoted by its second owner while the fixture was written
 		final int sharedPartition = assertPromoted(theEngines, ENTITY_PRODUCT, Scope.LIVE, category(shared), 1, 2);
 		final int partition = registeredPartitionOf(
@@ -520,7 +520,7 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 			SingleOwnerPartitionFixture.updateProduct(
 				3,
 				it -> it.setReference(
-					REFERENCE_CATEGORIES, 1, ref -> VirtualReferencePartitionMirrorTest.fillReference(ref, 7)
+					REFERENCE_CATEGORIES, 1, ref -> SortValueAndChainFixture.fillReference(ref, 7)
 				)
 			)
 		);
@@ -544,7 +544,7 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 	@DisplayName("partitions with both chain types are promoted from their first owner and demoted to it")
 	void shouldPromoteAndDemoteChains(CatalogState state) {
 		final DifferentialEngines theEngines = startWith(
-			"chains", state, Set.of(ENTITY_PRODUCT, ENTITY_CATEGORY), VirtualReferencePartitionMirrorTest::setUpChains
+			"chains", state, Set.of(ENTITY_PRODUCT, ENTITY_CATEGORY), SortValueAndChainFixture::setUpChains
 		);
 		final int partition = registeredPartitionOf(
 			theEngines.getMaintaining(), ENTITY_PRODUCT, Scope.LIVE, category(1)
@@ -561,7 +561,7 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 				2,
 				it -> it.setReference(
 					REFERENCE_CATEGORIES, 1,
-					ref -> ref.setAttribute(VirtualReferencePartitionMirrorTest.ATTRIBUTE_ORDER, 20)
+					ref -> ref.setAttribute(SortValueAndChainFixture.ATTRIBUTE_ORDER, 20)
 				)
 			)
 		);
@@ -760,7 +760,7 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 		);
 		this.engines = theEngines;
 		theEngines.addMaintainingEngineCheck(VirtualPartitionInvariants::assertNoPartitionObjectBelowTwoOwners);
-		theEngines.prepare(CatalogState.ALIVE, VirtualPartitionSingletonLifecycleTest::setUp);
+		theEngines.prepare(CatalogState.ALIVE, SingleOwnerPartitionFixture::setUpLocalizedSingleOwners);
 		// going live is deferred like any other round; the clean close publishes it
 		theEngines.restart();
 
@@ -932,7 +932,7 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 
 	/**
 	 * Asserts that a partition of the live scope is demoted to - or kept as - the row of its only owner under the given
-	 * primary key, with no index object (see {@link VirtualPartitionSingletonLifecycleTest#assertRegistered}).
+	 * primary key, with no index object (see {@link DifferentialEngines#assertRegistered}).
 	 *
 	 * @param engines    the engines
 	 * @param entityType the entity type owning the reference
@@ -970,7 +970,7 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 		@Nonnull Scope scope,
 		@Nonnull RepresentativeReferenceKey key
 	) {
-		final EntityCollection collection = collectionOf(evita, entityType);
+		final EntityCollection collection = findCollectionOf(evita, entityType);
 		return collection == null ?
 			null :
 			collection.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, scope, key));
@@ -991,7 +991,7 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 		boolean expected,
 		@Nonnull String label
 	) {
-		final EntityCollection collection = collectionOf(evita, ENTITY_PRODUCT);
+		final EntityCollection collection = findCollectionOf(evita, ENTITY_PRODUCT);
 		assertNotNull(collection, label + ": the product collection must exist");
 		final EntityIndex globalIndex =
 			collection.getIndexByKeyIfExists(new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE));
@@ -1031,7 +1031,7 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 
 	/**
 	 * Starts the engines comparing the catalog writing virtually with its twin over the singleton fixture (see
-	 * {@link VirtualPartitionSingletonLifecycleTest#setUp}).
+	 * {@link SingleOwnerPartitionFixture#setUpLocalizedSingleOwners}).
 	 *
 	 * @param label a label naming the engines' directories
 	 * @param state the catalog state the engines should end in
@@ -1039,7 +1039,7 @@ class VirtualPartitionPromotionLifecycleTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private DifferentialEngines start(@Nonnull String label, @Nonnull CatalogState state) {
-		return startWith(label, state, ENTITY_TYPES, VirtualPartitionSingletonLifecycleTest::setUp);
+		return startWith(label, state, ENTITY_TYPES, SingleOwnerPartitionFixture::setUpLocalizedSingleOwners);
 	}
 
 	/**

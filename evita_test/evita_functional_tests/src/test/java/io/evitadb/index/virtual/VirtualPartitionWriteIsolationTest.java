@@ -62,8 +62,8 @@ import java.util.function.Consumer;
 
 import static io.evitadb.api.query.QueryConstraints.referenceContentAll;
 import static io.evitadb.index.virtual.SingleOwnerPartitionFixture.*;
-import static io.evitadb.index.virtual.VirtualReferencePartitionMirrorTest.ATTRIBUTE_CATEGORY_ORDER;
-import static io.evitadb.index.virtual.VirtualReferencePartitionMirrorTest.ATTRIBUTE_PRODUCT_ORDER;
+import static io.evitadb.index.virtual.SortValueAndChainFixture.ATTRIBUTE_CATEGORY_ORDER;
+import static io.evitadb.index.virtual.SortValueAndChainFixture.ATTRIBUTE_PRODUCT_ORDER;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.TRANSACTION;
@@ -126,8 +126,8 @@ class VirtualPartitionWriteIsolationTest implements EvitaTestSupport {
 		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
 		final ReadSwitchProbe probe = new ReadSwitchProbe();
 		prepare(CATALOG, state, probe, SingleOwnerPartitionFixture::setUpWithReflectedProducts);
-		prepare(TYPES_CATALOG, state, probe, VirtualReferencePartitionMirrorTest::setUpTypes);
-		prepare(CHAINS_CATALOG, state, probe, VirtualReferencePartitionMirrorTest::setUpChains);
+		prepare(TYPES_CATALOG, state, probe, SortValueAndChainFixture::setUpTypes);
+		prepare(CHAINS_CATALOG, state, probe, SortValueAndChainFixture::setUpChains);
 		prepare(HARD_REFLECTION_CATALOG, state, probe, VirtualPartitionWriteIsolationTest::setUpHardReflection);
 
 		writeOwnerCountTransitions();
@@ -341,14 +341,14 @@ class VirtualPartitionWriteIsolationTest implements EvitaTestSupport {
 			updateProduct(
 				1,
 				it -> it.updateReference(
-					REFERENCE_CATEGORIES, 1, ref -> VirtualReferencePartitionMirrorTest.fillReference(ref, 7)
+					REFERENCE_CATEGORIES, 1, ref -> SortValueAndChainFixture.fillReference(ref, 7)
 				)
 			)
 		);
 		write(
 			TYPES_CATALOG,
 			updateProduct(
-				2, it -> it.removeReference(REFERENCE_CATEGORIES, VirtualReferencePartitionMirrorTest.SHARED_CATEGORY)
+				2, it -> it.removeReference(REFERENCE_CATEGORIES, SortValueAndChainFixture.SHARED_CATEGORY)
 			)
 		);
 		write(
