@@ -37,6 +37,7 @@ import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.NegationResolution;
 import io.evitadb.core.query.filter.VirtualPartitionRows;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.entity.alternative.LocaleEntityToBitmapFilter;
@@ -82,6 +83,15 @@ public class EntityLocaleEqualsTranslator implements FilteringConstraintTranslat
 				.getEntityIndexStream()
 				.anyMatch(ReferencedTypeEntityIndex.class::isInstance);
 			if (unsupportedIndex) {
+				if (filterByVisitor.getProcessingScope().getNegationResolution() == NegationResolution.PER_ROW) {
+					// the type-level index cannot tell which partitions hold an owner having the locale, so every
+					// partition stays a candidate: the caller re-examines each candidate row by row against its own
+					// reduced index, which keeps the locales of its owners - see NegationResolution. Skipping the
+					// leaf instead would drop it from an enclosing `or`, narrowing the candidates to the other
+					// branches, and leave an enclosing `not` with nothing to negate; a negation stays the super set
+					// as a whole, because `NotTranslator` widens every negation to it in this resolution
+					return filterByVisitor.getSuperSetFormula();
+				}
 				return SkipFormula.INSTANCE;
 			} else if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
