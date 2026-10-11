@@ -386,8 +386,8 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 				HavingTranslatorHelper.assertEntityComponentIndexed(
 					targetEntitySchema, targetReferenceSchema, scope, EnumSet.of(scope)
 				);
-				// get the partition from the referenced entity collection using inverted key specification - read as
-				// that collection's own read switch says, through the memo of the query
+				// get the partition from the referenced entity collection using inverted key specification - read
+				// through the memo of the query
 				final AttributeSchemaContract targetAttributeSchema = targetReferenceSchema
 					.getAttribute(attributeKey.attributeName())
 					.orElseThrow(() -> new AttributeNotFoundException(
@@ -473,15 +473,11 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 		return switch (partition) {
 			case ReducedEntityIndex reducedEntityIndex ->
 				reducedEntityIndex.getChainIndex(referenceSchema, attributeSchema, locale);
-			case VirtualReferencePartition virtualPartition -> {
-				// TODO JNO - remove at the end of #1615 (the non-vacuity probe of the read parity tests)
-				this.queryContext.recordVirtualRowsRead(1);
-				yield VirtualPartitionSortedRecords.ofChainFactory(
-					virtualPartition,
-					AttributeIndex.createAttributeKey(referenceSchema, attributeSchema, locale),
-					ReferencedEntityPredecessor.class.equals(attributeSchema.getPlainType())
-				);
-			}
+			case VirtualReferencePartition virtualPartition -> VirtualPartitionSortedRecords.ofChainFactory(
+				virtualPartition,
+				AttributeIndex.createAttributeKey(referenceSchema, attributeSchema, locale),
+				ReferencedEntityPredecessor.class.equals(attributeSchema.getPlainType())
+			);
 		};
 	}
 

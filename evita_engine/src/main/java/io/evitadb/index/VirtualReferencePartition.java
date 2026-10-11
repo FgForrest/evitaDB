@@ -38,19 +38,18 @@ import javax.annotation.Nonnull;
  * rather than through a {@link ReducedEntityIndex}: a single-owner partition is fully described by its primary key, its
  * key, its only owner and the referenced-type entity index carrying its row, so it needs no index object of its own.
  *
- * The handle is a value: it copies what the registry holds of the partition at the moment it is resolved and refers
- * to the referenced-type entity index of that moment, so a query that resolved it keeps reading the snapshot it planned
- * against. It is created by the read resolvers that honour the read switch of the collection (see
- * {@link ReferencePartitions}) and by the write acquisition of a mutation that writes the single-owner partitions of
- * the reference virtually, for a partition that has its registry row and no index object, or that an owner is about
- * to enter while it has no row yet. A write path that takes a virtual partition writes what the partition holds - its
- * only owner, its sort values and chain predecessors - into the registry row only, and leaves out what a partition of
- * a reference indexed for filtering keeps nowhere (language records, facets);
- * every other exhaustive `switch` over {@link ReferencePartition} on a write path rejects it, and so does every write
- * path of a mutation that does not write the partition virtually.
+ * The handle is a value: it copies what the registry holds of the partition at the moment it is resolved and refers to
+ * the referenced-type entity index of that moment, so a query that resolved it keeps reading the snapshot it planned
+ * against. It is created by the read resolvers (see {@link ReferencePartitions}) and by the write acquisition of a
+ * mutation that writes the single-owner partitions of the reference virtually, for a partition that has its registry
+ * row and no index object, or that an owner is about to enter while it has no row yet. A write path that takes a
+ * virtual partition writes what the partition holds - its only owner, its sort values and chain predecessors - into the
+ * registry row only, and leaves out what a partition of a reference indexed for filtering keeps nowhere (language
+ * records, facets); every other exhaustive `switch` over {@link ReferencePartition} on a write path rejects it, and so
+ * does every write path of a mutation that does not write the partition virtually.
  *
  * While the reduced entity index of a registered partition still exists, the handle and the index describe the same
- * partition under the same primary key - the read switch only decides which of the two a query reads.
+ * partition under the same primary key, and a query reads the handle.
  *
  * @param primaryKey                 the primary key of the partition, the one the reduced entity index of the
  *                                   partition has too

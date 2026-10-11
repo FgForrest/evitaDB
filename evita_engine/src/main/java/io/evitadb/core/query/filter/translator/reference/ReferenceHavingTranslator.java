@@ -252,8 +252,6 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 		final boolean rowExact = VirtualPartitionBodyEvaluator.isRowExact(
 			getFilterByFormula(referenceHaving).orElse(null), referenceSchema.getName()
 		);
-		// TODO JNO - remove at the end of #1615 (the non-vacuity probe of the read parity tests)
-		filterByVisitor.recordVirtualRowsRead(split.getVirtualCount());
 		final Formula virtualOwners = rowExact ?
 			VirtualPartitionBodyEvaluator.getOwnersFormula(split) :
 			VirtualPartitionBodyEvaluator.getOwnersFormula(

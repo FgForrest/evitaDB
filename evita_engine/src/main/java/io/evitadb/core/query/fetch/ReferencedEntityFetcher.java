@@ -1113,8 +1113,6 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				filterByVisitor, entitySchema, referenceSchema, rowFilterBy, split, nestedQueryRestriction,
 				entityNestedQueryComparator
 			);
-		// TODO JNO - remove at the end of #1615 (the non-vacuity probe of the read parity tests)
-		filterByVisitor.recordVirtualRowsRead(virtualCount);
 		final List<ReducedEntityIndex> materializedIndexes = candidates.materializedIndexes();
 		final List<ReferencePartition> result = new ArrayList<>(materializedIndexes.size() + virtualCount);
 		result.addAll(materializedIndexes);

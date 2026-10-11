@@ -140,7 +140,7 @@ class VirtualPartitionBodyEvaluatorTest {
 		for (final Class<?> constraintClass : admitted) {
 			//noinspection unchecked
 			assertTrue(
-				VirtualPartitionBodyEvaluator.isReadVirtually((Class<? extends FilterConstraint>) constraintClass),
+				VirtualPartitionBodyEvaluator.hasVirtualReading((Class<? extends FilterConstraint>) constraintClass),
 				"Constraint `" + constraintClass.getSimpleName() + "` is admitted in a reference body but has no " +
 					"virtual reading"
 			);

@@ -45,8 +45,8 @@ import java.util.List;
  *
  * A hierarchy route asks a partition for nothing but its owners, and a single-owner partition has exactly one, so the
  * virtual partitions of all the targets collapse into one bitmap of owners and enter the formula tree as one constant
- * identified by its content - no handle is built and no index object is touched for them. When the query does not read
- * the collection virtually, every partition is materialized and the owners are empty.
+ * identified by its content - no handle is built and no index object is touched for them. When the registry holds no
+ * row of any partition of the targets, every partition is materialized and the owners are empty.
  *
  * A block-by-block ordering narrowed by a hierarchy option needs the partitions themselves, the virtual ones as their
  * handles - {@link #getPartitions()} builds them on demand from the splits of the scopes read virtually, which the
@@ -138,8 +138,8 @@ public record SplitTargetPartitions(
 	 * splits and touching no index object. The partitions come in the order the object-only list of a hierarchy option
 	 * holds the partitions of one target in: scope by scope, and within a scope in partition primary key order, the
 	 * order in which the type index lists the partitions of a target. Those of the scopes read through the index
-	 * objects alone come first, but a query reading the collection virtually reads a scope that way only when it holds
-	 * no type index of the reference - and with it no partition.
+	 * objects alone come first, but a scope is read that way only when it holds no type index of the reference - and
+	 * with it no partition.
 	 *
 	 * Without a partition read virtually the result is {@link #materializedIndexes()} itself.
 	 *

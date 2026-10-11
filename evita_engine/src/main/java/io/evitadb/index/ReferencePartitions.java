@@ -29,7 +29,6 @@ import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.buffer.DataStoreReader;
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -80,9 +79,9 @@ import java.util.function.IntFunction;
  * nothing, so the write path - and every query route not yet able to read a virtual partition - can never meet a
  * {@link VirtualReferencePartition}. The **read resolvers** (`…ForRead…`, {@link #resolveVirtualIfExists},
  * {@link #split}, and {@link PartitionKeyMemo} by key) take the referenced-type entity index of the reference in the
- * scope when the query reads the collection virtually, `null` when it does not: given one, they answer a primary key
- * its registry holds a row for with a virtual handle read out of that row and never touch the index object, and fall
- * back to the object for every other key; given `null`, they answer exactly as the object-only resolvers do. A write
+ * scope, `null` when the collection holds none: given one, they answer a primary key its registry holds a row for with
+ * a virtual handle read out of that row and never touch the index object, and fall back to the object for every other
+ * key; given `null`, they answer exactly as the object-only resolvers do. A write
  * path must not call them - every place on it that holds a partition asserts it is not virtual (see
  * {@link #requireMaterialized}), and a guard test rejects a call of a read resolver from the write path's packages.
  *
@@ -93,8 +92,8 @@ import java.util.function.IntFunction;
  * histograms, and the rebuild of the reduced index membership. In a catalog representing its single-owner partitions
  * virtually such a partition may have no index object to ask, so the **owner read resolvers** (`…ForOwnerRead…`)
  * answer a primary key the registry holds a row for with a virtual handle read out of that row, and every other one
- * with its index object, exactly as the object-only resolvers do. Unlike the read resolvers they do not follow the
- * read switch of a collection but the representation of its catalog, and they are not meant for a query. Their
+ * with its index object, exactly as the object-only resolvers do. Unlike the read resolvers they follow the
+ * representation of the catalog, and they are not meant for a query. Their
  * handle is read only - it carries the owner and the key of the partition and is never handed to a writer, which
  * would reject it (see {@link #requireMaterialized}); a guard test admits a call of an owner read resolver only from
  * the places listed on its allow-list.
@@ -258,8 +257,8 @@ public final class ReferencePartitions {
 	 *
 	 * @param partitionByPrimaryKey the lenient object-only resolution of the collection's partitions by primary key,
 	 *                              answering `null` when the primary key names no partition
-	 * @param virtualTypeIndex      the referenced-type entity index of the reference in the scope when the query
-	 *                              reads the collection virtually, `null` when it does not
+	 * @param virtualTypeIndex      the referenced-type entity index of the reference in the scope, whose registry is
+	 *                              read, `null` when the collection holds none
 	 * @param scope                 the scope of the partition
 	 * @param referenceName         the reference the partition belongs to
 	 * @param partitionPrimaryKey   the primary key of the partition
@@ -290,8 +289,8 @@ public final class ReferencePartitions {
 	 *
 	 * @param partitionByPrimaryKey the lenient object-only resolution of the collection's partitions by primary key,
 	 *                              answering `null` when the primary key names no partition
-	 * @param virtualTypeIndex      the referenced-type entity index of the reference in the scope when the query
-	 *                              reads the collection virtually, `null` when it does not
+	 * @param virtualTypeIndex      the referenced-type entity index of the reference in the scope, whose registry is
+	 *                              read, `null` when the collection holds none
 	 * @param scope                 the scope of the partition
 	 * @param referenceName         the reference the partition belongs to
 	 * @param partitionPrimaryKey   the primary key of the partition
@@ -322,15 +321,15 @@ public final class ReferencePartitions {
 
 	/**
 	 * Resolves every partition of one target entity of a reference in a scope, strictly, for a query - see the class
-	 * documentation on read resolution. Without a type index to read virtually this is
-	 * {@link #resolveOfTargetOrThrow}. With one, the partitions of the target are always enumerated through the type
-	 * index, whatever the cardinality of the reference - a partition the registry holds a row for may have no index
-	 * object to find by its key - and each primary key the registry holds a row for answers its virtual handle.
+	 * documentation on read resolution. Without a type index this is {@link #resolveOfTargetOrThrow}. With one, the
+	 * partitions of the target are always enumerated through the type index, whatever the cardinality of the
+	 * reference - a partition the registry holds a row for may have no index object to find by its key - and each
+	 * primary key the registry holds a row for answers its virtual handle.
 	 *
 	 * @param indexByKey        lookup of the collection's indexes by key, answering `null` when absent
 	 * @param indexByPrimaryKey lookup of the collection's indexes by primary key, answering `null` when absent
-	 * @param virtualTypeIndex  the referenced-type entity index of the reference in the scope when the query reads the
-	 *                          collection virtually, `null` when it does not
+	 * @param virtualTypeIndex  the referenced-type entity index of the reference in the scope, whose registry is read,
+	 *                          `null` when the collection holds none
 	 * @param scope             the scope of the partitions
 	 * @param referenceName     the reference the partitions belong to
 	 * @param allowsDuplicates  whether the reference allows duplicate references to one target
@@ -372,8 +371,8 @@ public final class ReferencePartitions {
 	}
 
 	/**
-	 * Splits every partition of several target entities of a reference in a scope by representation, for a query that
-	 * reads the collection virtually - see the class documentation on read resolution. The partitions of each target
+	 * Splits every partition of several target entities of a reference in a scope by representation, for a query -
+	 * see the class documentation on read resolution. The partitions of each target
 	 * are enumerated through the type index whatever the cardinality of the reference, as
 	 * {@link #resolveOfTargetForRead} enumerates them, and the primary keys of all targets are split in one merge with
 	 * the registry rows (see {@link #split(Bitmap, ReferencedTypeEntityIndex...)}) - no partition is resolved, neither
@@ -416,7 +415,7 @@ public final class ReferencePartitions {
 	 *
 	 * @param candidates  the candidate partition primary keys
 	 * @param typeIndexes the referenced-type entity indexes of the reference whose registries are read - one per scope
-	 *                    the candidates come from, none when the query does not read the collection virtually
+	 *                    the candidates come from that holds one
 	 * @return the split
 	 * @throws GenericEvitaInternalError when two registries hold a row for one candidate
 	 */
@@ -448,7 +447,7 @@ public final class ReferencePartitions {
 				}
 				if (cursor.partitionPrimaryKey() == candidate) {
 					if (count == primaryKeys.length) {
-						// sized lazily: most splits of a reference that is not read virtually find nothing
+						// sized lazily: most splits of a reference without single-owner partitions find nothing
 						final int grown = Math.min(capacity * typeIndexes.length, Math.max(16, count * 2));
 						primaryKeys = Arrays.copyOf(primaryKeys, grown);
 						ownersAndTargets = Arrays.copyOf(ownersAndTargets, grown);
@@ -562,8 +561,6 @@ public final class ReferencePartitions {
 		int ownerPrimaryKey,
 		@Nonnull RepresentativeReferenceKey representativeReferenceKey
 	) {
-		// TODO JNO - remove at the end of #1615
-		VirtualReferencePartitionMaintenance.recordForcedHandleResolved();
 		return new VirtualReferencePartition(
 			partitionPrimaryKey,
 			createKey(typeIndex.getIndexKey().scope(), representativeReferenceKey),
@@ -858,7 +855,7 @@ public final class ReferencePartitions {
 			final OptionalLong row = registryTypeIndex.getVirtualReferencePartitionIndex()
 				.getPartitionOwner(partitionPrimaryKey);
 			if (row.isPresent()) {
-				final VirtualReferencePartition partition = toUncountedPartition(
+				final VirtualReferencePartition partition = toVirtualPartition(
 					registryTypeIndex, partitionPrimaryKey, row.getAsLong()
 				);
 				// TODO JNO - remove at the end of #1615
@@ -920,7 +917,7 @@ public final class ReferencePartitions {
 			}
 			final OptionalLong row = registry.getPartitionOwner(partitionPrimaryKey);
 			if (row.isPresent()) {
-				final VirtualReferencePartition partition = toUncountedPartition(
+				final VirtualReferencePartition partition = toVirtualPartition(
 					typeIndex, partitionPrimaryKey, row.getAsLong()
 				);
 				// TODO JNO - remove at the end of #1615
@@ -1002,7 +999,7 @@ public final class ReferencePartitions {
 				return object;
 			}
 			final long partitionAndOwner = family.indexGet(slot);
-			final VirtualReferencePartition partition = toUncountedPartition(
+			final VirtualReferencePartition partition = toVirtualPartition(
 				typeIndex, NumberUtils.unpackHigh(partitionAndOwner), NumberUtils.unpackLow(partitionAndOwner),
 				representativeReferenceKey
 			);
@@ -1129,8 +1126,6 @@ public final class ReferencePartitions {
 	 * structure, so the target's family is scanned: one copy of it from the type index and one or two registry
 	 * lookups per member, `O(family)`. Nothing is remembered - the rows change while the root mutation writes.
 	 *
-	 * The handle is not counted as resolved by a query.
-	 *
 	 * @param typeIndex                  the referenced-type entity index of the reference in the key's scope
 	 * @param representativeReferenceKey the representative reference key of the partition
 	 * @return the virtual partition, or `null` when the registry holds no row of the key
@@ -1155,7 +1150,7 @@ public final class ReferencePartitions {
 		for (final int partitionPrimaryKey : typeIndex.getAllReferenceIndexes(targetPrimaryKey)) {
 			final OptionalLong row = readRowOfTarget(typeIndex, targetPrimaryKey, partitionPrimaryKey);
 			if (row.isPresent() && registry.getRepresentativeTupleId(partitionPrimaryKey) == tupleId) {
-				return toUncountedPartition(
+				return toVirtualPartition(
 					typeIndex, partitionPrimaryKey, NumberUtils.unpackHigh(row.getAsLong()),
 					representativeReferenceKey
 				);
@@ -1167,8 +1162,7 @@ public final class ReferencePartitions {
 	/**
 	 * Resolves a partition the registry of single-owner partitions holds a row for into its virtual handle for a write
 	 * that writes the single-owner partitions of the reference virtually - the write-path counterpart of
-	 * {@link #resolveVirtualIfExists(ReferencedTypeEntityIndex, int)}, whose handle is counted as resolved by a query
-	 * while this one is not. Two lookups in the registry, `O(log n)` each.
+	 * {@link #resolveVirtualIfExists(ReferencedTypeEntityIndex, int)}. Two lookups in the registry, `O(log n)` each.
 	 *
 	 * @param typeIndex           the referenced-type entity index of the reference in the partition's scope
 	 * @param partitionPrimaryKey the primary key of the partition, positive
@@ -1180,15 +1174,14 @@ public final class ReferencePartitions {
 		int partitionPrimaryKey
 	) {
 		final OptionalLong row = typeIndex.getVirtualReferencePartitionIndex().getPartitionOwner(partitionPrimaryKey);
-		return row.isEmpty() ? null : toUncountedPartition(typeIndex, partitionPrimaryKey, row.getAsLong());
+		return row.isEmpty() ? null : toVirtualPartition(typeIndex, partitionPrimaryKey, row.getAsLong());
 	}
 
 	/**
 	 * Builds the virtual handle of a partition a write brings an owner into while the registry holds no row of it yet -
 	 * the partition is new, or its last owner left it within the running root mutation - for a write that writes the
 	 * single-owner partitions of the reference virtually. The handle names the entering owner; the owner's entering the
-	 * partition registers its row. Like the handles of the other write acquisitions it is not counted as resolved by a
-	 * query.
+	 * partition registers its row.
 	 *
 	 * @param typeIndex                  the referenced-type entity index of the reference in the partition's scope,
 	 *                                   which will carry the partition's row
@@ -1204,56 +1197,7 @@ public final class ReferencePartitions {
 		int ownerPrimaryKey,
 		@Nonnull RepresentativeReferenceKey representativeReferenceKey
 	) {
-		return toUncountedPartition(typeIndex, partitionPrimaryKey, ownerPrimaryKey, representativeReferenceKey);
-	}
-
-	/**
-	 * Builds the handle of a registered partition an owner read or a write answers from its registry row - the
-	 * representative attribute values are read from the registry's tuple dictionary, see
-	 * {@link #toVirtualPartition(ReferencedTypeEntityIndex, int, long)}. Unlike the handles of the read resolvers it is
-	 * not counted as resolved by a query.
-	 *
-	 * @param typeIndex           the referenced-type entity index whose registry holds the row
-	 * @param partitionPrimaryKey the primary key of the partition
-	 * @param ownerAndTarget      the row, `pack(ownerPrimaryKey, targetPrimaryKey)`
-	 * @return the virtual partition
-	 */
-	@Nonnull
-	private static VirtualReferencePartition toUncountedPartition(
-		@Nonnull ReferencedTypeEntityIndex typeIndex,
-		int partitionPrimaryKey,
-		long ownerAndTarget
-	) {
-		return toUncountedPartition(
-			typeIndex, partitionPrimaryKey, NumberUtils.unpackHigh(ownerAndTarget),
-			readRepresentativeReferenceKey(typeIndex, partitionPrimaryKey, ownerAndTarget)
-		);
-	}
-
-	/**
-	 * Builds the handle of a registered partition an owner read or a write answers. Unlike the handles of the read
-	 * resolvers it is not counted as resolved by a query.
-	 *
-	 * @param typeIndex                  the referenced-type entity index whose registry holds the partition's row
-	 * @param partitionPrimaryKey        the primary key of the partition
-	 * @param ownerPrimaryKey            the primary key of its only owner
-	 * @param representativeReferenceKey the representative reference key of the partition
-	 * @return the virtual partition
-	 */
-	@Nonnull
-	private static VirtualReferencePartition toUncountedPartition(
-		@Nonnull ReferencedTypeEntityIndex typeIndex,
-		int partitionPrimaryKey,
-		int ownerPrimaryKey,
-		@Nonnull RepresentativeReferenceKey representativeReferenceKey
-	) {
-		return new VirtualReferencePartition(
-			partitionPrimaryKey,
-			createKey(typeIndex.getIndexKey().scope(), representativeReferenceKey),
-			representativeReferenceKey,
-			ownerPrimaryKey,
-			typeIndex
-		);
+		return toVirtualPartition(typeIndex, partitionPrimaryKey, ownerPrimaryKey, representativeReferenceKey);
 	}
 
 	// TODO JNO - remove at the end of #1615

@@ -34,7 +34,6 @@ import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.comparator.IntComparator;
 import io.evitadb.comparator.IntComparator.IntAscendingComparator;
 import io.evitadb.comparator.IntComparator.IntDescendingComparator;
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.VirtualRowConsumer;
 import io.evitadb.core.query.sort.EntityComparator;
 import io.evitadb.core.query.sort.EntityReferenceSensitiveComparator;
 import io.evitadb.core.query.sort.OrderByVisitor;
@@ -182,7 +181,6 @@ public class EntityPrimaryKeyNaturalTranslator
 		@Nonnull OrderByVisitor orderByVisitor
 	) {
 		final List<SortedRecordsProvider> providers = new ArrayList<>(partitions.length);
-		int virtualCount = 0;
 		for (final ReferencePartition partition : partitions) {
 			switch (partition) {
 				case ReducedEntityIndex reducedEntityIndex -> {
@@ -205,16 +203,9 @@ public class EntityPrimaryKeyNaturalTranslator
 						);
 					}
 				}
-				case VirtualReferencePartition virtualPartition -> {
-					virtualCount++;
+				case VirtualReferencePartition virtualPartition ->
 					providers.add(VirtualPartitionSortedRecords.ofReferencedPrimaryKey(virtualPartition));
-				}
 			}
-		}
-		if (virtualCount > 0) {
-			// TODO JNO - remove at the end of #1615 (the non-vacuity probes of the read parity tests)
-			orderByVisitor.recordVirtualRowsRead(virtualCount);
-			orderByVisitor.recordVirtualRowsConsumed(VirtualRowConsumer.BLOCK_REFERENCED_KEY_PROVIDER, virtualCount);
 		}
 		return providers.toArray(SortedRecordsProvider[]::new);
 	}

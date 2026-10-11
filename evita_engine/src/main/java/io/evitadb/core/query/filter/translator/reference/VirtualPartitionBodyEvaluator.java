@@ -185,7 +185,7 @@ public final class VirtualPartitionBodyEvaluator {
 	 * @param constraintClass the class of the constraint
 	 * @return TRUE when the class is row-exact or answered exactly
 	 */
-	public static boolean isReadVirtually(@Nonnull Class<? extends FilterConstraint> constraintClass) {
+	public static boolean hasVirtualReading(@Nonnull Class<? extends FilterConstraint> constraintClass) {
 		return ROW_EXACT_CONSTRAINTS.contains(constraintClass) ||
 			EXACTLY_ANSWERED_CONSTRAINTS.contains(constraintClass);
 	}
@@ -321,7 +321,7 @@ public final class VirtualPartitionBodyEvaluator {
 	 */
 	@Nullable
 	private static FilterConstraint findUnsupported(@Nonnull FilterConstraint constraint) {
-		if (!isReadVirtually(constraint.getClass())) {
+		if (!hasVirtualReading(constraint.getClass())) {
 			return constraint;
 		}
 		for (final FilterConstraint child : rowChildrenOf(constraint)) {

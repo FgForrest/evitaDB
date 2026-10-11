@@ -564,13 +564,16 @@ class PickFirstReferenceSorterTest {
 		final int[] expectedUnclaimed = fixture.expectedUnclaimed();
 		assertTrue(expected.length > 10, "The fixture must claim a sizeable part of the selection.");
 
+		int virtualValueIdReads = 0;
 		for (int start = 0; start <= expected.length; start++) {
 			for (int end = start + 1; end <= expected.length + 1; end++) {
+				final CountingVirtualValues values = new CountingVirtualValues(VALUE_SORT_VALUES);
 				final SortResult sorted = sort(
-					fixture.sorter(direction, new CountingVirtualValues(VALUE_SORT_VALUES)),
+					fixture.sorter(direction, values),
 					new SortingContext(fixture.indexFixture.createExecutionContext(), fixture.selection(), start, end, 0, 0),
 					end - start
 				);
+				virtualValueIdReads += values.valueIdReads;
 				final int[] expectedPage = Arrays.copyOfRange(expected, start, Math.min(end, expected.length));
 				final int theStart = start;
 				final int theEnd = end;
@@ -579,7 +582,7 @@ class PickFirstReferenceSorterTest {
 				assertArrayEquals(expectedUnclaimed, content(sorted.output().nonSortedKeys()));
 			}
 		}
-		assertTrue(fixture.indexFixture.virtualRowsRead() > 0, "The virtual partitions must have been read.");
+		assertTrue(virtualValueIdReads > 0, "The virtual partitions must have been read.");
 	}
 
 	@ParameterizedTest(name = "{0}, values 1..{1}")
@@ -626,7 +629,6 @@ class PickFirstReferenceSorterTest {
 		indexFixture.addVirtualPartition(Scope.LIVE, distinctValueCount + 1, distinctValueCount + 1, 1);
 		registry.putSortValue(VALUE_KEY, distinctValueCount + 1, 0);
 		assertEquals(distinctValueCount + 1, registry.getDistinctSortValueCount(VALUE_KEY));
-		indexFixture.readVirtually();
 
 		for (OrderDirection direction : OrderDirection.values()) {
 			final CountingVirtualValues values = new CountingVirtualValues(VALUE_SORT_VALUES);
@@ -664,7 +666,6 @@ class PickFirstReferenceSorterTest {
 		// unselected owner 3 holds the lowest value of all in the virtual partition of target 10
 		indexFixture.addVirtualPartition(Scope.LIVE, 110, 10, 3);
 		registry.putSortValue(VALUE_KEY, 110, -100);
-		indexFixture.readVirtually();
 		final SortedRecordsSupplier provider = createProvider(shared, OrderDirection.ASC, 1, 20, 2, 10);
 		final CountingVirtualValues values = new CountingVirtualValues(VALUE_SORT_VALUES);
 		final PickFirstReferenceSorter sorter = new PickFirstReferenceSorter(
@@ -679,7 +680,11 @@ class PickFirstReferenceSorterTest {
 		assertAll(
 			() -> assertArrayEquals(new int[]{2, 1}, sorted.written()),
 			() -> assertEquals(0, values.valueIdReads, "The unselected owner's row must not be read."),
-			() -> assertTrue(indexFixture.virtualRowsRead() > 0, "The virtual partition must have been handed over.")
+			() -> assertTrue(
+				Arrays.stream(indexFixture.resolver(false, Scope.LIVE).resolve(new BaseBitmap(1, 2)).indexes())
+					.anyMatch(VirtualReferencePartition.class::isInstance),
+				"The virtual partition must have been handed over."
+			)
 		);
 	}
 
@@ -707,7 +712,6 @@ class PickFirstReferenceSorterTest {
 				registry.putSortValue(VALUE_KEY, 1_000 + i, 100 + i);
 			}
 		}
-		indexFixture.readVirtually();
 		assertEquals(
 			!sparse, PickFirstReferenceSorter.isDense(ownerValues.length, registry.getDistinctSortValueCount(VALUE_KEY)),
 			"The premise of the case: the claimed values are dense exactly when no unselected value is added"
@@ -891,7 +895,6 @@ class PickFirstReferenceSorterTest {
 					registry.putSortValue(VALUE_KEY, primaryKey, 1 + random.nextInt(valueRange));
 				}
 			}
-			this.indexFixture.readVirtually();
 		}
 
 		/**

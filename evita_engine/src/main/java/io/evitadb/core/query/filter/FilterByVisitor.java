@@ -1008,8 +1008,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 *
 	 * The split exists so a candidate that is going to be rejected never pays the resolution. A route that reads the
 	 * candidates calls {@link ReducedIndexCandidates#resolveSplit()}, which keeps a registered single-owner
-	 * partition as a row of the split instead of resolving it whenever the query reads the collection virtually;
-	 * a route that needs the index objects of every candidate calls {@link ReducedIndexCandidates#resolve()} instead.
+	 * partition as a row of the split instead of resolving it; a route that needs the index objects of every candidate
+	 * calls {@link ReducedIndexCandidates#resolve()} instead.
 	 *
 	 * @param referenceHaving              the constraint whose reference is being discovered
 	 * @param scope                        scopes to discover in
@@ -1061,8 +1061,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			);
 			partitionAccessor = targetCollection::resolvePartitionIfExists;
 		}
-		// the split reads the collection the candidates come from in every scope they were discovered in; the query
-		// context is the one of this visitor, so the read switch it captured holds for the split too
+		// the split reads the collection the candidates come from in every scope they were discovered in
 		final String entityType = entitySchema.getName();
 		final String referenceName = referenceSchema.getName();
 		final Scope[] scopes = scope.toArray(Scope[]::new);
@@ -1134,9 +1133,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 
 		/**
 		 * Splits the candidates by representation and resolves only those read through their reduced entity indexes.
-		 * When the query reads the collection virtually, every candidate the registry of single-owner partitions holds
-		 * a row for stays a row of the split and is never resolved to its index object; otherwise the split holds no
-		 * virtual candidate and the indexes are those {@link #resolve()} returns.
+		 * Every candidate the registry of single-owner partitions holds a row for stays a row of the split and is
+		 * never resolved to its index object; when the registry holds none of them the split holds no virtual
+		 * candidate and the indexes are those {@link #resolve()} returns.
 		 *
 		 * The split costs one merge of the candidates with the registry rows (see
 		 * {@link io.evitadb.index.ReferencePartitions#split}); the resolution costs what {@link #resolve()} costs for
@@ -1327,12 +1326,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			writer.add(resolvePartition(it.nextInt()).getReferenceKey().primaryKey());
 		}
 		final int virtualCount = split.getVirtualCount();
-		if (virtualCount > 0) {
-			for (int i = 0; i < virtualCount; i++) {
-				writer.add(split.getVirtualTargetPrimaryKey(i));
-			}
-			// TODO JNO - remove at the end of #1615 (the non-vacuity probe of the read parity tests)
-			recordVirtualRowsRead(virtualCount);
+		for (int i = 0; i < virtualCount; i++) {
+			writer.add(split.getVirtualTargetPrimaryKey(i));
 		}
 		final PersistentRoaringBitmap bitmap = writer.get();
 		return bitmap.isEmpty() ? EmptyFormula.INSTANCE : new ConstantFormula(new BaseBitmap(bitmap));
@@ -1692,7 +1687,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * scope. This method tries to find first {@link TargetIndexes} set that contain at least one index that falls within
 	 * the specified scope, combines all primary keys from this set of indexes and returns the resulting formula.
 	 *
-	 * It tries to optimize formula in a way, that it uses the formula with the lowest estimated cost.
+	 * It tries to optimize formula in a way, that it uses the formula with the lowest estimated cost. A set reading
+	 * some of its partitions from registry rows is never consulted - see {@link #holdsIndexObjectsOnly(TargetIndexes)}.
 	 *
 	 * @param scope the scope within which to filter and compute the superset formula
 	 * @return the resulting superset formula combining primary keys of the relevant indices;
@@ -1716,6 +1712,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		} else {
 			// but fallback to global scope
 			return this.targetIndexes.stream()
+				// must precede the scope test: `getIndexes` resolves the index objects of a set lazily, and fails on a
+				// set whose partitions include registry rows
+				.filter(FilterByVisitor::holdsIndexObjectsOnly)
 				.filter(it -> it.getIndexes().stream().anyMatch(index -> index.getIndexKey().scope().equals(scope)))
 				.map(
 					it -> FormulaFactory.or(
@@ -1732,6 +1731,23 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				.min(Comparator.comparingLong(Formula::getEstimatedCost))
 				.orElse(EmptyFormula.INSTANCE);
 		}
+	}
+
+	/**
+	 * Tells whether every partition of an index set has an index object, so that its indexes are the whole set. A
+	 * `referenceHaving` or hierarchy option whose partitions include registered single-owner ones has no index object
+	 * for those - resolving its indexes would fail on them, and its index objects alone would miss their owners.
+	 *
+	 * @param targetIndexes the index set
+	 * @return TRUE when no partition of the set is a registry row
+	 */
+	private static boolean holdsIndexObjectsOnly(@Nonnull TargetIndexes<?> targetIndexes) {
+		final SplitTargetPartitions nodePartitions = targetIndexes.getSplitTargetPartitions();
+		if (nodePartitions != null) {
+			return nodePartitions.virtualCount() == 0;
+		}
+		final ReducedIndexCandidates candidates = targetIndexes.getReducedIndexCandidates();
+		return candidates == null || candidates.splitter().apply(candidates.primaryKeys()).getVirtualCount() == 0;
 	}
 
 	/**

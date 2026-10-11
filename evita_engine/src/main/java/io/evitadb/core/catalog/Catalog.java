@@ -877,10 +877,10 @@ public final class Catalog
 		this.usageRegistry = new SchemaCapabilityUsageRegistry();
 		this.usageRegistry.alignWith(catalogSchema);
 		// every catalog this version loads carries the current storage protocol - the store migrates an older one and
-		// refuses any other - so it keeps its single-owner reference partitions as registry rows, and maintains and
-		// reads every collection virtually for good. Decided here, before any collection is attached and before the
-		// write-ahead log is replayed onto this catalog, so the replayed mutations - those creating a collection among
-		// them - see it as well
+		// refuses any other - so it keeps its single-owner reference partitions as registry rows, and maintains every
+		// collection virtually for good. Decided here, before any collection is attached and before the write-ahead log
+		// is replayed onto this catalog, so the replayed mutations - those creating a collection among them - see it as
+		// well
 		// TODO JNO - remove at the end of #1615
 		this.virtualReferencePartitionMaintenance = VirtualReferencePartitionMaintenance.forLoadedCatalog(
 			this.catalogId,

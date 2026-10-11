@@ -200,7 +200,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 							);
 							// the registry of single-owner partitions keeps rows only for references indexed for
 							// filtering alone, so every partition of a narrowed set is read through its index object
-							// here - whether the query reads the collection virtually or not
+							// here
 							Assert.isPremiseValid(
 								hasNoVirtualPartition(referenceName, scope),
 								() -> "Prefetch narrowed to reduced index `" + reducedIndex.getIndexKey() + "` of a " +

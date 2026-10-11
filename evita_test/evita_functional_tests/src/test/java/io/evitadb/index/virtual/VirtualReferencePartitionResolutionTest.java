@@ -221,7 +221,7 @@ class VirtualReferencePartitionResolutionTest implements EvitaTestSupport {
 						assertShape(
 							partition, primaryKey,
 							collection.resolvePartitionForReadIfExists(
-								partition.scope(), partition.referenceName(), primaryKey, true
+								partition.scope(), partition.referenceName(), primaryKey
 							)
 						);
 						visited.merge(partition.shape(), 1, Integer::sum);

@@ -94,12 +94,12 @@ import java.util.function.Supplier;
  * instead: the gather would not visit fewer indexes and would cost more lookups.
  *
  * Every candidate is resolved by the scoped read resolver of the query
- * ({@link QueryPlanningContext#resolvePartitionForReadIfExists(ReferencedTypeEntityIndex, int)}): when the query reads
- * the collection virtually, a registered single-owner partition is handed over as its {@link VirtualReferencePartition}
- * - one registry lookup, the index object is never touched - and takes part in the target order exactly like a
- * materialized one. A virtual candidate of an unselected owner may be handed over too (under the plain primary key
- * order nothing is probed, and the whole-family fallback lists every owner's partitions);
- * {@link PickFirstReferenceSorter} admits a virtual partition only through the unclaimed rest of the selection.
+ * ({@link QueryPlanningContext#resolvePartitionForReadIfExists(ReferencedTypeEntityIndex, int)}): a registered
+ * single-owner partition is handed over as its {@link VirtualReferencePartition} - one registry lookup, the index
+ * object is never touched - and takes part in the target order exactly like a materialized one. A virtual candidate of
+ * an unselected owner may be handed over too (under the plain primary key order nothing is probed, and the whole-family
+ * fallback lists every owner's partitions); {@link PickFirstReferenceSorter} admits a virtual partition only through
+ * the unclaimed rest of the selection.
  *
  * # Target order
  *
@@ -223,7 +223,6 @@ public final class PickFirstReducedIndexResolver {
 		}
 		final PersistentRoaringBitmap selected = RoaringBitmapBackedBitmap.getRoaringBitmap(selection);
 		final List<ReferencePartition> found = new ArrayList<>(64);
-		int virtualCount = 0;
 		if (!selected.isEmpty()) {
 			for (Scope scope : this.scopes) {
 				final ReferencedTypeEntityIndex typeIndex = getTypeIndex(scope);
@@ -231,23 +230,16 @@ public final class PickFirstReducedIndexResolver {
 					final Bitmap candidates = selectCandidates(scope, typeIndex, selected);
 					final OfInt it = candidates.iterator();
 					while (it.hasNext()) {
-						// the scoped read resolver answers a registered single-owner partition with its virtual handle
-						// when the query reads the collection virtually, without touching the index object
+						// the scoped read resolver answers a registered single-owner partition with its virtual handle,
+						// without touching the index object
 						final ReferencePartition partition =
 							this.queryContext.resolvePartitionForReadIfExists(typeIndex, it.nextInt());
 						if (partition != null && (this.targetSorter == null || holdsSelectedOwner(partition, selected))) {
 							found.add(partition);
-							if (partition instanceof VirtualReferencePartition) {
-								virtualCount++;
-							}
 						}
 					}
 				}
 			}
-		}
-		if (virtualCount > 0) {
-			// TODO JNO - remove at the end of #1615 (the non-vacuity probe of the read parity tests)
-			this.queryContext.recordVirtualRowsRead(virtualCount);
 		}
 		final ResolvedReducedIndexes result = order(found);
 		this.memoizedSelection = selection;
@@ -275,8 +267,7 @@ public final class PickFirstReducedIndexResolver {
 	 * the planning-time index set of the block orderings: the candidates of a `referenceHaving` on the same reference
 	 * when there are any, the whole family otherwise. Resolved once per instance, and only when asked for.
 	 *
-	 * @return the planning-time partitions in target order - reduced entity indexes and, when the query reads the
-	 *         collection virtually, virtual partitions
+	 * @return the planning-time partitions in target order - reduced entity indexes and virtual partitions
 	 */
 	@Nonnull
 	public ReferencePartition[] getPlanningIndexes() {

@@ -77,8 +77,6 @@ import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.core.cache.CacheSupervisor;
 import io.evitadb.core.catalog.Catalog;
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance;
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.VirtualRowConsumer;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.metric.event.query.FinishedEvent;
 import io.evitadb.core.query.algebra.Formula;
@@ -405,13 +403,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @see #computeOncePerKey(Object, Supplier) for the contract
 	 */
 	private Map<Object, Object> valueKeyedCache;
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * The read switch of every collection the query has asked about, captured on the first question - see
-	 * {@link #isReadVirtually(String)}. Held by the root context only, so the whole query, its nested contexts
-	 * included, reads every collection one way.
-	 */
-	@Nullable private Map<String, Boolean> readVirtually;
 	/**
 	 * The memo of the by-key partition resolutions of this context - see
 	 * {@link #resolvePartitionForReadIfExists(String, Scope, RepresentativeReferenceKey)}. Created on the first such
@@ -614,10 +605,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		this.cacheSupervisor = cacheSupervisor;
 		this.queryFinishedEvent = event;
 		this.internalExecutionContext = createExecutionContext();
-		// TODO JNO - remove at the end of #1615
-		if (VirtualReferencePartitionMaintenance.FORCED && parentQueryContext == null) {
-			VirtualReferencePartitionMaintenance.recordForcedQuery(catalog);
-		}
 	}
 
 	/**
@@ -1258,66 +1245,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		);
 	}
 
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Returns TRUE when this query reads the registered single-owner partitions of the collection virtually - through
-	 * the registry of single-owner partitions instead of through their reduced entity indexes. The collection's read
-	 * switch (see {@link io.evitadb.core.catalog.VirtualReferencePartitionMaintenance#isReadVirtually(String)}) is
-	 * captured when the query first asks about the collection and the captured answer holds for the rest of the query
-	 * and all its nested contexts, so a switch turned mid-query never splits one query between the two readings.
-	 *
-	 * @param entityType the collection
-	 * @return TRUE when the query reads the collection virtually
-	 */
-	public boolean isReadVirtually(@Nonnull String entityType) {
-		if (this.parentContext != null) {
-			return this.parentContext.isReadVirtually(entityType);
-		}
-		if (this.readVirtually == null) {
-			this.readVirtually = CollectionUtils.createHashMap(4);
-		}
-		Boolean captured = this.readVirtually.get(entityType);
-		if (captured == null) {
-			captured = this.catalog.getVirtualReferencePartitionMaintenance().isReadVirtually(entityType);
-			this.readVirtually.put(entityType, captured);
-			if (VirtualReferencePartitionMaintenance.FORCED && captured) {
-				VirtualReferencePartitionMaintenance.recordForcedReach(this.catalog, entityType);
-			}
-		}
-		return captured;
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Records that this query answered rows of registered single-owner partitions virtually - the non-vacuity probe
-	 * of the read parity tests, see
-	 * {@link io.evitadb.core.catalog.VirtualReferencePartitionMaintenance#recordVirtualRowsRead(int)}.
-	 *
-	 * @param rowCount how many virtual rows were answered at one site, positive
-	 */
-	public void recordVirtualRowsRead(int rowCount) {
-		this.catalog.getVirtualReferencePartitionMaintenance().recordVirtualRowsRead(rowCount);
-	}
-
-	// TODO JNO - remove at the end of #1615
-	/**
-	 * Records that a consuming stage of an ordering route of this query answered virtual rows - the per-stage
-	 * non-vacuity probe of the read parity tests, see
-	 * {@link VirtualReferencePartitionMaintenance#recordVirtualRowsConsumed(VirtualRowConsumer, int)}.
-	 *
-	 * @param consumer the consuming stage
-	 * @param rowCount how many virtual rows the stage answered at one site, positive
-	 */
-	public void recordVirtualRowsConsumed(@Nonnull VirtualRowConsumer consumer, int rowCount) {
-		this.catalog.getVirtualReferencePartitionMaintenance().recordVirtualRowsConsumed(consumer, rowCount);
-	}
-
 	/**
 	 * Returns the reference partition of the named collection with the primary key, when it is a partition of the
-	 * reference in the scope, for a read - see the read resolution of {@link ReferencePartitions}. When the query
-	 * reads the collection virtually, a partition the registry holds a row for answers its
-	 * {@link VirtualReferencePartition}, read out of the row; any other one answers its reduced entity index. The
-	 * collection is read as {@link #resolvePartitionIfExists(String, Scope, RepresentativeReferenceKey)} reads it.
+	 * reference in the scope, for a read - see the read resolution of {@link ReferencePartitions}. A partition the
+	 * registry holds a row for answers its {@link VirtualReferencePartition}, read out of the row; any other one
+	 * answers its reduced entity index. The collection is read as
+	 * {@link #resolvePartitionIfExists(String, Scope, RepresentativeReferenceKey)} reads it.
 	 *
 	 * @param entityType          the collection owning the partition
 	 * @param scope               the scope of the partition
@@ -1339,16 +1272,16 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			);
 		}
 		return getEntityCollectionOrThrowException(entityType, "access entity index")
-			.resolvePartitionForReadIfExists(scope, referenceName, partitionPrimaryKey, isReadVirtually(entityType));
+			.resolvePartitionForReadIfExists(scope, referenceName, partitionPrimaryKey);
 	}
 
 	/**
 	 * Returns the reference partition of the **queried** collection with the primary key, when it is a partition of the
 	 * reference of the type index in the type index's scope, for a read - see the read resolution of
 	 * {@link ReferencePartitions}. The type index must be the queried collection's own, as
-	 * {@link #getIndexIfExists(io.evitadb.index.IndexKey, Class)} returns it: when the query reads the collection
-	 * virtually, a partition its registry holds a row for answers its {@link VirtualReferencePartition}, read out of the
-	 * row with one registry lookup; any other one answers its reduced entity index.
+	 * {@link #getIndexIfExists(io.evitadb.index.IndexKey, Class)} returns it: a partition its registry holds a row for
+	 * answers its {@link VirtualReferencePartition}, read out of the row with one registry lookup; any other one
+	 * answers its reduced entity index.
 	 *
 	 * @param typeIndex           the referenced-type entity index of the reference in the scope, of the queried
 	 *                            collection
@@ -1361,12 +1294,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		int partitionPrimaryKey
 	) {
 		final EntityIndexKey typeIndexKey = typeIndex.getIndexKey();
-		// a planning context created without a collection names the queried one by the request only
-		final String queriedEntityType = this.entityType == null ? this.evitaRequest.getEntityType() : this.entityType;
 		return ReferencePartitions.resolveForReadIfExists(
-			this::resolvePartitionIfExists,
-			// TODO JNO - remove at the end of #1615 (the condition, the type index stays)
-			queriedEntityType != null && isReadVirtually(queriedEntityType) ? typeIndex : null,
+			this::resolvePartitionIfExists, typeIndex,
 			typeIndexKey.scope(), typeIndex.getReferenceName(), partitionPrimaryKey
 		);
 	}
@@ -1405,8 +1334,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 	/**
 	 * Returns the reference partition of the named collection holding the rows of the representative reference key in
-	 * the scope, for a read. When the query reads the collection virtually, a partition the registry holds a row for
-	 * answers its {@link VirtualReferencePartition}; the lookup goes through the memo of this context (see
+	 * the scope, for a read. A partition the registry holds a row for answers its
+	 * {@link VirtualReferencePartition}; the lookup goes through the memo of this context (see
 	 * {@link PartitionKeyMemo}), which builds the registered partitions of a target once per query, so a query
 	 * resolving the keys of many owners sharing one target costs one pass over the target's partitions. Any other key
 	 * answers its reduced entity index. The collection is read as
@@ -1428,29 +1357,20 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		if (this.partitionKeyMemo == null) {
 			this.partitionKeyMemo = new PartitionKeyMemo();
 		}
-		final PartitionKeyMemo memo = this.partitionKeyMemo;
-		// TODO JNO - remove at the end of #1615 (the operation-count probe of the chain tests)
-		final int familyBuilds = memo.getFamilyBuildCount();
-		final int visitedEntries = memo.getVisitedEntryCount();
-		final ReferencePartition partition = memo.resolveIfExists(
+		return this.partitionKeyMemo.resolveIfExists(
 			getIndexByKeyReader(entityType),
 			getVirtualTypeIndex(entityType, scope, representativeReferenceKey.referenceName()),
 			scope, representativeReferenceKey
 		);
-		// TODO JNO - remove at the end of #1615 (the operation-count probe of the chain tests)
-		this.catalog.getVirtualReferencePartitionMaintenance().recordPartitionKeyMemoWork(
-			memo.getFamilyBuildCount() - familyBuilds, memo.getVisitedEntryCount() - visitedEntries
-		);
-		return partition;
 	}
 
 	/**
 	 * Returns every reference partition of the entity type holding rows of the reference that point to the target
 	 * entity in the scope, for a read - see
 	 * {@link #resolvePartitionsOfTarget(EntitySchemaContract, ReferenceSchemaContract, Scope, int)}, which this
-	 * answers identically when the query does not read the collection virtually. When it does, the partitions are
-	 * enumerated through the type index whatever the cardinality of the reference, and every one the registry holds a
-	 * row for answers its {@link VirtualReferencePartition}.
+	 * answers identically when the collection holds no referenced-type entity index of the reference in the scope.
+	 * Otherwise the partitions are enumerated through the type index whatever the cardinality of the reference, and
+	 * every one the registry holds a row for answers its {@link VirtualReferencePartition}.
 	 *
 	 * @param entitySchema     the entity type owning the reference
 	 * @param referenceSchema  the reference
@@ -1483,14 +1403,14 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * target entities in any of the scopes, for a read, split by representation - the hierarchy routes ask the
 	 * partitions of the nodes of a tree for their owners and nothing else.
 	 *
-	 * In a scope the query does not read virtually the partitions are those
+	 * In a scope whose collection holds no referenced-type entity index of the reference the partitions are those
 	 * {@link #resolvePartitionsOfTarget(EntitySchemaContract, ReferenceSchemaContract, Scope, int)} returns, target by
-	 * target and scope by scope, all materialized. In a scope it does read virtually, the partitions of all the targets
-	 * are enumerated through the type index and split against its registry in one merge (see
+	 * target and scope by scope, all materialized. In a scope holding one, the partitions of all the targets are
+	 * enumerated through the type index and split against its registry in one merge (see
 	 * {@link ReferencePartitions#splitOfTargetsForRead}): only the materialized ones are resolved to their index
-	 * objects, the registered single-owner ones contribute their owner read out of the registry row. The cost of a
-	 * scope read virtually is one copy of the partitions of each target, one merge with the registry and one bitmap
-	 * write per virtual partition - nothing proportional to the owners of the materialized ones.
+	 * objects, the registered single-owner ones contribute their owner read out of the registry row. The cost of such a
+	 * scope is one copy of the partitions of each target, one merge with the registry and one bitmap write per virtual
+	 * partition - nothing proportional to the owners of the materialized ones.
 	 *
 	 * @param entitySchema      the entity type owning the reference
 	 * @param referenceSchema   the reference
@@ -1524,8 +1444,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			}
 			scopeIndex++;
 		}
-		// the scopes read through the index objects alone, target by target and scope by scope - the order the
-		// hierarchy routes have always listed the partitions in
+		// the scopes without a type index, read through the index objects alone, target by target and scope by scope -
+		// the order the hierarchy routes have always listed the partitions in
 		final OfInt targetIt = targetPrimaryKeys.iterator();
 		while (targetIt.hasNext()) {
 			final int targetPrimaryKey = targetIt.nextInt();
@@ -1544,13 +1464,13 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		if (virtualTypeIndexes == null) {
 			return new SplitTargetPartitions(materializedIndexes, EmptyBitmap.INSTANCE, 0);
 		}
-		// the scopes read virtually - one split over the partitions of all the targets per scope
+		// the scopes with a type index - one split over the partitions of all the targets per scope
 		final IntFunction<Index<?>> indexByPrimaryKey = getIndexByPrimaryKeyReader(entityType);
 		final IntFunction<ReferencePartition> partitionByPrimaryKey =
 			partitionPrimaryKey -> ReferencePartitions.asPartition(indexByPrimaryKey.apply(partitionPrimaryKey));
 		final RoaringBitmapWriter<PersistentRoaringBitmap> ownerWriter = RoaringBitmapBackedBitmap.buildWriter();
 		int virtualCount = 0;
-		// the split of each scope read virtually and where its materialized partitions start - kept so that a
+		// the split of each scope with a type index and where its materialized partitions start - kept so that a
 		// block-by-block ordering narrowed by the hierarchy option can build the virtual handles on demand
 		final ReferencePartitionSplit[] scopeSplits = new ReferencePartitionSplit[scopes.size()];
 		final int[] scopeMaterializedStarts = new int[scopes.size()];
@@ -1589,8 +1509,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		if (virtualCount == 0) {
 			return new SplitTargetPartitions(materializedIndexes, EmptyBitmap.INSTANCE, 0);
 		}
-		// TODO JNO - remove at the end of #1615 (the non-vacuity probe of the read parity tests)
-		recordVirtualRowsRead(virtualCount);
 		return new SplitTargetPartitions(
 			materializedIndexes, new BaseBitmap(ownerWriter.get()), virtualCount,
 			scopeSplitCount == scopeSplits.length ? scopeSplits : Arrays.copyOf(scopeSplits, scopeSplitCount),
@@ -1601,8 +1519,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 	/**
 	 * Splits candidate partition primary keys of a reference of the named collection by representation, for a read -
-	 * see {@link ReferencePartitions#split(Bitmap, ReferencedTypeEntityIndex...)}. When the query does not read the
-	 * collection virtually, every candidate is materialized.
+	 * see {@link ReferencePartitions#split(Bitmap, ReferencedTypeEntityIndex...)}. A scope whose collection holds no
+	 * referenced-type entity index of the reference has no registry, so its candidates are all materialized.
 	 *
 	 * @param entityType    the collection owning the partitions
 	 * @param referenceName the reference the partitions belong to
@@ -1633,13 +1551,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 
 	/**
 	 * Returns the referenced-type entity index whose registry a read resolver reads for the reference of the named
-	 * collection in the scope: the one the collection holds when the query reads the collection virtually, `null`
-	 * when it does not or when the collection holds none.
+	 * collection in the scope.
 	 *
 	 * @param entityType    the collection
 	 * @param scope         the scope of the reference
 	 * @param referenceName the reference
-	 * @return the referenced-type entity index, or `null` when nothing is read virtually
+	 * @return the referenced-type entity index, or `null` when the collection holds none
 	 */
 	@Nullable
 	private ReferencedTypeEntityIndex getVirtualTypeIndex(
@@ -1647,10 +1564,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull Scope scope,
 		@Nonnull String referenceName
 	) {
-		// TODO JNO - remove at the end of #1615 (the condition, its body stays)
-		if (!isReadVirtually(entityType)) {
-			return null;
-		}
 		final EntityIndexKey typeIndexKey = new EntityIndexKey(
 			EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName
 		);

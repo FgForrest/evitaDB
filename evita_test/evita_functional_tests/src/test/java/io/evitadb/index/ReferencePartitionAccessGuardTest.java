@@ -110,12 +110,12 @@ import static org.junit.jupiter.api.Assertions.fail;
  *   a raw index, which a caller can read without naming its type, building the key by hand or resolving it by
  *   primary key. The resolver builds the key inside the methods that narrow its result to the handle, so that is the
  *   only place the factory may be called from.
- * - **R6 read resolution on the write path**: calls and method references of a resolver that honours the read switch
- *   of a collection - and may therefore answer a {@link VirtualReferencePartition} - from the write path (the
- *   packages of the mutation executors, the buffers and the storage) or from the physical index inspection (the index
- *   browse, detail and cardinality projections and the members of `EntityCollection` serving them and the membership
- *   rebuild). A write reaches a partition only through its reduced entity index, and the inspection reports the
- *   physical index while it exists. R6 has no legitimate site, so the allow-list carries no entry for it.
+ * - **R6 read resolution on the write path**: calls and method references of a read resolver - one that reads the
+ *   registry of a referenced-type entity index and may therefore answer a {@link VirtualReferencePartition} - from the
+ *   write path (the packages of the mutation executors, the buffers and the storage) or from the physical index
+ *   inspection (the index browse, detail and cardinality projections and the members of `EntityCollection` serving them
+ *   and the membership rebuild). A write reaches a partition only through its reduced entity index, and the inspection
+ *   reports the physical index while it exists. R6 has no legitimate site, so the allow-list carries no entry for it.
  * - **R7 owner read resolution**: calls and method references of an owner read resolver - one that answers a partition
  *   the registry holds a row for with its read-only virtual handle in a catalog representing its single-owner
  *   partitions virtually - outside {@link ReferencePartitions} itself, wherever they are. Only the few places that read
@@ -237,7 +237,7 @@ class ReferencePartitionAccessGuardTest {
 		"io/evitadb/index/VirtualReferencePartition", Set.of("<init>"),
 		"io/evitadb/core/query/QueryPlanningContext", Set.of(
 			"resolvePartitionForReadIfExists", "resolvePartitionForRead", "resolvePartitionsOfTargetForRead",
-			"splitPartitionsForRead", "isReadVirtually"
+			"splitPartitionsForRead"
 		),
 		"io/evitadb/core/collection/EntityCollection", Set.of("resolvePartitionForReadIfExists")
 	);
@@ -837,7 +837,8 @@ class ReferencePartitionAccessGuardTest {
 		}
 
 		/**
-		 * Tells whether a method is a read resolver - one that honours the read switch of a collection (rule R6).
+		 * Tells whether a method is a read resolver - one that may answer a virtual partition from a registry (rule
+		 * R6).
 		 *
 		 * @param owner the internal name of the owner of the method
 		 * @param name  the method name

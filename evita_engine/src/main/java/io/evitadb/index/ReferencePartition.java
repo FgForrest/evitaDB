@@ -44,7 +44,7 @@ import javax.annotation.Nonnull;
  * - a materialized {@link ReducedEntityIndex}, which implements this interface directly, so a partition costs no
  *   wrapper object and keeps its identity;
  * - a {@link VirtualReferencePartition}, a value read out of the registry of single-owner partitions, which the read
- *   resolvers honouring the collection's read switch hand out for a registered partition, and the write acquisition
+ *   resolvers hand out for a registered partition, and the write acquisition
  *   of a mutation writing the single-owner partitions virtually hands out for a registered partition without an index
  *   object.
  *

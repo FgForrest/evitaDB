@@ -252,7 +252,6 @@ class VirtualPartitionSortedRecordsTest {
 				Objects.requireNonNull(registry.getSortIndex(PRICE)).getRecordsEqualTo(new BigDecimal("1.5")).size(),
 				"The premise of the case: the value bucket of the registry's sort index holds the whole family"
 			);
-			final int sortIndexReadsBefore = registry.getSortIndexReadCount();
 
 			assertArrayEquals(
 				new int[]{OWNER},
@@ -265,11 +264,6 @@ class VirtualPartitionSortedRecordsTest {
 				VirtualPartitionSortedRecords.getRecordsEqualTo(handleOf(PARTITION + 1), PRICE, new BigDecimal("1.50"))
 					.contains(OWNER + 1),
 				"Another partition of the family answers its own owner"
-			);
-			// the bucket of the value holds every partition of the family - the partition's own row is read instead
-			assertEquals(
-				sortIndexReadsBefore, registry.getSortIndexReadCount(),
-				"The exact-value test must never reach for the sort index of the key"
 			);
 		}
 

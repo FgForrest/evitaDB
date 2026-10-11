@@ -490,9 +490,9 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 
 	/**
 	 * Returns the partitions of the reference the current reference ordering sorts by - materialized
-	 * {@link io.evitadb.index.ReducedEntityIndex reduced entity indexes} and, when the query reads the collection
-	 * virtually, {@link io.evitadb.index.VirtualReferencePartition virtual partitions} of the registered single-owner
-	 * partitions, which have no sort or chain index of their own and are answered from the registry row.
+	 * {@link io.evitadb.index.ReducedEntityIndex reduced entity indexes} and
+	 * {@link io.evitadb.index.VirtualReferencePartition virtual partitions} of the registered single-owner partitions,
+	 * which have no sort or chain index of their own and are answered from the registry row.
 	 *
 	 * Within a `pickFirst` reference ordering the partitions depend on the selection and are resolved at execution time
 	 * by {@link ProcessingScope#pickFirstIndexResolver()}; a consumer asking for them at planning time gets

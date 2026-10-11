@@ -44,10 +44,10 @@ import java.util.function.Supplier;
 
 /**
  * Counterfactual input of the read-resolver rule (R6) of `ReferencePartitionAccessGuardTest`: it lives in the package
- * of the write path, so every resolution that honours the read switch of a collection written here must be reported -
- * a write reaches a partition only through its reduced entity index. One member per shape, next to the object-only
- * resolution the write path is meant to use, which must not be reported. It also carries the shapes of the owner read
- * rule (R7), every call of an owner read resolver outside the resolver itself, which must be reported too.
+ * of the write path, so every resolution that may answer a virtual partition from a registry written here must be
+ * reported - a write reaches a partition only through its reduced entity index. One member per shape, next to the
+ * object-only resolution the write path is meant to use, which must not be reported. It also carries the shapes of the
+ * owner read rule (R7), every call of an owner read resolver outside the resolver itself, which must be reported too.
  *
  * Nothing here is ever executed; the members only have to compile into the bytecode shape they are named after.
  *
@@ -110,7 +110,7 @@ public final class ReadResolverGuardFixture {
 	 */
 	@Nullable
 	static ReferencePartition collectionShape(@Nonnull EntityCollection collection) {
-		return collection.resolvePartitionForReadIfExists(Scope.LIVE, "any", 1, true);
+		return collection.resolvePartitionForReadIfExists(Scope.LIVE, "any", 1);
 	}
 
 	/**

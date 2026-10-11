@@ -968,14 +968,14 @@ public class BidirectionalReferenceRewriter {
 	 * the set of referenced entities the owner reaches through a row that fails the constraint - the row-scoped
 	 * reading, computed without leaving the owner. The superset is the same union the no-constraint branch uses.
 	 *
-	 * When the query reads the counterpart collection virtually, the counterpart partitions the registry of
-	 * single-owner partitions holds a row for are read as {@link VirtualReferencePartition}s. Their
-	 * single row names the referenced entity - its only owner - outright, and the attribute constraint is answered for
-	 * the rows of **all** candidate owners at once, by one evaluation against the counterpart's referenced-type entity
-	 * index per requested scope ({@link FilterByVisitor#getMatchingVirtualPartitions}), instead of once per owner. A
-	 * row of a scope the query does not request is never matched, exactly as the visitor never reads the index of
-	 * such a partition. The rows of an owner join its formula as a constant over the referenced entities they name, so
-	 * the per-owner formula carries its content, never an identity of the registry.
+	 * The counterpart partitions the registry of single-owner partitions holds a row for are read as
+	 * {@link VirtualReferencePartition}s. Their single row names the referenced entity - its only owner - outright, and
+	 * the attribute constraint is answered for the rows of **all** candidate owners at once, by one evaluation against
+	 * the counterpart's referenced-type entity index per requested scope
+	 * ({@link FilterByVisitor#getMatchingVirtualPartitions}), instead of once per owner. A row of a scope the query
+	 * does not request is never matched, exactly as the visitor never reads the index of such a partition. The rows of
+	 * an owner join its formula as a constant over the referenced entities they name, so the per-owner formula carries
+	 * its content, never an identity of the registry.
 	 *
 	 * @param negatedAttribute TRUE to complement the translated constraint against the owner's own rows
 	 * @return formulas positionally paired with `candidateOwners`
@@ -1044,8 +1044,6 @@ public class BidirectionalReferenceRewriter {
 		if (virtualCount == 0) {
 			matchingVirtualPartitions = null;
 		} else {
-			// TODO JNO - remove at the end of #1615 (the non-vacuity probe of the read parity tests)
-			filterByVisitor.recordVirtualRowsRead(virtualCount);
 			matchingVirtualPartitions = attributeConstraint == null ?
 				null :
 				getMatchingVirtualPartitions(

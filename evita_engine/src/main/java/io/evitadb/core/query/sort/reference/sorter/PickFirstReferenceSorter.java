@@ -26,7 +26,6 @@ package io.evitadb.core.query.sort.reference.sorter;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.PickFirstByEntityProperty;
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.VirtualRowConsumer;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.ForcedSortResolution;
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.PositionResolution;
@@ -207,12 +206,6 @@ public final class PickFirstReferenceSorter implements Sorter {
 		int toSkip = startIndex;
 		final boolean descending = this.primaryKeyOrder == OrderDirection.DESC;
 		final VirtualRun[] virtualRuns = createVirtualRuns(claims, descending);
-		if (claims.virtualGroupCount > 0) {
-			// TODO JNO - remove at the end of #1615 (the per-stage non-vacuity probe of the read parity tests)
-			queryContext.getQueryContext().recordVirtualRowsConsumed(
-				VirtualRowConsumer.PICK_FIRST_VIRTUAL_RUN, claims.virtualGroupCount
-			);
-		}
 		final RunMerge merge = new RunMerge(claims, virtualRuns, this.comparator, descending);
 		while ((toRead > alreadyRead || toSkip > 0) && merge.hasNext()) {
 			final int recordId = merge.next();
@@ -262,8 +255,6 @@ public final class PickFirstReferenceSorter implements Sorter {
 		// debug override (or null for cost-based) + per-strategy telemetry tally (null when telemetry is off)
 		final ForcedSortResolution forcedResolution = SortResolutionStrategies.resolveForcedResolution(queryContext);
 		final int[] strategyTally = SortResolutionStrategies.newStrategyTally(queryContext);
-		// TODO JNO - remove at the end of #1615 (the per-stage non-vacuity probe of the read parity tests)
-		int virtualClaimCount = 0;
 		try {
 			for (ReferencePartition partition : indexes) {
 				if (unclaimedCount == 0) {
@@ -280,7 +271,6 @@ public final class PickFirstReferenceSorter implements Sorter {
 							claims.claimVirtual(virtual.typeIndex(), valueId, owner);
 							unclaimed.remove(owner);
 							unclaimedCount--;
-							virtualClaimCount++;
 						}
 					}
 					continue;
@@ -331,12 +321,6 @@ public final class PickFirstReferenceSorter implements Sorter {
 						unclaimedCount -= claimed.getCardinality();
 					}
 				}
-			}
-			if (virtualClaimCount > 0) {
-				// TODO JNO - remove at the end of #1615 (the per-stage non-vacuity probe of the read parity tests)
-				queryContext.getQueryContext().recordVirtualRowsConsumed(
-					VirtualRowConsumer.PICK_FIRST_CLAIM_WALK, virtualClaimCount
-				);
 			}
 			claims.unclaimed = unclaimed;
 			return claims;

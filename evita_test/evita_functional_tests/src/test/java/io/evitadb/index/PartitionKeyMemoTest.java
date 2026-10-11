@@ -62,7 +62,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * family whose registry rows contradict the type index is rejected rather than answered.
  *
  * The type index and its registry are real, filled the way the registry writer fills them; no index object exists for
- * a registered partition, so a resolution that reached for one would find nothing.
+ * a registered partition, so a resolution that reached for one would find nothing. Where the work of the memo is
+ * counted, the type index counts the copies of a target's family the memo takes out of it (see
+ * {@link CountingTypeIndex}) - the memo itself keeps no counter.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -76,7 +78,7 @@ class PartitionKeyMemoTest {
 	private static final int TARGET = 7;
 
 	/**
-	 * The owners × tuples grid of the operation-count gate. A cell holds `owners · tuples` single-owner partitions of
+	 * The owners × tuples grid of the family-copy count. A cell holds `owners · tuples` single-owner partitions of
 	 * one target, each with representative values of its own. The 10,000 × 16 cell is left out: the registry's tuple
 	 * dictionary allocates an id by scanning every id in use, so a 160,000-tuple fixture costs ~10¹⁰ map visits to
 	 * build - a property of the registry writer, not of the memo, whose linearity the smaller cells already pin.
@@ -96,12 +98,14 @@ class PartitionKeyMemoTest {
 	@MethodSource("grid")
 	@DisplayName("resolving every key of N owners on one target builds the target's family once and visits it once")
 	void shouldBuildTheFamilyOfATargetOncePerMemo(int owners, int tuples) {
-		final ReferencedTypeEntityIndex typeIndex = newTypeIndex(Scope.LIVE);
+		final CountingTypeIndex typeIndex = new CountingTypeIndex(Scope.LIVE);
 		final int partitions = owners * tuples;
 		for (int partition = 1; partition <= partitions; partition++) {
 			register(typeIndex, partition, ownerOf(partition, tuples), TARGET, tupleOf(partition));
 		}
 
+		final int copiesBefore = typeIndex.familyCopies;
+		final int membersBefore = typeIndex.copiedMembers;
 		final PartitionKeyMemo memo = new PartitionKeyMemo();
 		for (int partition = 1; partition <= partitions; partition++) {
 			final VirtualReferencePartition resolved = assertInstanceOf(
@@ -111,14 +115,16 @@ class PartitionKeyMemoTest {
 			assertEquals(partition, resolved.getPrimaryKey());
 			assertEquals(ownerOf(partition, tuples), resolved.ownerPrimaryKey());
 		}
-		assertEquals(1, memo.getFamilyBuildCount(), "The family of the target must be built once");
-		assertEquals(partitions, memo.getVisitedEntryCount(), "Each member of the family must be visited once");
+		assertEquals(1, typeIndex.familyCopies - copiesBefore, "The family of the target must be built once");
+		assertEquals(
+			partitions, typeIndex.copiedMembers - membersBefore, "Each member of the family must be visited once"
+		);
 
 		// another memo - another query - builds the family anew
 		final PartitionKeyMemo next = new PartitionKeyMemo();
 		next.resolveIfExists(NO_OBJECTS, typeIndex, Scope.LIVE, keyOf(TARGET, tupleOf(1)));
-		assertEquals(1, next.getFamilyBuildCount());
-		assertEquals(partitions, next.getVisitedEntryCount());
+		assertEquals(2, typeIndex.familyCopies - copiesBefore);
+		assertEquals(2 * partitions, typeIndex.copiedMembers - membersBefore);
 	}
 
 	@Nested
@@ -128,10 +134,11 @@ class PartitionKeyMemoTest {
 		@Test
 		@DisplayName("duplicates of one target resolve each to its own partition")
 		void shouldTellDuplicatesOfOneTargetApart() {
-			final ReferencedTypeEntityIndex typeIndex = newTypeIndex(Scope.LIVE);
+			final CountingTypeIndex typeIndex = new CountingTypeIndex(Scope.LIVE);
 			register(typeIndex, 3, 30, TARGET, "gallery");
 			register(typeIndex, 4, 40, TARGET, "detail");
 			register(typeIndex, 5, 50, TARGET + 1, "detail");
+			final int copiesBefore = typeIndex.familyCopies;
 			final PartitionKeyMemo memo = new PartitionKeyMemo();
 
 			assertPartition(
@@ -143,7 +150,7 @@ class PartitionKeyMemoTest {
 			assertPartition(
 				5, 50, "detail", memo.resolveIfExists(NO_OBJECTS, typeIndex, Scope.LIVE, keyOf(TARGET + 1, "detail"))
 			);
-			assertEquals(2, memo.getFamilyBuildCount(), "One family per target");
+			assertEquals(2, typeIndex.familyCopies - copiesBefore, "One family per target");
 		}
 
 		@Test
@@ -188,7 +195,7 @@ class PartitionKeyMemoTest {
 		}
 
 		@Test
-		@DisplayName("without a type index to read virtually the memo answers the index objects alone")
+		@DisplayName("without a type index the memo answers the index objects alone")
 		void shouldAnswerTheIndexObjectsWithoutTypeIndex() {
 			final ReducedEntityIndex object = newObject(3, TARGET, "gallery");
 			final PartitionKeyMemo memo = new PartitionKeyMemo();
@@ -199,7 +206,6 @@ class PartitionKeyMemoTest {
 					key -> object.getIndexKey().equals(key) ? object : null, null, Scope.LIVE, keyOf(TARGET, "gallery")
 				)
 			);
-			assertEquals(0, memo.getFamilyBuildCount());
 		}
 
 		@Test
@@ -266,6 +272,40 @@ class PartitionKeyMemoTest {
 			assertEquals(role, virtual.getRepresentativeReferenceKey().representativeAttributeValues()[0]);
 		}
 
+	}
+
+	/**
+	 * A real referenced-type entity index of the fixture's reference that counts the copies of a target's family taken
+	 * out of it ({@link #getAllReferenceIndexes(int)}) and the members those copies held - the work the memo exists to
+	 * do once per target and memo.
+	 */
+	private static final class CountingTypeIndex extends ReferencedTypeEntityIndex {
+		/**
+		 * How many times the family of a target was copied out of the index.
+		 */
+		int familyCopies;
+		/**
+		 * How many members the copies held in total.
+		 */
+		int copiedMembers;
+
+		/**
+		 * Creates an empty counting type index.
+		 *
+		 * @param scope the scope of the index
+		 */
+		CountingTypeIndex(@Nonnull Scope scope) {
+			super(1, ENTITY_TYPE, new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY_TYPE, scope, REFERENCE_NAME));
+		}
+
+		@Nonnull
+		@Override
+		public int[] getAllReferenceIndexes(int referencedEntityPrimaryKey) {
+			final int[] family = super.getAllReferenceIndexes(referencedEntityPrimaryKey);
+			this.familyCopies++;
+			this.copiedMembers += family.length;
+			return family;
+		}
 	}
 
 	/**

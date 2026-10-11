@@ -45,7 +45,6 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
-import io.evitadb.core.catalog.VirtualReferencePartitionMaintenance.VirtualRowConsumer;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
@@ -123,13 +122,12 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	 * by the {@link IndexSelectionVisitor}. The list is expected to be much smaller than the full list computed
 	 * in {@link #selectFullEntityIndexSet(OrderByVisitor, String)}.
 	 *
-	 * The candidates of a `referenceHaving` are split by representation: when the query reads the collection
-	 * virtually, the registered single-owner partitions among them answer their {@link VirtualReferencePartition}
-	 * handles and only the rest is resolved to index objects - one merge of the candidates with the registry rows, no
-	 * index object per virtual candidate. The partitions of a hierarchy option keep the split the option was built
-	 * with (see {@link SplitTargetPartitions#getPartitions()}): when the query reads the collection virtually, the
-	 * registered single-owner partitions of the nodes answer their virtual handles; otherwise every partition is the
-	 * index object of {@link TargetIndexes#getIndexes()}.
+	 * The candidates of a `referenceHaving` are split by representation: the registered single-owner partitions among
+	 * them answer their {@link VirtualReferencePartition} handles and only the rest is resolved to index objects - one
+	 * merge of the candidates with the registry rows, no index object per virtual candidate. The partitions of a
+	 * hierarchy option keep the split the option was built with (see {@link SplitTargetPartitions#getPartitions()}):
+	 * the registered single-owner partitions of the nodes answer their virtual handles; when the nodes have none,
+	 * every partition is the index object of {@link TargetIndexes#getIndexes()}.
 	 *
 	 * @param orderByVisitor the visitor of the planned query
 	 * @param referenceName  the reference being ordered by
@@ -157,16 +155,11 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 					final SplitReducedIndexCandidates split = candidates.resolveSplit(
 						() -> (List<ReducedEntityIndex>) targetIndex.getIndexes()
 					);
-					partitions = mergeByPrimaryKey(orderByVisitor, split.materializedIndexes(), split.split());
+					partitions = mergeByPrimaryKey(split.materializedIndexes(), split.split());
 				} else if (nodePartitions != null && nodePartitions.virtualCount() > 0) {
 					// the partitions of the nodes of a hierarchy option keep their split - the registered
 					// single-owner ones are handed over as their virtual handles, never resolved to their objects
 					partitions = nodePartitions.getPartitions();
-					// TODO JNO - remove at the end of #1615 (the non-vacuity probes of the read parity tests)
-					orderByVisitor.recordVirtualRowsRead(nodePartitions.virtualCount());
-					orderByVisitor.recordVirtualRowsConsumed(
-						VirtualRowConsumer.HIERARCHY_OPTION_PARTITIONS, nodePartitions.virtualCount()
-					);
 				} else {
 					//noinspection unchecked
 					partitions = (List<? extends ReferencePartition>) targetIndex.getIndexes();
@@ -244,7 +237,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	 * {@link ReferencedTypeEntityIndex}: the partition primary keys of each processed scope are split by
 	 * representation in one merge with the registry rows (see {@link ReferencePartitions#split}), the registered
 	 * single-owner partitions answer their {@link VirtualReferencePartition} handles and only the rest is resolved to
-	 * index objects - when the query reads the collection virtually; otherwise every partition is an index object.
+	 * index objects.
 	 *
 	 * @param orderByVisitor the visitor of the planned query
 	 * @param referenceName  the reference being ordered by
@@ -282,7 +275,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 							ReferencePartitions.toReducedEntityIndex(orderByVisitor.resolvePartition(it.nextInt()))
 						);
 					}
-					partitions.addAll(mergeByPrimaryKey(orderByVisitor, materialized, split));
+					partitions.addAll(mergeByPrimaryKey(materialized, split));
 				}
 			}
 		}
@@ -291,17 +284,14 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 
 	/**
 	 * Merges the materialized partitions of a split with its virtual partitions into one list in partition primary
-	 * key order - the order the partitions of one target keep in the blocks of the ordering. Records the virtual
-	 * partitions read for the non-vacuity probe of the read parity tests.
+	 * key order - the order the partitions of one target keep in the blocks of the ordering.
 	 *
-	 * @param orderByVisitor the visitor of the planned query
-	 * @param materialized   the materialized partitions of the split, in partition primary key order
-	 * @param split          the split carrying the virtual partitions, in partition primary key order
+	 * @param materialized the materialized partitions of the split, in partition primary key order
+	 * @param split        the split carrying the virtual partitions, in partition primary key order
 	 * @return the merged partitions
 	 */
 	@Nonnull
 	private static List<? extends ReferencePartition> mergeByPrimaryKey(
-		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull List<? extends ReferencePartition> materialized,
 		@Nonnull ReferencePartitionSplit split
 	) {
@@ -309,8 +299,6 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		if (virtualCount == 0) {
 			return materialized;
 		}
-		// TODO JNO - remove at the end of #1615 (the non-vacuity probe of the read parity tests)
-		orderByVisitor.recordVirtualRowsRead(virtualCount);
 		final List<ReferencePartition> result = new ArrayList<>(materialized.size() + virtualCount);
 		int virtualIndex = 0;
 		for (final ReferencePartition partition : materialized) {

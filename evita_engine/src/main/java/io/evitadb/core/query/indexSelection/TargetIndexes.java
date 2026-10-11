@@ -120,8 +120,8 @@ public class TargetIndexes<T extends Index<?>> {
 	/**
 	 * The candidate partitions of a `referenceHaving` option as discovery named them, `null` for any other option. The
 	 * translation of the constraint reads them rather than {@link #getIndexes()}: it splits them by representation and
-	 * resolves to index objects only the partitions not read virtually, while {@link #getIndexes()} stays the
-	 * object-only resolution of every candidate for the consumers that need the objects.
+	 * resolves to index objects only the partitions the registry holds no row for, while {@link #getIndexes()} stays
+	 * the object-only resolution of every candidate for the consumers that need the objects.
 	 */
 	@Nullable private final ReducedIndexCandidates reducedIndexCandidates;
 	/**
