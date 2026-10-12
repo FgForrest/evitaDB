@@ -79,8 +79,8 @@ import java.util.TreeMap;
  * # What it converts
  *
  * Every index object of a partition with a single owner, of a reference indexed for filtering with the referenced
- * entity component in the partition's scope ({@link VirtualReferencePartitionWriter#isShadowed}), is replaced by the
- * row the write path keeps for it: the same primary key, the same owner, the same referenced entity and
+ * entity component in the partition's scope ({@link VirtualReferencePartitionWriter#isWrittenVirtually}), is replaced
+ * by the row the write path keeps for it: the same primary key, the same owner, the same referenced entity and
  * representative attribute values, and the sort values and chain predecessors the partition holds for its owner. The
  * row is written by {@link VirtualReferencePartitionWriter#demoteToRow} - the very demotion the write path runs when a
  * partition is left with one owner of two - so the conversion and the write path cannot drift apart. The partition's
@@ -176,7 +176,7 @@ final class VirtualReferencePartitionConversion {
 		final IndexClassification classification = classifyIndexes(
 			catalogVersion, collectionHeader, storage, entitySchema
 		);
-		for (final Entry<ReferenceInScope, int[]> reference : classification.notShadowed().entrySet()) {
+		for (final Entry<ReferenceInScope, int[]> reference : classification.notWrittenVirtually().entrySet()) {
 			leftovers.add(
 				reference.getKey() + ": " + reference.getValue()[0] + " partition(s) of a reference the schema does " +
 					"not index for filtering with the referenced entity in the scope"
@@ -250,7 +250,7 @@ final class VirtualReferencePartitionConversion {
 	) {
 		final SortedMap<ReferenceInScope, Integer> typeIndexes = new TreeMap<>(ReferenceInScope.ORDER);
 		final Map<ReferenceInScope, CompositeIntArray> candidates = CollectionUtils.createHashMap(8);
-		final SortedMap<ReferenceInScope, int[]> notShadowed = new TreeMap<>(ReferenceInScope.ORDER);
+		final SortedMap<ReferenceInScope, int[]> notWrittenVirtually = new TreeMap<>(ReferenceInScope.ORDER);
 		int partitioned = 0;
 		for (final Integer indexPrimaryKey : collectionHeader.usedEntityIndexPrimaryKeys()) {
 			final EntityIndexStoragePart manifest = storage.getStoragePart(
@@ -270,16 +270,19 @@ final class VirtualReferencePartitionConversion {
 				final String referenceName = ((RepresentativeReferenceKey) indexKey.discriminator()).referenceName();
 				final ReferenceInScope reference = new ReferenceInScope(referenceName, scope);
 				final ReferenceSchemaContract referenceSchema = entitySchema.getReference(referenceName).orElse(null);
-				if (referenceSchema != null && VirtualReferencePartitionWriter.isShadowed(referenceSchema, scope)) {
+				if (
+					referenceSchema != null &&
+						VirtualReferencePartitionWriter.isWrittenVirtually(referenceSchema, scope)
+				) {
 					candidates.computeIfAbsent(reference, it -> new CompositeIntArray()).add(indexPrimaryKey);
 				} else if (referenceSchema != null && isPartitioned(referenceSchema, scope)) {
 					partitioned++;
 				} else {
-					notShadowed.computeIfAbsent(reference, it -> new int[1])[0]++;
+					notWrittenVirtually.computeIfAbsent(reference, it -> new int[1])[0]++;
 				}
 			}
 		}
-		return new IndexClassification(typeIndexes, candidates, notShadowed, partitioned);
+		return new IndexClassification(typeIndexes, candidates, notWrittenVirtually, partitioned);
 	}
 
 	/**
@@ -433,15 +436,17 @@ final class VirtualReferencePartitionConversion {
 	/**
 	 * The entity indexes of one collection classified by their key - see `classifyIndexes`.
 	 *
-	 * @param typeIndexes the primary keys of the referenced-type entity indexes, in the order of their references
-	 * @param candidates  the primary keys of the partitions to convert, by the reference they belong to
-	 * @param notShadowed how many partitions of a reference whose kind is not kept each reference has, in one slot
-	 * @param partitioned how many partitions belong to references indexed for partitioning
+	 * @param typeIndexes         the primary keys of the referenced-type entity indexes, in the order of their
+	 *                            references
+	 * @param candidates          the primary keys of the partitions to convert, by the reference they belong to
+	 * @param notWrittenVirtually how many partitions of a reference whose kind is not kept each reference has, in one
+	 *                            slot
+	 * @param partitioned         how many partitions belong to references indexed for partitioning
 	 */
 	private record IndexClassification(
 		@Nonnull SortedMap<ReferenceInScope, Integer> typeIndexes,
 		@Nonnull Map<ReferenceInScope, CompositeIntArray> candidates,
-		@Nonnull SortedMap<ReferenceInScope, int[]> notShadowed,
+		@Nonnull SortedMap<ReferenceInScope, int[]> notWrittenVirtually,
 		int partitioned
 	) {
 	}

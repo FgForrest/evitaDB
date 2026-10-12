@@ -106,9 +106,9 @@ import java.util.function.Function;
  * entering drops the row as for any partition becoming a shared one.
  *
  * Only references indexed `FOR_FILTERING` with the referenced entity component in the scope have virtual partitions
- * (see {@link #isShadowed(ReferenceSchemaContract, Scope)}). A reference indexed for partitioning creates a reduced
- * entity index for every partition; the rows it held while it was indexed for filtering only stay rows, and a write
- * may only take content out of them (see {@link EntityIndexLocalMutationExecutor#isReleasedRowOfFormerIndexing}).
+ * (see {@link #isWrittenVirtually(ReferenceSchemaContract, Scope)}). A reference indexed for partitioning creates a
+ * reduced entity index for every partition; the rows it held while it was indexed for filtering only stay rows, and a
+ * write may only take content out of them (see {@link EntityIndexLocalMutationExecutor#isReleasedRowOfFormerIndexing}).
  *
  * # Sort values and chain predecessors
  *
@@ -173,9 +173,32 @@ public final class VirtualReferencePartitionWriter {
 	 * @param scope           the scope
 	 * @return TRUE when the registry keeps rows for the reference in the scope
 	 */
-	public static boolean isShadowed(@Nonnull ReferenceSchemaContract referenceSchema, @Nonnull Scope scope) {
+	public static boolean isWrittenVirtually(@Nonnull ReferenceSchemaContract referenceSchema, @Nonnull Scope scope) {
 		return referenceSchema.getReferenceIndexType(scope) == ReferenceIndexType.FOR_FILTERING &&
 			referenceSchema.getIndexedComponents(scope).contains(ReferenceIndexedComponents.REFERENCED_ENTITY);
+	}
+
+	/**
+	 * Returns TRUE when the mutation writes the partition virtually for the reference: the partition belongs to the
+	 * reference, and either the reference's partitions may be virtual in the partition's scope or the acquisition of
+	 * the executor released the partition to a write taking content out of it, as a row the reference left while it was
+	 * indexed for filtering only (see {@link EntityIndexLocalMutationExecutor#isReleasedRowOfFormerIndexing}).
+	 *
+	 * @param executor        the mutation executor writing into the partition
+	 * @param referenceSchema the reference the write belongs to
+	 * @param partition       the partition written into
+	 * @return TRUE when the registry keeps what the write puts into or takes out of the partition
+	 */
+	static boolean isPartitionWrittenVirtually(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ReferencePartition partition
+	) {
+		return referenceSchema.getName().equals(partition.getRepresentativeReferenceKey().referenceName()) &&
+			(
+				isWrittenVirtually(referenceSchema, partition.getIndexKey().scope()) ||
+					executor.isReleasedRowOfFormerIndexing(partition)
+			);
 	}
 
 	/**
@@ -471,14 +494,7 @@ public final class VirtualReferencePartitionWriter {
 		if (partition == null) {
 			return null;
 		}
-		if (
-			referenceSchema != null &&
-				referenceSchema.getName().equals(partition.getRepresentativeReferenceKey().referenceName()) &&
-				(
-					isShadowed(referenceSchema, partition.getIndexKey().scope()) ||
-						executor.isReleasedRowOfFormerIndexing(partition)
-				)
-		) {
+		if (referenceSchema != null && isPartitionWrittenVirtually(executor, referenceSchema, partition)) {
 			return partition;
 		}
 		if (partition instanceof final VirtualReferencePartition virtual) {

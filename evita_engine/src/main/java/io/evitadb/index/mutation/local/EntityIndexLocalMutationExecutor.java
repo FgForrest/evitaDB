@@ -1994,11 +1994,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull String writeSite,
 		@Nonnull PartitionWriteKind writeKind
 	) {
-		if (
-			VirtualReferencePartitionWriter.isShadowed(
-				getEntitySchema().getReferenceOrThrowException(representativeReferenceKey.referenceName()), scope
-			)
-		) {
+		if (isReferenceWrittenVirtually(scope, representativeReferenceKey)) {
 			final ReferencePartition partition = findPartitionWrittenVirtually(scope, representativeReferenceKey);
 			if (partition == null) {
 				final int reserved = this.partitionReservations.peek(
@@ -2057,11 +2053,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull String writeSite,
 		@Nonnull PartitionWriteKind writeKind
 	) {
-		if (
-			VirtualReferencePartitionWriter.isShadowed(
-				getEntitySchema().getReferenceOrThrowException(representativeReferenceKey.referenceName()), scope
-			)
-		) {
+		if (isReferenceWrittenVirtually(scope, representativeReferenceKey)) {
 			isPremiseValid(
 				!this.partitionReservations.isFinishing(),
 				() -> "The write path `" + writeSite + "` brings an owner into the partition of `" +
@@ -2076,6 +2068,23 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			return mintPartitionWrittenVirtually(scope, representativeReferenceKey, writeSite);
 		}
 		return getPartitionNotWrittenVirtually(scope, representativeReferenceKey, writeKind);
+	}
+
+	/**
+	 * Returns TRUE when the mutation writes the single-owner partitions of the key's reference in the scope virtually -
+	 * see {@link VirtualReferencePartitionWriter#isWrittenVirtually}.
+	 *
+	 * @param scope                      the scope of the partition
+	 * @param representativeReferenceKey the representative reference key of the partition
+	 * @return TRUE when the partitions of the key's reference are written virtually in the scope
+	 */
+	private boolean isReferenceWrittenVirtually(
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey
+	) {
+		return VirtualReferencePartitionWriter.isWrittenVirtually(
+			getEntitySchema().getReferenceOrThrowException(representativeReferenceKey.referenceName()), scope
+		);
 	}
 
 	/**
@@ -2110,10 +2119,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Finds the registry row the reference left for the partition of the key while it was indexed for filtering only
 	 * - a row of a reference whose partitions may no longer be virtual in the scope, because its index type or its
-	 * indexed components changed since (see {@link VirtualReferencePartitionWriter#isShadowed}). The registry keeps
-	 * rows of a reference only while its partitions may be virtual, and nothing converts them when that ends, so every
-	 * row of such a reference is one of its former indexing. A partition with an index object is never such a row: the
-	 * object wins - one the reference created since its indexing changed, or one with several owners from before.
+	 * indexed components changed since (see {@link VirtualReferencePartitionWriter#isWrittenVirtually}). The registry
+	 * keeps rows of a reference only while its partitions may be virtual, and nothing converts them when that ends, so
+	 * every row of such a reference is one of its former indexing. A partition with an index object is never such a
+	 * row: the object wins - one the reference created since its indexing changed, or one with several owners from
+	 * before.
 	 *
 	 * Unless the registry of the reference holds a row, the lookup costs a lookup of the referenced-type index; the
 	 * scan of the target's family runs only when it does.
@@ -2470,7 +2480,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull Consumer<ReferencePartition> consumer
 	) {
 		final ReferencePartition[] partitions;
-		if (VirtualReferencePartitionWriter.isShadowed(referenceSchema, scope)) {
+		if (VirtualReferencePartitionWriter.isWrittenVirtually(referenceSchema, scope)) {
 			partitions = findPartitionsOfTargetWrittenVirtually(scope, referenceSchema, targetPrimaryKey);
 		} else if (findTypeIndexWithRowsOfFormerIndexing(scope, referenceSchema.getName()) != null) {
 			partitions = findPartitionsOfTargetWithRowsOfFormerIndexing(

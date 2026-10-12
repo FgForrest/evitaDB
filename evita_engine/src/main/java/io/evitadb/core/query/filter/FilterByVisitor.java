@@ -1074,7 +1074,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			final ReferencePartitionSplit split = splitter.apply(new BaseBitmap(partitionPrimaryKey));
 			if (split.getVirtualCount() > 0) {
 				final Scope rowScope = split.getVirtualTypeIndex(0).getIndexKey().scope();
-				if (!VirtualReferencePartitionWriter.isShadowed(referenceSchema, rowScope)) {
+				if (!VirtualReferencePartitionWriter.isWrittenVirtually(referenceSchema, rowScope)) {
 					throw ReferencePartitionReindexRequiredException.forQuery(entityType, referenceName, rowScope);
 				}
 			}

@@ -451,14 +451,9 @@ public interface Migration_2026_3 {
 			final List<String> damagedAttributes = new ArrayList<>();
 			final List<String> uncheckedAttributes = new ArrayList<>();
 			for (final Integer indexPrimaryKey : collection.indexIds()) {
-				final EntityIndexStoragePart indexPart = collectionStoragePartService.getStoragePart(
-					catalogVersion, indexPrimaryKey, EntityIndexStoragePart.class
+				final EntityIndexStoragePart indexPart = requireEntityIndexPart(
+					collectionStoragePartService, catalogVersion, indexPrimaryKey
 				);
-				if (indexPart == null) {
-					throw new GenericEvitaInternalError(
-						"Entity index storage part for primary key " + indexPrimaryKey + " is missing!"
-					);
-				}
 				// the reference scope comes from the OWNING index key - a legacy-rehydrated AttributeIndexKey
 				// carries a null reference name, so a reference attribute would otherwise be looked up at entity level
 				final String referenceName = indexPart.getEntityIndexKey().referenceName();
@@ -1341,12 +1336,7 @@ public interface Migration_2026_3 {
 				// reported by the rewrite pass, which cannot proceed without it either
 				continue;
 			}
-			final Set<AttributeIndexKey> foldedKeys = new HashSet<>();
-			for (final AttributeIndexStorageKey storageKey : indexPart.getAttributeIndexes()) {
-				if (storageKey.indexType() == AttributeIndexType.FILTER) {
-					foldedKeys.add(storageKey.attribute());
-				}
-			}
+			final Set<AttributeIndexKey> foldedKeys = filterIndexKeys(indexPart);
 			for (final AttributeIndexStorageKey storageKey : indexPart.getAttributeIndexes()) {
 				if (
 					storageKey.indexType() != AttributeIndexType.UNIQUE ||
@@ -1605,20 +1595,8 @@ public interface Migration_2026_3 {
 			collection.service().getStoragePartPersistenceService();
 		int rewritten = 0;
 		for (final Integer indexPrimaryKey : collection.indexIds()) {
-			final EntityIndexStoragePart indexPart = service.getStoragePart(
-				catalogVersion, indexPrimaryKey, EntityIndexStoragePart.class
-			);
-			if (indexPart == null) {
-				throw new GenericEvitaInternalError(
-					"Entity index storage part for primary key " + indexPrimaryKey + " is missing!"
-				);
-			}
-			final Set<AttributeIndexKey> viewKeys = new HashSet<>();
-			for (final AttributeIndexStorageKey storageKey : indexPart.getAttributeIndexes()) {
-				if (storageKey.indexType() == AttributeIndexType.FILTER) {
-					viewKeys.add(storageKey.attribute());
-				}
-			}
+			final EntityIndexStoragePart indexPart = requireEntityIndexPart(service, catalogVersion, indexPrimaryKey);
+			final Set<AttributeIndexKey> viewKeys = filterIndexKeys(indexPart);
 			for (final AttributeIndexStorageKey storageKey : indexPart.getAttributeIndexes()) {
 				if (storageKey.indexType() != AttributeIndexType.SORT || viewKeys.contains(storageKey.attribute())) {
 					continue;
@@ -1695,6 +1673,51 @@ public interface Migration_2026_3 {
 			perPageBuckets[i] = leafPage.getBuckets();
 		}
 		return perPageBuckets;
+	}
+
+	/**
+	 * Reads the manifest of an entity index a collection header lists - its absence means the published catalog is
+	 * damaged, and no step of the migration can proceed without it.
+	 *
+	 * @param service         the collection's storage part service
+	 * @param catalogVersion  the catalog version being upgraded
+	 * @param indexPrimaryKey the primary key of the entity index
+	 * @return the manifest of the entity index
+	 * @throws GenericEvitaInternalError when the manifest is missing
+	 */
+	@Nonnull
+	private static EntityIndexStoragePart requireEntityIndexPart(
+		@Nonnull OffsetIndexStoragePartPersistenceService service,
+		long catalogVersion,
+		int indexPrimaryKey
+	) {
+		final EntityIndexStoragePart indexPart = service.getStoragePart(
+			catalogVersion, indexPrimaryKey, EntityIndexStoragePart.class
+		);
+		if (indexPart == null) {
+			throw new GenericEvitaInternalError(
+				"Entity index storage part for primary key " + indexPrimaryKey + " is missing!"
+			);
+		}
+		return indexPart;
+	}
+
+	/**
+	 * Returns the attributes of every filter index an entity index lists - the keys under which a unique or a sort
+	 * index of the same entity index views the filter index rather than owning values of its own.
+	 *
+	 * @param indexPart the manifest of the entity index
+	 * @return the attributes of its filter indexes
+	 */
+	@Nonnull
+	private static Set<AttributeIndexKey> filterIndexKeys(@Nonnull EntityIndexStoragePart indexPart) {
+		final Set<AttributeIndexKey> filterKeys = new HashSet<>();
+		for (final AttributeIndexStorageKey storageKey : indexPart.getAttributeIndexes()) {
+			if (storageKey.indexType() == AttributeIndexType.FILTER) {
+				filterKeys.add(storageKey.attribute());
+			}
+		}
+		return filterKeys;
 	}
 
 	/**

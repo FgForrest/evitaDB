@@ -63,10 +63,12 @@ import static io.evitadb.index.mutation.local.PartitionWriteKind.REMOVING;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.utils.Assert.isPremiseValid;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -81,6 +83,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * what it does not find. The one exception is a registry row of a reference indexed for partitioning, which its former
  * indexing for filtering only left behind: a write adding to it is refused with the error asking for a reindex, a write
  * removing from it gets the row, released to it.
+ *
+ * The same fixture pins which writes into an acquired partition the registry records: a write into a virtual partition
+ * the registry would not record - through an executor writing no registry, of no reference or of another one, or into
+ * a row of the former indexing the acquisition did not release - fails rather than being lost, and the demotion of a
+ * partition left with one owner fails when its reference has no referenced-type index to carry the row.
  *
  * The index maintainer is a real map of real indexes that counts every index it creates and every primary key it
  * allocates; a registry row without an index object is seeded the way a partition entering its first owner registers
@@ -373,19 +380,19 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 
 	@Test
 	@DisplayName("the references of the fixture may be virtual except the one indexed for partitioning")
-	void shouldShadowEveryReferenceButThePartitioningOne() {
+	void shouldWriteEveryReferenceVirtuallyButThePartitioningOne() {
 		assertTrue(
-			VirtualReferencePartitionWriter.isShadowed(
+			VirtualReferencePartitionWriter.isWrittenVirtually(
 				this.productSchema.getReferenceOrThrowException(SINGLE_REFERENCE), Scope.LIVE
 			)
 		);
 		assertTrue(
-			VirtualReferencePartitionWriter.isShadowed(
+			VirtualReferencePartitionWriter.isWrittenVirtually(
 				this.productSchema.getReferenceOrThrowException(DUPLICATE_REFERENCE), Scope.LIVE
 			)
 		);
 		assertFalse(
-			VirtualReferencePartitionWriter.isShadowed(
+			VirtualReferencePartitionWriter.isWrittenVirtually(
 				this.productSchema.getReferenceOrThrowException(PARTITIONING_REFERENCE), Scope.LIVE
 			)
 		);
@@ -890,6 +897,167 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			assertEquals(Scope.LIVE, error.getScope());
 			assertTrue(error.getPublicMessage().contains("`" + referenceName + "`"), error.getPublicMessage());
 			assertTrue(error.getPublicMessage().contains("`LIVE`"), error.getPublicMessage());
+		}
+	}
+
+	@Nested
+	@DisplayName("writes the registry records for a partition it acquired")
+	class RecordedWrites {
+		/**
+		 * Primary key of the other owner the executor writing no registry writes as.
+		 */
+		private static final int OTHER_OWNER_PK = 42;
+		/**
+		 * The values of the compound write every case hands over.
+		 */
+		private static final Serializable[] VALUES = {"detail", 1};
+
+		/**
+		 * Seeds the row of the partition of {@link #SINGLE_REFERENCE} and acquires its virtual handle for writing.
+		 *
+		 * @return the virtual handle
+		 */
+		@Nonnull
+		private VirtualReferencePartition seededHandle() {
+			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
+			final RepresentativeReferenceKey key = keyOf(SINGLE_REFERENCE);
+			outer.seedRow(key);
+			return assertInstanceOf(
+				VirtualReferencePartition.class,
+				outer.virtualExecutor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE, ADDING)
+			);
+		}
+
+		/**
+		 * Creates the executor writing as {@link #OTHER_OWNER_PK} - the one populating the index object of a partition
+		 * gaining its second owner, which writes no registry.
+		 *
+		 * @return the executor writing as the other owner
+		 */
+		@Nonnull
+		private EntityIndexLocalMutationExecutor otherOwnerExecutor() {
+			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
+			outer.containerAccessor.registerAccessorOfOtherEntity(OTHER_OWNER_PK, new MockStorageContainerAccessor());
+			return outer.virtualExecutor.createExecutorOfOtherOwner(OTHER_OWNER_PK);
+		}
+
+		/**
+		 * Asserts that the write fails as one into a virtual partition the registry would not record, for the reason.
+		 *
+		 * @param write  the write
+		 * @param reason the start of the reason the error must give
+		 */
+		private static void assertWriteLost(@Nonnull Executable write, @Nonnull String reason) {
+			final GenericEvitaInternalError error = assertThrows(GenericEvitaInternalError.class, write);
+			assertTrue(error.getPrivateMessage().contains("would be lost: " + reason), error.getPrivateMessage());
+		}
+
+		@Test
+		@DisplayName("a write of the reference into its virtual partition is recorded, from a copy of its values")
+		void shouldRecordWriteOfReferenceIntoItsVirtualPartition() {
+			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
+			final VirtualReferencePartition handle = seededHandle();
+			final ReferenceSchemaContract referenceSchema =
+				outer.productSchema.getReferenceOrThrowException(SINGLE_REFERENCE);
+
+			final Serializable[] copy = VirtualReferencePartitionWriter.copyIfMirrored(
+				outer.virtualExecutor, referenceSchema, handle, VALUES
+			);
+
+			assertArrayEquals(VALUES, copy);
+			assertNotSame(VALUES, copy, "the sort index normalizes the values it receives in place");
+		}
+
+		@Test
+		@DisplayName("a write into a virtual partition through an executor writing no registry fails")
+		void shouldRefuseWriteIntoVirtualPartitionThroughExecutorWritingNoRegistry() {
+			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
+			final VirtualReferencePartition handle = seededHandle();
+			final EntityIndexLocalMutationExecutor otherOwner = otherOwnerExecutor();
+			final ReferenceSchemaContract referenceSchema =
+				outer.productSchema.getReferenceOrThrowException(SINGLE_REFERENCE);
+
+			assertWriteLost(
+				() -> VirtualReferencePartitionWriter.copyIfMirrored(otherOwner, referenceSchema, handle, VALUES),
+				"the executor writes no registry"
+			);
+		}
+
+		@Test
+		@DisplayName("a write into an index object through an executor writing no registry is not recorded")
+		void shouldNotRecordWriteIntoIndexObjectThroughExecutorWritingNoRegistry() {
+			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
+			final ReducedEntityIndex object = outer.addObject(keyOf(SINGLE_REFERENCE), 31);
+			final EntityIndexLocalMutationExecutor otherOwner = otherOwnerExecutor();
+			final ReferenceSchemaContract referenceSchema =
+				outer.productSchema.getReferenceOrThrowException(SINGLE_REFERENCE);
+
+			assertNull(VirtualReferencePartitionWriter.copyIfMirrored(otherOwner, referenceSchema, object, VALUES));
+		}
+
+		@Test
+		@DisplayName("a write into a virtual partition belonging to no reference or to another one fails")
+		void shouldRefuseWriteIntoVirtualPartitionOfNoOrAnotherReference() {
+			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
+			final VirtualReferencePartition handle = seededHandle();
+			final ReferenceSchemaContract anotherReference =
+				outer.productSchema.getReferenceOrThrowException(DUPLICATE_REFERENCE);
+
+			assertWriteLost(
+				() -> VirtualReferencePartitionWriter.copyIfMirrored(outer.virtualExecutor, null, handle, VALUES),
+				"the write belongs to no reference"
+			);
+			assertWriteLost(
+				() -> VirtualReferencePartitionWriter.copyIfMirrored(
+					outer.virtualExecutor, anotherReference, handle, VALUES
+				),
+				"the write belongs to `" + DUPLICATE_REFERENCE + "`"
+			);
+		}
+
+		@Test
+		@DisplayName("a write into a row of the former indexing is refused until the acquisition releases the row")
+		void shouldRefuseWriteIntoRowOfFormerIndexingUntilReleased() {
+			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
+			final RepresentativeReferenceKey key = keyOf(PARTITIONING_REFERENCE);
+			outer.seedRow(key);
+			final VirtualReferencePartition row = ReferencePartitions.findRegisteredForWrite(
+				outer.typeIndexOf(PARTITIONING_REFERENCE), key
+			);
+			assertNotNull(row);
+			final EntityIndexLocalMutationExecutor executor = outer.createExecutor();
+			final ReferenceSchemaContract referenceSchema =
+				outer.productSchema.getReferenceOrThrowException(PARTITIONING_REFERENCE);
+
+			assertWriteLost(
+				() -> VirtualReferencePartitionWriter.copyIfMirrored(executor, referenceSchema, row, VALUES),
+				"the write belongs to `" + PARTITIONING_REFERENCE + "` in a scope its partitions are not virtual in"
+			);
+			executor.getPartitionForWrite(Scope.LIVE, key, WRITE_SITE, REMOVING);
+			assertArrayEquals(
+				VALUES, VirtualReferencePartitionWriter.copyIfMirrored(executor, referenceSchema, row, VALUES),
+				"once released to a removal, the write into the row is recorded"
+			);
+		}
+
+		@Test
+		@DisplayName("demoting a partition left with one owner fails when its reference has no referenced-type index")
+		void shouldRefuseDemotionWithoutReferencedTypeIndex() {
+			final PartitionAcquisitionFunnelTest outer = PartitionAcquisitionFunnelTest.this;
+			final ReducedEntityIndex object = new ReducedEntityIndex(
+				31, outer.productSchema.getName(), ReferencePartitions.createKey(Scope.LIVE, keyOf(SINGLE_REFERENCE))
+			);
+			outer.indexMaintainer.register(object);
+			assertTrue(object.insertPrimaryKeyIfMissing(OWNER_PK));
+
+			final GenericEvitaInternalError error = assertThrows(
+				GenericEvitaInternalError.class,
+				() -> VirtualReferencePartitionWriter.partitionLeftWithOneOwner(outer.virtualExecutor, object)
+			);
+			assertTrue(
+				error.getPrivateMessage().contains("no referenced-type entity index to carry its row"),
+				error.getPrivateMessage()
+			);
 		}
 	}
 

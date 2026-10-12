@@ -589,7 +589,7 @@ index layer reaches a partition only through the sealed `ReferencePartition` han
 The row is the **only** representation of such a single-owner partition: it has no
 `ReducedEntityIndex`, no storage parts of its own and no entry in the collection header. A partition
 gets an index object once a second owner joins it, and loses it again when it is left with one owner.
-`VirtualReferencePartitionWriter#isShadowed` is the single predicate telling whether the partitions of
+`VirtualReferencePartitionWriter#isWrittenVirtually` is the single predicate telling whether the partitions of
 a reference may be rows in a scope.
 
 ### What a row holds

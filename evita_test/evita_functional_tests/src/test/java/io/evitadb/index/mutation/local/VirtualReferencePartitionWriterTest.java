@@ -59,8 +59,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies {@link VirtualReferencePartitionWriter} against a real {@link VirtualReferencePartitionIndex}: which
- * references it shadows, what a partition entering the registry records, and that a partition sharing or vacating
- * leaves nothing of itself behind - including the declared keys once no partition has a row.
+ * references it writes virtually, what a partition entering the registry records, and that a partition sharing or
+ * vacating leaves nothing of itself behind - including the declared keys once no partition has a row.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -142,20 +142,20 @@ class VirtualReferencePartitionWriterTest {
 	}
 
 	@Nested
-	@DisplayName("Shadowed references")
-	class ShadowedReferences {
+	@DisplayName("References written virtually")
+	class ReferencesWrittenVirtually {
 
 		@Test
-		@DisplayName("a reference indexed for filtering with the referenced entity component is shadowed")
-		void shouldShadowAFilteringReferenceOfReferencedEntities() {
+		@DisplayName("a reference indexed for filtering with the referenced entity component is written virtually")
+		void shouldWriteAFilteringReferenceOfReferencedEntitiesVirtually() {
 			assertTrue(
-				VirtualReferencePartitionWriter.isShadowed(
+				VirtualReferencePartitionWriter.isWrittenVirtually(
 					reference(ReferenceIndexType.FOR_FILTERING, Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY)),
 					Scope.LIVE
 				)
 			);
 			assertTrue(
-				VirtualReferencePartitionWriter.isShadowed(
+				VirtualReferencePartitionWriter.isWrittenVirtually(
 					reference(
 						ReferenceIndexType.FOR_FILTERING,
 						Set.of(
@@ -170,9 +170,9 @@ class VirtualReferencePartitionWriterTest {
 
 		@Test
 		@DisplayName("a reference indexed for partitioning, without the entity component or not at all is not")
-		void shouldNotShadowAnyOtherReference() {
+		void shouldNotWriteAnyOtherReferenceVirtually() {
 			assertFalse(
-				VirtualReferencePartitionWriter.isShadowed(
+				VirtualReferencePartitionWriter.isWrittenVirtually(
 					reference(
 						ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
 						Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY)
@@ -181,7 +181,7 @@ class VirtualReferencePartitionWriterTest {
 				)
 			);
 			assertFalse(
-				VirtualReferencePartitionWriter.isShadowed(
+				VirtualReferencePartitionWriter.isWrittenVirtually(
 					reference(
 						ReferenceIndexType.FOR_FILTERING, Set.of(ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY)
 					),
@@ -189,7 +189,7 @@ class VirtualReferencePartitionWriterTest {
 				)
 			);
 			assertFalse(
-				VirtualReferencePartitionWriter.isShadowed(
+				VirtualReferencePartitionWriter.isWrittenVirtually(
 					reference(ReferenceIndexType.FOR_FILTERING, Set.of(ReferenceIndexedComponents.REFERENCED_ENTITY)),
 					Scope.ARCHIVED
 				),

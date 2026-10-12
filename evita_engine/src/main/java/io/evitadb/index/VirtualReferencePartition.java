@@ -45,13 +45,13 @@ import javax.annotation.Nonnull;
  * row and no index object, or that an owner is about to enter while it has no row yet. A mutation writes them
  * virtually wherever the reference's partitions may be virtual - the reference is indexed `FOR_FILTERING` with the
  * referenced entity component in the scope (see
- * {@link io.evitadb.index.mutation.local.VirtualReferencePartitionWriter#isShadowed}) - and nowhere else: the schema
- * decides it, not the mutation. A write path that takes a virtual partition writes what the partition holds - its only
- * owner, its sort values and chain predecessors - into the registry row only, and leaves out what a partition of a
- * reference indexed for filtering keeps nowhere (language records, facets); every other exhaustive `switch` over
- * {@link ReferencePartition} on a write path rejects it, and so does every write path of a mutation that does not
- * write the partition virtually. The one exception is a row the reference left while it was indexed for filtering
- * only, which a write taking content out of it still reaches after the reference's indexing changed.
+ * {@link io.evitadb.index.mutation.local.VirtualReferencePartitionWriter#isWrittenVirtually}) - and nowhere else: the
+ * schema decides it, not the mutation. A write path that takes a virtual partition writes what the partition holds -
+ * its only owner, its sort values and chain predecessors - into the registry row only, and leaves out what a partition
+ * of a reference indexed for filtering keeps nowhere (language records, facets); every other exhaustive `switch` over
+ * {@link ReferencePartition} on a write path rejects it, and so does every write path of a mutation that does not write
+ * the partition virtually. The one exception is a row the reference left while it was indexed for filtering only, which
+ * a write taking content out of it still reaches after the reference's indexing changed.
  *
  * A registered partition has no reduced entity index: the two exist side by side only within the root mutation that
  * moves the partition between them - while the index object of a partition gaining its second owner is populated,

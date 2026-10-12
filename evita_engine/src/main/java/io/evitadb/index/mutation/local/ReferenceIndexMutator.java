@@ -1117,7 +1117,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferencePartition partition
 	) {
 		final Scope scope = referenceTypeIndex.getIndexKey().scope();
-		if (!VirtualReferencePartitionWriter.isShadowed(referenceSchema, scope)) {
+		if (!VirtualReferencePartitionWriter.isWrittenVirtually(referenceSchema, scope)) {
 			return;
 		}
 		final int ownerCount = partition.size();
@@ -1139,9 +1139,8 @@ public interface ReferenceIndexMutator {
 	 * Keeps the registry of single-owner partitions in step with a partition that has just lost an owner: a partition
 	 * left without any owner (1 -> 0) gets its row dropped, its emptied index object retired and its primary key
 	 * reserved for the root mutation, exactly as for a vacated row. A partition left with one owner (2 -> 1) is handed
-	 * to the
-	 * executor, which demotes it when it applies its changes - whether it is a single-owner one again is known only
-	 * once the mutation has finished (see {@link VirtualReferencePartitionWriter#partitionLeftWithOneOwner}). Any
+	 * to the executor, which demotes it when it applies its changes - whether it is a single-owner one again is known
+	 * only once the mutation has finished (see {@link VirtualReferencePartitionWriter#partitionLeftWithOneOwner}). Any
 	 * other owner count leaves the registry alone. Only partitions of a reference whose partitions may be virtual are
 	 * concerned - see {@link VirtualReferencePartitionWriter}.
 	 *
@@ -1157,7 +1156,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull ReferencePartition partition
 	) {
 		final Scope scope = referenceTypeIndex.getIndexKey().scope();
-		if (!VirtualReferencePartitionWriter.isShadowed(referenceSchema, scope)) {
+		if (!VirtualReferencePartitionWriter.isWrittenVirtually(referenceSchema, scope)) {
 			return;
 		}
 		final int ownerCount = partition.size();
@@ -1347,13 +1346,7 @@ public interface ReferenceIndexMutator {
 		@Nonnull VirtualReferencePartition partition,
 		@Nonnull String writeSite
 	) {
-		if (
-			referenceSchema.getName().equals(partition.getRepresentativeReferenceKey().referenceName()) &&
-				(
-					VirtualReferencePartitionWriter.isShadowed(referenceSchema, partition.getIndexKey().scope()) ||
-						executor.isReleasedRowOfFormerIndexing(partition)
-				)
-		) {
+		if (VirtualReferencePartitionWriter.isPartitionWrittenVirtually(executor, referenceSchema, partition)) {
 			return partition;
 		}
 		throw ReferencePartitions.virtualPartitionOnWritePath(partition, writeSite);
@@ -3251,11 +3244,7 @@ public interface ReferenceIndexMutator {
 	) {
 		final RepresentativeReferenceKey partitionKey = partition.getRepresentativeReferenceKey();
 		isPremiseValid(
-			referenceSchema.getName().equals(partitionKey.referenceName()) &&
-				(
-					VirtualReferencePartitionWriter.isShadowed(referenceSchema, partition.getIndexKey().scope()) ||
-						executor.isReleasedRowOfFormerIndexing(partition)
-				),
+			VirtualReferencePartitionWriter.isPartitionWrittenVirtually(executor, referenceSchema, partition),
 			() -> "Virtual partition `" + partition.getIndexKey() + "` is not a partition of `" +
 				referenceSchema.getName() + "` that may be virtual, nor a row of its former indexing released to a " +
 				"removal!"
@@ -3344,7 +3333,7 @@ public interface ReferenceIndexMutator {
 		isPremiseValid(
 			partition != null &&
 				referenceSchema.getName().equals(partition.getRepresentativeReferenceKey().referenceName()) &&
-				VirtualReferencePartitionWriter.isShadowed(referenceSchema, partition.getIndexKey().scope()),
+				VirtualReferencePartitionWriter.isWrittenVirtually(referenceSchema, partition.getIndexKey().scope()),
 			() -> "Index `" + partitionIndex.getIndexKey() + "` is not a partition of `" + referenceSchema.getName() +
 				"` that may be virtual!"
 		);

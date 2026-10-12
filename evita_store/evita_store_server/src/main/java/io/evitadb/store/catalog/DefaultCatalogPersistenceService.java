@@ -1864,14 +1864,7 @@ public class DefaultCatalogPersistenceService
 			this.storagePrefix, this.catalogStoragePath, this.bootstrapStorageSettings, this.storageSettings,
 			exportService
 		);
-		// before any migration replaces the bootstrap record it reads, and before the bootstrap file is opened for
-		// writing - a refused catalog keeps every byte it had
-		try {
-			refuseDevelopmentStorageProtocol(catalogName, this.bootstrapUsed);
-		} catch (ObsoleteStorageProtocolException ex) {
-			closeOnConstructorFailure();
-			throw ex;
-		}
+		refuseDevelopmentStorageProtocolOrClose(catalogName);
 		this.bootstrapWriteHandle = new AtomicReference<>(
 			createBootstrapWriteOnlyHandle(catalogName, this.bootstrapStorageSettings,this.catalogStoragePath)
 		);
@@ -2044,14 +2037,7 @@ public class DefaultCatalogPersistenceService
 			this.storagePrefix, this.catalogStoragePath, this.bootstrapStorageSettings, this.storageSettings,
 			this.exportService
 		);
-		// see the sibling constructor above - refused before any migration and before the bootstrap file is opened
-		// for writing
-		try {
-			refuseDevelopmentStorageProtocol(catalogName, this.bootstrapUsed);
-		} catch (ObsoleteStorageProtocolException ex) {
-			closeOnConstructorFailure();
-			throw ex;
-		}
+		refuseDevelopmentStorageProtocolOrClose(catalogName);
 		this.bootstrapWriteHandle = new AtomicReference<>(
 			createBootstrapWriteOnlyHandle(catalogName, this.bootstrapStorageSettings, this.catalogStoragePath)
 		);
@@ -3837,6 +3823,26 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
+	 * Refuses the catalog when the bootstrap record the constructor read carries the protocol of development builds -
+	 * see {@link #refuseDevelopmentStorageProtocol(String, CatalogBootstrap)} - releasing what the constructor opened
+	 * before the refusal propagates. Both constructors loading a catalog call it before any migration replaces the
+	 * bootstrap record it reads, and before the bootstrap file is opened for writing, so a refused catalog keeps every
+	 * byte it had.
+	 *
+	 * @param catalogName the name of the catalog
+	 * @throws ObsoleteStorageProtocolException when the record carries the protocol of development builds
+	 */
+	private void refuseDevelopmentStorageProtocolOrClose(@Nonnull String catalogName)
+		throws ObsoleteStorageProtocolException {
+		try {
+			refuseDevelopmentStorageProtocol(catalogName, this.bootstrapUsed);
+		} catch (ObsoleteStorageProtocolException ex) {
+			closeOnConstructorFailure();
+			throw ex;
+		}
+	}
+
+	/**
 	 * Releases the subset of resources that the load ctor has already opened by the time
 	 * {@link #verifyAndUpgradeStorageFormat} is invoked. Invoked from the ctor catch block when
 	 * that call (or anything after it, before field init is complete) throws — so the retry loop
@@ -5395,7 +5401,9 @@ public class DefaultCatalogPersistenceService
 	 * the constructor's service map yet, so the constructor's cleanup cannot reach them. A failure of any kind - a
 	 * refusal, a failed migration, the deferral of the v4→v5 upgrade - closes every service the method opened before
 	 * it propagates; otherwise their read handles of the catalog data file outlive the failed open, and every retry of
-	 * the open leaves another set behind.
+	 * the open leaves another set behind. A successful migration closes every service but the one it returns: the
+	 * service a migration step ran on and every one opened only to read the header a step wrote are superseded, and
+	 * nothing else would close them.
 	 *
 	 * @param storagePartPersistenceFactory the factory for the storage part persistence service
 	 * @param catalogVersion                the version of the catalog
@@ -5414,7 +5422,7 @@ public class DefaultCatalogPersistenceService
 	) throws ObsoleteStorageProtocolException {
 		final List<CatalogOffsetIndexStoragePartPersistenceService> openedServices = new ArrayList<>(2);
 		try {
-			return migrateToCurrentStorageFormat(
+			final CatalogOffsetIndexStoragePartPersistenceService currentService = migrateToCurrentStorageFormat(
 				() -> {
 					final CatalogOffsetIndexStoragePartPersistenceService service = storagePartPersistenceFactory.get();
 					openedServices.add(service);
@@ -5423,6 +5431,14 @@ public class DefaultCatalogPersistenceService
 				catalogVersion,
 				allowInlineV4ToV5Upgrade
 			);
+			// every migration step flushed what it wrote, so closing a superseded service writes nothing
+			IOUtils.closeQuietly(
+				openedServices.stream()
+					.filter(service -> service != currentService)
+					.map(service -> (ExceptionThrowingRunnable) service::close)
+					.toArray(ExceptionThrowingRunnable[]::new)
+			);
+			return currentService;
 		} catch (Throwable t) {
 			IOUtils.closeQuietly(
 				openedServices.stream()

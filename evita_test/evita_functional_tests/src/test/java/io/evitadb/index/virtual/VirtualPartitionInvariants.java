@@ -587,7 +587,7 @@ public final class VirtualPartitionInvariants {
 	) {
 		for (final Scope scope : Scope.values()) {
 			for (final ReferenceSchemaContract referenceSchema : collection.getSchema().getReferences().values()) {
-				if (!isShadowed(referenceSchema, scope)) {
+				if (!isWrittenVirtually(referenceSchema, scope)) {
 					continue;
 				}
 				final SortedSet<Integer> primaryKeys = new TreeSet<>();
@@ -631,9 +631,9 @@ public final class VirtualPartitionInvariants {
 	 *
 	 * @param referenceSchema the reference
 	 * @param scope           the scope
-	 * @return TRUE when the reference is shadowed in the scope
+	 * @return TRUE when the single-owner partitions of the reference are written virtually in the scope
 	 */
-	static boolean isShadowed(@Nonnull ReferenceSchemaContract referenceSchema, @Nonnull Scope scope) {
+	static boolean isWrittenVirtually(@Nonnull ReferenceSchemaContract referenceSchema, @Nonnull Scope scope) {
 		return referenceSchema.getReferenceIndexType(scope) == ReferenceIndexType.FOR_FILTERING &&
 			referenceSchema.getIndexedComponents(scope).contains(ReferenceIndexedComponents.REFERENCED_ENTITY);
 	}

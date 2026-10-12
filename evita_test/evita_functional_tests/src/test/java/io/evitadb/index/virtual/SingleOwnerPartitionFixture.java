@@ -74,7 +74,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * - `gallery` - indexed for filtering in both scopes, allowing duplicates told apart by the representative attribute
  *   `role`. Each product shows its own media `n` in two roles (two single-owner partitions differing in their tuple)
  *   and {@link #SHARED_MEDIA} as a thumbnail (a partition every product owns);
- * - `brand` - indexed for filtering and partitioning, so it is never shadowed by the registry;
+ * - `brand` - indexed for filtering and partitioning, so it is never written virtually;
  * - optionally (see {@link #setUpWithReflectedProducts(EvitaSessionContract)}) `products` on the category - the
  *   reflection of `categories`, indexed for filtering in both scopes and inheriting its attributes. Product `n`'s
  *   partition there is owned by category `n` alone (a single-owner partition maintained by the reflected mutations a

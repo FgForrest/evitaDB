@@ -27,6 +27,7 @@ import io.evitadb.api.CatalogState;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
@@ -36,6 +37,8 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.Scope;
+import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
 import io.evitadb.store.catalog.LegacyOwnerSortImages.LegacySortIndex;
@@ -61,6 +64,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.function.Function;
@@ -80,6 +84,7 @@ import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.store.catalog.LegacyOwnerSortImages.assertRewritten;
 import static io.evitadb.store.catalog.LegacyOwnerSortImages.assertStillAsWritten;
 import static io.evitadb.store.catalog.LegacyOwnerSortImages.pageValues;
+import static io.evitadb.store.catalog.LegacyOwnerSortImages.storedSortViews;
 import static io.evitadb.store.catalog.LegacyOwnerSortImages.writeLegacySortIndexes;
 import static io.evitadb.store.catalog.OfflineCatalogImages.assertOnlyAppended;
 import static io.evitadb.store.catalog.OfflineCatalogImages.catalogFolder;
@@ -91,6 +96,7 @@ import static io.evitadb.store.catalog.OfflineCatalogImages.withOfflineCatalog;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.ORDER;
 import static io.evitadb.test.TestTags.STORAGE;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -111,7 +117,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * A collection of events with a sort-only `OffsetDateTime` attribute covers the raw temporal values: every pair of
  * events `2k + 1` and `2k + 2` carries one moment written at +02:00 and +01:00 - raw, the earlier local time orders the
  * even event first; normalized, the two tie and are ordered by primary key. The order the sort index serves therefore
- * tells the two forms apart.
+ * tells the two forms apart. The same moments, filterable in the live scope only, cover the decision between a sort
+ * index viewing a filter index and one owning its values, which is made in each entity index on its own.
  *
  * Localized compounds cover the order of the bare collator the release compared a localized text by: the order of the
  * legacy pages is checked by the comparator of the release that wrote them, while the index is rebuilt by the current
@@ -310,6 +317,87 @@ class Migration_2026_3_OwnerSortRewriteTest implements EvitaTestSupport {
 			assertEventsInInstantOrder("after a reload", reloaded, shape);
 			reloaded.close();
 			assertRewritten("after a reload", configuration, CATALOG, ENTITY_EVENT, legacy);
+		}
+	}
+
+	/**
+	 * Cases of one attribute whose sort index views a filter index in one entity index and owns its values in another.
+	 */
+	@Nested
+	@DisplayName("An attribute whose sort index views a filter index in one scope and owns its values in the other")
+	class ViewAndOwnerOfOneAttribute {
+
+		/**
+		 * The moment of an event is filterable and sortable in the live scope and only sortable in the archive, so the
+		 * global index of the live scope holds a sort index viewing its filter index, and the global index of the
+		 * archive one owning its values, which the release stored raw. Whether a sort index views a filter index is
+		 * decided in each entity index by the filter index under the same key there, as the load path decides it: the
+		 * owner of the archive must be rewritten, and the view of the live scope must stay stored as it was written.
+		 */
+		@Test
+		@DisplayName("rewrites the sort index owning its values and leaves the one viewing a filter index as written")
+		void shouldRewriteTheOwnerAndLeaveTheViewOfTheSameAttributeAsWritten() {
+			final EvitaConfiguration configuration = configurationOf(allocatePaths("viewAndOwner"));
+			final Evita engine = start(configuration);
+			engine.defineCatalog(CATALOG).updateViaNewSession(engine);
+			engine.updateCatalog(
+				CATALOG,
+				session -> {
+					session.defineEntitySchema(ENTITY_EVENT)
+						.withoutGeneratedPrimaryKey()
+						.withAttribute(
+							ATTRIBUTE_MOMENT, OffsetDateTime.class,
+							thatIs -> thatIs
+								.filterableInScope(Scope.LIVE)
+								.sortableInScope(Scope.LIVE, Scope.ARCHIVED)
+								.nullable()
+						)
+						.updateVia(session);
+					for (int event = 1; event <= 2 * INLINE_ENTRY_COUNT; event++) {
+						upsertEvent(session, event);
+					}
+					for (int event = INLINE_ENTRY_COUNT + 1; event <= 2 * INLINE_ENTRY_COUNT; event++) {
+						session.archiveEntity(ENTITY_EVENT, event);
+					}
+				}
+			);
+			engine.updateCatalog(CATALOG, EvitaSessionContract::goLiveAndClose);
+			engine.close();
+			final List<LegacySortIndex> legacy = writeLegacySortIndexes(
+				configuration, CATALOG, ENTITY_EVENT, Set.of(ATTRIBUTE_MOMENT),
+				Migration_2026_3_OwnerSortRewriteTest::momentOf
+			);
+			// the premise: the archive holds the only sort index owning its values, the live scope a view
+			assertEquals(1, legacy.size(), "the moments must have one owner sort index: " + legacy);
+			assertEquals(Scope.ARCHIVED, legacy.getFirst().entityIndexKey().scope(), "the owner: " + legacy);
+			final EntityIndexKey liveGlobalIndex = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE);
+			final Map<EntityIndexKey, byte[]> views =
+				storedSortViews(configuration, CATALOG, ENTITY_EVENT, ATTRIBUTE_MOMENT);
+			assertEquals(Set.of(liveGlobalIndex), views.keySet(), "the moments must have one sort index viewing");
+
+			stamp(configuration, CATALOG, RELEASED_PROTOCOL, RELEASED_PROTOCOL);
+			final Evita migrated = start(configuration);
+			assertEquals(
+				IntStream.rangeClosed(1, INLINE_ENTRY_COUNT).boxed().toList(),
+				orderedEvents(migrated, DebugMode.PREFER_INDEX_SCAN, 2 * INLINE_ENTRY_COUNT),
+				"the view serves the live events in instant order"
+			);
+			migrated.close();
+			assertEquals(
+				PersistenceService.STORAGE_PROTOCOL_VERSION,
+				lastBootstrap(configuration, CATALOG).storageProtocolVersion()
+			);
+			assertEquals(
+				1, assertRewritten("after the migration", configuration, CATALOG, ENTITY_EVENT, legacy),
+				"the sort index owning the archived moments must have been rewritten"
+			);
+			final Map<EntityIndexKey, byte[]> migratedViews =
+				storedSortViews(configuration, CATALOG, ENTITY_EVENT, ATTRIBUTE_MOMENT);
+			assertEquals(views.keySet(), migratedViews.keySet(), "the sort indexes viewing after the migration");
+			assertArrayEquals(
+				views.get(liveGlobalIndex), migratedViews.get(liveGlobalIndex),
+				"the sort index viewing the filter index must stay stored as it was written"
+			);
 		}
 	}
 

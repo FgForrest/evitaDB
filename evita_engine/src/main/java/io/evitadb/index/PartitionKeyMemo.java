@@ -32,6 +32,7 @@ import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.io.Serializable;
 import java.util.IdentityHashMap;
 import java.util.Map;
@@ -57,10 +58,11 @@ import java.util.function.Function;
  * The memo is keyed by the identity of the referenced-type entity index it read, which names the collection, the
  * scope and the reference - and, beyond them, the very snapshot of the index the query reads. It is created by and
  * lives in one query planning context, so it never outlives the snapshot it was built from: the next query builds
- * its own. It is not thread-safe, as the planning context is not.
+ * its own.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
+@NotThreadSafe
 public final class PartitionKeyMemo {
 	/**
 	 * Per referenced-type entity index, per target primary key: the registered partitions of the target by the tuple

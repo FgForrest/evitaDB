@@ -435,14 +435,14 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 			final ReferenceSchemaContract boundOwners = catalogOf(engine, GENERATED_CATALOG)
 				.getEntitySchema(ENTITY_TARGET).orElseThrow()
 				.getReference(REFERENCE_OWNERS).orElseThrow();
-			assertTrue(VirtualReferencePartitionWriter.isShadowed(boundOwners, Scope.ARCHIVED));
+			assertTrue(VirtualReferencePartitionWriter.isWrittenVirtually(boundOwners, Scope.ARCHIVED));
 			engine.close();
 			final ReferenceSchemaContract storedOwners = withOfflineCatalog(
 				configuration, GENERATED_CATALOG,
 				service -> storedSchemasOf(service).get(ENTITY_TARGET).getReference(REFERENCE_OWNERS).orElseThrow()
 			);
 			assertFalse(
-				VirtualReferencePartitionWriter.isShadowed(storedOwners, Scope.ARCHIVED),
+				VirtualReferencePartitionWriter.isWrittenVirtually(storedOwners, Scope.ARCHIVED),
 				"the stored declaration of the reflected reference must not classify its partitions by itself, or " +
 					"the case does not prove that the migration binds the schema"
 			);
@@ -614,6 +614,69 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 					"attempt " + attempt + ": the failed migration left files of the catalog open: " + held
 				);
 			}
+		}
+
+		/**
+		 * A successful migration opens a storage part service of the catalog data file for every protocol it reads the
+		 * header in, and returns the last one only - the one the migration ran on reads hundreds of parts through
+		 * read handles of its own. Every superseded service must be closed before the open returns, or its read
+		 * handles of the catalog data file outlive the closed catalog. A second open of the migrated catalog, which
+		 * migrates nothing, is the control.
+		 *
+		 * Read from the file descriptors the platform lists for the process (`/proc/self/fd`); skipped where it lists
+		 * none. No garbage collection is requested: the cleaner of a collected file would close a leaked descriptor and
+		 * hide the leak.
+		 */
+		@Test
+		@DisplayName("a successful migration leaves no file of the catalog open once the catalog is closed")
+		void shouldLeaveNoFileOfTheCatalogOpenAfterASuccessfulMigration() {
+			final EvitaConfiguration configuration = configurationOf(allocatePaths("migratedHandles"), null, null);
+			final Evita engine = start(configuration);
+			buildCatalogs(
+				engine, CatalogState.ALIVE,
+				(session, indexType) -> setUpOwners(
+					session, REFLECTED_OWNER_COUNT, SHARING_OWNER_COUNT, false, indexType, false
+				),
+				List.of()
+			);
+			engine.close();
+			stamp(configuration, GENERATED_CATALOG, RELEASED_PROTOCOL, RELEASED_PROTOCOL);
+			final Path folder = catalogFolder(configuration, GENERATED_CATALOG);
+			final Set<String> heldBefore = filesHeldOpenIn(folder);
+			assumeTrue(heldBefore != null, "the platform does not list the open file descriptors of the process");
+
+			// the open migrates the catalog, and the service it returns still reads it
+			final int storedSchemas = withOfflineCatalog(
+				configuration, GENERATED_CATALOG, service -> storedSchemasOf(service).size()
+			);
+			assertTrue(
+				storedSchemas > 0,
+				"the migrated catalog must read its schemas through the service the migration returned"
+			);
+			assertEquals(
+				PersistenceService.STORAGE_PROTOCOL_VERSION,
+				lastBootstrap(configuration, GENERATED_CATALOG).storageProtocolVersion(),
+				"the open must have migrated the catalog"
+			);
+			final Set<String> heldAfterMigration = Objects.requireNonNull(filesHeldOpenIn(folder));
+			heldAfterMigration.removeAll(heldBefore);
+			assertTrue(
+				heldAfterMigration.isEmpty(),
+				"the successful migration left files of the catalog open: " + heldAfterMigration
+			);
+
+			final Set<String> heldBeforeReopen = Objects.requireNonNull(filesHeldOpenIn(folder));
+			withOfflineCatalog(configuration, GENERATED_CATALOG, service -> Boolean.TRUE);
+			final Set<String> heldAfterReopen = Objects.requireNonNull(filesHeldOpenIn(folder));
+			heldAfterReopen.removeAll(heldBeforeReopen);
+			assertTrue(
+				heldAfterReopen.isEmpty(),
+				"an open migrating nothing left files of the catalog open: " + heldAfterReopen
+			);
+
+			final Evita migrated = start(configuration);
+			assertMigratedLikeTheTwin("after the migration", migrated);
+			migrated.close();
 		}
 	}
 
@@ -1474,7 +1537,7 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 							catalogVersion, indexPrimaryKey, schema, false
 						);
 						final boolean convertible =
-							VirtualReferencePartitionWriter.isShadowed(referenceSchema, scope) &&
+							VirtualReferencePartitionWriter.isWrittenVirtually(referenceSchema, scope) &&
 								index.getAllPrimaryKeys().size() == 1;
 						final Map<PartitionPart, byte[]> target = convertible ? converted : kept;
 						final TrappedChanges footprint = new TrappedChanges();

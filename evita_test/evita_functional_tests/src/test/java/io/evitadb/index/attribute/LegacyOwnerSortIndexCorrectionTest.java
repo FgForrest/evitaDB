@@ -322,7 +322,7 @@ class LegacyOwnerSortIndexCorrectionTest {
 				legacy.add(NINE.plusSeconds(i / 2).atOffset(i % 2 == 0 ? PLUS_ONE : PLUS_TWO), 10_000 - i);
 			}
 
-			roundTripPaged(
+			assertRoundTripPaged(
 				legacy, legacy.toCurrentOwner(), index -> index.addRecord(NINE.minusSeconds(1).atOffset(PLUS_ONE), 1)
 			);
 		}
@@ -337,7 +337,9 @@ class LegacyOwnerSortIndexCorrectionTest {
 				legacy.add(ten.plusSeconds(i), i + 1);
 			}
 
-			roundTripPaged(legacy, legacy.toCurrentOwner(), index -> index.addRecord(ten.minusSeconds(1), 100_000));
+			assertRoundTripPaged(
+				legacy, legacy.toCurrentOwner(), index -> index.addRecord(ten.minusSeconds(1), 100_000)
+			);
 		}
 
 		@Test
@@ -364,7 +366,7 @@ class LegacyOwnerSortIndexCorrectionTest {
 				"a group of moments tying after normalization must span two legacy pages"
 			);
 
-			roundTripPaged(
+			assertRoundTripPaged(
 				legacyParts, legacy.toCurrentOwner(),
 				index -> index.addRecord(new Serializable[]{NINE.minusSeconds(1).atOffset(PLUS_ONE), -1}, 100_000)
 			);
@@ -395,7 +397,7 @@ class LegacyOwnerSortIndexCorrectionTest {
 			final OwnerSortIndex expected = legacy.toCurrentOwner();
 			assertArrayEquals(legacyOrder, expected.getSortedRecords(), "the normalization must not reorder anything");
 
-			roundTripPaged(
+			assertRoundTripPaged(
 				legacyParts, expected,
 				index -> index.addRecord(new Serializable[]{-1, NINE.atOffset(PLUS_ONE)}, 100_000)
 			);
@@ -594,7 +596,7 @@ class LegacyOwnerSortIndexCorrectionTest {
 				);
 			}
 
-			roundTripPaged(
+			assertRoundTripPaged(
 				legacy, legacy.toCurrentOwner(), index -> index.addRecord(new Serializable[]{"aa", 0}, 100_000)
 			);
 		}
@@ -619,7 +621,7 @@ class LegacyOwnerSortIndexCorrectionTest {
 				);
 			}
 
-			roundTripPaged(
+			assertRoundTripPaged(
 				legacy, legacy.toCurrentOwner(),
 				index -> index.addRecord(new Serializable[]{"aa", NINE.atOffset(PLUS_ONE)}, 100_000)
 			);
@@ -778,7 +780,7 @@ class LegacyOwnerSortIndexCorrectionTest {
 				);
 			}
 
-			roundTripPaged(
+			assertRoundTripPaged(
 				legacy, legacy.toCurrentOwner(),
 				index -> index.addRecord(new Serializable[]{Locale.GERMANY, 0}, 100_000)
 			);
@@ -934,7 +936,7 @@ class LegacyOwnerSortIndexCorrectionTest {
 			for (int i = 0; i < PAGED_VALUE_COUNT; i++) {
 				paged.add(closingAt(i, i % 2 == 0 ? PLUS_TWO : PLUS_ONE), i + 1);
 			}
-			roundTripPaged(
+			assertRoundTripPaged(
 				paged, paged.toCurrentOwner(), index -> index.addRecord(closingAt(-1, PLUS_TWO), 100_000)
 			);
 		}
@@ -997,7 +999,7 @@ class LegacyOwnerSortIndexCorrectionTest {
 			for (int i = 1; i < PAGED_VALUE_COUNT; i++) {
 				paged.add(closingAt(i, i % 2 == 0 ? PLUS_TWO : PLUS_ONE), i + 2);
 			}
-			roundTripPaged(paged, paged.toCurrentOwner(), index -> index.removeRecord(openingAtHalf, 2));
+			assertRoundTripPaged(paged, paged.toCurrentOwner(), index -> index.removeRecord(openingAtHalf, 2));
 		}
 
 		@Test
@@ -1064,7 +1066,7 @@ class LegacyOwnerSortIndexCorrectionTest {
 				);
 			}
 
-			roundTripPaged(
+			assertRoundTripPaged(
 				legacy, legacy.toCurrentOwner(),
 				index -> index.addRecord(new Serializable[]{closingAt(-1, PLUS_ONE), NINE.atOffset(PLUS_ONE)}, 100_000)
 			);
@@ -1284,23 +1286,23 @@ class LegacyOwnerSortIndexCorrectionTest {
 	 * @param expected the owner the current engine builds from the same values
 	 * @param write    the write applied to both indexes
 	 */
-	private void roundTripPaged(
+	private void assertRoundTripPaged(
 		@Nonnull LegacyOwnerSortIndexWriter legacy,
 		@Nonnull OwnerSortIndex expected,
 		@Nonnull Consumer<OwnerSortIndex> write
 	) {
-		roundTripPaged(legacy.toPagedParts(0), expected, write);
+		assertRoundTripPaged(legacy.toPagedParts(0), expected, write);
 	}
 
 	/**
-	 * The variant of {@link #roundTripPaged(LegacyOwnerSortIndexWriter, OwnerSortIndex, Consumer)} taking the legacy
-	 * parts produced already.
+	 * The variant of {@link #assertRoundTripPaged(LegacyOwnerSortIndexWriter, OwnerSortIndex, Consumer)} taking the
+	 * legacy parts produced already.
 	 *
 	 * @param legacyParts the legacy leaf pages and paged root
 	 * @param expected    the owner the current engine builds from the same values
 	 * @param write       the write applied to both indexes
 	 */
-	private void roundTripPaged(
+	private void assertRoundTripPaged(
 		@Nonnull List<StoragePart> legacyParts,
 		@Nonnull OwnerSortIndex expected,
 		@Nonnull Consumer<OwnerSortIndex> write

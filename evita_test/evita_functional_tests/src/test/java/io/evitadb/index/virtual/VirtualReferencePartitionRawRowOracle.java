@@ -92,7 +92,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * with one writing them as objects, are both blind to a defect of the indexing path the two share: a sortable value
  * the path never writes is missing from the object, from the row and from the other engine alike, while the body still
  * holds it. This oracle reads the bodies through the public query API - every page of them, in both scopes - and
- * derives, for every reference shadowed in a scope (see {@link VirtualPartitionInvariants#isShadowed}):
+ * derives, for every reference written virtually in a scope
+ * (see {@link VirtualPartitionInvariants#isWrittenVirtually}):
  *
  * - **the closed world of the partitions**: the rows of the owners grouped by referenced entity and - for a reference
  *   allowing duplicates - by the values of its representative attributes, a missing one taking its default. Every
@@ -133,8 +134,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * order they end up, is what the oracle derives on its own.
  *
  * The oracle holds for histories without drift only: a schema change that leaves existing partitions as they were -
- * an attribute turned sortable, a reference turned shadowed or another scale - makes the bodies and the partitions
- * disagree by design.
+ * an attribute turned sortable, a reference turned virtually written or another scale - makes the bodies and the
+ * partitions disagree by design.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -239,8 +240,8 @@ public final class VirtualReferencePartitionRawRowOracle {
 	}
 
 	/**
-	 * Checks the partitions of every shadowed reference of the collection in every scope against the bodies. The
-	 * collection must represent its single-owner partitions as rows only.
+	 * Checks the partitions of every reference written virtually of the collection in every scope against the bodies.
+	 * The collection must represent its single-owner partitions as rows only.
 	 *
 	 * @param session    the session to read the bodies in
 	 * @param collection the collection
@@ -252,8 +253,8 @@ public final class VirtualReferencePartitionRawRowOracle {
 	}
 
 	/**
-	 * Checks the partitions of every shadowed reference of the collection in every scope against the bodies and -
-	 * given a ledger - their primary keys against those it observed before. The collection must represent its
+	 * Checks the partitions of every reference written virtually of the collection in every scope against the bodies
+	 * and - given a ledger - their primary keys against those it observed before. The collection must represent its
 	 * single-owner partitions as rows only.
 	 *
 	 * @param session    the session to read the bodies in
@@ -272,9 +273,9 @@ public final class VirtualReferencePartitionRawRowOracle {
 	}
 
 	/**
-	 * Checks the partitions of every shadowed reference of the collection in every scope against the bodies, read
-	 * page by page, and - given a ledger - their primary keys against those it observed before. The collection must
-	 * represent its single-owner partitions as rows only.
+	 * Checks the partitions of every reference written virtually of the collection in every scope against the bodies,
+	 * read page by page, and - given a ledger - their primary keys against those it observed before. The collection
+	 * must represent its single-owner partitions as rows only.
 	 *
 	 * @param session    the session to read the bodies in
 	 * @param collection the collection
@@ -336,7 +337,7 @@ public final class VirtualReferencePartitionRawRowOracle {
 		for (final Scope scope : Scope.values()) {
 			final List<SealedEntity> bodies = readBodies(session, entityType, scope, pageSize);
 			for (final ReferenceSchemaContract referenceSchema : schema.getReferences().values()) {
-				if (VirtualPartitionInvariants.isShadowed(referenceSchema, scope)) {
+				if (VirtualPartitionInvariants.isWrittenVirtually(referenceSchema, scope)) {
 					inspect(
 						collection, referenceSchema, scope, bodies,
 						objects.getOrDefault(scope + "/" + referenceSchema.getName(), List.of()),
@@ -422,8 +423,8 @@ public final class VirtualReferencePartitionRawRowOracle {
 	}
 
 	/**
-	 * Checks the partitions of one shadowed reference in one scope against the bodies: matches every partition the
-	 * bodies produce to its row or its index object, reports the rows and objects no body produces, records the
+	 * Checks the partitions of one reference written virtually in one scope against the bodies: matches every partition
+	 * the bodies produce to its row or its index object, reports the rows and objects no body produces, records the
 	 * primary key of every matched partition and checks the values of every matched row and object.
 	 *
 	 * @param collection      the collection of the partitions

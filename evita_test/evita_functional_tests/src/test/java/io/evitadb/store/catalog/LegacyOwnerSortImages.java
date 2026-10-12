@@ -264,6 +264,67 @@ final class LegacyOwnerSortImages {
 	}
 
 	/**
+	 * Returns the stored bytes of every sort index of the attribute that views a filter index - one with a filter index
+	 * under the same key in its entity index, which the load path restores from that filter index and the migration
+	 * leaves as it is - by the key of the entity index holding it.
+	 *
+	 * @param configuration the configuration of the engine
+	 * @param catalogName   the catalog
+	 * @param entityType    the collection
+	 * @param attributeName the attribute
+	 * @return the stored bytes of each sort index viewing a filter index, by the key of its entity index
+	 */
+	@Nonnull
+	static Map<EntityIndexKey, byte[]> storedSortViews(
+		@Nonnull EvitaConfiguration configuration,
+		@Nonnull String catalogName,
+		@Nonnull String entityType,
+		@Nonnull String attributeName
+	) {
+		return withOfflineCatalog(
+			configuration, catalogName,
+			service -> {
+				final long catalogVersion = service.getLastCatalogVersion();
+				final DefaultEntityCollectionPersistenceService collectionService =
+					collectionServiceOf(service, catalogVersion, entityType);
+				final OffsetIndexStoragePartPersistenceService storage =
+					collectionService.getStoragePartPersistenceService();
+				final Map<EntityIndexKey, byte[]> views = new HashMap<>(4);
+				for (final Integer indexPrimaryKey : listedIndexes(collectionService.getEntityCollectionHeader())) {
+					final EntityIndexStoragePart manifest = Objects.requireNonNull(
+						storage.getStoragePart(catalogVersion, indexPrimaryKey, EntityIndexStoragePart.class)
+					);
+					final Set<AttributeIndexKey> filterKeys = new HashSet<>();
+					for (final AttributeIndexStorageKey key : manifest.getAttributeIndexes()) {
+						if (key.indexType() == AttributeIndexType.FILTER) {
+							filterKeys.add(key.attribute());
+						}
+					}
+					for (final AttributeIndexStorageKey key : manifest.getAttributeIndexes()) {
+						if (
+							key.indexType() == AttributeIndexType.SORT && filterKeys.contains(key.attribute()) &&
+								attributeName.equals(key.attribute().attributeName())
+						) {
+							views.put(
+								manifest.getEntityIndexKey(),
+								storage.getStoragePartAsBinary(
+									catalogVersion,
+									AttributeIndexStoragePart.computeUniquePartId(
+										indexPrimaryKey, AttributeIndexType.SORT, key.attribute(),
+										storage.getReadOnlyKeyCompressor()
+									),
+									SortIndexStoragePart.class
+								)
+							);
+						}
+					}
+				}
+				return views;
+			}
+		);
+	}
+
+	/**
 	 * Asserts what the published state of the catalog holds of every legacy sort index after the migration. The sort
 	 * index of an entity index the collection still lists is stored in normalized form, and equals the owner sort index
 	 * the current engine builds from the same raw values - record order and values. Its root is stored anew, and none

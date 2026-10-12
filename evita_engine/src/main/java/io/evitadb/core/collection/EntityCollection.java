@@ -4920,7 +4920,7 @@ public final class EntityCollection implements
 			@Nonnull String referenceName
 		) {
 			if (
-				VirtualReferencePartitionWriter.isShadowed(
+				VirtualReferencePartitionWriter.isWrittenVirtually(
 					EntityCollection.this.getSchema().getReferenceOrThrowException(referenceName),
 					partitionKey.scope()
 				)

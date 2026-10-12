@@ -119,7 +119,7 @@ class VirtualReferencePartitionWriterGuardTest {
 	 * The methods of the writer that only read the schema - a caller asking whether a reference's partitions may be
 	 * virtual writes nothing, so it may call them from anywhere.
 	 */
-	private static final Set<String> WRITER_PREDICATES = Set.of("isShadowed");
+	private static final Set<String> WRITER_PREDICATES = Set.of("isWrittenVirtually");
 	/**
 	 * Internal names of the classes allowed to call the writer and the registry mutators - their nested and synthetic
 	 * classes included.
