@@ -157,13 +157,14 @@ class SharedRgeiSoakTest implements EvitaTestSupport {
 	 * Transaction-acceptance timeout for this test's embedded instances — six times the 20s
 	 * `TransactionOptions#DEFAULT_WAIT_FOR_TRANSACTION_ACCEPTANCE`.
 	 *
-	 * Three bounds in `TransactionManager` derive from this value and all three are measured in **wall
-	 * clock**, so CPU contention pushes a healthy-but-slow commit toward them: the conflict-resolution
-	 * lock, the WAL-append lock, and — via `safetyDeadlineMs()`, which is `max(60_000, this * 5)` — the
-	 * dangling-commit sweeper in `PendingCommitProgressRegistry#sweepRecordsOlderThan`. At the default
-	 * that sweeper deadline is 100s. Under full-suite load this test's commits crossed it and were
-	 * failed as "dangling" although the pipeline was merely starved; that is the flake this constant
-	 * removes.
+	 * Three bounds in `TransactionManager` derive from this value: the conflict-resolution lock and the
+	 * WAL-append lock, both measured in **wall clock**, so CPU contention pushes a healthy-but-slow commit
+	 * toward them, and — via `safetyDeadlineMs()`, which is `max(60_000, this * 5)` — the dangling-commit
+	 * sweeper in `PendingCommitProgressRegistry#sweepStalledRecords`. At the default that sweeper deadline
+	 * is 100s. Under full-suite load this test's commits once crossed it and were failed as "dangling"
+	 * although the pipeline was merely starved; that is the flake this constant removed. The sweeper now
+	 * counts only time in which the pipeline makes no progress at all, which a starved pipeline can still
+	 * accumulate.
 	 *
 	 * Widening it here rather than retuning the engine leaves the production guard untouched — a commit
 	 * pending 100s on a live deployment really is pathological. Inside this test the guard stays real:

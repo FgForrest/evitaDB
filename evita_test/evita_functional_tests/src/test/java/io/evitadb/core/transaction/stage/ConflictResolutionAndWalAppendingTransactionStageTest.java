@@ -41,6 +41,7 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Flow.Subscription;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -56,6 +57,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -175,6 +177,51 @@ class ConflictResolutionAndWalAppendingTransactionStageTest {
 
 		assertEquals(313L, lastAssigned.get(),
 			"An early failure must not rewind the assignment counter below the last written version");
+	}
+
+	/**
+	 * Conflict resolution registers every commit progress record, so taking up a new commit only queues another record
+	 * behind those waiting for trunk incorporation. Reporting it as pipeline progress would let steady traffic keep the
+	 * dangling-commit watchdog from ever failing records a stalled trunk incorporation holds.
+	 */
+	@Test
+	@DisplayName("should not report pipeline progress when it takes up a commit")
+	void shouldNotReportPipelineProgressWhenTakingUpACommit() {
+		final AtomicLong lastAssigned = new AtomicLong(312L);
+		final AtomicLong lastWritten = new AtomicLong(312L);
+
+		final TransactionManager tm = buildTransactionManagerMock(lastAssigned, lastWritten);
+		doNothing().when(tm).identifyConflicts(anyLong(), anyLong(), any(), any());
+		doAnswer(inv -> {
+			lastWritten.set(313L);
+			return 0L;
+		}).when(tm).appendWalAndDiscard(any(), any(), any());
+
+		final ConflictResolutionAndWalAppendingTransactionStage stage =
+			new ConflictResolutionAndWalAppendingTransactionStage(
+				Runnable::run,
+				100,
+				tm,
+				(task, ex) -> {}
+			);
+		stage.onSubscribe(
+			new Subscription() {
+				@Override
+				public void request(long n) {
+					// the test hands the task over directly
+				}
+
+				@Override
+				public void cancel() {
+					// nothing to cancel
+				}
+			}
+		);
+
+		stage.onNext(newTask());
+
+		assertEquals(313L, lastWritten.get(), "the commit must have passed the stage");
+		verify(tm, never()).recordPipelineProgress();
 	}
 
 	/**
