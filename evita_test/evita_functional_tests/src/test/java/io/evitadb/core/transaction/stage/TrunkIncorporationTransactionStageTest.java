@@ -32,9 +32,11 @@ import io.evitadb.core.transaction.stage.TrunkIncorporationTransactionStage.Trun
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.Flow.Subscription;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -44,6 +46,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -118,6 +121,51 @@ class TrunkIncorporationTransactionStageTest {
 			"The empty-Optional path reflects a concurrent task completing our transaction, which is " +
 				"not a failure — the commit progress should complete successfully"
 		);
+	}
+
+	/**
+	 * A stage taking up a task is progress of the pipeline. The dangling-commit watchdog relies on it to tell a
+	 * pipeline that is merely slow from one that has stopped, so it must be reported before the task is handled.
+	 */
+	@Test
+	@DisplayName("should report pipeline progress when it takes up a task")
+	void shouldReportPipelineProgressWhenTakingUpATask() {
+		final TransactionManager tm = mock(TransactionManager.class);
+		when(tm.getCatalogName()).thenReturn(CATALOG_NAME);
+		when(tm.getLastFinalizedCatalogVersion()).thenReturn(10L);
+		when(tm.processTransactions(anyLong(), anyLong(), anyBoolean(), anyBoolean(), any()))
+			.thenReturn(Optional.empty());
+		final ObservableExecutorService synchronousExecutor = mock(ObservableExecutorService.class);
+		doAnswer(inv -> {
+			((Runnable) inv.getArgument(0)).run();
+			return null;
+		}).when(synchronousExecutor).execute(any(Runnable.class));
+		when(tm.getRequestExecutor()).thenReturn(synchronousExecutor);
+
+		final TrunkIncorporationTransactionStage stage = new TrunkIncorporationTransactionStage(
+			tm, 1_000L, (task, ex) -> {}
+		);
+		stage.onSubscribe(
+			new Subscription() {
+				@Override
+				public void request(long n) {
+					// the test hands the task over directly
+				}
+
+				@Override
+				public void cancel() {
+					// nothing to cancel
+				}
+			}
+		);
+
+		stage.onNext(
+			new TrunkIncorporationTransactionTask(CATALOG_NAME, 20L, 1, UUID.randomUUID(), new CommitProgressRecord())
+		);
+
+		final InOrder inOrder = inOrder(tm);
+		inOrder.verify(tm).recordPipelineProgress();
+		inOrder.verify(tm).processTransactions(anyLong(), anyLong(), anyBoolean(), anyBoolean(), any());
 	}
 
 	/**

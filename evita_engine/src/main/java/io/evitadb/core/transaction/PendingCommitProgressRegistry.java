@@ -31,13 +31,13 @@ import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.time.Duration;
-import java.time.OffsetDateTime;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.Executor;
+import java.util.function.LongSupplier;
 
 /**
  * Index of in-flight [CommitProgressRecord]s keyed by the catalog version they are bound to. The
@@ -52,12 +52,12 @@ import java.util.concurrent.Executor;
  *    stage right away instead of waiting for the publisher to re-deliver each individual trunk
  *    task. This is the hot-path use.
  *
- * 2. **Time-bounded watchdog for dangling records** — [#sweepRecordsOlderThan] fails records whose
- *    progress has been pending longer than the supplied age. Unlike a version-bounded sweep this
- *    is safe to run at any time because the cut-off is orthogonal to pipeline state: if a record
- *    has been registered for longer than the worst-case pipeline latency it is almost certainly
- *    dangling, and the client awaiting it benefits from a descriptive exception more than from
- *    silence. Intended to be driven by a periodic scheduler task.
+ * 2. **Watchdog for dangling records** — [#sweepStalledRecords] fails records the pipeline has
+ *    evidently lost: those it has made no progress towards for longer than the supplied bound, and
+ *    those the live view has already moved past without completing them. The client awaiting such
+ *    a record benefits from a descriptive exception more than from silence. Intended to be driven
+ *    by a periodic scheduler task, while the pipeline reports its progress through
+ *    [#recordPipelineProgress].
  *
  * 3. **Shutdown safety net** — [#failAllPending] fails every still-registered record when the
  *    transaction manager is closed, so clients are not left hanging on completion stages that the
@@ -68,8 +68,9 @@ import java.util.concurrent.Executor;
  *
  * **Thread-safety**
  *
- * Backed by a [ConcurrentSkipListMap], so registration, auto-removal, the range fan-out and the
- * time-based sweep may all run concurrently on different threads without external synchronisation.
+ * Backed by a [ConcurrentSkipListMap] and a volatile progress mark, so registration, auto-removal, the
+ * range fan-out, progress reports and the sweep may all run concurrently on different threads without
+ * external synchronisation.
  * Registration and auto-deregistration are O(log n) on the hot path; the range fan-out uses
  * [ConcurrentSkipListMap#subMap] to visit only the relevant prefix in O(log n + k) where k is the
  * number of records swept.
@@ -81,11 +82,35 @@ public final class PendingCommitProgressRegistry {
 
 	/**
 	 * Map of catalog version → pending entry. [ConcurrentSkipListMap] is used so that range queries
-	 * (used by [#completeChangesVisibleInRange]) only visit the interesting prefix in O(log n + k)
-	 * and so the time-based sweep can short-circuit on the youngest side of the map once it hits
-	 * the first record that is still within the age threshold.
+	 * (used by [#completeChangesVisibleInRange]) only visit the interesting prefix in O(log n + k).
 	 */
 	private final ConcurrentSkipListMap<Long, PendingEntry> pending = new ConcurrentSkipListMap<>();
+	/**
+	 * Source of monotonic time in nanoseconds - [System#nanoTime] outside tests.
+	 */
+	private final LongSupplier nanoClock;
+	/**
+	 * The [#nanoClock] reading of the last [#recordPipelineProgress] call, or of the construction of
+	 * the registry before the first one.
+	 */
+	private volatile long lastProgressNanos;
+
+	/**
+	 * Creates a registry measuring time by [System#nanoTime].
+	 */
+	public PendingCommitProgressRegistry() {
+		this(System::nanoTime);
+	}
+
+	/**
+	 * Creates a registry measuring time by the supplied clock, so that tests can move time at will.
+	 *
+	 * @param nanoClock source of monotonic time in nanoseconds
+	 */
+	PendingCommitProgressRegistry(@Nonnull LongSupplier nanoClock) {
+		this.nanoClock = nanoClock;
+		this.lastProgressNanos = nanoClock.getAsLong();
+	}
 
 	/**
 	 * Registers a commit progress record under the catalog version it was bound to and stores the
@@ -109,7 +134,7 @@ public final class PendingCommitProgressRegistry {
 		@Nonnull CommitProgressRecord record,
 		@Nonnull CommitVersions commitVersions
 	) {
-		this.pending.put(catalogVersion, new PendingEntry(record, commitVersions));
+		this.pending.put(catalogVersion, new PendingEntry(record, commitVersions, this.nanoClock.getAsLong()));
 		// auto-deregister on completion (success or failure) so the registry doesn't leak entries
 		record.onChangesVisible().whenComplete(
 			(result, throwable) -> this.pending.remove(catalogVersion)
@@ -162,52 +187,83 @@ public final class PendingCommitProgressRegistry {
 	}
 
 	/**
-	 * Fails every registered record whose [CommitProgressRecord#getCommitStartTime] is older than
-	 * `maxAge`. This is the periodic watchdog: any record that has been pending longer than the
-	 * worst-case pipeline latency is almost certainly dangling (missed completion path, async task
-	 * dropped by a starved or shut-down executor, etc.) and the client awaiting it benefits from a
-	 * descriptive exception more than from silence.
+	 * Records that the transaction pipeline has just advanced - taken up a task or replayed a mutation.
+	 * [#sweepStalledRecords] spares every record the pipeline keeps advancing towards, however long it
+	 * takes, so a transaction that is merely slow to incorporate is never failed as a lost one.
 	 *
-	 * Using wall-clock age rather than a catalog-version bound keeps this safe to run at any time:
-	 * the cut-off does not depend on pipeline state, so the usual "must wait until the pipeline is
-	 * guaranteed to have completed records at or below this version" invariant that a version-based
-	 * sweep needs is avoided entirely.
+	 * Called once per replayed mutation, so it is a single clock read and a volatile write.
+	 */
+	public void recordPipelineProgress() {
+		this.lastProgressNanos = this.nanoClock.getAsLong();
+	}
+
+	/**
+	 * Fails every registered record the pipeline has evidently lost. This is the periodic watchdog:
+	 * the client awaiting a lost record (missed completion path, async task dropped by a starved or
+	 * shut-down executor, etc.) benefits from a descriptive exception more than from silence. A record
+	 * pending for longer than `maxStall` since its registration is considered lost when either:
 	 *
-	 * **That independence from pipeline state is also the limitation.** Elapsed time is a proxy for
-	 * liveness, and the proxy breaks when the host is oversubscribed: a starved executor makes a
-	 * healthy-but-slow commit indistinguishable from a genuinely dropped one, so this sweep will fail
-	 * it and log the "missed completion path" warning below with nothing actually wrong. The warning is
-	 * therefore evidence of a stall, not proof of a pipeline defect — rule out CPU contention first.
-	 * The deadline is chosen by `TransactionManager#safetyDeadlineMs`, where the reasoning for leaving
-	 * it wall-clock-based (and how a contended caller should widen it instead) is recorded.
+	 * - the pipeline has reported no progress for longer than `maxStall` either - nothing is working
+	 *   towards the record any more, or
+	 * - the live view has already reached its version - the pipeline moved past it without completing
+	 *   it, which no amount of further progress repairs.
 	 *
-	 * @param maxAge the maximum age a record may stay pending before being considered dangling
+	 * The age counts from the registration, which is the moment the pipeline took the record over, not
+	 * from [CommitProgressRecord#getCommitStartTime]: a session creates its record when it opens, so
+	 * that time includes everything the session did before it committed. And a pipeline that keeps
+	 * progressing spares the record, because a single large transaction can take longer to replay than
+	 * any fixed bound on a loaded host - failing it then would tell the client that its commit was lost
+	 * while the pipeline goes on to incorporate it.
+	 *
+	 * The progress mark is shared by the whole pipeline of the catalog, so a stalled pipeline fails
+	 * every waiting record together, while one making progress fails none it has not moved past yet.
+	 *
+	 * @param maxStall           how long a record may wait without the pipeline making progress before
+	 *                           it is considered lost - also the minimum time it is left alone after its
+	 *                           registration
+	 * @param liveCatalogVersion the version of the catalog in the live view
 	 * @return the number of records failed by this sweep, useful for tests and observability
 	 */
-	public int sweepRecordsOlderThan(@Nonnull Duration maxAge) {
-		final OffsetDateTime threshold = OffsetDateTime.now().minus(maxAge);
+	public int sweepStalledRecords(@Nonnull Duration maxStall, long liveCatalogVersion) {
+		final long now = this.nanoClock.getAsLong();
+		final long maxStallNanos = maxStall.toNanos();
+		final long sinceProgressNanos = now - this.lastProgressNanos;
 		int failed = 0;
 		final Iterator<Map.Entry<Long, PendingEntry>> iterator = this.pending.entrySet().iterator();
 		while (iterator.hasNext()) {
 			final Map.Entry<Long, PendingEntry> entry = iterator.next();
-			final CommitProgressRecord record = entry.getValue().record();
-			if (record.getCommitStartTime().isAfter(threshold)) {
-				// record is younger than the threshold — leave it alone; later entries may be older
-				// or newer (the map is keyed by catalog version, not timestamp) so we can't safely
-				// short-circuit on this condition alone
-				continue;
-			}
+			final PendingEntry pendingEntry = entry.getValue();
+			final CommitProgressRecord record = pendingEntry.record();
 			if (!record.isDone()) {
+				// every age is a difference of two clock readings, as the System#nanoTime contract requires
+				final long sinceRegistrationNanos = now - pendingEntry.registeredAtNanos();
+				if (sinceRegistrationNanos < maxStallNanos) {
+					// too young to judge - the map is keyed by catalog version, not by time, so later entries
+					// may be older and the iteration goes on
+					continue;
+				}
+				final boolean passedByLiveView = entry.getKey() <= liveCatalogVersion;
+				if (!passedByLiveView && sinceProgressNanos < maxStallNanos) {
+					// the pipeline is still working its way towards this record
+					continue;
+				}
+				final long maxStallMillis = maxStall.toMillis();
 				log.warn(
-					"Sweeping dangling CommitProgressRecord for catalog version {} — the transaction " +
-						"pipeline did not complete it within {}ms of the commit start time. This indicates " +
-						"a missed completion path in the pipeline and should be investigated.",
-					entry.getKey(), maxAge.toMillis()
+					"Sweeping dangling CommitProgressRecord for catalog version {} — {}. This indicates a " +
+						"missed completion path in the pipeline, or a pipeline stalled outright, and should be " +
+						"investigated.",
+					entry.getKey(),
+					passedByLiveView ?
+						"the live view already reached version " + liveCatalogVersion + " without completing it" :
+						"the transaction pipeline made no progress for more than " + maxStallMillis + "ms"
 				);
 				record.completeExceptionally(
 					new TransactionException(
-						"Commit progress for catalog version " + entry.getKey() +
-							" has been pending for more than " + maxAge.toMillis() + "ms. " +
+						"Commit progress for catalog version " + entry.getKey() + " has been pending for more " +
+							"than " + maxStallMillis + "ms " +
+							(passedByLiveView ?
+								"and the live view has already moved past it. " :
+								"without the transaction pipeline making any progress. ") +
 							"The transaction pipeline dropped this record; failing it to unblock waiters."
 					)
 				);
@@ -267,12 +323,15 @@ public final class PendingCommitProgressRegistry {
 	 * the termination callback with the correct per-record versions even though the underlying
 	 * future chain derives its value from the previous stage.
 	 *
-	 * @param record         the in-flight commit progress record waiting for pipeline completion
-	 * @param commitVersions the versions assigned to this record at conflict-resolution time
+	 * @param record            the in-flight commit progress record waiting for pipeline completion
+	 * @param commitVersions    the versions assigned to this record at conflict-resolution time
+	 * @param registeredAtNanos the [#nanoClock] reading at the registration - the moment the pipeline took
+	 *                          the record over
 	 */
 	private record PendingEntry(
 		@Nonnull CommitProgressRecord record,
-		@Nonnull CommitVersions commitVersions
+		@Nonnull CommitVersions commitVersions,
+		long registeredAtNanos
 	) {
 	}
 }
