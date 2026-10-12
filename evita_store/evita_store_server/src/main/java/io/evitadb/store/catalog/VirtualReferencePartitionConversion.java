@@ -72,8 +72,9 @@ import java.util.TreeMap;
  * where every partition is an index object of its own, into rows of the registry of single-owner partitions - the
  * representation this version keeps them in. It is one step of the storage protocol migration
  * {@link Migration_2026_3#upgradeFromStorageProtocolVersion_6_to_8}, which runs it for each collection after it
- * re-keyed the collection's other indexes and rewrote its sort indexes storing temporal values raw or localized texts
- * in the order of the bare collator, and publishes the result of all of them.
+ * re-keyed the collection's other indexes and rewrote its sort indexes storing temporal values raw, localized texts
+ * in the order of the bare collator or locales in the order of their language tag, and publishes the result of all of
+ * them.
  *
  * # What it converts
  *

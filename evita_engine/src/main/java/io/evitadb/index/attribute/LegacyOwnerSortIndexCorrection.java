@@ -29,6 +29,7 @@ import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.comparator.NullsFirstComparatorWrapper;
 import io.evitadb.comparator.NullsLastComparatorWrapper;
 import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
@@ -54,7 +55,7 @@ import java.util.function.Function;
  * partitions, so the load path never meets an owner sort index of such a catalog in its old form or order.
  *
  * An owner sort index - a sort-only attribute, every sortable attribute compound - of those releases differs from the
- * one the current engine writes in two ways. (A sortable attribute that is filterable too loads as a view over its
+ * one the current engine writes in three ways. (A sortable attribute that is filterable too loads as a view over its
  * filter index, which ignores the values its part carries - there is nothing to rewrite.)
  *
  * - **Raw temporal values.** It stored `OffsetDateTime`, `LocalDateTime` and `LocalTime` values verbatim, while the
@@ -67,6 +68,10 @@ import java.util.function.Function;
  *   as they are stored, so it refuses such a pair as damage - by the bulk load of a page, or by the check of the
  *   boundary between two pages - and an inline index loads with its positional record order disagreeing with its
  *   values.
+ * - **The order of a `Locale` element.** It compared a `Locale` element - localized index or not - by its language tag
+ *   alone, which drops an ill-formed variant and so equates `en-US` with and without one; the current index breaks
+ *   that tie ({@link ComparableLocale}). A compound holding such a pair fails to load, or loads misordered, the same
+ *   way.
  *
  * The rewrite brings such an index to the form and the order the current engine writes:
  *
@@ -74,8 +79,8 @@ import java.util.function.Function;
  * - values that now coincide - one moment written at two offsets, or two values differing only below the
  *   millisecond - are merged into one, and their records are ordered by record id within it as in any other block;
  * - the values are re-sorted by the current comparator - two compound values tying on a temporal element only after
- *   it was normalized, or on a localized `String` element only under the bare collator, are decided by the next
- *   element, which may order them the other way;
+ *   it was normalized, on a localized `String` element only under the bare collator, or on a `Locale` element only by
+ *   its language tag, are decided by the next element, which may order them the other way;
  * - the index is rebuilt afresh and written whole: an inline index as a new inline part, a paged one as new leaf pages
  *   whose page sequences lie above the persisted high-water, a new root, and the removal of every persisted leaf page
  *   - so no legacy page survives, and no new page reuses the identity of an old one.
@@ -85,11 +90,11 @@ import java.util.function.Function;
  *
  * # Buckets the release merged
  *
- * The release kept two values its comparator found equal in one bucket - `ab` and `ab` with a zero-width space, held
- * by two records, in a plain localized sort index or in a compound whose other elements tie too. Such a bucket stays
- * exactly as the release wrote it, under the spelling it stored and with every record it holds, whether the index is
- * left as it is or rewritten: the bucket does not say which of its records holds which spelling, and this rewrite
- * reads no entity body to find out.
+ * The release kept two values its comparator found equal in one bucket - `ab` and `ab` with a zero-width space, or
+ * `en-US` with and without an ill-formed variant, held by two records, in a plain sort index or in a compound whose
+ * other elements tie too. Such a bucket stays exactly as the release wrote it, under the value it stored and with every
+ * record it holds, whether the index is left as it is or rewritten: the bucket does not say which of its records holds
+ * which value, and this rewrite reads no entity body to find out.
  *
  * # The rewrite emits its parts itself
  *
@@ -107,9 +112,10 @@ import java.util.function.Function;
  * corruption: merging it would resurrect records that were deliberately removed.
  *
  * The test must use the released comparator, not the current one, because the two differ: a localized `String`
- * element was ordered by the bare collator, so a released compound holding two spellings it equates, ordered by its
- * next element, is in a legitimate order the current comparator may reverse - the very order this rewrite exists to
- * correct. The rebuilt index is ordered by the current comparator, as every index is.
+ * element was ordered by the bare collator and a `Locale` element by its language tag, so a released compound holding
+ * two values either of them equates, ordered by its next element, is in a legitimate order the current comparator may
+ * reverse - the very order this rewrite exists to correct. The rebuilt index is ordered by the current comparator, as
+ * every index is.
  *
  * # What it does not cover
  *
@@ -134,9 +140,10 @@ public final class LegacyOwnerSortIndexCorrection {
 	/**
 	 * Returns `true` when an owner sort index of the passed elements may differ from the one the current engine
 	 * writes - when any element is an `OffsetDateTime`, `LocalDateTime` or `LocalTime`, which the release stored raw,
-	 * or a `String` of a localized index, which the release ordered by the bare collator. A `String` element is
-	 * localized exactly when {@link SortIndex#createComparatorFor} compares it by a collator: when the attribute index
-	 * key of the index carries a locale.
+	 * a `String` of a localized index, which the release ordered by the bare collator, or a `Locale`, which it ordered
+	 * by its language tag alone. A `String` element is localized exactly when {@link SortIndex#createComparatorFor}
+	 * compares it by a collator: when the attribute index key of the index carries a locale. A `Locale` element
+	 * qualifies whether the index is localized or not.
 	 *
 	 * @param comparatorBase one descriptor per element (a single entry for plain attributes)
 	 * @param locale         the locale of the attribute index key of the index, `null` when it is not localized
@@ -144,7 +151,10 @@ public final class LegacyOwnerSortIndexCorrection {
 	 */
 	public static boolean isApplicable(@Nonnull ComparatorSource[] comparatorBase, @Nullable Locale locale) {
 		for (final ComparatorSource comparatorSource : comparatorBase) {
-			if (SortIndex.isTemporal(comparatorSource.type()) || isCollated(comparatorSource, locale)) {
+			if (
+				SortIndex.isTemporal(comparatorSource.type()) || isCollated(comparatorSource, locale) ||
+					isLocale(comparatorSource)
+			) {
 				return true;
 			}
 		}
@@ -152,10 +162,10 @@ public final class LegacyOwnerSortIndexCorrection {
 	}
 
 	/**
-	 * Rewrites one persisted owner sort index whose values may still be raw, or ordered by the bare collator - see the
-	 * class documentation - and emits its parts into `sink`: the root, every leaf page of a paged result, and a removal
-	 * of every leaf page the persisted root lists. When every persisted value is normalized already and the values
-	 * ascend strictly under the current comparator, nothing is emitted.
+	 * Rewrites one persisted owner sort index whose values may still be raw, or ordered by the comparator of the
+	 * release - see the class documentation - and emits its parts into `sink`: the root, every leaf page of a paged
+	 * result, and a removal of every leaf page the persisted root lists. When every persisted value is normalized
+	 * already and the values ascend strictly under the current comparator, nothing is emitted.
 	 *
 	 * @param root           the persisted root part of an owner sort index - inline, or paged - never the slim part of
 	 *                       a sort index viewing a filter index, which carries no values of its own
@@ -163,7 +173,7 @@ public final class LegacyOwnerSortIndexCorrection {
 	 *                       for an inline root
 	 * @param sink           receives the parts of the rewritten index and the removals of the persisted leaf pages
 	 * @return `true` when the index was rewritten and its parts were emitted, `false` when it was left as it is
-	 * @throws GenericEvitaInternalError when the index has neither a temporal nor a localized `String` element, the
+	 * @throws GenericEvitaInternalError when the index has no temporal, localized `String` or `Locale` element, the
 	 *                                   leaf pages do not match the root, or the persisted values of a paged index
 	 *                                   to rewrite are not strictly ascending under the released comparator
 	 */
@@ -176,8 +186,8 @@ public final class LegacyOwnerSortIndexCorrection {
 		final Locale locale = root.getAttributeIndexKey().locale();
 		Assert.isPremiseValid(
 			isApplicable(comparatorBase, locale),
-			() -> "The sort index of `" + root.getAttributeIndexKey() + "` holds neither a temporal nor a localized " +
-				"text element to rewrite!"
+			() -> "The sort index of `" + root.getAttributeIndexKey() + "` holds no temporal, localized text or " +
+				"locale element to rewrite!"
 		);
 		final Function<Object, Serializable> normalizer = createNormalizer(comparatorBase);
 		final Comparator<?> comparator = createComparator(comparatorBase, locale);
@@ -250,6 +260,17 @@ public final class LegacyOwnerSortIndexCorrection {
 	 */
 	private static boolean isCollated(@Nonnull ComparatorSource comparatorSource, @Nullable Locale locale) {
 		return locale != null && String.class.isAssignableFrom(comparatorSource.type());
+	}
+
+	/**
+	 * Returns `true` when the element is a `Locale`, which the index stores as a {@link ComparableLocale} - decided by
+	 * the declared type, as {@link SortIndex} decides it, whether the index is localized or not.
+	 *
+	 * @param comparatorSource the descriptor of the element
+	 * @return `true` for a `Locale` element
+	 */
+	private static boolean isLocale(@Nonnull ComparatorSource comparatorSource) {
+		return Locale.class.isAssignableFrom(comparatorSource.type());
 	}
 
 	/**
@@ -378,10 +399,11 @@ public final class LegacyOwnerSortIndexCorrection {
 	 * ordered such an index by, which is the order its persisted pages are in. It is `SortIndex#createComparatorFor`
 	 * and `SortIndex#createCombinedComparatorFor` of the release tag `v2026.2.20`: a `String` element of a localized
 	 * index compared by the bare collator ({@link LocalizedStringComparator}) - with no tie-break between two spellings
-	 * the collator equates, which the current index adds ({@link EqualsConsistentLocalizedStringComparator}) - every
-	 * other element in its natural order, each in its own direction and with its own NULL handling, a compound element
-	 * by element. The values are the raw ones the release stored, so the natural order of a raw temporal value is the
-	 * order of its declared type.
+	 * the collator equates, which the current index adds ({@link EqualsConsistentLocalizedStringComparator}) - a
+	 * `Locale` element by `ComparableLocale#compareTo` of that tag, the language tag alone, with no tie-break either,
+	 * every other element in its natural order, each in its own direction and with its own NULL handling, a compound
+	 * element by element. The values are the raw ones the release stored, so the natural order of a raw temporal value
+	 * is the order of its declared type.
 	 *
 	 * @param comparatorBase one descriptor per element (a single entry for plain attributes)
 	 * @param locale         the locale of the attribute index key of the index, `null` when it is not localized
@@ -396,8 +418,16 @@ public final class LegacyOwnerSortIndexCorrection {
 		final Comparator[] elementComparators = new Comparator[comparatorBase.length];
 		for (int i = 0; i < comparatorBase.length; i++) {
 			final ComparatorSource source = comparatorBase[i];
-			final Comparator natural = isCollated(source, locale) ?
-				new LocalizedStringComparator(locale) : Comparator.naturalOrder();
+			final Comparator natural;
+			if (isCollated(source, locale)) {
+				natural = new LocalizedStringComparator(locale);
+			} else if (isLocale(source)) {
+				// `ComparableLocale#compareTo` of the release: the language tag alone, which drops an ill-formed
+				// variant
+				natural = Comparator.comparing((ComparableLocale it) -> it.getLocale().toLanguageTag());
+			} else {
+				natural = Comparator.naturalOrder();
+			}
 			final Comparator directed = source.orderDirection() == OrderDirection.ASC ? natural : natural.reversed();
 			elementComparators[i] = source.orderBehaviour() == OrderBehaviour.NULLS_LAST ?
 				new NullsLastComparatorWrapper(directed) : new NullsFirstComparatorWrapper(directed);

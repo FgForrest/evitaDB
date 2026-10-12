@@ -29,6 +29,7 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.executor.Scheduler;
+import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
@@ -110,12 +111,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Verifies the rewrite the storage migration to protocol 8 performs on an owner sort index release 2026.2 or an older
  * one persisted - its parts written as the owner used to write them: with the raw `OffsetDateTime`, `LocalDateTime` and
- * `LocalTime` values, and with a localized `String` element ordered by the bare collator. The rewrite emits parts
- * holding only normalized values in the order of the current comparator, and those parts, stored and loaded again by
- * the load path - which corrects nothing - hold the records exactly as an index the current engine wrote from the same
- * values. A paged index is rewritten whole: every legacy leaf page is removed, and no rewritten page takes the identity
- * of a legacy one. An index already in the current form and order is left as it is - a bucket in which the release
- * merged two spellings the collator equates included.
+ * `LocalTime` values, with a localized `String` element ordered by the bare collator, and with a `Locale` element
+ * ordered by its language tag alone. The rewrite emits parts holding only normalized values in the order of the
+ * current comparator, and those parts, stored and loaded again by the load path - which corrects nothing - hold the
+ * records exactly as an index the current engine wrote from the same values. A paged index is rewritten whole: every
+ * legacy leaf page is removed, and no rewritten page takes the identity of a legacy one. An index already in the
+ * current form and order is left as it is - a bucket in which the release merged two values its comparator equated
+ * included.
  *
  * The legacy parts are produced by {@link LegacyOwnerSortIndexWriter}, a test-only replica of the old writer, and pass
  * through the real Kryo serializers and the real offset index; the rewrite is
@@ -136,6 +138,15 @@ class LegacyOwnerSortIndexCorrectionTest {
 	private static final AttributeIndexKey LOCALIZED_KEY = new AttributeIndexKey(null, "label", Locale.ENGLISH);
 	/** The same attribute, not localized - a `String` element of its sort index is compared by `String#compareTo`. */
 	private static final AttributeIndexKey NON_LOCALIZED_KEY = new AttributeIndexKey(null, "label", null);
+	/** An attribute holding a `Locale` - not localized, as a `Locale` value needs no locale of its own. */
+	private static final AttributeIndexKey LANGUAGE_KEY = new AttributeIndexKey(null, "language", null);
+	/** A variant the language tag drops, as it does every ill-formed one. */
+	private static final String ILL_FORMED_VARIANT = "ill!formed";
+	/**
+	 * `en-US` with an ill-formed variant: its language tag is `en-US`, as that of {@link Locale#US}, by which release
+	 * 2026.2 equated the two; the current index orders {@link Locale#US} first.
+	 */
+	private static final Locale ILL_FORMED_US = Locale.of("en", "US", ILL_FORMED_VARIANT);
 	/** A plain two-letter text. */
 	private static final String PLAIN = "ab";
 	/**
@@ -713,9 +724,184 @@ class LegacyOwnerSortIndexCorrectionTest {
 		}
 	}
 
+	@Nested
+	@DisplayName("Locale ordered by its language tag alone")
+	class LocaleElement {
+
+		@Test
+		@DisplayName("applies to a Locale element, whether the index is localized or not")
+		void shouldApplyToALocaleElement() {
+			assertTrue(LegacyOwnerSortIndexCorrection.isApplicable(single(Locale.class), null));
+			assertTrue(LegacyOwnerSortIndexCorrection.isApplicable(localeAndInteger(), null));
+			assertTrue(LegacyOwnerSortIndexCorrection.isApplicable(localeAndInteger(), Locale.ENGLISH));
+		}
+
+		@Test
+		@DisplayName("re-sorts an inline compound whose locales share a tag and the next element orders")
+		void shouldResortInlineLocaleCompoundOutOfTheCurrentOrder() {
+			final ComparatorSource[] base = localeAndInteger();
+			// the release ordered (en-US with an ill-formed variant, 1) before (en-US, 2), the tag dropping the
+			// variant; the current index orders the locale without the variant first
+			final LegacyOwnerSortIndexWriter legacy = legacy(LANGUAGE_KEY, base)
+				.add(new ComparableArray(new Serializable[]{new ComparableLocale(ILL_FORMED_US), 1}), 1)
+				.add(new ComparableArray(new Serializable[]{new ComparableLocale(Locale.US), 2}), 2)
+				.add(new ComparableArray(new Serializable[]{new ComparableLocale(Locale.GERMANY), 0}), 3);
+			assertArrayEquals(new int[]{3, 1, 2}, legacy.toInlinePart().getSortedRecords(), "the released order");
+			final OwnerSortIndex expected = legacy.toCurrentOwner();
+			assertArrayEquals(new int[]{3, 2, 1}, expected.getSortedRecords(), "the current order");
+
+			final OwnerSortIndex rewritten = roundTripInline(
+				legacy, expected, index -> index.addRecord(new Serializable[]{Locale.US, 1}, 4)
+			);
+			assertArrayEquals(new int[]{3, 4, 2, 1}, rewritten.getSortedRecords());
+		}
+
+		@Test
+		@DisplayName("re-sorts a paged compound whose locales share a language tag, rewriting every page")
+		void shouldResortPagedLocaleCompound() {
+			final ComparatorSource[] base = localeAndInteger();
+			// pairs of one language tag, with and without an ill-formed variant: the release ordered each pair by its
+			// integer, the variant first; the current index orders the locale without the variant first
+			final LegacyOwnerSortIndexWriter legacy = legacy(LANGUAGE_KEY, base);
+			for (int i = 0; i < PAGED_VALUE_COUNT; i++) {
+				legacy.add(
+					new ComparableArray(new Serializable[]{new ComparableLocale(languageOf(i / 2, i % 2 == 0)), i}),
+					i + 1
+				);
+			}
+
+			roundTripPaged(
+				legacy, legacy.toCurrentOwner(),
+				index -> index.addRecord(new Serializable[]{Locale.GERMANY, 0}, 100_000)
+			);
+		}
+
+		@Test
+		@DisplayName("leaves a compound already in the current order as it is, inline and paged")
+		void shouldLeaveLocaleCompoundInTheCurrentOrderAsItIs() {
+			final ComparatorSource[] base = localeAndInteger();
+			// pairs of one language tag the release ordered by the integer the same way the current index orders them:
+			// the locale without the variant first
+			final LegacyOwnerSortIndexWriter paged = legacy(LANGUAGE_KEY, base);
+			for (int i = 0; i < PAGED_VALUE_COUNT; i++) {
+				paged.add(
+					new ComparableArray(new Serializable[]{new ComparableLocale(languageOf(i / 2, i % 2 == 1)), i}),
+					i + 1
+				);
+			}
+			final OwnerSortIndex pagedAsItIs = assertLeftAsItIs(paged.toPagedParts(0));
+			assertSameSortIndex(paged.toCurrentOwner(), pagedAsItIs, "the paged index left as it is");
+
+			final LegacyOwnerSortIndexWriter inline = legacy(LANGUAGE_KEY, base)
+				.add(new ComparableArray(new Serializable[]{new ComparableLocale(Locale.US), 1}), 1)
+				.add(new ComparableArray(new Serializable[]{new ComparableLocale(ILL_FORMED_US), 2}), 2);
+			final OwnerSortIndex inlineAsItIs = assertLeftAsItIs(List.of(inline.toInlinePart()));
+			assertSameSortIndex(inline.toCurrentOwner(), inlineAsItIs, "the inline index left as it is");
+		}
+
+		@Test
+		@DisplayName("leaves a plain index holding a bucket the release merged as it is, inline and paged")
+		void shouldLeavePlainLocaleIndexWithAMergedBucketAsItIs() {
+			final ComparatorSource[] base = single(Locale.class);
+			// records 1 and 2 held en-US with and without an ill-formed variant: the release kept them in one bucket
+			// under the locale it met first, which does not say which record holds which - it must stay as stored
+			final ComparableLocale illFormedUs = new ComparableLocale(ILL_FORMED_US);
+			final ComparableLocale germany = new ComparableLocale(Locale.GERMANY);
+			final LegacyOwnerSortIndexWriter inline = legacy(LANGUAGE_KEY, base)
+				.add(illFormedUs, 1)
+				.add(new ComparableLocale(Locale.US), 2)
+				.add(germany, 3);
+			assertEquals(List.of(germany, illFormedUs), inline.getPersistedValues(), "the release merged the pair");
+			final OwnerSortIndex inlineAsItIs = assertLeftAsItIs(List.of(inline.toInlinePart()));
+			assertArrayEquals(new int[]{3, 1, 2}, inlineAsItIs.getSortedRecords());
+			assertArrayEquals(new Serializable[]{germany, illFormedUs}, inlineAsItIs.getSortedRecordValues());
+
+			final ComparableLocale illFormedFirst = new ComparableLocale(languageOf(0, true));
+			final LegacyOwnerSortIndexWriter paged = legacy(LANGUAGE_KEY, base)
+				.add(illFormedFirst, 1)
+				.add(new ComparableLocale(languageOf(0, false)), 2);
+			for (int i = 1; i < PAGED_VALUE_COUNT; i++) {
+				paged.add(new ComparableLocale(languageOf(i, false)), i + 2);
+			}
+			assertEquals(illFormedFirst, paged.getPersistedValues().getFirst(), "the release merged the pair");
+			final OwnerSortIndex pagedAsItIs = assertLeftAsItIs(paged.toPagedParts(0));
+			assertArrayEquals(
+				paged.getPersistedValues().toArray(Serializable[]::new), pagedAsItIs.getSortedRecordValues(),
+				"every bucket must be stored as the release wrote it"
+			);
+			assertArrayEquals(new int[]{1, 2, 3}, Arrays.copyOf(pagedAsItIs.getSortedRecords(), 3));
+		}
+
+		@Test
+		@DisplayName("refuses a stale leaf page twin of a Locale compound instead of merging it")
+		void shouldRefuseStaleLeafPageTwinOfALocaleCompound() {
+			final ComparatorSource[] base = localeAndInteger();
+			final LegacyOwnerSortIndexWriter legacy = legacy(LANGUAGE_KEY, base);
+			for (int i = 0; i < PAGED_VALUE_COUNT; i++) {
+				legacy.add(
+					new ComparableArray(new Serializable[]{new ComparableLocale(languageOf(i, false)), i}), i + 1
+				);
+			}
+			final List<StoragePart> parts = legacy.toPagedParts(0);
+			final SortIndexStoragePart persistedRoot = root(parts);
+			final int[] pages = persistedRoot.getLeafPageSequences();
+			// an older copy of the first page under a sequence of its own, listed last by the root
+			SortIndexLeafPagePart firstPage = null;
+			for (StoragePart part : parts) {
+				if (part instanceof SortIndexLeafPagePart page && page.getPageSequence() == pages[0]) {
+					firstPage = page;
+				}
+			}
+			assertNotNull(firstPage);
+			final int twinSequence = persistedRoot.getHighWaterPageSequence() + 1;
+			final int[] pagesWithTwin = Arrays.copyOf(pages, pages.length + 1);
+			pagesWithTwin[pages.length] = twinSequence;
+			final List<StoragePart> corruptedParts = new ArrayList<>(parts);
+			corruptedParts.remove(persistedRoot);
+			corruptedParts.add(
+				new SortIndexLeafPagePart(
+					ENTITY_INDEX_PK, new AttributeKeyWithIndexType(LANGUAGE_KEY, AttributeIndexType.SORT),
+					twinSequence, firstPage.getBuckets(), base.length
+				)
+			);
+			corruptedParts.add(
+				SortIndexStoragePart.paged(ENTITY_INDEX_PK, LANGUAGE_KEY, base, 0, twinSequence, pagesWithTwin)
+			);
+
+			assertRefusedAsCorruption(corruptedParts);
+		}
+	}
+
 	/*
 		PRIVATE HELPERS
 	 */
+
+	/**
+	 * Returns the comparator base of a compound of a locale and an integer, both ascending with nulls last.
+	 *
+	 * @return the comparator base
+	 */
+	@Nonnull
+	private static ComparatorSource[] localeAndInteger() {
+		return new ComparatorSource[]{
+			new ComparatorSource(Locale.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+			new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+		};
+	}
+
+	/**
+	 * Returns an English locale of a region of its own for each number - `en-AA`, `en-AB` and so on, in the order of
+	 * their language tags - with or without an ill-formed variant, which the language tag drops.
+	 *
+	 * @param number    the number of the region, below 676
+	 * @param illFormed `true` for the locale with the ill-formed variant
+	 * @return the locale
+	 */
+	@Nonnull
+	private static Locale languageOf(int number, boolean illFormed) {
+		final String region = String.valueOf(new char[]{(char) ('A' + number / 26), (char) ('A' + number % 26)});
+		return Locale.of("en", region, illFormed ? ILL_FORMED_VARIANT : "");
+	}
 
 	/**
 	 * Returns the comparator base of a compound of a text and an integer, both ascending with nulls last.

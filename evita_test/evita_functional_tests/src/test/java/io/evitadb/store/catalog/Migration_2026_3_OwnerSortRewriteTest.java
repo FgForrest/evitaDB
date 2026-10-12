@@ -29,9 +29,12 @@ import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
+import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
 import io.evitadb.store.catalog.LegacyOwnerSortImages.LegacySortIndex;
@@ -88,6 +91,7 @@ import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.ORDER;
 import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -111,8 +115,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  * Localized compounds cover the order of the bare collator the release compared a localized text by: the order of the
  * legacy pages is checked by the comparator of the release that wrote them, while the index is rebuilt by the current
  * one, and a compound with no temporal element at all is re-sorted too - its pages would not load as they were
- * written. The class also characterizes the one input the migration does not reach: a catalog of protocol 8 holding
- * raw temporal sort values, which only a development build of 2026.3 can have written.
+ * written. Compounds with a `Locale` element cover the language tag the release compared a locale by alone, whether
+ * the compound is localized or not. The class also characterizes the one input the migration does not reach: a
+ * catalog of protocol 8 holding raw temporal sort values, which only a development build of 2026.3 can have written.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -156,9 +161,27 @@ class Migration_2026_3_OwnerSortRewriteTest implements EvitaTestSupport {
 	 */
 	private static final String COMPOUND_LABEL_RANK = "labelThenRank";
 	/**
+	 * The language of an entry - a `Locale` attribute, not localized - an element of
+	 * {@link #COMPOUND_LANGUAGE_RANK} and {@link #COMPOUND_LABEL_LANGUAGE_RANK}.
+	 */
+	private static final String ATTRIBUTE_LANGUAGE = "language";
+	/**
+	 * The compound of the language ascending and the rank ascending - an owner sort index that is not localized.
+	 */
+	private static final String COMPOUND_LANGUAGE_RANK = "languageThenRank";
+	/**
+	 * The compound of the label, the language and the rank, all ascending - a localized owner sort index with a
+	 * `Locale` element.
+	 */
+	private static final String COMPOUND_LABEL_LANGUAGE_RANK = "labelThenLanguageThenRank";
+	/**
 	 * How many entries the localized compound case writes - enough to page its sort index.
 	 */
 	private static final int ENTRY_COUNT = 600;
+	/**
+	 * How many entries a case of an inline sort index writes.
+	 */
+	private static final int INLINE_ENTRY_COUNT = 6;
 	/**
 	 * The entry whose label and that of the next entry are the only two spellings the collator equates in the case of
 	 * a pair straddling a page boundary - placed so that the legacy index ends its first leaf page with it.
@@ -351,7 +374,9 @@ class Migration_2026_3_OwnerSortRewriteTest implements EvitaTestSupport {
 			);
 
 			final Evita migrated = start(configuration);
-			assertEquals(currentOrder, orderedEntries(migrated, COMPOUND_LABEL_MOMENT), "the migrated sort index");
+			assertEquals(
+				currentOrder, orderedEntries(migrated, COMPOUND_LABEL_MOMENT, Locale.ENGLISH), "the migrated sort index"
+			);
 			migrated.close();
 			assertRewritten("after a reload", configuration, CATALOG, ENTITY_ENTRY, legacy);
 		}
@@ -382,7 +407,7 @@ class Migration_2026_3_OwnerSortRewriteTest implements EvitaTestSupport {
 				"the current comparator must reverse every pair the release ordered by its rank"
 			);
 
-			assertResortedByTheMigration(configuration, legacy, currentOrder);
+			assertResortedByTheMigration(configuration, legacy, COMPOUND_LABEL_RANK, Locale.ENGLISH, currentOrder);
 		}
 
 		/**
@@ -425,40 +450,135 @@ class Migration_2026_3_OwnerSortRewriteTest implements EvitaTestSupport {
 				"the current comparator must reverse the pair the release ordered by its rank"
 			);
 
-			assertResortedByTheMigration(configuration, legacy, currentOrder);
+			assertResortedByTheMigration(configuration, legacy, COMPOUND_LABEL_RANK, Locale.ENGLISH, currentOrder);
+		}
+	}
+
+	/**
+	 * Cases of a sort index with a `Locale` element, which release 2026.2 ordered by its language tag alone. The tag
+	 * drops an ill-formed variant, so `en-AA` with and without one tied, while the current index orders the one
+	 * without it first. Every pair of entries `2k + 1` and `2k + 2` carries such a pair of locales, the odd one with
+	 * the variant, and the release ordered the pair by its rank - `2k + 1` first; the current comparator orders it
+	 * `2k + 2` first.
+	 */
+	@Nested
+	@DisplayName("A compound with a Locale element ordered by the language tag of the release that wrote it")
+	class ReleasedLocaleOrder {
+
+		/**
+		 * A compound of the locale and the rank, not localized and paged: its pages fail to load as they were written,
+		 * the bulk load of a leaf page refusing keys that do not ascend. The migration must re-sort the index.
+		 */
+		@Test
+		@DisplayName("re-sorts a paged compound whose locales a release ordered by their language tag")
+		void shouldResortAPagedLocaleCompound() {
+			final EvitaConfiguration configuration = configurationOf(allocatePaths("pagedLocaleCompound"));
+			final List<LegacySortIndex> legacy = writeLanguageAndRankImage(configuration, ENTRY_COUNT, false);
+			assertTrue(legacy.getFirst().paged(), "the legacy sort index must span several leaf pages");
+
+			assertResortedByTheMigration(
+				configuration, legacy, COMPOUND_LANGUAGE_RANK, null, swappedPairs(legacy.getFirst(), ENTRY_COUNT)
+			);
 		}
 
 		/**
-		 * Migrates the catalog holding the legacy compound of the label and the rank through the load path and asserts
-		 * that it loads, serves the order of the current comparator, holds no legacy page, and that a reload neither
-		 * changes the order nor writes anything.
-		 *
-		 * @param configuration the configuration of the engine
-		 * @param legacy        the legacy sort indexes written
-		 * @param currentOrder  the order of the entries under the current comparator
+		 * The same compound inline: it loads as it was written, its positional record order disagreeing with its
+		 * values, so its sort index answers the order of the release. The migration must re-sort the index.
 		 */
-		private void assertResortedByTheMigration(
-			@Nonnull EvitaConfiguration configuration,
-			@Nonnull List<LegacySortIndex> legacy,
-			@Nonnull List<Integer> currentOrder
-		) {
-			stamp(configuration, CATALOG, RELEASED_PROTOCOL, RELEASED_PROTOCOL);
-			final Evita migrated = start(configuration);
-			assertEquals(currentOrder, orderedEntries(migrated, COMPOUND_LABEL_RANK), "the migrated sort index");
-			migrated.close();
-			final CatalogBootstrap published = lastBootstrap(configuration, CATALOG);
-			assertEquals(PersistenceService.STORAGE_PROTOCOL_VERSION, published.storageProtocolVersion());
-			assertEquals(
-				1, assertRewritten("after the migration", configuration, CATALOG, ENTITY_ENTRY, legacy),
-				"the sort index of the entries must have been rewritten"
-			);
+		@Test
+		@DisplayName("re-sorts an inline compound whose locales a release ordered by their language tag")
+		void shouldResortAnInlineLocaleCompound() {
+			final EvitaConfiguration configuration = configurationOf(allocatePaths("inlineLocaleCompound"));
+			final List<LegacySortIndex> legacy = writeLanguageAndRankImage(configuration, INLINE_ENTRY_COUNT, false);
+			assertFalse(legacy.getFirst().paged(), "the legacy sort index must be inline");
 
-			final Evita reloaded = start(configuration);
-			assertEquals(currentOrder, orderedEntries(reloaded, COMPOUND_LABEL_RANK), "the reloaded sort index");
-			reloaded.close();
-			assertEquals(published, lastBootstrap(configuration, CATALOG), "a reload must publish nothing");
-			assertRewritten("after a reload", configuration, CATALOG, ENTITY_ENTRY, legacy);
+			assertResortedByTheMigration(
+				configuration, legacy, COMPOUND_LANGUAGE_RANK, null, swappedPairs(legacy.getFirst(), INLINE_ENTRY_COUNT)
+			);
 		}
+
+		/**
+		 * A localized compound of a label, the locale and the rank, paged: the label makes the index one whose order
+		 * the migration checks, and its pages hold the pairs of locales in the order of the release. The pages must be
+		 * checked by the comparator of the release, which ties the locales, or the migration refuses these legitimate
+		 * pages as corruption.
+		 */
+		@Test
+		@DisplayName("rewrites a localized compound whose Locale element a release ordered by its language tag")
+		void shouldRewriteALocalizedCompoundWithALocaleElement() {
+			final EvitaConfiguration configuration = configurationOf(allocatePaths("localizedLocaleCompound"));
+			final List<LegacySortIndex> legacy = writeLanguageAndRankImage(configuration, ENTRY_COUNT, true);
+			assertTrue(legacy.getFirst().paged(), "the legacy sort index must span several leaf pages");
+
+			assertResortedByTheMigration(
+				configuration, legacy, COMPOUND_LABEL_LANGUAGE_RANK, Locale.ENGLISH,
+				swappedPairs(legacy.getFirst(), ENTRY_COUNT)
+			);
+		}
+
+		/**
+		 * Returns the order of the entries under the current comparator - every pair `2k + 1` and `2k + 2` the other
+		 * way than the release ordered it - and asserts that the current engine builds exactly this order from the
+		 * values of the legacy index.
+		 *
+		 * @param legacy     the legacy sort index
+		 * @param entryCount how many entries there are
+		 * @return the primary keys in the current order
+		 */
+		@Nonnull
+		private static List<Integer> swappedPairs(@Nonnull LegacySortIndex legacy, int entryCount) {
+			final List<Integer> currentOrder = new ArrayList<>(entryCount);
+			for (int entry = 1; entry <= entryCount; entry += 2) {
+				currentOrder.add(entry + 1);
+				currentOrder.add(entry);
+			}
+			assertEquals(
+				IntStream.rangeClosed(1, entryCount).boxed().toList(),
+				List.copyOf(legacy.writer().getValuesByRecord().keySet()),
+				"every entry must be in the legacy sort index"
+			);
+			assertEquals(
+				currentOrder, IntStream.of(legacy.writer().toCurrentOwner().getSortedRecords()).boxed().toList(),
+				"the current comparator must reverse every pair the release ordered by its rank"
+			);
+			return currentOrder;
+		}
+	}
+
+	/**
+	 * Migrates the catalog holding a legacy compound of the entries through the load path and asserts that it loads,
+	 * serves the order of the current comparator, holds no legacy page, and that a reload neither changes the order nor
+	 * writes anything.
+	 *
+	 * @param configuration the configuration of the engine
+	 * @param legacy        the legacy sort indexes written
+	 * @param compound      the compound the entries are ordered by
+	 * @param locale        the locale the entries are filtered and ordered in, `null` for a compound not localized
+	 * @param currentOrder  the order of the entries under the current comparator
+	 */
+	private void assertResortedByTheMigration(
+		@Nonnull EvitaConfiguration configuration,
+		@Nonnull List<LegacySortIndex> legacy,
+		@Nonnull String compound,
+		@Nullable Locale locale,
+		@Nonnull List<Integer> currentOrder
+	) {
+		stamp(configuration, CATALOG, RELEASED_PROTOCOL, RELEASED_PROTOCOL);
+		final Evita migrated = start(configuration);
+		assertEquals(currentOrder, orderedEntries(migrated, compound, locale), "the migrated sort index");
+		migrated.close();
+		final CatalogBootstrap published = lastBootstrap(configuration, CATALOG);
+		assertEquals(PersistenceService.STORAGE_PROTOCOL_VERSION, published.storageProtocolVersion());
+		assertEquals(
+			1, assertRewritten("after the migration", configuration, CATALOG, ENTITY_ENTRY, legacy),
+			"the sort index of the entries must have been rewritten"
+		);
+
+		final Evita reloaded = start(configuration);
+		assertEquals(currentOrder, orderedEntries(reloaded, compound, locale), "the reloaded sort index");
+		reloaded.close();
+		assertEquals(published, lastBootstrap(configuration, CATALOG), "a reload must publish nothing");
+		assertRewritten("after a reload", configuration, CATALOG, ENTITY_ENTRY, legacy);
 	}
 
 	/**
@@ -673,21 +793,114 @@ class Migration_2026_3_OwnerSortRewriteTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Lists the entries in the order of an English compound of theirs, served by the sort index.
+	 * Returns the language of an entry: entries `2k + 1` and `2k + 2` carry `en` of a region of their own, the odd one
+	 * with an ill-formed variant - which the language tag drops, so the two share the tag `en-AA`, `en-AB` and so on.
+	 *
+	 * @param entry the primary key of the entry
+	 * @return the language
+	 */
+	@Nonnull
+	private static Locale languageOf(int entry) {
+		final int pair = (entry - 1) / 2;
+		final String region = String.valueOf(new char[]{(char) ('A' + pair / 26), (char) ('A' + pair % 26)});
+		return Locale.of("en", region, entry % 2 == 1 ? "ill!formed" : "");
+	}
+
+	/**
+	 * Writes a catalog of entries sorted by the compound of their language and their rank - the primary key - or, with
+	 * `withLabel`, by the localized compound of their label, their language and their rank, with the engine, takes it
+	 * live, closes the engine, and replaces the sort index of the compound with the parts release 2026.2 wrote, ordered
+	 * by the language tag alone - published under the current storage protocol. The label of entries `2k + 1` and
+	 * `2k + 2` is `x` followed by `k`, so it ties within a pair and leaves the order of the pair to the language.
+	 *
+	 * @param configuration the configuration of the engine
+	 * @param entryCount    how many entries to write
+	 * @param withLabel     `true` for the localized compound with the label
+	 * @return the identities of the legacy sort indexes written - one
+	 */
+	@Nonnull
+	private List<LegacySortIndex> writeLanguageAndRankImage(
+		@Nonnull EvitaConfiguration configuration,
+		int entryCount,
+		boolean withLabel
+	) {
+		final IntFunction<String> labelOfEntry = entry -> "x" + String.format("%04d", (entry - 1) / 2);
+		final String compound = withLabel ? COMPOUND_LABEL_LANGUAGE_RANK : COMPOUND_LANGUAGE_RANK;
+		final Evita engine = start(configuration);
+		engine.defineCatalog(CATALOG).updateViaNewSession(engine);
+		engine.updateCatalog(
+			CATALOG,
+			session -> {
+				final EntitySchemaBuilder schema = session.defineEntitySchema(ENTITY_ENTRY)
+					.withoutGeneratedPrimaryKey()
+					.withAttribute(ATTRIBUTE_LANGUAGE, Locale.class, thatIs -> thatIs.nullable())
+					.withAttribute(ATTRIBUTE_RANK, Integer.class, thatIs -> thatIs.nullable());
+				if (withLabel) {
+					schema
+						.withLocale(Locale.ENGLISH)
+						.withAttribute(ATTRIBUTE_LABEL, String.class, thatIs -> thatIs.localized().nullable())
+						.withSortableAttributeCompound(
+							compound,
+							AttributeElement.attributeElement(ATTRIBUTE_LABEL, OrderDirection.ASC),
+							AttributeElement.attributeElement(ATTRIBUTE_LANGUAGE, OrderDirection.ASC),
+							AttributeElement.attributeElement(ATTRIBUTE_RANK, OrderDirection.ASC)
+						);
+				} else {
+					schema.withSortableAttributeCompound(
+						compound,
+						AttributeElement.attributeElement(ATTRIBUTE_LANGUAGE, OrderDirection.ASC),
+						AttributeElement.attributeElement(ATTRIBUTE_RANK, OrderDirection.ASC)
+					);
+				}
+				schema.updateVia(session);
+				for (int entry = 1; entry <= entryCount; entry++) {
+					final EntityBuilder builder = session.createNewEntity(ENTITY_ENTRY, entry)
+						.setAttribute(ATTRIBUTE_LANGUAGE, languageOf(entry))
+						.setAttribute(ATTRIBUTE_RANK, entry);
+					if (withLabel) {
+						builder.setAttribute(ATTRIBUTE_LABEL, Locale.ENGLISH, labelOfEntry.apply(entry));
+					}
+					builder.upsertVia(session);
+				}
+			}
+		);
+		engine.updateCatalog(CATALOG, EvitaSessionContract::goLiveAndClose);
+		engine.close();
+		// the release stored a `Locale` element as the `ComparableLocale` it wrapped it in
+		final List<LegacySortIndex> legacy = writeLegacySortIndexes(
+			configuration, CATALOG, ENTITY_ENTRY, Set.of(compound),
+			entry -> new ComparableArray(
+				withLabel ?
+					new Serializable[]{labelOfEntry.apply(entry), new ComparableLocale(languageOf(entry)), entry} :
+					new Serializable[]{new ComparableLocale(languageOf(entry)), entry}
+			)
+		);
+		assertEquals(1, legacy.size(), "the entries hold one sort index: " + legacy);
+		assertStillAsWritten("as written", configuration, CATALOG, ENTITY_ENTRY, legacy);
+		return legacy;
+	}
+
+	/**
+	 * Lists the entries in the order of a compound of theirs, served by the sort index.
 	 *
 	 * @param engine   the engine
 	 * @param compound the compound to order by
+	 * @param locale   the locale of a localized compound, `null` for one not localized - its entries have no locale
 	 * @return the primary keys in order
 	 */
 	@Nonnull
-	private static List<Integer> orderedEntries(@Nonnull Evita engine, @Nonnull String compound) {
+	private static List<Integer> orderedEntries(
+		@Nonnull Evita engine,
+		@Nonnull String compound,
+		@Nullable Locale locale
+	) {
 		return engine.queryCatalog(
 			CATALOG,
 			(Function<EvitaSessionContract, List<Integer>>) session -> session
 				.queryListOfEntityReferences(
 					query(
 						collection(ENTITY_ENTRY),
-						filterBy(entityLocaleEquals(Locale.ENGLISH)),
+						locale == null ? null : filterBy(entityLocaleEquals(locale)),
 						orderBy(attributeNatural(compound)),
 						require(page(1, 10_000), debug(DebugMode.PREFER_INDEX_SCAN))
 					)

@@ -28,6 +28,7 @@ import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.comparator.NullsFirstComparatorWrapper;
 import io.evitadb.comparator.NullsLastComparatorWrapper;
+import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.index.invertedIndex.InvertedIndex;
@@ -62,8 +63,10 @@ import java.util.TreeMap;
  *
  * The comparator is the one of the release tag `v2026.2.20` (`SortIndex#createComparatorFor` and
  * `SortIndex#createCombinedComparatorFor`), not the current one: a `String` element of a localized index is compared by
- * the bare collator, which equates two spellings the current index tells apart, so a released compound may hold two
- * such values ordered by its next element, which the current comparator would order the other way.
+ * the bare collator, and a `Locale` element - stored as a {@link ComparableLocale} - by its language tag alone. Each
+ * equates two values the current index tells apart (`ab` with and without a zero-width space; `en-US` with and
+ * without an ill-formed variant, which the tag drops), so a released compound may hold two such values ordered by its
+ * next element, which the current comparator would order the other way.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -115,7 +118,8 @@ public final class LegacyOwnerSortIndexWriter {
 	/**
 	 * Builds the comparator release 2026.2 ordered an owner sort index by - `SortIndex#createComparatorFor` and
 	 * `SortIndex#createCombinedComparatorFor` of the tag `v2026.2.20`: a `String` element of a localized index by the
-	 * bare collator, every other element naturally, each in its own direction and with its own NULL handling.
+	 * bare collator, a `Locale` element by `ComparableLocale#compareTo` of that tag - the language tag alone - every
+	 * other element naturally, each in its own direction and with its own NULL handling.
 	 *
 	 * @param locale         the locale of the index, or `null`
 	 * @param comparatorBase the comparator base
@@ -130,8 +134,14 @@ public final class LegacyOwnerSortIndexWriter {
 		final Comparator[] elementComparators = new Comparator[comparatorBase.length];
 		for (int i = 0; i < comparatorBase.length; i++) {
 			final ComparatorSource source = comparatorBase[i];
-			final Comparator natural = String.class.isAssignableFrom(source.type()) && locale != null ?
-				new LocalizedStringComparator(locale) : Comparator.naturalOrder();
+			final Comparator natural;
+			if (String.class.isAssignableFrom(source.type()) && locale != null) {
+				natural = new LocalizedStringComparator(locale);
+			} else if (Locale.class.isAssignableFrom(source.type())) {
+				natural = Comparator.comparing((ComparableLocale it) -> it.getLocale().toLanguageTag());
+			} else {
+				natural = Comparator.naturalOrder();
+			}
 			final Comparator directed = source.orderDirection() == OrderDirection.ASC ? natural : natural.reversed();
 			elementComparators[i] = source.orderBehaviour() == OrderBehaviour.NULLS_LAST ?
 				new NullsLastComparatorWrapper(directed) : new NullsFirstComparatorWrapper(directed);
@@ -155,7 +165,8 @@ public final class LegacyOwnerSortIndexWriter {
 	/**
 	 * Stores the raw value for the passed records.
 	 *
-	 * @param value   the raw value, a {@link ComparableArray} for a compound
+	 * @param value   the raw value, a {@link ComparableArray} for a compound; a `Locale` as the
+	 *                {@link ComparableLocale} the release wrapped it in
 	 * @param records the records holding it
 	 * @return this writer
 	 */
@@ -195,7 +206,8 @@ public final class LegacyOwnerSortIndexWriter {
 
 	/**
 	 * Builds the owner sort index the current engine builds from the same raw values, written one by one and normalized
-	 * on the way - the index a rewrite of the parts this writer produces must equal.
+	 * on the way - the index a rewrite of the parts this writer produces must equal. A {@link ComparableLocale} is
+	 * handed over as the `Locale` it wraps, which is what the engine receives and wraps itself.
 	 *
 	 * @return the owner sort index of the current engine
 	 */
@@ -206,12 +218,27 @@ public final class LegacyOwnerSortIndexWriter {
 			new OwnerSortIndex(this.comparatorBase, this.attributeIndexKey);
 		for (Map.Entry<Integer, Serializable> entry : this.valuesByRecord.entrySet()) {
 			if (entry.getValue() instanceof ComparableArray compound) {
-				owner.addRecord(compound.array().clone(), entry.getKey());
+				final Serializable[] elements = compound.array().clone();
+				for (int i = 0; i < elements.length; i++) {
+					elements[i] = unwrap(elements[i]);
+				}
+				owner.addRecord(elements, entry.getKey());
 			} else {
-				owner.addRecord(entry.getValue(), entry.getKey());
+				owner.addRecord(unwrap(entry.getValue()), entry.getKey());
 			}
 		}
 		return owner;
+	}
+
+	/**
+	 * Returns the `Locale` a {@link ComparableLocale} wraps, and any other value as it is.
+	 *
+	 * @param value the stored value or compound element
+	 * @return the value the engine receives
+	 */
+	@Nullable
+	private static Serializable unwrap(@Nullable Serializable value) {
+		return value instanceof ComparableLocale comparableLocale ? comparableLocale.getLocale() : value;
 	}
 
 	/**
