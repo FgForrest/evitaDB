@@ -93,6 +93,10 @@ class TaskHangDiagnosticsTest implements EvitaTestSupport {
 	 * Extracts the CPU time a thread consumed between the samples from its line of the summary.
 	 */
 	private static final Pattern CPU_TIME = Pattern.compile(" cpu=(\\d+) ms ");
+	/**
+	 * Matches the number of cores the whole process kept busy between the samples, as the summary reports it.
+	 */
+	private static final Pattern PROCESS_CPU = Pattern.compile(", process CPU (\\d+\\.\\d) of \\d+ cores");
 	private TestPaths paths;
 	private Evita evita;
 
@@ -245,13 +249,16 @@ class TaskHangDiagnosticsTest implements EvitaTestSupport {
 			assertTrue(message.contains(TaskHangDiagnosticsTest.class.getName()), message);
 			assertInstanceOf(TimeoutException.class, failure.getCause());
 
-			// the window between the two samples: progress, GC effort and the export directory
+			// the window between the two samples: progress, GC effort, process CPU and the export directory
 			assertTrue(message.contains("progress 0% -> 0%"), message);
 			assertTrue(message.contains(" GC "), message);
+			assertTrue(PROCESS_CPU.matcher(message).find(), message);
 			assertTrue(message.contains("usable space "), message);
 
 			// the JDK frames above the first evitaDB frame are quoted, from the very top of the stack down
 			final String occupant = occupantLine(message);
+			// this engine keeps the production default service priority, which a starved worker on Windows betrays
+			assertTrue(occupant.contains(" prio=" + Thread.MIN_PRIORITY + " WAITING on "), occupant);
 			assertTrue(occupant.contains("inNative=false"), occupant);
 			assertTrue(occupant.contains("java.util.concurrent.CountDownLatch.await("), occupant);
 			assertTrue(
@@ -265,7 +272,7 @@ class TaskHangDiagnosticsTest implements EvitaTestSupport {
 			// the full stack travels in the failure itself, as a suppressed throwable
 			final ServiceThreadStack stack = occupantStack(failure);
 			assertTrue(stack.getMessage().contains("Evita-service-"), stack.getMessage());
-			assertTrue(stack.getMessage().contains("WAITING"), stack.getMessage());
+			assertTrue(stack.getMessage().contains(" prio=" + Thread.MIN_PRIORITY + " WAITING"), stack.getMessage());
 			assertTrue(stack.getMessage().contains("inNative=false"), stack.getMessage());
 			assertTrue(
 				hasFrame(stack.getStackTrace(), CountDownLatch.class.getName(), "await"),
@@ -359,6 +366,10 @@ class TaskHangDiagnosticsTest implements EvitaTestSupport {
 			final Matcher cpuTime = CPU_TIME.matcher(occupant);
 			assertTrue(cpuTime.find(), occupant);
 			assertTrue(Long.parseLong(cpuTime.group(1)) > 0, occupant);
+			// the spinning thread alone keeps a core busy, so the process figure is measured rather than a placeholder
+			final Matcher processCpu = PROCESS_CPU.matcher(failure.getMessage());
+			assertTrue(processCpu.find(), failure.getMessage());
+			assertTrue(Double.parseDouble(processCpu.group(1)) > 0.0, failure.getMessage());
 		} finally {
 			serviceThreadReleased.set(true);
 		}
