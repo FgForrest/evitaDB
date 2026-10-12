@@ -1,7 +1,7 @@
 ---
 title: A single-owner partition of a filtering-only reference is a row of a per-reference registry, and an index object exists only while a partition has two or more owners
 date: 2026-10-12
-updated: 2026-10-12 06:53
+updated: 2026-10-12 08:15
 status: accepted
 kind: optimization
 issues: [1615]
@@ -701,6 +701,16 @@ the Registry of Single-Owner Partitions") and `data-structures.md` ("Registry of
 - The by-key owner-read resolver has no runtime check that it does not outlive a row write in the counterpart
   collection. Its one caller, pinned by an allow-list rule of `ReferencePartitionAccessGuardTest`, keeps that lifetime,
   and the resolver's javadoc states the obligation (loss L8).
+- No test fails when the scope fallback of `FilterByVisitor#getSuperSetFormula(Scope)` yields nothing instead of the
+  global index set. The fallback runs when the index set the query is evaluated on has no index in the scope, and its
+  superset cannot change an answer: a reduced plan is evaluated only when its constraint applies to every queried
+  scope, so the answer is drawn from the plan's indexes, which hold no entity of that scope. Measured on 2026-10-12:
+  the fallback returned a non-empty superset 233 times in `EntityByFacetFilteringFunctionalTest`,
+  `EntityByFacetFilteringAndPartitioningFunctionalTest`, `FacetSummaryBackwardCompatibilityTest` and
+  `InScopeReducedIndexPlanFunctionalTest`, and `FilterByVisitor#holdsIndexObjectsOnly` rejecting every set left all
+  2,302 tests of those classes and of `InScopeOverAnEmptyScopeWithRegistryRowsFunctionalTest` green. The filter
+  matters in the other direction only: a set holding registry rows must be skipped, or resolving its indexes throws,
+  which `InScopeOverAnEmptyScopeWithRegistryRowsFunctionalTest` pins.
 
 **Hazards for the next reader**
 
@@ -1008,15 +1018,16 @@ Accepted by the maintainer on 2026-10-11:
 - **L11:** a `uniqueGloballyWithinLocale` lookup walking into ARCHIVED; dev's fixture declares the localized attributes
   unique in LIVE only.
 
-Found later in the cleanup and recorded on the same terms:
+Found later in the cleanup and accepted by the maintainer on 2026-10-12:
 
 - The refusal premises of `IndexMaintainer#installIndex` and the creation refusal of partition objects
-  (`EntityCollection#assertPartitionObjectMayBeCreated`) have no public path and no test.
+  (`EntityCollection#assertPartitionObjectMayBeCreated`) have no public path and no test. No cheaper assertion would
+  cover them: the guards already are constant-time checks, and what is missing is an input that makes them fire, which
+  nothing public produces. Their consequence - a partition both a row and an object - is what the lifecycle suites
+  check.
 - A reload does not reject a representative-tuple entry orphaned without its owner row, and the oracle looks for such
-  entries only up to the highest primary key it knows.
-- The empty-scope superset fallback of `inScope` (`FilterByVisitor#holdsIndexObjectsOnly`): a counterfactual skipping
-  every candidate index set left 1,928 tests of 22 scope test classes green, so nothing pins that the global index set
-  stays a candidate.
+  entries only up to the highest primary key it knows. Every reader reaches a tuple through its owner row, so an orphan
+  costs bytes, not answers.
 
 ### Open follow-ups, not filed
 
