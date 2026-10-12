@@ -124,8 +124,9 @@ class TrunkIncorporationTransactionStageTest {
 	}
 
 	/**
-	 * A stage taking up a task is progress of the pipeline. The dangling-commit watchdog relies on it to tell a
-	 * pipeline that is merely slow from one that has stopped, so it must be reported before the task is handled.
+	 * Trunk incorporation taking up a task is progress towards every record waiting for it. The dangling-commit
+	 * watchdog relies on it to tell a pipeline that is merely slow from one that has stopped, so it must be reported
+	 * before the task is handled.
 	 */
 	@Test
 	@DisplayName("should report pipeline progress when it takes up a task")

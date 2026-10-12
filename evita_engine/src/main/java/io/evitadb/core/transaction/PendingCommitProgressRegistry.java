@@ -187,9 +187,14 @@ public final class PendingCommitProgressRegistry {
 	}
 
 	/**
-	 * Records that the transaction pipeline has just advanced - taken up a task or replayed a mutation.
-	 * [#sweepStalledRecords] spares every record the pipeline keeps advancing towards, however long it
-	 * takes, so a transaction that is merely slow to incorporate is never failed as a lost one.
+	 * Records that trunk incorporation has just advanced - taken up a task or replayed a mutation.
+	 * [#sweepStalledRecords] spares every record it keeps advancing towards, however long it takes, so a
+	 * transaction that is merely slow to incorporate is never failed as a lost one.
+	 *
+	 * Only work that moves registered records towards completion may report progress. Every record is
+	 * registered by conflict resolution, so that stage taking up a new commit merely queues another record
+	 * behind them - were it to report progress, steady traffic would hide a stalled trunk incorporation for
+	 * as long as commits keep arriving.
 	 *
 	 * Called once per replayed mutation, so it is a single clock read and a volatile write.
 	 */
@@ -217,6 +222,9 @@ public final class PendingCommitProgressRegistry {
 	 *
 	 * The progress mark is shared by the whole pipeline of the catalog, so a stalled pipeline fails
 	 * every waiting record together, while one making progress fails none it has not moved past yet.
+	 * Neither condition would do alone: a sweep by version could never fail a record lost while the
+	 * pipeline stands idle, and a sweep by progress would spare a skipped record for as long as the
+	 * pipeline keeps incorporating others.
 	 *
 	 * @param maxStall           how long a record may wait without the pipeline making progress before
 	 *                           it is considered lost - also the minimum time it is left alone after its
@@ -269,6 +277,8 @@ public final class PendingCommitProgressRegistry {
 				);
 				failed++;
 			}
+			// failing the record has already deregistered it through its completion callback - this removes a
+			// record that completed but whose callback has not run yet
 			iterator.remove();
 		}
 		return failed;

@@ -2092,8 +2092,8 @@ public class TransactionManager implements Closeable {
 	}
 
 	/**
-	 * Records that the transaction pipeline has just advanced, so that the dangling-commit watchdog spares the records
-	 * it is still working towards - see {@link PendingCommitProgressRegistry#recordPipelineProgress()}.
+	 * Records that trunk incorporation has just advanced, so that the dangling-commit watchdog spares the records it
+	 * is still working towards - see {@link PendingCommitProgressRegistry#recordPipelineProgress()}.
 	 */
 	public void recordPipelineProgress() {
 		this.pendingCommitProgressRegistry.recordPipelineProgress();

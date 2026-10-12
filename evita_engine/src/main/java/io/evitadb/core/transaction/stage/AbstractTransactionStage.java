@@ -99,8 +99,6 @@ public sealed abstract class AbstractTransactionStage<T extends TransactionTask>
 				Objects.equals(this.transactionManager.getCatalogName(), task.catalogName()),
 				"Catalog name mismatch!"
 			);
-			// taking up a task is progress - the dangling-commit watchdog spares what the pipeline still works on
-			this.transactionManager.recordPipelineProgress();
 			// delegate handling logic to the concrete implementation
 			handleNext(task);
 		} catch (Throwable ex) {
