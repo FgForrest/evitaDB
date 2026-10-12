@@ -304,10 +304,19 @@ public class EvitaParameterResolver
 		final ServerOptions.Builder serverOptionsBuilder = ServerOptions
 			.builder()
 			.closeSessionsAfterSecondsOfInactivity(-1)
+			// the production default service priority is `Thread.MIN_PRIORITY`, and only Windows honours Java thread
+			// priorities: there it becomes `THREAD_PRIORITY_LOWEST`, which the OS scheduler runs only when no
+			// higher-priority thread is ready, apart from a rare anti-starvation boost. Test classes run concurrently,
+			// one per core, so on the Windows runner the other classes kept every core busy and a backup on a real
+			// service pool sat at 27 % for ten minutes while its worker burned no CPU
+			// (`LongRunningGrpcRestoreCatalogUploadTest`). A test engine competes with other tests rather than with its
+			// own requests, so its service thread gets the normal share - Linux and macOS ignore the priority either
+			// way
 			.serviceThreadPool(
 				ThreadPoolOptions.serviceThreadPoolBuilder()
 				                 .minThreadCount(1)
 				                 .maxThreadCount(1)
+				                 .threadPriority(Thread.NORM_PRIORITY)
 				                 .queueSize(10_000)
 				                 .build()
 			)
