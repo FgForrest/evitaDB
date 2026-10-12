@@ -1,7 +1,7 @@
 ---
 title: A single-owner partition of a filtering-only reference is a row of a per-reference registry, and an index object exists only while a partition has two or more owners
 date: 2026-10-12
-updated: 2026-10-12 04:46
+updated: 2026-10-12 06:53
 status: accepted
 kind: optimization
 issues: [1615]
@@ -1036,28 +1036,35 @@ Found later in the cleanup and recorded on the same terms:
   alternative: `hierarchyWithin` + an entity-attribute filter answered `[7]` before the raise and `[]` after it. Dev
   behaves the same. Rows are not affected (see the indexing-level section).
 - **Catalogs created by 2025.6 or earlier answer `referenceHaving(ref, entityPrimaryKeyInSet(...))` with no owners -
-  to be filed.** Since #906 (`ee0def7167`, 2025.7) the type index keeps partition primary keys in its own primary-key
-  bitmap, but `Migration_2025_6` copies the old bitmap of target keys verbatim, and no later migration rewrites it. The
-  translator ANDs its result with that stale superset. `EvitaBackwardCompatibilityTest` pins the loss as a
-  characterization for 2025.1, 2025.3 and 2025.6 and goes red the day the bitmap is repaired. Folding the repair in was
-  declined as too large for a fold-in: catalogs written on by 2025.7 or later hold a mix of target and partition keys
-  that cannot be told apart, so the bitmap must be recomputed from the partitions themselves. The 6 → 8 migration is its
-  natural home.
-- **`DateTimeRange` values 2026.2 merged below the second - a decision for the maintainer, not filed.** `9a3e90c93d`
-  (dev, not in 2026.2) compares `DateTimeRange` at milliseconds rather than whole seconds, with one constant for an open
-  bound. Its *order* is now covered: a probe of 2026.2-shaped data through the 6 → 8 migration (at `cfe4e9c209`) found
-  that a filterable `DateTimeRange` attribute, paged or inline, and a plain paged sort-only one load and answer
-  correctly, thanks to dev's load-time re-sort, and the three shapes that broke - an inline sort-only index silently
-  misordered, a paged `[DateTimeRange, Integer]` compound failing to open, a paged `[DateTimeRange, OffsetDateTime]`
-  compound refused by the migration - are fixed by the owner sort rewrite (`7c0a1403c2`, above). What remains is
-  *precision*: 2026.2 merged values that differ only below the second into one filter-index bucket and one range
-  threshold, and the index data cannot tell them apart. The effects are wrong `attributeEquals` / `attributeInRange`
-  answers at sub-second level, "Sanity check - record not found!" when a value the release merged into another's bucket
-  is removed, and ghost points left in the range index; the same mechanism applies to price validity. Such values reach
-  a 2026.2 catalog only through the embedded API - 2026.2's gRPC dropped fractions of a second. The options are to
-  document it, or to rebuild those indexes from the entity parts during the migration, behind a gate. Related,
-  pre-existing and out of scope: two open ranges whose closed bound is one instant at two offsets collide on the
-  cardinality key of an inline index, and a delta-encoded part then fails to load with "Sort index damaged! The
+  not filed, because no catalog of that age is in use (maintainer, 2026-10-12).** Since #906 (`ee0def7167`, 2025.7)
+  the type index keeps partition primary keys in its own primary-key bitmap, but `Migration_2025_6` copies the old
+  bitmap of target keys verbatim, and no later migration rewrites it. The translator ANDs its result with that stale
+  superset. `EvitaBackwardCompatibilityTest` pins the loss as a characterization for 2025.1, 2025.3 and 2025.6 and goes
+  red the day the bitmap is repaired. Folding the repair in was declined as too large for a fold-in: catalogs written
+  on by 2025.7 or later hold a mix of target and partition keys that cannot be told apart, so the bitmap must be
+  recomputed from the partitions themselves. The 6 → 8 migration is its natural home, should such a catalog appear.
+- **`DateTimeRange` values 2026.2 merged below the second - documented, not repaired (maintainer, 2026-10-12).**
+  `9a3e90c93d` (dev, not in 2026.2) compares `DateTimeRange` at milliseconds rather than whole seconds, with one
+  constant for an open bound. Its *order* is now covered: a probe of 2026.2-shaped data through the 6 → 8 migration (at
+  `cfe4e9c209`) found that a filterable `DateTimeRange` attribute, paged or inline, and a plain paged sort-only one load
+  and answer correctly, thanks to dev's load-time re-sort, and the three shapes that broke - an inline sort-only index
+  silently misordered, a paged `[DateTimeRange, Integer]` compound failing to open, a paged
+  `[DateTimeRange, OffsetDateTime]` compound refused by the migration - are fixed by the owner sort rewrite
+  (`7c0a1403c2`, above). What remains is *precision*: 2026.2 merged values that differ only below the second into one
+  filter-index bucket and one range threshold, and the index data cannot tell them apart. The effects are wrong
+  `attributeEquals` / `attributeInRange` answers at sub-second level, "Sanity check - record not found!" when a value
+  the release merged into another's bucket is removed, and ghost points left in the range index; the same mechanism
+  applies to price validity. Values written through gRPC are not affected - 2026.2's gRPC dropped fractions of a
+  second - but the embedded API kept them, and so did GraphQL, which parsed bounds with `ISO_OFFSET_DATE_TIME`. The
+  upgrade note on #1615 describes the effects and the repair, a re-import into a fresh catalog.
+  - **Declined — rebuild the affected indexes from the entity parts in the migration**, behind a gate that scans the
+    attribute and price parts for a bound with a non-zero millisecond part.
+    - **Rejected because:** the probe estimated it at 200-400 production lines plus tests built from hand-made 2026.2
+      parts, for values that exist only where a range bound carries fractions of a second.
+    - **Revisit if** a stored catalog with such values is reported.
+
+  Related, pre-existing and out of scope: two open ranges whose closed bound is one instant at two offsets collide on
+  the cardinality key of an inline index, and a delta-encoded part then fails to load with "Sort index damaged! The
   per-value block lengths sum to …".
 - **The writer's handling of object targets** (Q6): a write into an index object is handed to
   `VirtualReferencePartitionWriter` too, where it never finds a row. Remove it with its own proof - a premise that an
