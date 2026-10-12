@@ -23,6 +23,7 @@
 
 package io.evitadb.test.diagnostics;
 
+import com.sun.management.OperatingSystemMXBean;
 import io.evitadb.api.EvitaManagementContract;
 import io.evitadb.api.task.TaskStatus;
 import io.evitadb.api.task.TaskStatus.TaskSimplifiedState;
@@ -84,7 +85,9 @@ import java.util.stream.Stream;
  * and the size of the newest export archives with the free space of their file store shows whether bytes still reach
  * the disk. A thread in native code that burns no CPU while the archive does not grow is blocked in the operating
  * system; one that burns a full core in `Deflater` is compressing; one that burns nothing outside native code waits
- * for something in the JVM.
+ * for something in the JVM - or is not scheduled at all. That last case is why each thread's priority and the CPU the
+ * whole process used are reported too: Windows, unlike Linux and macOS, honours Java thread priorities, so a
+ * `Thread.MIN_PRIORITY` worker in a process that keeps every core busy is RUNNABLE, outside native code and starved.
  *
  * **Everything that decides the case travels in the failure itself.** The only output of a CI runner that reaches a
  * reader is the check-run annotation built from the JUnit report - the failure message and the printed stack trace,
@@ -413,6 +416,7 @@ public final class TaskHangDiagnostics {
 		}
 		summary.append(" GC ").append(second.gcMillis() - first.gcMillis()).append(" ms in ")
 			.append(second.gcCount() - first.gcCount()).append(" collection(s)");
+		summary.append(", process CPU ").append(describeProcessCpu(first, second));
 		if (exportDirectory != null) {
 			summary.append(", ").append(ExportArchives.describeChange(first.exports(), second.exports()));
 		}
@@ -573,6 +577,27 @@ public final class TaskHangDiagnostics {
 	@Nonnull
 	private static String formatSeconds(long nanos) {
 		return String.format(Locale.ROOT, "%.1f s", nanos / 1_000_000_000.0);
+	}
+
+	/**
+	 * Describes how many cores the whole process kept busy between the samples. Next to a worker that burned no CPU, a
+	 * process that used every core says the worker was starved rather than idle.
+	 *
+	 * @param first  the first sample
+	 * @param second the second sample
+	 * @return e.g. `3.9 of 4 cores`, or `n/a of 4 cores` when the JVM does not measure process CPU time
+	 */
+	@Nonnull
+	private static String describeProcessCpu(@Nonnull Sample first, @Nonnull Sample second) {
+		final int cores = Runtime.getRuntime().availableProcessors();
+		final long elapsedNanos = second.nanoTime() - first.nanoTime();
+		if (first.processCpuNanos() < 0 || second.processCpuNanos() < 0 || elapsedNanos <= 0) {
+			return "n/a of " + cores + " cores";
+		}
+		return String.format(
+			Locale.ROOT, "%.1f of %d cores",
+			(double) (second.processCpuNanos() - first.processCpuNanos()) / elapsedNanos, cores
+		);
 	}
 
 	/**
@@ -748,7 +773,7 @@ public final class TaskHangDiagnostics {
 	 */
 	private static void appendThread(@Nonnull StringBuilder target, @Nonnull ThreadInfo thread) {
 		target.append('"').append(thread.getThreadName()).append("\" id=").append(thread.getThreadId())
-			.append(' ').append(thread.getThreadState());
+			.append(" prio=").append(thread.getPriority()).append(' ').append(thread.getThreadState());
 		if (thread.getLockName() != null) {
 			target.append(" on ").append(thread.getLockName());
 		}
@@ -839,22 +864,24 @@ public final class TaskHangDiagnostics {
 	}
 
 	/**
-	 * One sample of the evidence that changes over time: the sampled threads with their consumed CPU time, the total
-	 * GC effort of the JVM and the export archives.
+	 * One sample of the evidence that changes over time: the sampled threads with their consumed CPU time, the CPU time
+	 * of the whole process, the total GC effort of the JVM and the export archives.
 	 *
-	 * @param nanoTime  the {@link System#nanoTime()} instant the threads were sampled at
-	 * @param threads   the sampled threads, an element is NULL when its thread no longer exists
-	 * @param threadIds the ids of the sampled threads, in the order of `threads`
-	 * @param cpuNanos  the CPU time consumed by each thread so far, -1 when it is not measured
-	 * @param gcMillis  the accumulated collection time of all garbage collectors
-	 * @param gcCount   the accumulated collection count of all garbage collectors
-	 * @param exports   the export archives at the moment of the sample
+	 * @param nanoTime        the {@link System#nanoTime()} instant the threads were sampled at
+	 * @param threads         the sampled threads, an element is NULL when its thread no longer exists
+	 * @param threadIds       the ids of the sampled threads, in the order of `threads`
+	 * @param cpuNanos        the CPU time consumed by each thread so far, -1 when it is not measured
+	 * @param processCpuNanos the CPU time consumed by the whole process so far, -1 when it is not measured
+	 * @param gcMillis        the accumulated collection time of all garbage collectors
+	 * @param gcCount         the accumulated collection count of all garbage collectors
+	 * @param exports         the export archives at the moment of the sample
 	 */
 	private record Sample(
 		long nanoTime,
 		@Nonnull ThreadInfo[] threads,
 		@Nonnull long[] threadIds,
 		@Nonnull long[] cpuNanos,
+		long processCpuNanos,
 		long gcMillis,
 		long gcCount,
 		@Nonnull ExportArchives exports
@@ -934,7 +961,11 @@ public final class TaskHangDiagnostics {
 				gcMillis += Math.max(0, collector.getCollectionTime());
 				gcCount += Math.max(0, collector.getCollectionCount());
 			}
-			return new Sample(nanoTime, threads, threadIds, cpuNanos, gcMillis, gcCount, exports);
+			// the platform bean of HotSpot implements the extended interface; -1 means the JVM does not measure it
+			final long processCpuNanos =
+				ManagementFactory.getOperatingSystemMXBean() instanceof OperatingSystemMXBean os ?
+					os.getProcessCpuTime() : -1;
+			return new Sample(nanoTime, threads, threadIds, cpuNanos, processCpuNanos, gcMillis, gcCount, exports);
 		}
 	}
 
@@ -965,8 +996,8 @@ public final class TaskHangDiagnostics {
 		}
 
 		/**
-		 * Describes the thread for the summary: name, state, locks, native flag, CPU burned between the samples,
-		 * whether the stack moved, and the top of the first sample's stack.
+		 * Describes the thread for the summary: name, state, priority, locks, native flag, CPU burned between the
+		 * samples, whether the stack moved, and the top of the first sample's stack.
 		 *
 		 * @param cpuTimeMeasured TRUE when the JVM measures per-thread CPU time
 		 * @param taskType        the type of the awaited task
@@ -979,6 +1010,8 @@ public final class TaskHangDiagnostics {
 			if (this.runsAwaitedTask) {
 				description.append(" [runs ").append(taskType).append(']');
 			}
+			// on Windows a low priority alone can starve a RUNNABLE thread - see the class documentation
+			description.append(" prio=").append(this.first.getPriority());
 			description.append(' ').append(this.first.getThreadState());
 			if (this.second != null && this.second.getThreadState() != this.first.getThreadState()) {
 				description.append("->").append(this.second.getThreadState());
@@ -1038,7 +1071,7 @@ public final class TaskHangDiagnostics {
 			return new ServiceThreadStack(
 				'"' + thread.getThreadName() + "\" id=" + thread.getThreadId() +
 					(this.runsAwaitedTask ? " [runs " + taskType + "]" : "") +
-					' ' + thread.getThreadState() + describeLocks(thread) +
+					" prio=" + thread.getPriority() + ' ' + thread.getThreadState() + describeLocks(thread) +
 					" inNative=" + thread.isInNative() + ", " + sample +
 					(attached.length < stack.length ?
 						" (top " + attached.length + " of " + stack.length + " frames)" : ""),
