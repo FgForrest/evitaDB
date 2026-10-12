@@ -198,9 +198,12 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 								() -> "Prefetch narrowed to reduced index `" + reducedIndex.getIndexKey() + "` of a " +
 									"reference that is not indexed for partitioning!"
 							);
-							// the registry of single-owner partitions keeps rows only for references indexed for
-							// filtering alone, so every partition of a narrowed set is read through its index object
-							// here
+							// every partition of a narrowed set is read through its index object here, which a registry
+							// row has none of - so the registry of the reference in the scope must hold no row. A
+							// reference indexed for partitioning creates none, but the rows of its former indexing for
+							// filtering only survive a raise of its indexing: the premise then fails loudly for every
+							// narrowed set of the reference in the scope, whether or not one of its own partitions is a
+							// row, instead of leaving a row's owner silently out of the prefetch
 							Assert.isPremiseValid(
 								hasNoVirtualPartition(referenceName, scope),
 								() -> "Prefetch narrowed to reduced index `" + reducedIndex.getIndexKey() + "` of a " +
@@ -326,8 +329,10 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 	}
 
 	/**
-	 * Returns TRUE when the registry of single-owner partitions of the reference in the scope holds nothing - which is
-	 * always the case for a reference indexed for partitioning, the only kind a narrowed index set is built for.
+	 * Returns TRUE when the registry of single-owner partitions of the reference in the scope holds nothing. A
+	 * reference indexed for partitioning, the only kind a narrowed index set is built for, registers no row, but the
+	 * rows it held while indexed for filtering only stay in the registry after its indexing is raised, and then this
+	 * is FALSE.
 	 *
 	 * @param referenceName the reference
 	 * @param scope         the scope

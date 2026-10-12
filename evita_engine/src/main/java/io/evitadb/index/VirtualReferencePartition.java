@@ -42,14 +42,21 @@ import javax.annotation.Nonnull;
  * the referenced-type entity index of that moment, so a query that resolved it keeps reading the snapshot it planned
  * against. It is created by the read resolvers (see {@link ReferencePartitions}) and by the write acquisition of a
  * mutation that writes the single-owner partitions of the reference virtually, for a partition that has its registry
- * row and no index object, or that an owner is about to enter while it has no row yet. A write path that takes a
- * virtual partition writes what the partition holds - its only owner, its sort values and chain predecessors - into the
- * registry row only, and leaves out what a partition of a reference indexed for filtering keeps nowhere (language
- * records, facets); every other exhaustive `switch` over {@link ReferencePartition} on a write path rejects it, and so
- * does every write path of a mutation that does not write the partition virtually.
+ * row and no index object, or that an owner is about to enter while it has no row yet. A mutation writes them
+ * virtually wherever the reference's partitions may be virtual - the reference is indexed `FOR_FILTERING` with the
+ * referenced entity component in the scope (see
+ * {@link io.evitadb.index.mutation.local.VirtualReferencePartitionWriter#isShadowed}) - and nowhere else: the schema
+ * decides it, not the mutation. A write path that takes a virtual partition writes what the partition holds - its only
+ * owner, its sort values and chain predecessors - into the registry row only, and leaves out what a partition of a
+ * reference indexed for filtering keeps nowhere (language records, facets); every other exhaustive `switch` over
+ * {@link ReferencePartition} on a write path rejects it, and so does every write path of a mutation that does not
+ * write the partition virtually. The one exception is a row the reference left while it was indexed for filtering
+ * only, which a write taking content out of it still reaches after the reference's indexing changed.
  *
- * While the reduced entity index of a registered partition still exists, the handle and the index describe the same
- * partition under the same primary key, and a query reads the handle.
+ * A registered partition has no reduced entity index: the two exist side by side only within the root mutation that
+ * moves the partition between them - while the index object of a partition gaining its second owner is populated,
+ * and while a partition left with one owner of two is demoted into its row. The read resolvers look the registry up
+ * first, so a registered partition always answers its handle.
  *
  * @param primaryKey                 the primary key of the partition, the one the reduced entity index of the
  *                                   partition has too

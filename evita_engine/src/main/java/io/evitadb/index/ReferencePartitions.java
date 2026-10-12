@@ -76,14 +76,18 @@ import java.util.function.IntFunction;
  * ## Object-only and read resolution
  *
  * Every resolver above reads the index objects and nothing else: it answers with a {@link ReducedEntityIndex} or with
- * nothing, so the write path - and every query route not yet able to read a virtual partition - can never meet a
- * {@link VirtualReferencePartition}. The **read resolvers** (`…ForRead…`, {@link #resolveVirtualIfExists},
- * {@link #split}, and {@link PartitionKeyMemo} by key) take the referenced-type entity index of the reference in the
- * scope, `null` when the collection holds none: given one, they answer a primary key its registry holds a row for with
- * a virtual handle read out of that row and never touch the index object, and fall back to the object for every other
- * key; given `null`, they answer exactly as the object-only resolvers do. A write
- * path must not call them - every place on it that holds a partition asserts it is not virtual (see
- * {@link #requireMaterialized}), and a guard test rejects a call of a read resolver from the write path's packages.
+ * nothing, so a caller of them - a place on the write path that writes index objects only, or a query route that
+ * reads index objects only - can never meet a {@link VirtualReferencePartition} through them. The **read resolvers**
+ * (`…ForRead…`, {@link #resolveVirtualIfExists}, {@link #split}, and {@link PartitionKeyMemo} by key) take the
+ * referenced-type entity index of the reference in the scope, `null` when the collection holds none: given one, they
+ * answer a primary key its registry holds a row for with a virtual handle read out of that row and never touch the
+ * index object, and fall back to the object for every other key; given `null`, they answer exactly as the
+ * object-only resolvers do. A write path must not call them: it reaches a registered partition through the **write
+ * resolvers** ({@link #findRegisteredForWrite}, {@link #resolveRegisteredForWrite}) and builds the handle of a
+ * partition an owner enters with {@link #toWriteHandle}, only for a reference whose single-owner partitions are
+ * virtual in the scope or whose registry still holds rows of its former indexing, and every place on it that needs
+ * the index object asserts it is not virtual (see {@link #requireMaterialized}). A guard test rejects a call of a
+ * read resolver from the write path's packages.
  *
  * ## Owner reads
  *

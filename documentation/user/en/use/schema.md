@@ -327,10 +327,17 @@ level is limited.
 
 Enabling hierarchy placement implies the creation of a new
 <SourceClass>evita_engine/src/main/java/io/evitadb/index/hierarchy/HierarchyIndex.java</SourceClass> for the involved
-entity type. When another entity references a hierarchy entity and the reference is marked as *indexed*, the special
-<SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass> is created for each hierarchical entity. This index will
-hold reduced attribute and price indices of the referencing entity, allowing quick evaluation of
-[`withinHierarchy`](../query/filtering/hierarchy.md) filter conditions.
+entity type. When another entity references a hierarchy entity and the reference is marked as *indexed*, the entities
+referencing each hierarchical entity are indexed separately, allowing quick evaluation of
+[`withinHierarchy`](../query/filtering/hierarchy.md) filter conditions. With the `FOR_FILTERING_AND_PARTITIONING`
+[indexing level](#reference-indexing), every referenced hierarchical entity gets its own
+<SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass>, which also holds
+reduced attribute and price indices of the referencing entities. With the `FOR_FILTERING` level, a hierarchical entity
+referenced by several entities gets its own
+<SourceClass>evita_engine/src/main/java/io/evitadb/index/ReducedEntityIndex.java</SourceClass> too, while one
+referenced by a single entity is kept as a row of the
+<SourceClass>evita_engine/src/main/java/io/evitadb/index/VirtualReferencePartitionIndex.java</SourceClass> of the
+reference.
 
 ##### Orphan hierarchy nodes
 

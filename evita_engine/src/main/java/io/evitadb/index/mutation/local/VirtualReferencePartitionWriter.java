@@ -106,47 +106,56 @@ import java.util.function.Function;
  * entering drops the row as for any partition becoming a shared one.
  *
  * Only references indexed `FOR_FILTERING` with the referenced entity component in the scope have virtual partitions
- * (see {@link #isShadowed(ReferenceSchemaContract, Scope)}); a reference indexed for partitioning keeps a reduced
- * entity index for every partition.
+ * (see {@link #isShadowed(ReferenceSchemaContract, Scope)}). A reference indexed for partitioning creates a reduced
+ * entity index for every partition; the rows it held while it was indexed for filtering only stay rows, and a write
+ * may only take content out of them (see {@link EntityIndexLocalMutationExecutor#isReleasedRowOfFormerIndexing}).
  *
  * # Sort values and chain predecessors
  *
  * Every sort value and chain predecessor of a reference attribute or a sortable attribute compound of the reference
- * written into a partition, or removed from it, is mirrored into the registry right after the partition itself was
- * written - the value the partition orders its owner by becomes the value the registry orders the partition by:
+ * written into a partition, or removed from it, is handed over here, and the registry records it in the partition's
+ * row - the value the owner is ordered by within the partition becomes the value the registry orders the partition by:
  *
- * - only an attribute sortable in the partition's scope is mirrored, exactly as only such an attribute reaches the
- *   partition's sort or chain index - a filterable or unique attribute next to it is not;
- * - only a partition whose row names the mutated entity as its owner is mirrored. A partition without a row - one with
+ * - only an attribute sortable in the partition's scope is recorded, exactly as only such an attribute reaches the
+ *   sort or chain index of a partition's index object - a filterable or unique attribute next to it is not;
+ * - only a partition whose row names the mutated entity as its owner is written. A partition without a row - one with
  *   several owners, or one left with a single owner of two whose row is not back yet - is not, and neither is the data
  *   of another owner written into a partition that has a row: the owner, not the partition's current owner count,
  *   decides, because the owner count already changed when a departing owner's data is removed;
- * - a sort value is mirrored strictly - a value is recorded only for a partition that holds none for the key, and
- *   removed only when it is exactly the value the partition held - so a mirror that disagrees with the partition
+ * - a sort value is recorded strictly - a value is recorded only for a partition whose row holds none for the key,
+ *   and removed only when it is exactly the value the row holds - so a registry that disagrees with the owner's data
  *   fails the mutation instead of drifting. A chain predecessor is upserted, as the chain index upserts it, and its
  *   removal requires one to already be recorded - an absent one fails the mutation instead of being silently
  *   skipped;
- * - a key is declared with its first value: a plain attribute with the comparator base and decimal places its sort
- *   index has, a compound with the comparator base its elements define. It stays declared while partitions have rows,
- *   even when no partition holds a value for it.
+ * - a key is declared with its first value: a plain attribute with the comparator base and decimal places a sort
+ *   index of the attribute has, a compound with the comparator base its elements define. It stays declared while
+ *   partitions have rows, even when no partition holds a value for it.
  *
  * The values are recorded as the attribute values the partition receives - the elements of a compound as they were
- * before the partition's sort index normalized its copy of them - and normalized by the registry as a sort index
- * normalizes them.
+ * before a sort index normalized its copy of them - and normalized by the registry as a sort index normalizes them.
  *
- * # Virtual partitions
+ * # Virtual partitions and index objects
  *
- * A write may be directed at a {@link VirtualReferencePartition} - a partition represented by its row only, with no
- * index object to receive the write. The attribute index mutator then skips the object write and the mirror is the
- * only writer of the value, so nothing it would otherwise pass over may be passed over silently: the write fails
- * when the executor writes no registry, when the partition is not one of the written reference whose
- * partitions may be virtual, when the value belongs to the owner entity rather than to the reference, or when the
- * partition's row is missing or names another owner. An attribute of the reference that is not sortable in the
- * partition's scope is the only value a virtual partition takes nothing of: an index object puts it into its filter
- * or unique index only, and a virtual partition keeps sort values and chain predecessors only.
+ * A write directed at a {@link VirtualReferencePartition} - a partition represented by its row only, with no index
+ * object to receive the write - is written by this class alone: the attribute index mutator has no object to write
+ * into, so nothing this class would otherwise pass over may be passed over silently. The write fails when the
+ * executor writes no registry, when the partition is neither one of the written reference whose partitions may be
+ * virtual nor a row of its former indexing released to the write, when the value belongs to the owner entity rather
+ * than to the reference, or when the partition's row is missing or names another owner. An attribute of the reference
+ * that is not sortable in the partition's scope is the only value a virtual partition takes nothing of: an index
+ * object puts it into its filter or unique index only, and a virtual partition keeps sort values and chain
+ * predecessors only.
  *
- * The referenced-type entity index carrying the registry is acquired for writing only when something is mirrored, and
- * without joining the indexes the end of the mutation inspects for emptiness: writing a row or a value into the
+ * A write directed at a partition's index object reaches the object, and is handed over here as well: it is recorded
+ * only when the partition's row names the mutated entity as its owner, by the rules above. A write into an index
+ * object meets no such row: a partition with several owners has none; one left with a single owner of two gets its
+ * row only when the root mutation finishes, and loses its index object right after; the executor populating the
+ * index object of a partition gaining its second owner, while the first owner's row still exists, writes no registry
+ * (see {@link EntityIndexLocalMutationExecutor#isPartitionRegistryWritten()}); and an index object the reference kept
+ * from a former indexing for partitioning has no row.
+ *
+ * The referenced-type entity index carrying the registry is acquired for writing only when something is recorded,
+ * and without joining the indexes the end of the mutation inspects for emptiness: writing a row or a value into the
  * registry must not change which indexes the mutation is seen to have touched.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
@@ -251,7 +260,7 @@ public final class VirtualReferencePartitionWriter {
 		final OptionalLong row = referencedTypeIndex.getVirtualReferencePartitionIndex()
 			.getPartitionOwner(partitionPrimaryKey);
 		// a partition another executor of the root mutation demoted already, or one vacated and entered again since,
-		// has its row - filled by that demotion or by the mirror
+		// has its row - filled by that demotion or by its owner's writes
 		if (row.isEmpty()) {
 			final VirtualReferencePartitionIndex registry =
 				((ReferencedTypeEntityIndex) executor.getIndexForSideWrite(referencedTypeIndex.getIndexKey()))
@@ -430,12 +439,12 @@ public final class VirtualReferencePartitionWriter {
 	}
 
 	/**
-	 * Returns the partition an attribute index write concerns when the registry may mirror it - the write is directed
+	 * Returns the partition an attribute index write concerns when the registry may record it - the write is directed
 	 * at a partition of the given reference, whose partitions may be virtual in the partition's scope, or at a row the
 	 * reference left while it was indexed for filtering only, which the acquisition released to a write taking content
 	 * out of it (see {@link EntityIndexLocalMutationExecutor#isReleasedRowOfFormerIndexing}).
 	 *
-	 * An executor writing as another owner of a partition mirrors nothing (see
+	 * An executor writing as another owner of a partition records nothing (see
 	 * {@link EntityIndexLocalMutationExecutor#isPartitionRegistryWritten()}): it populates the index object of a
 	 * partition gaining its second owner with what the first owner's row holds already.
 	 *
@@ -443,8 +452,8 @@ public final class VirtualReferencePartitionWriter {
 	 * @param referenceSchema the reference the written attribute or compound belongs to, `null` for an entity one
 	 * @param partition       the partition written into, `null` when the write is directed at an index that is not a
 	 *                        partition
-	 * @return the partition, or `null` when the write is not mirrored
-	 * @throws GenericEvitaInternalError when a virtual partition's write would not be mirrored - see the class
+	 * @return the partition, or `null` when the write is not recorded
+	 * @throws GenericEvitaInternalError when a virtual partition's write would not be recorded - see the class
 	 *                                   documentation
 	 */
 	@Nullable
@@ -485,8 +494,8 @@ public final class VirtualReferencePartitionWriter {
 	}
 
 	/**
-	 * Mirrors an attribute value just written into a partition: a sort value is recorded, a chain predecessor upserted.
-	 * See the class documentation for which writes are mirrored.
+	 * Records an attribute value just written into a partition: a sort value is recorded, a chain predecessor upserted.
+	 * See the class documentation for which writes are recorded.
 	 *
 	 * @param executor        the mutation executor
 	 * @param referenceSchema the reference the attribute belongs to, `null` for an entity attribute
@@ -532,9 +541,9 @@ public final class VirtualReferencePartitionWriter {
 	}
 
 	/**
-	 * Mirrors an attribute value just removed from a partition: the sort value is removed, provided it is exactly the
+	 * Records the removal of an attribute value from a partition: the sort value is removed, provided it is exactly the
 	 * removed value, or the chain predecessor, provided one is recorded. See the class documentation for which writes
-	 * are mirrored.
+	 * are recorded.
 	 *
 	 * @param executor        the mutation executor
 	 * @param referenceSchema the reference the attribute belongs to, `null` for an entity attribute
@@ -568,7 +577,7 @@ public final class VirtualReferencePartitionWriter {
 			executor, partition, referenceName, scope
 		);
 		if (registry != null) {
-			// the partition picks its chain or sort index by the declared type, and so does the mirror
+			// an index object picks its chain or sort index by the declared type, and so does the registry
 			if (ChainableType.class.isAssignableFrom(attributeSchema.getPlainType())) {
 				if (!registry.removeChainPredecessor(key, partitionPrimaryKey)) {
 					throw new GenericEvitaInternalError(
@@ -585,7 +594,7 @@ public final class VirtualReferencePartitionWriter {
 
 	/**
 	 * Returns a copy of the values of a sortable attribute compound about to be written into, or removed from, an
-	 * index when the registry may mirror the write - the sort index of the compound normalizes the array it receives
+	 * index when the registry may record the write - the sort index of the compound normalizes the array it receives
 	 * in place, and the registry records the values as they were.
 	 *
 	 * @param executor        the mutation executor
@@ -593,7 +602,7 @@ public final class VirtualReferencePartitionWriter {
 	 * @param written         the partition about to be written, `null` when the index about to be written is not a
 	 *                        partition
 	 * @param values          the values of the compound elements, in element order
-	 * @return the copy, or `null` when the write is not mirrored
+	 * @return the copy, or `null` when the write is not recorded
 	 */
 	@Nullable
 	static Serializable[] copyIfMirrored(
@@ -607,8 +616,8 @@ public final class VirtualReferencePartitionWriter {
 	}
 
 	/**
-	 * Mirrors the value of a sortable attribute compound just written into a partition. See the class documentation
-	 * for which writes are mirrored.
+	 * Records the value of a sortable attribute compound just written into a partition. See the class documentation
+	 * for which writes are recorded.
 	 *
 	 * @param executor              the mutation executor
 	 * @param entitySchema          the entity schema
@@ -639,7 +648,7 @@ public final class VirtualReferencePartitionWriter {
 		final AttributeIndexKey key = AttributeIndex.createAttributeKey(
 			entitySchema, referenceSchema, compoundSchema, locale
 		);
-		// an entity compound has no reference name, and only the reference's own compounds are mirrored
+		// an entity compound has no reference name, and only the reference's own compounds are recorded
 		if (!isMirroredCompound(partition, referenceName, key)) {
 			return;
 		}
@@ -656,8 +665,8 @@ public final class VirtualReferencePartitionWriter {
 	}
 
 	/**
-	 * Mirrors the value of a sortable attribute compound just removed from a partition, provided it is exactly the
-	 * value the registry records. See the class documentation for which writes are mirrored.
+	 * Records the removal of a sortable attribute compound value from a partition, provided it is exactly the value
+	 * the registry records. See the class documentation for which writes are recorded.
 	 *
 	 * @param executor        the mutation executor
 	 * @param entitySchema    the entity schema
@@ -686,7 +695,7 @@ public final class VirtualReferencePartitionWriter {
 		final AttributeIndexKey key = AttributeIndex.createAttributeKey(
 			entitySchema, referenceSchema, compoundSchema, locale
 		);
-		// an entity compound has no reference name, and only the reference's own compounds are mirrored
+		// an entity compound has no reference name, and only the reference's own compounds are recorded
 		if (!isMirroredCompound(partition, referenceName, key)) {
 			return;
 		}
@@ -768,14 +777,14 @@ public final class VirtualReferencePartitionWriter {
 	 * Returns TRUE when the value of the attribute reaches the partition's sort or chain index - the attribute is one
 	 * of the partition's own reference and sortable in its scope. An attribute of the owner entity written into a
 	 * virtual partition fails: such a partition holds nothing of its owner's attributes. A non-sortable attribute of
-	 * the reference is not mirrored, whichever the partition.
+	 * the reference is not recorded, whichever the partition.
 	 *
 	 * @param partition       the partition written into
 	 * @param attributeSchema the attribute
 	 * @param scope           the scope of the partition
 	 * @param referenceName   the reference of the partition
 	 * @param key             the key of the attribute value
-	 * @return TRUE when the value is mirrored
+	 * @return TRUE when the value is recorded
 	 * @throws GenericEvitaInternalError when the attribute belongs to the owner entity and the partition is virtual
 	 */
 	private static boolean isMirroredAttribute(
@@ -802,7 +811,7 @@ public final class VirtualReferencePartitionWriter {
 	 * @param partition     the partition written into
 	 * @param referenceName the reference of the partition
 	 * @param key           the key of the compound value
-	 * @return TRUE when the value is mirrored
+	 * @return TRUE when the value is recorded
 	 * @throws GenericEvitaInternalError when the compound belongs to the owner entity and the partition is virtual
 	 */
 	private static boolean isMirroredCompound(

@@ -92,12 +92,13 @@ import java.util.function.Supplier;
  * ## Write targets
  *
  * Every operation writes into an {@link IndexWriteTarget}. An {@link EntityIndex} receives the values into the
- * structures above, and when it is a reference partition the registry of single-owner partitions mirrors the sort
- * values and chain predecessors it received (see {@link VirtualReferencePartitionWriter}). A
- * {@link VirtualReferencePartition} has no index object: the values are computed exactly as for an index object - the
- * normalization, the rescaling to the indexed decimal places, the compound assembly and the locale selection are the
- * same - and the mirror is their only writer. A virtual partition keeps sort values and chain predecessors only, so
- * the filter and unique entries an index object would receive are not written for it.
+ * structures above. A {@link VirtualReferencePartition} - a single-owner partition represented by its row in the
+ * registry of single-owner partitions - has no index object: the values are computed exactly as for an index object -
+ * the normalization, the rescaling to the indexed decimal places, the compound assembly and the locale selection are
+ * the same - and {@link VirtualReferencePartitionWriter} writes them into the row as its only writer. A virtual
+ * partition keeps sort values and chain predecessors only, so the filter and unique entries an index object would
+ * receive are not written for it. The writes into a partition's index object are handed to the writer as well, which
+ * records them only in a row naming the mutated entity as its owner - see its class documentation.
  *
  * ## Scope awareness
  *
@@ -356,7 +357,7 @@ public interface AttributeIndexMutator {
 				attributeSchemaProvider.getContainerName(), attributeDefinition, scope
 			);
 			final int existingPk = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_INDEX, Target.EXISTING);
-			// resolved once and handed to the mirror too, so the mirror costs no extra atomic read when it is off
+			// resolved once and handed to the registry writer too, which then resolves the value no second time
 			final T theValueToRemove = valueToRemoveSupplier.get();
 			if (targetForRemoval instanceof EntityIndex indexForRemoval) {
 				indexForRemoval.removeAttribute(
@@ -502,7 +503,7 @@ public interface AttributeIndexMutator {
 		executor.reportAttributeTouched(attributeSchemaProvider.getContainerName(), attributeDefinition, scope);
 
 		final int recordId = executor.getPrimaryKeyToIndex(IndexType.ATTRIBUTE_INDEX, Target.NEW);
-		// resolved once and handed to the mirror too, so the mirror costs no extra atomic read when it is off
+		// resolved once and handed to the registry writer too, which then resolves the value no second time
 		final T removedValue = valueToRemoveSupplier.get();
 		final T addedValue = valueToUpdateSupplier.get();
 		if (targetForUpsert instanceof EntityIndex indexForUpsert) {
@@ -724,10 +725,11 @@ public interface AttributeIndexMutator {
 	}
 
 	/**
-	 * Returns the target as a reference partition, the way the registry of single-owner partitions mirrors a write
-	 * into it - a {@link io.evitadb.index.ReducedEntityIndex} or a {@link VirtualReferencePartition} - or `null` when
-	 * the target is an index object of another kind, whose writes are never mirrored. A type test, so a write into an
-	 * index object costs nothing more than it did before the mirror existed.
+	 * Returns the target as a reference partition - a {@link io.evitadb.index.ReducedEntityIndex} or a
+	 * {@link VirtualReferencePartition} - the form in which {@link VirtualReferencePartitionWriter} takes a write into
+	 * it, or `null` when the target is an index object of another kind, whose writes never reach the registry of
+	 * single-owner partitions. A type test and nothing more, so it adds no measurable cost to a write into an index
+	 * object.
 	 *
 	 * @param target the target of the write
 	 * @return the target as a partition, or `null` when it is none
@@ -889,7 +891,7 @@ public interface AttributeIndexMutator {
 	 * If the resulting array is empty or all entries are `null`, the insertion is skipped — a compound index entry
 	 * is only meaningful when at least one component has a concrete value.
 	 *
-	 * @param executor                    the executor, whose write the registry of single-owner partitions mirrors
+	 * @param executor                    the executor, whose write the registry of single-owner partitions records
 	 * @param entityPrimaryKey            the entity primary key to associate with the compound sort entry
 	 * @param target                      the target into which the compound entry is inserted
 	 * @param compound                    the compound schema that defines the key structure
@@ -968,7 +970,7 @@ public interface AttributeIndexMutator {
 	 * `attributeElementValueProvider`. If all resolved values are `null` the removal is skipped, because a
 	 * compound entry with all-null values was never inserted in the first place.
 	 *
-	 * @param executor                     the executor, whose write the registry of single-owner partitions mirrors
+	 * @param executor                     the executor, whose write the registry of single-owner partitions records
 	 * @param entityPrimaryKey             the entity primary key whose compound sort entry should be removed
 	 * @param target                       the target from which the compound entry is removed
 	 * @param compound                     the compound schema that defines the key structure

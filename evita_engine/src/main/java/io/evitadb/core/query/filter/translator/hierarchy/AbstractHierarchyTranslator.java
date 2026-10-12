@@ -146,7 +146,7 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 	 *
 	 * Both branches read the partitions of the nodes split by representation (see {@link SplitTargetPartitions}): the
 	 * owners of the materialized partitions are OR'ed with one constant over the owners of all the registered
-	 * single-owner partitions of the nodes, which the query reads virtually when it reads the collection so.
+	 * single-owner partitions of the nodes, which the query reads out of the registry rather than resolving them.
 	 */
 	@Nonnull
 	protected static Formula createFormulaForReferencingEntities(

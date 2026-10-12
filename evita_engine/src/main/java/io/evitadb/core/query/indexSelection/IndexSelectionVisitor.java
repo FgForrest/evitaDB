@@ -245,8 +245,9 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					final boolean partitioned = partitions.virtualCount() == 0 &&
 						allIndexesArePartitioned(scopes, referenceSchema);
 					final boolean withinCardinalityLimit = partitions.getOwnerRowCount() <= cardinalityLimit;
-					// without a virtual partition the materialized ones are every partition of the nodes; otherwise the
-					// consumers needing the object of every partition resolve them on demand, as they always were
+					// without a virtual partition the materialized ones are every partition of the nodes; otherwise a
+					// registered partition has no object to resolve, so the supplier cannot answer every partition and
+					// the consumers needing the objects read the split instead (see `resolveAllPartitionsOfNodes`)
 					final Supplier<List<ReducedEntityIndex>> allIndexes = partitions.virtualCount() == 0 ?
 						() -> materializedIndexes :
 						() -> resolveAllPartitionsOfNodes(
@@ -279,9 +280,13 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 
 	/**
 	 * Resolves the index object of every partition of the hierarchy nodes in every scope, node by node and scope by
-	 * scope - the object-only list of a hierarchy option, which reads no partition virtually. Only the consumers that
-	 * need the object of every partition ask for it; the translation of the hierarchy constraint and the block-by-block
-	 * orderings narrowed by the option read the split.
+	 * scope - the object-only list of a hierarchy option, which reads no partition virtually. It is the list of an
+	 * option only when a partition of its nodes is a registry row, and such a partition has no index object: the lookup
+	 * through the type index of a reference allowing duplicates fails on it, the lookup by key of one that does not
+	 * yields nothing for it. So nothing reads the list: such an option carries
+	 * {@link EligibilityObstacle#NOT_PARTITIONED_INDEX} and never wins a separate plan, the consumers of the objects
+	 * of a set holding a row skip it (`FilterByVisitor#holdsIndexObjectsOnly`), and the translation of the hierarchy
+	 * constraint and the block-by-block orderings narrowed by the option read the split.
 	 *
 	 * @param entitySchema    the queried entity schema
 	 * @param referenceSchema the reference the hierarchy constraint names

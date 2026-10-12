@@ -262,12 +262,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	private final boolean usageStatisticsTracking;
 	/**
-	 * Whether this executor writes the registry of single-owner partitions - mirrors the sort values and chain
-	 * predecessors it writes into a partition into the partition's registry row (see
+	 * Whether this executor writes the registry of single-owner partitions - records the sort values and chain
+	 * predecessors it writes into a partition in the partition's registry row (see
 	 * {@link VirtualReferencePartitionWriter}). TRUE for every executor but one writing as another owner of a partition
 	 * (see {@link #createExecutorOfOtherOwner(int)}): that executor populates the index object of a partition gaining
 	 * its second owner with what the partition holds of its first owner, and the first owner's row holds those values
-	 * already - mirroring them again would write them into the row a second time. The row is dropped once the
+	 * already - recording them again would write them into the row a second time. The row is dropped once the
 	 * entering owner makes the partition a shared one.
 	 */
 	private final boolean partitionRegistryWritten;
@@ -1940,9 +1940,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 *
 	 * The resolution MUST go through the registering accessor, not the plain read: every caller of this method mutates
 	 * the index it gets back - it is the by-primary-key half of
-	 * {@link #forEachPartitionOfTargetForWrite(Scope, ReferenceSchemaContract, int, Consumer)} and of the group-index
-	 * walk in {@link #applyOnExistingReducedIndexes}, and both feed the reduced indexes an entity upsert then writes
-	 * into. An index that is mutated without being registered is invisible to the
+	 * {@link #forEachPartitionOfTargetForWrite(Scope, ReferenceSchemaContract, int, PartitionWriteKind, Consumer)} and
+	 * of the group-index walk in {@link #applyOnExistingReducedIndexes}, and both feed the reduced indexes an entity
+	 * upsert then writes into. An index that is mutated without being registered is invisible to the
 	 * flush, so its changed storage parts are never persisted — and it is invisible to the dirty-key snapshot the
 	 * commit-time merge prunes on, so the merge carries it across the catalog version by reference and orphans the
 	 * transactional layers its mutation created, which surfaces as a `StaleTransactionMemoryException` that suspends

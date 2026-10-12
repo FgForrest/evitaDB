@@ -38,33 +38,37 @@ import javax.annotation.Nonnull;
  * {@link io.evitadb.api.requestResponse.schema.ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} indexing level: a
  * reference indexed only `FOR_FILTERING` has partitions too, and they are the ones this handle exists for.
  *
- * **This type is the only way code outside the index layer is meant to reach a partition.** A partition has two
- * representations:
+ * **This type is the only way code outside the index layer is meant to reach a partition.** A partition takes one of
+ * two forms:
  *
  * - a materialized {@link ReducedEntityIndex}, which implements this interface directly, so a partition costs no
  *   wrapper object and keeps its identity;
  * - a {@link VirtualReferencePartition}, a value read out of the registry of single-owner partitions, which the read
- *   resolvers hand out for a registered partition, and the write acquisition
- *   of a mutation writing the single-owner partitions virtually hands out for a registered partition without an index
- *   object.
+ *   resolvers hand out for a registered partition, and the write acquisition hands out for a registered partition of
+ *   a reference whose single-owner partitions are virtual in the scope.
+ *
+ * A reference indexed `FOR_FILTERING` with the referenced entity component keeps a partition with a single owner as
+ * a registry row and nothing else, and gives it an index object only once a second owner joins it; a reference
+ * indexed for partitioning creates an index object for every partition (see
+ * {@link io.evitadb.index.mutation.local.VirtualReferencePartitionWriter}).
  *
  * The interface is sealed so that code which genuinely needs the object - a write that goes through the generic
  * {@link EntityIndex} write API, the query body channel that is bound to {@link Index} (see
  * {@link ReferencePartitions#toReducedEntityIndex}), a sort that reads the partition's sort or chain index - unwraps
  * it in an exhaustive `switch`, and the compiler lists every such place: the virtual arm of a write path writes the
  * partition's registry row, or throws where the write needs the index object, and the virtual arm of a query route
- * that does not read virtual partitions yet throws. Partitions are resolved through
- * {@link ReferencePartitions} and the resolver surfaces built on it; a guard test in the functional test suite rejects
- * new direct accesses to the reduced index family.
+ * that needs the index object throws, since the route must split the virtual partitions off before it gets there.
+ * Partitions are resolved through {@link ReferencePartitions} and the resolver surfaces built on it; a guard test in
+ * the functional test suite rejects new direct accesses to the reduced index family.
  *
  * The read surface is deliberately narrow: identity (primary key, key, representative key, target) and owners. The
  * sort and chain structures of a partition are not part of it - a virtual partition has none of its own, its values
  * live in the registry - so whoever reads them holds a {@link ReducedEntityIndex} and says so in its type. Nothing
  * returning the partition's filter or attribute indexes belongs here either.
  *
- * A partition is an {@link IndexWriteTarget}, so the attribute index mutator takes either representation as it is:
- * a write directed at the index object reaches the object and the registry mirrors it, a write directed at the virtual
- * handle reaches the registry only.
+ * A partition is an {@link IndexWriteTarget}, so the attribute index mutator takes either form as it is: a write
+ * directed at the index object reaches the object, a write directed at the virtual handle reaches the registry row
+ * only.
  *
  * The group family ({@link ReducedGroupEntityIndex}) is not a reference partition and never will be.
  *

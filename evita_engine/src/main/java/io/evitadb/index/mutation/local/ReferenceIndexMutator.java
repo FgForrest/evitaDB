@@ -1539,7 +1539,7 @@ public interface ReferenceIndexMutator {
 				"handle names entity " + partition.ownerPrimaryKey() + " rather than the entering entity " +
 				entityPrimaryKey + "!"
 		);
-		// the row first - the population below mirrors every value into it, and only into a row of the owner
+		// the row first - the population below writes every value into it, and only into a row of the owner
 		VirtualReferencePartitionWriter.partitionEntered(
 			registry, partitionPrimaryKey, entityPrimaryKey, partition.getRepresentativeReferenceKey()
 		);

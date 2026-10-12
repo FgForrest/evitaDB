@@ -37,7 +37,10 @@ non-null for reference attributes. Which types are present depends on the index:
   **</Term>
   -- reference attributes always; entity attributes only when
   `ReferenceIndexType` is `FOR_FILTERING_AND_PARTITIONING`
-  (see [schema-settings.md](schema-settings.md#reference-index-type))
+  (see [schema-settings.md](schema-settings.md#reference-index-type)). A partition with a single
+  owner of a reference indexed `FOR_FILTERING` has no `ReducedEntityIndex` and so no `AttributeIndex`
+  of its own: its sort values and chain predecessors live in the
+  [registry of single-owner partitions](#registry-of-single-owner-partitions)
 - <Term location="/documentation/developer/indexes/overview.md" name="Referenced Type Entity Index">*
   *ReferencedTypeEntityIndex**</Term>
   -- reference attributes only (filter indexes with cardinality
@@ -660,7 +663,9 @@ Tracks how many
 <Term location="/documentation/developer/indexes/overview.md" name="owning entity">owning entities</Term>
 reference each
 <Term location="/documentation/developer/indexes/overview.md" name="referenced entity">target entity</Term>
-primary key, and which reduced-index primary keys contributed.
+primary key, and which partition primary keys contributed -- storage PKs of `ReducedEntityIndex`
+instances and PKs of rows of the [registry of single-owner partitions](#registry-of-single-owner-partitions)
+alike.
 
 | Field                        | Type                                             | Purpose                                             |
 |------------------------------|--------------------------------------------------|-----------------------------------------------------|
@@ -869,11 +874,53 @@ changes) and cross-entity triggers (group/referenced entity attribute changes) a
 
 ---
 
+## Registry of Single-Owner Partitions
+
+```
+io.evitadb.index.VirtualReferencePartitionIndex
+  io.evitadb.index.VirtualReferencePartitionSlot
+```
+
+The registry is carried by the `ReferencedTypeEntityIndex` of a reference in a scope
+(`ReferencedTypeEntityIndex#getVirtualReferencePartitionIndex`). It holds one row for every partition
+with a single owner of a reference indexed `FOR_FILTERING` -- such a partition has no
+`ReducedEntityIndex`, so its row is all there is of it (see
+[index-hierarchy.md](index-hierarchy.md#reference-partitions-and-the-registry-of-single-owner-partitions)).
+
+| Structure                                        | Content                                                                                                                           |
+|--------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------|
+| `LongPayloadBucketTree` keyed by `(slot, partition PK)` | one `long` payload per entry; the slot is the high half of the key, so the entries of one slot form one partition-ordered range |
+| slot `PARTITION_OWNER`                           | `(owner PK, referenced entity PK)` packed into one `long` -- the single authority on a partition's owner                          |
+| slot `REPRESENTATIVE_TUPLE`                      | the id of the partition's representative attribute values in the tuple dictionary; no entry for the empty tuple                 |
+| one slot per declared sort key                   | the id of the partition's sort value in the value dictionary of the slot, normalized as `SortIndex` normalizes it               |
+| one slot per declared chain key                  | the primary key of the partition's predecessor                                                                                    |
+| tuple and value dictionaries                     | every distinct tuple or sort value once, with the count of its users                                                              |
+| one `OwnerSortIndex` per declared sort key       | the partitions ordered by their sort values; never persisted, rebuilt from the slot and its dictionary on load                  |
+
+A sort or chain key is declared with the first value written for it, and every key is retired once no
+partition has a row left. Only `VirtualReferencePartitionWriter` writes the registry.
+
+The registry is persisted as a `VirtualReferencePartitionIndexStoragePart` root with
+`VirtualReferencePartitionIndexLeafPagePart` leaf pages, rewriting only the leaves a flush changed, and
+is reloaded by `VirtualReferencePartitionLoader`. A registry with no entry and no declared key persists
+nothing and loads empty.
+
+### Test Blueprint Hints -- Registry of Single-Owner Partitions
+
+1. **Reload round-trip.** After a restart every row, tuple, sort value and chain predecessor is back,
+   and the rebuilt `OwnerSortIndex` of each sort key orders the partitions as before.
+2. **Dictionary reuse.** A tuple or sort value shared by two rows is stored once; dropping both rows
+   drops it.
+3. **Key retirement.** Dropping the last row retires every declared sort and chain key, so the
+   registry -- and the type index carrying it -- can become empty.
+
+---
+
 ## Summary: Sub-Indexes Per EntityIndex Type
 
 | Sub-index / Feature               | GlobalEntityIndex       | ReducedEntityIndex                             | ReducedGroupEntityIndex                                  | ReferencedTypeEntityIndex                         |
 |-----------------------------------|-------------------------|------------------------------------------------|----------------------------------------------------------|---------------------------------------------------|
-| `entityIds` bitmap                | yes (owning entity PKs) | yes (owning entity PKs)                        | yes (owning entity PKs, PK card.-guarded)                | yes (referenced entity PKs, card.-guarded)        |
+| `entityIds` bitmap                | yes (owning entity PKs) | yes (owning entity PKs)                        | yes (owning entity PKs, PK card.-guarded)                | yes (partition PKs, card.-guarded)                |
 | `entityIdsByLanguage`             | yes                     | yes                                            | yes                                                      | yes                                               |
 | **AttributeIndex**                | yes (entity attrs only) | yes (ref attrs always + entity attrs if PART.) | yes (ref attrs filter only + entity attrs if PART.)      | yes (ref attrs only, filter, no sort)             |
 | -- UniqueIndex                    | yes (entity attrs)      | yes (ref attrs; + entity attrs if PART.)       | no (no-op)                                               | no                                                |
@@ -887,6 +934,7 @@ changes) and cross-entity triggers (group/referenced entity attribute changes) a
 | **PK cardinality (inline map)**   | no                      | no                                             | yes (`Map<Integer, Integer>`)                            | no                                                |
 | **AttributeCardinalityIndex**     | no                      | no                                             | yes (per filter attribute)                               | yes (per attribute)                               |
 | **HistogramIndex**                | no                      | no                                             | yes (per histogram name, with cardinality)               | yes (per histogram name, with cardinality)        |
+| **VirtualReferencePartitionIndex** | no                     | no                                             | no                                                       | yes (registry of single-owner partitions)         |
 
 **Legend:** "entity attrs" = entity-level attributes; "ref attrs" = reference-level attributes;
 "PART." = `ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING`.

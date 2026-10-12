@@ -33,12 +33,12 @@ import javax.annotation.Nonnull;
  *
  * The attribute index mutator computes the values of a write the same way for both: it normalizes them, rescales
  * them to the indexed decimal places, assembles the compounds and selects their locales. An index object receives
- * them and the registry mirrors what a partition object received; a virtual partition has no object, so the mirror
- * is the only writer of its values. A partition that has an index object is that object - a
- * {@link ReducedEntityIndex} is both an {@link EntityIndex} and a {@link ReferencePartition} - so a caller holding a
- * partition handle passes it on as it is, and no write allocates a wrapper.
+ * them; a virtual partition has no object, so its registry row is the only place its values are written to (see
+ * {@link io.evitadb.index.mutation.local.VirtualReferencePartitionWriter}). A partition that has an index object is
+ * that object - a {@link ReducedEntityIndex} is both an {@link EntityIndex} and a {@link ReferencePartition} - so a
+ * caller holding a partition handle passes it on as it is, and no write allocates a wrapper.
  *
- * The type is sealed so that the two representations are told apart by a type test: everything that is not an
+ * The type is sealed so that the two kinds of target are told apart by a type test: everything that is not an
  * {@link EntityIndex} is a {@link VirtualReferencePartition}.
  *
  * Not to be confused with the `Target` of {@link io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor},
