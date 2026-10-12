@@ -24,6 +24,7 @@
 package io.evitadb.core.query.sort.reference.sorter;
 
 import com.carrotsearch.hppc.IntObjectHashMap;
+import com.carrotsearch.hppc.sorting.IndirectSort;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.order.PickFirstByEntityProperty;
 import io.evitadb.core.query.QueryExecutionContext;
@@ -365,16 +366,16 @@ public final class PickFirstReferenceSorter implements Sorter {
 						(groupCount - builder.size()) + " claimed value ids!"
 				);
 			} else {
-				// sort the claimed values only
+				// sort the claimed values only - their positions are sorted as primitives, so no position is boxed
 				final int[] valueIds = groups.keys().toArray();
 				final Serializable[] values = new Serializable[valueIds.length];
-				final Integer[] order = new Integer[valueIds.length];
 				for (int j = 0; j < valueIds.length; j++) {
 					values[j] = this.virtualValues.getValue(typeIndex, valueIds[j]);
-					order[j] = j;
 				}
 				//noinspection unchecked
-				Arrays.sort(order, (a, b) -> this.comparator.compare(values[a], values[b]));
+				final int[] order = IndirectSort.mergesort(
+					0, valueIds.length, (a, b) -> this.comparator.compare(values[a], values[b])
+				);
 				for (int j : order) {
 					builder.append(values[j], groups.get(valueIds[j]));
 				}
