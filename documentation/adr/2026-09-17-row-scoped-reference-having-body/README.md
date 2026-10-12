@@ -1,7 +1,7 @@
 ---
 title: A referenceHaving body is a predicate about one reference row, evaluated by transposing the planned formula per reduced index
 date: 2026-09-17
-updated: 2026-09-29 16:10
+updated: 2026-10-12 02:40
 status: partially-implemented
 kind: fix
 issues: [1585, 1644]
@@ -10,7 +10,7 @@ areas: [evita_engine/src/main/java/io/evitadb/core/query/filter/translator/refer
 supersedes: []
 superseded-by: []
 relates: [2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-09-08-conditional-histogram-per-contribution-verdicts, 2026-09-15-non-collapsible-formula-marker,
-  2026-09-18-reference-planning-from-owner-membership, 2026-09-25-attribute-is-null-in-reference-having, 2026-09-28-indexed-reference-scope-requires-entity-component]
+  2026-09-18-reference-planning-from-owner-membership, 2026-09-25-attribute-is-null-in-reference-having, 2026-09-28-indexed-reference-scope-requires-entity-component, 2026-10-12-single-owner-partitions-as-registry-rows]
 ---
 
 # A `referenceHaving` body binds one reference row, and is evaluated by transposing the planned formula per reduced index
