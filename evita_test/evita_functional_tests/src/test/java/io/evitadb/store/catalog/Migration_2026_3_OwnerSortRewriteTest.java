@@ -35,6 +35,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuil
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.ComparableLocale;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.spi.store.catalog.persistence.PersistenceService;
 import io.evitadb.store.catalog.LegacyOwnerSortImages.LegacySortIndex;
@@ -116,8 +117,10 @@ import static org.junit.jupiter.api.Assertions.fail;
  * legacy pages is checked by the comparator of the release that wrote them, while the index is rebuilt by the current
  * one, and a compound with no temporal element at all is re-sorted too - its pages would not load as they were
  * written. Compounds with a `Locale` element cover the language tag the release compared a locale by alone, whether
- * the compound is localized or not. The class also characterizes the one input the migration does not reach: a
- * catalog of protocol 8 holding raw temporal sort values, which only a development build of 2026.3 can have written.
+ * the compound is localized or not. Periods - `DateTimeRange` values, alone or in a compound - cover the whole seconds
+ * and the open bounds derived from a zone offset the release compared a range by. The class also characterizes the
+ * one input the migration does not reach: a catalog of protocol 8 holding raw temporal sort values, which only a
+ * development build of 2026.3 can have written.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -174,6 +177,20 @@ class Migration_2026_3_OwnerSortRewriteTest implements EvitaTestSupport {
 	 * `Locale` element.
 	 */
 	private static final String COMPOUND_LABEL_LANGUAGE_RANK = "labelThenLanguageThenRank";
+	/**
+	 * The validity period of an entry - a `DateTimeRange` attribute, sort-only on its own or an element of
+	 * {@link #COMPOUND_PERIOD_RANK} and {@link #COMPOUND_PERIOD_MOMENT}.
+	 */
+	private static final String ATTRIBUTE_PERIOD = "period";
+	/**
+	 * The compound of the period ascending and the rank ascending - an owner sort index whose only element the release
+	 * ordered differently is the period.
+	 */
+	private static final String COMPOUND_PERIOD_RANK = "periodThenRank";
+	/**
+	 * The compound of the period ascending and the moment ascending - an owner sort index holding raw temporal values.
+	 */
+	private static final String COMPOUND_PERIOD_MOMENT = "periodThenMoment";
 	/**
 	 * How many entries the localized compound case writes - enough to page its sort index.
 	 */
@@ -546,6 +563,98 @@ class Migration_2026_3_OwnerSortRewriteTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Cases of a sort index with a `DateTimeRange` element, which release 2026.2 compared at whole epoch seconds and
+	 * with an open bound derived from the zone offset of the other one. Every entry carries a period open at its start
+	 * that closes `entry` days after 09:00Z, the odd entries written at +01:00 and the even ones at +02:00: the release
+	 * ordered every even entry before every odd one, the current index orders them by the moment they close - by
+	 * primary key. No two periods tie, so even an index of the period alone is out of the current order.
+	 */
+	@Nested
+	@DisplayName("A DateTimeRange ordered at whole seconds by the release that wrote it")
+	class ReleasedRangeOrder {
+
+		/**
+		 * A sort-only period, inline: it loads as it was written, its positional record order disagreeing with its
+		 * values, so its sort index answers the order of the release. The migration must re-sort the index.
+		 */
+		@Test
+		@DisplayName("re-sorts an inline sort-only DateTimeRange index a release ordered at whole seconds")
+		void shouldResortAnInlineSortOnlyRangeIndex() {
+			final EvitaConfiguration configuration = configurationOf(allocatePaths("inlineRange"));
+			final List<LegacySortIndex> legacy = writePeriodImage(configuration, INLINE_ENTRY_COUNT, ATTRIBUTE_PERIOD);
+			assertFalse(legacy.getFirst().paged(), "the legacy sort index must be inline");
+
+			assertResortedByTheMigration(
+				configuration, legacy, ATTRIBUTE_PERIOD, null, closingOrder(legacy.getFirst(), INLINE_ENTRY_COUNT)
+			);
+		}
+
+		/**
+		 * A compound of the period and the rank, paged: its pages fail to load as they were written - the load re-sorts
+		 * at whole seconds an index whose every value is a `DateTimeRange`, never a compound. The migration must
+		 * re-sort the index.
+		 */
+		@Test
+		@DisplayName("re-sorts a paged compound whose DateTimeRange element a release ordered at whole seconds")
+		void shouldResortAPagedRangeCompound() {
+			final EvitaConfiguration configuration = configurationOf(allocatePaths("pagedRangeCompound"));
+			final List<LegacySortIndex> legacy = writePeriodImage(configuration, ENTRY_COUNT, COMPOUND_PERIOD_RANK);
+			assertTrue(legacy.getFirst().paged(), "the legacy sort index must span several leaf pages");
+
+			assertResortedByTheMigration(
+				configuration, legacy, COMPOUND_PERIOD_RANK, null, closingOrder(legacy.getFirst(), ENTRY_COUNT)
+			);
+		}
+
+		/**
+		 * A compound of the period and a raw moment, paged: the moment makes the index one the migration rewrites, and
+		 * its pages hold the periods in the order of the release. The pages must be checked by the comparator of the
+		 * release, or the migration refuses these legitimate pages as corruption.
+		 */
+		@Test
+		@DisplayName("rewrites a paged compound of a DateTimeRange and a raw moment as the release ordered it")
+		void shouldRewriteAPagedRangeAndMomentCompound() {
+			final EvitaConfiguration configuration = configurationOf(allocatePaths("pagedRangeMomentCompound"));
+			final List<LegacySortIndex> legacy = writePeriodImage(configuration, ENTRY_COUNT, COMPOUND_PERIOD_MOMENT);
+			assertTrue(legacy.getFirst().paged(), "the legacy sort index must span several leaf pages");
+
+			assertResortedByTheMigration(
+				configuration, legacy, COMPOUND_PERIOD_MOMENT, null, closingOrder(legacy.getFirst(), ENTRY_COUNT)
+			);
+		}
+
+		/**
+		 * Returns the order of the entries under the current comparator - by primary key, the order their periods
+		 * close in - and asserts that the legacy index holds them in the order of the release, every even entry before
+		 * every odd one, while the current engine builds the order of primary keys from the same values.
+		 *
+		 * @param legacy     the legacy sort index
+		 * @param entryCount how many entries there are
+		 * @return the primary keys in the current order
+		 */
+		@Nonnull
+		private static List<Integer> closingOrder(@Nonnull LegacySortIndex legacy, int entryCount) {
+			final List<Integer> releasedOrder = new ArrayList<>(entryCount);
+			for (int entry = 2; entry <= entryCount; entry += 2) {
+				releasedOrder.add(entry);
+			}
+			for (int entry = 1; entry <= entryCount; entry += 2) {
+				releasedOrder.add(entry);
+			}
+			assertEquals(
+				releasedOrder, IntStream.of(legacy.writer().toInlinePart().getSortedRecords()).boxed().toList(),
+				"the release must have ordered every period closing at +02:00 first"
+			);
+			final List<Integer> currentOrder = IntStream.rangeClosed(1, entryCount).boxed().toList();
+			assertEquals(
+				currentOrder, IntStream.of(legacy.writer().toCurrentOwner().getSortedRecords()).boxed().toList(),
+				"the current comparator must order the periods by the moment they close"
+			);
+			return currentOrder;
+		}
+	}
+
+	/**
 	 * Migrates the catalog holding a legacy compound of the entries through the load path and asserts that it loads,
 	 * serves the order of the current comparator, holds no legacy page, and that a reload neither changes the order nor
 	 * writes anything.
@@ -874,6 +983,89 @@ class Migration_2026_3_OwnerSortRewriteTest implements EvitaTestSupport {
 					new Serializable[]{labelOfEntry.apply(entry), new ComparableLocale(languageOf(entry)), entry} :
 					new Serializable[]{new ComparableLocale(languageOf(entry)), entry}
 			)
+		);
+		assertEquals(1, legacy.size(), "the entries hold one sort index: " + legacy);
+		assertStillAsWritten("as written", configuration, CATALOG, ENTITY_ENTRY, legacy);
+		return legacy;
+	}
+
+	/**
+	 * Returns the period of an entry, open at its start: it closes `entry` days after 09:00Z of the first day, the odd
+	 * entries written at +01:00 and the even ones at +02:00 - as validity periods spanning a daylight-saving change
+	 * are.
+	 *
+	 * @param entry the primary key of the entry
+	 * @return the period
+	 */
+	@Nonnull
+	private static DateTimeRange periodOf(int entry) {
+		return DateTimeRange.until(
+			NINE_AT_UTC.toInstant().plusSeconds(86_400L * entry)
+				.atOffset(entry % 2 == 1 ? ZoneOffset.ofHours(1) : ZoneOffset.ofHours(2))
+		);
+	}
+
+	/**
+	 * Writes a catalog of entries sorted by their sort-only period ({@link #ATTRIBUTE_PERIOD}), or by the compound of
+	 * their period and their rank ({@link #COMPOUND_PERIOD_RANK}) or their moment ({@link #COMPOUND_PERIOD_MOMENT}),
+	 * with the engine, takes it live, closes the engine, and replaces the sort index with the parts release 2026.2
+	 * wrote, ordered at whole seconds - published under the current storage protocol.
+	 *
+	 * @param configuration the configuration of the engine
+	 * @param entryCount    how many entries to write
+	 * @param sortedBy      the attribute or compound the entries are sorted by
+	 * @return the identities of the legacy sort indexes written - one
+	 */
+	@Nonnull
+	private List<LegacySortIndex> writePeriodImage(
+		@Nonnull EvitaConfiguration configuration,
+		int entryCount,
+		@Nonnull String sortedBy
+	) {
+		final boolean plain = ATTRIBUTE_PERIOD.equals(sortedBy);
+		final boolean withMoment = COMPOUND_PERIOD_MOMENT.equals(sortedBy);
+		final Evita engine = start(configuration);
+		engine.defineCatalog(CATALOG).updateViaNewSession(engine);
+		engine.updateCatalog(
+			CATALOG,
+			session -> {
+				final EntitySchemaBuilder schema = session.defineEntitySchema(ENTITY_ENTRY)
+					.withoutGeneratedPrimaryKey()
+					.withAttribute(ATTRIBUTE_RANK, Integer.class, thatIs -> thatIs.nullable())
+					.withAttribute(ATTRIBUTE_MOMENT, OffsetDateTime.class, thatIs -> thatIs.nullable());
+				if (plain) {
+					schema.withAttribute(ATTRIBUTE_PERIOD, DateTimeRange.class, thatIs -> thatIs.sortable().nullable());
+				} else {
+					schema
+						.withAttribute(ATTRIBUTE_PERIOD, DateTimeRange.class, thatIs -> thatIs.nullable())
+						.withSortableAttributeCompound(
+							sortedBy,
+							AttributeElement.attributeElement(ATTRIBUTE_PERIOD, OrderDirection.ASC),
+							AttributeElement.attributeElement(
+								withMoment ? ATTRIBUTE_MOMENT : ATTRIBUTE_RANK, OrderDirection.ASC
+							)
+						);
+				}
+				schema.updateVia(session);
+				for (int entry = 1; entry <= entryCount; entry++) {
+					session.createNewEntity(ENTITY_ENTRY, entry)
+						.setAttribute(ATTRIBUTE_PERIOD, periodOf(entry))
+						.setAttribute(ATTRIBUTE_RANK, entry)
+						.setAttribute(ATTRIBUTE_MOMENT, entryMomentOf(entry))
+						.upsertVia(session);
+				}
+			}
+		);
+		engine.updateCatalog(CATALOG, EvitaSessionContract::goLiveAndClose);
+		engine.close();
+		// the release stored a `DateTimeRange` as it was written, and a moment raw
+		final IntFunction<Serializable> rawValueOfEntry = plain ?
+			Migration_2026_3_OwnerSortRewriteTest::periodOf :
+			entry -> new ComparableArray(
+				new Serializable[]{periodOf(entry), withMoment ? entryMomentOf(entry) : Integer.valueOf(entry)}
+			);
+		final List<LegacySortIndex> legacy = writeLegacySortIndexes(
+			configuration, CATALOG, ENTITY_ENTRY, Set.of(sortedBy), rawValueOfEntry
 		);
 		assertEquals(1, legacy.size(), "the entries hold one sort index: " + legacy);
 		assertStillAsWritten("as written", configuration, CATALOG, ENTITY_ENTRY, legacy);

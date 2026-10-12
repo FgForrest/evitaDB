@@ -29,6 +29,7 @@ import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.comparator.NullsFirstComparatorWrapper;
 import io.evitadb.comparator.NullsLastComparatorWrapper;
 import io.evitadb.dataType.ComparableLocale;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
 import io.evitadb.index.invertedIndex.InvertedIndex;
@@ -45,6 +46,8 @@ import io.evitadb.utils.CollectionUtils;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -52,6 +55,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
@@ -66,7 +70,10 @@ import java.util.TreeMap;
  * the bare collator, and a `Locale` element - stored as a {@link ComparableLocale} - by its language tag alone. Each
  * equates two values the current index tells apart (`ab` with and without a zero-width space; `en-US` with and
  * without an ill-formed variant, which the tag drops), so a released compound may hold two such values ordered by its
- * next element, which the current comparator would order the other way.
+ * next element, which the current comparator would order the other way. A {@link DateTimeRange} element is compared by
+ * `DateTimeRange#compareTo` of that tag - whole epoch seconds, an open bound derived from the other bound's zone
+ * offset - which ties two ranges opening in the same second, and orders two ranges open at one end whose other bounds
+ * carry different offsets by the offset rather than by the moment, plain or not.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -118,7 +125,8 @@ public final class LegacyOwnerSortIndexWriter {
 	/**
 	 * Builds the comparator release 2026.2 ordered an owner sort index by - `SortIndex#createComparatorFor` and
 	 * `SortIndex#createCombinedComparatorFor` of the tag `v2026.2.20`: a `String` element of a localized index by the
-	 * bare collator, a `Locale` element by `ComparableLocale#compareTo` of that tag - the language tag alone - every
+	 * bare collator, a `Locale` element by `ComparableLocale#compareTo` of that tag - the language tag alone - a
+	 * `DateTimeRange` element by `DateTimeRange#compareTo` of that tag ({@link #releasedRangeComparison}), every
 	 * other element naturally, each in its own direction and with its own NULL handling.
 	 *
 	 * @param locale         the locale of the index, or `null`
@@ -139,6 +147,8 @@ public final class LegacyOwnerSortIndexWriter {
 				natural = new LocalizedStringComparator(locale);
 			} else if (Locale.class.isAssignableFrom(source.type())) {
 				natural = Comparator.comparing((ComparableLocale it) -> it.getLocale().toLanguageTag());
+			} else if (DateTimeRange.class.isAssignableFrom(source.type())) {
+				natural = (Comparator<DateTimeRange>) LegacyOwnerSortIndexWriter::releasedRangeComparison;
 			} else {
 				natural = Comparator.naturalOrder();
 			}
@@ -160,6 +170,49 @@ public final class LegacyOwnerSortIndexWriter {
 			}
 			return 0;
 		};
+	}
+
+	/**
+	 * Compares two ranges as `DateTimeRange#compareTo` of the release tag `v2026.2.20` did (`git show
+	 * v2026.2.20:evita_common/src/main/java/io/evitadb/dataType/DateTimeRange.java`): by the lower comparison bound,
+	 * then by the upper one, each the bound's whole epoch second.
+	 *
+	 * @param left  the first range
+	 * @param right the second range
+	 * @return the sign of the comparison of the release
+	 */
+	private static int releasedRangeComparison(@Nonnull DateTimeRange left, @Nonnull DateTimeRange right) {
+		final int lowerBoundComparison = Long.compare(releasedFrom(left), releasedFrom(right));
+		return lowerBoundComparison != 0 ?
+			lowerBoundComparison : Long.compare(releasedTo(left), releasedTo(right));
+	}
+
+	/**
+	 * Returns the lower comparison bound of the release: the lower bound in whole epoch seconds, or for an open one
+	 * `LocalDateTime.MIN` at the zone offset of the upper bound.
+	 *
+	 * @param range the range
+	 * @return the lower comparison bound of the release
+	 */
+	private static long releasedFrom(@Nonnull DateTimeRange range) {
+		final OffsetDateTime from = range.getPreciseFrom();
+		return from == null ?
+			LocalDateTime.MIN.atOffset(Objects.requireNonNull(range.getPreciseTo()).getOffset()).toEpochSecond() :
+			from.toEpochSecond();
+	}
+
+	/**
+	 * Returns the upper comparison bound of the release: the upper bound in whole epoch seconds, or for an open one
+	 * `LocalDateTime.MAX` at the zone offset of the lower bound.
+	 *
+	 * @param range the range
+	 * @return the upper comparison bound of the release
+	 */
+	private static long releasedTo(@Nonnull DateTimeRange range) {
+		final OffsetDateTime to = range.getPreciseTo();
+		return to == null ?
+			LocalDateTime.MAX.atOffset(Objects.requireNonNull(range.getPreciseFrom()).getOffset()).toEpochSecond() :
+			to.toEpochSecond();
 	}
 
 	/**

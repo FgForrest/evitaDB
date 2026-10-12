@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.dataType.ComparableLocale;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
@@ -111,8 +112,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * Verifies the rewrite the storage migration to protocol 8 performs on an owner sort index release 2026.2 or an older
  * one persisted - its parts written as the owner used to write them: with the raw `OffsetDateTime`, `LocalDateTime` and
- * `LocalTime` values, with a localized `String` element ordered by the bare collator, and with a `Locale` element
- * ordered by its language tag alone. The rewrite emits parts holding only normalized values in the order of the
+ * `LocalTime` values, with a localized `String` element ordered by the bare collator, with a `Locale` element ordered
+ * by its language tag alone, and with a `DateTimeRange` element ordered at whole seconds, an open bound derived from
+ * the zone offset of the other one. The rewrite emits parts holding only normalized values in the order of the
  * current comparator, and those parts, stored and loaded again by the load path - which corrects nothing - hold the
  * records exactly as an index the current engine wrote from the same values. A paged index is rewritten whole: every
  * legacy leaf page is removed, and no rewritten page takes the identity of a legacy one. An index already in the
@@ -140,6 +142,12 @@ class LegacyOwnerSortIndexCorrectionTest {
 	private static final AttributeIndexKey NON_LOCALIZED_KEY = new AttributeIndexKey(null, "label", null);
 	/** An attribute holding a `Locale` - not localized, as a `Locale` value needs no locale of its own. */
 	private static final AttributeIndexKey LANGUAGE_KEY = new AttributeIndexKey(null, "language", null);
+	/** An attribute holding a `DateTimeRange`, not localized. */
+	private static final AttributeIndexKey PERIOD_KEY = new AttributeIndexKey(null, "period", null);
+	/** A range closed at both ends, after every range of the scenarios open at its start - in either release. */
+	private static final DateTimeRange CLOSED_RANGE = DateTimeRange.between(
+		OffsetDateTime.parse("2025-01-01T00:00:00Z"), OffsetDateTime.parse("2025-01-02T00:00:00Z")
+	);
 	/** A variant the language tag drops, as it does every ill-formed one. */
 	private static final String ILL_FORMED_VARIANT = "ill!formed";
 	/**
@@ -872,9 +880,226 @@ class LegacyOwnerSortIndexCorrectionTest {
 		}
 	}
 
+	@Nested
+	@DisplayName("DateTimeRange ordered at whole seconds")
+	class DateTimeRangeElement {
+
+		@Test
+		@DisplayName("applies to a DateTimeRange element, whether the index is localized or not")
+		void shouldApplyToADateTimeRangeElement() {
+			assertTrue(LegacyOwnerSortIndexCorrection.isApplicable(single(DateTimeRange.class), null));
+			assertTrue(LegacyOwnerSortIndexCorrection.isApplicable(rangeAndInteger(), null));
+			assertTrue(LegacyOwnerSortIndexCorrection.isApplicable(rangeAndInteger(), Locale.ENGLISH));
+		}
+
+		@Test
+		@DisplayName("re-sorts an inline compound whose ranges the release ordered by the offsets of their open bounds")
+		void shouldResortInlineRangeCompoundOutOfTheCurrentOrder() {
+			final ComparatorSource[] base = rangeAndInteger();
+			// the release derived an open lower bound from the offset of the upper one, so it ordered the range closing
+			// a day later at +02:00 first; the current index orders the two by the moment they close
+			final LegacyOwnerSortIndexWriter legacy = legacy(PERIOD_KEY, base)
+				.add(new ComparableArray(new Serializable[]{closingAt(1, PLUS_TWO), 1}), 1)
+				.add(new ComparableArray(new Serializable[]{closingAt(0, PLUS_ONE), 2}), 2)
+				.add(new ComparableArray(new Serializable[]{CLOSED_RANGE, 0}), 3);
+			assertArrayEquals(new int[]{1, 2, 3}, legacy.toInlinePart().getSortedRecords(), "the released order");
+			final OwnerSortIndex expected = legacy.toCurrentOwner();
+			assertArrayEquals(new int[]{2, 1, 3}, expected.getSortedRecords(), "the current order");
+
+			final OwnerSortIndex rewritten = roundTripInline(
+				legacy, expected, index -> index.addRecord(new Serializable[]{closingAt(-1, PLUS_TWO), 0}, 4)
+			);
+			assertArrayEquals(new int[]{4, 2, 1, 3}, rewritten.getSortedRecords());
+		}
+
+		@Test
+		@DisplayName("re-sorts a plain index the release ordered by the offsets of its open bounds, inline and paged")
+		void shouldResortPlainRangeIndexOutOfTheCurrentOrder() {
+			final ComparatorSource[] base = single(DateTimeRange.class);
+			// no two ranges tie, yet the release ordered the one closing later first: it carries the larger offset
+			final LegacyOwnerSortIndexWriter inline = legacy(PERIOD_KEY, base)
+				.add(closingAt(1, PLUS_TWO), 1)
+				.add(closingAt(0, PLUS_ONE), 2)
+				.add(CLOSED_RANGE, 3);
+			assertArrayEquals(new int[]{1, 2, 3}, inline.toInlinePart().getSortedRecords(), "the released order");
+			final OwnerSortIndex expected = inline.toCurrentOwner();
+			assertArrayEquals(new int[]{2, 1, 3}, expected.getSortedRecords(), "the current order");
+			final OwnerSortIndex rewritten = roundTripInline(
+				inline, expected, index -> index.addRecord(closingAt(-1, PLUS_TWO), 4)
+			);
+			assertArrayEquals(new int[]{4, 2, 1, 3}, rewritten.getSortedRecords());
+
+			// every range closing at +02:00 the release ordered before every range closing at +01:00
+			final LegacyOwnerSortIndexWriter paged = legacy(PERIOD_KEY, base);
+			for (int i = 0; i < PAGED_VALUE_COUNT; i++) {
+				paged.add(closingAt(i, i % 2 == 0 ? PLUS_TWO : PLUS_ONE), i + 1);
+			}
+			roundTripPaged(
+				paged, paged.toCurrentOwner(), index -> index.addRecord(closingAt(-1, PLUS_TWO), 100_000)
+			);
+		}
+
+		@Test
+		@DisplayName("leaves an index already in the current order as it is, inline and paged")
+		void shouldLeaveRangeIndexInTheCurrentOrderAsItIs() {
+			// every range closes at one offset, so the release ordered them as the current index does
+			final LegacyOwnerSortIndexWriter paged = legacy(PERIOD_KEY, rangeAndInteger());
+			for (int i = 0; i < PAGED_VALUE_COUNT; i++) {
+				paged.add(new ComparableArray(new Serializable[]{closingAt(i, PLUS_ONE), i}), i + 1);
+			}
+			final OwnerSortIndex pagedAsItIs = assertLeftAsItIs(paged.toPagedParts(0));
+			assertSameSortIndex(paged.toCurrentOwner(), pagedAsItIs, "the paged index left as it is");
+
+			final LegacyOwnerSortIndexWriter inline = legacy(PERIOD_KEY, single(DateTimeRange.class))
+				.add(closingAt(0, PLUS_TWO), 1)
+				.add(closingAt(1, PLUS_TWO), 2)
+				.add(CLOSED_RANGE, 3);
+			final OwnerSortIndex inlineAsItIs = assertLeftAsItIs(List.of(inline.toInlinePart()));
+			assertSameSortIndex(inline.toCurrentOwner(), inlineAsItIs, "the inline index left as it is");
+		}
+
+		@Test
+		@DisplayName("keeps a bucket the release merged as merged while it re-sorts the index, inline and paged")
+		void shouldKeepAMergedRangeBucketWhileResortingAroundIt() {
+			final ComparatorSource[] base = single(DateTimeRange.class);
+			// two ranges opening in one second and closing at one moment: the release kept them in one bucket under the
+			// range it met first, which does not say which record holds which range
+			final DateTimeRange openingAtHalf = DateTimeRange.between(
+				NINE.plusMillis(500).atOffset(ZoneOffset.UTC), NINE.plusSeconds(3600).atOffset(ZoneOffset.UTC)
+			);
+			final DateTimeRange openingAtFifth = DateTimeRange.between(
+				NINE.plusMillis(200).atOffset(ZoneOffset.UTC), NINE.plusSeconds(3600).atOffset(ZoneOffset.UTC)
+			);
+			assertEquals(
+				List.of(openingAtHalf),
+				legacy(PERIOD_KEY, base).add(openingAtHalf, 1).add(openingAtFifth, 2).getPersistedValues(),
+				"the release must have merged the two ranges"
+			);
+			// the ranges open at their start the release ordered by the offset of their end, around the bucket
+			final LegacyOwnerSortIndexWriter inline = legacy(PERIOD_KEY, base)
+				.add(openingAtHalf, 1, 2)
+				.add(closingAt(1, PLUS_TWO), 3)
+				.add(closingAt(0, PLUS_ONE), 4);
+			assertArrayEquals(new int[]{3, 4, 1, 2}, inline.toInlinePart().getSortedRecords(), "the released order");
+			final OwnerSortIndex expected = inline.toCurrentOwner();
+			assertArrayEquals(new int[]{4, 3, 1, 2}, expected.getSortedRecords(), "the current order");
+			// the merged bucket is found under the range it was stored with, both its records in it
+			final OwnerSortIndex rewritten = roundTripInline(
+				inline, expected, index -> index.removeRecord(openingAtHalf, 2)
+			);
+			assertArrayEquals(new int[]{4, 3, 1}, rewritten.getSortedRecords());
+			assertArrayEquals(
+				new Serializable[]{closingAt(0, PLUS_ONE), closingAt(1, PLUS_TWO), openingAtHalf},
+				rewritten.getSortedRecordValues()
+			);
+
+			final LegacyOwnerSortIndexWriter paged = legacy(PERIOD_KEY, base).add(openingAtHalf, 1, 2);
+			for (int i = 1; i < PAGED_VALUE_COUNT; i++) {
+				paged.add(closingAt(i, i % 2 == 0 ? PLUS_TWO : PLUS_ONE), i + 2);
+			}
+			roundTripPaged(paged, paged.toCurrentOwner(), index -> index.removeRecord(openingAtHalf, 2));
+		}
+
+		@Test
+		@DisplayName("refuses a stale leaf page twin of a compound the release ordered at whole seconds")
+		void shouldRefuseStaleLeafPageTwinOfARangeCompound() {
+			final ComparatorSource[] base = rangeAndInteger();
+			// pages the release ordered legitimately - only its comparator sees them ascend - and a twin of the first
+			final LegacyOwnerSortIndexWriter legacy = legacy(PERIOD_KEY, base);
+			for (int i = 0; i < PAGED_VALUE_COUNT; i++) {
+				legacy.add(
+					new ComparableArray(new Serializable[]{closingAt(i, i % 2 == 0 ? PLUS_TWO : PLUS_ONE), i}), i + 1
+				);
+			}
+			final List<StoragePart> parts = legacy.toPagedParts(0);
+			final SortIndexStoragePart persistedRoot = root(parts);
+			final int[] pages = persistedRoot.getLeafPageSequences();
+			// an older copy of the first page under a sequence of its own, listed last by the root
+			SortIndexLeafPagePart firstPage = null;
+			for (StoragePart part : parts) {
+				if (part instanceof SortIndexLeafPagePart page && page.getPageSequence() == pages[0]) {
+					firstPage = page;
+				}
+			}
+			assertNotNull(firstPage);
+			final int twinSequence = persistedRoot.getHighWaterPageSequence() + 1;
+			final int[] pagesWithTwin = Arrays.copyOf(pages, pages.length + 1);
+			pagesWithTwin[pages.length] = twinSequence;
+			final List<StoragePart> corruptedParts = new ArrayList<>(parts);
+			corruptedParts.remove(persistedRoot);
+			corruptedParts.add(
+				new SortIndexLeafPagePart(
+					ENTITY_INDEX_PK, new AttributeKeyWithIndexType(PERIOD_KEY, AttributeIndexType.SORT),
+					twinSequence, firstPage.getBuckets(), base.length
+				)
+			);
+			corruptedParts.add(
+				SortIndexStoragePart.paged(ENTITY_INDEX_PK, PERIOD_KEY, base, 0, twinSequence, pagesWithTwin)
+			);
+
+			// refused at the twin, not at the pages the release ordered
+			final GenericEvitaInternalError error = assertRefusedAsCorruption(corruptedParts);
+			assertTrue(
+				error.getPrivateMessage().contains("on leaf page " + twinSequence + "."), error.getPrivateMessage()
+			);
+		}
+
+		@Test
+		@DisplayName("rewrites a paged compound of a range and a raw moment as the release ordered it")
+		void shouldRewriteRangeAndRawMomentCompound() {
+			final ComparatorSource[] base = {
+				new ComparatorSource(DateTimeRange.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+				new ComparatorSource(OffsetDateTime.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+			};
+			// raw moments at +02:00, and ranges the release ordered by the offsets of their open bounds
+			final LegacyOwnerSortIndexWriter legacy = legacy(PERIOD_KEY, base);
+			for (int i = 0; i < PAGED_VALUE_COUNT; i++) {
+				legacy.add(
+					new ComparableArray(
+						new Serializable[]{
+							closingAt(i, i % 2 == 0 ? PLUS_TWO : PLUS_ONE), NINE.plusSeconds(i).atOffset(PLUS_TWO)
+						}
+					),
+					i + 1
+				);
+			}
+
+			roundTripPaged(
+				legacy, legacy.toCurrentOwner(),
+				index -> index.addRecord(new Serializable[]{closingAt(-1, PLUS_ONE), NINE.atOffset(PLUS_ONE)}, 100_000)
+			);
+		}
+	}
+
 	/*
 		PRIVATE HELPERS
 	 */
+
+	/**
+	 * Returns the comparator base of a compound of a range and an integer, both ascending with nulls last.
+	 *
+	 * @return the comparator base
+	 */
+	@Nonnull
+	private static ComparatorSource[] rangeAndInteger() {
+		return new ComparatorSource[]{
+			new ComparatorSource(DateTimeRange.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+			new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+		};
+	}
+
+	/**
+	 * Returns a range open at its start that closes `day` days after 09:00Z of the first day, written at the passed
+	 * offset. Release 2026.2 derived the open bound from that offset, so it ordered such ranges by the offset first.
+	 *
+	 * @param day    the day the range closes on, relative to the first day
+	 * @param offset the zone offset the closing moment is written at
+	 * @return the range
+	 */
+	@Nonnull
+	private static DateTimeRange closingAt(int day, @Nonnull ZoneOffset offset) {
+		return DateTimeRange.until(NINE.plusSeconds(86_400L * day).atOffset(offset));
+	}
 
 	/**
 	 * Returns the comparator base of a compound of a locale and an integer, both ascending with nulls last.
@@ -1173,8 +1398,10 @@ class LegacyOwnerSortIndexCorrectionTest {
 	 * Persists the parts and asserts that the rewrite refuses them as corruption rather than merging them.
 	 *
 	 * @param corruptedParts leaf pages and a paged root no writer produces
+	 * @return the refusal
 	 */
-	private void assertRefusedAsCorruption(@Nonnull List<StoragePart> corruptedParts) {
+	@Nonnull
+	private GenericEvitaInternalError assertRefusedAsCorruption(@Nonnull List<StoragePart> corruptedParts) {
 		final OffsetIndex offsetIndex = openWritableOffsetIndex();
 		try {
 			writeEmission(offsetIndex, LEGACY_VERSION, corruptedParts);
@@ -1190,6 +1417,7 @@ class LegacyOwnerSortIndexCorrectionTest {
 			);
 			assertTrue(error.getPrivateMessage().contains("not in ascending order"), error.getPrivateMessage());
 			assertEquals(0, sink.getTrappedChangesCount(), "nothing may be emitted for a refused index");
+			return error;
 		} finally {
 			IOUtils.closeQuietly(offsetIndex::close);
 		}

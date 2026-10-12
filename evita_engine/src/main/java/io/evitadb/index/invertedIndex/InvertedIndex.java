@@ -904,11 +904,15 @@ public class InvertedIndex implements
 	 * bounds' whole epoch seconds, lower bound first. Reconstructed from the precise bounds the buckets carry, which
 	 * is what makes the order a legacy writer sorted by recomputable on load.
 	 *
+	 * It is exactly `DateTimeRange#compareTo` of release 2026.2 and every older one, open bounds included, which is
+	 * why it is public: the storage migration to protocol 8 checks the persisted pages of an owner sort index with a
+	 * `DateTimeRange` element by it as well (`LegacyOwnerSortIndexCorrection`).
+	 *
 	 * @param left  the range persisted first
 	 * @param right the range persisted next
 	 * @return the sign of the second-granularity comparison
 	 */
-	private static int compareAtSecondGranularity(@Nonnull DateTimeRange left, @Nonnull DateTimeRange right) {
+	public static int compareAtSecondGranularity(@Nonnull DateTimeRange left, @Nonnull DateTimeRange right) {
 		final int lowerBoundComparison =
 			Long.compare(secondGranularityFrom(left), secondGranularityFrom(right));
 		return lowerBoundComparison != 0

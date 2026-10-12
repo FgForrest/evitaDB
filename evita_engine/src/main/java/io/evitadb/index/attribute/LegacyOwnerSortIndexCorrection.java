@@ -30,6 +30,7 @@ import io.evitadb.comparator.NullsFirstComparatorWrapper;
 import io.evitadb.comparator.NullsLastComparatorWrapper;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.ComparableLocale;
+import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
@@ -55,7 +56,7 @@ import java.util.function.Function;
  * partitions, so the load path never meets an owner sort index of such a catalog in its old form or order.
  *
  * An owner sort index - a sort-only attribute, every sortable attribute compound - of those releases differs from the
- * one the current engine writes in three ways. (A sortable attribute that is filterable too loads as a view over its
+ * one the current engine writes in four ways. (A sortable attribute that is filterable too loads as a view over its
  * filter index, which ignores the values its part carries - there is nothing to rewrite.)
  *
  * - **Raw temporal values.** It stored `OffsetDateTime`, `LocalDateTime` and `LocalTime` values verbatim, while the
@@ -72,6 +73,13 @@ import java.util.function.Function;
  *   alone, which drops an ill-formed variant and so equates `en-US` with and without one; the current index breaks
  *   that tie ({@link ComparableLocale}). A compound holding such a pair fails to load, or loads misordered, the same
  *   way.
+ * - **The order of a `DateTimeRange` element.** It compared a `DateTimeRange` element - localized index or not - at
+ *   whole epoch seconds, an open bound derived from the zone offset of the other one
+ *   ({@link InvertedIndex#compareAtSecondGranularity}); the current index compares milliseconds, an open bound being
+ *   one constant. Two ranges opening in the same second tie then and differ now, and two ranges open at one end whose
+ *   other bounds carry different offsets compare the other way now, tie or not - so a plain index is misordered too.
+ *   The load path re-sorts a paged index whose every value is a `DateTimeRange`, never a compound or an inline index:
+ *   a paged compound fails to load, and an inline index loads misordered.
  *
  * The rewrite brings such an index to the form and the order the current engine writes:
  *
@@ -80,7 +88,8 @@ import java.util.function.Function;
  *   millisecond - are merged into one, and their records are ordered by record id within it as in any other block;
  * - the values are re-sorted by the current comparator - two compound values tying on a temporal element only after
  *   it was normalized, on a localized `String` element only under the bare collator, or on a `Locale` element only by
- *   its language tag, are decided by the next element, which may order them the other way;
+ *   its language tag, are decided by the next element, which may order them the other way, and two `DateTimeRange`
+ *   values may compare the other way outright;
  * - the index is rebuilt afresh and written whole: an inline index as a new inline part, a paged one as new leaf pages
  *   whose page sequences lie above the persisted high-water, a new root, and the removal of every persisted leaf page
  *   - so no legacy page survives, and no new page reuses the identity of an old one.
@@ -90,11 +99,11 @@ import java.util.function.Function;
  *
  * # Buckets the release merged
  *
- * The release kept two values its comparator found equal in one bucket - `ab` and `ab` with a zero-width space, or
- * `en-US` with and without an ill-formed variant, held by two records, in a plain sort index or in a compound whose
- * other elements tie too. Such a bucket stays exactly as the release wrote it, under the value it stored and with every
- * record it holds, whether the index is left as it is or rewritten: the bucket does not say which of its records holds
- * which value, and this rewrite reads no entity body to find out.
+ * The release kept two values its comparator found equal in one bucket - `ab` and `ab` with a zero-width space,
+ * `en-US` with and without an ill-formed variant, or two ranges equal at whole seconds, held by two records, in a
+ * plain sort index or in a compound whose other elements tie too. Such a bucket stays exactly as the release wrote it,
+ * under the value it stored and with every record it holds, whether the index is left as it is or rewritten: the
+ * bucket does not say which of its records holds which value, and this rewrite reads no entity body to find out.
  *
  * # The rewrite emits its parts itself
  *
@@ -112,16 +121,18 @@ import java.util.function.Function;
  * corruption: merging it would resurrect records that were deliberately removed.
  *
  * The test must use the released comparator, not the current one, because the two differ: a localized `String`
- * element was ordered by the bare collator and a `Locale` element by its language tag, so a released compound holding
- * two values either of them equates, ordered by its next element, is in a legitimate order the current comparator may
+ * element was ordered by the bare collator, a `Locale` element by its language tag and a `DateTimeRange` element at
+ * whole seconds, so a released compound holding two values one of them equates, ordered by its next element, and an
+ * index holding two ranges the release compared the other way, are in a legitimate order the current comparator may
  * reverse - the very order this rewrite exists to correct. The rebuilt index is ordered by the current comparator, as
  * every index is.
  *
  * # What it does not cover
  *
- * Nothing on the load path normalizes a raw temporal sort value or re-sorts persisted values any more. A catalog that
- * reaches the load path at protocol 8 holding either - which only a development build of 2026.3 can have written,
- * directly or through an archive of such a catalog - is not supported: its values are read as they are stored.
+ * Nothing on the load path normalizes a raw temporal sort value or re-sorts persisted values any more, except a paged
+ * index whose every value is a `DateTimeRange`, which it re-sorts at whole seconds. A catalog that reaches the load
+ * path at protocol 8 holding either - which only a development build of 2026.3 can have written, directly or through
+ * an archive of such a catalog - is not supported: its values are read as they are stored.
  *
  * The class performs no IO: the migration reads the parts and drains the sink into the collection data store.
  *
@@ -140,10 +151,11 @@ public final class LegacyOwnerSortIndexCorrection {
 	/**
 	 * Returns `true` when an owner sort index of the passed elements may differ from the one the current engine
 	 * writes - when any element is an `OffsetDateTime`, `LocalDateTime` or `LocalTime`, which the release stored raw,
-	 * a `String` of a localized index, which the release ordered by the bare collator, or a `Locale`, which it ordered
-	 * by its language tag alone. A `String` element is localized exactly when {@link SortIndex#createComparatorFor}
-	 * compares it by a collator: when the attribute index key of the index carries a locale. A `Locale` element
-	 * qualifies whether the index is localized or not.
+	 * a `String` of a localized index, which the release ordered by the bare collator, a `Locale`, which it ordered
+	 * by its language tag alone, or a `DateTimeRange`, which it ordered at whole seconds. A `String` element is
+	 * localized exactly when {@link SortIndex#createComparatorFor} compares it by a collator: when the attribute index
+	 * key of the index carries a locale. A `Locale` or a `DateTimeRange` element qualifies whether the index is
+	 * localized or not.
 	 *
 	 * @param comparatorBase one descriptor per element (a single entry for plain attributes)
 	 * @param locale         the locale of the attribute index key of the index, `null` when it is not localized
@@ -153,7 +165,7 @@ public final class LegacyOwnerSortIndexCorrection {
 		for (final ComparatorSource comparatorSource : comparatorBase) {
 			if (
 				SortIndex.isTemporal(comparatorSource.type()) || isCollated(comparatorSource, locale) ||
-					isLocale(comparatorSource)
+					isLocale(comparatorSource) || isDateTimeRange(comparatorSource)
 			) {
 				return true;
 			}
@@ -173,9 +185,10 @@ public final class LegacyOwnerSortIndexCorrection {
 	 *                       for an inline root
 	 * @param sink           receives the parts of the rewritten index and the removals of the persisted leaf pages
 	 * @return `true` when the index was rewritten and its parts were emitted, `false` when it was left as it is
-	 * @throws GenericEvitaInternalError when the index has no temporal, localized `String` or `Locale` element, the
-	 *                                   leaf pages do not match the root, or the persisted values of a paged index
-	 *                                   to rewrite are not strictly ascending under the released comparator
+	 * @throws GenericEvitaInternalError when the index has no temporal, localized `String`, `Locale` or `DateTimeRange`
+	 *                                   element, the leaf pages do not match the root, or the persisted values of a
+	 *                                   paged index to rewrite are not strictly ascending under the released
+	 *                                   comparator
 	 */
 	public static boolean rewrite(
 		@Nonnull SortIndexStoragePart root,
@@ -186,8 +199,8 @@ public final class LegacyOwnerSortIndexCorrection {
 		final Locale locale = root.getAttributeIndexKey().locale();
 		Assert.isPremiseValid(
 			isApplicable(comparatorBase, locale),
-			() -> "The sort index of `" + root.getAttributeIndexKey() + "` holds no temporal, localized text or " +
-				"locale element to rewrite!"
+			() -> "The sort index of `" + root.getAttributeIndexKey() + "` holds no temporal, localized text, " +
+				"locale or date time range element to rewrite!"
 		);
 		final Function<Object, Serializable> normalizer = createNormalizer(comparatorBase);
 		final Comparator<?> comparator = createComparator(comparatorBase, locale);
@@ -271,6 +284,17 @@ public final class LegacyOwnerSortIndexCorrection {
 	 */
 	private static boolean isLocale(@Nonnull ComparatorSource comparatorSource) {
 		return Locale.class.isAssignableFrom(comparatorSource.type());
+	}
+
+	/**
+	 * Returns `true` when the element is a `DateTimeRange`, which the index stores as it was written - decided by the
+	 * declared type, as {@link SortIndex} decides a type, whether the index is localized or not.
+	 *
+	 * @param comparatorSource the descriptor of the element
+	 * @return `true` for a `DateTimeRange` element
+	 */
+	private static boolean isDateTimeRange(@Nonnull ComparatorSource comparatorSource) {
+		return DateTimeRange.class.isAssignableFrom(comparatorSource.type());
 	}
 
 	/**
@@ -401,9 +425,10 @@ public final class LegacyOwnerSortIndexCorrection {
 	 * index compared by the bare collator ({@link LocalizedStringComparator}) - with no tie-break between two spellings
 	 * the collator equates, which the current index adds ({@link EqualsConsistentLocalizedStringComparator}) - a
 	 * `Locale` element by `ComparableLocale#compareTo` of that tag, the language tag alone, with no tie-break either,
-	 * every other element in its natural order, each in its own direction and with its own NULL handling, a compound
-	 * element by element. The values are the raw ones the release stored, so the natural order of a raw temporal value
-	 * is the order of its declared type.
+	 * a `DateTimeRange` element by `DateTimeRange#compareTo` of that tag
+	 * ({@link InvertedIndex#compareAtSecondGranularity}), every other element in its natural order, each in its own
+	 * direction and with its own NULL handling, a compound element by element. The values are the raw ones the release
+	 * stored, so the natural order of a raw temporal value is the order of its declared type.
 	 *
 	 * @param comparatorBase one descriptor per element (a single entry for plain attributes)
 	 * @param locale         the locale of the attribute index key of the index, `null` when it is not localized
@@ -425,6 +450,10 @@ public final class LegacyOwnerSortIndexCorrection {
 				// `ComparableLocale#compareTo` of the release: the language tag alone, which drops an ill-formed
 				// variant
 				natural = Comparator.comparing((ComparableLocale it) -> it.getLocale().toLanguageTag());
+			} else if (isDateTimeRange(source)) {
+				// `DateTimeRange#compareTo` of the release: whole epoch seconds, an open bound derived from the zone
+				// offset of the other one
+				natural = (Comparator<DateTimeRange>) InvertedIndex::compareAtSecondGranularity;
 			} else {
 				natural = Comparator.naturalOrder();
 			}

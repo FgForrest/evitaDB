@@ -73,8 +73,8 @@ import java.util.TreeMap;
  * representation this version keeps them in. It is one step of the storage protocol migration
  * {@link Migration_2026_3#upgradeFromStorageProtocolVersion_6_to_8}, which runs it for each collection after it
  * re-keyed the collection's other indexes and rewrote its sort indexes storing temporal values raw, localized texts
- * in the order of the bare collator or locales in the order of their language tag, and publishes the result of all of
- * them.
+ * in the order of the bare collator, locales in the order of their language tag or date time ranges in the order of
+ * whole seconds, and publishes the result of all of them.
  *
  * # What it converts
  *
