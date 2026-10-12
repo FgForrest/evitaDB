@@ -409,7 +409,9 @@ class StorageProtocolRefusalTest implements EvitaTestSupport {
 		try (ExportFileService exportService = new ExportFileService(configuration.export(), scheduler)) {
 			// taken after the export service scheduled its own purge, so everything that differs is the open's doing
 			final Set<String> heldBefore = filesHeldOpenIn(folder);
-			final long tasksBefore = executor.getTaskCount();
+			// the scheduler counts what it was asked to schedule; the executor's own task count is approximate - it
+			// counts a worker thread that has not started yet as a running task, and drops it once the thread runs
+			final long tasksBefore = scheduler.getSubmittedTaskCount();
 			final ObsoleteStorageProtocolException refusal = assertTimeoutPreemptively(
 				PROMPTLY,
 				() -> assertThrows(
@@ -433,7 +435,9 @@ class StorageProtocolRefusalTest implements EvitaTestSupport {
 				"the open of the catalog must end - a verification that reads one header again and again never does"
 			);
 			assertTrue(refusal.getPrivateMessage().contains(diagnosis), refusal.getPrivateMessage());
-			assertEquals(tasksBefore, executor.getTaskCount(), "the refused open must leave no task scheduled");
+			assertEquals(
+				tasksBefore, scheduler.getSubmittedTaskCount(), "the refused open must leave no task scheduled"
+			);
 			final Set<String> heldAfter = filesHeldOpenIn(folder);
 			if (heldBefore != null && heldAfter != null) {
 				heldAfter.removeAll(heldBefore);
