@@ -5,7 +5,7 @@ updated: 2026-10-12 04:46
 status: accepted
 kind: optimization
 issues: [1615]
-prs: []
+prs: [1738]
 areas:
   - evita_engine/src/main/java/io/evitadb/index
   - evita_engine/src/main/java/io/evitadb/index/attribute
