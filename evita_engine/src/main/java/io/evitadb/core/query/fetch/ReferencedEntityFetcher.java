@@ -839,78 +839,6 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					.doWithScope(
 						examinedScopes,
 						() -> {
-							// build the ReferenceHaving constraint, avoiding mergeArrays when no entity-level children
-							// the bounded set - not `allReferencedEntityPks` - because translating a referenced primary key
-							// into the reduced indexes that hold it costs one map lookup and one bitmap merge per key, and
-							// the keys outside the caller's `entityPrimaryKeyInSet` are dropped by a sibling conjunct anyway
-							final FilterConstraint pkConstraint = entityPrimaryKeyInSet(boundedReferencedEntityPks.getArray());
-							// The nested query behind an `entityHaving` is planned against the
-							// referenced collection's GLOBAL index, so it evaluates the predicate
-							// over every entity there even though the owners between them reference
-							// only a handful. Restricting it to exactly those keys is what the
-							// `nestedQueryRestriction` seam exists for, and it is safe because
-							// the nested result is intersected with this same set afterwards.
-							// A deeper nested level targeting a different collection builds its own
-							// FilterByVisitor with a fresh root scope, so this cannot leak into it.
-							// The restriction names the query it belongs to, because the very same
-							// scope also plans `groupHaving` against the reference's GROUP
-							// collection, where these keys mean nothing.
-							final NestedQueryRestriction nestedQueryPkRestriction = new NestedQueryRestriction(
-								referenceSchema.getName(),
-								referenceSchema.getReferencedEntityType(),
-								nestedFilter -> nestedFilter instanceof FilterBy nestedBy ?
-									new FilterBy(
-										ArrayUtils.mergeArrays(
-											new FilterConstraint[]{pkConstraint},
-											nestedBy.getChildren()
-										)
-									) :
-									and(pkConstraint, nestedFilter)
-							);
-							final FilterConstraint[] havingChildren = entityLevelChildren.length == 0
-								? new FilterConstraint[]{pkConstraint}
-								: ArrayUtils.mergeArrays(new FilterConstraint[]{pkConstraint}, entityLevelChildren);
-
-							// the body each candidate's rows are evaluated against
-							final FilterBy rowFilterBy = entityLevelFilterBy != null ? entityLevelFilterBy : filterBy;
-							final CandidatePartitions candidatePartitions = getReferencedPartitions(
-								theFilterByVisitor,
-								entitySchema,
-								referenceSchema,
-								theFilterByVisitor.getReferencedRecordEntityIndexCandidates(
-									new ReferenceHaving(
-										referenceSchema.getName(),
-										and(havingChildren)
-									),
-									examinedScopes,
-									(es, eik) -> null,
-									// the same restriction `computeResultWithPassedIndex` gets: without it this
-									// pass plans the nested `entityHaving` against the referenced collection's
-									// GLOBAL index and evaluates it over every entity there, only to intersect the
-									// result with `pkConstraint` - which is already a sibling conjunct - a few
-									// operations later.
-									nestedQueryPkRestriction
-								).resolveSplit(),
-								rowFilterBy,
-								allowedByGroupFilter,
-								nestedQueryPkRestriction,
-								entityNestedQueryComparator
-							);
-							final List<? extends ReferencePartition> referencedPartitions =
-								candidatePartitions.partitions();
-							final Bitmap matchingVirtualPartitions = candidatePartitions.matchingVirtualPartitions();
-							// pre-filter by group constraint before sorting to reduce sort size
-							if (allowedByGroupFilter != null && !referencedPartitions.isEmpty()) {
-								referencedPartitions.removeIf(partition -> {
-									final RepresentativeReferenceKey key = partition.getRepresentativeReferenceKey();
-									return !allowedByGroupFilter.contains(key.primaryKey());
-								});
-							}
-							if (!referencedPartitions.isEmpty()) {
-								// both representations of one key - and its partitions of every examined scope - end up
-								// next to each other, so the loop below restricts each key exactly once
-								referencedPartitions.sort(BY_DISCRIMINATOR);
-							}
 							// we need to identify which scopes are not indexed for this reference
 							final EnumSet<Scope> nonIndexedScopes = EnumSet.noneOf(Scope.class);
 							for (Scope scope : examinedScopes) {
@@ -919,10 +847,91 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 								}
 							}
 
-							final RoaringBitmapWriter<PersistentRoaringBitmap> referencedPrimaryKeysWriter = RoaringBitmapBackedBitmap.buildWriter();
+							final RoaringBitmapWriter<PersistentRoaringBitmap> referencedPrimaryKeysWriter =
+								RoaringBitmapBackedBitmap.buildWriter();
 							final IntSet foundReferencedIds = new IntHashSet(allReferencedEntityPks.size());
-							// if there is at least one indexed scope, we need to process the indexes
+							// if there is at least one indexed scope, we need to process the indexes - and only then
+							// are the candidates discovered: a scope that does not index the reference holds none, and
+							// the branch for no indexed scope never reads them
 							if (nonIndexedScopes.size() < examinedScopes.size()) {
+								// build the ReferenceHaving constraint, avoiding mergeArrays when no entity-level
+								// children - over the bounded set, not `allReferencedEntityPks`, because translating
+								// a referenced primary key into the reduced indexes that hold it costs one map lookup
+								// and one bitmap merge per key, and the keys outside the caller's
+								// `entityPrimaryKeyInSet` are dropped by a sibling conjunct anyway
+								final FilterConstraint pkConstraint =
+									entityPrimaryKeyInSet(boundedReferencedEntityPks.getArray());
+								// The nested query behind an `entityHaving` is planned against the
+								// referenced collection's GLOBAL index, so it evaluates the predicate
+								// over every entity there even though the owners between them reference
+								// only a handful. Restricting it to exactly those keys is what the
+								// `nestedQueryRestriction` seam exists for, and it is safe because
+								// the nested result is intersected with this same set afterwards.
+								// A deeper nested level targeting a different collection builds its own
+								// FilterByVisitor with a fresh root scope, so this cannot leak into it.
+								// The restriction names the query it belongs to, because the very same
+								// scope also plans `groupHaving` against the reference's GROUP
+								// collection, where these keys mean nothing.
+								final NestedQueryRestriction nestedQueryPkRestriction = new NestedQueryRestriction(
+									referenceSchema.getName(),
+									referenceSchema.getReferencedEntityType(),
+									nestedFilter -> nestedFilter instanceof FilterBy nestedBy ?
+										new FilterBy(
+											ArrayUtils.mergeArrays(
+												new FilterConstraint[]{pkConstraint},
+												nestedBy.getChildren()
+											)
+										) :
+										and(pkConstraint, nestedFilter)
+								);
+								final FilterConstraint[] havingChildren = entityLevelChildren.length == 0
+									? new FilterConstraint[]{pkConstraint}
+									: ArrayUtils.mergeArrays(new FilterConstraint[]{pkConstraint}, entityLevelChildren);
+
+								// the body each candidate's rows are evaluated against
+								final FilterBy rowFilterBy =
+									entityLevelFilterBy != null ? entityLevelFilterBy : filterBy;
+								final CandidatePartitions candidatePartitions = getReferencedPartitions(
+									theFilterByVisitor,
+									entitySchema,
+									referenceSchema,
+									theFilterByVisitor.getReferencedRecordEntityIndexCandidates(
+										new ReferenceHaving(
+											referenceSchema.getName(),
+											and(havingChildren)
+										),
+										examinedScopes,
+										(es, eik) -> null,
+										// the same restriction `computeResultWithPassedIndex` gets: without it this
+										// pass plans the nested `entityHaving` against the referenced collection's
+										// GLOBAL index and evaluates it over every entity there, only to intersect the
+										// result with `pkConstraint` - which is already a sibling conjunct - a few
+										// operations later.
+										nestedQueryPkRestriction
+									).resolveSplit(),
+									rowFilterBy,
+									allowedByGroupFilter,
+									nestedQueryPkRestriction,
+									entityNestedQueryComparator
+								);
+								final List<? extends ReferencePartition> referencedPartitions =
+									candidatePartitions.partitions();
+								final Bitmap matchingVirtualPartitions =
+									candidatePartitions.matchingVirtualPartitions();
+								// pre-filter by group constraint before sorting to reduce sort size
+								if (allowedByGroupFilter != null && !referencedPartitions.isEmpty()) {
+									referencedPartitions.removeIf(partition -> {
+										final RepresentativeReferenceKey key =
+											partition.getRepresentativeReferenceKey();
+										return !allowedByGroupFilter.contains(key.primaryKey());
+									});
+								}
+								if (!referencedPartitions.isEmpty()) {
+									// both representations of one key - and its partitions of every examined scope -
+									// end up next to each other, so the loop below restricts each key exactly once
+									referencedPartitions.sort(BY_DISCRIMINATOR);
+								}
+
 								Formula lastIndexFormula = null;
 								RepresentativeReferenceKey lastDiscriminator = null;
 
@@ -1018,8 +1027,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					);
 				result = referencedPrimaryKeys.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(referencedPrimaryKeys);
 			}
-			// only after the filter is translated: an `entityLocaleEquals` in it sets the locale of the comparator, which
-			// the initialization reads
+			// only after the filter is translated: an `entityLocaleEquals` in it sets the locale of the
+			// comparator, which the initialization reads
 			initNestedQueryComparator(
 				entityNestedQueryComparator,
 				referenceSchema,
@@ -1239,15 +1248,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		);
 		final FilterConstraint[] entityLevelChildren = groupFilter.entityLevelChildren();
 		if (entityLevelChildren.length > 0) {
-			// the discovery translates the filter; the check resolves no candidate, as it would read none
-			filterByVisitor.getProcessingScope().doWithScope(
+			// the discovery translates the filter in the examined scopes it is given; the check resolves no candidate,
+			// as it would read none
+			filterByVisitor.getReferencedRecordEntityIndexCandidates(
+				new ReferenceHaving(referenceSchema.getName(), and(entityLevelChildren)),
 				examinedScopes,
-				() -> filterByVisitor.getReferencedRecordEntityIndexCandidates(
-					new ReferenceHaving(referenceSchema.getName(), and(entityLevelChildren)),
-					examinedScopes,
-					(es, eik) -> null,
-					null
-				)
+				(es, eik) -> null,
+				null
 			);
 		}
 	}
