@@ -778,7 +778,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		// identify scopes that need to be searched for referenced entities
 		final Set<Scope> examinedScopes = gatherSearchedScopes(
 			filterBy,
-			executionContext.getQueryContext().getScopes()
+			queryContext.getScopes()
 		);
 
 		// collect the referenced entity ids
@@ -810,20 +810,16 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			validityMappingOptional.ifPresent(ValidEntityToReferenceMapping::forbidAll);
 			result = EmptyBitmap.INSTANCE;
 		} else {
-			final PersistentRoaringBitmap referencedPrimaryKeys;
 			if (filterBy == null) {
-				// if there is no filtering, we can quickly return all referenced pks
-				final RoaringBitmapWriter<PersistentRoaringBitmap> referencedPrimaryKeysWriter = RoaringBitmapBackedBitmap.buildWriter();
-				writeAllReferencedPrimaryKeys(allReferencedEntityPks, referencedPrimaryKeysWriter);
+				// if there is no filtering, all referenced pks are the result - `combineWithOr` built them into a fresh
+				// bitmap that nothing else holds, so it is returned as it is
+				result = allReferencedEntityPks;
 
 				initNestedQueryComparator(
 					entityNestedQueryComparator,
 					referenceSchema,
 					queryContext
 				);
-
-				referencedPrimaryKeys = referencedPrimaryKeysWriter.get();
-				result = referencedPrimaryKeys.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(referencedPrimaryKeys);
 
 				validityMappingOptional.ifPresent(it -> it.restrictTo(result));
 			} else {
@@ -845,7 +841,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					allReferencedEntityPks, entityLevelChildren
 				);
 
-				referencedPrimaryKeys = theFilterByVisitor
+				final PersistentRoaringBitmap referencedPrimaryKeys = theFilterByVisitor
 					.getProcessingScope()
 					.doWithScope(
 						examinedScopes,
@@ -884,31 +880,29 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 							// the body each candidate's rows are evaluated against
 							final FilterBy rowFilterBy = entityLevelFilterBy != null ? entityLevelFilterBy : filterBy;
-							final CandidatePartitions candidatePartitions = allReferencedEntityPks.isEmpty() ?
-								CandidatePartitions.EMPTY :
-								getReferencedPartitions(
-									theFilterByVisitor,
-									entitySchema,
-									referenceSchema,
-									theFilterByVisitor.getReferencedRecordEntityIndexCandidates(
-										new ReferenceHaving(
-											referenceSchema.getName(),
-											and(havingChildren)
-										),
-										examinedScopes,
-										(es, eik) -> null,
-										// the same restriction `computeResultWithPassedIndex` gets: without it this
-										// pass plans the nested `entityHaving` against the referenced collection's
-										// GLOBAL index and evaluates it over every entity there, only to intersect the
-										// result with `pkConstraint` - which is already a sibling conjunct - a few
-										// operations later.
-										nestedQueryPkRestriction
-									).resolveSplit(),
-									rowFilterBy,
-									allowedByGroupFilter,
-									nestedQueryPkRestriction,
-									entityNestedQueryComparator
-								);
+							final CandidatePartitions candidatePartitions = getReferencedPartitions(
+								theFilterByVisitor,
+								entitySchema,
+								referenceSchema,
+								theFilterByVisitor.getReferencedRecordEntityIndexCandidates(
+									new ReferenceHaving(
+										referenceSchema.getName(),
+										and(havingChildren)
+									),
+									examinedScopes,
+									(es, eik) -> null,
+									// the same restriction `computeResultWithPassedIndex` gets: without it this
+									// pass plans the nested `entityHaving` against the referenced collection's
+									// GLOBAL index and evaluates it over every entity there, only to intersect the
+									// result with `pkConstraint` - which is already a sibling conjunct - a few
+									// operations later.
+									nestedQueryPkRestriction
+								).resolveSplit(),
+								rowFilterBy,
+								allowedByGroupFilter,
+								nestedQueryPkRestriction,
+								entityNestedQueryComparator
+							);
 							final List<? extends ReferencePartition> referencedPartitions =
 								candidatePartitions.partitions();
 							final Bitmap matchingVirtualPartitions = candidatePartitions.matchingVirtualPartitions();
@@ -1159,10 +1153,6 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull List<? extends ReferencePartition> partitions,
 		@Nullable Bitmap matchingVirtualPartitions
 	) {
-		/**
-		 * No candidate at all.
-		 */
-		static final CandidatePartitions EMPTY = new CandidatePartitions(Collections.emptyList(), null);
 	}
 
 	/**
@@ -1688,23 +1678,6 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			examinedScopes.addAll(localScope.getScope());
 		}
 		return examinedScopes;
-	}
-
-	/**
-	 * Writes all referenced primary keys from the provided bitmap of entity IDs
-	 * into the specified bitmap writer.
-	 *
-	 * @param allReferencedEntityIds      the bitmap containing all referenced entity IDs to be written
-	 * @param referencedPrimaryKeysWriter the bitmap writer where the primary keys will be added
-	 */
-	private static void writeAllReferencedPrimaryKeys(
-		@Nonnull Bitmap allReferencedEntityIds,
-		@Nonnull RoaringBitmapWriter<PersistentRoaringBitmap> referencedPrimaryKeysWriter
-	) {
-		final OfInt it = allReferencedEntityIds.iterator();
-		while (it.hasNext()) {
-			referencedPrimaryKeysWriter.add(it.nextInt());
-		}
 	}
 
 	/**
