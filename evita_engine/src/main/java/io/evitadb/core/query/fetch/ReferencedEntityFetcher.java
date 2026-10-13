@@ -61,6 +61,7 @@ import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
 import io.evitadb.api.requestResponse.EvitaRequest.RequirementContext;
 import io.evitadb.api.requestResponse.chunk.ChunkTransformer;
 import io.evitadb.api.requestResponse.chunk.NoTransformer;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
@@ -197,6 +198,22 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	private static final Comparator<ReferencePartition> BY_DISCRIMINATOR = Comparator.comparing(
 		ReferencePartition::getRepresentativeReferenceKey
 	);
+	/**
+	 * The attribute value accessor {@link #computeResultWithPassedIndex} hands the visitor, which never calls it. The
+	 * accessor is read only by the filters of prefetched entities that the attribute translators build in two cases,
+	 * and the body of a reduced index is evaluated in neither:
+	 *
+	 * - when {@link FilterByVisitor#isPrefetchPossible()} - never in a scope pushed onto the visitor, which is where
+	 *   the body is evaluated,
+	 * - when the query does not know its entity type - the fetch always runs in a context of the collection whose
+	 *   references it fetches.
+	 */
+	private static final TriFunction<EntityContract, String, Locale, Stream<Optional<AttributeValue>>>
+		UNREACHABLE_ATTRIBUTE_VALUE_ACCESSOR = (entity, attributeName, locale) -> {
+			throw new GenericEvitaInternalError(
+				"The attribute values of a reference body evaluated in a reduced index are never read from an entity!"
+			);
+		};
 	/**
 	 * Requirement for fetching the parents from hierarchical structure.
 	 */
@@ -1764,9 +1781,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			nestedQueryRestriction,
 			entityNestedQueryComparator,
 			processingScope.withReferenceSchemaAccessor(referenceName),
-			(entityContract, attributeName, locale) -> entityContract.getReferences(referenceName)
-				.stream()
-				.map(it -> it.getAttributeValue(attributeName, locale)),
+			UNREACHABLE_ATTRIBUTE_VALUE_ACCESSOR,
 			() -> {
 				filterBy.accept(filterByVisitor);
 				// get the result and clear the visitor internal structures
