@@ -253,6 +253,57 @@ class VirtualReferenceContentFilterParityTest implements EvitaTestSupport {
 		assertTrue(selectedRows, "The cases must select a single-owner partition");
 	}
 
+	@Test
+	@DisplayName("a root scope of the filter with a single-owner candidate keeps the matching rows (D4)")
+	void shouldKeepTheMatchingRowsUnderARootScopeWithASingleOwnerCandidate() {
+		final Map<Integer, List<String>> rows = this.evita.queryCatalog(
+			CATALOG_CROSS_SCOPE,
+			session -> {
+				final Map<Integer, List<String>> result = new TreeMap<>();
+				for (final SealedEntity owner : session.queryListOfSealedEntities(
+					query(
+						collection(CrossScopeSingletonFixture.ENTITY_OWNER),
+						filterBy(scope(Scope.LIVE)),
+						require(
+							page(1, PAGE_SIZE),
+							entityFetch(
+								referenceContentWithAttributes(
+									CrossScopeSingletonFixture.REFERENCE_ITEMS,
+									filterBy(
+										scope(Scope.LIVE, Scope.ARCHIVED),
+										attributeGreaterThan(CrossScopeSingletonFixture.ATTRIBUTE_WEIGHT, 0)
+									)
+								)
+							)
+						)
+					)
+				)) {
+					result.put(
+						owner.getPrimaryKeyOrThrowException(),
+						owner.getReferences(CrossScopeSingletonFixture.REFERENCE_ITEMS).stream()
+							.map(it -> describe(it, null))
+							.sorted()
+							.toList()
+					);
+				}
+				return result;
+			}
+		);
+		final Map<Integer, List<String>> expected = new TreeMap<>();
+		expected.put(1, List.of(String.valueOf(CrossScopeSingletonFixture.TARGET_TWO_SINGLETONS)));
+		expected.put(3, List.of(String.valueOf(CrossScopeSingletonFixture.TARGET_SHARED_AND_SINGLETON)));
+		expected.put(4, List.of(String.valueOf(CrossScopeSingletonFixture.TARGET_SHARED_AND_SINGLETON)));
+		expected.put(6, List.of());
+		assertEquals(expected, rows);
+		assertTrue(
+			this.crossScope.selectsSingleOwnerRow(
+				LIVE, CrossScopeSingletonFixture.REFERENCE_ITEMS,
+				attributeGreaterThan(CrossScopeSingletonFixture.ATTRIBUTE_WEIGHT, 0), null
+			),
+			"The premise of the case: a single-owner partition is a candidate"
+		);
+	}
+
 	/**
 	 * Returns the parity cases of the generated catalog.
 	 *

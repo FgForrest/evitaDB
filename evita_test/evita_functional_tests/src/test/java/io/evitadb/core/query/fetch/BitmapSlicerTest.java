@@ -833,6 +833,35 @@ class BitmapSlicerTest {
 			assertArrayEquals(new int[]{200, 300}, groupsOfB);
 		}
 
+		@Test
+		@DisplayName("Should keep a row sharing an admitted key but not selected itself out of the sorted page")
+		void shouldKeepUnselectedRowSharingAdmittedKeyOutOfSortedPage() {
+			// the dropped row of 10 sorts first, while key 10 is admitted through the other row of 10, which sorts
+			// last - kept in the buffer, the dropped row would take the only slot of the page and push out 20
+			final int sourceEntityPk = 1;
+			final FakeReferenceContract dropped10 = droppedRef(10);
+			final FakeReferenceContract r20 = ref(20);
+			final FakeReferenceContract r10 = ref(10);
+			final Map<Integer, List<ReferenceContract>> refsByEntity = singletonRefMap(
+				sourceEntityPk, dropped10, r20, r10
+			);
+			final ValidEntityToReferenceMapping validityMapping = new ValidEntityToReferenceMapping(
+				1, referenceSchema(), false
+			);
+			validityMapping.admit(sourceEntityPk, r20);
+			validityMapping.admit(sourceEntityPk, r10);
+			final BitmapSlicer slicer = newPageSlicer(refsByEntity, new Page(1, 1));
+
+			final Bitmap result = slicer.sliceEntityIdsSorted(
+				new ConstantFormula(new BaseBitmap(10, 20)),
+				validityMapping,
+				referenceContractsAccessor(refsByEntity),
+				new RankComparator(List.of(dropped10, r20, r10))
+			);
+
+			assertArrayEquals(new int[]{20}, result.getArray());
+		}
+
 	}
 
 	// ---------------------------------------------------------------------------------------------
@@ -1013,6 +1042,14 @@ class BitmapSlicerTest {
 	}
 
 	/**
+	 * Builds a fake dropped reference contract with the given referenced primary key and no group.
+	 */
+	@Nonnull
+	private static FakeReferenceContract droppedRef(int referencedPk) {
+		return new FakeReferenceContract(referencedPk, null, true);
+	}
+
+	/**
 	 * Hand-rolled stub that implements only the methods `BitmapSlicer` invokes. Everything
 	 * else throws `UnsupportedOperationException`, which keeps the test failure modes loud
 	 * if the production code starts depending on something new.
@@ -1021,10 +1058,16 @@ class BitmapSlicerTest {
 		@Serial private static final long serialVersionUID = -1161299331361146718L;
 		private final ReferenceKey referenceKey;
 		@Nullable private final GroupEntityReference group;
+		private final boolean dropped;
 
 		FakeReferenceContract(int referencedPk, @Nullable Integer groupPk) {
+			this(referencedPk, groupPk, false);
+		}
+
+		FakeReferenceContract(int referencedPk, @Nullable Integer groupPk, boolean dropped) {
 			this.referenceKey = new ReferenceKey(REFERENCE_NAME, referencedPk);
 			this.group = groupPk == null ? null : new GroupEntityReference("group", groupPk);
+			this.dropped = dropped;
 		}
 
 		@Nonnull
@@ -1077,7 +1120,7 @@ class BitmapSlicerTest {
 
 		@Override
 		public boolean dropped() {
-			return false;
+			return this.dropped;
 		}
 
 		@Override
@@ -1205,6 +1248,51 @@ class BitmapSlicerTest {
 		@Override
 		public int compare(ReferenceContract o1, ReferenceContract o2) {
 			return Integer.compare(o2.getReferencedPrimaryKey(), o1.getReferencedPrimaryKey());
+		}
+
+		@Override
+		public int getNonSortedReferenceCount() {
+			return 0;
+		}
+
+		@Nonnull
+		@Override
+		public ReferenceComparator andThen(@Nonnull ReferenceComparator comparatorForUnknownRecords) {
+			throw new UnsupportedOperationException("not used");
+		}
+
+		@Nullable
+		@Override
+		public ReferenceComparator getNextComparator() {
+			return null;
+		}
+	}
+
+	/**
+	 * Comparator that orders the references by their position in a list, comparing them by identity - it tells apart
+	 * two references sharing one referenced primary key.
+	 */
+	private static final class RankComparator implements ReferenceComparator, Serializable {
+		@Serial private static final long serialVersionUID = -5402117219931183208L;
+
+		private final List<ReferenceContract> ranking;
+
+		RankComparator(@Nonnull List<ReferenceContract> ranking) {
+			this.ranking = ranking;
+		}
+
+		@Override
+		public int compare(ReferenceContract o1, ReferenceContract o2) {
+			return Integer.compare(rankOf(o1), rankOf(o2));
+		}
+
+		private int rankOf(@Nonnull ReferenceContract reference) {
+			for (int i = 0; i < this.ranking.size(); i++) {
+				if (this.ranking.get(i) == reference) {
+					return i;
+				}
+			}
+			throw new IllegalArgumentException("Unranked reference " + reference.getReferenceKey());
 		}
 
 		@Override

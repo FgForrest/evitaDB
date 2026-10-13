@@ -62,6 +62,7 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.exception.InconvertibleDataTypeException;
 import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.test.annotation.DataSet;
@@ -1109,6 +1110,78 @@ class ReferenceRowFilterCompilerTest {
 				false, null
 			);
 			assertTrue(filter.test(Scope.LIVE, owner, external));
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Owners the rows are read off")
+	class OwnerCompleteness {
+
+		@Test
+		@DisplayName("an owner read with the filtered reference hands over its raw entity")
+		@UseDataSet(ROW_FILTER)
+		void shouldHandOverRawEntityOfOwnerReadWithTheReference(Evita evita) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SealedEntity owner = session.getEntity(ENTITY_PRODUCT, 1, referenceContentAll())
+						.orElseThrow();
+					assertTrue(
+						ReferencedEntityFetcher.getOwnerCarryingEveryRow(owner, REF_BRANDS)
+							== ((EntityDecorator) owner).getDelegate()
+					);
+					return null;
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("an owner read without any reference counts as read again with all of them")
+		@UseDataSet(ROW_FILTER)
+		void shouldHandOverRawEntityOfOwnerReadWithoutReferences(Evita evita) {
+			// `EntityCollection#ensureReferencesFetched` reads such an owner again with every reference before the
+			// fetch reaches it, keeping the original predicate
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SealedEntity owner = session.getEntity(ENTITY_PRODUCT, 1, attributeContentAll())
+						.orElseThrow();
+					assertTrue(
+						ReferencedEntityFetcher.getOwnerCarryingEveryRow(owner, REF_BRANDS)
+							== ((EntityDecorator) owner).getDelegate()
+					);
+					return null;
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("an owner read with other references only is refused")
+		@UseDataSet(ROW_FILTER)
+		void shouldRefuseOwnerReadWithOtherReferencesOnly(Evita evita) {
+			evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SealedEntity owner = session.getEntity(ENTITY_PRODUCT, 1, referenceContent(REF_EXTERNALS))
+						.orElseThrow();
+					assertThrows(
+						GenericEvitaInternalError.class,
+						() -> ReferencedEntityFetcher.getOwnerCarryingEveryRow(owner, REF_BRANDS)
+					);
+					return null;
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("an owner that is no decorator is refused")
+		@UseDataSet(ROW_FILTER)
+		void shouldRefuseOwnerThatIsNoDecorator(Evita evita) {
+			final Entity raw = fetchOwners(evita).get(1);
+			assertThrows(
+				GenericEvitaInternalError.class, () -> ReferencedEntityFetcher.getOwnerCarryingEveryRow(raw, REF_BRANDS)
+			);
 		}
 
 	}

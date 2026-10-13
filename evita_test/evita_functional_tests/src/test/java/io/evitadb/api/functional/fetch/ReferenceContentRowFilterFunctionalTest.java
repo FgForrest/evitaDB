@@ -1,0 +1,1100 @@
+/*
+ *
+ *                         _ _        ____  ____
+ *               _____   _(_) |_ __ _|  _ \| __ )
+ *              / _ \ \ / / | __/ _` | | | |  _ \
+ *             |  __/\ V /| | || (_| | |_| | |_) |
+ *              \___| \_/ |_|\__\__,_|____/|____/
+ *
+ *   Copyright (c) 2026
+ *
+ *   Licensed under the Business Source License, Version 1.1 (the "License");
+ *   you may not use this file except in compliance with the License.
+ *   You may obtain a copy of the License at
+ *
+ *   https://github.com/FgForrest/evitaDB/blob/master/LICENSE
+ *
+ *   Unless required by applicable law or agreed to in writing, software
+ *   distributed under the License is distributed on an "AS IS" BASIS,
+ *   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *   See the License for the specific language governing permissions and
+ *   limitations under the License.
+ */
+
+package io.evitadb.api.functional.fetch;
+
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.EntityLocaleMissingException;
+import io.evitadb.api.exception.RollbackException;
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.order.OrderDirection;
+import io.evitadb.api.query.require.EntityContentRequire;
+import io.evitadb.api.query.require.ManagedReferencesBehaviour;
+import io.evitadb.api.query.require.ReferenceContent;
+import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
+import io.evitadb.core.Evita;
+import io.evitadb.core.query.response.ServerEntityDecorator;
+import io.evitadb.dataType.DataChunk;
+import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.test.annotation.DataSet;
+import io.evitadb.test.annotation.UseDataSet;
+import io.evitadb.test.extension.EvitaParameterResolver;
+import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.Functions;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.TreeMap;
+
+import static io.evitadb.api.query.Query.query;
+import static io.evitadb.api.query.QueryConstraints.*;
+import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REFERENCE;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * Pins what the filter of the fetched references (`referenceContent(..., filterBy(...))`) admits: every reference row
+ * of every fetched owner is judged by itself - by the scope and the locales of its owner and by the row - never by
+ * the other owners fetched along and never by whether a scope indexes the reference.
+ *
+ * ## The fixture
+ *
+ * `rfBrand` (locales EN, DE; `title` localized and sortable) - brands 1 (`a`, EN `Zulu`, DE `Alpha`; `brandGroups`
+ * 10 with `w` 1 and 11 with `w` 2) and 2 (`b`, EN `Yankee`, DE `Beta`; `brandGroups` 10 with `w` 2) live, brand 3
+ * (`a`, EN `Xray`) archived, brand 4 never created. `rfGroup` - groups 10 (`g1`)
+ * and 11 (`g2`) live, 13 (`g4`) archived, 12 never created.
+ *
+ * `rfProduct` (locales EN, DE) references them as:
+ *
+ * - `brands` - grouped, indexed in both scopes with both components; `x` and `label` (localized) filterable, `tag`
+ *   (localized) unique across locales in LIVE and within a locale in ARCHIVED, `u` unique in LIVE and only filterable
+ *   in ARCHIVED, `price` (`BigDecimal`, two decimal places), `keywords` (array) and `name` (localized) neither
+ *   filterable nor unique,
+ * - `brandsByGroup` - grouped, indexed in LIVE without the group component,
+ * - `brandsUnindexed` - indexed nowhere,
+ * - `brandDuplicates` - duplicates told apart by the representative `country`, grouped, indexed in LIVE, with `x` and
+ *   the sortable `rank`,
+ * - `externals` - to the unmanaged `rfExternal`, grouped by `rfGroup`.
+ *
+ * The owners:
+ *
+ * - **1** (LIVE; EN, DE): `brands` 1 (g10, x 5, label EN `Red` DE `Rot`, tag EN `t-1`, u `c1`, price 1.01, keywords
+ *   `x y`), 2 (g11, x 7, label EN `Blue`, price 12345678901.23, keywords empty) and 4 (g10, x 5); `brandsByGroup`
+ *   1 (g10) and 2 (g11); `brandsUnindexed` 1 and 2; `brandDuplicates` 1/DE (g11, x 5, rank 1), 1/CZ (g10, x 5,
+ *   rank 3) and 2/CZ (g10, x 7, rank 2); `externals` 100 (g10), 101 (g12), 102 (g11) and 103 (g13),
+ * - **2** (LIVE; EN): `brands` 1 (g11, x 5, label EN `Red`); `brandsByGroup` 2 (g11),
+ * - **3** (ARCHIVED; EN, DE): `brands` 1 (g10, x 5, tag EN `t-3`, u `c3`) and 3 (x 5),
+ * - **5** (LIVE; EN): no reference at all.
+ *
+ * The planning check of the filter is still the one of the index route, so the cases its refusals cover are run
+ * through `getEntity`, which plans nothing.
+ *
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+ */
+@DisplayName("Row filter of referenceContent")
+@ExtendWith(EvitaParameterResolver.class)
+@Tag(CONTRACT)
+@Tag(QUERY)
+@Tag(REFERENCE)
+class ReferenceContentRowFilterFunctionalTest {
+	private static final String DATA_SET = "referenceContentRowFilter";
+	private static final String MUTABLE_DATA_SET = "referenceContentRowFilterMutable";
+	private static final String ENTITY_PRODUCT = "rfProduct";
+	private static final String ENTITY_BRAND = "rfBrand";
+	private static final String ENTITY_GROUP = "rfGroup";
+	private static final String ENTITY_EXTERNAL = "rfExternal";
+	private static final String REF_BRANDS = "brands";
+	private static final String REF_BY_GROUP = "brandsByGroup";
+	private static final String REF_UNINDEXED = "brandsUnindexed";
+	private static final String REF_DUPLICATES = "brandDuplicates";
+	private static final String REF_EXTERNALS = "externals";
+	private static final String REF_BRAND_GROUPS = "brandGroups";
+	private static final String ATTR_CODE = "code";
+	private static final String ATTR_TITLE = "title";
+	private static final String ATTR_PRODUCT_NAME = "productName";
+	private static final String ATTR_X = "x";
+	private static final String ATTR_LABEL = "label";
+	private static final String ATTR_TAG = "tag";
+	private static final String ATTR_U = "u";
+	private static final String ATTR_PRICE = "price";
+	private static final String ATTR_KEYWORDS = "keywords";
+	private static final String ATTR_NAME = "name";
+	private static final String ATTR_COUNTRY = "country";
+	private static final String ATTR_RANK = "rank";
+	private static final String ATTR_W = "w";
+	private static final Scope[] LIVE = {Scope.LIVE};
+	private static final Scope[] BOTH = {Scope.LIVE, Scope.ARCHIVED};
+	private static final BigDecimal HUGE_PRICE = new BigDecimal("12345678901.23");
+
+	/**
+	 * Builds the fixture described on the class.
+	 *
+	 * @param evita the engine instance provided by the test extension
+	 */
+	@DataSet(value = DATA_SET, destroyAfterClass = true)
+	void setUp(@Nonnull Evita evita) {
+		evita.updateCatalog(TEST_CATALOG, ReferenceContentRowFilterFunctionalTest::createFixture);
+	}
+
+	/**
+	 * Builds the fixture described on the class for the tests changing it.
+	 *
+	 * @param evita the engine instance provided by the test extension
+	 */
+	@DataSet(value = MUTABLE_DATA_SET, readOnly = false, destroyAfterClass = true)
+	void setUpMutable(@Nonnull Evita evita) {
+		evita.updateCatalog(TEST_CATALOG, ReferenceContentRowFilterFunctionalTest::createFixture);
+	}
+
+	/**
+	 * Creates the schemas and the entities of the fixture.
+	 *
+	 * @param session the session to write in
+	 */
+	private static void createFixture(@Nonnull EvitaSessionContract session) {
+		session.defineEntitySchema(ENTITY_GROUP)
+			.withoutGeneratedPrimaryKey()
+			.withAttribute(ATTR_CODE, String.class, thatIs -> thatIs.filterableInScope(BOTH))
+			.updateVia(session);
+		session.upsertEntity(session.createNewEntity(ENTITY_GROUP, 10).setAttribute(ATTR_CODE, "g1"));
+		session.upsertEntity(session.createNewEntity(ENTITY_GROUP, 11).setAttribute(ATTR_CODE, "g2"));
+		session.upsertEntity(session.createNewEntity(ENTITY_GROUP, 13).setAttribute(ATTR_CODE, "g4"));
+		session.archiveEntity(ENTITY_GROUP, 13);
+
+		session.defineEntitySchema(ENTITY_BRAND)
+			.withoutGeneratedPrimaryKey()
+			.withLocale(Locale.ENGLISH, Locale.GERMAN)
+			.withAttribute(ATTR_CODE, String.class, thatIs -> thatIs.filterableInScope(BOTH))
+			.withAttribute(ATTR_TITLE, String.class, thatIs -> thatIs.localized().sortableInScope(BOTH).nullable())
+			.withReferenceToEntity(
+				REF_BRAND_GROUPS, ENTITY_GROUP, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs
+					.indexedForFilteringInScope(BOTH)
+					.withAttribute(ATTR_W, Integer.class, thatIs -> thatIs.filterableInScope(BOTH).nullable())
+			)
+			.updateVia(session);
+		session.upsertEntity(
+			session.createNewEntity(ENTITY_BRAND, 1).setAttribute(ATTR_CODE, "a")
+				.setAttribute(ATTR_TITLE, Locale.ENGLISH, "Zulu").setAttribute(ATTR_TITLE, Locale.GERMAN, "Alpha")
+				.setReference(REF_BRAND_GROUPS, 10, whichIs -> whichIs.setAttribute(ATTR_W, 1))
+				.setReference(REF_BRAND_GROUPS, 11, whichIs -> whichIs.setAttribute(ATTR_W, 2))
+		);
+		session.upsertEntity(
+			session.createNewEntity(ENTITY_BRAND, 2).setAttribute(ATTR_CODE, "b")
+				.setAttribute(ATTR_TITLE, Locale.ENGLISH, "Yankee").setAttribute(ATTR_TITLE, Locale.GERMAN, "Beta")
+				.setReference(REF_BRAND_GROUPS, 10, whichIs -> whichIs.setAttribute(ATTR_W, 2))
+		);
+		session.upsertEntity(
+			session.createNewEntity(ENTITY_BRAND, 3).setAttribute(ATTR_CODE, "a")
+				.setAttribute(ATTR_TITLE, Locale.ENGLISH, "Xray")
+		);
+		session.archiveEntity(ENTITY_BRAND, 3);
+
+		session.defineEntitySchema(ENTITY_PRODUCT)
+			.withoutGeneratedPrimaryKey()
+			.withLocale(Locale.ENGLISH, Locale.GERMAN)
+			.withAttribute(ATTR_PRODUCT_NAME, String.class, thatIs -> thatIs.localized().nullable())
+			.withReferenceToEntity(
+				REF_BRANDS, ENTITY_BRAND, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs
+					.withGroupTypeRelatedToEntity(ENTITY_GROUP)
+					.indexedForFilteringAndPartitioningInScope(BOTH)
+					.indexedWithComponents(
+						ReferenceIndexedComponents.REFERENCED_ENTITY, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+					.withAttribute(ATTR_X, Integer.class, thatIs -> thatIs.filterableInScope(BOTH).nullable())
+					.withAttribute(
+						ATTR_LABEL, String.class, thatIs -> thatIs.localized().filterableInScope(BOTH).nullable()
+					)
+					.withAttribute(ATTR_TAG, String.class, thatIs -> thatIs.localized().uniqueInScope(BOTH).nullable())
+					.withAttribute(ATTR_U, String.class, thatIs -> thatIs.uniqueInScope(Scope.LIVE).nullable())
+					.withAttribute(ATTR_PRICE, BigDecimal.class, thatIs -> thatIs.indexDecimalPlaces(2).nullable())
+					.withAttribute(ATTR_KEYWORDS, String[].class, thatIs -> thatIs.nullable())
+					.withAttribute(ATTR_NAME, String.class, thatIs -> thatIs.localized().nullable())
+			)
+			.withReferenceToEntity(
+				REF_BY_GROUP, ENTITY_BRAND, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs
+					.withGroupTypeRelatedToEntity(ENTITY_GROUP)
+					.indexedForFilteringInScope(Scope.LIVE)
+					.indexedWithComponents(ReferenceIndexedComponents.REFERENCED_ENTITY)
+			)
+			.withReferenceToEntity(REF_UNINDEXED, ENTITY_BRAND, Cardinality.ZERO_OR_MORE)
+			.withReferenceToEntity(
+				REF_DUPLICATES, ENTITY_BRAND, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+				whichIs -> whichIs
+					.withGroupTypeRelatedToEntity(ENTITY_GROUP)
+					.indexedForFilteringAndPartitioningInScope(Scope.LIVE)
+					.indexedWithComponents(
+						ReferenceIndexedComponents.REFERENCED_ENTITY, ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+					)
+					.withAttribute(
+						ATTR_COUNTRY, String.class, thatIs -> thatIs.filterableInScope(Scope.LIVE).representative()
+					)
+					.withAttribute(ATTR_X, Integer.class, thatIs -> thatIs.filterableInScope(Scope.LIVE).nullable())
+					.withAttribute(
+						ATTR_RANK, Integer.class,
+						thatIs -> thatIs.filterableInScope(Scope.LIVE).sortableInScope(Scope.LIVE).nullable()
+					)
+			)
+			.withReferenceTo(
+				REF_EXTERNALS, ENTITY_EXTERNAL, Cardinality.ZERO_OR_MORE,
+				whichIs -> whichIs.withGroupTypeRelatedToEntity(ENTITY_GROUP)
+			)
+			.updateVia(session);
+		// `tag` is unique across locales in LIVE and within a locale in ARCHIVED - the builder sets one uniqueness for
+		// every scope it names - and `u` is unique in LIVE and only filterable in ARCHIVED, which the builder refuses
+		// as a whole ("cannot be both unique and filterable"), so both go through the raw mutations
+		session.updateEntitySchema(
+			new ModifyEntitySchemaMutation(
+				ENTITY_PRODUCT,
+				new ModifyReferenceAttributeSchemaMutation(
+					REF_BRANDS,
+					new SetAttributeSchemaUniqueMutation(
+						ATTR_TAG,
+						new ScopedAttributeUniquenessType[]{
+							new ScopedAttributeUniquenessType(
+								Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION
+							),
+							new ScopedAttributeUniquenessType(
+								Scope.ARCHIVED, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION_LOCALE
+							)
+						}
+					)
+				),
+				new ModifyReferenceAttributeSchemaMutation(
+					REF_BRANDS, new SetAttributeSchemaFilterableMutation(ATTR_U, new Scope[]{Scope.ARCHIVED})
+				)
+			)
+		);
+
+		session.upsertEntity(
+			session.createNewEntity(ENTITY_PRODUCT, 1)
+				.setAttribute(ATTR_PRODUCT_NAME, Locale.ENGLISH, "One")
+				.setAttribute(ATTR_PRODUCT_NAME, Locale.GERMAN, "Eins")
+				.setReference(
+					REF_BRANDS, 1,
+					whichIs -> whichIs.setGroup(10)
+						.setAttribute(ATTR_X, 5)
+						.setAttribute(ATTR_LABEL, Locale.ENGLISH, "Red")
+						.setAttribute(ATTR_LABEL, Locale.GERMAN, "Rot")
+						.setAttribute(ATTR_TAG, Locale.ENGLISH, "t-1")
+						.setAttribute(ATTR_U, "c1")
+						.setAttribute(ATTR_PRICE, new BigDecimal("1.01"))
+						.setAttribute(ATTR_KEYWORDS, new String[]{"x", "y"})
+				)
+				.setReference(
+					REF_BRANDS, 2,
+					whichIs -> whichIs.setGroup(11)
+						.setAttribute(ATTR_X, 7)
+						.setAttribute(ATTR_LABEL, Locale.ENGLISH, "Blue")
+						.setAttribute(ATTR_PRICE, HUGE_PRICE)
+						.setAttribute(ATTR_KEYWORDS, new String[0])
+				)
+				.setReference(REF_BRANDS, 4, whichIs -> whichIs.setGroup(10).setAttribute(ATTR_X, 5))
+				.setReference(REF_BY_GROUP, 1, whichIs -> whichIs.setGroup(10))
+				.setReference(REF_BY_GROUP, 2, whichIs -> whichIs.setGroup(11))
+				.setReference(REF_UNINDEXED, 1)
+				.setReference(REF_UNINDEXED, 2)
+				.setOrUpdateReference(
+					REF_DUPLICATES, 1, Functions.alwaysFalse(),
+					whichIs -> whichIs.setGroup(11).setAttribute(ATTR_COUNTRY, "DE").setAttribute(ATTR_X, 5)
+						.setAttribute(ATTR_RANK, 1)
+				)
+				.setOrUpdateReference(
+					REF_DUPLICATES, 1, Functions.alwaysFalse(),
+					whichIs -> whichIs.setGroup(10).setAttribute(ATTR_COUNTRY, "CZ").setAttribute(ATTR_X, 5)
+						.setAttribute(ATTR_RANK, 3)
+				)
+				.setOrUpdateReference(
+					REF_DUPLICATES, 2, Functions.alwaysFalse(),
+					whichIs -> whichIs.setGroup(10).setAttribute(ATTR_COUNTRY, "CZ").setAttribute(ATTR_X, 7)
+						.setAttribute(ATTR_RANK, 2)
+				)
+				.setReference(REF_EXTERNALS, 100, whichIs -> whichIs.setGroup(10))
+				.setReference(REF_EXTERNALS, 101, whichIs -> whichIs.setGroup(12))
+				.setReference(REF_EXTERNALS, 102, whichIs -> whichIs.setGroup(11))
+				.setReference(REF_EXTERNALS, 103, whichIs -> whichIs.setGroup(13))
+		);
+		session.upsertEntity(
+			session.createNewEntity(ENTITY_PRODUCT, 2)
+				.setAttribute(ATTR_PRODUCT_NAME, Locale.ENGLISH, "Two")
+				.setReference(
+					REF_BRANDS, 1,
+					whichIs -> whichIs.setGroup(11)
+						.setAttribute(ATTR_X, 5)
+						.setAttribute(ATTR_LABEL, Locale.ENGLISH, "Red")
+				)
+				.setReference(REF_BY_GROUP, 2, whichIs -> whichIs.setGroup(11))
+		);
+		session.upsertEntity(
+			session.createNewEntity(ENTITY_PRODUCT, 3)
+				.setAttribute(ATTR_PRODUCT_NAME, Locale.ENGLISH, "Three")
+				.setAttribute(ATTR_PRODUCT_NAME, Locale.GERMAN, "Drei")
+				.setReference(
+					REF_BRANDS, 1,
+					whichIs -> whichIs.setGroup(10)
+						.setAttribute(ATTR_X, 5)
+						.setAttribute(ATTR_TAG, Locale.ENGLISH, "t-3")
+						.setAttribute(ATTR_U, "c3")
+				)
+				.setReference(REF_BRANDS, 3, whichIs -> whichIs.setAttribute(ATTR_X, 5))
+		);
+		session.archiveEntity(ENTITY_PRODUCT, 3);
+		session.upsertEntity(
+			session.createNewEntity(ENTITY_PRODUCT, 5).setAttribute(ATTR_PRODUCT_NAME, Locale.ENGLISH, "Five")
+		);
+	}
+
+	/**
+	 * Fetches the owners with the references the requirement keeps and describes the kept rows of every owner, sorted:
+	 * `target`, or `target/country` for `brandDuplicates`.
+	 *
+	 * @param evita            the engine instance
+	 * @param scopes           the scopes of the query
+	 * @param queryLocale      the locale of the query, NULL for none
+	 * @param referenceName    the reference whose rows are described
+	 * @param referenceContent the requirement
+	 * @param owners           the primary keys of the owners
+	 * @return the kept rows by owner
+	 */
+	@Nonnull
+	private static Map<Integer, List<String>> queryRows(
+		@Nonnull Evita evita,
+		@Nonnull Scope[] scopes,
+		@Nullable Locale queryLocale,
+		@Nonnull String referenceName,
+		@Nonnull ReferenceContent referenceContent,
+		@Nonnull int... owners
+	) {
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return queryRows(session, scopes, queryLocale, referenceName, referenceContent, owners);
+			}
+		);
+	}
+
+	/**
+	 * Fetches the owners in the session - see the variant taking the engine instance.
+	 *
+	 * @param session          the session
+	 * @param scopes           the scopes of the query
+	 * @param queryLocale      the locale of the query, NULL for none
+	 * @param referenceName    the reference whose rows are described
+	 * @param referenceContent the requirement
+	 * @param owners           the primary keys of the owners
+	 * @return the kept rows by owner
+	 */
+	@Nonnull
+	private static Map<Integer, List<String>> queryRows(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Scope[] scopes,
+		@Nullable Locale queryLocale,
+		@Nonnull String referenceName,
+		@Nonnull ReferenceContent referenceContent,
+		@Nonnull int... owners
+	) {
+		final FilterConstraint[] ownerFilter = queryLocale == null ?
+			new FilterConstraint[]{entityPrimaryKeyInSet(owners), scope(scopes)} :
+			new FilterConstraint[]{entityPrimaryKeyInSet(owners), scope(scopes), entityLocaleEquals(queryLocale)};
+		final Map<Integer, List<String>> rows = new TreeMap<>();
+		for (SealedEntity owner : session.queryListOfSealedEntities(
+			query(
+				collection(ENTITY_PRODUCT),
+				filterBy(ownerFilter),
+				require(page(1, 100), entityFetch(referenceContent))
+			)
+		)) {
+			rows.put(owner.getPrimaryKeyOrThrowException(), describeSorted(owner.getReferences(referenceName)));
+		}
+		return rows;
+	}
+
+	/**
+	 * Fetches one owner through `getEntity`, which plans no query, and describes the kept rows, sorted.
+	 *
+	 * @param evita            the engine instance
+	 * @param owner            the primary key of the owner
+	 * @param scopes           the scopes the owner is looked up in
+	 * @param referenceName    the reference whose rows are described
+	 * @param requirements     the requirements
+	 * @return the kept rows
+	 */
+	@Nonnull
+	private static List<String> getRows(
+		@Nonnull Evita evita,
+		int owner,
+		@Nonnull Scope[] scopes,
+		@Nonnull String referenceName,
+		@Nonnull EntityContentRequire... requirements
+	) {
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				return describeSorted(
+					session.getEntity(ENTITY_PRODUCT, owner, scopes, requirements)
+						.orElseThrow()
+						.getReferences(referenceName)
+				);
+			}
+		);
+	}
+
+	/**
+	 * Describes the rows, sorted.
+	 *
+	 * @param references the rows
+	 * @return `target`, or `target/country` for `brandDuplicates`
+	 */
+	@Nonnull
+	private static List<String> describeSorted(@Nonnull Collection<ReferenceContract> references) {
+		return describe(references).stream().sorted().toList();
+	}
+
+	/**
+	 * Describes the rows in their order.
+	 *
+	 * @param references the rows
+	 * @return `target`, or `target/country` for `brandDuplicates`
+	 */
+	@Nonnull
+	private static List<String> describe(@Nonnull Collection<ReferenceContract> references) {
+		final List<String> result = new ArrayList<>(references.size());
+		for (ReferenceContract reference : references) {
+			result.add(
+				REF_DUPLICATES.equals(reference.getReferenceName()) ?
+					reference.getReferencedPrimaryKey() + "/" + reference.getAttribute(ATTR_COUNTRY) :
+					String.valueOf(reference.getReferencedPrimaryKey())
+			);
+		}
+		return result;
+	}
+
+	/**
+	 * Builds the expected rows by owner.
+	 *
+	 * @param ownersAndRows alternating owner primary keys and lists of rows
+	 * @return the rows by owner
+	 */
+	@Nonnull
+	private static Map<Integer, List<String>> rows(@Nonnull Object... ownersAndRows) {
+		final Map<Integer, List<String>> result = new TreeMap<>();
+		for (int i = 0; i < ownersAndRows.length; i += 2) {
+			@SuppressWarnings("unchecked") final List<String> rows = (List<String>) ownersAndRows[i + 1];
+			result.put((Integer) ownersAndRows[i], rows);
+		}
+		return result;
+	}
+
+	/**
+	 * Asserts that fetching owner 1 through `getEntity` refuses the filter with an {@link EvitaInvalidUsageException}
+	 * whose message contains all fragments.
+	 *
+	 * @param evita     the engine instance
+	 * @param owner     the primary key of the owner
+	 * @param filterBy  the filter of `brands`
+	 * @param fragments the fragments of the expected message
+	 */
+	private static void assertRefusedAtFetch(
+		@Nonnull Evita evita,
+		int owner,
+		@Nonnull FilterBy filterBy,
+		@Nonnull String... fragments
+	) {
+		final EvitaInvalidUsageException refusal = assertThrows(
+			EvitaInvalidUsageException.class,
+			() -> getRows(evita, owner, LIVE, REF_BRANDS, referenceContent(REF_BRANDS, filterBy))
+		);
+		for (String fragment : fragments) {
+			assertTrue(
+				refusal.getMessage().contains(fragment),
+				() -> "The message `" + refusal.getMessage() + "` must contain `" + fragment + "`"
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Verdicts per row")
+	class VerdictsPerRow {
+
+		@Test
+		@DisplayName("a root groupHaving and its sibling judge the same row of each owner (D1, R5)")
+		@UseDataSet(DATA_SET)
+		void shouldJudgeRootGroupHavingAndSiblingOnTheSameRow(Evita evita) {
+			final FilterBy filter = filterBy(groupHaving(entityPrimaryKeyInSet(10)), attributeEquals(ATTR_X, 5));
+			// owner 2 holds brand 1 with x 5 in group 11 - owner 1's row in group 10 must not admit it
+			assertEquals(
+				rows(1, List.of("1"), 2, List.of()),
+				queryRows(evita, LIVE, null, REF_BRANDS, referenceContent(REF_BRANDS, filter), 1, 2)
+			);
+			// the same within one owner: duplicate 1/DE is in group 11, duplicate 1/CZ in group 10
+			assertEquals(
+				rows(1, List.of("1/CZ")),
+				queryRows(
+					evita, LIVE, null, REF_DUPLICATES, referenceContentWithAttributes(REF_DUPLICATES, filter), 1
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("a group filter needs no indexed group component and fails on no data (D2, R4)")
+		@UseDataSet(DATA_SET)
+		void shouldFilterByGroupWithoutGroupComponent(Evita evita) {
+			final ReferenceContent byGroup = referenceContent(
+				REF_BY_GROUP, filterBy(groupHaving(attributeEquals(ATTR_CODE, "g1")))
+			);
+			assertEquals(rows(1, List.of("1")), queryRows(evita, LIVE, null, REF_BY_GROUP, byGroup, 1));
+			assertEquals(rows(2, List.of()), queryRows(evita, LIVE, null, REF_BY_GROUP, byGroup, 2));
+		}
+
+		@Test
+		@DisplayName("a filter of a reference indexed nowhere is applied (U1)")
+		@UseDataSet(DATA_SET)
+		void shouldApplyFilterOfReferenceIndexedNowhere(Evita evita) {
+			// not a root `entityPrimaryKeyInSet`: that one narrows the rows read from the storage, filter or not
+			assertEquals(
+				rows(1, List.of("1")),
+				queryRows(
+					evita, LIVE, null, REF_UNINDEXED,
+					referenceContent(REF_UNINDEXED, filterBy(not(entityPrimaryKeyInSet(2)))), 1
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("a filter of referenceContent() without a name is applied to every reference")
+		@UseDataSet(DATA_SET)
+		void shouldApplyFilterOfReferenceContentWithoutNameToEveryReference(Evita evita) {
+			final ReferenceContent everyReference = new ReferenceContent(
+				null, ManagedReferencesBehaviour.ANY, ArrayUtils.EMPTY_STRING_ARRAY,
+				new RequireConstraint[]{attributeContentAll()},
+				new Constraint<?>[]{filterBy(entityPrimaryKeyInSet(1, 100))}
+			);
+			assertEquals(rows(1, List.of("1")), queryRows(evita, LIVE, null, REF_BRANDS, everyReference, 1));
+			assertEquals(rows(1, List.of("1")), queryRows(evita, LIVE, null, REF_BY_GROUP, everyReference, 1));
+			assertEquals(rows(1, List.of("1")), queryRows(evita, LIVE, null, REF_UNINDEXED, everyReference, 1));
+			assertEquals(
+				rows(1, List.of("1/CZ", "1/DE")), queryRows(evita, LIVE, null, REF_DUPLICATES, everyReference, 1)
+			);
+			assertEquals(rows(1, List.of("100")), queryRows(evita, LIVE, null, REF_EXTERNALS, everyReference, 1));
+		}
+
+		@Test
+		@DisplayName("a row is judged by its own attribute value - an array by any element, a string by a search")
+		@UseDataSet(DATA_SET)
+		void shouldJudgeArrayAndStringLeaves(Evita evita) {
+			assertEquals(
+				List.of("1"),
+				getRows(
+					evita, 1, LIVE, REF_BRANDS,
+					referenceContent(REF_BRANDS, filterBy(attributeEquals(ATTR_KEYWORDS, "y")))
+				)
+			);
+			assertEquals(
+				List.of("1"),
+				getRows(
+					evita, 1, LIVE, REF_BRANDS,
+					referenceContent(REF_BRANDS, filterBy(attributeInSet(ATTR_KEYWORDS, "q", "x")))
+				)
+			);
+			assertEquals(
+				rows(1, List.of("1"), 2, List.of("1")),
+				queryRows(
+					evita, LIVE, Locale.ENGLISH, REF_BRANDS,
+					referenceContent(REF_BRANDS, filterBy(attributeStartsWith(ATTR_LABEL, "Re"))), 1, 2
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("a negated entityHaving and a groupHaving are judged per row when fetched by getEntity")
+		@UseDataSet(DATA_SET)
+		void shouldJudgeNestedFiltersWhenFetchedByGetEntity(Evita evita) {
+			assertEquals(
+				List.of("2"),
+				getRows(
+					evita, 1, LIVE, REF_BRANDS,
+					referenceContent(REF_BRANDS, filterBy(not(entityHaving(attributeEquals(ATTR_CODE, "a")))))
+				)
+			);
+			assertEquals(
+				List.of("2"),
+				getRows(
+					evita, 1, LIVE, REF_BRANDS,
+					referenceContent(REF_BRANDS, filterBy(groupHaving(attributeEquals(ATTR_CODE, "g2"))))
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("the references of a fetched referenced entity are judged per row of that entity")
+		@UseDataSet(DATA_SET)
+		void shouldJudgeRowsOfReferencedEntityAtSecondLevel(Evita evita) {
+			final Map<Integer, List<String>> groupsOfBrands = evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SealedEntity owner = session.getEntity(
+						ENTITY_PRODUCT, 1,
+						referenceContent(
+							REF_BRANDS,
+							filterBy(entityPrimaryKeyInSet(1, 2)),
+							entityFetch(referenceContent(REF_BRAND_GROUPS, filterBy(attributeEquals(ATTR_W, 2))))
+						)
+					).orElseThrow();
+					final Map<Integer, List<String>> result = new TreeMap<>();
+					for (ReferenceContract brand : owner.getReferences(REF_BRANDS)) {
+						result.put(
+							brand.getReferencedPrimaryKey(),
+							describeSorted(brand.getReferencedEntity().orElseThrow().getReferences(REF_BRAND_GROUPS))
+						);
+					}
+					return result;
+				}
+			);
+			assertEquals(rows(1, List.of("11"), 2, List.of("10")), groupsOfBrands);
+		}
+
+		@Test
+		@DisplayName("an enriched entity gets the rows the filter admits")
+		@UseDataSet(DATA_SET)
+		void shouldFilterRowsOfEnrichedEntity(Evita evita) {
+			final List<String> enriched = evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SealedEntity owner = session.getEntity(ENTITY_PRODUCT, 1, attributeContentAll())
+						.orElseThrow();
+					return describeSorted(
+						session.enrichEntity(
+							owner,
+							referenceContent(REF_BRANDS, filterBy(entityHaving(attributeEquals(ATTR_CODE, "a"))))
+						).getReferences(REF_BRANDS)
+					);
+				}
+			);
+			assertEquals(List.of("1"), enriched);
+		}
+
+		@Test
+		@DisplayName("only existing referenced entities pass, duplicates included")
+		@UseDataSet(DATA_SET)
+		void shouldAdmitExistingDuplicatesOnly(Evita evita) {
+			final ReferenceContent existing = new ReferenceContent(
+				null, ManagedReferencesBehaviour.EXISTING, new String[]{REF_DUPLICATES},
+				new RequireConstraint[]{attributeContentAll()},
+				new Constraint<?>[]{filterBy(attributeEquals(ATTR_X, 5))}
+			);
+			assertEquals(rows(1, List.of("1/CZ", "1/DE")), queryRows(evita, LIVE, null, REF_DUPLICATES, existing, 1));
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Locale and per-scope readings of the attribute leaves")
+	class Readings {
+
+		@Test
+		@DisplayName("a localized leaf reads the locale of the filter, not of the query (Q1)")
+		@UseDataSet(DATA_SET)
+		void shouldReadLocaleOfTheFilter(Evita evita) {
+			assertEquals(
+				rows(1, List.of("1")),
+				queryRows(
+					evita, LIVE, Locale.ENGLISH, REF_BRANDS,
+					referenceContent(
+						REF_BRANDS, filterBy(entityLocaleEquals(Locale.GERMAN), attributeEquals(ATTR_LABEL, "Rot"))
+					),
+					1
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("a localized leaf reads the locale of the filter found inside entityHaving (Q1, X5)")
+		@UseDataSet(DATA_SET)
+		void shouldReadLocaleFoundInsideEntityHaving(Evita evita) {
+			assertEquals(
+				rows(1, List.of("1")),
+				queryRows(
+					evita, LIVE, Locale.ENGLISH, REF_BRANDS,
+					referenceContent(
+						REF_BRANDS,
+						filterBy(entityHaving(entityLocaleEquals(Locale.GERMAN)), attributeEquals(ATTR_LABEL, "Rot"))
+					),
+					1
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("each owner reads the attribute by the declaration of its own scope")
+		@UseDataSet(DATA_SET)
+		void shouldReadEachOwnerByTheDeclarationOfItsScope(Evita evita) {
+			// `tag` is unique across locales in LIVE: owner 1's English value counts under a German query; within
+			// a locale in ARCHIVED: owner 3's English value does not
+			assertEquals(
+				rows(1, List.of("1"), 3, List.of()),
+				queryRows(
+					evita, BOTH, Locale.GERMAN, REF_BRANDS,
+					referenceContent(REF_BRANDS, filterBy(attributeInSet(ATTR_TAG, "t-1", "t-3"))), 1, 3
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("an attribute unique in one scope and only filterable in another matches in both (OQ-U)")
+		@UseDataSet(DATA_SET)
+		void shouldMatchAttributeUniqueInOneScopeAndFilterableInAnother(Evita evita) {
+			// through `getEntity`: the planning check of the index route refuses an attribute that is neither
+			// filterable in every scope nor unique in every scope
+			assertEquals(
+				List.of(),
+				getRows(
+					evita, 1, BOTH, REF_BRANDS, referenceContent(REF_BRANDS, filterBy(attributeEquals(ATTR_U, "c3")))
+				)
+			);
+			assertEquals(
+				List.of("1"),
+				getRows(
+					evita, 3, BOTH, REF_BRANDS, referenceContent(REF_BRANDS, filterBy(attributeEquals(ATTR_U, "c3")))
+				)
+			);
+			for (int owner : new int[]{1, 3}) {
+				assertEquals(
+					List.of("1"),
+					getRows(
+						evita, owner, BOTH, REF_BRANDS,
+						referenceContent(REF_BRANDS, filterBy(attributeInSet(ATTR_U, "c1", "c3")))
+					)
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("attributeIs without any locale reads a value in any locale in every scope (X4)")
+		@UseDataSet(DATA_SET)
+		void shouldReadAttributeIsWithoutLocaleInAnyLocale(Evita evita) {
+			assertEquals(
+				rows(1, List.of("1"), 3, List.of("1")),
+				queryRows(
+					evita, BOTH, null, REF_BRANDS,
+					referenceContent(REF_BRANDS, filterBy(attributeIsNotNull(ATTR_TAG))), 1, 3
+				)
+			);
+			assertEquals(
+				rows(1, List.of("2"), 3, List.of("3")),
+				queryRows(
+					evita, BOTH, null, REF_BRANDS,
+					referenceContent(REF_BRANDS, filterBy(attributeIsNull(ATTR_TAG))), 1, 3
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("attributeIs of a localized attribute without any locale is refused at fetch")
+		@UseDataSet(DATA_SET)
+		void shouldRefuseAttributeIsWithoutLocale(Evita evita) {
+			assertThrows(
+				EntityLocaleMissingException.class,
+				() -> getRows(
+					evita, 1, LIVE, REF_BRANDS, referenceContent(REF_BRANDS, filterBy(attributeIsNull(ATTR_NAME)))
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("a non-filterable BigDecimal compares as the index would, beyond the int range too (R1)")
+		@UseDataSet(DATA_SET)
+		void shouldCompareNonFilterableBigDecimalAsTheIndexWould(Evita evita) {
+			// 1.005 is 101 at two decimal places rounded half up - the stored 1.01
+			assertEquals(
+				List.of("1"),
+				getRows(
+					evita, 1, LIVE, REF_BRANDS,
+					referenceContent(REF_BRANDS, filterBy(attributeEquals(ATTR_PRICE, new BigDecimal("1.005"))))
+				)
+			);
+			assertEquals(
+				List.of("1"),
+				getRows(
+					evita, 1, LIVE, REF_BRANDS,
+					referenceContent(REF_BRANDS, filterBy(attributeLessThanEquals(ATTR_PRICE, new BigDecimal("1.014"))))
+				)
+			);
+			assertEquals(
+				List.of("2"),
+				getRows(
+					evita, 1, LIVE, REF_BRANDS,
+					referenceContent(
+						REF_BRANDS, filterBy(attributeGreaterThan(ATTR_PRICE, new BigDecimal("12345678901.22")))
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("an empty array is no value (P3)")
+		@UseDataSet(DATA_SET)
+		void shouldReadEmptyArrayAsNoValue(Evita evita) {
+			assertEquals(
+				List.of("2"),
+				getRows(
+					evita, 1, LIVE, REF_BRANDS, referenceContent(REF_BRANDS, filterBy(attributeIsNull(ATTR_KEYWORDS)))
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("the references are ordered in the locale of the filter (R8)")
+		@UseDataSet(DATA_SET)
+		void shouldOrderInTheLocaleOfTheFilter(Evita evita) {
+			final List<String> ordered = evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SealedEntity owner = session.queryOneSealedEntity(
+						query(
+							collection(ENTITY_PRODUCT),
+							filterBy(entityPrimaryKeyInSet(1), entityLocaleEquals(Locale.ENGLISH)),
+							require(
+								entityFetch(
+									referenceContent(
+										REF_BRANDS,
+										filterBy(entityHaving(entityLocaleEquals(Locale.GERMAN))),
+										orderBy(entityProperty(attributeNatural(ATTR_TITLE, OrderDirection.ASC))),
+										entityFetch(attributeContent(ATTR_TITLE))
+									)
+								)
+							)
+						)
+					).orElseThrow();
+					return describe(owner.getReferences(REF_BRANDS));
+				}
+			);
+			// German titles: Alpha (1), Beta (2); the English ones would order 2 before 1
+			assertEquals(List.of("1", "2"), ordered);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Refusals at fetch")
+	class RefusalsAtFetch {
+
+		@Test
+		@DisplayName("a constraint without a meaning on a row is refused, whether or not the owner holds a row (R6)")
+		@UseDataSet(DATA_SET)
+		void shouldRefuseConstraintWithoutMeaningOnRow(Evita evita) {
+			for (int owner : new int[]{1, 5}) {
+				assertRefusedAtFetch(
+					evita, owner, filterBy(entityPrimaryKeyBetween(1, 2)), "entityPrimaryKeyBetween", REF_BRANDS
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("a scope below the root of the filter is refused rather than read as true (R6, X2)")
+		@UseDataSet(DATA_SET)
+		void shouldRefuseScopeBelowRoot(Evita evita) {
+			assertRefusedAtFetch(
+				evita, 1, filterBy(or(scope(Scope.LIVE), attributeEquals(ATTR_X, 5))), "scope", REF_BRANDS
+			);
+			assertRefusedAtFetch(evita, 1, filterBy(not(scope(Scope.LIVE))), "scope", REF_BRANDS);
+			assertRefusedAtFetch(evita, 1, filterBy(inScope(Scope.LIVE, scope(Scope.LIVE))), "scope", REF_BRANDS);
+		}
+
+		@Test
+		@DisplayName("an inverted interval of a scalar attribute is refused, with or without a row to test (R10)")
+		@UseDataSet(DATA_SET)
+		void shouldRefuseInvertedInterval(Evita evita) {
+			for (int owner : new int[]{1, 5}) {
+				assertRefusedAtFetch(
+					evita, owner, filterBy(attributeBetween(ATTR_X, 10, 5)), "From must be lower than to"
+				);
+			}
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Slicing and groups")
+	class SlicingAndGroups {
+
+		@Test
+		@DisplayName("each named set pages its own admitted duplicates, sorted, with their bodies (X3)")
+		@UseDataSet(DATA_SET)
+		void shouldPageAdmittedDuplicatesOfEachNamedSet(Evita evita) {
+			// 1/DE (rank 1) sorts first; set `cz` rejects it, while its pk is admitted through 1/CZ (rank 3)
+			for (RequireConstraint chunk : new RequireConstraint[]{page(1, 1), strip(0, 1)}) {
+				final Map<String, List<String>> pages = evita.queryCatalog(
+					TEST_CATALOG,
+					session -> {
+						final ServerEntityDecorator owner = (ServerEntityDecorator) session.queryOneSealedEntity(
+							query(
+								collection(ENTITY_PRODUCT),
+								filterBy(entityPrimaryKeyInSet(1)),
+								require(
+									entityFetch(
+										namedDuplicates("cz", "CZ", chunk),
+										namedDuplicates("de", "DE", chunk)
+									)
+								)
+							)
+						).orElseThrow();
+						final Map<String, List<String>> result = new TreeMap<>();
+						for (String instance : new String[]{"cz", "de"}) {
+							final ReferenceContentKey key = new ReferenceContentKey(instance, REF_DUPLICATES);
+							final DataChunk<ReferenceContract> references = owner
+								.getReferencesForReferenceContentInstance(key)
+								.orElseThrow();
+							final List<String> page = new ArrayList<>(2);
+							for (ReferenceContract reference : references) {
+								page.add(
+									reference.getReferencedPrimaryKey() + "/" + reference.getAttribute(ATTR_COUNTRY) +
+										(reference.getReferencedEntity().isPresent() ? " with body" : " without body")
+								);
+							}
+							result.put(instance, page);
+						}
+						return result;
+					}
+				);
+				assertEquals(List.of("2/CZ with body"), pages.get("cz"), chunk.toString());
+				assertEquals(List.of("1/DE with body"), pages.get("de"), chunk.toString());
+			}
+		}
+
+		/**
+		 * Returns the named set of `brandDuplicates` of one country, ordered by rank and chunked.
+		 *
+		 * @param instance the name of the set
+		 * @param country  the country the filter admits
+		 * @param chunk    the chunk
+		 * @return the requirement
+		 */
+		@Nonnull
+		private static ReferenceContent namedDuplicates(
+			@Nonnull String instance,
+			@Nonnull String country,
+			@Nonnull RequireConstraint chunk
+		) {
+			return new ReferenceContent(
+				instance, ManagedReferencesBehaviour.ANY, new String[]{REF_DUPLICATES},
+				new RequireConstraint[]{attributeContentAll(), entityFetch(attributeContent(ATTR_CODE)), chunk},
+				new Constraint<?>[]{
+					filterBy(attributeEquals(ATTR_COUNTRY, country)),
+					orderBy(attributeNatural(ATTR_RANK, OrderDirection.ASC))
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("only groups existing in the requested scopes are fetched under EXISTING")
+		@UseDataSet(DATA_SET)
+		void shouldFetchExistingGroupsOfRequestedScopesOnly(Evita evita) {
+			final List<String> rows = evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SealedEntity owner = session.getEntity(
+						ENTITY_PRODUCT, 1, LIVE,
+						new ReferenceContent(
+							ManagedReferencesBehaviour.EXISTING, new String[]{REF_EXTERNALS}, null,
+							entityGroupFetch(attributeContent(ATTR_CODE))
+						)
+					).orElseThrow();
+					final List<String> result = new ArrayList<>(4);
+					for (ReferenceContract reference : owner.getReferences(REF_EXTERNALS)) {
+						result.add(
+							reference.getReferencedPrimaryKey() + ":" +
+								reference.getGroupEntity().map(it -> it.getAttribute(ATTR_CODE)).orElse("-")
+						);
+					}
+					return result.stream().sorted().toList();
+				}
+			);
+			// the targets are not managed, so every row stays; group 12 does not exist, group 13 is archived
+			assertEquals(List.of("100:g1", "101:-", "102:g2", "103:-"), rows);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Dropped data")
+	class DroppedData {
+
+		@Test
+		@DisplayName("a dropped row, a dropped group and a dropped attribute value count as absent")
+		@UseDataSet(value = MUTABLE_DATA_SET, destroyAfterTest = true)
+		void shouldReadDroppedDataAsAbsent(Evita evita) {
+			// the changes are read inside the open transaction, which is rolled back afterwards
+			assertThrows(
+				RollbackException.class,
+				() -> evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+							.orElseThrow()
+							.openForWrite()
+							.removeReference(REF_BRANDS, 2)
+							.setReference(REF_BRANDS, 1, whichIs -> whichIs.removeGroup().removeAttribute(ATTR_X))
+							.upsertVia(session);
+						// row 2 held x 7
+						assertEquals(
+							rows(1, List.of()),
+							queryRows(
+								session, LIVE, null, REF_BRANDS,
+								referenceContent(REF_BRANDS, filterBy(attributeEquals(ATTR_X, 7))), 1
+							)
+						);
+						// row 1 held group 10, row 4 is a missing target
+						assertEquals(
+							rows(1, List.of()),
+							queryRows(
+								session, LIVE, null, REF_BRANDS,
+								referenceContent(REF_BRANDS, filterBy(groupHaving(entityPrimaryKeyInSet(10)))), 1
+							)
+						);
+						assertEquals(
+							rows(1, List.of("1")),
+							queryRows(
+								session, LIVE, null, REF_BRANDS,
+								referenceContent(REF_BRANDS, filterBy(attributeIsNull(ATTR_X))), 1
+							)
+						);
+						session.setRollbackOnly();
+					}
+				)
+			);
+		}
+
+	}
+
+}

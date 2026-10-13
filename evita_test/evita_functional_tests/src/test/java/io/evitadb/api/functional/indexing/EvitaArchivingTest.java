@@ -34,6 +34,7 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceInnerRecordHandling;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -82,6 +83,8 @@ import java.math.BigDecimal;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.TreeMap;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.functional.indexing.IndexingTestSupport.getGlobalIndex;
@@ -1501,6 +1504,7 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 	@Nested
 	@DisplayName("Multi-scope querying")
 	class MultiScopeQueryingTest {
+		private static final String ATTRIBUTE_COUNTRY = "country";
 
 		@Test
 		@DisplayName("Results respect the filter even when both scopes are combined")
@@ -1599,6 +1603,319 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 					assertNotNull(reference.getReferencedEntity());
 				}
 			}
+
+			// archive brand 1 while product 100 stays live
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.BRAND, 1);
+				}
+			);
+			// the premise: the row of the live owner to the archived brand is still indexed in LIVE
+			assertEquals(
+				new EntityReference(Entities.PRODUCT, 100),
+				queryProductReferenceBy(
+					new Scope[]{Scope.LIVE}, referenceHaving(Entities.BRAND, entityPrimaryKeyInSet(1))
+				)
+			);
+			// the archived brand is judged by the filter like any other target - it no longer bypasses it
+			final SealedEntity product = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryOneSealedEntity(complexQuery).orElseThrow();
+				}
+			);
+			assertEquals(List.of(2), referencedPrimaryKeys(product, Entities.BRAND));
+			assertEquals(List.of(1), referencedPrimaryKeys(product, Entities.CATEGORY));
+			// a root scope of the reference filter widens the scopes of a live-only query the same way; the body of the
+			// archived brand is not asserted - the body request keeps the scopes of the query - and the filter is no
+			// root `entityPrimaryKeyInSet`, which would narrow the rows read from the storage, filter or not
+			final SealedEntity productInLiveQuery = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryOneSealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(entityPrimaryKeyInSet(100)),
+							require(
+								entityFetch(
+									referenceContent(
+										Entities.BRAND,
+										filterBy(scope(Scope.LIVE, Scope.ARCHIVED), not(entityPrimaryKeyInSet(1)))
+									)
+								)
+							)
+						)
+					).orElseThrow();
+				}
+			);
+			assertEquals(List.of(2), referencedPrimaryKeys(productInLiveQuery, Entities.BRAND));
+		}
+
+		@Test
+		@DisplayName("References of live and archived owners are decided independently of each other")
+		void shouldDecideReferencesOfLiveAndArchivedOwnersIndependently() {
+			createSchemaForEntityArchiving(Scope.LIVE);
+			createBrandAndCategoryEntities();
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.createNewEntity(Entities.PRODUCT, 100)
+						.setAttribute(ATTRIBUTE_CODE, "TV-123")
+						.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TV")
+						.setReference(
+							Entities.CATEGORY, 1,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "EU")
+								.setAttribute(ATTRIBUTE_CATEGORY_OPEN, true)
+						)
+						.setReference(
+							Entities.CATEGORY, 2,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "US")
+								.setAttribute(ATTRIBUTE_CATEGORY_OPEN, true)
+						)
+						// category 99 does not exist
+						.setReference(
+							Entities.CATEGORY, 99,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "US")
+								.setAttribute(ATTRIBUTE_CATEGORY_OPEN, true)
+						)
+						.upsertVia(session);
+					session.createNewEntity(Entities.PRODUCT, 101)
+						.setAttribute(ATTRIBUTE_CODE, "TV-456")
+						.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Radio")
+						.setReference(
+							Entities.CATEGORY, 1,
+							whichIs -> whichIs
+								.setAttribute(ATTRIBUTE_CATEGORY_MARKET, "US")
+								.setAttribute(ATTRIBUTE_CATEGORY_OPEN, true)
+						)
+						.upsertVia(session);
+				}
+			);
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+
+			// the filter is confined to LIVE, so the archived owner keeps all its existing categories, whatever the
+			// live rows of the same categories say - and a live owner's answer does not depend on who else is fetched
+			assertEquals(
+				Map.of(100, List.of(1, 2), 101, List.of(1)),
+				categoriesOfOwners("US", 100, 101)
+			);
+			assertEquals(
+				Map.of(100, List.of(1, 2), 101, List.of()),
+				categoriesOfOwners("XX", 100, 101)
+			);
+			assertEquals(Map.of(101, List.of()), categoriesOfOwners("XX", 101));
+			assertEquals(Map.of(100, List.of(1, 2)), categoriesOfOwners("US", 100));
+		}
+
+		@Test
+		@DisplayName("Duplicate references of an archived owner are judged per row as well")
+		void shouldKeepDuplicateReferencesOfArchivedOwner() {
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.CATEGORY).withoutGeneratedPrimaryKey().updateVia(session);
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withoutGeneratedPrimaryKey()
+						.withReferenceToEntity(
+							Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
+							thatIs -> thatIs
+								.indexedForFilteringAndPartitioningInScope(Scope.LIVE)
+								.withAttribute(
+									ATTRIBUTE_COUNTRY, String.class,
+									whichIs -> whichIs.filterableInScope(Scope.LIVE).representative()
+								)
+						)
+						.updateVia(session);
+					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1));
+					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 2));
+					session.upsertEntity(
+						duplicateCategories(session.createNewEntity(Entities.PRODUCT, 100), "1:CZ", "1:DE", "2:CZ")
+					);
+					session.upsertEntity(
+						duplicateCategories(session.createNewEntity(Entities.PRODUCT, 101), "1:CZ", "2:DE")
+					);
+				}
+			);
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 101);
+				}
+			);
+
+			final Map<Integer, List<String>> confined = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return countryCategoriesOfOwners(
+						session.queryListOfSealedEntities(
+							query(
+								collection(Entities.PRODUCT),
+								filterBy(entityPrimaryKeyInSet(100, 101), scope(Scope.LIVE, Scope.ARCHIVED)),
+								require(
+									entityFetch(
+										referenceContentWithAttributes(
+											Entities.CATEGORY,
+											filterBy(inScope(Scope.LIVE, attributeEquals(ATTRIBUTE_COUNTRY, "CZ")))
+										)
+									)
+								)
+							)
+						)
+					);
+				}
+			);
+			assertEquals(Map.of(100, List.of("1:CZ", "2:CZ"), 101, List.of("1:CZ", "2:DE")), confined);
+
+			// the categories live in LIVE only, so over the archive none of them exists for the filter to judge
+			final Map<Integer, List<String>> overArchive = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return countryCategoriesOfOwners(
+						session.queryListOfSealedEntities(
+							query(
+								collection(Entities.PRODUCT),
+								filterBy(entityPrimaryKeyInSet(101), scope(Scope.ARCHIVED)),
+								require(
+									entityFetch(
+										referenceContentWithAttributes(
+											Entities.CATEGORY, filterBy(entityPrimaryKeyInSet(1, 2))
+										)
+									)
+								)
+							)
+						)
+					);
+				}
+			);
+			assertEquals(Map.of(101, List.of()), overArchive);
+		}
+
+		@Test
+		@DisplayName("An unconfined filter is applied to the references of an archived owner too")
+		void shouldApplyUnconfinedFilterToArchivedOwner() {
+			createSchemaForEntityArchiving(Scope.LIVE);
+			createBrandAndCategoryEntities();
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.createNewEntity(Entities.PRODUCT, 100)
+						.setAttribute(ATTRIBUTE_CODE, "TV-123")
+						.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "TV")
+						.setReference(Entities.BRAND, 1, whichIs -> whichIs.setAttribute(ATTRIBUTE_BRAND_EAN, "123"))
+						.setReference(Entities.BRAND, 2, whichIs -> whichIs.setAttribute(ATTRIBUTE_BRAND_EAN, "456"))
+						.upsertVia(session);
+				}
+			);
+			EvitaArchivingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.archiveEntity(Entities.PRODUCT, 100);
+				}
+			);
+			final SealedEntity product = EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					return session.queryOneSealedEntity(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(entityPrimaryKeyInSet(100), scope(Scope.LIVE, Scope.ARCHIVED)),
+							// not a root `entityPrimaryKeyInSet`, which would narrow the rows read from the storage
+							require(
+								entityFetch(referenceContent(Entities.BRAND, filterBy(not(entityPrimaryKeyInSet(1)))))
+							)
+						)
+					).orElseThrow();
+				}
+			);
+			assertEquals(List.of(2), referencedPrimaryKeys(product, Entities.BRAND));
+		}
+
+		/**
+		 * Fetches the products over both scopes with their categories whose market a filter confined to LIVE admits.
+		 *
+		 * @param market   the admitted market
+		 * @param products the primary keys of the products
+		 * @return the referenced category primary keys by product
+		 */
+		@Nonnull
+		private Map<Integer, List<Integer>> categoriesOfOwners(@Nonnull String market, int... products) {
+			return EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final Map<Integer, List<Integer>> result = new TreeMap<>();
+					for (SealedEntity product : session.queryListOfSealedEntities(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(entityPrimaryKeyInSet(products), scope(Scope.LIVE, Scope.ARCHIVED)),
+							require(
+								entityFetch(
+									referenceContent(
+										Entities.CATEGORY,
+										filterBy(inScope(Scope.LIVE, attributeInSet(ATTRIBUTE_CATEGORY_MARKET, market)))
+									)
+								)
+							)
+						)
+					)) {
+						result.put(
+							product.getPrimaryKeyOrThrowException(), referencedPrimaryKeys(product, Entities.CATEGORY)
+						);
+					}
+					return result;
+				}
+			);
+		}
+
+		/**
+		 * Adds duplicate category references told apart by the country.
+		 *
+		 * @param builder    the product
+		 * @param categories `categoryPk:country` of each reference
+		 * @return the product
+		 */
+		@Nonnull
+		private static EntityBuilder duplicateCategories(
+			@Nonnull EntityBuilder builder,
+			@Nonnull String... categories
+		) {
+			for (String category : categories) {
+				final String[] parts = category.split(":");
+				builder.setOrUpdateReference(
+					Entities.CATEGORY, Integer.parseInt(parts[0]), Functions.alwaysFalse(),
+					whichIs -> whichIs.setAttribute(ATTRIBUTE_COUNTRY, parts[1])
+				);
+			}
+			return builder;
+		}
+
+		/**
+		 * Describes the category references of each product as `categoryPk:country`, sorted.
+		 *
+		 * @param products the products
+		 * @return the descriptions by product
+		 */
+		@Nonnull
+		private static Map<Integer, List<String>> countryCategoriesOfOwners(@Nonnull List<SealedEntity> products) {
+			final Map<Integer, List<String>> result = new TreeMap<>();
+			for (SealedEntity product : products) {
+				result.put(
+					product.getPrimaryKeyOrThrowException(),
+					product.getReferences(Entities.CATEGORY).stream()
+						.map(it -> it.getReferencedPrimaryKey() + ":" + it.getAttribute(ATTRIBUTE_COUNTRY))
+						.sorted()
+						.toList()
+				);
+			}
+			return result;
 		}
 
 		@Test
@@ -3392,6 +3709,21 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 				() -> queryProductReferenceBy(new Scope[] {scope}, priceInCurrency(CURRENCY_CZK), priceInPriceLists(PRICE_LIST_BASIC))
 			);
 		}
+	}
+
+	/**
+	 * Returns the referenced primary keys of the references of the entity, sorted.
+	 *
+	 * @param entity        the entity
+	 * @param referenceName the reference
+	 * @return the referenced primary keys
+	 */
+	@Nonnull
+	private static List<Integer> referencedPrimaryKeys(@Nonnull SealedEntity entity, @Nonnull String referenceName) {
+		return entity.getReferences(referenceName).stream()
+			.map(ReferenceContract::getReferencedPrimaryKey)
+			.sorted()
+			.toList();
 	}
 
 	@Nullable

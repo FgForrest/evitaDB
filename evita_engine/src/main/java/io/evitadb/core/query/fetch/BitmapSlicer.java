@@ -353,6 +353,12 @@ class BitmapSlicer {
 	 * winners — no over-fetch, no under-fetch: the pre-fetch slice matches the post-fetch sort+chunk in
 	 * `EntityDecorator`.
 	 *
+	 * The references are filtered **row by row, before they are sorted and sliced**, whenever the validity mapping
+	 * keeps a verdict per row (the body route of the filter): a row the filter rejected, or a dropped one, may share
+	 * its referenced primary key with an admitted row, and kept in the buffer it would take a slot of the page that the
+	 * decorator empties afterwards - pushing an admitted row off the page. The groups recorded are those of the kept
+	 * rows only.
+	 *
 	 * Group accounting here intentionally diverges from {@link #sliceEntityIds}: groups are derived directly from
 	 * the {@code referenceContractsAccessor} (the raw source entity), not from the
 	 * {@code referencedEntityToGroupIdTranslator} as in the unsorted twin. The translator is backed by an
@@ -377,6 +383,8 @@ class BitmapSlicer {
 		@Nonnull ReferenceComparator comparator
 	) {
 		this.groupsForEntity = CollectionUtils.createHashMap(this.entityPrimaryKey.size());
+		// the switch between the two routes of the filter lives only until the index route is deleted
+		final boolean rowVerdicts = ReferenceContentRoute.current() == ReferenceContentRoute.BODY;
 		return FormulaFactory.or(
 			this.entityPrimaryKey
 				.values()
@@ -400,7 +408,11 @@ class BitmapSlicer {
 					final ReferenceContract[] filterBuffer = new ReferenceContract[sourceRefs.size()];
 					int filteredCount = 0;
 					for (ReferenceContract r : sourceRefs) {
-						if (filteredReferenceEntityIds.contains(r.getReferencedPrimaryKey())) {
+						// a key admitted for the source entity does not admit every row holding it - see the JavaDoc
+						if (
+							filteredReferenceEntityIds.contains(r.getReferencedPrimaryKey()) &&
+								(!rowVerdicts || validityMapping.isReferenceSelected(epk, r))
+						) {
 							filterBuffer[filteredCount++] = r;
 						}
 					}
