@@ -157,16 +157,30 @@ public class NumberUtils {
 	 */
 	public static int convertToInt(@Nonnull BigDecimal number, int acceptDecimalPlaces) {
 		try {
-			return number.stripTrailingZeros()
-				.scaleByPowerOfTen(acceptDecimalPlaces)
-				.setScale(0, RoundingMode.HALF_UP)
-				.intValueExact();
+			return scaleToInteger(number, acceptDecimalPlaces).intValueExact();
 		} catch (ArithmeticException ex) {
 			throw new ArithmeticException(
 				"Cannot convert big decimal " + number +
 					" to exact integer by using " + acceptDecimalPlaces + " decimal places!"
 			);
 		}
+	}
+
+	/**
+	 * Scales {@link BigDecimal} to a whole number of units of its last accepted decimal place, rounding half up - the
+	 * value {@link #convertToInt(BigDecimal, int)} encodes, before it is narrowed to an `int`. Two numbers order and
+	 * equal one another the same way as their `int` encodings wherever those fit, and the result does not overflow
+	 * where they do not.
+	 *
+	 * @param number              the number to scale
+	 * @param acceptDecimalPlaces the number of decimal places kept, the rest is rounded half up
+	 * @return the scaled number, always with scale zero
+	 */
+	@Nonnull
+	public static BigDecimal scaleToInteger(@Nonnull BigDecimal number, int acceptDecimalPlaces) {
+		return number.stripTrailingZeros()
+			.scaleByPowerOfTen(acceptDecimalPlaces)
+			.setScale(0, RoundingMode.HALF_UP);
 	}
 
 	/**

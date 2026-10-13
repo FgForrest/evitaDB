@@ -53,6 +53,7 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContent;
@@ -188,34 +189,41 @@ public class AttributeInRangeTranslator extends AbstractAttributeTranslator
 	}
 
 	/**
-	 * Computes a comparable long value from the provided filter constraint based on the attribute definition type.
+	 * Computes a comparable long value from the provided filter constraint based on the attribute definition type -
+	 * the point the {@link io.evitadb.index.range.RangeIndex} of the attribute is probed with.
 	 *
-	 * @param filterConstraint    AttributeInRange object containing the constraint information.
-	 * @param filterByVisitor     FilterByVisitor object providing additional context and operations.
-	 * @param attributeDefinition AttributeSchemaContract object defining the attribute schema.
+	 * The row filter of the fetched references tests the range of a single reference against the very same point
+	 * instead of probing an index, so both read one encoding.
+	 *
+	 * @param filterConstraint     AttributeInRange object containing the constraint information.
+	 * @param now                  supplier of the moment of the query, consulted when the constraint names no moment
+	 *                             for a date-time range
+	 * @param plainType            the plain type of the attribute
+	 * @param indexedDecimalPlaces the decimal places the attribute's numbers are indexed with
 	 * @return A long representation of the comparable value derived from the filter constraint.
 	 * @throws EvitaInvalidUsageException If the attribute type is not supported.
 	 */
-	private static long getComparableValue(
+	public static long getComparableValue(
 		@Nonnull AttributeInRange filterConstraint,
-		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull AttributeSchemaContract attributeDefinition
+		@Nonnull Supplier<OffsetDateTime> now,
+		@Nonnull Class<?> plainType,
+		int indexedDecimalPlaces
 	) {
-		if (NumberRange.class.isAssignableFrom(attributeDefinition.getPlainType())) {
+		if (NumberRange.class.isAssignableFrom(plainType)) {
 			final Number theValue = filterConstraint.getTheValue();
 			Assert.notNull(theValue, "Argument of InRange must not be null.");
 			if (theValue instanceof BigDecimal) {
-				return BigDecimalNumberRange.toComparableLong((BigDecimal) theValue, attributeDefinition.getIndexedDecimalPlaces());
+				return BigDecimalNumberRange.toComparableLong((BigDecimal) theValue, indexedDecimalPlaces);
 			} else {
 				// non-BigDecimal numeric arguments must be scaled by indexedDecimalPlaces too, otherwise the
 				// probe (e.g. `90`) is encoded as a raw long while the range index holds scale-encoded bounds
 				// (e.g. `900000` at 4 decimal places) - mirrors AttributeBetweenTranslator's bound encoding
 				return BigDecimalNumberRange.toComparableLong(
-					BigDecimal.valueOf(theValue.longValue()), attributeDefinition.getIndexedDecimalPlaces()
+					BigDecimal.valueOf(theValue.longValue()), indexedDecimalPlaces
 				);
 			}
-		} else if (DateTimeRange.class.isAssignableFrom(attributeDefinition.getPlainType())) {
-			final OffsetDateTime theMoment = ofNullable(filterConstraint.getTheMoment()).orElseGet(filterByVisitor::getNow);
+		} else if (DateTimeRange.class.isAssignableFrom(plainType)) {
+			final OffsetDateTime theMoment = ofNullable(filterConstraint.getTheMoment()).orElseGet(now);
 			return DateTimeRange.toComparableLong(theMoment);
 		} else {
 			throw new EvitaInvalidUsageException("Range types accepts only Number or DateTime types - type " + filterConstraint.getUnknownArgument() + " cannot be used!");
@@ -231,7 +239,10 @@ public class AttributeInRangeTranslator extends AbstractAttributeTranslator
 			final AttributeSchemaContract attributeSchema = filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE);
 			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
-			final long comparableValue = getComparableValue(attributeInRange, filterByVisitor, attributeSchema);
+			final long comparableValue = getComparableValue(
+				attributeInRange, filterByVisitor::getNow,
+				attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces()
+			);
 			final boolean isNowOnDateTimeRange =
 				DateTimeRange.class.isAssignableFrom(attributeSchema.getPlainType())
 					&& attributeInRange.getTheMoment() == null;

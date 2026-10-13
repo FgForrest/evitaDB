@@ -1254,17 +1254,44 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			() -> "Filtering constraint `" + groupFilter + "` targets group entity " +
 				"`" + referencedGroupType + "` that is not managed by evitaDB."
 		);
+		return getMatchingEntityPrimaryKeys(
+			referencedGroupType,
+			groupFilter,
+			scopes,
+			() -> "filtering reference `" + referenceSchema.getName() + "` by group entity `" +
+				referencedGroupType + "` having: " + groupFilter
+		);
+	}
 
-		final Formula matchingGroupsFormula = getProcessingScope().doWithScope(
+	/**
+	 * Returns primary keys of the entities of the target entity type matching the passed filter - the filter planned
+	 * as a nested query against the global index of the target collection in every passed scope, the answers of the
+	 * scopes united. The filter names the attributes of the target entity, so only a nested query over its collection
+	 * can answer it, exactly as {@link HavingTranslatorHelper#planNestedQuery} answers it for an `entityHaving` or a
+	 * `groupHaving` reached through the ordinary filter translation.
+	 *
+	 * A visitor that only checks the filter ({@link #isConstraintCheckOnly()}) plans no nested query: the filter is
+	 * checked against the target schema in the scopes the nested query would use, the schema capabilities the check
+	 * requested are handed to the context of this visitor, and the result is empty.
+	 *
+	 * @param targetEntityType        the entity type whose entities the filter selects
+	 * @param filter                  the filter to evaluate, unwrapped from its `entityHaving` or `groupHaving`
+	 *                                container
+	 * @param scopes                  the scopes to evaluate in
+	 * @param taskDescriptionSupplier supplier of the description of the nested query for the telemetry and the messages
+	 * @return primary keys of the matching target entities
+	 */
+	@Nonnull
+	public Bitmap getMatchingEntityPrimaryKeys(
+		@Nonnull String targetEntityType,
+		@Nonnull FilterConstraint filter,
+		@Nonnull Set<Scope> scopes,
+		@Nonnull Supplier<String> taskDescriptionSupplier
+	) {
+		final Formula matchingFormula = getProcessingScope().doWithScope(
 			scopes,
 			() -> FormulaFactory.or(
-				HavingTranslatorHelper.planNestedQuery(
-					referencedGroupType,
-					groupFilter,
-					this,
-					() -> "filtering reference `" + referenceSchema.getName() + "` by group entity `" +
-						referencedGroupType + "` having: " + groupFilter
-				)
+				HavingTranslatorHelper.planNestedQuery(targetEntityType, filter, this, taskDescriptionSupplier)
 					.stream()
 					.map(GlobalIndexAndFormula::filter)
 					.toArray(Formula[]::new)
@@ -1272,9 +1299,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		);
 
 		// the result is consumed during reference fetching, which runs after the planning phase
-		matchingGroupsFormula.initialize(getInternalExecutionContext());
-		final Bitmap matchingGroupPks = matchingGroupsFormula.compute();
-		return matchingGroupPks.isEmpty() ? EmptyBitmap.INSTANCE : matchingGroupPks;
+		matchingFormula.initialize(getInternalExecutionContext());
+		final Bitmap matchingPks = matchingFormula.compute();
+		return matchingPks.isEmpty() ? EmptyBitmap.INSTANCE : matchingPks;
 	}
 
 	/**

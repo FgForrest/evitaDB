@@ -1628,8 +1628,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	/**
 	 * Returns the locale of the {@link EntityLocaleEquals} the reference-level `filterBy` hands to the fetch of the
 	 * referenced entity (or group) bodies - the one {@link #unwrapFilterBy(FilterBy)} propagates into the derived fetch
-	 * request. Both the body fetch (see {@link #resolveRequiredLocale}) and the planning check of the ordering of the
-	 * references (see {@link #verifyReferenceOrdering}) look the locale up here, so they never disagree on it.
+	 * request. The body fetch (see {@link #resolveRequiredLocale}), the planning check of the ordering of the
+	 * references (see {@link #verifyReferenceOrdering}) and the localized attribute leaves of the row filter (see
+	 * {@link ReferenceRowFilterCompiler}) look the locale up here, so they never disagree on it.
 	 *
 	 * At most one {@link EntityLocaleEquals} is expected inside the unwrapped filter - a filter carrying several of
 	 * them makes the constraint finder throw `MoreThanSingleResultException`.
@@ -1638,7 +1639,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @return the locale of the filter, or NULL when it names none
 	 */
 	@Nullable
-	private static Locale findReferenceFilterLocale(@Nullable FilterBy referenceFilterBy) {
+	static Locale findReferenceFilterLocale(@Nullable FilterBy referenceFilterBy) {
 		final FilterBy unwrappedFilterBy = unwrapFilterBy(referenceFilterBy);
 		if (unwrappedFilterBy != null) {
 			final EntityLocaleEquals localeConstraint = QueryUtils.findConstraint(unwrappedFilterBy, EntityLocaleEquals.class);
@@ -1663,7 +1664,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @return a set of scopes that includes the initial scopes and any additional scopes derived from the filter criteria
 	 */
 	@Nonnull
-	private static Set<Scope> gatherSearchedScopes(@Nullable FilterBy filterBy, @Nonnull Set<Scope> scopes) {
+	static Set<Scope> gatherSearchedScopes(@Nullable FilterBy filterBy, @Nonnull Set<Scope> scopes) {
 		if (filterBy == null) {
 			return scopes;
 		}

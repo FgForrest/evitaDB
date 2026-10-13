@@ -135,7 +135,7 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 	 *                            that requires the attribute to be of type String
 	 * @param attributeDefinition the schema definition of the attribute being validated
 	 */
-	static void assertStringType(
+	public static void assertStringType(
 		@Nonnull AbstractAttributeFilterStringSearchConstraintLeaf attributeConstraint,
 		@Nonnull AttributeSchemaContract attributeDefinition
 	) {

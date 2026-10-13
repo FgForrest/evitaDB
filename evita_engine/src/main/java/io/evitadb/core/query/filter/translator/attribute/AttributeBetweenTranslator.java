@@ -285,29 +285,13 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull AttributeKey attributeKey
 	) {
-		final Predicate<BigDecimal> requestedPredicate;
-		final long comparableFrom;
-		final long comparableTo;
-
 		final Class<? extends Serializable> attributeType = attributeSchema.getPlainType();
-		if (NumberRange.class.isAssignableFrom(attributeType)) {
-			final BigDecimal fromBigDecimal = toTargetType(from, BigDecimal.class);
-			final BigDecimal toBigDecimal = toTargetType(to, BigDecimal.class);
-			if (attributeSchema.getIndexedDecimalPlaces() > 0) {
-				comparableFrom = getBigDecimalComparable(fromBigDecimal, attributeSchema.getIndexedDecimalPlaces(), Long.MIN_VALUE);
-				comparableTo = getBigDecimalComparable(toBigDecimal, attributeSchema.getIndexedDecimalPlaces(), Long.MAX_VALUE);
-			} else {
-				comparableFrom = getLongComparable(toTargetType(from, Long.class), Long.MIN_VALUE);
-				comparableTo = getLongComparable(toTargetType(to, Long.class), Long.MAX_VALUE);
-			}
-			requestedPredicate = createBigDecimalPredicate(fromBigDecimal, toBigDecimal);
-		} else if (DateTimeRange.class.isAssignableFrom(attributeType)) {
-			comparableFrom = getOffsetDateTimeComparable(toTargetType(from, OffsetDateTime.class), Long.MIN_VALUE);
-			comparableTo = getOffsetDateTimeComparable(toTargetType(to, OffsetDateTime.class), Long.MAX_VALUE);
-			requestedPredicate = null;
-		} else {
-			throw new GenericEvitaInternalError("Unexpected Range type!");
-		}
+		final int indexedDecimalPlaces = attributeSchema.getIndexedDecimalPlaces();
+		final Predicate<BigDecimal> requestedPredicate = NumberRange.class.isAssignableFrom(attributeType) ?
+			createBigDecimalPredicate(toTargetType(from, BigDecimal.class), toTargetType(to, BigDecimal.class)) :
+			null;
+		final long comparableFrom = encodeRangeBound(attributeType, indexedDecimalPlaces, from, Long.MIN_VALUE);
+		final long comparableTo = encodeRangeBound(attributeType, indexedDecimalPlaces, to, Long.MAX_VALUE);
 		final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
 		return new BetweenAttributeFormula(
 			attributeSchema instanceof GlobalAttributeSchemaContract,
@@ -375,6 +359,44 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 			},
 			AttributeTrait.FILTERABLE
 		);
+	}
+
+	/**
+	 * Encodes one bound of an {@link AttributeBetween} over a range-typed attribute into the `long` threshold the
+	 * {@link io.evitadb.index.range.RangeIndex} of the attribute keys its ranges by - the very value
+	 * {@link FilterIndex#getRecordsOverlappingFormula(long, long)} is probed with. A number range bound is encoded at
+	 * the attribute's indexed decimal places when it keeps any and as a plain `long` otherwise, a date-time range bound
+	 * as its comparable moment.
+	 *
+	 * The row filter of the fetched references tests the range of a single reference against the very same thresholds
+	 * instead of probing an index, so both read one encoding.
+	 *
+	 * @param rangeType            the plain type of the range-typed attribute
+	 * @param indexedDecimalPlaces the decimal places the attribute's numbers are indexed with
+	 * @param bound                the bound of the constraint, NULL when that side of the interval is open
+	 * @param unboundedValue       the threshold an open side is encoded as
+	 * @return the encoded threshold
+	 * @throws GenericEvitaInternalError when the type is no range type the engine knows
+	 */
+	public static long encodeRangeBound(
+		@Nonnull Class<?> rangeType,
+		int indexedDecimalPlaces,
+		@Nullable Serializable bound,
+		long unboundedValue
+	) {
+		if (NumberRange.class.isAssignableFrom(rangeType)) {
+			if (indexedDecimalPlaces > 0) {
+				return getBigDecimalComparable(
+					toTargetType(bound, BigDecimal.class), indexedDecimalPlaces, unboundedValue
+				);
+			} else {
+				return getLongComparable(toTargetType(bound, Long.class), unboundedValue);
+			}
+		} else if (DateTimeRange.class.isAssignableFrom(rangeType)) {
+			return getOffsetDateTimeComparable(toTargetType(bound, OffsetDateTime.class), unboundedValue);
+		} else {
+			throw new GenericEvitaInternalError("Unexpected Range type!");
+		}
 	}
 
 	/**
