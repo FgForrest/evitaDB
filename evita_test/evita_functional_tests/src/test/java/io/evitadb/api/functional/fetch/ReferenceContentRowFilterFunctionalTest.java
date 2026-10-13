@@ -117,7 +117,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * - **1** (LIVE; EN, DE): `brands` 1 (g10, x 5, label EN `Red` DE `Rot`, tag EN `t-1`, u `c1`, price 1.01, keywords
  *   `x y`), 2 (g11, x 7, label EN `Blue`, price 12345678901.23, keywords empty) and 4 (g10, x 5); `brandsByGroup`
  *   1 (g10) and 2 (g11); `brandsUnindexed` 1 and 2; `brandDuplicates` 1/DE (g11, x 5, rank 1), 1/CZ (g10, x 5,
- *   rank 3) and 2/CZ (g10, x 7, rank 2); `externals` 100 (g10), 101 (g12), 102 (g11) and 103 (g13),
+ *   rank 3), 2/CZ (g10, x 7, rank 2) and 4/SK (g10, x 5, rank 4); `externals` 100 (g10), 101 (g12), 102 (g11) and
+ *   103 (g13),
  * - **2** (LIVE; EN): `brands` 1 (g11, x 5, label EN `Red`); `brandsByGroup` 2 (g11),
  * - **3** (ARCHIVED; EN, DE): `brands` 1 (g10, x 5, tag EN `t-3`, u `c3`) and 3 (x 5),
  * - **5** (LIVE; EN): no reference at all.
@@ -363,6 +364,11 @@ class ReferenceContentRowFilterFunctionalTest {
 					REF_DUPLICATES, 2, Functions.alwaysFalse(),
 					whichIs -> whichIs.setGroup(10).setAttribute(ATTR_COUNTRY, "CZ").setAttribute(ATTR_X, 7)
 						.setAttribute(ATTR_RANK, 2)
+				)
+				.setOrUpdateReference(
+					REF_DUPLICATES, 4, Functions.alwaysFalse(),
+					whichIs -> whichIs.setGroup(10).setAttribute(ATTR_COUNTRY, "SK").setAttribute(ATTR_X, 5)
+						.setAttribute(ATTR_RANK, 4)
 				)
 				.setReference(REF_EXTERNALS, 100, whichIs -> whichIs.setGroup(10))
 				.setReference(REF_EXTERNALS, 101, whichIs -> whichIs.setGroup(12))
@@ -802,15 +808,45 @@ class ReferenceContentRowFilterFunctionalTest {
 		}
 
 		@Test
-		@DisplayName("only existing referenced entities pass, duplicates included")
+		@DisplayName("under EXISTING only duplicates to existing entities pass, with a filter or without (G1)")
 		@UseDataSet(DATA_SET)
 		void shouldAdmitExistingDuplicatesOnly(Evita evita) {
-			final ReferenceContent existing = new ReferenceContent(
-				null, ManagedReferencesBehaviour.EXISTING, new String[]{REF_DUPLICATES},
-				new RequireConstraint[]{attributeContentAll()},
-				new Constraint<?>[]{filterBy(attributeEquals(ATTR_X, 5))}
+			// 4/SK refers to the missing brand 4 - it holds x 5, so only its target keeps it out under the filter
+			assertEquals(
+				rows(1, List.of("1/CZ", "1/DE", "2/CZ", "4/SK")),
+				queryRows(evita, LIVE, null, REF_DUPLICATES, duplicates(ManagedReferencesBehaviour.ANY), 1)
 			);
-			assertEquals(rows(1, List.of("1/CZ", "1/DE")), queryRows(evita, LIVE, null, REF_DUPLICATES, existing, 1));
+			assertEquals(
+				rows(1, List.of("1/CZ", "1/DE", "2/CZ")),
+				queryRows(evita, LIVE, null, REF_DUPLICATES, duplicates(ManagedReferencesBehaviour.EXISTING), 1)
+			);
+			for (ManagedReferencesBehaviour behaviour : ManagedReferencesBehaviour.values()) {
+				assertEquals(
+					rows(1, List.of("1/CZ", "1/DE")),
+					queryRows(
+						evita, LIVE, null, REF_DUPLICATES,
+						duplicates(behaviour, filterBy(attributeEquals(ATTR_X, 5))), 1
+					),
+					behaviour::toString
+				);
+			}
+		}
+
+		/**
+		 * Returns the requirement of `brandDuplicates` with their attributes.
+		 *
+		 * @param behaviour whether only the rows to existing referenced entities are fetched
+		 * @param filterBy  the filter of the rows, none when empty
+		 * @return the requirement
+		 */
+		@Nonnull
+		private static ReferenceContent duplicates(
+			@Nonnull ManagedReferencesBehaviour behaviour,
+			@Nonnull FilterBy... filterBy
+		) {
+			return new ReferenceContent(
+				null, behaviour, new String[]{REF_DUPLICATES}, new RequireConstraint[]{attributeContentAll()}, filterBy
+			);
 		}
 
 	}
@@ -1245,9 +1281,9 @@ class ReferenceContentRowFilterFunctionalTest {
 		}
 
 		@Test
-		@DisplayName("only groups existing in the requested scopes are fetched under EXISTING")
+		@DisplayName("a missing and an archived group have no body under EXISTING, an existing one has")
 		@UseDataSet(DATA_SET)
-		void shouldFetchExistingGroupsOfRequestedScopesOnly(Evita evita) {
+		void shouldFetchNoBodyOfMissingOrArchivedGroup(Evita evita) {
 			final List<String> rows = evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
@@ -1423,6 +1459,14 @@ class ReferenceContentRowFilterFunctionalTest {
 							.removeReference(REF_BRANDS, 2)
 							.setReference(REF_BRANDS, 1, whichIs -> whichIs.removeGroup().removeAttribute(ATTR_X))
 							.upsertVia(session);
+						// owner 2 holds brand 1 in group 10 now, so the nested query of `groupHaving` - restricted to
+						// the groups of the tested rows - selects group 10 and only the row itself can tell that its
+						// group was dropped
+						session.getEntity(ENTITY_PRODUCT, 2, entityFetchAllContent())
+							.orElseThrow()
+							.openForWrite()
+							.updateReference(REF_BRANDS, 1, whichIs -> whichIs.setGroup(10))
+							.upsertVia(session);
 						// row 2 held x 7
 						assertEquals(
 							rows(1, List.of()),
@@ -1431,12 +1475,12 @@ class ReferenceContentRowFilterFunctionalTest {
 								referenceContent(REF_BRANDS, filterBy(attributeEquals(ATTR_X, 7))), 1
 							)
 						);
-						// row 1 held group 10, row 4 is a missing target
+						// row 1 of owner 1 held group 10, row 4 is a missing target
 						assertEquals(
-							rows(1, List.of()),
+							rows(1, List.of(), 2, List.of("1")),
 							queryRows(
 								session, LIVE, null, REF_BRANDS,
-								referenceContent(REF_BRANDS, filterBy(groupHaving(entityPrimaryKeyInSet(10)))), 1
+								referenceContent(REF_BRANDS, filterBy(groupHaving(entityPrimaryKeyInSet(10)))), 1, 2
 							)
 						);
 						assertEquals(

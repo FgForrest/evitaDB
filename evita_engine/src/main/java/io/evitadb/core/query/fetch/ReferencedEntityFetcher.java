@@ -1212,9 +1212,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * The decode of an entity's references is narrowed only by the reference names its reference predicate covers and
 	 * by the referenced keys bound in the root of the filter of every requirement naming the reference - a row outside
 	 * the bound fails that very conjunct. So an owner whose predicate covers the name carries every row that matters.
-	 * An owner whose predicate requires no references at all reaches here only after
-	 * {@link EntityCollection#ensureReferencesFetched} re-read it with every reference of every name, keeping the
-	 * original predicate - it carries every row as well.
+	 *
+	 * An owner whose predicate requires no references at all is accepted on call order alone, which the guard cannot
+	 * check: such an owner carries every row only because both `initReferenceIndex` variants hand over the output of
+	 * {@link EntityCollection#ensureReferencesFetched}, which re-reads it with every reference of every name and keeps
+	 * the original predicate. Before that call its delegate holds no reference, and the guard would hand it over all
+	 * the same - every row would silently disappear. A caller of the body route must therefore pass its owners
+	 * through {@link EntityCollection#ensureReferencesFetched} first.
 	 *
 	 * @param owner         the owner as the fetch got it
 	 * @param referenceName the name of the filtered reference

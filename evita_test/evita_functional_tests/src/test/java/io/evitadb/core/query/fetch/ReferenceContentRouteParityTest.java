@@ -56,6 +56,7 @@ import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.test.EvitaTestSupport;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.Functions;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -76,7 +77,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -218,7 +218,7 @@ class ReferenceContentRouteParityTest implements EvitaTestSupport {
 	 * values of archived owners and the dropped values count as well: their removal strips the shared border from
 	 * the surviving range.
 	 */
-	private final Set<Integer> sharedBorderTargets = new HashSet<>(16);
+	private final Set<Integer> sharedBorderTargets = CollectionUtils.createHashSet(16);
 
 	/**
 	 * Builds the fixture described on the class and reads the raw owners for the oracle.
@@ -243,12 +243,14 @@ class ReferenceContentRouteParityTest implements EvitaTestSupport {
 				return result;
 			}
 		);
-		final Map<Integer, Set<IntegerNumberRange>> rangesByTarget = new HashMap<>(16);
+		final Map<Integer, Set<IntegerNumberRange>> rangesByTarget = CollectionUtils.createHashMap(16);
 		for (Entity owner : this.owners.values()) {
 			for (ReferenceContract row : owner.getReferences(REF_LIVE_ONLY)) {
 				final Optional<AttributeValue> range = row.getAttributeValue(ATTR_RANGE);
 				if (range.isPresent() && range.get().value() instanceof IntegerNumberRange value) {
-					rangesByTarget.computeIfAbsent(row.getReferencedPrimaryKey(), it -> new HashSet<>(4)).add(value);
+					rangesByTarget
+						.computeIfAbsent(row.getReferencedPrimaryKey(), it -> CollectionUtils.createHashSet(4))
+						.add(value);
 				}
 			}
 		}
@@ -491,7 +493,7 @@ class ReferenceContentRouteParityTest implements EvitaTestSupport {
 					}
 				);
 			}
-			final Set<String> duplicates = new HashSet<>(8);
+			final Set<String> duplicates = CollectionUtils.createHashSet(8);
 			for (int i = random.nextInt(5); i > 0; i--) {
 				final int target = 1 + random.nextInt(TARGET_COUNT);
 				final String role = pick(random, ROLES);
@@ -536,8 +538,11 @@ class ReferenceContentRouteParityTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Drops the group of the first `liveOnly` row and the `int` of the first `both` row of every third owner, and the
-	 * first `nowhere` row of every fourth one - in a transaction of the live catalog.
+	 * Rewrites the first `liveOnly` row holding a group and the first `both` row holding an `int` of every third owner
+	 * as rows without any value or group, and removes the first `nowhere` row of every fourth owner - in a
+	 * transaction of the live catalog. `setReference(name, pk, consumer)` replaces the whole row by design (the row is
+	 * built from scratch, and `updateReference` is the API that keeps it), so the group and every attribute value of
+	 * the rewritten rows are dropped, not only the group and the `int` the consumer removes.
 	 *
 	 * @param session the session to write in
 	 */
@@ -1353,7 +1358,7 @@ class ReferenceContentRouteParityTest implements EvitaTestSupport {
 		private final EvitaSessionContract session;
 		@Nullable private final Locale leafLocale;
 		private final Set<Scope> examinedScopes;
-		private final Map<String, Set<Integer>> nestedMemo = new HashMap<>(16);
+		private final Map<String, Set<Integer>> nestedMemo = CollectionUtils.createHashMap(16);
 
 		/**
 		 * Creates the context of one evaluation.
@@ -1398,7 +1403,7 @@ class ReferenceContentRouteParityTest implements EvitaTestSupport {
 		 */
 		@Nonnull
 		Set<Integer> nested(@Nonnull String entityType, @Nonnull FilterConstraint filter, @Nonnull Set<Scope> scopes) {
-			final Set<Integer> result = new HashSet<>(16);
+			final Set<Integer> result = CollectionUtils.createHashSet(16);
 			for (Scope scope : scopes) {
 				result.addAll(
 					nested(entityType, filterBy(filter, scope(scope)), entityType + " " + filter + " " + scope)
@@ -1420,7 +1425,7 @@ class ReferenceContentRouteParityTest implements EvitaTestSupport {
 			return this.nestedMemo.computeIfAbsent(
 				key,
 				it -> {
-					final Set<Integer> result = new HashSet<>(16);
+					final Set<Integer> result = CollectionUtils.createHashSet(16);
 					for (EntityReference reference : this.session.queryList(
 						query(collection(entityType), filterBy, require(page(1, 1000))), EntityReference.class
 					)) {
@@ -1444,7 +1449,7 @@ class ReferenceContentRouteParityTest implements EvitaTestSupport {
 		private Scope[] requestScopes;
 		@Nullable private Locale filterLocale;
 		@Nullable private Locale leafLocale;
-		private final Set<String> features = new HashSet<>(8);
+		private final Set<String> features = CollectionUtils.createHashSet(8);
 		@Nullable private String localizedAttribute;
 		/**
 		 * The localized leaves of the filter - the attribute and the scopes it is compiled for, NULL for the examined

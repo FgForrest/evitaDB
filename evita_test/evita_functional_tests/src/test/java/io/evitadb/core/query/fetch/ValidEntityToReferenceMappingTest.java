@@ -296,15 +296,13 @@ class ValidEntityToReferenceMappingTest {
 		}
 
 		@Test
-		@DisplayName("keeps no verdict per row for a reference without duplicates")
-		void shouldSelectByPrimaryKeyWithoutDuplicates() {
+		@DisplayName("selects another instance of an admitted row of a reference without duplicates")
+		void shouldSelectAnotherInstanceOfAdmittedRowWithoutDuplicates() {
 			final ValidEntityToReferenceMapping mapping = new ValidEntityToReferenceMapping(
 				1, referenceSchema(STORE), true
 			);
-			final ReadCountingReference store10 = store(10, false);
-			mapping.admit(OWNER_A, store10);
+			mapping.admit(OWNER_A, store(10, false));
 			assertTrue(mapping.isReferenceSelected(OWNER_A, store(10, false)));
-			assertEquals(0, store10.representativeReads);
 		}
 
 	}

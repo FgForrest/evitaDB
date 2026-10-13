@@ -42,6 +42,7 @@ import io.evitadb.api.requestResponse.data.structure.Entity;
 import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.Reference;
+import io.evitadb.api.requestResponse.data.structure.References;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -53,10 +54,12 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchema
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
+import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.fetch.ReferenceRowFilterCompiler.CompileContext;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.session.EvitaSession;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.Scope;
@@ -65,6 +68,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.spi.store.catalog.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
@@ -80,7 +84,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
@@ -97,6 +104,7 @@ import static io.evitadb.test.TestTags.FILTER;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -1297,19 +1305,27 @@ class ReferenceRowFilterCompilerTest {
 		}
 
 		@Test
-		@DisplayName("an owner read without any reference counts as read again with all of them")
+		@DisplayName("an owner read without any reference is handed over once read again with all of them")
 		@UseDataSet(ROW_FILTER)
-		void shouldHandOverRawEntityOfOwnerReadWithoutReferences(Evita evita) {
-			// `EntityCollection#ensureReferencesFetched` reads such an owner again with every reference before the
-			// fetch reaches it, keeping the original predicate
+		void shouldHandOverRawEntityOfOwnerReadAgainWithEveryReference(Evita evita) {
+			// this pins a call-order invariant, not a check of the guard: both `initReferenceIndex` variants hand the
+			// guard the output of `EntityCollection#ensureReferencesFetched`, which reads an owner whose predicate
+			// requires no references again with every reference and keeps the original predicate - the guard accepts
+			// such a predicate only because of that, it cannot tell the owner from one decoded without references
+			final EntityCollection collection = getProductCollection(evita);
 			evita.queryCatalog(
 				TEST_CATALOG,
 				session -> {
-					final SealedEntity owner = session.getEntity(ENTITY_PRODUCT, 1, attributeContentAll())
-						.orElseThrow();
-					assertTrue(
-						ReferencedEntityFetcher.getOwnerCarryingEveryRow(owner, REF_BRANDS)
-							== ((EntityDecorator) owner).getDelegate()
+					final SealedEntity readWithoutReferences = session.getEntity(
+						ENTITY_PRODUCT, 1, attributeContentAll()
+					).orElseThrow();
+					final SealedEntity readAgain = collection.ensureReferencesFetched(readWithoutReferences);
+					final Entity raw = ReferencedEntityFetcher.getOwnerCarryingEveryRow(readAgain, REF_BRANDS);
+					assertSame(((EntityDecorator) readAgain).getDelegate(), raw);
+					assertEquals(List.of(1, 2), referencedKeys(raw.getReferences(REF_BRANDS)));
+					assertFalse(
+						((ServerEntityDecorator) readAgain).getReferencePredicate().isRequiresEntityReferences(),
+						"the predicate of the owner as read is kept"
 					);
 					return null;
 				}
@@ -1344,6 +1360,132 @@ class ReferenceRowFilterCompilerTest {
 			);
 		}
 
+		@Test
+		@DisplayName("a dropped row the raw owner carries reaches the fetch and is never admitted")
+		@UseDataSet(ROW_FILTER)
+		void shouldSkipDroppedRowCarriedByRawOwner(Evita evita) {
+			// the store never hands a fetch a dropped row of the current format, so the owner is built by hand: the raw
+			// entity of owner 1 with a dropped `brands` row to brand 3 and a dropped `externals` row to 101, inside
+			// the decorator the owner was read with
+			final EntityCollection collection = getProductCollection(evita);
+			final EvitaRequest request = new EvitaRequest(
+				query(
+					collection(ENTITY_PRODUCT),
+					filterBy(entityPrimaryKeyInSet(1)),
+					require(
+						entityFetch(
+							// neither is checked for existence: `brands` asks for ANY without a filter, `externals`
+							// references a type evitaDB does not manage - only the admit loop stands in the way
+							referenceContent(REF_BRANDS, entityFetch()),
+							referenceContentWithAttributes(REF_EXTERNALS, filterBy(attributeLessThan(ATTR_WEIGHT, 10)))
+						)
+					)
+				).normalizeQuery(),
+				OffsetDateTime.now(),
+				SealedEntity.class,
+				null
+			);
+			final Map<String, List<Integer>> fetched = evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final ServerEntityDecorator owner = withDroppedRows(
+						(ServerEntityDecorator) session.getEntity(
+							ENTITY_PRODUCT, 1, referenceContentAllWithAttributes()
+						).orElseThrow()
+					);
+					// fixture guard: the raw owner hands the dropped rows out
+					assertEquals(List.of(1, 2, 3), referencedKeys(owner.getDelegate().getReferences(REF_BRANDS)));
+					assertEquals(List.of(100, 101), referencedKeys(owner.getDelegate().getReferences(REF_EXTERNALS)));
+					final ServerEntityDecorator result = collection.applyReferenceFetcher(
+						request,
+						owner,
+						new ReferencedEntityFetcher(
+							request.getHierarchyContent(),
+							request.getReferenceEntityFetch(),
+							request.getNamedReferenceEntityFetch(),
+							request.getDefaultReferenceRequirement(),
+							// the planning context needs the session implementation, which the session handed out
+							// here only proxies - the same mock every planning context of this class gets
+							collection.createQueryContext(request, Mockito.mock(EvitaSession.class))
+								.createExecutionContext(),
+							new ServerChunkTransformerAccessor(request)
+						)
+					);
+					final Map<String, List<Integer>> rows = new TreeMap<>();
+					rows.put(REF_BRANDS, referencedKeys(result.getReferences(REF_BRANDS)));
+					rows.put(REF_EXTERNALS, referencedKeys(result.getReferences(REF_EXTERNALS)));
+					return rows;
+				}
+			);
+			assertEquals(Map.of(REF_BRANDS, List.of(1, 2), REF_EXTERNALS, List.of(100)), fetched);
+		}
+
+		/**
+		 * Returns the owner with a dropped `brands` row to brand 3 and a dropped `externals` row to 101 (weight 1,
+		 * which the filter of the test admits) added to its raw entity, decorated as the passed owner is.
+		 *
+		 * @param owner the owner as read
+		 * @return the owner carrying the dropped rows
+		 */
+		@Nonnull
+		private static ServerEntityDecorator withDroppedRows(@Nonnull ServerEntityDecorator owner) {
+			final Entity raw = owner.getDelegate();
+			final EntitySchemaContract schema = raw.getSchema();
+			final List<ReferenceContract> rows = new ArrayList<>(raw.getReferences());
+			rows.add(
+				new Reference(
+					schema, schema.getReferenceOrThrowException(REF_BRANDS), 1, new ReferenceKey(REF_BRANDS, 3),
+					null, Map.of(), true
+				)
+			);
+			final AttributeKey weight = new AttributeKey(ATTR_WEIGHT);
+			rows.add(
+				new Reference(
+					schema, schema.getReferenceOrThrowException(REF_EXTERNALS), 1, new ReferenceKey(REF_EXTERNALS, 101),
+					null, Map.of(weight, new AttributeValue(weight, 1)), true
+				)
+			);
+			rows.sort(Comparator.comparing(ReferenceContract::getReferenceKey, ReferenceKey.FULL_COMPARATOR));
+			return ServerEntityDecorator.decorate(
+				Entity._internalBuild(
+					raw, raw.getPrimaryKeyOrThrowException(), raw.version(), schema, null,
+					new References(
+						schema, rows.toArray(ReferenceContract[]::new), raw.getReferenceNames(),
+						raw.getReferenceChunkTransformer()
+					),
+					null, null, null, null, raw.getScope(), false
+				),
+				owner.getSchema(), null, owner.getLocalePredicate(), owner.getHierarchyPredicate(),
+				owner.getAttributePredicate(), owner.getAssociatedDataPredicate(), owner.getReferencePredicate(),
+				owner.getPricePredicate(), owner.getAlignedNow(), null, ServerEntityDecorator.UNKNOWN_CATALOG_VERSION,
+				0, 0
+			);
+		}
+
+	}
+
+	/**
+	 * Returns the real product collection of the catalog.
+	 *
+	 * @param evita the engine instance
+	 * @return the collection
+	 */
+	@Nonnull
+	private static EntityCollection getProductCollection(@Nonnull Evita evita) {
+		return ((Catalog) evita.getCatalogInstanceOrThrowException(TEST_CATALOG))
+			.getCollectionForEntityInternal(ENTITY_PRODUCT)
+			.orElseThrow();
+	}
+
+	/**
+	 * Returns the referenced primary keys of the rows, ascending.
+	 *
+	 * @param rows the rows
+	 * @return the referenced primary keys
+	 */
+	@Nonnull
+	private static List<Integer> referencedKeys(@Nonnull Collection<ReferenceContract> rows) {
+		return rows.stream().map(ReferenceContract::getReferencedPrimaryKey).sorted().toList();
 	}
 
 }

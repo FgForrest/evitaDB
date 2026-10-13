@@ -209,6 +209,19 @@ class ValidEntityToReferenceMapping {
 	}
 
 	/**
+	 * Returns TRUE when the mapping is filled row by row ({@link #admit(int, ReferenceContract)}): a referenced key
+	 * admitted for an owner then does not select every row of the owner holding it - a dropped row never, and a row
+	 * of a reference allowing duplicates judged by a filter only when it was admitted itself - so the rows have to be
+	 * asked one by one ({@link #isReferenceSelected}). FALSE for the mapping of the index route, which is narrowed key
+	 * by key.
+	 *
+	 * @return TRUE for a mapping filled row by row
+	 */
+	public boolean isFilledRowByRow() {
+		return this.verdicts != Verdicts.INDEX_ROUTE;
+	}
+
+	/**
 	 * Initializes the validity mapping - for `entityPrimaryKey` the `referencedPrimaryKeys` will
 	 * become "allowed".
 	 */
