@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.chunk.PageTransformer;
 import io.evitadb.api.requestResponse.chunk.StripTransformer;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
@@ -765,6 +766,75 @@ class BitmapSlicerTest {
 
 	}
 
+	@Nested
+	@DisplayName("Validity mapping filled row by row")
+	class AdmittedRowsTest {
+
+		@Test
+		@DisplayName("Should slice each source entity by the keys admitted for it, not for another source sharing them")
+		void shouldSliceEachSourceEntityByItsOwnAdmittedKeys() {
+			// both sources reference 10 and 20; the filter admitted 10 for A and 20 for B only
+			final int sourceEntityA = 1;
+			final int sourceEntityB = 2;
+			final Map<Integer, List<ReferenceContract>> refsByEntity = new LinkedHashMap<>();
+			refsByEntity.put(sourceEntityA, List.of(refWithGroup(10, 100), refWithGroup(20, 200)));
+			refsByEntity.put(sourceEntityB, List.of(refWithGroup(10, 100), refWithGroup(20, 200)));
+			final ValidEntityToReferenceMapping validityMapping = restrictedValidityMapping(
+				Map.of(sourceEntityA, new int[]{10}, sourceEntityB, new int[]{20})
+			);
+			final BitmapSlicer slicer = new BitmapSlicer(
+				Collections.singletonMap(Scope.LIVE, new int[]{sourceEntityA, sourceEntityB}),
+				REFERENCE_NAME,
+				referencedEntityIdsFormula(refsByEntity),
+				groupTranslator(refsByEntity),
+				new PageTransformer(new Page(1, 5), new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0]),
+				false
+			);
+
+			final Bitmap result = slicer.sliceEntityIds(new ConstantFormula(new BaseBitmap(10, 20)), validityMapping);
+
+			assertArrayEquals(new int[]{10, 20}, result.getArray());
+			assertArrayEquals(new int[]{100}, slicer.getGroupIds(sourceEntityA).compute().getArray());
+			assertArrayEquals(new int[]{200}, slicer.getGroupIds(sourceEntityB).compute().getArray());
+		}
+
+		@Test
+		@DisplayName("Should sort and slice each source entity by the keys admitted for it")
+		void shouldSortAndSliceEachSourceEntityByItsOwnAdmittedKeys() {
+			// page(1, 1) over reversed PK: A keeps only 10 (its single admitted key), B gets 30 over 20
+			final int sourceEntityA = 1;
+			final int sourceEntityB = 2;
+			final Map<Integer, List<ReferenceContract>> refsByEntity = new LinkedHashMap<>();
+			refsByEntity.put(sourceEntityA, List.of(refWithGroup(10, 100), refWithGroup(30, 300)));
+			refsByEntity.put(sourceEntityB, List.of(refWithGroup(20, 200), refWithGroup(30, 300)));
+			final ValidEntityToReferenceMapping validityMapping = restrictedValidityMapping(
+				Map.of(sourceEntityA, new int[]{10}, sourceEntityB, new int[]{20, 30})
+			);
+			final BitmapSlicer slicer = new BitmapSlicer(
+				Collections.singletonMap(Scope.LIVE, new int[]{sourceEntityA, sourceEntityB}),
+				REFERENCE_NAME,
+				referencedEntityIdsFormula(refsByEntity),
+				emptyGroupTranslator(),
+				new PageTransformer(new Page(1, 1), new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0]),
+				false
+			);
+
+			final Bitmap result = slicer.sliceEntityIdsSorted(
+				new ConstantFormula(new BaseBitmap(10, 20, 30)),
+				validityMapping,
+				referenceContractsAccessor(refsByEntity),
+				new ReversedPkComparator()
+			);
+
+			assertArrayEquals(new int[]{10, 30}, result.getArray());
+			assertArrayEquals(new int[]{100}, slicer.getGroupIds(sourceEntityA).compute().getArray());
+			final int[] groupsOfB = slicer.getGroupIds(sourceEntityB).compute().getArray();
+			Arrays.sort(groupsOfB);
+			assertArrayEquals(new int[]{200, 300}, groupsOfB);
+		}
+
+	}
+
 	// ---------------------------------------------------------------------------------------------
 	// fixtures and helpers
 	// ---------------------------------------------------------------------------------------------
@@ -813,51 +883,70 @@ class BitmapSlicerTest {
 	}
 
 	/**
-	 * Builds a `ValidEntityToReferenceMapping` whose per-source allow-set is exactly the reference
-	 * PKs found in `refsByEntity` for that source entity — equivalent to "no validity restriction
-	 * beyond what the source already exposes". Use this in tests that focus on slicing behavior
-	 * rather than validity filtering.
+	 * Builds a `ValidEntityToReferenceMapping` admitting every reference found in `refsByEntity` for its source
+	 * entity — equivalent to "no validity restriction beyond what the source already exposes". Use this in tests
+	 * that focus on slicing behavior rather than validity filtering.
 	 */
 	@Nonnull
 	private static ValidEntityToReferenceMapping permissiveValidityMapping(
 		@Nonnull Map<Integer, List<ReferenceContract>> refsByEntity
 	) {
-		final ReferenceSchema schema = ReferenceSchema._internalBuild(
-			REFERENCE_NAME, "referenced", false, Cardinality.ZERO_OR_MORE,
-			null, false, null, null
-		);
 		final ValidEntityToReferenceMapping mapping = new ValidEntityToReferenceMapping(
-			refsByEntity.size(), schema
+			refsByEntity.size(), referenceSchema(), false
 		);
 		for (Map.Entry<Integer, List<ReferenceContract>> entry : refsByEntity.entrySet()) {
-			final int[] pks = entry.getValue().stream()
-				.mapToInt(ReferenceContract::getReferencedPrimaryKey)
-				.toArray();
-			mapping.setInitialVisibilityForEntity(entry.getKey(), new BaseBitmap(pks));
+			for (ReferenceContract reference : entry.getValue()) {
+				mapping.admit(entry.getKey(), reference);
+			}
 		}
 		return mapping;
 	}
 
 	/**
-	 * Builds a `ValidEntityToReferenceMapping` restricted to exactly the given allowed referenced
-	 * PKs per source entity. References not listed for a source entity are rejected by the
-	 * validity gate even if the source entity owns them.
+	 * Builds a `ValidEntityToReferenceMapping` admitting exactly the given referenced PKs per source entity.
+	 * References not listed for a source entity are rejected by the validity gate even if the source entity owns
+	 * them.
 	 */
 	@Nonnull
 	private static ValidEntityToReferenceMapping restrictedValidityMapping(
 		@Nonnull Map<Integer, int[]> allowedByEntity
 	) {
-		final ReferenceSchema schema = ReferenceSchema._internalBuild(
+		final ValidEntityToReferenceMapping mapping = new ValidEntityToReferenceMapping(
+			allowedByEntity.size(), referenceSchema(), false
+		);
+		for (Map.Entry<Integer, int[]> entry : allowedByEntity.entrySet()) {
+			for (int referencedPk : entry.getValue()) {
+				mapping.admit(entry.getKey(), ref(referencedPk));
+			}
+		}
+		return mapping;
+	}
+
+	/**
+	 * Returns the schema of the sliced reference - a reference without duplicates to an unmanaged entity type.
+	 */
+	@Nonnull
+	private static ReferenceSchema referenceSchema() {
+		return ReferenceSchema._internalBuild(
 			REFERENCE_NAME, "referenced", false, Cardinality.ZERO_OR_MORE,
 			null, false, null, null
 		);
-		final ValidEntityToReferenceMapping mapping = new ValidEntityToReferenceMapping(
-			allowedByEntity.size(), schema
-		);
-		for (Map.Entry<Integer, int[]> entry : allowedByEntity.entrySet()) {
-			mapping.setInitialVisibilityForEntity(entry.getKey(), new BaseBitmap(entry.getValue()));
-		}
-		return mapping;
+	}
+
+	/**
+	 * Produces a `referencedEntityToGroupIdTranslator` resolving the groups of a referenced entity of a source entity
+	 * from the test's reference map.
+	 */
+	@Nonnull
+	private static TriFunction<Integer, String, Integer, IntStream> groupTranslator(
+		@Nonnull Map<Integer, List<ReferenceContract>> refsByEntity
+	) {
+		return (epk, refName, refId) -> refsByEntity.getOrDefault(epk, List.of())
+			.stream()
+			.filter(it -> it.getReferencedPrimaryKey() == refId)
+			.map(ReferenceContract::getGroup)
+			.flatMap(Optional::stream)
+			.mapToInt(GroupEntityReference::getPrimaryKeyOrThrowException);
 	}
 
 	/**

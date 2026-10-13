@@ -36,10 +36,12 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.PrimitiveIterator.OfInt;
+import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -75,6 +77,12 @@ class RepresentativeMapping {
 	 * after filtering narrows the valid set.
 	 */
 	private boolean unrestrictedKeysAllowed = true;
+	/**
+	 * The representative keys of the reference rows admitted one by one by {@link #admit(ReferenceContract)} - used
+	 * only for references with duplicate cardinality whose rows are judged by a filter, where two rows referencing
+	 * the same entity may be given different verdicts. NULL until the first row is admitted.
+	 */
+	@Nullable private Set<RepresentativeReferenceKey> admittedKeys = null;
 
 	/**
 	 * Creates a new representative mapping with the given key producer function.
@@ -113,6 +121,42 @@ class RepresentativeMapping {
 	 */
 	public void add(int referencedEntityPrimaryKey) {
 		this.referencedEntityIds.add(referencedEntityPrimaryKey);
+	}
+
+	/**
+	 * Admits a single reference row: its referenced primary key becomes valid and its representative key is recorded,
+	 * so that {@link #isAdmitted(ReferenceContract)} selects this row and not the other rows referencing the same
+	 * entity.
+	 *
+	 * @param row the admitted reference row
+	 */
+	public void admit(@Nonnull ReferenceContract row) {
+		this.referencedEntityIds.add(row.getReferencedPrimaryKey());
+		if (this.admittedKeys == null) {
+			this.admittedKeys = CollectionUtils.createHashSet(8);
+		}
+		this.admittedKeys.add(this.representativeKeyProducer.apply(row));
+	}
+
+	/**
+	 * Returns TRUE when the very row was admitted by {@link #admit(ReferenceContract)} - compared by its
+	 * representative key, which is unique among the rows of one entity.
+	 *
+	 * @param row the reference row, raw or decorated
+	 * @return TRUE when the row was admitted
+	 */
+	public boolean isAdmitted(@Nonnull ReferenceContract row) {
+		return this.admittedKeys != null && this.admittedKeys.contains(this.representativeKeyProducer.apply(row));
+	}
+
+	/**
+	 * Returns TRUE when the referenced entity primary key is among the valid ones.
+	 *
+	 * @param referencedEntityPrimaryKey the referenced entity primary key
+	 * @return TRUE when the key is valid
+	 */
+	public boolean containsReferencedPrimaryKey(int referencedEntityPrimaryKey) {
+		return this.referencedEntityIds.contains(referencedEntityPrimaryKey);
 	}
 
 	/**
