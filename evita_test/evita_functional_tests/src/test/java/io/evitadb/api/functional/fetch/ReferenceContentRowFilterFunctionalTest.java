@@ -1558,6 +1558,52 @@ class ReferenceContentRowFilterFunctionalTest {
 	class DroppedData {
 
 		@Test
+		@DisplayName("a row whose group was dropped carries no group body")
+		@UseDataSet(value = MUTABLE_DATA_SET, destroyAfterTest = true)
+		void shouldAttachNoBodyToDroppedGroup(Evita evita) {
+			// the changes are read inside the open transaction, which is rolled back afterwards
+			assertThrows(
+				RollbackException.class,
+				() -> evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+							.orElseThrow()
+							.openForWrite()
+							.setReference(REF_BRANDS, 1, whichIs -> whichIs.removeGroup().setAttribute(ATTR_X, 5))
+							.upsertVia(session);
+						final SealedEntity owner = session.queryOneSealedEntity(
+							query(
+								collection(ENTITY_PRODUCT),
+								filterBy(entityPrimaryKeyInSet(1)),
+								require(
+									entityFetch(
+										new ReferenceContent(
+											null, ManagedReferencesBehaviour.ANY, new String[]{REF_BRANDS},
+											new RequireConstraint[]{entityGroupFetch(attributeContent(ATTR_CODE))},
+											new Constraint<?>[0]
+										)
+									)
+								)
+							)
+						).orElseThrow();
+						final Map<Integer, String> groups = new TreeMap<>();
+						for (ReferenceContract brand : owner.getReferences(REF_BRANDS)) {
+							groups.put(
+								brand.getReferencedPrimaryKey(),
+								brand.getGroup().map(it -> String.valueOf(it.getPrimaryKey())).orElse("-") + "/" +
+									brand.getGroupEntity().map(it -> it.getAttribute(ATTR_CODE)).orElse("-")
+							);
+						}
+						// row 1 held group 10 before its group was dropped, rows 2 and 4 hold groups 11 and 10
+						assertEquals(Map.of(1, "-/-", 2, "11/g2", 4, "10/g1"), groups);
+						session.setRollbackOnly();
+					}
+				)
+			);
+		}
+
+		@Test
 		@DisplayName("a dropped row, a dropped group and a dropped attribute value count as absent")
 		@UseDataSet(value = MUTABLE_DATA_SET, destroyAfterTest = true)
 		void shouldReadDroppedDataAsAbsent(Evita evita) {

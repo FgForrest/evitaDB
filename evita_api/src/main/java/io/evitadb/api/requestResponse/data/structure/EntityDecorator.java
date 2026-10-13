@@ -34,6 +34,7 @@ import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceContract;
@@ -2272,11 +2273,15 @@ public class EntityDecorator implements SealedEntity {
 				referenceEntityFetcher.apply(reference.getReferenceKey().primaryKey()) : null;
 
 		// the group body does not depend on the referenced entity body - `entityGroupFetch` may be requested without
-		// `entityFetch`; the no-op check spares the boxed key of a lookup that can only answer NULL
+		// `entityFetch`; the no-op check spares the boxed key of a lookup that can only answer NULL. A dropped group is
+		// no group - `ReferenceDecorator#getGroup` hides it - so it gets no body either
 		final SealedEntity referencedGroupEntity =
 			referenceSchema.isReferencedGroupTypeManaged() &&
 				referenceGroupEntityFetcher != Functions.<Integer, SealedEntity>noOpFunction() ?
-				reference.getGroup().map(group -> referenceGroupEntityFetcher.apply(group.primaryKey())).orElse(null) :
+				reference.getGroup()
+					.filter(Droppable::exists)
+					.map(group -> referenceGroupEntityFetcher.apply(group.primaryKey()))
+					.orElse(null) :
 				null;
 		// this is the only place a referenced or group body is ever put onto a reference, so it is the only place
 		// that can say whether this entity carries any - see #referenceBodiesAttached
