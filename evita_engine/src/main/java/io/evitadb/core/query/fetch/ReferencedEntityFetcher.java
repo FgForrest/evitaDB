@@ -2710,7 +2710,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				)
 				: slicer.sliceEntityIds(
 					toFormula(filteredReferencedEntityIds),
-					validityMapping
+					validityMapping,
+					// the decorator pages rows, and several rows of a reference allowing duplicates may share a key
+					referenceSchema.getCardinality().allowsDuplicates() && validityMapping.isFilledRowByRow() ?
+						referenceContractsAccessor : null
 				);
 			if (!filteredAndSlicedReferencedIds.isEmpty()) {
 				// if so, fetch them

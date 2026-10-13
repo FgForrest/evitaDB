@@ -791,7 +791,9 @@ class BitmapSlicerTest {
 				false
 			);
 
-			final Bitmap result = slicer.sliceEntityIds(new ConstantFormula(new BaseBitmap(10, 20)), validityMapping);
+			final Bitmap result = slicer.sliceEntityIds(
+				new ConstantFormula(new BaseBitmap(10, 20)), validityMapping, null
+			);
 
 			assertArrayEquals(new int[]{10, 20}, result.getArray());
 			assertArrayEquals(new int[]{100}, slicer.getGroupIds(sourceEntityA).compute().getArray());
@@ -831,6 +833,41 @@ class BitmapSlicerTest {
 			final int[] groupsOfB = slicer.getGroupIds(sourceEntityB).compute().getArray();
 			Arrays.sort(groupsOfB);
 			assertArrayEquals(new int[]{200, 300}, groupsOfB);
+		}
+
+		@Test
+		@DisplayName("Should page the rows rather than the keys when several selected rows share a key")
+		void shouldPageRowsSharingKeyWithoutOrdering() {
+			// the decorator pages the rows 10, 10 and 20 in the order of their keys: page 2 holds the second row of 10
+			// and page 3 the row of 20, while the distinct keys {10, 20} put 20 on page 2 and have no page 3
+			final int sourceEntityPk = 1;
+			final Map<Integer, List<ReferenceContract>> refsByEntity = singletonRefMap(
+				sourceEntityPk, ref(20), ref(10), ref(10)
+			);
+			final ValidEntityToReferenceMapping validityMapping = permissiveValidityMapping(refsByEntity);
+			final int[][] expectedByPage = {{10}, {10}, {20}};
+			for (int page = 1; page <= expectedByPage.length; page++) {
+				assertArrayEquals(
+					expectedByPage[page - 1],
+					newPageSlicer(refsByEntity, new Page(page, 1))
+						.sliceEntityIds(
+							new ConstantFormula(new BaseBitmap(10, 20)), validityMapping,
+							referenceContractsAccessor(refsByEntity)
+						)
+						.getArray(),
+					"page " + page
+				);
+			}
+			// the first page of two rows holds both rows of 10 and no row of 20, which the first two keys would fetch
+			assertArrayEquals(
+				new int[]{10},
+				newPageSlicer(refsByEntity, new Page(1, 2))
+					.sliceEntityIds(
+						new ConstantFormula(new BaseBitmap(10, 20)), validityMapping,
+						referenceContractsAccessor(refsByEntity)
+					)
+					.getArray()
+			);
 		}
 
 		@Test

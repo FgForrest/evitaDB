@@ -118,6 +118,11 @@ class BitmapSlicer {
 	 */
 	@Nonnull private final IntFunction<OffsetAndLimit> offsetAndLimitForSize;
 	/**
+	 * TRUE when the chunk transformer slices anything at all - with {@link NoTransformer} every filtered key is
+	 * fetched, so there is nothing to slice out of the rows either.
+	 */
+	private final boolean chunked;
+	/**
 	 * Contains a cache of groups indexed by entity primary key.
 	 */
 	private Map<Integer, int[]> groupsForEntity = Collections.emptyMap();
@@ -158,6 +163,7 @@ class BitmapSlicer {
 		this.referenceName = referenceName;
 		this.referencedEntityIdsFormula = referencedEntityIdsFormula;
 		this.referencedEntityToGroupIdTranslator = referencedEntityToGroupIdTranslator;
+		this.chunked = !(chunkTransformer instanceof NoTransformer);
 		if (chunkTransformer instanceof PageTransformer pageTransformer) {
 			this.chunker = (bitmap) -> this.slice(bitmap, pageTransformer.getPage());
 			this.offsetAndLimitForSize = size -> pageOffsetAndLimit(pageTransformer.getPage(), size);
@@ -189,15 +195,23 @@ class BitmapSlicer {
 	 * This method is supposed to identify only a small subset of referenced entities and their groups that should
 	 * be actually fetched / returned in the result.
 	 *
+	 * The decorator pages the selected rows ordered by their referenced primary key, so slicing the distinct keys
+	 * matches it only while every key stands for one row. When several selected rows of a reference allowing
+	 * duplicates may share a key, the chunk is sliced out of the rows instead - see {@link #sliceRows}.
+	 *
 	 * @param referencedEntityIds global formula of filter-matching referenced entity PKs (filterBy applied)
 	 * @param validityMapping     per-source validity gate (multi-source dedup / chunked predicate)
+	 * @param rowsOfDuplicates    per-source-entity accessor of the reference rows, when several selected rows may share
+	 *                            a referenced key - a reference allowing duplicates whose validity mapping is filled
+	 *                            row by row; NULL when every selected key stands for a single row
 	 * @return all referenced entity ids that match `referencedEntityIds` and are appropriately sliced
 	 * on per entity basis by {@link #chunker}
 	 */
 	@Nonnull
 	public Bitmap sliceEntityIds(
 		@Nonnull Formula referencedEntityIds,
-		@Nonnull ValidEntityToReferenceMapping validityMapping
+		@Nonnull ValidEntityToReferenceMapping validityMapping,
+		@Nullable BiFunction<String, Integer, Collection<ReferenceContract>> rowsOfDuplicates
 	) {
 		this.groupsForEntity = CollectionUtils.createHashMap(this.entityPrimaryKey.size());
 		return FormulaFactory.or(
@@ -209,12 +223,67 @@ class BitmapSlicer {
 					final Bitmap filteredReferenceEntityIds = filterReferencedEntityIds(
 						epk, referencedEntityIds, validityMapping
 					);
-					final Bitmap chunk = this.chunker.apply(filteredReferenceEntityIds);
+					final Bitmap chunk = rowsOfDuplicates == null || !this.chunked ?
+						this.chunker.apply(filteredReferenceEntityIds) :
+						sliceRows(epk, filteredReferenceEntityIds, validityMapping, rowsOfDuplicates);
 					recordGroupIds(epk, filteredReferenceEntityIds);
 					return ReferencedEntityFetcher.toFormula(chunk);
 				})
 				.toArray(Formula[]::new)
 		).compute();
+	}
+
+	/**
+	 * Slices the chunk of the source entity out of its selected rows rather than out of its referenced keys. The
+	 * decorator pages the rows it selects, ordered by their referenced primary key, and several rows of a reference
+	 * allowing duplicates may hold one key - the keys a page needs are those of the rows at its positions, which a
+	 * slice of the distinct keys misses or takes from another page. Which of the rows sharing a key comes first makes
+	 * no difference to the keys the page holds.
+	 *
+	 * @param epk                        primary key of the source entity
+	 * @param filteredReferenceEntityIds the filtered referenced entity primary keys of the source entity
+	 * @param validityMapping            the mapping filled row by row, selecting the rows the decorator keeps
+	 * @param rowsAccessor               per-source-entity accessor of the reference rows
+	 * @return the referenced primary keys of the rows of the chunk
+	 */
+	@Nonnull
+	private Bitmap sliceRows(
+		int epk,
+		@Nonnull Bitmap filteredReferenceEntityIds,
+		@Nonnull ValidEntityToReferenceMapping validityMapping,
+		@Nonnull BiFunction<String, Integer, Collection<ReferenceContract>> rowsAccessor
+	) {
+		if (filteredReferenceEntityIds.isEmpty()) {
+			return EmptyBitmap.INSTANCE;
+		}
+		final Collection<ReferenceContract> rows = rowsAccessor.apply(this.referenceName, epk);
+		final int[] keysOfSelectedRows = new int[rows.size()];
+		int selectedRowCount = 0;
+		for (ReferenceContract row : rows) {
+			final int referencedPrimaryKey = row.getReferencedPrimaryKey();
+			if (
+				filteredReferenceEntityIds.contains(referencedPrimaryKey) &&
+					validityMapping.isReferenceSelected(epk, row)
+			) {
+				keysOfSelectedRows[selectedRowCount++] = referencedPrimaryKey;
+			}
+		}
+		Arrays.sort(keysOfSelectedRows, 0, selectedRowCount);
+		final OffsetAndLimit offsetAndLimit = this.offsetAndLimitForSize.apply(selectedRowCount);
+		final int from = Math.min(offsetAndLimit.offset(), selectedRowCount);
+		final int to = Math.min(offsetAndLimit.offset() + offsetAndLimit.limit(), selectedRowCount);
+		if (to <= from) {
+			return EmptyBitmap.INSTANCE;
+		}
+		// the rows of the chunk are sorted by their key, so the distinct keys are written in one pass
+		final int[] keysOfChunk = new int[to - from];
+		int keyCount = 0;
+		for (int i = from; i < to; i++) {
+			if (keyCount == 0 || keysOfChunk[keyCount - 1] != keysOfSelectedRows[i]) {
+				keysOfChunk[keyCount++] = keysOfSelectedRows[i];
+			}
+		}
+		return new ArrayBitmap(keyCount == keysOfChunk.length ? keysOfChunk : Arrays.copyOf(keysOfChunk, keyCount));
 	}
 
 	/**
@@ -343,10 +412,11 @@ class BitmapSlicer {
 	}
 
 	/**
-	 * Order-aware variant of {@link #sliceEntityIds(Formula, ValidEntityToReferenceMapping)} used when an `orderBy`
-	 * is configured on the reference content. For each source entity it pulls the actual {@link ReferenceContract}
-	 * instances (whose reference attributes are already loaded with the source entity), filters them by the global
-	 * filtered referenced PK bitmap and the per-source `validityMapping` (multi-source dedup / chunked predicate),
+	 * Order-aware variant of {@link #sliceEntityIds(Formula, ValidEntityToReferenceMapping, BiFunction)} used when an
+	 * `orderBy` is configured on the reference content. For each source entity it pulls the actual
+	 * {@link ReferenceContract} instances (whose reference attributes are already loaded with the source entity),
+	 * filters them by the global filtered referenced PK bitmap and the per-source `validityMapping` (multi-source
+	 * dedup / chunked predicate),
 	 * sorts them by the {@link ReferenceComparator} chain (the same comparator that
 	 * {@code EntityDecorator#sortAndFilterSubList} will use post-fetch), then slices the chunk using the configured
 	 * page/strip offset+limit. The returned bitmap contains exactly the PKs whose bodies will be the post-fetch

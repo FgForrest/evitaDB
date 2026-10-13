@@ -1256,6 +1256,72 @@ class ReferenceContentRowFilterFunctionalTest {
 			}
 		}
 
+		@Test
+		@DisplayName("each page of duplicates without an ordering carries the bodies of its rows (O-a)")
+		@UseDataSet(DATA_SET)
+		void shouldPageDuplicatesWithoutOrderingWithTheirBodies(Evita evita) {
+			// the rows 1/CZ, 1/DE and 2/CZ (4/SK refers to a missing brand) are paged one per page; the referenced key
+			// of a row on one page may differ from the key at the same position among the distinct keys {1, 2}
+			final Map<String, ReferenceContent> pagedBy = new TreeMap<>();
+			for (int page = 1; page <= 3; page++) {
+				// without a filter the verdicts are kept per referenced key, with a filter per row
+				pagedBy.put(
+					"EXISTING, page " + page,
+					new ReferenceContent(
+						null, ManagedReferencesBehaviour.EXISTING, new String[]{REF_DUPLICATES},
+						new RequireConstraint[]{
+							attributeContentAll(), entityFetch(attributeContent(ATTR_CODE)), page(page, 1)
+						},
+						new Constraint<?>[0]
+					)
+				);
+				pagedBy.put(
+					"filtered, page " + page,
+					new ReferenceContent(
+						null, ManagedReferencesBehaviour.ANY, new String[]{REF_DUPLICATES},
+						new RequireConstraint[]{
+							attributeContentAll(), entityFetch(attributeContent(ATTR_CODE)), page(page, 1)
+						},
+						new Constraint<?>[]{filterBy(attributeInSet(ATTR_COUNTRY, "CZ", "DE"))}
+					)
+				);
+			}
+			final Map<String, List<String>> pages = evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final Map<String, List<String>> result = new TreeMap<>();
+					pagedBy.forEach(
+						(label, requirement) -> {
+							final List<String> page = new ArrayList<>(1);
+							for (ReferenceContract reference : session.getEntity(ENTITY_PRODUCT, 1, requirement)
+								.orElseThrow()
+								.getReferenceChunk(REF_DUPLICATES)) {
+								page.add(
+									reference.getReferencedPrimaryKey() + "/" + reference.getAttribute(ATTR_COUNTRY) +
+										(reference.getReferencedEntity().isPresent() ? " with body" : " without body")
+								);
+							}
+							result.put(label, page);
+						}
+					);
+					return result;
+				}
+			);
+			for (String variant : new String[]{"EXISTING", "filtered"}) {
+				final List<String> rowsOverPages = new ArrayList<>(3);
+				for (int page = 1; page <= 3; page++) {
+					final List<String> rowsOfPage = pages.get(variant + ", page " + page);
+					assertEquals(1, rowsOfPage.size(), () -> variant + ": " + pages);
+					rowsOverPages.addAll(rowsOfPage);
+				}
+				assertEquals(
+					List.of("1/CZ with body", "1/DE with body", "2/CZ with body"),
+					rowsOverPages.stream().sorted().toList(),
+					() -> variant + ": " + pages
+				);
+			}
+		}
+
 		/**
 		 * Returns the named set of `brandDuplicates` of one country, ordered by rank and chunked.
 		 *
