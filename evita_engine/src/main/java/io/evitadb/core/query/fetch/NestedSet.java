@@ -52,10 +52,14 @@ import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
  * requests to the query - whatever data there is. Any other visitor resolves it when the first row reaches the node,
  * so a fetch whose owners hold no row to test plans no nested query.
  *
- * **The restriction narrows the query, never the answer.** When a restriction is supplied, the nested filter is
+ * **The restriction narrows the query, never a row verdict.** When a restriction is supplied, the nested filter is
  * prefixed with an `entityPrimaryKeyInSet` of its keys, so the query evaluates only the entities the fetched rows
- * point at instead of the whole collection. The caller guarantees that every key a row is tested with is among them,
- * so no membership answer changes. An empty restriction means there is nothing to test, and no query is planned.
+ * point at instead of the whole collection. The restriction holds every key a row can be *admitted* with, not every
+ * key a row is tested with: the restriction of `entityHaving` is also intersected with the keys of the root
+ * `entityPrimaryKeyInSet`, and a row whose target lies outside them gets "not selected" here although the
+ * unrestricted query might select it. The root conjunct rejects such a row anyway, so no row verdict changes - but
+ * the answers of this set are meaningful only inside the filter tree it was compiled for. An empty restriction means
+ * no row can be admitted through the set, and no query is planned.
  *
  * The set is resolved on the thread of the fetch and is not shared between threads.
  *

@@ -68,6 +68,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
+import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -81,7 +82,6 @@ import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Collections;
 import java.util.EnumSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -129,7 +129,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * Brands 1 (`a`, EN + DE) and 2 (`b`, EN) are live, brand 3 (`a`, EN) is archived; group 10 is `g1`, group 11 `g2`.
  * `externals` references the unmanaged type `rowExternal`, `ungrouped` references the brands without a group type,
- * `foreignGroup` references them grouped by the unmanaged type `rowExternalGroup`.
+ * `foreignGroup` references them grouped by the unmanaged type `rowExternalGroup`. Owner 1 holds an `externals` row to
+ * 100 (weight 1) and `ungrouped` rows to brands 1 and 3 - the live owner's row to the archived brand.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -302,6 +303,8 @@ class ReferenceRowFilterCompilerTest {
 								.setAttribute(ATTR_PRICE, HUGE_PRICE)
 						)
 						.setReference(REF_EXTERNALS, 100, whichIs -> whichIs.setAttribute(ATTR_WEIGHT, 1))
+						.setReference(REF_UNGROUPED, 1)
+						.setReference(REF_UNGROUPED, 3)
 				);
 			}
 		);
@@ -377,7 +380,8 @@ class ReferenceRowFilterCompilerTest {
 		}
 
 		/**
-		 * Compiles the filter of a reference.
+		 * Compiles the filter of a reference. The nested queries of `groupHaving` are restricted to both groups when
+		 * those of `entityHaving` are restricted.
 		 *
 		 * @param referenceName   the name of the reference
 		 * @param filterBy        the filter
@@ -397,8 +401,36 @@ class ReferenceRowFilterCompilerTest {
 			@Nullable Supplier<Bitmap> existingTargets
 		) {
 			return compile(
+				referenceName, filterBy, ownerLocale, requestScopes, check, existingTargets,
+				existingTargets == null ? null : () -> new BaseBitmap(10, 11)
+			);
+		}
+
+		/**
+		 * Compiles the filter of a reference with the passed restrictions of the nested queries.
+		 *
+		 * @param referenceName   the name of the reference
+		 * @param filterBy        the filter
+		 * @param ownerLocale     the locale of the owner request
+		 * @param requestScopes   the scopes of the owner request
+		 * @param check           true for a visitor that only checks the filter
+		 * @param existingTargets the existing targets restricting the nested queries of `entityHaving`, NULL for none
+		 * @param rowGroups       the groups restricting the nested queries of `groupHaving`, NULL for none
+		 * @return the compiled filter
+		 */
+		@Nonnull
+		ReferenceRowFilter compile(
+			@Nonnull String referenceName,
+			@Nullable FilterBy filterBy,
+			@Nullable Locale ownerLocale,
+			@Nonnull Set<Scope> requestScopes,
+			boolean check,
+			@Nullable Supplier<Bitmap> existingTargets,
+			@Nullable Supplier<Bitmap> rowGroups
+		) {
+			return compile(
 				createQueryContext(this.evita), referenceName, filterBy, ownerLocale, requestScopes, check,
-				existingTargets
+				existingTargets, rowGroups
 			);
 		}
 
@@ -411,7 +443,8 @@ class ReferenceRowFilterCompilerTest {
 		 * @param ownerLocale     the locale of the owner request
 		 * @param requestScopes   the scopes of the owner request
 		 * @param check           true for a visitor that only checks the filter
-		 * @param existingTargets the existing targets restricting the nested queries, NULL for none
+		 * @param existingTargets the existing targets restricting the nested queries of `entityHaving`, NULL for none
+		 * @param rowGroups       the groups restricting the nested queries of `groupHaving`, NULL for none
 		 * @return the compiled filter
 		 */
 		@Nonnull
@@ -422,7 +455,8 @@ class ReferenceRowFilterCompilerTest {
 			@Nullable Locale ownerLocale,
 			@Nonnull Set<Scope> requestScopes,
 			boolean check,
-			@Nullable Supplier<Bitmap> existingTargets
+			@Nullable Supplier<Bitmap> existingTargets,
+			@Nullable Supplier<Bitmap> rowGroups
 		) {
 			final FilterByVisitor visitor = check ?
 				FilterByVisitor.createConstraintCheckVisitor(queryContext) :
@@ -432,8 +466,7 @@ class ReferenceRowFilterCompilerTest {
 			return ReferenceRowFilterCompiler.compile(
 				filterBy,
 				new CompileContext(
-					entitySchema, referenceSchema, visitor, requestScopes, ownerLocale, existingTargets,
-					existingTargets == null ? null : () -> new BaseBitmap(10, 11)
+					entitySchema, referenceSchema, visitor, requestScopes, ownerLocale, existingTargets, rowGroups
 				)
 			);
 		}
@@ -452,7 +485,7 @@ class ReferenceRowFilterCompilerTest {
 		@Nonnull ReferenceRowFilter filter,
 		@Nonnull Map<Integer, Entity> owners
 	) {
-		final Map<String, Boolean> result = new LinkedHashMap<>(8);
+		final Map<String, Boolean> result = CollectionUtils.createLinkedHashMap(8);
 		for (Entity owner : owners.values()) {
 			for (ReferenceContract row : owner.getReferences(REF_BRANDS)) {
 				result.put(
@@ -475,7 +508,7 @@ class ReferenceRowFilterCompilerTest {
 	 */
 	@Nonnull
 	private static Map<String, Boolean> expected(boolean p1b1, boolean p1b2, boolean p2b1, boolean p2b3) {
-		final Map<String, Boolean> result = new LinkedHashMap<>(8);
+		final Map<String, Boolean> result = CollectionUtils.createLinkedHashMap(8);
 		result.put("1/1", p1b1);
 		result.put("1/2", p1b2);
 		result.put("2/1", p2b1);
@@ -519,7 +552,7 @@ class ReferenceRowFilterCompilerTest {
 		@Nonnull AttributeValue... attributes
 	) {
 		final EntitySchemaContract entitySchema = createQueryContext(evita).getSchema();
-		final Map<AttributeKey, AttributeValue> values = new LinkedHashMap<>(4);
+		final Map<AttributeKey, AttributeValue> values = CollectionUtils.createLinkedHashMap(4);
 		for (AttributeValue attribute : attributes) {
 			values.put(attribute.key(), attribute);
 		}
@@ -635,6 +668,11 @@ class ReferenceRowFilterCompilerTest {
 		void shouldReadArraysRangesAndMoments(Evita evita) {
 			assertVerdicts(
 				evita, filterBy(attributeEquals(ATTR_KEYWORDS, "y")), null, expected(true, false, false, false)
+			);
+			// an array as the value is stringified as the index stringifies it, and the index finds no such value
+			assertVerdicts(
+				evita, filterBy(attributeEquals(ATTR_KEYWORDS, new String[]{"x"})), null,
+				expected(false, false, false, false)
 			);
 			assertVerdicts(
 				evita, filterBy(attributeInRange(ATTR_VALIDITY, OffsetDateTime.parse("2026-06-01T00:00:00+02:00"))),
@@ -784,6 +822,26 @@ class ReferenceRowFilterCompilerTest {
 		}
 
 		@Test
+		@DisplayName("an ordering leaf on a localized string compares by the collation of the leaf locale")
+		@UseDataSet(ROW_FILTER)
+		void shouldCompareLocalizedStringByCollationOfLeafLocale(Evita evita) {
+			// by code points `Café`, `Red` and `Rot` precede `b` (upper case first), by the collation they follow it
+			assertVerdicts(
+				evita, filterBy(attributeLessThan(ATTR_LABEL, "b")), Locale.ENGLISH,
+				expected(false, false, false, false)
+			);
+			assertVerdicts(
+				evita, filterBy(attributeGreaterThan(ATTR_LABEL, "b")), Locale.ENGLISH,
+				expected(true, true, true, false)
+			);
+			// the locale of the filter selects the collation as well as the value
+			assertVerdicts(
+				evita, filterBy(entityLocaleEquals(Locale.GERMAN), attributeBetween(ATTR_LABEL, "b", "s")), null,
+				expected(true, false, false, false)
+			);
+		}
+
+		@Test
 		@DisplayName("a localized leaf without any locale is refused, attributeIs included")
 		@UseDataSet(ROW_FILTER)
 		void shouldRefuseLocalizedLeafWithoutLocale(Evita evita) {
@@ -920,6 +978,62 @@ class ReferenceRowFilterCompilerTest {
 		}
 
 		@Test
+		@DisplayName("the nested query of groupHaving is restricted to the supplied groups, not to the targets")
+		@UseDataSet(ROW_FILTER)
+		void shouldRestrictGroupQueryToSuppliedGroups(Evita evita) {
+			final Fixture fixture = new Fixture(evita);
+			final Map<Integer, Entity> owners = fetchOwners(evita);
+			final FilterBy filterBy = filterBy(groupHaving(attributeEquals(ATTR_CODE, "g1")));
+			// group 10 is `g1`: restricted to it, its rows pass - restricted to the brands, no group would be found
+			assertEquals(
+				expected(true, false, true, false),
+				verdicts(
+					fixture.compile(
+						REF_BRANDS, filterBy, null, BOTH_SCOPES, false, () -> new BaseBitmap(1, 2, 3),
+						() -> new BaseBitmap(10)
+					),
+					owners
+				)
+			);
+			// restricted to group 11 alone, `g1` is out of the nested query and no row passes
+			assertEquals(
+				expected(false, false, false, false),
+				verdicts(
+					fixture.compile(
+						REF_BRANDS, filterBy, null, BOTH_SCOPES, false, () -> new BaseBitmap(1, 2, 3),
+						() -> new BaseBitmap(11)
+					),
+					owners
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("within inScope the nested query looks into the scope of the container alone")
+		@UseDataSet(ROW_FILTER)
+		void shouldPlanNestedQueryInScopeOfInScope(Evita evita) {
+			final Fixture fixture = new Fixture(evita);
+			final Entity liveOwner = fetchOwners(evita).get(1);
+			final FilterConstraint brandA = entityHaving(attributeEquals(ATTR_CODE, "a"));
+			// brand 3 is `a` in ARCHIVED only: the live owner's row to it passes an unconfined `entityHaving`, which
+			// looks into both scopes, and fails one within `inScope(LIVE)`, which looks into LIVE alone
+			final Map<Integer, Boolean> unconfined = new TreeMap<>();
+			final Map<Integer, Boolean> confined = new TreeMap<>();
+			final ReferenceRowFilter unconfinedFilter = fixture.compile(
+				REF_UNGROUPED, filterBy(brandA), null, BOTH_SCOPES, false, null
+			);
+			final ReferenceRowFilter confinedFilter = fixture.compile(
+				REF_UNGROUPED, filterBy(inScope(Scope.LIVE, brandA)), null, BOTH_SCOPES, false, null
+			);
+			for (ReferenceContract row : liveOwner.getReferences(REF_UNGROUPED)) {
+				unconfined.put(row.getReferencedPrimaryKey(), unconfinedFilter.test(Scope.LIVE, liveOwner, row));
+				confined.put(row.getReferencedPrimaryKey(), confinedFilter.test(Scope.LIVE, liveOwner, row));
+			}
+			assertEquals(Map.of(1, true, 3, true), unconfined);
+			assertEquals(Map.of(1, true, 3, false), confined);
+		}
+
+		@Test
 		@DisplayName("a fetch resolves a nested set when the first row reaches it, a check when it is compiled")
 		@UseDataSet(ROW_FILTER)
 		void shouldResolveNestedSetsLazilyInFetchAndEagerlyInCheck(Evita evita) {
@@ -952,14 +1066,14 @@ class ReferenceRowFilterCompilerTest {
 			final QueryPlanningContext rowLeafContext = createQueryContext(evita);
 			Fixture.compile(
 				rowLeafContext, REF_BRANDS, filterBy(attributeEquals(ATTR_WEIGHT, 5), attributeEquals(ATTR_LABEL, "x")),
-				Locale.ENGLISH, BOTH_SCOPES, true, null
+				Locale.ENGLISH, BOTH_SCOPES, true, null, null
 			);
 			assertTrue(rowLeafContext.drainRequestedCapabilities().isEmpty(), "Row leaves request no capability");
 
 			final QueryPlanningContext nestedContext = createQueryContext(evita);
 			Fixture.compile(
 				nestedContext, REF_BRANDS, filterBy(entityHaving(attributeEquals(ATTR_CODE, "a"))),
-				null, BOTH_SCOPES, true, null
+				null, BOTH_SCOPES, true, null, null
 			);
 			assertFalse(
 				nestedContext.drainRequestedCapabilities().isEmpty(),
@@ -1110,6 +1224,12 @@ class ReferenceRowFilterCompilerTest {
 				false, null
 			);
 			assertTrue(filter.test(Scope.LIVE, owner, external));
+			// and they really judge the row - a filter ignored on such a reference would let it pass too
+			assertFalse(
+				fixture.compile(
+					REF_EXTERNALS, filterBy(attributeEquals(ATTR_WEIGHT, 2)), null, BOTH_SCOPES, false, null
+				).test(Scope.LIVE, owner, external)
+			);
 		}
 
 	}

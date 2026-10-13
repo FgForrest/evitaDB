@@ -63,8 +63,11 @@ import java.util.function.Supplier;
 /**
  * Compiles the filter of the fetched references (`referenceContent(..., filterBy(...))`) into a
  * {@link ReferenceRowFilter} - a tree of {@link RowTest} nodes judging one reference row of one owner entity at a time.
- * The planning check and the fetch run this one compiler, so what the check accepts the fetch evaluates, and nothing
- * either of them refuses depends on data.
+ * The planning check and the fetch run this one compiler, so what the check accepts the fetch evaluates. Whether a
+ * leaf is refused depends on the schemas alone, in both. A nested `entityHaving` / `groupHaving` filter is validated
+ * whatever the data only by a check, which resolves the nested set while compiling; a fetch resolves it when the
+ * first row reaches it (see {@link NestedSet}), so on a path planned without a check (`getEntity`, an enrichment) a
+ * bad nested filter fails only when some row reaches its node.
  *
  * ## What the filter may contain
  *
@@ -442,7 +445,10 @@ final class ReferenceRowFilterCompiler {
 
 	/**
 	 * Compiles an `entityHaving` into the set of referenced entities its nested filter selects, restricted to the
-	 * existing targets of the fetched rows that the root `entityPrimaryKeyInSet` admits.
+	 * existing targets of the fetched rows that the root `entityPrimaryKeyInSet` admits. A row whose target lies
+	 * outside the root keys may be answered "not selected" by the node although the nested filter selects its target -
+	 * the root conjunct rejects that row anyway, so no row verdict changes, but the node answers correctly only inside
+	 * this tree.
 	 *
 	 * @param entityHaving the constraint
 	 * @param scopes       the scopes the nested query is planned in

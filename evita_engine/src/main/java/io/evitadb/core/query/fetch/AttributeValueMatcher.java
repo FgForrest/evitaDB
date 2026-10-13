@@ -233,7 +233,9 @@ sealed interface AttributeValueMatcher {
 	 * {@link FilterIndex#getNormalizer(Class, int)}, except that a `BigDecimal` becomes
 	 * {@link NumberUtils#scaleToInteger(BigDecimal, int)} instead of its `int` encoding (see the class
 	 * documentation), and that a `String` already in NFD is passed through without being normalized again - the
-	 * result is the same, only the work is skipped.
+	 * result is the same, only the work is skipped. Anything else reaching the normalizer of a string attribute -
+	 * an array passed as the value of a scalar comparison - is stringified by the index's normalizer, exactly as the
+	 * index stringifies it, and so matches no row, as the index lookup finds nothing.
 	 *
 	 * @param plainType            the plain type of the attribute
 	 * @param indexedDecimalPlaces the decimal places the attribute's numbers are indexed with
@@ -248,7 +250,9 @@ sealed interface AttributeValueMatcher {
 			return value -> value instanceof BigDecimal number ?
 				NumberUtils.scaleToInteger(number, indexedDecimalPlaces) : (Serializable) value;
 		} else if (String.class.isAssignableFrom(plainType)) {
-			return value -> value instanceof String text ? toNfd(text) : (Serializable) value;
+			final Function<Object, Serializable> indexNormalizer =
+				FilterIndex.getNormalizer(plainType, indexedDecimalPlaces);
+			return value -> value instanceof String text ? toNfd(text) : indexNormalizer.apply(value);
 		} else {
 			return FilterIndex.getNormalizer(plainType, indexedDecimalPlaces);
 		}

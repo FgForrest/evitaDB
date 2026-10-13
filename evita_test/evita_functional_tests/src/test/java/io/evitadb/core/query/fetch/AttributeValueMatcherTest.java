@@ -55,7 +55,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Currency;
@@ -829,11 +828,65 @@ class AttributeValueMatcherTest {
 					KEY, OffsetDateTime.class, 0, odt("2026-01-01T08:00:00Z"), r -> r == 0
 				).matches(odt("2026-01-01T10:00:00+02:00"))
 			);
-			assertTrue(
-				AttributeValueMatcher.between(
-					KEY, LocalDateTime.class, 0, LocalDateTime.parse("2026-01-01T00:00:00"), null
-				).matches(LocalDateTime.of(2026, 1, 1, 0, 0).atOffset(ZoneOffset.UTC).toLocalDateTime())
+			// the same instant written 1 ms apart in another offset falls on either side of the bound
+			final AttributeValueMatcher fromEightUtc = AttributeValueMatcher.between(
+				KEY, OffsetDateTime.class, 0, odt("2026-01-01T08:00:00Z"), null
 			);
+			assertTrue(fromEightUtc.matches(odt("2026-01-01T10:00:00.001+02:00")));
+			assertFalse(fromEightUtc.matches(odt("2026-01-01T09:59:59.999+02:00")));
+		}
+
+		@Test
+		@DisplayName("a local date time bound divides values to the millisecond the index keeps of them")
+		void shouldCompareLocalDateTimesToTheMillisecond() {
+			final LocalDateTime newYear = LocalDateTime.parse("2026-01-01T00:00:00");
+			final AttributeValueMatcher fromNewYear = AttributeValueMatcher.between(
+				KEY, LocalDateTime.class, 0, newYear, null
+			);
+			assertTrue(fromNewYear.matches(newYear.plusNanos(1_000_000)));
+			assertFalse(fromNewYear.matches(newYear.minusNanos(1_000_000)));
+			// the index truncates to milliseconds, so a value 0.4 ms past the bound is the bound itself
+			final AttributeValueMatcher untilNewYear = AttributeValueMatcher.between(
+				KEY, LocalDateTime.class, 0, null, newYear
+			);
+			assertTrue(untilNewYear.matches(newYear.plusNanos(400_000)));
+			assertFalse(untilNewYear.matches(newYear.plusNanos(1_000_000)));
+		}
+
+		@Test
+		@DisplayName("an array as the value of a string comparison is stringified as the index does, never thrown on")
+		void shouldStringifyArrayConstraintValueAsFilterIndex() {
+			final Serializable[] stored = {"x", "y", "z"};
+			final OwnerFilterIndex index = createIndex(KEY, String.class, 0, stored);
+			final String[] value = {"x"};
+			final Class<? extends Serializable> plainType = String.class;
+			// a `String[]`, as `toTargetType` converts an array element-wise
+			final Serializable converted = EvitaDataTypes.toTargetType(value, plainType);
+			// the index stringifies the array to `[Ljava.lang.String;@...` and finds no such value
+			final AttributeValueMatcher equalsArray = AttributeValueMatcher.comparing(
+				KEY, String.class, 0, value, r -> r == 0
+			);
+			assertSameRecords(
+				"equals an array",
+				index.getRecordsEqualToFormula(FilterIndex.getNormalizer(String.class, 0).apply(converted)),
+				equalsArray, stored
+			);
+			assertArrayEquals(new int[0], matchedRecords(equalsArray, stored));
+			assertArrayEquals(
+				new int[0],
+				matchedRecords(
+					AttributeValueMatcher.equalToAny(KEY, String.class, 0, new Serializable[]{value, "q"}), stored
+				)
+			);
+			// the comparisons order the stringified array as the index orders it - before every letter
+			for (Operator operator : COMPARISONS) {
+				assertSameRecords(
+					operator.name() + " an array",
+					operator.indexLookup().apply(index, converted),
+					AttributeValueMatcher.comparing(KEY, String.class, 0, value, operator.resultPredicate()),
+					stored
+				);
+			}
 		}
 
 	}
