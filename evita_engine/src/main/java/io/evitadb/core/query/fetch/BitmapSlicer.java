@@ -613,17 +613,18 @@ class BitmapSlicer {
 	}
 
 	/**
-	 * Computes offset+limit for a {@link Strip} given the actual source size, mirroring the bitmap
-	 * {@link #slice(Bitmap, Strip)} truncation rules.
+	 * Computes offset+limit for a {@link Strip} given the actual source size - shared by the bitmap
+	 * {@link #slice(Bitmap, Strip)} and the sorted slice. It mirrors the post-fetch chunk of `StripTransformer`, which
+	 * starts a strip whose offset lies past the last record at the first one; a slice that started anywhere else
+	 * would fetch the bodies of other records than the decorator keeps.
 	 *
 	 * @param strip      requested strip (raw offset + limit)
 	 * @param sourceSize size of the input collection being striped
-	 * @return offset+limit clamped to the source bounds — when {@code sourceSize == 0} the offset is 0;
-	 * otherwise the offset is capped at {@code sourceSize - 1}
+	 * @return offset+limit of the strip - the offset reset to 0 when it lies at or past {@code sourceSize}
 	 */
 	@Nonnull
 	private static OffsetAndLimit stripOffsetAndLimit(@Nonnull Strip strip, int sourceSize) {
-		final int offset = sourceSize == 0 ? 0 : Math.min(strip.getOffset(), sourceSize - 1);
+		final int offset = strip.getOffset() >= sourceSize ? 0 : strip.getOffset();
 		return new OffsetAndLimit(offset, strip.getLimit(), sourceSize);
 	}
 
@@ -695,8 +696,8 @@ class BitmapSlicer {
 
 	/**
 	 * Creates a subset of the provided bitmap by slicing it based on the specified offset and limit
-	 * defined in the provided strip object. If the offset or limit exceeds the bounds of the bitmap,
-	 * the values are truncated to fit within the bitmap size.
+	 * defined in the provided strip object. An offset past the bounds of the bitmap starts the subset at its first
+	 * record, and a limit past them is truncated to fit within the bitmap size.
 	 *
 	 * @param primaryKeys the bitmap containing the full set of record IDs to be sliced
 	 * @param strip       the strip object defining the offset and limit for slicing the bitmap

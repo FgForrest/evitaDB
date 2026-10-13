@@ -1322,6 +1322,54 @@ class ReferenceContentRowFilterFunctionalTest {
 			}
 		}
 
+		@Test
+		@DisplayName("a strip starting past the last row starts at the first one, with its body")
+		@UseDataSet(DATA_SET)
+		void shouldFetchBodiesOfStripStartingPastTheEnd(Evita evita) {
+			// the decorator starts a strip past the last row at the first one - so must the slice whose bodies are
+			// fetched, ordered or not: owner 1 holds the existing brands 1 and 2, and the Czech duplicates 2/CZ
+			// (rank 2) and 1/CZ (rank 3)
+			final ReferenceContent brands = new ReferenceContent(
+				null, ManagedReferencesBehaviour.EXISTING, new String[]{REF_BRANDS},
+				new RequireConstraint[]{entityFetch(attributeContent(ATTR_CODE)), strip(5, 1)},
+				new Constraint<?>[0]
+			);
+			final ReferenceContent duplicates = new ReferenceContent(
+				null, ManagedReferencesBehaviour.ANY, new String[]{REF_DUPLICATES},
+				new RequireConstraint[]{attributeContentAll(), entityFetch(attributeContent(ATTR_CODE)), strip(5, 1)},
+				new Constraint<?>[]{
+					filterBy(attributeEquals(ATTR_COUNTRY, "CZ")),
+					orderBy(attributeNatural(ATTR_RANK, OrderDirection.ASC))
+				}
+			);
+			final Map<String, List<String>> strips = evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final SealedEntity owner = session.queryOneSealedEntity(
+						query(
+							collection(ENTITY_PRODUCT),
+							filterBy(entityPrimaryKeyInSet(1)),
+							require(entityFetch(brands, duplicates))
+						)
+					).orElseThrow();
+					final Map<String, List<String>> result = new TreeMap<>();
+					for (String referenceName : new String[]{REF_BRANDS, REF_DUPLICATES}) {
+						final List<String> strip = new ArrayList<>(1);
+						for (ReferenceContract reference : owner.getReferenceChunk(referenceName)) {
+							strip.add(
+								describe(List.of(reference)).get(0) +
+									(reference.getReferencedEntity().isPresent() ? " with body" : " without body")
+							);
+						}
+						result.put(referenceName, strip);
+					}
+					return result;
+				}
+			);
+			assertEquals(List.of("1 with body"), strips.get(REF_BRANDS));
+			assertEquals(List.of("2/CZ with body"), strips.get(REF_DUPLICATES));
+		}
+
 		/**
 		 * Returns the named set of `brandDuplicates` of one country, ordered by rank and chunked.
 		 *

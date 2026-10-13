@@ -263,17 +263,16 @@ class BitmapSlicerTest {
 		}
 
 		@Test
-		@DisplayName("Should return the last element when the strip offset sits at the end of the candidate range")
-		void shouldReturnLastElementWhenStripOffsetEqualsCandidateSize() {
-			// strip(offset=3, limit=5) with 3 candidates: `stripOffsetAndLimit` clamps offset
-			// to size-1=2, then `Math.min(offset+limit, candidates.length)=3`, producing the
-			// single-element tail of the sorted candidates. Reversed PK order is [30, 20, 10],
-			// index 2 -> 10.
+		@DisplayName("Should start a strip whose offset lies past the candidate range at the first candidate")
+		void shouldStartStripPastTheCandidateRangeAtTheFirstCandidate() {
+			// strip(offset=3, limit=1) with 3 candidates: the decorator's `StripTransformer` starts a strip past
+			// the last record at offset 0, so the slice must as well. Reversed PK order is [30, 20, 10], index 0 -> 30
+			// (the last candidate, 10, is what a strip clamped to the end would have fetched instead)
 			final int sourceEntityPk = 1;
 			final Map<Integer, List<ReferenceContract>> refsByEntity = singletonRefMap(
 				sourceEntityPk, ref(10), ref(20), ref(30)
 			);
-			final BitmapSlicer slicer = newStripSlicer(refsByEntity, new Strip(3, 5));
+			final BitmapSlicer slicer = newStripSlicer(refsByEntity, new Strip(3, 1));
 
 			final Bitmap result = slicer.sliceEntityIdsSorted(
 				new ConstantFormula(new BaseBitmap(10, 20, 30)),
@@ -282,7 +281,16 @@ class BitmapSlicerTest {
 				new ReversedPkComparator()
 			);
 
-			assertArrayEquals(new int[]{10}, result.getArray());
+			assertArrayEquals(new int[]{30}, result.getArray());
+			// the slice of the keys alone starts at the first key the same way
+			assertArrayEquals(
+				new int[]{10},
+				newStripSlicer(refsByEntity, new Strip(5, 1))
+					.sliceEntityIds(
+						new ConstantFormula(new BaseBitmap(10, 20, 30)), permissiveValidityMapping(refsByEntity), null
+					)
+					.getArray()
+			);
 		}
 
 		@Test
