@@ -213,11 +213,12 @@ class ReferenceContentRouteParityTest implements EvitaTestSupport {
 	 */
 	private final List<String> mixedValues = new ArrayList<>(64);
 	/**
-	 * The targets whose `liveOnly` rows of several owners carry, or carried, a `range` - archiving an owner and
-	 * dropping a value both remove a range of the target from the LIVE index, and the index route then loses some of
-	 * the other ranges (a defect of the index route, not of this pull request, see {@link #explain}).
+	 * The targets whose `liveOnly` rows ever indexed in LIVE carry two different `range` values sharing a border -
+	 * the shape of the known issue #1699 (see {@link #explain}). Every row of the fixture was written in LIVE, so the
+	 * values of archived owners and the dropped values count as well: their removal strips the shared border from
+	 * the surviving range.
 	 */
-	private final Set<Integer> sharedRangeTargets = new HashSet<>(16);
+	private final Set<Integer> sharedBorderTargets = new HashSet<>(16);
 
 	/**
 	 * Builds the fixture described on the class and reads the raw owners for the oracle.
@@ -242,21 +243,42 @@ class ReferenceContentRouteParityTest implements EvitaTestSupport {
 				return result;
 			}
 		);
-		final Map<Integer, Integer> rangesByTarget = new HashMap<>(16);
+		final Map<Integer, Set<IntegerNumberRange>> rangesByTarget = new HashMap<>(16);
 		for (Entity owner : this.owners.values()) {
 			for (ReferenceContract row : owner.getReferences(REF_LIVE_ONLY)) {
-				if (row.getAttributeValue(ATTR_RANGE).isPresent()) {
-					rangesByTarget.merge(row.getReferencedPrimaryKey(), 1, Integer::sum);
+				final Optional<AttributeValue> range = row.getAttributeValue(ATTR_RANGE);
+				if (range.isPresent() && range.get().value() instanceof IntegerNumberRange value) {
+					rangesByTarget.computeIfAbsent(row.getReferencedPrimaryKey(), it -> new HashSet<>(4)).add(value);
 				}
 			}
 		}
 		rangesByTarget.forEach(
-			(target, count) -> {
-				if (count > 1) {
-					this.sharedRangeTargets.add(target);
+			(target, ranges) -> {
+				if (shareBorder(ranges)) {
+					this.sharedBorderTargets.add(target);
 				}
 			}
 		);
+	}
+
+	/**
+	 * Tells whether two different ranges of the set share their start or their end.
+	 *
+	 * @param ranges the distinct ranges
+	 * @return TRUE when two of them share a border
+	 */
+	private static boolean shareBorder(@Nonnull Set<IntegerNumberRange> ranges) {
+		for (IntegerNumberRange first : ranges) {
+			for (IntegerNumberRange second : ranges) {
+				if (
+					!first.equals(second) &&
+						(first.getFrom() == second.getFrom() || first.getTo() == second.getTo())
+				) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -663,21 +685,21 @@ class ReferenceContentRouteParityTest implements EvitaTestSupport {
 		final FilterBy withoutNotApplicable = theCase.withoutNotApplicable();
 		final Outcome bodyQuery = onRoute(ReferenceContentRoute.BODY, () -> fetchByQuery(theCase, filterBy));
 		final Outcome indexQuery = onRoute(ReferenceContentRoute.INDEX, () -> fetchByQuery(theCase, filterBy));
-		if (bodyQuery.failure() != null && indexQuery.failure() != null && bodyQuery.matches(indexQuery)) {
-			// the planning check is still the one of the index route, so both refuse alike
-			statistics.refusedByPlanningOfBoth++;
-		} else {
-			final Outcome expected = oracle(
-				theCase, theCase.requestScopes(), theCase.queryLocale(), bodyQuery.ownerPks()
-			);
-			check(
-				theCase, "query", theCase.requestScopes(), theCase.queryLocale(), expected, bodyQuery, indexQuery,
-				withoutNotApplicable == null ?
-					null :
-					() -> onRoute(ReferenceContentRoute.INDEX, () -> fetchByQuery(theCase, withoutNotApplicable)),
-				existingRowCount(theCase.reference(), bodyQuery.ownerPks()), this::rawRows, statistics, failures
-			);
+		if (bodyQuery.failure() != null && bodyQuery.matches(indexQuery)) {
+			// both routes share the planning check, which compiles the filter of the body route - so a refusal of
+			// the check is a refusal of both, and like any other answer of the body route it must be the oracle's
+			statistics.refusedAlikeByBoth++;
 		}
+		final Outcome expectedOfQuery = oracle(
+			theCase, theCase.requestScopes(), theCase.queryLocale(), bodyQuery.ownerPks()
+		);
+		check(
+			theCase, "query", theCase.requestScopes(), theCase.queryLocale(), expectedOfQuery, bodyQuery, indexQuery,
+			withoutNotApplicable == null ?
+				null :
+				() -> onRoute(ReferenceContentRoute.INDEX, () -> fetchByQuery(theCase, withoutNotApplicable)),
+			existingRowCount(theCase.reference(), bodyQuery.ownerPks()), this::rawRows, statistics, failures
+		);
 		final int owner = 1 + random.nextInt(OWNER_COUNT);
 		final Outcome bodyEntity = onRoute(
 			ReferenceContentRoute.BODY, () -> fetchByGetEntity(theCase, filterBy, owner)
@@ -868,11 +890,11 @@ class ReferenceContentRouteParityTest implements EvitaTestSupport {
 		if (theCase.rootGroupHaving()) {
 			classes.add("D1/R5 root groupHaving per row");
 		}
-		if (theCase.features().contains("rangeLeaf") && differInSharedRangeTargetsOnly(body, index)) {
-			// a defect of the index route outside this pull request: when the rows of several owners to one target
-			// carry ranges and one is removed (an owner archived, a value dropped) the reference attribute index loses
-			// the others too - `referenceHaving(attributeInRange)` of the main query misses them the same way
-			classes.add("index defect: ranges of one target from several owners");
+		if (theCase.features().contains("rangeAxisLeaf") && differInSharedBorderTargetsOnly(body, index)) {
+			// the known issue #1699, outside this pull request: the reference type index keys a range by the
+			// partition, so two owners' ranges of one target sharing a border miscount - and a removal strips the
+			// border from the survivor; `referenceHaving` of the main query answers wrong the same way
+			classes.add("known #1699: ranges of one partition sharing a border");
 		}
 		if (theCase.filterLocale() != null && theCase.localizedLeaf() &&
 			!theCase.filterLocale().equals(queryLocale)) {
@@ -891,14 +913,14 @@ class ReferenceContentRouteParityTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Tells whether every row the routes disagree on references a target whose rows of several owners carry
-	 * a range.
+	 * Tells whether every row the routes disagree on references a target whose ranges share a border - see
+	 * {@link #sharedBorderTargets}.
 	 *
 	 * @param body  the outcome of the body route
 	 * @param index the outcome of the index route
 	 * @return TRUE when the differing rows all reference such a target
 	 */
-	private boolean differInSharedRangeTargetsOnly(@Nonnull Outcome body, @Nonnull Outcome index) {
+	private boolean differInSharedBorderTargetsOnly(@Nonnull Outcome body, @Nonnull Outcome index) {
 		if (body.rows() == null || index.rows() == null || !body.rows().keySet().equals(index.rows().keySet())) {
 			return false;
 		}
@@ -910,7 +932,7 @@ class ReferenceContentRouteParityTest implements EvitaTestSupport {
 			common.retainAll(indexRows);
 			differing.removeAll(common);
 			for (String row : differing) {
-				if (!this.sharedRangeTargets.contains(Integer.parseInt(row.split("/")[0]))) {
+				if (!this.sharedBorderTargets.contains(Integer.parseInt(row.split("/")[0]))) {
 					return false;
 				}
 			}
@@ -1132,7 +1154,7 @@ class ReferenceContentRouteParityTest implements EvitaTestSupport {
 	private static final class Statistics {
 		int cases;
 		int failedAlike;
-		int refusedByPlanningOfBoth;
+		int refusedAlikeByBoth;
 		int admittedRows;
 		int rejectedRows;
 		int differences;
@@ -1161,7 +1183,7 @@ class ReferenceContentRouteParityTest implements EvitaTestSupport {
 		@Override
 		public String toString() {
 			return "checked " + this.cases + " outcomes (" + this.failedAlike + " refusals predicted), " +
-				this.refusedByPlanningOfBoth + " queries refused by the planning check of both routes, " +
+				this.refusedAlikeByBoth + " queries refused alike by both routes, " +
 				this.admittedRows + " rows admitted, " + this.rejectedRows + " rows rejected, " +
 				this.differences + " differences from the index route: " + this.differencesByClass;
 		}
@@ -1991,11 +2013,12 @@ class ReferenceContentRouteParityTest implements EvitaTestSupport {
 		 */
 		@Nonnull
 		private Node rangeLeaf() {
-			this.features.add("rangeLeaf");
 			final int value = this.random.nextInt(7);
 			final int other = this.random.nextInt(7);
 			return switch (this.random.nextInt(3)) {
 				case 0 -> {
+					// the two constraints reading the borders of the ranges, which the known issue #1699 miscounts
+					this.features.add("rangeAxisLeaf");
 					final int from = Math.min(value, other);
 					final int to = Math.max(value, other);
 					yield valueLeaf(
@@ -2004,11 +2027,14 @@ class ReferenceContentRouteParityTest implements EvitaTestSupport {
 							((IntegerNumberRange) v).getPreciseTo() >= from
 					);
 				}
-				case 1 -> valueLeaf(
-					attributeInRange(ATTR_RANGE, value), ATTR_RANGE,
-					v -> ((IntegerNumberRange) v).getPreciseFrom() <= value &&
-						((IntegerNumberRange) v).getPreciseTo() >= value
-				);
+				case 1 -> {
+					this.features.add("rangeAxisLeaf");
+					yield valueLeaf(
+						attributeInRange(ATTR_RANGE, value), ATTR_RANGE,
+						v -> ((IntegerNumberRange) v).getPreciseFrom() <= value &&
+							((IntegerNumberRange) v).getPreciseTo() >= value
+					);
+				}
 				default -> presenceLeaf(ATTR_RANGE, null);
 			};
 		}

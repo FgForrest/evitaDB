@@ -30,6 +30,7 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.StatisticsType;
 import io.evitadb.api.requestResponse.EvitaResponse;
@@ -2090,38 +2091,69 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 				)
 			);
 
-			assertThrows(
-				ReferenceNotIndexedException.class,
-				() -> EvitaArchivingTest.this.evita.queryCatalog(
-					TEST_CATALOG,
-					session -> {
-						return session.queryList(
-							query(
-								collection(Entities.PRODUCT),
-								filterBy(
-									entityPrimaryKeyInSet(100, 101),
-									entityLocaleEquals(Locale.ENGLISH),
-									scope(Scope.LIVE, Scope.ARCHIVED)
-								),
-								require(
-									entityFetch(
-										attributeContent(ATTRIBUTE_CODE, ATTRIBUTE_NAME),
-										referenceContentWithAttributes(
-											Entities.BRAND,
-											filterBy(attributeInSet(ATTRIBUTE_BRAND_EAN, "123", "456"))
-										),
-										referenceContentWithAttributes(
-											Entities.CATEGORY,
-											filterBy(attributeInSet(ATTRIBUTE_CATEGORY_MARKET, "EU", "US"))
-										),
-										priceContentRespectingFilter()
-									)
-								)
+			// U2 (decided 2026-10-13): the filter of the fetched references reads each reference row itself, so its
+			// attribute leaves need no index - the rows of the archived product 100 are judged although ARCHIVED
+			// indexes neither the brands nor the categories, and the query is answered instead of refused
+			assertEquals(
+				Map.of(100, List.of("BRAND 1", "CATEGORY 2"), 101, List.of("BRAND 2", "CATEGORY 1")),
+				brandsAndCategoriesOfProducts(
+					filterBy(attributeInSet(ATTRIBUTE_BRAND_EAN, "123", "456")),
+					filterBy(attributeInSet(ATTRIBUTE_CATEGORY_MARKET, "EU", "US"))
+				)
+			);
+			assertEquals(
+				Map.of(100, List.of("CATEGORY 2"), 101, List.of("BRAND 2")),
+				brandsAndCategoriesOfProducts(
+					filterBy(attributeInSet(ATTRIBUTE_BRAND_EAN, "456")),
+					filterBy(attributeInSet(ATTRIBUTE_CATEGORY_MARKET, "EU"))
+				)
+			);
+		}
+
+		/**
+		 * Fetches products 100 and 101 over both scopes in English with their brands and categories the filters admit.
+		 *
+		 * @param brandFilter    the filter of the brand references
+		 * @param categoryFilter the filter of the category references
+		 * @return the admitted references of each product as `BRAND pk` and `CATEGORY pk`, sorted
+		 */
+		@Nonnull
+		private Map<Integer, List<String>> brandsAndCategoriesOfProducts(
+			@Nonnull FilterBy brandFilter,
+			@Nonnull FilterBy categoryFilter
+		) {
+			return EvitaArchivingTest.this.evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					final Map<Integer, List<String>> result = new TreeMap<>();
+					for (SealedEntity product : session.queryListOfSealedEntities(
+						query(
+							collection(Entities.PRODUCT),
+							filterBy(
+								entityPrimaryKeyInSet(100, 101),
+								entityLocaleEquals(Locale.ENGLISH),
+								scope(Scope.LIVE, Scope.ARCHIVED)
 							),
-							SealedEntity.class
+							require(
+								entityFetch(
+									attributeContent(ATTRIBUTE_CODE, ATTRIBUTE_NAME),
+									referenceContentWithAttributes(Entities.BRAND, brandFilter),
+									referenceContentWithAttributes(Entities.CATEGORY, categoryFilter),
+									priceContentRespectingFilter()
+								)
+							)
+						)
+					)) {
+						result.put(
+							product.getPrimaryKeyOrThrowException(),
+							product.getReferences().stream()
+								.map(it -> it.getReferenceName() + " " + it.getReferencedPrimaryKey())
+								.sorted()
+								.toList()
 						);
 					}
-				)
+					return result;
+				}
 			);
 		}
 

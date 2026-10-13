@@ -1417,28 +1417,31 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 	/**
 	 * Checks the filter and the ordering of the references `referenceContent` fetches against the schemas, while the
-	 * query is planned. The fetch translates them only when it has something to filter or order - an owner entity
-	 * referencing an entity that exists in the examined scopes - so without this check a constraint the schemas refuse
-	 * would fail the query or pass depending on the data it returns. The check translates what
-	 * {@link #getFilteredReferencedEntityIds} and {@link #createPrefetchedEntities} translate, the same way, and throws
-	 * the result away:
+	 * query is planned. The fetch evaluates them only when it has something to filter or order - an owner entity
+	 * holding a reference - so without this check a constraint the schemas refuse would fail the query or pass
+	 * depending on the data it returns. The check builds what {@link #admitFetchedReferences} and
+	 * {@link #createPrefetchedEntities} build, the same way, and throws the result away:
 	 *
-	 * - the filter, by a visitor that only checks it ({@link FilterByVisitor#createConstraintCheckVisitor}) - in every
-	 *   scope the reference is indexed in, over an empty type index of the reference, and the filter of an
-	 *   `entityHaving` or a `groupHaving` over an empty global index of the entity type it targets; a `groupHaving` at
-	 *   the root of the filter is separated from the rest exactly as the fetch separates it,
+	 * - the filter, compiled by the very {@link ReferenceRowFilterCompiler} the fetch compiles it with, given a visitor
+	 *   that only checks it ({@link FilterByVisitor#createConstraintCheckVisitor}): every leaf is validated against the
+	 *   schemas, and the nested filter of every `entityHaving` and `groupHaving` is planned right away as the nested
+	 *   query the fetch would plan - in the scopes the fetch plans it in - over the entities it targets,
 	 * - the ordering by the attributes of the reference, and the ordering by the referenced entity or its group over
 	 *   the global index of that entity type, or an empty one in a scope it holds no entity of.
 	 *
-	 * The cost is one translation of each constraint per scope and query; nothing is evaluated and no nested query is
-	 * planned.
+	 * The cost is one compilation of the filter and one plan of each nested filter per query; nothing is evaluated.
+	 *
+	 * The filter is compiled in the locale the fetch compiles it in: the locale of the request the owners of the
+	 * references are fetched with, which a nested `referenceContent` inherits from the filter of its enclosing one
+	 * (see {@link #getReferencedEntityLocale}) - so what the check accepts the fetch evaluates, at every level.
 	 *
 	 * The schema capabilities the check requests of the entity owning the references are counted once per query: the
 	 * check of a nested `referenceContent` runs in a context of the referenced collection, whose requests are handed to
-	 * the context of the query, and the fetch translates the constraints again only in contexts it never counts. The
-	 * capabilities of the entities an `entityHaving` or a `groupHaving` reaches are counted by the check as well: the
-	 * fetch plans its nested queries over those entities only when a fetched entity holds a reference to filter, so
-	 * the check hands what it requested to the context of the query (see
+	 * the context of the query, and the fetch compiles the constraints again only in contexts it never counts. The
+	 * attribute leaves of the reference request nothing - the fetch reads the rows themselves, so neither the attribute
+	 * nor the reference needs any index. The capabilities of the entities an `entityHaving` or a `groupHaving` reaches
+	 * are counted by the check: the fetch plans its nested queries over those entities only when a fetched entity holds
+	 * a reference to filter, so the check hands what it requested to the context of the query (see
 	 * {@link io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper#planNestedQuery}), and the nested
 	 * queries of the fetch, planned in contexts derived from it, skip what it counted. The ordering by the referenced
 	 * entity or its group is counted by the check for the same reason: the comparators plan their queries over the
@@ -1452,8 +1455,11 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param filterBy        the filter of the fetched references, NULL when there is none
 	 * @param orderBy         the ordering of the fetched references, NULL when there is none
 	 * @param scopes          the scopes the references are fetched in
-	 * @throws EntityNotManagedException when `filterBy` reaches into the referenced entity body (`entityHaving`)
-	 *                                   while the referenced entity type is not managed by evitaDB
+	 * @param ownerLocale     the locale of the request the owners of the references are fetched with - the locale of
+	 *                        the query for its own entities, the one {@link #getReferencedEntityLocale} derives for the
+	 *                        owners of a nested `referenceContent`; NULL when there is none
+	 * @throws EvitaInvalidUsageException when the filter contains a constraint without a meaning on a reference, a leaf
+	 *                                    that cannot be evaluated, or an invalid nested filter
 	 */
 	public static void verifyReferenceContentConstraints(
 		@Nonnull QueryPlanningContext queryContext,
@@ -1461,25 +1467,30 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
-		@Nonnull Set<Scope> scopes
+		@Nonnull Set<Scope> scopes,
+		@Nullable Locale ownerLocale
 	) {
 		if (filterBy == null && orderBy == null) {
 			return;
 		}
 		// the references of a nested `referenceContent` are owned by the referenced entity, whose schema the checks
-		// resolve the reference and its attributes against
-		final QueryPlanningContext ownerQueryContext = entitySchema.getName().equals(queryContext.getEntityType()) ?
+		// resolve the reference and its attributes against, and which is fetched in the locale its enclosing
+		// `referenceContent` derives - a nested filter of the check is planned in it, as in the fetch
+		final boolean ownedByQueriedEntitiesInQueryLocale =
+			entitySchema.getName().equals(queryContext.getEntityType()) &&
+				Objects.equals(ownerLocale, queryContext.getLocale());
+		final QueryPlanningContext ownerQueryContext = ownedByQueriedEntitiesInQueryLocale ?
 			queryContext :
 			queryContext.getEntityCollectionOrThrowException(entitySchema.getName(), "check fetched references")
 				.createQueryContext(
 					queryContext,
 					queryContext.getEvitaRequest().deriveCopyWith(
-						entitySchema.getName(), null, null, queryContext.getLocale(), scopes
+						entitySchema.getName(), null, null, ownerLocale, scopes
 					),
 					queryContext.getEvitaSession()
 				);
 		if (filterBy != null) {
-			verifyReferenceFilter(ownerQueryContext, referenceSchema, filterBy, scopes);
+			verifyReferenceFilter(ownerQueryContext, entitySchema, referenceSchema, filterBy);
 		}
 		if (orderBy != null) {
 			verifyReferenceOrdering(ownerQueryContext, entitySchema, referenceSchema, filterBy, orderBy);
@@ -1497,42 +1508,34 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 	/**
 	 * Checks the filter of the fetched references - the part of {@link #verifyReferenceContentConstraints} that
-	 * mirrors {@link #getFilteredReferencedEntityIds}.
+	 * mirrors the compilation in {@link #admitFetchedReferences}. The filter is compiled with the inputs the fetch
+	 * compiles it with - the scopes and the locale of the owner request - except that no row is known, so the nested
+	 * queries are not restricted to any. The compiled filter is thrown away: compiling it is the check.
 	 *
-	 * @param ownerQueryContext planning context of the entity owning the references
+	 * @param ownerQueryContext planning context of the entity owning the references, in the scopes and the locale of
+	 *                          the request the owners are fetched with
+	 * @param entitySchema      schema of the entity owning the references
 	 * @param referenceSchema   schema of the fetched reference
 	 * @param filterBy          the filter of the fetched references
-	 * @param scopes            the scopes the references are fetched in
 	 */
 	private static void verifyReferenceFilter(
 		@Nonnull QueryPlanningContext ownerQueryContext,
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull FilterBy filterBy,
-		@Nonnull Set<Scope> scopes
+		@Nonnull FilterBy filterBy
 	) {
-		if (!referenceSchema.isReferencedEntityTypeManaged() && !QueryUtils.findConstraints(
-			filterBy, EntityHaving.class, SeparateEntityScopeContainer.class).isEmpty()) {
-			throw new EntityNotManagedException(referenceSchema.getReferencedEntityType());
-		}
-		final Set<Scope> examinedScopes = gatherSearchedScopes(filterBy, scopes);
-		final FilterByVisitor filterByVisitor = FilterByVisitor.createConstraintCheckVisitor(ownerQueryContext);
-		// a check matches no group, so the translation of the matching groups to the referenced entities is never
-		// called - it is passed only to separate the root `groupHaving` exactly as the fetch does
-		final GroupFilterSeparation groupFilter = separateAndEvaluateGroupFilter(
-			filterBy, referenceSchema, filterByVisitor, examinedScopes,
-			(referenceName, groupPrimaryKey) -> ArrayUtils.EMPTY_INT_ARRAY
-		);
-		final FilterConstraint[] entityLevelChildren = groupFilter.entityLevelChildren();
-		if (entityLevelChildren.length > 0) {
-			// the discovery translates the filter in the examined scopes it is given; the check resolves no candidate,
-			// as it would read none
-			filterByVisitor.getReferencedRecordEntityIndexCandidates(
-				new ReferenceHaving(referenceSchema.getName(), and(entityLevelChildren)),
-				examinedScopes,
-				FilterByVisitor.NO_OP_MISSING_RTEI_SUPPLIER,
+		ReferenceRowFilterCompiler.compile(
+			filterBy,
+			new CompileContext(
+				entitySchema,
+				referenceSchema,
+				FilterByVisitor.createConstraintCheckVisitor(ownerQueryContext),
+				ownerQueryContext.getScopes(),
+				ownerQueryContext.getLocale(),
+				null,
 				null
-			);
-		}
+			)
+		);
 	}
 
 	/**
@@ -1541,10 +1544,11 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * {@link #initNestedQueryComparator}.
 	 *
 	 * The fetch orders the referenced entities and their groups in the locale of the {@link EntityLocaleEquals} of
-	 * the reference filter, which its translation sets on the comparator, and in the locale of the query when the
-	 * filter names none. The check translates no filter into the comparator it creates, so it looks the locale up in
-	 * the filter the same way the body fetch does (see {@link #findReferenceFilterLocale(FilterBy)}) - an ordering by
-	 * a localized attribute is refused only when there is no locale in either place.
+	 * the reference filter, which it sets on the comparator, and in the locale of the request the owners are fetched
+	 * with when the filter names none. The check creates the comparator without a filter, so it looks the locale up in
+	 * the filter the same way the body fetch does (see {@link #findReferenceFilterLocale(FilterBy)}) and falls back to
+	 * the locale of the owner context - an ordering by a localized attribute is refused only when there is no locale
+	 * in either place.
 	 *
 	 * @param ownerQueryContext planning context of the entity owning the references
 	 * @param entitySchema      schema of the entity owning the references
@@ -1882,6 +1886,26 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		final Locale referenceFilterLocale = findReferenceFilterLocale(referenceFilterBy);
 		return referenceFilterLocale == null ?
 			executionContext.getEvitaRequest().getRequiredOrImplicitLocale() : referenceFilterLocale;
+	}
+
+	/**
+	 * Returns the locale the referenced entities (and groups) of a `referenceContent` are fetched in, which is also the
+	 * locale the references of a `referenceContent` nested in their fetch are filtered and ordered in: the locale of
+	 * the filter of the `referenceContent` ({@link #findReferenceFilterLocale}), or the locale of the request its
+	 * owners are fetched with when the filter names none - as the request derived for the fetch of the bodies
+	 * ({@link EvitaRequest#deriveCopyWith(String, FilterBy, OrderBy, io.evitadb.api.query.require.EntityFetchRequire)})
+	 * resolves it. Applied level by level from the query down, it yields the locale of the owners of every nested
+	 * `referenceContent`.
+	 *
+	 * @param referenceFilterBy the filter of the `referenceContent`, NULL when there is none
+	 * @param ownerLocale       the locale of the request the owners of its references are fetched with, NULL when
+	 *                          there is none
+	 * @return the locale of the referenced entities, NULL when there is none
+	 */
+	@Nullable
+	public static Locale getReferencedEntityLocale(@Nullable FilterBy referenceFilterBy, @Nullable Locale ownerLocale) {
+		final Locale referenceFilterLocale = findReferenceFilterLocale(referenceFilterBy);
+		return referenceFilterLocale == null ? ownerLocale : referenceFilterLocale;
 	}
 
 	/**

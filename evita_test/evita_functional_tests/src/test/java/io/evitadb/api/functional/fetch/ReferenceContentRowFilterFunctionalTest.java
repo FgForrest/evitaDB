@@ -24,6 +24,7 @@
 package io.evitadb.api.functional.fetch;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.AttributeNotFoundException;
 import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.exception.RollbackException;
 import io.evitadb.api.query.Constraint;
@@ -70,6 +71,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.Function;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -90,7 +92,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * `rfBrand` (locales EN, DE; `title` localized and sortable) - brands 1 (`a`, EN `Zulu`, DE `Alpha`; `brandGroups`
  * 10 with `w` 1 and 11 with `w` 2) and 2 (`b`, EN `Yankee`, DE `Beta`; `brandGroups` 10 with `w` 2) live, brand 3
- * (`a`, EN `Xray`) archived, brand 4 never created. `rfGroup` - groups 10 (`g1`)
+ * (`a`, EN `Xray`) archived, brand 4 never created. The `brandGroups` rows also carry `note`, localized and neither
+ * filterable nor unique: EN `one-ten` / DE `eins-zehn` (brand 1, group 10), EN `one-eleven` / DE `eins-elf` (brand 1,
+ * group 11) and EN `two-ten` / DE `zwei-zehn` (brand 2, group 10). `rfGroup` - groups 10 (`g1`)
  * and 11 (`g2`) live, 13 (`g4`) archived, 12 never created.
  *
  * `rfProduct` (locales EN, DE) references them as:
@@ -115,8 +119,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * - **3** (ARCHIVED; EN, DE): `brands` 1 (g10, x 5, tag EN `t-3`, u `c3`) and 3 (x 5),
  * - **5** (LIVE; EN): no reference at all.
  *
- * The planning check of the filter is still the one of the index route, so the cases its refusals cover are run
- * through `getEntity`, which plans nothing.
+ * The planning check compiles the filter with the very compiler the fetch uses, so every case runs as a query; the
+ * cases are run through `getEntity` too where the fetch has to stand on its own, as `getEntity` plans nothing.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -151,6 +155,7 @@ class ReferenceContentRowFilterFunctionalTest {
 	private static final String ATTR_COUNTRY = "country";
 	private static final String ATTR_RANK = "rank";
 	private static final String ATTR_W = "w";
+	private static final String ATTR_NOTE = "note";
 	private static final Scope[] LIVE = {Scope.LIVE};
 	private static final Scope[] BOTH = {Scope.LIVE, Scope.ARCHIVED};
 	private static final BigDecimal HUGE_PRICE = new BigDecimal("12345678901.23");
@@ -200,18 +205,34 @@ class ReferenceContentRowFilterFunctionalTest {
 				whichIs -> whichIs
 					.indexedForFilteringInScope(BOTH)
 					.withAttribute(ATTR_W, Integer.class, thatIs -> thatIs.filterableInScope(BOTH).nullable())
+					.withAttribute(ATTR_NOTE, String.class, thatIs -> thatIs.localized().nullable())
 			)
 			.updateVia(session);
 		session.upsertEntity(
 			session.createNewEntity(ENTITY_BRAND, 1).setAttribute(ATTR_CODE, "a")
 				.setAttribute(ATTR_TITLE, Locale.ENGLISH, "Zulu").setAttribute(ATTR_TITLE, Locale.GERMAN, "Alpha")
-				.setReference(REF_BRAND_GROUPS, 10, whichIs -> whichIs.setAttribute(ATTR_W, 1))
-				.setReference(REF_BRAND_GROUPS, 11, whichIs -> whichIs.setAttribute(ATTR_W, 2))
+				.setReference(
+					REF_BRAND_GROUPS, 10,
+					whichIs -> whichIs.setAttribute(ATTR_W, 1)
+						.setAttribute(ATTR_NOTE, Locale.ENGLISH, "one-ten")
+						.setAttribute(ATTR_NOTE, Locale.GERMAN, "eins-zehn")
+				)
+				.setReference(
+					REF_BRAND_GROUPS, 11,
+					whichIs -> whichIs.setAttribute(ATTR_W, 2)
+						.setAttribute(ATTR_NOTE, Locale.ENGLISH, "one-eleven")
+						.setAttribute(ATTR_NOTE, Locale.GERMAN, "eins-elf")
+				)
 		);
 		session.upsertEntity(
 			session.createNewEntity(ENTITY_BRAND, 2).setAttribute(ATTR_CODE, "b")
 				.setAttribute(ATTR_TITLE, Locale.ENGLISH, "Yankee").setAttribute(ATTR_TITLE, Locale.GERMAN, "Beta")
-				.setReference(REF_BRAND_GROUPS, 10, whichIs -> whichIs.setAttribute(ATTR_W, 2))
+				.setReference(
+					REF_BRAND_GROUPS, 10,
+					whichIs -> whichIs.setAttribute(ATTR_W, 2)
+						.setAttribute(ATTR_NOTE, Locale.ENGLISH, "two-ten")
+						.setAttribute(ATTR_NOTE, Locale.GERMAN, "zwei-zehn")
+				)
 		);
 		session.upsertEntity(
 			session.createNewEntity(ENTITY_BRAND, 3).setAttribute(ATTR_CODE, "a")
@@ -441,6 +462,37 @@ class ReferenceContentRowFilterFunctionalTest {
 	}
 
 	/**
+	 * Queries owner 1, in no locale, with the brands the requirement keeps, and describes the groups each kept brand
+	 * keeps of its own `brandGroups`, sorted.
+	 *
+	 * @param evita  the engine instance
+	 * @param brands the requirement of the brands, fetching their bodies with their `brandGroups`
+	 * @return the kept groups by kept brand
+	 */
+	@Nonnull
+	private static Map<Integer, List<String>> groupsOfBrandsOfOwnerOne(
+		@Nonnull Evita evita,
+		@Nonnull ReferenceContent brands
+	) {
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity owner = session.queryOneSealedEntity(
+					query(collection(ENTITY_PRODUCT), filterBy(entityPrimaryKeyInSet(1)), require(entityFetch(brands)))
+				).orElseThrow();
+				final Map<Integer, List<String>> result = new TreeMap<>();
+				for (ReferenceContract brand : owner.getReferences(REF_BRANDS)) {
+					result.put(
+						brand.getReferencedPrimaryKey(),
+						describeSorted(brand.getReferencedEntity().orElseThrow().getReferences(REF_BRAND_GROUPS))
+					);
+				}
+				return result;
+			}
+		);
+	}
+
+	/**
 	 * Fetches one owner through `getEntity`, which plans no query, and describes the kept rows, sorted.
 	 *
 	 * @param evita            the engine instance
@@ -543,6 +595,39 @@ class ReferenceContentRowFilterFunctionalTest {
 		}
 	}
 
+	/**
+	 * Asserts that a query refuses the filter while it is planned, whatever the data: it is run for owner 5, which
+	 * holds no reference, and for no owner at all - so the fetch has no row to evaluate the filter on, or nothing to
+	 * fetch in the first place.
+	 *
+	 * @param evita         the engine instance
+	 * @param referenceName the reference whose fetched rows are filtered
+	 * @param filterBy      the filter of the reference
+	 * @param expectedType  the class of the expected refusal
+	 * @param fragments     the fragments of the expected message
+	 */
+	private static void assertRefusedAtPlanning(
+		@Nonnull Evita evita,
+		@Nonnull String referenceName,
+		@Nonnull FilterBy filterBy,
+		@Nonnull Class<? extends EvitaInvalidUsageException> expectedType,
+		@Nonnull String... fragments
+	) {
+		for (int owner : new int[]{5, 999}) {
+			final EvitaInvalidUsageException refusal = assertThrows(
+				expectedType,
+				() -> queryRows(evita, LIVE, null, referenceName, referenceContent(referenceName, filterBy), owner),
+				() -> filterBy + " must be refused while planning a query for owner " + owner
+			);
+			for (String fragment : fragments) {
+				assertTrue(
+					refusal.getMessage().contains(fragment),
+					() -> "The message `" + refusal.getMessage() + "` must contain `" + fragment + "`"
+				);
+			}
+		}
+	}
+
 	@Nested
 	@DisplayName("Verdicts per row")
 	class VerdictsPerRow {
@@ -575,6 +660,21 @@ class ReferenceContentRowFilterFunctionalTest {
 			);
 			assertEquals(rows(1, List.of("1")), queryRows(evita, LIVE, null, REF_BY_GROUP, byGroup, 1));
 			assertEquals(rows(2, List.of()), queryRows(evita, LIVE, null, REF_BY_GROUP, byGroup, 2));
+			// below the root too - a group filter of the rows needs the group component nowhere (R4)
+			final FilterConstraint inGroupG1 = groupHaving(attributeEquals(ATTR_CODE, "g1"));
+			assertEquals(
+				rows(1, List.of("1"), 2, List.of()),
+				queryRows(
+					evita, LIVE, null, REF_BY_GROUP,
+					referenceContent(REF_BY_GROUP, filterBy(or(inGroupG1, entityPrimaryKeyInSet(999)))), 1, 2
+				)
+			);
+			assertEquals(
+				rows(1, List.of("2"), 2, List.of("2")),
+				queryRows(
+					evita, LIVE, null, REF_BY_GROUP, referenceContent(REF_BY_GROUP, filterBy(not(inGroupG1))), 1, 2
+				)
+			);
 		}
 
 		@Test
@@ -613,20 +713,14 @@ class ReferenceContentRowFilterFunctionalTest {
 		@DisplayName("a row is judged by its own attribute value - an array by any element, a string by a search")
 		@UseDataSet(DATA_SET)
 		void shouldJudgeArrayAndStringLeaves(Evita evita) {
-			assertEquals(
-				List.of("1"),
-				getRows(
-					evita, 1, LIVE, REF_BRANDS,
-					referenceContent(REF_BRANDS, filterBy(attributeEquals(ATTR_KEYWORDS, "y")))
-				)
-			);
-			assertEquals(
-				List.of("1"),
-				getRows(
-					evita, 1, LIVE, REF_BRANDS,
-					referenceContent(REF_BRANDS, filterBy(attributeInSet(ATTR_KEYWORDS, "q", "x")))
-				)
-			);
+			for (FilterBy byKeyword : List.of(
+				filterBy(attributeEquals(ATTR_KEYWORDS, "y")), filterBy(attributeInSet(ATTR_KEYWORDS, "q", "x"))
+			)) {
+				final ReferenceContent requirement = referenceContent(REF_BRANDS, byKeyword);
+				assertEquals(List.of("1"), getRows(evita, 1, LIVE, REF_BRANDS, requirement));
+				// `keywords` is filterable nowhere - the planning check admits it all the same (R1)
+				assertEquals(rows(1, List.of("1")), queryRows(evita, LIVE, null, REF_BRANDS, requirement, 1));
+			}
 			assertEquals(
 				rows(1, List.of("1"), 2, List.of("1")),
 				queryRows(
@@ -736,6 +830,55 @@ class ReferenceContentRowFilterFunctionalTest {
 					1
 				)
 			);
+			// a query naming no locale passes the planning check with the locale of the filter
+			assertEquals(
+				rows(1, List.of("1")),
+				queryRows(
+					evita, LIVE, null, REF_BRANDS,
+					referenceContent(
+						REF_BRANDS, filterBy(entityLocaleEquals(Locale.GERMAN), attributeEquals(ATTR_LABEL, "Rot"))
+					),
+					1
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("a nested referenceContent reads the locale of the enclosing filter, at planning too (Q1)")
+		@UseDataSet(DATA_SET)
+		void shouldReadLocaleOfEnclosingFilterAtSecondLevel(Evita evita) {
+			// the query names no locale and the nested filter none either: the brands are fetched in German, the
+			// locale of their filter, so the localized `note` of their rows is read in German - by the fetch and by
+			// the planning check alike
+			final Function<String, ReferenceContent> brandsWithGroupsNoted =
+				note -> referenceContent(
+					REF_BRANDS,
+					filterBy(entityLocaleEquals(Locale.GERMAN), entityPrimaryKeyInSet(1, 2)),
+					entityFetch(referenceContent(REF_BRAND_GROUPS, filterBy(attributeEquals(ATTR_NOTE, note))))
+				);
+			assertEquals(
+				rows(1, List.of("11"), 2, List.of()),
+				groupsOfBrandsOfOwnerOne(evita, brandsWithGroupsNoted.apply("eins-elf"))
+			);
+			assertEquals(
+				rows(1, List.of(), 2, List.of()),
+				groupsOfBrandsOfOwnerOne(evita, brandsWithGroupsNoted.apply("one-eleven"))
+			);
+			// without the enclosing locale the nested leaf has none and is refused while planning, whatever the data
+			assertThrows(
+				EntityLocaleMissingException.class,
+				() -> queryRows(
+					evita, LIVE, null, REF_BRANDS,
+					referenceContent(
+						REF_BRANDS,
+						filterBy(entityPrimaryKeyInSet(1, 2)),
+						entityFetch(
+							referenceContent(REF_BRAND_GROUPS, filterBy(attributeEquals(ATTR_NOTE, "eins-elf")))
+						)
+					),
+					999
+				)
+			);
 		}
 
 		@Test
@@ -774,8 +917,22 @@ class ReferenceContentRowFilterFunctionalTest {
 		@DisplayName("an attribute unique in one scope and only filterable in another matches in both (OQ-U)")
 		@UseDataSet(DATA_SET)
 		void shouldMatchAttributeUniqueInOneScopeAndFilterableInAnother(Evita evita) {
-			// through `getEntity`: the planning check of the index route refuses an attribute that is neither
-			// filterable in every scope nor unique in every scope
+			// an attribute neither filterable in every scope nor unique in every scope is admitted, and each owner
+			// reads it by the declaration of its own scope - through a query and through `getEntity` alike
+			assertEquals(
+				rows(1, List.of(), 3, List.of("1")),
+				queryRows(
+					evita, BOTH, null, REF_BRANDS,
+					referenceContent(REF_BRANDS, filterBy(attributeEquals(ATTR_U, "c3"))), 1, 3
+				)
+			);
+			assertEquals(
+				rows(1, List.of("1"), 3, List.of("1")),
+				queryRows(
+					evita, BOTH, null, REF_BRANDS,
+					referenceContent(REF_BRANDS, filterBy(attributeInSet(ATTR_U, "c1", "c3"))), 1, 3
+				)
+			);
 			assertEquals(
 				List.of(),
 				getRows(
@@ -836,28 +993,20 @@ class ReferenceContentRowFilterFunctionalTest {
 		@UseDataSet(DATA_SET)
 		void shouldCompareNonFilterableBigDecimalAsTheIndexWould(Evita evita) {
 			// 1.005 is 101 at two decimal places rounded half up - the stored 1.01
-			assertEquals(
-				List.of("1"),
-				getRows(
-					evita, 1, LIVE, REF_BRANDS,
-					referenceContent(REF_BRANDS, filterBy(attributeEquals(ATTR_PRICE, new BigDecimal("1.005"))))
-				)
+			final Map<FilterBy, String> admittedBrandByFilter = Map.of(
+				filterBy(attributeEquals(ATTR_PRICE, new BigDecimal("1.005"))), "1",
+				filterBy(attributeLessThanEquals(ATTR_PRICE, new BigDecimal("1.014"))), "1",
+				filterBy(attributeGreaterThan(ATTR_PRICE, new BigDecimal("12345678901.22"))), "2"
 			);
-			assertEquals(
-				List.of("1"),
-				getRows(
-					evita, 1, LIVE, REF_BRANDS,
-					referenceContent(REF_BRANDS, filterBy(attributeLessThanEquals(ATTR_PRICE, new BigDecimal("1.014"))))
-				)
-			);
-			assertEquals(
-				List.of("2"),
-				getRows(
-					evita, 1, LIVE, REF_BRANDS,
-					referenceContent(
-						REF_BRANDS, filterBy(attributeGreaterThan(ATTR_PRICE, new BigDecimal("12345678901.22")))
-					)
-				)
+			admittedBrandByFilter.forEach(
+				(byPrice, brand) -> {
+					final ReferenceContent requirement = referenceContent(REF_BRANDS, byPrice);
+					assertEquals(List.of(brand), getRows(evita, 1, LIVE, REF_BRANDS, requirement), byPrice::toString);
+					assertEquals(
+						rows(1, List.of(brand)), queryRows(evita, LIVE, null, REF_BRANDS, requirement, 1),
+						byPrice::toString
+					);
+				}
 			);
 		}
 
@@ -865,12 +1014,11 @@ class ReferenceContentRowFilterFunctionalTest {
 		@DisplayName("an empty array is no value (P3)")
 		@UseDataSet(DATA_SET)
 		void shouldReadEmptyArrayAsNoValue(Evita evita) {
-			assertEquals(
-				List.of("2"),
-				getRows(
-					evita, 1, LIVE, REF_BRANDS, referenceContent(REF_BRANDS, filterBy(attributeIsNull(ATTR_KEYWORDS)))
-				)
+			final ReferenceContent withoutKeywords = referenceContent(
+				REF_BRANDS, filterBy(attributeIsNull(ATTR_KEYWORDS))
 			);
+			assertEquals(List.of("2"), getRows(evita, 1, LIVE, REF_BRANDS, withoutKeywords));
+			assertEquals(rows(1, List.of("2")), queryRows(evita, LIVE, null, REF_BRANDS, withoutKeywords, 1));
 		}
 
 		@Test
@@ -901,6 +1049,83 @@ class ReferenceContentRowFilterFunctionalTest {
 			);
 			// German titles: Alpha (1), Beta (2); the English ones would order 2 before 1
 			assertEquals(List.of("1", "2"), ordered);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Refusals while planning, whatever the data")
+	class RefusalsAtPlanning {
+
+		@Test
+		@DisplayName("a constraint without a meaning on a row is refused, naming itself and the reference (R6)")
+		@UseDataSet(DATA_SET)
+		void shouldRefuseConstraintWithoutMeaningOnRow(Evita evita) {
+			assertRefusedAtPlanning(
+				evita, REF_BRANDS, filterBy(entityPrimaryKeyBetween(1, 2)), EvitaInvalidUsageException.class,
+				"entityPrimaryKeyBetween", REF_BRANDS
+			);
+		}
+
+		@Test
+		@DisplayName("a scope below the root of the filter is refused rather than read as true (R6, X2)")
+		@UseDataSet(DATA_SET)
+		void shouldRefuseScopeBelowRoot(Evita evita) {
+			for (FilterBy filterBy : List.of(
+				filterBy(or(scope(Scope.LIVE), attributeEquals(ATTR_X, 5))),
+				filterBy(not(scope(Scope.LIVE))),
+				filterBy(inScope(Scope.LIVE, scope(Scope.LIVE)))
+			)) {
+				assertRefusedAtPlanning(
+					evita, REF_BRANDS, filterBy, EvitaInvalidUsageException.class, "scope", REF_BRANDS
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("an inverted interval of a scalar attribute is refused with the message of the index (R10)")
+		@UseDataSet(DATA_SET)
+		void shouldRefuseInvertedInterval(Evita evita) {
+			assertRefusedAtPlanning(
+				evita, REF_BRANDS, filterBy(attributeBetween(ATTR_X, 10, 5)), EvitaInvalidUsageException.class,
+				"From must be lower than to: 10 vs. 5"
+			);
+		}
+
+		@Test
+		@DisplayName("attributeIs of a localized attribute without any locale is refused")
+		@UseDataSet(DATA_SET)
+		void shouldRefuseAttributeIsWithoutLocale(Evita evita) {
+			assertRefusedAtPlanning(
+				evita, REF_BRANDS, filterBy(attributeIsNull(ATTR_NAME)), EntityLocaleMissingException.class, ATTR_NAME
+			);
+		}
+
+		@Test
+		@DisplayName("a filter of a reference indexed nowhere is validated (U1)")
+		@UseDataSet(DATA_SET)
+		void shouldValidateFilterOfReferenceIndexedNowhere(Evita evita) {
+			assertRefusedAtPlanning(
+				evita, REF_UNINDEXED, filterBy(attributeEquals("unknown", 1)), AttributeNotFoundException.class,
+				"unknown"
+			);
+		}
+
+		@Test
+		@DisplayName("a nested filter is validated without any row to test it on")
+		@UseDataSet(DATA_SET)
+		void shouldValidateNestedFilterWithoutAnyRow(Evita evita) {
+			for (FilterBy filterBy : List.of(
+				filterBy(entityHaving(attributeEquals("unknown", 1))),
+				filterBy(not(groupHaving(attributeEquals("unknown", 1))))
+			)) {
+				assertRefusedAtPlanning(evita, REF_BRANDS, filterBy, AttributeNotFoundException.class, "unknown");
+			}
+			// on a reference indexed nowhere as well (U1)
+			assertRefusedAtPlanning(
+				evita, REF_UNINDEXED, filterBy(entityHaving(attributeEquals("unknown", 1))),
+				AttributeNotFoundException.class, "unknown"
+			);
 		}
 
 	}

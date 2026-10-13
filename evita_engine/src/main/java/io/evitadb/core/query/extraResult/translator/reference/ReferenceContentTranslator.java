@@ -39,6 +39,8 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
+import java.util.Iterator;
+import java.util.Locale;
 import java.util.Optional;
 
 import static java.util.Optional.of;
@@ -52,7 +54,9 @@ import static java.util.Optional.of;
  * The filter and the ordering of the fetched references are checked against the schemas here, while the query is
  * planned - see {@link ReferencedEntityFetcher#verifyReferenceContentConstraints}. The fetch evaluates them only when
  * there is a reference to filter or order, so a constraint the schemas refuse would otherwise fail the query or pass
- * depending on the data it returns.
+ * depending on the data it returns. The check is handed the locale the owners of the references are fetched in:
+ * the locale of the query at its top level, and below it the locale each enclosing `referenceContent` fetches its
+ * referenced entities in (see {@link #getOwnerLocale}).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -71,6 +75,7 @@ public class ReferenceContentTranslator implements RequireConstraintTranslator<R
 				)
 			);
 			final EntitySchemaContract schema = entitySchema.get();
+			final Locale ownerLocale = getOwnerLocale(referenceContent, extraResultPlanningVisitor);
 
 			of(referenceContent.getReferenceNames())
 				.filter(it -> !ArrayUtils.isEmpty(it))
@@ -84,7 +89,8 @@ public class ReferenceContentTranslator implements RequireConstraintTranslator<R
 						referenceSchema,
 						referenceContent.getFilterBy().orElse(null),
 						referenceContent.getOrderBy().orElse(null),
-						extraResultPlanningVisitor.getProcessingScope().getScopes()
+						extraResultPlanningVisitor.getProcessingScope().getScopes(),
+						ownerLocale
 					);
 					extraResultPlanningVisitor.executeInContext(
 						referenceContent,
@@ -105,6 +111,37 @@ public class ReferenceContentTranslator implements RequireConstraintTranslator<R
 		}
 
 		return null;
+	}
+
+	/**
+	 * Returns the locale of the request the owners of the references of the `referenceContent` are fetched with. The
+	 * entities the query returns are fetched in the locale of the query; the referenced entities of a
+	 * `referenceContent` - the owners of a `referenceContent` nested in their fetch - in the locale of its filter, or
+	 * in the locale of its own owners when the filter names none. The enclosing `referenceContent` constraints are
+	 * those on the chain of the requirements being planned, outermost first.
+	 *
+	 * @param referenceContent           the `referenceContent` being planned
+	 * @param extraResultPlanningVisitor the visitor planning it
+	 * @return the locale of the owners, NULL when there is none
+	 */
+	@Nullable
+	private static Locale getOwnerLocale(
+		@Nonnull ReferenceContent referenceContent,
+		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor
+	) {
+		Locale ownerLocale = extraResultPlanningVisitor.getQueryContext().getLocale();
+		final Iterator<RequireConstraint> requirementChain =
+			extraResultPlanningVisitor.getEntityContentRequireChain(referenceContent).iterator();
+		while (requirementChain.hasNext()) {
+			final RequireConstraint requirement = requirementChain.next();
+			// the chain ends with the planned `referenceContent` itself, whose filter concerns its own references
+			if (requirement != referenceContent && requirement instanceof ReferenceContent enclosing) {
+				ownerLocale = ReferencedEntityFetcher.getReferencedEntityLocale(
+					enclosing.getFilterBy().orElse(null), ownerLocale
+				);
+			}
+		}
+		return ownerLocale;
 	}
 
 }
