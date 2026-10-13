@@ -969,38 +969,19 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 											);
 										}
 									} else {
-										Assert.isPremiseValid(
-											lastIndexFormula != null,
-											"Last index formula must be initialized!"
+										restrictToMatchingOwners(
+											lastDiscriminator, lastIndexFormula, executionContext, validityMapping,
+											referencedPrimaryKeysWriter
 										);
-										lastIndexFormula.initialize(executionContext);
-										final Bitmap matchingPks = lastIndexFormula.compute();
-										final RepresentativeReferenceKey finalLastDiscriminator = lastDiscriminator;
-										if (matchingPks.isEmpty()) {
-											validityMappingOptional.ifPresent(
-												it -> it.restrictTo(finalLastDiscriminator, EmptyBitmap.INSTANCE));
-										} else {
-											validityMappingOptional.ifPresent(
-												it -> it.restrictTo(finalLastDiscriminator, matchingPks));
-											referencedPrimaryKeysWriter.add(lastDiscriminator.primaryKey());
-										}
-
 										lastIndexFormula = resultFormula;
 										lastDiscriminator = discriminator;
 									}
 								}
-								if (lastDiscriminator != null && lastIndexFormula != null) {
-									final RepresentativeReferenceKey finalLastDiscriminator = lastDiscriminator;
-									lastIndexFormula.initialize(executionContext);
-									final Bitmap matchingPks = lastIndexFormula.compute();
-									if (matchingPks.isEmpty()) {
-										validityMappingOptional.ifPresent(
-											it -> it.restrictTo(finalLastDiscriminator, EmptyBitmap.INSTANCE));
-									} else {
-										validityMappingOptional.ifPresent(
-											it -> it.restrictTo(finalLastDiscriminator, matchingPks));
-										referencedPrimaryKeysWriter.add(lastDiscriminator.primaryKey());
-									}
+								if (lastDiscriminator != null) {
+									restrictToMatchingOwners(
+										lastDiscriminator, lastIndexFormula, executionContext, validityMapping,
+										referencedPrimaryKeysWriter
+									);
 								}
 
 								// finally, add all referenced pks from non-indexed scopes
@@ -1681,6 +1662,37 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	}
 
 	/**
+	 * Settles one referenced key of {@link #getFilteredReferencedEntityIds}: computes the owners the body of its
+	 * partitions matched - united over both representations and every examined scope - restricts the key to them, and
+	 * writes the key to the result when any owner matched.
+	 *
+	 * @param discriminator               the referenced key, with the representative attributes of its reference row
+	 *                                    for a reference allowing duplicates
+	 * @param keyFormula                  the united formula of the body over all partitions of the key
+	 * @param executionContext            the context the formula is computed in
+	 * @param validityMapping             the mapping to restrict, `null` when there is none
+	 * @param referencedPrimaryKeysWriter the writer of the referenced keys the filter lets through
+	 */
+	private static void restrictToMatchingOwners(
+		@Nonnull RepresentativeReferenceKey discriminator,
+		@Nonnull Formula keyFormula,
+		@Nonnull QueryExecutionContext executionContext,
+		@Nullable ValidEntityToReferenceMapping validityMapping,
+		@Nonnull RoaringBitmapWriter<PersistentRoaringBitmap> referencedPrimaryKeysWriter
+	) {
+		keyFormula.initialize(executionContext);
+		final Bitmap matchingPks = keyFormula.compute();
+		// restricted even when no owner matched - that is what hides a key without representative attributes from
+		// every owner referencing it
+		if (validityMapping != null) {
+			validityMapping.restrictTo(discriminator, matchingPks);
+		}
+		if (!matchingPks.isEmpty()) {
+			referencedPrimaryKeysWriter.add(discriminator.primaryKey());
+		}
+	}
+
+	/**
 	 * Iterates over all primary keys in the given bitmap and adds each one to both the target set and the bitmap
 	 * writer. This avoids duplicating the iteration pattern that appears multiple times in
 	 * {@link #getFilteredReferencedEntityIds}.
@@ -1721,7 +1733,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 *                                    actually reference instead of the whole target collection
 	 * @return formula that calculates the result
 	 */
-	@Nullable
+	@Nonnull
 	private static Formula computeResultWithPassedIndex(
 		@Nonnull AbstractReducedEntityIndex index,
 		@Nonnull EntitySchemaContract entitySchema,
