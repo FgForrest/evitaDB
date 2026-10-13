@@ -407,7 +407,8 @@ class ReferenceRowFilterCompilerTest {
 		}
 
 		/**
-		 * Compiles the filter of a reference with the passed restrictions of the nested queries.
+		 * Compiles the filter of a reference with the passed restrictions of the nested queries. A fetch is given the
+		 * owners in the scopes of the request, as the fetch of a query is, and a check none.
 		 *
 		 * @param referenceName   the name of the reference
 		 * @param filterBy        the filter
@@ -429,8 +430,8 @@ class ReferenceRowFilterCompilerTest {
 			@Nullable Supplier<Bitmap> rowGroups
 		) {
 			return compile(
-				createQueryContext(this.evita), referenceName, filterBy, ownerLocale, requestScopes, check,
-				existingTargets, rowGroups
+				createQueryContext(this.evita), referenceName, filterBy, ownerLocale, requestScopes,
+				check ? Set.of() : requestScopes, check, existingTargets, rowGroups
 			);
 		}
 
@@ -442,6 +443,7 @@ class ReferenceRowFilterCompilerTest {
 		 * @param filterBy        the filter
 		 * @param ownerLocale     the locale of the owner request
 		 * @param requestScopes   the scopes of the owner request
+		 * @param ownerScopes     the scopes of the owners whose rows are tested
 		 * @param check           true for a visitor that only checks the filter
 		 * @param existingTargets the existing targets restricting the nested queries of `entityHaving`, NULL for none
 		 * @param rowGroups       the groups restricting the nested queries of `groupHaving`, NULL for none
@@ -454,6 +456,7 @@ class ReferenceRowFilterCompilerTest {
 			@Nullable FilterBy filterBy,
 			@Nullable Locale ownerLocale,
 			@Nonnull Set<Scope> requestScopes,
+			@Nonnull Set<Scope> ownerScopes,
 			boolean check,
 			@Nullable Supplier<Bitmap> existingTargets,
 			@Nullable Supplier<Bitmap> rowGroups
@@ -466,7 +469,8 @@ class ReferenceRowFilterCompilerTest {
 			return ReferenceRowFilterCompiler.compile(
 				filterBy,
 				new CompileContext(
-					entitySchema, referenceSchema, visitor, requestScopes, ownerLocale, existingTargets, rowGroups
+					entitySchema, referenceSchema, visitor, requestScopes, ownerScopes, ownerLocale, existingTargets,
+					rowGroups
 				)
 			);
 		}
@@ -928,6 +932,42 @@ class ReferenceRowFilterCompilerTest {
 			);
 		}
 
+		@Test
+		@DisplayName("an owner outside the scopes of the request is read by the declaration of its own scope")
+		@UseDataSet(ROW_FILTER)
+		void shouldReadOwnerOutsideRequestScopesByItsOwnDeclaration(Evita evita) {
+			// a request reading LIVE fetches the archived owner 2, as `archiveEntity` or an enrichment does: LIVE
+			// reads `tag` in any locale, ARCHIVED in the leaf locale alone - owner 2's English `t-2` counts in English
+			final QueryPlanningContext queryContext = createQueryContext(evita);
+			final Set<Scope> live = EnumSet.of(Scope.LIVE);
+			for (Locale locale : new Locale[]{Locale.GERMAN, Locale.ENGLISH}) {
+				assertEquals(
+					expected(true, false, Locale.ENGLISH.equals(locale), false),
+					verdicts(
+						Fixture.compile(
+							queryContext, REF_BRANDS, filterBy(attributeInSet(ATTR_TAG, "t-1", "t-2")), locale, live,
+							BOTH_SCOPES, false, null, null
+						),
+						fetchOwners(evita)
+					),
+					locale::toString
+				);
+			}
+			// `alias` is unique across locales in LIVE alone: a request reading ARCHIVED cannot read it without a
+			// locale, an owner living in LIVE reads it in any locale - the scope of an owner admits, never refuses
+			final Set<Scope> archived = EnumSet.of(Scope.ARCHIVED);
+			final FilterBy byAlias = filterBy(attributeEquals(ATTR_ALIAS, "a-1"));
+			assertThrows(
+				EntityLocaleMissingException.class,
+				() -> Fixture.compile(queryContext, REF_BRANDS, byAlias, null, archived, Set.of(), true, null, null)
+			);
+			final Entity liveOwner = fetchOwners(evita).get(1);
+			assertTrue(
+				Fixture.compile(queryContext, REF_BRANDS, byAlias, null, archived, BOTH_SCOPES, false, null, null)
+					.test(Scope.LIVE, liveOwner, liveOwner.getReferences(REF_BRANDS).iterator().next())
+			);
+		}
+
 	}
 
 	@Nested
@@ -1066,14 +1106,14 @@ class ReferenceRowFilterCompilerTest {
 			final QueryPlanningContext rowLeafContext = createQueryContext(evita);
 			Fixture.compile(
 				rowLeafContext, REF_BRANDS, filterBy(attributeEquals(ATTR_WEIGHT, 5), attributeEquals(ATTR_LABEL, "x")),
-				Locale.ENGLISH, BOTH_SCOPES, true, null, null
+				Locale.ENGLISH, BOTH_SCOPES, Set.of(), true, null, null
 			);
 			assertTrue(rowLeafContext.drainRequestedCapabilities().isEmpty(), "Row leaves request no capability");
 
 			final QueryPlanningContext nestedContext = createQueryContext(evita);
 			Fixture.compile(
 				nestedContext, REF_BRANDS, filterBy(entityHaving(attributeEquals(ATTR_CODE, "a"))),
-				null, BOTH_SCOPES, true, null, null
+				null, BOTH_SCOPES, Set.of(), true, null, null
 			);
 			assertFalse(
 				nestedContext.drainRequestedCapabilities().isEmpty(),

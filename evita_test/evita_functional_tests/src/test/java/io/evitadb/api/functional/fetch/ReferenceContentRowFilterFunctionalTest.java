@@ -55,6 +55,7 @@ import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.extension.EvitaParameterResolver;
 import io.evitadb.utils.ArrayUtils;
+import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.Functions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -72,6 +73,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -79,6 +81,7 @@ import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.REFERENCE;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -1267,6 +1270,135 @@ class ReferenceContentRowFilterFunctionalTest {
 			);
 			// the targets are not managed, so every row stays; group 12 does not exist, group 13 is archived
 			assertEquals(List.of("100:g1", "101:-", "102:g2", "103:-"), rows);
+		}
+
+	}
+
+	@Nested
+	@DisplayName("Owners outside the scopes of the request")
+	class OwnersOutsideRequestScopes {
+
+		@Test
+		@DisplayName("an owner archived by archiveEntity is judged by the declaration of its new scope")
+		@UseDataSet(value = MUTABLE_DATA_SET, destroyAfterTest = true)
+		void shouldJudgeOwnerArchivedByArchiveEntity(Evita evita) {
+			// brand 4 does not exist, brand 2 holds x 7 and no tag; `tag` is unique within a locale in ARCHIVED, so
+			// the German locale of the filter finds no value of owner 1 there, while LIVE would read its English `t-1`
+			final Map<FilterBy, List<String>> expectedRows = CollectionUtils.createLinkedHashMap(3);
+			expectedRows.put(filterBy(attributeEquals(ATTR_X, 5)), List.of("1"));
+			expectedRows.put(filterBy(attributeIsNotNull(ATTR_TAG)), List.of("1"));
+			expectedRows.put(
+				filterBy(entityLocaleEquals(Locale.GERMAN), attributeEquals(ATTR_TAG, "t-1")), List.of()
+			);
+			assertAll(
+				expectedRows.entrySet().stream().map(
+					entry -> () -> assertEquals(
+						entry.getValue(),
+						inRolledBackTransaction(
+							evita,
+							session -> {
+								// the request of `archiveEntity` names no scope, so it reads LIVE - the owner it
+								// returns lives in ARCHIVED
+								final SealedEntity archived = session.archiveEntity(
+									ENTITY_PRODUCT, 1, referenceContentWithAttributes(REF_BRANDS, entry.getKey())
+								).orElseThrow();
+								assertEquals(Scope.ARCHIVED, archived.getScope());
+								return describeSorted(archived.getReferences(REF_BRANDS));
+							}
+						),
+						entry.getKey()::toString
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("an archived owner enriched by a request in no scope is judged by the declaration of its scope")
+		@UseDataSet(DATA_SET)
+		void shouldJudgeArchivedOwnerOfEnrichment(Evita evita) {
+			// brand 3 is archived, so it does not exist in the scope of the request
+			final Map<FilterBy, List<String>> expectedRows = CollectionUtils.createLinkedHashMap(3);
+			expectedRows.put(filterBy(attributeEquals(ATTR_X, 5)), List.of("1"));
+			expectedRows.put(filterBy(attributeIsNotNull(ATTR_TAG)), List.of("1"));
+			expectedRows.put(filterBy(attributeIsNull(ATTR_X)), List.of());
+			assertAll(
+				expectedRows.entrySet().stream().map(
+					entry -> () -> assertEquals(
+						entry.getValue(),
+						evita.queryCatalog(
+							TEST_CATALOG,
+							session -> {
+								// the enrichment request has no filter, so it reads LIVE - owner 3 lives in ARCHIVED
+								final SealedEntity owner = session.getEntity(
+									ENTITY_PRODUCT, 3, BOTH, attributeContentAll()
+								).orElseThrow();
+								return describeSorted(
+									session.enrichEntity(
+										owner, referenceContentWithAttributes(REF_BRANDS, entry.getKey())
+									).getReferences(REF_BRANDS)
+								);
+							}
+						),
+						entry.getKey()::toString
+					)
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("an owner moved to ARCHIVED by upsertAndFetchEntity is judged by the declaration of its new scope")
+		@UseDataSet(value = MUTABLE_DATA_SET, destroyAfterTest = true)
+		void shouldJudgeOwnerArchivedByUpsertAndFetch(Evita evita) {
+			assertAll(
+				Stream.of(filterBy(attributeEquals(ATTR_X, 5)), filterBy(attributeIsNull(ATTR_TAG))).map(
+					filterBy -> () -> assertEquals(
+						List.of("1"),
+						inRolledBackTransaction(
+							evita,
+							session -> {
+								// the request of `upsertAndFetchEntity` names no scope, so it reads LIVE
+								final SealedEntity archived = session.upsertAndFetchEntity(
+									session.getEntity(ENTITY_PRODUCT, 2, attributeContentAll())
+										.orElseThrow()
+										.openForWrite()
+										.setScope(Scope.ARCHIVED),
+									referenceContentWithAttributes(REF_BRANDS, filterBy)
+								);
+								assertEquals(Scope.ARCHIVED, archived.getScope());
+								return describeSorted(archived.getReferences(REF_BRANDS));
+							}
+						),
+						filterBy::toString
+					)
+				)
+			);
+		}
+
+		/**
+		 * Runs the function in a transaction that is rolled back afterwards, so the changes it makes are seen by
+		 * nothing but the function itself.
+		 *
+		 * @param evita    the engine instance
+		 * @param function the function, given the session of the transaction
+		 * @return the result of the function
+		 */
+		@Nonnull
+		private static List<String> inRolledBackTransaction(
+			@Nonnull Evita evita,
+			@Nonnull Function<EvitaSessionContract, List<String>> function
+		) {
+			final List<List<String>> result = new ArrayList<>(1);
+			assertThrows(
+				RollbackException.class,
+				() -> evita.updateCatalog(
+					TEST_CATALOG,
+					session -> {
+						result.add(function.apply(session));
+						session.setRollbackOnly();
+					}
+				)
+			);
+			return result.get(0);
 		}
 
 	}

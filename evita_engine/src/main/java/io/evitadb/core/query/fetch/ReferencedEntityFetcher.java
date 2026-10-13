@@ -1164,6 +1164,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					referenceSchema,
 					getFilterByVisitor(queryContext, filterByVisitor),
 					queryContext.getScopes(),
+					// an owner archived, moved or enriched by a request reading another scope lives outside them
+					ownerPrimaryKeys.keySet(),
 					queryContext.getLocale(),
 					() -> testedTargets,
 					() -> getGroupsOfTestedRows(owners, evaluatedOwnerCount, referenceName, testedTargets)
@@ -1510,7 +1512,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * Checks the filter of the fetched references - the part of {@link #verifyReferenceContentConstraints} that
 	 * mirrors the compilation in {@link #admitFetchedReferences}. The filter is compiled with the inputs the fetch
 	 * compiles it with - the scopes and the locale of the owner request - except that no row is known, so the nested
-	 * queries are not restricted to any. The compiled filter is thrown away: compiling it is the check.
+	 * queries are not restricted to any and no scope of an owner is added. The owners of a query live in its scopes,
+	 * and a scope the fetch adds for an owner living elsewhere never refuses what the check admits (see
+	 * {@link ReferenceRowFilterCompiler.CompileContext}). The compiled filter is thrown away: compiling it is the
+	 * check.
 	 *
 	 * @param ownerQueryContext planning context of the entity owning the references, in the scopes and the locale of
 	 *                          the request the owners are fetched with
@@ -1531,6 +1536,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				referenceSchema,
 				FilterByVisitor.createConstraintCheckVisitor(ownerQueryContext),
 				ownerQueryContext.getScopes(),
+				// no row is tested, and the owners of a query live in its scopes
+				Set.of(),
 				ownerQueryContext.getLocale(),
 				null,
 				null

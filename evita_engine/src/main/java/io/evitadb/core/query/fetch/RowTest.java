@@ -63,8 +63,10 @@ sealed interface RowTest {
 	boolean test(@Nonnull Scope ownerScope, @Nonnull Entity owner, @Nonnull ReferenceContract row);
 
 	/**
-	 * Returns the keys an attribute node reads in the scope of the owner. Every owner reaching a node lives in a
-	 * scope the node was compiled for, so a missing entry is a programming error.
+	 * Returns the keys an attribute node reads in the scope of the owner. A node outside every `inScope` is compiled
+	 * for the scopes the references are looked up in and for the scopes of all owners whose rows the fetch tests - an
+	 * owner may live outside the scopes of the request - and a node inside `inScope` is reached by the owners of its
+	 * scope alone, so a missing entry is a programming error.
 	 *
 	 * @param keysByScope the keys indexed by {@link Scope#ordinal()}
 	 * @param ownerScope  the scope of the owner entity

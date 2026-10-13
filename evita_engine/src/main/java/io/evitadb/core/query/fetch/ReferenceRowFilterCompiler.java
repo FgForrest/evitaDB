@@ -44,6 +44,7 @@ import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -99,9 +100,10 @@ import java.util.function.Supplier;
  * The flags of an attribute may differ per scope, and so does the index the main query would read it from: a
  * localized attribute unique across locales in a scope is read in any locale there, and in the leaf locale where it is
  * not. Every attribute node therefore carries one reading per scope it is compiled for, each chosen by that scope's own
- * declaration, and a row is read by the scope of its owner. An attribute unique in one scope and only filterable in
- * another is read in each scope by that scope's declaration - not by a lookup in the unique index of one scope that
- * passes over the other.
+ * declaration, and a row is read by the scope of its owner - also an owner living outside the scopes of the request,
+ * which the fetch compiles a reading for too (see {@link CompileContext}). An attribute unique in one scope and only
+ * filterable in another is read in each scope by that scope's declaration - not by a lookup in the unique index of one
+ * scope that passes over the other.
  *
  * The attribute leaves request no capability of the schema: the row is read from the reference itself, so the
  * attribute need not be filterable or unique, and the reference need not be indexed, in any scope. The nested filters
@@ -144,10 +146,20 @@ final class ReferenceRowFilterCompiler {
 	 * the nested filters are validated and their capabilities counted whatever the data, any other visitor resolves
 	 * them when the first row reaches them (see {@link NestedSet}).
 	 *
+	 * The attribute leaves choose a reading for every scope an owner whose rows they test can live in: the scopes the
+	 * references are looked up in, and the scopes of the owners. An owner may live outside the scopes of the request -
+	 * an entity archived by `archiveEntity`, moved by `upsertAndFetchEntity` or enriched by a request reading another
+	 * scope - and its rows are read by the declaration of its own scope, as those of every other owner. The nested
+	 * queries and the `inScope` containers keep the scopes of the request. A check tests no row and passes no owner
+	 * scope, and an owner scope can only admit a localized leaf the check refuses for the lack of a locale (see
+	 * {@link #getAttributeSchema}), never refuse one the check admits - so what the check accepts the fetch evaluates.
+	 *
 	 * @param entitySchema    the schema of the entity owning the references
 	 * @param referenceSchema the schema of the filtered reference
 	 * @param filterByVisitor the visitor the nested queries are planned with
-	 * @param requestScopes   the scopes of the request the references are fetched for - the owners live in them
+	 * @param requestScopes   the scopes of the request the references are fetched for
+	 * @param ownerScopes     the scopes the owners whose rows are tested live in, which may lie outside the scopes of
+	 *                        the request; empty when no row is tested (a check)
 	 * @param ownerLocale     the locale of the request the references are fetched for, NULL when it names none
 	 * @param existingTargets supplier of the existing targets of the rows to test, which restrict the nested queries
 	 *                        of `entityHaving`; NULL when they are not known (a check) and the queries are not
@@ -161,6 +173,7 @@ final class ReferenceRowFilterCompiler {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull Set<Scope> requestScopes,
+		@Nonnull Set<Scope> ownerScopes,
 		@Nullable Locale ownerLocale,
 		@Nullable Supplier<Bitmap> existingTargets,
 		@Nullable Supplier<Bitmap> rowGroups
@@ -187,8 +200,16 @@ final class ReferenceRowFilterCompiler {
 			filterLocale == null ? context.ownerLocale() : filterLocale,
 			getRootTargetBound(filterBy)
 		);
+		final Set<Scope> examinedScopes = ReferencedEntityFetcher.gatherSearchedScopes(
+			filterBy, context.requestScopes()
+		);
+		final Set<Scope> ownerScopes = context.ownerScopes();
 		final RowTest root = compiler.compileRoot(
-			filterBy, ReferencedEntityFetcher.gatherSearchedScopes(filterBy, context.requestScopes())
+			filterBy,
+			examinedScopes,
+			// the owners live in the examined scopes on every path that plans a query, so nothing is allocated there
+			examinedScopes.containsAll(ownerScopes) ?
+				examinedScopes : CollectionUtils.combine(examinedScopes, ownerScopes)
 		);
 		return root == null ? ReferenceRowFilter.ACCEPT_ALL : new ReferenceRowFilter(root);
 	}
@@ -296,15 +317,20 @@ final class ReferenceRowFilterCompiler {
 	 * @param filterBy       the filter of the fetched references
 	 * @param examinedScopes the scopes the references are looked up in - those of the request and of the root
 	 *                       `scope(...)`
+	 * @param readingScopes  the examined scopes and the scopes of the owners whose rows are tested
 	 * @return the root node, NULL when the filter has no condition on the row
 	 */
 	@Nullable
-	private RowTest compileRoot(@Nonnull FilterBy filterBy, @Nonnull Set<Scope> examinedScopes) {
+	private RowTest compileRoot(
+		@Nonnull FilterBy filterBy,
+		@Nonnull Set<Scope> examinedScopes,
+		@Nonnull Set<Scope> readingScopes
+	) {
 		final FilterConstraint[] children = filterBy.getChildren();
 		final List<RowTest> compiled = new ArrayList<>(children.length);
 		for (FilterConstraint child : children) {
 			if (!(child instanceof EntityScope)) {
-				addIfPresent(compiled, compile(child, examinedScopes));
+				addIfPresent(compiled, compile(child, examinedScopes, readingScopes));
 			}
 		}
 		return combine(compiled, RowTest.And::new);
@@ -313,15 +339,20 @@ final class ReferenceRowFilterCompiler {
 	/**
 	 * Compiles the children of a container.
 	 *
-	 * @param children the children
-	 * @param scopes   the scopes the children are compiled for
+	 * @param children          the children
+	 * @param nestedQueryScopes the scopes the nested queries of the children are planned in
+	 * @param readingScopes     the scopes the attribute leaves of the children choose a reading for
 	 * @return the compiled children, without those dropped
 	 */
 	@Nonnull
-	private List<RowTest> compileChildren(@Nonnull FilterConstraint[] children, @Nonnull Set<Scope> scopes) {
+	private List<RowTest> compileChildren(
+		@Nonnull FilterConstraint[] children,
+		@Nonnull Set<Scope> nestedQueryScopes,
+		@Nonnull Set<Scope> readingScopes
+	) {
 		final List<RowTest> compiled = new ArrayList<>(children.length);
 		for (FilterConstraint child : children) {
-			addIfPresent(compiled, compile(child, scopes));
+			addIfPresent(compiled, compile(child, nestedQueryScopes, readingScopes));
 		}
 		return compiled;
 	}
@@ -341,22 +372,31 @@ final class ReferenceRowFilterCompiler {
 	/**
 	 * Compiles one constraint below the root.
 	 *
-	 * @param constraint the constraint
-	 * @param scopes     the scopes the constraint is compiled for - the examined scopes, or the scope of the
-	 *                   enclosing `inScope`
+	 * @param constraint        the constraint
+	 * @param nestedQueryScopes the scopes the nested queries of `entityHaving` / `groupHaving` are planned in - the
+	 *                          examined scopes, or the scope of the enclosing `inScope`
+	 * @param readingScopes     the scopes the attribute leaves choose a reading for - those of every owner whose
+	 *                          rows can reach the constraint: the examined scopes and the scopes of the owners, or
+	 *                          the scope of the enclosing `inScope`
 	 * @return the node, NULL when the constraint is dropped
 	 * @throws EvitaInvalidUsageException when the constraint has no meaning on a row
 	 */
 	@Nullable
-	private RowTest compile(@Nonnull FilterConstraint constraint, @Nonnull Set<Scope> scopes) {
+	private RowTest compile(
+		@Nonnull FilterConstraint constraint,
+		@Nonnull Set<Scope> nestedQueryScopes,
+		@Nonnull Set<Scope> readingScopes
+	) {
 		if (!constraint.isApplicable()) {
 			return null;
 		}
 		return switch (constraint) {
-			case And and -> combine(compileChildren(and.getChildren(), scopes), RowTest.And::new);
-			case Or or -> combine(compileChildren(or.getChildren(), scopes), RowTest.Or::new);
+			case And and ->
+				combine(compileChildren(and.getChildren(), nestedQueryScopes, readingScopes), RowTest.And::new);
+			case Or or ->
+				combine(compileChildren(or.getChildren(), nestedQueryScopes, readingScopes), RowTest.Or::new);
 			case Not not -> {
-				final RowTest child = compile(not.getChild(), scopes);
+				final RowTest child = compile(not.getChild(), nestedQueryScopes, readingScopes);
 				yield child == null ? null : new RowTest.Not(child);
 			}
 			case FilterInScope inScope -> compileInScope(inScope);
@@ -366,40 +406,42 @@ final class ReferenceRowFilterCompiler {
 				Arrays.sort(primaryKeys);
 				yield new RowTest.TargetIn(primaryKeys);
 			}
-			case EntityHaving entityHaving -> compileEntityHaving(entityHaving, scopes);
-			case GroupHaving groupHaving -> compileGroupHaving(groupHaving, scopes);
+			case EntityHaving entityHaving -> compileEntityHaving(entityHaving, nestedQueryScopes);
+			case GroupHaving groupHaving -> compileGroupHaving(groupHaving, nestedQueryScopes);
 			case AttributeEquals equals -> compileEquality(
-				equals.getAttributeName(), scopes,
+				equals.getAttributeName(), readingScopes,
 				(indexKey, attributeSchema) -> AttributeValueMatcher.comparing(
 					indexKey, attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces(),
 					equals.getAttributeValue(), result -> result == 0
 				)
 			);
 			case AttributeInSet inSet -> compileEquality(
-				inSet.getAttributeName(), scopes,
+				inSet.getAttributeName(), readingScopes,
 				(indexKey, attributeSchema) -> AttributeValueMatcher.equalToAny(
 					indexKey, attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces(),
 					inSet.getAttributeValues()
 				)
 			);
-			case AttributeLessThan lessThan -> compileComparison(lessThan, scopes, result -> result < 0);
+			case AttributeLessThan lessThan -> compileComparison(lessThan, readingScopes, result -> result < 0);
 			case AttributeLessThanEquals lessThanEquals ->
-				compileComparison(lessThanEquals, scopes, result -> result <= 0);
-			case AttributeGreaterThan greaterThan -> compileComparison(greaterThan, scopes, result -> result > 0);
+				compileComparison(lessThanEquals, readingScopes, result -> result <= 0);
+			case AttributeGreaterThan greaterThan ->
+				compileComparison(greaterThan, readingScopes, result -> result > 0);
 			case AttributeGreaterThanEquals greaterThanEquals ->
-				compileComparison(greaterThanEquals, scopes, result -> result >= 0);
+				compileComparison(greaterThanEquals, readingScopes, result -> result >= 0);
 			case AttributeBetween between -> compileInLeafLocale(
-				between.getAttributeName(), scopes,
+				between.getAttributeName(), readingScopes,
 				(indexKey, attributeSchema) -> AttributeValueMatcher.between(
 					indexKey, attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces(),
 					between.getFrom(), between.getTo()
 				)
 			);
-			case AttributeStartsWith startsWith -> compileStringSearch(startsWith, scopes, String::startsWith);
-			case AttributeEndsWith endsWith -> compileStringSearch(endsWith, scopes, String::endsWith);
-			case AttributeContains contains -> compileStringSearch(contains, scopes, String::contains);
+			case AttributeStartsWith startsWith ->
+				compileStringSearch(startsWith, readingScopes, String::startsWith);
+			case AttributeEndsWith endsWith -> compileStringSearch(endsWith, readingScopes, String::endsWith);
+			case AttributeContains contains -> compileStringSearch(contains, readingScopes, String::contains);
 			case AttributeInRange inRange -> compileInLeafLocale(
-				inRange.getAttributeName(), scopes,
+				inRange.getAttributeName(), readingScopes,
 				(indexKey, attributeSchema) -> AttributeValueMatcher.enveloping(
 					attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces(),
 					AttributeInRangeTranslator.getComparableValue(
@@ -408,7 +450,7 @@ final class ReferenceRowFilterCompiler {
 					)
 				)
 			);
-			case AttributeIs attributeIs -> compilePresence(attributeIs, scopes);
+			case AttributeIs attributeIs -> compilePresence(attributeIs, readingScopes);
 			case EntityScope entityScope -> throw new EvitaInvalidUsageException(
 				"Constraint `" + entityScope + "` can be used in the filter of the fetched references `" +
 					this.context.referenceSchema().getName() + "` only directly in its `filterBy` - it selects " +
@@ -425,8 +467,9 @@ final class ReferenceRowFilterCompiler {
 	}
 
 	/**
-	 * Compiles an `inScope` container: its children are compiled for its scope alone, and the rows of owners living in
-	 * another scope satisfy it.
+	 * Compiles an `inScope` container: its children are compiled for its scope alone - the nested queries are planned
+	 * in it and only the owners living in it reach the attribute leaves - and the rows of owners living in another
+	 * scope satisfy it.
 	 *
 	 * @param inScope the container
 	 * @return the node, NULL when all children were dropped
@@ -439,7 +482,8 @@ final class ReferenceRowFilterCompiler {
 			this.context.requestScopes().contains(scope),
 			() -> "Scope `" + scope + "` used in `inScope` filter container was not requested by `scope` constraint!"
 		);
-		final RowTest child = combine(compileChildren(inScope.getChildren(), EnumSet.of(scope)), RowTest.And::new);
+		final Set<Scope> scopes = EnumSet.of(scope);
+		final RowTest child = combine(compileChildren(inScope.getChildren(), scopes, scopes), RowTest.And::new);
 		return child == null ? null : new RowTest.InScope(scope, child);
 	}
 
@@ -642,6 +686,10 @@ final class ReferenceRowFilterCompiler {
 	 * Resolves the attribute on the reference schema - the attributes of the catalog are not looked up in a
 	 * reference - and refuses a localized attribute when no locale is known, unless it is unique across locales in
 	 * one of the scopes (the rule of the attribute translators). No trait is required, so nothing is counted.
+	 *
+	 * No other refusal of a leaf depends on the scopes, and this one can only be lifted by a scope added, never
+	 * raised - so the fetch, which adds the scopes of owners living outside the request, refuses nothing the check,
+	 * compiled for the scopes of the request alone, admits.
 	 *
 	 * @param attributeName the name of the attribute
 	 * @param scopes        the scopes the leaf is compiled for
