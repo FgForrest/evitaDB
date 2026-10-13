@@ -157,6 +157,14 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResolver {
+	/**
+	 * Answers the lookup of a missing {@link ReferencedTypeEntityIndex} with `null`, so that a scope which does not
+	 * index the reference contributes no candidate to {@link #getReferencedRecordEntityIndexCandidates} instead of
+	 * being refused - for a caller that examines such scopes on purpose. The supplier is consulted for those scopes
+	 * only: an indexed scope without a type index gets an empty index in its place.
+	 */
+	public static final BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex>
+		NO_OP_MISSING_RTEI_SUPPLIER = (entitySchema, entityIndexKey) -> null;
 	private static final Formula[] EMPTY_INTEGER_FORMULA = Formula.EMPTY_FORMULA_ARRAY;
 	/**
 	 * Contains index of all {@link FilterConstraint} to {@link Formula} translators.
@@ -171,7 +179,9 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 */
 	private static final Set<Class<? extends Formula>> CONJUNCTIVE_FORMULAS;
 	/**
-	 * A no-operation (no-op) implementation of a {@link BiFunction} that returns {@code null} for any input value combination.
+	 * Answers the lookup of a missing {@link ReferencedTypeEntityIndex} with a stub that throws
+	 * {@link io.evitadb.core.exception.ReferenceNotIndexedException} from every method it does not handle, so that a
+	 * filter reaching into a scope which does not index the reference is refused rather than answered with nothing.
 	 */
 	private static final BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex> THROWING_MISSING_RTEI_SUPPLIER =
 		ReferencedTypeEntityIndex::createThrowingStub;

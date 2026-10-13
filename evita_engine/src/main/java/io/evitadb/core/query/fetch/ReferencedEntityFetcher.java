@@ -901,7 +901,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 											and(havingChildren)
 										),
 										examinedScopes,
-										(es, eik) -> null,
+										FilterByVisitor.NO_OP_MISSING_RTEI_SUPPLIER,
 										// the same restriction `computeResultWithPassedIndex` gets: without it this
 										// pass plans the nested `entityHaving` against the referenced collection's
 										// GLOBAL index and evaluates it over every entity there, only to intersect the
@@ -1253,7 +1253,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			filterByVisitor.getReferencedRecordEntityIndexCandidates(
 				new ReferenceHaving(referenceSchema.getName(), and(entityLevelChildren)),
 				examinedScopes,
-				(es, eik) -> null,
+				FilterByVisitor.NO_OP_MISSING_RTEI_SUPPLIER,
 				null
 			);
 		}
