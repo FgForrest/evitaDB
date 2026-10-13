@@ -814,13 +814,6 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				// if there is no filtering, all referenced pks are the result - `combineWithOr` built them into a fresh
 				// bitmap that nothing else holds, so it is returned as it is
 				result = allReferencedEntityPks;
-
-				initNestedQueryComparator(
-					entityNestedQueryComparator,
-					referenceSchema,
-					queryContext
-				);
-
 				validityMappingOptional.ifPresent(it -> it.restrictTo(result));
 			} else {
 				// otherwise we need to filter the referenced pks according to the filterBy constraint
@@ -1020,17 +1013,18 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 								}
 							);
 
-							initNestedQueryComparator(
-								entityNestedQueryComparator,
-								referenceSchema,
-								theFilterByVisitor.getQueryContext()
-							);
-
 							return referencedPrimaryKeysWriter.get();
 						}
 					);
 				result = referencedPrimaryKeys.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(referencedPrimaryKeys);
 			}
+			// only after the filter is translated: an `entityLocaleEquals` in it sets the locale of the comparator, which
+			// the initialization reads
+			initNestedQueryComparator(
+				entityNestedQueryComparator,
+				referenceSchema,
+				queryContext
+			);
 		}
 
 		return result;
