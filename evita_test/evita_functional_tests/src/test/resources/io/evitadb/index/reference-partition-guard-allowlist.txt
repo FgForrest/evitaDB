@@ -7,9 +7,6 @@ R1 | io.evitadb.core.collection.EntityCollection#addIndex | physical load / WAL 
 R1 | io.evitadb.core.collection.EntityCollection$EntityIndexMaintainer#getOrCreateIndex | the collection maintainer constructs reduced entity indexes and mints their primary keys
 R1 | io.evitadb.core.query.QueryPlanningContext#resolvePartitionsOfTargetsForRead | materialized partitions of the hierarchy nodes, split from the virtual ones, entered into the query body channel
 R1 | io.evitadb.core.query.algebra.prefetch.PrefetchFormulaVisitor#createPrefetcherIfNeededOrWorthwhile | owners of the winning narrowed index set of the query body channel, premised to be partitioned
-R1 | io.evitadb.core.query.fetch.ReferencedEntityFetcher#computeResultWithPassedIndex | isolated body per partition entered under the class token of the query body channel
-R1 | io.evitadb.core.query.fetch.ReferencedEntityFetcher#getFilteredReferencedEntityIds | partitions of referenceContent(filterBy/orderBy) evaluated through the query body channel
-R1 | io.evitadb.core.query.fetch.ReferencedEntityFetcher#getReferencedPartitions | materialized candidates of referenceContent(filterBy) joined with the virtual ones, for the query body channel
 R1 | io.evitadb.core.query.filter.FilterByVisitor#getReferencedEntityIndexes | partitions of one target handed to the shared entity/group owner lookup of the having translators
 R1 | io.evitadb.core.query.filter.FilterByVisitor#getReferencedGroupEntityIndexes | group family: reduced group entity indexes have no partition handle (reduced group indexes of one group)
 R1 | io.evitadb.core.query.filter.FilterByVisitor$ReducedIndexCandidates#resolve (overloads ()Ljava/util/List; (Lio/evitadb/index/bitmap/Bitmap;)Ljava/util/List;) | resolves the candidate partitions into the query body channel - all of them, or the materialized ones of a split

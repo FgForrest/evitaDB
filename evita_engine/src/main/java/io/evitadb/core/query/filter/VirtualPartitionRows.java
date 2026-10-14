@@ -52,8 +52,8 @@ import java.util.function.IntPredicate;
  *   exist matches as the reduced entity index of the partition matches it;
  * - `entityLocaleEquals` tests the only owner of the row against the locales of the owner collection in the scope;
  * - `groupHaving` looks the row up among the reduced group indexes of the matching groups;
- * - `inScope` compares the scope it names with the scope of the rows, as the route answered reads it - see
- *   {@link InScopeReading}.
+ * - `inScope` compares the scope it names with the scope of the rows: naming it, the container is its children,
+ *   naming another scope it is unmet.
  *
  * A negation and `attributeIs` need no override: a single-owner partition holds one row, so the subtraction the
  * referenced-type entity index answers in place is the per-partition answer once it is intersected with `U`.
@@ -87,10 +87,6 @@ public final class VirtualPartitionRows {
 	 */
 	@Nonnull private final IntFunction<RepresentativeReferenceKey> representativeReferenceKeyAccessor;
 	/**
-	 * How `inScope` is answered for the rows - see {@link InScopeReading}.
-	 */
-	@Nonnull private final InScopeReading inScopeReading;
-	/**
 	 * The partition primary keys of the rows as a bitmap, built on the first request.
 	 */
 	@Nullable private Bitmap primaryKeys;
@@ -103,22 +99,19 @@ public final class VirtualPartitionRows {
 	 * @param ownerPrimaryKeys                   the only owner of each row
 	 * @param targetPrimaryKeys                  the target of each row
 	 * @param representativeReferenceKeyAccessor reads the representative reference key of the row at a position
-	 * @param inScopeReading                     how `inScope` is answered for the rows
 	 */
 	private VirtualPartitionRows(
 		@Nonnull ReferencedTypeEntityIndex typeIndex,
 		@Nonnull int[] partitionPrimaryKeys,
 		@Nonnull int[] ownerPrimaryKeys,
 		@Nonnull int[] targetPrimaryKeys,
-		@Nonnull IntFunction<RepresentativeReferenceKey> representativeReferenceKeyAccessor,
-		@Nonnull InScopeReading inScopeReading
+		@Nonnull IntFunction<RepresentativeReferenceKey> representativeReferenceKeyAccessor
 	) {
 		this.typeIndex = typeIndex;
 		this.partitionPrimaryKeys = partitionPrimaryKeys;
 		this.ownerPrimaryKeys = ownerPrimaryKeys;
 		this.targetPrimaryKeys = targetPrimaryKeys;
 		this.representativeReferenceKeyAccessor = representativeReferenceKeyAccessor;
-		this.inScopeReading = inScopeReading;
 	}
 
 	/**
@@ -126,13 +119,11 @@ public final class VirtualPartitionRows {
 	 * instance per scope the candidates come from. Costs one pass over the virtual candidates.
 	 *
 	 * @param split          the split of the candidates
-	 * @param inScopeReading how `inScope` is answered for the rows
 	 * @return the rows per referenced-type entity index, empty when the split holds no virtual candidate
 	 */
 	@Nonnull
 	public static VirtualPartitionRows[] of(
-		@Nonnull ReferencePartitionSplit split,
-		@Nonnull InScopeReading inScopeReading
+		@Nonnull ReferencePartitionSplit split
 	) {
 		final int virtualCount = split.getVirtualCount();
 		if (virtualCount == 0) {
@@ -169,8 +160,7 @@ public final class VirtualPartitionRows {
 			}
 			result[slot] = new VirtualPartitionRows(
 				typeIndex, partitionPrimaryKeys, owners, targets,
-				it -> split.getVirtualPartition(positions[it]).getRepresentativeReferenceKey(),
-				inScopeReading
+				it -> split.getVirtualPartition(positions[it]).getRepresentativeReferenceKey()
 			);
 		}
 		return result;
@@ -181,14 +171,12 @@ public final class VirtualPartitionRows {
 	 *
 	 * @param typeIndex      the referenced-type entity index whose registry holds the partitions
 	 * @param partitions     the partitions, ascending by primary key, each held by `typeIndex`
-	 * @param inScopeReading how `inScope` is answered for the rows
 	 * @return the rows
 	 */
 	@Nonnull
 	public static VirtualPartitionRows of(
 		@Nonnull ReferencedTypeEntityIndex typeIndex,
-		@Nonnull VirtualReferencePartition[] partitions,
-		@Nonnull InScopeReading inScopeReading
+		@Nonnull VirtualReferencePartition[] partitions
 	) {
 		final int[] partitionPrimaryKeys = new int[partitions.length];
 		final int[] owners = new int[partitions.length];
@@ -205,8 +193,7 @@ public final class VirtualPartitionRows {
 		}
 		return new VirtualPartitionRows(
 			typeIndex, partitionPrimaryKeys, owners, targets,
-			it -> partitions[it].getRepresentativeReferenceKey(),
-			inScopeReading
+			it -> partitions[it].getRepresentativeReferenceKey()
 		);
 	}
 
@@ -252,16 +239,6 @@ public final class VirtualPartitionRows {
 	}
 
 	/**
-	 * Returns how `inScope` is answered for the rows.
-	 *
-	 * @return the reading of `inScope`
-	 */
-	@Nonnull
-	public InScopeReading getInScopeReading() {
-		return this.inScopeReading;
-	}
-
-	/**
 	 * Returns how many rows there are.
 	 *
 	 * @return the number of rows
@@ -292,8 +269,8 @@ public final class VirtualPartitionRows {
 
 	/**
 	 * Returns the representative reference key of a row. The cost depends on which factory built this instance:
-	 * rows from {@link #of(ReferencePartitionSplit, InScopeReading)} resolve the tuple through the registry on
-	 * every call, `O(log n)`; rows from {@link #of(ReferencedTypeEntityIndex, VirtualReferencePartition[], InScopeReading)}
+	 * rows from {@link #of(ReferencePartitionSplit)} resolve the tuple through the registry on
+	 * every call, `O(log n)`; rows from {@link #of(ReferencedTypeEntityIndex, VirtualReferencePartition[])}
 	 * read it off an already-resolved {@link VirtualReferencePartition}, a plain field read, `O(1)`.
 	 *
 	 * @param row the position of the row
@@ -338,30 +315,6 @@ public final class VirtualPartitionRows {
 		}
 		// ascending by construction - the rows are
 		return new ConstantFormula(new BaseBitmap(count == result.length ? result : Arrays.copyOf(result, count)));
-	}
-
-	/**
-	 * How `inScope` inside a reference body is answered for rows of one scope. The rows are all in the scope of their
-	 * partitions, so the container is decided for all of them at once - and the answer has to be the one of the route
-	 * the rows are evaluated for, because the routes reading partitions through their reduced entity indexes differ:
-	 *
-	 * - `referenceHaving` rebuilds its body from the formulas of its level and never runs the post-processor of
-	 *   `inScope`, so a constraint confined to another scope contributes nothing for a partition;
-	 * - `referenceContent(filterBy)` evaluates the body per partition and runs the post-processor, which ORs one copy
-	 *   of the body per processed scope, each restricted to the entities of its scope: in the copy of the partition's
-	 *   own scope a constraint confined to another scope is replaced by every record of the partition, and the copy of
-	 *   any other scope selects nothing, because the partition holds no entity of that scope.
-	 */
-	public enum InScopeReading {
-		/**
-		 * `inScope` naming the scope of the rows is its children, naming another scope it is unmet - `referenceHaving`.
-		 */
-		OTHER_SCOPES_UNMET,
-		/**
-		 * `inScope` naming the scope of the rows is its children, naming another scope it is met by every row - the
-		 * copy of the rows' own scope in `referenceContent(filterBy)`.
-		 */
-		OTHER_SCOPES_MET
 	}
 
 	@Override

@@ -43,7 +43,6 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -318,14 +317,6 @@ class ValidEntityToReferenceMappingTest {
 				1, referenceSchema(BRAND), true
 			);
 			assertThrows(GenericEvitaInternalError.class, () -> mapping.admit(OWNER_A, brand(1, 1, "CZ", true)));
-		}
-
-		@Test
-		@DisplayName("refuses to admit a row into the mapping of the index route")
-		void shouldRefuseAdmissionIntoMappingOfIndexRoute() {
-			final ValidEntityToReferenceMapping mapping = new ValidEntityToReferenceMapping(1, referenceSchema(STORE));
-			mapping.setInitialVisibilityForEntity(OWNER_A, new BaseBitmap(10));
-			assertThrows(GenericEvitaInternalError.class, () -> mapping.admit(OWNER_A, store(10, false)));
 		}
 
 	}

@@ -54,7 +54,6 @@ import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.NestedQueryRestriction;
 import io.evitadb.core.query.filter.VirtualPartitionRows;
-import io.evitadb.core.query.filter.VirtualPartitionRows.InScopeReading;
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.ReferencePartitionSplit;
@@ -201,7 +200,6 @@ public final class VirtualPartitionBodyEvaluator {
 	 * @param referenceSchema             the reference
 	 * @param body                        the body
 	 * @param split                       the split of the candidates
-	 * @param inScopeReading              how the route being answered reads `inScope` - see {@link InScopeReading}
 	 * @param nestedQueryRestriction      the narrowing of a nested `entityHaving` query, as the candidate discovery
 	 *                                    got it
 	 * @param entityNestedQueryComparator the comparator the route evaluates the body of a materialized partition
@@ -215,11 +213,10 @@ public final class VirtualPartitionBodyEvaluator {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterBy body,
 		@Nonnull ReferencePartitionSplit split,
-		@Nonnull InScopeReading inScopeReading,
 		@Nullable NestedQueryRestriction nestedQueryRestriction,
 		@Nullable EntityNestedQueryComparator entityNestedQueryComparator
 	) {
-		final VirtualPartitionRows[] rowsPerScope = VirtualPartitionRows.of(split, inScopeReading);
+		final VirtualPartitionRows[] rowsPerScope = VirtualPartitionRows.of(split);
 		final AttributeSchemaAccessor attributeSchemaAccessor =
 			filterByVisitor.getProcessingScope().withReferenceSchemaAccessor(referenceSchema.getName());
 		PersistentRoaringBitmap result = null;
@@ -234,42 +231,6 @@ public final class VirtualPartitionBodyEvaluator {
 			}
 		}
 		return result == null ? EmptyBitmap.INSTANCE : new BaseBitmap(result);
-	}
-
-	/**
-	 * Answers a body exactly for the virtual candidates of a split as `referenceContent(filterBy)` reads it, and
-	 * returns the primary keys of those whose single row satisfies it. That route evaluates the body against each
-	 * partition with the post-processor of `inScope` running, which ORs one copy of the body per processed scope, each
-	 * restricted to the entities of its scope (see {@link InScopeReading}). Only the copy of the partition's own scope
-	 * ({@link InScopeReading#OTHER_SCOPES_MET}) can select a row - the copy of any other scope is restricted to entities
-	 * the partition does not hold - so the body is evaluated once, in that reading.
-	 *
-	 * @param filterByVisitor             the visitor translating the reference filter
-	 * @param entitySchema                the schema of the entity owning the reference
-	 * @param referenceSchema             the reference
-	 * @param body                        the body
-	 * @param split                       the split of the candidates
-	 * @param nestedQueryRestriction      the narrowing of a nested `entityHaving` query, as the candidate discovery
-	 *                                    got it
-	 * @param entityNestedQueryComparator the comparator of the ordering of the fetched references, which the route
-	 *                                    evaluates the body of a materialized partition with - the body's
-	 *                                    `entityLocaleEquals` hands it its locale; NULL when no ordering is requested
-	 * @return the primary keys of the virtual candidates satisfying the body, possibly empty
-	 */
-	@Nonnull
-	public static Bitmap getMatchingPartitionsPerRow(
-		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull FilterBy body,
-		@Nonnull ReferencePartitionSplit split,
-		@Nullable NestedQueryRestriction nestedQueryRestriction,
-		@Nullable EntityNestedQueryComparator entityNestedQueryComparator
-	) {
-		return getMatchingPartitions(
-			filterByVisitor, entitySchema, referenceSchema, body, split, InScopeReading.OTHER_SCOPES_MET,
-			nestedQueryRestriction, entityNestedQueryComparator
-		);
 	}
 
 	/**

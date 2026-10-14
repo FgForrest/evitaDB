@@ -39,7 +39,6 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.FilterByVisitor.ReducedIndexCandidates;
 import io.evitadb.core.query.filter.FilterByVisitor.SplitReducedIndexCandidates;
-import io.evitadb.core.query.filter.VirtualPartitionRows.InScopeReading;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.dataType.Scope;
@@ -258,9 +257,6 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 				split,
 				VirtualPartitionBodyEvaluator.getMatchingPartitions(
 					filterByVisitor, entitySchema, referenceSchema, new FilterBy(referenceHaving.getChildren()), split,
-					// the transposed body never runs the post-processor of `inScope`, so a constraint confined to
-					// another scope contributes nothing for a partition
-					InScopeReading.OTHER_SCOPES_UNMET,
 					processingScope.getNestedQueryRestriction(),
 					// the comparator the materialized candidates are evaluated with, see `applySearchOnIndexes`
 					processingScope.getEntityNestedQueryComparator()

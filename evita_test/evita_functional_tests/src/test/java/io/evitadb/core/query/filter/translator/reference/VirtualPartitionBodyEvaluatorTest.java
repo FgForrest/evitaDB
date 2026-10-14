@@ -37,7 +37,6 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.filter.VirtualPartitionRows;
-import io.evitadb.core.query.filter.VirtualPartitionRows.InScopeReading;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndexKey;
@@ -198,7 +197,7 @@ class VirtualPartitionBodyEvaluatorTest {
 		archived.getVirtualReferencePartitionIndex().putPartitionOwner(3, 30, 300);
 		archived.getVirtualReferencePartitionIndex().putPartitionOwner(6, 60, 600);
 		final VirtualPartitionRows[] rows = VirtualPartitionRows.of(
-			ReferencePartitions.split(new BaseBitmap(1, 3, 4, 6), live, archived), InScopeReading.OTHER_SCOPES_UNMET
+			ReferencePartitions.split(new BaseBitmap(1, 3, 4, 6), live, archived)
 		);
 		assertEquals(2, rows.length);
 		final VirtualPartitionRows liveRows = rows[0].getScope() == Scope.LIVE ? rows[0] : rows[1];
@@ -207,7 +206,6 @@ class VirtualPartitionBodyEvaluatorTest {
 		assertArrayEquals(new int[]{3, 6}, archivedRows.getPartitionPrimaryKeys().getArray());
 		assertEquals(60, archivedRows.getOwnerPrimaryKey(1));
 		assertEquals(600, archivedRows.getTargetPrimaryKey(1));
-		assertSame(InScopeReading.OTHER_SCOPES_UNMET, archivedRows.getInScopeReading());
 		assertArrayEquals(
 			new int[]{6},
 			archivedRows.select(row -> archivedRows.getTargetPrimaryKey(row) > 300).compute().getArray()

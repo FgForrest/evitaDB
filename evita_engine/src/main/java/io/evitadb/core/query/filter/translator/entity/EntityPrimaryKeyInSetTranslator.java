@@ -84,13 +84,10 @@ public class EntityPrimaryKeyInSetTranslator implements FilteringConstraintTrans
 		// not: when index selection picks the reduced-index option for the whole query, a TOP-LEVEL
 		// `entityPrimaryKeyInSet` is translated in this very scope while still speaking about owners, and
 		// reading it as a referenced-entity constraint there evicts every owner.
-		// the guard names the ABSTRACT class deliberately. `ReferenceHavingTranslator` declares its scope as
-		// `ReducedEntityIndex`, but `ReferencedEntityFetcher#computeResultWithPassedIndex` declares the superclass
-		// even though the index it hands over is a reduced entity one - and
-		// `ReducedEntityIndex.class.isAssignableFrom(AbstractReducedEntityIndex.class)` is FALSE, because the
-		// argument is the superclass. Naming the subclass here would leave the fetch path translating a
-		// referenced-entity constraint as an owner one. Which indexes can actually answer it is decided by the
-		// runtime filter below, not by the declared type.
+		// the guard names the ABSTRACT class deliberately: `ReducedEntityIndex.class.isAssignableFrom(
+		// AbstractReducedEntityIndex.class)` is FALSE, so a scope declared with the superclass would be translated
+		// as an owner one. Which indexes can actually answer it is decided by the runtime filter below, not by the
+		// declared type.
 		final boolean referencedEntityConstraint = AbstractReducedEntityIndex.class.isAssignableFrom(indexType) &&
 			processingScope.getReferenceSchema() != null;
 		final VirtualPartitionRows virtualPartitionRows = processingScope.getVirtualPartitionRows();

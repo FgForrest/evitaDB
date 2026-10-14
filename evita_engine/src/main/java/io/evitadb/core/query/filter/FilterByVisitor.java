@@ -157,14 +157,6 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResolver {
-	/**
-	 * Answers the lookup of a missing {@link ReferencedTypeEntityIndex} with `null`, so that a scope which does not
-	 * index the reference contributes no candidate to {@link #getReferencedRecordEntityIndexCandidates} instead of
-	 * being refused - for a caller that examines such scopes on purpose. The supplier is consulted for those scopes
-	 * only: an indexed scope without a type index gets an empty index in its place.
-	 */
-	public static final BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex>
-		NO_OP_MISSING_RTEI_SUPPLIER = (entitySchema, entityIndexKey) -> null;
 	private static final Formula[] EMPTY_INTEGER_FORMULA = Formula.EMPTY_FORMULA_ARRAY;
 	/**
 	 * Contains index of all {@link FilterConstraint} to {@link Formula} translators.
@@ -178,13 +170,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * Contains set of formulas that are considered conjunctive for purpose of this visitor.
 	 */
 	private static final Set<Class<? extends Formula>> CONJUNCTIVE_FORMULAS;
-	/**
-	 * Answers the lookup of a missing {@link ReferencedTypeEntityIndex} with a stub that throws
-	 * {@link io.evitadb.core.exception.ReferenceNotIndexedException} from every method it does not handle, so that a
-	 * filter reaching into a scope which does not index the reference is refused rather than answered with nothing.
-	 */
-	private static final BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex> THROWING_MISSING_RTEI_SUPPLIER =
-		ReferencedTypeEntityIndex::createThrowingStub;
 	/**
 	 * A no-op supplier that returns `null` for any missing reduced group entity index lookup.
 	 */
@@ -989,24 +974,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
-	 * Discovers the candidate reduced indexes for the passed `referenceHaving` without resolving them, raising
-	 * when a referenced type index is missing.
-	 *
-	 * @param referenceHaving the constraint whose reference is being discovered
-	 * @param scopes          scopes to discover in
-	 * @return the candidate partitions and the means to resolve them
-	 */
-	@Nonnull
-	public ReducedIndexCandidates getReferencedRecordEntityIndexCandidates(
-		@Nonnull ReferenceHaving referenceHaving,
-		@Nonnull Set<Scope> scopes
-	) {
-		return getReferencedRecordEntityIndexCandidates(
-			referenceHaving, scopes, THROWING_MISSING_RTEI_SUPPLIER, null
-		);
-	}
-
-	/**
 	 * Discovers which reduced indexes could answer the passed `referenceHaving` WITHOUT resolving them into
 	 * index objects.
 	 *
@@ -1021,23 +988,17 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * partition as a row of the split instead of resolving it; a route that needs the index objects of every candidate
 	 * calls {@link ReducedIndexCandidates#resolve()} instead.
 	 *
-	 * @param referenceHaving              the constraint whose reference is being discovered
-	 * @param scope                        scopes to discover in
-	 * @param missingReferencedIndexSupplier resolves a type index that does not exist yet
-	 * @param nestedQueryRestriction       optional narrowing applied to the filter of a nested query planned for an
-	 *                                     {@link EntityHaving} inside `referenceHaving`. Pass the key set the result
-	 *                                     is intersected with anyway to keep the nested query from being evaluated
-	 *                                     over the whole referenced collection - see
-	 *                                     {@code ProcessingScope#getNestedQueryRestriction()}.
+	 * A missing referenced type index raises, and the nested query of an {@link EntityHaving} inside
+	 * `referenceHaving` is planned over the whole referenced collection.
+	 *
+	 * @param referenceHaving the constraint whose reference is being discovered
+	 * @param scope           scopes to discover in
 	 * @return the candidate partitions and the means to resolve them
 	 */
 	@Nonnull
 	public ReducedIndexCandidates getReferencedRecordEntityIndexCandidates(
 		@Nonnull ReferenceHaving referenceHaving,
-		@Nonnull Set<Scope> scope,
-		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex>
-			missingReferencedIndexSupplier,
-		@Nullable NestedQueryRestriction nestedQueryRestriction
+		@Nonnull Set<Scope> scope
 	) {
 		final ReferenceSchemaContract referenceSchema = resolveReferenceSchema(
 			getProcessingScope().getEntitySchema(), referenceHaving
@@ -1052,8 +1013,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				referenceSchema,
 				new FilterBy(referenceHaving.getChildren()),
 				EntityIndexType.REFERENCED_ENTITY_TYPE,
-				missingReferencedIndexSupplier,
-				nestedQueryRestriction,
+				null,
 				// every consumer of this method re-evaluates the body against each candidate afterwards
 				NegationResolution.PER_ROW
 			)
@@ -1224,46 +1184,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
-	 * Returns primary keys of the group entities matching the passed group-level filter.
-	 *
-	 * `groupHaving` filters on the attributes of the **group entity**, so the constraint has to be planned as
-	 * a nested query against the group collection - exactly what {@link GroupHavingTranslator} does when the
-	 * constraint is reached through the ordinary filter translation. Evaluating it against the reference's own
-	 * type-level index instead resolves attribute names through the reference schema, where a group entity's
-	 * attribute does not exist, and the query fails outright.
-	 *
-	 * @param referenceSchema reference whose group collection the filter is evaluated against
-	 * @param groupFilter     the filter to evaluate, already unwrapped from its `groupHaving` container
-	 * @param scopes          the scopes to evaluate in
-	 * @return primary keys of the matching group entities
-	 */
-	@Nonnull
-	public Bitmap getMatchingGroupEntityPrimaryKeys(
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull FilterConstraint groupFilter,
-		@Nonnull Set<Scope> scopes
-	) {
-		final String referencedGroupType = referenceSchema.getReferencedGroupType();
-		Assert.notNull(
-			referencedGroupType,
-			() -> "Filtering constraint `" + groupFilter + "` targets reference `" +
-				referenceSchema.getName() + "` that does not reference any group type."
-		);
-		Assert.isTrue(
-			referenceSchema.isReferencedGroupTypeManaged(),
-			() -> "Filtering constraint `" + groupFilter + "` targets group entity " +
-				"`" + referencedGroupType + "` that is not managed by evitaDB."
-		);
-		return getMatchingEntityPrimaryKeys(
-			referencedGroupType,
-			groupFilter,
-			scopes,
-			() -> "filtering reference `" + referenceSchema.getName() + "` by group entity `" +
-				referencedGroupType + "` having: " + groupFilter
-		);
-	}
-
-	/**
 	 * Returns primary keys of the entities of the target entity type matching the passed filter - the filter planned
 	 * as a nested query against the global index of the target collection in every passed scope, the answers of the
 	 * scopes united. The filter names the attributes of the target entity, so only a nested query over its collection
@@ -1344,7 +1264,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		final Formula reducedEntityIndexPrimaryKeys = getReducedIndexPrimaryKeyFormula(
 			entitySchema, referenceSchema, filterBy,
 			EntityIndexType.REFERENCED_ENTITY_TYPE,
-			THROWING_MISSING_RTEI_SUPPLIER,
 			// public entry point - the caller passes the whole filter and holds no key set to narrow it with
 			null,
 			// this formula IS the answer - it is computed right here and translated straight into referenced
@@ -1465,7 +1384,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * @param referenceSchema                    the reference schema
 	 * @param filterBy                           the filter constraint to evaluate
 	 * @param indexType                          the type of reference index to use
-	 * @param missingReferencedTypeIndexSupplier supplier for missing indexes
 	 * @param nestedQueryRestriction             optional narrowing applied to the filter of a nested query planned
 	 *                                           for an {@link EntityHaving} inside `filterBy`; NULL leaves the nested
 	 *                                           filter untouched
@@ -1481,8 +1399,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterBy filterBy,
 		@Nonnull EntityIndexType indexType,
-		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReferencedTypeEntityIndex>
-			missingReferencedTypeIndexSupplier,
 		@Nullable NestedQueryRestriction nestedQueryRestriction,
 		@Nonnull NegationResolution negationResolution
 	) {
@@ -1495,10 +1411,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				.map(scope -> {
 					// a scope indexed without the entity component has no type index, and the branch below would answer
 					// it with an empty formula - indistinguishable from a scope that simply holds no rows. Only a scope
-					// the query returns rows from is refused: `referenceContent` also looks up the scopes its inner
-					// `scope(...)` names for the *referenced* entities (`ReferencedEntityFetcher#gatherSearchedScopes`),
-					// and the owners fetched there live in the queried scopes only, so an empty answer from any other
-					// scope loses none of them
+					// the query returns rows from is refused: a scope looked up for another reason holds no owners
+					// the query returns, so an empty answer from it loses none of them
 					if (indexType == EntityIndexType.REFERENCED_ENTITY_TYPE && queriedScopes.contains(scope)) {
 						HavingTranslatorHelper.assertEntityComponentIndexed(
 							entitySchema, referenceSchema, scope, queriedScopes
@@ -1527,12 +1441,10 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 					} else if (entityIndex.isEmpty()) {
 						// we need to behave like if the index existed - we never know where in the filtering
 						// constraint the client might have used InScope container limiting the scope of the query
-						final ReferencedTypeEntityIndex missingIndexStub = missingReferencedTypeIndexSupplier.apply(entitySchema, entityIndexKey);
-						if (missingIndexStub == null) {
-							return EmptyFormula.INSTANCE;
-						} else {
-							targetReferencedTypeIndex = missingIndexStub;
-						}
+						// a stub that throws ReferenceNotIndexedException from every method it does not handle, so that
+						// a filter reaching into a scope which does not index the reference is refused rather than
+						// answered with nothing
+						targetReferencedTypeIndex = ReferencedTypeEntityIndex.createThrowingStub(entitySchema, entityIndexKey);
 					} else {
 						targetReferencedTypeIndex = entityIndex.get();
 					}

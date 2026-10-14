@@ -44,7 +44,6 @@ import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.VirtualPartitionRows;
-import io.evitadb.core.query.filter.VirtualPartitionRows.InScopeReading;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyInSetTranslator;
 import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
@@ -131,8 +130,7 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 	 * whole answer and fill the other requested scopes with records of another kind:
 	 *
 	 * - naming the scope of the rows, the container is its children, translated in that scope;
-	 * - naming another scope, it is what the route the rows are answered for makes of a constraint confined to another
-	 *   scope - every row, or none (see {@link VirtualPartitionRows.InScopeReading}).
+	 * - naming another scope, it is unmet: a constraint confined to another scope contributes nothing for a partition.
 	 *
 	 * A container decided without its children still hands their locales to the ordering of the fetched references,
 	 * as the visit of the index objects does - see {@link #applyLocalesToNestedQueryComparator}.
@@ -151,8 +149,7 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 		final Scope scopeToUse = inScope.getScope();
 		if (scopeToUse != rows.getScope()) {
 			applyLocalesToNestedQueryComparator(inScope, filterByVisitor.getProcessingScope());
-			return rows.getInScopeReading() == InScopeReading.OTHER_SCOPES_MET ?
-				filterByVisitor.getSuperSetFormula() : EmptyFormula.INSTANCE;
+			return EmptyFormula.INSTANCE;
 		}
 		return filterByVisitor.getProcessingScope()
 			.doWithScope(

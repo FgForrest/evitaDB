@@ -423,8 +423,7 @@ class BitmapSlicer {
 	 * winners — no over-fetch, no under-fetch: the pre-fetch slice matches the post-fetch sort+chunk in
 	 * `EntityDecorator`.
 	 *
-	 * The references are filtered **row by row, before they are sorted and sliced**, whenever the validity mapping
-	 * is filled row by row ({@link ValidEntityToReferenceMapping#isFilledRowByRow()}): a row the filter rejected, or
+	 * The references are filtered **row by row, before they are sorted and sliced**: a row the filter rejected, or
 	 * a dropped one, may share its referenced primary key with an admitted row, and kept in the buffer it would take
 	 * a slot of the page that the decorator empties afterwards - pushing an admitted row off the page. The groups
 	 * recorded are those of the kept rows only.
@@ -453,7 +452,6 @@ class BitmapSlicer {
 		@Nonnull ReferenceComparator comparator
 	) {
 		this.groupsForEntity = CollectionUtils.createHashMap(this.entityPrimaryKey.size());
-		final boolean filledRowByRow = validityMapping.isFilledRowByRow();
 		return FormulaFactory.or(
 			this.entityPrimaryKey
 				.values()
@@ -480,7 +478,7 @@ class BitmapSlicer {
 						// a key admitted for the source entity does not admit every row holding it - see the JavaDoc
 						if (
 							filteredReferenceEntityIds.contains(r.getReferencedPrimaryKey()) &&
-								(!filledRowByRow || validityMapping.isReferenceSelected(epk, r))
+								validityMapping.isReferenceSelected(epk, r)
 						) {
 							filterBuffer[filteredCount++] = r;
 						}

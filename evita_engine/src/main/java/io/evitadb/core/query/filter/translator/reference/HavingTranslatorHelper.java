@@ -420,7 +420,7 @@ public class HavingTranslatorHelper {
 	 * the passed scope, and refuses the lookup that is about to read it when it does not.
 	 *
 	 * Every query path over a reference - `referenceHaving` (including under `not`), `hierarchyWithin`,
-	 * `hierarchyOfReference`, `referenceContent` with a filter or with an ordering by a predecessor attribute,
+	 * `hierarchyOfReference`, `referenceContent` with an ordering by a predecessor attribute,
 	 * `referenceProperty` ordering, the histograms of `referenceSummaryOfReference` and `histogramHaving`, which is
 	 * rewritten into a `referenceHaving` - reads the reduced entity indexes, and only the entity component builds them.
 	 * A scope indexed for {@link ReferenceIndexedComponents#REFERENCED_GROUP_ENTITY} alone, or with no component at
@@ -795,13 +795,10 @@ public class HavingTranslatorHelper {
 						// branch above exists to avoid. A `not` around it then complements an owner-level set and
 						// answers "this owner references nothing matching", dropping every owner holding a matching
 						// row AND a non-matching one.
-						// the guard names the ABSTRACT class deliberately, and narrowing it to `ReducedEntityIndex`
-						// silently reopens the defect on the fetch path: `ReferenceHavingTranslator` declares its
-						// scope as `ReducedEntityIndex`, but `ReferencedEntityFetcher#computeResultWithPassedIndex`
-						// declares the superclass - it may legitimately be handed a group index - even though the
-						// index it passes is a reduced entity one. Which rows survive a filtered `referenceContent`
-						// is decided here too, so both scopes have to reach this branch. Dispatching on the actual
-						// indexes rather than on the declared class is what the filter below does.
+						// the guard names the ABSTRACT class deliberately: a scope declared with the superclass must
+						// reach this branch too, and `ReducedEntityIndex.class.isAssignableFrom(...)` of the
+						// superclass is FALSE. Dispatching on the actual indexes rather than on the declared class is
+						// what the filter below does.
 						if (nestedResult.globalIndex() == null) {
 							return EmptyFormula.INSTANCE;
 						}
@@ -914,14 +911,12 @@ public class HavingTranslatorHelper {
 	 * Returns the {@link GroupRowLookup} for the matching groups of one nested `groupHaving` query, building it on
 	 * the first request and memoizing it in the planning context for the rest of the plan.
 	 *
-	 * The memo matters more than it looks: `ReferencedEntityFetcher` evaluates a filtered `referenceContent` once per
-	 * reduced index, each time with a single-index scope, and the index-discovery pass and the per-index pass of
-	 * one `referenceHaving` both need the same lookup. Rebuilding it on every call would cost the matching groups'
-	 * index resolution once per index - worse than the per-group scan it replaces.
+	 * The memo matters more than it looks: the index-discovery pass and the per-index pass of one `referenceHaving`
+	 * both need the same lookup. Rebuilding it on every call would cost the matching groups' index resolution once per
+	 * index - worse than the per-group scan it replaces.
 	 *
-	 * Neither caller can hand over the same constraint instance twice - the fetch path re-translates its filter per
-	 * index and `histogramHaving` rewrites itself anew on every translation - so the memo is keyed by value, see
-	 * {@link GroupRowLookupKey}.
+	 * Callers cannot hand over the same constraint instance twice - `histogramHaving` rewrites itself anew on every
+	 * translation - so the memo is keyed by value, see {@link GroupRowLookupKey}.
 	 *
 	 * @param filterByVisitor visitor providing the planning context and the processing scope
 	 * @param entitySchema    schema of the entity owning the reference

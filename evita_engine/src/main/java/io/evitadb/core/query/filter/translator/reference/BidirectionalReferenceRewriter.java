@@ -54,7 +54,6 @@ import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.VirtualPartitionRows;
-import io.evitadb.core.query.filter.VirtualPartitionRows.InScopeReading;
 import io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper.GlobalIndexAndFormula;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.dataType.Scope;
@@ -1179,9 +1178,7 @@ public class BidirectionalReferenceRewriter {
 				final Bitmap matching = filterByVisitor.getMatchingVirtualPartitions(
 					targetEntitySchema, counterpart, body,
 					VirtualPartitionRows.of(
-						typeIndex, allVirtual.subList(from, to).toArray(VirtualReferencePartition[]::new),
-						// the split admits only reference-attribute constraints, never `inScope`
-						InScopeReading.OTHER_SCOPES_UNMET
+						typeIndex, allVirtual.subList(from, to).toArray(VirtualReferencePartition[]::new)
 					),
 					attributeSchemaAccessor, processingScope.getNestedQueryRestriction(),
 					// the materialized partitions of the counterpart are evaluated without a comparator too
