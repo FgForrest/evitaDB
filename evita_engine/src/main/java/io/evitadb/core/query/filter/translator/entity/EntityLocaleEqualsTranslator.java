@@ -48,8 +48,6 @@ import javax.annotation.Nonnull;
 import java.util.Arrays;
 import java.util.Locale;
 
-import static java.util.Optional.ofNullable;
-
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link EntityLocaleEquals} to {@link AbstractFormula}.
  *
@@ -61,9 +59,6 @@ public class EntityLocaleEqualsTranslator implements FilteringConstraintTranslat
 	@Override
 	public Formula translate(@Nonnull EntityLocaleEquals entityLocaleEquals, @Nonnull FilterByVisitor filterByVisitor) {
 		final Locale locale = entityLocaleEquals.getLocale();
-
-		ofNullable(filterByVisitor.getProcessingScope().getEntityNestedQueryComparator())
-			.ifPresent(it -> it.setLocale(locale));
 
 		final VirtualPartitionRows virtualPartitionRows =
 			filterByVisitor.getProcessingScope().getVirtualPartitionRows();

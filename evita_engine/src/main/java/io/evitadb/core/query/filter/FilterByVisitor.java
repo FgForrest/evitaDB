@@ -64,7 +64,6 @@ import io.evitadb.core.query.algebra.reference.IndexTaggedFormula;
 import io.evitadb.core.query.algebra.reference.ReferencedEntityIndexPrimaryKeyTranslatingFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
-import io.evitadb.core.query.fetch.ReferencedEntityFetcher;
 import io.evitadb.core.query.filter.translator.FilterByTranslator;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.attribute.*;
@@ -95,7 +94,6 @@ import io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper;
 import io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper.GlobalIndexAndFormula;
 import io.evitadb.core.query.filter.translator.reference.ReferenceHavingTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
-import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.price.PriceSuperIndex;
@@ -503,8 +501,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 							null,
 							entitySchema,
 							null,
-							null,
-							null,
 							// the filter is a part of the query whichever plan evaluates it, so it records what it names -
 							// whether the context counts it or hands it over is up to the caller
 							new AttributeSchemaAccessor(
@@ -570,7 +566,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			queryContext.getScopes(),
 			AttributeContent.ALL_ATTRIBUTES,
 			queryContext.isEntityTypeKnown() ? queryContext.getSchema() : null,
-			null, null,
+			null,
 			new AttributeSchemaAccessor(queryContext),
 			(entityContract, attributeName, locale) -> Stream.of(entityContract.getAttributeValue(attributeName, locale))
 		);
@@ -946,7 +942,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	/**
 	 * Returns extension of {@link ProcessingScope} that is set for current context.
 	 *
-	 * @see #executeInContext(Class, Supplier, EntityContentRequire, EntitySchemaContract, ReferenceSchemaContract, NestedQueryRestriction, NegationResolution, EntityNestedQueryComparator, AttributeSchemaAccessor, TriFunction, Supplier, Class[])
+	 * @see #executeInContext(Class, Supplier, EntityContentRequire, EntitySchemaContract, ReferenceSchemaContract, NegationResolution, AttributeSchemaAccessor, TriFunction, Supplier, Class[])
 	 */
 	@Nonnull
 	public ProcessingScope<? extends Index<?>> getProcessingScope() {
@@ -1013,7 +1009,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				referenceSchema,
 				new FilterBy(referenceHaving.getChildren()),
 				EntityIndexType.REFERENCED_ENTITY_TYPE,
-				null,
 				// every consumer of this method re-evaluates the body against each candidate afterwards
 				NegationResolution.PER_ROW
 			)
@@ -1264,8 +1259,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		final Formula reducedEntityIndexPrimaryKeys = getReducedIndexPrimaryKeyFormula(
 			entitySchema, referenceSchema, filterBy,
 			EntityIndexType.REFERENCED_ENTITY_TYPE,
-			// public entry point - the caller passes the whole filter and holds no key set to narrow it with
-			null,
 			// this formula IS the answer - it is computed right here and translated straight into referenced
 			// entity primary keys, with nothing re-examining the rows afterwards
 			NegationResolution.IN_PLACE
@@ -1308,11 +1301,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * @param filterBy                the body
 	 * @param rows                    the rows the body is answered for
 	 * @param attributeSchemaAccessor resolves the attributes of the body - those of the reference
-	 * @param nestedQueryRestriction  the narrowing of a nested `entityHaving` query, as the candidate discovery got it
-	 * @param entityNestedQueryComparator the comparator the route installs when it evaluates the body against a
-	 *                                    materialized partition - `entityLocaleEquals` in the body hands it its locale
-	 *                                    and a nested `entityHaving` query takes its locale and scopes from it; NULL
-	 *                                    when the route installs none
 	 * @return the partition primary keys of the rows satisfying the body, possibly empty
 	 */
 	@Nonnull
@@ -1321,9 +1309,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterBy filterBy,
 		@Nonnull VirtualPartitionRows rows,
-		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
-		@Nullable NestedQueryRestriction nestedQueryRestriction,
-		@Nullable EntityNestedQueryComparator entityNestedQueryComparator
+		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor
 	) {
 		// only `facetHaving` sets the expansion function, and it never reads virtual rows - a set one here would
 		// widen the type-level answer the rows are read from
@@ -1339,10 +1325,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			ReferenceContent.ALL_REFERENCES,
 			entitySchema,
 			referenceSchema,
-			nestedQueryRestriction,
 			// the formula is the answer for every row - nothing re-examines the rows afterwards
 			NegationResolution.IN_PLACE,
-			entityNestedQueryComparator,
 			attributeSchemaAccessor,
 			(theEntity, attributeName, locale) ->
 				theEntity.getReferences(referenceName)
@@ -1384,9 +1368,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * @param referenceSchema                    the reference schema
 	 * @param filterBy                           the filter constraint to evaluate
 	 * @param indexType                          the type of reference index to use
-	 * @param nestedQueryRestriction             optional narrowing applied to the filter of a nested query planned
-	 *                                           for an {@link EntityHaving} inside `filterBy`; NULL leaves the nested
-	 *                                           filter untouched
 	 * @param negationResolution                 where a negation inside `filterBy` is settled; PER_ROW lets it
 	 *                                           widen to the super set because the caller re-examines every row
 	 *                                           afterwards, IN_PLACE keeps it a real subtraction - see
@@ -1399,7 +1380,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterBy filterBy,
 		@Nonnull EntityIndexType indexType,
-		@Nullable NestedQueryRestriction nestedQueryRestriction,
 		@Nonnull NegationResolution negationResolution
 	) {
 		final String referenceName = referenceSchema.getName();
@@ -1455,9 +1435,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 						ReferenceContent.ALL_REFERENCES,
 						entitySchema,
 						referenceSchema,
-						nestedQueryRestriction,
 						negationResolution,
-						null,
 						getProcessingScope().withReferenceSchemaAccessor(referenceSchema.getName()),
 						(theEntity, attributeName, locale) ->
 							theEntity.getReferences(referenceName)
@@ -1709,8 +1687,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nullable EntityContentRequire requirements,
 		@Nullable EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nullable NestedQueryRestriction nestedQueryRestriction,
-		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nonnull TriFunction<EntityContract, String, Locale, Stream<Optional<AttributeValue>>> attributeValueAccessor,
 		@Nonnull Supplier<T> lambda,
@@ -1722,9 +1698,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			requirements,
 			entitySchema,
 			referenceSchema,
-			nestedQueryRestriction,
 			NegationResolution.IN_PLACE,
-			entityNestedQueryComparator,
 			attributeSchemaAccessor,
 			attributeValueAccessor,
 			lambda,
@@ -1745,9 +1719,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nullable EntityContentRequire requirements,
 		@Nullable EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nullable NestedQueryRestriction nestedQueryRestriction,
 		@Nonnull NegationResolution negationResolution,
-		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nonnull TriFunction<EntityContract, String, Locale, Stream<Optional<AttributeValue>>> attributeValueAccessor,
 		@Nonnull Supplier<T> lambda,
@@ -1762,9 +1734,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 				requirements,
 				entitySchema,
 				referenceSchema,
-				nestedQueryRestriction,
 				negationResolution,
-				entityNestedQueryComparator,
 				attributeSchemaAccessor,
 				attributeValueAccessor,
 				lambda,
@@ -1794,9 +1764,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nullable EntityContentRequire requirements,
 		@Nullable EntitySchemaContract entitySchema,
 		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nullable NestedQueryRestriction nestedQueryRestriction,
 		@Nonnull NegationResolution negationResolution,
-		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 		@Nonnull TriFunction<EntityContract, String, Locale, Stream<Optional<AttributeValue>>> attributeValueAccessor,
 		@Nonnull Supplier<T> lambda,
@@ -1812,9 +1780,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 					requirements,
 					entitySchema,
 					referenceSchema,
-					nestedQueryRestriction,
 					negationResolution,
-					entityNestedQueryComparator,
 					attributeSchemaAccessor,
 					attributeValueAccessor,
 					currentProcessingScope.getReferencedEntityExpansionFunction(),
@@ -1825,14 +1791,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		} finally {
 			this.scope.pop();
 		}
-	}
-
-	/**
-	 * Method executes the logic on the current entity set and returns collection of all formulas.
-	 */
-	@Nonnull
-	public List<Formula> collectFromIndexes(@Nonnull Function<EntityIndex, Stream<? extends Formula>> formulaFunction) {
-		return getEntityIndexStream().flatMap(formulaFunction).toList();
 	}
 
 	/**
@@ -2242,17 +2200,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nullable
 		private final ReferenceSchemaContract referenceSchema;
 		/**
-		 * Narrowing applied to the filter of the nested query an {@link EntityHaving} constraint plans, so that the
-		 * query runs over the keys the owners actually reference rather than the whole target collection. Installed
-		 * by {@link ReferencedEntityFetcher}; NULL when the nested query is to be planned unrestricted.
-		 *
-		 * The restriction knows which nested query it belongs to and refuses to narrow any other - see
-		 * {@link NestedQueryRestriction#applyTo(String, String, io.evitadb.api.query.FilterConstraint)}.
-		 */
-		@Getter
-		@Nullable
-		private final NestedQueryRestriction nestedQueryRestriction;
-		/**
 		 * Where a negation emitted in this scope is settled - see {@link NegationResolution} for why the answer
 		 * belongs to whoever consumes the formula rather than to the index that produced it.
 		 *
@@ -2268,13 +2215,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Getter
 		@Nonnull
 		private final NegationResolution negationResolution;
-		/**
-		 * Comparator that holds information about requested ordering so that we can apply it during entity filtering
-		 * (if it's performed) and pre-initialize it.
-		 */
-		@Getter
-		@Nullable
-		private final EntityNestedQueryComparator entityNestedQueryComparator;
 		/**
 		 * Contains set of indexes, that should be used for accessing final indexes.
 		 */
@@ -2329,36 +2269,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			@Nullable EntityContentRequire requirements,
 			@Nullable EntitySchemaContract entitySchema,
 			@Nullable ReferenceSchemaContract referenceSchema,
-			@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
-			@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
-			@Nonnull TriFunction<EntityContract, String, Locale, Stream<Optional<AttributeValue>>> attributeValueAccessor,
-			@Nonnull Class<? extends FilterConstraint>... suppressedConstraints
-		) {
-			this(
-				indexType,
-				targetIndexes,
-				requiredScopes,
-				requirements,
-				entitySchema,
-				referenceSchema,
-				null,
-				entityNestedQueryComparator,
-				attributeSchemaAccessor,
-				attributeValueAccessor,
-				suppressedConstraints
-			);
-		}
-
-		@SafeVarargs
-		public ProcessingScope(
-			@Nonnull Class<T> indexType,
-			@Nonnull List<T> targetIndexes,
-			@Nonnull Set<Scope> requiredScopes,
-			@Nullable EntityContentRequire requirements,
-			@Nullable EntitySchemaContract entitySchema,
-			@Nullable ReferenceSchemaContract referenceSchema,
-			@Nullable NestedQueryRestriction nestedQueryRestriction,
-			@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
 			@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 			@Nonnull TriFunction<EntityContract, String, Locale, Stream<Optional<AttributeValue>>> attributeValueAccessor,
 			@Nonnull Class<? extends FilterConstraint>... suppressedConstraints
@@ -2377,8 +2287,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			this.requirements = requirements;
 			this.entitySchema = entitySchema;
 			this.referenceSchema = referenceSchema;
-			this.nestedQueryRestriction = nestedQueryRestriction;
-			this.entityNestedQueryComparator = entityNestedQueryComparator;
 			this.indexSupplier = null;
 			this.indexes = targetIndexes;
 			// a scope built around a known index list is never the reference type-level discovery pass
@@ -2393,9 +2301,7 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			@Nullable EntityContentRequire requirements,
 			@Nullable EntitySchemaContract entitySchema,
 			@Nullable ReferenceSchemaContract referenceSchema,
-			@Nullable NestedQueryRestriction nestedQueryRestriction,
 			@Nonnull NegationResolution negationResolution,
-			@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
 			@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,
 			@Nonnull TriFunction<EntityContract, String, Locale, Stream<Optional<AttributeValue>>> attributeValueAccessor,
 			@Nullable UnaryOperator<Bitmap> referencedEntityExpansionFunction,
@@ -2415,8 +2321,6 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			this.requirements = requirements;
 			this.entitySchema = entitySchema;
 			this.referenceSchema = referenceSchema;
-			this.nestedQueryRestriction = nestedQueryRestriction;
-			this.entityNestedQueryComparator = entityNestedQueryComparator;
 			this.negationResolution = negationResolution;
 			this.indexSupplier = targetIndexSupplier;
 			this.referencedEntityExpansionFunction = referencedEntityExpansionFunction;

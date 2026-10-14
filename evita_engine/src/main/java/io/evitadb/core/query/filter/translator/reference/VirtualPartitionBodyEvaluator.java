@@ -52,9 +52,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
-import io.evitadb.core.query.filter.NestedQueryRestriction;
 import io.evitadb.core.query.filter.VirtualPartitionRows;
-import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.ReferencePartitionSplit;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -200,10 +198,6 @@ public final class VirtualPartitionBodyEvaluator {
 	 * @param referenceSchema             the reference
 	 * @param body                        the body
 	 * @param split                       the split of the candidates
-	 * @param nestedQueryRestriction      the narrowing of a nested `entityHaving` query, as the candidate discovery
-	 *                                    got it
-	 * @param entityNestedQueryComparator the comparator the route evaluates the body of a materialized partition
-	 *                                    with, NULL when it uses none
 	 * @return the primary keys of the virtual candidates satisfying the body, possibly empty
 	 */
 	@Nonnull
@@ -212,9 +206,7 @@ public final class VirtualPartitionBodyEvaluator {
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull FilterBy body,
-		@Nonnull ReferencePartitionSplit split,
-		@Nullable NestedQueryRestriction nestedQueryRestriction,
-		@Nullable EntityNestedQueryComparator entityNestedQueryComparator
+		@Nonnull ReferencePartitionSplit split
 	) {
 		final VirtualPartitionRows[] rowsPerScope = VirtualPartitionRows.of(split);
 		final AttributeSchemaAccessor attributeSchemaAccessor =
@@ -222,8 +214,7 @@ public final class VirtualPartitionBodyEvaluator {
 		PersistentRoaringBitmap result = null;
 		for (final VirtualPartitionRows rows : rowsPerScope) {
 			final Bitmap matching = filterByVisitor.getMatchingVirtualPartitions(
-				entitySchema, referenceSchema, body, rows, attributeSchemaAccessor, nestedQueryRestriction,
-				entityNestedQueryComparator
+				entitySchema, referenceSchema, body, rows, attributeSchemaAccessor
 			);
 			if (!matching.isEmpty()) {
 				final PersistentRoaringBitmap matchingBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(matching);

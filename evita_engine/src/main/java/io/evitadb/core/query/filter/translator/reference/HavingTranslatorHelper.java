@@ -51,9 +51,6 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.VirtualPartitionRows;
 import io.evitadb.core.query.filter.NegationResolution;
-import io.evitadb.core.query.filter.NestedQueryRestriction;
-import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
-import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator.EntityPropertyWithScopes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.AbstractReducedEntityIndex;
@@ -87,7 +84,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -239,80 +235,34 @@ public class HavingTranslatorHelper {
 		if (globalIndexes.isEmpty()) {
 			return List.of(new GlobalIndexAndFormula(null, EmptyFormula.INSTANCE));
 		} else {
-			// the restriction is a set of primary keys, and primary keys only mean anything inside one collection -
-			// so it narrows the nested query it was built for and passes every other one through untouched. The
-			// `groupHaving` route arrives here with the reference's *group* type, whose keys live in an unrelated
-			// universe, and would otherwise be intersected with the referenced entities' keys and come out empty
-			final NestedQueryRestriction restriction = processingScope.getNestedQueryRestriction();
-			final FilterConstraint enrichedConstraint = restriction == null ?
-				filter :
-				restriction.applyTo(
-					processingScope.getReferenceSchema() == null ?
-						null : processingScope.getReferenceSchema().getName(),
-					targetEntityType,
-					filter
-				);
-			final FilterBy combinedFilterBy = enrichedConstraint instanceof FilterBy fb ?
-				fb : new FilterBy(enrichedConstraint);
-			final Optional<EntityNestedQueryComparator> entityNestedQueryComparator =
-				ofNullable(processingScope.getEntityNestedQueryComparator());
-
 			return globalIndexes
 				.stream()
 				.map(globalIndex -> new GlobalIndexAndFormula(
 						globalIndex,
 						filterByVisitor.computeOnlyOnce(
 							Collections.singletonList(globalIndex),
-							combinedFilterBy,
+							nestedFilterBy,
 							() -> {
 								// ordered - a unique lookup in the nested query prefers the scope its `scope(...)` lists first
 								final Set<Scope> targetedScopes = CollectionUtils.createLinkedHashSet(4);
 								Collections.addAll(
 									targetedScopes,
-									ofNullable(
-										QueryUtils.findConstraint(
-											combinedFilterBy, EntityScope.class,
-											SeparateEntityScopeContainer.class
-										)
-									).map(EntityScope::getScopesInRequestedOrder)
+									ofNullable(nestedScope).map(EntityScope::getScopesInRequestedOrder)
 										.orElseGet(() -> new Scope[]{
 											globalIndex.getIndexKey().scope()
 										})
 								);
-								final QueryPlanningContext nestedQueryContext = entityNestedQueryComparator
-									.map(it -> {
-										final Optional<EntityPropertyWithScopes> orderBy =
-											ofNullable(it.getOrderBy());
-										orderBy.ifPresent(
-											ob -> targetedScopes.addAll(ob.scopes())
-										);
-										return targetEntityCollection.createQueryContext(
-											filterByVisitor.getQueryContext(),
-											filterByVisitor.getEvitaRequest().deriveCopyWith(
-												targetEntityType,
-												combinedFilterBy,
-												orderBy
-													.map(EntityPropertyWithScopes::createStandaloneOrderBy)
-													.orElse(null),
-												it.getLocale(),
-												targetedScopes
-											),
-											filterByVisitor.getEvitaSession()
-										);
-									})
-									.orElseGet(
-										() -> targetEntityCollection.createQueryContext(
-											filterByVisitor.getQueryContext(),
-											filterByVisitor.getEvitaRequest().deriveCopyWith(
-												targetEntityType,
-												combinedFilterBy,
-												null,
-												null,
-												targetedScopes
-											),
-											filterByVisitor.getEvitaSession()
-										)
-									);
+								final QueryPlanningContext nestedQueryContext = targetEntityCollection.createQueryContext(
+									filterByVisitor.getQueryContext(),
+									filterByVisitor.getEvitaRequest().deriveCopyWith(
+										targetEntityType,
+										nestedFilterBy,
+										null,
+										null,
+										targetedScopes
+									),
+									filterByVisitor.getEvitaSession()
+								);
 
 								return QueryPlanner.planNestedQuery(
 									nestedQueryContext, taskDescriptionSupplier
@@ -1031,8 +981,7 @@ public class HavingTranslatorHelper {
 	 * - the processing scopes the group indexes are resolved in,
 	 * - the matching groups, by the instance of the nested query's formula - compared by identity, because
 	 *   {@link FilterByVisitor#computeOnlyOnce} hands out one instance per group global index and value-equal nested
-	 *   filter. The same instance therefore means the same groups, while a nested filter changed by a
-	 *   {@link NestedQueryRestriction} is another instance and another lookup.
+	 *   filter. The same instance therefore means the same groups.
 	 *
 	 * @param entityType     type of the entity owning the reference - the group indexes belong to it
 	 * @param referenceName  name of the reference carrying the group

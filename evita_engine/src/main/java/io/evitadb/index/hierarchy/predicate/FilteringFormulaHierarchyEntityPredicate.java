@@ -183,8 +183,6 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 								null,
 								queryContext.getSchema(),
 								null,
-								null,
-								null,
 								attributeSchemaAccessor,
 								(entityContract, attributeName, locale) ->
 									Stream.of(entityContract.getAttributeValue(attributeName, locale)),
@@ -344,8 +342,6 @@ public class FilteringFormulaHierarchyEntityPredicate implements HierarchyFilter
 						() -> Collections.singletonList(entityIndex),
 						null,
 						entitySchema,
-						null,
-						null,
 						null,
 						// the node filter is a part of the query, so it records what it names - the context of the
 						// query counts it on the registry of the hierarchy entity, whichever entity that is

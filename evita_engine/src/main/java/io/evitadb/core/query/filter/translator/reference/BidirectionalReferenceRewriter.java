@@ -264,8 +264,6 @@ public class BidirectionalReferenceRewriter {
 			ReferenceContent.ALL_REFERENCES,
 			ownerEntitySchema,
 			ownerReference,
-			processingScope.getNestedQueryRestriction(),
-			null,
 			processingScope.withReferenceSchemaAccessor(referenceName),
 			(entityContract, attributeName, locale) -> entityContract.getReferences(referenceName)
 				.stream()
@@ -1111,8 +1109,6 @@ public class BidirectionalReferenceRewriter {
 			ReferenceContent.ALL_REFERENCES,
 			targetEntitySchema,
 			counterpart,
-			processingScope.getNestedQueryRestriction(),
-			null,
 			attributeSchemaAccessor,
 			(entityContract, attributeName, locale) -> entityContract.getReferences(counterpartName)
 				.stream()
@@ -1180,9 +1176,7 @@ public class BidirectionalReferenceRewriter {
 					VirtualPartitionRows.of(
 						typeIndex, allVirtual.subList(from, to).toArray(VirtualReferencePartition[]::new)
 					),
-					attributeSchemaAccessor, processingScope.getNestedQueryRestriction(),
-					// the materialized partitions of the counterpart are evaluated without a comparator too
-					null
+					attributeSchemaAccessor
 				);
 				if (!matching.isEmpty()) {
 					final PersistentRoaringBitmap matchingBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(matching);

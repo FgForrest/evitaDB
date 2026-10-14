@@ -96,8 +96,6 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 			ReferenceContent.ALL_REFERENCES,
 			entitySchema,
 			referenceSchema,
-			processingScope.getNestedQueryRestriction(),
-			processingScope.getEntityNestedQueryComparator(),
 			processingScope.withReferenceSchemaAccessor(referenceName),
 			(entityContract, attributeName, locale) -> {
 				// this is the place for which we need to prefetch the reference content
@@ -256,10 +254,7 @@ public class ReferenceHavingTranslator implements FilteringConstraintTranslator<
 			VirtualPartitionBodyEvaluator.getOwnersFormula(
 				split,
 				VirtualPartitionBodyEvaluator.getMatchingPartitions(
-					filterByVisitor, entitySchema, referenceSchema, new FilterBy(referenceHaving.getChildren()), split,
-					processingScope.getNestedQueryRestriction(),
-					// the comparator the materialized candidates are evaluated with, see `applySearchOnIndexes`
-					processingScope.getEntityNestedQueryComparator()
+					filterByVisitor, entitySchema, referenceSchema, new FilterBy(referenceHaving.getChildren()), split
 				)
 			);
 		if (materializedIndexes.isEmpty()) {
