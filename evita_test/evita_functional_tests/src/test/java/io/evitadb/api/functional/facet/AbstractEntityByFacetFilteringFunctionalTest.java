@@ -7429,7 +7429,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				),
 				new int[] {2}, null, new String[0]
 			),
-			// R1 (decided 2026-10-13): the filter of the fetched references reads each row itself, so an attribute of
+			// the filter of the fetched references reads each row itself, so an attribute of
 			// the reference that is filterable nowhere is evaluated rather than refused - in a scope with groups and in
 			// one without; the groups reference nothing, so there is no row to admit
 			Arguments.of(

@@ -796,8 +796,8 @@ public class ReferenceWithoutEntityComponentQueryGuardFunctionalTest implements 
 
 		/**
 		 * The filter of `referenceContent` reads the rows of the fetched entity itself, never the reduced entity
-		 * indexes the missing component would have built, so it is answered rather than refused (R3, decided
-		 * 2026-10-13) - and it rejects the rows its condition rejects.
+		 * indexes the missing component would have built, so it is answered rather than refused - and it
+		 * rejects the rows its condition rejects.
 		 */
 		@Test
 		@Tag(REQUIRE)

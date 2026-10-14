@@ -682,7 +682,7 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		@Test
 		@DisplayName("A filter of the fetched references counts no capability, whether or not there is a reference")
 		void shouldCountNoCapabilityOfFilterOfFetchedReferences() {
-			// R7 (decided 2026-10-13): the filter of the fetched references reads each reference row itself, so its
+			// the filter of the fetched references reads each reference row itself, so its
 			// attribute leaves use neither the filterable flag of the attribute nor the indexed flag of the reference,
 			// and counting them would keep a schema change the filter does not depend on from looking safe
 			final Map<SchemaCapabilityKey, Long> requestedWithReference = capabilitiesRequestedByFetching(
@@ -707,7 +707,7 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		void shouldCountNestedFilterOfFetchedReferencesWithoutAnyRow() {
 			// the nested query of `entityHaving` is planned by the check while the query is planned, whatever the
 			// data, so it counts on the categories even when no product is fetched - the leaf beside it reads the
-			// rows and counts nothing on the products (R7)
+			// rows and counts nothing on the products
 			for (int productPrimaryKey : new int[]{1, PRODUCT_COUNT + 1}) {
 				final Query query = Query.query(
 					collection(ENTITY_PRODUCT),
@@ -800,7 +800,7 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		void shouldCountNoCapabilityOfFilterOfReferencesOfFetchedReferencedEntities() {
 			// the categories fetched with a product own the references to the tags, so the filter of those references
 			// is checked in a context of the category collection - and like any filter of fetched references it reads
-			// the rows, so it counts neither the weight nor the tags on the categories (R7, decided 2026-10-13)
+			// the rows, so it counts neither the weight nor the tags on the categories
 			final Map<SchemaCapabilityKey, Long> requestedWithReference = capabilitiesRequestedByFetching(
 				ENTITY_CATEGORY, productWithCategoriesWithTagsFilteredByWeight(1)
 			);

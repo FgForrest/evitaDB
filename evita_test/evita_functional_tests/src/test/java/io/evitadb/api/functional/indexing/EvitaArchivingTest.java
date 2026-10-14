@@ -2091,7 +2091,7 @@ public class EvitaArchivingTest implements EvitaTestSupport, IndexingTestSupport
 				)
 			);
 
-			// U2 (decided 2026-10-13): the filter of the fetched references reads each reference row itself, so its
+			// the filter of the fetched references reads each reference row itself, so its
 			// attribute leaves need no index - the rows of the archived product 100 are judged although ARCHIVED
 			// indexes neither the brands nor the categories, and the query is answered instead of refused
 			assertEquals(

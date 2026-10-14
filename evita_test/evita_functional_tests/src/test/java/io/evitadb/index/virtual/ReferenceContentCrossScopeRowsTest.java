@@ -151,7 +151,7 @@ class ReferenceContentCrossScopeRowsTest implements EvitaTestSupport {
 	}
 
 	@Test
-	@DisplayName("a root scope of the filter keeps the matching rows (D4)")
+	@DisplayName("a root scope of the filter keeps the matching rows")
 	void shouldKeepTheMatchingRowsUnderARootScope() {
 		final Map<Integer, List<String>> rows = this.evita.queryCatalog(
 			CATALOG_CROSS_SCOPE,

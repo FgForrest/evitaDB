@@ -642,7 +642,7 @@ class ReferenceContentRowFilterFunctionalTest {
 	class VerdictsPerRow {
 
 		@Test
-		@DisplayName("a root groupHaving and its sibling judge the same row of each owner (D1, R5)")
+		@DisplayName("a root groupHaving and its sibling judge the same row of each owner")
 		@UseDataSet(DATA_SET)
 		void shouldJudgeRootGroupHavingAndSiblingOnTheSameRow(Evita evita) {
 			final FilterBy filter = filterBy(groupHaving(entityPrimaryKeyInSet(10)), attributeEquals(ATTR_X, 5));
@@ -661,7 +661,7 @@ class ReferenceContentRowFilterFunctionalTest {
 		}
 
 		@Test
-		@DisplayName("a group filter needs no indexed group component and fails on no data (D2, R4)")
+		@DisplayName("a group filter needs no indexed group component and fails on no data")
 		@UseDataSet(DATA_SET)
 		void shouldFilterByGroupWithoutGroupComponent(Evita evita) {
 			final ReferenceContent byGroup = referenceContent(
@@ -669,7 +669,7 @@ class ReferenceContentRowFilterFunctionalTest {
 			);
 			assertEquals(rows(1, List.of("1")), queryRows(evita, LIVE, null, REF_BY_GROUP, byGroup, 1));
 			assertEquals(rows(2, List.of()), queryRows(evita, LIVE, null, REF_BY_GROUP, byGroup, 2));
-			// below the root too - a group filter of the rows needs the group component nowhere (R4)
+			// below the root too - a group filter of the rows needs the group component nowhere
 			final FilterConstraint inGroupG1 = groupHaving(attributeEquals(ATTR_CODE, "g1"));
 			assertEquals(
 				rows(1, List.of("1"), 2, List.of()),
@@ -687,7 +687,7 @@ class ReferenceContentRowFilterFunctionalTest {
 		}
 
 		@Test
-		@DisplayName("a filter of a reference indexed nowhere is applied (U1)")
+		@DisplayName("a filter of a reference indexed nowhere is applied")
 		@UseDataSet(DATA_SET)
 		void shouldApplyFilterOfReferenceIndexedNowhere(Evita evita) {
 			// not a root `entityPrimaryKeyInSet`: that one narrows the rows read from the storage, filter or not
@@ -727,7 +727,7 @@ class ReferenceContentRowFilterFunctionalTest {
 			)) {
 				final ReferenceContent requirement = referenceContent(REF_BRANDS, byKeyword);
 				assertEquals(List.of("1"), getRows(evita, 1, LIVE, REF_BRANDS, requirement));
-				// `keywords` is filterable nowhere - the planning check admits it all the same (R1)
+				// `keywords` is filterable nowhere - the planning check admits it all the same
 				assertEquals(rows(1, List.of("1")), queryRows(evita, LIVE, null, REF_BRANDS, requirement, 1));
 			}
 			assertEquals(
@@ -808,7 +808,7 @@ class ReferenceContentRowFilterFunctionalTest {
 		}
 
 		@Test
-		@DisplayName("under EXISTING only duplicates to existing entities pass, with a filter or without (G1)")
+		@DisplayName("under EXISTING only duplicates to existing entities pass, with a filter or without")
 		@UseDataSet(DATA_SET)
 		void shouldAdmitExistingDuplicatesOnly(Evita evita) {
 			// 4/SK refers to the missing brand 4 - it holds x 5, so only its target keeps it out under the filter
@@ -856,7 +856,7 @@ class ReferenceContentRowFilterFunctionalTest {
 	class Readings {
 
 		@Test
-		@DisplayName("a localized leaf reads the locale of the filter, not of the query (Q1)")
+		@DisplayName("a localized leaf reads the locale of the filter, not of the query")
 		@UseDataSet(DATA_SET)
 		void shouldReadLocaleOfTheFilter(Evita evita) {
 			assertEquals(
@@ -883,7 +883,7 @@ class ReferenceContentRowFilterFunctionalTest {
 		}
 
 		@Test
-		@DisplayName("a nested referenceContent reads the locale of the enclosing filter, at planning too (Q1)")
+		@DisplayName("a nested referenceContent reads the locale of the enclosing filter, at planning too")
 		@UseDataSet(DATA_SET)
 		void shouldReadLocaleOfEnclosingFilterAtSecondLevel(Evita evita) {
 			// the query names no locale and the nested filter none either: the brands are fetched in German, the
@@ -921,7 +921,7 @@ class ReferenceContentRowFilterFunctionalTest {
 		}
 
 		@Test
-		@DisplayName("a localized leaf reads the locale of the filter found inside entityHaving (Q1, X5)")
+		@DisplayName("a localized leaf reads the locale of the filter found inside entityHaving")
 		@UseDataSet(DATA_SET)
 		void shouldReadLocaleFoundInsideEntityHaving(Evita evita) {
 			assertEquals(
@@ -996,7 +996,7 @@ class ReferenceContentRowFilterFunctionalTest {
 		}
 
 		@Test
-		@DisplayName("attributeIs without any locale reads a value in any locale in every scope (X4)")
+		@DisplayName("attributeIs without any locale reads a value in any locale in every scope")
 		@UseDataSet(DATA_SET)
 		void shouldReadAttributeIsWithoutLocaleInAnyLocale(Evita evita) {
 			assertEquals(
@@ -1028,7 +1028,7 @@ class ReferenceContentRowFilterFunctionalTest {
 		}
 
 		@Test
-		@DisplayName("a non-filterable BigDecimal compares as the index would, beyond the int range too (R1)")
+		@DisplayName("a non-filterable BigDecimal compares as the index would, beyond the int range too")
 		@UseDataSet(DATA_SET)
 		void shouldCompareNonFilterableBigDecimalAsTheIndexWould(Evita evita) {
 			// 1.005 is 101 at two decimal places rounded half up - the stored 1.01
@@ -1061,7 +1061,7 @@ class ReferenceContentRowFilterFunctionalTest {
 		}
 
 		@Test
-		@DisplayName("the references are ordered in the locale of the filter (R8)")
+		@DisplayName("the references are ordered in the locale of the filter")
 		@UseDataSet(DATA_SET)
 		void shouldOrderInTheLocaleOfTheFilter(Evita evita) {
 			final List<String> ordered = evita.queryCatalog(
@@ -1097,7 +1097,7 @@ class ReferenceContentRowFilterFunctionalTest {
 	class RefusalsAtPlanning {
 
 		@Test
-		@DisplayName("a constraint without a meaning on a row is refused, naming itself and the reference (R6)")
+		@DisplayName("a constraint without a meaning on a row is refused, naming itself and the reference")
 		@UseDataSet(DATA_SET)
 		void shouldRefuseConstraintWithoutMeaningOnRow(Evita evita) {
 			assertRefusedAtPlanning(
@@ -1107,7 +1107,7 @@ class ReferenceContentRowFilterFunctionalTest {
 		}
 
 		@Test
-		@DisplayName("a scope below the root of the filter is refused rather than read as true (R6, X2)")
+		@DisplayName("a scope below the root of the filter is refused rather than read as true")
 		@UseDataSet(DATA_SET)
 		void shouldRefuseScopeBelowRoot(Evita evita) {
 			for (FilterBy filterBy : List.of(
@@ -1122,7 +1122,7 @@ class ReferenceContentRowFilterFunctionalTest {
 		}
 
 		@Test
-		@DisplayName("an inverted interval of a scalar attribute is refused with the message of the index (R10)")
+		@DisplayName("an inverted interval of a scalar attribute is refused with the message of the index")
 		@UseDataSet(DATA_SET)
 		void shouldRefuseInvertedInterval(Evita evita) {
 			assertRefusedAtPlanning(
@@ -1141,7 +1141,7 @@ class ReferenceContentRowFilterFunctionalTest {
 		}
 
 		@Test
-		@DisplayName("a filter of a reference indexed nowhere is validated (U1)")
+		@DisplayName("a filter of a reference indexed nowhere is validated")
 		@UseDataSet(DATA_SET)
 		void shouldValidateFilterOfReferenceIndexedNowhere(Evita evita) {
 			assertRefusedAtPlanning(
@@ -1160,7 +1160,7 @@ class ReferenceContentRowFilterFunctionalTest {
 			)) {
 				assertRefusedAtPlanning(evita, REF_BRANDS, filterBy, AttributeNotFoundException.class, "unknown");
 			}
-			// on a reference indexed nowhere as well (U1)
+			// on a reference indexed nowhere as well
 			assertRefusedAtPlanning(
 				evita, REF_UNINDEXED, filterBy(entityHaving(attributeEquals("unknown", 1))),
 				AttributeNotFoundException.class, "unknown"
@@ -1174,7 +1174,7 @@ class ReferenceContentRowFilterFunctionalTest {
 	class RefusalsAtFetch {
 
 		@Test
-		@DisplayName("a constraint without a meaning on a row is refused, whether or not the owner holds a row (R6)")
+		@DisplayName("a constraint without a meaning on a row is refused, whether or not the owner holds a row")
 		@UseDataSet(DATA_SET)
 		void shouldRefuseConstraintWithoutMeaningOnRow(Evita evita) {
 			for (int owner : new int[]{1, 5}) {
@@ -1185,7 +1185,7 @@ class ReferenceContentRowFilterFunctionalTest {
 		}
 
 		@Test
-		@DisplayName("a scope below the root of the filter is refused rather than read as true (R6, X2)")
+		@DisplayName("a scope below the root of the filter is refused rather than read as true")
 		@UseDataSet(DATA_SET)
 		void shouldRefuseScopeBelowRoot(Evita evita) {
 			assertRefusedAtFetch(
@@ -1196,7 +1196,7 @@ class ReferenceContentRowFilterFunctionalTest {
 		}
 
 		@Test
-		@DisplayName("an inverted interval of a scalar attribute is refused, with or without a row to test (R10)")
+		@DisplayName("an inverted interval of a scalar attribute is refused, with or without a row to test")
 		@UseDataSet(DATA_SET)
 		void shouldRefuseInvertedInterval(Evita evita) {
 			for (int owner : new int[]{1, 5}) {
@@ -1213,7 +1213,7 @@ class ReferenceContentRowFilterFunctionalTest {
 	class SlicingAndGroups {
 
 		@Test
-		@DisplayName("each named set pages its own admitted duplicates, sorted, with their bodies (X3)")
+		@DisplayName("each named set pages its own admitted duplicates, sorted, with their bodies")
 		@UseDataSet(DATA_SET)
 		void shouldPageAdmittedDuplicatesOfEachNamedSet(Evita evita) {
 			// 1/DE (rank 1) sorts first; set `cz` rejects it, while its pk is admitted through 1/CZ (rank 3)
@@ -1257,7 +1257,7 @@ class ReferenceContentRowFilterFunctionalTest {
 		}
 
 		@Test
-		@DisplayName("each page of duplicates without an ordering carries the bodies of its rows (O-a)")
+		@DisplayName("each page of duplicates without an ordering carries the bodies of its rows")
 		@UseDataSet(DATA_SET)
 		void shouldPageDuplicatesWithoutOrderingWithTheirBodies(Evita evita) {
 			// the rows 1/CZ, 1/DE and 2/CZ (4/SK refers to a missing brand) are paged one per page; the referenced key
