@@ -953,7 +953,24 @@ class ReferenceContentRowFilterFunctionalTest {
 		}
 
 		@Test
-		@DisplayName("an attribute unique in one scope and only filterable in another matches in both (OQ-U)")
+		@DisplayName("inScope of a scope named by the root scope of the filter is answered by a query of another scope")
+		@UseDataSet(DATA_SET)
+		void shouldAnswerInScopeOfScopeNamedByRootScope(Evita evita) {
+			// the owners live in LIVE, so the rows satisfy a condition confined to ARCHIVED; brand 4 does not exist
+			assertEquals(
+				rows(1, List.of("1", "2"), 2, List.of("1")),
+				queryRows(
+					evita, new Scope[]{Scope.LIVE}, null, REF_BRANDS,
+					referenceContent(
+						REF_BRANDS, filterBy(scope(Scope.ARCHIVED), inScope(Scope.ARCHIVED, attributeEquals(ATTR_X, 5)))
+					),
+					1, 2
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("an attribute unique in one scope and only filterable in another matches in both")
 		@UseDataSet(DATA_SET)
 		void shouldMatchAttributeUniqueInOneScopeAndFilterableInAnother(Evita evita) {
 			// an attribute neither filterable in every scope nor unique in every scope is admitted, and each owner
@@ -1050,7 +1067,7 @@ class ReferenceContentRowFilterFunctionalTest {
 		}
 
 		@Test
-		@DisplayName("an empty array is no value (P3)")
+		@DisplayName("an empty array is no value")
 		@UseDataSet(DATA_SET)
 		void shouldReadEmptyArrayAsNoValue(Evita evita) {
 			final ReferenceContent withoutKeywords = referenceContent(

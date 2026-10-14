@@ -651,8 +651,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * Nothing written for one owner is read for another, and no index of the reference is read, so the verdict of
 	 * a row never depends on the other owners fetched along or on whether a scope indexes the reference.
 	 *
-	 * The filter is compiled before anything else is decided, so a filter refused whatever the data is refused also
-	 * when no owner holds a row to test. The nested `entityHaving` and `groupHaving` queries of the filter are planned
+	 * The filter is compiled before the method returns early for owners holding no row to test, so a filter refused
+	 * whatever the data is refused also when there is nothing to test. The nested `entityHaving` and `groupHaving` queries of the filter are planned
 	 * only when the first row reaches them, restricted to the referenced entities and the groups of the rows tested.
 	 *
 	 * @param ownerPrimaryKeys            the primary keys of the owners, indexed by the scope they live in
@@ -1063,8 +1063,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		);
 		final EntityNestedQueryComparator nestedQueryComparator = orderingDescriptor.nestedQueryComparator();
 		if (nestedQueryComparator != null) {
-			final Locale referenceFilterLocale = findReferenceFilterLocale(filterBy);
-			final Locale locale = referenceFilterLocale == null ? ownerQueryContext.getLocale() : referenceFilterLocale;
+			final Locale locale = getReferencedEntityLocale(filterBy, ownerQueryContext.getLocale());
 			final EntityPropertyWithScopes entityOrderBy = nestedQueryComparator.getOrderBy();
 			if (entityOrderBy != null) {
 				final EntityCollection targetEntityCollection = ownerQueryContext.getEntityCollectionOrThrowException(
@@ -1214,9 +1213,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nullable FilterBy referenceFilterBy,
 		@Nonnull QueryExecutionContext executionContext
 	) {
-		final Locale referenceFilterLocale = findReferenceFilterLocale(referenceFilterBy);
-		return referenceFilterLocale == null ?
-			executionContext.getEvitaRequest().getRequiredOrImplicitLocale() : referenceFilterLocale;
+		return getReferencedEntityLocale(
+			referenceFilterBy, executionContext.getEvitaRequest().getRequiredOrImplicitLocale()
+		);
 	}
 
 	/**

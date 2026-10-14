@@ -150,9 +150,10 @@ final class ReferenceRowFilterCompiler {
 	 * references are looked up in, and the scopes of the owners. An owner may live outside the scopes of the request -
 	 * an entity archived by `archiveEntity`, moved by `upsertAndFetchEntity` or enriched by a request reading another
 	 * scope - and its rows are read by the declaration of its own scope, as those of every other owner. The nested
-	 * queries and the `inScope` containers keep the scopes of the request. A check tests no row and passes no owner
-	 * scope, and an owner scope can only admit a localized leaf the check refuses for the lack of a locale (see
-	 * {@link #getAttributeSchema}), never refuse one the check admits - so what the check accepts the fetch evaluates.
+	 * queries and the `inScope` containers keep the scopes the references are looked up in - those of the request and
+	 * of the root `scope(...)`. A check tests no row and passes no owner scope, and an owner scope can only admit a
+	 * localized leaf the check refuses for the lack of a locale (see {@link #getAttributeSchema}), never refuse one
+	 * the check admits - so what the check accepts the fetch evaluates.
 	 *
 	 * @param entitySchema    the schema of the entity owning the references
 	 * @param referenceSchema the schema of the filtered reference
@@ -194,10 +195,9 @@ final class ReferenceRowFilterCompiler {
 		if (filterBy == null) {
 			return ReferenceRowFilter.ACCEPT_ALL;
 		}
-		final Locale filterLocale = ReferencedEntityFetcher.findReferenceFilterLocale(filterBy);
 		final ReferenceRowFilterCompiler compiler = new ReferenceRowFilterCompiler(
 			context,
-			filterLocale == null ? context.ownerLocale() : filterLocale,
+			ReferencedEntityFetcher.getReferencedEntityLocale(filterBy, context.ownerLocale()),
 			getRootTargetBound(filterBy)
 		);
 		final Set<Scope> examinedScopes = ReferencedEntityFetcher.gatherSearchedScopes(
@@ -399,7 +399,7 @@ final class ReferenceRowFilterCompiler {
 				final RowTest child = compile(not.getChild(), nestedQueryScopes, readingScopes);
 				yield child == null ? null : new RowTest.Not(child);
 			}
-			case FilterInScope inScope -> compileInScope(inScope);
+			case FilterInScope inScope -> compileInScope(inScope, nestedQueryScopes);
 			case EntityLocaleEquals localeEquals -> new RowTest.OwnerLocale(localeEquals.getLocale());
 			case EntityPrimaryKeyInSet primaryKeyInSet -> {
 				final int[] primaryKeys = primaryKeyInSet.getPrimaryKeys();
@@ -471,15 +471,17 @@ final class ReferenceRowFilterCompiler {
 	 * in it and only the owners living in it reach the attribute leaves - and the rows of owners living in another
 	 * scope satisfy it.
 	 *
-	 * @param inScope the container
+	 * @param inScope           the container
+	 * @param nestedQueryScopes the scopes the container is compiled in - the examined scopes at the root, the scope of
+	 *                          the enclosing `inScope` below it
 	 * @return the node, NULL when all children were dropped
-	 * @throws EvitaInvalidUsageException when the scope was not requested
+	 * @throws EvitaInvalidUsageException when the scope is not among the scopes the container is compiled in
 	 */
 	@Nullable
-	private RowTest compileInScope(@Nonnull FilterInScope inScope) {
+	private RowTest compileInScope(@Nonnull FilterInScope inScope, @Nonnull Set<Scope> nestedQueryScopes) {
 		final Scope scope = inScope.getScope();
 		Assert.isTrue(
-			this.context.requestScopes().contains(scope),
+			nestedQueryScopes.contains(scope),
 			() -> "Scope `" + scope + "` used in `inScope` filter container was not requested by `scope` constraint!"
 		);
 		final Set<Scope> scopes = EnumSet.of(scope);

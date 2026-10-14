@@ -94,6 +94,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
 import static io.evitadb.api.query.Query.query;
@@ -104,6 +105,7 @@ import static io.evitadb.test.TestTags.FILTER;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -1108,6 +1110,54 @@ class ReferenceRowFilterCompilerTest {
 		}
 
 		@Test
+		@DisplayName("a nested set is not resolved while an earlier sibling already decides every row")
+		@UseDataSet(ROW_FILTER)
+		void shouldNotResolveNestedSetWhenEarlierSiblingDecidesTheRow(Evita evita) {
+			final Fixture fixture = new Fixture(evita);
+			final Map<Integer, Entity> owners = fetchOwners(evita);
+			final FilterConstraint brandA = entityHaving(attributeEquals(ATTR_CODE, "a"));
+			final AtomicInteger resolutions = new AtomicInteger();
+			final Supplier<Bitmap> countingTargets = () -> {
+				resolutions.incrementAndGet();
+				return new BaseBitmap(1, 2, 3);
+			};
+
+			// every row passes the first operand of `or`, so the nested set behind it is never asked
+			assertEquals(
+				expected(true, true, true, true),
+				verdicts(
+					fixture.compile(
+						REF_BRANDS, filterBy(or(entityPrimaryKeyInSet(1, 2, 3), brandA)), null, BOTH_SCOPES, false,
+						countingTargets
+					),
+					owners
+				)
+			);
+			// every row fails the first operand of `and`, so the nested set behind it is never asked
+			assertEquals(
+				expected(false, false, false, false),
+				verdicts(
+					fixture.compile(
+						REF_BRANDS, filterBy(and(entityPrimaryKeyInSet(99), brandA)), null, BOTH_SCOPES, false,
+						countingTargets
+					),
+					owners
+				)
+			);
+			assertEquals(0, resolutions.get());
+
+			// control: a nested set in the first place is asked
+			verdicts(
+				fixture.compile(
+					REF_BRANDS, filterBy(or(brandA, entityPrimaryKeyInSet(1, 2, 3))), null, BOTH_SCOPES, false,
+					countingTargets
+				),
+				owners
+			);
+			assertTrue(resolutions.get() > 0, "The nested set in the first place must be resolved");
+		}
+
+		@Test
 		@DisplayName("a check hands the capabilities of nested filters to the query, the row leaves request none")
 		@UseDataSet(ROW_FILTER)
 		void shouldCountNestedCapabilitiesOnlyInCheck(Evita evita) {
@@ -1256,6 +1306,28 @@ class ReferenceRowFilterCompilerTest {
 				() -> fixture.compile(
 					filterBy(entityLocaleEquals(Locale.ENGLISH), entityHaving(entityLocaleEquals(Locale.GERMAN))),
 					null
+				)
+			);
+		}
+
+		@Test
+		@DisplayName("inScope of a scope the root scope constraint names is accepted, though the request does not ask for it")
+		@UseDataSet(ROW_FILTER)
+		void shouldAcceptInScopeOfScopeNamedByRootScope(Evita evita) {
+			final Fixture fixture = new Fixture(evita);
+			assertNotNull(
+				fixture.compile(
+					REF_BRANDS,
+					filterBy(scope(Scope.ARCHIVED), inScope(Scope.ARCHIVED, attributeEquals(ATTR_WEIGHT, 5))),
+					null, EnumSet.of(Scope.LIVE), false, null
+				)
+			);
+			// without the root `scope` the same container is still refused
+			assertThrows(
+				EvitaInvalidUsageException.class,
+				() -> fixture.compile(
+					REF_BRANDS, filterBy(inScope(Scope.ARCHIVED, attributeEquals(ATTR_WEIGHT, 5))), null,
+					EnumSet.of(Scope.LIVE), false, null
 				)
 			);
 		}

@@ -33,6 +33,7 @@ import io.evitadb.utils.NumberUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.Immutable;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.text.Normalizer;
@@ -63,11 +64,12 @@ import java.util.function.IntPredicate;
  * An array value matches when any of its elements does, as the filter index keeps one entry per element; an empty
  * array and a missing value match nothing.
  *
- * Instances are immutable and built once per constraint, so the conversion, the normalization of the constraint value
- * and the construction of the comparator are paid once, not per row.
+ * Instances are built once per constraint, so the conversion, the normalization of the constraint value and the
+ * construction of the comparator are paid once, not per row.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
+@Immutable
 sealed interface AttributeValueMatcher {
 
 	/**
@@ -120,7 +122,7 @@ sealed interface AttributeValueMatcher {
 		return new Comparing(
 			getComparator(attributeIndexKey, plainType),
 			normalizer,
-			normalizer.apply(Objects.requireNonNull(EvitaDataTypes.toTargetType(value, plainType))),
+			normalizeConstraintValue(normalizer, plainType, value),
 			resultPredicate
 		);
 	}
@@ -144,9 +146,7 @@ sealed interface AttributeValueMatcher {
 		final Function<Object, Serializable> normalizer = getNormalizer(plainType, indexedDecimalPlaces);
 		final Serializable[] normalizedValues = new Serializable[values.length];
 		for (int i = 0; i < values.length; i++) {
-			normalizedValues[i] = normalizer.apply(
-				Objects.requireNonNull(EvitaDataTypes.toTargetType(values[i], plainType))
-			);
+			normalizedValues[i] = normalizeConstraintValue(normalizer, plainType, values[i]);
 		}
 		return new EqualToAny(getComparator(attributeIndexKey, plainType), normalizer, normalizedValues);
 	}
@@ -256,6 +256,23 @@ sealed interface AttributeValueMatcher {
 		} else {
 			return FilterIndex.getNormalizer(plainType, indexedDecimalPlaces);
 		}
+	}
+
+	/**
+	 * Converts the value of the constraint to the plain type of the attribute and normalizes it.
+	 *
+	 * @param normalizer the normalizer of the attribute
+	 * @param plainType  the plain type of the attribute
+	 * @param value      the value of the constraint
+	 * @return the normalized value
+	 */
+	@Nonnull
+	private static Serializable normalizeConstraintValue(
+		@Nonnull Function<Object, Serializable> normalizer,
+		@Nonnull Class<? extends Serializable> plainType,
+		@Nonnull Serializable value
+	) {
+		return normalizer.apply(Objects.requireNonNull(EvitaDataTypes.toTargetType(value, plainType)));
 	}
 
 	/**

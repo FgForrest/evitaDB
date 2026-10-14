@@ -1,7 +1,7 @@
 ---
 title: The filter of referenceContent is evaluated row by row over the fetched owners' references, and its index route is deleted
 date: 2026-10-14
-updated: 2026-10-14 22:34
+updated: 2026-10-14 23:36
 status: accepted
 kind: refactor
 issues: [1615]
@@ -196,7 +196,7 @@ table. A measured case where the index route is faster (none of the eight was) w
 
 ## Verification
 
-Tests that guard it. The full functional suite at `feb449c261` ran 28,830 tests; its only 12 failures are the
+Tests that guard it. The full functional suite after the code-quality pass ran 28,835 tests; its only 12 failures are the
 environmental ones every run of this branch has (`EvitaServerTest` misses a certificate key absent from the test environment,
 `ExportS3ServiceTest` needs Docker). The whole reactor test-compiles.
 
@@ -235,6 +235,13 @@ its own test:
 
 A fourth, found by review and confirmed on both routes, was the unsorted page of a duplicate-cardinality reference
 paging distinct keys while the decorator pages rows (`deeecc635c`).
+
+A code-quality pass over the finished line found one defect of the row route alone: the compiler checked `inScope`
+against the scopes of the request, so `filterBy(scope(ARCHIVED), inScope(ARCHIVED, ...))` was refused in a query of
+`LIVE`, which the deleted route - running the filter in the examined scopes - answered. The check now takes the scopes
+the container is compiled in (`ReferenceRowFilterCompilerTest#shouldAcceptInScopeOfScopeNamedByRootScope`,
+`ReferenceContentRowFilterFunctionalTest#shouldAnswerInScopeOfScopeNamedByRootScope`, both watched fail with the old
+check).
 
 **Performance** (JMH `-bm avgt -f 1 -wi 5 -w 2s -i 10 -r 2s -prof gc`; one jar for both arms, the route set as the first
 statement of each fork; `-Xmx24g`, result cache off; the production retail catalog above, migrated to protocol 8 on open;
@@ -327,6 +334,10 @@ filterable reference attributes in the filter (Q4); the wider acceptance is avai
 - The level-n locale depends on `getEntityContentRequireChain` returning outermost first.
 - The compile context holds the scopes of the owners, not only of the request: remove them and an archived owner fetched
   by `archiveEntity`, `enrichEntity` or `upsertAndFetchEntity` fails an unconfined attribute leaf with an internal error.
+  Those scopes widen only the readings of the attribute leaves. An `inScope` may name only the scopes it is compiled
+  in - the examined scopes (the request and the root `scope(...)`), or the scope of an enclosing `inScope` - checking
+  it against the owner scopes would admit a scope the query never asked for, checking it against the request alone
+  refuses one the filter itself added.
 - `FilterByVisitor`, `HavingTranslatorHelper` and `ProcessingScope` lost the nested restriction and comparator members
   the index route fed them; `referenceHaving` and the main query never used them.
 

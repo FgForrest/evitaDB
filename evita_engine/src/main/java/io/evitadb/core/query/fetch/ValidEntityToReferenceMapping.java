@@ -68,7 +68,8 @@ import java.util.function.Function;
  */
 class ValidEntityToReferenceMapping {
 	/**
-	 * Function that produces a {@link RepresentativeReferenceKey} for a given {@link ReferenceDecorator}.
+	 * Function that produces a {@link RepresentativeReferenceKey} for a given raw or decorated {@link ReferenceContract}.
+	 * It is invoked only in the per-row verdict mode (`BY_ROW`).
 	 * For references whose cardinality allows duplicates, the produced key includes representative attribute
 	 * values extracted via {@link RepresentativeAttributeDefinition#getRepresentativeValues} to disambiguate
 	 * multiple references pointing to the same entity. For references without duplicates, the key contains
@@ -106,10 +107,10 @@ class ValidEntityToReferenceMapping {
 		@Nonnull ReferenceSchema referenceSchema,
 		boolean rowVerdicts
 	) {
-		this.verdicts = rowVerdicts && referenceSchema.getCardinality().allowsDuplicates() ?
-			Verdicts.BY_ROW : Verdicts.BY_PRIMARY_KEY;
+		final boolean allowsDuplicates = referenceSchema.getCardinality().allowsDuplicates();
+		this.verdicts = rowVerdicts && allowsDuplicates ? Verdicts.BY_ROW : Verdicts.BY_PRIMARY_KEY;
 		this.mapping = new IntObjectHashMap<>(expectedEntityCount);
-		if (referenceSchema.getCardinality().allowsDuplicates()) {
+		if (allowsDuplicates) {
 			final RepresentativeAttributeDefinition rad = referenceSchema.getRepresentativeAttributeDefinition();
 			// representative values are read off the RAW contract, never off a decorator wrapping it:
 			// `ReferenceDecorator` narrows its attribute values by the request's attribute predicate, so a

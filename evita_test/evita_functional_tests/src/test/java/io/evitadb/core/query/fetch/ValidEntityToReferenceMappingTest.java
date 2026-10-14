@@ -270,6 +270,21 @@ class ValidEntityToReferenceMappingTest {
 		}
 
 		@Test
+		@DisplayName("selects nothing of an owner whose admitted rows reference another entity than the probed row")
+		void shouldSelectNothingWhenAdmittedRowsReferenceAnotherEntity() {
+			final ValidEntityToReferenceMapping mapping = new ValidEntityToReferenceMapping(
+				1, referenceSchema(BRAND), true
+			);
+			mapping.admit(OWNER_A, brand(1, 1, "CZ", false));
+
+			assertFalse(
+				mapping.isReferenceSelected(OWNER_A, brand(2, 3, "CZ", false)),
+				"a row of another referenced entity is not selected by the admitted row of the owner"
+			);
+			assertArrayEquals(new int[]{1}, validKeys(mapping, OWNER_A));
+		}
+
+		@Test
 		@DisplayName("reads the representative key off the raw row when it is handed a decorator hiding the attribute")
 		void shouldSelectDecoratedRowByItsRawRepresentativeKey() {
 			final ValidEntityToReferenceMapping mapping = new ValidEntityToReferenceMapping(

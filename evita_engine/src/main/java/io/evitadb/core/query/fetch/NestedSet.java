@@ -32,6 +32,7 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -61,10 +62,9 @@ import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
  * the answers of this set are meaningful only inside the filter tree it was compiled for. An empty restriction means
  * no row can be admitted through the set, and no query is planned.
  *
- * The set is resolved on the thread of the fetch and is not shared between threads.
- *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
+@NotThreadSafe
 final class NestedSet {
 	/**
 	 * The visitor the nested query is planned with.
