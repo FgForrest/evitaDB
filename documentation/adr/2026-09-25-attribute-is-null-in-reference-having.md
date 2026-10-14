@@ -1,7 +1,7 @@
 ---
 title: attributeIsNull inside referenceHaving widens candidate discovery and is answered one reference row at a time
 date: 2026-09-25
-updated: 2026-10-12 02:40
+updated: 2026-10-14 22:34
 status: accepted
 kind: fix
 issues: [1584]
@@ -9,7 +9,7 @@ prs: [1664]
 areas: [evita_engine/src/main/java/io/evitadb/core/query/filter/translator/attribute, evita_query/src/main/java/io/evitadb/api/query/filter/EntityScope.java, evita_api/src/main/java/io/evitadb/api/requestResponse/EvitaRequest.java, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/reference/ReferenceBodyTransposer.java, evita_engine/src/main/java/io/evitadb/core/query/filter/FilterByVisitor.java, evita_engine/src/main/java/io/evitadb/index/cardinality/ReferenceTypeCardinalityIndex.java]
 supersedes: []
 superseded-by: []
-relates: [2026-09-17-row-scoped-reference-having-body, 2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-10-06-unique-indexes-keep-no-record-set, 2026-10-08-scope-faithful-planning-and-facet-summary-parity, 2026-10-12-single-owner-partitions-as-registry-rows]
+relates: [2026-10-14-reference-content-filter-row-by-row, 2026-09-17-row-scoped-reference-having-body, 2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-10-06-unique-indexes-keep-no-record-set, 2026-10-08-scope-faithful-planning-and-facet-summary-parity, 2026-10-12-single-owner-partitions-as-registry-rows]
 ---
 
 # `attributeIsNull` inside `referenceHaving` widens candidate discovery and is answered one reference row at a time
@@ -325,6 +325,8 @@ Unique lookups (`UniqueAttributeLookupBenchmark`, results in its `.md`) are flat
   - a filtered `referenceContent(R, filterBy(…))` drops rows from the other scope that the unfiltered one
     returns, even with a filter every row satisfies: one of several contradictory cross-scope visibility rules,
     all recorded with a probe matrix in #1652.
+    The filter of `referenceContent` is judged per row of every owner since
+    `2026-10-14-reference-content-filter-row-by-row`, whichever scope indexes the reference.
 
 ## Related work
 

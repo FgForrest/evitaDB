@@ -1,7 +1,7 @@
 ---
 title: A single-owner partition of a filtering-only reference is a row of a per-reference registry, and an index object exists only while a partition has two or more owners
 date: 2026-10-12
-updated: 2026-10-12 08:15
+updated: 2026-10-14 22:34
 status: accepted
 kind: optimization
 issues: [1615]
@@ -28,7 +28,7 @@ areas:
   - documentation/developer/indexes
 supersedes: []
 superseded-by: []
-relates: [2026-09-23-pick-first-reference-ordering-from-selection, 2026-09-17-row-scoped-reference-having-body, 2026-09-18-reference-planning-from-owner-membership, 2026-09-09-sibling-resolver-partition-cardinality, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-trapped-storage-part-content-pre-images, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-09-04-millisecond-temporal-precision, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-08-10-catalog-and-collection-statistics]
+relates: [2026-10-14-reference-content-filter-row-by-row, 2026-09-23-pick-first-reference-ordering-from-selection, 2026-09-17-row-scoped-reference-having-body, 2026-09-18-reference-planning-from-owner-membership, 2026-09-09-sibling-resolver-partition-cardinality, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-trapped-storage-part-content-pre-images, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-09-04-millisecond-temporal-precision, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-08-10-catalog-and-collection-statistics]
 ---
 
 # A single-owner partition of a filtering-only reference is a registry row, not an index object
@@ -752,7 +752,9 @@ production probes counted work. All of it is gone. What replaced it:
   promotions. Real page requests on the row catalog must equal slices of an independently obtained full order; each case
   asserts it selects a known singleton row; `virtualPartitionCountIfKnown()` > 0 on one side and 0 on the other proves
   the twin non-vacuous. It backs the six read-parity suites (`VirtualReferenceHavingParityTest`,
-  `VirtualReferenceContentFilterParityTest`, `VirtualPickFirstParityTest`, `VirtualTraverseParityTest`,
+  `VirtualReferenceContentFilterParityTest` (deleted with the index route of `referenceContent`; its hand-written cases
+  live in `ReferenceContentCrossScopeRowsTest`, see `2026-10-14-reference-content-filter-row-by-row`),
+  `VirtualPickFirstParityTest`, `VirtualTraverseParityTest`,
   `VirtualChainParityTest`, `VirtualHierarchyParityTest`); five of the six consuming stages are proven by a
   counterfactual of their own (L7).
 - **T4, self-comparison across an event** (`VirtualPartitionReloadInvariantTest`): index and query descriptions before
@@ -1137,6 +1139,10 @@ Found later in the cleanup and accepted by the maintainer on 2026-10-12:
 
 ## Related work
 
+- **`2026-10-14-reference-content-filter-row-by-row`:** the filter of `referenceContent` is evaluated over the fetched
+  owners' rows, so the fetch no longer reads a partition, a row or an index object of the reference; it removed the
+  `referenceContent` consumer of the registry rows (`VirtualPartitionRows.InScopeReading`,
+  `VirtualPartitionBodyEvaluator#getMatchingPartitionsPerRow`) and the parity test that compared them with index objects.
 - **`2026-09-23-pick-first-reference-ordering-from-selection`** (#1614): the sort path this work depends on. The row
   pick-first run plugs into its claim-by-bitmap sorter; the chain gate it handed to #1615 is met (`a03e8d0445`); its
   localized-compound bullet was fixed first (`9434938ab8`), because promoting a partition would otherwise have changed

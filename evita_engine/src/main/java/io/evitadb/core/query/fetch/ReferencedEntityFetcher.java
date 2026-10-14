@@ -167,6 +167,12 @@ import static java.util.Optional.ofNullable;
  * {@link #getEnvelopingEntityRequest()}) be called - they fail with {@link GenericEvitaInternalError} otherwise.
  * The instance carries mutable state produced by that init call and is not safe for concurrent use.
  *
+ * The filter of a `referenceContent` is evaluated row by row over the references of the fetched owners
+ * (see {@link #admitFetchedReferences}). Every reference row is judged by itself, by the scope and the locales of its
+ * owner, with the {@link ReferenceRowFilterCompiler row test}, so the filter needs no filterable attribute and no index
+ * of the reference, and the verdict of a row never depends on the other owners fetched along. The verdicts are recorded
+ * per owner in the {@link ValidEntityToReferenceMapping}.
+ *
  * Nested references are handled recursively - {@link #createSubReferenceFetcher} spawns another instance of this
  * class for the referenced collection, so a deep `referenceContent` requirement produces a chain of fetchers, each
  * of them still fetching its own level in bulk.
@@ -1290,8 +1296,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 	/**
 	 * Conditionally initializes the nested query comparator from the global index of the referenced entity collection.
-	 * The initialization is performed only when the comparator is present and has not been initialized yet (i.e. no
-	 * nested query filter was applied that would have already initialized it).
+	 * The initialization is performed only when the comparator is present and has not been initialized yet. The
+	 * filter of the fetched references never initializes the ordering: it only assigns the locale of the filter to
+	 * the comparator explicitly, and the sorters are set here, by {@link #initializeComparatorFromGlobalIndex}.
 	 *
 	 * @param entityNestedQueryComparator comparator to initialize, may be null if no ordering is requested
 	 * @param referenceSchema             the schema of the reference whose entities are being ordered
@@ -1302,7 +1309,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull QueryPlanningContext queryContext
 	) {
-		// in case there is ordering specified and no nested query filter constraint, we need to handle ordering here
+		// the filter only sets the locale of the comparator, so the ordering is always initialized here
 		if (entityNestedQueryComparator != null && !entityNestedQueryComparator.isInitialized()) {
 			initializeComparatorFromGlobalIndex(
 				referenceSchema,
@@ -1333,9 +1340,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param referenceSchema             the schema of the reference
 	 * @param targetEntityCollection      collection of the referenced entity type
 	 * @param targetEntityGroupCollection collection of the referenced entity type group
-	 * @param entityNestedQueryComparator comparator that holds information about requested ordering so that we can
-	 *                                    apply it during entity filtering (if it's performed) and pre-initialize it
-	 *                                    in an optimal way
+	 * @param entityNestedQueryComparator comparator that holds information about requested ordering; its sorters
+	 *                                    are set from the global index of the referenced entity collection
 	 * @param queryContext                the planning context of the enclosing query
 	 */
 	private static void initializeComparatorFromGlobalIndex(

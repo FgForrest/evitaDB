@@ -1,7 +1,7 @@
 ---
 title: Every requested scope is planned, checked and counted as if it were queried alone, and the facet summary predicts exactly what facetHaving selects
 date: 2026-10-08
-updated: 2026-10-08 10:31
+updated: 2026-10-14 22:34
 status: accepted
 kind: fix
 issues: [1681, 1686, 1695]
@@ -9,7 +9,7 @@ prs: [1720]
 areas: [evita_engine/core/query, evita_engine/core/query/indexSelection, evita_engine/core/query/filter, evita_engine/core/query/filter/translator/behavioral, evita_engine/core/query/filter/translator/facet, evita_engine/core/query/filter/translator/hierarchy, evita_engine/core/query/filter/translator/reference, evita_engine/core/query/algebra/facet, evita_engine/core/query/extraResult/translator/reference, evita_engine/core/query/extraResult/translator/hierarchyStatistics, evita_engine/core/query/sort, evita_engine/core/query/fetch, evita_engine/core/collection, evita_engine/index/facet, evita_engine/index/hierarchy/predicate, evita_engine/index/usage, evita_query/api/query, evita_query/api/query/require, evita_api/api/requestResponse/extraResult, evita_external_api/evita_external_api_core, evita_external_api/evita_external_api_grpc, documentation/user/en/query]
 supersedes: []
 superseded-by: []
-relates: [2026-08-19-per-schema-capability-usage-statistics, 2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-09-23-pick-first-reference-ordering-from-selection, 2026-09-25-attribute-is-null-in-reference-having]
+relates: [2026-10-14-reference-content-filter-row-by-row, 2026-08-19-per-schema-capability-usage-statistics, 2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-09-23-pick-first-reference-ordering-from-selection, 2026-09-25-attribute-is-null-in-reference-having]
 ---
 
 # Every requested scope is planned, checked and counted as if it were queried alone, and the facet summary predicts exactly what `facetHaving` selects
@@ -404,7 +404,8 @@ The remaining time is not yet attributed; see *Consequences*.
 
 - A query proven empty pays one planning pass over empty indexes.
 - A scope without data pays one empty stand-in index and one translation per nested constraint.
-- A `referenceContent` filter or ordering pays one check-only translation per scope per query.
+- A `referenceContent` ordering pays one check-only translation per scope per query; its filter pays one compilation and
+  one plan per nested filter (`2026-10-14-reference-content-filter-row-by-row`).
 - The nested-`inScope` check is one allocation-free walk per query, fetch and enrichment.
 - Capability recording costs tens of calls per query.
 
@@ -456,6 +457,8 @@ The remaining time is not yet attributed; see *Consequences*.
     the wrong type.
   - The `referenceContent` filter of a reference not indexed in a scope may go unchecked while planning: a missing
     reduced index answers `EmptyFormula`. Reported mid-work and not re-verified on the final tree.
+    Closed by `2026-10-14-reference-content-filter-row-by-row`: the filter is compiled while planning whatever the
+    scopes index, so it is always checked.
   - `IndexSelectionVisitor`'s catalog branch still creates the archive catalog index for a catalog query over
     `ARCHIVED`.
 - **Telemetry wording.** `HierarchyStatisticsProducer#getDescription` still names a reference whose set holds only

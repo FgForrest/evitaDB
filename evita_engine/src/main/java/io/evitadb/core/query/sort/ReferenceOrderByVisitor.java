@@ -139,8 +139,8 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	 */
 	private final AttributeSchemaAccessor attributeSchemaAccessor;
 	/**
-	 * Pre-initialized comparator initialized during entity filtering (if it's performed) allowing to order references
-	 * by sorter defined on referenced entity (requiring nested query).
+	 * Comparator allowing to order references by sorter defined on referenced entity (requiring nested query). The
+	 * fetch of the references initializes its sorters (and sets the locale of the reference filter) before it is used.
 	 */
 	private EntityNestedQueryComparator nestedQueryComparator;
 	/**
