@@ -1422,6 +1422,49 @@ class ReferenceContentRowFilterFunctionalTest {
 			assertEquals(List.of("100:g1", "101:-", "102:g2", "103:-"), rows);
 		}
 
+		@Test
+		@DisplayName("both duplicates of one target in two groups carry the body of their own group")
+		@UseDataSet(DATA_SET)
+		void shouldFetchBodyOfEveryGroupOfDuplicatesOfOneTarget(Evita evita) {
+			final List<String> rows = evita.queryCatalog(
+				TEST_CATALOG,
+				session -> {
+					// owner 1 holds target 1 twice - 1/DE in group 11 and 1/CZ in group 10; only target 1 is fetched,
+					// so no other row of the owner and no other owner can fetch the group the other duplicate misses
+					final SealedEntity owner = session.queryListOfSealedEntities(
+						query(
+							collection(ENTITY_PRODUCT),
+							filterBy(entityPrimaryKeyInSet(1), scope(LIVE)),
+							require(
+								entityFetch(
+									new ReferenceContent(
+										null, ManagedReferencesBehaviour.ANY, new String[]{REF_DUPLICATES},
+										new RequireConstraint[]{
+											attributeContentAll(),
+											entityFetch(attributeContent(ATTR_CODE)),
+											entityGroupFetch(attributeContent(ATTR_CODE))
+										},
+										new Constraint<?>[]{filterBy(entityPrimaryKeyInSet(1))}
+									)
+								)
+							)
+						)
+					).get(0);
+					final List<String> result = new ArrayList<>(2);
+					for (ReferenceContract reference : owner.getReferences(REF_DUPLICATES)) {
+						result.add(
+							reference.getReferencedPrimaryKey() + "/" + reference.getAttribute(ATTR_COUNTRY) + ":" +
+								reference.getGroupEntity()
+									.map(it -> it.getPrimaryKeyOrThrowException() + "=" + it.getAttribute(ATTR_CODE))
+									.orElse("-")
+						);
+					}
+					return result.stream().sorted().toList();
+				}
+			);
+			assertEquals(List.of("1/CZ:10=g1", "1/DE:11=g2"), rows);
+		}
+
 	}
 
 	@Nested
