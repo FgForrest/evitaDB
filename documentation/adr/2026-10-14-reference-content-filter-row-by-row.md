@@ -1,7 +1,7 @@
 ---
 title: The filter of referenceContent is evaluated row by row over the fetched owners' references, and its index route is deleted
 date: 2026-10-14
-updated: 2026-10-14 23:36
+updated: 2026-10-15 10:10
 status: accepted
 kind: refactor
 issues: [1615]
@@ -15,7 +15,7 @@ areas:
   - evita_engine/src/main/java/io/evitadb/index/attribute
 supersedes: []
 superseded-by: []
-relates: [2026-10-12-single-owner-partitions-as-registry-rows, 2026-09-23-reference-decode-narrowing-by-referenced-key, 2026-09-28-indexed-reference-scope-requires-entity-component, 2026-09-17-row-scoped-reference-having-body]
+relates: [2026-10-12-single-owner-partitions-as-registry-rows, 2026-09-23-reference-decode-narrowing-by-referenced-key, 2026-09-28-indexed-reference-scope-requires-entity-component, 2026-09-17-row-scoped-reference-having-body, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-scope-faithful-planning-and-facet-summary-parity]
 ---
 
 # The filter of `referenceContent` is evaluated row by row over the fetched owners' references
