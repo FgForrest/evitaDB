@@ -75,6 +75,13 @@ Progress:
 
 **Formula rules**: See `documentation/developer/formula/formula_framework.md`
 
+**Attribute constraints**: the filter translator of an attribute constraint implements
+`AttributeValueMatchingTranslator` (it creates the per-value `AttributeValueMatcher`), or is added, with a reason, to
+`ATTRIBUTE_CONSTRAINTS_WITHOUT_VALUE_MATCHER` in `FilterByVisitor` - otherwise `FilterByVisitor` refuses to load. The
+reference row filter, the prefetch alternative and the entity filtering of a collection-less query then use that matcher
+with no further code. Add the cases of the new constraint to `AttributeConstraintPathParityFunctionalTest`, which holds
+the index, the prefetch, the entity filtering and the reference row to the same answer.
+
 ### Layer 3: Storage (`evita_store`)
 
 | # | What | Path |

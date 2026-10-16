@@ -1,7 +1,7 @@
 ---
 title: The filter of referenceContent is evaluated row by row over the fetched owners' references, and its index route is deleted
 date: 2026-10-14
-updated: 2026-10-15 10:10
+updated: 2026-10-16 15:10
 status: accepted
 kind: refactor
 issues: [1615]
@@ -11,6 +11,7 @@ areas:
   - evita_engine/src/main/java/io/evitadb/core/query/filter
   - evita_engine/src/main/java/io/evitadb/core/query/filter/translator/reference
   - evita_engine/src/main/java/io/evitadb/core/query/filter/translator/attribute
+  - evita_engine/src/main/java/io/evitadb/core/query/filter/translator/attribute/alternative
   - evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/reference
   - evita_engine/src/main/java/io/evitadb/index/attribute
 supersedes: []
@@ -139,7 +140,11 @@ as tags only; every place states the decision itself.
 | A constraint without a meaning on a row (R6), `scope(...)` below the root | **refused** with `EvitaInvalidUsageException`, at planning and at fetch | admitting `entityPrimaryKeyBetween`, `priceBetween`, `hierarchyWithin`, ... would keep their accidental owner-level reading; omitting a nested `scope(...)` from its boolean parent leaves `not(scope(...))` without a meaning to omit into |
 | Locale of a localized leaf (Q1) | the locale of the filter's own `entityLocaleEquals`, found **exactly** as `findReferenceFilterLocale` finds it, else the owner query's | a dedicated finder that stops at `entityHaving` would split the leaves from the body fetch, the `EXISTING` gate and the ordering in exactly the shape `entityHaving(entityLocaleEquals(L))` |
 | Readings that depend on attribute flags | chosen **per owner scope** by that scope's own declaration (OQ-U) | one reading per leaf made a LIVE row's verdict change when ARCHIVED was added to the query |
-| Sharing the leaf test with the main query's prefetch predicates | no; the main query is untouched | widening the change into the main query; the divergences are parked (below) |
+| Sharing the leaf test with the main query's prefetch predicates | **yes** (flipped by the review of #1738, 2026-10-16): one `AttributeValueMatcher` per value constraint, created by its translator (`AttributeValueMatchingTranslator`) and asked by the prefetch alternative, the entity filtering of a collection-less query and the row filter alike | separate hand-written predicates per path - what shipped first. The four-arm parity class measured 41 of 184 cases diverging between the index, the prefetch, the entity filtering and the reference row (wrong answers and internal errors on the main query), and a new attribute constraint had a second and third place to be forgotten in. **Revisit** only if the matcher has to answer something a per-value test cannot |
+| Invalid constraint values (an inverted scalar `attributeBetween`, a decimal the index key cannot encode) | **refused before any index is read, wherever the attribute schema is known**; a collection-less query refuses them per candidate entity type (Johnny, 2026-10-16: "agree - refuse") | a "do not refuse" mode that keeps today's data-dependent refusals: the index refuses only when it holds a value of the attribute, which the prefetch and the entity filtering cannot reproduce, and it keeps an answer that depends on the plan and the data - the thing this change removes. It costs one visible change: a query over an empty attribute is an error, not an empty result (upgrade note) |
+| Which decimal probe is refused | one **beyond the `int` key of the attribute's indexed decimal places, when the attribute has a filter index in a requested scope** (`hasFilterIndexInScope`: filterable or unique) | refusing always - it would refuse probes on attributes no index holds, which entity filtering and the reference row compare as wide decimals; mirroring each scope's own unique-or-filter index choice - the answer would depend on the plan again; `isFilterableInScope` alone - a unique-only decimal attribute is index-encoded by the same normalizer and would keep leaking the raw `ArithmeticException` |
+| Completeness of the contract | a **load-time invariant** in the static initializer of `FilterByVisitor`, so the class fails to load and every query test fails | a unit test alone - it sees only what it enumerates, and a constraint added without the test is simply not checked; the descriptor registry as the enumeration - a constraint registered only for execution never appears there (Codex), so the check reads the execution registry itself |
+| Decimal values on the reference row | the row keeps comparing **wide decimals** with no `int` limit - the one deliberate difference between the paths | a reference attribute need not be filterable or unique, so its stored values were never index-encoded; refusing a probe there would refuse what the data can answer. The refusal therefore lives in `assertIndexable` of the main-query wiring and must stay out of `createMatcher` |
 | Recording only the groups of admitted rows on the unsorted paths | no, they stay keyed by referenced primary key | `isGroupAssignmentVarying` reads the same translator; the effect is extra group bodies, never a visible row |
 
 ## Decision
@@ -162,10 +167,28 @@ table. A measured case where the index route is faster (none of the eight was) w
   gate, the compiled `ReferenceRowFilter`, and records each admitted row. `ReferenceRowFilterCompiler#compile` builds the
   `RowTest` tree (`and`, `or`, `not`, `inScope`, the twelve attribute leaves, `entityPrimaryKeyInSet`,
   `entityLocaleEquals`, `entityHaving`, `groupHaving`; a root `scope(...)` only widens the examined scopes and produces
-  no node). `AttributeValueMatcher` is the per-leaf test. `NestedSet` holds the target sets of `entityHaving` /
+  no node). `NestedSet` holds the target sets of `entityHaving` /
   `groupHaving` (planned by `FilterByVisitor#getMatchingEntityPrimaryKeys`).
   `ValidEntityToReferenceMapping#admit` / `isReferenceSelected` and the sorted and unsorted slicers of `BitmapSlicer`
   consume the verdicts.
+- **The translator owns the per-value test.** Eleven attribute value constraints (`attributeEquals`, `attributeInSet`,
+  the four comparisons, `attributeBetween`, `attributeInRange` and the three string searches) have a translator that
+  implements `AttributeValueMatchingTranslator`. `AttributeValueMatchingTranslator#createMatcher` returns the
+  `AttributeValueMatcher` of the constraint over one attribute schema and index key, recording no capability;
+  `#isAnsweredByUniqueIndex` is the operator's lookup policy (true for `attributeEquals` and `attributeInSet`) and picks
+  which locales of a localized attribute the row filter reads; `#getIndexProbeValues` and `#assertIndexable` carry the
+  decimal refusal; `#createMainQueryMatcher` is `assertIndexable` plus `createMatcher` for the main query;
+  `#createAlternativeBitmapFilter` (prefetch, matcher created once at translation) and
+  `#createEntityFilteringBitmapFilter` (collection-less, matcher created per candidate entity type) wire it into
+  `AttributeBitmapFilter#matching`. The matcher lives in `core.query.filter.translator.attribute.alternative`, imports
+  no translator and takes the thresholds of a range constraint already encoded by the translator.
+  `ReferenceRowFilterCompiler` no longer names an attribute constraint: it looks the translator up with
+  `FilterByVisitor#getTranslator` and calls `createMatcher`. `attributeIs` (is there any value at all) is the one
+  attribute constraint outside the contract.
+- **Forgetting the contract fails every test run.** `FilterByVisitor#verifyAttributeTranslators` runs at the end of the
+  static initializer and throws if an attribute constraint is registered with a translator that is not an
+  `AttributeValueMatchingTranslator`, except those in `ATTRIBUTE_CONSTRAINTS_WITHOUT_VALUE_MATCHER`
+  (`{AttributeIs}`). A load failure of the class, not a failing check someone has to run.
 - **The planning check compiles the same filter** (`ReferencedEntityFetcher#verifyReferenceContentConstraints`,
   called from `ReferenceContentTranslator`) with a constraint-check visitor and throws the result away. In check mode `NestedSet`
   resolves its nested query eagerly, so nested filters are validated and their capabilities counted whatever the data;
@@ -187,7 +210,9 @@ table. A measured case where the index route is faster (none of the eight was) w
   a request reading another scope - so the compile context carries the owners' scopes too.
 - **A `BigDecimal` is compared as the HALF_UP-scaled value** of `NumberUtils.scaleToInteger`: the index's int encoding
   without its final overflow, identical wherever the int fits. `attributeBetween(from > to)` on a scalar is refused at
-  compile with the index's own message.
+  compile with the index's own message - and the main query now refuses it too, before any index is read, together
+  with a decimal value the attribute's `int` index key cannot encode (`assertIndexable`; the reference row does not
+  apply that second refusal).
 - **No representative keys without a row-level verdict.** The mapping builds `RepresentativeReferenceKey`s only for a
   duplicate-cardinality reference with a filter; otherwise the verdict is a function of the referenced primary key.
 - **Slicing is by row where rows can share a key.** The unsorted slicer pages the selected rows, not the distinct keys,
@@ -206,19 +231,46 @@ environmental ones every run of this branch has (`EvitaServerTest` misses a cert
 - `ReferenceContentCrossScopeRowsTest` - the hand-written cross-scope expectations that
   `VirtualReferenceContentFilterParityTest` carried: singletons and duplicates in two scopes, a root `scope(...)`
   over a single-owner partition, Czech brand order with and without a query locale and under `inScope`.
-- `ReferenceRowFilterCompilerTest`, `AttributeValueMatcherTest` (every leaf pinned against a real `FilterIndex` /
-  `RangeIndex` loaded with the same values), `ValidEntityToReferenceMappingTest`, `BitmapSlicerTest` (page and strip,
-  sorted and unsorted, duplicates).
+- `ReferenceRowFilterCompilerTest`, `AttributeValueMatcherTest` (moved next to the matcher; every leaf pinned against a
+  real `FilterIndex` / `RangeIndex` loaded with the same values), `ValidEntityToReferenceMappingTest`,
+  `BitmapSlicerTest` (page and strip, sorted and unsorted, duplicates).
 - `RequestedCapabilityAccumulationTest` - row leaves count no `FILTERABLE` / `INDEXED`; nested filters still count on
   their own collections, with and without a row.
 - `EvitaArchivingTest.MultiScopeQueryingTest`, `ReferenceWithoutEntityComponentQueryGuardFunctionalTest.Allowed`,
   `AbstractEntityByFacetFilteringFunctionalTest` - the three refusals that became answers (U2, R3, R1).
 
-Counterfactuals, each run and watched fail: eager nested resolution in check mode made lazy (15 failures); the owner
-locale chain replaced by the top locale (the level-2 test); the leaves requiring `FILTERABLE` (27 failures); the leaves
-recording `FILTERABLE` / `INDEXED` (4 failures); the check skipped (19 failures); the owner scopes left out of the
-compile context (the `OwnersOutsideRequestScopes` tests and a compiler test); the slicer always slicing by key (both
-page tests).
+The review round of 2026-10-16 (the matcher shared with the main query) is guarded by:
+
+- `AttributeConstraintPathParityFunctionalTest` - the index, the prefetch alternative, the entity filtering and the
+  reference row must answer alike: 283 four-arm cases over the value families of `EvitaDataTypes` (scalars, arrays,
+  numeric and date-time ranges, array probes), the named decimal deviation of the reference row, and tests of the
+  refusals and boundaries (`shouldRefuseDecimalBeyondIndexKeyExceptOnReferenceRow`,
+  `shouldAnswerDecimalOfTheLargestIndexKey`, `shouldNotRefuseDecimalOfAttributeNoIndexHolds`,
+  `shouldRefuseInvertedIntervalOfCollectionWithoutEntity`,
+  `shouldRefuseInvertedIntervalOnEntityFilteringPerCandidateType`). Before the change 41 of the first 184 cases were
+  red (22 prefetch answers wrong or an internal `ClassCastException`, 18 entity-filtering ones, one row-only refusal);
+  every one now agrees with the index.
+- `FilterByVisitorAttributeTranslatorsTest` - the real registry passes the load-time invariant, a registry with a
+  translator lacking the contract fails it naming constraint and contract, `attributeIs` is the one exception, and every
+  described filter constraint has a translator or is read by its parent.
+- `AttributeBitmapFilterTest` (rewritten on the matchers the translators create; 17 tests),
+  `FilterIndexTest#shouldNotRebuildBigDecimalRangeRetainingTheIndexedScale`.
+- Touched-area runs after the change: 5,898 tests over `*Attribute*Test`, `*Reference*Test`, `*Fetch*Test` and
+  `*Prefetch*Test` (0 failures, 5 skipped) and 1,097 over the histogram, `FilterIndex`, `FilterByVisitor`, `groupHaving`
+  and related classes (0 failures, 1 skipped).
+- The full functional suite after the change: 29,133 tests; the 12 environmental failures above, plus two
+  change-data-capture subscriber timing failures of `EvitaClientReadWriteTest` that pass when the class runs alone
+  (69 tests). The whole reactor test-compiles.
+- Counterfactuals, each run and watched fail: the load-time invariant made to accept everything (1 of 6 invariant tests
+  fails); the prefetch wiring ignoring the matcher (12 of 17 `AttributeBitmapFilterTest` and 216 of 288 parity tests);
+  the decimal refusal disabled (2 parity tests); the eager matcher of the typed `attributeBetween` disabled (3
+  failures).
+
+Counterfactuals of the first round, each run and watched fail: eager nested resolution in check mode made lazy
+(15 failures); the owner locale chain replaced by the top locale (the level-2 test); the leaves requiring `FILTERABLE`
+(27 failures); the leaves recording `FILTERABLE` / `INDEXED` (4 failures); the check skipped (19 failures); the owner
+scopes left out of the compile context (the `OwnersOutsideRequestScopes` tests and a compiler test); the slicer always
+slicing by key (both page tests).
 
 **The sweep that held the routes together is deleted.** `ReferenceContentRouteParityTest` generated filters over a
 fixture with duplicates told apart by an attribute, dropped groups and owners in both scopes, fetched each as rows, pages,
@@ -307,10 +359,24 @@ Reference attribute leaves of a `referenceContent` filter count no `FILTERABLE` 
 statistics (R7); nested filters keep counting on their own collections. GraphQL and REST keep offering only unique and
 filterable reference attributes in the filter (Q4); the wider acceptance is available to EvitaQL, the Java API and gRPC.
 
+### Main query changes of the matcher review (breaking; upgrade note on #1615)
+
+- an inverted scalar `attributeBetween` is refused whenever the attribute schema is known, also over an empty attribute
+  or collection (it used to be refused only where an index held a value); a collection-less query refuses it per
+  candidate entity type, and answers an empty result when there is no candidate;
+- a `BigDecimal` value of `attributeEquals`, `attributeInSet`, the four comparisons or a scalar `attributeBetween`
+  bound that the `int` index key of the attribute cannot encode is refused with an `EvitaInvalidUsageException`
+  (it was an internal error carrying the index's `ArithmeticException`), where the attribute has a filter index in a
+  requested scope;
+- an inverted `attributeBetween` over a range attribute matches nothing on every path, entity filtering included;
+- the prefetch and the entity filtering answer as the index: `attributeBetween` with bounds of another numeric type or
+  over a `LocalDateTime`, decimal ranges in the rounding window and integer `attributeInRange` probes on decimal ranges
+  no longer give an internal error or a wrong answer; a collection-less `attributeInSet` with several values works;
+- a `String[]` value of a scalar `attributeEquals` matches nothing on every path (the index stringifies the array), it
+  no longer means "any of its elements" on the entity filtering.
+
 ### Parked, not filed
 
-- **The main query's prefetch predicates diverge from the index** and could be pointed at `AttributeValueMatcher`: the
-  `between` bounds are not converted, range rows are not rescaled, `inRange` with a non-`BigDecimal` number differs.
 - **`applyOnFirstUniqueIndex` skips a scope where the attribute is only filterable** (suspected): `attributeEquals` on
   an attribute unique in `LIVE` and filterable in both never matches `ARCHIVED` entities in the main query. The row
   route reads such a scope by its own declaration; the main query keeps its reading.
@@ -328,6 +394,14 @@ filterable reference attributes in the filter (Q4); the wider acceptance is avai
 
 ### Traps for a later change
 
+- A new attribute constraint's translator must implement `AttributeValueMatchingTranslator`, or be added to
+  `ATTRIBUTE_CONSTRAINTS_WITHOUT_VALUE_MATCHER` with a reason - otherwise `FilterByVisitor` fails to load. The row
+  filter, the prefetch and the entity filtering then come for free; its cases belong in
+  `AttributeConstraintPathParityFunctionalTest`.
+- The decimal refusal must never move into `createMatcher`: the reference row would start refusing the wide decimals it
+  compares on purpose. It belongs to `assertIndexable` of the main-query wiring.
+- The traits of the prefetch filters are passed per translator on purpose (only `attributeBetween` passes `FILTERABLE`):
+  a uniform list would change the capability statistics.
 - `getOwnerCarryingEveryRow` fails loudly for an owner whose reference predicate may lack the name. A caller that builds
   owners without `ensureReferencesFetched` will hit it, and weakening the guard turns it into rows that silently
   disappear.
@@ -359,3 +433,8 @@ filterable reference attributes in the filter (Q4); the wider acceptance is avai
   reviewed twice; the compiler, the per-row mapping and the fetch switch land behind a temporary route switch.
 - **2026-10-14** - both routes measured in one build; the index route, the switch and the sweep deleted; the record
   written (re-dated at merge).
+- **2026-10-16** - review of #1738: the row matcher repeated the predicate work of the attribute translators. The
+  matcher moved to the translators' package and became the one per-value test of every path that answers without the
+  index; the prefetch and the entity filtering were pointed at it, which removed 41 measured divergences; invalid values
+  refused before any index is read (decided by Johnny); the load-time invariant added. The benchmark of the matcher on
+  the main query is yet to run.
