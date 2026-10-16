@@ -48,6 +48,8 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
+import static io.evitadb.api.query.QueryConstraints.attributeContent;
+
 /**
  * Implementation of {@link EntityToBitmapFilter} that verifies that the entity has the appropriate attribute value
  * matching the {@link EntityToBitmapFilter#filter} predicate.
@@ -86,6 +88,41 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 	 * Contains the Bitmap result that has been memoized for efficiency.
 	 */
 	private Bitmap memoizedResult;
+
+	/**
+	 * Creates the filter that selects an entity when any value it holds under the attribute name satisfies the
+	 * {@link AttributeValueMatcher}. An array value satisfies it when any of its elements does, a missing value never
+	 * does. The attribute content the filter needs prefetched is the attribute alone.
+	 *
+	 * @param attributeName           name of the attribute whose values are tested
+	 * @param attributeSchemaAccessor locates the attribute schema in the entity schema
+	 * @param attributeValueAccessor  locates the attribute values in the entity body
+	 * @param matcherFactory          creates the matcher from the schema of the attribute, called once per entity type
+	 *                                of the examined entities
+	 * @param requiredAttributeTraits the traits the attribute schema must have
+	 * @return the filter
+	 */
+	@Nonnull
+	public static AttributeBitmapFilter matching(
+		@Nonnull String attributeName,
+		@Nonnull TriFunction<EntitySchemaContract, String, AttributeTrait[], AttributeSchemaContract>
+			attributeSchemaAccessor,
+		@Nonnull BiFunction<EntityContract, String, Stream<Optional<AttributeValue>>> attributeValueAccessor,
+		@Nonnull Function<AttributeSchemaContract, AttributeValueMatcher> matcherFactory,
+		@Nonnull AttributeTrait... requiredAttributeTraits
+	) {
+		return new AttributeBitmapFilter(
+			attributeName,
+			attributeContent(attributeName),
+			attributeSchemaAccessor,
+			attributeValueAccessor,
+			attributeSchema -> {
+				final AttributeValueMatcher matcher = matcherFactory.apply(attributeSchema);
+				return values -> values.anyMatch(value -> value.isPresent() && matcher.matches(value.get().value()));
+			},
+			requiredAttributeTraits
+		);
+	}
 
 	public AttributeBitmapFilter(
 		@Nonnull String attributeName,

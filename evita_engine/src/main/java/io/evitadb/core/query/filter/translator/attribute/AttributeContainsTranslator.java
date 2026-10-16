@@ -69,7 +69,7 @@ public class AttributeContainsTranslator extends AbstractAttributeStringSearchTr
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull AttributeContains attributeContains, @Nonnull FilterByVisitor filterByVisitor) {
-		return translateInternal(attributeContains, filterByVisitor);
+		return translateInternal(attributeContains, filterByVisitor, this);
 	}
 
 	/**

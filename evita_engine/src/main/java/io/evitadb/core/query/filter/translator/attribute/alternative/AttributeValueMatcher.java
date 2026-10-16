@@ -299,15 +299,15 @@ public sealed interface AttributeValueMatcher {
 	}
 
 	/**
-	 * Returns the text in Unicode NFD, the very text when it is in that form already.
+	 * Returns the text in Unicode NFD, the very text when it is in that form already: the JDK normalizer spans the
+	 * quick check of the text and hands a text that passes it back as it is, so no check of our own precedes it.
 	 *
 	 * @param text the text to normalize
 	 * @return the text in NFD
 	 */
 	@Nonnull
 	private static String toNfd(@Nonnull String text) {
-		return Normalizer.isNormalized(text, Normalizer.Form.NFD) ?
-			text : Normalizer.normalize(text, Normalizer.Form.NFD);
+		return Normalizer.normalize(text, Normalizer.Form.NFD);
 	}
 
 	/**

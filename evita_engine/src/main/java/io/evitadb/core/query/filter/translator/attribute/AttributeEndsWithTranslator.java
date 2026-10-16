@@ -71,7 +71,7 @@ public class AttributeEndsWithTranslator
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull AttributeEndsWith attributeEndsWith, @Nonnull FilterByVisitor filterByVisitor) {
-		return translateInternal(attributeEndsWith, filterByVisitor);
+		return translateInternal(attributeEndsWith, filterByVisitor, this);
 	}
 
 	/**

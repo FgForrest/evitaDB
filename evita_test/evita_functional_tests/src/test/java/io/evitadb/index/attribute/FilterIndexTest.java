@@ -1149,6 +1149,28 @@ class FilterIndexTest {
 		}
 
 		@Test
+		@DisplayName("getNormalizer for BigDecimalNumberRange returns a range retaining the scale as it is")
+		void shouldNotRebuildBigDecimalRangeRetainingTheIndexedScale() {
+			final Function<Object, Serializable> normalizer =
+				FilterIndex.getNormalizer(BigDecimalNumberRange.class, 2);
+			final BigDecimal from = new BigDecimal("1.005");
+			final BigDecimal to = new BigDecimal("2.0049");
+			final BigDecimalNumberRange atScale = BigDecimalNumberRange.between(from, to, 2);
+
+			// the range that retains the indexed scale is the very instance, and equal to what a rebuild yields
+			assertSame(atScale, normalizer.apply(atScale));
+			assertEquals(BigDecimalNumberRange.between(from, to, 2), normalizer.apply(atScale));
+			// a range that retains another scale, or none, is rebuilt at the indexed one
+			final BigDecimalNumberRange rebuilt = (BigDecimalNumberRange) normalizer.apply(
+				BigDecimalNumberRange.between(from, to)
+			);
+			assertEquals(BigDecimalNumberRange.between(from, to, 2), rebuilt);
+			assertEquals(Integer.valueOf(2), rebuilt.getRetainedDecimalPlaces());
+			assertEquals(101L, rebuilt.getFrom());
+			assertEquals(200L, rebuilt.getTo());
+		}
+
+		@Test
 		@DisplayName("getNormalizer for BigDecimal scales to an order-preserving int and is idempotent")
 		void shouldScaleBigDecimalToInt() {
 			final Function<Object, Serializable> normalizer =

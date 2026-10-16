@@ -34,6 +34,7 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.function.Supplier;
 
@@ -57,7 +58,7 @@ public class AttributeGreaterThanTranslator extends AbstractAttributeComparisonT
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull AttributeGreaterThan attributeGreaterThan, @Nonnull FilterByVisitor filterByVisitor) {
-		return translateInternal(attributeGreaterThan, filterByVisitor);
+		return translateInternal(attributeGreaterThan, filterByVisitor, this);
 	}
 
 	@Nonnull
@@ -69,6 +70,12 @@ public class AttributeGreaterThanTranslator extends AbstractAttributeComparisonT
 		@Nonnull Supplier<OffsetDateTime> now
 	) {
 		return createComparisonMatcher(attributeGreaterThan, attributeSchema, attributeIndexKey);
+	}
+
+	@Nonnull
+	@Override
+	public Serializable[] getIndexProbeValues(@Nonnull AttributeGreaterThan attributeGreaterThan) {
+		return new Serializable[]{attributeGreaterThan.getAttributeValue()};
 	}
 
 }

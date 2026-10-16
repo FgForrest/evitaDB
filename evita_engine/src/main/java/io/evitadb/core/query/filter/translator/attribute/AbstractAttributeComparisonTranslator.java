@@ -26,11 +26,9 @@ package io.evitadb.core.query.filter.translator.attribute;
 
 import io.evitadb.api.query.filter.AbstractAttributeFilterComparisonConstraintLeaf;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.attribute.AttributeFormula;
@@ -38,11 +36,9 @@ import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
-import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.index.Index;
-import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import lombok.RequiredArgsConstructor;
@@ -51,18 +47,11 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
-import java.util.stream.Stream;
-
-import static io.evitadb.api.query.QueryConstraints.attributeContent;
 
 /**
  * An abstract class designed to translate attribute comparison constraints into specific filtering formulas.
@@ -113,10 +102,16 @@ public class AbstractAttributeComparisonTranslator extends AbstractAttributeTran
 	 *
 	 * @param attributeConstraint The attribute filter constraint that contains the attribute name and value to be filtered.
 	 * @param filterByVisitor The visitor used to traverse and process filter constraints.
+	 * @param translator the translator of the constraint, which creates the matcher the prefetched entities are
+	 *                   tested with
 	 * @return The resulting formula based on the attribute constraint and the visitor's filtering logic.
 	 */
 	@Nonnull
-	protected Formula translateInternal(@Nonnull AbstractAttributeFilterComparisonConstraintLeaf attributeConstraint, @Nonnull FilterByVisitor filterByVisitor) {
+	protected <T extends AbstractAttributeFilterComparisonConstraintLeaf> Formula translateInternal(
+		@Nonnull T attributeConstraint,
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull AttributeValueMatchingTranslator<T> translator
+	) {
 		final String attributeName = attributeConstraint.getAttributeName();
 		final Serializable attributeValue = attributeConstraint.getAttributeValue();
 		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE);
@@ -125,6 +120,10 @@ public class AbstractAttributeComparisonTranslator extends AbstractAttributeTran
 			final AttributeSchemaContract attributeSchema = optionalGlobalAttributeSchema
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
+			// created before any index is read, so a value the attribute cannot hold is refused whatever it stores
+			final AttributeValueMatcher matcher = translator.createMainQueryMatcher(
+				attributeConstraint, filterByVisitor, attributeSchema
+			);
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
 
 			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
@@ -143,7 +142,7 @@ public class AbstractAttributeComparisonTranslator extends AbstractAttributeTran
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
 					filteringFormula,
-					createAlternativeBitmapFilter(filterByVisitor, attributeName, attributeValue, this.comparisonResultPredicate)
+					translator.createAlternativeBitmapFilter(attributeConstraint, filterByVisitor, matcher)
 				);
 			} else {
 				return filteringFormula;
@@ -151,103 +150,10 @@ public class AbstractAttributeComparisonTranslator extends AbstractAttributeTran
 		} else {
 			return new EntityFilteringFormula(
 				"attribute " + this.description + " filter",
-				createAlternativeBitmapFilter(filterByVisitor, attributeName, attributeValue, this.comparisonResultPredicate)
+				translator.createEntityFilteringBitmapFilter(attributeConstraint, filterByVisitor)
 			);
 		}
 
-	}
-
-	/**
-	 * Creates an {@link AttributeBitmapFilter} for the provided attribute key and value. The filter is used to filter
-	 * prefetched entities based on the attribute key and value.
-	 *
-	 * @param filterByVisitor The visitor used to traverse and process filters.
-	 * @param attributeName The name of the attribute to be used in the filter.
-	 * @param attributeValue The value of the attribute to be used in the filter.
-	 * @return An instance of {@link AttributeBitmapFilter} configured with the given attribute key and value.
-	 */
-	@Nonnull
-	static AttributeBitmapFilter createAlternativeBitmapFilter(
-		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull String attributeName,
-		@Nonnull Serializable attributeValue,
-		@Nonnull IntPredicate comparisonResultPredicate
-	) {
-		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
-		return new AttributeBitmapFilter(
-			attributeName,
-			attributeContent(attributeName),
-			processingScope::getAttributeSchema,
-			(entityContract, theAttributeName) -> processingScope.getAttributeValueStream(entityContract, theAttributeName, filterByVisitor.getLocale()),
-			attributeSchema -> {
-				final Function<Serializable, Predicate<Stream<Optional<AttributeValue>>>> predicateFactory = valueToCompare -> getPredicate(
-					processingScope.getReferenceSchema(),
-					attributeSchema,
-					filterByVisitor.getLocale(),
-					valueToCompare,
-					comparisonResultPredicate
-				);
-
-				if (attributeValue.getClass().isArray()) {
-					final Serializable[] valueItems = (Serializable[]) attributeValue;
-					Predicate<Stream<Optional<AttributeValue>>> thePredicate = null;
-					for (Serializable valueItem : valueItems) {
-						final Serializable comparableValue = EvitaDataTypes.toTargetType(valueItem, attributeSchema.getPlainType());
-						thePredicate = thePredicate == null ?
-							predicateFactory.apply(comparableValue) : thePredicate.or(predicateFactory.apply(comparableValue));
-					}
-					return thePredicate;
-				} else {
-					final Serializable comparableValue = EvitaDataTypes.toTargetType(attributeValue, attributeSchema.getPlainType());
-					return predicateFactory.apply(comparableValue);
-				}
-			}
-		);
-	}
-
-	/**
-	 * Generates a predicate to evaluate whether a stream of attribute values matches a given schema, key, and comparable value.
-	 *
-	 * @param referenceSchema the schema of the reference containing attribute schema,
-	 *                        may be null if attribute is defined on entity level
-	 * @param attributeSchema the schema of the attribute containing type details
-	 * @param locale          the request locale, may be null if no locale was specified
-	 * @param comparableValue the value to compare against attribute values
-	 * @return a predicate for evaluating whether the stream contains matching attribute values
-	 */
-	@SuppressWarnings({"unchecked", "rawtypes"})
-	@Nonnull
-	public static Predicate<Stream<Optional<AttributeValue>>> getPredicate(
-		@Nullable ReferenceSchemaContract referenceSchema,
-		@Nonnull AttributeSchemaContract attributeSchema,
-		@Nullable Locale locale,
-		@Nullable Serializable comparableValue,
-		@Nonnull IntPredicate comparisonPredicate
-	) {
-		final Comparator comparator = FilterIndex.getComparator(
-			AttributeIndex.createAttributeKey(referenceSchema, attributeSchema, locale),
-			attributeSchema.getPlainType()
-		);
-		final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(
-			attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces()
-		);
-		final Serializable comparedValue = normalizer.apply(comparableValue);
-		final Predicate<Comparable> predicate = theValue -> theValue != null && comparisonPredicate.test(comparator.compare(theValue, comparedValue));
-
-		return attrStream -> attrStream.anyMatch(
-			attr -> {
-				if (attr.isEmpty()) {
-					return false;
-				} else {
-					final Serializable theValue = Objects.requireNonNull(attr.get().value());
-					if (theValue.getClass().isArray()) {
-						return Arrays.stream((Object[])theValue).map(normalizer).map(Comparable.class::cast).anyMatch(predicate);
-					} else {
-						return predicate.test((Comparable)normalizer.apply(theValue));
-					}
-				}
-			}
-		);
 	}
 
 	/**

@@ -56,7 +56,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
-import static io.evitadb.core.query.filter.translator.attribute.AbstractAttributeComparisonTranslator.createAlternativeBitmapFilter;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -152,6 +151,8 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 			final AttributeSchemaContract attributeSchema = optionalGlobalAttributeSchema
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
+			// refused before any index is read, so a value the attribute cannot hold is refused whatever it stores
+			assertIndexable(attributeEquals, attributeSchema, scopes);
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
 
 			final Class<? extends Serializable> plainType = attributeSchema.getPlainType();
@@ -179,7 +180,7 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 		} else {
 			return new EntityFilteringFormula(
 				"attribute equals filter",
-				createAlternativeBitmapFilter(filterByVisitor, attributeName, attributeValue, result -> result == 0)
+				createEntityFilteringBitmapFilter(attributeEquals, filterByVisitor)
 			);
 		}
 	}
@@ -196,6 +197,12 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 			attributeIndexKey, attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces(),
 			attributeEquals.getAttributeValue(), result -> result == 0
 		);
+	}
+
+	@Nonnull
+	@Override
+	public Serializable[] getIndexProbeValues(@Nonnull AttributeEquals attributeEquals) {
+		return new Serializable[]{attributeEquals.getAttributeValue()};
 	}
 
 	@Override

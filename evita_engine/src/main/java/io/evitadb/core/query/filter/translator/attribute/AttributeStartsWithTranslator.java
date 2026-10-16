@@ -70,7 +70,7 @@ public class AttributeStartsWithTranslator extends AbstractAttributeStringSearch
 	@Nonnull
 	@Override
 	public Formula translate(@Nonnull AttributeStartsWith attributeStartsWith, @Nonnull FilterByVisitor filterByVisitor) {
-		return translateInternal(attributeStartsWith, filterByVisitor);
+		return translateInternal(attributeStartsWith, filterByVisitor, this);
 	}
 
 	@Nonnull

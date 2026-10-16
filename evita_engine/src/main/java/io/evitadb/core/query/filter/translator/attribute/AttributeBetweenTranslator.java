@@ -25,10 +25,8 @@ package io.evitadb.core.query.filter.translator.attribute;
 
 import io.evitadb.api.query.filter.AttributeBetween;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -39,19 +37,13 @@ import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
-import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
 import io.evitadb.dataType.BigDecimalNumberRange;
-import io.evitadb.dataType.ByteNumberRange;
 import io.evitadb.dataType.DateTimeRange;
-import io.evitadb.dataType.IntegerNumberRange;
-import io.evitadb.dataType.LongNumberRange;
 import io.evitadb.dataType.NumberRange;
 import io.evitadb.dataType.Range;
-import io.evitadb.dataType.ShortNumberRange;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.Index;
-import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 
@@ -60,16 +52,10 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
-import static io.evitadb.api.query.QueryConstraints.attributeContent;
 import static io.evitadb.dataType.EvitaDataTypes.toTargetType;
 import static java.util.Optional.ofNullable;
 
@@ -80,182 +66,6 @@ import static java.util.Optional.ofNullable;
  */
 public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 	implements FilteringConstraintTranslator<AttributeBetween>, AttributeValueMatchingTranslator<AttributeBetween> {
-
-	/**
-	 * Generates a predicate to determine if a stream of optional attribute values contains an element
-	 * that falls within the specified date-time range.
-	 *
-	 * @param from the starting bound of the range (inclusive), can be null.
-	 * @param to the ending bound of the range (inclusive), can be null.
-	 * @return a predicate that evaluates whether any element within the stream falls within the specified date-time range.
-	 */
-	@Nonnull
-	public static Predicate<Stream<Optional<AttributeValue>>> getDateTimePredicate(
-		@Nullable OffsetDateTime from,
-		@Nullable OffsetDateTime to
-	) {
-		return attrStream -> attrStream.anyMatch(
-			attr -> {
-				if (attr.isEmpty()) {
-					return false;
-				} else {
-					//noinspection rawtypes
-					final Predicate<Comparable> predicate = theValue -> {
-						if (theValue == null) {
-							return false;
-						} else if (from != null && to != null) {
-							return ((DateTimeRange) theValue).overlaps(DateTimeRange.between(from, to));
-						} else if (from != null) {
-							return ((DateTimeRange) theValue).overlaps(DateTimeRange.since(from));
-						} else if (to != null) {
-							return ((DateTimeRange) theValue).overlaps(DateTimeRange.until(to));
-						} else {
-							throw new GenericEvitaInternalError("Between query can never be created with both bounds null!");
-						}
-					};
-					final Serializable theValue = Objects.requireNonNull(attr.get().value());
-					if (theValue.getClass().isArray()) {
-						return Arrays.stream((Object[]) theValue).map(Comparable.class::cast).anyMatch(predicate);
-					} else {
-						//noinspection rawtypes
-						return predicate.test((Comparable) theValue);
-					}
-				}
-			}
-		);
-	}
-
-	/**
-	 * Generates a predicate to determine if a stream of optional attribute values contains an element
-	 * that falls within the specified numerical range.
-	 *
-	 * @param from the starting bound of the range (inclusive), can be null.
-	 * @param to the ending bound of the range (inclusive), can be null.
-	 * @return a predicate that evaluates whether any element within the stream falls within the specified numerical range.
-	 */
-	@Nonnull
-	public static Predicate<Stream<Optional<AttributeValue>>> getNumberRangePredicate(
-		@Nullable Number from,
-		@Nullable Number to
-	) {
-		return attrStream -> attrStream.anyMatch(
-			attr -> {
-				if (attr.isEmpty()) {
-					return false;
-				} else {
-					//noinspection rawtypes
-					final Predicate<Comparable> predicate = theValue -> {
-						if (theValue == null) {
-							return false;
-						} else if (from != null && to != null) {
-							if (from instanceof BigDecimal fromBD && to instanceof BigDecimal toBD) {
-								return ((BigDecimalNumberRange) theValue).overlaps(BigDecimalNumberRange.between(fromBD, toBD));
-							} else if (from instanceof Long fromL && to instanceof Long toL) {
-								return ((LongNumberRange) theValue).overlaps(LongNumberRange.between(fromL, toL));
-							} else if (from instanceof Integer fromI && to instanceof Integer toI) {
-								return ((IntegerNumberRange) theValue).overlaps(IntegerNumberRange.between(fromI, toI));
-							} else if (from instanceof Short fromS && to instanceof Short toS) {
-								return ((ShortNumberRange) theValue).overlaps(ShortNumberRange.between(fromS, toS));
-							} else if (from instanceof Byte fromB && to instanceof Byte toB) {
-								return ((ByteNumberRange) theValue).overlaps(ByteNumberRange.between(fromB, toB));
-							} else {
-								throw new GenericEvitaInternalError("Unexpected input type: " + from + ", " + to);
-							}
-						} else if (from != null) {
-							if (from instanceof BigDecimal fromBD) {
-								return ((BigDecimalNumberRange) theValue).overlaps(BigDecimalNumberRange.from(fromBD));
-							} else if (from instanceof Long fromL) {
-								return ((LongNumberRange) theValue).overlaps(LongNumberRange.from(fromL));
-							} else if (from instanceof Integer fromI) {
-								return ((IntegerNumberRange) theValue).overlaps(IntegerNumberRange.from(fromI));
-							} else if (from instanceof Short fromS) {
-								return ((ShortNumberRange) theValue).overlaps(ShortNumberRange.from(fromS));
-							} else if (from instanceof Byte fromB) {
-								return ((ByteNumberRange) theValue).overlaps(ByteNumberRange.from(fromB));
-							} else {
-								throw new GenericEvitaInternalError("Unexpected input type: " + from);
-							}
-						} else if (to != null) {
-							if (to instanceof BigDecimal toBD) {
-								return ((BigDecimalNumberRange) theValue).overlaps(BigDecimalNumberRange.to(toBD));
-							} else if (to instanceof Long toL) {
-								return ((LongNumberRange) theValue).overlaps(LongNumberRange.to(toL));
-							} else if (to instanceof Integer toI) {
-								return ((IntegerNumberRange) theValue).overlaps(IntegerNumberRange.to(toI));
-							} else if (to instanceof Short toS) {
-								return ((ShortNumberRange) theValue).overlaps(ShortNumberRange.to(toS));
-							} else if (to instanceof Byte toB) {
-								return ((ByteNumberRange) theValue).overlaps(ByteNumberRange.to(toB));
-							} else {
-								throw new GenericEvitaInternalError("Unexpected input type: " + to);
-							}
-						} else {
-							throw new GenericEvitaInternalError("Between query can never be created with both bounds null!");
-						}
-					};
-					final Serializable theValue = Objects.requireNonNull(attr.get().value());
-					if (theValue.getClass().isArray()) {
-						return Arrays.stream((Object[]) theValue).map(Comparable.class::cast).anyMatch(predicate);
-					} else {
-						//noinspection rawtypes
-						return predicate.test((Comparable) theValue);
-					}
-				}
-			}
-		);
-	}
-
-	/**
-	 * Creates a predicate for filtering streams of optional attribute values, ensuring that the attributes fall within a specified range.
-	 *
-	 * @param normalizer The function used to normalize the attribute values.
-	 * @param comparator The comparator used to compare the attribute values.
-	 * @param from The lower bound of the comparable range, may be null.
-	 * @param to The upper bound of the comparable range, may be null.
-	 * @return A predicate that returns true if any attribute in the stream falls within the specified range.
-	 */
-	@SuppressWarnings({"unchecked", "rawtypes"})
-	@Nonnull
-	public static Predicate<Stream<Optional<AttributeValue>>> getComparablePredicate(
-		@Nonnull Function<Object, Serializable> normalizer,
-		@Nonnull Comparator comparator,
-		@Nullable Serializable from,
-		@Nullable Serializable to
-	) {
-		return attrStream -> attrStream.anyMatch(
-			attr -> {
-				if (attr.isEmpty()) {
-					return false;
-				} else {
-					final Predicate<Comparable> predicate = theValue -> {
-						if (theValue == null) {
-							return false;
-						} else {
-							if (from != null && to != null) {
-								return comparator.compare(theValue, from) >= 0 &&
-									comparator.compare(theValue, to) <= 0;
-							} else if (from != null) {
-								return comparator.compare(theValue, from) >= 0;
-							} else if (to != null) {
-								return comparator.compare(theValue, to) <= 0;
-							} else {
-								throw new GenericEvitaInternalError("Between query can never be created with both bounds null!");
-							}
-						}
-					};
-					final Serializable theValue = Objects.requireNonNull(attr.get().value());
-					if (theValue.getClass().isArray()) {
-						return Arrays.stream((Object[]) theValue)
-							.map(normalizer)
-							.map(Comparable.class::cast)
-							.anyMatch(predicate);
-					} else {
-						return predicate.test((Comparable) normalizer.apply(theValue));
-					}
-				}
-			}
-		);
-	}
 
 	/**
 	 * Creates a predicate for filtering {@link BigDecimal} objects within a specified range.
@@ -305,62 +115,6 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 				index -> index.getRecordsOverlappingFormula(comparableFrom, comparableTo)
 			),
 			requestedPredicate
-		);
-	}
-
-	/**
-	 * Creates an alternative bitmap filter for a specified attribute within a range defined by 'from' and 'to'.
-	 *
-	 * @param filterByVisitor The visitor used to apply filter indexes.
-	 * @param attributeName The name of the attribute to filter.
-	 * @param from The starting value of the range.
-	 * @param to The ending value of the range.
-	 * @return The constructed AttributeBitmapFilter.
-	 */
-	@Nonnull
-	private static AttributeBitmapFilter createAlternativeBitmapFilter(
-		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull String attributeName,
-		@Nullable Serializable from,
-		@Nullable Serializable to
-	) {
-		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
-		return new AttributeBitmapFilter(
-			attributeName,
-			attributeContent(attributeName),
-			processingScope::getAttributeSchema,
-			(entityContract, theAttributeName) -> processingScope.getAttributeValueStream(entityContract, theAttributeName, filterByVisitor.getLocale()),
-			attributeSchema -> {
-				final Class<? extends Serializable> attributeType = attributeSchema.getPlainType();
-				final ReferenceSchemaContract referenceSchema = processingScope.getReferenceSchema();
-				//noinspection rawtypes
-				final Comparator comparator = FilterIndex.getComparator(
-					AttributeIndex.createAttributeKey(
-						referenceSchema,
-						attributeSchema,
-						filterByVisitor.getLocale()
-					),
-					attributeType
-				);
-				final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(
-					attributeType, attributeSchema.getIndexedDecimalPlaces()
-				);
-				final Serializable comparableFrom = normalizer.apply(from);
-				final Serializable comparableTo = normalizer.apply(to);
-
-				if (Range.class.isAssignableFrom(attributeType)) {
-					if (NumberRange.class.isAssignableFrom(attributeType)) {
-						return getNumberRangePredicate((Number) comparableFrom, (Number) comparableTo);
-					} else if (DateTimeRange.class.isAssignableFrom(attributeType)) {
-						return getDateTimePredicate((OffsetDateTime) comparableFrom, (OffsetDateTime) comparableTo);
-					} else {
-						throw new GenericEvitaInternalError("Unexpected type!");
-					}
-				} else {
-					return getComparablePredicate(normalizer, comparator, comparableFrom, comparableTo);
-				}
-			},
-			AttributeTrait.FILTERABLE
 		);
 	}
 
@@ -456,6 +210,11 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 			final AttributeSchemaContract attributeSchema = optionalGlobalAttributeSchema
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
+			// created before any index is read, so an interval or a value the attribute cannot hold is refused whatever
+			// it stores
+			final AttributeValueMatcher matcher = createMainQueryMatcher(
+				filterConstraint, filterByVisitor, attributeSchema
+			);
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
 			final Class<? extends Serializable> attributeType = attributeSchema.getPlainType();
 
@@ -501,7 +260,7 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
 					filteringFormula,
-					createAlternativeBitmapFilter(filterByVisitor, attributeName, from, to)
+					createAlternativeBitmapFilter(filterConstraint, filterByVisitor, matcher, AttributeTrait.FILTERABLE)
 				);
 			} else {
 				return filteringFormula;
@@ -509,7 +268,7 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 		} else {
 			return new EntityFilteringFormula(
 				"attribute between filter",
-				createAlternativeBitmapFilter(filterByVisitor, attributeName, from, to)
+				createEntityFilteringBitmapFilter(filterConstraint, filterByVisitor, AttributeTrait.FILTERABLE)
 			);
 		}
 	}
@@ -535,6 +294,12 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 				attributeIndexKey, plainType, indexedDecimalPlaces, attributeBetween.getFrom(), attributeBetween.getTo()
 			);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public Serializable[] getIndexProbeValues(@Nonnull AttributeBetween attributeBetween) {
+		return new Serializable[]{attributeBetween.getFrom(), attributeBetween.getTo()};
 	}
 
 }
