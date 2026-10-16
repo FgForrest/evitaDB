@@ -82,7 +82,9 @@ reference row filter then uses that matcher with no further code - the row dispa
 translator's `translate` must wire the rest itself: create the matcher eagerly with `createMainQueryMatcher` where the
 attribute schema is known (that is where an invalid value is refused), pass it to `createAlternativeBitmapFilter`
 together with the traits the constraint passes today, use `createEntityFilteringBitmapFilter` on the branch that names
-no collection, and override `getIndexProbeValues` when it probes the index with decimal values. The load-time invariant
+no collection, and override `getIndexProbeValues` when it probes the index with decimal values. A constraint the index
+answers with no prefetch alternative (as `attributeEquals` / `attributeInSet` do) calls `assertIndexable` itself
+instead of creating the matcher eagerly. The load-time invariant
 only enforces that the contract is implemented; the semantics of the wiring are held by
 `AttributeConstraintPathParityFunctionalTest`, so add the cases of the new constraint there - it holds the index, the
 prefetch, the entity filtering and the reference row to the same answer.

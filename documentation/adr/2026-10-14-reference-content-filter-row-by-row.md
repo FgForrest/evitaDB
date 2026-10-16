@@ -1,7 +1,7 @@
 ---
 title: The filter of referenceContent is evaluated row by row over the fetched owners' references, and its index route is deleted
 date: 2026-10-14
-updated: 2026-10-16 17:01
+updated: 2026-10-16 17:40
 status: accepted
 kind: refactor
 issues: [1615]
@@ -184,10 +184,13 @@ table. A measured case where the index route is faster (none of the eight was) w
   no translator and takes the thresholds of a range constraint already encoded by the translator.
   `ReferenceRowFilterCompiler` no longer names an attribute constraint: it looks the translator up with
   `FilterByVisitor#getTranslator` and calls `createMatcher`. `attributeIs` (is there any value at all) is the one
-  attribute constraint outside the contract. Only that row dispatch is automatic: each translator's `translate` calls
-  `createMainQueryMatcher`, `createAlternativeBitmapFilter` and `createEntityFilteringBitmapFilter` itself. The entity
-  filtering factory creates its matcher over the processing scope and the requested scopes of the moment the constraint
-  was translated, not of the moment the filter runs (`inScope` has long ended by then).
+  attribute constraint outside the contract. Only that row dispatch is automatic: a translator's `translate` calls
+  `createMainQueryMatcher`, `createAlternativeBitmapFilter` and `createEntityFilteringBitmapFilter` itself. Typed
+  `attributeEquals` and `attributeInSet` are the exception: the unique or filter index answers them with no prefetch
+  alternative, so their typed branch calls `assertIndexable` directly and only the collection-less branch uses the
+  entity filtering factory. The entity filtering factory creates its matcher over the processing scope and the
+  requested scopes of the moment the constraint was translated, not of the moment the filter runs (`inScope` has long
+  ended by then).
 - **Forgetting the contract fails every test run.** `FilterByVisitor#verifyAttributeTranslators` runs at the end of the
   static initializer and throws if an attribute constraint is registered with a translator that is not an
   `AttributeValueMatchingTranslator`, except those in `ATTRIBUTE_CONSTRAINTS_WITHOUT_VALUE_MATCHER`
@@ -251,7 +254,9 @@ The review round of 2026-10-16 (the matcher shared with the main query) is guard
   attribute of the catalog and a unique-only one, and the named decimal deviation of the reference row. What the gate
   asserts: every case names the answer of all four arms - either "selects some owners but not all, no arm answers an
   error" or the exact outcome (the refusal text, `[]`, the set) - so four identical refusals cannot pass a case that must
-  select and a set cannot pass a case that must refuse; the index arm must not have prefetched; the prefetch arm must
+  select and a set cannot pass a case that must refuse; the index arm must not have prefetched (except `attributeEquals`
+  and `attributeInSet` over the catalog attribute, whose unique-index lookup fetches the bodies it resolves); the
+  prefetch arm must
   have prefetched for every constraint with a `SelectionFormula` alternative (`SelectionFormula#computeInternal` answers
   from the alternative when the query is a prefetch execution, so the `EXECUTION_PREFETCH` telemetry step is the
   evidence). Plain tests feed the assertion outcomes that must fail - a prefetch arm that did not prefetch, an index
@@ -425,7 +430,9 @@ filterable reference attributes in the filter (Q4); the wider acceptance is avai
   reference row dispatch is automatic. Its `translate` creates the matcher eagerly with `createMainQueryMatcher` where
   the schema is known (that is where an invalid value is refused), passes it to `createAlternativeBitmapFilter` with the
   traits the constraint passes today, uses `createEntityFilteringBitmapFilter` on the collection-less branch and
-  overrides `getIndexProbeValues` when it probes the index with decimal values. The load-time invariant enforces the
+  overrides `getIndexProbeValues` when it probes the index with decimal values. A constraint the index answers with no
+  prefetch alternative (as `attributeEquals` / `attributeInSet`) calls `assertIndexable` itself instead of the eager
+  matcher. The load-time invariant enforces the
   contract, not the wiring; the parity class holds the semantics, so its cases belong in
   `AttributeConstraintPathParityFunctionalTest`.
 - The decimal refusal must never move into `createMatcher`: the reference row would start refusing the wide decimals it
