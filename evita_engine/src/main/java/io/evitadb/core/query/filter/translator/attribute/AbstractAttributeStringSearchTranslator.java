@@ -483,6 +483,8 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 	 * @param translator          the translator of the constraint, which creates the matcher the prefetched entities
 	 *                            are tested with
 	 * @return a Formula object representing the filtering formula based on the given constraints and visitor context
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the attribute is not a string; it is refused
+	 *                                                         before any index is read
 	 */
 	@Nonnull
 	protected <T extends AbstractAttributeFilterStringSearchConstraintLeaf> Formula translateInternal(

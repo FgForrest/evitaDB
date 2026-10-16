@@ -219,12 +219,12 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 			final Class<? extends Serializable> attributeType = attributeSchema.getPlainType();
 
 			final AttributeFormula filteringFormula;
-			final Predicate<BigDecimal> requestedPredicate;
 			if (Range.class.isAssignableFrom(attributeType)) {
 				filteringFormula = createRangeAttributeFormula(
 					filterByVisitor, from, to, attributeSchema, attributeKey
 				);
 			} else {
+				final Predicate<BigDecimal> requestedPredicate;
 				if (Number.class.isAssignableFrom(attributeType)) {
 					final BigDecimal fromBigDecimal = toTargetType(from, BigDecimal.class);
 					final BigDecimal toBigDecimal = toTargetType(to, BigDecimal.class);

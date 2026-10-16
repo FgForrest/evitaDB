@@ -83,9 +83,8 @@ public sealed interface AttributeValueMatcher {
 				}
 			}
 			return false;
-		} else {
-			return value != null && matchesElement(value);
 		}
+		return value != null && matchesElement(value);
 	}
 
 	/**

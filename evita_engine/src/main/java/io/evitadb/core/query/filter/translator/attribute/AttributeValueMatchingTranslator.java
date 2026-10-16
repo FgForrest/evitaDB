@@ -102,9 +102,9 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 
 	/**
 	 * Returns the values of the constraint the main query encodes into a key of the filter index of the attribute - the
-	 * probe of an equality, of a comparison or the bounds of an interval over a scalar attribute. A `BigDecimal` among
-	 * them must fit the key (see {@link #assertIndexable}). The values are returned as the constraint holds them,
-	 * an array standing for its elements.
+	 * probe of an equality, of a comparison or the bounds of an interval. The values are returned whatever the type
+	 * of the attribute; only those of a `BigDecimal` attribute must fit the key (see {@link #assertIndexable}). The
+	 * values are returned as the constraint holds them, an array standing for its elements.
 	 *
 	 * @param constraint the constraint
 	 * @return the values, none for a constraint that probes the index with no value of its own
@@ -132,25 +132,18 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Set<Scope> requestedScopes
 	) {
-		if (BigDecimal.class.equals(attributeSchema.getPlainType())) {
-			boolean indexed = false;
-			for (final Scope scope : requestedScopes) {
-				if (attributeSchema.hasFilterIndexInScope(scope)) {
-					indexed = true;
-					break;
+		if (!BigDecimal.class.equals(attributeSchema.getPlainType())
+			|| !hasFilterIndexInAnyScope(attributeSchema, requestedScopes)) {
+			return;
+		}
+		final int indexedDecimalPlaces = attributeSchema.getIndexedDecimalPlaces();
+		for (final Serializable probeValue : getIndexProbeValues(constraint)) {
+			if (probeValue instanceof Object[] elements) {
+				for (final Object element : elements) {
+					assertEncodable(element, indexedDecimalPlaces);
 				}
-			}
-			if (indexed) {
-				final int indexedDecimalPlaces = attributeSchema.getIndexedDecimalPlaces();
-				for (final Serializable probeValue : getIndexProbeValues(constraint)) {
-					if (probeValue instanceof Object[] elements) {
-						for (final Object element : elements) {
-							assertEncodable(element, indexedDecimalPlaces);
-						}
-					} else {
-						assertEncodable(probeValue, indexedDecimalPlaces);
-					}
-				}
+			} else {
+				assertEncodable(probeValue, indexedDecimalPlaces);
 			}
 		}
 	}
@@ -287,6 +280,25 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 			matcherFactory,
 			traits
 		);
+	}
+
+	/**
+	 * Tells whether the attribute has a filter index in at least one of the scopes.
+	 *
+	 * @param attributeSchema the schema of the attribute
+	 * @param scopes          the scopes to look at
+	 * @return true when some of the scopes holds a filter index of the attribute
+	 */
+	private static boolean hasFilterIndexInAnyScope(
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Set<Scope> scopes
+	) {
+		for (final Scope scope : scopes) {
+			if (attributeSchema.hasFilterIndexInScope(scope)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**

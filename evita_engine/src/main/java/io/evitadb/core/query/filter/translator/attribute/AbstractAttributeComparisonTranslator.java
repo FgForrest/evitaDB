@@ -96,15 +96,19 @@ public class AbstractAttributeComparisonTranslator extends AbstractAttributeTran
 	}
 
 	/**
-	 * Translates the provided attribute constraint into a filtering formula.
-	 * This method processes the attribute constraint using the visitor to
-	 * apply the appropriate filter based on the attribute name and value.
+	 * Translates the provided attribute constraint into a filtering formula: the one the filter index answers, wrapped
+	 * in a `SelectionFormula` with a prefetch alternative when the entities can be prefetched, or an
+	 * `EntityFilteringFormula` for a query with no collection.
+	 *
+	 * The matcher of the constraint is created before any index is read, so a decimal value the attribute cannot
+	 * index is refused whatever the index stores.
 	 *
 	 * @param attributeConstraint The attribute filter constraint that contains the attribute name and value to be filtered.
 	 * @param filterByVisitor The visitor used to traverse and process filter constraints.
 	 * @param translator the translator of the constraint, which creates the matcher the prefetched entities are
 	 *                   tested with
 	 * @return The resulting formula based on the attribute constraint and the visitor's filtering logic.
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when a decimal value does not fit the index key
 	 */
 	@Nonnull
 	protected <T extends AbstractAttributeFilterComparisonConstraintLeaf> Formula translateInternal(
