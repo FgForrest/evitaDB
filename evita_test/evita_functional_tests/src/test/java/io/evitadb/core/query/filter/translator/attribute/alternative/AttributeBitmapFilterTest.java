@@ -35,6 +35,8 @@ import io.evitadb.api.query.filter.AttributeLessThanEquals;
 import io.evitadb.api.query.filter.AttributeStartsWith;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.require.AttributeContent;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
+import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.SealedEntity;
@@ -81,6 +83,7 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -88,6 +91,7 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.QueryConstraints.*;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -488,6 +492,32 @@ class AttributeBitmapFilterTest {
 	}
 
 	@Test
+	void shouldSelectEntityWhenAnyValueOfTheStreamMatches() {
+		final AttributeBetween constraint = attributeBetween(DataGenerator.ATTRIBUTE_PRIORITY, 20000L, 80000L);
+		final Function<AttributeSchemaContract, AttributeValueMatcher> matcherFactory =
+			attributeSchema -> BETWEEN.createMatcher(constraint, attributeSchema, keyOf(attributeSchema), NOW);
+		final AttributeBitmapFilter singleValueFilter = createFilter(DataGenerator.ATTRIBUTE_PRIORITY, matcherFactory);
+		final Bitmap expected = singleValueFilter.filter(
+			createTestFilterByVisitor(filterBy(constraint), singleValueFilter)
+		);
+		assertFalse(expected.isEmpty());
+
+		// the value of the entity follows an absent value and a value outside the interval
+		final AttributeBitmapFilter filter = createFilter(
+			DataGenerator.ATTRIBUTE_PRIORITY,
+			(entityContract, theAttributeName) -> Stream.of(
+				Optional.<AttributeValue>empty(),
+				Optional.of(new AttributeValue(new AttributeKey(theAttributeName), 1L)),
+				entityContract.getAttributeValue(theAttributeName, null)
+			),
+			matcherFactory
+		);
+		final Bitmap result = filter.filter(createTestFilterByVisitor(filterBy(constraint), filter));
+
+		assertArrayEquals(expected.getArray(), result.getArray());
+	}
+
+	@Test
 	void shouldSelectNothingWhenNoEntityIsPrefetched() {
 		final AttributeBetween constraint = attributeBetween(DataGenerator.ATTRIBUTE_PRIORITY, 20000L, 80000L);
 		final AttributeBitmapFilter filter = createFilter(
@@ -511,12 +541,29 @@ class AttributeBitmapFilterTest {
 		@Nonnull String attributeName,
 		@Nonnull Function<AttributeSchemaContract, AttributeValueMatcher> matcherFactory
 	) {
+		return createFilter(
+			attributeName,
+			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
+			matcherFactory
+		);
+	}
+
+	/**
+	 * Creates the filter of the attribute over the entities of the test, reading the values of an entity with the
+	 * given accessor.
+	 */
+	@Nonnull
+	private AttributeBitmapFilter createFilter(
+		@Nonnull String attributeName,
+		@Nonnull BiFunction<EntityContract, String, Stream<Optional<AttributeValue>>> attributeValueAccessor,
+		@Nonnull Function<AttributeSchemaContract, AttributeValueMatcher> matcherFactory
+	) {
 		return AttributeBitmapFilter.matching(
 			attributeName,
 			(entitySchema, theAttributeName, attributeTraits) -> this.attributeSchemaAccessor.getAttributeSchema(
 				entitySchema, theAttributeName, TEST_SCOPES, attributeTraits
 			),
-			(entityContract, theAttributeName) -> Stream.of(entityContract.getAttributeValue(theAttributeName, null)),
+			attributeValueAccessor,
 			matcherFactory
 		);
 	}

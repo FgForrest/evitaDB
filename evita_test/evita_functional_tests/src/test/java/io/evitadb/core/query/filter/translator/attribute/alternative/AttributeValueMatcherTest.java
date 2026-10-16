@@ -809,13 +809,15 @@ class AttributeValueMatcherTest {
 		}
 
 		@Test
-		@DisplayName("no value and an empty array match nothing")
+		@DisplayName("no value, an empty array and a null element match nothing")
 		void shouldMatchNoMissingValue() {
 			final AttributeValueMatcher matcher = AttributeValueMatcher.comparing(
 				KEY, Integer.class, 0, 1, r -> r != 0
 			);
 			assertFalse(matcher.matches(null));
 			assertFalse(matcher.matches(new Integer[0]));
+			assertFalse(matcher.matches(new Integer[]{null}));
+			assertTrue(matcher.matches(new Integer[]{null, 2}));
 			assertTrue(matcher.matches(new Integer[]{1, 2}));
 			assertFalse(matcher.matches(new Integer[]{1}));
 		}

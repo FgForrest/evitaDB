@@ -1209,6 +1209,15 @@ class FilterIndexTest {
 				(BigDecimalNumberRange) normalizer.apply(BigDecimalNumberRange.to(new BigDecimal("9.9")));
 			assertEquals(990L, toOnly.getTo());
 
+			// a range open at the end survives the rescale as well
+			final BigDecimalNumberRange fromOnly =
+				(BigDecimalNumberRange) normalizer.apply(BigDecimalNumberRange.from(new BigDecimal("1.5")));
+			assertEquals(2, fromOnly.getRetainedDecimalPlaces());
+			assertEquals(150L, fromOnly.getFrom());
+
+			// a range with no bounds has nothing to rescale
+			assertSame(BigDecimalNumberRange.INFINITE, normalizer.apply(BigDecimalNumberRange.INFINITE));
+
 			// idempotent: a range already at the target scale rescales to an equal range
 			final BigDecimalNumberRange reNormalized = (BigDecimalNumberRange) normalizer.apply(rescaled);
 			assertEquals(rescaled.getFrom(), reNormalized.getFrom());
