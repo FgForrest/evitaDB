@@ -1,7 +1,7 @@
 ---
 title: The filter of referenceContent is evaluated row by row over the fetched owners' references, and its index route is deleted
 date: 2026-10-14
-updated: 2026-10-16 16:33
+updated: 2026-10-16 17:01
 status: accepted
 kind: refactor
 issues: [1615]
@@ -468,3 +468,6 @@ filterable reference attributes in the filter (Q4); the wider acceptance is avai
   index; the prefetch and the entity filtering were pointed at it, which removed 41 measured divergences; invalid values
   refused before any index is read (decided by Johnny); the load-time invariant added. The benchmark of the matcher on
   the main query is yet to run.
+  Fixed in passing, older than #1615: two entity-filtering formulas of a collection-less query hashed alike and
+  `FormulaDeduplicator` dropped the second one; `EntityFilteringConjunctionFunctionalTest` showed 14 of 16 shapes wrong
+  before the fix and 16 green after.

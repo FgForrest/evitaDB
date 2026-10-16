@@ -253,9 +253,7 @@ class AttributeConstraintPathParityFunctionalTest implements EvitaTestSupport {
 
 		/**
 		 * Returns the constraints with the locale the values are stored in added behind them when the fixture is
-		 * localized. The locale follows the constraints because a query naming no collection evaluates a locale
-		 * constraint on the entity bodies like an attribute constraint, and when both come first, the locale does,
-		 * only the first of them is applied.
+		 * localized.
 		 */
 		@Nonnull
 		FilterConstraint[] withLocale(@Nonnull FilterConstraint... constraints) {

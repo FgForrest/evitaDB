@@ -39,6 +39,7 @@ import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * The formula is used only in case that the input {@link EvitaRequest} doesn't specify the entity collection it
@@ -55,6 +56,10 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 	 */
 	private static final long CLASS_ID = -1887923944737482575L;
 	/**
+	 * Hands out {@link #instanceId} values.
+	 */
+	private static final AtomicLong INSTANCE_SEQUENCE = new AtomicLong();
+	/**
 	 * Contains a simple text, that would be used in an error message if the entities are not prefetched and computation
 	 * of the result is executed. In such case, the target entity collection needs to be known and in case of this
 	 * formula it's never known.
@@ -64,6 +69,13 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 	 * Contains the alternative computation based on entity contents filtering.
 	 */
 	private final EntityToBitmapFilter alternative;
+	/**
+	 * Distinguishes this formula from every other one. The formula has no inner formulas and its alternative exposes
+	 * nothing to hash, so without it any two instances would hash alike and the
+	 * {@link io.evitadb.core.query.filter.FormulaDeduplicator} would replace the second of them in a plan with the
+	 * first one, silently dropping the filter it stands for.
+	 */
+	private final long instanceId = INSTANCE_SEQUENCE.incrementAndGet();
 
 	public EntityFilteringFormula(@Nonnull String reason, @Nonnull EntityToBitmapFilter alternative) {
 		this.reason = reason;
@@ -73,7 +85,7 @@ public class EntityFilteringFormula extends AbstractFormula implements Requireme
 
 	@Override
 	protected long includeAdditionalHash(@Nonnull LongHashFunction hashFunction) {
-		return 0;
+		return hashFunction.hashLong(this.instanceId);
 	}
 
 	@Override
