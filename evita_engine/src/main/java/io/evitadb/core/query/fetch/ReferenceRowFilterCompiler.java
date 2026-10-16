@@ -25,6 +25,7 @@ package io.evitadb.core.query.fetch;
 
 import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.exception.EntityNotManagedException;
+import io.evitadb.api.query.AttributeConstraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
@@ -34,8 +35,9 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.filter.FilterByVisitor;
-import io.evitadb.core.query.filter.translator.attribute.AbstractAttributeStringSearchTranslator;
-import io.evitadb.core.query.filter.translator.attribute.AttributeInRangeTranslator;
+import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
+import io.evitadb.core.query.filter.translator.attribute.AttributeValueMatchingTranslator;
+import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -55,11 +57,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.BiPredicate;
+import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.function.IntPredicate;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+
+import static io.evitadb.core.query.filter.translator.attribute.AbstractAttributeTranslator.isBoundToQueryLocale;
 
 /**
  * Compiles the filter of the fetched references (`referenceContent(..., filterBy(...))`) into a
@@ -249,18 +252,6 @@ final class ReferenceRowFilterCompiler {
 	}
 
 	/**
-	 * Tells whether the localized attribute is read in the leaf locale alone in the scope - which it is everywhere but
-	 * where the attribute is unique across locales, as its unique index then holds a value of any locale.
-	 *
-	 * @param attributeSchema the schema of the attribute
-	 * @param scope           the scope of the owner
-	 * @return true when only the value in the leaf locale counts in the scope
-	 */
-	private static boolean isBoundToLocale(@Nonnull AttributeSchemaContract attributeSchema, @Nonnull Scope scope) {
-		return !attributeSchema.isUniqueInScope(scope) || attributeSchema.isUniqueWithinLocaleInScope(scope);
-	}
-
-	/**
 	 * Returns the same keys for every scope of the compilation.
 	 *
 	 * @param scopes the scopes the node is compiled for
@@ -408,61 +399,30 @@ final class ReferenceRowFilterCompiler {
 			}
 			case EntityHaving entityHaving -> compileEntityHaving(entityHaving, nestedQueryScopes);
 			case GroupHaving groupHaving -> compileGroupHaving(groupHaving, nestedQueryScopes);
-			case AttributeEquals equals -> compileEquality(
-				equals.getAttributeName(), readingScopes,
-				(indexKey, attributeSchema) -> AttributeValueMatcher.comparing(
-					indexKey, attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces(),
-					equals.getAttributeValue(), result -> result == 0
-				)
-			);
-			case AttributeInSet inSet -> compileEquality(
-				inSet.getAttributeName(), readingScopes,
-				(indexKey, attributeSchema) -> AttributeValueMatcher.equalToAny(
-					indexKey, attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces(),
-					inSet.getAttributeValues()
-				)
-			);
-			case AttributeLessThan lessThan -> compileComparison(lessThan, readingScopes, result -> result < 0);
-			case AttributeLessThanEquals lessThanEquals ->
-				compileComparison(lessThanEquals, readingScopes, result -> result <= 0);
-			case AttributeGreaterThan greaterThan ->
-				compileComparison(greaterThan, readingScopes, result -> result > 0);
-			case AttributeGreaterThanEquals greaterThanEquals ->
-				compileComparison(greaterThanEquals, readingScopes, result -> result >= 0);
-			case AttributeBetween between -> compileInLeafLocale(
-				between.getAttributeName(), readingScopes,
-				(indexKey, attributeSchema) -> AttributeValueMatcher.between(
-					indexKey, attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces(),
-					between.getFrom(), between.getTo()
-				)
-			);
-			case AttributeStartsWith startsWith ->
-				compileStringSearch(startsWith, readingScopes, String::startsWith);
-			case AttributeEndsWith endsWith -> compileStringSearch(endsWith, readingScopes, String::endsWith);
-			case AttributeContains contains -> compileStringSearch(contains, readingScopes, String::contains);
-			case AttributeInRange inRange -> compileInLeafLocale(
-				inRange.getAttributeName(), readingScopes,
-				(indexKey, attributeSchema) -> AttributeValueMatcher.enveloping(
-					attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces(),
-					AttributeInRangeTranslator.getComparableValue(
-						inRange, this.context.filterByVisitor()::getNow,
-						attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces()
-					)
-				)
-			);
 			case AttributeIs attributeIs -> compilePresence(attributeIs, readingScopes);
 			case EntityScope entityScope -> throw new EvitaInvalidUsageException(
 				"Constraint `" + entityScope + "` can be used in the filter of the fetched references `" +
 					this.context.referenceSchema().getName() + "` only directly in its `filterBy` - it selects " +
 					"the scopes the references are looked up in and has no meaning on a single reference."
 			);
-			default -> throw new EvitaInvalidUsageException(
-				"Constraint `" + constraint + "` cannot be used in the filter of the fetched references `" +
-					this.context.referenceSchema().getName() + "` - the filter is evaluated on every reference " +
-					"by itself, and only `and`, `or`, `not`, `inScope`, `entityPrimaryKeyInSet`, " +
-					"`entityLocaleEquals`, `entityHaving`, `groupHaving` and the attribute constraints have " +
-					"a meaning there."
-			);
+			default -> {
+				final FilteringConstraintTranslator<? extends FilterConstraint> translator =
+					FilterByVisitor.getTranslator(constraint.getClass());
+				if (translator instanceof AttributeValueMatchingTranslator<?> matchingTranslator &&
+					constraint instanceof AttributeConstraint<?> attributeConstraint
+				) {
+					yield compileAttributeValue(
+						matchingTranslator, constraint, attributeConstraint.getAttributeName(), readingScopes
+					);
+				}
+				throw new EvitaInvalidUsageException(
+					"Constraint `" + constraint + "` cannot be used in the filter of the fetched references `" +
+						this.context.referenceSchema().getName() + "` - the filter is evaluated on every reference " +
+						"by itself, and only `and`, `or`, `not`, `inScope`, `entityPrimaryKeyInSet`, " +
+						"`entityLocaleEquals`, `entityHaving`, `groupHaving` and the attribute constraints have " +
+						"a meaning there."
+				);
+			}
 		};
 	}
 
@@ -566,73 +526,56 @@ final class ReferenceRowFilterCompiler {
 	}
 
 	/**
-	 * Compiles `attributeEquals` or `attributeInSet` - the leaves the main query answers from the unique index where
-	 * the attribute is unique, and which therefore read a localized attribute in any locale in a scope where it is
+	 * Compiles a constraint testing a single attribute value - the matcher is created by the translator of the
+	 * constraint, which also tells the index the main query answers it from, and so the locales the leaf reads.
+	 *
+	 * The translator is looked up by the class of the constraint, so it is the translator of this very constraint; the
+	 * cast of the constraint to the type the translator is parameterized with is the one
+	 * {@link FilterByVisitor#visit} makes for every translator.
+	 *
+	 * @param translator    the translator of the constraint
+	 * @param constraint    the constraint
+	 * @param attributeName the name of the attribute
+	 * @param scopes        the scopes the leaf is compiled for
+	 * @return the node
+	 */
+	@SuppressWarnings({"unchecked", "rawtypes"})
+	@Nonnull
+	private RowTest compileAttributeValue(
+		@Nonnull AttributeValueMatchingTranslator translator,
+		@Nonnull FilterConstraint constraint,
+		@Nonnull String attributeName,
+		@Nonnull Set<Scope> scopes
+	) {
+		final BiFunction<AttributeIndexKey, AttributeSchemaContract, AttributeValueMatcher> matcherFactory =
+			(indexKey, attributeSchema) -> translator.createMatcher(
+				constraint, attributeSchema, indexKey, this.context.filterByVisitor()::getNow
+			);
+		return translator.isAnsweredByUniqueIndex() ?
+			compileEquality(attributeName, scopes, matcherFactory) :
+			compileInLeafLocale(attributeName, scopes, matcherFactory);
+	}
+
+	/**
+	 * Compiles a leaf the main query answers from the unique index where the attribute is unique - `attributeEquals`
+	 * or `attributeInSet` - and which therefore reads a localized attribute in any locale in a scope where it is
 	 * unique across locales, and in the leaf locale elsewhere.
 	 *
 	 * @param attributeName  the name of the attribute
 	 * @param scopes         the scopes the leaf is compiled for
-	 * @param matcherFactory the factory of the matcher of the leaf
+	 * @param matcherFactory the factory of the matcher of the leaf from the index key and the schema of the attribute
 	 * @return the node
 	 */
 	@Nonnull
 	private RowTest compileEquality(
 		@Nonnull String attributeName,
 		@Nonnull Set<Scope> scopes,
-		@Nonnull MatcherFactory matcherFactory
+		@Nonnull BiFunction<AttributeIndexKey, AttributeSchemaContract, AttributeValueMatcher> matcherFactory
 	) {
 		final AttributeSchemaContract attributeSchema = getAttributeSchema(attributeName, scopes);
 		return new RowTest.AttributeMatch(
-			getKeysByScope(attributeSchema, scopes, scope -> isBoundToLocale(attributeSchema, scope)),
-			matcherFactory.create(getIndexKey(attributeSchema), attributeSchema)
-		);
-	}
-
-	/**
-	 * Compiles a comparison - `attributeLessThan`, `attributeLessThanEquals`, `attributeGreaterThan` or
-	 * `attributeGreaterThanEquals`.
-	 *
-	 * @param comparison      the constraint
-	 * @param scopes          the scopes the leaf is compiled for
-	 * @param resultPredicate the test of the result of comparing the attribute value with the constraint value
-	 * @return the node
-	 */
-	@Nonnull
-	private RowTest compileComparison(
-		@Nonnull AbstractAttributeFilterComparisonConstraintLeaf comparison,
-		@Nonnull Set<Scope> scopes,
-		@Nonnull IntPredicate resultPredicate
-	) {
-		return compileInLeafLocale(
-			comparison.getAttributeName(), scopes,
-			(indexKey, attributeSchema) -> AttributeValueMatcher.comparing(
-				indexKey, attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces(),
-				comparison.getAttributeValue(), resultPredicate
-			)
-		);
-	}
-
-	/**
-	 * Compiles a string search - `attributeStartsWith`, `attributeEndsWith` or `attributeContains`.
-	 *
-	 * @param stringSearch the constraint
-	 * @param scopes       the scopes the leaf is compiled for
-	 * @param predicate    the test of a value against the searched text
-	 * @return the node
-	 * @throws EvitaInvalidUsageException when the attribute is not a string
-	 */
-	@Nonnull
-	private RowTest compileStringSearch(
-		@Nonnull AbstractAttributeFilterStringSearchConstraintLeaf stringSearch,
-		@Nonnull Set<Scope> scopes,
-		@Nonnull BiPredicate<String, String> predicate
-	) {
-		return compileInLeafLocale(
-			stringSearch.getAttributeName(), scopes,
-			(indexKey, attributeSchema) -> {
-				AbstractAttributeStringSearchTranslator.assertStringType(stringSearch, attributeSchema);
-				return AttributeValueMatcher.searching(stringSearch.getTextToSearch(), predicate);
-			}
+			getKeysByScope(attributeSchema, scopes, scope -> isBoundToQueryLocale(attributeSchema, scope)),
+			matcherFactory.apply(getIndexKey(attributeSchema), attributeSchema)
 		);
 	}
 
@@ -642,19 +585,19 @@ final class ReferenceRowFilterCompiler {
 	 *
 	 * @param attributeName  the name of the attribute
 	 * @param scopes         the scopes the leaf is compiled for
-	 * @param matcherFactory the factory of the matcher of the leaf
+	 * @param matcherFactory the factory of the matcher of the leaf from the index key and the schema of the attribute
 	 * @return the node
 	 */
 	@Nonnull
 	private RowTest compileInLeafLocale(
 		@Nonnull String attributeName,
 		@Nonnull Set<Scope> scopes,
-		@Nonnull MatcherFactory matcherFactory
+		@Nonnull BiFunction<AttributeIndexKey, AttributeSchemaContract, AttributeValueMatcher> matcherFactory
 	) {
 		final AttributeSchemaContract attributeSchema = getAttributeSchema(attributeName, scopes);
 		return new RowTest.AttributeMatch(
 			getKeysInEveryScope(scopes, getLeafLocaleKeys(attributeSchema)),
-			matcherFactory.create(getIndexKey(attributeSchema), attributeSchema)
+			matcherFactory.apply(getIndexKey(attributeSchema), attributeSchema)
 		);
 	}
 
@@ -678,7 +621,7 @@ final class ReferenceRowFilterCompiler {
 		return new RowTest.AttributePresence(
 			getKeysByScope(
 				attributeSchema, scopes,
-				scope -> this.leafLocale != null && isBoundToLocale(attributeSchema, scope)
+				scope -> this.leafLocale != null && isBoundToQueryLocale(attributeSchema, scope)
 			),
 			present
 		);
@@ -713,7 +656,7 @@ final class ReferenceRowFilterCompiler {
 		);
 		Assert.isTrue(
 			!attributeSchema.isLocalized() || this.leafLocale != null ||
-				scopes.stream().anyMatch(scope -> !isBoundToLocale(attributeSchema, scope)),
+				scopes.stream().anyMatch(scope -> !isBoundToQueryLocale(attributeSchema, scope)),
 			() -> new EntityLocaleMissingException(attributeName)
 		);
 		return attributeSchema;
@@ -803,27 +746,6 @@ final class ReferenceRowFilterCompiler {
 			keys[index++] = new AttributeKey(attributeSchema.getName(), locale);
 		}
 		return keys;
-	}
-
-	/**
-	 * Creates the matcher of an attribute leaf once the attribute is resolved.
-	 */
-	@FunctionalInterface
-	private interface MatcherFactory {
-
-		/**
-		 * Creates the matcher.
-		 *
-		 * @param indexKey        the key of the filter index the leaf reads in the leaf locale
-		 * @param attributeSchema the schema of the attribute
-		 * @return the matcher
-		 */
-		@Nonnull
-		AttributeValueMatcher create(
-			@Nonnull AttributeIndexKey indexKey,
-			@Nonnull AttributeSchemaContract attributeSchema
-		);
-
 	}
 
 }

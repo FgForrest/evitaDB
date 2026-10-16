@@ -24,15 +24,20 @@
 package io.evitadb.core.query.filter.translator.attribute;
 
 import io.evitadb.api.query.filter.AttributeEndsWith;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
+import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.trigram.StringSearchShape;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 
 import javax.annotation.Nonnull;
+import java.time.OffsetDateTime;
 import java.util.function.BiPredicate;
+import java.util.function.Supplier;
 
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link AttributeEndsWith} to {@link AbstractFormula}.
@@ -41,7 +46,7 @@ import java.util.function.BiPredicate;
  */
 public class AttributeEndsWithTranslator
 	extends AbstractAttributeStringSearchTranslator
-	implements FilteringConstraintTranslator<AttributeEndsWith> {
+	implements FilteringConstraintTranslator<AttributeEndsWith>, AttributeValueMatchingTranslator<AttributeEndsWith> {
 
 	public AttributeEndsWithTranslator() {
 		super(
@@ -79,6 +84,17 @@ public class AttributeEndsWithTranslator
 	@Override
 	protected boolean isServedByTrigramIndex() {
 		return true;
+	}
+
+	@Nonnull
+	@Override
+	public AttributeValueMatcher createMatcher(
+		@Nonnull AttributeEndsWith attributeEndsWith,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Supplier<OffsetDateTime> now
+	) {
+		return createStringSearchMatcher(attributeEndsWith, attributeSchema);
 	}
 
 }

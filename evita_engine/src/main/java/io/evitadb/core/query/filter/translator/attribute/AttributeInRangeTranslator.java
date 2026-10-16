@@ -38,11 +38,13 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
+import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.NumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.Index;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -65,7 +67,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class AttributeInRangeTranslator extends AbstractAttributeTranslator
-	implements FilteringConstraintTranslator<AttributeInRange> {
+	implements FilteringConstraintTranslator<AttributeInRange>, AttributeValueMatchingTranslator<AttributeInRange> {
 
 	/**
 	 * Creates a predicate to check if any attribute value in a stream is valid within a given date-time range.
@@ -192,8 +194,8 @@ public class AttributeInRangeTranslator extends AbstractAttributeTranslator
 	 * Computes a comparable long value from the provided filter constraint based on the attribute definition type -
 	 * the point the {@link io.evitadb.index.range.RangeIndex} of the attribute is probed with.
 	 *
-	 * The row filter of the fetched references tests the range of a single reference against the very same point
-	 * instead of probing an index, so both read one encoding.
+	 * The matcher of this translator tests a single stored range against the very same point instead of probing an
+	 * index, so both read one encoding.
 	 *
 	 * @param filterConstraint     AttributeInRange object containing the constraint information.
 	 * @param now                  supplier of the moment of the query, consulted when the constraint names no moment
@@ -271,6 +273,22 @@ public class AttributeInRangeTranslator extends AbstractAttributeTranslator
 				createAlternativeBitmapFilter(attributeInRange, filterByVisitor, attributeName)
 			);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public AttributeValueMatcher createMatcher(
+		@Nonnull AttributeInRange attributeInRange,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Supplier<OffsetDateTime> now
+	) {
+		return AttributeValueMatcher.enveloping(
+			attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces(),
+			getComparableValue(
+				attributeInRange, now, attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces()
+			)
+		);
 	}
 
 }

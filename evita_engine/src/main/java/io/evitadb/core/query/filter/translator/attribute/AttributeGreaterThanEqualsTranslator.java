@@ -25,13 +25,18 @@ package io.evitadb.core.query.filter.translator.attribute;
 
 import io.evitadb.api.query.filter.AttributeGreaterThan;
 import io.evitadb.api.query.filter.AttributeGreaterThanEquals;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
+import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 
 import javax.annotation.Nonnull;
+import java.time.OffsetDateTime;
+import java.util.function.Supplier;
 
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link AttributeGreaterThan} to {@link AbstractFormula}.
@@ -39,7 +44,8 @@ import javax.annotation.Nonnull;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class AttributeGreaterThanEqualsTranslator extends AbstractAttributeComparisonTranslator
-	implements FilteringConstraintTranslator<AttributeGreaterThanEquals> {
+	implements FilteringConstraintTranslator<AttributeGreaterThanEquals>,
+	AttributeValueMatchingTranslator<AttributeGreaterThanEquals> {
 
 	public AttributeGreaterThanEqualsTranslator() {
 		super(
@@ -53,6 +59,17 @@ public class AttributeGreaterThanEqualsTranslator extends AbstractAttributeCompa
 	@Override
 	public Formula translate(@Nonnull AttributeGreaterThanEquals attributeGreaterThanEquals, @Nonnull FilterByVisitor filterByVisitor) {
 		return translateInternal(attributeGreaterThanEquals, filterByVisitor);
+	}
+
+	@Nonnull
+	@Override
+	public AttributeValueMatcher createMatcher(
+		@Nonnull AttributeGreaterThanEquals attributeGreaterThanEquals,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Supplier<OffsetDateTime> now
+	) {
+		return createComparisonMatcher(attributeGreaterThanEquals, attributeSchema, attributeIndexKey);
 	}
 
 }

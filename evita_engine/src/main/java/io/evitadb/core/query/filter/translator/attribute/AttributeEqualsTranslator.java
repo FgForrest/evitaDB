@@ -38,19 +38,23 @@ import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
+import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.Index;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
 import static io.evitadb.core.query.filter.translator.attribute.AbstractAttributeComparisonTranslator.createAlternativeBitmapFilter;
 import static java.util.Optional.ofNullable;
@@ -61,7 +65,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class AttributeEqualsTranslator extends AbstractAttributeTranslator
-	implements FilteringConstraintTranslator<AttributeEquals> {
+	implements FilteringConstraintTranslator<AttributeEquals>, AttributeValueMatchingTranslator<AttributeEquals> {
 
 	/**
 	 * Creates an {@link AttributeFormula} that looks the value up in a unique index - O(1) hash map lookup instead of
@@ -178,6 +182,25 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 				createAlternativeBitmapFilter(filterByVisitor, attributeName, attributeValue, result -> result == 0)
 			);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public AttributeValueMatcher createMatcher(
+		@Nonnull AttributeEquals attributeEquals,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Supplier<OffsetDateTime> now
+	) {
+		return AttributeValueMatcher.comparing(
+			attributeIndexKey, attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces(),
+			attributeEquals.getAttributeValue(), result -> result == 0
+		);
+	}
+
+	@Override
+	public boolean isAnsweredByUniqueIndex() {
+		return true;
 	}
 
 }

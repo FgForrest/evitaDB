@@ -40,6 +40,7 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
+import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.ByteNumberRange;
 import io.evitadb.dataType.DateTimeRange;
@@ -52,6 +53,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.Index;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -64,6 +66,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.attributeContent;
@@ -76,7 +79,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class AttributeBetweenTranslator extends AbstractAttributeTranslator
-	implements FilteringConstraintTranslator<AttributeBetween> {
+	implements FilteringConstraintTranslator<AttributeBetween>, AttributeValueMatchingTranslator<AttributeBetween> {
 
 	/**
 	 * Generates a predicate to determine if a stream of optional attribute values contains an element
@@ -368,8 +371,8 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 	 * the attribute's indexed decimal places when it keeps any and as a plain `long` otherwise, a date-time range bound
 	 * as its comparable moment.
 	 *
-	 * The row filter of the fetched references tests the range of a single reference against the very same thresholds
-	 * instead of probing an index, so both read one encoding.
+	 * The matcher of this translator tests a single stored range against the very same thresholds instead of probing
+	 * an index, so both read one encoding.
 	 *
 	 * @param rangeType            the plain type of the range-typed attribute
 	 * @param indexedDecimalPlaces the decimal places the attribute's numbers are indexed with
@@ -507,6 +510,29 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 			return new EntityFilteringFormula(
 				"attribute between filter",
 				createAlternativeBitmapFilter(filterByVisitor, attributeName, from, to)
+			);
+		}
+	}
+
+	@Nonnull
+	@Override
+	public AttributeValueMatcher createMatcher(
+		@Nonnull AttributeBetween attributeBetween,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Supplier<OffsetDateTime> now
+	) {
+		final Class<? extends Serializable> plainType = attributeSchema.getPlainType();
+		final int indexedDecimalPlaces = attributeSchema.getIndexedDecimalPlaces();
+		if (Range.class.isAssignableFrom(plainType)) {
+			return AttributeValueMatcher.overlapping(
+				plainType, indexedDecimalPlaces,
+				encodeRangeBound(plainType, indexedDecimalPlaces, attributeBetween.getFrom(), Long.MIN_VALUE),
+				encodeRangeBound(plainType, indexedDecimalPlaces, attributeBetween.getTo(), Long.MAX_VALUE)
+			);
+		} else {
+			return AttributeValueMatcher.within(
+				attributeIndexKey, plainType, indexedDecimalPlaces, attributeBetween.getFrom(), attributeBetween.getTo()
 			);
 		}
 	}

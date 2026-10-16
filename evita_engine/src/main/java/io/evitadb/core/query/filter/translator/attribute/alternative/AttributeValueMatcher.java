@@ -21,9 +21,8 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.fetch;
+package io.evitadb.core.query.filter.translator.attribute.alternative;
 
-import io.evitadb.core.query.filter.translator.attribute.AttributeBetweenTranslator;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Range;
 import io.evitadb.index.attribute.FilterIndex;
@@ -44,36 +43,34 @@ import java.util.function.Function;
 import java.util.function.IntPredicate;
 
 /**
- * Tells whether a single value of a reference attribute satisfies one attribute constraint of the filter of the
- * fetched references - the per-leaf part of {@link ReferenceRowFilter}, which reads the value from the reference row
- * itself instead of probing an index of it.
+ * Tells whether a single value of an attribute satisfies one attribute constraint - the per-value test of the
+ * constraint, which answers it from the value itself instead of probing an index of the attribute.
  *
  * The verdict is the one the attribute indexes give for the same value, because the matcher is built on the
  * definitions the indexes are built on: the constraint value is converted by {@link EvitaDataTypes#toTargetType} and
  * both sides are normalized and compared by {@link FilterIndex#getNormalizer(Class, int)} and
  * {@link FilterIndex#getComparator(AttributeIndexKey, Class)}. Two operators are not a comparison at all and reproduce
  * the operator of the {@link io.evitadb.index.range.RangeIndex} instead - the overlap of an `attributeBetween` over a
- * range-typed attribute and the envelope of an `attributeInRange` - over the thresholds the translators encode
- * ({@link AttributeBetweenTranslator#encodeRangeBound},
- * {@link io.evitadb.core.query.filter.translator.attribute.AttributeInRangeTranslator#getComparableValue}).
+ * range-typed attribute and the envelope of an `attributeInRange` - over the thresholds the attribute translators
+ * encode and hand in already encoded.
  *
  * One deliberate difference: a `BigDecimal` is compared as {@link NumberUtils#scaleToInteger(BigDecimal, int)} - the
  * value the index encodes into an `int`, kept as a `BigDecimal`. It orders and equals exactly like the `int` wherever
- * that fits, and does not overflow where it does not, so no stored value makes the row filter throw.
+ * that fits, and does not overflow where it does not, so no stored value makes the matcher throw.
  *
  * An array value matches when any of its elements does, as the filter index keeps one entry per element; an empty
  * array and a missing value match nothing.
  *
  * Instances are built once per constraint, so the conversion, the normalization of the constraint value and the
- * construction of the comparator are paid once, not per row.
+ * construction of the comparator are paid once, not per value.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Immutable
-sealed interface AttributeValueMatcher {
+public sealed interface AttributeValueMatcher {
 
 	/**
-	 * Tells whether the attribute value of a reference row satisfies the constraint.
+	 * Tells whether the attribute value satisfies the constraint.
 	 *
 	 * @param value the value of the attribute, an array of values for an array attribute, NULL when there is none
 	 * @return true when the value, or any element of an array value, satisfies the constraint
@@ -152,10 +149,9 @@ sealed interface AttributeValueMatcher {
 	}
 
 	/**
-	 * Creates the matcher of an `attributeBetween`. Over a range-typed attribute it is the overlap the range index
-	 * answers, over any other the closed interval of the filter index - and like the filter index, it refuses an
-	 * interval whose lower bound exceeds the upper one with the very message the index uses, but here regardless of
-	 * whether any value is stored.
+	 * Creates the matcher of an `attributeBetween` over an attribute that is not range-typed - the closed interval of
+	 * the filter index. Like the filter index, it refuses an interval whose lower bound exceeds the upper one with the
+	 * very message the index uses, but here regardless of whether any value is stored.
 	 *
 	 * @param attributeIndexKey    key of the filter index the attribute is read from, its locale selects the comparator
 	 * @param plainType            the plain type of the attribute
@@ -163,10 +159,10 @@ sealed interface AttributeValueMatcher {
 	 * @param from                 the lower bound, NULL when the interval is open from below
 	 * @param to                   the upper bound, NULL when the interval is open from above
 	 * @return the matcher
-	 * @throws io.evitadb.exception.EvitaInvalidUsageException when a scalar interval has its bounds inverted
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the bounds of the interval are inverted
 	 */
 	@Nonnull
-	static AttributeValueMatcher between(
+	static AttributeValueMatcher within(
 		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull Class<? extends Serializable> plainType,
 		int indexedDecimalPlaces,
@@ -174,24 +170,35 @@ sealed interface AttributeValueMatcher {
 		@Nullable Serializable to
 	) {
 		final Function<Object, Serializable> normalizer = getNormalizer(plainType, indexedDecimalPlaces);
-		if (Range.class.isAssignableFrom(plainType)) {
-			return new Overlapping(
-				normalizer,
-				AttributeBetweenTranslator.encodeRangeBound(plainType, indexedDecimalPlaces, from, Long.MIN_VALUE),
-				AttributeBetweenTranslator.encodeRangeBound(plainType, indexedDecimalPlaces, to, Long.MAX_VALUE)
-			);
-		} else {
-			final Comparator<Object> comparator = getComparator(attributeIndexKey, plainType);
-			final Serializable normalizedFrom = normalizer.apply(EvitaDataTypes.toTargetType(from, plainType));
-			final Serializable normalizedTo = normalizer.apply(EvitaDataTypes.toTargetType(to, plainType));
-			// the check `InvertedIndex#getRecordsInternal` makes, with its message - there it fires only where the
-			// index holds a value, here it does not depend on data
-			Assert.isTrue(
-				normalizedFrom == null || normalizedTo == null || comparator.compare(normalizedFrom, normalizedTo) <= 0,
-				() -> "From must be lower than to: " + normalizedFrom + " vs. " + normalizedTo
-			);
-			return new Within(comparator, normalizer, normalizedFrom, normalizedTo);
-		}
+		final Comparator<Object> comparator = getComparator(attributeIndexKey, plainType);
+		final Serializable normalizedFrom = normalizer.apply(EvitaDataTypes.toTargetType(from, plainType));
+		final Serializable normalizedTo = normalizer.apply(EvitaDataTypes.toTargetType(to, plainType));
+		// the check `InvertedIndex#getRecordsInternal` makes, with its message - there it fires only where the
+		// index holds a value, here it does not depend on data
+		Assert.isTrue(
+			normalizedFrom == null || normalizedTo == null || comparator.compare(normalizedFrom, normalizedTo) <= 0,
+			() -> "From must be lower than to: " + normalizedFrom + " vs. " + normalizedTo
+		);
+		return new Within(comparator, normalizer, normalizedFrom, normalizedTo);
+	}
+
+	/**
+	 * Creates the matcher of an `attributeBetween` over a range-typed attribute - the overlap the range index answers.
+	 *
+	 * @param plainType            the plain range type of the attribute
+	 * @param indexedDecimalPlaces the decimal places the attribute's numbers are indexed with
+	 * @param from                 the lower bound encoded as the range index threshold it is probed with
+	 * @param to                   the upper bound encoded as the range index threshold it is probed with
+	 * @return the matcher
+	 */
+	@Nonnull
+	static AttributeValueMatcher overlapping(
+		@Nonnull Class<? extends Serializable> plainType,
+		int indexedDecimalPlaces,
+		long from,
+		long to
+	) {
+		return new Overlapping(getNormalizer(plainType, indexedDecimalPlaces), from, to);
 	}
 
 	/**

@@ -39,10 +39,12 @@ import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
+import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.index.Index;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -82,6 +84,27 @@ public class AbstractAttributeComparisonTranslator extends AbstractAttributeTran
 	 * The description of the attribute comparison filter.
 	 */
 	private final String description;
+
+	/**
+	 * Creates the matcher of the comparison - the test of a single attribute value the operator of this translator
+	 * stands for.
+	 *
+	 * @param attributeConstraint the comparison constraint
+	 * @param attributeSchema     the schema of the attribute the constraint is applied to
+	 * @param attributeIndexKey   key of the filter index the attribute is read from, its locale selects the comparator
+	 * @return the matcher
+	 */
+	@Nonnull
+	protected AttributeValueMatcher createComparisonMatcher(
+		@Nonnull AbstractAttributeFilterComparisonConstraintLeaf attributeConstraint,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull AttributeIndexKey attributeIndexKey
+	) {
+		return AttributeValueMatcher.comparing(
+			attributeIndexKey, attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces(),
+			attributeConstraint.getAttributeValue(), this.comparisonResultPredicate
+		);
+	}
 
 	/**
 	 * Translates the provided attribute constraint into a filtering formula.

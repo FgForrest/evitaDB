@@ -45,6 +45,7 @@ import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
+import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
@@ -143,6 +144,24 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 			String.class.equals(attributeDefinition.getPlainType()),
 			() -> attributeConstraint.getClass().getSimpleName() + " constraint can be used only on String attributes - `" + attributeDefinition.getName() + "` is `" + attributeDefinition.getType() + "`!"
 		);
+	}
+
+	/**
+	 * Creates the matcher of the string search - the test of a single attribute value the search of this translator
+	 * stands for. The search is the very predicate the main query verifies the candidates of the index with.
+	 *
+	 * @param attributeConstraint the string search constraint
+	 * @param attributeSchema     the schema of the attribute the constraint is applied to
+	 * @return the matcher
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the attribute is not a string
+	 */
+	@Nonnull
+	protected AttributeValueMatcher createStringSearchMatcher(
+		@Nonnull AbstractAttributeFilterStringSearchConstraintLeaf attributeConstraint,
+		@Nonnull AttributeSchemaContract attributeSchema
+	) {
+		assertStringType(attributeConstraint, attributeSchema);
+		return AttributeValueMatcher.searching(attributeConstraint.getTextToSearch(), this.stringPredicate);
 	}
 
 	/**

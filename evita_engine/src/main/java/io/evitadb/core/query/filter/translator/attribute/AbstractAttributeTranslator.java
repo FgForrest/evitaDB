@@ -49,7 +49,7 @@ import java.util.function.Predicate;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-class AbstractAttributeTranslator {
+public class AbstractAttributeTranslator {
 
 	/**
 	 * Generates an AttributeKey object based on the provided filterByVisitor and attributeDefinition.
@@ -134,7 +134,7 @@ class AbstractAttributeTranslator {
 	 * @param scope           the scope the attribute is read in
 	 * @return true when only the value in the query locale counts as carried in the scope
 	 */
-	protected static boolean isBoundToQueryLocale(
+	public static boolean isBoundToQueryLocale(
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Scope scope
 	) {

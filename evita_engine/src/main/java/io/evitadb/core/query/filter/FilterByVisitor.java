@@ -25,6 +25,7 @@ package io.evitadb.core.query.filter;
 
 import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.exception.ReferencePartitionReindexRequiredException;
+import io.evitadb.api.query.AttributeConstraint;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.ConstraintLeaf;
@@ -161,6 +162,14 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 */
 	private static final Map<Class<? extends FilterConstraint>, FilteringConstraintTranslator<? extends FilterConstraint>> TRANSLATORS;
 	/**
+	 * The attribute constraints whose translator is not an {@link AttributeValueMatchingTranslator}:
+	 *
+	 * - {@link AttributeIs} asks whether the attribute holds any value at all, not whether one value satisfies a test
+	 *   of it, so there is no per-value matcher to create.
+	 */
+	private static final Set<Class<? extends FilterConstraint>> ATTRIBUTE_CONSTRAINTS_WITHOUT_VALUE_MATCHER =
+		Set.of(AttributeIs.class);
+	/**
 	 * Contains set of formulas that are considered conjunctive for purpose of this visitor.
 	 */
 	private static final Set<Class<? extends FilterConstraint>> CONJUNCTIVE_CONSTRAINTS;
@@ -228,6 +237,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		CONJUNCTIVE_CONSTRAINTS.add(UserFilter.class);
 		CONJUNCTIVE_CONSTRAINTS.add(FilterInScope.class);
 		CONJUNCTIVE_CONSTRAINTS.add(FilterBy.class);
+
+		verifyAttributeTranslators(TRANSLATORS);
 	}
 
 	/**
@@ -799,6 +810,48 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		} else {
 			return foundConstraints.getFirst();
 		}
+	}
+
+	/**
+	 * Returns the translator registered for the class of the constraint.
+	 *
+	 * @param constraintClass the class of the constraint
+	 * @return the translator, NULL when none is registered for the class
+	 */
+	@Nullable
+	public static FilteringConstraintTranslator<? extends FilterConstraint> getTranslator(
+		@Nonnull Class<? extends FilterConstraint> constraintClass
+	) {
+		return TRANSLATORS.get(constraintClass);
+	}
+
+	/**
+	 * Verifies that every attribute constraint of the registry has a translator that can create the per-value matcher
+	 * of it, so a new attribute constraint cannot be registered without one. The constraints named by
+	 * {@link #ATTRIBUTE_CONSTRAINTS_WITHOUT_VALUE_MATCHER} are the exceptions.
+	 *
+	 * @param translators the registry of the translators by the class of the constraint they translate
+	 * @throws GenericEvitaInternalError when an attribute constraint is translated by a translator that does not
+	 *                                   implement {@link AttributeValueMatchingTranslator}
+	 */
+	static void verifyAttributeTranslators(
+		@Nonnull Map<Class<? extends FilterConstraint>, FilteringConstraintTranslator<? extends FilterConstraint>>
+			translators
+	) {
+		translators.forEach((constraintClass, translator) -> {
+			if (AttributeConstraint.class.isAssignableFrom(constraintClass) &&
+				!ATTRIBUTE_CONSTRAINTS_WITHOUT_VALUE_MATCHER.contains(constraintClass) &&
+				!(translator instanceof AttributeValueMatchingTranslator<?>)
+			) {
+				throw new GenericEvitaInternalError(
+					"The translator `" + translator.getClass().getName() + "` of the attribute constraint `" +
+						constraintClass.getName() + "` does not implement `" +
+						AttributeValueMatchingTranslator.class.getSimpleName() + "`, which every attribute " +
+						"constraint translator must, unless the constraint is listed in " +
+						"`ATTRIBUTE_CONSTRAINTS_WITHOUT_VALUE_MATCHER`."
+				);
+			}
+		});
 	}
 
 	@SuppressWarnings("unchecked")

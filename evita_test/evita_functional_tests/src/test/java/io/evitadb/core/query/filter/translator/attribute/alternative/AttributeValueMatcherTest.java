@@ -21,9 +21,13 @@
  *   limitations under the License.
  */
 
-package io.evitadb.core.query.fetch;
+package io.evitadb.core.query.filter.translator.attribute.alternative;
 
 import io.evitadb.api.query.filter.AttributeInRange;
+import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
@@ -66,6 +70,7 @@ import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
 
+import static io.evitadb.api.query.QueryConstraints.attributeBetween;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FILTER;
@@ -77,8 +82,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Pins that {@link AttributeValueMatcher} - the per-leaf test of the row filter of the fetched references - gives
- * the verdict the attribute indexes give for the same values.
+ * Pins that {@link AttributeValueMatcher} - the per-value test of an attribute constraint - gives the verdict the
+ * attribute indexes give for the same values.
  *
  * The parity tests load the very values into a real {@link OwnerFilterIndex} (and its range index), the way the
  * write path loads them ({@link NumberUtils#normalizeForIndexing}), probe it the way the attribute translators probe
@@ -87,7 +92,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Attribute value matcher of the reference row filter")
+@DisplayName("Attribute value matcher")
 @Tag(ENGINE)
 @Tag(FILTER)
 @Tag(ATTRIBUTE)
@@ -97,6 +102,14 @@ class AttributeValueMatcherTest {
 	 * The key of a non-localized attribute.
 	 */
 	private static final AttributeIndexKey KEY = new AttributeIndexKey(null, "a", null);
+	/**
+	 * The translator of `attributeBetween`, which creates the matcher of it.
+	 */
+	private static final AttributeBetweenTranslator BETWEEN_TRANSLATOR = new AttributeBetweenTranslator();
+	/**
+	 * The translator of `attributeInRange`, which creates the matcher of it.
+	 */
+	private static final AttributeInRangeTranslator IN_RANGE_TRANSLATOR = new AttributeInRangeTranslator();
 	/**
 	 * The comparison operators of the comparison leaves, with the filter index method their translators probe.
 	 */
@@ -124,6 +137,27 @@ class AttributeValueMatcherTest {
 		@Nonnull IntPredicate resultPredicate,
 		@Nonnull BiFunction<FilterIndex, Serializable, Formula> indexLookup
 	) {
+	}
+
+	/**
+	 * Creates the schema of a range-typed attribute, as the translators read its plain type and decimal places.
+	 *
+	 * @param plainType            the plain range type of the attribute
+	 * @param indexedDecimalPlaces the decimal places of the attribute
+	 * @return the schema
+	 */
+	@Nonnull
+	private static <T extends Serializable> AttributeSchemaContract rangeSchema(
+		@Nonnull Class<T> plainType,
+		int indexedDecimalPlaces
+	) {
+		return AttributeSchema._internalBuild(
+			"a", null, null, (ScopedAttributeUniquenessType[]) null, null, null, null,
+			false, false, false,
+			plainType, null,
+			indexedDecimalPlaces,
+			ConflictResolutionOverride.INHERITED
+		);
 	}
 
 	/**
@@ -255,13 +289,13 @@ class AttributeValueMatcherTest {
 			discriminating |= assertSameRecords(
 				"between " + probe + " and nothing",
 				index.getRecordsGreaterThanEqFormula(converted),
-				AttributeValueMatcher.between(key, plainType, indexedDecimalPlaces, probe, null),
+				AttributeValueMatcher.within(key, plainType, indexedDecimalPlaces, probe, null),
 				stored
 			);
 			discriminating |= assertSameRecords(
 				"between nothing and " + probe,
 				index.getRecordsLesserThanEqFormula(converted),
-				AttributeValueMatcher.between(key, plainType, indexedDecimalPlaces, null, probe),
+				AttributeValueMatcher.within(key, plainType, indexedDecimalPlaces, null, probe),
 				stored
 			);
 			for (Serializable otherProbe : probes) {
@@ -323,13 +357,13 @@ class AttributeValueMatcherTest {
 			return assertSameRecords(
 				"between " + from + " and " + to,
 				indexAnswer,
-				AttributeValueMatcher.between(key, plainType, indexedDecimalPlaces, from, to),
+				AttributeValueMatcher.within(key, plainType, indexedDecimalPlaces, from, to),
 				stored
 			);
 		} else {
 			final EvitaInvalidUsageException matcherRefusal = assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> AttributeValueMatcher.between(key, plainType, indexedDecimalPlaces, from, to),
+				() -> AttributeValueMatcher.within(key, plainType, indexedDecimalPlaces, from, to),
 				"between " + from + " and " + to + " is refused by the index"
 			);
 			assertEquals(indexRefusal.getMessage(), matcherRefusal.getMessage());
@@ -408,6 +442,7 @@ class AttributeValueMatcherTest {
 	) {
 		boolean discriminating = false;
 		final OwnerFilterIndex index = createIndex(KEY, attributeType, indexedDecimalPlaces, stored);
+		final AttributeSchemaContract attributeSchema = rangeSchema(plainType, indexedDecimalPlaces);
 		for (Serializable[] bound : bounds) {
 			// `AttributeBetweenTranslator` probes the range index with the encoded bounds
 			discriminating |= assertSameRecords(
@@ -420,7 +455,9 @@ class AttributeValueMatcherTest {
 						plainType, indexedDecimalPlaces, bound[1], Long.MAX_VALUE
 					)
 				),
-				AttributeValueMatcher.between(KEY, plainType, indexedDecimalPlaces, bound[0], bound[1]),
+				BETWEEN_TRANSLATOR.createMatcher(
+					attributeBetween("a", bound[0], bound[1]), attributeSchema, KEY, () -> NOW
+				),
 				stored
 			);
 		}
@@ -431,7 +468,7 @@ class AttributeValueMatcherTest {
 			discriminating |= assertSameRecords(
 				inRange.toString(),
 				index.getRecordsValidInFormula(point),
-				AttributeValueMatcher.enveloping(plainType, indexedDecimalPlaces, point),
+				IN_RANGE_TRANSLATOR.createMatcher(inRange, attributeSchema, KEY, () -> NOW),
 				stored
 			);
 		}
@@ -738,7 +775,7 @@ class AttributeValueMatcherTest {
 		@DisplayName("a BigDecimal beyond the int encoding is compared without overflowing")
 		void shouldCompareBigDecimalBeyondIntRange() {
 			final BigDecimal huge = bd("12345678901.23");
-			// the index encoding overflows on this very value - the row filter must not
+			// the index encoding overflows on this very value - the matcher must not
 			assertThrows(ArithmeticException.class, () -> NumberUtils.convertToInt(huge, 2));
 			assertTrue(AttributeValueMatcher.comparing(KEY, BigDecimal.class, 2, huge, r -> r == 0).matches(huge));
 			assertTrue(AttributeValueMatcher.comparing(KEY, BigDecimal.class, 2, 1, r -> r > 0).matches(huge));
@@ -751,7 +788,7 @@ class AttributeValueMatcherTest {
 					.matches(bd("5"))
 			);
 			assertTrue(
-				AttributeValueMatcher.between(KEY, BigDecimal.class, 2, bd("12345678901.225"), null).matches(huge)
+				AttributeValueMatcher.within(KEY, BigDecimal.class, 2, bd("12345678901.225"), null).matches(huge)
 			);
 		}
 
@@ -788,7 +825,7 @@ class AttributeValueMatcherTest {
 		void shouldRefuseInvertedScalarInterval() {
 			final EvitaInvalidUsageException exception = assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> AttributeValueMatcher.between(KEY, Integer.class, 0, 10, 5)
+				() -> AttributeValueMatcher.within(KEY, Integer.class, 0, 10, 5)
 			);
 			assertEquals("From must be lower than to: 10 vs. 5", exception.getMessage());
 		}
@@ -796,8 +833,8 @@ class AttributeValueMatcherTest {
 		@Test
 		@DisplayName("an inverted range interval matches nothing, as the range index answers it")
 		void shouldMatchNothingForInvertedRangeInterval() {
-			final AttributeValueMatcher matcher = AttributeValueMatcher.between(
-				KEY, IntegerNumberRange.class, 0, 10, 5
+			final AttributeValueMatcher matcher = BETWEEN_TRANSLATOR.createMatcher(
+				attributeBetween("a", 10, 5), rangeSchema(IntegerNumberRange.class, 0), KEY, () -> NOW
 			);
 			assertFalse(matcher.matches(IntegerNumberRange.between(0, 100)));
 		}
@@ -829,7 +866,7 @@ class AttributeValueMatcherTest {
 				).matches(odt("2026-01-01T10:00:00+02:00"))
 			);
 			// the same instant written 1 ms apart in another offset falls on either side of the bound
-			final AttributeValueMatcher fromEightUtc = AttributeValueMatcher.between(
+			final AttributeValueMatcher fromEightUtc = AttributeValueMatcher.within(
 				KEY, OffsetDateTime.class, 0, odt("2026-01-01T08:00:00Z"), null
 			);
 			assertTrue(fromEightUtc.matches(odt("2026-01-01T10:00:00.001+02:00")));
@@ -840,13 +877,13 @@ class AttributeValueMatcherTest {
 		@DisplayName("a local date time bound divides values to the millisecond the index keeps of them")
 		void shouldCompareLocalDateTimesToTheMillisecond() {
 			final LocalDateTime newYear = LocalDateTime.parse("2026-01-01T00:00:00");
-			final AttributeValueMatcher fromNewYear = AttributeValueMatcher.between(
+			final AttributeValueMatcher fromNewYear = AttributeValueMatcher.within(
 				KEY, LocalDateTime.class, 0, newYear, null
 			);
 			assertTrue(fromNewYear.matches(newYear.plusNanos(1_000_000)));
 			assertFalse(fromNewYear.matches(newYear.minusNanos(1_000_000)));
 			// the index truncates to milliseconds, so a value 0.4 ms past the bound is the bound itself
-			final AttributeValueMatcher untilNewYear = AttributeValueMatcher.between(
+			final AttributeValueMatcher untilNewYear = AttributeValueMatcher.within(
 				KEY, LocalDateTime.class, 0, null, newYear
 			);
 			assertTrue(untilNewYear.matches(newYear.plusNanos(400_000)));

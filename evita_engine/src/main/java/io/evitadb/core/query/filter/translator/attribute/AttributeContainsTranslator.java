@@ -24,15 +24,20 @@
 package io.evitadb.core.query.filter.translator.attribute;
 
 import io.evitadb.api.query.filter.AttributeContains;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
+import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.trigram.StringSearchShape;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 
 import javax.annotation.Nonnull;
+import java.time.OffsetDateTime;
 import java.util.function.BiPredicate;
+import java.util.function.Supplier;
 
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link AttributeContains} to {@link AbstractFormula}.
@@ -40,7 +45,7 @@ import java.util.function.BiPredicate;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class AttributeContainsTranslator extends AbstractAttributeStringSearchTranslator
-	implements FilteringConstraintTranslator<AttributeContains> {
+	implements FilteringConstraintTranslator<AttributeContains>, AttributeValueMatchingTranslator<AttributeContains> {
 
 	public AttributeContainsTranslator() {
 		super(
@@ -76,6 +81,17 @@ public class AttributeContainsTranslator extends AbstractAttributeStringSearchTr
 	@Override
 	protected boolean isServedByTrigramIndex() {
 		return true;
+	}
+
+	@Nonnull
+	@Override
+	public AttributeValueMatcher createMatcher(
+		@Nonnull AttributeContains attributeContains,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Supplier<OffsetDateTime> now
+	) {
+		return createStringSearchMatcher(attributeContains, attributeSchema);
 	}
 
 }
