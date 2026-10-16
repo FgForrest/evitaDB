@@ -173,7 +173,34 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 		@Nonnull AttributeSchemaContract attributeSchema
 	) {
 		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
-		assertIndexable(constraint, attributeSchema, processingScope.getScopes());
+		return createMainQueryMatcher(
+			constraint, filterByVisitor, processingScope, processingScope.getScopes(), attributeSchema
+		);
+	}
+
+	/**
+	 * Creates the matcher of the constraint for the main query over the given processing scope and the scopes the
+	 * query requested when the constraint was translated. The scopes are passed as they were: the processing scope
+	 * answers with the scopes in effect at the moment it is asked, which differ from those of the translation once
+	 * the translation of an `inScope` container is over. The locale is the one of the visitor.
+	 *
+	 * @param constraint      the constraint
+	 * @param filterByVisitor the visitor translating the query
+	 * @param processingScope the processing scope the constraint was translated in
+	 * @param requestedScopes the scopes the constraint was translated in
+	 * @param attributeSchema the schema of the attribute the constraint is applied to
+	 * @return the matcher
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the constraint cannot be applied to the attribute
+	 */
+	@Nonnull
+	private AttributeValueMatcher createMainQueryMatcher(
+		@Nonnull T constraint,
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull ProcessingScope<?> processingScope,
+		@Nonnull Set<Scope> requestedScopes,
+		@Nonnull AttributeSchemaContract attributeSchema
+	) {
+		assertIndexable(constraint, attributeSchema, requestedScopes);
 		return createMatcher(
 			constraint,
 			attributeSchema,
@@ -207,8 +234,9 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 
 	/**
 	 * Creates the filter of the entities found without the schema of the attribute being known, which happens when the
-	 * query names no collection and the attribute is not a catalog one: the matcher is created by
-	 * {@link #createMainQueryMatcher} for the schema each type of the examined entities has the attribute with.
+	 * query names no collection and the attribute is not a catalog one: the matcher is created as
+	 * {@link #createMainQueryMatcher} does, over the processing scope and the scopes the constraint was translated in,
+	 * for the schema each type of the examined entities has the attribute with.
 	 *
 	 * @param constraint      the constraint
 	 * @param filterByVisitor the visitor translating the query
@@ -221,9 +249,13 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull AttributeTrait... traits
 	) {
+		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
+		final Set<Scope> requestedScopes = processingScope.getScopes();
 		return createBitmapFilter(
 			constraint, filterByVisitor,
-			attributeSchema -> createMainQueryMatcher(constraint, filterByVisitor, attributeSchema),
+			attributeSchema -> createMainQueryMatcher(
+				constraint, filterByVisitor, processingScope, requestedScopes, attributeSchema
+			),
 			traits
 		);
 	}
