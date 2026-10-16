@@ -1,7 +1,7 @@
 ---
 title: The filter of referenceContent is evaluated row by row over the fetched owners' references, and its index route is deleted
 date: 2026-10-14
-updated: 2026-10-16 15:10
+updated: 2026-10-16 16:33
 status: accepted
 kind: refactor
 issues: [1615]
@@ -184,7 +184,10 @@ table. A measured case where the index route is faster (none of the eight was) w
   no translator and takes the thresholds of a range constraint already encoded by the translator.
   `ReferenceRowFilterCompiler` no longer names an attribute constraint: it looks the translator up with
   `FilterByVisitor#getTranslator` and calls `createMatcher`. `attributeIs` (is there any value at all) is the one
-  attribute constraint outside the contract.
+  attribute constraint outside the contract. Only that row dispatch is automatic: each translator's `translate` calls
+  `createMainQueryMatcher`, `createAlternativeBitmapFilter` and `createEntityFilteringBitmapFilter` itself. The entity
+  filtering factory creates its matcher over the processing scope and the requested scopes of the moment the constraint
+  was translated, not of the moment the filter runs (`inScope` has long ended by then).
 - **Forgetting the contract fails every test run.** `FilterByVisitor#verifyAttributeTranslators` runs at the end of the
   static initializer and throws if an attribute constraint is registered with a translator that is not an
   `AttributeValueMatchingTranslator`, except those in `ATTRIBUTE_CONSTRAINTS_WITHOUT_VALUE_MATCHER`
@@ -242,14 +245,34 @@ environmental ones every run of this branch has (`EvitaServerTest` misses a cert
 The review round of 2026-10-16 (the matcher shared with the main query) is guarded by:
 
 - `AttributeConstraintPathParityFunctionalTest` - the index, the prefetch alternative, the entity filtering and the
-  reference row must answer alike: 283 four-arm cases over the value families of `EvitaDataTypes` (scalars, arrays,
-  numeric and date-time ranges, array probes), the named decimal deviation of the reference row, and tests of the
-  refusals and boundaries (`shouldRefuseDecimalBeyondIndexKeyExceptOnReferenceRow`,
+  reference row must answer alike: 311 four-arm cases (326 tests with the 15 plain ones) over the value families of
+  `EvitaDataTypes` (scalars, arrays, numeric and date-time ranges, array probes), a localized `String` attribute read in
+  Czech (collation order where "ch" follows "h", NFC and NFD accents, comparisons and searches), a `BigDecimal`
+  attribute of the catalog and a unique-only one, and the named decimal deviation of the reference row. What the gate
+  asserts: every case names the answer of all four arms - either "selects some owners but not all, no arm answers an
+  error" or the exact outcome (the refusal text, `[]`, the set) - so four identical refusals cannot pass a case that must
+  select and a set cannot pass a case that must refuse; the index arm must not have prefetched; the prefetch arm must
+  have prefetched for every constraint with a `SelectionFormula` alternative (`SelectionFormula#computeInternal` answers
+  from the alternative when the query is a prefetch execution, so the `EXECUTION_PREFETCH` telemetry step is the
+  evidence). Plain tests feed the assertion outcomes that must fail - a prefetch arm that did not prefetch, an index
+  arm that did, four identical errors on a case that must select, a vacuous selection (none, all), an expected refusal
+  answered with a set - plus a positive control. Tests of the refusals and boundaries sit beside it
+  (`shouldRefuseDecimalBeyondIndexKeyExceptOnReferenceRow`, the same on the catalog and the unique-only attribute,
   `shouldAnswerDecimalOfTheLargestIndexKey`, `shouldNotRefuseDecimalOfAttributeNoIndexHolds`,
-  `shouldRefuseInvertedIntervalOfCollectionWithoutEntity`,
+  `shouldMatchEveryTypeAtItsOwnDecimalPlaces` - two types holding the attribute at two and at no decimal places, where
+  one matcher serving both gives a different answer, `shouldRefuseInvertedIntervalOfCollectionWithoutEntity`,
   `shouldRefuseInvertedIntervalOnEntityFilteringPerCandidateType`). Before the change 41 of the first 184 cases were
   red (22 prefetch answers wrong or an internal `ClassCastException`, 18 entity-filtering ones, one row-only refusal);
   every one now agrees with the index.
+  **Limits of the gate.** A `referenceHaving` leaf never runs a prefetch alternative (its nested processing scope reads
+  indexes only), so it has no arm here; the row arm tests the `referenceContent` filter. Typed `attributeEquals` and
+  `attributeInSet` have no prefetch alternative - the engine reads the index for them even when the bodies are
+  prefetched - so the prefetch arm of their cases repeats the index arm (the case names say so) and tests no per-value
+  path; their per-value path is the entity filtering arm and the row arm. The entity filtering arm of the catalog
+  attribute reaches only equality and the set: the global unique index answers no comparison.
+- `EntityFilteringScopeCaptureTest` - the entity filtering factory judges a decimal by the scopes the constraint was
+  translated in; the difference is not reachable by a client query (an `inScope` over a query naming no collection
+  answered no entity), so the wiring is pinned on the translator.
 - `FilterByVisitorAttributeTranslatorsTest` - the real registry passes the load-time invariant, a registry with a
   translator lacking the contract fails it naming constraint and contract, `attributeIs` is the one exception, and every
   described filter constraint has a translator or is read by its parent.
@@ -264,7 +287,10 @@ The review round of 2026-10-16 (the matcher shared with the main query) is guard
 - Counterfactuals, each run and watched fail: the load-time invariant made to accept everything (1 of 6 invariant tests
   fails); the prefetch wiring ignoring the matcher (12 of 17 `AttributeBitmapFilterTest` and 216 of 288 parity tests);
   the decimal refusal disabled (2 parity tests); the eager matcher of the typed `attributeBetween` disabled (3
-  failures).
+  failures); and, against the gate of the second review round, the prefetch mark stripped in the assertion (both
+  negative guards for it fail), the prefetch arm not steering onto prefetching (210 of 326 parity tests, 209 of them on
+  the path evidence), one matcher serving every type of the entity filtering (2 tests, among them the two-scale one)
+  and the entity filtering factory reading the scopes at the run (both `EntityFilteringScopeCaptureTest` tests).
 
 Counterfactuals of the first round, each run and watched fail: eager nested resolution in check mode made lazy
 (15 failures); the owner locale chain replaced by the top locale (the level-2 test); the leaves requiring `FILTERABLE`
@@ -395,8 +421,12 @@ filterable reference attributes in the filter (Q4); the wider acceptance is avai
 ### Traps for a later change
 
 - A new attribute constraint's translator must implement `AttributeValueMatchingTranslator`, or be added to
-  `ATTRIBUTE_CONSTRAINTS_WITHOUT_VALUE_MATCHER` with a reason - otherwise `FilterByVisitor` fails to load. The row
-  filter, the prefetch and the entity filtering then come for free; its cases belong in
+  `ATTRIBUTE_CONSTRAINTS_WITHOUT_VALUE_MATCHER` with a reason - otherwise `FilterByVisitor` fails to load. Only the
+  reference row dispatch is automatic. Its `translate` creates the matcher eagerly with `createMainQueryMatcher` where
+  the schema is known (that is where an invalid value is refused), passes it to `createAlternativeBitmapFilter` with the
+  traits the constraint passes today, uses `createEntityFilteringBitmapFilter` on the collection-less branch and
+  overrides `getIndexProbeValues` when it probes the index with decimal values. The load-time invariant enforces the
+  contract, not the wiring; the parity class holds the semantics, so its cases belong in
   `AttributeConstraintPathParityFunctionalTest`.
 - The decimal refusal must never move into `createMatcher`: the reference row would start refusing the wide decimals it
   compares on purpose. It belongs to `assertIndexable` of the main-query wiring.

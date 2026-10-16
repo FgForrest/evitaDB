@@ -78,9 +78,14 @@ Progress:
 **Attribute constraints**: the filter translator of an attribute constraint implements
 `AttributeValueMatchingTranslator` (it creates the per-value `AttributeValueMatcher`), or is added, with a reason, to
 `ATTRIBUTE_CONSTRAINTS_WITHOUT_VALUE_MATCHER` in `FilterByVisitor` - otherwise `FilterByVisitor` refuses to load. The
-reference row filter, the prefetch alternative and the entity filtering of a collection-less query then use that matcher
-with no further code. Add the cases of the new constraint to `AttributeConstraintPathParityFunctionalTest`, which holds
-the index, the prefetch, the entity filtering and the reference row to the same answer.
+reference row filter then uses that matcher with no further code - the row dispatch is the only automatic part. The
+translator's `translate` must wire the rest itself: create the matcher eagerly with `createMainQueryMatcher` where the
+attribute schema is known (that is where an invalid value is refused), pass it to `createAlternativeBitmapFilter`
+together with the traits the constraint passes today, use `createEntityFilteringBitmapFilter` on the branch that names
+no collection, and override `getIndexProbeValues` when it probes the index with decimal values. The load-time invariant
+only enforces that the contract is implemented; the semantics of the wiring are held by
+`AttributeConstraintPathParityFunctionalTest`, so add the cases of the new constraint there - it holds the index, the
+prefetch, the entity filtering and the reference row to the same answer.
 
 ### Layer 3: Storage (`evita_store`)
 
