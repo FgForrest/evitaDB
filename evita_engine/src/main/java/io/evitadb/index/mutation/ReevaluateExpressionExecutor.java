@@ -1600,8 +1600,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 
 	/**
 	 * Inserts histogram values sourced from a referenced entity attribute for a single locale
-	 * (or `null` for non-localized). Scans the source collection's `FilterIndex` and applies
-	 * default values for missing referenced entities.
+	 * (or `null` for non-localized). Scans the source collection's `FilterIndex`, when present, and applies
+	 * default values for referenced entities without a source value.
 	 *
 	 * @param histogramName            name of the histogram definition
 	 * @param locale                   locale for the source FilterIndex, or `null` for non-localized
@@ -1627,20 +1627,14 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		final FilterIndex sourceFilterIndex = target.getSourceFilterIndex(
 			sourceEntityType, resolution.sourceAttributeName(), locale, scope
 		);
-		if (sourceFilterIndex == null) {
-			if (log.isDebugEnabled()) {
-				log.debug(
-					"Source FilterIndex for entity `{}` attr `{}` locale `{}` not found -- skipping histogram.",
-					sourceEntityType, resolution.sourceAttributeName(), locale
-				);
-			}
-		} else {
-			final Class<? extends Serializable> plainType = resolution.plainType();
-			final boolean rangeSource = resolution.innerNumericType() != null;
+		final Class<? extends Serializable> plainType = resolution.plainType();
+		final boolean rangeSource = resolution.innerNumericType() != null;
+		// Track which referenced entity PKs were matched in at least one bucket so that defaults can be applied.
+		// An absent source index has no matches, so eligible references still receive their default value.
+		final RoaringBitmapWriter<PersistentRoaringBitmap> encounteredRefPKsWriter = buildWriter();
+		if (sourceFilterIndex != null) {
 			final ValueToRecord[] sourceBuckets =
 				sourceFilterIndex.getHistogramOfAllRecords().getBuckets();
-			// Track which referenced entity PKs were matched in at least one bucket so that defaults can be applied.
-			final RoaringBitmapWriter<PersistentRoaringBitmap> encounteredRefPKsWriter = buildWriter();
 
 			for (final ValueToRecord sourceBucket : sourceBuckets) {
 				final Serializable emittedValue = resolveEmittedBucketValue(
@@ -1673,27 +1667,27 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 					}
 				}
 			}
+		}
 
-			// default values for missing referenced entities (already typed to plainType at build time)
-			final Number defaultValue = resolution.defaultValue();
-			if (defaultValue != null) {
-				final PersistentRoaringBitmap encounteredRefPKs = encounteredRefPKsWriter.get();
-				for (final AffectedReferenceGroup group : affected.groups()) {
-					// Skip groups whose referenced entity was already found in at least one source bucket.
-					if (!encounteredRefPKs.contains(group.referencedEntityPK())) {
-						final PersistentRoaringBitmap ownerPKs = getRoaringBitmap(group.ownerPKs());
-						final PersistentRoaringBitmap matched = and(
-							getRoaringBitmap(
-								histogramShouldBeIndexed.forReferencedEntity(group.referencedEntityPK())
-							),
-							ownerPKs
+		// default values for referenced entities without source values (already typed to plainType at build time)
+		final Number defaultValue = resolution.defaultValue();
+		if (defaultValue != null) {
+			final PersistentRoaringBitmap encounteredRefPKs = encounteredRefPKsWriter.get();
+			for (final AffectedReferenceGroup group : affected.groups()) {
+				// Skip groups whose referenced entity was already found in at least one source bucket.
+				if (!encounteredRefPKs.contains(group.referencedEntityPK())) {
+					final PersistentRoaringBitmap ownerPKs = getRoaringBitmap(group.ownerPKs());
+					final PersistentRoaringBitmap matched = and(
+						getRoaringBitmap(
+							histogramShouldBeIndexed.forReferencedEntity(group.referencedEntityPK())
+						),
+						ownerPKs
+					);
+					for (int ownerPK : matched) {
+						insertHistogramValue(
+							histogramName, locale, defaultValue, ownerPK, group, rtei, isGrouped,
+							target, plainType, resolution.indexedDecimalPlaces()
 						);
-						for (int ownerPK : matched) {
-							insertHistogramValue(
-								histogramName, locale, defaultValue, ownerPK, group, rtei, isGrouped,
-								target, plainType, resolution.indexedDecimalPlaces()
-							);
-						}
 					}
 				}
 			}
