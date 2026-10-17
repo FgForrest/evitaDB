@@ -197,6 +197,11 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 			.orElse(defaultValue);
 	}
 
+	/**
+	 * Translates the constraint into the formula the filter index answers, wrapped in a `SelectionFormula` with a
+	 * prefetch alternative when the entities can be prefetched. A query with no collection targets the catalog index,
+	 * which keeps no filter index, so it takes an `EntityFilteringFormula` whatever the attribute is.
+	 */
 	@Override
 	@Nonnull
 	public Formula translate(@Nonnull AttributeBetween filterConstraint, @Nonnull FilterByVisitor filterByVisitor) {
@@ -206,7 +211,7 @@ public class AttributeBetweenTranslator extends AbstractAttributeTranslator
 		final Serializable to = filterConstraint.getTo();
 
 		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE);
-		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
+		if (filterByVisitor.isEntityTypeKnown()) {
 			final AttributeSchemaContract attributeSchema = optionalGlobalAttributeSchema
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));

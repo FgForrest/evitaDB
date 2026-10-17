@@ -94,8 +94,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  * - **prefetch** - the translator builds an `AttributeBitmapFilter` over the matcher of its constraint and runs it over
  *   the prefetched entity bodies (query steered by `PREFER_PREFETCHING` plus an `entityPrimaryKeyInSet`),
  * - **row** - `referenceContent(r, filterBy(...))` evaluates the constraint on every reference row,
- * - **entity filtering** - a query naming no collection evaluates a not catalog attribute on the entities found by
- *   their globally unique code.
+ * - **entity filtering** - a query naming no collection evaluates an attribute on the entities found by their
+ *   globally unique code, whatever the attribute is.
  *
  * Every fixture stores one owner entity per value plus one owner without a value. An owner carries its value twice - as
  * its own attribute (read by the index, prefetch and entity filtering arms) and as the attribute of its single
@@ -769,8 +769,8 @@ class AttributeConstraintPathParityFunctionalTest implements EvitaTestSupport {
 	}
 
 	@Test
-	@DisplayName("a catalog decimal attribute is compared alike by index, prefetch and reference row")
-	void shouldCompareCatalogDecimalAttributeOnIndexPrefetchAndRow() {
+	@DisplayName("a catalog decimal attribute is compared alike by index, prefetch, reference row and entity filtering")
+	void shouldCompareCatalogDecimalAttributeOnEveryPath() {
 		final Map<String, Function<String, FilterConstraint>> constraints = new LinkedHashMap<>();
 		final Map<String, String> answers = new LinkedHashMap<>();
 		constraints.put("lessThan(2.25)", a -> attributeLessThan(a, new BigDecimal("2.25")));
@@ -780,12 +780,11 @@ class AttributeConstraintPathParityFunctionalTest implements EvitaTestSupport {
 		constraints.put("between(1.00,2.00)", a -> attributeBetween(a, new BigDecimal("1.00"), new BigDecimal("2.00")));
 		answers.put("between(1.00,2.00)", "[1, 2]");
 		for (Map.Entry<String, Function<String, FilterConstraint>> entry : constraints.entrySet()) {
-			// the entity filtering arm is left out: it reads the global unique index of the catalog, which answers
-			// no comparison
 			final String[] outcomes = outcomesOf(CATALOG_DECIMAL, entry.getValue());
 			assertEquals(answers.get(entry.getKey()), outcomes[0], entry.getKey() + " on the index");
 			assertEquals(answers.get(entry.getKey()), outcomes[1], entry.getKey() + " on the prefetch");
 			assertEquals(answers.get(entry.getKey()), outcomes[2], entry.getKey() + " on the reference row");
+			assertEquals(answers.get(entry.getKey()), outcomes[3], entry.getKey() + " on the entity filtering");
 		}
 	}
 
@@ -1102,8 +1101,8 @@ class AttributeConstraintPathParityFunctionalTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Entity filtering arm: the query names no collection, so the entity type is unknown and the attribute, unless it
-	 * is a catalog one, is evaluated on the entities found by the globally unique code of every owner.
+	 * Entity filtering arm: the query names no collection, so the entity type is unknown and the attribute is
+	 * evaluated on the entities found by the globally unique code of every owner.
 	 */
 	@Nonnull
 	private static String entityFilteringArm(
@@ -1808,8 +1807,8 @@ class AttributeConstraintPathParityFunctionalTest implements EvitaTestSupport {
 			)
 		);
 
-		// a decimal attribute of the catalog and a unique-only one; the entity filtering arm answers the catalog
-		// attribute through the global unique index, which keeps no order, so only equality and the set are compared
+		// a decimal attribute of the catalog and a unique-only one, compared by equality and by the set; the
+		// comparisons of the catalog one have a test of their own
 		for (Fixture fixture : List.of(CATALOG_DECIMAL, UNIQUE_DECIMAL)) {
 			cases.add(new Case(fixture, "equals(1.50)", a -> attributeEquals(a, new BigDecimal("1.50")), SELECTS));
 			cases.add(

@@ -1,7 +1,7 @@
 ---
 title: The filter of referenceContent is evaluated row by row over the fetched owners' references, and its index route is deleted
 date: 2026-10-14
-updated: 2026-10-17 02:10
+updated: 2026-10-17 16:22
 status: accepted
 kind: refactor
 issues: [1615]
@@ -273,8 +273,13 @@ The review round of 2026-10-16 (the matcher shared with the main query) is guard
   indexes only), so it has no arm here; the row arm tests the `referenceContent` filter. Typed `attributeEquals` and
   `attributeInSet` have no prefetch alternative - the engine reads the index for them even when the bodies are
   prefetched - so the prefetch arm of their cases repeats the index arm (the case names say so) and tests no per-value
-  path; their per-value path is the entity filtering arm and the row arm. The entity filtering arm of the catalog
-  attribute reaches only equality and the set: the global unique index answers no comparison.
+  path; their per-value path is the entity filtering arm and the row arm. The comparisons of the catalog attribute
+  are held to one answer on all four arms by `shouldCompareCatalogDecimalAttributeOnEveryPath`.
+- `CatalogAttributeWithoutCollectionFunctionalTest` - 36 tests: every value constraint over four catalog attributes
+  (unique globally `String` and `BigDecimal`, filterable only, unique within a collection) on two collections answers
+  the union of the per-collection answers in a query naming no collection; such a query with nothing to find its
+  entities by is refused with `EntityCollectionRequiredException`. Before the fix 32 of the 36 were red, every one
+  answering `[]`; the 4 green ones are `attributeEquals` / `attributeInSet` of the globally unique attributes.
 - `EntityFilteringScopeCaptureTest` - the entity filtering factory judges a decimal by the scopes the constraint was
   translated in; the difference is not reachable by a client query (an `inScope` over a query naming no collection
   answered no entity), so the wiring is pinned on the translator.
@@ -429,13 +434,20 @@ filterable reference attributes in the filter (Q4); the wider acceptance is avai
   over a `LocalDateTime`, decimal ranges in the rounding window and integer `attributeInRange` probes on decimal ranges
   no longer give an internal error or a wrong answer; a collection-less `attributeInSet` with several values works;
 - a `String[]` value of a scalar `attributeEquals` matches nothing on every path (the index stringifies the array), it
-  no longer means "any of its elements" on the entity filtering.
+  no longer means "any of its elements" on the entity filtering;
+- a collection-less query applies every entity-filtering constraint it holds (only the first one took effect);
+- a collection-less query answers a comparison, `attributeBetween` or a string search on a catalog attribute, and
+  `attributeEquals` / `attributeInSet` on a catalog attribute that is not unique globally, on the entities it finds
+  (it answered `[]`: the catalog index it targets keeps no filter index); with nothing else to find its entities by it
+  is refused with `EntityCollectionRequiredException`, as for an attribute of a collection.
 
 ### Parked, not filed
 
 - **`applyOnFirstUniqueIndex` skips a scope where the attribute is only filterable** (suspected): `attributeEquals` on
   an attribute unique in `LIVE` and filterable in both never matches `ARCHIVED` entities in the main query. The row
-  route reads such a scope by its own declaration; the main query keeps its reading.
+  route reads such a scope by its own declaration; the main query keeps its reading. The same holds without a
+  collection: `attributeEquals` / `attributeInSet` on a catalog attribute unique globally in one requested scope only
+  are answered from the unique index of that scope alone (read from the code, not tested).
 - **A nested query ignores its own filter's `entityLocaleEquals`** and reads the parent's locale (suspected).
 - **A root `scope(...)` in the reference filter widens the examined scopes** so targets in the added scope pass the
   existence gate, but the body request keeps the request scopes, so those targets come back without bodies (suspected;
@@ -454,7 +466,9 @@ filterable reference attributes in the filter (Q4); the wider acceptance is avai
   `ATTRIBUTE_CONSTRAINTS_WITHOUT_VALUE_MATCHER` with a reason - otherwise `FilterByVisitor` fails to load. Only the
   reference row dispatch is automatic. Its `translate` creates the matcher eagerly with `createMainQueryMatcher` where
   the schema is known (that is where an invalid value is refused), passes it to `createAlternativeBitmapFilter` with the
-  traits the constraint passes today, uses `createEntityFilteringBitmapFilter` on the collection-less branch and
+  traits the constraint passes today, uses `createEntityFilteringBitmapFilter` on the collection-less branch - a catalog
+  attribute included: the catalog index answers only a globally unique lookup, so only `attributeEquals` /
+  `attributeInSet` may take the index branch there (`AbstractAttributeTranslator#isTypedLookupPossible`) - and
   overrides `getIndexProbeValues` when it probes the index with decimal values. A constraint the index answers with no
   prefetch alternative (as `attributeEquals` / `attributeInSet`) calls `assertIndexable` itself instead of the eager
   matcher. The load-time invariant enforces the
@@ -504,3 +518,7 @@ filterable reference attributes in the filter (Q4); the wider acceptance is avai
   before the fix and 16 green after.
 - **2026-10-17** - the matcher measured on the main query against the hand-written predicates: no measurable cost
   (time 0.996, allocation 0.992, geometric means over 36 points; see Verification).
+  Fixed in passing, older than #1615: a collection-less query took the index branch for every catalog attribute, and
+  the catalog index it targets answers only a globally unique lookup, so comparisons, intervals, string searches and
+  the equality of a catalog attribute not unique globally answered `[]`;
+  `CatalogAttributeWithoutCollectionFunctionalTest` showed 32 of 36 red before the fix and 36 green after.

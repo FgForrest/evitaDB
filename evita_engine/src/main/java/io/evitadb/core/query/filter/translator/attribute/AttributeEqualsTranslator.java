@@ -145,7 +145,7 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 		final Serializable attributeValue = attributeEquals.getAttributeValue();
 		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE);
 
-		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
+		if (isTypedLookupPossible(filterByVisitor, optionalGlobalAttributeSchema.orElse(null))) {
 			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
 			final Set<Scope> scopes = processingScope.getScopes();
 			final AttributeSchemaContract attributeSchema = optionalGlobalAttributeSchema

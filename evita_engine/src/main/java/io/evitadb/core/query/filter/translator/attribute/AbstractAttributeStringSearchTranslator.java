@@ -473,7 +473,9 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 	}
 
 	/**
-	 * Translates the given attribute string search constraint into a filtering formula suitable for application on a filter index.
+	 * Translates the given attribute string search constraint into a filtering formula suitable for application on a
+	 * filter index, or - when the query names no collection and so targets the catalog index, which keeps no filter
+	 * index - into an `EntityFilteringFormula` evaluated on the entities found otherwise.
 	 * This method is intended for internal use to assist the filtering process by generating an appropriate formula based on the given
 	 * constraints and the current state of the filter visitor.
 	 *
@@ -498,7 +500,7 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 			filterByVisitor, attributeName, AttributeTrait.FILTERABLE
 		);
 
-		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
+		if (filterByVisitor.isEntityTypeKnown()) {
 			final AttributeSchemaContract attributeDefinition = optionalGlobalAttributeSchema
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));

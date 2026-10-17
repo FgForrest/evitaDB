@@ -38,6 +38,7 @@ import io.evitadb.index.Index;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -122,6 +123,33 @@ public class AbstractAttributeTranslator {
 			);
 		}
 		return result;
+	}
+
+	/**
+	 * Tells whether `attributeEquals` / `attributeInSet` may be translated into a lookup of an index: the query names
+	 * a collection, or it names none and the catalog attribute is unique globally in at least one requested scope,
+	 * which is the only lookup the catalog index answers. Any other attribute of a query with no collection is
+	 * evaluated on the entities found otherwise.
+	 *
+	 * @param filterByVisitor       the visitor that provides the requested scopes
+	 * @param globalAttributeSchema the schema of the attribute when it is an attribute of the catalog, NULL otherwise
+	 * @return true when the translation may look the value up in an index
+	 */
+	protected static boolean isTypedLookupPossible(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nullable GlobalAttributeSchemaContract globalAttributeSchema
+	) {
+		if (filterByVisitor.isEntityTypeKnown()) {
+			return true;
+		}
+		if (globalAttributeSchema != null) {
+			for (final Scope scope : filterByVisitor.getProcessingScope().getScopes()) {
+				if (globalAttributeSchema.isUniqueGloballyInScope(scope)) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	/**

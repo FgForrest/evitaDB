@@ -226,10 +226,11 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 	}
 
 	/**
-	 * Creates the filter of the entities found without the schema of the attribute being known, which happens when the
-	 * query names no collection and the attribute is not a catalog one: the matcher is created as
-	 * {@link #createMainQueryMatcher} does, over the processing scope and the scopes the constraint was translated in,
-	 * for the schema each type of the examined entities has the attribute with.
+	 * Creates the filter of the entities a query naming no collection finds by its other constraints. Such a query
+	 * targets the catalog index, which answers nothing but a lookup of a globally unique attribute, so any other
+	 * attribute constraint is answered by this filter: the matcher is created as {@link #createMainQueryMatcher} does,
+	 * over the processing scope and the scopes the constraint was translated in, for the schema each type of the
+	 * examined entities has the attribute with.
 	 *
 	 * @param constraint      the constraint
 	 * @param filterByVisitor the visitor translating the query

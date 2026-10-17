@@ -98,7 +98,8 @@ public class AbstractAttributeComparisonTranslator extends AbstractAttributeTran
 	/**
 	 * Translates the provided attribute constraint into a filtering formula: the one the filter index answers, wrapped
 	 * in a `SelectionFormula` with a prefetch alternative when the entities can be prefetched, or an
-	 * `EntityFilteringFormula` for a query with no collection.
+	 * `EntityFilteringFormula` for a query with no collection. A query with no collection targets the catalog index,
+	 * which keeps no filter index, so it takes the entity filtering whatever the attribute is.
 	 *
 	 * The matcher of the constraint is created before any index is read, so a decimal value the attribute cannot
 	 * index is refused whatever the index stores.
@@ -120,7 +121,7 @@ public class AbstractAttributeComparisonTranslator extends AbstractAttributeTran
 		final Serializable attributeValue = attributeConstraint.getAttributeValue();
 		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE);
 
-		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
+		if (filterByVisitor.isEntityTypeKnown()) {
 			final AttributeSchemaContract attributeSchema = optionalGlobalAttributeSchema
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));

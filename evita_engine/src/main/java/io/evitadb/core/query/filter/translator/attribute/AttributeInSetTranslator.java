@@ -154,7 +154,7 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 		final String attributeName = attributeInSet.getAttributeName();
 		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE);
 
-		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
+		if (isTypedLookupPossible(filterByVisitor, optionalGlobalAttributeSchema.orElse(null))) {
 			final Set<Scope> scopes = filterByVisitor.getProcessingScope().getScopes();
 			final AttributeSchemaContract attributeSchema = optionalGlobalAttributeSchema
 				.map(AttributeSchemaContract.class::cast)
