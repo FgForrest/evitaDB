@@ -1,7 +1,7 @@
 ---
 title: The filter of referenceContent is evaluated row by row over the fetched owners' references, and its index route is deleted
 date: 2026-10-14
-updated: 2026-10-16 17:40
+updated: 2026-10-17 02:10
 status: accepted
 kind: refactor
 issues: [1615]
@@ -354,6 +354,31 @@ referenced entity, not a reference attribute: the only filterable scalar referen
 all rows, so the harness used a boolean attribute of the referenced entity matching 7.7 % of the rows. The rig and the
 route switch are gone with the route, so the table is not reproducible from the tree.
 
+**Performance of the matcher on the main query** (the review round of 2026-10-16). JMH `-bm avgt -f 1 -wi 5 -w 2s -i 5
+-r 2s -prof gc`, `-Xmx8g`, result cache off; a generated collection of 20,000 products from a fixed seed. Arm A is
+`29d0e8f5be` (the hand-written predicates), arm B `d05d22e944` (the matcher); one jar per arm from one harness source.
+Three rounds interleaved A B | B A | A B, each arm-run started after three 20 s windows at most 15 % busy (measured
+3.3-6.1 % of 24 CPUs). 36 points: nine constraint shapes (decimal `lessThan` and `between`, integer and integer-array
+`greaterThan`, `inRange` on a decimal range stored at the indexed scale and without it, range `between`, `contains` and
+`startsWith` on Czech text) x the prefetch alternative (`entityPrimaryKeyInSet` of the candidates with
+`debug(PREFER_PREFETCHING)`) or the entity filtering (no collection, `attributeInSet` of the candidates' codes) x 100 or
+1,000 candidates. A fixture check of each jar proved every point selects some but not all candidates (25-53 %), every
+prefetch point prefetched, and both arms selected identical sets. Ratio = B / A of the round means:
+
+| path | points | time ratio, geometric mean (min-max) | allocation ratio | B faster / indistinguishable / B slower |
+|---|---:|---:|---:|---|
+| prefetch alternative | 18 | 1.001 (0.934-1.030) | 0.992 | 2 / 15 / 1 |
+| entity filtering | 18 | 0.991 (0.945-1.017) | 0.991 | 3 / 14 / 1 |
+| all | 36 | 0.996 | 0.992 | 5 / 29 / 2 |
+
+"Indistinguishable" means the round means of the arms overlap. Integer-array comparisons got faster on both paths
+(time 0.934-0.968, allocation 0.961-0.979). Of the two points slower in all three rounds, integer `greaterThan` over 100
+candidates on entity filtering is 1.015; `startsWith` over 1,000 candidates on the prefetch path was 1.030 but did not
+reproduce in a five-round confirmation of the four string-search prefetch points (1.006 there, all four
+indistinguishable, geometric mean 1.010). The work the matcher adds per value - NFD normalization of the strings, the
+rebuild of a decimal range stored without the indexed scale - is not measurable at this size (the `contains`,
+`startsWith` and unscaled `inRange` points are indistinguishable or faster).
+
 ## Consequences & open follow-ups
 
 ### What a client sees (breaking; upgrade note on #1615)
@@ -473,8 +498,9 @@ filterable reference attributes in the filter (Q4); the wider acceptance is avai
 - **2026-10-16** - review of #1738: the row matcher repeated the predicate work of the attribute translators. The
   matcher moved to the translators' package and became the one per-value test of every path that answers without the
   index; the prefetch and the entity filtering were pointed at it, which removed 41 measured divergences; invalid values
-  refused before any index is read (decided by Johnny); the load-time invariant added. The benchmark of the matcher on
-  the main query is yet to run.
+  refused before any index is read (decided by Johnny); the load-time invariant added.
   Fixed in passing, older than #1615: two entity-filtering formulas of a collection-less query hashed alike and
   `FormulaDeduplicator` dropped the second one; `EntityFilteringConjunctionFunctionalTest` showed 14 of 16 shapes wrong
   before the fix and 16 green after.
+- **2026-10-17** - the matcher measured on the main query against the hand-written predicates: no measurable cost
+  (time 0.996, allocation 0.992, geometric means over 36 points; see Verification).
