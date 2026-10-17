@@ -245,21 +245,30 @@ public final class HistogramIndexMapComponent implements IndexComponent {
 		@Nonnull EntityIndexManifest manifest,
 		@Nonnull TrappedChanges trappedChanges
 	) {
-		// emit dirty storage parts and announce live histogram keys — manifest population is
-		// unconditional so a clean histogram still appears in the parent EntityIndexStoragePart
-		this.histogramIndexes.forEach((histogramName, histogramIndex) -> {
-			histogramIndex.getModifiedStorageParts(entityIndexPrimaryKey, trappedChanges);
-			histogramIndex.collectStorageKeys(this.entityIndexKey, manifest.getHistogramKeys());
-		});
+		// emit dirty storage parts, then announce the live histogram keys
+		this.histogramIndexes.forEach(
+			(histogramName, histogramIndex) ->
+				histogramIndex.getModifiedStorageParts(entityIndexPrimaryKey, trappedChanges)
+		);
+		announceKeys(manifest);
 		// empty-drop reclaim: a whole histogram (or a single locale) dropped from the map this commit still has its
 		// bucket / range leaf pages + cardinality sibling on disk, but the dropped sub-index's own flush never runs
 		// again — so diff the pre-commit on-disk snapshot against the surviving key set and reclaim the orphaned parts,
 		// then refresh the snapshot to the surviving set so a reused instance (warm-up / repeated flush) diffs the next
-		// drop against what was just written here rather than a stale construction-time baseline. Idempotent: the
-		// baseline-capture re-run (notifyFlushed) reproduces the same map and finds no further drop.
+		// drop against what was just written here rather than a stale construction-time baseline. Idempotent: a
+		// repeated collect reproduces the same map and finds no further drop.
 		final Map<HistogramIndexKey, PersistedHistogramLeafPages> current = snapshotLeafPages(this.histogramIndexes);
 		emitDroppedReclaims(entityIndexPrimaryKey, this.persistedLeafPages, current, trappedChanges);
 		this.persistedLeafPages = current;
+	}
+
+	@Override
+	public void announceKeys(@Nonnull EntityIndexManifest manifest) {
+		// manifest population is unconditional so a clean histogram still appears in the parent EntityIndexStoragePart
+		this.histogramIndexes.forEach(
+			(histogramName, histogramIndex) ->
+				histogramIndex.collectStorageKeys(this.entityIndexKey, manifest.getHistogramKeys())
+		);
 	}
 
 	@Override

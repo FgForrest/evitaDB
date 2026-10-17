@@ -25,16 +25,21 @@ package io.evitadb.core.buffer;
 
 import com.carrotsearch.hppc.LongObjectMap;
 import com.carrotsearch.hppc.cursors.LongObjectCursor;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.spi.store.catalog.persistence.EntitySchemaContext;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.IndexActivity;
 import io.evitadb.index.IndexKey;
 import io.evitadb.core.buffer.InMemoryStoragePartPersistenceService.SimulatedWriteFailure;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -47,6 +52,7 @@ import javax.annotation.Nullable;
 import java.io.Serial;
 import java.lang.reflect.Field;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -54,10 +60,13 @@ import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.TRANSACTION;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Verifies that {@link DataStoreChanges} participates in a {@link WarmUpSavepoint} — the WARM_UP (bulk indexing)
@@ -624,6 +633,79 @@ class WarmUpSavepointDataStoreChangesTest {
 
 			savepoint.rollback();
 			assertEquals("before", storedPayload(1L));
+		}
+	}
+
+	@Nested
+	@DisplayName("Indexes dropped from the change set")
+	class DroppedIndexes {
+		private static final int INDEX_PRIMARY_KEY = 7;
+		private static final EntityIndexKey INDEX_KEY = new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE);
+
+		@Test
+		@DisplayName("A rollback of a drop restores both dirty maps and discards the staged footprint removals")
+		void shouldRestoreBothMapsAndDiscardStagedRemovalsOnRollback() {
+			final DataStoreChanges changes = WarmUpSavepointDataStoreChangesTest.this.dataStoreChanges;
+			// an index with a persisted footprint: members, a hierarchy root, the manifest - so the drop has removals
+			// of all three kinds to stage (a deferred root removal and the trapped manifest and membership removals)
+			final GlobalEntityIndex index = new GlobalEntityIndex(INDEX_PRIMARY_KEY, "product", INDEX_KEY);
+			index.insertPrimaryKeyIfMissing(10);
+			index.addNode(10, null);
+			changes.getOrCreateIndexForModification(INDEX_KEY, key -> index);
+			final Iterator<StoragePart> flushed = changes.popTrappedUpdates().getTrappedChangesIterator();
+			while (flushed.hasNext()) {
+				seedStore(flushed.next());
+			}
+			// the next entity mutation touches the index again before the one that drops it
+			changes.getOrCreateIndexForModification(INDEX_KEY, key -> index);
+
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.open();
+			changes.removeIndex(CATALOG_VERSION, INDEX_KEY, key -> null);
+			assertNull(
+				changes.getIndexIfExists(INDEX_PRIMARY_KEY, pk -> null),
+				"The test would be vacuous unless the drop really retired the by-primary-key entry."
+			);
+			assertInstanceOf(
+				DataStoreChanges.RemovedStoragePart.class, trappedPart(EntityIndexStoragePart.class, INDEX_PRIMARY_KEY),
+				"The test would be vacuous unless the drop really staged the manifest removal."
+			);
+			assertFalse(
+				pendingIndexRemovalParts().isEmpty(),
+				"The test would be vacuous unless the drop really staged the deferred root removal."
+			);
+
+			savepoint.rollback();
+			assertSame(
+				index, changes.getIndexIfExists(INDEX_KEY, key -> null),
+				"Rollback must reinstate the dropped index under its key."
+			);
+			assertSame(
+				index, changes.getIndexIfExists(INDEX_PRIMARY_KEY, pk -> null),
+				"Rollback must reinstate the dropped index under its primary key."
+			);
+			assertNull(
+				trappedPart(EntityIndexStoragePart.class, INDEX_PRIMARY_KEY),
+				"Rollback must discard the staged manifest removal - the index is alive again."
+			);
+			assertNull(
+				trappedPart(EntityIdsStoragePart.class, INDEX_PRIMARY_KEY),
+				"Rollback must discard the staged membership removal - the index is alive again."
+			);
+			assertEquals(
+				List.of(), pendingIndexRemovalParts(),
+				"Rollback must discard the staged deferred removals - the index is alive again."
+			);
+		}
+
+		/**
+		 * Reads the deferred removals staged by dropped indexes, which are `null` until the first drop.
+		 *
+		 * @return the staged deferred removals, empty when none are staged
+		 */
+		@Nonnull
+		private List<?> pendingIndexRemovalParts() {
+			final List<?> pending = (List<?>) readField("pendingIndexRemovalParts");
+			return pending == null ? List.of() : pending;
 		}
 	}
 

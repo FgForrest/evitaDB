@@ -41,7 +41,6 @@ import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
 import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.GroupHaving;
-import io.evitadb.api.query.filter.ReferenceHaving;
 import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
 import io.evitadb.api.query.order.EntityPrimaryKeyExact;
 import io.evitadb.api.query.order.EntityPrimaryKeyInFilter;
@@ -54,7 +53,6 @@ import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.HierarchyParentsBehaviour;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
-import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
@@ -71,12 +69,11 @@ import io.evitadb.api.requestResponse.data.structure.EntityDecorator;
 import io.evitadb.api.requestResponse.data.structure.EntityReferenceWithParent;
 import io.evitadb.api.requestResponse.data.structure.ParentChainEnd;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
-import io.evitadb.api.requestResponse.data.structure.ReferenceDecorator;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
 import io.evitadb.api.requestResponse.data.structure.ReferenceSetFetcher;
 import io.evitadb.api.requestResponse.data.structure.References.ChunkTransformerAccessor;
-import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.predicate.HierarchySerializablePredicate;
+import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -90,11 +87,9 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.core.query.algebra.utils.FormulaFactory;
+import io.evitadb.core.query.fetch.ReferenceRowFilterCompiler.CompileContext;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.AbstractHierarchyTranslator.TraversalDirection;
 import io.evitadb.core.query.filter.FilterByVisitor;
-import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
-import io.evitadb.core.query.filter.NestedQueryRestriction;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.response.ServerEntityDecorator;
 import io.evitadb.core.query.sort.OrderByVisitor;
@@ -109,14 +104,13 @@ import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.ReferenceKeeper;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.array.CompositeIntArray;
+import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriFunction;
-import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -139,7 +133,6 @@ import javax.annotation.Nullable;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.*;
 import java.util.Map.Entry;
-import java.util.PrimitiveIterator.OfInt;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
@@ -151,7 +144,6 @@ import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.and;
 import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
-import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
 import static io.evitadb.core.query.extraResult.translator.hierarchyStatistics.AbstractHierarchyTranslator.stopAtConstraintToPredicate;
@@ -175,6 +167,12 @@ import static java.util.Optional.ofNullable;
  * {@link #getEnvelopingEntityRequest()}) be called - they fail with {@link GenericEvitaInternalError} otherwise.
  * The instance carries mutable state produced by that init call and is not safe for concurrent use.
  *
+ * The filter of a `referenceContent` is evaluated row by row over the references of the fetched owners
+ * (see {@link #admitFetchedReferences}). Every reference row is judged by itself, by the scope and the locales of its
+ * owner, with the {@link ReferenceRowFilterCompiler row test}, so the filter needs no filterable attribute and no index
+ * of the reference, and the verdict of a row never depends on the other owners fetched along. The verdicts are recorded
+ * per owner in the {@link ValidEntityToReferenceMapping}.
+ *
  * Nested references are handled recursively - {@link #createSubReferenceFetcher} spawns another instance of this
  * class for the referenced collection, so a deep `referenceContent` requirement produces a chain of fetchers, each
  * of them still fetching its own level in bulk.
@@ -182,22 +180,6 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class ReferencedEntityFetcher implements ReferenceFetcher {
-	/**
-	 * Orders reduced entity indexes by their {@link RepresentativeReferenceKey} discriminator. The ordering is not
-	 * cosmetic - {@link #getFilteredReferencedEntityIds} depends on it: sorting brings all indexes sharing the same
-	 * discriminator next to each other, which allows their partial results to be OR-ed together in a single streaming
-	 * pass instead of being accumulated in a map (the same discriminator may be backed by more than one index, e.g.
-	 * one per examined scope). An index carrying no discriminator fails fast here, since it could never take part in
-	 * that aggregation.
-	 */
-	private static final Comparator<AbstractReducedEntityIndex> BY_DISCRIMINATOR = Comparator.comparing(
-		rede -> {
-			final EntityIndexKey indexKey = rede.getIndexKey();
-			return Objects.requireNonNull(
-				(RepresentativeReferenceKey) indexKey.discriminator()
-			);
-		}
-	);
 	/**
 	 * Requirement for fetching the parents from hierarchical structure.
 	 */
@@ -655,413 +637,294 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	}
 
 	/**
-	 * Returns all entity ids referenced by any of the passed `entityPrimaryKeys`, kept apart per {@link Scope} of the
-	 * owner entity. Initializes starting validity relations in `validityMapping` where each entity sees all its
-	 * referenced entities. This initial visibility setup will be refined during fetch process.
+	 * Admits the references a `referenceContent` fetches for the passed owners row by row: every existing reference
+	 * row of every owner is judged by itself, and each admitted row is recorded in the validity mapping for its owner
+	 * alone. A row is admitted when
 	 *
-	 * The per-scope split is not decorative - references are indexed only within a single scope, so the caller has to
-	 * be able to tell which referenced ids originate from owner entities living in a scope that is not indexed for
-	 * the reference in question.
+	 * - it exists - a dropped row the raw entity still carries never is,
+	 * - its referenced entity exists in a scope the references are looked up in (the scopes of the request and of
+	 *   a root `scope(...)` of the filter), in the required locale, whenever the filter or
+	 *   {@link ManagedReferencesBehaviour#EXISTING} asks for existing references and the referenced entity type is
+	 *   managed by evitaDB,
+	 * - the filter admits it ({@link ReferenceRowFilter}), judged by the scope and the locales of its owner.
 	 *
-	 * @param entityPrimaryKeys        the entity ids whose references should be looked up, indexed by the scope
-	 *                                 their owner entities live in
-	 * @param referencedEntityResolver the lambda that will retrieve the data from the index (we need either referenced
-	 *                                 entities or their groups)
-	 * @param validityMapping          contains the DTO tracking the reachability of the referenced entities by owner
-	 *                                 entities (see {@link ValidEntityToReferenceMapping} for more details)
-	 * @return non-filtered complete set of referenced entity ids, per scope of their owner entities
+	 * Nothing written for one owner is read for another, and no index of the reference is read, so the verdict of
+	 * a row never depends on the other owners fetched along or on whether a scope indexes the reference.
+	 *
+	 * The filter is compiled before the method returns early for owners holding no row to test, so a filter refused
+	 * whatever the data is refused also when there is nothing to test. The nested `entityHaving` and `groupHaving` queries of the filter are planned
+	 * only when the first row reaches them, restricted to the referenced entities and the groups of the rows tested.
+	 *
+	 * @param ownerPrimaryKeys            the primary keys of the owners, indexed by the scope they live in
+	 * @param ownerAccessor               returns the owner with the passed primary key, as the fetch got it
+	 * @param executionContext            the context of the query fetching the references
+	 * @param entitySchema                the schema of the owners
+	 * @param referenceSchema             the schema of the fetched reference
+	 * @param filterByVisitor             the keeper of the visitor the nested queries are planned with
+	 * @param managedReferencesBehaviour  whether only references to existing entities are fetched
+	 * @param filterBy                    the filter of the fetched references, NULL when there is none
+	 * @param requiredLocale              the locale the referenced entity bodies are fetched in, resolved by
+	 *                                    {@link #resolveRequiredLocale}; NULL when the existence check needs none
+	 * @param validityMapping             the mapping the admitted rows are recorded in
+	 * @param entityNestedQueryComparator the comparator ordering the references by the referenced entities, NULL when
+	 *                                    there is none; it is initialized in the locale of the filter
+	 * @return the referenced primary keys admitted for any of the owners
+	 * @throws EvitaInvalidUsageException when the filter contains a constraint without a meaning on a row, or a leaf
+	 *                                    that cannot be evaluated whatever the data
 	 */
 	@Nonnull
-	private static Map<Scope, Bitmap> getAllReferencedEntityIds(
-		@Nonnull Map<Scope, int[]> entityPrimaryKeys,
-		@Nonnull Function<Integer, Formula> referencedEntityResolver,
-		@Nullable ValidEntityToReferenceMapping validityMapping
-	) {
-		// aggregate all referenced primary keys into one sorted distinct array
-		final Map<Scope, Formula[]> formulas = CollectionUtils.createHashMap(entityPrimaryKeys.size());
-		for (Entry<Scope, int[]> entry : entityPrimaryKeys.entrySet()) {
-			final int[] epks = entry.getValue();
-			final Formula[] scopeFormulas = new Formula[epks.length];
-			formulas.put(entry.getKey(), scopeFormulas);
-			for (int i = 0; i < epks.length; i++) {
-				int epk = epks[i];
-				final Formula referencedEntityIds = referencedEntityResolver.apply(epk);
-				// Initializes starting validity relations in `validityMapping` where each entity sees
-				// all its referenced entities. This initial visibility setup will be refined during fetch process.
-				if (validityMapping != null) {
-					validityMapping.setInitialVisibilityForEntity(
-						epk,
-						referencedEntityIds.compute()
-					);
-				}
-				// return the referenced entity primary keys
-				scopeFormulas[i] = referencedEntityIds;
-			}
-		}
-
-		final Map<Scope, Bitmap> result = CollectionUtils.createHashMap(formulas.size());
-		for (Entry<Scope, Formula[]> entry : formulas.entrySet()) {
-			result.put(
-				entry.getKey(),
-				FormulaFactory.or(entry.getValue()).compute()
-			);
-		}
-		return result;
-	}
-
-	/**
-	 * Returns array of referenced entity ids that are referenced by any of passed `entityPrimaryKeys` that are filtered
-	 * to match the passed `filterBy`.
-	 *
-	 * @param entityPrimaryKeys                   the set of entity ids whose references should be looked up, indexed by scope
-	 * @param executionContext                    the query context used for querying the entities
-	 * @param entitySchema                        the schema of the entity owning the references
-	 * @param referenceSchema                     the schema of the reference
-	 * @param targetEntityType                    the entity type of the referenced entities (or group type when resolving groups)
-	 * @param filterByVisitor                     the visitor that will be used for traversing the constraint
-	 * @param managedReferencesBehaviour          defines whether only existing (managed) references should be returned or all
-	 * @param filterBy                            the filtering constraint itself
-	 * @param requiredLocale                      the locale the referenced entity bodies will be fetched with, resolved
-	 *                                            once per reference by {@link #resolveRequiredLocale(FilterBy, QueryExecutionContext)}
-	 *                                            so that both the referenced entities and their groups agree on it;
-	 *                                            {@code null} when the locale-aware existence check must not be applied
-	 *                                            (i.e. for {@link ManagedReferencesBehaviour#ANY} or when no locale applies)
-	 * @param validityMapping                     see detailed description in {@link ValidEntityToReferenceMapping}
-	 * @param entityNestedQueryComparator         comparator that holds information about requested ordering so that we can
-	 *                                            apply it during entity filtering (if it's performed) and pre-initialize it
-	 *                                            in an optimal way
-	 * @param referencedEntityResolver            lambda allowing to get primary keys of all entities referenced by
-	 *                                            entity with certain primary key (we need this to distinguish
-	 *                                            retrieving data for entities and groups)
-	 * @param groupToReferencedEntityIdTranslator function that maps group entity PKs to referenced entity PKs for
-	 *                                            a given reference name; used to evaluate {@link GroupHaving}
-	 *                                            constraints; may be {@code null} when group filtering is
-	 *                                            not applicable
-	 * @return filtered bitmap of referenced entity ids
-	 * @throws EntityNotManagedException when `filterBy` reaches into the referenced entity body (`entityHaving`)
-	 *                                   while the referenced entity type is not managed by evitaDB
-	 */
-	@Nonnull
-	private static Bitmap getFilteredReferencedEntityIds(
-		@Nonnull Map<Scope, int[]> entityPrimaryKeys,
+	private static Bitmap admitFetchedReferences(
+		@Nonnull Map<Scope, int[]> ownerPrimaryKeys,
+		@Nonnull IntFunction<SealedEntity> ownerAccessor,
 		@Nonnull QueryExecutionContext executionContext,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull String targetEntityType,
 		@Nonnull ReferenceKeeper<FilterByVisitor> filterByVisitor,
 		@Nonnull ManagedReferencesBehaviour managedReferencesBehaviour,
 		@Nullable FilterBy filterBy,
 		@Nullable Locale requiredLocale,
-		@Nullable ValidEntityToReferenceMapping validityMapping,
-		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
-		@Nonnull BiFunction<String, Integer, Formula> referencedEntityResolver,
-		@Nullable BiFunction<String, Integer, int[]> groupToReferencedEntityIdTranslator
+		@Nonnull ValidEntityToReferenceMapping validityMapping,
+		@Nullable EntityNestedQueryComparator entityNestedQueryComparator
 	) {
-		// initialize the main data-structures we'll be working later in this method
-		final Optional<ValidEntityToReferenceMapping> validityMappingOptional = ofNullable(validityMapping);
-		final Bitmap result;
-
-		// we need to gather all referenced entity ids and initialize validity mapping for all the passed entity PKs
-		final Map<Scope, Bitmap> allReferencedEntityPksFromEntitiesInScope = getAllReferencedEntityIds(
-			entityPrimaryKeys,
-			entityPk -> referencedEntityResolver.apply(referenceSchema.getName(), entityPk),
-			validityMapping
-		);
-
-		// extract working context
+		final String referenceName = referenceSchema.getName();
 		final QueryPlanningContext queryContext = executionContext.getQueryContext();
-		final boolean referencedEntityTypeManaged = referenceSchema.isReferencedEntityTypeManaged();
-		// if referenced entity type is not managed, we cannot filter by its properties
-		if (!referencedEntityTypeManaged && filterBy != null && !QueryUtils.findConstraints(
-			filterBy, EntityHaving.class, SeparateEntityScopeContainer.class).isEmpty()) {
-			throw new EntityNotManagedException(referenceSchema.getReferencedEntityType());
+
+		// the raw owners with the scopes they live in - an owner listed twice is evaluated once
+		int listedOwnerCount = 0;
+		for (int[] primaryKeys : ownerPrimaryKeys.values()) {
+			listedOwnerCount += primaryKeys.length;
 		}
-		// identify scopes that need to be searched for referenced entities
-		final Set<Scope> examinedScopes = gatherSearchedScopes(
-			filterBy,
-			executionContext.getQueryContext().getScopes()
-		);
-
-		// collect the referenced entity ids
-		final Map<Scope, Bitmap> allReferencedEntityPksInScope;
-		final Bitmap allReferencedEntityPks;
-		// if query required filtering or only existing references and the referenced entity type is managed
-		if (
-			(managedReferencesBehaviour == ManagedReferencesBehaviour.EXISTING || filterBy != null)
-				&& referencedEntityTypeManaged
-		) {
-			// we need to filter the referenced entity ids to only those that really exist
-			allReferencedEntityPksInScope = limitToExistingEntities(
-				combineWithOr(allReferencedEntityPksFromEntitiesInScope.values()),
-				queryContext.getEntityCollection(targetEntityType).orElse(null),
-				examinedScopes,
-				requiredLocale
-			);
-			// and also create unified lookup over all referenced entity ids in all requested scopes
-			allReferencedEntityPks = combineWithOr(allReferencedEntityPksInScope.values());
-		} else {
-			// otherwise we just use all referenced entity pks as they are
-			allReferencedEntityPksInScope = allReferencedEntityPksFromEntitiesInScope;
-			// and also create unified lookup over all referenced entity ids in all requested scopes
-			allReferencedEntityPks = combineWithOr(allReferencedEntityPksFromEntitiesInScope.values());
-		}
-
-		if (allReferencedEntityPks.isEmpty()) {
-			// if nothing was found, quickly finish
-			validityMappingOptional.ifPresent(ValidEntityToReferenceMapping::forbidAll);
-			result = EmptyBitmap.INSTANCE;
-		} else {
-			final PersistentRoaringBitmap referencedPrimaryKeys;
-			if (filterBy == null) {
-				// if there is no filtering, we can quickly return all referenced pks
-				final RoaringBitmapWriter<PersistentRoaringBitmap> referencedPrimaryKeysWriter = RoaringBitmapBackedBitmap.buildWriter();
-				writeAllReferencedPrimaryKeys(allReferencedEntityPks, referencedPrimaryKeysWriter);
-
-				initNestedQueryComparator(
-					entityNestedQueryComparator,
-					referenceSchema,
-					queryContext
-				);
-
-				referencedPrimaryKeys = referencedPrimaryKeysWriter.get();
-				result = referencedPrimaryKeys.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(referencedPrimaryKeys);
-
-				validityMappingOptional.ifPresent(it -> it.restrictTo(result));
-			} else {
-				// otherwise we need to filter the referenced pks according to the filterBy constraint
-				final FilterByVisitor theFilterByVisitor = getFilterByVisitor(queryContext, filterByVisitor);
-
-				// separate GroupHaving constraints from entity-level constraints and evaluate group filter
-				final GroupFilterSeparation groupFilter = separateAndEvaluateGroupFilter(
-					filterBy, referenceSchema, theFilterByVisitor,
-					examinedScopes, groupToReferencedEntityIdTranslator
-				);
-				final FilterConstraint[] entityLevelChildren = groupFilter.entityLevelChildren();
-				final FilterBy entityLevelFilterBy = groupFilter.entityLevelFilterBy();
-				final Bitmap allowedByGroupFilter = groupFilter.allowedByGroupFilter();
-				// an `entityPrimaryKeyInSet` in the filter's conjunctive root names the referenced entities the
-				// caller asked for, and every other conjunct is intersected with it - so it bounds the key set this
-				// whole pass has to work over, including the restriction below
-				final Bitmap boundedReferencedEntityPks = narrowByExactReferencedPrimaryKeys(
-					allReferencedEntityPks, entityLevelChildren
-				);
-
-				referencedPrimaryKeys = theFilterByVisitor
-					.getProcessingScope()
-					.doWithScope(
-						examinedScopes,
-						() -> {
-							// build the ReferenceHaving constraint, avoiding mergeArrays when no entity-level children
-							// the bounded set - not `allReferencedEntityPks` - because translating a referenced primary key
-							// into the reduced indexes that hold it costs one map lookup and one bitmap merge per key, and
-							// the keys outside the caller's `entityPrimaryKeyInSet` are dropped by a sibling conjunct anyway
-							final FilterConstraint pkConstraint = entityPrimaryKeyInSet(boundedReferencedEntityPks.getArray());
-							// The nested query behind an `entityHaving` is planned against the
-							// referenced collection's GLOBAL index, so it evaluates the predicate
-							// over every entity there even though the owners between them reference
-							// only a handful. Restricting it to exactly those keys is what the
-							// `nestedQueryRestriction` seam exists for, and it is safe because
-							// the nested result is intersected with this same set afterwards.
-							// A deeper nested level targeting a different collection builds its own
-							// FilterByVisitor with a fresh root scope, so this cannot leak into it.
-							// The restriction names the query it belongs to, because the very same
-							// scope also plans `groupHaving` against the reference's GROUP
-							// collection, where these keys mean nothing.
-							final NestedQueryRestriction nestedQueryPkRestriction = new NestedQueryRestriction(
-								referenceSchema.getName(),
-								referenceSchema.getReferencedEntityType(),
-								nestedFilter -> nestedFilter instanceof FilterBy nestedBy ?
-									new FilterBy(
-										ArrayUtils.mergeArrays(
-											new FilterConstraint[]{pkConstraint},
-											nestedBy.getChildren()
-										)
-									) :
-									and(pkConstraint, nestedFilter)
-							);
-							final FilterConstraint[] havingChildren = entityLevelChildren.length == 0
-								? new FilterConstraint[]{pkConstraint}
-								: ArrayUtils.mergeArrays(new FilterConstraint[]{pkConstraint}, entityLevelChildren);
-
-							final List<ReducedEntityIndex> referencedEntityIndexes = allReferencedEntityPks.isEmpty() ?
-								Collections.emptyList() :
-								theFilterByVisitor.getReferencedRecordEntityIndexes(
-									new ReferenceHaving(
-										referenceSchema.getName(),
-										and(havingChildren)
-									),
-									examinedScopes,
-									(es, eik) -> null,
-									// the same restriction `computeResultWithPassedIndex` gets: without it this pass
-									// plans the nested `entityHaving` against the referenced collection's GLOBAL index
-									// and evaluates it over every entity there, only to intersect the result with
-									// `pkConstraint` - which is already a sibling conjunct - a few operations later.
-									nestedQueryPkRestriction
-								);
-							// pre-filter by group constraint before sorting to reduce sort size
-							if (allowedByGroupFilter != null && !referencedEntityIndexes.isEmpty()) {
-								referencedEntityIndexes.removeIf(idx -> {
-									final RepresentativeReferenceKey key = idx.getRepresentativeReferenceKey();
-									return !allowedByGroupFilter.contains(key.primaryKey());
-								});
-							}
-							if (!referencedEntityIndexes.isEmpty()) {
-								referencedEntityIndexes.sort(BY_DISCRIMINATOR);
-							}
-							// we need to identify which scopes are not indexed for this reference
-							final EnumSet<Scope> nonIndexedScopes = EnumSet.noneOf(Scope.class);
-							for (Scope scope : examinedScopes) {
-								if (!referenceSchema.isIndexedInScope(scope)) {
-									nonIndexedScopes.add(scope);
-								}
-							}
-
-							final RoaringBitmapWriter<PersistentRoaringBitmap> referencedPrimaryKeysWriter = RoaringBitmapBackedBitmap.buildWriter();
-							final IntSet foundReferencedIds = new IntHashSet(allReferencedEntityPks.size());
-							// if there is at least one indexed scope, we need to process the indexes
-							if (nonIndexedScopes.size() < examinedScopes.size()) {
-								Formula lastIndexFormula = null;
-								RepresentativeReferenceKey lastDiscriminator = null;
-
-								for (ReducedEntityIndex referencedEntityIndex : referencedEntityIndexes) {
-									final EntityIndexKey indexKey = referencedEntityIndex.getIndexKey();
-									final RepresentativeReferenceKey discriminator = Objects.requireNonNull(
-										(RepresentativeReferenceKey) indexKey.discriminator()
-									);
-
-									foundReferencedIds.add(discriminator.primaryKey());
-
-									final Formula resultFormula = computeResultWithPassedIndex(
-										referencedEntityIndex,
-										entitySchema,
-										referenceSchema,
-										theFilterByVisitor,
-										entityLevelFilterBy != null ? entityLevelFilterBy : filterBy,
-										entityNestedQueryComparator,
-										nestedQueryPkRestriction
-									);
-
-									if (lastDiscriminator == null) {
-										lastDiscriminator = discriminator;
-										lastIndexFormula = resultFormula;
-									} else if (Objects.equals(lastDiscriminator, discriminator)) {
-										if (lastIndexFormula != resultFormula) {
-											lastIndexFormula = FormulaFactory.or(
-												lastIndexFormula,
-												resultFormula
-											);
-										}
-									} else {
-										Assert.isPremiseValid(
-											lastIndexFormula != null,
-											"Last index formula must be initialized!"
-										);
-										lastIndexFormula.initialize(executionContext);
-										final Bitmap matchingPks = lastIndexFormula.compute();
-										final RepresentativeReferenceKey finalLastDiscriminator = lastDiscriminator;
-										if (matchingPks.isEmpty()) {
-											validityMappingOptional.ifPresent(
-												it -> it.restrictTo(finalLastDiscriminator, EmptyBitmap.INSTANCE));
-										} else {
-											validityMappingOptional.ifPresent(
-												it -> it.restrictTo(finalLastDiscriminator, matchingPks));
-											referencedPrimaryKeysWriter.add(lastDiscriminator.primaryKey());
-										}
-
-										lastIndexFormula = resultFormula;
-										lastDiscriminator = discriminator;
-									}
-								}
-								if (lastDiscriminator != null && lastIndexFormula != null) {
-									final RepresentativeReferenceKey finalLastDiscriminator = lastDiscriminator;
-									lastIndexFormula.initialize(executionContext);
-									final Bitmap matchingPks = lastIndexFormula.compute();
-									if (matchingPks.isEmpty()) {
-										validityMappingOptional.ifPresent(
-											it -> it.restrictTo(finalLastDiscriminator, EmptyBitmap.INSTANCE));
-									} else {
-										validityMappingOptional.ifPresent(
-											it -> it.restrictTo(finalLastDiscriminator, matchingPks));
-										referencedPrimaryKeysWriter.add(lastDiscriminator.primaryKey());
-									}
-								}
-
-								// finally, add all referenced pks from non-indexed scopes
-								for (Scope nonIndexedScope : nonIndexedScopes) {
-									// we need to add all referenced entities from source entities in scope that is not indexed
-									// i.e. archived product relates to live product via non-indexed reference
-									final Bitmap refPksFromEntitiesInScope = allReferencedEntityPksFromEntitiesInScope.get(
-										nonIndexedScope);
-									if (refPksFromEntitiesInScope != null) {
-										addBitmapToSetAndWriter(
-											refPksFromEntitiesInScope, foundReferencedIds, referencedPrimaryKeysWriter);
-									}
-									// but we also need to add referenced entities that exist in the non-indexed scope
-									// i.e. live product relates to archived product via indexed reference
-									// references are indexed only within the same scope and here it goes across scopes
-									final Bitmap refPks = allReferencedEntityPksInScope.get(nonIndexedScope);
-									if (refPks != null) {
-										addBitmapToSetAndWriter(
-											refPks, foundReferencedIds, referencedPrimaryKeysWriter);
-									}
-								}
-							} else {
-								// if there are only non-indexed scopes, we need to add all referenced pks
-								// from all source entities in scope
-								addBitmapToSetAndWriter(
-									allReferencedEntityPks, foundReferencedIds, referencedPrimaryKeysWriter);
-							}
-
-							validityMappingOptional.ifPresent(
-								it -> {
-									if (referenceSchema.getCardinality().allowsDuplicates()) {
-										it.forbidAllExceptIncludingDiscriminators(foundReferencedIds);
-									} else {
-										it.forbidAllExcept(foundReferencedIds);
-									}
-								}
-							);
-
-							initNestedQueryComparator(
-								entityNestedQueryComparator,
-								referenceSchema,
-								theFilterByVisitor.getQueryContext()
-							);
-
-							return referencedPrimaryKeysWriter.get();
+		final Entity[] owners = new Entity[listedOwnerCount];
+		final Scope[] ownerScopes = new Scope[listedOwnerCount];
+		final IntSet seenOwners = new IntHashSet(listedOwnerCount);
+		final BaseBitmap referencedPrimaryKeys = new BaseBitmap();
+		int ownerCount = 0;
+		for (Entry<Scope, int[]> entry : ownerPrimaryKeys.entrySet()) {
+			for (int ownerPrimaryKey : entry.getValue()) {
+				if (seenOwners.add(ownerPrimaryKey)) {
+					final Entity owner = getOwnerCarryingEveryRow(ownerAccessor.apply(ownerPrimaryKey), referenceName);
+					owners[ownerCount] = owner;
+					ownerScopes[ownerCount++] = entry.getKey();
+					for (ReferenceContract row : owner.getReferences(referenceName)) {
+						if (row.exists()) {
+							referencedPrimaryKeys.add(row.getReferencedPrimaryKey());
 						}
-					);
-				result = referencedPrimaryKeys.isEmpty() ? EmptyBitmap.INSTANCE : new BaseBitmap(referencedPrimaryKeys);
+					}
+				}
+			}
+		}
+		final int evaluatedOwnerCount = ownerCount;
+
+		// a condition cannot be answered for a referenced entity that does not exist, and EXISTING asks for existing
+		// ones explicitly - a referenced entity type evitaDB does not manage has no entity to check
+		final boolean existenceChecked = (
+			managedReferencesBehaviour == ManagedReferencesBehaviour.EXISTING || filterBy != null
+		) && referenceSchema.isReferencedEntityTypeManaged();
+		final Bitmap testedTargets = existenceChecked ?
+			combineWithOr(
+				limitToExistingEntities(
+					referencedPrimaryKeys,
+					queryContext.getEntityCollection(referenceSchema.getReferencedEntityType()).orElse(null),
+					gatherSearchedScopes(filterBy, queryContext.getScopes()),
+					requiredLocale
+				).values()
+			) :
+			referencedPrimaryKeys;
+
+		// compiled before the empty exit, so that a filter refused whatever the data is refused without data too
+		final ReferenceRowFilter rowFilter = filterBy == null ?
+			ReferenceRowFilter.ACCEPT_ALL :
+			ReferenceRowFilterCompiler.compile(
+				filterBy,
+				new CompileContext(
+					entitySchema,
+					referenceSchema,
+					getFilterByVisitor(queryContext, filterByVisitor),
+					queryContext.getScopes(),
+					// an owner archived, moved or enriched by a request reading another scope lives outside them
+					ownerPrimaryKeys.keySet(),
+					queryContext.getLocale(),
+					() -> testedTargets,
+					() -> getGroupsOfTestedRows(owners, evaluatedOwnerCount, referenceName, testedTargets)
+				)
+			);
+		if (testedTargets.isEmpty()) {
+			return EmptyBitmap.INSTANCE;
+		}
+
+		final BaseBitmap admittedPrimaryKeys = new BaseBitmap();
+		for (int i = 0; i < evaluatedOwnerCount; i++) {
+			final Entity owner = owners[i];
+			final Scope ownerScope = ownerScopes[i];
+			final int ownerPrimaryKey = owner.getPrimaryKeyOrThrowException();
+			for (ReferenceContract row : owner.getReferences(referenceName)) {
+				final int referencedPrimaryKey = row.getReferencedPrimaryKey();
+				if (
+					row.exists() &&
+						(!existenceChecked || testedTargets.contains(referencedPrimaryKey)) &&
+						rowFilter.test(ownerScope, owner, row)
+				) {
+					validityMapping.admit(ownerPrimaryKey, row);
+					admittedPrimaryKeys.add(referencedPrimaryKey);
+				}
 			}
 		}
 
-		return result;
+		// the references are ordered in the locale of the filter, which the referenced entities are fetched in too
+		if (entityNestedQueryComparator != null) {
+			final Locale referenceFilterLocale = findReferenceFilterLocale(filterBy);
+			if (referenceFilterLocale != null) {
+				entityNestedQueryComparator.setLocale(referenceFilterLocale);
+			}
+		}
+		initNestedQueryComparator(entityNestedQueryComparator, referenceSchema, queryContext);
+		return admittedPrimaryKeys.isEmpty() ? EmptyBitmap.INSTANCE : admittedPrimaryKeys;
+	}
+
+	/**
+	 * Returns the raw entity of the owner, after checking that it carries every reference row the filter of the
+	 * fetched references could admit, fully decoded. The rows are read off the raw entity, never off the decorator,
+	 * which hides the reference names, the rows and the attributes the request did not ask for.
+	 *
+	 * The decode of an entity's references is narrowed only by the reference names its reference predicate covers and
+	 * by the referenced keys bound in the root of the filter of every requirement naming the reference - a row outside
+	 * the bound fails that very conjunct. So an owner whose predicate covers the name carries every row that matters.
+	 *
+	 * An owner whose predicate requires no references at all is accepted on call order alone, which the guard cannot
+	 * check: such an owner carries every row only because both `initReferenceIndex` variants hand over the output of
+	 * {@link EntityCollection#ensureReferencesFetched}, which re-reads it with every reference of every name and keeps
+	 * the original predicate. Before that call its delegate holds no reference, and the guard would hand it over all
+	 * the same - every row would silently disappear. A caller must therefore pass its owners through
+	 * {@link EntityCollection#ensureReferencesFetched} first.
+	 *
+	 * @param owner         the owner as the fetch got it
+	 * @param referenceName the name of the filtered reference
+	 * @return the raw entity
+	 * @throws GenericEvitaInternalError when the owner may lack a row of the reference
+	 */
+	@Nonnull
+	static Entity getOwnerCarryingEveryRow(@Nonnull SealedEntity owner, @Nonnull String referenceName) {
+		if (owner instanceof ServerEntityDecorator decorator) {
+			final ReferenceContractSerializablePredicate referencePredicate = decorator.getReferencePredicate();
+			if (!referencePredicate.isRequiresEntityReferences() || referencePredicate.wasFetched(referenceName)) {
+				return decorator.getDelegate();
+			}
+		}
+		throw new GenericEvitaInternalError(
+			"The references `" + referenceName + "` of the entity `" + owner.getType() + "` with primary key `" +
+				owner.getPrimaryKey() + "` cannot be filtered - the entity was not read with all of them!"
+		);
+	}
+
+	/**
+	 * Returns the groups of the reference rows the filter is tested on - the existing rows whose referenced entity
+	 * passed the existence check - leaving out a dropped group, which is no group. The nested queries of `groupHaving`
+	 * are restricted to them.
+	 *
+	 * @param owners        the raw owners, the first `ownerCount` of the array
+	 * @param ownerCount    the number of owners in the array
+	 * @param referenceName the name of the filtered reference
+	 * @param testedTargets the referenced entities the rows are tested with
+	 * @return the primary keys of the groups
+	 */
+	@Nonnull
+	private static Bitmap getGroupsOfTestedRows(
+		@Nonnull Entity[] owners,
+		int ownerCount,
+		@Nonnull String referenceName,
+		@Nonnull Bitmap testedTargets
+	) {
+		final BaseBitmap groups = new BaseBitmap();
+		for (int i = 0; i < ownerCount; i++) {
+			for (ReferenceContract row : owners[i].getReferences(referenceName)) {
+				if (row.exists() && testedTargets.contains(row.getReferencedPrimaryKey())) {
+					final Optional<GroupEntityReference> group = row.getGroup();
+					if (group.isPresent() && group.get().exists()) {
+						groups.add(group.get().primaryKey());
+					}
+				}
+			}
+		}
+		return groups;
+	}
+
+	/**
+	 * Returns the groups of the references the slicer recorded for the owners - the groups whose bodies are fetched
+	 * and which the ordering by a group property is prepared for. With {@link ManagedReferencesBehaviour#EXISTING} only
+	 * the groups that exist in a scope of the request, in the required locale, are returned.
+	 *
+	 * @param ownerPrimaryKeys           the primary keys of the owners, indexed by the scope they live in
+	 * @param executionContext           the context of the query fetching the references
+	 * @param referenceSchema            the schema of the fetched reference
+	 * @param managedReferencesBehaviour whether only references to existing entities are fetched
+	 * @param requiredLocale             the locale the group bodies are fetched in, NULL when the existence check
+	 *                                   needs none
+	 * @param slicer                     the slicer that recorded the groups of the references it kept
+	 * @return the primary keys of the groups
+	 */
+	@Nonnull
+	private static Bitmap getReferencedGroupIds(
+		@Nonnull Map<Scope, int[]> ownerPrimaryKeys,
+		@Nonnull QueryExecutionContext executionContext,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull ManagedReferencesBehaviour managedReferencesBehaviour,
+		@Nullable Locale requiredLocale,
+		@Nonnull BitmapSlicer slicer
+	) {
+		final List<Bitmap> groupsOfOwners = new ArrayList<>();
+		for (int[] primaryKeys : ownerPrimaryKeys.values()) {
+			for (int ownerPrimaryKey : primaryKeys) {
+				groupsOfOwners.add(slicer.getGroupIds(ownerPrimaryKey).compute());
+			}
+		}
+		final Bitmap groups = combineWithOr(groupsOfOwners);
+		if (
+			managedReferencesBehaviour == ManagedReferencesBehaviour.EXISTING &&
+				referenceSchema.isReferencedGroupTypeManaged() &&
+				!groups.isEmpty()
+		) {
+			final QueryPlanningContext queryContext = executionContext.getQueryContext();
+			return combineWithOr(
+				limitToExistingEntities(
+					groups,
+					queryContext.getEntityCollection(
+						Objects.requireNonNull(referenceSchema.getReferencedGroupType())
+					).orElse(null),
+					queryContext.getScopes(),
+					requiredLocale
+				).values()
+			);
+		}
+		return groups;
 	}
 
 	/**
 	 * Checks the filter and the ordering of the references `referenceContent` fetches against the schemas, while the
-	 * query is planned. The fetch translates them only when it has something to filter or order - an owner entity
-	 * referencing an entity that exists in the examined scopes - so without this check a constraint the schemas refuse
-	 * would fail the query or pass depending on the data it returns. The check translates what
-	 * {@link #getFilteredReferencedEntityIds} and {@link #createPrefetchedEntities} translate, the same way, and throws
-	 * the result away:
+	 * query is planned. The fetch evaluates them only when it has something to filter or order - an owner entity
+	 * holding a reference - so without this check a constraint the schemas refuse would fail the query or pass
+	 * depending on the data it returns. The check builds what {@link #admitFetchedReferences} and
+	 * {@link #createPrefetchedEntities} build, the same way, and throws the result away:
 	 *
-	 * - the filter, by a visitor that only checks it ({@link FilterByVisitor#createConstraintCheckVisitor}) - in every
-	 *   scope the reference is indexed in, over an empty type index of the reference, and the filter of an
-	 *   `entityHaving` or a `groupHaving` over an empty global index of the entity type it targets; a `groupHaving` at
-	 *   the root of the filter is separated from the rest exactly as the fetch separates it,
+	 * - the filter, compiled by the very {@link ReferenceRowFilterCompiler} the fetch compiles it with, given a visitor
+	 *   that only checks it ({@link FilterByVisitor#createConstraintCheckVisitor}): every leaf is validated against the
+	 *   schemas, and the nested filter of every `entityHaving` and `groupHaving` is planned right away as the nested
+	 *   query the fetch would plan - in the scopes the fetch plans it in - over the entities it targets,
 	 * - the ordering by the attributes of the reference, and the ordering by the referenced entity or its group over
 	 *   the global index of that entity type, or an empty one in a scope it holds no entity of.
 	 *
-	 * The cost is one translation of each constraint per scope and query; nothing is evaluated and no nested query is
-	 * planned.
+	 * The cost is one compilation of the filter and one plan of each nested filter per query; nothing is evaluated.
+	 *
+	 * The filter is compiled in the locale the fetch compiles it in: the locale of the request the owners of the
+	 * references are fetched with, which a nested `referenceContent` inherits from the filter of its enclosing one
+	 * (see {@link #getReferencedEntityLocale}) - so what the check accepts the fetch evaluates, at every level.
 	 *
 	 * The schema capabilities the check requests of the entity owning the references are counted once per query: the
 	 * check of a nested `referenceContent` runs in a context of the referenced collection, whose requests are handed to
-	 * the context of the query, and the fetch translates the constraints again only in contexts it never counts. The
-	 * capabilities of the entities an `entityHaving` or a `groupHaving` reaches are counted by the check as well: the
-	 * fetch plans its nested queries over those entities only when a fetched entity holds a reference to filter, so
-	 * the check hands what it requested to the context of the query (see
+	 * the context of the query, and the fetch compiles the constraints again only in contexts it never counts. The
+	 * attribute leaves of the reference request nothing - the fetch reads the rows themselves, so neither the attribute
+	 * nor the reference needs any index. The capabilities of the entities an `entityHaving` or a `groupHaving` reaches
+	 * are counted by the check: the fetch plans its nested queries over those entities only when a fetched entity holds
+	 * a reference to filter, so the check hands what it requested to the context of the query (see
 	 * {@link io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper#planNestedQuery}), and the nested
 	 * queries of the fetch, planned in contexts derived from it, skip what it counted. The ordering by the referenced
 	 * entity or its group is counted by the check for the same reason: the comparators plan their queries over the
@@ -1075,8 +938,11 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param filterBy        the filter of the fetched references, NULL when there is none
 	 * @param orderBy         the ordering of the fetched references, NULL when there is none
 	 * @param scopes          the scopes the references are fetched in
-	 * @throws EntityNotManagedException when `filterBy` reaches into the referenced entity body (`entityHaving`)
-	 *                                   while the referenced entity type is not managed by evitaDB
+	 * @param ownerLocale     the locale of the request the owners of the references are fetched with - the locale of
+	 *                        the query for its own entities, the one {@link #getReferencedEntityLocale} derives for the
+	 *                        owners of a nested `referenceContent`; NULL when there is none
+	 * @throws EvitaInvalidUsageException when the filter contains a constraint without a meaning on a reference, a leaf
+	 *                                    that cannot be evaluated, or an invalid nested filter
 	 */
 	public static void verifyReferenceContentConstraints(
 		@Nonnull QueryPlanningContext queryContext,
@@ -1084,28 +950,33 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nullable FilterBy filterBy,
 		@Nullable OrderBy orderBy,
-		@Nonnull Set<Scope> scopes
+		@Nonnull Set<Scope> scopes,
+		@Nullable Locale ownerLocale
 	) {
 		if (filterBy == null && orderBy == null) {
 			return;
 		}
 		// the references of a nested `referenceContent` are owned by the referenced entity, whose schema the checks
-		// resolve the reference and its attributes against
-		final QueryPlanningContext ownerQueryContext = entitySchema.getName().equals(queryContext.getEntityType()) ?
+		// resolve the reference and its attributes against, and which is fetched in the locale its enclosing
+		// `referenceContent` derives - a nested filter of the check is planned in it, as in the fetch
+		final boolean ownedByQueriedEntitiesInQueryLocale =
+			entitySchema.getName().equals(queryContext.getEntityType()) &&
+				Objects.equals(ownerLocale, queryContext.getLocale());
+		final QueryPlanningContext ownerQueryContext = ownedByQueriedEntitiesInQueryLocale ?
 			queryContext :
 			queryContext.getEntityCollectionOrThrowException(entitySchema.getName(), "check fetched references")
 				.createQueryContext(
 					queryContext,
 					queryContext.getEvitaRequest().deriveCopyWith(
-						entitySchema.getName(), null, null, queryContext.getLocale(), scopes
+						entitySchema.getName(), null, null, ownerLocale, scopes
 					),
 					queryContext.getEvitaSession()
 				);
 		if (filterBy != null) {
-			verifyReferenceFilter(ownerQueryContext, referenceSchema, filterBy, scopes);
+			verifyReferenceFilter(ownerQueryContext, entitySchema, referenceSchema, filterBy);
 		}
 		if (orderBy != null) {
-			verifyReferenceOrdering(ownerQueryContext, entitySchema, referenceSchema, orderBy);
+			verifyReferenceOrdering(ownerQueryContext, entitySchema, referenceSchema, filterBy, orderBy);
 		}
 		// the context of the referenced entity is thrown away and its plan is never built, so the capabilities its
 		// check requested are handed to the query, which counts them once with its own - the fetch translates the
@@ -1120,42 +991,39 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 
 	/**
 	 * Checks the filter of the fetched references - the part of {@link #verifyReferenceContentConstraints} that
-	 * mirrors {@link #getFilteredReferencedEntityIds}.
+	 * mirrors the compilation in {@link #admitFetchedReferences}. The filter is compiled with the inputs the fetch
+	 * compiles it with - the scopes and the locale of the owner request - except that no row is known, so the nested
+	 * queries are not restricted to any and no scope of an owner is added. The owners of a query live in its scopes,
+	 * and a scope the fetch adds for an owner living elsewhere never refuses what the check admits (see
+	 * {@link ReferenceRowFilterCompiler.CompileContext}). The compiled filter is thrown away: compiling it is the
+	 * check.
 	 *
-	 * @param ownerQueryContext planning context of the entity owning the references
+	 * @param ownerQueryContext planning context of the entity owning the references, in the scopes and the locale of
+	 *                          the request the owners are fetched with
+	 * @param entitySchema      schema of the entity owning the references
 	 * @param referenceSchema   schema of the fetched reference
 	 * @param filterBy          the filter of the fetched references
-	 * @param scopes            the scopes the references are fetched in
 	 */
 	private static void verifyReferenceFilter(
 		@Nonnull QueryPlanningContext ownerQueryContext,
+		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull FilterBy filterBy,
-		@Nonnull Set<Scope> scopes
+		@Nonnull FilterBy filterBy
 	) {
-		if (!referenceSchema.isReferencedEntityTypeManaged() && !QueryUtils.findConstraints(
-			filterBy, EntityHaving.class, SeparateEntityScopeContainer.class).isEmpty()) {
-			throw new EntityNotManagedException(referenceSchema.getReferencedEntityType());
-		}
-		final Set<Scope> examinedScopes = gatherSearchedScopes(filterBy, scopes);
-		final FilterByVisitor filterByVisitor = FilterByVisitor.createConstraintCheckVisitor(ownerQueryContext);
-		// a check matches no group, so the translation of the matching groups to the referenced entities is never
-		// called - it is passed only to separate the root `groupHaving` exactly as the fetch does
-		final GroupFilterSeparation groupFilter = separateAndEvaluateGroupFilter(
-			filterBy, referenceSchema, filterByVisitor, examinedScopes,
-			(referenceName, groupPrimaryKey) -> ArrayUtils.EMPTY_INT_ARRAY
+		ReferenceRowFilterCompiler.compile(
+			filterBy,
+			new CompileContext(
+				entitySchema,
+				referenceSchema,
+				FilterByVisitor.createConstraintCheckVisitor(ownerQueryContext),
+				ownerQueryContext.getScopes(),
+				// no row is tested, and the owners of a query live in its scopes
+				Set.of(),
+				ownerQueryContext.getLocale(),
+				null,
+				null
+			)
 		);
-		final FilterConstraint[] entityLevelChildren = groupFilter.entityLevelChildren();
-		if (entityLevelChildren.length > 0) {
-			filterByVisitor.getProcessingScope().doWithScope(
-				examinedScopes,
-				() -> filterByVisitor.getReferencedRecordEntityIndexes(
-					new ReferenceHaving(referenceSchema.getName(), and(entityLevelChildren)),
-					examinedScopes,
-					(es, eik) -> null
-				)
-			);
-		}
 	}
 
 	/**
@@ -1163,15 +1031,24 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * mirrors the comparator {@link #createPrefetchedEntities} creates and its initialization in
 	 * {@link #initNestedQueryComparator}.
 	 *
+	 * The fetch orders the referenced entities and their groups in the locale of the {@link EntityLocaleEquals} of
+	 * the reference filter, which it sets on the comparator, and in the locale of the request the owners are fetched
+	 * with when the filter names none. The check creates the comparator without a filter, so it looks the locale up in
+	 * the filter the same way the body fetch does (see {@link #findReferenceFilterLocale(FilterBy)}) and falls back to
+	 * the locale of the owner context - an ordering by a localized attribute is refused only when there is no locale
+	 * in either place.
+	 *
 	 * @param ownerQueryContext planning context of the entity owning the references
 	 * @param entitySchema      schema of the entity owning the references
 	 * @param referenceSchema   schema of the fetched reference
+	 * @param filterBy          the filter of the fetched references, NULL when there is none
 	 * @param orderBy           the ordering of the fetched references
 	 */
 	private static void verifyReferenceOrdering(
 		@Nonnull QueryPlanningContext ownerQueryContext,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nullable FilterBy filterBy,
 		@Nonnull OrderBy orderBy
 	) {
 		final EntitySchema internalEntitySchema = ownerQueryContext
@@ -1186,6 +1063,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		);
 		final EntityNestedQueryComparator nestedQueryComparator = orderingDescriptor.nestedQueryComparator();
 		if (nestedQueryComparator != null) {
+			final Locale locale = getReferencedEntityLocale(filterBy, ownerQueryContext.getLocale());
 			final EntityPropertyWithScopes entityOrderBy = nestedQueryComparator.getOrderBy();
 			if (entityOrderBy != null) {
 				final EntityCollection targetEntityCollection = ownerQueryContext.getEntityCollectionOrThrowException(
@@ -1193,7 +1071,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				);
 				OrderByVisitor.createSorter(
 					entityOrderBy.orderBy(),
-					nestedQueryComparator.getLocale(),
+					locale,
 					targetEntityCollection,
 					() -> "checking ordering of reference `" + referenceSchema.getName() + "` by entity `" +
 						targetEntityCollection.getEntityType() + "`: " + entityOrderBy,
@@ -1216,7 +1094,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				);
 				OrderByVisitor.createSorter(
 					entityGroupOrderBy.orderBy(),
-					nestedQueryComparator.getLocale(),
+					locale,
 					targetEntityGroupCollection,
 					() -> "checking ordering of reference groups `" + referenceSchema.getName() +
 						"` by entity group `" + targetEntityGroupCollection.getEntityType() + "`: " +
@@ -1226,163 +1104,6 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				);
 			}
 		}
-	}
-
-	/**
-	 * Narrows the set of referenced entity primary keys a reference filter has to be evaluated over by every
-	 * {@link EntityPrimaryKeyInSet} sitting in the filter's conjunctive root.
-	 *
-	 * Such a constraint names the referenced entities the caller is interested in, and the reference filter is
-	 * a conjunction - so `A AND pkInSet(X)` and `(A INTERSECT X) AND pkInSet(X)` select the same references.
-	 * The narrowed set is what the pass hands to the reduced-index lookup and to the nested-query restriction,
-	 * and that is where it pays: turning a referenced entity primary key into the reduced indexes that hold it
-	 * costs a map lookup and a bitmap merge per key, so a reference whose owners between them point at the whole
-	 * referenced collection pays that per key of the collection - three times over, once for the restriction
-	 * itself and once for each scope the nested `entityHaving` query is planned in - only for a sibling conjunct
-	 * to throw all but the handful of requested keys away afterwards.
-	 *
-	 * The result is identical, not merely smaller, because a reduced entity index belongs to exactly one referenced
-	 * entity - its {@link RepresentativeReferenceKey} discriminator carries that key - so the
-	 * partitions the type index unions are pairwise disjoint, and `T(A) INTERSECT T(X) = T(A INTERSECT X)` for the
-	 * translation `T`. Were two referenced entities to share a reduced index, narrowing would drop it whenever only
-	 * one of them survived, so this invariant is what the optimization stands on.
-	 *
-	 * Only the root children are examined. A key set nested inside an `or` or a `not` constrains nothing on its
-	 * own, and reading it as a bound would drop references the filter actually matches.
-	 *
-	 * @param allReferencedEntityPks all referenced entity primary keys reachable from the processed owner entities
-	 * @param entityLevelChildren    the conjunctive root children of the reference filter
-	 * @return the narrowed key set, or {@code allReferencedEntityPks} itself when the root names no exact keys
-	 */
-	@Nonnull
-	private static Bitmap narrowByExactReferencedPrimaryKeys(
-		@Nonnull Bitmap allReferencedEntityPks,
-		@Nonnull FilterConstraint[] entityLevelChildren
-	) {
-		Bitmap result = allReferencedEntityPks;
-		for (final FilterConstraint child : entityLevelChildren) {
-			if (child instanceof EntityPrimaryKeyInSet requestedPks) {
-				final int[] primaryKeys = requestedPks.getPrimaryKeys();
-				if (ArrayUtils.isEmpty(primaryKeys)) {
-					// an empty key set matches nothing, and the conjunction cannot recover from it
-					return EmptyBitmap.INSTANCE;
-				}
-				final PersistentRoaringBitmap narrowed = PersistentRoaringBitmap.and(
-					RoaringBitmapBackedBitmap.getRoaringBitmap(result),
-					RoaringBitmapBackedBitmap.fromArray(primaryKeys)
-				);
-				if (narrowed.isEmpty()) {
-					return EmptyBitmap.INSTANCE;
-				}
-				result = new BaseBitmap(narrowed);
-			}
-		}
-		return result;
-	}
-
-	/**
-	 * Separates {@link GroupHaving} constraints from entity-level constraints in the provided filter,
-	 * evaluates group constraints against group-level indexes, and maps matching group PKs to a bitmap
-	 * of allowed referenced entity PKs.
-	 *
-	 * When no {@link GroupHaving} is present or group filtering is not applicable, the original filter
-	 * is returned unchanged and {@code allowedByGroupFilter} is {@code null}.
-	 *
-	 * The method performs a single pass over filter children to both detect and separate
-	 * {@link GroupHaving} constraints, avoiding a redundant scan. In the common single-{@link GroupHaving}
-	 * case, the constraint's children array is reused directly without intermediate collection allocation.
-	 *
-	 * @param filterBy                            the filter containing both group-level and entity-level constraints
-	 * @param referenceSchema                     the schema of the reference being filtered
-	 * @param filterByVisitor                     the visitor used to evaluate group constraints
-	 * @param examinedScopes                      the scopes to evaluate
-	 * @param groupToReferencedEntityIdTranslator function that maps group PKs to referenced entity PKs;
-	 *                                            may be {@code null} when group filtering is not applicable
-	 * @return a {@link GroupFilterSeparation} containing the entity-level filter and the
-	 * allowed referenced entity PKs bitmap (or {@code null} if no group filtering applies)
-	 */
-	@Nonnull
-	private static GroupFilterSeparation separateAndEvaluateGroupFilter(
-		@Nonnull FilterBy filterBy,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull Set<Scope> examinedScopes,
-		@Nullable BiFunction<String, Integer, int[]> groupToReferencedEntityIdTranslator
-	) {
-		// fast path: group filtering not applicable
-		if (groupToReferencedEntityIdTranslator == null) {
-			return new GroupFilterSeparation(filterBy, null);
-		}
-
-		final FilterConstraint[] allFilterChildren = filterBy.getChildren();
-
-		// single pass: separate entity-level from group-level constraints and detect GroupHaving presence
-		final List<FilterConstraint> entityLevel = new ArrayList<>(allFilterChildren.length);
-		FilterConstraint[] groupChildren = null;
-		List<FilterConstraint> groupAccumulator = null;
-		for (FilterConstraint child : allFilterChildren) {
-			if (child instanceof GroupHaving gh) {
-				if (groupChildren == null) {
-					// first GroupHaving: reuse its children array directly
-					groupChildren = gh.getChildren();
-				} else {
-					// rare: multiple GroupHaving constraints — accumulate
-					if (groupAccumulator == null) {
-						groupAccumulator = new ArrayList<>(8);
-						Collections.addAll(groupAccumulator, groupChildren);
-					}
-					Collections.addAll(groupAccumulator, gh.getChildren());
-				}
-			} else {
-				entityLevel.add(child);
-			}
-		}
-
-		// no GroupHaving found — return original filter unchanged
-		if (groupChildren == null) {
-			return new GroupFilterSeparation(filterBy, null);
-		}
-
-		// resolve final group children array
-		final FilterConstraint[] finalGroupChildren = groupAccumulator != null
-			? groupAccumulator.toArray(FilterConstraint[]::new)
-			: groupChildren;
-
-		// build entity-level FilterBy (null if all constraints were group-level)
-		final FilterBy entityLevelFilterBy = entityLevel.isEmpty()
-			? null
-			: new FilterBy(entityLevel.toArray(FilterConstraint[]::new));
-
-		// evaluate the group constraints against the group collection. The `groupHaving` container is unwrapped
-		// above, so what is handed over is its bare children - and they mean "attributes of the group entity",
-		// which only a nested query over that collection can answer
-		final Bitmap matchingGroupPks = filterByVisitor.getMatchingGroupEntityPrimaryKeys(
-			referenceSchema,
-			and(finalGroupChildren),
-			examinedScopes
-		);
-
-		if (matchingGroupPks.isEmpty()) {
-			return new GroupFilterSeparation(entityLevelFilterBy, EmptyBitmap.INSTANCE);
-		}
-
-		// map matching group PKs to allowed referenced entity PKs
-		final RoaringBitmapWriter<PersistentRoaringBitmap> allowedWriter = RoaringBitmapBackedBitmap.buildWriter();
-		final OfInt groupIt = matchingGroupPks.iterator();
-		while (groupIt.hasNext()) {
-			final int[] referencedByGroup = groupToReferencedEntityIdTranslator.apply(
-				referenceSchema.getName(), groupIt.nextInt()
-			);
-			for (int refPk : referencedByGroup) {
-				allowedWriter.add(refPk);
-			}
-		}
-		final PersistentRoaringBitmap allowedBitmap = allowedWriter.get();
-		final Bitmap allowedByGroupFilter = allowedBitmap.isEmpty()
-			? EmptyBitmap.INSTANCE
-			: new BaseBitmap(allowedBitmap);
-
-		return new GroupFilterSeparation(entityLevelFilterBy, allowedByGroupFilter);
 	}
 
 	/**
@@ -1492,6 +1213,46 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nullable FilterBy referenceFilterBy,
 		@Nonnull QueryExecutionContext executionContext
 	) {
+		return getReferencedEntityLocale(
+			referenceFilterBy, executionContext.getEvitaRequest().getRequiredOrImplicitLocale()
+		);
+	}
+
+	/**
+	 * Returns the locale the referenced entities (and groups) of a `referenceContent` are fetched in, which is also the
+	 * locale the references of a `referenceContent` nested in their fetch are filtered and ordered in: the locale of
+	 * the filter of the `referenceContent` ({@link #findReferenceFilterLocale}), or the locale of the request its
+	 * owners are fetched with when the filter names none - as the request derived for the fetch of the bodies
+	 * ({@link EvitaRequest#deriveCopyWith(String, FilterBy, OrderBy, io.evitadb.api.query.require.EntityFetchRequire)})
+	 * resolves it. Applied level by level from the query down, it yields the locale of the owners of every nested
+	 * `referenceContent`.
+	 *
+	 * @param referenceFilterBy the filter of the `referenceContent`, NULL when there is none
+	 * @param ownerLocale       the locale of the request the owners of its references are fetched with, NULL when
+	 *                          there is none
+	 * @return the locale of the referenced entities, NULL when there is none
+	 */
+	@Nullable
+	public static Locale getReferencedEntityLocale(@Nullable FilterBy referenceFilterBy, @Nullable Locale ownerLocale) {
+		final Locale referenceFilterLocale = findReferenceFilterLocale(referenceFilterBy);
+		return referenceFilterLocale == null ? ownerLocale : referenceFilterLocale;
+	}
+
+	/**
+	 * Returns the locale of the {@link EntityLocaleEquals} the reference-level `filterBy` hands to the fetch of the
+	 * referenced entity (or group) bodies - the one {@link #unwrapFilterBy(FilterBy)} propagates into the derived fetch
+	 * request. The body fetch (see {@link #resolveRequiredLocale}), the planning check of the ordering of the
+	 * references (see {@link #verifyReferenceOrdering}) and the localized attribute leaves of the row filter (see
+	 * {@link ReferenceRowFilterCompiler}) look the locale up here, so they never disagree on it.
+	 *
+	 * At most one {@link EntityLocaleEquals} is expected inside the unwrapped filter - a filter carrying several of
+	 * them makes the constraint finder throw `MoreThanSingleResultException`.
+	 *
+	 * @param referenceFilterBy the reference-level `filterBy`, NULL when there is none
+	 * @return the locale of the filter, or NULL when it names none
+	 */
+	@Nullable
+	static Locale findReferenceFilterLocale(@Nullable FilterBy referenceFilterBy) {
 		final FilterBy unwrappedFilterBy = unwrapFilterBy(referenceFilterBy);
 		if (unwrappedFilterBy != null) {
 			final EntityLocaleEquals localeConstraint = QueryUtils.findConstraint(unwrappedFilterBy, EntityLocaleEquals.class);
@@ -1499,7 +1260,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				return localeConstraint.getLocale();
 			}
 		}
-		return executionContext.getEvitaRequest().getRequiredOrImplicitLocale();
+		return null;
 	}
 
 	/**
@@ -1516,7 +1277,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @return a set of scopes that includes the initial scopes and any additional scopes derived from the filter criteria
 	 */
 	@Nonnull
-	private static Set<Scope> gatherSearchedScopes(@Nullable FilterBy filterBy, @Nonnull Set<Scope> scopes) {
+	static Set<Scope> gatherSearchedScopes(@Nullable FilterBy filterBy, @Nonnull Set<Scope> scopes) {
 		if (filterBy == null) {
 			return scopes;
 		}
@@ -1533,108 +1294,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	}
 
 	/**
-	 * Writes all referenced primary keys from the provided bitmap of entity IDs
-	 * into the specified bitmap writer.
-	 *
-	 * @param allReferencedEntityIds      the bitmap containing all referenced entity IDs to be written
-	 * @param referencedPrimaryKeysWriter the bitmap writer where the primary keys will be added
-	 */
-	private static void writeAllReferencedPrimaryKeys(
-		@Nonnull Bitmap allReferencedEntityIds,
-		@Nonnull RoaringBitmapWriter<PersistentRoaringBitmap> referencedPrimaryKeysWriter
-	) {
-		final OfInt it = allReferencedEntityIds.iterator();
-		while (it.hasNext()) {
-			referencedPrimaryKeysWriter.add(it.nextInt());
-		}
-	}
-
-	/**
-	 * Iterates over all primary keys in the given bitmap and adds each one to both the target set and the bitmap
-	 * writer. This avoids duplicating the iteration pattern that appears multiple times in
-	 * {@link #getFilteredReferencedEntityIds}.
-	 *
-	 * @param bitmap       the source bitmap whose elements should be added
-	 * @param targetSet    the set to which each primary key is added (used for later exclusion checks)
-	 * @param targetWriter the bitmap writer to which each primary key is appended
-	 */
-	private static void addBitmapToSetAndWriter(
-		@Nonnull Bitmap bitmap,
-		@Nonnull IntSet targetSet,
-		@Nonnull RoaringBitmapWriter<PersistentRoaringBitmap> targetWriter
-	) {
-		final OfInt it = bitmap.iterator();
-		while (it.hasNext()) {
-			final int pk = it.nextInt();
-			targetSet.add(pk);
-			targetWriter.add(pk);
-		}
-	}
-
-	/**
-	 * Method creates {@link Formula} that calculates the set of matching primary keys from input `index` in the context
-	 * of the `referenceSchema` analyzing `filterBy` constraint using `filterByVisitor`. The method unifies the logic
-	 * around context preparation.
-	 *
-	 * @param index                       to be used for filter by transformation
-	 * @param entitySchema                schema of the entity owning the reference - it delimits the attribute schema
-	 *                                    lookup performed while the `filterBy` is being translated
-	 * @param referenceSchema             related {@link ReferenceSchemaContract}
-	 * @param filterByVisitor             visitor to be used for filter by analysis
-	 * @param filterBy                    filtering constraint to be analyzed
-	 * @param entityNestedQueryComparator comparator that holds information about requested ordering so that we can
-	 *                                    apply it during entity filtering (if it's performed) and pre-initialize it
-	 *                                    in an optimal way
-	 * @param nestedQueryRestriction      optional narrowing applied to the filter of a nested query planned for an
-	 *                                    `entityHaving` constraint - it takes that query down to the keys the owners
-	 *                                    actually reference instead of the whole target collection
-	 * @return formula that calculates the result
-	 */
-	@Nullable
-	private static Formula computeResultWithPassedIndex(
-		@Nonnull AbstractReducedEntityIndex index,
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull FilterBy filterBy,
-		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
-		@Nullable NestedQueryRestriction nestedQueryRestriction
-	) {
-		// compute the result formula in the initialized context
-		final String referenceName = referenceSchema.getName();
-		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
-		// `EntityPrimaryKeyInSet` is NOT suppressed here, although the index set handed over was already narrowed
-		// by the very same constraint during discovery. Suppressing it drops the constraint from the tree, and
-		// `not(entityPrimaryKeyInSet(...))` then hands `NotTranslator` nothing to negate - a premise failure on
-		// a plain public query. It cannot be answered by discovery either: a negated leaf widens the candidate set
-		// rather than narrowing it, so the complement has to be taken inside each index. Translated here the
-		// constraint is a constant per index - this index's target either is in the set or is not - which is what
-		// `EntityPrimaryKeyInSetTranslator` emits for a reduced-index scope, so the positive case stays correct
-		// and merely repeats what discovery already decided.
-		return filterByVisitor.executeInContextAndIsolatedFormulaStack(
-			AbstractReducedEntityIndex.class,
-			() -> Collections.singletonList(index),
-			ReferenceContent.ALL_REFERENCES,
-			entitySchema,
-			referenceSchema,
-			nestedQueryRestriction,
-			entityNestedQueryComparator,
-			processingScope.withReferenceSchemaAccessor(referenceName),
-			(entityContract, attributeName, locale) -> entityContract.getReferences(referenceName)
-				.stream()
-				.map(it -> it.getAttributeValue(attributeName, locale)),
-			() -> {
-				filterBy.accept(filterByVisitor);
-				// get the result and clear the visitor internal structures
-				return filterByVisitor.getFormulaAndClear();
-			}
-		);
-	}
-
-	/**
 	 * Conditionally initializes the nested query comparator from the global index of the referenced entity collection.
-	 * The initialization is performed only when the comparator is present and has not been initialized yet (i.e. no
-	 * nested query filter was applied that would have already initialized it).
+	 * The initialization is performed only when the comparator is present and has not been initialized yet. The
+	 * filter of the fetched references never initializes the ordering: it only assigns the locale of the filter to
+	 * the comparator explicitly, and the sorters are set here, by {@link #initializeComparatorFromGlobalIndex}.
 	 *
 	 * @param entityNestedQueryComparator comparator to initialize, may be null if no ordering is requested
 	 * @param referenceSchema             the schema of the reference whose entities are being ordered
@@ -1645,7 +1308,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull QueryPlanningContext queryContext
 	) {
-		// in case there is ordering specified and no nested query filter constraint, we need to handle ordering here
+		// the filter only sets the locale of the comparator, so the ordering is always initialized here
 		if (entityNestedQueryComparator != null && !entityNestedQueryComparator.isInitialized()) {
 			initializeComparatorFromGlobalIndex(
 				referenceSchema,
@@ -1676,9 +1339,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param referenceSchema             the schema of the reference
 	 * @param targetEntityCollection      collection of the referenced entity type
 	 * @param targetEntityGroupCollection collection of the referenced entity type group
-	 * @param entityNestedQueryComparator comparator that holds information about requested ordering so that we can
-	 *                                    apply it during entity filtering (if it's performed) and pre-initialize it
-	 *                                    in an optimal way
+	 * @param entityNestedQueryComparator comparator that holds information about requested ordering; its sorters
+	 *                                    are set from the global index of the referenced entity collection
 	 * @param queryContext                the planning context of the enclosing query
 	 */
 	private static void initializeComparatorFromGlobalIndex(
@@ -2128,6 +1790,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param referenceContractsAccessor          per-source-entity accessor returning the reference contracts (with
 	 *                                            attributes) so the slicer can pre-sort by the configured `orderBy`
 	 *                                            before fetching
+	 * @param ownerAccessor                       returns the source entity with the passed primary key as the fetch
+	 *                                            got it, so that the filter of the references judges its rows
 	 * @param groupToReferencedEntityIdTranslator a function for translating group IDs to the referenced entity IDs for
 	 *                                            a specific reference
 	 * @param referencedEntityToGroupIdTranslator a function for translating referenced entity IDs to group IDs based on
@@ -2149,6 +1813,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull ExistingEntityProvider existingEntityRetriever,
 		@Nonnull BiFunction<String, Integer, Formula> referencedEntityIdsFormula,
 		@Nonnull BiFunction<String, Integer, Collection<ReferenceContract>> referenceContractsAccessor,
+		@Nonnull IntFunction<SealedEntity> ownerAccessor,
 		@Nonnull BiFunction<String, Integer, int[]> groupToReferencedEntityIdTranslator,
 		@Nonnull TriFunction<Integer, String, Integer, IntStream> referencedEntityToGroupIdTranslator,
 		@Nonnull Map<Scope, int[]> entityPrimaryKey,
@@ -2173,9 +1838,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				referenceSchema
 			);
 
+		final int ownerCount = entityPrimaryKey.values().stream().mapToInt(array -> array.length).sum();
 		final ValidEntityToReferenceMapping validityMapping = new ValidEntityToReferenceMapping(
-			entityPrimaryKey.values().stream().mapToInt(array -> array.length).sum(),
-			referenceSchema
+			ownerCount, referenceSchema, requirements.filterBy() != null
 		);
 		final int[] filteredReferencedEntityIdsArray;
 		final Map<Integer, ServerEntityDecorator> entityIndex;
@@ -2187,7 +1852,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			referenceName,
 			referencedEntityIdsFormula,
 			referencedEntityToGroupIdTranslator,
-			slicingMode.chunkTransformer()
+			slicingMode.chunkTransformer(),
+			// only the ordering by a group property needs to know whether a referenced entity keeps one group
+			slicingMode.groupSortActive()
 		);
 
 		// the referenced entities and their groups are fetched by a single derived request - resolve the locale it will
@@ -2196,20 +1863,18 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			? resolveRequiredLocale(requirements.filterBy(), executionContext)
 			: null;
 
-		final Bitmap filteredReferencedEntityIds = getFilteredReferencedEntityIds(
+		final Bitmap filteredReferencedEntityIds = admitFetchedReferences(
 			entityPrimaryKey,
+			ownerAccessor,
 			executionContext,
 			entitySchema,
 			referenceSchema,
-			referenceSchema.getReferencedEntityType(),
 			filterByVisitor,
 			requirements.managedReferencesBehaviour(),
 			requirements.filterBy(),
 			requiredLocale,
 			validityMapping,
-			nestedQueryComparator,
-			referencedEntityIdsFormula,
-			groupToReferencedEntityIdTranslator
+			nestedQueryComparator
 		);
 		// when pre-sort is viable the comparator needs its filteredEntities prepared
 		// before slicing; group filter is unused in this path so an empty array suffices
@@ -2217,7 +1882,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			nestedQueryComparator.setFilteredEntities(
 				filteredReferencedEntityIds.getArray(),
 				ArrayUtils.EMPTY_INT_ARRAY,
-				entityPk -> groupToReferencedEntityIdTranslator.apply(referenceName, entityPk)
+				entityPk -> groupToReferencedEntityIdTranslator.apply(referenceName, entityPk),
+				false
 			);
 		}
 		// apply chunking if necessary
@@ -2234,7 +1900,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				)
 				: slicer.sliceEntityIds(
 					toFormula(filteredReferencedEntityIds),
-					validityMapping
+					validityMapping,
+					// the decorator pages rows, and several rows of a reference allowing duplicates may share a key
+					referenceSchema.getCardinality().allowsDuplicates() ? referenceContractsAccessor : null
 				);
 			if (!filteredAndSlicedReferencedIds.isEmpty()) {
 				// if so, fetch them
@@ -2252,6 +1920,14 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				entityIndex = Collections.emptyMap();
 			}
 		} else {
+			// no referenced entity body is fetched, so neither slicing method runs and the slicer records no group -
+			// yet the group bodies and the ordering by a group property below both read the groups it records
+			if (
+				referenceSchema.isReferencedGroupTypeManaged() && referenceSchema.getReferencedGroupType() != null &&
+					(requirements.entityGroupFetch() != null || slicingMode.groupSortActive())
+			) {
+				slicer.collectGroupIds(toFormula(filteredReferencedEntityIds), validityMapping);
+			}
 			entityIndex = Collections.emptyMap();
 		}
 		filteredReferencedEntityIdsArray = filteredReferencedEntityIds.getArray();
@@ -2261,17 +1937,9 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		// are we requested to (are we able to) fetch the entity group bodies?
 		if (referenceSchema.isReferencedGroupTypeManaged() && referenceSchema.getReferencedGroupType() != null) {
 			// if so, fetch them
-			final Bitmap filteredReferencedGroupEntityIds = getFilteredReferencedEntityIds(
-				entityPrimaryKey, executionContext, entitySchema, referenceSchema,
-				referenceSchema.getReferencedGroupType(),
-				filterByVisitor,
-				requirements.managedReferencesBehaviour(),
-				null,
-				requiredLocale,
-				null,
-				null,
-				(refName, epk) -> slicer.getGroupIds(epk),
-				null
+			final Bitmap filteredReferencedGroupEntityIds = getReferencedGroupIds(
+				entityPrimaryKey, executionContext, referenceSchema,
+				requirements.managedReferencesBehaviour(), requiredLocale, slicer
 			);
 
 			if (requirements.entityGroupFetch() != null && !filteredReferencedGroupEntityIds.isEmpty()) {
@@ -2303,7 +1971,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			nestedQueryComparator.setFilteredEntities(
 				filteredReferencedEntityIdsArray,
 				filteredReferencedGroupEntityIdsArray,
-				entityPk -> groupToReferencedEntityIdTranslator.apply(referenceName, entityPk)
+				entityPk -> groupToReferencedEntityIdTranslator.apply(referenceName, entityPk),
+				slicer.isGroupAssignmentVarying()
 			);
 		}
 
@@ -2634,6 +2303,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			// configured orderBy comparator before deciding which referenced entity bodies
 			// to actually fetch
 			(referenceName, entityPk) -> theEntity.getReferences(referenceName),
+			// owner accessor - this entity is the only owner there is
+			entityPk -> richEnoughEntity,
 			(referenceName, groupId) -> {
 				// allocation-optimized: hot path, avoids two stream allocations per group filter
 				final Collection<ReferenceContract> references = theEntity.getReferences(referenceName);
@@ -2683,8 +2354,11 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		// we need to ensure that references are fetched in order to be able to provide information about them
 		final EntityCollection internalCollection = (EntityCollection) entityCollection;
 		final List<T> richEnoughEntities = new ArrayList<>(entities.size());
+		final IntObjectMap<SealedEntity> richEnoughEntitiesByPrimaryKey = new IntObjectHashMap<>(entities.size());
 		for (T entity : entities) {
-			richEnoughEntities.add(internalCollection.ensureReferencesFetched(entity));
+			final T richEnoughEntity = internalCollection.ensureReferencesFetched(entity);
+			richEnoughEntities.add(richEnoughEntity);
+			richEnoughEntitiesByPrimaryKey.put(richEnoughEntity.getPrimaryKeyOrThrowException(), richEnoughEntity);
 		}
 
 		// prefetch the parents
@@ -2739,6 +2413,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				),
 				// reference contract accessor — see single-entity branch for rationale
 				(referenceName, entityPk) -> entityIndexSupplier.get().get(entityPk).getReferences(referenceName),
+				richEnoughEntitiesByPrimaryKey::get,
 				groupToEntityIdMapping::getReferencedEntityPrimaryKeys,
 				groupToEntityIdMapping::getGroup,
 				getPrimaryKeysIndexedByScope(entities)
@@ -2931,6 +2606,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param referenceContractsAccessor          per-source-entity accessor returning the reference contracts (with
 	 *                                            attributes) so the slicer can pre-sort by the configured `orderBy`
 	 *                                            before fetching
+	 * @param ownerAccessor                       returns the top entity with the passed primary key as the fetch got
+	 *                                            it, so that the filter of the references judges its rows
 	 * @param groupToReferencedEntityIdTranslator the function that translates group ids to referenced entity ids
 	 * @param referencedEntityToGroupIdTranslator the function that translates referenced entity ids to group ids
 	 * @param entityPrimaryKey                    the array of top entity primary keys for which the references are being fetched
@@ -2947,6 +2624,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull ExistingEntityProvider existingEntityRetriever,
 		@Nonnull BiFunction<String, Integer, Formula> referencedEntityIdsFormula,
 		@Nonnull BiFunction<String, Integer, Collection<ReferenceContract>> referenceContractsAccessor,
+		@Nonnull IntFunction<SealedEntity> ownerAccessor,
 		@Nonnull BiFunction<String, Integer, int[]> groupToReferencedEntityIdTranslator,
 		@Nonnull TriFunction<Integer, String, Integer, IntStream> referencedEntityToGroupIdTranslator,
 		@Nonnull Map<Scope, int[]> entityPrimaryKey
@@ -2969,6 +2647,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 							existingEntityRetriever,
 							referencedEntityIdsFormula,
 							referenceContractsAccessor,
+							ownerAccessor,
 							groupToReferencedEntityIdTranslator,
 							referencedEntityToGroupIdTranslator,
 							entityPrimaryKey,
@@ -3005,6 +2684,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 							existingEntityRetriever,
 							referencedEntityIdsFormula,
 							referenceContractsAccessor,
+							ownerAccessor,
 							groupToReferencedEntityIdTranslator,
 							referencedEntityToGroupIdTranslator,
 							entityPrimaryKey,
@@ -3203,34 +2883,6 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	@Nonnull
 	private static EntityClassifierWithParent terminateChain(@Nullable EntityClassifierWithParent resolvedChain) {
 		return resolvedChain == null ? ParentChainEnd.INSTANCE : resolvedChain;
-	}
-
-	/**
-	 * Holds the result of separating {@link GroupHaving} constraints from entity-level constraints.
-	 *
-	 * @param entityLevelFilterBy  the {@link FilterBy} containing only entity-level constraints, or {@code null}
-	 *                             if all constraints were group-level (the original filterBy is used when no
-	 *                             GroupHaving was found)
-	 * @param allowedByGroupFilter bitmap of referenced entity PKs allowed by the group filter, or {@code null}
-	 *                             if no group filtering applies
-	 */
-	private record GroupFilterSeparation(
-		@Nullable FilterBy entityLevelFilterBy,
-		@Nullable Bitmap allowedByGroupFilter
-	) {
-
-		/**
-		 * Returns the entity-level filter constraint children array. Derived from
-		 * {@link #entityLevelFilterBy} to avoid storing redundant data.
-		 *
-		 * @return the entity-level filter children, or empty array if no entity-level constraints exist
-		 */
-		@Nonnull
-		FilterConstraint[] entityLevelChildren() {
-			return this.entityLevelFilterBy == null
-				? FilterConstraint.EMPTY_ARRAY
-				: this.entityLevelFilterBy.getChildren();
-		}
 	}
 
 }

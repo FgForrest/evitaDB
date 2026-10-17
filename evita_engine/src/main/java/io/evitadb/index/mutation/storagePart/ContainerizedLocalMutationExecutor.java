@@ -87,12 +87,11 @@ import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.IntObjPredicate;
-import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.index.ReducedEntityIndex;
-import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
 import io.evitadb.spi.store.catalog.persistence.accessor.EntityStoragePartAccessor;
@@ -108,7 +107,6 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityStorag
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart.MissingReferenceBehavior;
-import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NumberUtils;
@@ -178,6 +176,11 @@ public final class ContainerizedLocalMutationExecutor
 	@Nonnull private final Supplier<CatalogSchema> catalogSchemaAccessor;
 	@Nonnull private final Supplier<EntitySchema> schemaAccessor;
 	@Nonnull private final Function<String, DataStoreReader> dataStoreReaderAccessor;
+	/**
+	 * Finds the executors of other entities mutated within the same root mutation, whose applied state the data store
+	 * readers cannot see yet - every read of another entity's storage part asks it first.
+	 */
+	@Nonnull private final InFlightEntityAccessorLookup inFlightAccessorLookup;
 	@Nonnull private final IntSupplier priceInternalIdSupplier;
 	@Getter private final boolean entityRemovedEntirely;
 	private final DataStoreMemoryBuffer dataStoreUpdater;
@@ -336,32 +339,36 @@ public final class ContainerizedLocalMutationExecutor
 			.getEntitySchema(referenceSchema.getReferencedEntityType())
 			.flatMap(it -> it.getReference(referenceSchema.getReflectedReferenceName()));
 
-		// we need to access index in target entity collection, because we need to retrieve index with primary
-		// references; the primary holders may live in any scope, so all scopes where the relation is maintained
-		// for this entity's scope are searched
-		final List<ReducedEntityIndex> indexes;
+		// we need to access partitions in target entity collection, because we need to retrieve partitions with
+		// primary references; the primary holders may live in any scope, so all scopes where the relation is
+		// maintained for this entity's scope are searched - always through the target collection's data store
+		// reader, which layers the partitions created earlier in the same transaction over the committed ones
+		final List<ReferencePartition> partitions;
 		if (counterpartSchemaRef.isEmpty()) {
-			indexes = Collections.emptyList();
+			partitions = Collections.emptyList();
 		} else {
 			final ReferenceSchemaContract counterpartSchema = counterpartSchemaRef.get();
-			indexes = new ArrayList<>(4);
+			partitions = new ArrayList<>(4);
 			for (Scope counterpartScope : Scope.values()) {
 				if (isRelationMaintained(referenceSchema, counterpartSchema, scope, counterpartScope)) {
-					indexes.addAll(
-						getAllReducedReferencedEntityIndexes(
+					// the reflected reference's cardinality decides the lookup
+					// only the owners and the keys of the partitions are read
+					Collections.addAll(
+						partitions,
+						ReferencePartitions.resolveOfTargetForOwnerRead(
 							dataStoreReader, counterpartScope,
 							referenceSchema.getReflectedReferenceName(),
-							this.entityPrimaryKey,
-							referenceSchema.getCardinality().allowsDuplicates()
+							referenceSchema.getCardinality().allowsDuplicates(),
+							this.entityPrimaryKey
 						)
 					);
 				}
 			}
 		}
 
-		for (ReducedEntityIndex referenceIndexWithPrimaryReferences : indexes) {
+		for (ReferencePartition partitionWithPrimaryReferences : partitions) {
 			// for each such entity create internal (reflected) reference to it (if it doesn't exist)
-			final Bitmap referencingEntities = referenceIndexWithPrimaryReferences.getAllPrimaryKeys();
+			final Bitmap referencingEntities = partitionWithPrimaryReferences.getAllPrimaryKeys();
 			final DataStoreReader targetDataStoreReader = ofNullable(
 				this.dataStoreReaderAccessor.apply(referenceSchema.getReferencedEntityType()))
 				.orElseThrow(
@@ -370,11 +377,7 @@ public final class ContainerizedLocalMutationExecutor
 							"` unexpectedly not found!"
 					)
 				);
-			final RepresentativeReferenceKey rrk = Objects.requireNonNull(
-				(RepresentativeReferenceKey) referenceIndexWithPrimaryReferences
-					.getIndexKey()
-					.discriminator()
-			);
+			final RepresentativeReferenceKey rrk = partitionWithPrimaryReferences.getRepresentativeReferenceKey();
 			final List<ReferenceKey> referenceKeys = new ArrayList<>(referencingEntities.size());
 			final OfInt it = referencingEntities.iterator();
 			while (it.hasNext()) {
@@ -402,101 +405,6 @@ public final class ContainerizedLocalMutationExecutor
 				eachReferenceConsumer.accept(referenceKeys, dataStoreReader);
 			}
 		}
-	}
-
-	/**
-	 * Retrieves a list of all reduced entity indexes based on the provided parameters.
-	 *
-	 * @param dataStoreReader the reader used to access the data store and retrieve indexes
-	 * @param scope the scope within which indexes should be retrieved
-	 * @param referenceName the name of the reference associated with the indexes
-	 * @param entityPrimaryKey the primary key of the entity for which indexes are retrieved
-	 * @param allowsDuplicates specifies whether duplicate entries are allowed in the retrieved indexes
-	 * @return a list of reduced entity indexes that match the specified parameters
-	 */
-	@Nonnull
-	private static List<ReducedEntityIndex> getAllReducedReferencedEntityIndexes(
-		@Nonnull DataStoreReader dataStoreReader,
-		@Nonnull Scope scope,
-		@Nonnull String referenceName,
-		int entityPrimaryKey,
-		boolean allowsDuplicates
-	) {
-		return getAllReducedIndexes(
-			eik -> dataStoreReader.getIndexIfExists(eik, __ -> null),
-			eik -> dataStoreReader.getIndexIfExists(eik, __ -> null),
-			epk -> dataStoreReader.getIndexIfExists(epk, __ -> null),
-			scope, referenceName, entityPrimaryKey, allowsDuplicates,
-			EntityIndexType.REFERENCED_ENTITY_TYPE,
-			EntityIndexType.REFERENCED_ENTITY
-		);
-	}
-
-	/**
-	 * Retrieves all reduced entity indexes matching the given reference and entity primary key, parameterized
-	 * by the type index type and reduced index type. This allows the same logic to be reused for both
-	 * entity-level and group-level reference indexes.
-	 *
-	 * @param referencedTypeIndexProvider function that provides the type-level index
-	 * @param reducedIndexProvider        function that provides the reduced index by key
-	 * @param reducedIndexByPkProvider    function that provides the reduced index by internal PK
-	 * @param scope                       the scope in which the indexes are searched
-	 * @param referenceName               the name of the reference schema
-	 * @param theEntityPrimaryKey         the primary key (entity PK or group PK) to look up
-	 * @param allowsDuplicates            whether the reference schema allows duplicate references
-	 * @param typeIndexType               the {@link EntityIndexType} for the type-level index
-	 * @param reducedIndexType            the {@link EntityIndexType} for the reduced index
-	 * @return a list of reduced entity indexes corresponding to the given parameters
-	 */
-	@Nonnull
-	public static <T extends AbstractReducedEntityIndex> List<T> getAllReducedIndexes(
-		@Nonnull Function<EntityIndexKey, ReferencedTypeEntityIndex> referencedTypeIndexProvider,
-		@Nonnull Function<EntityIndexKey, T> reducedIndexProvider,
-		@Nonnull IntFunction<T> reducedIndexByPkProvider,
-		@Nonnull Scope scope,
-		@Nonnull String referenceName,
-		int theEntityPrimaryKey,
-		boolean allowsDuplicates,
-		@Nonnull EntityIndexType typeIndexType,
-		@Nonnull EntityIndexType reducedIndexType
-	) {
-		final List<T> indexes;
-		if (allowsDuplicates) {
-			// we need to collect all indexes that contain primary references to this entity
-			// with all combinations of representative attribute values
-			final ReferencedTypeEntityIndex typeIndex = referencedTypeIndexProvider.apply(
-				new EntityIndexKey(
-					typeIndexType,
-					scope,
-					referenceName
-				)
-			);
-			indexes = typeIndex == null ?
-				Collections.emptyList() :
-				Arrays.stream(typeIndex.getAllReferenceIndexes(theEntityPrimaryKey))
-				      .mapToObj(reducedIndexByPkProvider)
-				      .filter(Objects::nonNull)
-				      .toList();
-		} else {
-			final T targetIndex = reducedIndexProvider.apply(
-				new EntityIndexKey(
-					reducedIndexType,
-					scope,
-					// we need to use this reflected reference name
-					new RepresentativeReferenceKey(
-						new ReferenceKey(
-							referenceName,
-							theEntityPrimaryKey
-						),
-						// and we don't need any representative attribute values,
-						// since reference cannot contain duplicates
-						ArrayUtils.EMPTY_SERIALIZABLE_ARRAY
-					)
-				)
-			);
-			indexes = targetIndex == null ? Collections.emptyList() : List.of(targetIndex);
-		}
-		return indexes;
 	}
 
 	/**
@@ -643,8 +551,8 @@ public final class ContainerizedLocalMutationExecutor
 	 *                                    being created.
 	 * @param referencedEntityType       The type of the referenced entity that should be
 	 *                                    checked and potentially created.
-	 * @param reducedIndexesProvider     Function that provides a list of reduced entity
-	 *                                    indexes based on the entity primary key.
+	 * @param partitionsProvider         Function that provides the partitions of the reference
+	 *                                    pointing to the given entity primary key.
 	 * @param referenceAttributeSupplier Supplier providing an array of reference attribute
 	 *                                    mutations to be applied to the missing references.
 	 * @param entityPrimaryKeyPredicate  A predicate that determines if the entity primary
@@ -660,7 +568,7 @@ public final class ContainerizedLocalMutationExecutor
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nonnull String referencedSchemaName,
 		@Nonnull String referencedEntityType,
-		@Nonnull IntFunction<List<ReducedEntityIndex>> reducedIndexesProvider,
+		@Nonnull IntFunction<ReferencePartition[]> partitionsProvider,
 		@Nonnull Function<ReferenceKey, Stream<ReferenceAttributeMutation>> referenceAttributeSupplier,
 		@Nonnull IntObjPredicate<Serializable[]> entityPrimaryKeyPredicate,
 		@Nonnull Predicate<RepresentativeReferenceKey> removedRepresentativeReferenceKeyPredicate,
@@ -674,15 +582,15 @@ public final class ContainerizedLocalMutationExecutor
 			//noinspection rawtypes
 			final List<LocalMutation> localMutations = new ArrayList<>(32);
 			// but we need to match only those, our entity refers to via this reference and doesn't exist
-			final List<ReducedEntityIndex> reducedEntityIndexes = reducedIndexesProvider.apply(ownerEntityPrimaryKey);
+			final ReferencePartition[] partitions = partitionsProvider.apply(ownerEntityPrimaryKey);
 			if (referenceSchema instanceof ReflectedReferenceSchema rrs) {
 				// if we work with the reflected reference schema
 				// we need to look up for reference internal PKs in external referenceStoragePart (fetch)
 				final ReferenceKey reflectedReferenceKey = new ReferenceKey(rrs.getName(), ownerEntityPrimaryKey);
 				final ArrayList<PrimaryReferenceKeyWithRepresentativeAttributes> primaryReferenceKeys =
-					new ArrayList<>(reducedEntityIndexes.size());
-				for (final ReducedEntityIndex reducedEntityIndex : reducedEntityIndexes) {
-					final Serializable[] representativeAttributeValues = reducedEntityIndex
+					new ArrayList<>(partitions.length);
+				for (final ReferencePartition partition : partitions) {
+					final Serializable[] representativeAttributeValues = partition
 						.getRepresentativeReferenceKey()
 						.representativeAttributeValues();
 					final RepresentativeReferenceKey rrk = new RepresentativeReferenceKey(
@@ -771,8 +679,8 @@ public final class ContainerizedLocalMutationExecutor
 			} else {
 				// if we work with the standard reference schema,
 				// we will look up for reference internal PKs in the current referenceStoragePart
-				for (ReducedEntityIndex reducedEntityIndex : reducedEntityIndexes) {
-					final Serializable[] representativeAttributeValues = reducedEntityIndex
+				for (ReferencePartition partition : partitions) {
+					final Serializable[] representativeAttributeValues = partition
 						.getRepresentativeReferenceKey()
 						.representativeAttributeValues();
 					final ReferenceKey referenceKey = new ReferenceKey(referenceSchema.getName(), ownerEntityPrimaryKey);
@@ -990,9 +898,17 @@ public final class ContainerizedLocalMutationExecutor
 	}
 
 	/**
-	 * Creates a predicate testing whether the counterpart side of the relation is already established in the reduced
-	 * index of the referenced collection in the given scope. The reduced indexes follow the scope of the entity they
-	 * index, so the check must always be performed in the scope the counterpart entity currently lives in.
+	 * Creates a predicate testing whether the counterpart side of the relation is already established in the
+	 * partition of the referenced collection in the given scope. The partitions follow the scope of the entity they
+	 * index, so the check must always be performed in the scope the counterpart entity currently lives in. A missing
+	 * partition reads as "absent". Only the owners of the partition are read, so the partition is resolved for an
+	 * owner read - one the registry holds a row for answers from its row (see {@link ReferencePartitions}).
+	 *
+	 * The by-key resolution behind the predicate remembers the registry rows it read and must not outlive the state it
+	 * read them from (see {@link ReferencePartitions#resolverByKeyForOwnerRead}). The predicate keeps to that: it is
+	 * created for one call of {@link #generateMissing} or {@link #removeExistingEntityPks}, and both only collect
+	 * mutations while they test it - the collected mutations run later, so no registry row is written during its life.
+	 * A change that keeps the predicate across a write of a registry row breaks the resolution silently.
 	 *
 	 * @param hardReference        true when the reference name equals the counterpart schema name
 	 * @param dataStoreReader      reader of the referenced entity collection
@@ -1009,38 +925,32 @@ public final class ContainerizedLocalMutationExecutor
 		int entityPrimaryKey,
 		@Nonnull Scope usedScope
 	) {
+		final Function<RepresentativeReferenceKey, ReferencePartition> partitionByKey =
+			ReferencePartitions.resolverByKeyForOwnerRead(dataStoreReader, usedScope, referencedSchemaName);
 		if (hardReference) {
-			// provide reduced entity index related to provided entity primary key
+			// the partition of the given entity primary key
 			return (epk, representativeAttributeValues) -> {
-				final ReducedEntityIndex targetReducedIndex = dataStoreReader.getIndexIfExists(
-					new EntityIndexKey(
-						EntityIndexType.REFERENCED_ENTITY,
-						usedScope,
-						new RepresentativeReferenceKey(
-							new ReferenceKey(referencedSchemaName, epk),
-							representativeAttributeValues
-						)
-					),
-					__ -> null
+				// a missing partition reads as "absent"
+				final ReferencePartition targetPartition = partitionByKey.apply(
+					new RepresentativeReferenceKey(
+						new ReferenceKey(referencedSchemaName, epk),
+						representativeAttributeValues
+					)
 				);
 				// always check this entity primary key
-				return targetReducedIndex != null && targetReducedIndex.getAllPrimaryKeys().contains(entityPrimaryKey);
+				return targetPartition != null && targetPartition.getAllPrimaryKeys().contains(entityPrimaryKey);
 			};
 		} else {
-			// always provide the same reference index
+			// always the partition of this entity
 			return (epk, representativeAttributeValues) -> {
-				final ReducedEntityIndex targetReducedIndex = dataStoreReader.getIndexIfExists(
-					new EntityIndexKey(
-						EntityIndexType.REFERENCED_ENTITY,
-						usedScope,
-						new RepresentativeReferenceKey(
-							new ReferenceKey(referencedSchemaName, entityPrimaryKey),
-							representativeAttributeValues
-						)
-					),
-					__ -> null
+				// a missing partition reads as "absent"
+				final ReferencePartition targetPartition = partitionByKey.apply(
+					new RepresentativeReferenceKey(
+						new ReferenceKey(referencedSchemaName, entityPrimaryKey),
+						representativeAttributeValues
+					)
 				);
-				return targetReducedIndex != null && targetReducedIndex.getAllPrimaryKeys().contains(epk);
+				return targetPartition != null && targetPartition.getAllPrimaryKeys().contains(epk);
 			};
 		}
 	}
@@ -1123,6 +1033,21 @@ public final class ContainerizedLocalMutationExecutor
 		return false;
 	}
 
+	/**
+	 * Creates the storage-part executor of one entity's mutation and reads (and caches) the entity's body.
+	 *
+	 * @param dataStoreUpdater        buffer the changed storage parts are written to on {@link #commit()}
+	 * @param dataStoreReader         reader of the entity's own collection
+	 * @param catalogVersion          catalog version the storage parts are read in
+	 * @param entityPrimaryKey        primary key of the mutated entity
+	 * @param requiresExisting        expected existence of the entity, verified when its body is read
+	 * @param catalogSchemaAccessor   supplier of the current catalog schema
+	 * @param schemaAccessor          supplier of the current schema of the mutated entity's collection
+	 * @param dataStoreReaderAccessor resolves the data store reader of another collection, NULL when it does not exist
+	 * @param inFlightAccessorLookup  finds the executors of other entities mutated within the same root mutation
+	 * @param priceInternalIdSupplier supplier of new internal price ids
+	 * @param entityRemovedEntirely   true when the mutation removes the entity
+	 */
 	public ContainerizedLocalMutationExecutor(
 		@Nonnull DataStoreMemoryBuffer dataStoreUpdater,
 		@Nonnull DataStoreReader dataStoreReader,
@@ -1132,6 +1057,7 @@ public final class ContainerizedLocalMutationExecutor
 		@Nonnull Supplier<CatalogSchema> catalogSchemaAccessor,
 		@Nonnull Supplier<EntitySchema> schemaAccessor,
 		@Nonnull Function<String, DataStoreReader> dataStoreReaderAccessor,
+		@Nonnull InFlightEntityAccessorLookup inFlightAccessorLookup,
 		@Nonnull IntSupplier priceInternalIdSupplier,
 		boolean entityRemovedEntirely
 	) {
@@ -1141,6 +1067,7 @@ public final class ContainerizedLocalMutationExecutor
 		this.catalogSchemaAccessor = catalogSchemaAccessor;
 		this.schemaAccessor = schemaAccessor;
 		this.dataStoreReaderAccessor = dataStoreReaderAccessor;
+		this.inFlightAccessorLookup = inFlightAccessorLookup;
 		this.priceInternalIdSupplier = priceInternalIdSupplier;
 		this.entityPrimaryKey = entityPrimaryKey;
 		this.entityType = schemaAccessor.get().getName();
@@ -1155,10 +1082,19 @@ public final class ContainerizedLocalMutationExecutor
 	 * returns a cached entity storage part or fetches it from the data store if it's not cached.
 	 * Additionally, it validates the existence of the entity based on the expectation provided.
 	 *
-	 * When the requested `entityType` differs from the entity type being mutated by this executor,
-	 * the method delegates to the cross-entity data store reader without caching. This enables
-	 * expression evaluation proxies to transparently read storage parts from referenced or group
-	 * entity collections.
+	 * When the requested entity is another one than the entity mutated by this executor - of another type, or of the
+	 * same type under another primary key - the part is not cached in this executor, and an entity of another type is
+	 * read through the cross-entity data store reader. This enables expression evaluation proxies to transparently read
+	 * storage parts from referenced or group entity collections.
+	 *
+	 * Every read of another entity - of any type, this method and its siblings alike - first asks the
+	 * {@link InFlightEntityAccessorLookup} whether that entity is mutated within the same root mutation. If it is,
+	 * the part comes from that entity's own executor, so the read sees what the root mutation has applied to it
+	 * but not yet committed; that executor read and verified the body against its own expectation when it was
+	 * created, so `expects` is not verified again. Otherwise the part is read from the data store reader, which
+	 * ignores `expects` too and returns an empty body for a missing entity - once within the root mutation, which
+	 * keeps the parts it reads of the entities it does not mutate (see {@link ForeignEntityStorageParts}); the body,
+	 * the attributes and the references are kept, the associated data and the prices are read every time.
 	 *
 	 * @param entityType the type of the entity being retrieved
 	 * @param entityPrimaryKey the primary key of the entity to retrieve
@@ -1207,12 +1143,29 @@ public final class ContainerizedLocalMutationExecutor
 						})
 				));
 		} else {
-			// different entity (cross-entity or same-type parent) — non-cached read
+			// different entity mutated within the same root mutation — its own executor holds the applied state
+			final EntityStoragePartAccessor inFlightAccessor =
+				this.inFlightAccessorLookup.findInFlightAccessor(entityType, entityPrimaryKey);
+			if (inFlightAccessor != null) {
+				return inFlightAccessor.getEntityStoragePart(entityType, entityPrimaryKey, expects);
+			}
+			// different entity the root mutation does not mutate — read once within the root mutation
+			final ForeignEntityStorageParts foreignParts =
+				this.inFlightAccessorLookup.getForeignEntityStorageParts(entityType, entityPrimaryKey);
+			final EntityBodyStoragePart readBody = foreignParts == null ? null : foreignParts.getBody();
+			if (readBody != null) {
+				return readBody;
+			}
 			final DataStoreReader reader = this.entityType.equals(entityType)
 				? this.dataStoreReader
 				: getCrossEntityDataStoreReader(entityType);
-			return ofNullable(reader.fetch(this.catalogVersion, entityPrimaryKey, EntityBodyStoragePart.class))
-				.orElseGet(() -> new EntityBodyStoragePart(entityPrimaryKey));
+			final EntityBodyStoragePart body = ofNullable(
+				reader.fetch(this.catalogVersion, entityPrimaryKey, EntityBodyStoragePart.class)
+			).orElseGet(() -> new EntityBodyStoragePart(entityPrimaryKey));
+			if (foreignParts != null) {
+				foreignParts.setBody(body);
+			}
+			return body;
 		}
 	}
 
@@ -1257,14 +1210,31 @@ public final class ContainerizedLocalMutationExecutor
 					);
 				});
 		} else {
-			// different entity (cross-entity or same-type parent) — non-cached read
+			// different entity mutated within the same root mutation — its own executor holds the applied state
+			final EntityStoragePartAccessor inFlightAccessor =
+				this.inFlightAccessorLookup.findInFlightAccessor(entityType, entityPrimaryKey);
+			if (inFlightAccessor != null) {
+				return inFlightAccessor.getAttributeStoragePart(entityType, entityPrimaryKey);
+			}
+			// different entity the root mutation does not mutate — read once within the root mutation
+			final ForeignEntityStorageParts foreignParts =
+				this.inFlightAccessorLookup.getForeignEntityStorageParts(entityType, entityPrimaryKey);
+			final AttributesStoragePart readAttributes =
+				foreignParts == null ? null : foreignParts.getGlobalAttributes();
+			if (readAttributes != null) {
+				return readAttributes;
+			}
 			final DataStoreReader reader = this.entityType.equals(entityType)
 				? this.dataStoreReader
 				: getCrossEntityDataStoreReader(entityType);
 			final EntityAttributesSetKey key = new EntityAttributesSetKey(entityPrimaryKey, null);
-			return ofNullable(reader.fetch(
+			final AttributesStoragePart attributes = ofNullable(reader.fetch(
 				this.catalogVersion, key, AttributesStoragePart.class, AttributesStoragePart::computeUniquePartId
 			)).orElseGet(() -> new AttributesStoragePart(entityPrimaryKey));
+			if (foreignParts != null) {
+				foreignParts.setGlobalAttributes(attributes);
+			}
+			return attributes;
 		}
 	}
 
@@ -1289,14 +1259,31 @@ public final class ContainerizedLocalMutationExecutor
 				}
 			);
 		} else {
-			// different entity (cross-entity or same-type parent) — non-cached read
+			// different entity mutated within the same root mutation — its own executor holds the applied state
+			final EntityStoragePartAccessor inFlightAccessor =
+				this.inFlightAccessorLookup.findInFlightAccessor(entityType, entityPrimaryKey);
+			if (inFlightAccessor != null) {
+				return inFlightAccessor.getAttributeStoragePart(entityType, entityPrimaryKey, locale);
+			}
+			// different entity the root mutation does not mutate — read once within the root mutation
+			final ForeignEntityStorageParts foreignParts =
+				this.inFlightAccessorLookup.getForeignEntityStorageParts(entityType, entityPrimaryKey);
+			final AttributesStoragePart readAttributes =
+				foreignParts == null ? null : foreignParts.getLocalizedAttributes(locale);
+			if (readAttributes != null) {
+				return readAttributes;
+			}
 			final DataStoreReader reader = this.entityType.equals(entityType)
 				? this.dataStoreReader
 				: getCrossEntityDataStoreReader(entityType);
 			final EntityAttributesSetKey key = new EntityAttributesSetKey(entityPrimaryKey, locale);
-			return ofNullable(reader.fetch(
+			final AttributesStoragePart attributes = ofNullable(reader.fetch(
 				this.catalogVersion, key, AttributesStoragePart.class, AttributesStoragePart::computeUniquePartId
 			)).orElseGet(() -> new AttributesStoragePart(entityPrimaryKey, locale));
+			if (foreignParts != null) {
+				foreignParts.setLocalizedAttributes(locale, attributes);
+			}
+			return attributes;
 		}
 	}
 
@@ -1384,6 +1371,12 @@ public final class ContainerizedLocalMutationExecutor
 				}
 			);
 		} else {
+			// different entity mutated within the same root mutation — its own executor holds the applied state
+			final EntityStoragePartAccessor inFlightAccessor =
+				this.inFlightAccessorLookup.findInFlightAccessor(entityType, entityPrimaryKey);
+			if (inFlightAccessor != null) {
+				return inFlightAccessor.getAssociatedDataStoragePart(entityType, entityPrimaryKey, key);
+			}
 			// different entity (cross-entity or same-type parent) — non-cached read
 			final DataStoreReader reader = this.entityType.equals(entityType)
 				? this.dataStoreReader
@@ -1410,12 +1403,28 @@ public final class ContainerizedLocalMutationExecutor
 						.orElseGet(() -> new ReferencesStoragePart(entityPrimaryKey))
 				));
 		} else {
-			// different entity (cross-entity or same-type parent) — non-cached read
+			// different entity mutated within the same root mutation — its own executor holds the applied state
+			final EntityStoragePartAccessor inFlightAccessor =
+				this.inFlightAccessorLookup.findInFlightAccessor(entityType, entityPrimaryKey);
+			if (inFlightAccessor != null) {
+				return inFlightAccessor.getReferencesStoragePart(entityType, entityPrimaryKey);
+			}
+			// different entity the root mutation does not mutate — read once within the root mutation
+			final ForeignEntityStorageParts foreignParts =
+				this.inFlightAccessorLookup.getForeignEntityStorageParts(entityType, entityPrimaryKey);
+			final ReferencesStoragePart readReferences = foreignParts == null ? null : foreignParts.getReferences();
+			if (readReferences != null) {
+				return readReferences;
+			}
 			final DataStoreReader reader = this.entityType.equals(entityType)
 				? this.dataStoreReader
 				: getCrossEntityDataStoreReader(entityType);
-			return ofNullable(fetchCompleteReferences(reader, entityPrimaryKey))
+			final ReferencesStoragePart references = ofNullable(fetchCompleteReferences(reader, entityPrimaryKey))
 				.orElseGet(() -> new ReferencesStoragePart(entityPrimaryKey));
+			if (foreignParts != null) {
+				foreignParts.setReferences(references);
+			}
+			return references;
 		}
 	}
 
@@ -1432,6 +1441,12 @@ public final class ContainerizedLocalMutationExecutor
 					)).orElseGet(() -> new PricesStoragePart(entityPrimaryKey))
 				));
 		} else {
+			// different entity mutated within the same root mutation — its own executor holds the applied state
+			final EntityStoragePartAccessor inFlightAccessor =
+				this.inFlightAccessorLookup.findInFlightAccessor(entityType, entityPrimaryKey);
+			if (inFlightAccessor != null) {
+				return inFlightAccessor.getPriceStoragePart(entityType, entityPrimaryKey);
+			}
 			// different entity (cross-entity or same-type parent) — non-cached read
 			final DataStoreReader reader = this.entityType.equals(entityType)
 				? this.dataStoreReader
@@ -1753,6 +1768,31 @@ public final class ContainerizedLocalMutationExecutor
 			}
 			return localeWithScopes;
 		}
+	}
+
+	/**
+	 * {@inheritDoc}
+	 *
+	 * An entity of the same type that the root mutation mutates too is answered by its own executor, found through the
+	 * {@link InFlightEntityAccessorLookup}. Any other entity is answered by an {@link OtherEntityAccessor} reading
+	 * through this executor, whose reads of other entities ask the same lookup first and go to the data store reader
+	 * otherwise. The entity this executor mutates is answered by this executor itself.
+	 */
+	@Nonnull
+	@Override
+	public WritableEntityStorageContainerAccessor getAccessorOfOtherEntity(int entityPrimaryKey) {
+		if (entityPrimaryKey == this.entityPrimaryKey) {
+			return this;
+		}
+		final WritableEntityStorageContainerAccessor inFlightAccessor =
+			this.inFlightAccessorLookup.findInFlightAccessor(this.entityType, entityPrimaryKey);
+		return inFlightAccessor == null ? new OtherEntityAccessor(this) : inFlightAccessor;
+	}
+
+	@Override
+	public boolean isOtherEntityInFlight(int entityPrimaryKey) {
+		return entityPrimaryKey == this.entityPrimaryKey ||
+			this.inFlightAccessorLookup.findInFlightAccessor(this.entityType, entityPrimaryKey) != null;
 	}
 
 	/**
@@ -2704,18 +2744,19 @@ public final class ContainerizedLocalMutationExecutor
 									referenceSchema,
 									referencedSchemaName,
 									referencedEntityType,
-									epk ->
-										getAllReducedReferencedEntityIndexes(
-											this.dataStoreReader,
-											targetEntityScope,
-											referenceName,
-											epk,
-											allowsDuplicates
-										),
+									// only the keys of the partitions are read
+									epk -> ReferencePartitions.resolveOfTargetForOwnerRead(
+										this.dataStoreReader,
+										targetEntityScope,
+										referenceName,
+										allowsDuplicates,
+										epk
+									),
 									referenceBlock.getAttributeSupplier(),
 									// we need to negate the predicate, because we want to insert missing references
 									createCounterpartPresencePredicate(
-										hardReference, dataStoreReader, referencedSchemaName, entityPrimaryKey, counterpartScope
+										hardReference, dataStoreReader, referencedSchemaName, entityPrimaryKey,
+										counterpartScope
 									).negate(),
 									// we need to take into account references removed in this turn
 									getReferenceKeyManager()::isRepresentativeReferenceKeyRemoved,
@@ -2753,7 +2794,8 @@ public final class ContainerizedLocalMutationExecutor
 										referencedSchemaName,
 										referencedEntityType,
 										createCounterpartPresencePredicate(
-											hardReference, dataStoreReader, referencedSchemaName, entityPrimaryKey, counterpartScope
+											hardReference, dataStoreReader, referencedSchemaName, entityPrimaryKey,
+											counterpartScope
 										),
 										Droppable::exists
 									);
@@ -2775,7 +2817,8 @@ public final class ContainerizedLocalMutationExecutor
 									referencedSchemaName,
 									referencedEntityType,
 									createCounterpartPresencePredicate(
-										hardReference, dataStoreReader, referencedSchemaName, entityPrimaryKey, counterpartScope
+										hardReference, dataStoreReader, referencedSchemaName, entityPrimaryKey,
+										counterpartScope
 									),
 									Droppable::dropped
 								);
@@ -4299,6 +4342,130 @@ public final class ContainerizedLocalMutationExecutor
 		Map<ComparableReferenceKey, ReferenceKey> getAssignedPrimaryKeys() {
 			return this.assignedPrimaryKeys == null ?
 				Collections.emptyMap() : this.assignedPrimaryKeys;
+		}
+	}
+
+	/**
+	 * A read-only accessor of an entity of the executor's own type that the root mutation does not mutate - see
+	 * {@link ContainerizedLocalMutationExecutor#getAccessorOfOtherEntity(int)}. Every read goes through the executor,
+	 * whose branches for other entities than its own ask the {@link InFlightEntityAccessorLookup} first and otherwise
+	 * answer from the parts the root mutation has read of the entity already, reading the data store only for a part
+	 * it has not (see {@link ForeignEntityStorageParts}). The entity has no pending locale change, no price identifier assigned in
+	 * the root mutation and is not being removed, and nothing may change it through this accessor.
+	 */
+	private static final class OtherEntityAccessor implements WritableEntityStorageContainerAccessor {
+		/**
+		 * The executor every read goes through.
+		 */
+		@Nonnull private final ContainerizedLocalMutationExecutor executor;
+
+		/**
+		 * Creates the accessor.
+		 *
+		 * @param executor the executor every read goes through
+		 */
+		OtherEntityAccessor(@Nonnull ContainerizedLocalMutationExecutor executor) {
+			this.executor = executor;
+		}
+
+		@Nonnull
+		@Override
+		public EntityBodyStoragePart getEntityStoragePart(
+			@Nonnull String entityType,
+			int entityPrimaryKey,
+			@Nonnull EntityExistence expects
+		) {
+			return this.executor.getEntityStoragePart(entityType, entityPrimaryKey, expects);
+		}
+
+		@Nonnull
+		@Override
+		public AttributesStoragePart getAttributeStoragePart(@Nonnull String entityType, int entityPrimaryKey) {
+			return this.executor.getAttributeStoragePart(entityType, entityPrimaryKey);
+		}
+
+		@Nonnull
+		@Override
+		public AttributesStoragePart getAttributeStoragePart(
+			@Nonnull String entityType,
+			int entityPrimaryKey,
+			@Nonnull Locale locale
+		) {
+			return this.executor.getAttributeStoragePart(entityType, entityPrimaryKey, locale);
+		}
+
+		@Nonnull
+		@Override
+		public AssociatedDataStoragePart getAssociatedDataStoragePart(
+			@Nonnull String entityType,
+			int entityPrimaryKey,
+			@Nonnull AssociatedDataKey key
+		) {
+			return this.executor.getAssociatedDataStoragePart(entityType, entityPrimaryKey, key);
+		}
+
+		@Nonnull
+		@Override
+		public ReferencesStoragePart getReferencesStoragePart(@Nonnull String entityType, int entityPrimaryKey) {
+			return this.executor.getReferencesStoragePart(entityType, entityPrimaryKey);
+		}
+
+		@Nonnull
+		@Override
+		public PricesStoragePart getPriceStoragePart(@Nonnull String entityType, int entityPrimaryKey) {
+			return this.executor.getPriceStoragePart(entityType, entityPrimaryKey);
+		}
+
+		@Override
+		public boolean isEntityRemovedEntirely() {
+			return false;
+		}
+
+		@Override
+		public void registerAssignedPriceId(int entityPrimaryKey, @Nonnull PriceKey priceKey, int internalPriceId) {
+			throw new GenericEvitaInternalError(
+				"No price identifier may be assigned to entity " + entityPrimaryKey + " through the accessor of an " +
+					"entity the root mutation does not mutate!"
+			);
+		}
+
+		@Nonnull
+		@Override
+		public OptionalInt findExistingInternalId(
+			@Nonnull String entityType,
+			int entityPrimaryKey,
+			@Nonnull PriceKey priceKey
+		) {
+			return getPriceStoragePart(entityType, entityPrimaryKey).findExistingInternalIds(priceKey);
+		}
+
+		@Nonnull
+		@Override
+		public LocaleWithScope[] getAddedLocales() {
+			return EMPTY_LOCALE_WITH_SCOPES;
+		}
+
+		@Nonnull
+		@Override
+		public LocaleWithScope[] getRemovedLocales() {
+			return EMPTY_LOCALE_WITH_SCOPES;
+		}
+
+		@Override
+		public int getLocalesIdentityHash() {
+			// the locales of an entity the root mutation does not mutate never change while it runs
+			return 0;
+		}
+
+		@Nonnull
+		@Override
+		public WritableEntityStorageContainerAccessor getAccessorOfOtherEntity(int entityPrimaryKey) {
+			return this.executor.getAccessorOfOtherEntity(entityPrimaryKey);
+		}
+
+		@Override
+		public boolean isOtherEntityInFlight(int entityPrimaryKey) {
+			return this.executor.isOtherEntityInFlight(entityPrimaryKey);
 		}
 	}
 

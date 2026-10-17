@@ -2323,34 +2323,31 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		 * @return true if the key was found and removed, false otherwise
 		 */
 		public boolean delete(int key) {
+			// presence is settled on the current state BEFORE a write layer is resolved, so deleting an absent key stays
+			// a pure read: no layer opened, no array copied and no page flagged for re-emission for a call that changes nothing
+			final int index = getValueIndex(key);
+			if (index < 0) {
+				return false;
+			}
+			// the index stays valid below: a freshly opened layer shares this node's array and peek, and the decouple
+			// copies it without reordering
 			final BPlusLeafTreeNode<E> layer = perOperationWriteLayer(this, this.transactionalLayer);
-			// deleting an entry mutates this leaf's page: flag it for re-emission (a no-op delete over-reports at worst)
+			// deleting an entry mutates this leaf's page: flag it for re-emission
 			if (layer == null) {
 				this.dirty = true;
-				final InsertionPosition insertionPosition = searchKey(key, this.values, this.peek);
-				if (insertionPosition.alreadyPresent()) {
-					// journalled BEFORE the first write, as WarmUpSavepoint#push requires of every inverse
-					journalElementDeletionIfOpen(this.values[insertionPosition.position()]);
-					removeRecordFromSameArrayOnIndex(this.values, insertionPosition.position());
-					this.values[this.peek] = null;
-					this.peek--;
-					return true;
-				} else {
-					return false;
-				}
+				// journalled BEFORE the first write, as WarmUpSavepoint#push requires of every inverse
+				journalElementDeletionIfOpen(this.values[index]);
+				removeRecordFromSameArrayOnIndex(this.values, index);
+				this.values[this.peek] = null;
+				this.peek--;
 			} else {
 				decoupleTransactionalArrays();
 				layer.dirty = true;
-				final InsertionPosition insertionPosition = searchKey(key, layer.values, layer.peek);
-				if (insertionPosition.alreadyPresent()) {
-					removeRecordFromSameArrayOnIndex(layer.values, insertionPosition.position());
-					layer.values[layer.peek] = null;
-					layer.peek--;
-					return true;
-				} else {
-					return false;
-				}
+				removeRecordFromSameArrayOnIndex(layer.values, index);
+				layer.values[layer.peek] = null;
+				layer.peek--;
 			}
+			return true;
 		}
 
 		@Override

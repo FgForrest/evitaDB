@@ -554,6 +554,14 @@ public class DataStoreChanges
 	 * (are dirty) and needs to be persisted into the persistent storage. This is performance optimization that minimizes
 	 * I/O operations for frequently changed data structures such as indexes and these are stored once in a while in
 	 * the moments when it has a sense.
+	 *
+	 * **Order of the returned parts.** The store applies them one by one in iteration order, and a later part wins over
+	 * an earlier one with the same record key. The parts are therefore emitted as: the deferred removals staged by
+	 * dropped indexes ({@link #pendingIndexRemovalParts}), then the {@link #trappedChanges} (which hold the removals
+	 * of a dropped index's manifest and membership bitmaps), then the parts of the dirty indexes. Every removal of a
+	 * dropped index's footprint thus precedes every part a dirty index writes, which is what lets an index installed
+	 * under the primary key of one dropped within the same flush window survive the flush, while whatever part of the
+	 * dropped footprint the new index does not overwrite is reclaimed.
 	 */
 	@Nonnull
 	public TrappedChanges popTrappedUpdates() {
@@ -572,19 +580,9 @@ public class DataStoreChanges
 		final Map<Class<? extends StoragePart>, LongObjectMap<StoragePart>> theTrappedChanges = this.trappedChanges;
 		this.trappedChanges = null;
 
-		for (Index<? extends IndexKey> index : theDirtyEntityIndexes.values()) {
-			index.getModifiedStorageParts(trappedChanges);
-			// advance the index's change-detection baseline to the state we have just collected for this
-			// commit (pop == committed); keeps getModifiedStorageParts a pure read while still closing the
-			// warm-up -> transactional baseline-staleness gap on reused index instances
-			index.notifyFlushed();
-		}
-		if (theTrappedChanges != null) {
-			for (LongObjectMap<StoragePart> changesIndex : theTrappedChanges.values()) {
-				final ObjectContainer<StoragePart> values = changesIndex.values();
-				trappedChanges.addIterator(new LongObjectIterator<>(values.iterator()), values.size());
-			}
-		}
+		// TrappedChanges iterates its single changes first and its iterators after them in the order they were added,
+		// so the removals go in as single changes and the dirty-index parts as the last iterator - see the method
+		// JavaDoc for why every removal must precede them
 
 		// deferred removals staged by dropping whole indexes (sub-index roots + leaf pages) — resolved store-side at drain
 		if (this.pendingIndexRemovalParts != null) {
@@ -593,6 +591,26 @@ public class DataStoreChanges
 			for (final StoragePart removal : removals) {
 				trappedChanges.addChangeToStore(removal);
 			}
+		}
+
+		if (theTrappedChanges != null) {
+			for (LongObjectMap<StoragePart> changesIndex : theTrappedChanges.values()) {
+				final ObjectContainer<StoragePart> values = changesIndex.values();
+				trappedChanges.addIterator(new LongObjectIterator<>(values.iterator()), values.size());
+			}
+		}
+
+		final TrappedChanges dirtyIndexParts = new TrappedChanges();
+		for (Index<? extends IndexKey> index : theDirtyEntityIndexes.values()) {
+			index.getModifiedStorageParts(dirtyIndexParts);
+			// advance the index's change-detection baseline to the state we have just collected for this
+			// commit (pop == committed); keeps getModifiedStorageParts a pure read while still closing the
+			// warm-up -> transactional baseline-staleness gap on reused index instances
+			index.notifyFlushed();
+		}
+		final int dirtyIndexPartCount = dirtyIndexParts.getTrappedChangesCount();
+		if (dirtyIndexPartCount > 0) {
+			trappedChanges.addIterator(dirtyIndexParts.getTrappedChangesIterator(), dirtyIndexPartCount);
 		}
 
 		return trappedChanges;
@@ -889,9 +907,8 @@ public class DataStoreChanges
 			() -> "Index for key " + indexKey + " was not found in the persistent storage and cannot be registered for modification."
 		);
 		if (this.undoJournal != null) {
-			// capture the exact pre-mutation state of both maps ABSOLUTELY: the by-pk entry may already exist even
-			// though the by-key one does not (removeIndex drops only the by-key entry), and the put below overwrites
-			// it - a plain by-pk remove on rollback would then lose the pre-savepoint entry
+			// capture the exact pre-mutation state of both maps ABSOLUTELY: the put below overwrites whatever the by-pk
+			// slot holds, so a plain by-pk remove on rollback would lose an entry that predates the savepoint
 			final boolean touchesByPk = createdIndex instanceof EntityIndex;
 			final int pk = createdIndex instanceof EntityIndex entityIndex
 				? entityIndex.getPrimaryKey()
@@ -994,6 +1011,10 @@ public class DataStoreChanges
 	 * Removes {@link EntityIndex} from the change set. After removal (either successfully or unsuccessful)
 	 * `removalPropagation` function is called to propagate deletion to the origin collection.
 	 *
+	 * The dropped index leaves BOTH dirty maps — the by-key and the by-primary-key one — so that no later lookup by
+	 * its primary key is answered with the dropped instance, and a later write acquisition by that primary key reaches
+	 * the origin collection instead of reviving it. A savepoint rollback reinstates both entries.
+	 *
 	 * @return the removed index — the dirty one when it was in the change set, otherwise whatever
 	 * `removalPropagation` yielded from the origin collection; `null` when the index was found in neither, which
 	 * callers must treat as "nothing was removed"
@@ -1008,7 +1029,7 @@ public class DataStoreChanges
 		//noinspection unchecked
 		final I dirtyIndexesRemoval = (I) this.dirtyEntityIndexes.remove(entityIndexKey);
 		if (dirtyIndexesRemoval != null && this.undoJournal != null) {
-			// removeIndex only drops the by-key entry (never the by-pk one); a savepoint rollback re-inserts exactly it.
+			// a savepoint rollback re-inserts exactly the removed by-key entry (the by-pk one is journalled below).
 			// Re-inserting the SAME instance is what keeps the reclaim symmetric on rollback: the reclaim baselines
 			// (the persisted leaf-page sets and the `original*` manifest sets) live on the index object itself, and the
 			// surrounding diff-layer savepoint reverts that object's content in lockstep — so a rolled-back drop rewinds
@@ -1018,6 +1039,7 @@ public class DataStoreChanges
 		final I baseIndexesRemoval = removalPropagation.apply(entityIndexKey);
 		final I removed = ofNullable(dirtyIndexesRemoval).orElse(baseIndexesRemoval);
 		if (removed instanceof EntityIndex entityIndex) {
+			retireDirtyIndexByPrimaryKey(entityIndex);
 			// The append-only store reclaims a record only when it is superseded or explicitly removed. A dropped
 			// index is never re-flushed, so its manifest, membership bitmaps, every sub-index root and every leaf
 			// page it persisted would be copied forward by every compaction forever. Emit the removals here, while
@@ -1034,6 +1056,23 @@ public class DataStoreChanges
 			);
 		}
 		return removed;
+	}
+
+	/**
+	 * Drops the {@link #dirtyEntityIndexesByPk} entry of a dropped index and journals its reinstatement for a savepoint
+	 * rollback. The entry is dropped only when it maps to that very instance: an entry holding a different index under
+	 * the same primary key belongs to that other index and is left in place.
+	 *
+	 * @param droppedIndex the index being dropped
+	 */
+	private void retireDirtyIndexByPrimaryKey(@Nonnull EntityIndex droppedIndex) {
+		final int primaryKey = droppedIndex.getPrimaryKey();
+		if (this.dirtyEntityIndexesByPk.get(primaryKey) == droppedIndex) {
+			this.dirtyEntityIndexesByPk.remove(primaryKey);
+			if (this.undoJournal != null) {
+				this.undoJournal.push(() -> this.dirtyEntityIndexesByPk.put(primaryKey, droppedIndex));
+			}
+		}
 	}
 
 	/**

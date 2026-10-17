@@ -42,6 +42,7 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.utils.ArrayUtils;
 
@@ -97,7 +98,7 @@ final class PickFirstReducedIndexFixture {
 	);
 	/**
 	 * Every index of the collection by its primary key, the backing of
-	 * {@link QueryPlanningContext#getEntityIndexByPrimaryKeyIfExists(int)}.
+	 * {@link QueryPlanningContext#resolvePartitionIfExists(int)}.
 	 */
 	private final Map<Integer, EntityIndex> indexesByPrimaryKey = new HashMap<>(32);
 	/**
@@ -116,8 +117,8 @@ final class PickFirstReducedIndexFixture {
 	private final CountingIndexMap<EntityIndexKey> countedIndexesByKey = new CountingIndexMap<>(this.indexesByKey);
 	/**
 	 * The planning context of a query over the owners, built without a session the way an index-only evaluation is.
-	 * Its catalog is the only mock: {@link Catalog} cannot be built outside a running engine, and none of the lookups
-	 * the resolver makes reads it.
+	 * Its catalog is the only mock: {@link Catalog} cannot be built outside a running engine, and the resolver reads
+	 * nothing from it - every index comes from the maps above.
 	 */
 	@Nonnull final QueryPlanningContext queryContext = new QueryPlanningContext(
 		mock(Catalog.class),
@@ -140,6 +141,33 @@ final class PickFirstReducedIndexFixture {
 	 * Primary key of the next type or global index.
 	 */
 	private int nextInfrastructurePrimaryKey = INFRASTRUCTURE_PRIMARY_KEY_BASE;
+
+	/**
+	 * Registers a single-owner partition of {@link #REFERENCE_NAME} without representative values in the registry of
+	 * the type index of its scope, and lists it in the type index - a partition that exists only as a registry row,
+	 * which the read resolvers answer with a virtual handle.
+	 *
+	 * @param scope      the scope of the partition
+	 * @param primaryKey primary key of the partition
+	 * @param target     primary key of the referenced entity
+	 * @param owner      the only owner of the partition
+	 */
+	void addVirtualPartition(@Nonnull Scope scope, int primaryKey, int target, int owner) {
+		final ReferencedTypeEntityIndex typeIndex = getOrCreateTypeIndex(scope);
+		typeIndex.insertPrimaryKeyIfMissing(primaryKey, target);
+		typeIndex.getVirtualReferencePartitionIndex().putPartitionOwner(primaryKey, owner, target);
+	}
+
+	/**
+	 * Returns the registry of single-owner partitions of the type index of the scope.
+	 *
+	 * @param scope the scope
+	 * @return the registry
+	 */
+	@Nonnull
+	VirtualReferencePartitionIndex registry(@Nonnull Scope scope) {
+		return getOrCreateTypeIndex(scope).getVirtualReferencePartitionIndex();
+	}
 
 	/**
 	 * Adds a reduced index of {@link #REFERENCE_NAME} without representative values and lists it in the type index
@@ -341,7 +369,7 @@ final class PickFirstReducedIndexFixture {
 		@Nonnull Scope... scopes
 	) {
 		return new PickFirstReducedIndexResolver(
-			this.queryContext, this.referenceSchema, scopes, targetSorter, false, planningIndexes
+			this.queryContext, this.referenceSchema, scopes, targetSorter, false, planningIndexes::get
 		);
 	}
 

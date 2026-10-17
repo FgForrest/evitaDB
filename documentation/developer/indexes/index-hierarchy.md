@@ -1,8 +1,10 @@
 # The EntityIndex Hierarchy
 
 This document describes the `EntityIndex` class hierarchy, the `EntityIndexType` enum, the
-`EntityIndexKey` addressing scheme, and the three concrete index implementations:
-`GlobalEntityIndex`, `ReducedEntityIndex`, and `ReferencedTypeEntityIndex`.
+`EntityIndexKey` addressing scheme, the three concrete index implementations:
+`GlobalEntityIndex`, `ReducedEntityIndex`, and `ReferencedTypeEntityIndex`, and the two forms a
+reference partition takes -- a `ReducedEntityIndex`, or a row of the registry of single-owner partitions
+(see [Reference Partitions](#reference-partitions-and-the-registry-of-single-owner-partitions)).
 
 For the overall architecture context, see the [Overview](overview.md#overview).
 
@@ -40,14 +42,18 @@ and holds:
   <Term location="/documentation/developer/indexes/overview.md" name="reference attribute">reference attributes</Term>
   defined on the relation, with cardinality tracking via `AttributeCardinalityIndex`
 - **`ReferenceTypeCardinalityIndex`** -- tracks how many owning entities contribute to each
-  `ReducedEntityIndex` storage PK entry in this type index. A storage PK is added to `entityIds`
+  partition PK entry in this type index. A partition PK is added to `entityIds`
   on first insertion and removed only when its cardinality drops to zero.
-- **Entity ID bitmap** -- contains the storage primary keys of the `ReducedEntityIndex` instances
-  (one per unique referenced target) for this reference name. Unlike `GlobalEntityIndex` and
-  `ReducedEntityIndex` which store owning entity PKs, this index stores internal
-  `ReducedEntityIndex` storage PKs assigned via `indexPkSequence`. The
-  `ReferenceTypeCardinalityIndex` provides the mapping between these storage PKs and the actual
+- **Entity ID bitmap** -- contains the primary keys of the reference's partitions (one per
+  `RepresentativeReferenceKey`) for this reference name, whether the partition is a
+  `ReducedEntityIndex` or a registry row. Unlike `GlobalEntityIndex` and `ReducedEntityIndex` which
+  store owning entity PKs, this index stores internal partition PKs assigned via `indexPkSequence`
+  -- the storage PK of the `ReducedEntityIndex`, or the PK a registry row carries. The
+  `ReferenceTypeCardinalityIndex` provides the mapping between these partition PKs and the actual
   referenced entity PKs.
+- **Registry of single-owner partitions** -- a `VirtualReferencePartitionIndex` holding a row for
+  every partition with a single owner of a reference indexed `FOR_FILTERING`
+  (see [Reference Partitions](#reference-partitions-and-the-registry-of-single-owner-partitions)).
 
 It does **not** hold sort indexes (because a single entity may reference multiple targets, making
 sort ordering ambiguous), price indexes (delegates to `VoidPriceIndex`), or hierarchy data.
@@ -61,8 +67,13 @@ reference attribute filters without iterating individual reduced indexes.
 
 A per-target-entity index backed by
 <Term location="/documentation/developer/indexes/overview.md" name="Reduced Entity Index">`ReducedEntityIndex`</Term>.
-There is one instance for each combination of (reference name, referenced entity primary key,
-representative attribute values). It contains:
+It is the index-object form of a reference partition -- the owners of one combination of (reference
+name, referenced entity primary key, representative attribute values). Every partition a reference
+indexed `FOR_FILTERING_AND_PARTITIONING` creates has one, and so has every partition with two or more
+owners of a reference indexed `FOR_FILTERING`; a partition with a single owner of the latter is a
+row of the registry of single-owner partitions instead and has no `ReducedEntityIndex`
+(see [Reference Partitions](#reference-partitions-and-the-registry-of-single-owner-partitions)).
+It contains:
 
 - **Entity ID bitmap** -- primary keys of
   <Term location="/documentation/developer/indexes/overview.md" name="owning entity">**owning** entities</Term>
@@ -86,7 +97,8 @@ representative attribute values). It contains:
 This is the **workhorse index for reference-based queries**. When a query filters by a specific
 referenced entity (e.g., "products in category 42"), the query planner selects the
 <Term location="/documentation/developer/indexes/overview.md" name="partitioned view">reduced index</Term>
-keyed to that entity, instantly narrowing the search space to a pre-filtered bitmap.
+keyed to that entity, instantly narrowing the search space to a pre-filtered bitmap; a partition kept
+as a registry row contributes its single owner read out of the row.
 
 **Discriminator:**
 <Term location="/documentation/developer/indexes/overview.md" name="Representative Reference Key">`RepresentativeReferenceKey`</Term>
@@ -503,9 +515,9 @@ Because multiple entities can reference the same target (e.g., 100 products refe
 <Term location="/documentation/developer/indexes/overview.md" name="reference attribute">reference attributes</Term>
 across all those relationships. Two tracking structures handle the deduplication:
 
-- **`ReferenceTypeCardinalityIndex`** -- tracks how many `ReducedEntityIndex` instances contribute
-  each primary key. A PK is added to `entityIds` on first insertion and removed only when its
-  cardinality drops to zero.
+- **`ReferenceTypeCardinalityIndex`** -- tracks how many owning entities contribute each partition
+  primary key, whether the partition is a `ReducedEntityIndex` or a registry row. A PK is added to
+  `entityIds` on first insertion and removed only when its cardinality drops to zero.
 - **`AttributeCardinalityIndex`** (one per attribute key) -- tracks how many times each attribute
   value has been inserted. A value is added to the underlying `FilterIndex` only when its
   cardinality goes from 0 to 1, and removed only when it drops back to 0.
@@ -541,7 +553,7 @@ index key for routing but any actual data access must fail with a clear error.
   NOT duplicate the indexPK in `entityIds`. Removing it once must NOT remove the indexPK from
   `entityIds` -- only the second removal (cardinality reaching 0) should.
 - **Same-target cardinality:** When multiple owning entities reference the **same** target, they
-  share a single `ReducedEntityIndex`. The type index `entityIds` contains just 1 entry for that
+  share a single partition. The type index `entityIds` contains just 1 entry for that
   target regardless of how many owning entities contribute. Removing one owning entity's reference
   only decreases cardinality; the entry is removed from `entityIds` only when the last owning
   entity's reference is removed.
@@ -559,6 +571,129 @@ index key for routing but any actual data access must fail with a clear error.
   `indexPrimaryKeyCardinality.isEmpty()`.
 
 
+## Reference Partitions and the Registry of Single-Owner Partitions
+
+A **reference partition** is what the engine indexes about the owners of one
+<Term location="/documentation/developer/indexes/overview.md" name="Representative Reference Key">`RepresentativeReferenceKey`</Term>
+in one
+<Term location="/documentation/developer/indexes/overview.md" name="scope">scope</Term> -- one reference
+name, one referenced entity, one combination of representative attribute values. Code outside the
+index layer reaches a partition only through the sealed `ReferencePartition` handle (resolved by
+`ReferencePartitions`), which takes one of two forms:
+
+| Form | Class | Used for |
+|---|---|---|
+| index object | `ReducedEntityIndex` (`REFERENCED_ENTITY`) | every partition a reference indexed `FOR_FILTERING_AND_PARTITIONING` creates; every partition with two or more owners of a reference indexed `FOR_FILTERING` |
+| registry row | `VirtualReferencePartition`, read out of `VirtualReferencePartitionIndex` | a partition with a single owner of a reference indexed `FOR_FILTERING` with the `REFERENCED_ENTITY` component |
+
+The row is the **only** representation of such a single-owner partition: it has no
+`ReducedEntityIndex`, no storage parts of its own and no entry in the collection header. A partition
+gets an index object once a second owner joins it, and loses it again when it is left with one owner.
+`VirtualReferencePartitionWriter#isWrittenVirtually` is the single predicate telling whether the partitions of
+a reference may be rows in a scope.
+
+### What a row holds
+
+The registry is a `VirtualReferencePartitionIndex` carried by the `ReferencedTypeEntityIndex` of the
+reference in the scope. Per partition primary key it holds the owner and the referenced entity, the id
+of the representative attribute values in a tuple dictionary, and -- for every declared sort key and
+chain key of the reference -- the partition's sort value and chain predecessor. Its structure is
+described in [data-structures.md](data-structures.md#registry-of-single-owner-partitions).
+
+A row holds nothing else. The reference attribute filter indexes of the type index are keyed by
+partition primary key, so for a partition with one owner their answer is already the answer for its
+row; the locales of the row are those of its owner, read from the owner collection
+(`VirtualPartitionRows`); and a reference indexed `FOR_FILTERING` keeps no entity attributes, prices
+or facets in its partitions.
+
+### How writes reach a row
+
+- `EntityIndexLocalMutationExecutor` acquires the partitions a mutation writes
+  (`getPartitionForWrite`, `getOrCreatePartitionForInsert`, `forEachPartitionOfTargetForWrite`). For a
+  reference whose partitions may be rows it hands out the index object when the partition has one and a
+  `VirtualReferencePartition` built from the row otherwise, and it never creates an index object
+  through the generic acquisition -- `EntityCollection` refuses that creation for such a reference.
+- `ReferenceIndexMutator` moves a partition between the two forms as its owner count changes, and
+  `VirtualReferencePartitionWriter` keeps the rows in step:
+  - **0 → 1** -- the row is registered before the owner's data is written into it;
+  - **1 → 2** -- an index object is installed under the row's primary key
+    (`EntityIndexLocalMutationExecutor#installPartitionObject`) and populated with the first owner by an
+    executor of that owner, which writes no registry (`createExecutorOfOtherOwner`); the second owner
+    then enters the object and the row is dropped;
+  - **2 → 1** -- decided in `applyChanges()`, once every mutation of the root mutation has been
+    dispatched: the remaining owner's sort values and chain predecessors are extracted from the object
+    into a new row (`VirtualReferencePartitionWriter#demoteToRow`) and the object is retired;
+  - **1 → 0** -- the row is dropped and its primary key reserved for an owner entering the same key
+    later in the root mutation.
+- `AttributeIndexMutator` writes into an `IndexWriteTarget`. For a `VirtualReferencePartition` it
+  computes the values exactly as for an index object, and `VirtualReferencePartitionWriter` writes the
+  sort values and chain predecessors into the row. A write path that needs an index object meets a row
+  only in the virtual arm of an exhaustive `switch` over `ReferencePartition`, and rejects it
+  (`ReferencePartitions#requireMaterialized`).
+
+### How reads reach a row
+
+The read resolvers of `ReferencePartitions`, used through `QueryPlanningContext`, look the registry up
+first and answer a registered partition with its `VirtualReferencePartition` without touching any index
+object. Each query route reads the rows in its own way:
+
+- **`referenceHaving`** -- the candidates found in the type index are split by form
+  (`ReferencePartitionSplit`); the index objects are evaluated against their own indexes, the rows by
+  `VirtualPartitionBodyEvaluator`, with `VirtualPartitionRows` for the constraints whose answer at the
+  type level differs from the answer for one row;
+- **hierarchy constraints and `hierarchyOfReference`** -- `SplitTargetPartitions` collapses the rows of
+  the nodes into one constant of their owners;
+- **`pickFirstByEntityProperty`** -- `PickFirstReducedIndexResolver` hands the rows over as handles and
+  `PickFirstReferenceSorter` reads their sort values through `PickFirstVirtualSortValues`;
+- **`traverseByEntityProperty`, `Predecessor` / `ReferencedEntityPredecessor` chains and
+  `referenceContent(orderBy)`** -- `VirtualPartitionSortedRecords` turns a row into the singleton sorted
+  records an index object with one owner would provide;
+- **a lookup by key** within one query goes through `PartitionKeyMemo`.
+
+The few write-path places that only ask a partition for its owners -- propagation of reflected
+references, re-evaluation of conditional facets and histograms, the rebuild of the reduced index
+membership -- use the owner read resolvers (`…ForOwnerRead…`) of `ReferencePartitions`.
+
+### Change of the reference's indexing
+
+Nothing converts rows or index objects when the indexing of a reference changes:
+
+- A reference raised from `FOR_FILTERING` to `FOR_FILTERING_AND_PARTITIONING` creates an index object
+  for every new partition, but the rows it held stay rows. A write that would put content into such a
+  row fails with `ReferencePartitionReindexRequiredException`; a write that only takes content out of it
+  proceeds on the row (`EntityIndexLocalMutationExecutor#releaseRowOfFormerIndexing`). A query either
+  answers from the row or fails loudly: the index selection of a `referenceHaving` that resolves its
+  candidates to index objects refuses such a row with the same exception, a hierarchy option over such
+  a row is never planned separately, and a prefetch narrowed to reduced indexes of the reference fails
+  its premise while the registry holds a row.
+- A reference lowered to `FOR_FILTERING` keeps the index objects it holds, single-owner ones included.
+
+### Storage and statistics
+
+The registry is persisted as a `VirtualReferencePartitionIndexStoragePart` with leaf pages
+(`VirtualReferencePartitionIndexLeafPagePart`) and reloaded by `VirtualReferencePartitionLoader`; a
+registry without a stored root loads empty. A catalog stored by 2026.2 (storage protocol 6) holds every
+partition as an index object; the 6 → 8 storage migration `Migration_2026_3` converts the single-owner
+partitions of eligible references into rows once, through `VirtualReferencePartitionConversion`, which
+runs the same `VirtualReferencePartitionWriter#demoteToRow` the write path runs.
+
+Rows are not indexes: index counts, browses and cardinality descriptions cover index objects only, and
+the rows a reference holds are counted by `CollectionIndexCardinality.IndexCardinality#virtualPartitionCount`
+of its type index.
+
+### Test Blueprint Hints
+
+- **One form per partition:** A partition with a single owner of a reference indexed `FOR_FILTERING`
+  has a registry row and no `ReducedEntityIndex`; once a second owner joins, it has a
+  `ReducedEntityIndex` and no row; when one of the two leaves, it is a row again.
+- **Advertisement:** The type index lists the primary key of a row exactly as it lists the storage PK
+  of a `ReducedEntityIndex`, and maps it to the same referenced entity.
+- **Superset invariant:** The owner of every row in a scope is present in the `GlobalEntityIndex` of
+  that scope.
+- **Extraction:** After a 2 → 1 transition the row holds exactly the sort values and chain
+  predecessors the index object held for the remaining owner.
+
+
 ## Index Lifecycle
 
 Indexes are created lazily during mutation processing and removed when they become empty. The
@@ -571,13 +706,17 @@ The general lifecycle is:
    or
    <Term location="/documentation/developer/indexes/overview.md" name="Referenced Type Entity Index">`ReferencedTypeEntityIndex`</Term>
    that does not yet exist, the `EntityIndexLocalMutationExecutor` creates it, assigns a storage
-   primary key, and registers it in the collection's index map.
+   primary key, and registers it in the collection's index map. A partition of a reference indexed
+   `FOR_FILTERING` is the exception: it enters as a registry row under a primary key from the same
+   sequence and gets its `ReducedEntityIndex` only when a second owner joins it (see
+   [Reference Partitions](#reference-partitions-and-the-registry-of-single-owner-partitions)).
 2. **Population:** The mutation executor inserts primary keys, attribute values, price records,
    and facet data into the appropriate indexes based on the reference schema configuration.
 3. **Commit:** The STM layer produces new immutable snapshots of all modified indexes.
 4. **Removal:** After mutations that remove the last entity from a reduced or type index, the
    index's `isEmpty()` returns `true` and the executor removes it from the collection's index
-   map to prevent unbounded growth.
+   map to prevent unbounded growth. The index object of a partition left with a single owner is
+   retired once its row is in place.
 
 For how schema settings control which indexes are created, see
 [schema-settings.md](schema-settings.md#index-lifecycle).

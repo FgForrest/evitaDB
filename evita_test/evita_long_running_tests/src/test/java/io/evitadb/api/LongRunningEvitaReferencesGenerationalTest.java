@@ -25,9 +25,11 @@ package io.evitadb.api;
 
 import com.github.javafaker.Faker;
 import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
+import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
@@ -62,6 +64,7 @@ import java.math.BigDecimal;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -79,6 +82,11 @@ import static org.junit.jupiter.api.Assertions.*;
  * upserts, deletes and restores products with references and verifies that the reflected
  * references on the related entities remain consistent across catalog reloads.
  *
+ * The random mutations move the partitions of the reflected `products` reference of the categories - indexed for
+ * filtering only - between no owner, a single owner and several owners. Every generation therefore also filters the
+ * categories by `referenceHaving` on that reference and compares the answer with the categories the test's own model
+ * of the written data expects (see {@link #assertReferenceHavingMatchesModel(int)}).
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 @CommonsLog
@@ -94,6 +102,10 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 	 * Count of the product that will exist in the database BEFORE the test starts.
 	 */
 	private static final int INITIAL_COUNT_OF_PRODUCTS = 1000;
+	/**
+	 * Count of the categories the products reference - they are never removed.
+	 */
+	private static final int CATEGORY_COUNT = 10;
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_CATEGORY_GROUP = "categoryGroup";
 	private static final String ATTRIBUTE_CATEGORY_ORDER = "categoryOrder";
@@ -106,6 +118,15 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 	 * Index of created entities that allows to retrieve referenced entities when creating product.
 	 */
 	protected final Map<Serializable, Integer> generatedEntities = new HashMap<>();
+	/**
+	 * The test's own model of the written data: the rows of the `CATEGORY` reference of every existing product, as the
+	 * test wrote them, by product primary key - a removed product has no entry. Each row is reflected on its category as
+	 * a row of {@link #REFERENCE_PRODUCTS} carrying the same inherited attributes, so the model tells which categories a
+	 * `referenceHaving` on that reference must find without asking evitaDB. The rows are kept in their natural order,
+	 * so two lists of the same rows are equal.
+	 */
+	private final Map<Integer, List<CategoryRow>> categoryRowsByProduct =
+		CollectionUtils.createHashMap(INITIAL_COUNT_OF_PRODUCTS);
 	/**
 	 * Function allowing to pseudo randomly pick referenced entity for the product.
 	 */
@@ -152,6 +173,7 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 		this.paths = createTestPaths("EvitaReferencesGenerationalTest");
 		this.dataGenerator.clear();
 		this.generatedEntities.clear();
+		this.categoryRowsByProduct.clear();
 		final String catalogName = "testCatalog";
 		// prepare database
 		this.evita = new Evita(
@@ -210,7 +232,7 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 						this.randomEntityPicker,
 						SEED
 					)
-					.limit(10)
+					.limit(CATEGORY_COUNT)
 					.map(session::upsertAndFetchEntity)
 					.forEach(it -> this.generatedEntities.put(Entities.CATEGORY, it.getPrimaryKeyOrThrowException()));
 
@@ -261,7 +283,10 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 						SEED
 					)
 					.limit(INITIAL_COUNT_OF_PRODUCTS)
-					.forEach(session::upsertEntity);
+					.forEach(product -> {
+						session.upsertEntity(product);
+						rememberCategoryRows(product.toInstance());
+					});
 
 				session.goLiveAndClose();
 			}
@@ -319,6 +344,7 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 							);
 							operation = "removal of " + primaryKey;
 							session.deleteEntity(Entities.PRODUCT, primaryKey);
+							this.categoryRowsByProduct.remove(primaryKey);
 						} else if (random.nextInt(10) == 0 && removedEntities.size() > 10) {
 							final SealedEntity entityToRestore = pickRandom(random, removedEntities.values());
 							removedEntities.remove(entityToRestore.getPrimaryKey());
@@ -326,6 +352,7 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 							session.upsertEntity(
 								new CopyExistingEntityBuilder(entityToRestore)
 							);
+							rememberCategoryRows(entityToRestore);
 							assertNotNull(
 								session.getEntity(
 									Entities.PRODUCT,
@@ -340,9 +367,9 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 								primaryKey,
 								entityFetchAllContent()
 							).orElseThrow();
-							session.upsertEntity(
-								this.modificationFunction.apply(existingEntity)
-							);
+							final EntityBuilder modifiedEntity = this.modificationFunction.apply(existingEntity);
+							session.upsertEntity(modifiedEntity);
+							rememberCategoryRows(modifiedEntity.toInstance());
 						}
 						updateCounter++;
 					}
@@ -353,6 +380,7 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 				generation++;
 
 				assertReferencesAreConsistent();
+				assertReferenceHavingMatchesModel(generation);
 				if (generation % 3 == 0) {
 					// reload EVITA entirely
 					this.evita.close();
@@ -363,6 +391,7 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 					this.evita.waitUntilFullyInitialized();
 					// check all references are correctly interlined
 					assertReferencesAreConsistent();
+					assertReferenceHavingMatchesModel(generation);
 				}
 
 				return new TestState(
@@ -391,6 +420,8 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 	 * The validation ensures the following:
 	 * - Cross-reference integrity between products and categories.
 	 * - Correct attribute values for each reference.
+	 * - The test's own model of the product references ({@link #categoryRowsByProduct}) equals the stored products, so
+	 *   the `referenceHaving` check compares the index with what was really written.
 	 *
 	 * This method characteristically operates in a transactional manner to query and validate data while adhering to
 	 * immutability principles guaranteed by the read-only nature of `SealedEntity`.
@@ -415,6 +446,8 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 			TEST_CATALOG,
 			session -> {
 				final Map<Integer, ExpectedProducts> expectedProductsIndex = new HashMap<>(32);
+				final Map<Integer, List<CategoryRow>> storedCategoryRows =
+					CollectionUtils.createHashMap(INITIAL_COUNT_OF_PRODUCTS);
 				int pageNumber = 1;
 				EvitaResponse<SealedEntity> products;
 				do {
@@ -428,6 +461,7 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 						)
 					);
 					for (SealedEntity product : products.getRecordPage().getData()) {
+						storedCategoryRows.put(product.getPrimaryKeyOrThrowException(), toCategoryRows(product));
 						product.getReferences(Entities.CATEGORY).forEach(ref -> {
 							final Integer categoryPrimaryKey = ref.getReferencedPrimaryKey();
 							final Long categoryPriority = ref.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class);
@@ -451,6 +485,19 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 				} while (products.getRecordPage().hasNext());
 
 				assertFalse(expectedProductsIndex.isEmpty());
+				// the model is the oracle of the `referenceHaving` check - a divergence here is a fault of the model
+				// (or of the write path), never of the index the check reads
+				assertEquals(
+					this.categoryRowsByProduct.keySet(), storedCategoryRows.keySet(),
+					"The test's model holds other products than the catalog."
+				);
+				for (Map.Entry<Integer, List<CategoryRow>> stored : storedCategoryRows.entrySet()) {
+					assertEquals(
+						this.categoryRowsByProduct.get(stored.getKey()), stored.getValue(),
+						"The test's model of the category references of product " + stored.getKey() +
+							" differs from the stored product."
+					);
+				}
 
 				// now verify that all references are correct
 				for (Map.Entry<Integer, ExpectedProducts> expectedProductsEntry : expectedProductsIndex.entrySet()) {
@@ -498,6 +545,134 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 		);
 	}
 
+	/**
+	 * Filters the categories by `referenceHaving` on {@link #REFERENCE_PRODUCTS} - the reflected reference indexed for
+	 * filtering only, whose partitions the random mutations move between no owner, a single owner and several owners -
+	 * and compares every answer with the categories the test's own model ({@link #categoryRowsByProduct}) expects.
+	 * Every product primary key the test uses is asked about, removed products included, in three shapes:
+	 *
+	 * - `entityPrimaryKeyInSet(p)`: the categories with a row referencing the product `p`, none for a removed product;
+	 * - `entityPrimaryKeyInSet(p), attributeEquals(categoryGroup, g)`: those with a row referencing `p` in the group
+	 *   `g` of a picked row of `p`;
+	 * - `entityPrimaryKeyInSet(p), not(attributeGreaterThanEquals(categoryPriority, x))`: those with a row referencing
+	 *   `p` whose priority is below the priority `x` of the same picked row - the negation holds per row, so a
+	 *   category with another row of a higher priority is found as well.
+	 *
+	 * Each query asks about a single product so that its answer depends on the partitions of that product alone - over
+	 * many products the ten categories would all be found even when one owner went missing. `entityPrimaryKeyInSet`
+	 * also keeps every shape on this side of the reference pair: the rewrite to the products' own reference takes over
+	 * only a body of reference attributes and `entityHaving`.
+	 *
+	 * @param generation the number of the generation, which picks the row of each product the attribute shapes compare
+	 *                   with - the random of the generation is left alone, so a seed replays the same mutations
+	 */
+	private void assertReferenceHavingMatchesModel(int generation) {
+		this.evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				for (int productId = 1; productId <= INITIAL_COUNT_OF_PRODUCTS; productId++) {
+					final List<CategoryRow> rows = this.categoryRowsByProduct.getOrDefault(productId, List.of());
+					assertCategoriesFound(
+						session, rows, referenceHaving(REFERENCE_PRODUCTS, entityPrimaryKeyInSet(productId)), row -> true
+					);
+					if (!rows.isEmpty()) {
+						final CategoryRow pickedRow = rows.get((productId + generation) % rows.size());
+						assertCategoriesFound(
+							session, rows,
+							referenceHaving(
+								REFERENCE_PRODUCTS,
+								entityPrimaryKeyInSet(productId),
+								attributeEquals(ATTRIBUTE_CATEGORY_GROUP, pickedRow.group())
+							),
+							row -> row.group().equals(pickedRow.group())
+						);
+						assertCategoriesFound(
+							session, rows,
+							referenceHaving(
+								REFERENCE_PRODUCTS,
+								entityPrimaryKeyInSet(productId),
+								not(attributeGreaterThanEquals(ATTRIBUTE_CATEGORY_PRIORITY, pickedRow.priority()))
+							),
+							row -> row.priority() < pickedRow.priority()
+						);
+					}
+				}
+				return null;
+			}
+		);
+	}
+
+	/**
+	 * Queries the categories satisfying a `referenceHaving` and asserts they are exactly the categories of the product
+	 * rows the constraint matches.
+	 *
+	 * @param session         the session to query in
+	 * @param rows            the rows of the `CATEGORY` reference of the product the constraint asks about, empty for a
+	 *                        removed product
+	 * @param referenceHaving the constraint
+	 * @param matchingRow     tells which of the rows satisfy the body of the constraint
+	 */
+	private static void assertCategoriesFound(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull List<CategoryRow> rows,
+		@Nonnull FilterConstraint referenceHaving,
+		@Nonnull Predicate<CategoryRow> matchingRow
+	) {
+		final List<Integer> expectedCategories = rows.stream()
+			.filter(matchingRow)
+			.map(CategoryRow::categoryPrimaryKey)
+			.distinct()
+			.sorted()
+			.toList();
+		final List<Integer> foundCategories = session.queryListOfEntityReferences(
+				Query.query(
+					collection(Entities.CATEGORY),
+					filterBy(referenceHaving),
+					require(page(1, CATEGORY_COUNT))
+				)
+			)
+			.stream()
+			.map(EntityReferenceContract::getPrimaryKeyOrThrowException)
+			.sorted()
+			.toList();
+		assertEquals(
+			expectedCategories, foundCategories,
+			() -> "`" + referenceHaving + "` found the categories " + foundCategories + ", but the product rows the " +
+				"test wrote expect " + expectedCategories + " - rows: " + rows
+		);
+	}
+
+	/**
+	 * Records the rows of the `CATEGORY` reference of a product the test has just written in
+	 * {@link #categoryRowsByProduct}.
+	 *
+	 * @param product the product as written
+	 */
+	private void rememberCategoryRows(@Nonnull SealedEntity product) {
+		this.categoryRowsByProduct.put(product.getPrimaryKeyOrThrowException(), toCategoryRows(product));
+	}
+
+	/**
+	 * Returns the rows of the `CATEGORY` reference of a product in their natural order.
+	 *
+	 * @param product the product
+	 * @return its rows, possibly empty
+	 */
+	@Nonnull
+	private static List<CategoryRow> toCategoryRows(@Nonnull SealedEntity product) {
+		return product.getReferences(Entities.CATEGORY)
+			.stream()
+			.map(
+				ref -> new CategoryRow(
+					ref.getReferencedPrimaryKey(),
+					Objects.requireNonNull(ref.getAttribute(ATTRIBUTE_CATEGORY_GROUP, String.class)),
+					Objects.requireNonNull(ref.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class))
+				)
+			)
+			.sorted()
+			.toList();
+	}
+
 	@Nonnull
 	private EvitaConfiguration getEvitaConfiguration() {
 		return newTestEvitaConfigurationBuilder(this.paths)
@@ -530,6 +705,33 @@ class LongRunningEvitaReferencesGenerationalTest implements EvitaTestSupport, Ti
 		int generation,
 		int updateCounter
 	) {
+	}
+
+	/**
+	 * One row of the `CATEGORY` reference of a product in the test's model - and, reflected, one row of the
+	 * {@link #REFERENCE_PRODUCTS} reference of the category carrying the same inherited attributes.
+	 *
+	 * @param categoryPrimaryKey the referenced category
+	 * @param group              the value of {@link #ATTRIBUTE_CATEGORY_GROUP}
+	 * @param priority           the value of {@link DataGenerator#ATTRIBUTE_CATEGORY_PRIORITY}
+	 */
+	private record CategoryRow(
+		int categoryPrimaryKey,
+		@Nonnull String group,
+		long priority
+	) implements Comparable<CategoryRow> {
+		/**
+		 * The natural order - by category, group and priority.
+		 */
+		private static final Comparator<CategoryRow> NATURAL_ORDER = Comparator
+			.comparingInt(CategoryRow::categoryPrimaryKey)
+			.thenComparing(CategoryRow::group)
+			.thenComparingLong(CategoryRow::priority);
+
+		@Override
+		public int compareTo(@Nonnull CategoryRow other) {
+			return NATURAL_ORDER.compare(this, other);
+		}
 	}
 
 	/**

@@ -277,6 +277,17 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 		@Nonnull TrappedChanges trappedChanges
 	) {
 		getModifiedStorageParts(entityIndexPrimaryKey, trappedChanges);
+		announceKeys(manifest);
+	}
+
+	/**
+	 * Component-loop entry point that announces every referenced entity type currently tracked into the manifest,
+	 * without emitting anything.
+	 *
+	 * @param manifest the shared manifest gathered by the parent entity index
+	 */
+	@Override
+	public void announceKeys(@Nonnull EntityIndexManifest manifest) {
 		// `forEach` rather than `keySet()`, for the reason given on `getModifiedStorageParts` above
 		this.facetingEntities.forEach(
 			(referencedEntityType, facetReferenceIndex) -> manifest.addFacetReferencedEntity(referencedEntityType)

@@ -23,6 +23,7 @@
 
 package io.evitadb.spi.store.catalog.persistence.storageParts.entity;
 
+import io.evitadb.api.exception.IdentifierOverflowException;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.mutation.reference.ComparableReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
@@ -348,6 +349,11 @@ public class ReferencesStoragePart implements EntityStoragePart {
 			final Set<ComparableReferenceKey> refKeysForReassignment = this.referenceKeysForReassignment == null ?
 				Collections.emptySet() : this.referenceKeysForReassignment;
 			final int lupkBefore = this.lastUsedPrimaryKey;
+			// the keys left cover any number of references unless the space is nearly used up - only then are the
+			// references needing a key counted, so that a refusal comes before the first of them is renumbered
+			if (theReferences.length > Integer.MAX_VALUE - lupkBefore) {
+				assertPrimaryKeysLeft(theReferences, refKeysForReassignment);
+			}
 			Map<ComparableReferenceKey, ReferenceKey> assignedKeys = null;
 			ReferenceKey previousReferenceKey = null;
 			for (int i = 0; i < theReferences.length; i++) {
@@ -374,10 +380,7 @@ public class ReferencesStoragePart implements EntityStoragePart {
 				// every reference on each call, including those keyed earlier, which made it 19.2% of all
 				// write-path allocation in the production-catalog WARM_UP profile. `containsEquivalent` also sidesteps a
 				// hash-bucket blind spot in the set itself; see its JavaDoc.
-				if (
-					!referenceKey.isKnownInternalPrimaryKey()
-						|| ComparableReferenceKey.containsEquivalent(refKeysForReassignment, referenceKey)
-				) {
+				if (needsPrimaryKey(referenceKey, refKeysForReassignment)) {
 					reference = new Reference(++this.lastUsedPrimaryKey, reference);
 					theReferences[i] = reference;
 					this.dirty = true;
@@ -403,6 +406,57 @@ public class ReferencesStoragePart implements EntityStoragePart {
 				Collections.emptyMap() : assignedKeys;
 		}
 		return Collections.emptyMap();
+	}
+
+	/**
+	 * Returns true when {@link #assignMissingIdsAndSort()} has to give the reference a new internal primary key: it
+	 * has none yet, or the one it carries was not found among the references of the entity and must be reassigned.
+	 *
+	 * @param referenceKey           the key of the reference
+	 * @param refKeysForReassignment the keys whose known internal primary key must be reassigned
+	 * @return true when the reference needs a new internal primary key
+	 */
+	private static boolean needsPrimaryKey(
+		@Nonnull ReferenceKey referenceKey,
+		@Nonnull Set<ComparableReferenceKey> refKeysForReassignment
+	) {
+		return !referenceKey.isKnownInternalPrimaryKey()
+			|| ComparableReferenceKey.containsEquivalent(refKeysForReassignment, referenceKey);
+	}
+
+	/**
+	 * Refuses the assignment of {@link #assignMissingIdsAndSort()} before it renumbers anything when fewer internal
+	 * primary keys are left below `Integer.MAX_VALUE` than references need one. The keys are persisted with the
+	 * entity and never reused, so a key past the limit would wrap into the negative range, where a reference reads as
+	 * one that has no key yet.
+	 *
+	 * @param references             the references of the entity
+	 * @param refKeysForReassignment the keys whose known internal primary key must be reassigned
+	 * @throws IdentifierOverflowException when the keys left do not suffice
+	 */
+	private void assertPrimaryKeysLeft(
+		@Nonnull Reference[] references,
+		@Nonnull Set<ComparableReferenceKey> refKeysForReassignment
+	) {
+		int needed = 0;
+		for (final Reference reference : references) {
+			if (needsPrimaryKey(reference.getReferenceKey(), refKeysForReassignment)) {
+				needed++;
+			}
+		}
+		if (needed > Integer.MAX_VALUE - this.lastUsedPrimaryKey) {
+			throw new IdentifierOverflowException(
+				"The internal reference primary keys of the entity with primary key " + this.entityPrimaryKey +
+					" are exhausted: the last one used is " + this.lastUsedPrimaryKey + " and " + needed +
+					" references need a new one, but no key above " + Integer.MAX_VALUE + " exists and the next one " +
+					"would wrap into the negative range. The keys are persisted with the entity and never reused, " +
+					"so a restart does not reset them - the entity must be removed and inserted again.",
+				"The internal primary keys of the references of the entity with primary key " +
+					this.entityPrimaryKey + " are exhausted - every reference the entity has ever had used one up. " +
+					"They are persisted with the entity and never reused, so a restart does not help - remove the " +
+					"entity and insert it again."
+			);
+		}
 	}
 
 	/**

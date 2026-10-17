@@ -188,23 +188,23 @@ class FilterIndexValueIdRootEmissionTest {
 		}
 
 		@Test
-		@DisplayName("the baseline-capture pass that repeats the collect leaves the mark where it stands")
-		void shouldNotDisturbValueIdHighWaterWhenBaselineCaptureRepeatsTheCollect() {
-			// Every real flush collects TWICE. `DataStoreChanges#popTrappedUpdates` takes the parts, and then
-			// `EntityIndex#notifyFlushed` -> `captureOriginalsFromComponents` runs the very same collect again into a
-			// sink it throws away. The mark is advanced by the collect that actually emits the root, so this second
-			// pass must find nothing left to do - were it the other way round, the mark's advance would ride on a
-			// pass whose output nobody writes, and the persisted root would lag the ids already in the leaf pages
+		@DisplayName("a collect repeated over an unchanged tree leaves the mark where it stands")
+		void shouldNotDisturbValueIdHighWaterWhenCollectIsRepeated() {
+			// The mark is advanced by the collect that actually emits the root, so a second collect over the same
+			// tree must find nothing left to do - were it the other way round, the mark's advance would ride on a
+			// pass whose output might not be written, and the persisted root would lag the ids already in the leaf
+			// pages. In production nothing repeats the collect - the baseline an entity index captures after a flush
+			// only announces keys - so this pins idempotence rather than a call that happens on every flush
 			final OwnerFilterIndex index = idCarryingIndex(PAGED_VALUE_COUNT);
 			final FilterIndexStoragePart firstRoot = filterRoot(emit(index));
 			assertNotNull(firstRoot, "a first flush must write the root");
 
-			final List<StoragePart> capturePass = emit(index);
+			final List<StoragePart> repeatedPass = emit(index);
 
-			assertNull(filterRoot(capturePass), "the baseline-capture re-run must not emit a second root");
+			assertNull(filterRoot(repeatedPass), "the repeated collect must not emit a second root");
 			assertFalse(
 				index.getInvertedIndex().isValueIdHighWaterDirty(),
-				"the mark the first collect emitted must still stand after the capture pass has run"
+				"the mark the first collect emitted must still stand after the repeated collect has run"
 			);
 		}
 

@@ -1,7 +1,7 @@
 ---
 title: Cut every temporal value to whole milliseconds as it enters, and carry every temporal index key in one long column
 date: 2026-09-04
-updated: 2026-10-06 13:45
+updated: 2026-10-12 03:12
 status: accepted
 kind: feature
 issues: [1486]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_common/src/main/java/io/evitadb/dataType, evita_api/src/main/java/io/evitadb/api/query, evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure, evita_engine/src/main/java/io/evitadb/index/bPlusTree, evita_engine/src/main/java/io/evitadb/index/attribute, evita_engine/src/main/java/io/evitadb/index/range, evita_engine/src/main/java/io/evitadb/index/invertedIndex, evita_store/evita_store_server/src/main/java/io/evitadb/store/index, evita_external_api/evita_external_api_grpc, documentation/user]
 supersedes: []
 superseded-by: []
-relates: [2026-09-03-content-sized-value-tree-columns, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-05-schema-handling-write-path-optimizations, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes]
+relates: [2026-09-03-content-sized-value-tree-columns, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-05-schema-handling-write-path-optimizations, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-10-12-single-owner-partitions-as-registry-rows]
 ---
 
 # Temporal precision is millisecond, stated once and enforced at the boundary
@@ -180,6 +180,26 @@ REST and EvitaQL — at which point the guarantee would be real and worth its tw
   `2026-07-18-paged-index-corruption-and-flush-failure-boundary`: there, nothing persisted identifies which
   of two overlapping leaves superseded the other, so adopting either resurrects deliberately-removed
   records; here the merge is unambiguous, because two buckets that encode to one key must become one bucket.
+- **A repair stays pending in memory until the next flush that writes its entity index, and nothing may
+  consume it before then.** The repaired filter tree is dirty and its changed leaves carry no page
+  sequence. Collecting a component's storage parts is a persistence step: it stamps sequences, clears leaf
+  flags and stages the next page list. So the baseline an `EntityIndex` captures when it is built and after
+  every flush only *announces* keys (`IndexComponent#announceKeys`) and never collects. The first flush
+  that writes the entity index — any write to it, a sibling attribute included — writes every released
+  page, frees the absorbed ones and re-emits the root. An index whose entity index is never written again
+  stays legacy on disk and repeats the repair on every load. That is passive by design, and correct,
+  because the persisted form is internally consistent. Owner sort indexes differ: their emission is gated
+  on the sort index's own dirty flag, which a load leaves clear, so the temporal correction reaches disk
+  only when a record of that sort index changes (`LegacyTemporalSortValueCorrection`). **Changed on
+  2026-10-12 for owner sort indexes only:** that load-time correction is gone. The 6 → 8 storage migration
+  rewrites every owner sort index holding raw temporal values once (`Migration_2026_3#rewriteLegacyOwnerSortIndexes`),
+  the class is now `LegacyOwnerSortIndexCorrection` and only the migration calls it, and owner sort indexes
+  load what is stored. The same rewrite re-sorts owner sort indexes with a `DateTimeRange` element that 2026.2
+  ordered at whole seconds (`7c0a1403c2`) - see
+  [2026-10-12-single-owner-partitions-as-registry-rows](2026-10-12-single-owner-partitions-as-registry-rows.md).
+  The filter-index repair described in this bullet and the previous one is unchanged. Pinned by
+  `FilterIndexLoadRepairPersistenceTest` (a later write, a sibling written first, a leaf split, a paged
+  `DateTimeRange` on both axes) and `EntityIndexBaselineCaptureTest`.
 - **The merge target must be the array the page retains.** `InvertedIndex.collapseCollidingBuckets` retains
   a page that lost a bucket as an `Arrays.copyOf` **copy**, so a `targetPage` still pointing at the page's
   local array is an orphan — a later cross-page merge writes into it and the persisted copy keeps the
@@ -303,7 +323,7 @@ catalog a test reads was written by the current writer.
   silently wrong; the price is that "temporal precision is millisecond" is not true of associated data.
   Recorded so the inconsistency is not later mistaken for a site that was missed.
 - **Hypotheses that were checked and found harmless**, listed so they are not re-proposed: reload
-  cross-page aliasing (fixed by `f9bb05c02`); page identity and fully absorbed pages; value-id compaction,
+  cross-page aliasing (fixed by `f9bb05c02`); value-id compaction,
   where survivors keep their original ids; the unnecessary-repair path, where `collapsed` stays false and
   the index is never marked dirty; the `forKey`/`forFilterKey` split, whose production callers are
   correctly separated (`InvertedIndex:323` versus `UniqueIndexBPlusTreeSupport:151`) — the unique-index

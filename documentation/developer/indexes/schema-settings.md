@@ -42,7 +42,8 @@ static boolean isIndexedReferenceFor(
 |------------------------------------------------------|--------|----------------------|----------------------------------|
 | FacetIndex entries in GlobalEntityIndex              | --     | yes (if `isFaceted`) | yes (if `isFaceted`)             |
 | ReferencedTypeEntityIndex (`REFERENCED_ENTITY_TYPE`) | --     | yes                  | yes                              |
-| ReducedEntityIndex (`REFERENCED_ENTITY`)             | --     | yes                  | yes                              |
+| ReducedEntityIndex (`REFERENCED_ENTITY`)             | --     | yes (partitions with two or more owners) | yes (every partition)  |
+| Registry row of a single-owner partition             | --     | yes (partitions with one owner) | --                    |
 | ReducedGroupEntityIndex (`REFERENCED_GROUP_ENTITY`)  | --     | yes (if group component enabled) | yes (if group component enabled) |
 | Reference attributes in ReferencedTypeEntityIndex    | --     | yes                  | yes                              |
 | Reference attributes in ReducedEntityIndex           | --     | yes                  | yes                              |
@@ -53,6 +54,13 @@ static boolean isIndexedReferenceFor(
 | **Prices** in ReducedGroupEntityIndex                | --     | --                   | **yes**                          |
 | Locales in ReducedEntityIndex                        | --     | yes                  | yes                              |
 | Sortable attribute compounds in ReducedEntityIndex   | --     | --                   | **yes**                          |
+
+At `FOR_FILTERING` (with the `REFERENCED_ENTITY` component) a partition with a single owner has no
+`ReducedEntityIndex`: it is a row of the registry of single-owner partitions carried by the
+`ReferencedTypeEntityIndex`, holding its owner, its referenced entity, its representative attribute
+values and its sort values and chain predecessors. It becomes a `ReducedEntityIndex` when a second
+owner joins it and a row again when it is left with one owner -- see
+[index-hierarchy.md](index-hierarchy.md#reference-partitions-and-the-registry-of-single-owner-partitions).
 
 **Terminology note:** "<Term location="/documentation/developer/indexes/overview.md" name="reference attribute">
 Reference attributes</Term>" are attributes defined on the reference schema itself
@@ -85,7 +93,8 @@ combine `referenceHaving` with entity-level filter constraints.
 - **`FOR_FILTERING`**: The recommended default. Creates the minimum index structures required for
   `ReferenceHaving` / `EntityHaving` / `GroupHaving` filtering and `ReferenceProperty` sorting.
   Reference attributes are indexed but entity-level data (attributes, prices) is not duplicated
-  into ReducedEntityIndexes.
+  into ReducedEntityIndexes, and a partition with a single owner costs a registry row rather than a
+  ReducedEntityIndex.
 
 - **`FOR_FILTERING_AND_PARTITIONING`**: Used when reference filtering is combined with entity-level
   predicates in performance-critical queries. The entity's attributes and prices are duplicated into
@@ -100,6 +109,8 @@ combine `referenceHaving` with entity-level filter constraints.
   reference name must return `null`.
 - **Invariant**: When `FOR_FILTERING`, a `ReducedEntityIndex` must contain reference attribute
   values but must *not* contain entity-level attribute values or price entries.
+- **Invariant**: When `FOR_FILTERING` with the `REFERENCED_ENTITY` component, a partition with a
+  single owner must have a row in the registry of single-owner partitions and no `ReducedEntityIndex`.
 - **Invariant**: When `FOR_FILTERING_AND_PARTITIONING`, the `ReducedEntityIndex` must mirror all
   entity-level filterable/sortable attributes and all indexed prices from the `GlobalEntityIndex`
   for the same entity primary key.
@@ -154,7 +165,9 @@ The two enums compose as follows:
 ```
 ReferenceIndexType = NONE  -->  no indexes regardless of components
 ReferenceIndexType = FOR_FILTERING + components = {REFERENCED_ENTITY}
-    --> REFERENCED_ENTITY_TYPE index + REFERENCED_ENTITY indexes (ref attrs only)
+    --> REFERENCED_ENTITY_TYPE index + REFERENCED_ENTITY indexes (ref attrs only) for the partitions
+        with two or more owners; a registry row in the REFERENCED_ENTITY_TYPE index for each
+        partition with one owner
 ReferenceIndexType = FOR_FILTERING + components = {REFERENCED_ENTITY, REFERENCED_GROUP_ENTITY}
     --> all of the above PLUS REFERENCED_GROUP_ENTITY_TYPE + REFERENCED_GROUP_ENTITY indexes
 ReferenceIndexType = FOR_FILTERING_AND_PARTITIONING + components = {REFERENCED_ENTITY}
@@ -477,11 +490,14 @@ the `GlobalEntityIndex` and `ReducedEntityIndex`:
 | `isPriceIndexedInScope`     | PriceSuperIndex | --                     | PriceListAndCurrencyIdx |
 | `isFacetedInScope`          | FacetIndex      | --                     | FacetIndex              |
 | Ref attr `isFilterable`     | --              | FilterIndex (type idx) | FilterIndex (type idx)  |
-| Ref attr `isSortable`       | --              | SortIndex (type idx)   | SortIndex (type idx)    |
+| Ref attr `isSortable`       | --              | SortIndex              | SortIndex               |
 
 Legend: **Global** = GlobalEntityIndex, **Reduced (FILTER)** = ReducedEntityIndex
 with `FOR_FILTERING`, **Reduced (PARTITION)** = ReducedEntityIndex with
-`FOR_FILTERING_AND_PARTITIONING`.
+`FOR_FILTERING_AND_PARTITIONING`. A partition with a single owner of a reference indexed
+`FOR_FILTERING` has no ReducedEntityIndex: its sortable reference attributes are kept as sort values
+of its row in the registry of single-owner partitions, and its filterable ones are answered by the
+FilterIndex of the type index.
 
 ### Test Blueprint Hints
 
@@ -817,7 +833,7 @@ stateDiagram-v2
 
 - [Index Architecture Overview](overview.md#overview) -- start here for the three-axis model
 - [Index Hierarchy](index-hierarchy.md#global) -- GlobalEntityIndex,
-  ReducedEntityIndex, ReferencedTypeEntityIndex details
+  ReducedEntityIndex, ReferencedTypeEntityIndex details, and the registry of single-owner partitions
 - [Data Structures](data-structures.md#attributeindex) -- AttributeIndex, HierarchyIndex,
   FacetIndex, PriceIndex internals
 - [Mutation Flow](mutation-flow.md#orchestration) -- how mutations propagate through the index tree

@@ -28,6 +28,8 @@ import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
+import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
@@ -38,10 +40,14 @@ import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
+import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.VirtualReferencePartitionIndex;
+import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.EvitaTestSupport.TestPaths;
-import io.evitadb.utils.ArrayUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -51,6 +57,8 @@ import org.junit.jupiter.api.Test;
 import javax.annotation.Nonnull;
 import org.junit.jupiter.api.Tag;
 
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
@@ -103,6 +111,31 @@ class GroupEntityIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 					.build()
 			)
 			.build();
+	}
+
+	/**
+	 * Asserts that the partition of a category exists in the scope - as an index object, or, being a single-owner
+	 * partition of a reference indexed for filtering, as a row of the registry of single-owner partitions - and that
+	 * the product is its only owner.
+	 *
+	 * @param productCollection the product collection
+	 * @param scope             the scope of the partition
+	 * @param categoryPk        the primary key of the referenced category
+	 * @param productPk         the primary key of the product that must be its only owner
+	 * @param message           the failure message
+	 */
+	private static void assertCategoryPartitionOwnedBy(
+		@Nonnull EntityCollectionContract productCollection,
+		@Nonnull Scope scope,
+		int categoryPk,
+		int productPk,
+		@Nonnull String message
+	) {
+		final ReferencePartition partition = IndexingTestSupport.getReferencedEntityPartition(
+			productCollection, scope, Entities.CATEGORY, categoryPk
+		);
+		assertNotNull(partition, message);
+		assertArrayEquals(new int[]{productPk}, partition.getAllPrimaryKeys().getArray(), message + ": its owners");
 	}
 
 	@Nested
@@ -172,12 +205,10 @@ class GroupEntityIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 						"REFERENCED_GROUP_ENTITY_TYPE index should exist for CATEGORY reference"
 					);
 
-					// regular entity indexes should also exist (both components enabled)
-					assertNotNull(
-						IndexingTestSupport.getReferencedEntityIndex(
-							productCollection, Entities.CATEGORY, 1
-						),
-						"REFERENCED_ENTITY index should also exist when both components are enabled"
+					// the partition of the referenced entity should also exist (both components enabled)
+					assertCategoryPartitionOwnedBy(
+						productCollection, Scope.LIVE, 1, 1,
+						"The partition of CATEGORY 1 should also exist when both components are enabled"
 					);
 					assertNotNull(
 						IndexingTestSupport.getReferencedEntityTypeIndex(
@@ -237,12 +268,10 @@ class GroupEntityIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 						"REFERENCED_GROUP_ENTITY_TYPE index should NOT exist with default indexing"
 					);
 
-					// regular entity index should exist
-					assertNotNull(
-						IndexingTestSupport.getReferencedEntityIndex(
-							productCollection, Entities.CATEGORY, 1
-						),
-						"REFERENCED_ENTITY index should exist for indexed reference"
+					// the partition of the referenced entity should exist
+					assertCategoryPartitionOwnedBy(
+						productCollection, Scope.LIVE, 1, 1,
+						"The partition of CATEGORY 1 should exist for indexed reference"
 					);
 				}
 			);
@@ -375,12 +404,9 @@ class GroupEntityIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 						"Group entity index must NOT be keyed by referenced entity PK 10"
 					);
 
-					// verify entity index is also keyed by referenced entity PK (CATEGORY 10)
-					assertNotNull(
-						IndexingTestSupport.getReferencedEntityIndex(
-							productCollection, Entities.CATEGORY, 10
-						),
-						"Referenced entity index should exist for CATEGORY PK 10"
+					// verify the partition is keyed by referenced entity PK (CATEGORY 10)
+					assertCategoryPartitionOwnedBy(
+						productCollection, Scope.LIVE, 10, 5, "The partition should exist for CATEGORY PK 10"
 					);
 				}
 			);
@@ -568,31 +594,183 @@ class GroupEntityIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 						"Sort index must NOT exist in group entity index (no-op)"
 					);
 
-					// also verify via the entity-level index for comparison
-					final EntityIndex entityIndex = IndexingTestSupport
-						.getReferencedEntityIndex(
-							productCollection, Entities.CATEGORY, 1
-						);
-					assertNotNull(entityIndex, "Entity index should also exist");
-					assertTrue(
-						entityIndex.getAllPrimaryKeys().contains(1),
-						"Entity index should contain the product PK"
+					// also verify via the partition of the category for comparison - a registry row of its only owner
+					assertCategoryPartitionOwnedBy(
+						productCollection, Scope.LIVE, 1, 1, "The partition of CATEGORY 1 should also exist"
 					);
 
-					// entity-level index SHOULD have sort index (contrast with group index)
-					assertNotNull(
-						entityIndex.getSortIndex(categoryRef, priorityAttr, null),
-						"Sort index must exist in regular entity index"
+					// the partition SHOULD sort by the attribute (contrast with group index)
+					final Map<AttributeIndexKey, int[]> sortedRecords = IndexingTestSupport.getSortedRecordsOfPartition(
+						productCollection, Scope.LIVE,
+						new RepresentativeReferenceKey(new ReferenceKey(Entities.CATEGORY, 1))
 					);
-					assertTrue(
-						ArrayUtils.contains(
-							entityIndex.getSortIndex(categoryRef, priorityAttr, null)
-								.getSortedRecords(),
-							1
-						),
-						"Sort index in entity index must contain the product PK"
+					assertNotNull(sortedRecords);
+					assertArrayEquals(
+						new int[]{1},
+						sortedRecords.get(new AttributeIndexKey(Entities.CATEGORY, ATTRIBUTE_CATEGORY_PRIORITY, null)),
+						"The partition must sort the product PK by the reference attribute"
 					);
 				}
+			);
+		}
+
+		@Test
+		@DisplayName("Should key an updated reference attribute in the group index by the referenced primary key")
+		void shouldKeyReferenceAttributeUpdateInGroupIndexByReferencedPrimaryKey() {
+			// distinct primary keys, so the keying by the referenced entity cannot pass for the keying by the owner
+			final int productPk = 10;
+			// a second owner of the category, so its partition is an index object with filter indexes of its own
+			final int otherProductPk = 11;
+			final int categoryPk = 3;
+			// a category the product references alone, so its partition is a registry row
+			final int rowCategoryPk = 4;
+			final int brandPk = 1;
+			GroupEntityIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.defineEntitySchema(Entities.BRAND).updateVia(session);
+					session.defineEntitySchema(Entities.CATEGORY).updateVia(session);
+
+					session.defineEntitySchema(Entities.PRODUCT)
+						.withReferenceToEntity(
+							Entities.CATEGORY, Entities.CATEGORY, Cardinality.ZERO_OR_MORE,
+							whichIs -> whichIs
+								.indexedWithComponents(
+									ReferenceIndexedComponents.REFERENCED_ENTITY,
+									ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+								)
+								.withGroupTypeRelatedToEntity(Entities.BRAND)
+								.withAttribute(
+									ATTRIBUTE_CATEGORY_PRIORITY, Long.class,
+									thatIs -> thatIs.filterable().sortable()
+								)
+						)
+						.updateVia(session);
+
+					session.upsertEntity(session.createNewEntity(Entities.BRAND, brandPk));
+					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, categoryPk));
+					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, rowCategoryPk));
+
+					session.createNewEntity(Entities.PRODUCT, productPk)
+						.setReference(
+							Entities.CATEGORY, categoryPk,
+							whichIs -> {
+								whichIs.setGroup(Entities.BRAND, brandPk);
+								whichIs.setAttribute(ATTRIBUTE_CATEGORY_PRIORITY, 42L);
+							}
+						)
+						.setReference(
+							Entities.CATEGORY, rowCategoryPk,
+							whichIs -> {
+								whichIs.setGroup(Entities.BRAND, brandPk);
+								whichIs.setAttribute(ATTRIBUTE_CATEGORY_PRIORITY, 50L);
+							}
+						)
+						.upsertVia(session);
+					session.createNewEntity(Entities.PRODUCT, otherProductPk)
+						.setReference(
+							Entities.CATEGORY, categoryPk,
+							whichIs -> {
+								whichIs.setGroup(Entities.BRAND, brandPk);
+								whichIs.setAttribute(ATTRIBUTE_CATEGORY_PRIORITY, 7L);
+							}
+						)
+						.upsertVia(session);
+				}
+			);
+			GroupEntityIndexingTest.this.evita.updateCatalog(
+				TEST_CATALOG,
+				session -> {
+					session.getEntity(Entities.PRODUCT, productPk, entityFetchAllContent())
+						.orElseThrow()
+						.openForWrite()
+						.updateReference(
+							Entities.CATEGORY, categoryPk,
+							whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_PRIORITY, 43L)
+						)
+						.updateReference(
+							Entities.CATEGORY, rowCategoryPk,
+							whichIs -> whichIs.setAttribute(ATTRIBUTE_CATEGORY_PRIORITY, 51L)
+						)
+						.upsertVia(session);
+				}
+			);
+
+			final EntityCollectionContract productCollection = GroupEntityIndexingTest.this.evita
+				.getCatalogInstance(TEST_CATALOG).orElseThrow()
+				.getCollectionForEntity(Entities.PRODUCT).orElseThrow();
+			final ReferenceSchemaContract categoryRef = productCollection.getSchema()
+				.getReferenceOrThrowException(Entities.CATEGORY);
+			final AttributeSchemaContract priorityAttr = categoryRef
+				.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY).orElseThrow();
+
+			// the group index holds the referenced entity under the new value, and nothing under the old one
+			final EntityIndex groupEntityIndex = IndexingTestSupport.getReferencedGroupEntityIndex(
+				productCollection, Scope.LIVE, Entities.CATEGORY, brandPk
+			);
+			assertNotNull(groupEntityIndex, "Group entity index should exist");
+			final FilterIndex groupFilterIndex = groupEntityIndex.getFilterIndex(categoryRef, priorityAttr, null);
+			assertNotNull(groupFilterIndex, "Filter index for categoryPriority must exist in group entity index");
+			assertArrayEquals(
+				new int[]{categoryPk}, groupFilterIndex.getRecordsEqualTo(43L).getArray(),
+				"The group index must hold the referenced category under the updated value"
+			);
+			assertTrue(
+				groupFilterIndex.getRecordsEqualTo(42L).isEmpty(),
+				"The group index must hold nothing under the former value"
+			);
+			assertArrayEquals(
+				new int[]{rowCategoryPk}, groupFilterIndex.getRecordsEqualTo(51L).getArray(),
+				"The group index must hold the category whose partition is a row under the updated value"
+			);
+			assertTrue(
+				groupFilterIndex.getRecordsEqualTo(50L).isEmpty(),
+				"The group index must hold nothing under the former value of the row"
+			);
+			assertFalse(
+				groupFilterIndex.getAllRecords().contains(productPk) ||
+					groupFilterIndex.getAllRecords().contains(otherProductPk),
+				"The group index must never hold an owning product"
+			);
+
+			// the shared partition of the category keys the same attribute by the owning products instead
+			final EntityIndex partition = IndexingTestSupport.getReferencedEntityIndex(
+				productCollection, Entities.CATEGORY, categoryPk
+			);
+			assertNotNull(partition, "The shared partition of the category should be an index object");
+			assertArrayEquals(
+				new int[]{productPk},
+				partition.getFilterIndex(categoryRef, priorityAttr, null).getRecordsEqualTo(43L).getArray(),
+				"The partition must hold the owning product under the updated value"
+			);
+			assertArrayEquals(
+				new int[]{otherProductPk},
+				partition.getFilterIndex(categoryRef, priorityAttr, null).getRecordsEqualTo(7L).getArray(),
+				"The partition must hold the other owning product under its own value"
+			);
+
+			// the single-owner partition is a registry row naming the owning product with the updated value
+			assertNull(
+				IndexingTestSupport.getReferencedEntityIndex(productCollection, Entities.CATEGORY, rowCategoryPk),
+				"The single-owner partition of the category must have no index object"
+			);
+			assertCategoryPartitionOwnedBy(
+				productCollection, Scope.LIVE, rowCategoryPk, productPk, "The single-owner partition should exist"
+			);
+			final ReferencePartition row = Objects.requireNonNull(
+				IndexingTestSupport.getReferencedEntityPartition(
+					productCollection, Scope.LIVE, Entities.CATEGORY, rowCategoryPk
+				)
+			);
+			final VirtualReferencePartitionIndex registry = ((ReferencedTypeEntityIndex) Objects.requireNonNull(
+				IndexingTestSupport.getReferencedEntityTypeIndex(productCollection, Scope.LIVE, Entities.CATEGORY)
+			)).getVirtualReferencePartitionIndex();
+			final AttributeIndexKey priorityKey =
+				new AttributeIndexKey(Entities.CATEGORY, ATTRIBUTE_CATEGORY_PRIORITY, null);
+			assertEquals(
+				51L,
+				registry.getNormalizedSortValue(priorityKey, registry.getSortValueId(priorityKey, row.getPrimaryKey())),
+				"The row must hold the updated value"
 			);
 		}
 
@@ -691,13 +869,32 @@ class GroupEntityIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 
 					session.upsertEntity(session.createNewEntity(Entities.BRAND, 1));
 					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 1));
+					session.upsertEntity(session.createNewEntity(Entities.CATEGORY, 2));
 
+					// both products share category 1, whose partition is therefore an index object; product 1 alone
+					// references category 2, whose partition is therefore a registry row
 					session.createNewEntity(Entities.PRODUCT, 1)
 						.setReference(
 							Entities.CATEGORY, 1,
 							whichIs -> {
 								whichIs.setGroup(Entities.BRAND, 1);
 								whichIs.setAttribute(ATTRIBUTE_CATEGORY_PRIORITY, 42L);
+							}
+						)
+						.setReference(
+							Entities.CATEGORY, 2,
+							whichIs -> {
+								whichIs.setGroup(Entities.BRAND, 1);
+								whichIs.setAttribute(ATTRIBUTE_CATEGORY_PRIORITY, 44L);
+							}
+						)
+						.upsertVia(session);
+					session.createNewEntity(Entities.PRODUCT, 2)
+						.setReference(
+							Entities.CATEGORY, 1,
+							whichIs -> {
+								whichIs.setGroup(Entities.BRAND, 1);
+								whichIs.setAttribute(ATTRIBUTE_CATEGORY_PRIORITY, 43L);
 							}
 						)
 						.upsertVia(session);
@@ -713,15 +910,37 @@ class GroupEntityIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 					final AttributeSchemaContract priorityAttr =
 						categoryRef.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY).orElseThrow();
 
-					// entity index should have unique index
+					// the index object of the shared partition should have unique index
 					final EntityIndex entityIndex = IndexingTestSupport
 						.getReferencedEntityIndex(
 							productCollection, Entities.CATEGORY, 1
 						);
-					assertNotNull(entityIndex, "Entity index should exist");
+					assertNotNull(entityIndex, "The shared partition should be an index object");
 					assertNotNull(
 						entityIndex.getUniqueIndex(categoryRef, priorityAttr, null),
 						"Unique index must exist in regular entity index"
+					);
+					assertEquals(
+						2, entityIndex.getUniqueIndex(categoryRef, priorityAttr, null).size(),
+						"Unique index must hold the value of each owner"
+					);
+
+					// the single-owner partition is a registry row, which keeps no unique index - nor anything of the
+					// attribute, which is not sortable
+					assertNull(
+						IndexingTestSupport.getReferencedEntityIndex(productCollection, Entities.CATEGORY, 2),
+						"The single-owner partition must have no index object"
+					);
+					assertCategoryPartitionOwnedBy(
+						productCollection, Scope.LIVE, 2, 1, "The single-owner partition should exist"
+					);
+					assertEquals(
+						Map.of(),
+						IndexingTestSupport.getSortedRecordsOfPartition(
+							productCollection, Scope.LIVE,
+							new RepresentativeReferenceKey(new ReferenceKey(Entities.CATEGORY, 2))
+						),
+						"The row must hold nothing of the unique attribute"
 					);
 
 					// group entity index should NOT have unique index (no-op)
@@ -1046,12 +1265,9 @@ class GroupEntityIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 					final EntityCollectionContract productCollection =
 						catalog.getCollectionForEntity(Entities.PRODUCT).orElseThrow();
 
-					// both entity and group indexes should exist
-					assertNotNull(
-						IndexingTestSupport.getReferencedEntityIndex(
-							productCollection, Entities.CATEGORY, 1
-						),
-						"REFERENCED_ENTITY index should exist"
+					// both the partition and the group indexes should exist
+					assertCategoryPartitionOwnedBy(
+						productCollection, Scope.LIVE, 1, 1, "The partition of CATEGORY 1 should exist"
 					);
 					assertNotNull(
 						IndexingTestSupport.getReferencedEntityTypeIndex(
@@ -1134,12 +1350,12 @@ class GroupEntityIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 							"REFERENCED_GROUP_ENTITY_TYPE index should exist"
 						);
 
-						// entity (reduced) indexes should NOT exist
+						// the partition should NOT exist - neither as an index object nor as a registry row
 						assertNull(
-							IndexingTestSupport.getReferencedEntityIndex(
-								productCollection, Entities.CATEGORY, 1
+							IndexingTestSupport.getReferencedEntityPartition(
+								productCollection, Scope.LIVE, Entities.CATEGORY, 1
 							),
-							"REFERENCED_ENTITY index should NOT exist when only group component is enabled"
+							"The partition of CATEGORY 1 should NOT exist when only group component is enabled"
 						);
 						assertNull(
 							IndexingTestSupport.getReferencedEntityTypeIndex(
@@ -1237,12 +1453,9 @@ class GroupEntityIndexingTest implements EvitaTestSupport, IndexingTestSupport {
 					final EntityCollectionContract productCollection =
 						catalog.getCollectionForEntity(Entities.PRODUCT).orElseThrow();
 
-					// LIVE scope: entity indexes should exist, group indexes should NOT
-					assertNotNull(
-						IndexingTestSupport.getReferencedEntityIndex(
-							productCollection, Scope.LIVE, Entities.CATEGORY, 1
-						),
-						"LIVE: REFERENCED_ENTITY index should exist"
+					// LIVE scope: the partition should exist, group indexes should NOT
+					assertCategoryPartitionOwnedBy(
+						productCollection, Scope.LIVE, 1, 1, "LIVE: the partition of CATEGORY 1 should exist"
 					);
 					assertNull(
 						IndexingTestSupport.getReferencedGroupEntityIndex(

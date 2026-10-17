@@ -761,6 +761,17 @@ class CheapScalarStatisticsTest implements EvitaTestSupport {
 			"categories", referenced.discriminator(),
 			"A reference index is discriminated by its reference name; without it siblings are indistinguishable"
 		);
+		// the reference type index is where single-owner partitions held as registry rows are counted. This reference
+		// has been indexed for partitioning as well since it was declared, so it created every partition as an index
+		// and holds none - `0` rather than absent, while the global index holds no registry at all and reports no count
+		assertEquals(
+			0, referenced.virtualPartitionCountIfKnown().orElseThrow(),
+			"A reference indexed for partitioning from its start creates every partition as an index, none as a row"
+		);
+		assertTrue(
+			global.virtualPartitionCountIfKnown().isEmpty(),
+			"The global index holds no registry of reference partitions, but it reported a count: " + global
+		);
 	}
 
 	@Test

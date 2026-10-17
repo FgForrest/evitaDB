@@ -383,6 +383,126 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 	}
 
 	@Nested
+	@DisplayName("Resolution among many references")
+	class ResolutionAmongManyReferences {
+		/**
+		 * How many references of distinct targets the entity holds.
+		 */
+		private static final int N = 300;
+
+		@Test
+		@DisplayName("should find any reference of a key among all references")
+		void shouldFindAnyReferenceWhenEntityHoldsManyReferences() {
+			final ReferenceSchema referenceSchema = referenceSchema(
+				Cardinality.ZERO_OR_MORE, Map.of(ATTRIBUTE_CODE, attribute(ATTRIBUTE_CODE, false, false))
+			);
+			final Reference[] references = new Reference[N];
+			for (int i = 0; i < N; i++) {
+				references[i] = reference(
+					referenceSchema, i + 1, i + 1, false,
+					attributeValues(new AttributeValue(new AttributeKey(ATTRIBUTE_CODE), "code " + (i + 1)))
+				);
+			}
+			final StubContainerAccessor accessor = new StubContainerAccessor(storagePart(references));
+
+			for (final int target : new int[]{1, 2, N / 2, N - 1, N}) {
+				final ExistingAttributeValueSupplier supplier = supplier(
+					accessor, referenceSchema, key(target), key(target)
+				);
+				assertEquals(
+					"code " + target,
+					supplier.getAttributeValue(new AttributeKey(ATTRIBUTE_CODE)).orElseThrow().value()
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("should report a missing key that sits between two present ones")
+		void shouldReportMissingKeyWhenNoReferenceTargetsIt() {
+			final ReferenceSchema referenceSchema = referenceSchema(
+				Cardinality.ZERO_OR_MORE, Map.of(ATTRIBUTE_CODE, attribute(ATTRIBUTE_CODE, false, false))
+			);
+			final Reference[] references = new Reference[N];
+			for (int i = 0; i < N; i++) {
+				// every other target only, so that a missing one sits between two present ones
+				references[i] = reference(
+					referenceSchema, 2 * (i + 1), i + 1, false,
+					attributeValues(new AttributeValue(new AttributeKey(ATTRIBUTE_CODE), "code"))
+				);
+			}
+			final StubContainerAccessor accessor = new StubContainerAccessor(storagePart(references));
+			final ExistingAttributeValueSupplier supplier = supplier(accessor, referenceSchema, key(N + 1), key(N + 1));
+			assertTrue(supplier.getAttributeValue(new AttributeKey(ATTRIBUTE_CODE)).isEmpty());
+		}
+
+		@Test
+		@DisplayName("should match the duplicates of one key by their representative values only")
+		void shouldMatchOnlyTheDuplicatesOfTheKeyWhenTheyHideAmongManyReferences() {
+			final ReferenceSchema referenceSchema = duplicateSchema();
+			final int duplicates = 5;
+			final int target = N / 2;
+			final Reference[] references = new Reference[N + duplicates - 1];
+			int index = 0;
+			int internalPrimaryKey = 1;
+			for (int pk = 1; pk <= N; pk++) {
+				if (pk == target) {
+					for (int d = 0; d < duplicates; d++) {
+						references[index++] = reference(
+							referenceSchema, pk, internalPrimaryKey++, false,
+							attributeValues(new AttributeValue(new AttributeKey(ATTRIBUTE_VARIANT), "variant " + d))
+						);
+					}
+				} else {
+					references[index++] = reference(
+						referenceSchema, pk, internalPrimaryKey++, false,
+						attributeValues(new AttributeValue(new AttributeKey(ATTRIBUTE_VARIANT), "other"))
+					);
+				}
+			}
+			final StubContainerAccessor accessor = new StubContainerAccessor(storagePart(references));
+			// the last of the duplicates - every other one of the key is walked over first
+			final ExistingAttributeValueSupplier supplier = supplier(
+				accessor, referenceSchema, key(target, "variant " + (duplicates - 1)),
+				key(target, "variant " + (duplicates - 1))
+			);
+			assertEquals(
+				"variant " + (duplicates - 1),
+				supplier.getAttributeValue(new AttributeKey(ATTRIBUTE_VARIANT)).orElseThrow().value()
+			);
+		}
+
+		@Test
+		@DisplayName("should resolve the reference first in the array when the stored and current keys differ")
+		void shouldResolveTheFirstReferenceInTheArrayWhenStoredAndCurrentKeysTargetDifferentReferences() {
+			final ReferenceSchema referenceSchema = referenceSchema(
+				Cardinality.ZERO_OR_MORE, Map.of(ATTRIBUTE_CODE, attribute(ATTRIBUTE_CODE, false, false))
+			);
+			final Reference earlier = reference(
+				referenceSchema, 10, 1, false,
+				attributeValues(new AttributeValue(new AttributeKey(ATTRIBUTE_CODE), "earlier"))
+			);
+			final Reference later = reference(
+				referenceSchema, 20, 2, false,
+				attributeValues(new AttributeValue(new AttributeKey(ATTRIBUTE_CODE), "later"))
+			);
+			final StubContainerAccessor accessor = new StubContainerAccessor(storagePart(earlier, later));
+
+			assertEquals(
+				"earlier",
+				supplier(accessor, referenceSchema, key(10), key(20))
+					.getAttributeValue(new AttributeKey(ATTRIBUTE_CODE)).orElseThrow().value(),
+				"the stored key's reference comes first in the array"
+			);
+			assertEquals(
+				"earlier",
+				supplier(accessor, referenceSchema, key(20), key(10))
+					.getAttributeValue(new AttributeKey(ATTRIBUTE_CODE)).orElseThrow().value(),
+				"the current key's reference comes first in the array"
+			);
+		}
+	}
+
+	@Nested
 	@DisplayName("Entity attribute locales")
 	class EntityAttributeLocales {
 
@@ -498,10 +618,11 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 	}
 
 	/**
-	 * Wraps the given references into a {@link ReferencesStoragePart} for {@link #ENTITY_PK}. The supplier reads
-	 * references from this container verbatim (no sorting or validation is performed).
+	 * Wraps the given references into a {@link ReferencesStoragePart} for {@link #ENTITY_PK}. The references must be
+	 * passed sorted by their name, referenced primary key and internal primary key - the order the storage part keeps
+	 * them in and the supplier searches them by.
 	 *
-	 * @param references the references to expose, in iteration order
+	 * @param references the references to expose, sorted
 	 * @return the references storage part
 	 */
 	@Nonnull
@@ -642,6 +763,17 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 		@Override
 		public int getLocalesIdentityHash() {
 			return 0;
+		}
+
+		@Nonnull
+		@Override
+		public WritableEntityStorageContainerAccessor getAccessorOfOtherEntity(int entityPrimaryKey) {
+			throw new UnsupportedOperationException("The test accessor serves one entity only.");
+		}
+
+		@Override
+		public boolean isOtherEntityInFlight(int entityPrimaryKey) {
+			throw new UnsupportedOperationException("The test accessor serves one entity only.");
 		}
 
 		@Override

@@ -133,7 +133,15 @@ class TransactionalObjectVersionTest {
 			final TransactionalObjectVersion sequence = new TransactionalObjectVersion(-2L);
 
 			assertEquals(-1L, sequence.nextId());
-			assertThrows(IdentifierOverflowException.class, sequence::nextId);
+			final IdentifierOverflowException exception = assertThrows(
+				IdentifierOverflowException.class, sequence::nextId
+			);
+			// the sequence lives in memory only, so a restart is the whole remedy - and the client has to be told so
+			assertTrue(
+				exception.getPublicMessage().contains("transactional object version sequence") &&
+					exception.getPublicMessage().contains("restart the evitaDB server"),
+				"The public message must name the sequence and the remedy: " + exception.getPublicMessage()
+			);
 		}
 
 		@Test

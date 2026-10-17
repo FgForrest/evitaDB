@@ -48,10 +48,10 @@ import static io.evitadb.test.TestTags.ATTRIBUTE;
 class AttributeComparatorTest {
 	public static final String ATTRIBUTE_NAME = "test";
 	private final AttributeComparator comparator = new AttributeComparator(
-		ATTRIBUTE_NAME, Integer.class, null, OrderDirection.ASC
+		ATTRIBUTE_NAME, Integer.class, 0, null, OrderDirection.ASC
 	);
 	private final AttributeComparator reverseComparator = new AttributeComparator(
-		ATTRIBUTE_NAME, Integer.class, null, OrderDirection.DESC
+		ATTRIBUTE_NAME, Integer.class, 0, null, OrderDirection.DESC
 	);
 
 	@BeforeEach

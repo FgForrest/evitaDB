@@ -23,6 +23,7 @@
 
 package io.evitadb.core.transaction.memory;
 
+import io.evitadb.api.exception.IdentifierOverflowException;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
@@ -219,9 +220,12 @@ public final class WarmUpSavepoint {
 	private WarmUpSavepoint() {
 		Assert.isPremiseValid(
 			this.stamp != 0,
-			() -> new GenericEvitaInternalError(
+			() -> new IdentifierOverflowException(
 				"The warm-up savepoint stamp sequence is exhausted - a wrapped stamp would silently skip first-touch " +
-					"captures, so no further savepoint may be opened in this process."
+					"captures, so no further savepoint may be opened in this process.",
+				"The warm-up savepoint stamp sequence of this evitaDB server is exhausted, so no further entity can " +
+					"be written in warm-up mode. The sequence lives in memory only - restart the evitaDB server to " +
+					"continue."
 			)
 		);
 	}

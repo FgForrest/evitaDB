@@ -24,6 +24,7 @@
 package io.evitadb.api.functional.fetch;
 
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
+import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
@@ -41,8 +42,15 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.util.Collection;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -60,6 +68,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@link io.evitadb.api.query.filter.EntityLocaleEquals} and requests {@code referenceContent} with
  * {@link ManagedReferencesBehaviour#EXISTING}, references pointing to entities that exist but have no
  * data in the requested locale must be omitted entirely, not returned without a body.
+ *
+ * It also pins what a locale named by the filter of a {@code referenceContent} means: a bare
+ * {@link io.evitadb.api.query.filter.EntityLocaleEquals} keeps the references of an owner having data in that locale,
+ * whatever the locales of the referenced entities, and is the locale the localized data of the fetched referenced
+ * entities come in unless {@code dataInLocales} names another, while
+ * {@code entityHaving(entityLocaleEquals(...))} keeps the references to entities having data in that locale, whatever
+ * the locales of the owner.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -161,6 +176,20 @@ class ManagedReferenceLocaleFunctionalTest {
 					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Optics")
 					.upsertVia(session);
 
+				// parameters of the products 2 and 3 - one with English data only, one shared by both products and
+				// one referenced by product 3 alone, both of the latter in Czech and English
+				session.createNewEntity(Entities.PARAMETER, 2)
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Zoom")
+					.upsertVia(session);
+				session.createNewEntity(Entities.PARAMETER, 3)
+					.setAttribute(ATTRIBUTE_NAME, LOCALE_CZECH, "Clona")
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Aperture")
+					.upsertVia(session);
+				session.createNewEntity(Entities.PARAMETER, 4)
+					.setAttribute(ATTRIBUTE_NAME, LOCALE_CZECH, "Ohnisko")
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Focal length")
+					.upsertVia(session);
+
 				// product is localized in Czech, German and English and references the category and brand above
 				session.createNewEntity(Entities.PRODUCT, 1)
 					.setAttribute(ATTRIBUTE_NAME, LOCALE_CZECH, "Foto")
@@ -171,11 +200,22 @@ class ManagedReferenceLocaleFunctionalTest {
 					.setReference(REFERENCE_PARAMETER, 1, whichIs -> whichIs.setGroup(1))
 					.upsertVia(session);
 
-				// second product references the category that carries no localized data at all
+				// second product references the category that carries no localized data at all, the English-only
+				// parameter and the shared one
 				session.createNewEntity(Entities.PRODUCT, 2)
 					.setAttribute(ATTRIBUTE_NAME, LOCALE_CZECH, "Objektiv")
 					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Lens")
 					.setReference(REFERENCE_CATEGORY, 2)
+					.setReference(REFERENCE_PARAMETER, 2)
+					.setReference(REFERENCE_PARAMETER, 3)
+					.upsertVia(session);
+
+				// third product is localized in English only and references the shared parameter and its own one,
+				// both having Czech data
+				session.createNewEntity(Entities.PRODUCT, 3)
+					.setAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, "Tripod")
+					.setReference(REFERENCE_PARAMETER, 3)
+					.setReference(REFERENCE_PARAMETER, 4)
 					.upsertVia(session);
 			}
 		);
@@ -590,6 +630,206 @@ class ManagedReferenceLocaleFunctionalTest {
 				);
 
 				return null;
+			}
+		);
+	}
+
+	/**
+	 * A bare `entityLocaleEquals` in the filter of a `referenceContent` is evaluated against the locales of the owner:
+	 * an owner without data in that locale keeps none of its references, although both entities they point to have
+	 * data in it, while an owner having data in that locale keeps even a reference to an entity that has none.
+	 *
+	 * @param evita the evitaDB instance with the data set
+	 */
+	@DisplayName("Should evaluate a bare locale of the reference filter against the locales of the owner")
+	@UseDataSet(DATA_SET)
+	@Test
+	void shouldEvaluateReferenceFilterLocaleAgainstOwnerLocales(Evita evita) {
+		// product 3 has English data only, both parameters it references have Czech data as well
+		assertEquals(
+			List.of(),
+			getReferencedParameters(
+				evita, 3, null, referenceContent(REFERENCE_PARAMETER, filterBy(entityLocaleEquals(LOCALE_CZECH)))
+			),
+			"An owner without Czech data must keep no reference through a reference filter by the Czech locale."
+		);
+		assertEquals(
+			List.of(3, 4),
+			getReferencedParameters(
+				evita, 3, null, referenceContent(REFERENCE_PARAMETER, filterBy(entityLocaleEquals(Locale.ENGLISH)))
+			),
+			"An owner with English data must keep its references through a reference filter by the English locale."
+		);
+		// product 2 has Czech data, parameter 2 has English data only
+		assertEquals(
+			List.of(2, 3),
+			getReferencedParameters(
+				evita, 2, null, referenceContent(REFERENCE_PARAMETER, filterBy(entityLocaleEquals(LOCALE_CZECH)))
+			),
+			"An owner with Czech data must keep even its reference to a parameter without Czech data."
+		);
+	}
+
+	/**
+	 * The locale of a bare `entityLocaleEquals` in the filter of a `referenceContent` is also the locale the localized
+	 * data of the referenced entities fetched by it come in - even when the query itself filters by another locale -
+	 * unless `dataInLocales` of the nested `entityFetch` names another one.
+	 *
+	 * @param evita the evitaDB instance with the data set
+	 */
+	@DisplayName("Should fetch the localized data of the referenced entities in the locale of the reference filter")
+	@UseDataSet(DATA_SET)
+	@Test
+	void shouldFetchReferencedEntitiesInReferenceFilterLocale(Evita evita) {
+		// with no locale named anywhere the body carries none of its localized data
+		assertEquals(
+			Map.of(),
+			getNamesOfSharedParameter(
+				evita, null, referenceContent(REFERENCE_PARAMETER, entityFetch(attributeContentAll()))
+			),
+			"A parameter fetched with no locale named anywhere must come without its localized name."
+		);
+		assertEquals(
+			Map.of(LOCALE_CZECH, "Clona"),
+			getNamesOfSharedParameter(
+				evita, null,
+				referenceContent(
+					REFERENCE_PARAMETER,
+					filterBy(entityLocaleEquals(LOCALE_CZECH)),
+					entityFetch(attributeContentAll())
+				)
+			),
+			"A parameter fetched through a reference filter by the Czech locale must come with its Czech name only."
+		);
+		assertEquals(
+			Map.of(LOCALE_CZECH, "Clona"),
+			getNamesOfSharedParameter(
+				evita, Locale.ENGLISH,
+				referenceContent(
+					REFERENCE_PARAMETER,
+					filterBy(entityLocaleEquals(LOCALE_CZECH)),
+					entityFetch(attributeContentAll())
+				)
+			),
+			"The locale of the reference filter must win over the English locale of the query."
+		);
+		assertEquals(
+			Map.of(Locale.ENGLISH, "Aperture"),
+			getNamesOfSharedParameter(
+				evita, null,
+				referenceContent(
+					REFERENCE_PARAMETER,
+					filterBy(entityLocaleEquals(LOCALE_CZECH)),
+					entityFetch(attributeContentAll(), dataInLocales(Locale.ENGLISH))
+				)
+			),
+			"`dataInLocales` of the nested fetch must win over the locale of the reference filter."
+		);
+	}
+
+	/**
+	 * `entityHaving(entityLocaleEquals(...))` in the filter of a `referenceContent` keeps the references to entities
+	 * having data in that locale, whatever the locales of the owner.
+	 *
+	 * @param evita the evitaDB instance with the data set
+	 */
+	@DisplayName("Should filter references by the locale of the referenced entity through entityHaving")
+	@UseDataSet(DATA_SET)
+	@Test
+	void shouldFilterReferencesByReferencedEntityLocaleThroughEntityHaving(Evita evita) {
+		// product 3 has English data only, both parameters it references have Czech data as well
+		assertEquals(
+			List.of(3, 4),
+			getReferencedParameters(
+				evita, 3, null,
+				referenceContent(REFERENCE_PARAMETER, filterBy(entityHaving(entityLocaleEquals(LOCALE_CZECH))))
+			),
+			"An owner without Czech data must keep its references to the parameters having Czech data."
+		);
+		// product 2 has Czech data, parameter 2 has English data only
+		assertEquals(
+			List.of(3),
+			getReferencedParameters(
+				evita, 2, null,
+				referenceContent(REFERENCE_PARAMETER, filterBy(entityHaving(entityLocaleEquals(LOCALE_CZECH))))
+			),
+			"An owner with Czech data must lose its reference to the parameter without Czech data."
+		);
+	}
+
+	/**
+	 * Fetches a product with its parameter references and returns the primary keys of the parameters it keeps.
+	 *
+	 * @param evita            the evitaDB instance with the data set
+	 * @param productPk        the primary key of the product
+	 * @param queryLocale      the locale the query itself filters by, `null` for none
+	 * @param referenceContent the requirement fetching the parameter references
+	 * @return the primary keys of the referenced parameters, ascending
+	 */
+	@Nonnull
+	private static List<Integer> getReferencedParameters(
+		@Nonnull Evita evita,
+		int productPk,
+		@Nullable Locale queryLocale,
+		@Nonnull ReferenceContent referenceContent
+	) {
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity product = session.queryOneSealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(productPk),
+							queryLocale == null ? null : entityLocaleEquals(queryLocale)
+						),
+						require(entityFetch(referenceContent))
+					)
+				).orElseThrow();
+				return product.getReferences(REFERENCE_PARAMETER)
+					.stream()
+					.map(ReferenceContract::getReferencedPrimaryKey)
+					.sorted()
+					.toList();
+			}
+		);
+	}
+
+	/**
+	 * Fetches product 2 with its parameter references and returns the localized names the body of the parameter 3 -
+	 * the one product 2 shares with product 3 - comes with.
+	 *
+	 * @param evita            the evitaDB instance with the data set
+	 * @param queryLocale      the locale the query itself filters by, `null` for none
+	 * @param referenceContent the requirement fetching the parameter references with their bodies
+	 * @return the name of the parameter by locale, empty when the body came with no localized name
+	 */
+	@Nonnull
+	private static Map<Locale, Serializable> getNamesOfSharedParameter(
+		@Nonnull Evita evita,
+		@Nullable Locale queryLocale,
+		@Nonnull ReferenceContent referenceContent
+	) {
+		return evita.queryCatalog(
+			TEST_CATALOG,
+			session -> {
+				final SealedEntity product = session.queryOneSealedEntity(
+					query(
+						collection(Entities.PRODUCT),
+						filterBy(
+							entityPrimaryKeyInSet(2),
+							queryLocale == null ? null : entityLocaleEquals(queryLocale)
+						),
+						require(entityFetch(referenceContent))
+					)
+				).orElseThrow();
+				final SealedEntity parameter = product.getReference(REFERENCE_PARAMETER, 3)
+					.flatMap(ReferenceContract::getReferencedEntity)
+					.orElseThrow(() -> new AssertionError("Product 2 must come with the body of parameter 3."));
+				return parameter.getAttributeValues()
+					.stream()
+					.filter(it -> ATTRIBUTE_NAME.equals(it.key().attributeName()))
+					.collect(Collectors.toMap(it -> it.key().locale(), it -> Objects.requireNonNull(it.value())));
 			}
 		);
 	}

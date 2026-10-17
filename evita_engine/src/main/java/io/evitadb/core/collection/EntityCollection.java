@@ -44,6 +44,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
 import io.evitadb.api.exception.EntityAlreadyRemovedException;
 import io.evitadb.api.exception.EntityMissingException;
+import io.evitadb.api.exception.IdentifierOverflowException;
 import io.evitadb.api.exception.IndexNotFoundException;
 import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
@@ -167,6 +168,7 @@ import io.evitadb.index.mutation.IndexMutationExecutorRegistry;
 import io.evitadb.index.mutation.IndexMutationTarget;
 import io.evitadb.index.mutation.ReevaluateExpressionMutation;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
+import io.evitadb.index.mutation.local.VirtualReferencePartitionWriter;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
 import io.evitadb.index.reference.ReferenceChanges;
 import io.evitadb.index.reference.TransactionalReference;
@@ -676,6 +678,17 @@ public final class EntityCollection implements
 	@Nonnull
 	public StoragePartPersistenceService<StorageDescriptor> getStoragePartPersistenceService() {
 		return this.persistenceService.getStoragePartPersistenceService();
+	}
+
+	/**
+	 * Creates the collector of a new root entity mutation applied to this collection. The collector is then shared by
+	 * every implicit and reflected mutation the root mutation spawns, in this collection or in another one.
+	 *
+	 * @return a fresh collector for one root entity mutation
+	 */
+	@Nonnull
+	LocalMutationExecutorCollector createLocalMutationExecutorCollector() {
+		return new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader);
 	}
 
 	/**
@@ -1528,17 +1541,42 @@ public final class EntityCollection implements
 	 */
 	public void initSchema() {
 		final EntitySchema originalSchema = getInternalSchema();
-		final Collection<ReferenceSchemaContract> referenceSchemas = originalSchema.getReferences().values();
+		final EntitySchema boundSchema = bindReflectedReferences(
+			originalSchema,
+			entityType -> this.catalog.getCollectionForEntity(entityType).map(EntityCollectionContract::getSchema)
+		);
+		// exchange schema if it was updated
+		if (boundSchema != originalSchema) {
+			exchangeSchema(originalSchema, boundSchema);
+		}
+	}
+
+	/**
+	 * Binds every reflected reference of a stored schema to the reference it reflects, so that whatever the reflected
+	 * reference inherits from it - its indexing, its indexed components, its attributes - can be answered. A reflected
+	 * reference whose source entity type or source reference cannot be found is left as it is. This is the binding
+	 * {@link #initSchema()} performs when a catalog loads; the storage protocol migrations use it to classify the
+	 * stored indexes of a collection against the very schema the loaded catalog will have.
+	 *
+	 * @param schema       the schema as stored
+	 * @param schemaLookup finds the schema of another entity type of the catalog by its name
+	 * @return the schema with its reflected references bound, or the very same instance when there is nothing to bind
+	 */
+	@Nonnull
+	public static EntitySchema bindReflectedReferences(
+		@Nonnull EntitySchema schema,
+		@Nonnull Function<String, Optional<? extends EntitySchemaContract>> schemaLookup
+	) {
+		final Collection<ReferenceSchemaContract> referenceSchemas = schema.getReferences().values();
 		final List<ReferenceSchemaContract> updatedReferenceSchemas = new ArrayList<>(referenceSchemas.size());
 		for (ReferenceSchemaContract referenceSchema : referenceSchemas) {
 			if (referenceSchema instanceof ReflectedReferenceSchema reflectedReferenceSchema) {
-				final Optional<EntitySchemaContract> targetEntitySchema;
-				if (originalSchema.getName().equals(reflectedReferenceSchema.getReferencedEntityType())) {
+				final Optional<? extends EntitySchemaContract> targetEntitySchema;
+				if (schema.getName().equals(reflectedReferenceSchema.getReferencedEntityType())) {
 					// self referenced schema
-					targetEntitySchema = of(originalSchema);
+					targetEntitySchema = of(schema);
 				} else {
-					targetEntitySchema = this.catalog.getCollectionForEntity(reflectedReferenceSchema.getReferencedEntityType())
-						.map(EntityCollectionContract::getSchema);
+					targetEntitySchema = schemaLookup.apply(reflectedReferenceSchema.getReferencedEntityType());
 				}
 				// the plain binding, never `withReferencedSchemaAfterSchemaChange`: this runs on catalog load (and on the
 				// goLive / handover rebuilds), where the schema is the stored one and nothing about it has changed - a
@@ -1549,15 +1587,9 @@ public final class EntityCollection implements
 					.ifPresent(originalReference -> updatedReferenceSchemas.add(reflectedReferenceSchema.withReferencedSchema(originalReference)));
 			}
 		}
-		// exchange schema if it was updated
-		if (!updatedReferenceSchemas.isEmpty()) {
-			exchangeSchema(
-				originalSchema,
-				originalSchema.withReplacedReferenceSchema(
-					updatedReferenceSchemas.toArray(ReferenceSchemaContract[]::new)
-				)
-			);
-		}
+		return updatedReferenceSchemas.isEmpty() ?
+			schema :
+			schema.withReplacedReferenceSchema(updatedReferenceSchemas.toArray(ReferenceSchemaContract[]::new));
 	}
 
 	/**
@@ -1941,16 +1973,52 @@ public final class EntityCollection implements
 					if (typedTypeIndex == null) {
 						continue;
 					}
-					typedTypeIndex.forEachReferenceIndexPrimaryKey(
-						reducedIndexPk -> registerReducedIndex(membership, reducedIndexPk)
-					);
+					if (family == EntityIndexType.REFERENCED_ENTITY_TYPE) {
+						// the type index listing the partitions carries their registry - no other one is read
+						typedTypeIndex.forEachReferenceIndexPrimaryKey(
+							partitionPk -> registerPartition(membership, typedTypeIndex, partitionPk)
+						);
+					} else {
+						typedTypeIndex.forEachReferenceIndexPrimaryKey(
+							reducedIndexPk -> registerReducedIndex(membership, reducedIndexPk)
+						);
+					}
 				}
 			}
 		}
 	}
 
 	/**
-	 * Registers one reduced index into the membership lookup.
+	 * Registers one reference partition into the membership lookup - the entity-family counterpart of
+	 * {@link #registerReducedIndex(ReducedIndexMembership, int)}, whose reasoning applies unchanged: a partition
+	 * advertised but not resolvable is recorded as residual, a repeat surfaces as a programming error.
+	 *
+	 * Only the owners of the partition are read, so a partition the registry of the given type index holds a row for
+	 * is registered from its row - covered, with its only owner - as a single-owner partition has no index object. It
+	 * is never recorded as residual for want of one.
+	 *
+	 * @param membership        the lookup being built
+	 * @param registryTypeIndex the referenced-type entity index listing the partition, whose registry is read
+	 * @param partitionPk       primary key of the advertised partition
+	 */
+	private void registerPartition(
+		@Nonnull ReducedIndexMembership membership,
+		@Nonnull ReferencedTypeEntityIndex registryTypeIndex,
+		int partitionPk
+	) {
+		final ReferencePartition partition = ReferencePartitions.resolveForOwnerReadIfExists(
+			this::resolvePartitionIfExists, registryTypeIndex, partitionPk
+		);
+		if (partition == null) {
+			// advertised but not resolvable - see `registerReducedIndex`
+			membership.registerIndexAsResidual(partitionPk);
+			return;
+		}
+		membership.registerIndex(partitionPk, partition.getAllPrimaryKeys());
+	}
+
+	/**
+	 * Registers one reduced index of the group family into the membership lookup.
 	 *
 	 * The traversal cannot in fact advertise a primary key twice. A reduced index is filed in its type index
 	 * under exactly one referenced (or group) primary key — `ReferenceIndexMutator#referenceInsertPerComponent`
@@ -2101,6 +2169,19 @@ public final class EntityCollection implements
 	@Nullable
 	public EntityIndex getIndexByPrimaryKeyIfExists(int entityIndexPrimaryKey) {
 		return this.dataStoreBuffer.getIndexIfExists(entityIndexPrimaryKey, this.indexesByPrimaryKey::get);
+	}
+
+	/**
+	 * Returns the reference partition of this collection registered under the primary key, leniently - see
+	 * {@link ReferencePartitions}. Reads the dirty buffer of the current mutation first and the collection's maps
+	 * second, exactly as {@link #getIndexByPrimaryKeyIfExists(int)} does.
+	 *
+	 * @param partitionPrimaryKey primary key of the partition in this collection
+	 * @return the partition or `null` when the key names nothing or an index that is not a reference partition
+	 */
+	@Nullable
+	public ReferencePartition resolvePartitionIfExists(int partitionPrimaryKey) {
+		return ReferencePartitions.asPartition(getIndexByPrimaryKeyIfExists(partitionPrimaryKey));
 	}
 
 	/**
@@ -2677,7 +2758,7 @@ public final class EntityCollection implements
 				removeMutation.shouldVerifyConsistency(),
 				null,
 				removeMutation.getImplicitMutationsBehavior(),
-				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
+				createLocalMutationExecutorCollector(),
 				Void.class
 			);
 		} else if (entityMutation instanceof EntityRemoveMutation) {
@@ -2688,7 +2769,7 @@ public final class EntityCollection implements
 				true,
 				null,
 				EnumSet.noneOf(ImplicitMutationBehavior.class),
-				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
+				createLocalMutationExecutorCollector(),
 				Void.class
 			);
 		} else {
@@ -2716,7 +2797,7 @@ public final class EntityCollection implements
 			true,
 			returnDeletedEntity,
 			EnumSet.allOf(ImplicitMutationBehavior.class),
-			new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
+			createLocalMutationExecutorCollector(),
 			returnType
 		);
 	}
@@ -2751,7 +2832,7 @@ public final class EntityCollection implements
 			true,
 			returnEntity,
 			EnumSet.allOf(ImplicitMutationBehavior.class),
-			new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
+			createLocalMutationExecutorCollector(),
 			returnType
 		);
 	}
@@ -3460,13 +3541,45 @@ public final class EntityCollection implements
 	}
 
 	/**
-	 * Generates new UNIQUE primary key for the entity. Calling this
+	 * Generates new UNIQUE primary key for the entity. Only keys the engine generates come from here - a key the
+	 * client supplies never touches the sequence.
 	 *
 	 * @return new unique primary key
+	 * @throws IdentifierOverflowException when the sequence has handed out its last key, before it changes
 	 */
 	private int getNextPrimaryKey() {
-		// atomic integer takes care of concurrent access and producing unique monotonic sequence of numbers
-		return this.pkSequence.incrementAndGet();
+		// the draw takes care of concurrent access and refuses to wrap into the negative range
+		final int primaryKey = SequenceService.nextValueOrExhausted(this.pkSequence);
+		if (primaryKey == SequenceService.EXHAUSTED) {
+			throw exhaustedSequence(SequenceType.ENTITY);
+		}
+		return primaryKey;
+	}
+
+	/**
+	 * Generates new UNIQUE primary key for an entity index of this collection.
+	 *
+	 * @return new unique primary key
+	 * @throws IdentifierOverflowException when the sequence has handed out its last key, before it changes
+	 */
+	private int getNextIndexPrimaryKey() {
+		final int indexPrimaryKey = SequenceService.nextValueOrExhausted(this.indexPkSequence);
+		if (indexPrimaryKey == SequenceService.EXHAUSTED) {
+			throw exhaustedSequence(SequenceType.INDEX);
+		}
+		return indexPrimaryKey;
+	}
+
+	/**
+	 * Builds the refusal for an exhausted sequence of this collection. Kept apart from the draws so that the names the
+	 * refusal carries are resolved only when it is built.
+	 *
+	 * @param sequenceType type of the exhausted sequence
+	 * @return the exception to throw
+	 */
+	@Nonnull
+	private IdentifierOverflowException exhaustedSequence(@Nonnull SequenceType sequenceType) {
+		return SequenceService.exhausted(sequenceType, this.catalog.getName(), getEntityType());
 	}
 
 	/**
@@ -3676,7 +3789,7 @@ public final class EntityCollection implements
 				veum.shouldVerifyConsistency(),
 				returnUpdatedEntity,
 				veum.getImplicitMutationsBehavior(),
-				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
+				createLocalMutationExecutorCollector(),
 				returnType
 			);
 		} else {
@@ -3688,7 +3801,7 @@ public final class EntityCollection implements
 				true,
 				returnUpdatedEntity,
 				EnumSet.allOf(ImplicitMutationBehavior.class),
-				new LocalMutationExecutorCollector(this.catalog, this.persistenceService, this.dataStoreReader),
+				createLocalMutationExecutorCollector(),
 				returnType
 			);
 		}
@@ -3778,6 +3891,9 @@ public final class EntityCollection implements
 			theEntityType -> this.catalog.getCollectionForEntityInternal(theEntityType)
 				.map(EntityCollection::getDataStoreReader)
 				.orElse(null),
+			// the collector is shared by the whole root mutation, so this finds the entities its nested mutations
+			// mutate in other collections as well, and keeps the parts read of the entities none of them mutates
+			localMutationExecutorCollector,
 			this::nextInternalPriceId,
 			entityMutation instanceof EntityRemoveMutation
 		);
@@ -3804,7 +3920,9 @@ public final class EntityCollection implements
 			// globally-unique attributes are declared by the catalog schema and maintained in the catalog index, so
 			// their counters belong to the catalog rather than to whichever collection happened to write one
 			this.catalog.getUsageRegistry(),
-			this.catalog.isUsageStatisticsTracked()
+			this.catalog.isUsageStatisticsTracked(),
+			// the collector is shared by the whole root mutation, so its executors share the reservations too
+			localMutationExecutorCollector.getPartitionReservations()
 		);
 
 		return localMutationExecutorCollector.execute(
@@ -3825,9 +3943,15 @@ public final class EntityCollection implements
 	/**
 	 * Returns new, unique {@link PriceInternalIdContainer#getInternalPriceId()} from the sequence.
 	 * See {@link PriceInternalIdContainer} to see the reasons behind it.
+	 *
+	 * @throws IdentifierOverflowException when the sequence has handed out its last id, before it changes
 	 */
 	private int nextInternalPriceId() {
-		return this.pricePkSequence.incrementAndGet();
+		final int internalPriceId = SequenceService.nextValueOrExhausted(this.pricePkSequence);
+		if (internalPriceId == SequenceService.EXHAUSTED) {
+			throw exhaustedSequence(SequenceType.PRICE);
+		}
+		return internalPriceId;
 	}
 
 	/**
@@ -4385,6 +4509,11 @@ public final class EntityCollection implements
 
 		/**
 		 * Returns entity index by its key. If such index doesn't exist, it is automatically created.
+		 *
+		 * @param entityIndexKey the key of the index to look up or create
+		 * @return the index the key names, existing or newly created
+		 * @throws IdentifierOverflowException when the index did not exist and the collection's index sequence has
+		 *                                     handed out its last primary key
 		 */
 		@Nonnull
 		@Override
@@ -4402,7 +4531,7 @@ public final class EntityCollection implements
 							// if index doesn't exist even there create new one
 							if (eikAgain.type() == EntityIndexType.GLOBAL) {
 								entityIndex = new GlobalEntityIndex(
-									EntityCollection.this.indexPkSequence.incrementAndGet(),
+									EntityCollection.this.getNextIndexPrimaryKey(),
 									EntityCollection.this.getEntityType(),
 									eikAgain,
 									tracked
@@ -4415,18 +4544,19 @@ public final class EntityCollection implements
 									((String) Objects.requireNonNull(eikAgain.discriminator()))
 								);
 								entityIndex = new ReferencedTypeEntityIndex(
-									EntityCollection.this.indexPkSequence.incrementAndGet(),
+									EntityCollection.this.getNextIndexPrimaryKey(),
 									EntityCollection.this.getEntityType(),
 									eikAgain,
 									tracked
 								);
 							} else if (eikAgain.type() == EntityIndexType.REFERENCED_ENTITY) {
-								assertReferenceIndexPrerequisites(
+								final String referenceName =
 									((RepresentativeReferenceKey) Objects.requireNonNull(eikAgain.discriminator()))
-										.referenceName()
-								);
+										.referenceName();
+								assertReferenceIndexPrerequisites(referenceName);
+								assertPartitionObjectMayBeCreated(eikAgain, referenceName);
 								entityIndex = new ReducedEntityIndex(
-									EntityCollection.this.indexPkSequence.incrementAndGet(),
+									EntityCollection.this.getNextIndexPrimaryKey(),
 									EntityCollection.this.getEntityType(),
 									eikAgain,
 									tracked
@@ -4437,7 +4567,7 @@ public final class EntityCollection implements
 										.referenceName()
 								);
 								entityIndex = new ReducedGroupEntityIndex(
-									EntityCollection.this.indexPkSequence.incrementAndGet(),
+									EntityCollection.this.getNextIndexPrimaryKey(),
 									EntityCollection.this.getEntityType(),
 									eikAgain,
 									tracked
@@ -4537,6 +4667,104 @@ public final class EntityCollection implements
 				ofNullable(getTransactionalLayerMaintainer())
 					.ifPresent(removedIndex::removeTransactionalMemoryOfReferencedProducers);
 			}
+		}
+
+		/**
+		 * Installs the index under a primary key the index sequence of this collection has already handed out. The
+		 * registration is the one {@link #getOrCreateIndex(EntityIndexKey)} performs for a newly created index - the
+		 * dirty buffer, both index maps and, outside a transaction, the index counts - so the warm-up savepoint and the
+		 * transactional diff layers revert it, and the commit merge derives the counts of a transaction from the key
+		 * delta, exactly as they do for a minted index.
+		 *
+		 * The primary key may be one whose index was retired by {@link #removeIndex(EntityIndexKey)} in the same flush
+		 * window: the retirement has already dropped it from both maps and both dirty maps, and the flush emits the
+		 * removals reclaiming the retired footprint before the parts of the installed index.
+		 *
+		 * @throws GenericEvitaInternalError when a premise of {@link IndexMaintainer#installIndex} is violated
+		 */
+		@Nonnull
+		@Override
+		public EntityIndex installIndex(
+			@Nonnull EntityIndexKey entityIndexKey,
+			int primaryKey,
+			@Nonnull IntFunction<EntityIndex> factory
+		) {
+			final int lastAssignedPrimaryKey = EntityCollection.this.indexPkSequence.get();
+			Assert.isPremiseValid(
+				primaryKey > 0 && primaryKey <= lastAssignedPrimaryKey,
+				() -> installRefusal(
+					entityIndexKey, primaryKey,
+					"the index sequence has handed out primary keys up to " + lastAssignedPrimaryKey + " only!"
+				)
+			);
+			Assert.isPremiseValid(
+				EntityCollection.this.getIndexByKeyIfExists(entityIndexKey) == null,
+				() -> installRefusal(entityIndexKey, primaryKey, "an index is already registered under its key!")
+			);
+			final EntityIndex indexUnderPrimaryKey = EntityCollection.this.getIndexByPrimaryKeyIfExists(primaryKey);
+			Assert.isPremiseValid(
+				indexUnderPrimaryKey == null,
+				() -> installRefusal(
+					entityIndexKey, primaryKey,
+					"index `" + Objects.requireNonNull(indexUnderPrimaryKey).getIndexKey() + "` is already registered " +
+						"under that primary key!"
+				)
+			);
+			return EntityCollection.this.dataStoreBuffer.getOrCreateIndexForModification(
+				entityIndexKey,
+				eik -> {
+					final EntityIndex entityIndex = factory.apply(primaryKey);
+					Assert.isPremiseValid(
+						entityIndex.getPrimaryKey() == primaryKey && eik.equals(entityIndex.getIndexKey()),
+						() -> installRefusal(
+							eik, primaryKey,
+							"the factory created index `" + entityIndex.getIndexKey() + "` with primary key " +
+								entityIndex.getPrimaryKey() + "!"
+						)
+					);
+					// both absences were verified above, so these puts register the index rather than replace one
+					EntityCollection.this.indexes.put(eik, entityIndex);
+					EntityCollection.this.indexesByPrimaryKey.put(primaryKey, entityIndex);
+					// counted inline outside a transaction only, for the reason `getOrCreateIndex` gives
+					if (!Transaction.isTransactionAvailable()) {
+						EntityCollection.this.indexPopulation.recordCreated(eik);
+					}
+					return entityIndex;
+				}
+			);
+		}
+
+		/**
+		 * Creates the error refusing to install an index - see {@link #installIndex}. Called only when the
+		 * installation is refused, so the valid path builds no message.
+		 *
+		 * @param entityIndexKey the key of the index being installed
+		 * @param primaryKey     the primary key the index was to be installed under
+		 * @param reason         why it cannot be installed, completing the message
+		 * @return the error to throw
+		 */
+		@Nonnull
+		private GenericEvitaInternalError installRefusal(
+			@Nonnull EntityIndexKey entityIndexKey,
+			int primaryKey,
+			@Nonnull String reason
+		) {
+			return new GenericEvitaInternalError(
+				"Entity index `" + entityIndexKey + "` cannot be installed under primary key " + primaryKey +
+					" in collection `" + getEntityType() + "` - " + reason
+			);
+		}
+
+		/**
+		 * Hands out the next primary key of the index sequence of this collection - the very sequence
+		 * {@link #getOrCreateIndex(EntityIndexKey)} mints from, so a partition keeps the primary key it gets here when
+		 * an index object is installed for it later.
+		 *
+		 * @throws IdentifierOverflowException when the index sequence has handed out its last primary key
+		 */
+		@Override
+		public int allocatePartitionPrimaryKey() {
+			return EntityCollection.this.getNextIndexPrimaryKey();
 		}
 
 		/**
@@ -4673,6 +4901,36 @@ public final class EntityCollection implements
 			final EntityCollection sourceCollection = EntityCollection.this.catalog
 				.getCollectionForEntityOrThrowException(entityType);
 			return sourceCollection.getInternalSchema().getLocales();
+		}
+
+		/**
+		 * Refuses to create the index object of a partition of a reference whose partitions may be virtual in the key's
+		 * scope. Such a partition with a single owner is a registry row and nothing else, and one gaining its second
+		 * owner receives its index object under the primary key its row carries (see
+		 * `EntityIndexLocalMutationExecutor#installPartitionObject`) - a generic creation here would mint the object
+		 * under a second primary key. Only the creation is refused; an index object that already exists is still
+		 * returned.
+		 *
+		 * @param partitionKey  the key of the partition about to be created
+		 * @param referenceName the reference of the partition
+		 * @throws GenericEvitaInternalError when the partitions of the reference may be virtual in the key's scope
+		 */
+		private void assertPartitionObjectMayBeCreated(
+			@Nonnull EntityIndexKey partitionKey,
+			@Nonnull String referenceName
+		) {
+			if (
+				VirtualReferencePartitionWriter.isWrittenVirtually(
+					EntityCollection.this.getSchema().getReferenceOrThrowException(referenceName),
+					partitionKey.scope()
+				)
+			) {
+				throw new GenericEvitaInternalError(
+					"Collection `" + getEntityType() + "` writes the single-owner partitions of reference `" +
+						referenceName + "` in scope `" + partitionKey.scope() + "` virtually - the index object of " +
+						"partition `" + partitionKey + "` must not be created!"
+				);
+			}
 		}
 
 		/**

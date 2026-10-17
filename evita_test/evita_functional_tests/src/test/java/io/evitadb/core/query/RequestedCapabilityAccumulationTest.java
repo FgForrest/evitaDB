@@ -285,14 +285,6 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 	private static final SchemaCapabilityKey CATEGORIES_FACETED_ARCHIVED = SchemaCapabilityKey.reference(
 		REFERENCE_CATEGORIES, Capability.FACETED, Scope.ARCHIVED
 	);
-	/** Filtering by an attribute the `tags` reference of the categories declares. */
-	private static final SchemaCapabilityKey WEIGHT_FILTER = SchemaCapabilityKey.referenceAttribute(
-		REFERENCE_TAGS, ATTRIBUTE_WEIGHT, Capability.FILTERABLE, Scope.LIVE
-	);
-	/** The `tags` reference's own `indexed()` flag. */
-	private static final SchemaCapabilityKey TAGS_INDEXED = SchemaCapabilityKey.reference(
-		REFERENCE_TAGS, Capability.INDEXED, Scope.LIVE
-	);
 
 	private TestPaths paths;
 	private Evita evita;
@@ -688,11 +680,11 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("A filter of the fetched references counts once, whether or not there is a reference to filter")
-		void shouldCountFilterOfFetchedReferencesOnce() {
-			// the filter is checked while the query is planned, before the winning plan drains the accumulator, and
-			// translated again by the fetch only when a fetched product references something - which must not count
-			// the same request a second time
+		@DisplayName("A filter of the fetched references counts no capability, whether or not there is a reference")
+		void shouldCountNoCapabilityOfFilterOfFetchedReferences() {
+			// the filter of the fetched references reads each reference row itself, so its
+			// attribute leaves use neither the filterable flag of the attribute nor the indexed flag of the reference,
+			// and counting them would keep a schema change the filter does not depend on from looking safe
 			final Map<SchemaCapabilityKey, Long> requestedWithReference = capabilitiesRequestedByFetching(
 				ENTITY_PRODUCT, productWithCategoriesFilteredByOrder(1)
 			);
@@ -700,17 +692,49 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 				ENTITY_PRODUCT, productWithCategoriesFilteredByOrder(PRODUCT_COUNT + 1)
 			);
 
-			final Map<SchemaCapabilityKey, Long> expected = Map.of(
-				ORDER_IN_CATEGORY_FILTER, 1L, CATEGORIES_INDEXED, 1L
+			assertEquals(
+				Map.of(), requestedWithReference,
+				"The query fetching a filtered reference must count nothing the filter of the rows does not use"
 			);
 			assertEquals(
-				expected, requestedWithReference,
-				"The query fetching a filtered reference must count the capabilities its filter named once"
-			);
-			assertEquals(
-				expected, requestedWithoutProduct,
+				Map.of(), requestedWithoutProduct,
 				"The query fetching no reference must count what its twin fetching one counts"
 			);
+		}
+
+		@Test
+		@DisplayName("A nested filter of the fetched references counts once without any row, its sibling leaf never")
+		void shouldCountNestedFilterOfFetchedReferencesWithoutAnyRow() {
+			// the nested query of `entityHaving` is planned by the check while the query is planned, whatever the
+			// data, so it counts on the categories even when no product is fetched - the leaf beside it reads the
+			// rows and counts nothing on the products
+			for (int productPrimaryKey : new int[]{1, PRODUCT_COUNT + 1}) {
+				final Query query = Query.query(
+					collection(ENTITY_PRODUCT),
+					filterBy(entityPrimaryKeyInSet(productPrimaryKey)),
+					require(
+						entityFetch(
+							referenceContent(
+								REFERENCE_CATEGORIES,
+								filterBy(
+									attributeEquals(ATTRIBUTE_ORDER_IN_CATEGORY, 1L),
+									entityHaving(attributeEquals(ATTRIBUTE_CATEGORY_NAME, "category-1"))
+								)
+							)
+						)
+					)
+				);
+				final Map<SchemaCapabilityKey, Long> requestedOfProducts = requestedCounts(ENTITY_PRODUCT);
+				assertEquals(
+					Map.of(categoryNameKey(Capability.FILTERABLE, Scope.LIVE), 1L),
+					capabilitiesRequestedByFetching(ENTITY_CATEGORY, query),
+					"The nested filter must be counted once on the categories, product " + productPrimaryKey
+				);
+				assertEquals(
+					Map.of(), requestedCountsSince(ENTITY_PRODUCT, requestedOfProducts),
+					"The leaf on the rows must count nothing on the products, product " + productPrimaryKey
+				);
+			}
 		}
 
 		@Test
@@ -772,11 +796,11 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 		}
 
 		@Test
-		@DisplayName("A filter of the references of the fetched referenced entities counts once on their collection")
-		void shouldCountFilterOfReferencesOfFetchedReferencedEntitiesOnce() {
+		@DisplayName("A filter of the references of the fetched referenced entities counts no capability either")
+		void shouldCountNoCapabilityOfFilterOfReferencesOfFetchedReferencedEntities() {
 			// the categories fetched with a product own the references to the tags, so the filter of those references
-			// asks the schema of the categories - it is checked while the query is planned, in a context of the
-			// category collection, and must be counted once whether or not there is a category to fetch
+			// is checked in a context of the category collection - and like any filter of fetched references it reads
+			// the rows, so it counts neither the weight nor the tags on the categories
 			final Map<SchemaCapabilityKey, Long> requestedWithReference = capabilitiesRequestedByFetching(
 				ENTITY_CATEGORY, productWithCategoriesWithTagsFilteredByWeight(1)
 			);
@@ -784,13 +808,12 @@ class RequestedCapabilityAccumulationTest implements EvitaTestSupport {
 				ENTITY_CATEGORY, productWithCategoriesWithTagsFilteredByWeight(PRODUCT_COUNT + 1)
 			);
 
-			final Map<SchemaCapabilityKey, Long> expected = Map.of(WEIGHT_FILTER, 1L, TAGS_INDEXED, 1L);
 			assertEquals(
-				expected, requestedWithReference,
-				"The query fetching a category with filtered tags must count the capabilities the filter named once"
+				Map.of(), requestedWithReference,
+				"The query fetching a category with filtered tags must count nothing the filter of the rows ignores"
 			);
 			assertEquals(
-				expected, requestedWithoutProduct,
+				Map.of(), requestedWithoutProduct,
 				"The query fetching no category must count what its twin fetching one counts"
 			);
 		}

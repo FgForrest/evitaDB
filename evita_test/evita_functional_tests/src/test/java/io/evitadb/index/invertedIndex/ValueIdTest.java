@@ -23,6 +23,7 @@
 
 package io.evitadb.index.invertedIndex;
 
+import io.evitadb.api.exception.IdentifierOverflowException;
 import io.evitadb.api.requestResponse.mutation.Mutation;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.TransactionHandler;
@@ -122,6 +123,23 @@ class ValueIdTest {
 			index.addRecord(values[i], i + 1);
 		}
 		return index;
+	}
+
+	/**
+	 * Asserts the public message of a value id exhaustion tells the client that a restart does not help, because
+	 * the high-water mark is persisted, and how to rebuild the collection instead.
+	 *
+	 * @param error the refusal
+	 */
+	private static void assertExhaustionAdvice(@Nonnull IdentifierOverflowException error) {
+		final String publicMessage = error.getPublicMessage();
+		assertTrue(
+			publicMessage.contains("value ids of an attribute value index") &&
+				publicMessage.contains("a restart does not help") &&
+				publicMessage.contains("rebuild the entity collection") &&
+				publicMessage.contains("`replaceCollection`"),
+			"the public message must name the id space and the remedy, but was: " + publicMessage
+		);
 	}
 
 	/**
@@ -427,9 +445,13 @@ class ValueIdTest {
 		@Test
 		@DisplayName("the id space refuses to wrap when it is exhausted")
 		void shouldThrowWhenValueIdSpaceIsExhaustedOutsideTransaction() {
-			final ValueIdAllocator allocator = new ValueIdAllocator(Integer.MAX_VALUE);
+			// restored just below the limit through the constructor the load path uses
+			final ValueIdAllocator allocator = new ValueIdAllocator(Integer.MAX_VALUE - 1);
+			assertEquals(Integer.MAX_VALUE - 1, allocator.allocate(), "the last id below the limit is handed out");
 
-			final GenericEvitaInternalError error = assertThrows(GenericEvitaInternalError.class, allocator::allocate);
+			final IdentifierOverflowException error = assertThrows(
+				IdentifierOverflowException.class, allocator::allocate
+			);
 
 			// how many ids were burnt is the one fact that tells an operator whether this is genuine exhaustion or a
 			// counter that ran away, so the refusal has to carry it
@@ -437,6 +459,10 @@ class ValueIdTest {
 				error.getPrivateMessage().contains(String.valueOf(Integer.MAX_VALUE)),
 				"the refusal must say how many ids have been minted, but was: " + error.getPrivateMessage()
 			);
+			assertExhaustionAdvice(error);
+			// the refusal comes before the counter moves, so the persisted high-water mark stays where it was
+			assertEquals(Integer.MAX_VALUE, allocator.getNextValueId());
+			assertThrows(IdentifierOverflowException.class, allocator::allocate);
 		}
 
 		@Test
@@ -445,14 +471,18 @@ class ValueIdTest {
 			// the exhaustion guard exists twice - once on the direct single-writer branch asserted above, once on the
 			// per-transaction diff layer - and only the layered one is reachable while a transaction is bound to the
 			// thread. Asserting one of them says nothing about the other
-			final GenericEvitaInternalError outside = assertThrows(
-				GenericEvitaInternalError.class, new ValueIdAllocator(Integer.MAX_VALUE)::allocate
+			final IdentifierOverflowException outside = assertThrows(
+				IdentifierOverflowException.class, new ValueIdAllocator(Integer.MAX_VALUE)::allocate
 			);
 
 			executeInsideTransaction(() -> {
-				final GenericEvitaInternalError inside = assertThrows(
-					GenericEvitaInternalError.class, new ValueIdAllocator(Integer.MAX_VALUE)::allocate
+				final ValueIdAllocator allocator = new ValueIdAllocator(Integer.MAX_VALUE - 1);
+				assertEquals(Integer.MAX_VALUE - 1, allocator.allocate(), "the last id is handed out by the layer too");
+				final IdentifierOverflowException inside = assertThrows(
+					IdentifierOverflowException.class, allocator::allocate
 				);
+				// the layer refuses before it moves, so the transaction keeps seeing the last valid position
+				assertEquals(Integer.MAX_VALUE, allocator.getNextValueId());
 
 				// one condition, one shape: neither a caller writing a handler nor an operator matching on the text
 				// should have to know whether a transaction happened to be open when the space ran out

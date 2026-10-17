@@ -1794,9 +1794,26 @@ referenceContent(
     </dd>
     <dt>filterConstraint:filterBy?</dt>
     <dd>
+        <p>
         optional filter constraint that allows you to filter the references to be fetched for the entity;
         the filter constraint is targeted at the reference attributes, so if you want to filter by properties of the referenced
         entity, you must use the [`entityHaving`](../filtering/references.md#entity-having) constraint
+        </p>
+        <p>
+        the filter is evaluated on each reference of each returned entity on its own and needs no index, see
+        [filtering references](#filtering-references)
+        </p>
+        <p>
+        a bare [`entityLocaleEquals`](../filtering/locale.md#entity-locale-equals) in this filter is evaluated against
+        the locales of the entity owning the references. An entity without data in that locale gets no references at all,
+        while an entity with data in it keeps even the references to entities that have none. To filter the references
+        by the locale of the referenced entity, wrap the constraint in `entityHaving`.
+        </p>
+        <p>
+        the locale of a bare `entityLocaleEquals` in this filter is also the locale in which the referenced entities
+        fetched by this `referenceContent` return their localized data, even when the query itself filters by another
+        locale, unless [`dataInLocales`](#data-in-locales) in their `entityFetch` names a different one
+        </p>
     </dd>
     <dt>orderConstraint:orderBy?</dt>
     <dd>
@@ -2069,6 +2086,47 @@ which each parameter belongs:
 As you can see only the parameters of the groups having *isVisibleInDetail* set to *TRUE* are returned.
 
 </Note>
+
+<LS to="e,j,c">
+
+The filter is evaluated reference by reference on the entities the query returns: each reference of each returned entity
+is judged on its own, by the data of that reference and by the scope and the locales of the entity that owns it. Nothing
+is looked up in an index, so the filter works the same way whatever the schema allows the main query to do:
+
+- a reference attribute used in the filter doesn't have to be [filterable or unique](../../use/data-model.md#attributes-unique-filterable-sortable-localized),
+- the reference doesn't have to be indexed in the scope the owning entity lives in (or in any scope at all),
+- the reference doesn't have to index the `REFERENCED_ENTITY` and `REFERENCED_GROUP_ENTITY` components for the
+  `entityHaving` and `groupHaving` constraints to work.
+
+The reference attributes are compared exactly as an index would compare them: decimal numbers at the number of decimal
+places of the attribute schema, strings and dates in their normalized form, localized strings by the collation of the
+locale, an array attribute matches when any of its elements does, and a range attribute by its overlap with the
+requested range. A filter outside of any `inScope` container is applied to the references of the entities in all the
+queried scopes; wrap its part in [`inScope`](../filtering/behavioral.md#in-scope) to apply it to the references of
+the entities living in a single scope only.
+
+The filter may combine the [`and`](../filtering/logical.md#and), [`or`](../filtering/logical.md#or) and
+[`not`](../filtering/logical.md#not) containers, the `inScope` container, the attribute constraints,
+[`entityPrimaryKeyInSet`](../filtering/constant.md#entity-primary-key-in-set),
+[`entityLocaleEquals`](../filtering/locale.md#entity-locale-equals), [`entityHaving`](../filtering/references.md#entity-having),
+`groupHaving` and the [`scope`](../filtering/constant.md#scope) constraint directly in the `filterBy` container. Any
+other constraint has no meaning on a single reference and the query is refused with an `EvitaInvalidUsageException`
+naming the constraint and the reference - so is a `scope` constraint nested in another constraint, an attribute that the
+reference doesn't define, and a range where the lower bound of an `attributeBetween` is greater than the upper bound. All
+of that is refused whether or not the returned entities hold any reference to filter.
+
+A localized reference attribute in the filter is read in the locale of the `entityLocaleEquals` constraint of that
+filter - the one directly in the filter or directly inside its `entityHaving`, never one inside `groupHaving`; there
+may be at most one. When the filter has none, the attribute is read in the locale of the query. If neither names
+a locale, the query is refused unless the attribute is unique across all locales.
+
+The `entityHaving` and `groupHaving` constraints read the referenced entity and the group entity, so the entity types
+must be managed by evitaDB, otherwise the query is refused. A reference to a group that doesn't exist or was removed
+has no group, and `groupHaving` doesn't match it. When the `referenceContent` has a filter, only the references to
+entities that exist in the queried scopes (and in the required locale, if the entity type has localized data) can match;
+a reference to a missing entity is not returned.
+
+</LS>
 
 #### Ordering references
 

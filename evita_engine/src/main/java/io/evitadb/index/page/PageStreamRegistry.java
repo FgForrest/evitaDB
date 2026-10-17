@@ -23,6 +23,7 @@
 
 package io.evitadb.index.page;
 
+import io.evitadb.api.exception.IdentifierOverflowException;
 import io.evitadb.index.bPlusTree.PagedLeafHandle;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -50,8 +51,8 @@ import static io.evitadb.utils.CollectionUtils.createHashSet;
  *
  * - an **advance-only page-sequence allocator** ({@link #allocate(int)}). Page sequence numbers are never reused: a
  *   freed page's id is retired forever, so a retained older catalog version that still references that page-PK keeps
- *   resolving the bytes it expects. The allocator is a 32-bit counter; exhaustion is a documented (unbuilt) renumber
- *   escape.
+ *   resolving the bytes it expects. The allocator is a 32-bit counter whose exhaustion is refused with an
+ *   {@link IdentifierOverflowException}; the renumbering escape that would lift the limit is not built.
  * - the explicit **high-water** (the maximum page-sequence ever allocated for the stream, {@link #highWater(int)}).
  *   It is persisted verbatim in the {@code PAGED} root record rather than re-derived as {@code max(live pages)} —
  *   a freed/tombstoned maximum page would otherwise let a {@code max}-over-live scan hand back a retired id.
@@ -101,13 +102,44 @@ public class PageStreamRegistry implements Serializable {
 	 * Allocates the next page-sequence number for the given stream, advancing (and never decreasing) its high-water.
 	 * Allocated ids are never reused.
 	 *
+	 * The space ends at {@link Integer#MAX_VALUE}: the allocation after it is refused before the high-water moves,
+	 * because a wrapped, negative page sequence is one no root record can list - {@link #stage(int, int[])} and the
+	 * cold-load {@link #restore(int, int, int[])} both reject it - and an advance-only id must never be handed out
+	 * twice anyway.
+	 *
 	 * @param streamId the stream to allocate within
 	 * @return the freshly allocated page-sequence number (>= 0)
+	 * @throws IdentifierOverflowException when the stream has already allocated page sequence `Integer.MAX_VALUE`
 	 */
 	public int allocate(int streamId) {
 		final PageStream stream = this.streams.computeIfAbsent(streamId, id -> new PageStream());
+		if (stream.highWater == Integer.MAX_VALUE) {
+			throw pageSequencesExhausted(streamId);
+		}
 		stream.highWater += 1;
 		return stream.highWater;
+	}
+
+	/**
+	 * Builds the refusal of {@link #allocate(int)} for a stream whose page sequences are exhausted. Kept out of the
+	 * allocation itself so that the message is assembled only on the refusal path.
+	 *
+	 * @param streamId the exhausted stream
+	 * @return the exception to throw
+	 */
+	@Nonnull
+	private static IdentifierOverflowException pageSequencesExhausted(int streamId) {
+		return new IdentifierOverflowException(
+			"Page stream " + streamId + " has allocated page sequence " + Integer.MAX_VALUE + " and the next one " +
+				"would wrap into the negative range. Page sequences are advance-only and the high-water is " +
+				"persisted in the root record, so a restart does not reset it and the documented renumbering " +
+				"escape is not implemented - the entity collection or catalog owning the index must be rebuilt.",
+			"The page sequences of a persisted index are exhausted, so changes to that index can no longer be " +
+				"written. They are persisted with the index and never reused, so a restart does not help - rebuild " +
+				"the entity collection the index belongs to (insert its entities into a new collection and swap " +
+				"it in with `replaceCollection`), or the whole catalog for a catalog-wide index (insert its data " +
+				"into a new catalog and swap it in with `replaceCatalog`)."
+		);
 	}
 
 	/**

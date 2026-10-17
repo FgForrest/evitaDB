@@ -56,7 +56,9 @@ import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.IntFunction;
 
+import static io.evitadb.index.mutation.local.PartitionWriteKind.ADDING;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.*;
@@ -82,6 +84,10 @@ import static org.junit.jupiter.api.Assertions.*;
  *
  * These tests pin both modes' contracts in place so future refactors cannot silently change
  * cardinality, identity, or coverage semantics.
+ *
+ * Every entry point is called with {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}, the level every
+ * production fan-out requests: the partitions of a reference indexed for filtering only must never reach the
+ * consumers, so its references are skipped on both paths.
  *
  * ## Invariants under test
  *
@@ -113,6 +119,14 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 	 * convention — `sharedRef` was chosen because it is unique across all three conventions.
 	 */
 	private static final String REFERENCE_NAME = "sharedRef";
+
+	/**
+	 * Reference indexed for filtering only, with the same components and group type as {@link #REFERENCE_NAME}. The
+	 * iterators are entered at {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING} - the level every production
+	 * fan-out requests - so its references must never reach the consumer. The name sorts before
+	 * {@link #REFERENCE_NAME}, so its references are stored first.
+	 */
+	private static final String FILTERING_ONLY_REFERENCE_NAME = "filteringOnlyRef";
 
 	/**
 	 * Group entity type used for group-related index lookups. Must match the `groupType` configured on
@@ -166,7 +180,8 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 			this.usageRegistry,
 			this.catalogUsageRegistry,
 
-			true
+			true,
+			new PartitionReservations()
 		);
 	}
 
@@ -194,6 +209,18 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 					ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
 				)
 		);
+		schema.withReferenceTo(
+			FILTERING_ONLY_REFERENCE_NAME,
+			FILTERING_ONLY_REFERENCE_NAME,
+			Cardinality.ZERO_OR_MORE,
+			thatIs -> thatIs
+				.withGroupType(GROUP_TYPE)
+				.indexedForFiltering()
+				.indexedWithComponents(
+					ReferenceIndexedComponents.REFERENCED_ENTITY,
+					ReferenceIndexedComponents.REFERENCED_GROUP_ENTITY
+				)
+		);
 	}
 
 	@Test
@@ -210,8 +237,8 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		final Recorder recorder = new Recorder();
 
 		ReferenceIndexMutator.forEachReferenceIndex(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, recorder,
-			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.REDUCED_ENTITY
+			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this.testExecutor, recorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.REDUCED_ENTITY, ADDING
 		);
 
 		assertEquals(3, recorder.invocationCount(), "3 references → 3 invocations");
@@ -235,12 +262,12 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		final Recorder recorder = new Recorder();
 
 		ReferenceIndexMutator.forEachReferenceIndex(
-			ReferenceIndexType.FOR_FILTERING,
+			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
 			this.testExecutor,
 			recorder,
 			reference -> reference.getReferenceKey().primaryKey() >= 20,
 			false,
-			ReferenceIndexMutator.IterationPath.REDUCED_ENTITY
+			ReferenceIndexMutator.IterationPath.REDUCED_ENTITY, ADDING
 		);
 
 		assertEquals(3, recorder.invocationCount());
@@ -268,8 +295,8 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		final Recorder recorder = new Recorder();
 
 		ReferenceIndexMutator.forEachReferenceIndex(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, recorder,
-			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.GROUP
+			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this.testExecutor, recorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.GROUP, ADDING
 		);
 
 		// (1) cardinality: 3 references → 3 invocations
@@ -304,8 +331,8 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		final Recorder recorder = new Recorder();
 
 		ReferenceIndexMutator.forEachReferenceIndex(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, recorder,
-			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.GROUP
+			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this.testExecutor, recorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.GROUP, ADDING
 		);
 
 		assertEquals(3, recorder.invocationCount());
@@ -330,12 +357,12 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		final Recorder recorder = new Recorder();
 
 		ReferenceIndexMutator.forEachReferenceIndex(
-			ReferenceIndexType.FOR_FILTERING,
+			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
 			this.testExecutor,
 			recorder,
 			reference -> true,
 			false,
-			ReferenceIndexMutator.IterationPath.GROUP
+			ReferenceIndexMutator.IterationPath.GROUP, ADDING
 		);
 
 		assertEquals(4, recorder.invocationCount());
@@ -381,8 +408,8 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		final Recorder recorder = new Recorder();
 
 		ReferenceIndexMutator.forEachReferenceIndex(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, recorder,
-			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.GROUP
+			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this.testExecutor, recorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.GROUP, ADDING
 		);
 
 		assertEquals(2, recorder.invocationCount(), "the group-less ref must be skipped");
@@ -405,8 +432,8 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		final Recorder recorder = new Recorder();
 
 		ReferenceIndexMutator.forEachReferenceIndex(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, recorder,
-			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.BOTH
+			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this.testExecutor, recorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.BOTH, ADDING
 		);
 
 		assertEquals(6, recorder.invocationCount(), "REI path fires 3× then RGEI path fires 3× = 6 total");
@@ -448,12 +475,12 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		final Recorder recorder = new Recorder();
 
 		ReferenceIndexMutator.forEachReferenceIndex(
-			ReferenceIndexType.FOR_FILTERING,
+			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
 			this.testExecutor,
 			recorder,
 			reference -> reference.getReferenceKey().primaryKey() >= 20,
 			false,
-			ReferenceIndexMutator.IterationPath.BOTH
+			ReferenceIndexMutator.IterationPath.BOTH, ADDING
 		);
 
 		assertEquals(6, recorder.invocationCount());
@@ -494,8 +521,8 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		// REI path
 		final Recorder reiRecorder = new Recorder();
 		ReferenceIndexMutator.forEachReferenceIndex(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, reiRecorder,
-			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.REDUCED_ENTITY
+			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this.testExecutor, reiRecorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.REDUCED_ENTITY, ADDING
 		);
 		assertEquals(2, reiRecorder.invocationCount());
 		reiRecorder.assertEntityPathReferencedPrimaryKeysInOrder(10, 30);
@@ -503,8 +530,8 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		// RGEI path — fresh recorder ensures invocations from the REI path don't leak in.
 		final Recorder rgeiRecorder = new Recorder();
 		ReferenceIndexMutator.forEachReferenceIndex(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, rgeiRecorder,
-			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.GROUP
+			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this.testExecutor, rgeiRecorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.GROUP, ADDING
 		);
 		assertEquals(2, rgeiRecorder.invocationCount());
 		rgeiRecorder.assertGroupPathGroupPrimaryKeysInOrder(100, 100);
@@ -512,10 +539,48 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		// Combined path
 		final Recorder allRecorder = new Recorder();
 		ReferenceIndexMutator.forEachReferenceIndex(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, allRecorder,
-			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.BOTH
+			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this.testExecutor, allRecorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.BOTH, ADDING
 		);
 		assertEquals(4, allRecorder.invocationCount(), "2 (REI) + 2 (RGEI) = 4");
+	}
+
+	@Test
+	@DisplayName("All entry points — references indexed for filtering only are skipped at the partitioning level")
+	void shouldSkipReferencesIndexedForFilteringOnlyAcrossAllEntryPoints() {
+		// two filtering-only refs (groups 100, 200) stored before one partitioned ref (group 300): only the
+		// partitioned one qualifies on either path, so every recorded index belongs to it
+		final List<Reference> seeded = seedReferences(
+			buildReference(FILTERING_ONLY_REFERENCE_NAME, 10, 1, 100),
+			buildReference(FILTERING_ONLY_REFERENCE_NAME, 20, 2, 200),
+			buildReference(REFERENCE_NAME, 30, 3, 300)
+		);
+		final List<Reference> partitioned = seeded.subList(2, 3);
+
+		final Recorder reiRecorder = new Recorder();
+		ReferenceIndexMutator.forEachReferenceIndex(
+			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this.testExecutor, reiRecorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.REDUCED_ENTITY, ADDING
+		);
+		reiRecorder.assertReferenceCoverageOnEntityPath(partitioned);
+
+		final Recorder rgeiRecorder = new Recorder();
+		ReferenceIndexMutator.forEachReferenceIndex(
+			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this.testExecutor, rgeiRecorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.GROUP, ADDING
+		);
+		rgeiRecorder.assertReferenceCoverageOnGroupPath(partitioned);
+
+		final Recorder uniqueRecorder = new Recorder();
+		ReferenceIndexMutator.forEachUniqueReferenceIndex(
+			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this.testExecutor, uniqueRecorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.BOTH, ADDING
+		);
+		assertEquals(2, uniqueRecorder.invocationCount(), "one REI and one RGEI of the partitioned ref");
+		uniqueRecorder.assertSliceTypes(0, 1, ReducedEntityIndex.class);
+		uniqueRecorder.assertSliceTypes(1, 2, ReducedGroupEntityIndex.class);
+		uniqueRecorder.assertEntityPathReferencedPrimaryKeysInSlice(0, 1, 30);
+		uniqueRecorder.assertGroupPathGroupPrimaryKeysInSlice(1, 2, 300);
 	}
 
 	@Test
@@ -525,22 +590,22 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 
 		final Recorder reiRecorder = new Recorder();
 		ReferenceIndexMutator.forEachReferenceIndex(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, reiRecorder,
-			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.REDUCED_ENTITY
+			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this.testExecutor, reiRecorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.REDUCED_ENTITY, ADDING
 		);
 		assertEquals(0, reiRecorder.invocationCount());
 
 		final Recorder rgeiRecorder = new Recorder();
 		ReferenceIndexMutator.forEachReferenceIndex(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, rgeiRecorder,
-			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.GROUP
+			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this.testExecutor, rgeiRecorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.GROUP, ADDING
 		);
 		assertEquals(0, rgeiRecorder.invocationCount());
 
 		final Recorder allRecorder = new Recorder();
 		ReferenceIndexMutator.forEachReferenceIndex(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, allRecorder,
-			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.BOTH
+			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this.testExecutor, allRecorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.BOTH, ADDING
 		);
 		assertEquals(0, allRecorder.invocationCount());
 	}
@@ -559,8 +624,8 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		final Recorder recorder = new Recorder();
 
 		ReferenceIndexMutator.forEachUniqueReferenceIndex(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, recorder,
-			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.GROUP
+			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this.testExecutor, recorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.GROUP, ADDING
 		);
 
 		assertEquals(1, recorder.invocationCount(), "3 shared-RGEI refs must collapse to 1 invocation");
@@ -583,8 +648,8 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		final Recorder recorder = new Recorder();
 
 		ReferenceIndexMutator.forEachUniqueReferenceIndex(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, recorder,
-			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.BOTH
+			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this.testExecutor, recorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.BOTH, ADDING
 		);
 
 		assertEquals(4, recorder.invocationCount(), "3 distinct REIs + 1 shared RGEI = 4 invocations");
@@ -609,8 +674,8 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		final Recorder recorder = new Recorder();
 
 		ReferenceIndexMutator.forEachUniqueReferenceIndex(
-			ReferenceIndexType.FOR_FILTERING, this.testExecutor, recorder,
-			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.REDUCED_ENTITY
+			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this.testExecutor, recorder,
+			Functions.alwaysTrue(), false, ReferenceIndexMutator.IterationPath.REDUCED_ENTITY, ADDING
 		);
 
 		assertEquals(3, recorder.invocationCount(), "3 unique REIs → 3 invocations (no dedup needed)");
@@ -1112,6 +1177,21 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		@Override
 		public void removeIndex(@Nonnull EntityIndexKey entityIndexKey) {
 			this.indexes.remove(entityIndexKey);
+		}
+
+		@Nonnull
+		@Override
+		public EntityIndex installIndex(
+			@Nonnull EntityIndexKey indexKey,
+			int primaryKey,
+			@Nonnull IntFunction<EntityIndex> factory
+		) {
+			throw new UnsupportedOperationException("The test fixture does not install indexes");
+		}
+
+		@Override
+		public int allocatePartitionPrimaryKey() {
+			throw new UnsupportedOperationException("The test fixture does not allocate primary keys");
 		}
 
 		/**

@@ -1864,6 +1864,7 @@ public class DefaultCatalogPersistenceService
 			this.storagePrefix, this.catalogStoragePath, this.bootstrapStorageSettings, this.storageSettings,
 			exportService
 		);
+		refuseDevelopmentStorageProtocolOrClose(catalogName);
 		this.bootstrapWriteHandle = new AtomicReference<>(
 			createBootstrapWriteOnlyHandle(catalogName, this.bootstrapStorageSettings,this.catalogStoragePath)
 		);
@@ -2036,6 +2037,7 @@ public class DefaultCatalogPersistenceService
 			this.storagePrefix, this.catalogStoragePath, this.bootstrapStorageSettings, this.storageSettings,
 			this.exportService
 		);
+		refuseDevelopmentStorageProtocolOrClose(catalogName);
 		this.bootstrapWriteHandle = new AtomicReference<>(
 			createBootstrapWriteOnlyHandle(catalogName, this.bootstrapStorageSettings, this.catalogStoragePath)
 		);
@@ -2048,25 +2050,36 @@ public class DefaultCatalogPersistenceService
 		final Path catalogFilePath = this.catalogStoragePath.resolve(catalogFileName);
 
 		this.catalogStoragePartPersistenceService = CollectionUtils.createConcurrentHashMap(16);
-		final CatalogOffsetIndexStoragePartPersistenceService catalogStoragePartPersistenceService = verifyAndUpgradeStorageFormat(
-			() -> CatalogOffsetIndexStoragePartPersistenceService.create(
-				this.catalogName,
-				catalogFilePath,
-				this.storageSettings,
-				this.bootstrapUsed,
-				this.recordTypeRegistry,
-				this.offHeapMemoryManager,
-				this.observableOutputKeeper,
-				VERSIONED_KRYO_FACTORY,
-				nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
-				oldestRecordTimestamp -> reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null)),
-				this.checkpointCoordinator
-			),
-			this.bootstrapUsed.catalogVersion(),
-			false
-		);
+		// a refusal or a failed migration releases what this constructor opened, exactly as the sibling constructor
+		// does - see the explanation there
+		final CatalogOffsetIndexStoragePartPersistenceService catalogStoragePartPersistenceService;
+		try {
+			catalogStoragePartPersistenceService = verifyAndUpgradeStorageFormat(
+				() -> CatalogOffsetIndexStoragePartPersistenceService.create(
+					this.catalogName,
+					catalogFilePath,
+					this.storageSettings,
+					this.bootstrapUsed,
+					this.recordTypeRegistry,
+					this.offHeapMemoryManager,
+					this.observableOutputKeeper,
+					VERSIONED_KRYO_FACTORY,
+					nonFlushedBlock -> this.reportNonFlushedContents(catalogName, nonFlushedBlock),
+					oldestRecordTimestamp ->
+						reportOldestHistoricalRecord(catalogName, oldestRecordTimestamp.orElse(null)),
+					this.checkpointCoordinator
+				),
+				this.bootstrapUsed.catalogVersion(),
+				false
+			);
+		} catch (Throwable t) {
+			closeOnConstructorFailure();
+			throw t;
+		}
 
 		if (this.bootstrapUsed.storageProtocolVersion() != STORAGE_PROTOCOL_VERSION) {
+			closeOnConstructorFailure();
+			IOUtils.closeQuietly(catalogStoragePartPersistenceService::close);
 			throw new StoredProtocolVersionNotSupportedException(
 				this.bootstrapUsed.storageProtocolVersion(), STORAGE_PROTOCOL_VERSION
 			);
@@ -3810,6 +3823,26 @@ public class DefaultCatalogPersistenceService
 	}
 
 	/**
+	 * Refuses the catalog when the bootstrap record the constructor read carries the protocol of development builds -
+	 * see {@link #refuseDevelopmentStorageProtocol(String, CatalogBootstrap)} - releasing what the constructor opened
+	 * before the refusal propagates. Both constructors loading a catalog call it before any migration replaces the
+	 * bootstrap record it reads, and before the bootstrap file is opened for writing, so a refused catalog keeps every
+	 * byte it had.
+	 *
+	 * @param catalogName the name of the catalog
+	 * @throws ObsoleteStorageProtocolException when the record carries the protocol of development builds
+	 */
+	private void refuseDevelopmentStorageProtocolOrClose(@Nonnull String catalogName)
+		throws ObsoleteStorageProtocolException {
+		try {
+			refuseDevelopmentStorageProtocol(catalogName, this.bootstrapUsed);
+		} catch (ObsoleteStorageProtocolException ex) {
+			closeOnConstructorFailure();
+			throw ex;
+		}
+	}
+
+	/**
 	 * Releases the subset of resources that the load ctor has already opened by the time
 	 * {@link #verifyAndUpgradeStorageFormat} is invoked. Invoked from the ctor catch block when
 	 * that call (or anything after it, before field init is complete) throws — so the retry loop
@@ -5355,7 +5388,22 @@ public class DefaultCatalogPersistenceService
 	 * it is driven by {@link io.evitadb.api.requestResponse.schema.mutation.engine.UpgradeCatalogFormatMutation}
 	 * through the engine WAL. This method therefore throws {@link CatalogRequiresUpgradeException} on a v4 catalog
 	 * unless {@code allowInlineV4ToV5Upgrade} explicitly permits the inline upgrade (used only by the mutation
-	 * operator's work phase via {@link #runStorageProtocolUpgrade}).
+	 * operator's work phase via {@link #runStorageProtocolUpgrade}). The v5→v6 and v6→v8 migrations run inline
+	 * again.
+	 *
+	 * **Refusals:** a header of {@link Migration_2026_3#DEVELOPMENT_STORAGE_PROTOCOL_VERSION} was written only by
+	 * development builds and is refused with its own diagnosis (the bootstrap record of such a catalog is refused by
+	 * {@link #refuseDevelopmentStorageProtocol(String, CatalogBootstrap)} before this method runs; a header can still
+	 * carry the protocol under another bootstrap record). A header of any protocol no migration starts from is refused
+	 * as unknown - without the refusal the loop would read the same header again and again.
+	 *
+	 * **Ownership:** every storage part service this method opens is its own until it returns one - none of them is in
+	 * the constructor's service map yet, so the constructor's cleanup cannot reach them. A failure of any kind - a
+	 * refusal, a failed migration, the deferral of the v4→v5 upgrade - closes every service the method opened before
+	 * it propagates; otherwise their read handles of the catalog data file outlive the failed open, and every retry of
+	 * the open leaves another set behind. A successful migration closes every service but the one it returns: the
+	 * service a migration step ran on and every one opened only to read the header a step wrote are superseded, and
+	 * nothing else would close them.
 	 *
 	 * @param storagePartPersistenceFactory the factory for the storage part persistence service
 	 * @param catalogVersion                the version of the catalog
@@ -5372,11 +5420,60 @@ public class DefaultCatalogPersistenceService
 		long catalogVersion,
 		boolean allowInlineV4ToV5Upgrade
 	) throws ObsoleteStorageProtocolException {
-		CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = storagePartPersistenceFactory.get();
+		final List<CatalogOffsetIndexStoragePartPersistenceService> openedServices = new ArrayList<>(2);
+		try {
+			final CatalogOffsetIndexStoragePartPersistenceService currentService = migrateToCurrentStorageFormat(
+				() -> {
+					final CatalogOffsetIndexStoragePartPersistenceService service = storagePartPersistenceFactory.get();
+					openedServices.add(service);
+					return service;
+				},
+				catalogVersion,
+				allowInlineV4ToV5Upgrade
+			);
+			// every migration step flushed what it wrote, so closing a superseded service writes nothing
+			IOUtils.closeQuietly(
+				openedServices.stream()
+					.filter(service -> service != currentService)
+					.map(service -> (ExceptionThrowingRunnable) service::close)
+					.toArray(ExceptionThrowingRunnable[]::new)
+			);
+			return currentService;
+		} catch (Throwable t) {
+			IOUtils.closeQuietly(
+				openedServices.stream()
+					.map(service -> (ExceptionThrowingRunnable) service::close)
+					.toArray(ExceptionThrowingRunnable[]::new)
+			);
+			throw t;
+		}
+	}
+
+	/**
+	 * Does the work of {@link #verifyAndUpgradeStorageFormat(Supplier, long, boolean)}, opening every storage part
+	 * service through the given supplier, which records it for the cleanup on failure.
+	 *
+	 * @param openService              opens a storage part service of the catalog data file
+	 * @param catalogVersion           the version of the catalog
+	 * @param allowInlineV4ToV5Upgrade TRUE to run the v4→v5 WAL rewrite inline
+	 * @return the storage part persistence service of the catalog at the current protocol
+	 * @throws ObsoleteStorageProtocolException if the storage protocol version is not compatible with the current one
+	 * @throws CatalogRequiresUpgradeException  when the catalog is on v4 and inline v4→v5 is not permitted
+	 */
+	@Nonnull
+	private CatalogOffsetIndexStoragePartPersistenceService migrateToCurrentStorageFormat(
+		@Nonnull Supplier<CatalogOffsetIndexStoragePartPersistenceService> openService,
+		long catalogVersion,
+		boolean allowInlineV4ToV5Upgrade
+	) throws ObsoleteStorageProtocolException {
+		CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService = openService.get();
 		CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader = storagePartPersistenceService.getCatalogHeader(
 			catalogVersion);
-		if (catalogHeader.storageProtocolVersion() == PersistenceService.STORAGE_PROTOCOL_VERSION) {
+		final int headerStorageProtocolVersion = catalogHeader.storageProtocolVersion();
+		if (headerStorageProtocolVersion == STORAGE_PROTOCOL_VERSION) {
 			return storagePartPersistenceService;
+		} else if (headerStorageProtocolVersion == Migration_2026_3.DEVELOPMENT_STORAGE_PROTOCOL_VERSION) {
+			throw developmentStorageProtocolRefusal(catalogHeader.catalogName());
 		} else {
 			CatalogOffsetIndexStoragePartPersistenceService currentService = storagePartPersistenceService;
 			do {
@@ -5442,21 +5539,92 @@ public class DefaultCatalogPersistenceService
 						newCatalogHeader -> updateStorageProtocolInCatalogHeader(newCatalogHeader, currentService, 6)
 					);
 				} else if (catalogStorageProtocolVersion == 6) {
-					Migration_2026_3.upgradeFromStorageProtocolVersion_6_to_7(
+					Migration_2026_3.upgradeFromStorageProtocolVersion_6_to_8(
 						catalogHeader,
 						currentService,
 						this::createEntityCollectionPersistenceService,
-						newCatalogHeader -> updateStorageProtocolInCatalogHeader(newCatalogHeader, currentService, 7)
+						newCatalogHeader -> updateStorageProtocolInCatalogHeader(
+							newCatalogHeader, currentService, STORAGE_PROTOCOL_VERSION
+						)
 					);
+				} else {
+					// no migration starts from this protocol - reading the header again would find it unchanged
+					throw unknownStorageProtocolRefusal(catalogHeader.catalogName(), catalogStorageProtocolVersion);
 				}
 				// try to initialize the persistence service again - it should now have the correct storage protocol version
-				storagePartPersistenceService = storagePartPersistenceFactory.get();
+				storagePartPersistenceService = openService.get();
 				catalogHeader = storagePartPersistenceService.getCatalogHeader(catalogVersion);
 				// rinse and repeat
 			} while (catalogHeader.storageProtocolVersion() < PersistenceService.STORAGE_PROTOCOL_VERSION);
 
 			return storagePartPersistenceService;
 		}
+	}
+
+	/**
+	 * Refuses a catalog whose bootstrap record carries {@link Migration_2026_3#DEVELOPMENT_STORAGE_PROTOCOL_VERSION} -
+	 * a catalog written by a development build, whatever the protocol of its catalog header. A development build that
+	 * was interrupted between two migrations published a header of an older protocol under such a record, so the
+	 * header alone does not tell. Called by both constructors loading a catalog, on the bootstrap record read from the
+	 * disk, before any migration runs: every migration publishes a new bootstrap record of the current protocol, after
+	 * which the origin of the catalog could no longer be told.
+	 *
+	 * A bootstrap record of the current protocol over a header of an older one is legitimate - a migration of this
+	 * version that published one step and failed in the next - so only the protocol of the record itself is checked.
+	 *
+	 * @param catalogName the name of the catalog
+	 * @param bootstrap   the bootstrap record read from the disk
+	 * @throws ObsoleteStorageProtocolException when the record carries the protocol of development builds
+	 */
+	static void refuseDevelopmentStorageProtocol(@Nonnull String catalogName, @Nonnull CatalogBootstrap bootstrap)
+		throws ObsoleteStorageProtocolException {
+		if (bootstrap.storageProtocolVersion() == Migration_2026_3.DEVELOPMENT_STORAGE_PROTOCOL_VERSION) {
+			throw developmentStorageProtocolRefusal(catalogName);
+		}
+	}
+
+	/**
+	 * Creates the refusal of a catalog written under {@link Migration_2026_3#DEVELOPMENT_STORAGE_PROTOCOL_VERSION}. The
+	 * message names the format and what to do, never damage: nothing of the catalog is wrong, it is only of a format
+	 * no release wrote and this version does not read.
+	 *
+	 * @param catalogName the name of the catalog
+	 * @return the exception to throw
+	 */
+	@Nonnull
+	private static ObsoleteStorageProtocolException developmentStorageProtocolRefusal(@Nonnull String catalogName) {
+		return new ObsoleteStorageProtocolException(
+			"Catalog `" + catalogName + "` was written under storage protocol " +
+				Migration_2026_3.DEVELOPMENT_STORAGE_PROTOCOL_VERSION + ", an intermediate format written only by " +
+				"development builds of evitaDB 2026.3 and never by a release. It cannot be upgraded: restore the " +
+				"catalog from a backup made by evitaDB 2026.2 or older and let this version upgrade it, or recreate " +
+				"it.",
+			"Catalog `" + catalogName + "` was written under storage protocol " +
+				Migration_2026_3.DEVELOPMENT_STORAGE_PROTOCOL_VERSION + " by a development build of evitaDB and " +
+				"cannot be upgraded - restore it from a backup made by evitaDB 2026.2 or older, or recreate it."
+		);
+	}
+
+	/**
+	 * Creates the refusal of a catalog whose header carries a storage protocol no migration starts from and this
+	 * version does not read.
+	 *
+	 * @param catalogName            the name of the catalog
+	 * @param storageProtocolVersion the storage protocol of the catalog header
+	 * @return the exception to throw
+	 */
+	@Nonnull
+	private static ObsoleteStorageProtocolException unknownStorageProtocolRefusal(
+		@Nonnull String catalogName,
+		int storageProtocolVersion
+	) {
+		return new ObsoleteStorageProtocolException(
+			"Catalog `" + catalogName + "` carries the storage protocol " + storageProtocolVersion + " in its " +
+				"catalog header, which this version of evitaDB (storage protocol " + STORAGE_PROTOCOL_VERSION + ") " +
+				"neither reads nor upgrades. A catalog written by a newer version of evitaDB must be opened by that " +
+				"version.",
+			"Catalog `" + catalogName + "` carries the unknown storage protocol " + storageProtocolVersion + "."
+		);
 	}
 
 	/**

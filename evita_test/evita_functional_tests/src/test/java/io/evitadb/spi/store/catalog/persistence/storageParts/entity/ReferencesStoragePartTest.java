@@ -23,6 +23,7 @@
 
 package io.evitadb.spi.store.catalog.persistence.storageParts.entity;
 
+import io.evitadb.api.exception.IdentifierOverflowException;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
@@ -38,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.RepresentativeAttributeDefinition;
 import io.evitadb.exception.GenericEvitaInternalError;
@@ -1137,6 +1139,125 @@ class ReferencesStoragePartTest {
 			final Collection<ReferenceContract> asCollection = narrowed.getReferencesAsCollection();
 			assertEquals(2, asCollection.size());
 			assertEquals(512, narrowed.sizeInBytes().orElse(-1));
+		}
+	}
+
+	@Nested
+	@DisplayName("Internal primary key exhaustion")
+	class InternalPrimaryKeyExhaustionTest {
+		private static final int LAST_KEY = Integer.MAX_VALUE;
+
+		/**
+		 * Builds a reference from real schema objects - the entity schema the engine builds for a collection that
+		 * declares nothing, and the implicit reference schema the builders derive from it.
+		 *
+		 * @param referenceName the reference name
+		 * @param primaryKey    the referenced entity primary key
+		 * @param internalPk    the internal primary key, negative for a reference that has none yet
+		 * @return the reference
+		 */
+		@Nonnull
+		private static Reference realRef(@Nonnull String referenceName, int primaryKey, int internalPk) {
+			final EntitySchema schema = EntitySchema._internalBuild(EXAMPLE_ENTITY_TYPE);
+			return new Reference(
+				schema,
+				ReferencesBuilder.createImplicitSchema(
+					schema, referenceName, EXAMPLE_ENTITY_TYPE, Cardinality.ZERO_OR_MORE, null
+				),
+				1,
+				new ReferenceKey(referenceName, primaryKey, internalPk),
+				null,
+				false
+			);
+		}
+
+		/**
+		 * Adds a reference that has no internal primary key yet.
+		 *
+		 * @param part          the storage part
+		 * @param referenceName the reference name
+		 * @param internalPk    the negative placeholder key
+		 */
+		private static void addNew(@Nonnull ReferencesStoragePart part, @Nonnull String referenceName, int internalPk) {
+			part.replaceOrAddReference(
+				new ReferenceKey(referenceName, 1, internalPk),
+				existing -> realRef(referenceName, 1, internalPk),
+				() -> MissingReferenceBehavior.ACCEPT_INTERNAL_KEY
+			);
+		}
+
+		/**
+		 * Returns the internal primary keys of the part's references in their order.
+		 *
+		 * @param part the storage part
+		 * @return the internal primary keys
+		 */
+		@Nonnull
+		private static int[] internalPrimaryKeysOf(@Nonnull ReferencesStoragePart part) {
+			return part.getReferencesAsCollection()
+				.stream()
+				.mapToInt(it -> it.getReferenceKey().internalPrimaryKey())
+				.toArray();
+		}
+
+		/**
+		 * Asserts the assignment is refused with an identifier overflow that tells the client what helps.
+		 *
+		 * @param part the storage part
+		 */
+		private static void assertRefused(@Nonnull ReferencesStoragePart part) {
+			final IdentifierOverflowException exception = assertThrows(
+				IdentifierOverflowException.class, part::assignMissingIdsAndSort
+			);
+			assertTrue(
+				exception.getPrivateMessage().contains("entity with primary key 7") &&
+					exception.getPrivateMessage().contains(String.valueOf(LAST_KEY)),
+				"The private message must name the entity and the position: " + exception.getPrivateMessage()
+			);
+			final String publicMessage = exception.getPublicMessage();
+			assertTrue(
+				publicMessage.contains("internal primary keys of the references of the entity with primary key 7") &&
+					publicMessage.contains("a restart does not help") &&
+					publicMessage.contains("remove the entity and insert it again"),
+				"The public message must name the id space and the remedy: " + publicMessage
+			);
+		}
+
+		@Test
+		@DisplayName("hands out the last key, then refuses a new reference without renumbering anything")
+		void shouldHandOutTheLastKeyAndRefuseTheNext() {
+			// restored just below the limit through the constructor the deserializer uses
+			final ReferencesStoragePart part = new ReferencesStoragePart(
+				7, LAST_KEY - 2, new Reference[]{realRef("A", 1, LAST_KEY - 2)}, 128
+			);
+			addNew(part, "B", -1);
+			addNew(part, "C", -2);
+			assertEquals(2, part.assignMissingIdsAndSort().size());
+			assertArrayEquals(new int[]{LAST_KEY - 2, LAST_KEY - 1, LAST_KEY}, internalPrimaryKeysOf(part));
+			assertEquals(LAST_KEY, part.getLastUsedPrimaryKey());
+
+			addNew(part, "D", -3);
+			assertRefused(part);
+
+			// nothing was renumbered, the new reference still waits for its key, and it stays refused
+			assertArrayEquals(new int[]{LAST_KEY - 2, LAST_KEY - 1, LAST_KEY, -3}, internalPrimaryKeysOf(part));
+			assertEquals(LAST_KEY, part.getLastUsedPrimaryKey());
+			assertRefused(part);
+		}
+
+		@Test
+		@DisplayName("refuses before the first key when fewer keys are left than references need")
+		void shouldRefuseBeforeTheFirstKeyWhenTooFewAreLeft() {
+			final ReferencesStoragePart part = new ReferencesStoragePart(
+				7, LAST_KEY - 1, new Reference[]{realRef("A", 1, LAST_KEY - 1)}, 128
+			);
+			addNew(part, "B", -1);
+			addNew(part, "C", -2);
+
+			// one key is left for two references - neither of them may get it
+			assertRefused(part);
+			assertArrayEquals(new int[]{LAST_KEY - 1, -1, -2}, internalPrimaryKeysOf(part));
+			assertEquals(LAST_KEY - 1, part.getLastUsedPrimaryKey());
 		}
 	}
 

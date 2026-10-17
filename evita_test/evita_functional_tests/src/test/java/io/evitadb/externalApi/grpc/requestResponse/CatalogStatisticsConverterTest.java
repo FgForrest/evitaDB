@@ -81,6 +81,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcEntityScope;
 import io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseOrdering;
 import io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcIndexBrowseResponse;
+import io.evitadb.externalApi.grpc.generated.GrpcIndexCardinality;
 import io.evitadb.externalApi.grpc.generated.GrpcIndexDetail;
 import io.evitadb.externalApi.grpc.generated.GrpcOrderDirection;
 import io.evitadb.externalApi.grpc.generated.GrpcCatalogStatisticsSnapshot;
@@ -612,6 +613,7 @@ class CatalogStatisticsConverterTest {
 				"categories/42/[red]",
 				7,
 				3,
+				null,
 				new AttributeCardinality[]{
 					new AttributeCardinality("code", null, null, AttributeIndexType.FILTER, 5, 7),
 					new AttributeCardinality("name", "categories", Locale.ENGLISH, AttributeIndexType.SORT, 7, 7)
@@ -664,6 +666,7 @@ class CatalogStatisticsConverterTest {
 				null,
 				null,
 				null,
+				null,
 				new AttributeCardinality[]{
 					// a catalog index's attribute entries are its global unique indexes: entity-level by definition, so
 					// never bound to a reference, and one per locale for an attribute unique within a locale
@@ -701,6 +704,68 @@ class CatalogStatisticsConverterTest {
 	}
 
 	@Test
+	@DisplayName("carry a virtual partition count of zero as zero, and an absent one as absent")
+	void shouldKeepAZeroVirtualPartitionCountApartFromAnAbsentOne() throws InvalidProtocolBufferException {
+		// `0` is the reading of a reference type index whose reference holds no single-owner partition as a row, and
+		// absence the reading of every other index. A converter writing the field only when it is non-zero, or reading
+		// it without its presence check, answers both with the same value
+		final IndexCardinality referenceType = new IndexCardinality(
+			EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, "categories", 10, 4, 0, new AttributeCardinality[0]
+		);
+		final IndexCardinality global = new IndexCardinality(
+			EntityIndexType.GLOBAL, Scope.LIVE, null, 10, null, null, new AttributeCardinality[0]
+		);
+
+		final GrpcIndexCardinality referenceTypeOnWire = GrpcIndexCardinality.parseFrom(
+			CatalogStatisticsConverter.toGrpcIndexCardinality(referenceType).toByteArray()
+		);
+		assertTrue(referenceTypeOnWire.hasVirtualPartitionCount(), "A zero count must be sent rather than left unset");
+		final IndexCardinality referenceTypeReceived =
+			CatalogStatisticsConverter.toIndexCardinality(referenceTypeOnWire);
+		assertEquals(0, referenceTypeReceived.virtualPartitionCountIfKnown().orElseThrow());
+		assertEquals(referenceType, referenceTypeReceived);
+		assertNotEquals(
+			new IndexCardinality(
+				EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, "categories", 10, 4, null,
+				new AttributeCardinality[0]
+			),
+			referenceTypeReceived,
+			"Readings differing only in a zero against an absent count must not compare equal"
+		);
+
+		final GrpcIndexCardinality globalOnWire = GrpcIndexCardinality.parseFrom(
+			CatalogStatisticsConverter.toGrpcIndexCardinality(global).toByteArray()
+		);
+		assertFalse(globalOnWire.hasVirtualPartitionCount(), "An index holding no registry must leave the count unset");
+		final IndexCardinality globalReceived = CatalogStatisticsConverter.toIndexCardinality(globalOnWire);
+		assertNull(globalReceived.virtualPartitionCount(), "An unset count must not decode to zero");
+		assertTrue(globalReceived.virtualPartitionCountIfKnown().isEmpty());
+		assertEquals(global, globalReceived);
+	}
+
+	@Test
+	@DisplayName("decode a server that predates the virtual partition count as not knowing it, not as zero")
+	void shouldDecodeAServerPredatingTheVirtualPartitionCountAsUnknown() throws InvalidProtocolBufferException {
+		// a server built before the field existed sends it unset on its reference type index too, which must read as
+		// "not known" - `0` would claim the reference holds no single-owner partition as a row, which it never said
+		final IndexCardinality referenceType = new IndexCardinality(
+			EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, "categories", 10, 4, 7, new AttributeCardinality[0]
+		);
+
+		final IndexCardinality fromOldServer = CatalogStatisticsConverter.toIndexCardinality(
+			GrpcIndexCardinality.parseFrom(
+				CatalogStatisticsConverter.toGrpcIndexCardinality(referenceType).toBuilder()
+					.clearVirtualPartitionCount()
+					.build()
+					.toByteArray()
+			)
+		);
+
+		assertTrue(fromOldServer.virtualPartitionCountIfKnown().isEmpty(), "An unset count must not decode to zero");
+		assertEquals(4, fromOldServer.referencedEntityCount(), "The readings the server did send must survive");
+	}
+
+	@Test
 	@DisplayName("decode a server that predates the measured flag as having measured, not as unmeasured")
 	void shouldDecodeAServerPredatingTheMeasuredFlagAsMeasured() throws InvalidProtocolBufferException {
 		// a server built before `measured` existed sends the field unset, which on the wire is indistinguishable from
@@ -713,7 +778,9 @@ class CatalogStatisticsConverterTest {
 		);
 		final IndexDetail detail = new IndexDetail(
 			"product", 1, 4_096L,
-			new IndexCardinality(EntityIndexType.GLOBAL, Scope.LIVE, null, 1_000, 2, new AttributeCardinality[0]),
+			new IndexCardinality(
+				EntityIndexType.GLOBAL, Scope.LIVE, null, 1_000, 2, null, new AttributeCardinality[0]
+			),
 			9_000_000_000L, 4_000_000_000L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE, true
 		);
 		final SchemaCapabilityUsageStatistics usage = new SchemaCapabilityUsageStatistics(
@@ -776,7 +843,9 @@ class CatalogStatisticsConverterTest {
 		);
 		final IndexDetail detail = new IndexDetail(
 			"product", 1, 4_096L,
-			new IndexCardinality(EntityIndexType.GLOBAL, Scope.LIVE, null, 1_000, 2, new AttributeCardinality[0]),
+			new IndexCardinality(
+				EntityIndexType.GLOBAL, Scope.LIVE, null, 1_000, 2, null, new AttributeCardinality[0]
+			),
 			3L, 5L, LAST_QUERIED_AT, LAST_UPDATED_AT, OBSERVED_SINCE, true
 		);
 
@@ -1213,20 +1282,20 @@ class CatalogStatisticsConverterTest {
 					new IndexTypeCount(EntityIndexType.REFERENCED_ENTITY, Scope.ARCHIVED, 63)
 				}
 			),
-			// both halves of every nullable field appear exactly once: the global index has no discriminator and no
-			// reference cardinality, the reference index has both; the first attribute is entity-level and
-			// non-localized, the second is defined on a reference and localized. An arm that dropped a `has...()`
-			// guard decodes the absent half into `""` / `0` and fails on the first pair
+			// both halves of every nullable field appear exactly once: the global index has no discriminator, no
+			// reference cardinality and no virtual partition count, the reference index has all three; the first
+			// attribute is entity-level and non-localized, the second is defined on a reference and localized. An arm
+			// that dropped a `has...()` guard decodes the absent half into `""` / `0` and fails on the first pair
 			new CollectionIndexCardinality(
 				new IndexCardinality[]{
 					new IndexCardinality(
-						EntityIndexType.GLOBAL, Scope.LIVE, null, 81, null,
+						EntityIndexType.GLOBAL, Scope.LIVE, null, 81, null, null,
 						new AttributeCardinality[]{
 							new AttributeCardinality("code", null, null, AttributeIndexType.FILTER, 82, 83)
 						}
 					),
 					new IndexCardinality(
-						EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.ARCHIVED, "categories", 84, 85,
+						EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.ARCHIVED, "categories", 84, 85, 89,
 						new AttributeCardinality[]{
 							new AttributeCardinality(
 								"label", "categories", Locale.GERMAN, AttributeIndexType.SORT, 86, 87

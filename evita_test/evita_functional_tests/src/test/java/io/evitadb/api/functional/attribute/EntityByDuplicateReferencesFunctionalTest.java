@@ -44,9 +44,8 @@ import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.ReferencePartitions;
 import io.evitadb.test.Entities;
 import io.evitadb.test.annotation.DataSet;
 import io.evitadb.test.annotation.UseDataSet;
@@ -117,17 +116,19 @@ public class EntityByDuplicateReferencesFunctionalTest {
 	private final static int BRAND_COUNT = 10;
 
 	/**
-	 * Retrieves the referenced entity index based on the provided parameters.
+	 * Retrieves the partition of the referenced entity based on the provided parameters - its index object, or the
+	 * virtual handle of its registry row when the partition is a single-owner one. Meant for checking that the
+	 * partition exists, not for reading what it holds.
 	 *
 	 * @param evita                         the evita instance, must not be null
 	 * @param scope                         the scope in which the index resides, must not be null
 	 * @param entityType                    the type of the entity for which the index is being retrieved, must not be null
 	 * @param recordId                      the unique record identifier of the entity
 	 * @param representativeAttributeValues an array of representative attribute values used as part of the reference key, must not be null
-	 * @return the referenced entity index if it exists, or null if it does not exist
+	 * @return the partition if it exists, or null if it does not exist
 	 */
 	@Nullable
-	static EntityIndex getReferencedEntityIndex(
+	static ReferencePartition getReferencedEntityIndex(
 		@Nonnull Evita evita,
 		@Nonnull Scope scope,
 		@Nonnull String entityType,
@@ -138,15 +139,10 @@ public class EntityByDuplicateReferencesFunctionalTest {
 		final Catalog catalog = (Catalog) evita.getCatalogInstance(TEST_CATALOG).orElseThrow();
 		final EntityCollectionContract collection = catalog.getCollectionForEntity(entityType).orElseThrow();
 		Assert.isTrue(collection instanceof EntityCollection, "Unexpected entity collection type!");
-		return ((EntityCollection) collection).getIndexByKeyIfExists(
-			new EntityIndexKey(
-				EntityIndexType.REFERENCED_ENTITY,
-				scope,
-				new RepresentativeReferenceKey(
-					new ReferenceKey(referenceName, recordId),
-					representativeAttributeValues
-				)
-			)
+		return ReferencePartitions.resolverByKeyForOwnerRead(
+			((EntityCollection) collection).getDataStoreReader(), scope, referenceName
+		).apply(
+			new RepresentativeReferenceKey(new ReferenceKey(referenceName, recordId), representativeAttributeValues)
 		);
 	}
 

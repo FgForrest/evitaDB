@@ -38,6 +38,7 @@ import io.evitadb.exception.ObsoleteStorageProtocolException;
 import io.evitadb.export.file.ExportFileService;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
+import io.evitadb.spi.store.catalog.persistence.PersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AbstractLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart;
@@ -91,6 +92,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -110,15 +112,16 @@ import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.STORAGE;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * Drives the REAL v6→v7 upgrade of the standalone unique indexes end to end - the boot-time
+ * Drives the REAL v6→v8 upgrade of the standalone unique indexes end to end - the boot-time
  * `DefaultCatalogPersistenceService#verifyAndUpgradeStorageFormat` dispatch into
- * {@link Migration_2026_3#upgradeFromStorageProtocolVersion_6_to_7}, its collision pre-pass, its rewrite and its
+ * {@link Migration_2026_3#upgradeFromStorageProtocolVersion_6_to_8}, its collision pre-pass, its rewrite and its
  * flush - over a protocol-6 catalog built in code, with no binary fixture.
  *
  * {@link Migration_2026_3_UniqueRekeyTest} pins the re-key as a pure transform; it proves nothing about the
@@ -144,7 +147,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Migration_2026_3 — standalone unique indexes through the real v6→v7 upgrade")
+@DisplayName("Migration_2026_3 — standalone unique indexes through the real v6→v8 upgrade")
 @Tag(STORAGE)
 @Tag(INDEXING)
 @Tag(ATTRIBUTE)
@@ -208,6 +211,8 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 	/** Fillers start a year after every value of the named entities, so no filler can collide with them. */
 	private static final OffsetDateTime FILLER_BASE = NOON_UTC.plusYears(1);
 	private static final int FIRST_FILLER = 3;
+	/** The storage protocol of a catalog 2026.2 wrote - the one the upgrade starts from. */
+	private static final int LEGACY_PROTOCOL = 6;
 
 	private final List<TestPaths> allocatedPaths = new ArrayList<>(2);
 
@@ -244,6 +249,20 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 		}
 	}
 
+	/**
+	 * How an upgrade the test runs itself ends.
+	 */
+	enum Ending {
+		/** Every raw unique value is re-keyed and the header is handed over for publication. */
+		REKEYED,
+		/** The pre-pass finds two owners of one value and refuses the upgrade. */
+		REFUSED,
+		/** The publication of the re-keyed catalog fails. */
+		PUBLICATION_FAILED,
+		/** Opening the data store of the second collection fails. */
+		OPEN_FAILED
+	}
+
 	@AfterEach
 	void tearDown() {
 		this.allocatedPaths.forEach(this::cleanupTestPaths);
@@ -257,22 +276,10 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 		final Spellings spellings = new Spellings();
 		writeCatalog(
 			paths,
-			session -> {
-				writeFirstProduct(session, spellings);
-				session.createNewEntity(PRODUCT, 2)
-					.setAttribute(CODE, spellings.raw(CODE, "tea"))
-					.setAttribute(PRICE, spellings.raw(PRICE, new BigDecimal("2.5")))
-					.setAttribute(URL, Locale.ENGLISH, spellings.raw(URL, "/tea"))
-					.upsertVia(session);
-				session.createNewEntity(CATEGORY, 1)
-					.setAttribute(CODE, spellings.raw(CODE, CATEGORY_CODE_NFC))
-					.setAttribute(VALID_FROM, spellings.raw(VALID_FROM, CATEGORY_VALID_FROM))
-					.upsertVia(session);
-				writeFillers(session, shape, spellings);
-			}
+			session -> writeRawSpellings(session, shape, spellings)
 		);
 		assertEquals(
-			STANDALONE_INDEXES, stampLegacyUniqueState(paths, spellings, shape),
+			STANDALONE_INDEXES, stampLegacyUniqueState(paths, spellings, shape, LEGACY_PROTOCOL),
 			"every standalone unique index must hold raw spellings before the upgrade, or the test proves nothing"
 		);
 
@@ -297,26 +304,9 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 		final Spellings spellings = new Spellings();
 		writeCatalog(
 			paths,
-			session -> {
-				writeFirstProduct(session, spellings);
-				// each placeholder is stored by 2026.2 as a spelling of `product:1`'s value - see the class javadoc
-				session.createNewEntity(PRODUCT, 2)
-					.setAttribute(URL, Locale.ENGLISH, spellings.respelled(URL, "/placeholder", URL_NFD))
-					.setAttribute(WEIGHT, Locale.ENGLISH, spellings.respelled(WEIGHT, new BigDecimal("9.99"), new BigDecimal("0.126")))
-					.setAttribute(
-						RELEASED_AT, Locale.ENGLISH,
-						spellings.respelled(RELEASED_AT, NOON_UTC.plusDays(3), PRODUCT_RELEASED_AT.withOffsetSameInstant(ZoneOffset.UTC))
-					)
-					.upsertVia(session);
-				session.createNewEntity(CATEGORY, 1)
-					.setAttribute(CODE, spellings.respelled(CODE, "placeholder", CHAJ_NFD))
-					.setAttribute(PRICE, spellings.respelled(PRICE, new BigDecimal("7.77"), new BigDecimal("1.236")))
-					.setAttribute(VALID_FROM, spellings.respelled(VALID_FROM, CATEGORY_VALID_FROM, NOON_UTC))
-					.upsertVia(session);
-				writeFillers(session, shape, spellings);
-			}
+			session -> writeCollidingSpellings(session, shape, spellings)
 		);
-		assertEquals(STANDALONE_INDEXES, stampLegacyUniqueState(paths, spellings, shape));
+		assertEquals(STANDALONE_INDEXES, stampLegacyUniqueState(paths, spellings, shape, LEGACY_PROTOCOL));
 		final Map<String, String> before = catalogFileDigests(paths);
 
 		try (Evita evita = new Evita(newTestEvitaConfigurationBuilder(paths).build())) {
@@ -324,7 +314,12 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 			assertEquals(CatalogState.CORRUPTED, evita.getCatalogState(CATALOG).orElseThrow());
 			final ObsoleteStorageProtocolException refusal = findCause(failure, ObsoleteStorageProtocolException.class);
 			final String message = refusal.getMessage();
-			assertTrue(message.contains("cannot be upgraded to storage protocol version 7"), message);
+			assertTrue(
+				message.contains(
+					"cannot be upgraded to storage protocol version " + PersistenceService.STORAGE_PROTOCOL_VERSION
+				),
+				message
+			);
 			assertTrue(message.contains("6 unique value(s)"), message);
 			final List<String> pairs = List.of(
 				message.substring(message.indexOf("Collisions: ") + "Collisions: ".length(), message.length() - 1)
@@ -346,6 +341,82 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 		assertEquals(before, catalogFileDigests(paths), "a refused upgrade must write nothing");
 	}
 
+	@ParameterizedTest(name = "{0}")
+	@EnumSource(Ending.class)
+	@DisplayName("Should close every collection data store the upgrade opened, however it ends")
+	void shouldCloseEveryCollectionDataStoreTheUpgradeOpened(@Nonnull Ending ending) {
+		final TestPaths paths = allocatePaths("closing_" + ending.name());
+		final Spellings spellings = new Spellings();
+		writeCatalog(
+			paths,
+			session -> {
+				if (ending == Ending.REFUSED) {
+					writeCollidingSpellings(session, Shape.INLINE, spellings);
+				} else {
+					writeRawSpellings(session, Shape.INLINE, spellings);
+				}
+			}
+		);
+		// stamped with the current protocol, so the catalog opens without the engine upgrading it on the way - the
+		// test runs the upgrade itself, through a factory recording every data store it opens
+		assertEquals(
+			STANDALONE_INDEXES,
+			stampLegacyUniqueState(paths, spellings, Shape.INLINE, PersistenceService.STORAGE_PROTOCOL_VERSION)
+		);
+
+		final List<DefaultEntityCollectionPersistenceService> opened = new ArrayList<>(2);
+		final Optional<RuntimeException> failure = withOfflineCatalog(
+			paths,
+			service -> {
+				final long catalogVersion = service.getLastCatalogVersion();
+				final CatalogOffsetIndexStoragePartPersistenceService catalogParts =
+					service.getStoragePartPersistenceService(catalogVersion);
+				try {
+					Migration_2026_3.upgradeFromStorageProtocolVersion_6_to_8(
+						catalogParts.getCatalogHeader(catalogVersion),
+						catalogParts,
+						collectionHeader -> {
+							if (ending == Ending.OPEN_FAILED && opened.size() == 1) {
+								throw new IllegalStateException("Opening the second data store fails.");
+							}
+							final DefaultEntityCollectionPersistenceService collectionService =
+								service.createEntityCollectionPersistenceService(collectionHeader);
+							opened.add(collectionService);
+							return collectionService;
+						},
+						newHeader -> {
+							// nothing is published - the test only observes the data stores
+							if (ending == Ending.PUBLICATION_FAILED) {
+								throw new IllegalStateException("The publication fails.");
+							}
+						}
+					);
+					return Optional.empty();
+				} catch (RuntimeException ex) {
+					return Optional.of(ex);
+				}
+			}
+		);
+
+		switch (ending) {
+			case REKEYED -> assertTrue(failure.isEmpty(), () -> "the upgrade must succeed: " + failure.orElseThrow());
+			case REFUSED -> assertInstanceOf(ObsoleteStorageProtocolException.class, failure.orElseThrow());
+			case PUBLICATION_FAILED, OPEN_FAILED ->
+				assertInstanceOf(IllegalStateException.class, failure.orElseThrow());
+		}
+		assertEquals(
+			ending == Ending.OPEN_FAILED ? 1 : 2, opened.size(),
+			"the upgrade must have opened the data store of every collection it reached"
+		);
+		for (final DefaultEntityCollectionPersistenceService collectionService : opened) {
+			assertTrue(
+				collectionService.isClosed(),
+				"the data store of `" + collectionService.getEntityCollectionHeader().entityType() + "` is still " +
+					"open after an upgrade that ended " + ending
+			);
+		}
+	}
+
 	/**
 	 * Returns the NFC spelling of `text`.
 	 */
@@ -360,6 +431,59 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 	@Nonnull
 	private static String nfd(@Nonnull String text) {
 		return Normalizer.normalize(text, Normalizer.Form.NFD);
+	}
+
+	/**
+	 * Writes the entities of the raw-keys catalog: `product:1`, `product:2` and `category:1` with distinct values held
+	 * in raw spellings, and the fillers of `shape`.
+	 */
+	private static void writeRawSpellings(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Shape shape,
+		@Nonnull Spellings spellings
+	) {
+		writeFirstProduct(session, spellings);
+		session.createNewEntity(PRODUCT, 2)
+			.setAttribute(CODE, spellings.raw(CODE, "tea"))
+			.setAttribute(PRICE, spellings.raw(PRICE, new BigDecimal("2.5")))
+			.setAttribute(URL, Locale.ENGLISH, spellings.raw(URL, "/tea"))
+			.upsertVia(session);
+		session.createNewEntity(CATEGORY, 1)
+			.setAttribute(CODE, spellings.raw(CODE, CATEGORY_CODE_NFC))
+			.setAttribute(VALID_FROM, spellings.raw(VALID_FROM, CATEGORY_VALID_FROM))
+			.upsertVia(session);
+		writeFillers(session, shape, spellings);
+	}
+
+	/**
+	 * Writes the entities of the colliding catalog: `product:1` and, under placeholders, `product:2` and `category:1`,
+	 * whose every unique value 2026.2 stored as another spelling of a value of `product:1`, and the fillers of `shape`.
+	 */
+	private static void writeCollidingSpellings(
+		@Nonnull EvitaSessionContract session,
+		@Nonnull Shape shape,
+		@Nonnull Spellings spellings
+	) {
+		writeFirstProduct(session, spellings);
+		// each placeholder is stored by 2026.2 as a spelling of `product:1`'s value - see the class javadoc
+		session.createNewEntity(PRODUCT, 2)
+			.setAttribute(URL, Locale.ENGLISH, spellings.respelled(URL, "/placeholder", URL_NFD))
+			.setAttribute(
+				WEIGHT, Locale.ENGLISH, spellings.respelled(WEIGHT, new BigDecimal("9.99"), new BigDecimal("0.126"))
+			)
+			.setAttribute(
+				RELEASED_AT, Locale.ENGLISH,
+				spellings.respelled(
+					RELEASED_AT, NOON_UTC.plusDays(3), PRODUCT_RELEASED_AT.withOffsetSameInstant(ZoneOffset.UTC)
+				)
+			)
+			.upsertVia(session);
+		session.createNewEntity(CATEGORY, 1)
+			.setAttribute(CODE, spellings.respelled(CODE, "placeholder", CHAJ_NFD))
+			.setAttribute(PRICE, spellings.respelled(PRICE, new BigDecimal("7.77"), new BigDecimal("1.236")))
+			.setAttribute(VALID_FROM, spellings.respelled(VALID_FROM, CATEGORY_VALID_FROM, NOON_UTC))
+			.upsertVia(session);
+		writeFillers(session, shape, spellings);
 	}
 
 	/**
@@ -557,7 +681,7 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Asserts that the upgrade left the catalog at storage protocol 7 and every standalone unique index holding only
+	 * Asserts that the upgrade left the catalog at storage protocol 8 and every standalone unique index holding only
 	 * the canonical form of its values - the rewrite itself, not merely a load that tolerates raw values.
 	 */
 	@Nonnull
@@ -565,7 +689,7 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 		final long catalogVersion = service.getLastCatalogVersion();
 		final CatalogHeader<LogFileRecordReference, CollectionFileReference> header =
 			service.getCatalogHeader(catalogVersion);
-		assertEquals(7, header.storageProtocolVersion());
+		assertEquals(PersistenceService.STORAGE_PROTOCOL_VERSION, header.storageProtocolVersion());
 		final List<StoredUniqueIndex> indexes = new ArrayList<>(
 			readGlobalUniqueIndexes(catalogVersion, service.getStoragePartPersistenceService(catalogVersion))
 		);
@@ -596,13 +720,20 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 	/**
 	 * Turns the catalog written by the current engine into the state 2026.2 would have left on disk: every standalone
 	 * unique part, in the catalog file and in every collection file, holds the raw spelling of each value in 2026.2's
-	 * order across its original leaf boundaries, and the catalog header carries storage protocol 6. The changes are
-	 * published by a new bootstrap record, exactly as a flush would publish them.
+	 * order across its original leaf boundaries, and the catalog header carries the given storage protocol - 6 for a
+	 * catalog the engine upgrades on its own at boot, the current one for a catalog a test opens without the engine
+	 * and upgrades itself. The changes are published by a new bootstrap record, exactly as a flush would publish them.
 	 *
+	 * @param storageProtocolVersion the storage protocol the catalog header is stamped with
 	 * @return the labels of the indexes that now hold raw spellings
 	 */
 	@Nonnull
-	private Set<String> stampLegacyUniqueState(@Nonnull TestPaths paths, @Nonnull Spellings spellings, @Nonnull Shape shape) {
+	private Set<String> stampLegacyUniqueState(
+		@Nonnull TestPaths paths,
+		@Nonnull Spellings spellings,
+		@Nonnull Shape shape,
+		int storageProtocolVersion
+	) {
 		final Path catalogFolder = EvitaTestSupport.catalogDirectory(paths.storage(), CATALOG);
 		final EvitaConfiguration configuration = newTestEvitaConfigurationBuilder(paths).build();
 		final int catalogFileIndex;
@@ -652,7 +783,8 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 					}
 				}
 				catalogParts.writeCatalogHeader(
-					6, catalogVersion, catalogFolder, header.walFileReference(), collectionFileIndex,
+					storageProtocolVersion, catalogVersion, catalogFolder, header.walFileReference(),
+					collectionFileIndex,
 					header.catalogId(), header.catalogName(), header.catalogState(),
 					header.lastEntityCollectionPrimaryKey()
 				);
@@ -669,7 +801,7 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 	 * @param respelled receives the label of the index when any value changed
 	 * @return `true` when any value changed
 	 */
-	private static boolean respellIntoLegacyOrder(
+	static boolean respellIntoLegacyOrder(
 		@Nonnull StoredUniqueIndex index,
 		@Nonnull Spellings spellings,
 		@Nonnull Shape shape,
@@ -790,7 +922,7 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 	 * (views over the filter index) carry no values of their own and are skipped.
 	 */
 	@Nonnull
-	private static List<StoredUniqueIndex> readOwnerUniqueIndexes(
+	static List<StoredUniqueIndex> readOwnerUniqueIndexes(
 		long catalogVersion,
 		@Nonnull DefaultEntityCollectionPersistenceService collection
 	) {
@@ -1003,7 +1135,7 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 	 * Writes the values of one page of a stored unique index back to storage.
 	 */
 	@FunctionalInterface
-	private interface PageWriter {
+	interface PageWriter {
 
 		/**
 		 * Stores `values` with their `owners` as page `page` (the root, for an inline index).
@@ -1026,7 +1158,7 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 	 * @param pageOwners    the owners of every page, positionally aligned with `pageValues`
 	 * @param writer        writes a page back
 	 */
-	private record StoredUniqueIndex(
+	record StoredUniqueIndex(
 		@Nonnull String label,
 		@Nonnull String attributeName,
 		boolean paged,
@@ -1040,7 +1172,7 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 	 * Remembers, per attribute, which spelling a 2026.2 unique index kept for each value the current engine persists -
 	 * keyed by the canonical value the current engine stores ({@link UniqueIndex#toPersistedValue}).
 	 */
-	private static final class Spellings {
+	static final class Spellings {
 		private final Map<String, Map<Serializable, Serializable>> byAttribute = new HashMap<>();
 
 		/**

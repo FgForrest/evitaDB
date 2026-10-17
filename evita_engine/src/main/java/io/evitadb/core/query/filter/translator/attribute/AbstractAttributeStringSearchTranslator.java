@@ -26,7 +26,6 @@ package io.evitadb.core.query.filter.translator.attribute;
 
 import io.evitadb.api.query.filter.AbstractAttributeFilterStringSearchConstraintLeaf;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -44,7 +43,7 @@ import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
-import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
+import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
@@ -62,23 +61,16 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.Serializable;
-import java.text.Normalizer;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
-import java.util.function.Predicate;
-import java.util.stream.Stream;
 
-import static io.evitadb.api.query.QueryConstraints.attributeContent;
 
 /**
  * AbstractAttributeStringSearchTranslator is an abstract class that extends the AbstractAttributeTranslator.
@@ -135,7 +127,7 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 	 *                            that requires the attribute to be of type String
 	 * @param attributeDefinition the schema definition of the attribute being validated
 	 */
-	static void assertStringType(
+	public static void assertStringType(
 		@Nonnull AbstractAttributeFilterStringSearchConstraintLeaf attributeConstraint,
 		@Nonnull AttributeSchemaContract attributeDefinition
 	) {
@@ -146,76 +138,21 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 	}
 
 	/**
-	 * Transforms a {@link Predicate} of type {@link String} to a {@link Predicate} of type {@link Stream}<{@link Optional}<{@link AttributeValue}>>.
-	 * The transformation involves inspecting the stream of attribute values, checking if each attribute
-	 * meets the given string predicate.
+	 * Creates the matcher of the string search - the test of a single attribute value the search of this translator
+	 * stands for. The search is the very predicate the main query verifies the candidates of the index with.
 	 *
-	 * @param predicate the predicate to test each attribute string value.
-	 * @return a predicate applied to a stream of optional attribute values.
+	 * @param attributeConstraint the string search constraint
+	 * @param attributeSchema     the schema of the attribute the constraint is applied to
+	 * @return the matcher
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the attribute is not a string
 	 */
 	@Nonnull
-	public static Predicate<Stream<Optional<AttributeValue>>> transformPredicate(@Nonnull Predicate<String> predicate) {
-		return attrStream -> attrStream.anyMatch(
-			attr -> {
-				if (attr.isEmpty()) {
-					return false;
-				} else {
-					final Serializable theValue = Objects.requireNonNull(attr.get().value());
-					if (theValue.getClass().isArray()) {
-						return Arrays.stream((Object[]) theValue).map(String.class::cast).anyMatch(predicate);
-					} else {
-						return predicate.test((String) theValue);
-					}
-				}
-			}
-		);
-	}
-
-	/**
-	 * Builds the prefetch-path predicate so it compares strings under the same canonical equivalence the
-	 * inverted index uses. The {@link FilterIndex} normalizes every stored String key and every incoming
-	 * search term to Unicode NFD; the prefetched raw entity attribute value may be in any canonically
-	 * equivalent form (typically precomposed NFC), so both the search term and each candidate value are
-	 * normalized to NFD here before applying {@link #stringPredicate}. The search term is normalized once and
-	 * the resulting predicate is reused for every (possibly array-element) value.
-	 *
-	 * @param textToSearch the raw search term supplied in the query
-	 * @return a predicate over a single String attribute value that is interchangeable with the index path
-	 */
-	@Nonnull
-	private Predicate<String> createCanonicalPredicate(@Nonnull String textToSearch) {
-		final String normalizedTextToSearch = Normalizer.normalize(textToSearch, Normalizer.Form.NFD);
-		return value -> value != null
-			&& this.stringPredicate.test(Normalizer.normalize(value, Normalizer.Form.NFD), normalizedTextToSearch);
-	}
-
-	/**
-	 * Creates an alternative bitmap filter for processing attribute conditions.
-	 *
-	 * @param filterByVisitor     the visitor handling the filter-by processing context
-	 * @param attributeConstraint the attribute filter string search constraint leaf that provides the attribute name and the text to search for
-	 * @param attributeName       the name of the attribute to filter by
-	 * @param predicate           the predicate to test each attribute string value
-	 * @return an instance of AttributeBitmapFilter configured with the specified parameters
-	 */
-	@Nonnull
-	private static AttributeBitmapFilter createAlternativeBitmapFilter(
-		@Nonnull FilterByVisitor filterByVisitor,
+	protected AttributeValueMatcher createStringSearchMatcher(
 		@Nonnull AbstractAttributeFilterStringSearchConstraintLeaf attributeConstraint,
-		@Nonnull String attributeName,
-		@Nonnull Predicate<String> predicate
+		@Nonnull AttributeSchemaContract attributeSchema
 	) {
-		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
-		return new AttributeBitmapFilter(
-			attributeName,
-			attributeContent(attributeName),
-			processingScope::getAttributeSchema,
-			(entityContract, theAttributeName) -> processingScope.getAttributeValueStream(entityContract, theAttributeName, filterByVisitor.getLocale()),
-			attributeSchema -> {
-				assertStringType(attributeConstraint, attributeSchema);
-				return transformPredicate(predicate);
-			}
-		);
+		assertStringType(attributeConstraint, attributeSchema);
+		return AttributeValueMatcher.searching(attributeConstraint.getTextToSearch(), this.stringPredicate);
 	}
 
 	/**
@@ -536,19 +473,26 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 	}
 
 	/**
-	 * Translates the given attribute string search constraint into a filtering formula suitable for application on a filter index.
+	 * Translates the given attribute string search constraint into a filtering formula suitable for application on a
+	 * filter index, or - when the query names no collection and so targets the catalog index, which keeps no filter
+	 * index - into an `EntityFilteringFormula` evaluated on the entities found otherwise.
 	 * This method is intended for internal use to assist the filtering process by generating an appropriate formula based on the given
 	 * constraints and the current state of the filter visitor.
 	 *
 	 * @param attributeConstraint the attribute filter string search constraint leaf that provides the attribute name and the text to search for
 	 * @param filterByVisitor     the filter by visitor context that provides methods to retrieve attribute schema, check entity type knowledge,
 	 *                            and apply filters on index
+	 * @param translator          the translator of the constraint, which creates the matcher the prefetched entities
+	 *                            are tested with
 	 * @return a Formula object representing the filtering formula based on the given constraints and visitor context
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the attribute is not a string; it is refused
+	 *                                                         before any index is read
 	 */
 	@Nonnull
-	protected Formula translateInternal(
-		@Nonnull AbstractAttributeFilterStringSearchConstraintLeaf attributeConstraint,
-		@Nonnull FilterByVisitor filterByVisitor
+	protected <T extends AbstractAttributeFilterStringSearchConstraintLeaf> Formula translateInternal(
+		@Nonnull T attributeConstraint,
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull AttributeValueMatchingTranslator<T> translator
 	) {
 		final String attributeName = attributeConstraint.getAttributeName();
 		final String textToSearch = attributeConstraint.getTextToSearch();
@@ -556,12 +500,15 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 			filterByVisitor, attributeName, AttributeTrait.FILTERABLE
 		);
 
-		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
+		if (filterByVisitor.isEntityTypeKnown()) {
 			final AttributeSchemaContract attributeDefinition = optionalGlobalAttributeSchema
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeDefinition);
 			assertStringType(attributeConstraint, attributeDefinition);
+			final AttributeValueMatcher matcher = translator.createMainQueryMatcher(
+				attributeConstraint, filterByVisitor, attributeDefinition
+			);
 
 			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
 			final ReferenceSchemaContract referenceSchema = processingScope.getReferenceSchema();
@@ -585,10 +532,7 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
 					filteringFormula,
-					createAlternativeBitmapFilter(
-						filterByVisitor, attributeConstraint, attributeName,
-						createCanonicalPredicate(textToSearch)
-					)
+					translator.createAlternativeBitmapFilter(attributeConstraint, filterByVisitor, matcher)
 				);
 			} else {
 				return filteringFormula;
@@ -596,10 +540,7 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 		} else {
 			return new EntityFilteringFormula(
 				"attribute " + this.description + " filter",
-				createAlternativeBitmapFilter(
-					filterByVisitor, attributeConstraint, attributeName,
-					createCanonicalPredicate(textToSearch)
-				)
+				translator.createEntityFilteringBitmapFilter(attributeConstraint, filterByVisitor)
 			);
 		}
 	}
