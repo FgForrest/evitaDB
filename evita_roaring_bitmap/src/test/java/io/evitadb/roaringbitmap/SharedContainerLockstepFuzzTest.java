@@ -613,7 +613,8 @@ public class SharedContainerLockstepFuzzTest {
 				if (operation == 21) {
 					assertEquals(target.model.add(value), target.bitmap.checkedAdd(value), "checkedAdd return value");
 				} else {
-					assertEquals(target.model.remove(value), target.bitmap.checkedRemove(value), "checkedRemove return value");
+					assertEquals(
+						target.model.remove(value), target.bitmap.checkedRemove(value), "checkedRemove return value");
 				}
 				break;
 			}
@@ -685,7 +686,8 @@ public class SharedContainerLockstepFuzzTest {
 					model.add(values[i]);
 				}
 				pool.add(new Tracked(random.nextBoolean()
-					? PersistentRoaringBitmap.bitmapOf(values) : PersistentRoaringBitmap.bitmapOfUnordered(values), model));
+					? PersistentRoaringBitmap.bitmapOf(values)
+					: PersistentRoaringBitmap.bitmapOfUnordered(values), model));
 				break;
 			}
 			case 32: {
@@ -702,7 +704,8 @@ public class SharedContainerLockstepFuzzTest {
 				break;
 			}
 			case 34: {
-				final RoaringBitmapWriter.Wizard<Container, PersistentRoaringBitmap> wizard = RoaringBitmapWriter.writer();
+				final RoaringBitmapWriter.Wizard<Container, PersistentRoaringBitmap> wizard =
+					RoaringBitmapWriter.writer();
 				if (random.nextBoolean()) {
 					wizard.constantMemory();
 				} else if (random.nextBoolean()) {
@@ -741,7 +744,8 @@ public class SharedContainerLockstepFuzzTest {
 				} else {
 					final long[] range = randomRange(random);
 					final long end = random.nextBoolean() ? range[1] : 1L << 32;
-					pool.add(new Tracked(target.bitmap.selectRange(range[0], end), rangeModel(target.model, range[0], end)));
+					pool.add(new Tracked(
+						target.bitmap.selectRange(range[0], end), rangeModel(target.model, range[0], end)));
 				}
 				break;
 			}

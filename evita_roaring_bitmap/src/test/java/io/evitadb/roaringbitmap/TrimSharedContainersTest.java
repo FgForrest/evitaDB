@@ -80,8 +80,12 @@ public class TrimSharedContainersTest {
 		target.trim();
 
 		assertAll(
-			() -> assertSame(sharedContent, sharedArray.content, "trim replaced a shared array container's backing array"),
-			() -> assertEquals(sharedRunBytes, sharedRun.getHeapSizeInBytes(LAYOUT), "trim shrank a shared run container's backing array"),
+			() -> assertSame(
+				sharedContent, sharedArray.content, "trim replaced a shared array container's backing array"),
+			() -> assertEquals(
+				sharedRunBytes, sharedRun.getHeapSizeInBytes(LAYOUT),
+				"trim shrank a shared run container's backing array"
+			),
 			() -> assertSame(sharedArray, target.getContainerAtIndex(0)),
 			() -> assertSame(sharedRun, target.getContainerAtIndex(1)),
 			() -> assertSame(sharedArray, peer.getContainerAtIndex(0)),

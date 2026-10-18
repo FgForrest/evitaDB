@@ -45,7 +45,8 @@ public class SingleInputAggregationTest {
 				aggregation("naive_and(Iterator)", bitmap -> FastAggregation.naive_and(List.of(bitmap).iterator())),
 				aggregation("horizontal_or(varargs)", FastAggregation::horizontal_or),
 				aggregation("horizontal_or(List)", bitmap -> FastAggregation.horizontal_or(List.of(bitmap))),
-				aggregation("horizontal_or(Iterator)", bitmap -> FastAggregation.horizontal_or(List.of(bitmap).iterator())),
+				aggregation(
+					"horizontal_or(Iterator)", bitmap -> FastAggregation.horizontal_or(List.of(bitmap).iterator())),
 				aggregation("horizontal_xor(varargs)", FastAggregation::horizontal_xor),
 				aggregation("and(varargs)", FastAggregation::and),
 				aggregation("and(Iterator)", bitmap -> FastAggregation.and(List.of(bitmap).iterator())),
@@ -54,8 +55,12 @@ public class SingleInputAggregationTest {
 				aggregation("or(Iterator)", bitmap -> FastAggregation.or(List.of(bitmap).iterator())),
 				aggregation("xor(varargs)", FastAggregation::xor),
 				aggregation("xor(Iterator)", bitmap -> FastAggregation.xor(List.of(bitmap).iterator())),
-				aggregation("workShyAnd(buffer, varargs)", bitmap -> FastAggregation.workShyAnd(new long[1024], bitmap)),
-				aggregation("workAndMemoryShyAnd(buffer, varargs)", bitmap -> FastAggregation.workAndMemoryShyAnd(new long[1024], bitmap)),
+				aggregation(
+					"workShyAnd(buffer, varargs)", bitmap -> FastAggregation.workShyAnd(new long[1024], bitmap)),
+				aggregation(
+					"workAndMemoryShyAnd(buffer, varargs)",
+					bitmap -> FastAggregation.workAndMemoryShyAnd(new long[1024], bitmap)
+				),
 				aggregation("PersistentRoaringBitmap.and(Iterator, long, long)",
 					bitmap -> PersistentRoaringBitmap.and(List.of(bitmap).iterator(), 0L, 3L << 16)),
 				aggregation("PersistentRoaringBitmap.and(Iterator, int, int)",
@@ -80,7 +85,8 @@ public class SingleInputAggregationTest {
 	private static Stream<Arguments> priorityQueueUnions() {
 		return Stream.of(
 			aggregation("priorityqueue_or(varargs)", FastAggregation::priorityqueue_or),
-			aggregation("priorityqueue_or(Iterator)", bitmap -> FastAggregation.priorityqueue_or(List.of(bitmap).iterator()))
+			aggregation(
+				"priorityqueue_or(Iterator)", bitmap -> FastAggregation.priorityqueue_or(List.of(bitmap).iterator()))
 		);
 	}
 
@@ -184,8 +190,11 @@ public class SingleInputAggregationTest {
 		for (int r = 0; r < result.highLowContainer.size(); r++) {
 			for (int i = 0; i < input.highLowContainer.size(); i++) {
 				if (result.getContainerAtIndex(r) == input.getContainerAtIndex(i)) {
-					assertTrue(result.isShared(r), name + " result slot " + r + " aliases an input container without a shared flag");
-					assertTrue(input.isShared(i), name + " input slot " + i + " lent a container without a shared flag");
+					assertTrue(
+						result.isShared(r),
+						name + " result slot " + r + " aliases an input container without a shared flag");
+					assertTrue(
+						input.isShared(i), name + " input slot " + i + " lent a container without a shared flag");
 				}
 			}
 		}

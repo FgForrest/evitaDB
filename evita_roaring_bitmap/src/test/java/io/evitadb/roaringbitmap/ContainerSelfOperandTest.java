@@ -162,8 +162,10 @@ public class ContainerSelfOperandTest {
 				sparse.set(0);
 			}
 			final String suffix = includeZero ? " with zero" : " without zero";
-			fixtures.add(Arguments.of("compact array" + suffix, fill(new ArrayContainer(sparse.cardinality()), sparse)));
-			fixtures.add(Arguments.of("spare array" + suffix, fill(new ArrayContainer(2 * sparse.cardinality() + 1), sparse)));
+			fixtures.add(Arguments.of(
+				"compact array" + suffix, fill(new ArrayContainer(sparse.cardinality()), sparse)));
+			fixtures.add(Arguments.of(
+				"spare array" + suffix, fill(new ArrayContainer(2 * sparse.cardinality() + 1), sparse)));
 			final BitSet large = (BitSet) sparse.clone();
 			large.set(500, 3500);
 			fixtures.add(Arguments.of("large array" + suffix, fill(new ArrayContainer(), large)));
