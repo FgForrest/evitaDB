@@ -1922,6 +1922,9 @@ public final class RunContainer extends Container implements Cloneable {
 		if (isFull()) {
 			return this;
 		}
+		if (x == this) {
+			return this;
+		}
 
 		final int nbrruns = this.nbrruns;
 		final int xnbrruns = x.nbrruns;
