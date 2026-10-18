@@ -105,18 +105,17 @@ public class TrimSharedContainersTest {
 	}
 
 	/**
-	 * Static builders can leave flags shorter than the live container prefix; those missing flags
-	 * mean owned, so both array and run containers beyond the flag array must still be trimmed.
+	 * Static builders size their all-owned flags, so their array and run storage can be trimmed.
 	 */
 	@Test
-	public void trimTreatsSlotsBeyondSharedLengthAsOwned() {
+	public void trimTreatsSizedBuilderSlotsAsOwned() {
 		final PersistentRoaringBitmap original = new PersistentRoaringBitmap();
 		for (int key = 0; key < 6; key++) {
 			original.append((char) key, arrayWithSpareCapacity());
 		}
 		final PersistentRoaringBitmap target = PersistentRoaringBitmap.addOffset(original, 0);
-		assertTrue(target.shared.length < target.highLowContainer.size());
-		final int arraySlot = target.shared.length;
+		assertTrue(target.shared.length >= target.highLowContainer.size());
+		final int arraySlot = 4;
 		final int runSlot = arraySlot + 1;
 		final ArrayContainer ownedArray = arrayWithSpareCapacity();
 		final RunContainer ownedRun = runWithSpareCapacity();

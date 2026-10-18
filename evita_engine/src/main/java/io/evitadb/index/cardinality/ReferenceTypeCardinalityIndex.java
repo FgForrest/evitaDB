@@ -593,9 +593,9 @@ public class ReferenceTypeCardinalityIndex
 		}
 		// `partitions` are LIVE index bitmaps. For multiple matches, `horizontal_or` builds owned containers without
 		// writing to the inputs. The single-match `clone()` shares containers and backing arrays: it freezes the
-		// source's container array and fills its active `shared[]` flags with `true` (growing the flag array if
-		// needed). These writes are tolerated today: freezing is idempotent, and the full fill reasserts conservative
-		// sharing under concurrent queries, as documented by `markAllShared`; sparse per-slot marking would not.
+		// source's container array and sets the source's `lent` field, leaving its per-slot `shared[]` flags alone.
+		// Both writes are idempotent and reallocate nothing, so concurrent queries cloning the same bitmap cannot
+		// lose each other's; the owner expands `lent` into per-slot flags before its next mutation.
 		return matchCount == 1 ?
 			new BaseBitmap(partitions[0].clone()) :
 			new BaseBitmap(FastAggregation.horizontal_or(partitions));

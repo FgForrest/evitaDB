@@ -319,6 +319,7 @@ public final class FastAggregation {
 				pq.add(x2);
 			}
 		}
+		answer.sealOwned();
 		return answer;
 	}
 
@@ -384,6 +385,7 @@ public final class FastAggregation {
 				pq.add(x2);
 			}
 		}
+		answer.sealOwned();
 		return answer;
 	}
 
@@ -451,6 +453,7 @@ public final class FastAggregation {
 				pq.add(x2);
 			}
 		}
+		answer.sealOwned();
 		return answer;
 	}
 
