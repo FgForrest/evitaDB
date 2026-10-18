@@ -2796,14 +2796,15 @@ public class PersistentRoaringBitmap
 			return false;
 		}
 		char firstKey = Util.highbits(minimum);
-		char lastKey = Util.highbits(supremum);
+		// At 2^32 the exclusive upper key is 65536, one past the final chunk.
+		int lastKey = (int) (supremum >>> 16);
 		int span = lastKey - firstKey;
 		int len = this.highLowContainer.size;
 		if (len < span) {
 			return false;
 		}
 		int begin = this.highLowContainer.getIndex(firstKey);
-		int end = this.highLowContainer.getIndex(lastKey);
+		int end = lastKey == 1 << 16 ? len : this.highLowContainer.getIndex((char) lastKey);
 		end = end < 0 ? -end - 1 : end;
 		if (begin < 0 || end - begin != span) {
 			return false;
@@ -2818,7 +2819,8 @@ public class PersistentRoaringBitmap
 		if (!this.highLowContainer.getContainerAtIndex(begin).contains(min, 1 << 16)) {
 			return false;
 		}
-		if (sup != 0 && end < len && !this.highLowContainer.getContainerAtIndex(end).contains(0, sup)) {
+		if (sup != 0 && (end == len || this.highLowContainer.getKeyAtIndex(end) != lastKey
+			|| !this.highLowContainer.getContainerAtIndex(end).contains(0, sup))) {
 			return false;
 		}
 		for (int i = begin + 1; i < end; ++i) {
