@@ -2519,10 +2519,15 @@ public final class RunContainer extends Container implements Cloneable {
 
 	/**
 	 * Number of present values less than or equal to `lowbits` (its 1-based rank). Scans runs in
-	 * order, in `O(nbrruns)`.
+	 * order, in `O(nbrruns)`. The rank of `Character.MAX_VALUE` is the whole cardinality, summed
+	 * without comparing any run against the bound.
 	 */
 	@Override
 	public int rank(final char lowbits) {
+		// rank(Character.MAX_VALUE) is the full cardinality (see Container.rank javadoc)
+		if (lowbits == Character.MAX_VALUE) {
+			return getCardinality();
+		}
 		int answer = 0;
 		for (int k = 0; k < this.nbrruns; ++k) {
 			int value = (getValue(k));

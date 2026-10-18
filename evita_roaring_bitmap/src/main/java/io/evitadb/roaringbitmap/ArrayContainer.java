@@ -1439,10 +1439,15 @@ public final class ArrayContainer extends Container implements Cloneable {
 	}
 
 	/**
-	 * Number of stored values `<=` `lowbits`, via binary search; O(log n).
+	 * Number of stored values `<=` `lowbits`, via binary search; O(log n). The rank of
+	 * `Character.MAX_VALUE` is the whole cardinality, answered without searching.
 	 */
 	@Override
 	public int rank(final char lowbits) {
+		// rank(Character.MAX_VALUE) is the full cardinality (see Container.rank javadoc)
+		if (lowbits == Character.MAX_VALUE) {
+			return this.cardinality;
+		}
 		int answer = Util.unsignedBinarySearch(this.content, 0, this.cardinality, lowbits);
 		if (answer >= 0) {
 			return answer + 1;

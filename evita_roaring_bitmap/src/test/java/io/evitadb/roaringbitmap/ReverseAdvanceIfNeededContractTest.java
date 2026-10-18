@@ -83,6 +83,26 @@ public class ReverseAdvanceIfNeededContractTest {
 	}
 
 	@Test
+	@DisplayName("Bitmap container: the descent reads word 0, so a value stored there is found")
+	public void bitmapContainerSeekDescendsIntoWordZero() {
+		// one value in word 0, then enough values far above the bound to force a bitmap container
+		final PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
+		bitmap.add(5);
+		for (int value = 5000; value <= 9200; value++) {
+			bitmap.add(value);
+		}
+		final Container container = singleContainerOf(bitmap);
+		assertTrue(container instanceof BitmapContainer, "fixture must produce a bitmap container");
+
+		final PeekableIntIterator iterator = bitmap.getReverseIntIterator();
+		iterator.advanceIfNeeded(4000);
+
+		assertTrue(iterator.hasNext(), "value 5 is at or below the bound, so iteration must continue");
+		assertEquals(5, iterator.peekNext());
+		assertEquals(5, iterator.next());
+	}
+
+	@Test
 	@DisplayName("Run container: seeking below the smallest value exhausts the cursor")
 	public void runContainerSeekBelowMinimumExhausts() {
 		// one dense run, then runOptimize collapses it into a run container
