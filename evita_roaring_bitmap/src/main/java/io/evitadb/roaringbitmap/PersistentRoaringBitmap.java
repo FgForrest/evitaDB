@@ -2396,7 +2396,7 @@ public class PersistentRoaringBitmap
 		     (currentcardinality < maxcardinality) && (i < this.highLowContainer.size());
 		     i++) {
 			Container c = this.highLowContainer.getContainerAtIndex(i);
-			if (c.getCardinality() + currentcardinality <= maxcardinality) {
+			if ((long) c.getCardinality() + currentcardinality <= maxcardinality) {
 				answer.highLowContainer.appendCopy(this.highLowContainer, i);
 				currentcardinality += c.getCardinality();
 			} else {
