@@ -322,6 +322,17 @@ Two consequences worth keeping in view on a re-sync:
 demotion threshold for all three; `TestBitmapContainer`'s intersection tests cover the same ground from the
 upstream side.
 
+## Local defect fixes (evita divergence — preserve on re-sync)
+
+Defects found while auditing the vendored code (issue #1754) and fixed here. Upstream `eaa61caf` carries the
+defective code for every row, so a re-sync that takes upstream's version of one of these methods brings the
+defect back; each pinning test fails on upstream's shape. When upstream fixes one, compare the two fixes, keep
+whichever is stricter, and move the row to the sync log.
+
+| # | Where | Upstream at `eaa61caf` | Here | Pinned by |
+|---|---|---|---|---|
+| E2 | `ConstantMemoryContainerAppender.reset()` | resets the key, the target bitmap and the `dirty` flag but not the scratch words, so `add(1); reset(); add(2); get()` returns `{1, 2}` | also zeroes the scratch words | `TestRoaringBitmapWriter#resetDiscards*` (every writer configuration; the constant-memory ones fail upstream) |
+
 ## Sync log
 
 ### Review 1 — base v1.6.12 (`952f8ce7`) → `2863e96d`
