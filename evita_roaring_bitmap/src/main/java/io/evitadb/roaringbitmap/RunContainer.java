@@ -430,14 +430,14 @@ public final class RunContainer extends Container implements Cloneable {
 	}
 
 	/**
-	 * Validates the representation: at least one run, runs strictly ascending and non-adjacent, each
-	 * length non-negative, and the run form no larger (serialized) than the equivalent array or bitmap
-	 * container. Returns `false` if any check fails.
+	 * Validates that there is at least one run, runs are strictly ascending, non-overlapping and
+	 * non-adjacent, and no run extends past `0xFFFF`. Encoding size is not checked because the library's
+	 * own `remove()` and `limit()` can produce structurally valid, non-minimal run containers.
 	 */
 	@Nonnull
 	@Override
 	public Boolean validate() {
-		if (this.nbrruns == 0) {
+		if (this.nbrruns <= 0) {
 			return false;
 		}
 		int runEnd = -2;
@@ -447,19 +447,12 @@ public final class RunContainer extends Container implements Cloneable {
 				return false;
 			}
 			runEnd = runStart + (this.getLength(rlepos));
-			if (runStart > runEnd) {
+			if (runStart > runEnd || runEnd > 0xFFFF) {
 				return false;
 			}
 		}
 
-		int sizeAsRunContainer = RunContainer.serializedSizeInBytes(this.nbrruns);
-		int sizeAsBitmapContainer = BitmapContainer.serializedSizeInBytes(0);
-		int card = this.getCardinality();
-		int sizeAsArrayContainer = ArrayContainer.serializedSizeInBytes(card);
-		if (sizeAsRunContainer <= Math.min(sizeAsBitmapContainer, sizeAsArrayContainer)) {
-			return true;
-		}
-		return false;
+		return true;
 	}
 
 	/**
