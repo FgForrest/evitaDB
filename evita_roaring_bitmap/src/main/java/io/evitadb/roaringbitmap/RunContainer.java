@@ -160,7 +160,7 @@ public final class RunContainer extends Container implements Cloneable {
 	 * `1,0 20,0 31,2` encodes `1,2,...,11 20 31,32,33`. Only the first `2 * nbrruns` entries are live;
 	 * the array may be longer (trailing scratch capacity) and is replaced on growth. Never null.
 	 */
-	@Nonnull private char[] valueslength;
+	@Nonnull char[] valueslength;
 
 	/**
 	 * Number of active runs. Always fits in 16 bits: a container spans at most 65536 values, so at

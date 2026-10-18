@@ -212,29 +212,6 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 	}
 
 	/**
-	 * Bulk-appends every live entry of `roaringArray` after this array's entries, preserving order.
-	 * All keys of the argument must be greater than this array's current last key. Containers are
-	 * taken over by reference (shallow), not cloned.
-	 *
-	 * @param roaringArray source whose entries are appended
-	 */
-	void append(@Nonnull final RoaringArray roaringArray) {
-		defrost();
-		assert this.size == 0 || roaringArray.size == 0 || this.keys[this.size - 1] < roaringArray.keys[0];
-		if (roaringArray.size != 0 && this.size != 0) {
-			this.keys = Arrays.copyOf(this.keys, this.size + roaringArray.size);
-			this.values = Arrays.copyOf(this.values, this.size + roaringArray.size);
-			System.arraycopy(roaringArray.keys, 0, this.keys, this.size, roaringArray.size);
-			System.arraycopy(roaringArray.values, 0, this.values, this.size, roaringArray.size);
-			this.size += roaringArray.size;
-		} else if (this.size == 0 && roaringArray.size != 0) {
-			this.keys = Arrays.copyOf(roaringArray.keys, roaringArray.keys.length);
-			this.values = Arrays.copyOf(roaringArray.values, roaringArray.values.length);
-			this.size = roaringArray.size;
-		}
-	}
-
-	/**
 	 * Append copies of the values AFTER a specified key (may or may not be present) to end.
 	 *
 	 * @param sa          other array
@@ -308,7 +285,9 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 	}
 
 	/**
-	 * Append the values from another array, no copy is made (use with care)
+	 * Appends containers from another array by reference, without cloning them. The caller owns the
+	 * copy-on-write bookkeeping for every appended container: it must flag both the result and every
+	 * live source owner as shared, or transfer the existing flags when the source is consumed.
 	 *
 	 * @param sa            other array
 	 * @param startingIndex starting index in the other array
