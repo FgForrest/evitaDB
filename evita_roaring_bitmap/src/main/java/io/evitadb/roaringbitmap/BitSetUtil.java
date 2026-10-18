@@ -4,6 +4,8 @@ import static java.lang.Long.numberOfTrailingZeros;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.LongBuffer;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Objects;
 import javax.annotation.Nonnull;
@@ -67,18 +69,66 @@ public class BitSetUtil {
 
 	/**
 	 * Serialises a {@link PersistentRoaringBitmap} into a little-endian `byte[]`, matching
-	 * {@link BitSet#toByteArray()}.
+	 * {@link BitSet#toByteArray()}: the array holds `last() / 8 + 1` bytes, just enough for the highest
+	 * set value, and an empty bitmap yields a zero-length array.
+	 *
+	 * Each container is written straight into the result, with no intermediate `long[]`: an array
+	 * container sets its bits byte by byte, a bitmap container is copied through a little-endian
+	 * {@link LongBuffer} view, and any other container is expanded into one reusable 1,024-word scratch
+	 * block first. Peak memory is therefore the output plus 8 KB.
 	 *
 	 * @param bitmap source bitmap
 	 * @return a new little-endian byte array where byte `n` carries bits `8*n .. 8*n+7`
+	 * @throws IllegalArgumentException if the bitmap holds a value whose signed 32-bit form is
+	 *                                  negative and thus outside {@link BitSet}'s index range
 	 */
 	@Nonnull
 	public static byte[] toByteArray(@Nonnull final PersistentRoaringBitmap bitmap) {
-		final long[] words = toLongArray(bitmap);
-		final ByteBuffer buffer =
-			ByteBuffer.allocate(words.length * Long.SIZE).order(ByteOrder.LITTLE_ENDIAN);
-		buffer.asLongBuffer().put(words);
-		return buffer.array();
+		if (bitmap.isEmpty()) {
+			return new byte[0];
+		}
+		final int last = bitmap.last();
+		if (last < 0) {
+			throw new IllegalArgumentException("bitmap has negative bits set");
+		}
+		final byte[] bytes = new byte[last / Byte.SIZE + 1];
+		final LongBuffer longs = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asLongBuffer();
+		long[] scratch = null;
+		final RoaringArray highLowContainer = bitmap.highLowContainer;
+		for (int i = 0; i < highLowContainer.size(); i++) {
+			final int byteOffset = highLowContainer.getKeyAtIndex(i) * (BLOCK_LENGTH * Long.BYTES);
+			final Container container = highLowContainer.getContainerAtIndex(i);
+			if (container instanceof final ArrayContainer arrayContainer) {
+				// every value is at most `last`, so each byte it addresses lies inside the array
+				for (int k = 0; k < arrayContainer.cardinality; k++) {
+					final char x = arrayContainer.content[k];
+					bytes[byteOffset + (x >>> 3)] |= (byte) (1 << (x & 7));
+				}
+				continue;
+			}
+			final long[] words;
+			if (container instanceof final BitmapContainer bitmapContainer) {
+				words = bitmapContainer.bitmap;
+			} else {
+				if (scratch == null) {
+					scratch = new long[BLOCK_LENGTH];
+				} else {
+					Arrays.fill(scratch, 0L);
+				}
+				container.copyBitmapTo(scratch, 0);
+				words = scratch;
+			}
+			// only the last container can end short of a whole block; its trailing partial word is
+			// written byte by byte
+			final int length = Math.min(BLOCK_LENGTH * Long.BYTES, bytes.length - byteOffset);
+			final int fullWords = length / Long.BYTES;
+			longs.position(byteOffset / Long.BYTES);
+			longs.put(words, 0, fullWords);
+			for (int b = fullWords * Long.BYTES, shift = 0; b < length; b++, shift += Byte.SIZE) {
+				bytes[byteOffset + b] = (byte) (words[fullWords] >>> shift);
+			}
+		}
+		return bytes;
 	}
 
 	/**
@@ -105,10 +155,7 @@ public class BitSetUtil {
 		if (last < 0) {
 			throw new IllegalArgumentException("bitmap has negative bits set");
 		}
-		final int lastBit = Math.max(last, Long.SIZE);
-		final int remainder = lastBit % Long.SIZE;
-		final int numBits = remainder > 0 ? lastBit - remainder : lastBit;
-		final int wordsInUse = numBits / Long.SIZE + 1;
+		final int wordsInUse = last / Long.SIZE + 1;
 		final long[] words = new long[wordsInUse];
 
 		final ContainerPointer pointer = bitmap.getContainerPointer();

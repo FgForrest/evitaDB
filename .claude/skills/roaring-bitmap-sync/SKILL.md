@@ -19,7 +19,7 @@ The authoritative state lives in **`evita_roaring_bitmap/UPSTREAM_SYNC.md`** —
 - **Upstream working clone**: `documentation/RoaringBitmap/` (untracked in the evita repo). It has two remotes:
   `origin` = fork `novoj/RoaringBitmap`, `upstream` = `RoaringBitmap/RoaringBitmap`. Upstream default branch is `master`.
   If this clone is absent, clone `https://github.com/RoaringBitmap/RoaringBitmap.git` somewhere and add it as `upstream`.
-- **Indentation**: the vendored sources keep upstream's **2-space** indent (deliberate exception to evita's tab rule) for re-sync friendliness. Preserve it when porting.
+- **Indentation**: the vendored sources use evitaDB's **tab** indent since the house-standard pass of 2026-07-06 (`e2ad313839`); upstream keeps 2 spaces. Re-indent every ported hunk to tabs, and expect upstream diffs never to apply textually.
 - **COW fold**: `PersistentRoaringBitmap` folds in `CopyOnWriteRoaringBitmapV2` — it carries a parallel
   `boolean[] shared` array alongside `highLowContainer`. **Any ported code that populates `highLowContainer`
   must keep `shared` sized in lockstep** (call `ensureSharedCapacity(highLowContainer.size())` after growth,
@@ -92,7 +92,7 @@ Decide:
 ### 5. Incorporate applicable changes
 
 Apply the upstream hunk to the mapped file by hand (don't `git cherry-pick` — packages and class names
-differ). Preserve 2-space indent. Rename `org.roaringbitmap` → `io.evitadb.roaringbitmap`,
+differ). Re-indent to tabs. Rename `org.roaringbitmap` → `io.evitadb.roaringbitmap`,
 `RoaringBitmap` → `PersistentRoaringBitmap`, `Roaring64Bitmap` → `PersistentLongRoaringBitmap`.
 
 ⚠️ **Respect the JPMS encapsulation reshaping** documented in `UPSTREAM_SYNC.md` (its "JPMS

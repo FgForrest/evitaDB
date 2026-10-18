@@ -460,7 +460,12 @@ public class PersistentLongRoaringBitmap implements Externalizable, LongBitmapDa
 				this.highLowContainer.put(high, containerClone2);
 			} else {
 				final Container freshOne = containerWithIndex.getContainer().ixor(container);
-				this.highLowContainer.replaceContainer(containerWithIndex.getContainerIdx(), freshOne);
+				if (freshOne.isEmpty()) {
+					// an emptied container must not stay registered: it would break first()/last()
+					this.highLowContainer.remove(high);
+				} else {
+					this.highLowContainer.replaceContainer(containerWithIndex.getContainerIdx(), freshOne);
+				}
 			}
 		}
 	}
@@ -496,8 +501,10 @@ public class PersistentLongRoaringBitmap implements Externalizable, LongBitmapDa
 				final Container container1 = x1.highLowContainer.getContainer(containerIdx1);
 				final Container container2 = x2.highLowContainer.getContainer(containerIdx2);
 				final Container xorResult = container1.xor(container2);
-				result.highLowContainer.put(
-					Objects.requireNonNull(highKey1, "highKey1 is non-null when keys compare equal"), xorResult);
+				if (!xorResult.isEmpty()) {
+					result.highLowContainer.put(
+						Objects.requireNonNull(highKey1, "highKey1 is non-null when keys compare equal"), xorResult);
+				}
 
 				highKey1 = it1.hasNext() ? it1.next() : null;
 				highKey2 = it2.hasNext() ? it2.next() : null;
@@ -1086,20 +1093,15 @@ public class PersistentLongRoaringBitmap implements Externalizable, LongBitmapDa
 	}
 
 	/**
-	 * If present remove the specified integer (effectively, sets its bit value to false)
+	 * If present remove the specified integer (effectively, sets its bit value to false). Same as
+	 * {@link #removeLong(long)}, which stores the container `Container.remove(char)` hands back — a
+	 * bitmap chunk dropping to 4,096 values comes back demoted to an array, and keeping the original
+	 * instead would leave a bitmap container below its own threshold.
 	 *
 	 * @param x integer value representing the index in a bitmap
 	 */
 	public void remove(final long x) {
-		final byte[] highKey = LongUtils.highPart(x);
-		final ContainerWithIndex containerWithIdx = this.highLowContainer.searchContainer(highKey);
-		if (containerWithIdx != null) {
-			final char low = LongUtils.lowPart(x);
-			containerWithIdx.getContainer().remove(low);
-			if (containerWithIdx.getContainer().isEmpty()) {
-				this.highLowContainer.remove(highKey);
-			}
-		}
+		removeLong(x);
 	}
 
 	/**
@@ -1279,7 +1281,12 @@ public class PersistentLongRoaringBitmap implements Externalizable, LongBitmapDa
 		} else {
 			final char low = LongUtils.lowPart(x);
 			final Container freshOne = containerWithIndex.getContainer().flip(low);
-			this.highLowContainer.replaceContainer(containerWithIndex.getContainerIdx(), freshOne);
+			if (freshOne.isEmpty()) {
+				// an emptied container must not stay registered: it would break first()/last()
+				this.highLowContainer.remove(high);
+			} else {
+				this.highLowContainer.replaceContainer(containerWithIndex.getContainerIdx(), freshOne);
+			}
 		}
 	}
 
