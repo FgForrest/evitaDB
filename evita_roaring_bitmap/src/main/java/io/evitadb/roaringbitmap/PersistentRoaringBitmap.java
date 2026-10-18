@@ -146,6 +146,9 @@ public class PersistentRoaringBitmap
 			for (int pos = 0; pos < x.highLowContainer.size(); pos++) {
 				int key = (x.highLowContainer.getKeyAtIndex(pos));
 				key += container_offset;
+				if (key < 0 || key > 0xFFFF) {
+					continue;
+				}
 				answer.highLowContainer.append(
 					(char) key, x.highLowContainer.getContainerAtIndex(pos).clone());
 			}

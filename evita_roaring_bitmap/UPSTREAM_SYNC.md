@@ -333,6 +333,7 @@ whichever is stricter, and move the row to the sync log.
 |---|---|---|---|---|
 | E2 | `ConstantMemoryContainerAppender.reset()` | resets the key, the target bitmap and the `dirty` flag but not the scratch words, so `add(1); reset(); add(2); get()` returns `{1, 2}` | also zeroes the scratch words | `TestRoaringBitmapWriter#resetDiscards*` (every writer configuration; the constant-memory ones fail upstream) |
 | E5 | `PersistentRoaringBitmap.limit(int)` | adds the next container's cardinality to the running total in `int`; past 2^31 the sum wraps negative, the test passes and every remaining container is copied, so a full-universe `limit(Integer.MAX_VALUE)` returns 2^32 values | compares the sum in `long`; an accepted total never exceeds `maxcardinality`, so the `int` accumulator itself cannot wrap | `LimitOverflowTest` |
+| E3 | `PersistentRoaringBitmap.addOffset(x, offset)`, the 65,536-aligned path | casts `key + container_offset` to `char` without a range check, so a key pushed out of `[0, 0xFFFF]` wraps around: `addOffset({-1}, 65536)` returns `{65535}`, `addOffset(x, -2^32)` returns `x`, and a negative offset that wraps the first key throws `IllegalArgumentException: append only` | drops keys outside `[0, 0xFFFF]` before the cast, as the unaligned path already does | `AddOffsetRangeTest` |
 
 ## Sync log
 
