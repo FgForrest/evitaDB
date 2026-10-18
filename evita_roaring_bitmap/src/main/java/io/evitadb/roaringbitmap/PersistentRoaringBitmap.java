@@ -1797,10 +1797,16 @@ public class PersistentRoaringBitmap
 	}
 
 	/**
-	 * Recover allocated but unused memory.
+	 * Recover allocated but unused memory in owned containers and this bitmap's parallel arrays.
+	 * Shared containers stay untouched because trimming replaces their backing arrays in place.
 	 */
 	@Override
 	public void trim() {
+		for (int i = 0; i < this.highLowContainer.size(); ++i) {
+			if (i >= this.shared.length || !this.shared[i]) {
+				this.highLowContainer.getContainerAtIndex(i).trim();
+			}
+		}
 		this.highLowContainer.trim();
 		this.shared = Arrays.copyOf(this.shared, this.highLowContainer.size());
 	}

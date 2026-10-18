@@ -324,10 +324,12 @@ upstream side.
 
 ## Local defect fixes (evita divergence — preserve on re-sync)
 
-Defects found while auditing the vendored code (issue #1754) and fixed here. Upstream `eaa61caf` carries the
-defective code for every row, so a re-sync that takes upstream's version of one of these methods brings the
-defect back; each pinning test fails on upstream's shape. When upstream fixes one, compare the two fixes, keep
-whichever is stricter, and move the row to the sync log.
+Defects found while auditing the vendored code (issue #1754) and fixed here. Unless a row says otherwise,
+upstream `eaa61caf` carries the defective code, so a re-sync that takes upstream's version of one of these
+methods brings the defect back; each pinning test fails on upstream's shape. When upstream fixes one, compare
+the two fixes, keep whichever is stricter, and move the row to the sync log. Rows marked *copy-on-write only*
+are defects of this fork's sharing layer: upstream's code is correct there, because nothing is shared, and
+must not be taken over as-is.
 
 | # | Where | Upstream at `eaa61caf` | Here | Pinned by |
 |---|---|---|---|---|
@@ -338,6 +340,7 @@ whichever is stricter, and move the row to the sync log.
 | E12 | `PersistentRoaringBitmap.contains(long minimum, long supremum)` | (a) `getIndex(lastKey)` falls back to the insertion point when the tail chunk is absent, and the tail test then checks whatever container sits there without comparing its key, or nothing at all when it is past the end: `bitmapOfRange(0, 65536).contains(0, 65537)` is `true`; (b) `highbits(supremum)` wraps `2^32` to key 0: `bitmapOfRange(0, 65536).contains(0, 2^32)` is `true`, `bitmapOf(-1).contains(0xFFFFFFFF, 2^32)` is `false` | keeps the upper key as an `int` (65,536 at `2^32`, with no tail chunk) and requires the tail container's key to equal it; the early exits stay | `ContainsRangeTest` (value-by-value model; also pins `intersects(long, long)`, which was already right) |
 | E1 | `RunContainer.ior(RunContainer x)` with `x == this`, and `Container.lazyIOR`, which dispatches run/run to it | shifts its own runs into the scratch tail and merges them back while reading `x` from the same array, so a self-union adds a spurious run at 0 | returns `this` when `x == this`. Not reachable through the bitmap API today (the horizontal xor aliasing that once reached it is fixed); defence in depth. Every other in-place operation of all three containers was checked with itself as the operand and is correct | `ContainerSelfOperandTest` |
 | E7 | `FastAggregation.priorityqueue_or` (both overloads), `priorityqueue_xor` | with one input the merge loop never runs and the input itself is returned; the union first calls `repairAfterLazy()` on it, which can replace its containers (a non-minimal run `[7,7]` becomes the array `{7}`). Mutating the result then mutates the operand | returns `PersistentRoaringBitmap.fromBitmap(input)`, a deep copy that writes nothing into the input (the `horizontal_*` folds' convention, rather than `clone()`, whose copy-on-write marking writes the operand's flags) | `SingleInputAggregationTest` (every public aggregation, one input) |
+| E8 | `PersistentRoaringBitmap.trim()` → `RoaringArray.trim()` (*copy-on-write only*) | `RoaringArray.trim()` calls `Container.trim()` on every container, which is right upstream; here it also replaced the backing arrays of containers flagged `shared`, an in-place write to a container other bitmaps (possibly published ones) still read | `RoaringArray.trim()` trims only its own key and value arrays; `PersistentRoaringBitmap.trim()` trims the containers of owned slots (no flag, or an index beyond `shared.length`) | `TrimSharedContainersTest` |
 
 ## Sync log
 

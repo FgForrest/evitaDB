@@ -340,15 +340,13 @@ final class RoaringArray implements Cloneable, Externalizable, AppendableStorage
 	}
 
 	/**
-	 * If possible, recover wasted memory.
+	 * Recover unused capacity in the key and value arrays. The owning bitmap trims containers
+	 * separately because only it knows which slots are shared under copy-on-write.
 	 */
 	public void trim() {
 		defrost();
 		this.keys = Arrays.copyOf(this.keys, this.size);
 		this.values = Arrays.copyOf(this.values, this.size);
-		for (final Container c : this.values) {
-			c.trim();
-		}
 	}
 
 	/**
