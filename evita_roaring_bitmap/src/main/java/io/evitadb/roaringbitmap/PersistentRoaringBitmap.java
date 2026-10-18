@@ -2664,7 +2664,7 @@ public class PersistentRoaringBitmap
 		long prevAbsentBit = computePreviousAbsentValue(fromValue);
 		assert prevAbsentBit <= 0xFFFFFFFFL;
 		assert prevAbsentBit <= Util.toUnsignedLong(fromValue);
-		assert !contains((int) prevAbsentBit);
+		assert prevAbsentBit == -1L || !contains((int) prevAbsentBit);
 		return prevAbsentBit;
 	}
 
@@ -4316,7 +4316,7 @@ public class PersistentRoaringBitmap
 			return Util.toUnsignedLong(fromValue);
 		}
 		char containerKey = this.highLowContainer.getKeyAtIndex(containerIndex);
-		if (fromValue < containerKey << 16) {
+		if (containerKey != key) {
 			return Util.toUnsignedLong(fromValue);
 		}
 		Container container = this.highLowContainer.getContainerAtIndex(containerIndex);
@@ -4353,7 +4353,7 @@ public class PersistentRoaringBitmap
 			return Util.toUnsignedLong(fromValue);
 		}
 		char containerKey = this.highLowContainer.getKeyAtIndex(containerIndex);
-		if (fromValue < containerKey << 16) {
+		if (containerKey != key) {
 			return Util.toUnsignedLong(fromValue);
 		}
 		Container container = this.highLowContainer.getContainerAtIndex(containerIndex);
