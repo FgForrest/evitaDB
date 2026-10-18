@@ -160,7 +160,7 @@ public final class RunContainer extends Container implements Cloneable {
 	 * `1,0 20,0 31,2` encodes `1,2,...,11 20 31,32,33`. Only the first `2 * nbrruns` entries are live;
 	 * the array may be longer (trailing scratch capacity) and is replaced on growth. Never null.
 	 */
-	@Nonnull private char[] valueslength;
+	@Nonnull char[] valueslength;
 
 	/**
 	 * Number of active runs. Always fits in 16 bits: a container spans at most 65536 values, so at
@@ -430,14 +430,14 @@ public final class RunContainer extends Container implements Cloneable {
 	}
 
 	/**
-	 * Validates the representation: at least one run, runs strictly ascending and non-adjacent, each
-	 * length non-negative, and the run form no larger (serialized) than the equivalent array or bitmap
-	 * container. Returns `false` if any check fails.
+	 * Validates that there is at least one run, runs are strictly ascending, non-overlapping and
+	 * non-adjacent, and no run extends past `0xFFFF`. Encoding size is not checked because the library's
+	 * own `remove()` and `limit()` can produce structurally valid, non-minimal run containers.
 	 */
 	@Nonnull
 	@Override
 	public Boolean validate() {
-		if (this.nbrruns == 0) {
+		if (this.nbrruns <= 0) {
 			return false;
 		}
 		int runEnd = -2;
@@ -447,19 +447,12 @@ public final class RunContainer extends Container implements Cloneable {
 				return false;
 			}
 			runEnd = runStart + (this.getLength(rlepos));
-			if (runStart > runEnd) {
+			if (runStart > runEnd || runEnd > 0xFFFF) {
 				return false;
 			}
 		}
 
-		int sizeAsRunContainer = RunContainer.serializedSizeInBytes(this.nbrruns);
-		int sizeAsBitmapContainer = BitmapContainer.serializedSizeInBytes(0);
-		int card = this.getCardinality();
-		int sizeAsArrayContainer = ArrayContainer.serializedSizeInBytes(card);
-		if (sizeAsRunContainer <= Math.min(sizeAsBitmapContainer, sizeAsArrayContainer)) {
-			return true;
-		}
-		return false;
+		return true;
 	}
 
 	/**
@@ -1920,6 +1913,9 @@ public final class RunContainer extends Container implements Cloneable {
 	@Override
 	public Container ior(@Nonnull final RunContainer x) {
 		if (isFull()) {
+			return this;
+		}
+		if (x == this) {
 			return this;
 		}
 

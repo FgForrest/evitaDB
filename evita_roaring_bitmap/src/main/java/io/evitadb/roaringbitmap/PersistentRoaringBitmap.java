@@ -146,6 +146,9 @@ public class PersistentRoaringBitmap
 			for (int pos = 0; pos < x.highLowContainer.size(); pos++) {
 				int key = (x.highLowContainer.getKeyAtIndex(pos));
 				key += container_offset;
+				if (key < 0 || key > 0xFFFF) {
+					continue;
+				}
 				answer.highLowContainer.append(
 					(char) key, x.highLowContainer.getContainerAtIndex(pos).clone());
 			}
@@ -1029,6 +1032,9 @@ public class PersistentRoaringBitmap
 	public static PersistentRoaringBitmap orNot(
 		@Nonnull final PersistentRoaringBitmap x1, @Nonnull final PersistentRoaringBitmap x2, long rangeEnd) {
 		rangeSanityCheck(0, rangeEnd);
+		if (rangeEnd == 0) {
+			return fromBitmap(x1);
+		}
 		int maxKey = (int) ((rangeEnd - 1) >>> 16);
 		int lastRun = (rangeEnd & 0xFFFF) == 0 ? 0x10000 : (int) (rangeEnd & 0xFFFF);
 		int size = 0;
@@ -1043,11 +1049,8 @@ public class PersistentRoaringBitmap
 			++remainder;
 		}
 		int correction = 0;
-		for (int i = 0; i < x2.highLowContainer.size - remainder; ++i) {
+		for (int i = 0; i < length2 && x2.highLowContainer.getKeyAtIndex(i) <= maxKey; ++i) {
 			correction += x2.highLowContainer.getContainerAtIndex(i).isFull() ? 1 : 0;
-			if (x2.highLowContainer.getKeyAtIndex(i) >= maxKey) {
-				break;
-			}
 		}
 		// it's almost certain that the bitmap will grow, so make a conservative overestimate,
 		// this avoids temporary allocation, and can trim afterwards
@@ -1086,6 +1089,9 @@ public class PersistentRoaringBitmap
 			} else if (key == s2) { // insert the complement
 				newValues[size] =
 					x2.highLowContainer.getContainerAtIndex(pos2).not(0, key == maxKey ? lastRun : 0x10000);
+				if (key == maxKey && lastRun < 0x10000) {
+					newValues[size] = newValues[size].iremove(lastRun, 0x10000);
+				}
 				++pos2;
 				s2 = pos2 < length2 ? x2.highLowContainer.getKeyAtIndex(pos2) : maxKey + 1;
 			} else { // key missing from both
@@ -1791,10 +1797,16 @@ public class PersistentRoaringBitmap
 	}
 
 	/**
-	 * Recover allocated but unused memory.
+	 * Recover allocated but unused memory in owned containers and this bitmap's parallel arrays.
+	 * Shared containers stay untouched because trimming replaces their backing arrays in place.
 	 */
 	@Override
 	public void trim() {
+		for (int i = 0; i < this.highLowContainer.size(); ++i) {
+			if (i >= this.shared.length || !this.shared[i]) {
+				this.highLowContainer.getContainerAtIndex(i).trim();
+			}
+		}
 		this.highLowContainer.trim();
 		this.shared = Arrays.copyOf(this.shared, this.highLowContainer.size());
 	}
@@ -1959,6 +1971,9 @@ public class PersistentRoaringBitmap
 			throw new UnsupportedOperationException("orNot between a bitmap and itself?");
 		}
 		rangeSanityCheck(0, rangeEnd);
+		if (rangeEnd == 0) {
+			return;
+		}
 		final int maxKey = (int) ((rangeEnd - 1) >>> 16);
 		final int lastRun = (rangeEnd & 0xFFFF) == 0 ? 0x10000 : (int) (rangeEnd & 0xFFFF);
 		int size = 0;
@@ -1971,11 +1986,8 @@ public class PersistentRoaringBitmap
 			++remainder;
 		}
 		int correction = 0;
-		for (int i = 0; i < other.highLowContainer.size - remainder; ++i) {
+		for (int i = 0; i < length2 && other.highLowContainer.getKeyAtIndex(i) <= maxKey; ++i) {
 			correction += other.highLowContainer.getContainerAtIndex(i).isFull() ? 1 : 0;
-			if (other.highLowContainer.getKeyAtIndex(i) >= maxKey) {
-				break;
-			}
 		}
 		// it's almost certain that the bitmap will grow, so make a conservative overestimate,
 		// this avoids temporary allocation, and can trim afterwards
@@ -2019,6 +2031,9 @@ public class PersistentRoaringBitmap
 						.highLowContainer
 						.getContainerAtIndex(pos2)
 						.not(0, key == maxKey ? lastRun : 0x10000);
+				if (key == maxKey && lastRun < 0x10000) {
+					newValues[size] = newValues[size].iremove(lastRun, 0x10000);
+				}
 				++pos2;
 				s2 = pos2 < length2 ? other.highLowContainer.getKeyAtIndex(pos2) : maxKey + 1;
 			} else { // key missing from both
@@ -2396,7 +2411,7 @@ public class PersistentRoaringBitmap
 		     (currentcardinality < maxcardinality) && (i < this.highLowContainer.size());
 		     i++) {
 			Container c = this.highLowContainer.getContainerAtIndex(i);
-			if (c.getCardinality() + currentcardinality <= maxcardinality) {
+			if ((long) c.getCardinality() + currentcardinality <= maxcardinality) {
 				answer.highLowContainer.appendCopy(this.highLowContainer, i);
 				currentcardinality += c.getCardinality();
 			} else {
@@ -2787,14 +2802,15 @@ public class PersistentRoaringBitmap
 			return false;
 		}
 		char firstKey = Util.highbits(minimum);
-		char lastKey = Util.highbits(supremum);
+		// At 2^32 the exclusive upper key is 65536, one past the final chunk.
+		int lastKey = (int) (supremum >>> 16);
 		int span = lastKey - firstKey;
 		int len = this.highLowContainer.size;
 		if (len < span) {
 			return false;
 		}
 		int begin = this.highLowContainer.getIndex(firstKey);
-		int end = this.highLowContainer.getIndex(lastKey);
+		int end = lastKey == 1 << 16 ? len : this.highLowContainer.getIndex((char) lastKey);
 		end = end < 0 ? -end - 1 : end;
 		if (begin < 0 || end - begin != span) {
 			return false;
@@ -2809,7 +2825,8 @@ public class PersistentRoaringBitmap
 		if (!this.highLowContainer.getContainerAtIndex(begin).contains(min, 1 << 16)) {
 			return false;
 		}
-		if (sup != 0 && end < len && !this.highLowContainer.getContainerAtIndex(end).contains(0, sup)) {
+		if (sup != 0 && (end == len || this.highLowContainer.getKeyAtIndex(end) != lastKey
+			|| !this.highLowContainer.getContainerAtIndex(end).contains(0, sup))) {
 			return false;
 		}
 		for (int i = begin + 1; i < end; ++i) {

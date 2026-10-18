@@ -4,7 +4,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
@@ -12,11 +19,13 @@ import java.util.TreeSet;
 import java.util.function.Function;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Randomized stress test for the two copy-on-write bookkeeping invariants of
+ * Randomized stress test for the copy-on-write bookkeeping and backing-storage invariants of
  * {@link PersistentRoaringBitmap}.
  *
  * LOCKSTEP — the parallel `shared[]` flag array and `highLowContainer` must keep describing the same
@@ -34,7 +43,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The fuzz drives a pool of bitmaps through the in-place operators (whose bulk-merge rebuild is the
  * riskiest path), the structural mutators, the static/cloning producers and the multi-bitmap folds of
  * {@link FastAggregation}, re-checking both invariants plus every bitmap's contents against a
- * reference model after every single step.
+ * reference model after every single step. Distinct containers must also own distinct backing arrays,
+ * and a shared container that remains co-owned must retain its backing array across a step.
  *
  * The folds belong here for the same reason the binary operators do, and more so: they reach their
  * answer by adopting, borrowing and lazily merging their operands' containers rather than always
@@ -57,6 +67,9 @@ public class SharedContainerLockstepFuzzTest {
 		@SuppressWarnings("checkstyle:VisibilityModifier")
 		private final TreeSet<Integer> model;
 
+		/**
+		 * Pairs a bitmap with an independently maintained, unsigned-ordered set of its values.
+		 */
 		private Tracked(final PersistentRoaringBitmap bitmap, final TreeSet<Integer> model) {
 			this.bitmap = bitmap;
 			this.model = model;
@@ -213,6 +226,74 @@ public class SharedContainerLockstepFuzzTest {
 	}
 
 	/**
+	 * Reads the mutable storage directly so a distinct wrapper cannot hide a backing-array alias.
+	 */
+	private static Object backingArray(final Container container) {
+		if (container instanceof ArrayContainer array) {
+			return array.content;
+		} else if (container instanceof BitmapContainer bitmap) {
+			return bitmap.bitmap;
+		} else if (container instanceof RunContainer run) {
+			return run.valueslength;
+		}
+		throw new AssertionError("Unknown container type: " + container.getClass());
+	}
+
+	/**
+	 * Requires separate container objects to own separate storage. The container implementations
+	 * allocate their own empty arrays too, so no shared empty sentinel needs an exemption.
+	 */
+	private static void assertNoBackingArrayAliasing(final List<Tracked> pool, final String where) {
+		final IdentityHashMap<Object, Container> owners = new IdentityHashMap<>();
+		for (final Tracked tracked : pool) {
+			for (int i = 0; i < tracked.bitmap.highLowContainer.size(); i++) {
+				final Container container = tracked.bitmap.getContainerAtIndex(i);
+				final Container previous = owners.put(backingArray(container), container);
+				assertTrue(previous == null || previous == container,
+					where + ": distinct containers share a backing array");
+			}
+		}
+	}
+
+	/**
+	 * Snapshots storage identity before a step for every container whose owner promises to copy
+	 * before writing, including containers that currently have only one owner left in the pool.
+	 */
+	private static IdentityHashMap<Container, Object> sharedBackingArrays(final List<Tracked> pool) {
+		final IdentityHashMap<Container, Object> arrays = new IdentityHashMap<>();
+		for (final Tracked tracked : pool) {
+			for (int i = 0; i < tracked.bitmap.highLowContainer.size(); i++) {
+				if (tracked.bitmap.isShared(i)) {
+					final Container container = tracked.bitmap.getContainerAtIndex(i);
+					arrays.put(container, backingArray(container));
+				}
+			}
+		}
+		return arrays;
+	}
+
+	/**
+	 * Detects writes such as trim that replace a shared object's storage without changing its values.
+	 * Owners are counted by bitmap identity, so an accidentally repeated pool entry cannot satisfy
+	 * the two-owner precondition on its own.
+	 */
+	private static void assertSharedBackingArraysUnchanged(
+		final List<Tracked> pool, final IdentityHashMap<Container, Object> before, final String where
+	) {
+		final IdentityHashMap<Container, PersistentRoaringBitmap> owners = new IdentityHashMap<>();
+		for (final Tracked tracked : pool) {
+			for (int i = 0; i < tracked.bitmap.highLowContainer.size(); i++) {
+				final Container container = tracked.bitmap.getContainerAtIndex(i);
+				final PersistentRoaringBitmap previous = owners.put(container, tracked.bitmap);
+				if (previous != null && previous != tracked.bitmap && before.containsKey(container)) {
+					assertTrue(before.get(container) == backingArray(container),
+						where + ": co-owned container changed its backing array");
+				}
+			}
+		}
+	}
+
+	/**
 	 * Asserts every tracked bitmap still holds exactly the values its model records.
 	 */
 	private static void assertContents(final List<Tracked> pool, final String where) {
@@ -237,6 +318,7 @@ public class SharedContainerLockstepFuzzTest {
 			assertLockstep(tracked.bitmap, where);
 		}
 		assertNoUnflaggedAliasing(pool, where);
+		assertNoBackingArrayAliasing(pool, where);
 		assertContents(pool, where);
 	}
 
@@ -254,7 +336,7 @@ public class SharedContainerLockstepFuzzTest {
 	 */
 	private static Tracked randomBitmap(final Random random) {
 		final PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
-		final TreeSet<Integer> model = new TreeSet<>();
+		final TreeSet<Integer> model = new TreeSet<>(Integer::compareUnsigned);
 		final int chunks = 1 + random.nextInt(5);
 		for (int chunk = 0; chunk < chunks; chunk++) {
 			final int key = CHUNK_KEYS[random.nextInt(CHUNK_KEYS.length)];
@@ -290,12 +372,38 @@ public class SharedContainerLockstepFuzzTest {
 	}
 
 	/**
+	 * Chooses short ranges at unsigned endpoints and on either side of chunk boundaries, keeping
+	 * enumeration of the independent set model affordable.
+	 */
+	private static long[] randomRange(final Random random) {
+		final long[] starts = {0, 0xFFFF, 0x10000, 0x1FFFF, 0x7FFFFFFFL, 0xFFFFFEFFL};
+		final long start = random.nextBoolean() ? starts[random.nextInt(starts.length)]
+			: Integer.toUnsignedLong(randomValue(random));
+		return new long[]{start, Math.min(1L << 32, start + random.nextInt(258))};
+	}
+
+	/**
+	 * Restricts the set model using unsigned values, including ranges that end at 2^32.
+	 */
+	private static TreeSet<Integer> rangeModel(final TreeSet<Integer> source, final long start, final long end) {
+		final TreeSet<Integer> model = new TreeSet<>(Integer::compareUnsigned);
+		for (final Integer value : source) {
+			final long unsigned = Integer.toUnsignedLong(value);
+			if (unsigned >= start && unsigned < end) {
+				model.add(value);
+			}
+		}
+		return model;
+	}
+
+	/**
 	 * Applies one random operation to the pool, mutating both the bitmaps and their models in step.
 	 */
-	private static void step(final Random random, final List<Tracked> pool) {
+	private static void step(final Random random, final List<Tracked> pool) throws IOException {
 		final Tracked target = pool.get(random.nextInt(pool.size()));
 		final Tracked other = pool.get(random.nextInt(pool.size()));
-		switch (random.nextInt(18)) {
+		final int operation = random.nextInt(42);
+		switch (operation) {
 			case 0: {
 				if (target == other) {
 					break;
@@ -449,13 +557,246 @@ public class SharedContainerLockstepFuzzTest {
 				pool.add(FOLDS[random.nextInt(FOLDS.length)].apply(operands));
 				break;
 			}
-			default: {
+			case 17: {
 				if (target == other) {
 					break;
 				}
 				final TreeSet<Integer> union = new TreeSet<>(target.model);
 				union.addAll(other.model);
 				pool.add(new Tracked(PersistentRoaringBitmap.or(target.bitmap, other.bitmap), union));
+				break;
+			}
+			case 18:
+			case 19: {
+				final long[] ends = {0, 1, 63, 0xFFFF, 0x10000, 0x10001, 0x20000, 1L << 32};
+				final long end = ends[random.nextInt(ends.length)];
+				// Complement a dense operand for large bounds to keep the set model finite and cheap.
+				final PersistentRoaringBitmap operand = end > 63
+					? PersistentRoaringBitmap.flip(other.bitmap, 0L, end)
+					: target == other ? PersistentRoaringBitmap.fromBitmap(other.bitmap) : other.bitmap;
+				final TreeSet<Integer> model = new TreeSet<>(target.model);
+				if (end > 63) {
+					model.addAll(rangeModel(other.model, 0, end));
+				} else {
+					for (int value = 0; value < end; value++) {
+						if (!other.model.contains(value)) {
+							model.add(value);
+						}
+					}
+				}
+				if (operation == 18) {
+					target.bitmap.orNot(operand, end);
+					target.model.clear();
+					target.model.addAll(model);
+				} else {
+					pool.add(new Tracked(PersistentRoaringBitmap.orNot(target.bitmap, operand, end), model));
+				}
+				break;
+			}
+			case 20: {
+				final int offset = 1 + random.nextInt(3);
+				final int count = random.nextInt(24);
+				final int[] values = new int[offset + count + 2];
+				for (int i = 0; i < values.length; i++) {
+					values[i] = randomValue(random);
+					if (i >= offset && i < offset + count) {
+						target.model.add(values[i]);
+					}
+				}
+				target.bitmap.addN(values, offset, count);
+				break;
+			}
+			case 21:
+			case 22: {
+				final int value = target.model.isEmpty() || random.nextBoolean()
+					? randomValue(random) : target.model.first();
+				if (operation == 21) {
+					assertEquals(target.model.add(value), target.bitmap.checkedAdd(value), "checkedAdd return value");
+				} else {
+					assertEquals(
+						target.model.remove(value), target.bitmap.checkedRemove(value), "checkedRemove return value");
+				}
+				break;
+			}
+			case 23:
+			case 24:
+			case 25:
+			case 26: {
+				final long[] range = randomRange(random);
+				final long start = range[0];
+				final long end = range[1];
+				final TreeSet<Integer> model = new TreeSet<>(target.model);
+				for (long value = start; value < end; value++) {
+					if (operation == 26) {
+						model.remove((int) value);
+					} else if (operation == 25 || !model.remove((int) value)) {
+						model.add((int) value);
+					}
+				}
+				if (operation == 23) {
+					target.bitmap.flip(start, end);
+					target.model.clear();
+					target.model.addAll(model);
+				} else {
+					final PersistentRoaringBitmap bitmap = switch (operation) {
+						case 24 -> PersistentRoaringBitmap.flip(target.bitmap, start, end);
+						case 25 -> PersistentRoaringBitmap.add(target.bitmap, start, end);
+						default -> PersistentRoaringBitmap.remove(target.bitmap, start, end);
+					};
+					pool.add(new Tracked(bitmap, model));
+				}
+				break;
+			}
+			case 27:
+			case 28:
+			case 29:
+			case 30: {
+				final long[] range = randomRange(random);
+				final long start = range[0];
+				final long end = random.nextBoolean() ? range[1] : 1L << 32;
+				final TreeSet<Integer> model = rangeModel(target.model, start, end);
+				final TreeSet<Integer> right = rangeModel(other.model, start, end);
+				final List<PersistentRoaringBitmap> operands = List.of(target.bitmap, other.bitmap);
+				final PersistentRoaringBitmap bitmap;
+				if (operation == 27) {
+					model.retainAll(right);
+					bitmap = PersistentRoaringBitmap.and(operands.iterator(), start, end);
+				} else if (operation == 28) {
+					model.addAll(right);
+					bitmap = PersistentRoaringBitmap.or(operands.iterator(), start, end);
+				} else if (operation == 29) {
+					for (final Integer value : right) {
+						if (!model.add(value)) {
+							model.remove(value);
+						}
+					}
+					bitmap = PersistentRoaringBitmap.xor(operands.iterator(), start, end);
+				} else {
+					model.removeAll(right);
+					bitmap = PersistentRoaringBitmap.andNot(target.bitmap, other.bitmap, start, end);
+				}
+				pool.add(new Tracked(bitmap, model));
+				break;
+			}
+			case 31: {
+				final int[] values = new int[1 + random.nextInt(32)];
+				final TreeSet<Integer> model = new TreeSet<>(Integer::compareUnsigned);
+				for (int i = 0; i < values.length; i++) {
+					values[i] = randomValue(random);
+					model.add(values[i]);
+				}
+				pool.add(new Tracked(random.nextBoolean()
+					? PersistentRoaringBitmap.bitmapOf(values)
+					: PersistentRoaringBitmap.bitmapOfUnordered(values), model));
+				break;
+			}
+			case 32: {
+				final long[] range = randomRange(random);
+				final TreeSet<Integer> model = new TreeSet<>(Integer::compareUnsigned);
+				for (long value = range[0]; value < range[1]; value++) {
+					model.add((int) value);
+				}
+				pool.add(new Tracked(PersistentRoaringBitmap.bitmapOfRange(range[0], range[1]), model));
+				break;
+			}
+			case 33: {
+				pool.add(new Tracked(PersistentRoaringBitmap.fromBitmap(target.bitmap), new TreeSet<>(target.model)));
+				break;
+			}
+			case 34: {
+				final RoaringBitmapWriter.Wizard<Container, PersistentRoaringBitmap> wizard =
+					RoaringBitmapWriter.writer();
+				if (random.nextBoolean()) {
+					wizard.constantMemory();
+				} else if (random.nextBoolean()) {
+					wizard.optimiseForRuns();
+				}
+				wizard.runCompress(random.nextBoolean());
+				final RoaringBitmapWriter<PersistentRoaringBitmap> writer = wizard.get();
+				for (final Integer value : target.model) {
+					writer.add(value);
+				}
+				pool.add(new Tracked(writer.get(), new TreeSet<>(target.model)));
+				break;
+			}
+			case 35: {
+				final long[] offsets = {-0x10001L, -0x10000L, -1L, 1L, 0x10000L, 0x10001L};
+				final long offset = offsets[random.nextInt(offsets.length)];
+				final TreeSet<Integer> model = new TreeSet<>(Integer::compareUnsigned);
+				for (final Integer value : target.model) {
+					final long shifted = Integer.toUnsignedLong(value) + offset;
+					if (shifted >= 0 && shifted < 1L << 32) {
+						model.add((int) shifted);
+					}
+				}
+				pool.add(new Tracked(PersistentRoaringBitmap.addOffset(target.bitmap, offset), model));
+				break;
+			}
+			case 36: {
+				if (random.nextBoolean()) {
+					final int limit = random.nextInt(target.model.size() + 2);
+					final TreeSet<Integer> model = new TreeSet<>(Integer::compareUnsigned);
+					final Iterator<Integer> iterator = target.model.iterator();
+					for (int i = 0; i < limit && iterator.hasNext(); i++) {
+						model.add(iterator.next());
+					}
+					pool.add(new Tracked(target.bitmap.limit(limit), model));
+				} else {
+					final long[] range = randomRange(random);
+					final long end = random.nextBoolean() ? range[1] : 1L << 32;
+					pool.add(new Tracked(
+						target.bitmap.selectRange(range[0], end), rangeModel(target.model, range[0], end)));
+				}
+				break;
+			}
+			case 37: {
+				final Tracked source = target == other ? randomBitmap(random) : other;
+				if (target.model.isEmpty()) {
+					final int value = randomValue(random);
+					target.bitmap.add(value);
+					target.model.add(value);
+				}
+				// Preserve a peer of the old contents while all three deserializers overwrite the target.
+				pool.add(new Tracked(target.bitmap.clone(), new TreeSet<>(target.model)));
+				final TreeSet<Integer> model = new TreeSet<>(source.model);
+				final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+				try (DataOutputStream output = new DataOutputStream(bytes)) {
+					source.bitmap.serialize(output);
+				}
+				final byte[] serialized = bytes.toByteArray();
+				final int format = random.nextInt(3);
+				if (format == 0) {
+					target.bitmap.deserialize(ByteBuffer.wrap(serialized));
+				} else {
+					try (DataInputStream input = new DataInputStream(new ByteArrayInputStream(serialized))) {
+						if (format == 1) {
+							target.bitmap.deserialize(input);
+						} else {
+							target.bitmap.deserialize(input, new byte[8192]);
+						}
+					}
+				}
+				target.model.clear();
+				target.model.addAll(model);
+				break;
+			}
+			case 38: {
+				target.bitmap.trim();
+				break;
+			}
+			case 39: {
+				final TreeSet<Integer> model = new TreeSet<>(target.model);
+				model.retainAll(other.model);
+				pool.add(new Tracked(PersistentRoaringBitmap.and(target.bitmap, other.bitmap), model));
+				break;
+			}
+			case 40: {
+				target.bitmap.removeRunCompression();
+				break;
+			}
+			default: {
+				target.bitmap.clear();
+				target.model.clear();
 				break;
 			}
 		}
@@ -467,8 +808,8 @@ public class SharedContainerLockstepFuzzTest {
 	 */
 	@Test
 	@DisplayName("Random operator sequences keep shared[] in lockstep and never alias unflagged")
-	public void randomOperatorSequencesPreserveCopyOnWriteInvariants() {
-		for (int seed = 0; seed < 40; seed++) {
+	public void randomOperatorSequencesPreserveCopyOnWriteInvariants() throws IOException {
+		for (int seed = 0; seed < 94; seed++) {
 			final Random random = new Random(seed);
 			final List<Tracked> pool = new ArrayList<>();
 			for (int i = 0; i < 3; i++) {
@@ -477,14 +818,54 @@ public class SharedContainerLockstepFuzzTest {
 			assertAllInvariants(pool, "seed " + seed + " setup");
 
 			for (int iteration = 0; iteration < 60; iteration++) {
-				step(random, pool);
-				assertAllInvariants(pool, "seed " + seed + " step " + iteration);
+				final IdentityHashMap<Container, Object> before = sharedBackingArrays(pool);
+				final String where = "seed " + seed + " step " + iteration;
+				try {
+					step(random, pool);
+					assertSharedBackingArraysUnchanged(pool, before, where);
+					assertAllInvariants(pool, where);
+				} catch (final AssertionError | RuntimeException | IOException failure) {
+					throw new AssertionError(where + ": " + failure.getMessage(), failure);
+				}
 				// keep the pairwise alias scan affordable
 				while (pool.size() > 6) {
-					pool.remove(pool.size() - 1);
+					pool.remove(random.nextInt(pool.size() - 1));
 				}
 			}
 		}
+	}
+
+	/**
+	 * Pins the storage-identity trim guard on co-owned containers with spare capacity, where trim
+	 * would replace the array while leaving content and the container alias graph unchanged.
+	 */
+	@Test
+	public void trimmingCoOwnedContainersPreservesBackingArrays() {
+		final Tracked original = fromKeyMask(3);
+		final List<Tracked> pool = new ArrayList<>();
+		pool.add(original);
+		pool.add(new Tracked(original.bitmap.clone(), new TreeSet<>(original.model)));
+		final IdentityHashMap<Container, Object> before = sharedBackingArrays(pool);
+		original.bitmap.trim();
+		assertSharedBackingArraysUnchanged(pool, before, "seed 0 step 0 trim probe");
+		assertAllInvariants(pool, "seed 0 step 0 trim probe");
+	}
+
+	/**
+	 * Proves the storage check rejects two different container wrappers even when their contents
+	 * agree and the existing container-identity check has no alias to report.
+	 */
+	@Test
+	public void backingArrayGuardRejectsDistinctContainersWrappingSameStorage() {
+		final Tracked left = fromKeyMask(1);
+		final Tracked right = fromKeyMask(1);
+		((ArrayContainer) right.bitmap.getContainerAtIndex(0)).content =
+			((ArrayContainer) left.bitmap.getContainerAtIndex(0)).content;
+		final List<Tracked> pool = List.of(left, right);
+		assertNoUnflaggedAliasing(pool, "storage probe");
+		final AssertionError failure = assertThrows(AssertionError.class,
+			() -> assertNoBackingArrayAliasing(pool, "storage probe"));
+		assertTrue(failure.getMessage().contains("distinct containers share a backing array"));
 	}
 
 	/**
@@ -656,7 +1037,7 @@ public class SharedContainerLockstepFuzzTest {
 	private static Tracked uniformChunk(
 		final int key, final int cardinality, final boolean asRun) {
 		final PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
-		final TreeSet<Integer> model = new TreeSet<>();
+		final TreeSet<Integer> model = new TreeSet<>(Integer::compareUnsigned);
 		final int stride = asRun ? 1 : 7;
 		for (int i = 0; i < cardinality; i++) {
 			final int value = (key << 16) + 1_000 + i * stride;
@@ -681,7 +1062,7 @@ public class SharedContainerLockstepFuzzTest {
 	@Nonnull
 	private static Tracked fromKeyMaskAsRuns(final int mask) {
 		final PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
-		final TreeSet<Integer> model = new TreeSet<>();
+		final TreeSet<Integer> model = new TreeSet<>(Integer::compareUnsigned);
 		for (int key = 0; key < 5; key++) {
 			if ((mask & (1 << key)) != 0) {
 				final int start = (key << 16) + 1_000;
@@ -700,7 +1081,7 @@ public class SharedContainerLockstepFuzzTest {
 	 */
 	private static Tracked fromKeyMask(final int mask) {
 		final PersistentRoaringBitmap bitmap = new PersistentRoaringBitmap();
-		final TreeSet<Integer> model = new TreeSet<>();
+		final TreeSet<Integer> model = new TreeSet<>(Integer::compareUnsigned);
 		for (int key = 0; key < 5; key++) {
 			if ((mask & (1 << key)) != 0) {
 				for (int offset = 1; offset <= 3; offset++) {
