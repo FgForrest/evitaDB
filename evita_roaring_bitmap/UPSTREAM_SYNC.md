@@ -490,18 +490,11 @@ unflagged; a chunk lent from a single operand is flagged, via `flagLentLast` / `
 `newAllSharedResult` is gone. The result is reachable only by the caller until it is published, so
 per-slot tracking is unconditionally safe there.
 
-**The operand side is deliberately left as the wholesale `markAllShared` fill**, and that is now
-documented on the method so it is not "optimised" later. `TransactionalBitmap` is `@ThreadSafe` and
-hands the same live `PersistentRoaringBitmap` to every concurrent read-only query thread, so one
-bitmap can be an operand of two queries at once while `shared[]` is written without synchronisation.
-A full fill is idempotent: an update lost to a racing `ensureSharedCapacity` reallocation is
-re-established by the next caller, and the value it converges on is the conservative one. Sparse
-per-slot writes have no such convergence, and the value a lost sparse write leaves behind is the
-*unsafe* one — an unflagged slot over a container the result aliases, which is exactly the
-precondition for silent cross-bitmap corruption. Narrowing this side was measured at −32 % allocation
-on the diff-layer shape and is therefore worth revisiting, but only behind two things it does not have
-today: a hard `shared.length >= size` invariant (so `ensureSharedCapacity` can never reallocate a
-published bitmap out from under a concurrent writer) and a decision about publishing those writes.
+**The operand side stays wholesale**, now as the single `lent` field described in the next section
+rather than the `markAllShared` fill of `shared[]` it replaced. Narrowing it to the chunks actually lent
+was measured at −32 % allocation on the diff-layer shape and is still worth revisiting, but a per-slot
+record written by non-owners is exactly what the next section removes; it would need a design that
+publishes those writes safely.
 
 `andNot` still never marks its subtrahend, since no container is ever carried out of it. Sizing note:
 the result flag array is allocated once at the operation's upper bound (`length1 + length2`, or
@@ -534,6 +527,62 @@ producers too; deliberately dropping a lent chunk's flag makes that fuzz fail at
 **Not applicable upstream.** `shared[]` has no upstream counterpart — upstream `RoaringBitmap` results
 are freely mutable by contract, which is exactly why it clones on carry-over instead of sharing. There
 is nothing to report or contribute here.
+
+#### Operand flags are a single `lent` field (evita divergence — preserve on re-sync)
+
+Operations that only read a bitmap used to write into its `shared[]` array: the in-place
+`or`/`xor`/`lazyor`/`naivelazyor` for the argument bitmap (`borrowAndInsert`, `appendTailWithSharing`,
+`mergeBulk`), the range-bounded `and`/`or`/`xor`/`andNot` (`selectRangeWithoutCopy`), `clone()` for its
+source, and the static `or`/`xor`/`andNot` (`markAllShared`). Several of them wrote single slots, after
+growing the array with `ensureSharedCapacity` when it was shorter than the container array. Query
+threads run these operations concurrently on the same published index bitmaps, so a reallocation by one
+thread could lose another thread's slot write, leaving an unflagged slot over a container that a result
+still aliases.
+
+Non-owners now write one field, `lent = true` ("every container of mine may be shared"). The write is
+idempotent and reallocates nothing, so a concurrent writer cannot lose it. The owner turns it into
+per-slot flags in `unlend()`, the first statement of every mutating method, and `isShared(i)` reads
+`lent || shared[i]`. That ordering is sound because every operation that used a bitmap as an operand
+must happen-before the bitmap's next mutation, which Java requires of any conflicting access anyway.
+`RoaringArray.frozen`, set by `clone()` on both sides, was already a write of the same kind and is
+unchanged.
+
+The flag array now has a strict invariant: `shared.length >= size`, with every entry past `size` false.
+It replaces the old rule that an index beyond `shared.length` means owned, together with the tolerance
+branches in `copyIfShared`, `clearSharedAt`, `sharedRemoveAt`, `sharedRemoveRange`, `mergeBulk`, `trim` and
+the in-place `andNot`/`orNot`. Builders that append owned containers straight into `highLowContainer` size
+the array once at the end, through `sealOwned()`.
+
+**The price:** a bitmap that lent anything clones every container it writes afterwards, not only the
+ones it actually lent. Static `or`/`xor`/`andNot` and `clone()` already marked every operand slot, so
+nothing changes for them. The in-place unions and the range-bounded operations become coarser for their
+argument bitmaps.
+
+Measured with JMH `-prof gc` (`RoaringOperandFlagBenchmark` in `evita_performance_tests`, 64-chunk receiver,
+128-chunk operand, half of the operand's chunks disjoint from the receiver), two control and two treatment
+rounds interleaved on a quiet box. The values are the means of the two rounds; the floor arm moved by 2-5 %
+between rounds, which is the error bar for time. Allocation is deterministic.
+
+| arm | containers | time | allocation per operation |
+|---|---|---|---|
+| in-place `or`, then the operand writes into every chunk | bitmap | 99.6 → 122.1 µs (+22.6 %) | 2,109,889 → 2,636,737 B (+25.0 %) |
+| the same | array | 38.6 → 41.7 µs (+8.0 %) | 245,592 → 273,752 B (+11.5 %) |
+| range-bounded `and`, then the operand writes into every chunk | bitmap | 103.8 → 126.1 µs (+21.5 %) | 2,383,345 → 2,926,601 B (+22.8 %) |
+| the same | array | 21.9 → 22.8 µs (+4.2 %) | 209,720 → 238,672 B (+13.8 %) |
+| the operations alone (in-place `or`, range `and`, static `or`/`xor`/`andNot`), and the receiver writing afterwards | both | within the error bar | unchanged |
+
+The extra allocation is exactly one clone per operand chunk that was not lent (64 × 8,232 B for bitmap
+chunks). No production path in evitaDB pays it today: the two in-place unions in `evita_engine`
+(`BitmapChanges.restore`, which borrows every container of the memento into an empty receiver, and
+`ReevaluateExpressionExecutor`, whose lending bitmap is a temporary that is never written afterwards) lend
+nothing that is later written, and the transactional path clones published bitmaps instead of writing
+into them.
+
+Pinned by `OperandFlagOwnershipTest` (no non-owner writes or reallocates an operand's `shared[]`; `lent`
+is set by a lending operation and expanded by the next mutation; mutations on either side stay
+invisible to the other), `SharedContainerLockstepFuzzTest` (now enforces the strict invariant after every
+step), and `OperandFlagConcurrencyTest` (eight threads borrowing from one published bitmap, followed by
+an alias audit).
 
 ### Review 3 — `ba92f497` → `eaa61caf`
 

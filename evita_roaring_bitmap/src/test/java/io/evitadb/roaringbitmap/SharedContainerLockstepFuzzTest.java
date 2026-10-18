@@ -30,9 +30,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * LOCKSTEP — the parallel `shared[]` flag array and `highLowContainer` must keep describing the same
  * slots as the container array grows, shrinks and is rebuilt; historically that is where this class
- * has broken. The array is allowed to be *shorter* than the container array — an all-owned builder
- * appends without touching it and an uncovered slot correctly reads as owned — so what is asserted is
- * that no raised flag survives past the live slots; see {@link #assertLockstep}.
+ * has broken. The array covers every live slot and has no raised flag beyond the live size;
+ * see {@link #assertLockstep}.
  *
  * ALIASING — whenever two distinct bitmaps hold the very same {@link Container} instance, BOTH must
  * have that slot flagged shared. A single unflagged slot over an aliased container is the precise
@@ -170,28 +169,11 @@ public class SharedContainerLockstepFuzzTest {
 	private static final int[] CHUNK_KEYS = {0, 1, 2, 3, 5, 8, 13, 400};
 
 	/**
-	 * Asserts that no raised flag survives past the live slots of the container array.
-	 *
-	 * `shared[]` deliberately does **not** have to cover the whole container array. An all-owned
-	 * builder — `flip`, `add(range)`, `addOffset`, and the horizontal folds of
-	 * {@link FastAggregation} — appends through `RoaringArray` without touching the flags, and
-	 * {@link PersistentRoaringBitmap#isShared(int)} reads an uncovered slot as owned, which is exactly
-	 * what such a builder means. `sharedRemoveAt` states the reasoning: only the three sharing paths
-	 * create a co-owned container and each of them grows the array to cover its slot, so a slot past
-	 * the end is owned by construction rather than merely unknown. The raw-index hazard is closed
-	 * separately — `mergeBulk` and `andNot` grow the array before they write one, and every read
-	 * guards the index.
-	 *
-	 * That the uncovered tail really is owned is what {@link #assertNoUnflaggedAliasing} checks, and
-	 * it checks it where it matters: an uncovered slot reads `false`, so the scan fails the moment
-	 * another bitmap in the pool is found holding the same container.
-	 *
-	 * What is left for the array's own length is the opposite direction. A `true` sitting beyond
-	 * `size()` is a flag some shrink forgot to clear, and the next append inherits it and declines to
-	 * clone a container nobody else holds — a wasted copy at best, and a flag that outlives the
-	 * sharing it described at worst.
+	 * Asserts strict flag sizing and a false tail beyond the live container slots.
 	 */
-	private static void assertLockstep(final PersistentRoaringBitmap bitmap, final String where) {
+	static void assertLockstep(final PersistentRoaringBitmap bitmap, final String where) {
+		assertTrue(bitmap.shared.length >= bitmap.highLowContainer.size(),
+			where + ": shared.length=" + bitmap.shared.length + " < size=" + bitmap.highLowContainer.size());
 		for (int i = bitmap.highLowContainer.size(); i < bitmap.shared.length; i++) {
 			final int slot = i;
 			assertFalse(

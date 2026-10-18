@@ -274,6 +274,7 @@ public class BitSetUtil {
 				);
 			}
 		}
+		ans.sealOwned();
 		return ans;
 	}
 
@@ -369,6 +370,7 @@ public class BitSetUtil {
 				BitSetUtil.containerOf(0, blockLength, blockCardinality, wordsBuffer)
 			);
 		}
+		ans.sealOwned();
 		return ans;
 	}
 
