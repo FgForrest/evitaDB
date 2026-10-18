@@ -591,11 +591,11 @@ public class ReferenceTypeCardinalityIndex
 				Objects.requireNonNull(this.referencedPrimaryKeysIndex.get(it.next()))
 			);
 		}
-		// `partitions` are the LIVE bitmaps of this index, so the aggregation must not borrow from them: the naive
-		// fold (FastAggregation#or) appends the tail of each input by structural sharing, which writes the sharing
-		// flags back into the source - an unsynchronised write into index state from a read path, and a window in
-		// which the answer still aliases the index's own containers. The horizontal merge clones every container it
-		// takes, leaving the inputs untouched.
+		// `partitions` are LIVE index bitmaps. For multiple matches, `horizontal_or` builds owned containers without
+		// writing to the inputs. The single-match `clone()` shares containers and backing arrays: it freezes the
+		// source's container array and fills its active `shared[]` flags with `true` (growing the flag array if
+		// needed). These writes are tolerated today: freezing is idempotent, and the full fill reasserts conservative
+		// sharing under concurrent queries, as documented by `markAllShared`; sparse per-slot marking would not.
 		return matchCount == 1 ?
 			new BaseBitmap(partitions[0].clone()) :
 			new BaseBitmap(FastAggregation.horizontal_or(partitions));
