@@ -276,14 +276,13 @@ public final class PickFirstReferenceSorter implements Sorter {
 					}
 					continue;
 				}
-				final ReferencePartition index = partition;
 				// an index without a sort index of the value holds nothing to claim - ask for it before touching any
 				// bitmap, it is the whole cost of an ordering by a value few rows carry
-				final Supplier<SortedRecordsProvider> providerSource = this.providerFactory.apply(index);
+				final Supplier<SortedRecordsProvider> providerSource = this.providerFactory.apply(partition);
 				if (providerSource == null) {
 					continue;
 				}
-				final Bitmap indexOwners = index.getAllPrimaryKeys();
+				final Bitmap indexOwners = partition.getAllPrimaryKeys();
 				final PersistentRoaringBitmap indexOwnerBitmap = RoaringBitmapBackedBitmap.getRoaringBitmap(indexOwners);
 				// most indexes a gather hands over (the residual ones above all) hold no unclaimed owner, and this check
 				// tells so without allocating the intersection or building the provider

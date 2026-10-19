@@ -813,8 +813,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		if (indexes == null) {
 			return;
 		}
-		for (int i = 0; i < indexes.size(); i++) {
-			final SiblingReducedIndex sibling = indexes.get(i);
+		for (final SiblingReducedIndex sibling : indexes) {
 			switch (sibling.index()) {
 				// the schema handed to a reduced index identifies *that index's* reference, not the facet's -
 				// see SiblingReducedIndex
@@ -1345,10 +1344,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		if (owners.isEmpty()) {
 			return;
 		}
-		final Bitmap existing = target.get(referencedEntityPK);
-		target.put(
+		target.compute(
 			referencedEntityPK,
-			existing == null
+			(k, existing) -> existing == null
 				? new BaseBitmap(owners)
 				: new BaseBitmap(or(getRoaringBitmap(existing), owners))
 		);
@@ -3068,12 +3066,14 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		private void advance() {
 			this.nextEntry = null;
 			while (this.groupIdx < this.groups.size()) {
-				if (this.currentOwnerPKs == null) {
+				int[] ownerPKs = this.currentOwnerPKs;
+				if (ownerPKs == null) {
 					// Load the next group: cache its reference/group PKs and obtain the raw owner PK array.
 					final AffectedReferenceGroup group = this.groups.get(this.groupIdx);
 					this.currentRefEntityPK = group.referencedEntityPK();
 					this.currentGroupPK = group.groupPK();
-					this.currentOwnerPKs = group.ownerPKs().getArray();
+					ownerPKs = group.ownerPKs().getArray();
+					this.currentOwnerPKs = ownerPKs;
 					// re-read the membership set for this group: the verdict may differ between two of an
 					// owner's references, and collapsing them onto one is the defect this iterator avoids
 					this.filterBitmap = getRoaringBitmap(
@@ -3081,8 +3081,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 					);
 					this.ownerIdx = 0;
 				}
-				while (this.ownerIdx < this.currentOwnerPKs.length) {
-					final int ownerPK = this.currentOwnerPKs[this.ownerIdx++];
+				while (this.ownerIdx < ownerPKs.length) {
+					final int ownerPK = ownerPKs[this.ownerIdx++];
 					if (Objects.requireNonNull(this.filterBitmap).contains(ownerPK)) {
 						this.nextEntry = new AffectedReferenceEntry(
 							this.currentRefEntityPK, this.currentGroupPK, ownerPK

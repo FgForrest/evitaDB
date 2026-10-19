@@ -147,7 +147,7 @@ public final class PartitionKeyMemo {
 	 *                                   share their representative values
 	 */
 	@Nonnull
-	private IntLongHashMap buildFamily(@Nonnull ReferencedTypeEntityIndex typeIndex, int targetPrimaryKey) {
+	private static IntLongHashMap buildFamily(@Nonnull ReferencedTypeEntityIndex typeIndex, int targetPrimaryKey) {
 		final VirtualReferencePartitionIndex registry = typeIndex.getVirtualReferencePartitionIndex();
 		final int[] partitionPrimaryKeys = typeIndex.getAllReferenceIndexes(targetPrimaryKey);
 		final IntLongHashMap family = new IntLongHashMap(partitionPrimaryKeys.length);

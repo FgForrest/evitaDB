@@ -330,16 +330,34 @@ strictly more precise now, and two ranges less than a second apart are no longer
 `LocalDate` is the only date/time type left out — it carries no sub-day component, so there is nothing to truncate.
 
 evitaDB holds every temporal value as a whole number of milliseconds since the epoch in a 64-bit number. That window
-spans roughly ±292 million years around 1970 — from `-292275055-05-16T16:47:06Z` to
-`+292278994-08-17T07:12:54.999Z` — so every realistic calendar date fits comfortably. An `OffsetDateTime` or
-`LocalDateTime` outside the window is clamped to its nearest edge, both when it is written as an attribute value and
-when it is used as an argument of a query constraint. In practice this concerns the JDK's own extreme sentinels —
-`LocalDateTime.MIN` / `LocalDateTime.MAX` and their `OffsetDateTime` counterparts — which therefore work as "since
-forever" / "until forever" markers: `OffsetDateTime.MAX` is stored as the latest supported instant, keeping its
-`-18:00` offset (`+292278994-08-16T13:12:54.999-18:00`), it is read back as that value, and
+spans roughly ±292 million years around 1970, so every realistic calendar date fits comfortably. A value outside it is
+clamped to its nearest edge — in practice only the JDK's own extreme sentinels such as `OffsetDateTime.MAX`, which
+therefore work as "since forever" / "until forever" markers.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### What exactly happens to a value outside the window?
+</NoteTitle>
+
+The window spans from `-292275055-05-16T16:47:06Z` to `+292278994-08-17T07:12:54.999Z`. An `OffsetDateTime` or
+`LocalDateTime` outside it is clamped to its nearest edge, both when it is written as an attribute value and when it
+is used as an argument of a query constraint. This concerns the JDK's own extreme sentinels — `LocalDateTime.MIN` /
+`LocalDateTime.MAX` and their `OffsetDateTime` counterparts: `OffsetDateTime.MAX` is stored as the latest supported
+instant, keeping its `-18:00` offset (`+292278994-08-16T13:12:54.999-18:00`), it is read back as that value, and
 `attributeEquals("validUntil", OffsetDateTime.MAX)` finds it, because the query argument is clamped to the very same
 value. A `LocalDateTime` is clamped as the wall clock at UTC. A `DateTimeRange` boundary beyond the window is clamped
 to it as well, which makes it behave exactly like an open-ended boundary.
+
+</Note>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### How does the gRPC API carry the extreme values?
+</NoteTitle>
 
 The gRPC API narrows the window further: it carries temporal values as a protobuf `Timestamp`, which spans
 `0001-01-01T00:00:00Z` to `9999-12-31T23:59:59.999999999Z`. A value outside that range leaves the server as its
@@ -347,6 +365,9 @@ first or last second. A value reaching the server at exactly `0001-01-01T00:00:0
 second of the range, is taken for the `MIN` / `MAX` sentinel of its type (for a `LocalDate`, the first or last day of
 the range is). Every other moment of year 1 or year 9999 is stored exactly as it was sent. The Java client therefore
 round-trips `OffsetDateTime.MAX` as `OffsetDateTime.MAX`, where the embedded API reads back the clamped value.
+
+</Note>
+
 </LS>
 <LS to="c">
 evitaDB stores and matches temporal values at **millisecond** precision. A `DateTimeOffset`, `DateTime` or `TimeOnly`
@@ -370,6 +391,14 @@ strictly more precise now, and two ranges less than a second apart are no longer
 
 evitaDB holds every temporal value as a whole number of milliseconds since the epoch in a 64-bit number. That window
 spans roughly ±292 million years around 1970, so it covers the whole range of `DateTime` and `DateTimeOffset`.
+`DateTime.MinValue` and `DateTime.MaxValue` work as "since forever" / "until forever" markers.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### How are `DateTime.MinValue` and `DateTime.MaxValue` stored?
+</NoteTitle>
 
 Temporal values travel to the server as a protobuf `Timestamp`, which spans `0001-01-01T00:00:00Z` to
 `9999-12-31T23:59:59.999999999Z`. A value at exactly `0001-01-01T00:00:00Z` (`DateTime.MinValue`) or anywhere within
@@ -379,6 +408,9 @@ and when it is used as an argument of a query constraint, so a query written wit
 attribute written with `DateTime.MaxValue`. Such a value is sent back as `0001-01-01T00:00:00Z` or
 `9999-12-31T23:59:59Z` respectively. A `DateOnly` is treated the same way at day granularity: `0001-01-01` and
 `9999-12-31` are the sentinels. Every other moment of year 1 or year 9999 is stored exactly as it was sent.
+
+</Note>
+
 </LS>
 
 ### DateTimeRange

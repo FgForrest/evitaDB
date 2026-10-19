@@ -1057,9 +1057,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	public <S extends IndexKey, T extends Index<S>> Optional<T> getIndexIfExists(@Nonnull S indexKey, @Nonnull Class<T> indexType) {
-		if (indexKey instanceof CatalogIndexKey cik) {
+		if (indexKey instanceof CatalogIndexKey(Scope scope)) {
 			//noinspection unchecked
-			return ofNullable((T) this.catalog.getCatalogIndex(cik.scope()));
+			return ofNullable((T) this.catalog.getCatalogIndex(scope));
 		} else {
 			final Index<?> index = this.indexes.get(indexKey);
 			Assert.isPremiseValid(
@@ -2511,7 +2511,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @param referenceSchema the schema of the reference to which the facet group belongs
 	 * @param groupId         the identifier of the group; NULL for the facets without a group
 	 * @param level           the level of the facet group relation
-	 * @return the declared relation, or NULL when the default of the level decides
+	 * @return the declared relation, or null when the default of the level decides
 	 */
 	@Nullable
 	private FacetRelationType getDeclaredFacetRelationType(
@@ -2858,7 +2858,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			// it the entity type is passed in the query, we don't need to mask anything - all entities will share
 			// same primary key sequence
 			Assert.isPremiseValid(
-				this.entityType.equals(entityReference.getType()),
+				Objects.equals(this.entityType, entityReference.getType()),
 				() -> "Entity reference `" + entityReference + "` does not belong to the queried collection `" +
 					this.entityType + "`!"
 			);
@@ -3023,7 +3023,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		 * Returns the memoized relation of the facets of the group at the passed level.
 		 *
 		 * @param level the level of the facet group relation
-		 * @return the relation, NULL when not resolved yet
+		 * @return the relation, or null when not resolved yet
 		 */
 		@Nullable
 		FacetRelationType getRelationType(@Nonnull FacetGroupRelationLevel level) {

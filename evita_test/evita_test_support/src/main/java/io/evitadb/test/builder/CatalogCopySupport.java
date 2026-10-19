@@ -185,7 +185,7 @@ public class CatalogCopySupport {
 			}
 			requirements.add(referenceContentWithAttributes(reference.getName()));
 		}
-		return entityFetch(requirements.toArray(new EntityContentRequire[0]));
+		return entityFetch(requirements.toArray(EntityContentRequire.EMPTY_ARRAY));
 	}
 
 	/**
@@ -220,10 +220,10 @@ public class CatalogCopySupport {
 						}
 					}
 					if (!uniqueGlobally.isEmpty()) {
-						editor.uniqueGloballyInScope(uniqueGlobally.toArray(new Scope[0]));
+						editor.uniqueGloballyInScope(uniqueGlobally.toArray(Scope.NO_SCOPE));
 					}
 					if (!uniqueGloballyWithinLocale.isEmpty()) {
-						editor.uniqueGloballyWithinLocaleInScope(uniqueGloballyWithinLocale.toArray(new Scope[0]));
+						editor.uniqueGloballyWithinLocaleInScope(uniqueGloballyWithinLocale.toArray(Scope.NO_SCOPE));
 					}
 				}
 			);
@@ -470,10 +470,10 @@ public class CatalogCopySupport {
 			}
 		}
 		if (!forFiltering.isEmpty()) {
-			editor.indexedForFilteringInScope(forFiltering.toArray(new Scope[0]));
+			editor.indexedForFilteringInScope(forFiltering.toArray(Scope.NO_SCOPE));
 		}
 		if (!forFilteringAndPartitioning.isEmpty()) {
-			editor.indexedForFilteringAndPartitioningInScope(forFilteringAndPartitioning.toArray(new Scope[0]));
+			editor.indexedForFilteringAndPartitioningInScope(forFilteringAndPartitioning.toArray(Scope.NO_SCOPE));
 		}
 		return forFilteringAndPartitioning;
 	}
@@ -493,7 +493,7 @@ public class CatalogCopySupport {
 			final Set<ReferenceIndexedComponents> components = reference.getIndexedComponents(scope);
 			// declaring components on a scope the source does not index would promote it to FOR_FILTERING
 			if (reference.getReferenceIndexType(scope) != ReferenceIndexType.NONE && !components.isEmpty()) {
-				editor.indexedWithComponentsInScope(scope, components.toArray(new ReferenceIndexedComponents[0]));
+				editor.indexedWithComponentsInScope(scope, components.toArray(ReferenceIndexedComponents.EMPTY));
 			}
 		}
 	}
@@ -618,10 +618,10 @@ public class CatalogCopySupport {
 			}
 		}
 		if (!unique.isEmpty()) {
-			editor.uniqueInScope(unique.toArray(new Scope[0]));
+			editor.uniqueInScope(unique.toArray(Scope.NO_SCOPE));
 		}
 		if (!uniqueWithinLocale.isEmpty()) {
-			editor.uniqueWithinLocaleInScope(uniqueWithinLocale.toArray(new Scope[0]));
+			editor.uniqueWithinLocaleInScope(uniqueWithinLocale.toArray(Scope.NO_SCOPE));
 		}
 	}
 
@@ -664,7 +664,7 @@ public class CatalogCopySupport {
 				matching.add(scope);
 			}
 		}
-		return matching.toArray(new Scope[0]);
+		return matching.toArray(Scope.NO_SCOPE);
 	}
 
 	/**

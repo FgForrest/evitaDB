@@ -23,6 +23,7 @@
 
 package io.evitadb.index.invertedIndex;
 
+import io.evitadb.api.exception.IdentifierOverflowException;
 import io.evitadb.core.transaction.memory.Snapshotable;
 import lombok.AllArgsConstructor;
 
@@ -65,8 +66,7 @@ public class ValueIdAllocatorChanges implements Snapshotable<ValueIdAllocatorCha
 	 * Hands out the next transaction-local value id and advances the high-water mark.
 	 *
 	 * @return the freshly minted value id, always greater than {@link ValueIdAllocator#UNASSIGNED_VALUE_ID}
-	 * @throws io.evitadb.api.exception.IdentifierOverflowException when the id space is exhausted, before the
-	 *                                                              counter changes
+	 * @throws IdentifierOverflowException when the id space is exhausted, before the counter changes
 	 */
 	public int allocate() {
 		// guard BEFORE handing the id out, so the counter can never wrap into the negative range where it would

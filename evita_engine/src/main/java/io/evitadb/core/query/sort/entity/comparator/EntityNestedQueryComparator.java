@@ -280,17 +280,19 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	) {
 		this.groupedReferencePositions = null;
 		this.entitiesFound = filteredEntities;
-		this.sortedEntityIndexes = new int[filteredEntities.length];
+		// the field shares the array, which the sorting below reorders in place
+		final int[] sortedEntityIndexes = new int[filteredEntities.length];
 		for (int i = 0; i < filteredEntities.length; i++) {
-			this.sortedEntityIndexes[i] = i;
+			sortedEntityIndexes[i] = i;
 		}
+		this.sortedEntityIndexes = sortedEntityIndexes;
 		if (!ArrayUtils.isEmpty(filteredEntities)) {
 			if (this.groupSorter == null) {
 				final int[] sortedEntities = getSortedEntities(filteredEntities, this.sorter, true);
-				ArrayUtils.sortSecondAlongFirstArray(sortedEntities, this.sortedEntityIndexes);
+				ArrayUtils.sortSecondAlongFirstArray(sortedEntities, sortedEntityIndexes);
 			} else if (groupAssignmentVaries) {
 				setFilteredEntitiesByGroupedReference(
-					filteredEntities, filteredEntityGroups, groupToReferencedEntityIdTranslator
+					filteredEntities, filteredEntityGroups, groupToReferencedEntityIdTranslator, sortedEntityIndexes
 				);
 			} else {
 				// a group the sorters cannot rank - one that does not exist, or lacks every value they order by - has
@@ -328,7 +330,7 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 						}
 					}
 				}
-				ArrayUtils.sortSecondAlongFirstArray(combinedSortedEntities, this.sortedEntityIndexes);
+				ArrayUtils.sortSecondAlongFirstArray(combinedSortedEntities, sortedEntityIndexes);
 			}
 		}
 	}
@@ -343,11 +345,13 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	 * @param filteredEntities                    sorted, distinct primary keys of the referenced entities to order
 	 * @param filteredEntityGroups                primary keys of the groups of those entities
 	 * @param groupToReferencedEntityIdTranslator returns the referenced entities held in the passed group
+	 * @param sortedEntityIndexes                 the array {@link #sortedEntityIndexes} holds, filled in place
 	 */
 	private void setFilteredEntitiesByGroupedReference(
 		@Nonnull int[] filteredEntities,
 		@Nonnull int[] filteredEntityGroups,
-		@Nonnull Function<Integer, int[]> groupToReferencedEntityIdTranslator
+		@Nonnull Function<Integer, int[]> groupToReferencedEntityIdTranslator,
+		@Nonnull int[] sortedEntityIndexes
 	) {
 		final int[] sortedGroupEntities = getSortedEntities(
 			filteredEntityGroups, this.groupSorter, this.groupOrderByPrimaryKey
@@ -365,9 +369,9 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 				}
 			}
 		}
-		ArrayUtils.sortSecondAlongFirstArray(sortedEntities, this.sortedEntityIndexes);
-		for (int i = 0; i < this.sortedEntityIndexes.length; i++) {
-			this.sortedEntityIndexes[i] += position;
+		ArrayUtils.sortSecondAlongFirstArray(sortedEntities, sortedEntityIndexes);
+		for (int i = 0; i < sortedEntityIndexes.length; i++) {
+			sortedEntityIndexes[i] += position;
 		}
 		this.groupedReferencePositions = positions;
 	}
@@ -375,10 +379,16 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 	/**
 	 * Returns the position of the reference in the requested order, or -1 when the comparator cannot rank it.
 	 *
-	 * @param reference the reference to locate, may be NULL
+	 * @param reference           the reference to locate, may be NULL
+	 * @param entitiesFound       the array {@link #entitiesFound} holds
+	 * @param sortedEntityIndexes the array {@link #sortedEntityIndexes} holds
 	 * @return the position of the reference, or -1
 	 */
-	private int getPosition(@Nullable ReferenceContract reference) {
+	private int getPosition(
+		@Nullable ReferenceContract reference,
+		@Nonnull int[] entitiesFound,
+		@Nonnull int[] sortedEntityIndexes
+	) {
 		if (reference == null) {
 			return -1;
 		}
@@ -394,9 +404,8 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 				}
 			}
 		}
-		// both arrays are non-null here - `compare` checks it before asking
-		final int index = Arrays.binarySearch(this.entitiesFound, referencedPrimaryKey);
-		return index < 0 ? -1 : this.sortedEntityIndexes[index];
+		final int index = Arrays.binarySearch(entitiesFound, referencedPrimaryKey);
+		return index < 0 ? -1 : sortedEntityIndexes[index];
 	}
 
 	@Override
@@ -420,9 +429,13 @@ public class EntityNestedQueryComparator implements ReferenceComparator {
 
 	@Override
 	public int compare(ReferenceContract o1, ReferenceContract o2) {
-		Assert.isPremiseValid(this.entitiesFound != null && this.sortedEntityIndexes != null, "The comparator is not initialized!");
-		final int o1Position = getPosition(o1);
-		final int o2Position = getPosition(o2);
+		final int[] entitiesFound = this.entitiesFound;
+		final int[] sortedEntityIndexes = this.sortedEntityIndexes;
+		Assert.isPremiseValid(
+			entitiesFound != null && sortedEntityIndexes != null, "The comparator is not initialized!"
+		);
+		final int o1Position = getPosition(o1, entitiesFound, sortedEntityIndexes);
+		final int o2Position = getPosition(o2, entitiesFound, sortedEntityIndexes);
 		if (o1Position >= 0 && o2Position >= 0) {
 			return Integer.compare(o1Position, o2Position);
 		} else if (o1Position < 0 && o2Position >= 0) {

@@ -2098,12 +2098,12 @@ is looked up in an index, so the filter works the same way whatever the schema a
 - the reference doesn't have to index the `REFERENCED_ENTITY` and `REFERENCED_GROUP_ENTITY` components for the
   `entityHaving` and `groupHaving` constraints to work.
 
-The reference attributes are compared exactly as an index would compare them: decimal numbers at the number of decimal
-places of the attribute schema, strings and dates in their normalized form, localized strings by the collation of the
-locale, an array attribute matches when any of its elements does, and a range attribute by its overlap with the
-requested range. A filter outside of any `inScope` container is applied to the references of the entities in all the
-queried scopes; wrap its part in [`inScope`](../filtering/behavioral.md#in-scope) to apply it to the references of
-the entities living in a single scope only.
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### Which constraints can the filter contain?
+</NoteTitle>
 
 The filter may combine the [`and`](../filtering/logical.md#and), [`or`](../filtering/logical.md#or) and
 [`not`](../filtering/logical.md#not) containers, the `inScope` container, the attribute constraints,
@@ -2115,16 +2115,44 @@ naming the constraint and the reference - so is a `scope` constraint nested in a
 reference doesn't define, and a range where the lower bound of an `attributeBetween` is greater than the upper bound. All
 of that is refused whether or not the returned entities hold any reference to filter.
 
+The `entityHaving` and `groupHaving` constraints read the referenced entity and the group entity, so the entity types
+must be managed by evitaDB, otherwise the query is refused. A filter outside of any `inScope` container is applied to
+the references of the entities in all the queried scopes; wrap its part in [`inScope`](../filtering/behavioral.md#in-scope)
+to apply it to the references of the entities living in a single scope only.
+
+</Note>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### How are the reference attributes compared, and in which locale?
+</NoteTitle>
+
+The reference attributes are compared exactly as an index would compare them: decimal numbers at the number of decimal
+places of the attribute schema, strings and dates in their normalized form, localized strings by the collation of the
+locale, an array attribute matches when any of its elements does, and a range attribute by its overlap with the
+requested range.
+
 A localized reference attribute in the filter is read in the locale of the `entityLocaleEquals` constraint of that
 filter - the one directly in the filter or directly inside its `entityHaving`, never one inside `groupHaving`; there
 may be at most one. When the filter has none, the attribute is read in the locale of the query. If neither names
 a locale, the query is refused unless the attribute is unique across all locales.
 
-The `entityHaving` and `groupHaving` constraints read the referenced entity and the group entity, so the entity types
-must be managed by evitaDB, otherwise the query is refused. A reference to a group that doesn't exist or was removed
-has no group, and `groupHaving` doesn't match it. When the `referenceContent` has a filter, only the references to
-entities that exist in the queried scopes (and in the required locale, if the entity type has localized data) can match;
-a reference to a missing entity is not returned.
+</Note>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### What happens to the references to missing entities or groups?
+</NoteTitle>
+
+When the `referenceContent` has a filter, only the references to entities that exist in the queried scopes (and in the
+required locale, if the entity type has localized data) can match; a reference to a missing entity is not returned.
+A reference to a group that doesn't exist or was removed has no group, and `groupHaving` doesn't match it.
+
+</Note>
 
 </LS>
 

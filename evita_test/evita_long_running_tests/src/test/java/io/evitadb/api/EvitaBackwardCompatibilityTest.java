@@ -868,14 +868,17 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Returns the index objects of the partitions of the reference in the scope, as an index browse lists them.
+	 * Returns the owner counts of the index objects of the reference in the scope, as an index browse lists them. A
+	 * partition with one owner is a registry row, which the browse does not list - only one with several owners is an
+	 * index object.
 	 *
 	 * @param evita         the engine holding the catalog
 	 * @param catalogName   the catalog
 	 * @param entityType    the collection
 	 * @param referenceName the reference
 	 * @param scope         the scope
-	 * @return the number of owners each index object covers, in ascending order, by its target primary key
+	 * @return the owner count of every index object, in ascending order, by its target - comparable with
+	 *         {@link BodyOwners#sharedPartitions()}
 	 */
 	@Nonnull
 	private static SortedMap<Integer, List<Integer>> partitionObjectsOf(

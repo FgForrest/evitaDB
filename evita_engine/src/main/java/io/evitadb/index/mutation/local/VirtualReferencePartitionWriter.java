@@ -533,18 +533,12 @@ public final class VirtualReferencePartitionWriter {
 		if (partition == null) {
 			return;
 		}
-		final String referenceName = partition.getRepresentativeReferenceKey().referenceName();
-		final Scope scope = partition.getIndexKey().scope();
 		final AttributeIndexKey key = AttributeIndex.createAttributeKey(referenceSchema, attributeSchema, locale);
-		// only an attribute of the reference sortable in the scope reaches the partition's sort or chain index
-		if (!isMirroredAttribute(partition, attributeSchema, scope, referenceName, key)) {
-			return;
-		}
-		final int partitionPrimaryKey = partition.getPrimaryKey();
-		final VirtualReferencePartitionIndex registry = getRegistryOfOwnPartition(
-			executor, partition, referenceName, scope
+		final VirtualReferencePartitionIndex registry = getRegistryRecordingAttribute(
+			executor, partition, attributeSchema, key
 		);
 		if (registry != null) {
+			final int partitionPrimaryKey = partition.getPrimaryKey();
 			if (value instanceof final ChainableType predecessor) {
 				registry.declareChainKey(key);
 				registry.putChainPredecessor(key, partitionPrimaryKey, predecessor.predecessorPk());
@@ -581,18 +575,12 @@ public final class VirtualReferencePartitionWriter {
 		if (partition == null) {
 			return;
 		}
-		final String referenceName = partition.getRepresentativeReferenceKey().referenceName();
-		final Scope scope = partition.getIndexKey().scope();
 		final AttributeIndexKey key = AttributeIndex.createAttributeKey(referenceSchema, attributeSchema, locale);
-		// only an attribute of the reference sortable in the scope reaches the partition's sort or chain index
-		if (!isMirroredAttribute(partition, attributeSchema, scope, referenceName, key)) {
-			return;
-		}
-		final int partitionPrimaryKey = partition.getPrimaryKey();
-		final VirtualReferencePartitionIndex registry = getRegistryOfOwnPartition(
-			executor, partition, referenceName, scope
+		final VirtualReferencePartitionIndex registry = getRegistryRecordingAttribute(
+			executor, partition, attributeSchema, key
 		);
 		if (registry != null) {
+			final int partitionPrimaryKey = partition.getPrimaryKey();
 			// an index object picks its chain or sort index by the declared type, and so does the registry
 			if (ChainableType.class.isAssignableFrom(attributeSchema.getPlainType())) {
 				if (!registry.removeChainPredecessor(key, partitionPrimaryKey)) {
@@ -660,20 +648,12 @@ public final class VirtualReferencePartitionWriter {
 		if (partition == null) {
 			return;
 		}
-		final String referenceName = partition.getRepresentativeReferenceKey().referenceName();
 		final AttributeIndexKey key = AttributeIndex.createAttributeKey(
 			entitySchema, referenceSchema, compoundSchema, locale
 		);
-		// an entity compound has no reference name, and only the reference's own compounds are recorded
-		if (!isMirroredCompound(partition, referenceName, key)) {
-			return;
-		}
-		final Scope scope = partition.getIndexKey().scope();
-		final int partitionPrimaryKey = partition.getPrimaryKey();
-		final VirtualReferencePartitionIndex registry = getRegistryOfOwnPartition(
-			executor, partition, referenceName, scope
-		);
+		final VirtualReferencePartitionIndex registry = getRegistryRecordingCompound(executor, partition, key);
 		if (registry != null) {
+			final int partitionPrimaryKey = partition.getPrimaryKey();
 			declareSortKey(registry, key, compoundSchema, attributeTypeProvider);
 			assertNoSortValue(registry, key, partitionPrimaryKey, values);
 			registry.putSortValue(key, partitionPrimaryKey, values);
@@ -707,23 +687,68 @@ public final class VirtualReferencePartitionWriter {
 		if (partition == null) {
 			return;
 		}
-		final String referenceName = partition.getRepresentativeReferenceKey().referenceName();
 		final AttributeIndexKey key = AttributeIndex.createAttributeKey(
 			entitySchema, referenceSchema, compoundSchema, locale
 		);
-		// an entity compound has no reference name, and only the reference's own compounds are recorded
-		if (!isMirroredCompound(partition, referenceName, key)) {
-			return;
-		}
-		final Scope scope = partition.getIndexKey().scope();
-		final int partitionPrimaryKey = partition.getPrimaryKey();
-		final VirtualReferencePartitionIndex registry = getRegistryOfOwnPartition(
-			executor, partition, referenceName, scope
-		);
+		final VirtualReferencePartitionIndex registry = getRegistryRecordingCompound(executor, partition, key);
 		if (registry != null) {
+			final int partitionPrimaryKey = partition.getPrimaryKey();
 			assertSortValue(registry, key, partitionPrimaryKey, values);
 			registry.removeSortValue(key, partitionPrimaryKey);
 		}
+	}
+
+	/**
+	 * Returns the registry recording the value of the attribute written into the partition, or removed from it - see
+	 * {@link #isSkippedAttribute} for the attributes it records and {@link #getRegistryOfOwnPartition} for the
+	 * partitions.
+	 *
+	 * @param executor        the mutation executor
+	 * @param partition       the partition written into
+	 * @param attributeSchema the attribute
+	 * @param key             the key of the attribute value
+	 * @return the registry, or `null` when the value is not recorded
+	 * @throws GenericEvitaInternalError when the partition is virtual and the value would not be recorded
+	 */
+	@Nullable
+	private static VirtualReferencePartitionIndex getRegistryRecordingAttribute(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferencePartition partition,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull AttributeIndexKey key
+	) {
+		final String referenceName = partition.getRepresentativeReferenceKey().referenceName();
+		final Scope scope = partition.getIndexKey().scope();
+		// only an attribute of the reference sortable in the scope reaches the partition's sort or chain index
+		if (isSkippedAttribute(partition, attributeSchema, scope, referenceName, key)) {
+			return null;
+		}
+		return getRegistryOfOwnPartition(executor, partition, referenceName, scope);
+	}
+
+	/**
+	 * Returns the registry recording the value of the sortable attribute compound written into the partition, or
+	 * removed from it - see {@link #isSkippedCompound} for the compounds it records and
+	 * {@link #getRegistryOfOwnPartition} for the partitions.
+	 *
+	 * @param executor  the mutation executor
+	 * @param partition the partition written into
+	 * @param key       the key of the compound value
+	 * @return the registry, or `null` when the value is not recorded
+	 * @throws GenericEvitaInternalError when the partition is virtual and the value would not be recorded
+	 */
+	@Nullable
+	private static VirtualReferencePartitionIndex getRegistryRecordingCompound(
+		@Nonnull EntityIndexLocalMutationExecutor executor,
+		@Nonnull ReferencePartition partition,
+		@Nonnull AttributeIndexKey key
+	) {
+		final String referenceName = partition.getRepresentativeReferenceKey().referenceName();
+		// an entity compound has no reference name, and only the reference's own compounds are recorded
+		if (isSkippedCompound(partition, referenceName, key)) {
+			return null;
+		}
+		return getRegistryOfOwnPartition(executor, partition, referenceName, partition.getIndexKey().scope());
 	}
 
 	/**
@@ -790,20 +815,20 @@ public final class VirtualReferencePartitionWriter {
 	}
 
 	/**
-	 * Returns TRUE when the value of the attribute reaches the partition's sort or chain index - the attribute is one
-	 * of the partition's own reference and sortable in its scope. An attribute of the owner entity written into a
-	 * virtual partition fails: such a partition holds nothing of its owner's attributes. A non-sortable attribute of
-	 * the reference is not recorded, whichever the partition.
+	 * Returns TRUE when the value of the attribute does not reach the partition's sort or chain index, so nothing of it
+	 * is recorded - the attribute belongs to the owner entity, or it is not sortable in the scope. An attribute of the
+	 * owner entity written into a virtual partition fails instead: such a partition holds nothing of its owner's
+	 * attributes. A non-sortable attribute of the reference is skipped, whichever the partition.
 	 *
 	 * @param partition       the partition written into
 	 * @param attributeSchema the attribute
 	 * @param scope           the scope of the partition
 	 * @param referenceName   the reference of the partition
 	 * @param key             the key of the attribute value
-	 * @return TRUE when the value is recorded
+	 * @return TRUE when the value is not recorded
 	 * @throws GenericEvitaInternalError when the attribute belongs to the owner entity and the partition is virtual
 	 */
-	private static boolean isMirroredAttribute(
+	private static boolean isSkippedAttribute(
 		@Nonnull ReferencePartition partition,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Scope scope,
@@ -814,34 +839,34 @@ public final class VirtualReferencePartitionWriter {
 			if (partition instanceof final VirtualReferencePartition virtual) {
 				throw virtualPartitionWriteLost(virtual, "the attribute `" + key + "` belongs to the owner entity");
 			}
-			return false;
+			return true;
 		}
-		return attributeSchema.isSortableInScope(scope);
+		return !attributeSchema.isSortableInScope(scope);
 	}
 
 	/**
-	 * Returns TRUE when the value of the compound reaches the partition's sort index - the compound is one of the
-	 * partition's own reference. A compound of the owner entity written into a virtual partition fails: such a
-	 * partition holds nothing of its owner's attributes.
+	 * Returns TRUE when the value of the compound does not reach the partition's sort index, so nothing of it is
+	 * recorded - the compound belongs to the owner entity. A compound of the owner entity written into a virtual
+	 * partition fails instead: such a partition holds nothing of its owner's attributes.
 	 *
 	 * @param partition     the partition written into
 	 * @param referenceName the reference of the partition
 	 * @param key           the key of the compound value
-	 * @return TRUE when the value is recorded
+	 * @return TRUE when the value is not recorded
 	 * @throws GenericEvitaInternalError when the compound belongs to the owner entity and the partition is virtual
 	 */
-	private static boolean isMirroredCompound(
+	private static boolean isSkippedCompound(
 		@Nonnull ReferencePartition partition,
 		@Nonnull String referenceName,
 		@Nonnull AttributeIndexKey key
 	) {
 		if (referenceName.equals(key.referenceName())) {
-			return true;
+			return false;
 		}
 		if (partition instanceof final VirtualReferencePartition virtual) {
 			throw virtualPartitionWriteLost(virtual, "the compound `" + key + "` belongs to the owner entity");
 		}
-		return false;
+		return true;
 	}
 
 	/**

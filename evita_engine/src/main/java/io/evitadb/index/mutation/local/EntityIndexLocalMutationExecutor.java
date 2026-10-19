@@ -2601,26 +2601,29 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	) {
 		final AttributeKey affectedAttribute = attributeMutation.getAttributeKey();
 
-		if (attributeMutation instanceof UpsertAttributeMutation) {
-			final Serializable attributeValue = ((UpsertAttributeMutation) attributeMutation).getAttributeValue();
-			AttributeIndexMutator.executeAttributeUpsert(
-				this, referenceSchema, attributeSchemaProvider, existingValueSupplier,
-				targetForRemoval, targetForUpsert, affectedAttribute, attributeValue, updateGlobalIndex, updateCompounds
-			);
-		} else if (attributeMutation instanceof RemoveAttributeMutation) {
-			AttributeIndexMutator.executeAttributeRemoval(
+		switch (attributeMutation) {
+			case UpsertAttributeMutation upsertAttributeMutation -> {
+				final Serializable attributeValue = upsertAttributeMutation.getAttributeValue();
+				AttributeIndexMutator.executeAttributeUpsert(
+					this, referenceSchema, attributeSchemaProvider, existingValueSupplier,
+					targetForRemoval, targetForUpsert, affectedAttribute, attributeValue, updateGlobalIndex,
+					updateCompounds
+				);
+			}
+			case RemoveAttributeMutation __ -> AttributeIndexMutator.executeAttributeRemoval(
 				this, referenceSchema, attributeSchemaProvider, existingValueSupplier,
 				targetForRemoval, targetForUpsert, affectedAttribute, updateGlobalIndex, updateCompounds
 			);
-		} else if (attributeMutation instanceof ApplyDeltaAttributeMutation<?> applyDeltaAttributeMutation) {
-			final Number attributeValue = applyDeltaAttributeMutation.getAttributeValue();
-			AttributeIndexMutator.executeAttributeDelta(
-				this, referenceSchema, attributeSchemaProvider, existingValueSupplier,
-				targetForRemoval, targetForUpsert, affectedAttribute, attributeValue, updateGlobalIndex
-			);
-		} else {
-			// SHOULD NOT EVER HAPPEN
-			throw new GenericEvitaInternalError("Unknown mutation: " + attributeMutation.getClass());
+			case ApplyDeltaAttributeMutation<?> applyDeltaAttributeMutation -> {
+				final Number attributeValue = applyDeltaAttributeMutation.getAttributeValue();
+				AttributeIndexMutator.executeAttributeDelta(
+					this, referenceSchema, attributeSchemaProvider, existingValueSupplier,
+					targetForRemoval, targetForUpsert, affectedAttribute, attributeValue, updateGlobalIndex
+				);
+			}
+			default ->
+				// SHOULD NOT EVER HAPPEN
+				throw new GenericEvitaInternalError("Unknown mutation: " + attributeMutation.getClass());
 		}
 	}
 
@@ -4236,33 +4239,28 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			referenceSchema, scope);
 		final boolean groupIndexingEnabled = ReferenceIndexMutator.isIndexedForGroupComponent(referenceSchema, scope);
 
-		if (referenceMutation instanceof SetReferenceGroupMutation m) {
-			updateReferenceOnSetGroup(
+		switch (referenceMutation) {
+			case SetReferenceGroupMutation m -> updateReferenceOnSetGroup(
 				m, entityIndex, epk, referenceKey, referenceSchema,
 				entityComponentEnabled, groupIndexingEnabled, scope
 			);
-		} else if (referenceMutation instanceof RemoveReferenceGroupMutation m) {
-			updateReferenceOnRemoveGroup(
+			case RemoveReferenceGroupMutation m -> updateReferenceOnRemoveGroup(
 				m, entityIndex, epk, referenceKey, referenceSchema,
 				entityComponentEnabled, groupIndexingEnabled, scope
 			);
-		} else if (referenceMutation instanceof ReferenceAttributeMutation m) {
-			updateReferenceOnAttributeChange(
+			case ReferenceAttributeMutation m -> updateReferenceOnAttributeChange(
 				m, entityIndex, epk, referenceKey, referenceSchema,
 				entityComponentEnabled, groupIndexingEnabled, scope
 			);
-		} else if (referenceMutation instanceof InsertReferenceMutation) {
-			updateReferenceOnInsert(
+			case InsertReferenceMutation __ -> updateReferenceOnInsert(
 				entityIndex, epk, referenceKey, referenceSchema,
 				entityComponentEnabled, scope
 			);
-		} else if (referenceMutation instanceof RemoveReferenceMutation) {
-			updateReferenceOnRemoval(
+			case RemoveReferenceMutation __ -> updateReferenceOnRemoval(
 				entityIndex, epk, referenceKey, referenceSchema,
 				entityComponentEnabled, groupIndexingEnabled, scope
 			);
-		} else {
-			throw new GenericEvitaInternalError("Unknown mutation: " + referenceMutation.getClass());
+			default -> throw new GenericEvitaInternalError("Unknown mutation: " + referenceMutation.getClass());
 		}
 	}
 
@@ -4841,8 +4839,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull AbstractReducedEntityIndex indexForRemoval,
 		@Nonnull AbstractReducedEntityIndex indexForUpsert
 	) {
-		if (referenceMutation instanceof SetReferenceGroupMutation upsertReferenceGroupMutation) {
-			ReferenceIndexMutator.setFacetGroupInIndex(
+		switch (referenceMutation) {
+			case SetReferenceGroupMutation upsertReferenceGroupMutation -> ReferenceIndexMutator.setFacetGroupInIndex(
 				getPrimaryKeyToIndex(IndexType.FACET_INDEX, Target.NEW),
 				indexForUpsert,
 				referenceSchema,
@@ -4850,18 +4848,18 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				upsertReferenceGroupMutation.getGroupPrimaryKey(),
 				this
 			);
-		} else if (referenceMutation instanceof RemoveReferenceGroupMutation removeReferenceGroupMutation) {
-			ReferenceIndexMutator.removeFacetGroupInIndex(
-				getPrimaryKeyToIndex(IndexType.FACET_INDEX, Target.EXISTING),
-				indexForRemoval,
-				referenceSchema,
-				removeReferenceGroupMutation.getReferenceKey(),
-				this
-			);
-		} else if (referenceMutation instanceof ReferenceAttributeMutation) {
-			// do nothing - attributes are not indexed in reduced entity index
-		} else if (referenceMutation instanceof InsertReferenceMutation) {
-			ReferenceIndexMutator.addFacetToIndex(
+			case RemoveReferenceGroupMutation removeReferenceGroupMutation ->
+				ReferenceIndexMutator.removeFacetGroupInIndex(
+					getPrimaryKeyToIndex(IndexType.FACET_INDEX, Target.EXISTING),
+					indexForRemoval,
+					referenceSchema,
+					removeReferenceGroupMutation.getReferenceKey(),
+					this
+				);
+			case ReferenceAttributeMutation __ -> {
+				// do nothing - attributes are not indexed in reduced entity index
+			}
+			case InsertReferenceMutation __ -> ReferenceIndexMutator.addFacetToIndex(
 				indexForUpsert,
 				referenceSchema,
 				referenceMutation.getReferenceKey(),
@@ -4869,17 +4867,16 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				getPrimaryKeyToIndex(IndexType.FACET_INDEX, Target.NEW),
 				this
 			);
-		} else if (referenceMutation instanceof RemoveReferenceMutation) {
-			ReferenceIndexMutator.removeFacetInIndex(
+			case RemoveReferenceMutation __ -> ReferenceIndexMutator.removeFacetInIndex(
 				indexForRemoval,
 				referenceSchema,
 				referenceMutation.getReferenceKey(),
 				getPrimaryKeyToIndex(IndexType.FACET_INDEX, Target.EXISTING),
 				this
 			);
-		} else {
-			// SHOULD NOT EVER HAPPEN
-			throw new GenericEvitaInternalError("Unknown mutation: " + referenceMutation.getClass());
+			default ->
+				// SHOULD NOT EVER HAPPEN
+				throw new GenericEvitaInternalError("Unknown mutation: " + referenceMutation.getClass());
 		}
 	}
 

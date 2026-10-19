@@ -40,6 +40,7 @@ import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.bPlusTree.BucketBPlusTree;
@@ -2635,9 +2636,8 @@ public class InvertedIndex implements
 	 *
 	 * @param highWaterPageSequence  the persisted stream high-water (largest page sequence ever allocated)
 	 * @param persistedPageSequences the leaf-page sequences the persisted root lists, in its order
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when this index knows a page stream already - it was
-	 *                                                        flushed, or reassembled from persisted pages, so it is
-	 *                                                        no successor built afresh
+	 * @throws GenericEvitaInternalError when this index knows a page stream already - it was flushed, or reassembled
+	 *                                   from persisted pages, so it is no successor built afresh
 	 * @deprecated exists only for the rewrite of owner sort indexes 2026.2 or an older release persisted: its only
 	 * caller is `LegacyOwnerSortIndexCorrection#rewrite`, which only the storage migration `Migration_2026_3` calls,
 	 * and it is removed together with them

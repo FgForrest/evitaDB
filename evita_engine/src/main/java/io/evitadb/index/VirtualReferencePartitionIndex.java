@@ -713,8 +713,10 @@ public class VirtualReferencePartitionIndex
 	 * @param partitionPrimaryKey the partition primary key, positive
 	 * @return true if the index recorded anything about the partition
 	 */
+	@SuppressWarnings("NonShortCircuitBooleanExpression")
 	public boolean removePartition(int partitionPrimaryKey) {
 		boolean removed = removePartitionOwner(partitionPrimaryKey);
+		// `|=`, never `||` - every removal must run, the result only reports whether any of them found something
 		removed |= removeRepresentativeTuple(partitionPrimaryKey);
 		for (final AttributeIndexKey sortKey : getDeclaredSortKeys()) {
 			removed |= removeSortValue(sortKey, partitionPrimaryKey);
@@ -732,12 +734,14 @@ public class VirtualReferencePartitionIndex
 	 *
 	 * @return true if any key was retired
 	 */
+	@SuppressWarnings("NonShortCircuitBooleanExpression")
 	public boolean retireAllKeysIfNoPartition() {
 		if (hasEntry(VirtualReferencePartitionSlot.PARTITION_OWNER.getId())) {
 			return false;
 		}
 		boolean retired = false;
-		// the declared keys are read as copies, so retiring one does not change the set being iterated
+		// the declared keys are read as copies, so retiring one does not change the set being iterated; `|=`, never
+		// `||` - every key must be retired, the result only reports whether any was
 		for (final AttributeIndexKey sortKey : getDeclaredSortKeys()) {
 			retired |= retireSortKey(sortKey);
 		}
@@ -1623,11 +1627,14 @@ public class VirtualReferencePartitionIndex
 				if (userCount > 1) {
 					cardinalities.put(value, userCount);
 				}
-				// one box shared by both maps, see SortValueEntry
-				final Integer valueId = slotSortedValueIds[position];
+				final int valueId = slotSortedValueIds[position];
 				final SortValueKey valueKey = new SortValueKey(slotId, value);
-				sortValueIds.put(valueKey, valueId);
-				sortValues.put(NumberUtils.pack(slotId, valueId), new SortValueEntry(valueKey, valueId, userCount));
+				// one box shared by both maps, see SortValueEntry
+				final Integer sharedValueId = valueId;
+				sortValueIds.put(valueKey, sharedValueId);
+				sortValues.put(
+					NumberUtils.pack(slotId, valueId), new SortValueEntry(valueKey, sharedValueId, userCount)
+				);
 				largestValueId = Math.max(largestValueId, valueId);
 			}
 			final DeclaredSortKey sortKey = DeclaredSortKey.of(
@@ -1765,19 +1772,17 @@ public class VirtualReferencePartitionIndex
 		int indexedDecimalPlaces,
 		@Nullable Serializable normalizedValue
 	) {
-		if (normalizedValue instanceof ComparableLocale comparableLocale) {
-			return comparableLocale.getLocale();
-		} else if (normalizedValue instanceof ComparableCurrency comparableCurrency) {
-			return comparableCurrency.getCurrency();
-		} else if (normalizedValue instanceof Instant instant && OffsetDateTime.class.isAssignableFrom(declaredType)) {
-			return OffsetDateTime.ofInstant(instant, ZoneOffset.UTC);
-		} else if (normalizedValue instanceof Instant instant && LocalDateTime.class.isAssignableFrom(declaredType)) {
-			return LocalDateTime.ofInstant(instant, ZoneOffset.UTC);
-		} else if (normalizedValue instanceof Integer scaled && BigDecimal.class.isAssignableFrom(declaredType)) {
-			return BigDecimal.valueOf(scaled, indexedDecimalPlaces);
-		} else {
-			return normalizedValue;
-		}
+		return switch (normalizedValue) {
+			case ComparableLocale comparableLocale -> comparableLocale.getLocale();
+			case ComparableCurrency comparableCurrency -> comparableCurrency.getCurrency();
+			case Instant instant when OffsetDateTime.class.isAssignableFrom(declaredType) ->
+				OffsetDateTime.ofInstant(instant, ZoneOffset.UTC);
+			case Instant instant when LocalDateTime.class.isAssignableFrom(declaredType) ->
+				LocalDateTime.ofInstant(instant, ZoneOffset.UTC);
+			case Integer scaled when BigDecimal.class.isAssignableFrom(declaredType) ->
+				BigDecimal.valueOf(scaled, indexedDecimalPlaces);
+			case null, default -> normalizedValue;
+		};
 	}
 
 	/**
@@ -1841,9 +1846,8 @@ public class VirtualReferencePartitionIndex
 	 * @return true if the sort index keeps both in one block
 	 */
 	private static boolean isSameSortValue(@Nonnull Serializable first, @Nonnull Serializable second) {
-		if (first instanceof ComparableArray firstCompound && second instanceof ComparableArray secondCompound) {
-			final Serializable[] firstElements = firstCompound.array();
-			final Serializable[] secondElements = secondCompound.array();
+		if (first instanceof ComparableArray(Serializable[] firstElements) &&
+			second instanceof ComparableArray(Serializable[] secondElements)) {
 			if (firstElements.length != secondElements.length) {
 				return false;
 			}
@@ -1879,9 +1883,9 @@ public class VirtualReferencePartitionIndex
 	 * @return the hash
 	 */
 	private static int sortValueHash(@Nonnull Serializable value) {
-		if (value instanceof ComparableArray compound) {
+		if (value instanceof ComparableArray(Serializable[] array)) {
 			int hash = 1;
-			for (final Serializable element : compound.array()) {
+			for (final Serializable element : array) {
 				hash = 31 * hash + sortElementHash(element);
 			}
 			return hash;
@@ -2050,8 +2054,7 @@ public class VirtualReferencePartitionIndex
 	 * @throws IdentifierOverflowException when the slot's value id space is exhausted, before anything changes
 	 */
 	private int addSortValue(@Nonnull DeclaredSortKey sortKey, @Nonnull SortValueKey valueKey) {
-		// one box shared by both maps, see SortValueEntry
-		final Integer valueId = sortKey.nextValueId();
+		final int valueId = sortKey.nextValueId();
 		if (valueId == EXHAUSTED_ID_SPACE) {
 			throw new IdentifierOverflowException(
 				"The sort value ids of sort key `" + sortKey.attributeIndexKey() + "` (slot " + sortKey.slotId() +
@@ -2067,8 +2070,12 @@ public class VirtualReferencePartitionIndex
 			);
 		}
 		this.sortKeys.put(sortKey.attributeIndexKey(), sortKey.withNextValueId(valueId + 1));
-		this.sortValueIds.put(valueKey, valueId);
-		this.sortValues.put(NumberUtils.pack(sortKey.slotId(), valueId), new SortValueEntry(valueKey, valueId, 1));
+		// one box shared by both maps, see SortValueEntry
+		final Integer sharedValueId = valueId;
+		this.sortValueIds.put(valueKey, sharedValueId);
+		this.sortValues.put(
+			NumberUtils.pack(sortKey.slotId(), valueId), new SortValueEntry(valueKey, sharedValueId, 1)
+		);
 		this.dictionaryDirty.setToTrue();
 		return valueId;
 	}
@@ -2205,8 +2212,8 @@ public class VirtualReferencePartitionIndex
 	 * @throws IdentifierOverflowException when the tuple id space is exhausted, before anything changes
 	 */
 	private int addTuple(@Nonnull Serializable[] tuple) {
-		// one box shared by both maps, see DictionaryEntry
-		final Integer tupleId = this.nextTupleId.get();
+		// one box shared by both maps, see DictionaryEntry - the very one the reference holds the next id in
+		final Integer tupleId = Objects.requireNonNull(this.nextTupleId.get());
 		if (tupleId == EXHAUSTED_ID_SPACE) {
 			throw new IdentifierOverflowException(
 				"The representative tuple ids of a virtual reference partition index are exhausted: no id below " +
@@ -2341,7 +2348,7 @@ public class VirtualReferencePartitionIndex
 			final int[] valueIds = new int[nextPackedId - firstPackedId];
 			final Serializable[] values = new Serializable[valueIds.length];
 			for (int i = 0; i < valueIds.length; i++) {
-				final SortValueEntry entry = this.sortValues.get(packedIds[firstPackedId + i]);
+				final SortValueEntry entry = Objects.requireNonNull(this.sortValues.get(packedIds[firstPackedId + i]));
 				valueIds[i] = entry.id();
 				values[i] = entry.key().value();
 			}
@@ -2669,10 +2676,10 @@ public class VirtualReferencePartitionIndex
 			if (this == o) {
 				return true;
 			}
-			if (!(o instanceof SortValueKey that)) {
+			if (!(o instanceof SortValueKey(int otherSlotId, Serializable otherValue))) {
 				return false;
 			}
-			return this.slotId == that.slotId && isSameSortValue(this.value, that.value);
+			return this.slotId == otherSlotId && isSameSortValue(this.value, otherValue);
 		}
 
 		@Override

@@ -111,7 +111,7 @@ import java.util.Set;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-public final class VirtualPartitionBodyEvaluator {
+final class VirtualPartitionBodyEvaluator {
 	/**
 	 * The constraints whose type-level answer is the per-partition answer for a single-owner partition - see the class
 	 * documentation.
@@ -160,7 +160,7 @@ public final class VirtualPartitionBodyEvaluator {
 	 * @return TRUE when every constraint of the body is row-exact
 	 * @throws GenericEvitaInternalError when the body holds a constraint with no virtual reading at all
 	 */
-	public static boolean isRowExact(@Nullable FilterConstraint body, @Nonnull String referenceName) {
+	static boolean isRowExact(@Nullable FilterConstraint body, @Nonnull String referenceName) {
 		if (body == null) {
 			return true;
 		}
@@ -182,7 +182,7 @@ public final class VirtualPartitionBodyEvaluator {
 	 * @param constraintClass the class of the constraint
 	 * @return TRUE when the class is row-exact or answered exactly
 	 */
-	public static boolean hasVirtualReading(@Nonnull Class<? extends FilterConstraint> constraintClass) {
+	static boolean hasVirtualReading(@Nonnull Class<? extends FilterConstraint> constraintClass) {
 		return ROW_EXACT_CONSTRAINTS.contains(constraintClass) ||
 			EXACTLY_ANSWERED_CONSTRAINTS.contains(constraintClass);
 	}
@@ -201,7 +201,7 @@ public final class VirtualPartitionBodyEvaluator {
 	 * @return the primary keys of the virtual candidates satisfying the body, possibly empty
 	 */
 	@Nonnull
-	public static Bitmap getMatchingPartitions(
+	static Bitmap getMatchingPartitions(
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull ReferenceSchemaContract referenceSchema,
@@ -234,7 +234,7 @@ public final class VirtualPartitionBodyEvaluator {
 	 * @return the constant over the owners, or the empty formula when the split holds no virtual candidate
 	 */
 	@Nonnull
-	public static Formula getOwnersFormula(@Nonnull ReferencePartitionSplit split) {
+	static Formula getOwnersFormula(@Nonnull ReferencePartitionSplit split) {
 		return getOwnersFormula(split, null);
 	}
 
@@ -248,7 +248,7 @@ public final class VirtualPartitionBodyEvaluator {
 	 * @return the constant over the owners, or the empty formula when no virtual candidate satisfies the body
 	 */
 	@Nonnull
-	public static Formula getOwnersFormula(@Nonnull ReferencePartitionSplit split, @Nullable Bitmap matching) {
+	static Formula getOwnersFormula(@Nonnull ReferencePartitionSplit split, @Nullable Bitmap matching) {
 		final int virtualCount = split.getVirtualCount();
 		if (virtualCount == 0 || (matching != null && matching.isEmpty())) {
 			return EmptyFormula.INSTANCE;

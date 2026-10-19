@@ -291,15 +291,15 @@ public final class ContainerizedLocalMutationExecutor
 	private static AttributeMutation toInvertedTypeAttributeMutation(@Nonnull AttributeMutation attributeMutation) {
 		if (attributeMutation instanceof UpsertAttributeMutation upsertAttributeMutation) {
 			final Serializable attributeValue = upsertAttributeMutation.getAttributeValue();
-			if (attributeValue instanceof Predecessor predecessor) {
+			if (attributeValue instanceof Predecessor(int predecessorPk)) {
 				return new UpsertAttributeMutation(
 					upsertAttributeMutation.getAttributeKey(),
-					new ReferencedEntityPredecessor(predecessor.predecessorPk())
+					new ReferencedEntityPredecessor(predecessorPk)
 				);
-			} else if (attributeValue instanceof ReferencedEntityPredecessor predecessor) {
+			} else if (attributeValue instanceof ReferencedEntityPredecessor(int predecessorPk)) {
 				return new UpsertAttributeMutation(
 					upsertAttributeMutation.getAttributeKey(),
-					new Predecessor(predecessor.predecessorPk())
+					new Predecessor(predecessorPk)
 				);
 			} else {
 				return attributeMutation;
@@ -1461,23 +1461,20 @@ public final class ContainerizedLocalMutationExecutor
 	public void applyMutation(@Nonnull LocalMutation<?, ?> localMutation) {
 		this.mutationApplied = true;
 		final EntitySchema entitySchema = this.schemaAccessor.get();
-		if (localMutation instanceof SetPriceInnerRecordHandlingMutation setPriceInnerRecordHandlingMutation) {
-			updatePrices(entitySchema, setPriceInnerRecordHandlingMutation);
-		} else if (localMutation instanceof PriceMutation priceMutation) {
-			updatePriceIndex(entitySchema, priceMutation);
-		} else if (localMutation instanceof ParentMutation parentMutation) {
-			updateParent(entitySchema, parentMutation);
-		} else if (localMutation instanceof ReferenceMutation<?> referenceMutation) {
-			updateReferences(entitySchema, referenceMutation);
-		} else if (localMutation instanceof AttributeMutation attributeMutation) {
-			updateAttributes(entitySchema, attributeMutation);
-		} else if (localMutation instanceof AssociatedDataMutation associatedDataMutation) {
-			updateAssociatedData(entitySchema, associatedDataMutation);
-		} else if (localMutation instanceof SetEntityScopeMutation setEntityScopeMutation) {
-			updateEntityScope(entitySchema, setEntityScopeMutation);
-		} else {
-			// SHOULD NOT EVER HAPPEN
-			throw new GenericEvitaInternalError("Unknown mutation: " + localMutation.getClass());
+		switch (localMutation) {
+			case SetPriceInnerRecordHandlingMutation setPriceInnerRecordHandlingMutation ->
+				updatePrices(entitySchema, setPriceInnerRecordHandlingMutation);
+			case PriceMutation priceMutation -> updatePriceIndex(entitySchema, priceMutation);
+			case ParentMutation parentMutation -> updateParent(entitySchema, parentMutation);
+			case ReferenceMutation<?> referenceMutation -> updateReferences(entitySchema, referenceMutation);
+			case AttributeMutation attributeMutation -> updateAttributes(entitySchema, attributeMutation);
+			case AssociatedDataMutation associatedDataMutation ->
+				updateAssociatedData(entitySchema, associatedDataMutation);
+			case SetEntityScopeMutation setEntityScopeMutation ->
+				updateEntityScope(entitySchema, setEntityScopeMutation);
+			default ->
+				// SHOULD NOT EVER HAPPEN
+				throw new GenericEvitaInternalError("Unknown mutation: " + localMutation.getClass());
 		}
 	}
 
@@ -2197,39 +2194,14 @@ public final class ContainerizedLocalMutationExecutor
 	void recomputeLanguageOnAttributeUpdate(@Nonnull AttributeMutation attributeMutation) {
 		final AttributeKey affectedAttribute = attributeMutation.getAttributeKey();
 
-		if (attributeMutation instanceof UpsertAttributeMutation) {
-			final Locale locale = affectedAttribute.locale();
-			if (locale != null) {
-				final EntityBodyStoragePart ebsp = getEntityStoragePart(
-					this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST
-				);
-				final LocaleModificationResult localeModificationResult = ebsp.addAttributeLocale(locale);
-				if (localeModificationResult.anyChangeOccurred()) {
-					this.localesIdentityHash++;
-					final EnumSet<LocaleScope> scopesAffected = EnumSet.noneOf(LocaleScope.class);
-					if (localeModificationResult.attributeLocalesChanged()) {
-						scopesAffected.add(LocaleScope.ATTRIBUTE);
-					}
-					if (localeModificationResult.entityLocalesChanged()) {
-						scopesAffected.add(LocaleScope.ENTITY);
-					}
-					registerAddedLocale(locale, scopesAffected);
-				}
-			}
-		} else if (attributeMutation instanceof RemoveAttributeMutation) {
-			final Locale locale = affectedAttribute.locale();
-			if (locale != null) {
-				final AttributesStoragePart attributeStoragePart = getAttributeStoragePart(
-					this.entityType, this.entityPrimaryKey, locale
-				);
-				final ReferencesStoragePart referencesStoragePart =
-					getReferencesStoragePart(this.entityType, this.entityPrimaryKey);
-
-				if (attributeStoragePart.isEmpty() && !referencesStoragePart.isLocalePresent(locale)) {
+		switch (attributeMutation) {
+			case UpsertAttributeMutation __ -> {
+				final Locale locale = affectedAttribute.locale();
+				if (locale != null) {
 					final EntityBodyStoragePart ebsp = getEntityStoragePart(
 						this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST
 					);
-					final LocaleModificationResult localeModificationResult = ebsp.removeAttributeLocale(locale);
+					final LocaleModificationResult localeModificationResult = ebsp.addAttributeLocale(locale);
 					if (localeModificationResult.anyChangeOccurred()) {
 						this.localesIdentityHash++;
 						final EnumSet<LocaleScope> scopesAffected = EnumSet.noneOf(LocaleScope.class);
@@ -2239,15 +2211,44 @@ public final class ContainerizedLocalMutationExecutor
 						if (localeModificationResult.entityLocalesChanged()) {
 							scopesAffected.add(LocaleScope.ENTITY);
 						}
-						registerRemovedLocale(locale, scopesAffected);
+						registerAddedLocale(locale, scopesAffected);
 					}
 				}
 			}
-		} else if (attributeMutation instanceof ApplyDeltaAttributeMutation) {
-			// DO NOTHING
-		} else {
-			// SHOULD NOT EVER HAPPEN
-			throw new GenericEvitaInternalError("Unknown mutation: " + attributeMutation.getClass());
+			case RemoveAttributeMutation __ -> {
+				final Locale locale = affectedAttribute.locale();
+				if (locale != null) {
+					final AttributesStoragePart attributeStoragePart = getAttributeStoragePart(
+						this.entityType, this.entityPrimaryKey, locale
+					);
+					final ReferencesStoragePart referencesStoragePart =
+						getReferencesStoragePart(this.entityType, this.entityPrimaryKey);
+
+					if (attributeStoragePart.isEmpty() && !referencesStoragePart.isLocalePresent(locale)) {
+						final EntityBodyStoragePart ebsp = getEntityStoragePart(
+							this.entityType, this.entityPrimaryKey, EntityExistence.MUST_EXIST
+						);
+						final LocaleModificationResult localeModificationResult = ebsp.removeAttributeLocale(locale);
+						if (localeModificationResult.anyChangeOccurred()) {
+							this.localesIdentityHash++;
+							final EnumSet<LocaleScope> scopesAffected = EnumSet.noneOf(LocaleScope.class);
+							if (localeModificationResult.attributeLocalesChanged()) {
+								scopesAffected.add(LocaleScope.ATTRIBUTE);
+							}
+							if (localeModificationResult.entityLocalesChanged()) {
+								scopesAffected.add(LocaleScope.ENTITY);
+							}
+							registerRemovedLocale(locale, scopesAffected);
+						}
+					}
+				}
+			}
+			case ApplyDeltaAttributeMutation<?> __ -> {
+				// DO NOTHING
+			}
+			default ->
+				// SHOULD NOT EVER HAPPEN
+				throw new GenericEvitaInternalError("Unknown mutation: " + attributeMutation.getClass());
 		}
 	}
 
