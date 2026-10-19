@@ -375,8 +375,10 @@ public class UnorderedLookupTree implements
 		size += 2L * transactionalReference;
 		// the size reference holds a boxed Integer - see the note above on why it is charged outright
 		size += layout.sizeOfObject(Integer.BYTES);
-		if (this.memoizedArray != null) {
-			size += layout.sizeOfArray(this.memoizedArray.length, Integer.BYTES);
+		// read once - a warm-up mutation invalidates the memo under a management reader, so a second read may see `null`
+		final int[] theMemoizedArray = this.memoizedArray;
+		if (theMemoizedArray != null) {
+			size += layout.sizeOfArray(theMemoizedArray.length, Integer.BYTES);
 		}
 		return size + getNodeGraphHeapSizeInBytes();
 	}
