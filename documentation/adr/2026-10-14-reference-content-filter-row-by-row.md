@@ -1,7 +1,7 @@
 ---
 title: The filter of referenceContent is evaluated row by row over the fetched owners' references, and its index route is deleted
 date: 2026-10-14
-updated: 2026-10-17 16:22
+updated: 2026-10-19 22:11
 status: accepted
 kind: refactor
 issues: [1615]
@@ -280,9 +280,11 @@ The review round of 2026-10-16 (the matcher shared with the main query) is guard
   the union of the per-collection answers in a query naming no collection; such a query with nothing to find its
   entities by is refused with `EntityCollectionRequiredException`. Before the fix 32 of the 36 were red, every one
   answering `[]`; the 4 green ones are `attributeEquals` / `attributeInSet` of the globally unique attributes.
-- `EntityFilteringScopeCaptureTest` - the entity filtering factory judges a decimal by the scopes the constraint was
-  translated in; the difference is not reachable by a client query (an `inScope` over a query naming no collection
-  answered no entity), so the wiring is pinned on the translator.
+  Since 2026-10-19 the class also holds six `inScope` containers over both scopes to the same union (all six answered
+  `[]` without a collection before the `inScope` fix), and pins that the entity filtering factory judges a decimal by
+  the scopes the constraint was translated in: inside `inScope(ARCHIVED, ...)` a decimal the live index cannot encode
+  is answered, inside `inScope(LIVE, ...)` it is refused. These two replaced a Mockito test of the translator, written
+  while no client query reached the difference.
 - `FilterByVisitorAttributeTranslatorsTest` - the real registry passes the load-time invariant, a registry with a
   translator lacking the contract fails it naming constraint and contract, `attributeIs` is the one exception, and every
   described filter constraint has a translator or is read by its parent.
@@ -300,7 +302,9 @@ The review round of 2026-10-16 (the matcher shared with the main query) is guard
   failures); and, against the gate of the second review round, the prefetch mark stripped in the assertion (both
   negative guards for it fail), the prefetch arm not steering onto prefetching (210 of 326 parity tests, 209 of them on
   the path evidence), one matcher serving every type of the entity filtering (2 tests, among them the two-scale one)
-  and the entity filtering factory reading the scopes at the run (both `EntityFilteringScopeCaptureTest` tests).
+  and the entity filtering factory reading the scopes at the run (the Mockito test of the translator; on 2026-10-19
+  rerun on its replacement, `CatalogAttributeWithoutCollectionFunctionalTest#shouldAnswerDecimalBeyondIndexKeyInScopeWithoutIndex`,
+  which fails with the refusal).
 
 Counterfactuals of the first round, each run and watched fail: eager nested resolution in check mode made lazy
 (15 failures); the owner locale chain replaced by the top locale (the level-2 test); the leaves requiring `FILTERABLE`
@@ -439,7 +443,10 @@ filterable reference attributes in the filter (Q4); the wider acceptance is avai
 - a collection-less query answers a comparison, `attributeBetween` or a string search on a catalog attribute, and
   `attributeEquals` / `attributeInSet` on a catalog attribute that is not unique globally, on the entities it finds
   (it answered `[]`: the catalog index it targets keeps no filter index); with nothing else to find its entities by it
-  is refused with `EntityCollectionRequiredException`, as for an attribute of a collection.
+  is refused with `EntityCollectionRequiredException`, as for an attribute of a collection;
+- an `inScope` container of a collection-less query restricts the entities of its scope and leaves those of the other
+  requested scopes alone (it answered `[]`: the entities of a scope were read from entity indexes, and the catalog
+  index the query targets is none).
 
 ### Parked, not filed
 
@@ -522,3 +529,10 @@ filterable reference attributes in the filter (Q4); the wider acceptance is avai
   the catalog index it targets answers only a globally unique lookup, so comparisons, intervals, string searches and
   the equality of a catalog attribute not unique globally answered `[]`;
   `CatalogAttributeWithoutCollectionFunctionalTest` showed 32 of 36 red before the fix and 36 green after.
+- **2026-10-19** - manual review of #1738. Fixed in passing, older than #1615: an `inScope` container of a
+  collection-less query answered `[]`, because `FilterByVisitor#getSuperSetFormula(Scope)` - every entity of the
+  scope, which the container is intersected with - read entity indexes only. Without a collection it is now the
+  entities the lookups found that live in the scope, told apart on their prefetched bodies
+  (`ScopeEntityToBitmapFilter`). The six `inScope` cases of `CatalogAttributeWithoutCollectionFunctionalTest` were red
+  before the fix. The fix made the scope capture of the entity filtering factory reachable, so its Mockito test was
+  replaced by two functional cases of the same class.

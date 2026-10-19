@@ -59,6 +59,7 @@ import io.evitadb.core.query.algebra.facet.FacetHavingFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.infra.SkipFormula;
+import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.prefetch.MultipleEntityFormula;
 import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.algebra.reference.IndexTaggedFormula;
@@ -80,6 +81,7 @@ import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyGreaterTha
 import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyInSetTranslator;
 import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyLessThanEqualsTranslator;
 import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyLessThanTranslator;
+import io.evitadb.core.query.filter.translator.entity.alternative.ScopeEntityToBitmapFilter;
 import io.evitadb.core.query.filter.translator.facet.FacetHavingTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
@@ -1670,12 +1672,21 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	 * It tries to optimize formula in a way, that it uses the formula with the lowest estimated cost. A set reading
 	 * some of its partitions from registry rows is never consulted - see {@link #holdsIndexObjectsOnly(TargetIndexes)}.
 	 *
+	 * A query naming no collection searches the catalog index, which holds no set of all the entities of a scope, so
+	 * its superset of the scope is the entities its lookups found that live in the scope, told apart on their prefetched
+	 * bodies - an empty formula would make an `inScope` container answer nothing.
+	 *
 	 * @param scope the scope within which to filter and compute the superset formula
 	 * @return the resulting superset formula combining primary keys of the relevant indices;
 	 *         returns an EmptyFormula instance if no relevant indices are found.
 	 */
 	@Nonnull
 	public Formula getSuperSetFormula(@Nonnull Scope scope) {
+		if (!isEntityTypeKnown()) {
+			return new EntityFilteringFormula(
+				"the entities of the scope `" + scope + "`", new ScopeEntityToBitmapFilter(scope)
+			);
+		}
 		final ProcessingScope<? extends Index<?>> processingScope = getProcessingScope();
 		final boolean indexesInScopeMatch = processingScope.getIndexStream().anyMatch(it -> it.getIndexKey().scope().equals(scope));
 		// prefer indexes i current scope (this is required for ReferencedEntityFetcher and index selection)
