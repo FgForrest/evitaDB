@@ -150,12 +150,18 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   with a `peek` loaded after the writer's increment is a plain interleaving that needs no reordering at all. So
  *   this one really is a regression detector on ordinary hardware, not only on AArch64.
  *
- *   **It also caught the one escape the array bound cannot stop.** On 2026-09-28 the macOS/AArch64 leg failed at
+ *   **It also caught the two escapes the array bound cannot stop.** On 2026-09-28 the macOS/AArch64 leg failed at
  *   round 3857 with a `null` leaf out of `findLeafNode`. A raised `peek` was observed before the child store it
  *   follows, so a slot inside the bound still read `null`. The x86 and Linux/AArch64 legs of the same commit
  *   passed. Every session-free descent now steps over such a slot (`observableChildIndex`), and
  *   `TransactionalBucketBPlusTreeTest.UnpublishedChildSlot` builds the state deterministically and proves each
- *   site by counterfactual - so a green run here, on any hardware, is again only half the evidence.
+ *   site by counterfactual - so a green run here, on any hardware, is again only half the evidence. On
+ *   2026-10-19 the same leg failed at round 2418 with `NullPointerException: ... because "midVal" is null`: the
+ *   same reordering met a **key** slot instead, inside a natural-order binary search. This sweep's tree keeps its
+ *   leaf keys in the boxed column, so both the leaf search and the separator search can meet one. Every search
+ *   over a boxed key array now treats such a slot as sorting after every key (`observableKeySearch`), and
+ *   `TransactionalBucketBPlusTreeTest.UnpublishedKeySlot` builds the trailing and the interior shape
+ *   deterministically.
  *
  * - **Sweep 3 is not calibrated and cannot be on this box.** Every read it exercises - the overflow column's
  *   `observableLiveRun()` and `bitmapAt` - loads the count first, so TSO forbids the escape here exactly as it does

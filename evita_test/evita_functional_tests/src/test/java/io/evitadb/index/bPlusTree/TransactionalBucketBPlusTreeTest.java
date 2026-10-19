@@ -5698,4 +5698,303 @@ class TransactionalBucketBPlusTreeTest {
 			return preceding == null ? EvitaDataTypes.RESERVED_PRIMARY_KEY : preceding.getValue().last();
 		}
 	}
+
+	/**
+	 * A key search dereferences every slot it probes, and a session-free reader can be handed a slot inside its bound
+	 * that still reads `null`. The weekly sweep met that on macOS/AArch64 as `NullPointerException: Cannot invoke
+	 * "java.lang.Comparable.compareTo(Object)" because "midVal" is null` - the natural-order `Arrays.binarySearch`
+	 * probing such a slot.
+	 *
+	 * These tests build the two states such a reader can hold, deterministically, on a tree written in place:
+	 *
+	 * - **a trailing slot**: an in-place insert stores the key and only then raises the counts that admit its slot, as
+	 *   plain stores, so a reader that sees the counts first holds a live run whose last key reads `null`. Which counts
+	 *   it has seen decides which searches reach the slot, so the two leaf tests differ only in that;
+	 * - **an interior slot**: a reallocated array whose copied content the reader cannot see yet, while it does see a
+	 *   later store into the same array.
+	 *
+	 * Only the boxed leaf column and the boxed separator array can read `null` at all, so every fixture keeps its keys
+	 * in those. Each test runs in natural order and under an explicit comparator, because the two orders take two
+	 * different searches. A trailing slot hides a key the tree did not hold before the insert, so the reader answers
+	 * exactly the pre-growth tree. An interior slot hides a key the tree did hold, and no reader can answer for a key
+	 * it cannot see - those tests assert that nothing fails and nothing is invented.
+	 */
+	@Nested
+	@DisplayName("Session-free key searches over a slot a grow has not published yet")
+	@Tag(INDEXING)
+	class UnpublishedKeySlot {
+		/**
+		 * Leaf and internal block size of the fixtures - small enough for the fixture to need several leaves.
+		 */
+		private static final int BLOCK = 9;
+		/**
+		 * Minimum occupancy accepted for {@link #BLOCK}.
+		 */
+		private static final int MIN_BLOCK = 4;
+		/**
+		 * Keys every fixture holds, `0 .. KEY_COUNT - 1`: several leaves below one internal node. The key `KEY_COUNT`
+		 * is the one an in-flight insert is adding.
+		 */
+		private static final int KEY_COUNT = 40;
+		/**
+		 * The key orders each test runs under: natural order (`null`) and the same order through an explicit
+		 * comparator, which the searches handle on a separate path.
+		 */
+		private static final List<Comparator<Integer>> ORDERS =
+			Arrays.<Comparator<Integer>>asList(null, Comparator.naturalOrder());
+
+		/**
+		 * Builds the fixture tree: the keys `0 .. KEY_COUNT - 1`, each with its single record, inserted in ascending
+		 * order outside any transaction - in place, exactly as a warm-up load writes. The six-argument constructor
+		 * keeps the leaf keys in the boxed column.
+		 *
+		 * @param order the key order, `null` for natural order
+		 * @return the tree, never NULL
+		 */
+		@Nonnull
+		private static TransactionalBucketBPlusTree<Integer> treeOf(@Nullable Comparator<Integer> order) {
+			final TransactionalBucketBPlusTree<Integer> tree =
+				new TransactionalBucketBPlusTree<>(BLOCK, MIN_BLOCK, BLOCK, MIN_BLOCK, Integer.class, order);
+			for (int key = 0; key < KEY_COUNT; key++) {
+				tree.addRecord(key, UnpublishedChildSlot.recordOf(key));
+			}
+			assertInstanceOf(
+				BPlusInternalTreeNode.class, tree.getRoot(), "the fixture needs an internal node above its leaves"
+			);
+			return tree;
+		}
+
+		/**
+		 * Names a key order for failure messages.
+		 *
+		 * @param order the key order, `null` for natural order
+		 * @return the name, never NULL
+		 */
+		@Nonnull
+		private static String orderName(@Nullable Comparator<Integer> order) {
+			return order == null ? "natural order" : "explicit comparator";
+		}
+
+		/**
+		 * Resolves the leaf a key routes to, asserting the healthy fixture has one.
+		 *
+		 * @param tree the tree to descend
+		 * @param key  the key to route
+		 * @return the leaf, never NULL
+		 */
+		@Nonnull
+		private static BPlusLeafTreeNode<Integer> leafOf(@Nonnull TransactionalBucketBPlusTree<Integer> tree, int key) {
+			final BPlusLeafTreeNode<Integer> leaf = tree.findLeafNode(key);
+			assertNotNull(leaf, "the healthy fixture routes every key to a leaf");
+			assertInstanceOf(BoxedObjectColumn.class, leaf.getKeyColumn(), "only the boxed key column reads null");
+			return leaf;
+		}
+
+		/**
+		 * Inserts the in-flight key `KEY_COUNT` into the rightmost leaf the way the in-place writer does, then hides
+		 * the key store - the state of a reader that has seen the counts admitting the slot, but not the key store
+		 * that precedes them.
+		 *
+		 * @param tree          the tree whose rightmost leaf is torn - the in-flight key sorts past every key it holds
+		 * @param recordVisible whether the reader has also seen the record column's count rise
+		 */
+		private static void tearLastKeySlot(
+			@Nonnull TransactionalBucketBPlusTree<Integer> tree,
+			boolean recordVisible
+		) {
+			final BPlusLeafTreeNode<Integer> leaf = leafOf(tree, KEY_COUNT);
+			final int slot = leaf.getPeek() + 1;
+			final ValueColumn<Integer> keys = leaf.getKeyColumnForUpdate();
+			keys.insertKeyAt(slot, KEY_COUNT);
+			leaf.getRecordsForUpdate().insertAt(slot, UnpublishedChildSlot.recordOf(KEY_COUNT));
+			// every count the leaf keeps has risen, so the leaf's own alignment check accepts the raised peek
+			leaf.setPeek(slot);
+			// ...and the key store is the one this reader has not seen yet
+			keys.asBoxedArray()[slot] = null;
+			if (!recordVisible) {
+				leaf.getRecordsForUpdate().fillEmpty(slot, slot + 1);
+			}
+			assertNull(
+				leaf.getKeyColumn().keyAt(slot), "the admitted key slot must read null - that IS the torn state"
+			);
+		}
+
+		/**
+		 * Asserts that every point lookup of `key` answers what the tree held before the in-flight insert: the keys
+		 * `0 .. KEY_COUNT - 1` present with their single record, everything else absent.
+		 *
+		 * @param tree    the tree to probe
+		 * @param key     the key to probe
+		 * @param variant the variant under test, for failure messages
+		 */
+		private static void assertPreGrowthAnswer(
+			@Nonnull TransactionalBucketBPlusTree<Integer> tree,
+			int key,
+			@Nonnull String variant
+		) {
+			final boolean present = key >= 0 && key < KEY_COUNT;
+			assertEquals(present, tree.contains(key), () -> variant + ": contains(" + key + ")");
+			assertEquals(present ? 1 : 0, tree.cardinalityOf(key), () -> variant + ": cardinalityOf(" + key + ")");
+			assertArrayEquals(
+				present ? new int[]{UnpublishedChildSlot.recordOf(key)} : new int[0],
+				tree.getRecordsEqualTo(key).getArray(),
+				() -> variant + ": getRecordsEqualTo(" + key + ")"
+			);
+			final int predecessor = Math.min(key, KEY_COUNT) - 1;
+			assertEquals(
+				predecessor < 0 ? EvitaDataTypes.RESERVED_PRIMARY_KEY : UnpublishedChildSlot.recordOf(predecessor),
+				tree.computePreviousRecord(key, UnpublishedChildSlot.recordOf(key)),
+				() -> variant + ": computePreviousRecord(" + key + ")"
+			);
+		}
+
+		/**
+		 * Asserts that every point lookup of `key` answers either the truth or less than the truth - never a key, a
+		 * record or an anchor the tree does not hold. That is all a reader can promise for a key whose slot or route
+		 * it cannot see.
+		 *
+		 * @param tree    the tree to probe
+		 * @param key     the key to probe
+		 * @param variant the variant under test, for failure messages
+		 */
+		private static void assertNothingInvented(
+			@Nonnull TransactionalBucketBPlusTree<Integer> tree,
+			int key,
+			@Nonnull String variant
+		) {
+			final boolean present = key >= 0 && key < KEY_COUNT;
+			final int record = UnpublishedChildSlot.recordOf(key);
+			assertTrue(present || !tree.contains(key), () -> variant + ": contains(" + key + ")");
+			final int cardinality = tree.cardinalityOf(key);
+			assertTrue(
+				cardinality == 0 || (present && cardinality == 1), () -> variant + ": cardinalityOf(" + key + ")"
+			);
+			final int[] records = tree.getRecordsEqualTo(key).getArray();
+			assertTrue(
+				records.length == 0 || (present && Arrays.equals(new int[]{record}, records)),
+				() -> variant + ": getRecordsEqualTo(" + key + ")"
+			);
+			// an anchor may only be the record of a SMALLER key: a route the reader cannot see sends it too far left,
+			// which places the record too early, but it must never name a record this fixture does not hold
+			final int anchor = tree.computePreviousRecord(key, record);
+			assertTrue(
+				anchor == EvitaDataTypes.RESERVED_PRIMARY_KEY || (anchor % 10 == 0 && anchor > 0 && anchor < record),
+				() -> variant + ": computePreviousRecord(" + key + ") answered " + anchor
+			);
+		}
+
+		@Test
+		@DisplayName("every point lookup answers the pre-growth tree when a leaf's last key slot is unpublished")
+		void shouldAnswerEveryPointLookupFromThePreGrowthLeafWhenItsLastKeySlotIsUnpublished() {
+			// every count the leaf keeps has risen past the slot, so every leaf search is bounded to include it, and a
+			// key past every key the leaf holds walks the search right onto it. The walks are left to the next test:
+			// they are not key searches, and with the record count risen they visit the in-flight bucket itself
+			for (final Comparator<Integer> order : ORDERS) {
+				final TransactionalBucketBPlusTree<Integer> tree = treeOf(order);
+				tearLastKeySlot(tree, true);
+				for (int key = 0; key <= KEY_COUNT + 1; key++) {
+					assertPreGrowthAnswer(tree, key, orderName(order));
+				}
+			}
+		}
+
+		@Test
+		@DisplayName("every read answers the pre-growth tree when only a leaf's key column and peek ran ahead")
+		void shouldAnswerEveryReadFromThePreGrowthLeafWhenOnlyItsKeyColumnRanAhead() {
+			// the record count has NOT risen, so the cross-column bound already keeps four of the lookups off the slot.
+			// Two searches bound themselves by `peek` alone - `cardinalityOf` and the keyed walk's first leaf - and
+			// those still walk onto it
+			for (final Comparator<Integer> order : ORDERS) {
+				final TransactionalBucketBPlusTree<Integer> tree = treeOf(order);
+				tearLastKeySlot(tree, false);
+				final String variant = orderName(order);
+				for (int key = 0; key <= KEY_COUNT + 1; key++) {
+					assertPreGrowthAnswer(tree, key, variant);
+				}
+				assertEquals(KEY_COUNT, tree.recordCount(), variant + ": recordCount");
+				assertEquals(
+					UnpublishedChildSlot.ascending(0, KEY_COUNT), UnpublishedChildSlot.keysOf(tree.cursor()),
+					variant + ": the forward walk"
+				);
+				for (int from = 0; from <= KEY_COUNT + 1; from++) {
+					assertEquals(
+						UnpublishedChildSlot.ascending(from, KEY_COUNT), UnpublishedChildSlot.keysOf(tree.cursor(from)),
+						variant + ": the keyed walk from " + from
+					);
+				}
+				final List<Integer> expectedReverse = UnpublishedChildSlot.ascending(0, KEY_COUNT);
+				Collections.reverse(expectedReverse);
+				assertEquals(
+					expectedReverse, UnpublishedChildSlot.keysOf(tree.reverseCursor()), variant + ": the reverse walk"
+				);
+			}
+		}
+
+		@Test
+		@DisplayName("a leaf key search never fails over an interior slot the reader cannot see yet")
+		void shouldNeverFailALeafKeySearchOverAnInteriorSlotTheReaderCannotSeeYet() {
+			for (final Comparator<Integer> order : ORDERS) {
+				final TransactionalBucketBPlusTree<Integer> tree = treeOf(order);
+				final BPlusLeafTreeNode<Integer> leaf = leafOf(tree, KEY_COUNT / 2);
+				final ValueColumn<Integer> keys = leaf.getKeyColumn();
+				final int peek = leaf.getPeek();
+				assertTrue(peek >= 2, "the hidden slot must have a published key above it");
+				// the slot every search of this leaf probes first, so no search of it can avoid the null
+				final int slot = peek >>> 1;
+				final int hiddenKey = keys.keyAt(slot);
+				final int firstKey = keys.keyAt(0);
+				final int lastKey = keys.keyAt(peek);
+				leaf.getKeyColumnForUpdate().asBoxedArray()[slot] = null;
+				final String variant = orderName(order);
+
+				assertFalse(tree.contains(hiddenKey), variant + ": the key this reader cannot see reads absent");
+				for (int key = -1; key <= KEY_COUNT + 1; key++) {
+					if (key < firstKey || key > lastKey) {
+						// no search outside the torn leaf touches its keys, the previous-record climb out of the next
+						// leaf included - it reads the torn leaf's records, which are all published
+						assertPreGrowthAnswer(tree, key, variant);
+					} else {
+						assertNothingInvented(tree, key, variant);
+					}
+				}
+				assertEquals(KEY_COUNT, tree.recordCount(), variant + ": recordCount reads no key");
+			}
+		}
+
+		@Test
+		@DisplayName("a separator search never fails over an interior slot the reader cannot see yet")
+		void shouldNeverFailASeparatorSearchOverAnInteriorSlotTheReaderCannotSeeYet() {
+			for (final Comparator<Integer> order : ORDERS) {
+				final TransactionalBucketBPlusTree<Integer> tree = treeOf(order);
+				@SuppressWarnings("unchecked") final BPlusInternalTreeNode<Integer> root =
+					(BPlusInternalTreeNode<Integer>) tree.getRoot();
+				final int peek = root.getPeek();
+				assertTrue(peek >= 2, "the hidden separator must have a published one above it");
+				// the separator every descent through the root probes first, so every point lookup and every keyed walk
+				// meets the null
+				root.getKeysForUpdate()[(peek - 1) >>> 1] = null;
+				final String variant = orderName(order);
+
+				for (int key = -1; key <= KEY_COUNT + 1; key++) {
+					assertNothingInvented(tree, key, variant);
+				}
+				for (int from = 0; from <= KEY_COUNT; from++) {
+					// a keyed walk routed too far left starts early and then yields every key from there, never late
+					final List<Integer> walked = UnpublishedChildSlot.keysOf(tree.cursor(from));
+					final int start = KEY_COUNT - walked.size();
+					assertTrue(start <= from, variant + ": the keyed walk from " + from + " started at " + start);
+					assertEquals(
+						UnpublishedChildSlot.ascending(start, KEY_COUNT), walked,
+						variant + ": the keyed walk from " + from
+					);
+				}
+				// the leftmost and rightmost descents and the leaf chain search no separator
+				assertEquals(KEY_COUNT, tree.recordCount(), variant + ": recordCount");
+				assertEquals(
+					UnpublishedChildSlot.ascending(0, KEY_COUNT), UnpublishedChildSlot.keysOf(tree.cursor()),
+					variant + ": the forward walk"
+				);
+			}
+		}
+	}
 }

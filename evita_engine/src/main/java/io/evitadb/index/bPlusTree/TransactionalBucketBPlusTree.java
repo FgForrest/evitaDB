@@ -2671,6 +2671,90 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	}
 
 	/**
+	 * The binary search over a boxed key array - the separators of an internal node, the keys of a
+	 * {@link BoxedObjectColumn} - that a session-free reader may hold torn: the index of `key` when present,
+	 * `-(insertion point) - 1` otherwise, exactly the {@link Arrays#binarySearch} convention.
+	 *
+	 * **A slot that reads `null` sorts after every key.** It is a key store this reader cannot see yet, and the JDK
+	 * search dereferences every slot it probes: the natural-order one throws `NullPointerException: Cannot invoke
+	 * "java.lang.Comparable.compareTo(Object)" because "midVal" is null`, which the weekly sweep met on
+	 * macOS/AArch64, and the comparator one hands the `null` to the comparator. Two shapes reach a search:
+	 *
+	 * - a **trailing** `null`: an in-place insert stores the key before it raises the counts that admit its slot,
+	 *   and a reader that sees the counts first holds a live run whose last slot is empty. The slot really is past
+	 *   everything this reader can see, so the answer is exactly the pre-growth one;
+	 * - an **interior** `null`: a grow reallocates the array and then stores into the copy, and a reader that sees
+	 *   the later store before the copied content holds an empty slot below a populated one. Whether that occurs
+	 *   depends on how the JVM publishes a freshly copied array, which the Java memory model leaves open. The
+	 *   search steers left of such a slot, so the key it hides, and any key whose probes run through it, reads as
+	 *   absent or routes to a left sibling: an under-report, never a failure and never an invented key.
+	 *
+	 * On a consistent observer no slot inside the range is `null`, so the check never fires and the answer is
+	 * `Arrays.binarySearch`'s - one reference compare per probe. The JDK's range check is kept verbatim, because an
+	 * emptied merge donor's negative bound is refused by it today (see {@link #isEmptiedSubtree}), and this search
+	 * must not quietly turn that refusal into an answer. `TransactionalBucketBPlusTreeTest.UnpublishedKeySlot` builds
+	 * both shapes deterministically, in both orders; `UnpublishedChildSlot` checks the identity against the JDK
+	 * search on consistent trees. Neither can be replaced by the long-running sweep: on x86 it never reaches either
+	 * shape.
+	 *
+	 * @param key        the key to search for
+	 * @param keys       the key array, as the caller read it
+	 * @param from       the start index (inclusive)
+	 * @param to         the end index (exclusive)
+	 * @param comparator the key order, or `null` for natural order
+	 * @param <M>        the key type
+	 * @return the index of `key`, or `-(insertion point) - 1` when this reader cannot see it
+	 */
+	static <M extends Comparable<M>> int observableKeySearch(
+		@Nonnull M key,
+		@Nonnull M[] keys,
+		int from,
+		int to,
+		@Nullable Comparator<M> comparator
+	) {
+		if (from > to) {
+			throw new IllegalArgumentException("fromIndex(" + from + ") > toIndex(" + to + ")");
+		}
+		if (from < 0) {
+			throw new ArrayIndexOutOfBoundsException(from);
+		}
+		if (to > keys.length) {
+			throw new ArrayIndexOutOfBoundsException(to);
+		}
+		int low = from;
+		int high = to - 1;
+		// two loops rather than one with a branch per probe, so the natural-order path stays exactly the JDK's shape
+		if (comparator == null) {
+			while (low <= high) {
+				final int mid = (low + high) >>> 1;
+				final M midVal = keys[mid];
+				final int cmp = midVal == null ? 1 : midVal.compareTo(key);
+				if (cmp < 0) {
+					low = mid + 1;
+				} else if (cmp > 0) {
+					high = mid - 1;
+				} else {
+					return mid;
+				}
+			}
+		} else {
+			while (low <= high) {
+				final int mid = (low + high) >>> 1;
+				final M midVal = keys[mid];
+				final int cmp = midVal == null ? 1 : comparator.compare(midVal, key);
+				if (cmp < 0) {
+					low = mid + 1;
+				} else if (cmp > 0) {
+					high = mid - 1;
+				} else {
+					return mid;
+				}
+			}
+		}
+		return -(low + 1);
+	}
+
+	/**
 	 * A {@link BucketCursor} restricted to one leaf node, reading its columns directly (the same getters
 	 * {@link ForwardBucketCursor} reads). Used by the granular write path to materialize one leaf page at a time
 	 * without walking the whole tree.
@@ -4903,8 +4987,8 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * writer can hand the search a `peek` the array it also read cannot serve. `keys.length >= peek` holds for
 		 * every consistent observer, so the bound is a no-op on the write path and on any descent under a
 		 * transaction — see {@link TransactionalBucketBPlusTree#observableInternalPeek} for the full argument. It
-		 * costs one array-length read the search's own bounds checks already need. The bound also stops short of any
-		 * trailing separator that still reads `null` - see {@link #childIndexIn}.
+		 * costs one array-length read the search's own bounds checks already need. A separator inside the bound that
+		 * still reads `null` sorts after every key - see {@link #childIndexIn}.
 		 *
 		 * @param key the key to search for
 		 * @return the index of the child that should contain the specified key
@@ -4932,7 +5016,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 *   slot it admits still reads `null`.
 		 *
 		 * An **emptied** node - a merge donor between `setPeek(-1)` and its unlink - answers `null`. Handing its
-		 * negative `peek` to the search instead would fail `Arrays.binarySearch`'s range check. On a consistent
+		 * negative `peek` to the search instead would fail its range check. On a consistent
 		 * observer `peek` is never negative on a reachable node and every admitted slot is populated, so this returns
 		 * exactly `getChildren()[searchIndex(key)]`.
 		 *
@@ -4960,17 +5044,16 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * The child index `key` belongs to, searched over the separators `theKeys` holds below `thePeek` - both as
 		 * the caller read them.
 		 *
-		 * The search is bounded by the array's own length (see {@link #searchIndex}) and then pulled in past any
-		 * **trailing** separator that still reads `null`. A split stores the promoted separator before it raises
-		 * `peek`, so a session-free reader that sees the two stores out of order is handed a live run whose last
-		 * slot is still empty. `Arrays.binarySearch` dereferences every slot it probes, so without the trim it would
-		 * throw a `NullPointerException` from inside the search. In an array grown in place only a trailing slot can
-		 * read `null` this way: every slot below the old live run held a separator before the grow, and a reader
-		 * sees either the old one or the new one. A **reallocated** array whose copied content the reader could not
-		 * see yet is a different, unguarded case. Whether it can occur depends on how the JVM publishes a freshly
-		 * copied array, which the Java memory model leaves open, so the content-sized columns decision record carries
-		 * it as an open item. A key past the last visible separator lands on the slot the pre-growth node gave it. On
-		 * a consistent observer the last live separator is never `null`, so the loop never runs.
+		 * The search is bounded by the array's own length (see {@link #searchIndex}), and a separator that still
+		 * reads `null` sorts after every key - see {@link TransactionalBucketBPlusTree#observableKeySearch}. A split
+		 * stores the promoted separator before it raises `peek`, so a session-free reader that sees the two stores
+		 * out of order holds a live run whose **last** slot is empty, and a key past the last visible separator
+		 * lands on the slot the pre-growth node gave it. A **reallocated** array whose copied content the reader
+		 * cannot see yet can show an empty slot in the **middle** of the run too; the search then routes the keys
+		 * whose probes cross it to a left sibling, which answers them as absent rather than failing. On a
+		 * consistent observer no live separator is `null`, and the search answers exactly what
+		 * `Arrays.binarySearch` would. The search result is mapped to the child index directly, so the descent
+		 * allocates nothing.
 		 *
 		 * @param key     the key to search for
 		 * @param theKeys the separator array, as the caller read it
@@ -4978,13 +5061,11 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 * @return the index of the child that should contain the specified key
 		 */
 		private int childIndexIn(@Nonnull M key, @Nonnull M[] theKeys, int thePeek) {
-			int bound = Math.min(thePeek, theKeys.length);
-			while (bound > 0 && theKeys[bound - 1] == null) {
-				bound--;
-			}
-			final InsertionPosition insertionPosition = findKeyPosition(key, theKeys, 0, bound);
-			return insertionPosition.alreadyPresent() ?
-				insertionPosition.position() + 1 : insertionPosition.position();
+			final int index = observableKeySearch(
+				key, theKeys, 0, Math.min(thePeek, theKeys.length), this.comparator
+			);
+			// a key equal to a separator belongs to the child on its right
+			return index >= 0 ? index + 1 : -index - 1;
 		}
 
 		/**

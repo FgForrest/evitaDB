@@ -34,8 +34,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.function.ToLongFunction;
 
-import static io.evitadb.utils.ArrayUtils.computeInsertPositionOfObjInOrderedArray;
-
 /**
  * Pluggable key (bucket value) column of a {@link TransactionalBucketBPlusTree} leaf. It abstracts the leaf's key
  * storage so a leaf can hold its keys in the cheapest representation for the attribute type — a boxed {@code Object[]}
@@ -697,11 +695,14 @@ final class BoxedObjectColumn<M extends Comparable<M>> implements ValueColumn<M>
 		// array it will index closes that whichever of the two the reader observed first - the same rule
 		// `observableLeafPeek` applies one level up, applied here because the array is not visible up there.
 		// On any consistent observer `keys.length >= peek + 1` holds and the bound returns `to` unchanged.
+		// A slot inside the bound can still read `null` - a key store this reader cannot see yet - so the search treats
+		// such a slot as sorting after every key rather than dereferencing it, and the reader under-reports instead of
+		// failing inside the search. See `TransactionalBucketBPlusTree#observableKeySearch` for the two shapes.
 		final M[] theKeys = this.keys;
-		final int bound = Math.min(to, theKeys.length);
-		return comparator == null
-			? computeInsertPositionOfObjInOrderedArray(key, theKeys, from, bound)
-			: computeInsertPositionOfObjInOrderedArray(key, theKeys, from, bound, comparator);
+		final int index = TransactionalBucketBPlusTree.observableKeySearch(
+			key, theKeys, from, Math.min(to, theKeys.length), comparator
+		);
+		return index >= 0 ? new InsertionPosition(index, true) : new InsertionPosition(-index - 1, false);
 	}
 
 	@Override
