@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.EvitaTestSupport;
@@ -129,7 +130,7 @@ class GlobalUniqueAttributeCollectionLookupFunctionalTest implements EvitaTestSu
 				session.defineEntitySchema(ENTITY_REFERRER)
 					.withoutGeneratedPrimaryKey()
 					.withReferenceToEntity(
-						REFERENCE_TARGET, ENTITY_QUERIED, Cardinality.ZERO_OR_ONE, whichIs -> whichIs.indexed()
+						REFERENCE_TARGET, ENTITY_QUERIED, Cardinality.ZERO_OR_ONE, ReferenceSchemaEditor::indexed
 					)
 					.updateVia(session);
 

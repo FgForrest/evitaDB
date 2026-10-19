@@ -29,6 +29,7 @@ import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
@@ -267,7 +268,7 @@ class FilterIndexLoadRepairPersistenceTest implements EvitaTestSupport {
 			session -> {
 				session.defineEntitySchema(Entities.PRODUCT)
 					.withoutGeneratedPrimaryKey()
-					.withAttribute(VALIDITY, DateTimeRange.class, thatIs -> thatIs.filterable())
+					.withAttribute(VALIDITY, DateTimeRange.class, AttributeSchemaEditor::filterable)
 					.updateVia(session);
 				for (int owner = 1; owner <= OWNER_COUNT; owner++) {
 					session.upsertEntity(
@@ -340,7 +341,7 @@ class FilterIndexLoadRepairPersistenceTest implements EvitaTestSupport {
 			session -> {
 				final EntitySchemaBuilder schema = session.defineEntitySchema(Entities.PRODUCT)
 					.withoutGeneratedPrimaryKey()
-					.withAttribute(MOMENT, OffsetDateTime.class, thatIs -> thatIs.filterable());
+					.withAttribute(MOMENT, OffsetDateTime.class, AttributeSchemaEditor::filterable);
 				if (withLabel) {
 					schema.withAttribute(LABEL, String.class, thatIs -> thatIs.filterable().nullable());
 				}

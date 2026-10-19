@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
@@ -425,7 +426,7 @@ public class ReferenceLocalizedCompoundIndexingTest implements EvitaTestSupport 
 		createSchema(
 			indexType,
 			owner -> owner
-				.withAttribute(ATTRIBUTE_RANK, Integer.class, thatIs -> thatIs.nullable())
+				.withAttribute(ATTRIBUTE_RANK, Integer.class, AttributeSchemaEditor::nullable)
 				.withSortableAttributeCompound(
 					COMPOUND_NAME,
 					new AttributeElement[]{

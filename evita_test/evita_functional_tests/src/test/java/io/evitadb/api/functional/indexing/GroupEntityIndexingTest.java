@@ -47,24 +47,22 @@ import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
-import org.junit.jupiter.api.Tag;
-
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
-import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.INDEXING;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for group entity reference indexing operations introduced by `REFERENCED_GROUP_ENTITY_TYPE` and

@@ -69,30 +69,15 @@ import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Consumer;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static io.evitadb.api.query.Query.query;
-import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
-import static io.evitadb.api.query.QueryConstraints.filterBy;
-import static io.evitadb.api.query.QueryConstraints.referenceHaving;
-import static io.evitadb.api.query.QueryConstraints.scope;
-import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.TRANSACTION;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Proves that the reference partition resolvers of {@link EntityCollection} (by primary key),
@@ -168,7 +153,7 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 		prepare(state);
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				final EntityCollection products = collectionOf(ENTITY_PRODUCT);
 				final EntitySchemaContract productSchema = products.getSchema();
 				final ReferenceSchemaContract categories = productSchema.getReferenceOrThrowException(REF_CATEGORIES);
@@ -249,7 +234,7 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 		prepare(state);
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				// two more owners of the category, so each scope keeps a partition of two owners - an index object
 				for (int productPk = 6; productPk <= 7; productPk++) {
 					session.createNewEntity(ENTITY_PRODUCT, productPk)
@@ -260,14 +245,14 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 		);
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.archiveEntity(ENTITY_PRODUCT, 2);
 				session.archiveEntity(ENTITY_PRODUCT, 7);
 			}
 		);
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				final EntityCollection products = collectionOf(ENTITY_PRODUCT);
 				final EntitySchemaContract productSchema = products.getSchema();
 				final ReferenceSchemaContract categories = productSchema.getReferenceOrThrowException(REF_CATEGORIES);
@@ -326,7 +311,7 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 		prepare(state);
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				final EntityCollection products = collectionOf(ENTITY_PRODUCT);
 				final EntityCollection categories = collectionOf(ENTITY_CATEGORY);
 				// every new owner of both categories adds a reflected partition of two owners - an index object - to
@@ -423,7 +408,7 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 		);
 		final Runnable scenario = () -> this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				final EntityCollection products = collectionOf(ENTITY_PRODUCT);
 				final EntityCollection categories = collectionOf(ENTITY_CATEGORY);
 				assertNull(partitionOf(products, Scope.LIVE, newCategoryKey));
@@ -547,7 +532,7 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 		// committed: product 1 alone references the row category
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.createNewEntity(ENTITY_CATEGORY, ROW_CATEGORY_PK).upsertVia(session);
 				session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
 					.orElseThrow()
@@ -564,7 +549,7 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 		);
 		final Runnable scenario = () -> this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				assertNull(readPartitionOf(ENTITY_PRODUCT, inFlightKey));
 				// in flight: product 2 alone enters the store partition of PL
 				session.getEntity(ENTITY_PRODUCT, 2, entityFetchAllContent())
@@ -715,7 +700,7 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 		);
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.createNewEntity(ENTITY_PRODUCT, ownerPk)
 					.setReference(REF_CATEGORIES, NEW_CATEGORY_PK)
 					.setOrUpdateReference(
@@ -732,7 +717,7 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.getEntity(ENTITY_PRODUCT, ownerPk, entityFetchAllContent())
 					.orElseThrow()
 					.openForWrite()
@@ -788,7 +773,7 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 		);
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				assertNull(readPartitionOf(ENTITY_PRODUCT, categoryKey));
 				// the products reference a category that does not exist yet
 				for (int ownerPk = firstOwnerPk; ownerPk < firstOwnerPk + owners; ownerPk++) {
@@ -846,7 +831,7 @@ class ReferencePartitionResolutionTest implements EvitaTestSupport {
 	private void prepare(@Nonnull CatalogState state) {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.defineEntitySchema(ENTITY_STORE).withoutGeneratedPrimaryKey().updateVia(session);
 				session.defineEntitySchema(ENTITY_PRODUCT)
 					.withoutGeneratedPrimaryKey()

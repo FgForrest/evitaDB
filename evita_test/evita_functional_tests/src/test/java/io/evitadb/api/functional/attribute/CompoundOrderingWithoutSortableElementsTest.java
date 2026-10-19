@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
@@ -128,11 +129,11 @@ class CompoundOrderingWithoutSortableElementsTest implements EvitaTestSupport {
 		// code ascending with the missing code last, priority descending inside one code
 		assertEquals(
 			List.of(2, 5, 3, 1, 4),
-			queryOrder(plan, new FilterConstraint[0], attributeNatural(CODE_AND_PRIORITY))
+			queryOrder(plan, FilterConstraint.EMPTY_ARRAY, attributeNatural(CODE_AND_PRIORITY))
 		);
 		assertEquals(
 			List.of(4, 1, 3, 5, 2),
-			queryOrder(plan, new FilterConstraint[0], attributeNatural(CODE_AND_PRIORITY, OrderDirection.DESC))
+			queryOrder(plan, FilterConstraint.EMPTY_ARRAY, attributeNatural(CODE_AND_PRIORITY, OrderDirection.DESC))
 		);
 	}
 
@@ -158,7 +159,7 @@ class CompoundOrderingWithoutSortableElementsTest implements EvitaTestSupport {
 		assertEquals(
 			List.of(5, 2, 3, 1, 4),
 			queryOrder(
-				plan, new FilterConstraint[0], referenceProperty(BRANDS, attributeNatural(LABEL_AND_RANK))
+				plan, FilterConstraint.EMPTY_ARRAY, referenceProperty(BRANDS, attributeNatural(LABEL_AND_RANK))
 			)
 		);
 	}
@@ -172,7 +173,7 @@ class CompoundOrderingWithoutSortableElementsTest implements EvitaTestSupport {
 			List.of(5, 2, 1, 3, 4),
 			queryOrder(
 				plan,
-				new FilterConstraint[0],
+				FilterConstraint.EMPTY_ARRAY,
 				referenceProperty(
 					BRANDS,
 					traverseByEntityProperty(entityPrimaryKeyNatural(OrderDirection.ASC)),
@@ -202,11 +203,11 @@ class CompoundOrderingWithoutSortableElementsTest implements EvitaTestSupport {
 	void shouldRefuseOrderingByNonSortableAttribute(@Nonnull PlanPreference plan) {
 		assertThrows(
 			AttributeNotSortableException.class,
-			() -> queryOrder(plan, new FilterConstraint[0], attributeNatural(CODE))
+			() -> queryOrder(plan, FilterConstraint.EMPTY_ARRAY, attributeNatural(CODE))
 		);
 		assertThrows(
 			AttributeNotSortableException.class,
-			() -> queryOrder(plan, new FilterConstraint[0], referenceProperty(BRANDS, attributeNatural(LABEL)))
+			() -> queryOrder(plan, FilterConstraint.EMPTY_ARRAY, referenceProperty(BRANDS, attributeNatural(LABEL)))
 		);
 	}
 
@@ -216,12 +217,12 @@ class CompoundOrderingWithoutSortableElementsTest implements EvitaTestSupport {
 	void shouldRefuseOrderingByMissingCompound(@Nonnull PlanPreference plan) {
 		assertThrows(
 			AttributeNotFoundException.class,
-			() -> queryOrder(plan, new FilterConstraint[0], attributeNatural("missingCompound"))
+			() -> queryOrder(plan, FilterConstraint.EMPTY_ARRAY, attributeNatural("missingCompound"))
 		);
 		assertThrows(
 			AttributeNotFoundException.class,
 			() -> queryOrder(
-				plan, new FilterConstraint[0], referenceProperty(BRANDS, attributeNatural("missingCompound"))
+				plan, FilterConstraint.EMPTY_ARRAY, referenceProperty(BRANDS, attributeNatural("missingCompound"))
 			)
 		);
 	}
@@ -241,9 +242,9 @@ class CompoundOrderingWithoutSortableElementsTest implements EvitaTestSupport {
 				session.defineEntitySchema(Entities.PRODUCT)
 					.withoutGeneratedPrimaryKey()
 					.withLocale(LOCALE)
-					.withAttribute(CODE, String.class, whichIs -> whichIs.nullable())
+					.withAttribute(CODE, String.class, AttributeSchemaEditor::nullable)
 					.withAttribute(PRIORITY, Integer.class)
-					.withAttribute(NAME, String.class, whichIs -> whichIs.localized())
+					.withAttribute(NAME, String.class, AttributeSchemaEditor::localized)
 					.withSortableAttributeCompound(
 						CODE_AND_PRIORITY,
 						new AttributeElement(CODE, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
@@ -258,7 +259,7 @@ class CompoundOrderingWithoutSortableElementsTest implements EvitaTestSupport {
 						BRANDS, Entities.BRAND, Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs
 							.indexedForFiltering()
-							.withAttribute(LABEL, String.class, thatIs -> thatIs.nullable())
+							.withAttribute(LABEL, String.class, AttributeSchemaEditor::nullable)
 							.withAttribute(RANK, Integer.class)
 							.withSortableAttributeCompound(
 								LABEL_AND_RANK,

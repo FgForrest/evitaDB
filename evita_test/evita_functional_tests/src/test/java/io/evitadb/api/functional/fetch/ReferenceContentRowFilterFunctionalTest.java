@@ -38,6 +38,7 @@ import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
@@ -263,7 +264,7 @@ class ReferenceContentRowFilterFunctionalTest {
 					.withAttribute(ATTR_TAG, String.class, thatIs -> thatIs.localized().uniqueInScope(BOTH).nullable())
 					.withAttribute(ATTR_U, String.class, thatIs -> thatIs.uniqueInScope(Scope.LIVE).nullable())
 					.withAttribute(ATTR_PRICE, BigDecimal.class, thatIs -> thatIs.indexDecimalPlaces(2).nullable())
-					.withAttribute(ATTR_KEYWORDS, String[].class, thatIs -> thatIs.nullable())
+					.withAttribute(ATTR_KEYWORDS, String[].class, AttributeSchemaEditor::nullable)
 					.withAttribute(ATTR_NAME, String.class, thatIs -> thatIs.localized().nullable())
 			)
 			.withReferenceToEntity(

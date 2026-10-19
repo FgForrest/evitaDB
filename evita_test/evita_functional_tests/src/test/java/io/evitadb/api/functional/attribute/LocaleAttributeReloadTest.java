@@ -26,6 +26,7 @@ package io.evitadb.api.functional.attribute;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -101,8 +102,8 @@ class LocaleAttributeReloadTest implements EvitaTestSupport {
 			session -> {
 				session.defineEntitySchema(Entities.PRODUCT)
 					.withoutGeneratedPrimaryKey()
-					.withAttribute(LANGUAGE, Locale.class, whichIs -> whichIs.filterable())
-					.withAttribute(SPOKEN_LANGUAGE, Locale.class, whichIs -> whichIs.sortable())
+					.withAttribute(LANGUAGE, Locale.class, AttributeSchemaEditor::filterable)
+					.withAttribute(SPOKEN_LANGUAGE, Locale.class, AttributeSchemaEditor::sortable)
 					.updateVia(session);
 				session.upsertEntity(
 					session.createNewEntity(Entities.PRODUCT, 1)
@@ -123,8 +124,8 @@ class LocaleAttributeReloadTest implements EvitaTestSupport {
 		);
 		this.evita.updateCatalog(TEST_CATALOG, EvitaSessionContract::goLiveAndClose);
 
-		final List<Integer> englishBefore = queryPrimaryKeys(this::englishProducts);
-		final List<Integer> sortedBefore = queryPrimaryKeys(this::productsBySpokenLanguage);
+		final List<Integer> englishBefore = queryPrimaryKeys(LocaleAttributeReloadTest::englishProducts);
+		final List<Integer> sortedBefore = queryPrimaryKeys(LocaleAttributeReloadTest::productsBySpokenLanguage);
 		assertEquals(List.of(1, 3), englishBefore);
 		// language tags order `cs`, `de`, `fr`
 		assertEquals(List.of(3, 1, 2), sortedBefore);
@@ -134,8 +135,8 @@ class LocaleAttributeReloadTest implements EvitaTestSupport {
 		// the catalog is loaded in the background - its load is what reads the Locale values back
 		this.evita.waitUntilFullyInitialized();
 
-		assertEquals(englishBefore, queryPrimaryKeys(this::englishProducts));
-		assertEquals(sortedBefore, queryPrimaryKeys(this::productsBySpokenLanguage));
+		assertEquals(englishBefore, queryPrimaryKeys(LocaleAttributeReloadTest::englishProducts));
+		assertEquals(sortedBefore, queryPrimaryKeys(LocaleAttributeReloadTest::productsBySpokenLanguage));
 	}
 
 	@Test
@@ -195,7 +196,7 @@ class LocaleAttributeReloadTest implements EvitaTestSupport {
 			() -> assertEquals(List.of(2), queryPrimaryKeys(session -> productsWritten(session, TRADITIONAL_CHINESE))),
 			() -> assertEquals(List.of(3), queryPrimaryKeys(session -> productsWritten(session, CHINESE))),
 			// language tags order `zh`, `zh-Hans`, `zh-Hant`
-			() -> assertEquals(List.of(3, 1, 2), queryPrimaryKeys(this::productsByWritingSystem))
+			() -> assertEquals(List.of(3, 1, 2), queryPrimaryKeys(LocaleAttributeReloadTest::productsByWritingSystem))
 		};
 	}
 
@@ -239,7 +240,7 @@ class LocaleAttributeReloadTest implements EvitaTestSupport {
 	 * @return the found references
 	 */
 	@Nonnull
-	private List<EntityReferenceContract> englishProducts(@Nonnull EvitaSessionContract session) {
+	private static List<EntityReferenceContract> englishProducts(@Nonnull EvitaSessionContract session) {
 		return session.queryListOfEntityReferences(
 			query(collection(Entities.PRODUCT), filterBy(attributeEquals(LANGUAGE, Locale.ENGLISH)))
 		);
@@ -253,7 +254,7 @@ class LocaleAttributeReloadTest implements EvitaTestSupport {
 	 * @return the found references
 	 */
 	@Nonnull
-	private List<EntityReferenceContract> productsWritten(
+	private static List<EntityReferenceContract> productsWritten(
 		@Nonnull EvitaSessionContract session,
 		@Nonnull Locale writingSystem
 	) {
@@ -269,7 +270,7 @@ class LocaleAttributeReloadTest implements EvitaTestSupport {
 	 * @return the found references
 	 */
 	@Nonnull
-	private List<EntityReferenceContract> productsByWritingSystem(@Nonnull EvitaSessionContract session) {
+	private static List<EntityReferenceContract> productsByWritingSystem(@Nonnull EvitaSessionContract session) {
 		return session.queryListOfEntityReferences(
 			query(collection(Entities.PRODUCT), orderBy(attributeNatural(WRITING_SYSTEM)))
 		);
@@ -282,7 +283,7 @@ class LocaleAttributeReloadTest implements EvitaTestSupport {
 	 * @return the found references
 	 */
 	@Nonnull
-	private List<EntityReferenceContract> productsBySpokenLanguage(@Nonnull EvitaSessionContract session) {
+	private static List<EntityReferenceContract> productsBySpokenLanguage(@Nonnull EvitaSessionContract session) {
 		return session.queryListOfEntityReferences(
 			query(collection(Entities.PRODUCT), orderBy(attributeNatural(SPOKEN_LANGUAGE)))
 		);

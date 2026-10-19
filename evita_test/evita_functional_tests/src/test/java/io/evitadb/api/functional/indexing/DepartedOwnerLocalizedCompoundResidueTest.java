@@ -33,6 +33,7 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
@@ -322,13 +323,13 @@ class DepartedOwnerLocalizedCompoundResidueTest implements EvitaTestSupport {
 	private void prepare(@Nonnull CatalogState state) {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.defineEntitySchema(ENTITY_BRAND).updateVia(session);
 				session.defineEntitySchema(ENTITY_PRODUCT)
 					.withLocale(LOCALE, OTHER_LOCALE)
 					.withAttribute(ATTR_TITLE, String.class, thatIs -> thatIs.localized().nullable())
 					.withAttribute(ATTR_NAME, String.class, thatIs -> thatIs.localized().nullable())
-					.withAttribute(ATTR_CODE, String.class, thatIs -> thatIs.nullable())
+					.withAttribute(ATTR_CODE, String.class, AttributeSchemaEditor::nullable)
 					.withSortableAttributeCompound(
 						COMPOUND_NAME_CODE,
 						new AttributeElement(ATTR_NAME, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
@@ -339,7 +340,7 @@ class DepartedOwnerLocalizedCompoundResidueTest implements EvitaTestSupport {
 						whichIs -> whichIs
 							.indexedForFilteringAndPartitioning()
 							.withAttribute(ATTR_LABEL, String.class, thatIs -> thatIs.localized().nullable())
-							.withAttribute(ATTR_PRIORITY, Integer.class, thatIs -> thatIs.nullable())
+							.withAttribute(ATTR_PRIORITY, Integer.class, AttributeSchemaEditor::nullable)
 							.withSortableAttributeCompound(
 								COMPOUND_LABEL_PRIORITY,
 								new AttributeElement(ATTR_LABEL, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),

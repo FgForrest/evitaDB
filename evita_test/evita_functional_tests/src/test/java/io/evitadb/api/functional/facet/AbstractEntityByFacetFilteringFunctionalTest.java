@@ -10390,7 +10390,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 * @deprecated Use {@link #assertReferenceSummary} instead. Remove this method once FacetSummary is removed.
 	 */
 	@Deprecated(since = "2026.2", forRemoval = true)
-	private void assertFacetSummary(
+	private static void assertFacetSummary(
 		@Nonnull FacetSummaryWithResultCount expectedSummary,
 		@Nullable FacetSummary actualFacetSummary,
 		@Nonnull Function<SealedEntity, Boolean> facetEntitiesAssertFunction,
@@ -10419,7 +10419,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 *
 	 */
 	@Deprecated(since = "2026.2", forRemoval = true)
-	private void assertFacetSummaryEntities(
+	private static void assertFacetSummaryEntities(
 		@Nonnull FacetSummary facetSummary,
 		@Nonnull Function<SealedEntity, Boolean> facetEntitiesAssertFunction,
 		@Nonnull Function<SealedEntity, Boolean> groupEntitiesAssertFunction
@@ -10661,7 +10661,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	/**
 	 * Asserts reference summary against expected with full entity data asserts.
 	 */
-	private void assertReferenceSummary(
+	private static void assertReferenceSummary(
 		@Nonnull ReferenceSummaryWithResultCount expectedSummary,
 		@Nullable ReferenceSummary actualReferenceSummary,
 		@Nonnull Function<SealedEntity, Boolean> facetEntitiesAssertFunction,
@@ -10687,7 +10687,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 * Checks all group and facet entities and verifies them. This method expects that both actual reference summary and
 	 * expected reference summary are equal.
 	 */
-	private void assertReferenceSummaryEntities(
+	private static void assertReferenceSummaryEntities(
 		@Nonnull ReferenceSummary referenceSummary,
 		@Nonnull Function<SealedEntity, Boolean> facetEntitiesAssertFunction,
 		@Nonnull Function<SealedEntity, Boolean> groupEntitiesAssertFunction

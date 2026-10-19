@@ -265,6 +265,7 @@ public interface IndexingTestSupport {
 					final int tupleId = registry.getRepresentativeTupleId(partitionPrimaryKey);
 					final Serializable[] tuple = tupleId == VirtualReferencePartitionIndex.NO_TUPLE_ID ?
 						new Serializable[0] : registry.getTuple(tupleId);
+					//noinspection NonShortCircuitBooleanExpression
 					found[0] |= Arrays.equals(tuple, key.representativeAttributeValues());
 				}
 			}

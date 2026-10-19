@@ -23,6 +23,7 @@
 
 package io.evitadb.api.functional.attribute;
 
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
@@ -303,7 +304,7 @@ public class EntityByReferenceAttributePickFirstOracleFunctionalTest {
 				session.defineEntitySchema(ENTITY_OWNER)
 					.withoutGeneratedPrimaryKey()
 					.withLocale(LOCALE)
-					.withAttribute(ATTRIBUTE_NAME, String.class, thatIs -> thatIs.localized())
+					.withAttribute(ATTRIBUTE_NAME, String.class, AttributeSchemaEditor::localized)
 					.withReferenceToEntity(
 						REFERENCE_ITEMS_PARTITIONING, ENTITY_TARGET, Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs.indexedForFilteringAndPartitioningInScope(BOTH_SCOPES)

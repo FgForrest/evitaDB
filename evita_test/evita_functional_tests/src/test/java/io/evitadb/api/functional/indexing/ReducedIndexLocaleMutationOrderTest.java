@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceAttribute
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.mutation.reference.RemoveReferenceMutation;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
@@ -684,13 +685,13 @@ class ReducedIndexLocaleMutationOrderTest implements EvitaTestSupport {
 	private void prepareProducts(@Nonnull CatalogState state) {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.defineEntitySchema(ENTITY_BRAND).updateVia(session);
 				session.defineEntitySchema(ENTITY_PRODUCT)
 					.withLocale(LOCALE, OTHER_LOCALE)
 					.withAttribute(ATTR_TITLE, String.class, thatIs -> thatIs.localized().nullable())
 					.withAttribute(ATTR_NAME, String.class, thatIs -> thatIs.localized().nullable())
-					.withAttribute(ATTR_CODE, String.class, thatIs -> thatIs.nullable())
+					.withAttribute(ATTR_CODE, String.class, AttributeSchemaEditor::nullable)
 					.withAssociatedData(ASSOCIATED_DATA_NOTE, String.class, whichIs -> whichIs.localized().nullable())
 					.withSortableAttributeCompound(
 						COMPOUND_NAME_CODE,
@@ -702,7 +703,7 @@ class ReducedIndexLocaleMutationOrderTest implements EvitaTestSupport {
 						whichIs -> whichIs
 							.indexedForFilteringAndPartitioning()
 							.withAttribute(ATTR_LABEL, String.class, thatIs -> thatIs.localized().nullable())
-							.withAttribute(ATTR_PRIORITY, Integer.class, thatIs -> thatIs.nullable())
+							.withAttribute(ATTR_PRIORITY, Integer.class, AttributeSchemaEditor::nullable)
 							.withSortableAttributeCompound(
 								COMPOUND_LABEL_PRIORITY,
 								new AttributeElement(ATTR_LABEL, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
@@ -715,7 +716,7 @@ class ReducedIndexLocaleMutationOrderTest implements EvitaTestSupport {
 							.indexedForFilteringAndPartitioning()
 							.withAttribute(ATTR_COUNTRY, String.class, thatIs -> thatIs.filterable().representative())
 							.withAttribute(ATTR_LABEL, String.class, thatIs -> thatIs.localized().nullable())
-							.withAttribute(ATTR_PRIORITY, Integer.class, thatIs -> thatIs.nullable())
+							.withAttribute(ATTR_PRIORITY, Integer.class, AttributeSchemaEditor::nullable)
 							.withSortableAttributeCompound(
 								COMPOUND_LABEL_PRIORITY,
 								new AttributeElement(ATTR_LABEL, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
@@ -785,7 +786,7 @@ class ReducedIndexLocaleMutationOrderTest implements EvitaTestSupport {
 	private void prepareReflectedCategories(@Nonnull CatalogState state, boolean shared) {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.defineEntitySchema(ENTITY_CATEGORY).withLocale(LOCALE, OTHER_LOCALE).updateVia(session);
 				session.defineEntitySchema(ENTITY_PRODUCT)
 					.withLocale(LOCALE, OTHER_LOCALE)
@@ -793,7 +794,7 @@ class ReducedIndexLocaleMutationOrderTest implements EvitaTestSupport {
 						REF_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs
 							.indexedForFiltering()
-							.withAttribute(ATTR_ORDER, Integer.class, thatIs -> thatIs.nullable())
+							.withAttribute(ATTR_ORDER, Integer.class, AttributeSchemaEditor::nullable)
 							.withAttribute(ATTR_LABEL, String.class, thatIs -> thatIs.localized().nullable())
 							.withSortableAttributeCompound(
 								COMPOUND_LABEL_AND_ORDER,

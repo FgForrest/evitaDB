@@ -30,6 +30,7 @@ import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.core.Evita;
@@ -194,9 +195,9 @@ class TemporalSortValueFunctionalTest implements EvitaTestSupport {
 				session.defineEntitySchema(OWNER)
 					.withoutGeneratedPrimaryKey()
 					.withAttribute(MOMENT, OffsetDateTime.class, thatIs -> thatIs.filterable().sortable())
-					.withAttribute(SORT_ONLY_MOMENT, OffsetDateTime.class, thatIs -> thatIs.sortable())
-					.withAttribute(LOCAL_MOMENT, LocalDateTime.class, thatIs -> thatIs.sortable())
-					.withAttribute(LOCAL_TIME, LocalTime.class, thatIs -> thatIs.sortable())
+					.withAttribute(SORT_ONLY_MOMENT, OffsetDateTime.class, AttributeSchemaEditor::sortable)
+					.withAttribute(LOCAL_MOMENT, LocalDateTime.class, AttributeSchemaEditor::sortable)
+					.withAttribute(LOCAL_TIME, LocalTime.class, AttributeSchemaEditor::sortable)
 					.withAttribute(PRIORITY, Integer.class)
 					.withSortableAttributeCompound(
 						MOMENT_THEN_PRIORITY,
@@ -212,7 +213,7 @@ class TemporalSortValueFunctionalTest implements EvitaTestSupport {
 						TARGETS, TARGET, Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs.indexedForFiltering()
 							.withAttribute(MOMENT, OffsetDateTime.class, thatIs -> thatIs.filterable().sortable())
-							.withAttribute(SORT_ONLY_MOMENT, OffsetDateTime.class, thatIs -> thatIs.sortable())
+							.withAttribute(SORT_ONLY_MOMENT, OffsetDateTime.class, AttributeSchemaEditor::sortable)
 					)
 					.updateVia(session);
 				for (int target = 1; target <= 4; target++) {

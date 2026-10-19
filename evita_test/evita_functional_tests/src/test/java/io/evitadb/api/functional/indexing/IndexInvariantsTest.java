@@ -47,11 +47,11 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
-import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
@@ -59,13 +59,12 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static org.junit.jupiter.api.Assertions.*;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.INDEXING;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests verifying documented structural invariants of the evitaDB indexing system. Each test
@@ -1009,7 +1008,7 @@ class IndexInvariantsTest implements EvitaTestSupport, IndexingTestSupport {
 		 * @param session       the active session
 		 * @param categoryCount the number of CATEGORY entities to create (PKs 1..categoryCount)
 		 */
-		private void setupProductCategorySchemaWithGroupComponent(
+		private static void setupProductCategorySchemaWithGroupComponent(
 			@Nonnull EvitaSessionContract session,
 			int categoryCount
 		) {
@@ -1060,7 +1059,7 @@ class IndexInvariantsTest implements EvitaTestSupport, IndexingTestSupport {
 		 * @param brandPk       the brand (group) PK to assign to each reference
 		 * @param categoryPks   the category PKs to reference
 		 */
-		private void createProductWithGroupReferences(
+		private static void createProductWithGroupReferences(
 			@Nonnull EvitaSessionContract session,
 			int productPk,
 			@Nonnull String ean,

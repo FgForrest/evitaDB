@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
@@ -287,7 +288,7 @@ class RangeOrderingRouteParityFunctionalTest implements EvitaTestSupport {
 						ATTR_VALIDITY, BigDecimalNumberRange.class,
 						thatIs -> thatIs.sortable().nullable().indexDecimalPlaces(SCHEMA_SCALE)
 					)
-					.withAttribute(ATTR_CODE, String.class, thatIs -> thatIs.nullable())
+					.withAttribute(ATTR_CODE, String.class, AttributeSchemaEditor::nullable)
 					.withSortableAttributeCompound(
 						COMPOUND_VALIDITY_CODE,
 						new AttributeElement(ATTR_VALIDITY, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
@@ -301,7 +302,7 @@ class RangeOrderingRouteParityFunctionalTest implements EvitaTestSupport {
 								ATTR_VALIDITY, BigDecimalNumberRange.class,
 								thatIs -> thatIs.sortable().nullable().indexDecimalPlaces(SCHEMA_SCALE)
 							)
-							.withAttribute(ATTR_CODE, String.class, thatIs -> thatIs.nullable())
+							.withAttribute(ATTR_CODE, String.class, AttributeSchemaEditor::nullable)
 							.withSortableAttributeCompound(
 								COMPOUND_VALIDITY_CODE,
 								new AttributeElement(ATTR_VALIDITY, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),

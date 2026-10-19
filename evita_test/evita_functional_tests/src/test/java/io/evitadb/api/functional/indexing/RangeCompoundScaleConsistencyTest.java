@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
@@ -478,7 +479,7 @@ class RangeCompoundScaleConsistencyTest implements EvitaTestSupport {
 						ATTR_VALIDITY, BigDecimalNumberRange.class,
 						thatIs -> thatIs.nullable().indexDecimalPlaces(schemaScale)
 					)
-					.withAttribute(ATTR_CODE, String.class, thatIs -> thatIs.nullable())
+					.withAttribute(ATTR_CODE, String.class, AttributeSchemaEditor::nullable)
 					.withSortableAttributeCompound(
 						COMPOUND_VALIDITY_CODE,
 						new AttributeElement(ATTR_VALIDITY, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
@@ -492,7 +493,7 @@ class RangeCompoundScaleConsistencyTest implements EvitaTestSupport {
 								ATTR_VALIDITY, BigDecimalNumberRange.class,
 								thatIs -> thatIs.nullable().indexDecimalPlaces(schemaScale)
 							)
-							.withAttribute(ATTR_CODE, String.class, thatIs -> thatIs.nullable())
+							.withAttribute(ATTR_CODE, String.class, AttributeSchemaEditor::nullable)
 							.withSortableAttributeCompound(
 								COMPOUND_VALIDITY_CODE,
 								new AttributeElement(ATTR_VALIDITY, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
