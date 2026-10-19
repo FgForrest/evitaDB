@@ -1,7 +1,7 @@
 ---
 title: A single-owner partition of a filtering-only reference is a row of a per-reference registry, and an index object exists only while a partition has two or more owners
 date: 2026-10-12
-updated: 2026-10-19 16:28
+updated: 2026-10-19 18:59
 status: accepted
 kind: optimization
 issues: [1615]
@@ -129,8 +129,9 @@ development scaffolding and settled the migration.
 | 2026-10-11 | The migration also re-sorts localized owner sort indexes ordered by the bare collator (A); merged buckets stay merged (B) | 2026.2 catalogs would fail to load or serve the release's order | Owner sort indexes |
 | 2026-10-11 | The stale type-index primary-key bitmap of catalogs created by 2025.6 or earlier stays out of this work | pre-existing since #906; the repair is a recompute-from-data migration | Open follow-ups |
 | 2026-10-11 | The index-type raise defect (objects written under `FOR_FILTERING` trusted as partitioned) stays with #409 | maintainer | Open follow-ups |
-| 2026-10-19 | Protocols 7 and 8 **merged into 7**: one migration 6 → 7, and the protocol development builds wrote is no longer refused | every catalog a development build wrote at 7 can be rebuilt | Storage protocol |
 | 2026-10-12 | The owner sort index rewrite also re-sorts `Locale` elements ordered by their language tag, and `DateTimeRange` elements ordered at whole seconds; merged buckets stay merged | same failure, found by review and by a probe | Owner sort indexes |
+| 2026-10-19 | Protocols 7 and 8 **merged into 7**: one migration 6 → 7, and the protocol development builds wrote is no longer refused | every catalog a development build wrote at 7 can be rebuilt | Storage protocol |
+| 2026-10-19 | The bytecode guard over direct accesses to the reduced index family is **removed**; the handle's javadoc states the rule | its allow-list cleared a red run with one more line, and behaviour-neutral changes broke it | Partition handle |
 
 ### Settled without a fork
 
@@ -570,8 +571,8 @@ stay counts of physical indexes, and their javadoc and proto comments say so.
 **Handle.** `ReferencePartition` is a sealed interface. `ReducedEntityIndex` implements it directly and
 `VirtualReferencePartition` is a record holding a snapshot of a row. The group family (`ReducedGroupEntityIndex`) is not
 a partition, which is the gate in code. Code that needs the object unwraps the handle in an exhaustive `switch`, so the
-compiler lists every such site. `ReferencePartitionAccessGuardTest` rejects new direct accesses to the reduced index
-family, and `VirtualReferencePartitionWriterGuardTest` restricts who may write the registry.
+compiler lists every such site. `VirtualReferencePartitionWriterGuardTest` restricts who may write the registry; a
+direct read of the reduced index family is guarded by no test (see the declined guard below).
 
 - **Declined — a wrapper object around the index** (the issue's first suggestion). **Rejected because:** it costs one
   allocation per partition per resolution on six-figure fan-outs, and it breaks identity:
@@ -581,6 +582,19 @@ family, and `VirtualReferencePartitionWriterGuardTest` restricts who may write t
   "slice" is spent on `ReducedIndexMembership`; `ReferencedEntityPartition`, longer with the same ambiguity. "Partition"
   here is unrelated to the `FOR_FILTERING_AND_PARTITIONING` level, and the interface's javadoc says so in its first
   paragraph.
+- **Declined — a bytecode guard over every direct access to the reduced index family** (`ReferencePartitionAccessGuardTest`,
+  built in phase 1 and removed at review on 2026-10-19). It scanned the bytecode of `evita_engine` and
+  `evita_store_server` under seven rules against an allow-list of 165 sites, each with a reason, and it tracked the
+  move of about 240 direct accesses behind the handle. **Rejected because:** once that move was done, it protected
+  little that nothing else does, at a standing cost. An entry's reason is free text the test cannot check, so a red
+  run cleared with one more line; its largest rule (80 entries) flagged any mention of the reduced index type rather
+  than a lookup that misses a row; and behaviour-neutral changes - a rename, a signature, the compiler's numbering of
+  synthetic classes - turned it red, so 28 commits of the branch edited the list, which grew as often as it shrank.
+  A write path handed a virtual handle fails loudly (`ReferencePartitions#requireMaterialized`). A read route that
+  skips the rows answers wrongly, and the virtual partitions are behind no switch, so a functional test of the route
+  meets them whenever its data holds a single-owner partition. The lifetime of the by-key owner-read resolver is left
+  to its javadoc and its caller's (L8). **Revisit if** a route reaching a reduced index directly ships a wrong answer
+  the functional tests did not catch.
 
 **Reading another entity inside a mutation.** `LocalMutationExecutorCollector` implements
 `InFlightEntityAccessorLookup`. `ContainerizedLocalMutationExecutor` asks it before reading another entity's storage
@@ -705,8 +719,8 @@ the Registry of Single-Owner Partitions") and `data-structures.md` ("Registry of
   single-owner partitions of a reference in a scope are rows is `VirtualReferencePartitionWriter#isWrittenVirtually`
   (named `isShadowed` during development).
 - The by-key owner-read resolver has no runtime check that it does not outlive a row write in the counterpart
-  collection. Its one caller, pinned by an allow-list rule of `ReferencePartitionAccessGuardTest`, keeps that lifetime,
-  and the resolver's javadoc states the obligation (loss L8).
+  collection. Its one caller keeps that lifetime and says why in its javadoc, the resolver's javadoc states the
+  obligation, and nothing checks a new caller (loss L8).
 - No test fails when the scope fallback of `FilterByVisitor#getSuperSetFormula(Scope)` yields nothing instead of the
   global index set. The fallback runs when the index set the query is evaluated on has no index in the scope, and its
   superset cannot change an answer: a reduced plan is evaluated only when its constraint applies to every queried
@@ -783,7 +797,8 @@ production probes counted work. All of it is gone. What replaced it:
   `OtherOwnerReferenceRowVisibilityTest` and `LocalMutationExecutorCollectorInFlightRegistryTest`;
   `ReducedIndexMembershipCompletenessTest` (rows too, with a WARM_UP rollback case);
   `ReferenceHavingEntityLocaleFunctionalTest` (locale bodies against the entity bodies, rows and objects);
-  `InScopeOverAnEmptyScopeWithRegistryRowsFunctionalTest`; both guards, which run in every gate.
+  `InScopeOverAnEmptyScopeWithRegistryRowsFunctionalTest`; `VirtualReferencePartitionWriterGuardTest`, which runs in
+  every gate.
 - **Migration suites:** `Migration_2026_3_VirtualPartitionsTest` (every read route equal to a catalog born with rows;
   inherited reflected indexing; every sort type and chain; an object of filtering-only content; a protocol-6 image
   holding a registry row refused; no file left open by a failed migration; nothing published by a failed publication
@@ -1212,3 +1227,4 @@ reference, and reindex range compounds stored at the range's own scale.
   the switch holder removed, the one 6 → 8 migration with the protocol-7 refusal, the observer deleted, the temporal
   correction moved into the migration, the localized re-sort.
 - **2026-10-12:** the `Locale` and `DateTimeRange` re-sorts; developer documentation; this record.
+- **2026-10-19:** manual review; protocols 7 and 8 merged into 7; the access guard removed.

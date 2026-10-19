@@ -58,8 +58,9 @@ import javax.annotation.Nonnull;
  * it in an exhaustive `switch`, and the compiler lists every such place: the virtual arm of a write path writes the
  * partition's registry row, or throws where the write needs the index object, and the virtual arm of a query route
  * that needs the index object throws, since the route must split the virtual partitions off before it gets there.
- * Partitions are resolved through {@link ReferencePartitions} and the resolver surfaces built on it; a guard test in
- * the functional test suite rejects new direct accesses to the reduced index family.
+ * Partitions are resolved through {@link ReferencePartitions} and the resolver surfaces built on it, never by looking
+ * a reduced entity index up directly: a single-owner partition the registry holds a row for has no index object, so
+ * a lookup by its key or primary key finds nothing and silently leaves its owner out.
  *
  * The read surface is deliberately narrow: identity (primary key, key, representative key, target) and owners. The
  * sort and chain structures of a partition are not part of it - a virtual partition has none of its own, its values

@@ -86,8 +86,7 @@ import java.util.function.IntFunction;
  * resolvers** ({@link #findRegisteredForWrite}, {@link #resolveRegisteredForWrite}) and builds the handle of a
  * partition an owner enters with {@link #toWriteHandle}, only for a reference whose single-owner partitions are
  * virtual in the scope or whose registry still holds rows of its former indexing, and every place on it that needs
- * the index object asserts it is not virtual (see {@link #requireMaterialized}). A guard test rejects a call of a
- * read resolver from the write path's packages.
+ * the index object asserts it is not virtual (see {@link #requireMaterialized}).
  *
  * ## Owner reads
  *
@@ -97,8 +96,7 @@ import java.util.function.IntFunction;
  * so the **owner read resolvers** (`…ForOwnerRead…`) answer a primary key the registry holds a row for with a virtual
  * handle read out of that row, and every other one with its index object, exactly as the object-only resolvers do.
  * They are not meant for a query. Their handle is read only - it carries the owner and the key of the partition and
- * is never handed to a writer, which would reject it (see {@link #requireMaterialized}); a guard test admits a call
- * of an owner read resolver only from the places listed on its allow-list.
+ * is never handed to a writer, which would reject it (see {@link #requireMaterialized}).
  *
  * ## Primary keys are per collection
  *
@@ -914,9 +912,9 @@ public final class ReferencePartitions {
 	 * again, so it must not outlive the state of the collection it was created for: a caller creates it for one pass
 	 * over keys that writes no registry row of the collection while the resolution is in use, and drops it when the
 	 * pass ends. A row written meanwhile - an owner entering or leaving a single-owner partition of the reference -
-	 * would be answered from the family read before it. The resolution is not thread-safe either. Every caller is
-	 * pinned by the guard of the owner read resolvers (`ReferencePartitionAccessGuardTest`), whose allow-list states
-	 * why the caller keeps to this lifetime.
+	 * would be answered from the family read before it, and nothing checks it at runtime. The resolution is not
+	 * thread-safe either. A caller states in its own documentation why it keeps to this lifetime, as
+	 * `ContainerizedLocalMutationExecutor#createCounterpartPresencePredicate` does.
 	 *
 	 * @param dataStoreReader the reader of the collection owning the partitions
 	 * @param scope           the scope of the partitions
