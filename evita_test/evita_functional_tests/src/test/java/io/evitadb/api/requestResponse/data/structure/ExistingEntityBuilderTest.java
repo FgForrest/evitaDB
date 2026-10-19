@@ -441,6 +441,32 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 		}
 
 		@Test
+		@DisplayName("should ignore null value set on attribute removed in previous entity version")
+		void shouldIgnoreNullValueSetOnAttributeRemovedInPreviousVersion() {
+			final EntitySchemaContract schema = new InternalEntitySchemaBuilder(CATALOG_SCHEMA, PRODUCT_SCHEMA)
+				.withAttribute("code", String.class)
+				.toInstance();
+			final InitialEntityBuilder initialBuilder = new InitialEntityBuilder(schema, 1);
+			initialBuilder.setAttribute("code", "A");
+			final Entity withAttribute = initialBuilder.toInstance();
+			final ExistingEntityBuilder removal = new ExistingEntityBuilder(withAttribute);
+			removal.removeAttribute("code");
+			final Entity withRemovedAttribute = removal.toInstance();
+			// the removed attribute travels with the entity as a dropped tombstone
+			assertTrue(
+				withRemovedAttribute.getAttributeValue(new AttributeKey("code"))
+					.map(Droppable::dropped)
+					.orElse(false)
+			);
+
+			final ExistingEntityBuilder removedAgain = new ExistingEntityBuilder(withRemovedAttribute);
+			removedAgain.setAttribute("code", (String) null);
+
+			assertNull(removedAgain.getAttribute("code"));
+			assertTrue(removedAgain.toMutation().isEmpty());
+		}
+
+		@Test
 		@DisplayName("should fail to add array as sortable attribute")
 		void shouldFailToAddArrayAsSortableAttribute() {
 			final EntitySchemaContract schema = new InternalEntitySchemaBuilder(
