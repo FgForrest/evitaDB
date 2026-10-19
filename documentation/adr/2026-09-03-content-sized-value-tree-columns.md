@@ -1,7 +1,7 @@
 ---
 title: Size the value tree's leaf columns to their live content instead of adding a second array-backed representation
 date: 2026-09-03
-updated: 2026-09-29 07:15
+updated: 2026-10-19 10:40
 status: accepted
 kind: optimization
 issues: [1486]
@@ -599,26 +599,30 @@ proportionally larger against a smaller total, and the census charged the tempor
   The forward walk's re-descent and the heap walk skip the `null` slot instead of failing on the
   `Internal node expected!` premise or the `Unexpected B+ tree node kind` check. The separator search is pulled
   in past a trailing `null` separator (`childIndexIn`). That is the same reordering one store earlier, and it
-  would fail inside `Arrays.binarySearch`; it is inferred, not observed. The point descent also answers an
-  emptied merge donor as absent (`findLeafNode` returns `null`) where it used to fail the binary search's range
-  check. Every guard is an identity on a consistent observer. `UnpublishedChildSlot` pins that half with a
-  transactional and an in-place churn, which land on the very leaf instance an unguarded descent reaches, and
-  pins the torn half with one counterfactual per site.
+  would fail inside `Arrays.binarySearch`; it is inferred, not observed. That trim has since been replaced by a
+  search that tolerates a `null` anywhere in the range - see the 2026-10-19 bullet below. The point descent also
+  answers an emptied merge donor as absent (`findLeafNode` returns `null`) where it used to fail the binary
+  search's range check. Every guard is an identity on a consistent observer. `UnpublishedChildSlot` pins that
+  half with a transactional and an in-place churn, which land on the very leaf instance an unguarded descent
+  reaches, and pins the torn half with one counterfactual per site.
 - **The release/acquire trigger in the options table fired here, and the reader-side guard was extended
   instead.** A release store of `peek` does not order the publication of a freshly reallocated array against
   its copied content. The array-first readers also load the array before `peek`, so closing the window at the
   writer would take release/acquire on `keys`, `children` and `peek` alike, on every descent of the hottest read
   path. The reader-side step reuses the slot load the descent makes anyway. Revisit only if an escape turns up
   that stepping cannot absorb.
-- **Three neighbours of that fix remain open.** (1) A reallocated array whose copied content the reader cannot see
-  yet could show a `null` in the middle of the live run rather than at its end. Only the trailing case is
-  guarded, and whether the middle case occurs at all depends on how the JVM publishes a freshly copied array,
-  which the Java memory model leaves open. (2) The emptied-donor answer reached the point descent but not the
-  structures around it. `computePreviousRecord` for the first key after an emptied subtree climbs into the
-  donor through `getCursorForPreviousNode`, and `cursor(key)` routed into one still fails `searchIndex`'s range
-  check. Both need a merge window and a session-free reader, and neither has a production caller that meets
-  both. (3) A session-free point lookup can answer **absent** for a key that is present before and after an
-  in-place restructure, with no `null` anywhere and no reordering. `adaptToLeafSplit` shifts the separators,
+- **Three neighbours of that fix remain open, the first of them only in part.** (1) A reallocated array whose
+  copied content the reader cannot see yet could show a `null` in the middle of the live run rather than at its
+  end. Whether that occurs at all depends on how the JVM publishes a freshly copied array, which the Java memory
+  model leaves open. Since 2026-10-19 it no longer **fails** a key search, on the separators or on the boxed leaf
+  column (see the next bullet). What stays open is the **answer**: the hidden key, and any key whose search
+  probes the empty slot, reads as absent or routes to a left sibling. A primitive column reads the same
+  unpublished slot as `0` rather than `null`, so no guard sees it there at all. (2) The emptied-donor answer
+  reached the point descent but not the structures around it. `computePreviousRecord` for the first key after
+  an emptied subtree climbs into the donor through `getCursorForPreviousNode`, and `cursor(key)` routed into one
+  still fails `searchIndex`'s range check. Both need a merge window and a session-free reader, and neither has a
+  production caller that meets both. (3) A session-free point lookup can answer **absent** for a key that is
+  present before and after an in-place restructure, with no `null` anywhere and no reordering. `adaptToLeafSplit` shifts the separators,
   stores `left` over the split child, shifts in `right`, and only then raises `peek`. Between those plain stores,
   a split of the last child routes a key of the right half to `left`, which lacks it. A split of an inner child
   pairs the shifted separators with the unshifted children, sending a key to the neighbouring sibling. The
@@ -629,6 +633,68 @@ proportionally larger against a smaller total, and the census charged the tempor
   `getDistinctValueCount()`, `recordCount()` and `getHeapSizeInBytes()`, none of which runs a point lookup. The long-running sweep drives the point lookups on
   purpose, but deliberately asserts only that they do not fail. Revisit if a session-free caller of
   `contains`, `cardinalityOf`, `getRecordsEqualTo`, `valueIdOf` or `computePreviousRecord` appears.
+- **The same reordering then reached a key slot, and the leaf had no guard at all.** On 2026-10-19 the weekly
+  sweep failed on the macOS/AArch64 leg only, dev `fa803a5b71`, in the internal-node sweep at round 2418:
+  `NullPointerException: Cannot invoke "java.lang.Comparable.compareTo(Object)" because "midVal" is null`. The
+  x86 Linux and x86 Windows legs passed. The Linux/AArch64 leg ran out of memory, so it is no evidence either way.
+  The reader's own stack trace went to the job log, which was not available, so **the site is inferred, not
+  observed**. The message is produced only by the natural-order `Arrays.binarySearch`; on JDK 21 the comparator
+  overloads fail with `"c1" is null` or inside the comparator. The sweep's tree comes from the six-argument
+  constructor, which keeps its leaf keys in `BoxedObjectColumn`, so two searches can throw it. One is the leaf key
+  search behind `contains`, `cardinalityOf`, `getRecordsEqualTo`, `computePreviousRecord` and the keyed walk's
+  first leaf. The other is the separator search, `childIndexIn`. Ranked by likelihood:
+  - **The leaf's trailing slot, first.** A column insert stores the key, then raises its own size, the record
+    column's and the leaf's `peek`, all as plain stores. A reader that sees the counts first holds a live run whose
+    last key reads `null`. A search for a key past every visible key walks right onto that slot. The column had no
+    `null` guard of any kind, because the 2026-09-28 fix trimmed only the separators. Every one of the sweep's
+    1,024 inserts per round opens this window, against a few dozen array reallocations. Two of the lookups were
+    reachable even with only the key column's count visible: `cardinalityOf` and the keyed walk's first leaf bound
+    their search by `peek` alone, not by the cross-column bound.
+  - **An interior slot of a reallocated array, below it.** This applies to the leaf column and to the separators
+    alike. It needs the copied content to become visible after a later store into the copy. It is ranked below
+    the trailing slot on the belief that HotSpot's C2 fences a freshly allocated `Arrays.copyOf` copy before the
+    reference escapes, which would leave only interpreted or C1 code exposed. That belief was not verified, and
+    the Java memory model guarantees nothing of the kind.
+  - **The separators' trailing slot** was already trimmed.
+
+  The fix is one reader-side search for both boxed arrays, `TransactionalBucketBPlusTree#observableKeySearch`. It
+  treats a `null` slot as sorting after every key, in natural order and under a comparator alike, and it replaces
+  the trailing-separator trim. Over a trailing slot it answers exactly the pre-growth tree. Over an interior slot it
+  never fails and never invents a key, a record or an anchor. It does under-report, though: the hidden key and any
+  key whose probes cross the slot read as absent or route to a left sibling, and a keyed walk may start early. It
+  keeps the JDK's range check verbatim, so the emptied-donor refusal of neighbour (2) is unchanged. On a consistent
+  observer it is an identity at one reference compare per probe; that cost is argued from the code shape and was
+  not benchmarked. No writer changed, following the options table.
+
+  `TransactionalBucketBPlusTreeTest.UnpublishedKeySlot` builds four torn states, each in both orders:
+
+  | Torn state | Which lookups it pins |
+  |---|---|
+  | Leaf trailing slot, every count visible | the four point lookups |
+  | Leaf trailing slot, only the key column's count and `peek` visible | the lookups bounded by `peek` alone, and the walks answering exactly the pre-growth tree |
+  | Leaf interior slot | the point lookups |
+  | Separator interior slot | the point lookups and the keyed walks |
+
+  Before the fix all four failed with the sweep's exact message. Removing the null check made all four fail again
+  with it. Removing only the comparator arm's check made all four fail with `"c1" is null`, which proves the
+  comparator runs are not vacuous. The whole `bPlusTree` test package passes, 1,050 tests. The long-running sweep
+  passes on x86 in 6.0 s, which says nothing about the guard. **The tests prove that these torn states are
+  handled, not that the AArch64 reader met this exact interleaving.** The evidence is still one weak-memory leg,
+  as it was on 2026-09-28.
+
+  Three things stay open:
+  - **Walks over a leaf whose record count has risen but whose key has not** visit the in-flight bucket, and
+    `value()` answers `null` for it. A walk bounds itself by counts, not by content. Nothing in the tree fails,
+    and the one session-free production reader, `recordCount()`, reads no value.
+  - **The primitive key columns write in the same order and read an unpublished slot as `0`.** A probe that
+    encodes to `0`, into a leaf whose visible keys all encode below it, can therefore answer present with the
+    in-flight bucket's record. That is inferred from the code and not tested. No production session-free caller
+    runs a point lookup (see neighbour (3)).
+  - **`TransactionalObjectBPlusTree` searches its keys the same way, and was left alone.** Its only production
+    owner updates copy-on-write inside a transaction and republishes through an `AtomicReference`, so no reader
+    meets a torn node. The long, int-keyed and element trees search primitive arrays and cannot throw this.
+
+  Revisit if a session-free point lookup gets a production caller.
 - **The fixed-array sibling trees share the unpublished-slot hazard, and only their heap walk has a reader that
   can meet it.** `TransactionalLongBPlusTree`, `AbstractIntKeyedInternalNode` (the internal node of
   `TransactionalElementBPlusTree` and `TransactionalIntToLongBPlusTree`) and `UnorderedLookupTree` grow an
@@ -791,3 +857,7 @@ proportionally larger against a smaller total, and the census charged the tempor
   of a session-free caller; the same heap walk's roaring backbone and `HashMap` sizing made tolerant of an
   in-place warm-up writer; a review found that stepping left does not make a mid-split point lookup exact, so the
   claim was withdrawn and the silent miss recorded as the third open neighbour
+- **2026-10-19** — the weekly sweep's AArch64-only `"midVal" is null`; every key search over a boxed array - the
+  separators and the boxed leaf column - now treats a slot a grow has not published yet as sorting after every
+  key (`observableKeySearch`), replacing the trailing-separator trim; the middle case of the first open neighbour
+  no longer fails a search, but still under-reports
