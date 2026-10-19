@@ -490,7 +490,7 @@ class TemporalSortValueFunctionalTest implements EvitaTestSupport {
 		private static final int OWNER_COUNT = 600;
 		/** The owner added after the legacy catalog was upgraded. */
 		private static final int LATE_OWNER = 1_000;
-		/** The storage protocol of 2026.2, which the storage migration to protocol 8 starts from. */
+		/** The storage protocol of 2026.2, which the storage migration to protocol 7 starts from. */
 		private static final int RELEASED_PROTOCOL = 6;
 
 		/**
@@ -521,7 +521,7 @@ class TemporalSortValueFunctionalTest implements EvitaTestSupport {
 
 		/**
 		 * A catalog written by a release storing raw temporal sort values is upgraded by the storage migration to
-		 * protocol 8, which rewrites every such sort index - the paged ones of a sort-only attribute and of a compound
+		 * protocol 7, which rewrites every such sort index - the paged ones of a sort-only attribute and of a compound
 		 * in the global index, and the paged one of a reference attribute in a partition with many owners - in
 		 * normalized form. The load path corrects nothing, so the order every later load serves is the one the
 		 * rewritten parts hold, and no legacy leaf page may be left behind.

@@ -262,7 +262,7 @@ public final class OfflineCatalogImages {
 				final CatalogHeader<LogFileRecordReference, CollectionFileReference> header =
 					catalogParts.getCatalogHeader(catalogVersion);
 				published.putAll(header.collectionFileIndex());
-				Migration_2026_3.upgradeFromStorageProtocolVersion_6_to_8(
+				Migration_2026_3.upgradeFromStorageProtocolVersion_6_to_7(
 					header, catalogParts, service::createEntityCollectionPersistenceService, postUpgradeAction
 				);
 				return Boolean.TRUE;

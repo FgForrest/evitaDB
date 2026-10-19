@@ -55,7 +55,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Migration_2026_3 — attribute cardinality counter re-key (v6→v8)")
+@DisplayName("Migration_2026_3 — attribute cardinality counter re-key (v6→v7)")
 @Tag(STORAGE)
 @Tag(SERIALIZATION)
 class Migration_2026_3_Test {

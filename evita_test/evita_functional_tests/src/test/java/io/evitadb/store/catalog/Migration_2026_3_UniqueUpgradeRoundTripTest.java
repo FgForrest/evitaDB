@@ -119,9 +119,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * Drives the REAL v6→v8 upgrade of the standalone unique indexes end to end - the boot-time
+ * Drives the REAL v6→v7 upgrade of the standalone unique indexes end to end - the boot-time
  * `DefaultCatalogPersistenceService#verifyAndUpgradeStorageFormat` dispatch into
- * {@link Migration_2026_3#upgradeFromStorageProtocolVersion_6_to_8}, its collision pre-pass, its rewrite and its
+ * {@link Migration_2026_3#upgradeFromStorageProtocolVersion_6_to_7}, its collision pre-pass, its rewrite and its
  * flush - over a protocol-6 catalog built in code, with no binary fixture.
  *
  * {@link Migration_2026_3_UniqueRekeyTest} pins the re-key as a pure transform; it proves nothing about the
@@ -147,7 +147,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Migration_2026_3 — standalone unique indexes through the real v6→v8 upgrade")
+@DisplayName("Migration_2026_3 — standalone unique indexes through the real v6→v7 upgrade")
 @Tag(STORAGE)
 @Tag(INDEXING)
 @Tag(ATTRIBUTE)
@@ -372,7 +372,7 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 				final CatalogOffsetIndexStoragePartPersistenceService catalogParts =
 					service.getStoragePartPersistenceService(catalogVersion);
 				try {
-					Migration_2026_3.upgradeFromStorageProtocolVersion_6_to_8(
+					Migration_2026_3.upgradeFromStorageProtocolVersion_6_to_7(
 						catalogParts.getCatalogHeader(catalogVersion),
 						catalogParts,
 						collectionHeader -> {
@@ -681,7 +681,7 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Asserts that the upgrade left the catalog at storage protocol 8 and every standalone unique index holding only
+	 * Asserts that the upgrade left the catalog at storage protocol 7 and every standalone unique index holding only
 	 * the canonical form of its values - the rewrite itself, not merely a load that tolerates raw values.
 	 */
 	@Nonnull

@@ -1,7 +1,7 @@
 ---
 title: A single-owner partition of a filtering-only reference is a row of a per-reference registry, and an index object exists only while a partition has two or more owners
 date: 2026-10-12
-updated: 2026-10-14 22:34
+updated: 2026-10-19 16:28
 status: accepted
 kind: optimization
 issues: [1615]
@@ -42,10 +42,11 @@ partition's primary key. A partition gets an index object only while two or more
 arrival **promotes** the row to an object under the same primary key, and a departure that leaves one owner
 **demotes** it back. Every query route answers a row without an object.
 
-Storage protocol 8 is the only one this version writes or reads. A catalog written by 2026.2 (protocol 6) is upgraded
-once by `Migration_2026_3`, which now carries every 2026.3 storage change in one step from 6 to 8: the earlier re-keys,
+Storage protocol 7 is the only one this version writes or reads. A catalog written by 2026.2 (protocol 6) is upgraded
+once by `Migration_2026_3`, which now carries every 2026.3 storage change in one step from 6 to 7: the earlier re-keys,
 a rewrite of the owner sort indexes 2026.2 stored in another form or order, and the conversion of single-owner
-partitions into rows, published together. The development-only protocol 7 is refused. On the production retail corpus
+partitions into rows, published together. A catalog a development build wrote at an earlier form of protocol 7 is not
+told apart and must be recreated. On the production retail corpus
 this removes 317,446 index objects and 1,344 MB (19.5 %) of retained heap, answers an unnarrowed `referenceHaving` on
 `Product.media` about 48× faster, and the conversion takes 24 s.
 
@@ -118,16 +119,17 @@ development scaffolding and settled the migration.
 | 2026-10-06 | Reads: the row part of a body is a planning-time, content-keyed constant; no new formula class | invalidation cannot widen; nothing registry-keyed enters a cached tree | Read path |
 | 2026-10-07 | **Hybrid write path:** a singleton is written to its row only; an object exists only at ≥ 2 owners | fewer index operations than before on every singleton write | Write path |
 | 2026-10-07 | **No refusal of schema changes** between `FOR_FILTERING` and `FOR_FILTERING_AND_PARTITIONING`; a write or read that needs partitioning-only content from a row fails loudly | the change itself stays as cheap as today; only what cannot be answered fails | Indexing levels |
-| 2026-10-07 | One storage protocol (8) and **one migration 6 → 8** carrying every 2026.3 storage change; 7 is refused | no new header component; one publication | Storage protocol |
+| 2026-10-07 | One storage protocol (8) and **one migration 6 → 8** carrying every 2026.3 storage change; 7 is refused (protocol number superseded 2026-10-19) | no new header component; one publication | Storage protocol |
 | 2026-10-07 | `virtualPartitionCount` in `IndexCardinality` (Java, gRPC), counted by walking the rows | a counter would add transactional state to the write path for a statistic nobody polls | Observability |
 | 2026-10-08 | Removals on a row of a reference re-indexed for partitioning proceed row-only; a leftover object is retired at 1 → 0 | only additions need content a row cannot hold | Indexing levels |
-| 2026-10-11 | Protocol 7 is recognised by the **original bootstrap record**, refused before any migration runs | every migration step republishes the bootstrap record and would hide it | Storage protocol |
+| 2026-10-11 | Protocol 7 is recognised by the **original bootstrap record**, refused before any migration runs (superseded 2026-10-19) | every migration step republishes the bootstrap record and would hide it | Storage protocol |
 | 2026-10-11 | The conversion's test-only observer is **deleted**; the memory bound rests on the full-corpus measurement | no test-only seam in production code | Storage protocol |
-| 2026-10-11 | The load-time correction of raw temporal owner sort values **moves into the 6 → 8 migration** | legacy-data logic lives in migrations, not on the load path | Owner sort indexes |
+| 2026-10-11 | The load-time correction of raw temporal owner sort values **moves into the 6 → 7 migration** | legacy-data logic lives in migrations, not on the load path | Owner sort indexes |
 | 2026-10-11 | The isolation of the promotion population is a production executor flag | a test switch's `OFF` constant was carrying it | Invariant 4 |
 | 2026-10-11 | The migration also re-sorts localized owner sort indexes ordered by the bare collator (A); merged buckets stay merged (B) | 2026.2 catalogs would fail to load or serve the release's order | Owner sort indexes |
 | 2026-10-11 | The stale type-index primary-key bitmap of catalogs created by 2025.6 or earlier stays out of this work | pre-existing since #906; the repair is a recompute-from-data migration | Open follow-ups |
 | 2026-10-11 | The index-type raise defect (objects written under `FOR_FILTERING` trusted as partitioned) stays with #409 | maintainer | Open follow-ups |
+| 2026-10-19 | Protocols 7 and 8 **merged into 7**: one migration 6 → 7, and the protocol development builds wrote is no longer refused | every catalog a development build wrote at 7 can be rebuilt | Storage protocol |
 | 2026-10-12 | The owner sort index rewrite also re-sorts `Locale` elements ordered by their language tag, and `DateTimeRange` elements ordered at whole seconds; merged buckets stay merged | same failure, found by review and by a probe | Owner sort indexes |
 
 ### Settled without a fork
@@ -273,19 +275,19 @@ the mutator computed and what the row holds into a failed mutation, not a silent
     the measurement found the cost, was the hybrid per hot arm, so it would have been paid twice.
 - **Declined — the full hybrid without a foreign read at promotion.** See fork 2.
 
-### One storage protocol, every 2026.3 storage change in one migration from 6, protocol 7 refused
+### One storage protocol, every 2026.3 storage change in one migration from 6 to 7
 
-**Chosen** (maintainer, 2026-10-07; built in the cleanup):
+**Chosen** (maintainer, 2026-10-07; built in the cleanup; the protocol number settled on 2026-10-19):
 
-- `PersistenceService.STORAGE_PROTOCOL_VERSION` is 8, every new catalog is born 8 with rows, and nothing else is read.
-- `Migration_2026_3#upgradeFromStorageProtocolVersion_6_to_8` is the one step from the 2026.2 protocol. Per collection:
+- `PersistenceService.STORAGE_PROTOCOL_VERSION` is 7, every new catalog is born 7 with rows, and nothing else is read.
+- `Migration_2026_3#upgradeFromStorageProtocolVersion_6_to_7` is the one step from the 2026.2 protocol. Per collection:
   1. the cardinality-counter and owner-unique re-keys of `2026-09-21-cardinality-counter-normalized-keys` and
      `2026-10-08-unique-indexes-normalize-like-filter-indexes`, as before;
   2. the owner sort index rewrite (`#rewriteLegacyOwnerSortIndexes`, next section);
   3. the conversion, `VirtualReferencePartitionConversion#convertCollection`, which writes each row through
      `VirtualReferencePartitionWriter#demoteToRow` - the very demotion the write path runs, so the two cannot drift.
 
-  Then the catalog-level unique re-key and **one publication**: the catalog header of protocol 8 and one bootstrap
+  Then the catalog-level unique re-key and **one publication**: the catalog header of protocol 7 and one bootstrap
   record.
 - **The conversion runs last** because it reads only the entity indexes the published collection header lists, reads
   them with the parts the earlier steps rewrote, removes the ones it converts, and its final flush writes whatever those
@@ -297,20 +299,24 @@ the mutator computed and what the row holds into a failed mutation, not a silent
 - A protocol-6 catalog holds no registry row (2026.2 kept no registry), so a row met during conversion is a premise
   failure, not something to rebuild: it would mean the catalog was stamped with a protocol it was not written under.
 
-**Refusal of protocol 7.** It appeared on dev with `85d3b2c039` (2026-09-21); no tag contains that commit.
+**The protocol development builds wrote is not told apart.** Development builds have written protocol 7 since
+`85d3b2c039` (2026-09-21, #1620; no tag contains it): counters and owner unique indexes re-keyed, but owner sort indexes
+in the form and order of 2026.2 and every partition an index object. This version reads such a catalog as its own - no
+migration runs - and does not support it: it must be recreated (what it does is pinned by
+`Migration_2026_3_OwnerSortRewriteTest.UnsupportedDevelopmentCatalog`). A catalog of the protocol 8 that builds of this
+branch wrote before 2026-10-19 is refused as unknown.
 
-- `DefaultCatalogPersistenceService#refuseDevelopmentStorageProtocol` runs in both constructors, on the bootstrap record
-  read from the disk, **before any migration**. The rule is "the original bootstrap record is 7":
-  - every migration step republishes the bootstrap record under the current protocol, so a development build
-    interrupted between two steps left a header of 6 under a bootstrap of 7, which a check after the migration would no
-    longer see;
-  - "bootstrap ahead of header" is *not* the rule: a bootstrap of 8 over an older header is legitimate (a final build
-    that published one step and failed in the next).
-- The storage format dispatch behind `#verifyAndUpgradeStorageFormat` also refuses a header of 7, and its upgrade loop
-  gained a final branch refusing a protocol no migration starts from: without it, such a header re-read itself forever.
-- The refusal is an `ObsoleteStorageProtocolException` (not `CatalogRequiresUpgradeException`, so the engine's
-  upgrade-and-retry does not loop on it), and its message names a format, never damage: restore from a 2026.2 backup and
-  let this version upgrade it, or recreate the catalog.
+- The upgrade loop behind `#verifyAndUpgradeStorageFormat` refuses a protocol no migration starts from: without it, such
+  a header re-read itself forever. The refusal is an `ObsoleteStorageProtocolException` (not
+  `CatalogRequiresUpgradeException`, so the engine's upgrade-and-retry does not loop on it).
+- **Declined — protocol 8, refusing the 7 of development builds** (built 2026-10-11, removed 2026-10-19). Both
+  constructors checked the *original* bootstrap record before any migration - every migration step republishes the
+  record, so a development build interrupted between two steps had left a header of 6 under a record of 7 - and the
+  format dispatch refused a header of 7. **Rejected because:** the only catalogs it protected were the ones development
+  builds wrote between 2026-09-21 and this merge, and every one of them can be rebuilt (maintainer, 2026-10-19) - so
+  one release needs one protocol, not a second one kept only to refuse the first. **Revisit if** a development format
+  ever reaches catalogs that cannot be rebuilt: refusing by the original bootstrap record, before any migration, is the
+  shape that works.
 
 Why the protocol carries the representation:
 
@@ -339,14 +345,14 @@ once.
 - **Declined — convert on catalog load inside the engine.** **Rejected because:** of the maintainer's rule that logic
   tied to an old on-disk shape lives in `Migration_*` steps and BWC readers, which the deprecation process removes,
   never in production classes.
-- **Declined — migrate 7 → 8, keeping the chain 6 → 7 → 8.** **Rejected because:** it ships a migration for a format no
-  release wrote.
+- **Declined — a migration from the 7 of development builds, as a chain 6 → 7 → 8.** **Rejected because:** it ships a
+  migration for a format no release wrote.
 
 **Durability** (`.claude/rules/durability-model.md`): the migration only appends until its single publication.
 
 - Collection data stores are flushed through `DefaultEntityCollectionPersistenceService#flush`, which neither compacts
   nor retires a file. Removals are offset-index records.
-- New collection headers sit unflushed in the catalog data store until one bootstrap record publishes header 8.
+- New collection headers sit unflushed in the catalog data store until one bootstrap record publishes header 7.
 - A failure anywhere before that leaves the previous bootstrap record pointing at the protocol-6 header and the old
   collection headers, so the next start reruns the migration from the same published state. No file is deleted.
 - `#verifyAndUpgradeStorageFormat` owns every storage service it opens until it returns and closes them on failure
@@ -370,7 +376,7 @@ is the evidence for the bound.
 references to convert indexed `FOR_FILTERING_AND_PARTITIONING`, so every partition, single-owner ones included, is an
 object. At the end of the history the references become `FOR_FILTERING`; the leftover rule of the indexing-level section
 below keeps the objects. The header is stamped 6 offline, as `Migration_2026_3_UniqueUpgradeRoundTripTest` does, and the
-boot runs the real 6 → 8 step. Two inputs cover what that generator cannot: a collection both re-keyed and converted
+boot runs the real 6 → 7 step. Two inputs cover what that generator cannot: a collection both re-keyed and converted
 (and one also sort-rewritten), with failure and retry, because the choice of which flush publishes the collection is
 where a combined defect would hide; and an object holding only the content filtering-only indexing writes, the smaller
 footprint 2026.2 left.
@@ -386,7 +392,7 @@ footprint 2026.2 left.
   attributes and prices, which a 2026.2 filtering-only object never had. And the generator depends on the leftover rule:
   if #409 changes that rule, #409 needs another generator.
 
-### The 6 → 8 migration rewrites the owner sort indexes 2026.2 stored in another form or order
+### The 6 → 7 migration rewrites the owner sort indexes 2026.2 stored in another form or order
 
 An owner sort index - a sort-only attribute, every sortable attribute compound - written by 2026.2 can differ from what
 this version reads in four ways:
@@ -450,8 +456,8 @@ to rebuild the catalog from source data; the upgrade note on #1615 says so.
   - **Rejected because:** it repeated on every load until a record of the index changed, which nothing guaranteed, and
     it kept legacy-data logic in `SortIndex`, `InvertedIndex` and the loaders, against the maintainer's rule
     (2026-10-05) that a repair of a shape an older release wrote belongs in a `Migration_*` step or a BWC reader. Every
-    catalog that can hold such an index either passes 6 → 8 or is refused as protocol 7, so after the migration the load
-    path would serve no data.
+    catalog a release wrote that can hold such an index passes 6 → 7, so after the migration the load path would serve
+    no data; the one a development build wrote at 7 is not supported (see the storage protocol section).
 - **Declined — rewrite in the migration and keep the load-time correction as a safety net.** **Rejected because:** after
   the rewrite it has nothing to catch, and it keeps the permanent cost the rule forbids.
 - **Declined — check persisted pages with the current comparator** (the first shape of the rewrite). **Rejected
@@ -628,11 +634,11 @@ the Registry of Single-Owner Partitions") and `data-structures.md` ("Registry of
   `#bindReflectedReferences` (the effective schema the conversion classifies against).
 - **Buffer:** `core/buffer/DataStoreChanges#removeIndex` and `#popTrappedUpdates`.
 - **Cross-entity read:** `index/mutation/storagePart/InFlightEntityAccessorLookup` and `ForeignEntityStorageParts`.
-- **Store:** `evita_store_server/…/store/catalog/Migration_2026_3` (`#upgradeFromStorageProtocolVersion_6_to_8`,
-  `#rewriteLegacyOwnerSortIndexes`, `DEVELOPMENT_STORAGE_PROTOCOL_VERSION`) and `VirtualReferencePartitionConversion`,
-  with `index/attribute/LegacyOwnerSortIndexCorrection` on the engine side. All three are
-  `@Deprecated(since = "2026.3", forRemoval = true)` and go together. The protocol refusal lives in
-  `DefaultCatalogPersistenceService#refuseDevelopmentStorageProtocol` and `#verifyAndUpgradeStorageFormat`.
+- **Store:** `evita_store_server/…/store/catalog/Migration_2026_3` (`#upgradeFromStorageProtocolVersion_6_to_7`,
+  `#rewriteLegacyOwnerSortIndexes`) and `VirtualReferencePartitionConversion`, with
+  `index/attribute/LegacyOwnerSortIndexCorrection` on the engine side. All three are
+  `@Deprecated(since = "2026.3", forRemoval = true)` and go together. The refusal of a protocol no migration starts
+  from lives in `DefaultCatalogPersistenceService#verifyAndUpgradeStorageFormat`.
 - **API:** `evita_api/…/api/exception/ReferencePartitionReindexRequiredException` and
   `CollectionIndexCardinality.IndexCardinality#virtualPartitionCount`.
 
@@ -782,9 +788,9 @@ production probes counted work. All of it is gone. What replaced it:
   inherited reflected indexing; every sort type and chain; an object of filtering-only content; a protocol-6 image
   holding a registry row refused; no file left open by a failed migration; nothing published by a failed publication
   under low compaction thresholds; re-key + conversion and rewrite + re-key + conversion of one collection with failure
-  and retry; the WAL tail; intermediate flushes); `StorageProtocolRefusalTest` (bootstrap 7 over header 6 or 8, the same
-  through a restored archive, header 7 under another record, an unknown header refused promptly; the files
-  byte-identical after a refusal); `Migration_2026_3_OwnerSortRewriteTest` and `LegacyOwnerSortIndexCorrectionTest`, on
+  and retry; the WAL tail; intermediate flushes); `StorageProtocolRefusalTest` (a header of an unknown protocol refused
+  promptly, the files byte-identical after the refusal); `Migration_2026_3_OwnerSortRewriteTest` and
+  `LegacyOwnerSortIndexCorrectionTest`, on
   2026.2 pages hand-built by `LegacyOwnerSortIndexWriter` (temporal-only collections inline and paged, released
   collation, locale and `DateTimeRange` orders, a pair straddling a page boundary, stale twins refused, merged buckets
   left merged).
@@ -812,8 +818,7 @@ production probes counted work. All of it is gone. What replaced it:
 | the hybrid flipped off | `ReducedIndexMembershipCompletenessTest` forced: 35 of 35 red |
 | retiring the leftover object at 1 → 0 skipped | 8 of 22 red |
 | the promotion executor's registry gate dropped | 53 of 53 promotion cases red (invariant 4) |
-| no refusal of the original bootstrap 7 | bootstrap 7 over header 6 loads at protocol 8 |
-| neither the explicit branch for 7 nor the refusing branch at the end of the upgrade loop | a header of 7 never terminates (bounded by a timeout) |
+| the refusing branch at the end of the upgrade loop dropped (run 2026-10-19, after the merge into protocol 7) | a header of an unknown protocol passes the format check, and the open fails later on the bootstrap record with `StoredProtocolVersionNotSupportedException` instead of the refusal |
 | the owner sort rewrite skips `Locale` elements | paged: "Bulk-loaded keys must be strictly ascending and distinct"; inline: "expected: <[2, 1, 4, 3, 6, 5]> but was: <[1, 2, 3, 4, 5, 6]>" |
 | pages checked by today's order instead of the release's | valid pages refused: "… are not in ascending order" |
 | the conversion of one reference (`variants`) skipped | `EvitaBackwardCompatibilityTest` red on 2026.2: 3,164 single-owner partitions, 0 rows |
@@ -843,7 +848,7 @@ production probes counted work. All of it is gone. What replaced it:
     seven tests added;
   - Codex over the same range, which also covers the `DateTimeRange` re-sort (`7c0a1403c2`): GO, no findings.
 - **`EvitaBackwardCompatibilityTest`** converts the five released demo datasets (2025.1, 2025.3, 2025.6, 2026.1, 2026.2)
-  through 6 → 8 and checks, per dataset: the header on disk says 8; every filtering-only reference keeps one row per
+  through 6 → 7 and checks, per dataset: the header on disk says 7; every filtering-only reference keeps one row per
   single-owner partition and one object per shared partition, as the bodies derive them;
   `referenceHaving(ref, entityPrimaryKeyInSet(t))` answers the owners the bodies name for up to 50 targets per reference
   and scope; a restart runs no migration and answers the same. 2026.2: 49 filtering-only reference/scope pairs, 12,400
@@ -973,16 +978,15 @@ Limits to carry into any re-run:
 
 ### What it costs, and who notices
 
-- **A stored catalog is upgraded once,** on the first start of 2026.3, by the 6 → 8 migration. The conversion takes time
+- **A stored catalog is upgraded once,** on the first start of 2026.3, by the 6 → 7 migration. The conversion takes time
   proportional to its single-owner partitions (24 s for 317,446, C3). If the process stops, the catalog is left as it
   was and upgraded again. The upgrade note on #1615 says this.
-- **Catalogs written by development builds at protocol 7 stop loading** (since `85d3b2c039`, 2026-09-21), and so do
-  catalogs this branch wrote before the cleanup. The refusal says what to do. No upgrade note, since no release wrote 7.
-  A point-in-time backup made by a development build of this branch stamps the header's protocol, 8, so such an archive
-  restores as a current catalog; a full backup copies the 7 and is refused. A catalog of protocol 8 holding raw temporal
-  sort values - which only such a development build writes - is unsupported: it loads, serves the raw order and refuses
-  a write into the index with a `ClassCastException`
-  (`Migration_2026_3_OwnerSortRewriteTest.UnsupportedDevelopmentCatalog`).
+- **Catalogs written by development builds at protocol 7 are not told apart** (since `85d3b2c039`, 2026-09-21): they
+  load without a migration and are unsupported - their owner sort indexes keep the form and order of 2026.2 and their
+  single-owner partitions stay index objects. Recreate them. One holding raw temporal sort values loads, serves the raw
+  order and refuses a write into the index with a `ClassCastException`
+  (`Migration_2026_3_OwnerSortRewriteTest.UnsupportedDevelopmentCatalog`). Catalogs of protocol 8, which builds of this
+  branch wrote before 2026-10-19, are refused as an unknown protocol. No upgrade note, since no release wrote either.
 - **Changing a populated reference from `FOR_FILTERING` to `FOR_FILTERING_AND_PARTITIONING` now needs a reindex** before
   writes that add to its single-owner partitions, and before queries reading partition-local content from them. Both
   fail loudly with `ReferencePartitionReindexRequiredException`. Before, such a change was accepted and the existing
@@ -1055,7 +1059,7 @@ Found later in the cleanup and accepted by the maintainer on 2026-10-12:
   superset. `EvitaBackwardCompatibilityTest` pins the loss as a characterization for 2025.1, 2025.3 and 2025.6 and goes
   red the day the bitmap is repaired. Folding the repair in was declined as too large for a fold-in: catalogs written
   on by 2025.7 or later hold a mix of target and partition keys that cannot be told apart, so the bitmap must be
-  recomputed from the partitions themselves. The 6 → 8 migration is its natural home, should such a catalog appear.
+  recomputed from the partitions themselves. The 6 → 7 migration is its natural home, should such a catalog appear.
 - **`DateTimeRange` values 2026.2 merged below the second - documented, not repaired (maintainer, 2026-10-12).**
   `9a3e90c93d` (dev, not in 2026.2) compares `DateTimeRange` at milliseconds rather than whole seconds, with one
   constant for an open bound. Its *order* is now covered: a probe of 2026.2-shaped data through the 6 → 8 migration (at
@@ -1161,10 +1165,11 @@ Found later in the cleanup and accepted by the maintainer on 2026-10-12:
   root mutation discards the reservations with its collector.
 - **`2026-09-21-cardinality-counter-normalized-keys`** and
   **`2026-10-08-unique-indexes-normalize-like-filter-indexes`:** the two earlier steps of `Migration_2026_3`, which this
-  work turns from 6 → 7 into 6 → 8; decision B repeats the former's accepted migration hazard for owner sort indexes.
+  work extends with the owner sort rewrite and the conversion, keeping one step from 6 to 7; decision B repeats the
+  former's accepted migration hazard for owner sort indexes.
 - **`2026-09-04-millisecond-temporal-precision`:** this work made sort values uniform millisecond instants in every sort
   index (`df4a8e2606`), which the registry's value normalization relies on; the owner-sort half of that record's
-  load-time repair now lives in the 6 → 8 migration.
+  load-time repair now lives in the 6 → 7 migration.
 - **`2026-08-10-catalog-and-collection-statistics`:** the index cardinality statistic that `virtualPartitionCount`
   joins.
 - **Issues:** #1607 (multi-owner partitions stay objects, with their locale bitmaps; if they are ever derived, reuse the

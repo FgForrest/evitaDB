@@ -81,7 +81,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Migration_2026_3 — pre-existing damage audit (v6→v8)")
+@DisplayName("Migration_2026_3 — pre-existing damage audit (v6→v7)")
 @Tag(STORAGE)
 @Tag(INDEXING)
 @SuppressWarnings("removal") // the migration interface is @Deprecated(forRemoval); testing it is the point

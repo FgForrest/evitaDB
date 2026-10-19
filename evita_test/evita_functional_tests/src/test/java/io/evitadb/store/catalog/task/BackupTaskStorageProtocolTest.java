@@ -97,8 +97,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class BackupTaskStorageProtocolTest implements EvitaTestSupport {
 	/**
 	 * The protocol the fixture's pre-upgrade version is published under - the protocol of the previous release,
-	 * 2026.2, whose migration a restore must still run. Named rather than derived from the current protocol: the
-	 * protocol right below the current one was written by development builds only and is refused, not migrated.
+	 * 2026.2, whose migration a restore must still run.
 	 */
 	private static final int PREVIOUS_PROTOCOL = 6;
 	/**

@@ -906,7 +906,7 @@ public class InvertedIndex implements
 	 * is what makes the order a legacy writer sorted by recomputable on load.
 	 *
 	 * It is exactly `DateTimeRange#compareTo` of release 2026.2 and every older one, open bounds included, which is
-	 * why it is public: the storage migration to protocol 8 checks the persisted pages of an owner sort index with a
+	 * why it is public: the storage migration to protocol 7 checks the persisted pages of an owner sort index with a
 	 * `DateTimeRange` element by it as well (`LegacyOwnerSortIndexCorrection`).
 	 *
 	 * @param left  the range persisted first

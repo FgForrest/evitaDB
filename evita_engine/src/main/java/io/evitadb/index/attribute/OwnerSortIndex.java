@@ -177,8 +177,8 @@ public final class OwnerSortIndex extends SortIndex {
 	 * persisted leaf values are ALREADY normalized (the base normalizes before the value-side hooks), so the identity
 	 * normalizer stores them verbatim, and the comparator orders those normalized keys. Nothing here normalizes a raw
 	 * temporal value the pages of 2026.2 or an older release hold, nor re-sorts the localized texts or locales such a
-	 * release ordered by the bare collator or the language tag: the storage migration to protocol 8 rewrites every such
-	 * page before a catalog of that release loads. A catalog that reaches protocol 8 with such pages otherwise - only a
+	 * release ordered by the bare collator or the language tag: the storage migration to protocol 7 rewrites every such
+	 * page before a catalog of that release loads. A catalog that reaches protocol 7 with such pages otherwise - only a
 	 * development build of 2026.3 writes one - is not supported, and its values are read as they are stored.
 	 *
 	 * @param comparatorBase        one descriptor per element (a single entry for plain attributes)

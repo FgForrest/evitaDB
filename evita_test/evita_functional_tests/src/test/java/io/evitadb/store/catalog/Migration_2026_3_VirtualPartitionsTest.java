@@ -165,8 +165,8 @@ import static org.junit.jupiter.api.Assertions.fail;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 /**
- * Drives the storage protocol migration of a catalog written by evitaDB 2026.2 (storage protocol 6) to protocol 8 -
- * {@link Migration_2026_3#upgradeFromStorageProtocolVersion_6_to_8}, which re-keys the unique and cardinality indexes
+ * Drives the storage protocol migration of a catalog written by evitaDB 2026.2 (storage protocol 6) to protocol 7 -
+ * {@link Migration_2026_3#upgradeFromStorageProtocolVersion_6_to_7}, which re-keys the unique and cardinality indexes
  * and converts the single-owner reference partitions into registry rows through
  * {@link VirtualReferencePartitionConversion} - over catalogs built through the engine, with no binary fixture.
  *
@@ -208,7 +208,7 @@ import static org.junit.jupiter.api.Assumptions.assumeTrue;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Migration_2026_3 — single-owner partitions of 2026.2 converted into registry rows (v6→v8)")
+@DisplayName("Migration_2026_3 — single-owner partitions of 2026.2 converted into registry rows (v6→v7)")
 @Tag(STORAGE)
 @Tag(INDEXING)
 @Tag(REFERENCE)
@@ -688,7 +688,7 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 	class Publication {
 
 		/**
-		 * The migration is run on the published state as the engine wrote it (protocol 8, the index objects of the
+		 * The migration is run on the published state as the engine wrote it (protocol 7, the index objects of the
 		 * former indexing still there) because a catalog stamped with protocol 6 cannot be opened without the open
 		 * migrating it; the published state is therefore checked on the bytes - the bootstrap file and the last record
 		 * unchanged, every data file holding its former bytes as a prefix, no file added or removed - and on what an

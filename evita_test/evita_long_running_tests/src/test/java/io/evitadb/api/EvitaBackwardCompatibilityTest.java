@@ -162,11 +162,11 @@ public class EvitaBackwardCompatibilityTest implements EvitaTestSupport {
 	// supported (its backward-compatible serializer was removed). Such catalogs must be upgraded through an
 	// intermediate 2025.x release first; attempting a direct load now fails fast with StoredVersionNotSupportedException.
 	//
-	// 2026.2 is the one that exercises the storage-protocol 6 -> 8 upgrade: a catalog written by that release is
+	// 2026.2 is the one that exercises the storage-protocol 6 -> 7 upgrade: a catalog written by that release is
 	// already at protocol 6 (Migration_2026_2 took it there), so loading it here is the only coverage that actually
 	// runs Migration_2026_3 — which re-keys every persisted AttributeCardinalityIndex onto the canonical form its
 	// value tree keys on, whose storage part changed serialVersionUID in the same change, and converts the
-	// single-owner reference partitions into registry rows. The older fixtures reach protocol 8 too, but by chaining
+	// single-owner reference partitions into registry rows. The older fixtures reach protocol 7 too, but by chaining
 	// through every earlier step; this one starts adjacent to it.
 	@ParameterizedTest
 	@ValueSource(

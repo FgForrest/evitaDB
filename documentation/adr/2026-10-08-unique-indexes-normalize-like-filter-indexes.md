@@ -1,7 +1,7 @@
 ---
 title: Standalone unique indexes key every value exactly as the filter index does
 date: 2026-10-08
-updated: 2026-10-12 02:40
+updated: 2026-10-19 16:28
 status: accepted
 kind: fix
 issues: [1712, 1713]
@@ -173,11 +173,11 @@ decimal places (both `1.24`, `HALF_UP`). That is how the filter index and the fo
   the indexed decimal places. A catalog holding two such values for different owners refuses the upgrade with every
   pair named; fix the data on the release that wrote it.
 - **Catalogs written by a development build at protocol 7** skip `Migration_2026_3`; a raw key there is normalized on
-  load, and a colliding pair refuses to load. Re-index such a catalog. **No longer holds (2026-10-12 note):** #1615
-  made `Migration_2026_3` one step from protocol 6 to 8 and refuses a catalog of protocol 7 before any migration runs
-  (`DefaultCatalogPersistenceService#refuseDevelopmentStorageProtocol`); restore such a catalog from a 2026.2 backup or
-  recreate it - see [2026-10-12-single-owner-partitions-as-registry-rows](2026-10-12-single-owner-partitions-as-registry-rows.md).
-  The load-time detection of a colliding pair stays, for a part the migration did not reach.
+  load, and a colliding pair refuses to load. Re-index such a catalog. **Note (2026-10-19):** #1615 extended
+  `Migration_2026_3` but kept it one step from protocol 6 to 7, so such a catalog still skips it - and with it the owner
+  sort rewrite and the conversion of single-owner partitions #1615 added, which makes it unsupported: recreate it - see
+  [2026-10-12-single-owner-partitions-as-registry-rows](2026-10-12-single-owner-partitions-as-registry-rows.md). The
+  load-time detection of a colliding pair stays, for a part the migration did not reach.
 - **Stored `Currency[]` / `Locale[]` filter keys** written as strings by any earlier version are not re-keyed by the
   migration; those trees were already unusable for lookups, and a re-index repairs them.
 - The phantom left in a collection by a refused `uniqueGlobally` write (found on the earlier rework) is tracked

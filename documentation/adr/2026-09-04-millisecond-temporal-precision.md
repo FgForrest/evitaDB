@@ -191,7 +191,7 @@ REST and EvitaQL — at which point the guarantee would be real and worth its tw
   because the persisted form is internally consistent. Owner sort indexes differ: their emission is gated
   on the sort index's own dirty flag, which a load leaves clear, so the temporal correction reaches disk
   only when a record of that sort index changes (`LegacyTemporalSortValueCorrection`). **Changed on
-  2026-10-12 for owner sort indexes only:** that load-time correction is gone. The 6 → 8 storage migration
+  2026-10-12 for owner sort indexes only:** that load-time correction is gone. The 6 → 7 storage migration
   rewrites every owner sort index holding raw temporal values once (`Migration_2026_3#rewriteLegacyOwnerSortIndexes`),
   the class is now `LegacyOwnerSortIndexCorrection` and only the migration calls it, and owner sort indexes
   load what is stored. The same rewrite re-sorts owner sort indexes with a `DateTimeRange` element that 2026.2

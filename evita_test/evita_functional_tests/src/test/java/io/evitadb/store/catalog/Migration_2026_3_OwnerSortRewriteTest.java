@@ -104,11 +104,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * Drives the rewrite of the owner sort indexes release 2026.2 wrote that the storage migration to protocol 8
- * ({@link Migration_2026_3#upgradeFromStorageProtocolVersion_6_to_8}) performs, over catalogs whose only change in the
+ * Drives the rewrite of the owner sort indexes release 2026.2 wrote that the storage migration to protocol 7
+ * ({@link Migration_2026_3#upgradeFromStorageProtocolVersion_6_to_7}) performs, over catalogs whose only change in the
  * migration is that rewrite: no reference and no unique attribute, so nothing is re-keyed and nothing converted.
  * Without its own term in the publication decision such a collection would keep its old collection header, and
- * protocol 8 would be published over the legacy parts.
+ * protocol 7 would be published over the legacy parts.
  *
  * The catalog is written by the engine, its sort index replaced offline by the parts release 2026.2 wrote
  * ({@link LegacyOwnerSortImages}), and stamped with storage protocol 6 ({@link OfflineCatalogImages#stamp}); its next
@@ -126,12 +126,12 @@ import static org.junit.jupiter.api.Assertions.fail;
  * written. Compounds with a `Locale` element cover the language tag the release compared a locale by alone, whether
  * the compound is localized or not. Periods - `DateTimeRange` values, alone or in a compound - cover the whole seconds
  * and the open bounds derived from a zone offset the release compared a range by. The class also characterizes the
- * one input the migration does not reach: a catalog of protocol 8 holding raw temporal sort values, which only a
+ * one input the migration does not reach: a catalog of protocol 7 holding raw temporal sort values, which only a
  * development build of 2026.3 can have written.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Migration_2026_3 — owner sort indexes of 2026.2 are rewritten in the current form and order (v6→v8)")
+@DisplayName("Migration_2026_3 — owner sort indexes of 2026.2 are rewritten in the current form and order (v6→v7)")
 @Tag(STORAGE)
 @Tag(ATTRIBUTE)
 @Tag(ORDER)
@@ -782,13 +782,13 @@ class Migration_2026_3_OwnerSortRewriteTest implements EvitaTestSupport {
 	 * Characterization of an input the migration does not reach and the engine does not support.
 	 */
 	@Nested
-	@DisplayName("A development-branch catalog of protocol 8 holding raw temporal sort values")
+	@DisplayName("A development-branch catalog of protocol 7 holding raw temporal sort values")
 	class UnsupportedDevelopmentCatalog {
 
 		/**
-		 * Only a development build of 2026.3 can have written a catalog of protocol 8 whose sort index stores temporal
+		 * Only a development build of 2026.3 can have written a catalog of protocol 7 whose sort index stores temporal
 		 * values raw - directly, or through an archive of such a catalog, a point-in-time backup of which restores as
-		 * protocol 8 as well. Development-branch catalogs and archives are not supported: no migration runs for a
+		 * protocol 7 as well. Development-branch catalogs and archives are not supported: no migration runs for a
 		 * catalog of the current protocol, and nothing on the load path normalizes a raw value any more.
 		 *
 		 * This pins what such a catalog does, so that the policy is concrete rather than assumed:

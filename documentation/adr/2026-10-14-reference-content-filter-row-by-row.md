@@ -332,7 +332,7 @@ the container is compiled in (`ReferenceRowFilterCompilerTest#shouldAcceptInScop
 check).
 
 **Performance** (JMH `-bm avgt -f 1 -wi 5 -w 2s -i 10 -r 2s -prof gc`; one jar for both arms, the route set as the first
-statement of each fork; `-Xmx24g`, result cache off; the production retail catalog above, migrated to protocol 8 on open;
+statement of each fork; `-Xmx24g`, result cache off; the production retail catalog above, migrated by `Migration_2026_3` on open;
 5 rounds interleaved INDEX BODY | BODY INDEX; each run started quiet, mean busy 22.6-29.3 % of 24 CPUs; route identity
 proven in all 80 forks by a filter on a non-filterable reference attribute, refused by INDEX in 8/8 forks and answered by
 BODY in 8/8). Ratio = BODY / INDEX, geometric mean over 5 rounds (min-max):

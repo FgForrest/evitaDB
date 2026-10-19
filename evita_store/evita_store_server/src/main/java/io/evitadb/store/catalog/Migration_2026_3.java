@@ -118,7 +118,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
- * Upgrades a catalog from storage protocol version 6 to 8 by re-keying every persisted
+ * Upgrades a catalog from storage protocol version 6 to 7 by re-keying every persisted
  * {@link AttributeCardinalityIndex} onto the canonical form its sibling value tree keys on, every persisted
  * standalone unique index onto the key space of the filter index (see *Standalone unique indexes* below), by
  * rewriting every owner sort index that stores temporal values raw or holds localized texts in the order of the bare
@@ -247,11 +247,8 @@ import java.util.function.Function;
  * Everything above only appends to the data files: a collection data store is flushed into records and an offset
  * index fragment no published header names, and the new collection headers and the re-keyed catalog-level parts wait
  * unflushed in the catalog data store. The post-upgrade action publishes all of it at once - the catalog header of
- * protocol 8 and one bootstrap record. A failure before it leaves the published state of protocol 6 as it was, and the
+ * protocol 7 and one bootstrap record. A failure before it leaves the published state of protocol 6 as it was, and the
  * next start runs the whole migration again from it. No file is deleted on the way.
- *
- * Protocol 7 ({@link #DEVELOPMENT_STORAGE_PROTOCOL_VERSION}) lies between the two and is never reached: only
- * development builds of 2026.3 wrote it, and a catalog of it is refused before any migration runs.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @deprecated removable once no catalog older than 2026.3 can be encountered — at which point no catalog can
@@ -273,22 +270,13 @@ public interface Migration_2026_3 {
 	 * corrupted collection can hold hundreds; an unbounded list would push the remedy off the operator's screen.
 	 */
 	int MAX_REPORTED_ATTRIBUTES = 10;
-	/**
-	 * The storage protocol development builds of evitaDB 2026.3 wrote: catalogs whose standalone unique indexes and
-	 * cardinality counters were re-keyed, but whose single-owner reference partitions were still index objects - and
-	 * which may carry registry rows a test mode kept next to the objects. No release wrote it, so a catalog of it is
-	 * refused rather than upgraded, whether its bootstrap record or its catalog header carries the protocol (see
-	 * `DefaultCatalogPersistenceService#refuseDevelopmentStorageProtocol`).
-	 */
-	@Deprecated(since = "2026.3", forRemoval = true)
-	int DEVELOPMENT_STORAGE_PROTOCOL_VERSION = 7;
 
 	/**
 	 * Re-keys every persisted attribute cardinality index and standalone unique index of every collection, and every
 	 * global unique index of the catalog, onto its normalized form, rewrites every owner sort index storing temporal
 	 * values raw, localized texts in the order of the bare collator, locales in the order of their language tag or
 	 * date time ranges in the order of whole seconds, converts the single-owner reference partitions of every
-	 * collection into registry rows, and commits the catalog header at protocol version 8. Refuses the upgrade, before
+	 * collection into registry rows, and commits the catalog header at protocol version 7. Refuses the upgrade, before
 	 * writing anything, when two persisted unique values of different owners name one key - see
 	 * {@link #refuseUpgradeOverUniqueKeyCollisions}.
 	 *
@@ -302,7 +290,7 @@ public interface Migration_2026_3 {
 	 *                                                  instance on every call, closed by the upgrade
 	 * @param postUpgradeAction                         commits the rewritten catalog header
 	 */
-	static void upgradeFromStorageProtocolVersion_6_to_8(
+	static void upgradeFromStorageProtocolVersion_6_to_7(
 		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
 		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService,
 		@Nonnull Function<EntityCollectionFileHeader, DefaultEntityCollectionPersistenceService> entityCollectionPersistenceServiceFactory,
@@ -343,7 +331,7 @@ public interface Migration_2026_3 {
 	 * global unique index of the catalog, rewrites every owner sort index storing temporal values raw, localized texts
 	 * in the order of the bare collator, locales in the order of their language tag or date time ranges in the order of
 	 * whole seconds, converts the single-owner reference partitions of every collection into registry rows, and commits
-	 * the catalog header at protocol version 8 - the work of {@link #upgradeFromStorageProtocolVersion_6_to_8}, which
+	 * the catalog header at protocol version 7 - the work of {@link #upgradeFromStorageProtocolVersion_6_to_7}, which
 	 * owns the collection persistence services it opens.
 	 *
 	 * @param catalogHeader                 the catalog header being upgraded
@@ -500,7 +488,7 @@ public interface Migration_2026_3 {
 			// whether the steps running before the conversion left anything unflushed in the data store - each such
 			// step adds its own term here, the publication below does not need to know which of them wrote; a
 			// collection with nothing but sort indexes to rewrite must still publish its new collection header, or
-			// protocol 8 would be published over the legacy parts
+			// protocol 7 would be published over the legacy parts
 			final boolean changedBeforeConversion = rekeyed || rewrittenSortIndexes > 0;
 
 			// the parts written so far are still unflushed - the conversion reads them like any other part (the offset

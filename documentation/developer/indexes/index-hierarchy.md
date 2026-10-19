@@ -673,7 +673,7 @@ Nothing converts rows or index objects when the indexing of a reference changes:
 The registry is persisted as a `VirtualReferencePartitionIndexStoragePart` with leaf pages
 (`VirtualReferencePartitionIndexLeafPagePart`) and reloaded by `VirtualReferencePartitionLoader`; a
 registry without a stored root loads empty. A catalog stored by 2026.2 (storage protocol 6) holds every
-partition as an index object; the 6 → 8 storage migration `Migration_2026_3` converts the single-owner
+partition as an index object; the 6 → 7 storage migration `Migration_2026_3` converts the single-owner
 partitions of eligible references into rows once, through `VirtualReferencePartitionConversion`, which
 runs the same `VirtualReferencePartitionWriter#demoteToRow` the write path runs.
 

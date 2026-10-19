@@ -56,7 +56,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 /**
- * Drives the v6→v8 counter repair over real bytes, end to end: a storage part written the way 2026.2 wrote it,
+ * Drives the v6→v7 counter repair over real bytes, end to end: a storage part written the way 2026.2 wrote it,
  * through the `serialVersionUID` dispatch that routes it to the backward-compatible reader, through
  * {@link Migration_2026_3#rekeyCardinalities}, out through the CURRENT serializer, and back in again.
  *
@@ -73,7 +73,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
-@DisplayName("Migration_2026_3 — counter repair across a real storage round trip (v6→v8)")
+@DisplayName("Migration_2026_3 — counter repair across a real storage round trip (v6→v7)")
 @Tag(STORAGE)
 @Tag(INDEXING)
 @Tag(SERIALIZATION)

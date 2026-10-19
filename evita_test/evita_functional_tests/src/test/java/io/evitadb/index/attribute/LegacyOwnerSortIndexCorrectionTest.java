@@ -110,7 +110,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Verifies the rewrite the storage migration to protocol 8 performs on an owner sort index release 2026.2 or an older
+ * Verifies the rewrite the storage migration to protocol 7 performs on an owner sort index release 2026.2 or an older
  * one persisted - its parts written as the owner used to write them: with the raw `OffsetDateTime`, `LocalDateTime` and
  * `LocalTime` values, with a localized `String` element ordered by the bare collator, with a `Locale` element ordered
  * by its language tag alone, and with a `DateTimeRange` element ordered at whole seconds, an open bound derived from

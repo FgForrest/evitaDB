@@ -1,7 +1,7 @@
 ---
 title: One filter-index entry has one identity, and everything that describes an entry now uses it
 date: 2026-09-21
-updated: 2026-10-12 02:40
+updated: 2026-10-19 16:28
 status: accepted
 kind: fix
 issues: [1620]
@@ -59,8 +59,8 @@ entries must derive its notion of identity from the index, never from the raw va
 > consistent with `equals` — there the trigger is a locale carrying an **ill-formed** variant, which the language
 > tag silently drops. Same remedy: reindex.
 >
-> **Note (2026-10-12):** protocol 7 was never released. #1615 made `Migration_2026_3` one step from protocol 6 to 8,
-> and that is the upgrade this banner is about - see *Related work*.
+> **Note (2026-10-19):** #1615 added further 2026.3 storage changes to the same one step of `Migration_2026_3` from
+> protocol 6 to 7, which is the upgrade this banner is about - see *Related work*.
 
 ## Why
 
@@ -554,12 +554,11 @@ should be read as the trigger to supersede this record rather than to extend the
   `isCollisionProne` admits `OffsetDateTime` and the type is audited like the other three. The sibling record has
   been corrected to match.
 - [2026-10-12-single-owner-partitions-as-registry-rows](2026-10-12-single-owner-partitions-as-registry-rows.md) —
-  **`Migration_2026_3` is now 6 → 8.** Every 2026.3 storage change runs in that one step, published once: this
-  record's re-key first, then the owner sort index rewrite and the conversion of single-owner partitions. Protocol 7,
-  which only development builds wrote, is refused before any migration runs. What this record says of the 6 → 7
-  re-key holds of the same step inside 6 → 8. The owner sort index rewrite there re-sorts the localized compounds
-  2026.2 ordered by the bare collator and, like this record's *Consequences*, leaves a bucket that merged two
-  spellings merged.
+  **`Migration_2026_3` carries every 2026.3 storage change** in its one step 6 → 7, published once: this record's
+  re-key first, then the owner sort index rewrite and the conversion of single-owner partitions. A catalog a
+  development build wrote at protocol 7 before those were added is not told apart and must be recreated. The owner
+  sort index rewrite re-sorts the localized compounds 2026.2 ordered by the bare collator and, like this record's
+  *Consequences*, leaves a bucket that merged two spellings merged.
 
 ## Timeline
 

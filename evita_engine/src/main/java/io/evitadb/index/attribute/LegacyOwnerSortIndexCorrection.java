@@ -51,7 +51,7 @@ import java.util.function.Function;
 
 /**
  * Rewrites an owner {@link SortIndex} persisted by release 2026.2 or an older one into the form and the order the index
- * works with now. It is one step of the storage migration to protocol 8 (`Migration_2026_3`), which runs it for every
+ * works with now. It is one step of the storage migration to protocol 7 (`Migration_2026_3`), which runs it for every
  * owner sort index of a catalog written by such a release before it converts the collection's single-owner reference
  * partitions, so the load path never meets an owner sort index of such a catalog in its old form or order.
  *
@@ -131,7 +131,7 @@ import java.util.function.Function;
  *
  * Nothing on the load path normalizes a raw temporal sort value or re-sorts persisted values any more, except a paged
  * index whose every value is a `DateTimeRange`, which it re-sorts at whole seconds. A catalog that reaches the load
- * path at protocol 8 holding either - which only a development build of 2026.3 can have written, directly or through
+ * path at protocol 7 holding either - which only a development build of 2026.3 can have written, directly or through
  * an archive of such a catalog - is not supported: its values are read as they are stored.
  *
  * The class performs no IO: the migration reads the parts and drains the sink into the collection data store.

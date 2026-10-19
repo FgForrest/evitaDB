@@ -79,7 +79,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * Writes into a catalog on disk, with the engine stopped, the owner sort indexes a release up to 2026.2 wrote - every
  * temporal value stored as it was written, not in its millisecond form, and the values ordered by the comparator of
  * that release, a localized `String` element by the bare collator - and reads back what the storage migration to
- * protocol 8 made of them. The legacy parts are built by {@link LegacyOwnerSortIndexWriter}, a replica of the old
+ * protocol 7 made of them. The legacy parts are built by {@link LegacyOwnerSortIndexWriter}, a replica of the old
  * writer, over the records the current engine indexed: no binary fixture is involved.
  *
  * Each sort index replaced is remembered by its identity - the entity index holding it, the primary key of its root
