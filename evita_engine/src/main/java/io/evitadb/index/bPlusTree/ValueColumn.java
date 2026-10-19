@@ -133,7 +133,8 @@ sealed interface ValueColumn<M extends Comparable<M>>
 	 * two in either order, so it can read the **new** count against the **old**, shorter array — and an index taken
 	 * from that count then runs off the end. That reader exists: the management and statistics API walks leaves with
 	 * no session and no catalog-state guard, concurrently with a warm-up load growing the very columns it is
-	 * walking, and {@code recordCount()} is its entry point.
+	 * walking - the bucket tree's forward walk and its heap walk are its only entry points. Nothing else reads a
+	 * column without a happens-before edge to its writer, so nothing else takes this bound.
 	 *
 	 * ## Why one reading of this bound stays valid for the whole walk
 	 *
@@ -691,17 +692,9 @@ final class BoxedObjectColumn<M extends Comparable<M>> implements ValueColumn<M>
 	@Nonnull
 	@Override
 	public InsertionPosition findKeyPosition(@Nonnull M key, int from, int to, @Nullable Comparator<M> comparator) {
-		// `to` is the caller's `peek + 1`, read BEFORE this call; the key array is read HERE, after it. A reader
-		// sharing no happens-before edge with a warm-up writer can therefore pair a count raised by a grow with the
-		// array as it stood before that grow, and index past its end. Binding the search to the length of the very
-		// array it will index closes that whichever of the two the reader observed first - the same rule
-		// `observableLeafPeek` applies one level up, applied here because the array is not visible up there.
-		// On any consistent observer `keys.length >= peek + 1` holds and the bound returns `to` unchanged.
-		final M[] theKeys = this.keys;
-		final int bound = Math.min(to, theKeys.length);
 		return comparator == null
-			? computeInsertPositionOfObjInOrderedArray(key, theKeys, from, bound)
-			: computeInsertPositionOfObjInOrderedArray(key, theKeys, from, bound, comparator);
+			? computeInsertPositionOfObjInOrderedArray(key, this.keys, from, to)
+			: computeInsertPositionOfObjInOrderedArray(key, this.keys, from, to, comparator);
 	}
 
 	@Override

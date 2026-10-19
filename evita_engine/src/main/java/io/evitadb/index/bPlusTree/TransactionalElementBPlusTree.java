@@ -125,25 +125,21 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	}
 
 	/**
-	 * The last slot index a reader may address on the `values` array **it has already read**, given the `peek` it has
-	 * already read.
+	 * The last slot index the leaf heap walk may address on the `values` array **it has already read**, given the
+	 * `peek` it has already read.
 	 *
 	 * **This is a concurrency bound, not a consistency check.** For any caller sharing a happens-before edge with the
-	 * writer — the whole write path, every descent under a transaction, and the page-emission flush (thread-confined,
-	 * see {@code AbstractTransactionalBPlusTree.LeafPageHandleImpl}) — it returns `peek` unchanged and is a pure
-	 * no-op: {@link BPlusLeafTreeNode#ensurePhysicalLength} grows the array before any path advances `peek`, every
-	 * shrink lowers `peek` and leaves the array alone, and the commit-merge trim builds a **new** leaf rather than
-	 * shortening this one. The bound can never truncate a view that was consistent to begin with.
+	 * writer it returns `peek` unchanged: {@link BPlusLeafTreeNode#ensurePhysicalLength} grows the array before any
+	 * path advances `peek`, every shrink lowers `peek` and leaves the array alone, and the commit-merge trim builds a
+	 * **new** leaf rather than shortening this one.
 	 *
-	 * It exists for the genuinely cross-thread reader: a query thread walking price records out of a
-	 * {@link io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex} shares no transaction binding with a
-	 * warm-up thread growing the same leaf, so it can pair a freshly-read `peek` with the array that preceded the
-	 * growth which raised it.
-	 *
-	 * **This became necessary when the leaf array started following its content.** While every leaf was allocated at
-	 * the full block size and never replaced, the same torn read landed inside a fixed-length array and merely
-	 * returned a stale element; now it runs off the end. Only one array is asked here, unlike the long-keyed sibling:
-	 * this leaf holds no key array, deriving each key from its element through the extractor.
+	 * It exists for the one reader that has no such edge: {@code EntityCollection#describeIndex} takes no snapshot
+	 * and walks a live price index for its heap size from a management thread while a warm-up bulk load may be
+	 * growing the same leaf, so it can pair a freshly-read `peek` with the array that preceded the growth which
+	 * raised it - and a management read must return rather than throw. Point lookups, iterators and the verbose
+	 * rendering are never taken without a happens-before edge to the writer, so they take no bound. Only one array
+	 * is asked here, unlike the long-keyed sibling: this leaf holds no key array, deriving each key from its element
+	 * through the extractor.
 	 *
 	 * **Not to be applied to the `peek >= values.length` corruption guard** that precedes the boundary-key reads.
 	 * That check is not asking a capacity question — it is what turns a torn pair into a typed
@@ -155,9 +151,9 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 	 * A green concurrent sweep on an x86 box is **evidence about the box, not about this code**: x86's total store
 	 * order forbids the reordering this guards, while the Java memory model permits it regardless and AArch64 —
 	 * which evitaDB is also built for — reaches it in silicon. The deterministic half is what pins this instead:
-	 * {@code TransactionalElementBPlusTreeTest.TornLeafReaderBoundTest} builds the torn shape directly and gives each
-	 * guarded reader its own test, so no one of them can be proven by another throwing first. This mirrors
-	 * {@code TransactionalLongBPlusTree#observableLeafPeek} and {@code TransactionalBucketBPlusTree#observableLeafPeek}.
+	 * {@code TransactionalElementBPlusTreeTest.TornLeafReaderBoundTest} builds the torn shape directly and runs the
+	 * heap walk over it. This mirrors {@code TransactionalLongBPlusTree#observableLeafPeek} and
+	 * {@code TransactionalBucketBPlusTree#observableLeafPeek}.
 	 *
 	 * @param peek   the leaf's own last-occupied slot index, as the caller read it
 	 * @param values the leaf's value array, as the caller read it
@@ -1810,10 +1806,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 			sb.append(" ".repeat(level * indentSpaces));
 			final BPlusLeafTreeNode<E> current = currentState();
 			final E[] theValues = current.values;
-			// bounded like every other reader, and this one especially: a debugger or a log statement is exactly how a
-			// live tree gets read from a thread that never wrote to it, and an out-of-bounds thrown out of a toString
-			// would break the diagnostics being used to investigate
-			final int thePeek = observableLeafPeek(current.peek, theValues);
+			final int thePeek = current.peek;
 
 			for (int i = 0; i <= thePeek; i++) {
 				sb.append(this.keyExtractor.applyAsInt(theValues[i])).append(":").append(theValues[i]);
@@ -2006,11 +1999,8 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		@Nullable
 		public E getValue(int key) {
 			final BPlusLeafTreeNode<E> current = currentState();
-			// the array and the peek are two reads of two mutable fields; a cross-thread reader can hold a peek that
-			// belongs to a growth whose longer array it has not seen, so bound the search by what it actually holds
 			final E[] theValues = current.values;
-			final InsertionPosition insertionPosition =
-				searchKey(key, theValues, observableLeafPeek(current.peek, theValues));
+			final InsertionPosition insertionPosition = searchKey(key, theValues, current.peek);
 			return insertionPosition.alreadyPresent() ? theValues[insertionPosition.position()] : null;
 		}
 
@@ -2023,9 +2013,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		 */
 		public int getValueIndex(int key) {
 			final BPlusLeafTreeNode<E> current = currentState();
-			final E[] theValues = current.values;
-			final InsertionPosition insertionPosition =
-				searchKey(key, theValues, observableLeafPeek(current.peek, theValues));
+			final InsertionPosition insertionPosition = searchKey(key, current.values, current.peek);
 			return insertionPosition.alreadyPresent() ? insertionPosition.position() : -1;
 		}
 
@@ -2039,8 +2027,7 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		@Nonnull
 		public InsertionPosition findKeyPosition(int key) {
 			final BPlusLeafTreeNode<E> current = currentState();
-			final E[] theValues = current.values;
-			return searchKey(key, theValues, observableLeafPeek(current.peek, theValues));
+			return searchKey(key, current.values, current.peek);
 		}
 
 		@Override
@@ -2476,12 +2463,8 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		protected void loadCurrentLeaf() {
 			//noinspection unchecked
 			final BPlusLeafTreeNode<E> leaf = (BPlusLeafTreeNode<E>) currentLeafNode();
-			// two independent accessors, each resolving the leaf's state for itself, so the peek can belong to a later
-			// growth than the array cached beside it. Bounded once per leaf — never per element, since the iterators
-			// index these two fields directly
-			final E[] values = leaf.getValues();
-			this.leafValues = values;
-			this.leafPeek = observableLeafPeek(leaf.getPeek(), values);
+			this.leafValues = leaf.getValues();
+			this.leafPeek = leaf.getPeek();
 		}
 	}
 
@@ -2532,12 +2515,8 @@ public class TransactionalElementBPlusTree<E> extends AbstractIntKeyedBPlusTree 
 		protected void loadCurrentLeaf() {
 			//noinspection unchecked
 			final BPlusLeafTreeNode<E> leaf = (BPlusLeafTreeNode<E>) currentLeafNode();
-			// two independent accessors, each resolving the leaf's state for itself, so the peek can belong to a later
-			// growth than the array cached beside it. Bounded once per leaf — never per element, since the iterators
-			// index these two fields directly
-			final E[] values = leaf.getValues();
-			this.leafValues = values;
-			this.leafPeek = observableLeafPeek(leaf.getPeek(), values);
+			this.leafValues = leaf.getValues();
+			this.leafPeek = leaf.getPeek();
 		}
 	}
 

@@ -3169,10 +3169,10 @@ class TransactionalIntToLongBPlusTreeTest {
 		@Test
 		@DisplayName("the consistency report names a leaf whose live run reaches past its arrays")
 		void shouldReportALeafWhoseLiveRunRunsPastItsArrays() {
-			// `keys.length == values.length >= peek + 1` is what the whole `observableLeafPeek` family, every
-			// `ensurePhysicalLength` call site and the split's logical `end` argument rest on - and nothing else in the
-			// verifier looks at an array length at all. A tree that broke it passed every other check and then threw,
-			// or silently truncated a read, from an unrelated path much later
+			// `keys.length == values.length >= peek + 1` is what every leaf reader, every `ensurePhysicalLength` call
+			// site and the split's logical `end` argument rest on - and nothing else in the verifier looks at an array
+			// length at all. It has to be checked before the verifier's key iterators run, because they index the leaf
+			// by its `peek` and would run off exactly the array the report is meant to name
 			final TransactionalIntToLongBPlusTree tree = treeWith(4);
 			final BPlusLeafTreeNode leaf = (BPlusLeafTreeNode) tree.getRoot();
 			assertEquals(4, leaf.getKeys().length, "the fixture needs a leaf sized exactly to its load");
@@ -3189,141 +3189,6 @@ class TransactionalIntToLongBPlusTreeTest {
 				report.report().contains("key array holds 4 slots"),
 				"the report must name the array that cannot cover the leaf's live run, was:\n" + report.report()
 			);
-		}
-	}
-
-	@Nested
-	@DisplayName("Reader bounds when a leaf peek runs ahead of its arrays")
-	class TornLeafReaderBoundTest {
-
-		/**
-		 * Builds a single-leaf tree left in exactly the shape an unsynchronized reader can observe: a `peek` that
-		 * belongs to a growth whose longer arrays are not visible beside it.
-		 *
-		 * A content-sized leaf sizes both arrays to its load, so a leaf holding four entries really does own a
-		 * four-slot array and a read one slot past it really does run off the end — which is what makes the bound an
-		 * assertion rather than a formality. Before the leaf arrays followed their content this shape was
-		 * unreachable: every leaf carried a full-block array, so the same torn read landed inside it and merely
-		 * returned a stale element.
-		 *
-		 * @return a tree whose single leaf holds four live entries under a peek of four
-		 */
-		@Nonnull
-		private TransactionalIntToLongBPlusTree tornSingleLeafTree() {
-			final TransactionalIntToLongBPlusTree tree = new TransactionalIntToLongBPlusTree(16, 7, 15, 7);
-			for (int key = 0; key < 4; key++) {
-				tree.insert(key, (long) key * 10 + 1);
-			}
-
-			final BPlusLeafTreeNode leaf = (BPlusLeafTreeNode) tree.getRoot();
-			assertEquals(4, leaf.getKeys().length, "the fixture needs a leaf sized exactly to its load");
-			assertEquals(3, leaf.getPeek(), "the fixture needs peek at the last occupied slot");
-
-			leaf.setPeek(leaf.getPeek() + 1);
-			assertEquals(4, leaf.getPeek(), "the fixture must leave peek one slot past the arrays");
-			assertEquals(4, leaf.getKeys().length, "the arrays must stay at the length they were");
-			return tree;
-		}
-
-		@Test
-		@DisplayName("point lookup stays inside the arrays it read")
-		void shouldBoundPointLookupWhenPeekRunsAheadOfTheArrays() {
-			final TransactionalIntToLongBPlusTree tree = tornSingleLeafTree();
-			for (int key = 0; key < 4; key++) {
-				assertEquals(
-					(long) key * 10 + 1, tree.searchOrDefault(key, -1L),
-					"point lookup must still find every live key, key " + key
-				);
-			}
-			// past the last key, so an unbounded binary search walks up into the slot the arrays do not carry
-			assertEquals(
-				-1L, tree.searchOrDefault(9, -1L),
-				"a lookup past the end must miss rather than run off the array"
-			);
-		}
-
-		@Test
-		@DisplayName("forward iteration stays inside the arrays it read")
-		void shouldBoundForwardIterationWhenPeekRunsAheadOfTheArrays() {
-			final PrimitiveIterator.OfLong it = tornSingleLeafTree().valueIterator();
-			final StringBuilder forward = new StringBuilder(32);
-			while (it.hasNext()) {
-				forward.append(it.nextLong()).append(' ');
-			}
-			assertEquals("1 11 21 31 ", forward.toString(), "the forward walk must stop at the live run");
-		}
-
-		@Test
-		@DisplayName("reverse iteration stays inside the arrays it read")
-		void shouldBoundReverseIterationWhenPeekRunsAheadOfTheArrays() {
-			final PrimitiveIterator.OfLong it = tornSingleLeafTree().valueReverseIterator();
-			final StringBuilder reverse = new StringBuilder(32);
-			while (it.hasNext()) {
-				reverse.append(it.nextLong()).append(' ');
-			}
-			assertEquals("31 21 11 1 ", reverse.toString(), "the reverse walk must stop at the live run");
-		}
-
-		@Test
-		@DisplayName("the verbose rendering stays inside the arrays it read")
-		void shouldBoundTheVerboseRenderingWhenPeekRunsAheadOfTheArrays() {
-			assertEquals(
-				"0:1, 1:11, 2:21, 3:31", tornSingleLeafTree().toString().trim(),
-				"the rendering must stop at the live run rather than index past the arrays"
-			);
-		}
-
-		@Test
-		@DisplayName("a forward iterator opened from a key stays inside the arrays it read")
-		void shouldBoundKeyedForwardIterationWhenPeekRunsAheadOfTheArrays() {
-			// the keyed constructors are the one reader that cannot delegate to the guarded `loadCurrentLeaf()`:
-			// Java needs their start position before the `super(...)` that runs it. Unbounded they would search
-			// a `getKeys()` over a range of 5 on an array of 4 - `Arrays.binarySearch` range-checks that and throws
-			// before it compares anything
-			final PrimitiveIterator.OfLong it = tornSingleLeafTree().greaterOrEqualValueIterator(2);
-			final StringBuilder forward = new StringBuilder(32);
-			while (it.hasNext()) {
-				forward.append(it.nextLong()).append(' ');
-			}
-			assertEquals(
-				"21 31 ", forward.toString(),
-				"a keyed forward walk must start at its key and stop at the live run"
-			);
-		}
-
-		@Test
-		@DisplayName("a forward iterator opened past the last key yields nothing rather than running off the arrays")
-		void shouldBoundKeyedForwardIterationPastTheLastKey() {
-			// the key lands in the phantom slot the raised peek claims and the arrays do not carry
-			final PrimitiveIterator.OfLong it = tornSingleLeafTree().greaterOrEqualValueIterator(9);
-			assertFalse(it.hasNext(), "no live key is greater than 9, so the walk must be empty");
-		}
-
-		@Test
-		@DisplayName("a reverse iterator opened from a key stays inside the arrays it read")
-		void shouldBoundKeyedReverseIterationWhenPeekRunsAheadOfTheArrays() {
-			final PrimitiveIterator.OfLong it = tornSingleLeafTree().lesserOrEqualValueIterator(9);
-			final StringBuilder reverse = new StringBuilder(32);
-			while (it.hasNext()) {
-				reverse.append(it.nextLong()).append(' ');
-			}
-			assertEquals(
-				"31 21 11 1 ", reverse.toString(),
-				"a keyed reverse walk opened past the end must fall back onto the live run"
-			);
-		}
-
-		@Test
-		@DisplayName("a keyed entry iterator stays inside the arrays it read")
-		void shouldBoundKeyedEntryIterationWhenPeekRunsAheadOfTheArrays() {
-			// the entry iterators reach the same two constructors through a different subclass, so they are asserted
-			// separately rather than assumed to follow from the value iterators
-			final Iterator<Entry> it = tornSingleLeafTree().greaterOrEqualEntryIterator(3);
-			assertTrue(it.hasNext(), "the last live key must still be reachable");
-			final Entry entry = it.next();
-			assertEquals(3, entry.key(), "the keyed entry walk must start at its key");
-			assertEquals(31L, entry.value());
-			assertFalse(it.hasNext(), "and must stop at the live run");
 		}
 	}
 
