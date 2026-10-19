@@ -249,7 +249,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 				)
 			)
 		);
-		final String urlAttribute = (String) getAttributesByPks(evita, new Integer[] {entity.getPrimaryKey()}, ATTRIBUTE_URL, Locale.ENGLISH).get(0);
+		final String urlAttribute = (String) getAttributesByPks(evita, new Integer[] {entity.getPrimaryKey()}, ATTRIBUTE_URL, Locale.ENGLISH).getFirst();
 
 		tester.test(TEST_CATALOG)
 			.urlPathSuffix("/entity/list")

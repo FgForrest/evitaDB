@@ -131,8 +131,8 @@ class ReferencedTypeEntityIndexVirtualPartitionTest {
 			.map(VirtualReferencePartitionIndexStoragePart.class::cast)
 			.toList();
 		assertEquals(1, roots.size());
-		assertEquals(INDEX_PK, roots.get(0).getEntityIndexPrimaryKey());
-		assertEquals(REFERENCE_NAME, roots.get(0).getReferenceName());
+		assertEquals(INDEX_PK, roots.getFirst().getEntityIndexPrimaryKey());
+		assertEquals(REFERENCE_NAME, roots.getFirst().getReferenceName());
 	}
 
 	@Test

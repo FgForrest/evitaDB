@@ -1273,7 +1273,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				);
 
 				assertEquals(1, result.getRecordData().size());
-				assertTrue(result.getRecordData().get(0).getReferences(Entities.BRAND).isEmpty());
+				assertTrue(result.getRecordData().getFirst().getReferences(Entities.BRAND).isEmpty());
 				assertNull(result.getExtraResult(FacetSummary.class).getFacetGroupStatistics(Entities.BRAND));
 				return null;
 			}
@@ -9775,7 +9775,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						require(page(1, 1))
 					),
 					EntityReference.class
-				).getRecordData().get(0).getPrimaryKeyOrThrowException();
+				).getRecordData().getFirst().getPrimaryKeyOrThrowException();
 				final Set<Integer> subtree = session.query(
 						query(
 							collection(Entities.CATEGORY),
@@ -10841,7 +10841,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				);
 
 				assertEquals(1, result.getRecordData().size());
-				assertTrue(result.getRecordData().get(0).getReferences(Entities.BRAND).isEmpty());
+				assertTrue(result.getRecordData().getFirst().getReferences(Entities.BRAND).isEmpty());
 				assertNull(result.getExtraResult(ReferenceSummary.class).getReferenceGroupStatistics(Entities.BRAND));
 				return null;
 			}

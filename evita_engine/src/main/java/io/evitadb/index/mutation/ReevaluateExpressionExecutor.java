@@ -138,7 +138,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				return new BaseBitmap();
 			}
 			if (this.groups.size() == 1) {
-				return this.groups.get(0).ownerPKs();
+				return this.groups.getFirst().ownerPKs();
 			}
 			final PersistentRoaringBitmap[] bitmaps = new PersistentRoaringBitmap[this.groups.size()];
 			for (int i = 0; i < this.groups.size(); i++) {

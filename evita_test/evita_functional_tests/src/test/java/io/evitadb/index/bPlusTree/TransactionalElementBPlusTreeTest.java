@@ -518,8 +518,8 @@ class TransactionalElementBPlusTreeTest {
 			while (it.hasNext()) {
 				seen.add(it.next().internalPriceId());
 			}
-			assertEquals(16, seen.get(0));
-			assertEquals(38, seen.get(seen.size() - 1));
+			assertEquals(16, seen.getFirst());
+			assertEquals(38, seen.getLast());
 			assertEquals(12, seen.size());
 		}
 
@@ -536,8 +536,8 @@ class TransactionalElementBPlusTreeTest {
 			while (it.hasNext()) {
 				seen.add(it.next().internalPriceId());
 			}
-			assertEquals(14, seen.get(0));
-			assertEquals(0, seen.get(seen.size() - 1));
+			assertEquals(14, seen.getFirst());
+			assertEquals(0, seen.getLast());
 			assertEquals(8, seen.size());
 		}
 	}

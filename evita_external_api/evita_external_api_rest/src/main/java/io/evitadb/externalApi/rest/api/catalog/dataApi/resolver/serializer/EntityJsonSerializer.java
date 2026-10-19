@@ -472,7 +472,7 @@ public class EntityJsonSerializer {
 			if (groupedReferences.getData().isEmpty()) {
 				rootNode.putIfAbsent(referencePropertyName, null);
 			} else {
-				rootNode.putIfAbsent(referencePropertyName, serializeSingleReference(ctx, entity.getLocales(), groupedReferences.getData().get(0), entitySchema));
+				rootNode.putIfAbsent(referencePropertyName, serializeSingleReference(ctx, entity.getLocales(), groupedReferences.getData().getFirst(), entitySchema));
 			}
 		} else {
 			// the switch needs no `default` branch - `DataChunk` is sealed and all three permitted

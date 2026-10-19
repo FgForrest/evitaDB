@@ -352,7 +352,7 @@ class GrpcYearBoundaryTemporalValueFunctionalTest {
 			)
 		);
 		assertEquals(1, found.size());
-		assertEquals(19, found.get(0).getPrimaryKey());
+		assertEquals(19, found.getFirst().getPrimaryKey());
 	}
 
 	@Test
@@ -376,7 +376,7 @@ class GrpcYearBoundaryTemporalValueFunctionalTest {
 			)
 		);
 		assertEquals(1, found.size());
-		assertEquals(BASELINE_PK, found.get(0).getPrimaryKey());
+		assertEquals(BASELINE_PK, found.getFirst().getPrimaryKey());
 	}
 
 	@Test

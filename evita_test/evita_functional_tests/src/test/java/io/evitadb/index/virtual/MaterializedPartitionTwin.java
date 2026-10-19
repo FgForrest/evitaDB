@@ -937,7 +937,7 @@ public final class MaterializedPartitionTwin {
 			)
 		).getRecordData();
 		assertEquals(1, entities.size(), "`" + entityType + "` " + primaryKey + " must exist");
-		return entities.get(0).openForWrite();
+		return entities.getFirst().openForWrite();
 	}
 
 	/**

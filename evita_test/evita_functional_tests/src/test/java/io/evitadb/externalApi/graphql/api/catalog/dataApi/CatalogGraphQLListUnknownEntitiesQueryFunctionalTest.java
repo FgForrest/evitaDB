@@ -722,7 +722,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 				);
 
 				assertEquals(1, categories.size());
-				final SealedEntity c = categories.get(0);
+				final SealedEntity c = categories.getFirst();
 				// check that it has at least 2 parents
 				assertTrue(c.getParentEntity().isPresent());
 				assertTrue(c.getParentEntity().get().getParentEntity().isPresent());
@@ -780,7 +780,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 				);
 
 				assertEquals(1, categories.size());
-				final SealedEntity c = categories.get(0);
+				final SealedEntity c = categories.getFirst();
 				// check that it has at least 2 parents
 				assertTrue(c.getParentEntity().isPresent());
 				assertTrue(c.getParentEntity().get().getParentEntity().isPresent());
@@ -840,7 +840,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 				);
 
 				assertEquals(1, categories.size());
-				final SealedEntity c = categories.get(0);
+				final SealedEntity c = categories.getFirst();
 				// check that it has only one direct parent
 				assertTrue(c.getParentEntity().isPresent());
 				assertTrue(c.getParentEntity().get().getParentEntity().isEmpty());

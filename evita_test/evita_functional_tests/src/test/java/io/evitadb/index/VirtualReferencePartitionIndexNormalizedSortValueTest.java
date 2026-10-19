@@ -497,7 +497,7 @@ class VirtualReferencePartitionIndexNormalizedSortValueTest {
 	private static VirtualReferencePartitionIndexStoragePart singleInlineRoot(@Nonnull List<StoragePart> parts) {
 		assertEquals(1, parts.size(), "A small index is flushed as its root alone: " + parts);
 		final VirtualReferencePartitionIndexStoragePart root =
-			assertInstanceOf(VirtualReferencePartitionIndexStoragePart.class, parts.get(0));
+			assertInstanceOf(VirtualReferencePartitionIndexStoragePart.class, parts.getFirst());
 		assertFalse(root.isPaged(), "A small index keeps its entries inline");
 		return root;
 	}
@@ -579,7 +579,7 @@ class VirtualReferencePartitionIndexNormalizedSortValueTest {
 		@Test
 		@DisplayName("a BigDecimal with more digits than the decimal places joins the block of its rounded value")
 		void shouldRoundBigDecimalAsItsAttributeValueIsRounded() {
-			final SortKeyFixture sortKey = FIXTURES.get(0).sortKey();
+			final SortKeyFixture sortKey = FIXTURES.getFirst().sortKey();
 			assertEquals(WEIGHT, sortKey.key());
 			final VirtualReferencePartitionIndex index = declared(sortKey);
 			final Serializable roundedUp = normalizedBySortIndex(sortKey, new BigDecimal("1.235"));

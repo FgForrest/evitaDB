@@ -363,7 +363,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 	@DisplayName("Should return price for single entity")
 	void shouldReturnPriceForSingleEntity(Evita evita, List<SealedEntity> originalProductEntities, RestTester tester) {
 		final int pk = findEntityWithPricePk(originalProductEntities);
-		final String code = (String) getAttributesByPks(evita, new Integer[]{pk}, ATTRIBUTE_CODE).get(0);
+		final String code = (String) getAttributesByPks(evita, new Integer[]{pk}, ATTRIBUTE_CODE).getFirst();
 
 		final EntityClassifier entity = getEntity(
 			evita,
@@ -432,7 +432,7 @@ class CatalogRestGetUnknownEntityQueryFunctionalTest extends CatalogRestDataEndp
 			originalProductEntities,
 			it -> it.getAssociatedData(ASSOCIATED_DATA_LABELS, Locale.ENGLISH) != null
 		);
-		final String code = (String) getAttributesByPks(evita, new Integer[]{pk}, ATTRIBUTE_CODE).get(0);
+		final String code = (String) getAttributesByPks(evita, new Integer[]{pk}, ATTRIBUTE_CODE).getFirst();
 
 		final EntityClassifier entity = getEntity(
 			evita,

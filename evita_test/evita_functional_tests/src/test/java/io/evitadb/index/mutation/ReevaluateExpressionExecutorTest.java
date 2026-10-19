@@ -236,7 +236,7 @@ class ReevaluateExpressionExecutorTest {
 			);
 
 			assertEquals(1, entries.size());
-			assertNull(entries.get(0).groupPK());
+			assertNull(entries.getFirst().groupPK());
 		}
 	}
 
@@ -1322,7 +1322,7 @@ class ReevaluateExpressionExecutorTest {
 				1, matches.size(),
 				"Exactly one ReferenceHaving for REFERENCE_NAME (the inner, cross-scope one) must exist"
 			);
-			final ReferenceHaving inner = matches.get(0);
+			final ReferenceHaving inner = matches.getFirst();
 			final FilterConstraint[] innerChildren = inner.getChildren();
 			assertEquals(
 				1, innerChildren.length,

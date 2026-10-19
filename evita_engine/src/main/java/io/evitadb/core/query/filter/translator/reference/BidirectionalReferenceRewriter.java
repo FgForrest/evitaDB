@@ -1052,8 +1052,8 @@ public class BidirectionalReferenceRewriter {
 		final Formula[] result = new Formula[candidateOwners.length];
 		for (int i = 0; i < candidateOwners.length; i++) {
 			final Formula materializedRows = createMaterializedRowsFormula(
-				filterByVisitor, targetEntitySchema, counterpart, processingScope, attributeConstraint,
-				negatedAttribute, attributeSchemaAccessor, materializedPerOwner.get(i)
+				filterByVisitor, targetEntitySchema, counterpart, attributeConstraint, negatedAttribute,
+				attributeSchemaAccessor, materializedPerOwner.get(i)
 			);
 			final Formula virtualRows = createVirtualRowsFormula(
 				virtualPerOwner.get(i), attributeConstraint == null, negatedAttribute, matchingVirtualPartitions
@@ -1077,7 +1077,6 @@ public class BidirectionalReferenceRewriter {
 	 * @param filterByVisitor         the visitor translating the constraint
 	 * @param targetEntitySchema      the schema of the entity the owner reference points at
 	 * @param counterpart             the reference on the other end of the pair
-	 * @param processingScope         the processing scope the `referenceHaving` is translated in
 	 * @param attributeConstraint     the attribute constraint, `null` when there is none
 	 * @param negatedAttribute        TRUE to complement the translated constraint against the owner's own rows
 	 * @param attributeSchemaAccessor resolves the attributes of the counterpart
@@ -1089,7 +1088,6 @@ public class BidirectionalReferenceRewriter {
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull EntitySchemaContract targetEntitySchema,
 		@Nonnull ReferenceSchemaContract counterpart,
-		@Nonnull ProcessingScope<?> processingScope,
 		@Nullable FilterConstraint attributeConstraint,
 		boolean negatedAttribute,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,

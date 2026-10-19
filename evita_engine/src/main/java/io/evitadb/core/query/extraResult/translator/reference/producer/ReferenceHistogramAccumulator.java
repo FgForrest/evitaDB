@@ -178,7 +178,7 @@ final class ReferenceHistogramAccumulator {
 			if (requests.isEmpty()) {
 				continue;
 			}
-			final ReferenceSchemaContract referenceSchema = requests.get(0).referenceSchema();
+			final ReferenceSchemaContract referenceSchema = requests.getFirst().referenceSchema();
 			final Collection<T> existing = result.getOrDefault(referenceName, List.of());
 			final NestedContextSorter facetSorter = facetSorterByReferenceName.apply(referenceName);
 			final Function<int[], EntityClassifier[]> groupEntityFetcher = groupEntityFetcherByReferenceName.apply(referenceName);

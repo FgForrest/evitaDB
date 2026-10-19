@@ -266,7 +266,7 @@ class ExportS3ServiceTest {
 		final PaginatedList<FileForFetch> files = this.exportService.listFilesToFetch(1, Integer.MAX_VALUE, Set.of());
 		assertEquals(1, files.getTotalRecordCount());
 
-		final FileForFetch fileForFetch = files.getData().get(0);
+		final FileForFetch fileForFetch = files.getData().getFirst();
 		assertEquals("testFile.txt", fileForFetch.name());
 		assertEquals("With description ...", fileForFetch.description());
 		assertEquals("text/plain", fileForFetch.contentType());
@@ -494,7 +494,7 @@ class ExportS3ServiceTest {
 
 		assertEquals(1, files.getTotalRecordCount());
 		// Name may be sanitized by FileUtils.convertToSupportedName()
-		assertNotNull(files.getData().get(0).name());
+		assertNotNull(files.getData().getFirst().name());
 	}
 
 	@Test
@@ -754,7 +754,7 @@ class ExportS3ServiceTest {
 
 		final PaginatedList<FileForFetch> files = this.exportService.listFilesToFetch(1, 10, Set.of());
 		assertEquals(
-			"newest.txt", files.getData().get(0).name(),
+			"newest.txt", files.getData().getFirst().name(),
 			"Newly created file should be at the beginning of the list"
 		);
 	}

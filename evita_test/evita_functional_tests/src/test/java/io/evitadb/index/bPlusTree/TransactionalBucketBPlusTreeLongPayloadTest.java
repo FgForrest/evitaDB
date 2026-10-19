@@ -452,7 +452,7 @@ class TransactionalBucketBPlusTreeLongPayloadTest {
 				tree.addLongRecord(i, 1_000_000_000L + i);
 			}
 
-			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().getFirst();
 			assertEquals(1, tree.enumerateLeaves().size(), "five values must never outgrow a 255-bucket leaf");
 			assertEquals(5, leaf.getRecords().size(), "the payload column holds exactly the five live values");
 			assertEquals(255, leaf.getRecords().capacity(), "the LOGICAL capacity is the block size, unchanged");

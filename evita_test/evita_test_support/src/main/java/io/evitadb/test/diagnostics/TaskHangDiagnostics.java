@@ -488,7 +488,7 @@ public final class TaskHangDiagnostics {
 				"no service thread was running a " + taskType :
 				workers.size() + " service threads were running a " + taskType + ", none waited for");
 		}
-		final long workerId = workers.get(0).first().getThreadId();
+		final long workerId = workers.getFirst().first().getThreadId();
 		final long deadline = started + wait.toNanos();
 		while (true) {
 			final ThreadInfo worker = threadBean.getThreadInfo(workerId, Integer.MAX_VALUE);

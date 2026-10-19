@@ -920,7 +920,7 @@ class VirtualPartitionSingletonLifecycleTest implements EvitaTestSupport {
 			.map(ReferenceContract::getReferenceKey)
 			.toList();
 		assertEquals(1, keys.size(), "product " + product + " must reference " + target + " once: " + keys);
-		return keys.get(0);
+		return keys.getFirst();
 	}
 
 	/**

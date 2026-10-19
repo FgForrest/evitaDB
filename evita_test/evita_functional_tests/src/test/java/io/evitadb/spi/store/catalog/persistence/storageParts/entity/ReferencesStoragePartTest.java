@@ -654,7 +654,7 @@ class ReferencesStoragePartTest {
 		final List<ReferenceContract> result = part.findReferencesOrThrowException(new ReferenceKey("brand", 2));
 
 		assertEquals(1, result.size());
-		assertSame(refC, result.get(0));
+		assertSame(refC, result.getFirst());
 	}
 
 	@Test
@@ -875,7 +875,7 @@ class ReferencesStoragePartTest {
 			new ReferenceKey("F", 9), Droppable::dropped
 		);
 		assertEquals(1, dropped.size());
-		assertEquals(11, dropped.get(0).getReferenceKey().internalPrimaryKey());
+		assertEquals(11, dropped.getFirst().getReferenceKey().internalPrimaryKey());
 	}
 
 	@Test

@@ -177,7 +177,7 @@ class UsageStatisticsTrackingTest {
 			final var rows = SchemaCapabilityUsageProjection.project("product", registry, false);
 
 			assertEquals(1, rows.size(), "Seeding runs whether or not anything counts - the row must still be there");
-			final SchemaCapabilityUsageStatistics row = rows.get(0);
+			final SchemaCapabilityUsageStatistics row = rows.getFirst();
 			assertFalse(row.measured());
 			assertEquals(0L, row.requestedCount());
 			assertEquals(0L, row.updatedCount());
@@ -199,8 +199,8 @@ class UsageStatisticsTrackingTest {
 			final var rows = SchemaCapabilityUsageProjection.project("product", registry, true);
 
 			assertEquals(1, rows.size());
-			assertTrue(rows.get(0).measured());
-			assertEquals(1L, rows.get(0).requestedCount());
+			assertTrue(rows.getFirst().measured());
+			assertEquals(1L, rows.getFirst().requestedCount());
 		}
 	}
 

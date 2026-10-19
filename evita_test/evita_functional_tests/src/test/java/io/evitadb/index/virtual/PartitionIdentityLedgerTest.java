@@ -91,7 +91,7 @@ class PartitionIdentityLedgerTest {
 
 		assertEquals(1, findings.size(), "exactly the reuse must be reported: " + findings);
 		assertTrue(
-			findings.get(0).contains("primary key 26 was observed as the partition " + identityKeyOf(FIRST)),
+			findings.getFirst().contains("primary key 26 was observed as the partition " + identityKeyOf(FIRST)),
 			"the reuse must name the partition the primary key was first observed under: " + findings
 		);
 	}
@@ -106,7 +106,7 @@ class PartitionIdentityLedgerTest {
 
 		assertEquals(1, findings.size(), "exactly the change must be reported: " + findings);
 		assertTrue(
-			findings.get(0).contains("primary key 26 at the previous checkpoint, 27 now"),
+			findings.getFirst().contains("primary key 26 at the previous checkpoint, 27 now"),
 			"the change must name both primary keys: " + findings
 		);
 	}

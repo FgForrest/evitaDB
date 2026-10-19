@@ -2652,7 +2652,7 @@ class TransactionalBucketBPlusTreeTest {
 			final List<BPlusLeafTreeNode<Integer>> leaves = tree.enumerateLeaves();
 			assertEquals(1, leaves.size(), "A fresh tree is a single empty leaf.");
 			assertEquals(
-				TransactionalBucketBPlusTree.UNASSIGNED_PAGE_SEQUENCE, leaves.get(0).getPageSequence(),
+				TransactionalBucketBPlusTree.UNASSIGNED_PAGE_SEQUENCE, leaves.getFirst().getPageSequence(),
 				"A freshly built leaf must start unassigned."
 			);
 		}
@@ -2705,7 +2705,7 @@ class TransactionalBucketBPlusTreeTest {
 			tree.addRecord(2, 20);
 			final List<BPlusLeafTreeNode<Integer>> before = tree.enumerateLeaves();
 			assertEquals(1, before.size(), "Setup must be a single leaf.");
-			before.get(0).setPageSequence(42);
+			before.getFirst().setPageSequence(42);
 
 			assertStateAfterCommit(
 				tree,
@@ -2761,7 +2761,7 @@ class TransactionalBucketBPlusTreeTest {
 		@Nonnull
 		private static BPlusLeafTreeNode<Integer> leafOwning(
 			@Nonnull List<BPlusLeafTreeNode<Integer>> leaves, int value) {
-			BPlusLeafTreeNode<Integer> owner = leaves.get(0);
+			BPlusLeafTreeNode<Integer> owner = leaves.getFirst();
 			for (final BPlusLeafTreeNode<Integer> leaf : leaves) {
 				if (leaf.getLeftBoundaryKey() <= value) {
 					owner = leaf;
@@ -3993,7 +3993,7 @@ class TransactionalBucketBPlusTreeTest {
 			assertEquals(1, leaves.size(), "five values must never outgrow a 255-bucket leaf");
 			assertInstanceOf(BPlusLeafTreeNode.class, tree.getRoot(), "the root must still be the leaf itself");
 
-			final BPlusLeafTreeNode<Integer> leaf = leaves.get(0);
+			final BPlusLeafTreeNode<Integer> leaf = leaves.getFirst();
 			assertEquals(5, leaf.getKeyColumn().size(), "the key column holds exactly the five live values");
 			assertEquals(255, leaf.getKeyColumn().capacity(), "the LOGICAL capacity is the block size, unchanged");
 			assertEquals(255, leaf.getRecords().capacity());
@@ -4042,7 +4042,7 @@ class TransactionalBucketBPlusTreeTest {
 				tree.addRecord(value, value * 100, value * 100 + 1, value * 100 + 2);
 			}
 
-			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().getFirst();
 			assertNotNull(leaf.getOverflow(), "every bucket is multi, so the overflow column must exist");
 			assertEquals(6, leaf.getOverflow().size(), "the overflow column covers exactly the live buckets");
 			assertEquals(255, leaf.getOverflow().capacity(), "its logical capacity is still the block size");
@@ -4135,7 +4135,7 @@ class TransactionalBucketBPlusTreeTest {
 			for (int i = 0; i < 16; i++) {
 				tree.addRecord(i, i * 10);
 			}
-			final long grownBytes = columnBytesOf(tree.enumerateLeaves().get(0));
+			final long grownBytes = columnBytesOf(tree.enumerateLeaves().getFirst());
 
 			assertStateAfterCommit(
 				tree,
@@ -4145,7 +4145,7 @@ class TransactionalBucketBPlusTreeTest {
 					}
 				},
 				(original, committed) -> {
-					final BPlusLeafTreeNode<Integer> leaf = committed.enumerateLeaves().get(0);
+					final BPlusLeafTreeNode<Integer> leaf = committed.enumerateLeaves().getFirst();
 					assertEquals(3, leaf.size(), "three buckets must survive");
 					assertEquals(3, leaf.getKeyColumn().size());
 					assertEquals(255, leaf.getKeyColumn().capacity(), "trimming never moves the logical capacity");
@@ -4166,7 +4166,7 @@ class TransactionalBucketBPlusTreeTest {
 			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
 			tree.addRecord(10, 100);
 
-			final BPlusLeafTreeNode<Integer> committedLeaf = tree.enumerateLeaves().get(0);
+			final BPlusLeafTreeNode<Integer> committedLeaf = tree.enumerateLeaves().getFirst();
 			final ValueColumn<Integer> committedKeys = committedLeaf.getKeyColumn();
 			final RecordColumn committedRecords = committedLeaf.getRecords();
 			final long committedBytes = columnBytesOf(committedLeaf);
@@ -4209,7 +4209,7 @@ class TransactionalBucketBPlusTreeTest {
 			for (int i = 0; i < 5; i++) {
 				tree.addRecord(i, i * 10);
 			}
-			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().getFirst();
 
 			// outside a transaction `setPeek` takes the `layer == null` arm, and an UPWARD move raises `peek` without
 			// growing a single column - the one shape that reaches the invariant deterministically through a public
@@ -4237,7 +4237,7 @@ class TransactionalBucketBPlusTreeTest {
 			// warm-up bulk load is still growing a column the leaf's `peek` has already moved past
 			final TransactionalBucketBPlusTree<Integer> tree = new TransactionalBucketBPlusTree<>(255, Integer.class);
 			tree.bulkLoadPage(new Object[]{10, 20, 30}, new long[]{1, 2, 3}, null, 3);
-			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().getFirst();
 
 			// the invariant refuses the move, but `peek` is already assigned by the time it does, so the leaf stays
 			// in exactly the torn shape the cursors have to survive
@@ -4317,7 +4317,7 @@ class TransactionalBucketBPlusTreeTest {
 			for (int i = 0; i < 5; i++) {
 				tree.addRecord(i, i * 10);
 			}
-			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().getFirst();
 			final ValueColumn<Integer> committedKeys = leaf.getKeyColumn();
 
 			// one key appended straight onto the committed column, past the run the leaf's peek covers
@@ -4381,7 +4381,7 @@ class TransactionalBucketBPlusTreeTest {
 			for (int i = 0; i < count; i++) {
 				reference.addRecord(i, i);
 			}
-			return columnBytesOf(reference.enumerateLeaves().get(0));
+			return columnBytesOf(reference.enumerateLeaves().getFirst());
 		}
 
 		/**
@@ -4409,7 +4409,7 @@ class TransactionalBucketBPlusTreeTest {
 			// allocations where one would do. The decouple's insert path therefore copies straight to
 			// grownLength(8, 9, 255) == 16, which is what the layer's footprint below has to show
 			final TransactionalBucketBPlusTree<Integer> tree = exactlyFullLeafTree();
-			final BPlusLeafTreeNode<Integer> committed = tree.enumerateLeaves().get(0);
+			final BPlusLeafTreeNode<Integer> committed = tree.enumerateLeaves().getFirst();
 			final ValueColumn<Integer> committedKeys = committed.getKeyColumn();
 			final RecordColumn committedRecords = committed.getRecords();
 			final long committedBytes = columnBytesOf(committedKeys, committedRecords);
@@ -4480,7 +4480,7 @@ class TransactionalBucketBPlusTreeTest {
 			// good — the commit merge's 4:1 trim gap never reclaims a single doubling. On the reduced trees this
 			// work exists for, where a four-key leaf sits on four-slot arrays, that is the whole prize given back
 			final TransactionalBucketBPlusTree<Integer> tree = exactlyFullLeafTree();
-			final BPlusLeafTreeNode<Integer> committed = tree.enumerateLeaves().get(0);
+			final BPlusLeafTreeNode<Integer> committed = tree.enumerateLeaves().getFirst();
 			final ValueColumn<Integer> committedKeys = committed.getKeyColumn();
 			final RecordColumn committedRecords = committed.getRecords();
 			final long committedBytes = columnBytesOf(committedKeys, committedRecords);
@@ -4508,7 +4508,7 @@ class TransactionalBucketBPlusTreeTest {
 					assertSame(committedRecords, committed.getRecords(), "the base record column was replaced");
 					assertEquals(committedBytes, columnBytesOf(committed), "the base kept its eight-slot columns");
 					assertEquals(
-						committedBytes, columnBytesOf(committedTree.enumerateLeaves().get(0)),
+						committedBytes, columnBytesOf(committedTree.enumerateLeaves().getFirst()),
 						"the merged leaf must carry the committed physical length rather than a doubling"
 					);
 					verifyTreeConsistency(committedTree, 0, 10, 20, 30, 40, 50, 60, 70);
@@ -4522,7 +4522,7 @@ class TransactionalBucketBPlusTreeTest {
 		@Tag(TRANSACTION)
 		void shouldGrowOnceWhenAJoinIsFollowedByANewKey() {
 			final TransactionalBucketBPlusTree<Integer> tree = exactlyFullLeafTree();
-			final BPlusLeafTreeNode<Integer> committed = tree.enumerateLeaves().get(0);
+			final BPlusLeafTreeNode<Integer> committed = tree.enumerateLeaves().getFirst();
 			final long committedBytes = columnBytesOf(committed);
 			// measured outside the transaction: a reference tree built in here would leave its leaf's layer unswept
 			final long sixteenSlotBytes = columnBytesOfLeafSizedTo(16);
@@ -4559,7 +4559,7 @@ class TransactionalBucketBPlusTreeTest {
 			// the headroom is for an insert and nothing else: a decouple whose mutation is about to SHRINK the
 			// columns would be over-allocating for slots that mutation is giving back
 			final TransactionalBucketBPlusTree<Integer> tree = exactlyFullLeafTree();
-			final BPlusLeafTreeNode<Integer> committed = tree.enumerateLeaves().get(0);
+			final BPlusLeafTreeNode<Integer> committed = tree.enumerateLeaves().getFirst();
 			final ValueColumn<Integer> committedKeys = committed.getKeyColumn();
 			final RecordColumn committedRecords = committed.getRecords();
 			final long committedBytes = columnBytesOf(committedKeys, committedRecords);
@@ -4667,7 +4667,7 @@ class TransactionalBucketBPlusTreeTest {
 			for (int i = 0; i < 5; i++) {
 				tree.addRecord(i, (i + 1) * 10);
 			}
-			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().getFirst();
 			final int lastKey = leaf.keyAt(leaf.size() - 1);
 			final int lastRecord = (lastKey + 1) * 10;
 			assertArrayEquals(
@@ -4728,7 +4728,7 @@ class TransactionalBucketBPlusTreeTest {
 			for (int i = 0; i < 5; i++) {
 				tree.addLongRecord(i, (i + 1) * 1_000_000_007L);
 			}
-			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().getFirst();
 			final int lastKey = leaf.keyAt(leaf.size() - 1);
 			final long lastPayload = (lastKey + 1) * 1_000_000_007L;
 			assertEquals(

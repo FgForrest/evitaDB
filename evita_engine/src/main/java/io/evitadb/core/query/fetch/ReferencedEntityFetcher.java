@@ -970,7 +970,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					queryContext.getEvitaRequest().deriveCopyWith(
 						entitySchema.getName(), null, null, ownerLocale, scopes
 					),
-					queryContext.getEvitaSession()
+					Objects.requireNonNull(queryContext.getEvitaSession())
 				);
 		if (filterBy != null) {
 			verifyReferenceFilter(ownerQueryContext, entitySchema, referenceSchema, filterBy);

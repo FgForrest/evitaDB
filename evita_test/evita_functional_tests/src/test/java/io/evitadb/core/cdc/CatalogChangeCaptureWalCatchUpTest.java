@@ -277,7 +277,7 @@ class CatalogChangeCaptureWalCatchUpTest implements EvitaTestSupport {
 	void shouldReportPositionRemovedByRetentionAsTemporalDataNotAvailable() throws Exception {
 		startEvita(ROTATING_WAL_FILE_SIZE_BYTES);
 		final List<Long> versions = commitEntities(Entities.PRODUCT, ROTATING_TRANSACTION_COUNT);
-		final long removedVersion = versions.get(0);
+		final long removedVersion = versions.getFirst();
 		final long firstReplayableVersion = forceWalPurge(removedVersion);
 
 		final AwaitableCaptureSubscriber<ChangeCatalogCapture> subscriber = AwaitableCaptureSubscriber.unbounded();
@@ -409,7 +409,7 @@ class CatalogChangeCaptureWalCatchUpTest implements EvitaTestSupport {
 
 		// no transaction is committed after the restart - the active log file stays empty, which is the whole point
 		final AwaitableCaptureSubscriber<ChangeCatalogCapture> subscriber = AwaitableCaptureSubscriber.unbounded();
-		register(entityRequest(Entities.PRODUCT, versions.get(0))).subscribe(subscriber);
+		register(entityRequest(Entities.PRODUCT, versions.getFirst())).subscribe(subscriber);
 		final boolean everythingDelivered = subscriber.awaitUntil(
 			items -> versionsOf(items).equals(versions), AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS
 		);
@@ -461,7 +461,7 @@ class CatalogChangeCaptureWalCatchUpTest implements EvitaTestSupport {
 		int keptCheckpointCount
 	) throws IOException, InterruptedException {
 		versions.addAll(commitEntities(Entities.PRODUCT, versions.size() + 1, versions.size() + 5));
-		final long lastVersion = versions.get(versions.size() - 1);
+		final long lastVersion = versions.getLast();
 		crashAfterRotatingTheLogAway(catalogFolder -> unpublishCheckpointsAfter(catalogFolder, keptCheckpointCount));
 
 		assertEquals(
@@ -485,7 +485,7 @@ class CatalogChangeCaptureWalCatchUpTest implements EvitaTestSupport {
 		assertEquals(nextVersion, liveCatalog().getVersion());
 
 		final AwaitableCaptureSubscriber<ChangeCatalogCapture> subscriber = AwaitableCaptureSubscriber.unbounded();
-		register(entityRequest(Entities.PRODUCT, versions.get(0))).subscribe(subscriber);
+		register(entityRequest(Entities.PRODUCT, versions.getFirst())).subscribe(subscriber);
 		final boolean everythingDelivered = subscriber.awaitUntil(
 			items -> versionsOf(items).equals(versions), AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS
 		);
@@ -603,7 +603,7 @@ class CatalogChangeCaptureWalCatchUpTest implements EvitaTestSupport {
 				.filter(file -> !storageFolder.equals(file.getParent()))
 				.toList();
 			assertEquals(1, catalogBootstrapFiles.size(), "Expected the bootstrap file of the only catalog.");
-			return CatalogBootstrap.getRecordCount(Files.size(catalogBootstrapFiles.get(0)));
+			return CatalogBootstrap.getRecordCount(Files.size(catalogBootstrapFiles.getFirst()));
 		}
 	}
 

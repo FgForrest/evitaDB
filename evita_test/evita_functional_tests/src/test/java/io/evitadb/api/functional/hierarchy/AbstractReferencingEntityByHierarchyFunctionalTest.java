@@ -193,7 +193,7 @@ public abstract class AbstractReferencingEntityByHierarchyFunctionalTest extends
 			).toList();
 
 			if (categoryPath.stream().allMatch(cid -> treeFilterPredicate.test(categoryIndex.get(cid), parentItems))) {
-				int cid = categoryPath.get(categoryPath.size() - 1);
+				int cid = categoryPath.getLast();
 				final int[] productIds = filteredProducts
 					.stream()
 					.filter(it -> it.getReference(Entities.CATEGORY, cid).isPresent())
@@ -1546,7 +1546,7 @@ public abstract class AbstractReferencingEntityByHierarchyFunctionalTest extends
 				final TestHierarchyPredicate languagePredicate = (entity, parentItems) -> entity.getLocales().contains(CZECH_LOCALE);
 				final TestHierarchyPredicate categoryPredicate = (sealedEntity, parentItems) -> {
 					// has parent node 1
-					return parentItems.size() == 1 && "1".equals(parentItems.get(0).getCode());
+					return parentItems.size() == 1 && "1".equals(parentItems.getFirst().getCode());
 				};
 				final Hierarchy expectedStatistics = computeExpectedStatistics(
 					categoryHierarchy, originalProductEntities, originalCategoryIndex,
@@ -2544,7 +2544,7 @@ public abstract class AbstractReferencingEntityByHierarchyFunctionalTest extends
 					(sealedEntity, parentItems) -> sealedEntity.getLocales().contains(CZECH_LOCALE) &&
 						!sealedEntity.getAttribute(ATTRIBUTE_SHORTCUT, Boolean.class);
 				final TestHierarchyPredicate treePredicate = (sealedEntity, parentItems) -> {
-					final boolean childOfCategory1 = parentItems.size() == 1 && Objects.equals(1, Integer.parseInt(parentItems.get(0).getCode()));
+					final boolean childOfCategory1 = parentItems.size() == 1 && Objects.equals(1, Integer.parseInt(parentItems.getFirst().getCode()));
 					return languagePredicate.test(sealedEntity, parentItems) && childOfCategory1;
 				};
 

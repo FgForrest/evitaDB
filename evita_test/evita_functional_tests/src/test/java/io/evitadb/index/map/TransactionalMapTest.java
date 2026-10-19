@@ -1837,8 +1837,8 @@ class TransactionalMapTest {
 			});
 
 			assertEquals(1, released.size());
-			assertEquals("removed", released.get(0).getKey());
-			assertSame(removedValue, released.get(0).getValue());
+			assertEquals("removed", released.getFirst().getKey());
+			assertSame(removedValue, released.getFirst().getValue());
 			assertEquals(1, merged.size());
 			assertTrue(merged.containsKey("survivor"));
 			assertFalse(merged.containsKey("removed"));

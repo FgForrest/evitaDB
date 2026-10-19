@@ -168,7 +168,7 @@ public class ServerCertificateManager {
 	 */
 	private void writeCertificateToFile(@Nonnull TlsKeyPair tlsKeyPair, @Nonnull String certificateName) throws Exception {
 		try (final JcaPEMWriter pemWriterIssued = new JcaPEMWriter(new FileWriter(getCertificatePath(certificateName).toFile()))) {
-			pemWriterIssued.writeObject(tlsKeyPair.certificateChain().get(0));
+			pemWriterIssued.writeObject(tlsKeyPair.certificateChain().getFirst());
 		}
 
 		try (final PemWriter privateKeyWriter = new PemWriter(new FileWriter(getCertificatePrivateKeyPath(certificateName).toFile()))) {

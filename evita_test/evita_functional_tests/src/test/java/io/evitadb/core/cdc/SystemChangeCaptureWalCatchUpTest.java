@@ -297,7 +297,7 @@ class SystemChangeCaptureWalCatchUpTest implements EvitaTestSupport {
 	@DisplayName("should keep a subscriber whose criteria reject every engine mutation ahead of the log retention")
 	void shouldKeepSelectiveSubscriberAheadOfRetention() throws Exception {
 		startEvita(ROTATING_WAL_FILE_SIZE_BYTES);
-		final long sinceVersion = createCatalogs(0, 1).get(0);
+		final long sinceVersion = createCatalogs(0, 1).getFirst();
 
 		final AwaitableCaptureSubscriber<ChangeSystemCapture> subscriber = AwaitableCaptureSubscriber.unbounded();
 		try (

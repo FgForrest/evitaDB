@@ -122,7 +122,7 @@ class BucketRecordTierTest {
 	 */
 	@Nullable
 	private static Object overflowSlot(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
-		final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+		final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().getFirst();
 		final OverflowColumn overflow = leaf.getOverflow();
 		if (overflow == null) {
 			return null;
@@ -450,7 +450,7 @@ class BucketRecordTierTest {
 			tree.removeRecord(VALUE, 1, 2, 3);
 
 			assertTrue(tree.getRecordsEqualTo(VALUE).isEmpty(), "the drained bucket must be gone");
-			assertEquals(-1, tree.enumerateLeaves().get(0).getValueIndex(VALUE));
+			assertEquals(-1, tree.enumerateLeaves().getFirst().getValueIndex(VALUE));
 		}
 
 		@Test
@@ -850,7 +850,7 @@ class BucketRecordTierTest {
 					tree.addRecord(value, value * 1000 + record);
 				}
 			}
-			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().getFirst();
 			final OverflowColumn overflow = leaf.getOverflow();
 			assertNotNull(overflow);
 
@@ -971,7 +971,7 @@ class BucketRecordTierTest {
 
 			tree.bulkLoadPage(new Object[]{10, 20, 30}, new long[]{0, 7, 0}, overflow, 3);
 
-			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().get(0);
+			final BPlusLeafTreeNode<Integer> leaf = tree.enumerateLeaves().getFirst();
 			final OverflowColumn column = leaf.getOverflow();
 			assertNotNull(column);
 			assertArrayEquals(new int[]{1, 2, 3}, assertInstanceOf(int[].class, column.recordsAt(0)));
@@ -1039,7 +1039,7 @@ class BucketRecordTierTest {
 				new Object[]{10, 20}, new long[]{0, 5}, new Object[]{idsUpTo(threshold), null}, 2
 			);
 
-			final OverflowColumn column = wellFormed.enumerateLeaves().get(0).getOverflow();
+			final OverflowColumn column = wellFormed.enumerateLeaves().getFirst().getOverflow();
 			assertNotNull(column);
 			assertEquals(threshold, assertInstanceOf(int[].class, column.recordsAt(0)).length);
 			assertNull(column.recordsAt(1), "a single-record bucket carries no slot");

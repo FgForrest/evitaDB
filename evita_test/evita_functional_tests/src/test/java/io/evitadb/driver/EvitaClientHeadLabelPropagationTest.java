@@ -322,7 +322,7 @@ class EvitaClientHeadLabelPropagationTest implements TestConstants, EvitaTestSup
 			1, collections.size(),
 			() -> "expected exactly one collection on the wire: " + sentRequest.getQuery()
 		);
-		assertEquals(Entities.PRODUCT, collections.get(0).getEntityType());
+		assertEquals(Entities.PRODUCT, collections.getFirst().getEntityType());
 	}
 
 	/**

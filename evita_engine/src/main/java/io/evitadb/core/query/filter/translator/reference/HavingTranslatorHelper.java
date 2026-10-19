@@ -1228,7 +1228,7 @@ public class HavingTranslatorHelper {
 			}
 			return switch (owners.size()) {
 				case 0 -> EmptyFormula.INSTANCE;
-				case 1 -> new IndexTaggedFormula(targetIndex.getPrimaryKey(), owners.get(0));
+				case 1 -> new IndexTaggedFormula(targetIndex.getPrimaryKey(), owners.getFirst());
 				default -> new IndexTaggedFormula(
 					targetIndex.getPrimaryKey(), FormulaFactory.or(owners.toArray(Formula[]::new))
 				);

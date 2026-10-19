@@ -693,7 +693,7 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 				PartitionAcquisitionFunnelTest.this.virtualExecutor, SINGLE_REFERENCE
 			);
 			assertEquals(1, partitions.size());
-			assertHandleOfRow(primaryKey, key, partitions.get(0));
+			assertHandleOfRow(primaryKey, key, partitions.getFirst());
 		}
 
 		@Test
@@ -797,7 +797,7 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 				executor, PARTITIONING_REFERENCE, REMOVING
 			);
 			assertEquals(1, ofTarget.size());
-			assertHandleOfRow(primaryKey, key, ofTarget.get(0));
+			assertHandleOfRow(primaryKey, key, ofTarget.getFirst());
 			assertEquals(indexCount, outer.indexMaintainer.indexCount(), "no index object may be created");
 		}
 

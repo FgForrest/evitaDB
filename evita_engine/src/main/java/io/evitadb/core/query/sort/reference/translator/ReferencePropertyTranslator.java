@@ -166,7 +166,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 				}
 				if (
 					!partitions.isEmpty() &&
-						partitions.get(0).getIndexKey().discriminator() instanceof RepresentativeReferenceKey rk &&
+						partitions.getFirst().getIndexKey().discriminator() instanceof RepresentativeReferenceKey rk &&
 						referenceName.equals(rk.referenceName())
 				) {
 					//noinspection unchecked

@@ -170,7 +170,7 @@ class ModifyEntitySchemaDeprecationNoticeMutationTest {
 				ctx -> mutation.collectConflictKeys(ctx).toList()
 			);
 			assertEquals(1, keys.size());
-			assertInstanceOf(CollectionConflictKey.class, keys.get(0));
+			assertInstanceOf(CollectionConflictKey.class, keys.getFirst());
 		}
 
 		@Test

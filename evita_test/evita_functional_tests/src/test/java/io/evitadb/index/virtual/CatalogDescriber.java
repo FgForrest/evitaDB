@@ -803,8 +803,8 @@ public final class CatalogDescriber {
 			);
 			// the last value first, so the exact order differs from the natural one
 			final Serializable[] exactOrder = values.size() == 1 ?
-				new Serializable[]{values.get(0)} :
-				new Serializable[]{values.get(values.size() - 1), values.get(0)};
+				new Serializable[]{values.getFirst()} :
+				new Serializable[]{values.getLast(), values.getFirst()};
 			putOrder(
 				lines, orderPrefix + "traverse/attributeSetExact/" + attributeName,
 				queryOrder(

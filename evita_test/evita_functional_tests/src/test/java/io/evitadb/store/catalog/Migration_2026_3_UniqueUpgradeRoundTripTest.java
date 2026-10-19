@@ -661,8 +661,8 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 	) {
 		final List<String> matching = pairs.stream().filter(it -> it.startsWith(structure + ": ")).toList();
 		assertEquals(1, matching.size(), () -> structure + " in " + pairs);
-		assertTrue(matching.get(0).contains("held by " + firstOwner), matching.get(0));
-		assertTrue(matching.get(0).contains("held by " + secondOwner), matching.get(0));
+		assertTrue(matching.getFirst().contains("held by " + firstOwner), matching.getFirst());
+		assertTrue(matching.getFirst().contains("held by " + secondOwner), matching.getFirst());
 	}
 
 	/**

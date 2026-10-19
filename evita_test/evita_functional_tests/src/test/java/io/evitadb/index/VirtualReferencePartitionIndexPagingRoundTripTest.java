@@ -537,7 +537,7 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 
 			final List<StoragePart> emission = flush(index);
 			assertEquals(1, emission.size(), "A never-flushed emptied index removes its root only: " + emission);
-			assertInstanceOf(VirtualReferencePartitionRootRemoval.class, emission.get(0));
+			assertInstanceOf(VirtualReferencePartitionRootRemoval.class, emission.getFirst());
 			persist(emission);
 			assertTrue(reloadThroughLoader().isEmpty());
 
@@ -722,7 +722,7 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 			);
 			assertInstanceOf(SortIndexView.class, view);
 			assertNotEquals(
-				expected.blockSizes().get(0), view.getRecordsEqualTo(5).size(),
+				expected.blockSizes().getFirst(), view.getRecordsEqualTo(5).size(),
 				"A view counts the real partitions of the shared value as its own"
 			);
 		}
@@ -736,7 +736,7 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 			flushAndPersist(live);
 			final VirtualReferencePartitionIndex reloaded = reloadThroughLoader();
 
-			final SortKeyFixture retired = VirtualReferencePartitionIndexSortValueTest.FIXTURES.get(0);
+			final SortKeyFixture retired = VirtualReferencePartitionIndexSortValueTest.FIXTURES.getFirst();
 			assertTrue(reloaded.retireSortKey(retired.key()));
 			final List<StoragePart> retirement = flush(reloaded);
 			reloaded.resetDirty();

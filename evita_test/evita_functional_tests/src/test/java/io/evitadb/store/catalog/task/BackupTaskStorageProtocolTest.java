@@ -159,7 +159,7 @@ class BackupTaskStorageProtocolTest implements EvitaTestSupport {
 		final List<CatalogBootstrap> archivedRecords = bootstrapRecords(extracted.resolve(TEST_CATALOG));
 		assertEquals(1, archivedRecords.size(), "a backup archives exactly one bootstrap record");
 		assertEquals(
-			PREVIOUS_PROTOCOL, archivedRecords.get(0).storageProtocolVersion(),
+			PREVIOUS_PROTOCOL, archivedRecords.getFirst().storageProtocolVersion(),
 			"the backed-up version was written under the previous protocol, and so is the data the archive holds"
 		);
 	}
@@ -184,10 +184,10 @@ class BackupTaskStorageProtocolTest implements EvitaTestSupport {
 		// migration published for the same version once it had advanced the header - a header that had claimed the
 		// current protocol from the start would have been loaded without either
 		final List<CatalogBootstrap> restoredRecords = bootstrapRecords(restored.getCatalogStoragePath());
-		assertEquals(PREVIOUS_PROTOCOL, restoredRecords.get(0).storageProtocolVersion());
+		assertEquals(PREVIOUS_PROTOCOL, restoredRecords.getFirst().storageProtocolVersion());
 		assertTrue(
 			restoredRecords.stream().skip(1).anyMatch(
-				it -> it.catalogVersion() == restoredRecords.get(0).catalogVersion() &&
+				it -> it.catalogVersion() == restoredRecords.getFirst().catalogVersion() &&
 					it.storageProtocolVersion() == PersistenceService.STORAGE_PROTOCOL_VERSION
 			),
 			"the migration must have re-published the backed-up version under the current protocol: " + restoredRecords
@@ -204,7 +204,7 @@ class BackupTaskStorageProtocolTest implements EvitaTestSupport {
 		final List<CatalogBootstrap> archivedRecords = bootstrapRecords(extracted.resolve(TEST_CATALOG));
 		assertEquals(1, archivedRecords.size(), "a backup archives exactly one bootstrap record");
 		assertEquals(
-			PersistenceService.STORAGE_PROTOCOL_VERSION, archivedRecords.get(0).storageProtocolVersion(),
+			PersistenceService.STORAGE_PROTOCOL_VERSION, archivedRecords.getFirst().storageProtocolVersion(),
 			"the backed-up version was written under the current protocol, and so is the data the archive holds"
 		);
 
@@ -431,7 +431,7 @@ class BackupTaskStorageProtocolTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private static <T> T lastOf(@Nonnull List<T> list) {
-		return list.get(list.size() - 1);
+		return list.getLast();
 	}
 
 	/**

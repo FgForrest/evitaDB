@@ -300,7 +300,7 @@ public class PrefetchFormulaVisitor implements FormulaVisitor, FormulaPostProces
 		if (this.estimatedBitmapCardinality > BITMAP_SIZE_THRESHOLD || this.conjunctiveEntityIds.isEmpty()) {
 			return EmptyBitmap.INSTANCE;
 		}
-		Bitmap result = this.conjunctiveEntityIds.get(0);
+		Bitmap result = this.conjunctiveEntityIds.getFirst();
 		for (int i = 1; i < this.conjunctiveEntityIds.size(); i++) {
 			final PersistentRoaringBitmap roaringBitmapA = RoaringBitmapBackedBitmap.getRoaringBitmap(result);
 			final PersistentRoaringBitmap roaringBitmapB = RoaringBitmapBackedBitmap.getRoaringBitmap(

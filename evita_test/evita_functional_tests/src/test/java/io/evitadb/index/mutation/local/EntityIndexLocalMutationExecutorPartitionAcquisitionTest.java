@@ -293,7 +293,7 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 		void shouldCreateSinglePartitionWhenReferenceDisallowsDuplicates() {
 			final List<ReferencePartition> partitions = collectPartitionsOfTarget(PARTITIONING_REFERENCE);
 			assertEquals(1, partitions.size());
-			final ReferencePartition partition = partitions.get(0);
+			final ReferencePartition partition = partitions.getFirst();
 			assertEquals(new ReferenceKey(PARTITIONING_REFERENCE, TARGET_PK), partition.getReferenceKey());
 			assertEquals(
 				1,
@@ -301,7 +301,7 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 					partition.getIndexKey()
 				)
 			);
-			assertSame(partition, collectPartitionsOfTarget(PARTITIONING_REFERENCE).get(0));
+			assertSame(partition, collectPartitionsOfTarget(PARTITIONING_REFERENCE).getFirst());
 		}
 
 		@Test

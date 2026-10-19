@@ -173,7 +173,7 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 			// websocket harness uses `>=` semantics so additional mutation envelopes that arrive
 			// before the host event do not cause failures
 			2, receivedEvents -> {
-				assertConnectionAckEvent(receivedEvents.get(0));
+				assertConnectionAckEvent(receivedEvents.getFirst());
 
 				assertTrue(
 					winningCatalog[0] != null && hasInstalledHostEnvelope(receivedEvents, winningCatalog[0]),
@@ -315,7 +315,7 @@ public class SystemGraphQLSubscriptionsFunctionalTest extends SystemGraphQLEndpo
 			// 1 connection_ack + at least the host event itself; the websocket harness uses
 			// `>=` semantics so additional envelopes that arrive in between do not cause failures
 			2, receivedEvents -> {
-				assertConnectionAckEvent(receivedEvents.get(0));
+				assertConnectionAckEvent(receivedEvents.getFirst());
 
 				// scan all received envelopes (skipping the initial ack) for a host event
 				// envelope carrying the `CatalogSchemaUpdated` discriminator and the freshly-

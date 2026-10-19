@@ -2406,7 +2406,7 @@ public class InvertedIndex implements
 		if (bitmaps.isEmpty()) {
 			return EmptyFormula.INSTANCE;
 		} else if (bitmaps.size() == 1) {
-			return new ConstantFormula(bitmaps.get(0));
+			return new ConstantFormula(bitmaps.getFirst());
 		} else {
 			return new OrFormula(leafVersionIds, bitmaps.toArray(Bitmap[]::new));
 		}

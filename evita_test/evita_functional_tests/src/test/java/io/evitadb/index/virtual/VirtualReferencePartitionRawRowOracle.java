@@ -600,7 +600,7 @@ public final class VirtualReferencePartitionRawRowOracle {
 	) {
 		final RepresentativeReferenceKey key = expected.key();
 		final int[] owners = expected.ownerPrimaryKeys();
-		final RegistryRow row = rows == null || rows.isEmpty() ? null : rows.get(0);
+		final RegistryRow row = rows == null || rows.isEmpty() ? null : rows.getFirst();
 		if (rows != null && rows.size() > 1) {
 			findings.add(prefix + "the partition " + key + " has " + rows.size() + " rows: " + rows);
 		}
@@ -613,7 +613,7 @@ public final class VirtualReferencePartitionRawRowOracle {
 						prefix + "the " + row + " of " + key + " names another owner than its single owner " + owners[0]
 					);
 				}
-				rowsToCheck.put(row.partitionPrimaryKey(), expected.owners().get(0));
+				rowsToCheck.put(row.partitionPrimaryKey(), expected.owners().getFirst());
 			}
 			if (object != null) {
 				findings.add(
@@ -850,7 +850,7 @@ public final class VirtualReferencePartitionRawRowOracle {
 			if (i == 0 || comparator.compare(ordered.get(i - 1).getValue(), ordered.get(i).getValue()) != 0) {
 				expectedBlocks.add(new ArrayList<>(2));
 			}
-			expectedBlocks.get(expectedBlocks.size() - 1).add(ordered.get(i).getKey());
+			expectedBlocks.getLast().add(ordered.get(i).getKey());
 		}
 		final List<List<Integer>> actualBlocks = new ArrayList<>(walk.blocks().size());
 		for (final SortIndexWalk.Block block : walk.blocks()) {

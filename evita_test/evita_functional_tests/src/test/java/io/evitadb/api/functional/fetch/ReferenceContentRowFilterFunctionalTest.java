@@ -1374,7 +1374,7 @@ class ReferenceContentRowFilterFunctionalTest {
 						final List<String> strip = new ArrayList<>(1);
 						for (ReferenceContract reference : owner.getReferenceChunk(referenceName)) {
 							strip.add(
-								describe(List.of(reference)).get(0) +
+								describe(List.of(reference)).getFirst() +
 									(reference.getReferencedEntity().isPresent() ? " with body" : " without body")
 							);
 						}
@@ -1466,7 +1466,7 @@ class ReferenceContentRowFilterFunctionalTest {
 								)
 							)
 						)
-					).get(0);
+					).getFirst();
 					final List<String> result = new ArrayList<>(2);
 					for (ReferenceContract reference : owner.getReferences(REF_DUPLICATES)) {
 						result.add(
@@ -1608,7 +1608,7 @@ class ReferenceContentRowFilterFunctionalTest {
 					}
 				)
 			);
-			return result.get(0);
+			return result.getFirst();
 		}
 
 	}

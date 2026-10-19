@@ -158,7 +158,7 @@ class QueryUtilsTest {
 				filterBy, AttributeEquals.class, Or.class
 			);
 			assertEquals(1, found.size());
-			assertEquals("code", found.get(0).getArguments()[0]);
+			assertEquals("code", found.getFirst().getArguments()[0]);
 		}
 
 		@Test

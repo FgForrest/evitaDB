@@ -892,7 +892,7 @@ class VirtualReferencePartitionIndexTest {
 			final List<StoragePart> parts = flush(index);
 			assertEquals(1, parts.size(), "A small index emits its inline root only: " + parts);
 			final VirtualReferencePartitionIndexStoragePart root =
-				assertInstanceOf(VirtualReferencePartitionIndexStoragePart.class, parts.get(0));
+				assertInstanceOf(VirtualReferencePartitionIndexStoragePart.class, parts.getFirst());
 			assertFalse(root.isPaged());
 			assertArrayEquals(
 				new long[]{
@@ -926,7 +926,7 @@ class VirtualReferencePartitionIndexTest {
 
 			final List<StoragePart> parts = flush(index);
 			assertEquals(1, parts.size(), "An emptied index emits the removal of its root only: " + parts);
-			assertInstanceOf(VirtualReferencePartitionRootRemoval.class, parts.get(0));
+			assertInstanceOf(VirtualReferencePartitionRootRemoval.class, parts.getFirst());
 		}
 
 		@Test

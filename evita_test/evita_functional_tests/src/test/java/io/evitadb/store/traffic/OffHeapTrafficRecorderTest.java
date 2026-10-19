@@ -337,7 +337,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 
 			assertEquals(4, beeSubQueries.size());
 
-			assertEquals(firstSessionId, beeSubQueries.get(0).sessionId());
+			assertEquals(firstSessionId, beeSubQueries.getFirst().sessionId());
 			assertEquals(3, beeSubQueries.get(0).recordSessionOffset());
 			assertInstanceOf(QueryContainer.class, beeSubQueries.get(0));
 
@@ -407,7 +407,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 			final List<TrafficRecording> recordingsByMultipleLabels = recordings.toList();
 
 			assertEquals(4, recordingsByMultipleLabels.size());
-			assertEquals(firstSessionId, recordingsByMultipleLabels.get(0).sessionId());
+			assertEquals(firstSessionId, recordingsByMultipleLabels.getFirst().sessionId());
 			assertEquals(2, recordingsByMultipleLabels.get(0).recordSessionOffset());
 			assertInstanceOf(QueryContainer.class, recordingsByMultipleLabels.get(0));
 
@@ -754,7 +754,7 @@ public class OffHeapTrafficRecorderTest implements EvitaTestSupport {
 			assertEquals(3, allRecordings.size(), "Actual size: " + allRecordings.size());
 			final MutationContainer mutation = (MutationContainer) allRecordings.get(1);
 			final EntityUpsertMutation upsertMutation = (EntityUpsertMutation) mutation.mutation();
-			final UpsertAssociatedDataMutation upsertAssociatedDataMutation = (UpsertAssociatedDataMutation) upsertMutation.getLocalMutations().get(0);
+			final UpsertAssociatedDataMutation upsertAssociatedDataMutation = (UpsertAssociatedDataMutation) upsertMutation.getLocalMutations().getFirst();
 			final String[] value = (String[]) upsertAssociatedDataMutation.getAssociatedDataValue();
 			assertEquals(1024, value.length);
 		}

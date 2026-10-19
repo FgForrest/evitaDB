@@ -685,7 +685,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	@Nullable
 	BPlusLeafTreeNode<V> predecessorLeaf(@Nonnull Cursor cursor) {
 		final List<CursorLevel> path = cursor.path();
-		final CursorLevel leafLevel = path.get(path.size() - 1);
+		final CursorLevel leafLevel = path.getLast();
 		final int leafIndex = leafLevel.index();
 		if (leafIndex > 0) {
 			//noinspection unchecked
@@ -839,7 +839,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	@Nonnull
 	private BPlusTreeNode<?> buildSpine(@Nonnull List<? extends BPlusTreeNode<?>> level) {
 		if (level.size() == 1) {
-			return level.get(0);
+			return level.getFirst();
 		}
 		// Pack at most internalNodeBlockSize children per parent (one below the node's children capacity of
 		// internalNodeBlockSize + 1). An assembled node must be born non-full so the first child split can still call

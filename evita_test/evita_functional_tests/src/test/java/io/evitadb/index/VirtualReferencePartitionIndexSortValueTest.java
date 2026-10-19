@@ -362,11 +362,11 @@ class VirtualReferencePartitionIndexSortValueTest {
 		final List<Integer> expectedBlockSizes = new ArrayList<>();
 		for (final Integer partition : expectedRecords) {
 			final Serializable value = normalized.get(partition);
-			if (expectedValues.isEmpty() || comparator.compare(expectedValues.get(expectedValues.size() - 1), value) != 0) {
+			if (expectedValues.isEmpty() || comparator.compare(expectedValues.getLast(), value) != 0) {
 				expectedValues.add(value);
 				expectedBlockSizes.add(1);
 			} else {
-				expectedBlockSizes.set(expectedBlockSizes.size() - 1, expectedBlockSizes.get(expectedBlockSizes.size() - 1) + 1);
+				expectedBlockSizes.set(expectedBlockSizes.size() - 1, expectedBlockSizes.getLast() + 1);
 			}
 		}
 
@@ -574,7 +574,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 			final Map<AttributeIndexKey, Map<Integer, Serializable>> models = new HashMap<>();
 			churn(index, models, new Random(11), 2_000, 300);
 			index.putPartitionOwner(1, 10, 100);
-			final SortKeyFixture retired = FIXTURES.get(0);
+			final SortKeyFixture retired = FIXTURES.getFirst();
 
 			assertTrue(index.retireSortKey(retired.key()));
 			assertFalse(index.retireSortKey(retired.key()), "A second retirement finds nothing");
@@ -753,7 +753,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 		@DisplayName("a value of the wrong type or shape is refused before anything changes")
 		void shouldRefuseWrongValueBeforeWriting() {
 			final VirtualReferencePartitionIndex index = declaredIndex();
-			FIXTURES.get(0).put(index, 1, 5);
+			FIXTURES.getFirst().put(index, 1, 5);
 			index.resetDirty();
 			final SortSnapshot before = snapshotOf(index, ORDER);
 
@@ -1058,7 +1058,7 @@ class VirtualReferencePartitionIndexSortValueTest {
 			final List<StoragePart> parts = flush(index);
 			final SortValueSlot slot = persistedSlot(parts, ORDER);
 			assertNotNull(slot);
-			final VirtualReferencePartitionIndexStoragePart root = (VirtualReferencePartitionIndexStoragePart) parts.get(0);
+			final VirtualReferencePartitionIndexStoragePart root = (VirtualReferencePartitionIndexStoragePart) parts.getFirst();
 			assertFalse(root.isPaged());
 			assertArrayEquals(
 				new long[]{NumberUtils.pack(slot.slotId(), 2), NumberUtils.pack(slot.slotId(), 5)}, root.getKeys()

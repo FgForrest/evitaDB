@@ -290,7 +290,7 @@ public class QueryEntitiesDataFetcher implements DataFetcher<DataFetcherResult<E
 		if (recordFields.isEmpty()) {
 			requireConstraints.add(strip(0, 0));
 		} else {
-			final SelectedField recordField = recordFields.get(0);
+			final SelectedField recordField = recordFields.getFirst();
 
 			// build paging require
 			requireConstraints.add(this.pagingRequireResolver.resolve(recordField));

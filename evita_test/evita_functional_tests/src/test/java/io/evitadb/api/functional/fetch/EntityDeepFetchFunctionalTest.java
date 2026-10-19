@@ -157,7 +157,7 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 				assertFalse(product.getReferences().isEmpty());
 
 				final Optional<SealedEntity> referencedStore = product.getReference(
@@ -238,7 +238,7 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 				assertFalse(product.getReferences().isEmpty());
 
 				final Collection<ReferenceContract> priceLists = product.getReferences(Entities.PRICE_LIST);
@@ -303,7 +303,7 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 				assertFalse(product.getReferences().isEmpty());
 
 				final ReferenceContract referencedBrand = product.getReferences(Entities.BRAND)
@@ -1043,7 +1043,7 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 					SealedEntity.class
 				);
 
-				final SealedEntity product = products.getRecordData().get(0);
+				final SealedEntity product = products.getRecordData().getFirst();
 				final int[] descendingOrder = product.getReferences(Entities.PARAMETER)
 					.stream()
 					.mapToInt(ReferenceContract::getReferencedPrimaryKey)
@@ -1818,7 +1818,7 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 				assertEquals(1, productByPk.getTotalRecordCount());
 
 				final List<ReferenceKey> fetchedReferenceIds = productByPk.getRecordData()
-					.get(0)
+					.getFirst()
 					.getReferences(Entities.PARAMETER)
 					.stream()
 					.map(ReferenceContract::getReferenceKey)
@@ -1829,7 +1829,7 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 
 				// references should be ordered by name
 				final Long[] receivedCategoryPriorities = productByPk.getRecordData()
-					.get(0)
+					.getFirst()
 					.getReferences(Entities.PARAMETER)
 					.stream()
 					.map(it -> it.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY, Long.class))
@@ -1894,7 +1894,7 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 
 				// references should be ordered by priority and where missing by categoryName
 				final Object[] receivedCategoryPriorities = productByPk.getRecordData()
-					.get(0)
+					.getFirst()
 					.getReferences(Entities.CATEGORY)
 					.stream()
 					.map(it -> ofNullable(it.getAttribute(ATTRIBUTE_CATEGORY_PRIORITY))
@@ -1978,7 +1978,7 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 
 				assertEquals(
 					productWithMissingPriceLists.getReferences(Entities.PRICE_LIST).size(),
-					productByPk.getRecordData().get(0).getReferences(Entities.PRICE_LIST).size()
+					productByPk.getRecordData().getFirst().getReferences(Entities.PRICE_LIST).size()
 				);
 
 				return null;
@@ -2028,7 +2028,7 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final SealedEntity returnedProduct = productByPk.getRecordData().get(0);
+				final SealedEntity returnedProduct = productByPk.getRecordData().getFirst();
 				assertEquals(
 					productWithMissingPriceLists.getReferences(Entities.PRICE_LIST).size(),
 					returnedProduct.getReferences(Entities.PRICE_LIST).size()
@@ -2106,7 +2106,7 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 						.stream()
 						.filter(it -> existingPriceLists.contains(it.getReferencedPrimaryKey()))
 						.count(),
-					productByPk.getRecordData().get(0).getReferences(Entities.PRICE_LIST).size()
+					productByPk.getRecordData().getFirst().getReferences(Entities.PRICE_LIST).size()
 				);
 
 				return null;
@@ -2157,7 +2157,7 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final SealedEntity returnedProduct = productByPk.getRecordData().get(0);
+				final SealedEntity returnedProduct = productByPk.getRecordData().getFirst();
 				assertEquals(
 					productWithMissingPriceLists.getReferences(Entities.PRICE_LIST)
 						.stream()
@@ -2243,7 +2243,7 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final BinaryEntity product = productByPk.getRecordData().get(0);
+				final BinaryEntity product = productByPk.getRecordData().getFirst();
 				assertTrue(product.getReferencedEntities().length > 0);
 
 				final Optional<BinaryEntity> referencedStore = Arrays.stream(product.getReferencedEntities())

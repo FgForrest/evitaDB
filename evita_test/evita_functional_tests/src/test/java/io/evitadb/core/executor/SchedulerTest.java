@@ -201,7 +201,7 @@ class SchedulerTest {
 			final PaginatedList<TaskStatus<?, ?>> typeFilteredJobStatuses = SchedulerTest.this.scheduler.listTaskStatuses(1, 20, new String[] { "task" });
 			assertEquals(1, typeFilteredJobStatuses.getTotalRecordCount());
 
-			while (SchedulerTest.this.scheduler.listTaskStatuses(1, 20, null).getData().get(0).simplifiedState() != TaskSimplifiedState.FINISHED) {
+			while (SchedulerTest.this.scheduler.listTaskStatuses(1, 20, null).getData().getFirst().simplifiedState() != TaskSimplifiedState.FINISHED) {
 				synchronized (this) {
 					wait(100);
 				}
@@ -221,7 +221,7 @@ class SchedulerTest {
 			final PaginatedList<TaskStatus<?, ?>> nonMatchingFilteredJobStatusesWhenDone = SchedulerTest.this.scheduler.listTaskStatuses(1, 20, new String[] { "Non-existing task" }, TaskSimplifiedState.FINISHED);
 			assertEquals(0, nonMatchingFilteredJobStatusesWhenDone.getTotalRecordCount());
 
-			final Optional<TaskStatus<?, ?>> jobStatus = SchedulerTest.this.scheduler.getTaskStatus(typeFilteredJobStatuses.getData().get(0).taskId());
+			final Optional<TaskStatus<?, ?>> jobStatus = SchedulerTest.this.scheduler.getTaskStatus(typeFilteredJobStatuses.getData().getFirst().taskId());
 
 			assertTrue(jobStatus.isPresent());
 			assertEquals("Test task", jobStatus.get().taskName());
@@ -253,7 +253,7 @@ class SchedulerTest {
 			final PaginatedList<TaskStatus<?, ?>> jobStatuses = SchedulerTest.this.scheduler.listTaskStatuses(1, 20, null);
 			assertEquals(1, jobStatuses.getTotalRecordCount());
 
-			final Optional<TaskStatus<?, ?>> jobStatus = SchedulerTest.this.scheduler.getTaskStatus(jobStatuses.getData().get(0).taskId());
+			final Optional<TaskStatus<?, ?>> jobStatus = SchedulerTest.this.scheduler.getTaskStatus(jobStatuses.getData().getFirst().taskId());
 
 			assertTrue(jobStatus.isPresent());
 			assertEquals("Test task", jobStatus.get().taskName());
@@ -273,7 +273,7 @@ class SchedulerTest {
 				Thread.onSpinWait();
 			} while (started.get() && !interrupted.get() && System.currentTimeMillis() - start < 100_000);
 
-			final Optional<TaskStatus<?, ?>> jobStatusAgain = SchedulerTest.this.scheduler.getTaskStatus(jobStatuses.getData().get(0).taskId());
+			final Optional<TaskStatus<?, ?>> jobStatusAgain = SchedulerTest.this.scheduler.getTaskStatus(jobStatuses.getData().getFirst().taskId());
 			jobStatusAgain.ifPresent(taskStatus -> {
 				assertNull(taskStatus.result());
 				assertEquals(TaskSimplifiedState.FAILED, taskStatus.simplifiedState());
@@ -317,7 +317,7 @@ class SchedulerTest {
 			final PaginatedList<TaskStatus<?, ?>> jobStatuses =
 				SchedulerTest.this.scheduler.listTaskStatuses(1, 20, null);
 			assertEquals(1, jobStatuses.getTotalRecordCount());
-			final UUID taskId = jobStatuses.getData().get(0).taskId();
+			final UUID taskId = jobStatuses.getData().getFirst().taskId();
 			SchedulerTest.this.scheduler.cancelTask(taskId);
 
 			// the assertion that matters: the interrupt reached the worker thread
@@ -376,7 +376,7 @@ class SchedulerTest {
 			final PaginatedList<TaskStatus<?, ?>> jobStatuses =
 				SchedulerTest.this.scheduler.listTaskStatuses(1, 20, null);
 			assertEquals(1, jobStatuses.getTotalRecordCount());
-			SchedulerTest.this.scheduler.cancelTask(jobStatuses.getData().get(0).taskId());
+			SchedulerTest.this.scheduler.cancelTask(jobStatuses.getData().getFirst().taskId());
 
 			assertTrue(
 				interrupted.await(30, TimeUnit.SECONDS),
@@ -450,7 +450,7 @@ class SchedulerTest {
 			// without this the absence of an interrupt below could just as well mean the cancel never found the task,
 			// which would make the whole test pass for a reason its name does not claim
 			assertTrue(
-				SchedulerTest.this.scheduler.cancelTask(jobStatuses.getData().get(0).taskId()),
+				SchedulerTest.this.scheduler.cancelTask(jobStatuses.getData().getFirst().taskId()),
 				"the cancel never reached the task - this proves nothing about the attachment window"
 			);
 

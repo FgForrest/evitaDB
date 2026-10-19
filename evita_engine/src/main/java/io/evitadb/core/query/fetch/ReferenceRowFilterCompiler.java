@@ -279,7 +279,7 @@ final class ReferenceRowFilterCompiler {
 	private static RowTest combine(@Nonnull List<RowTest> children, @Nonnull Function<RowTest[], RowTest> container) {
 		return switch (children.size()) {
 			case 0 -> null;
-			case 1 -> children.get(0);
+			case 1 -> children.getFirst();
 			default -> container.apply(children.toArray(RowTest[]::new));
 		};
 	}

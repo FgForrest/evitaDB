@@ -467,10 +467,10 @@ class CreateReferenceSchemaMutationConverterTest {
 				CreateReferenceSchemaMutationDescriptor.BUCKETED_IN_SCOPES.name()
 			);
 		assertEquals(1, bucketedList.size());
-		assertEquals("priceHistogram", bucketedList.get(0).get(
+		assertEquals("priceHistogram", bucketedList.getFirst().get(
 			ScopedHistogramIndexDefinitionDescriptor.NAME_OF_THE_INDEX.name()
 		));
-		assertEquals("$price * $quantity", bucketedList.get(0).get(
+		assertEquals("$price * $quantity", bucketedList.getFirst().get(
 			ScopedHistogramIndexDefinitionDescriptor.VALUE_EXPRESSION.name()
 		));
 	}
@@ -553,7 +553,7 @@ class CreateReferenceSchemaMutationConverterTest {
 		assertEquals(1, bucketedList.size());
 		assertEquals(
 			"$active == 1",
-			bucketedList.get(0).get(ScopedHistogramIndexDefinitionDescriptor.ASSIGNED_WHEN.name())
+			bucketedList.getFirst().get(ScopedHistogramIndexDefinitionDescriptor.ASSIGNED_WHEN.name())
 		);
 	}
 

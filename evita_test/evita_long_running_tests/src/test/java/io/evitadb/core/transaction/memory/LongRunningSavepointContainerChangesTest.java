@@ -247,7 +247,7 @@ class LongRunningSavepointContainerChangesTest implements TimeBoundedTestSupport
 	 */
 	private static void addMarker(@Nonnull LayerHolder<?> holder, @Nonnull List<RecordingProducer> pool) {
 		final Object layer = Transaction.getOrCreateTransactionalMemoryLayer(holder);
-		register(containersOf(layer).get(0), true, newProducer(pool));
+		register(containersOf(layer).getFirst(), true, newProducer(pool));
 	}
 
 	/**

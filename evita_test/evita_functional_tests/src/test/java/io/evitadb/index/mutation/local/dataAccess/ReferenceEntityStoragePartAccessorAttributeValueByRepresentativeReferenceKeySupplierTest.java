@@ -338,8 +338,8 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 			final List<AttributeValue> englishValues = supplier.getAttributeValues(Locale.ENGLISH).toList();
 
 			assertEquals(1, englishValues.size(), "Only the English value must be returned");
-			assertEquals(Locale.ENGLISH, englishValues.get(0).key().locale());
-			assertEquals("hello", englishValues.get(0).value());
+			assertEquals(Locale.ENGLISH, englishValues.getFirst().key().locale());
+			assertEquals("hello", englishValues.getFirst().value());
 		}
 	}
 
@@ -694,8 +694,8 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 	) {
 		final List<AttributeValue> values = stream.toList();
 		assertEquals(1, values.size(), "Expected exactly one attribute value");
-		assertEquals(attributeName, values.get(0).key().attributeName());
-		assertEquals(expectedValue, values.get(0).value());
+		assertEquals(attributeName, values.getFirst().key().attributeName());
+		assertEquals(expectedValue, values.getFirst().value());
 	}
 
 	/**

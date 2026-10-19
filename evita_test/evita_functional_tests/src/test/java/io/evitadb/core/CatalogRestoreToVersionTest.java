@@ -292,7 +292,7 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 		void shouldTreatTheSourceNameAsAnInPlaceRestore() throws Exception {
 			awaitCompletion(
 				evita.management().restoreCatalogToVersion(
-					TEST_CATALOG, null, versions.get(0), TEST_CATALOG
+					TEST_CATALOG, null, versions.getFirst(), TEST_CATALOG
 				)
 			);
 
@@ -314,7 +314,7 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 			assertThrows(
 				TemporalDataNotAvailableException.class,
 				() -> management.restoreCatalogToVersion(
-					TEST_CATALOG, null, versions.get(versions.size() - 1) + 1_000L, null
+					TEST_CATALOG, null, versions.getLast() + 1_000L, null
 				)
 			);
 

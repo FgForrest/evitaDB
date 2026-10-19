@@ -3096,7 +3096,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	@Nullable
 	BPlusLeafTreeNode<K> predecessorLeaf(@Nonnull Cursor<K> cursor) {
 		final List<CursorLevel<K>> path = cursor.path();
-		final CursorLevel<K> leafLevel = path.get(path.size() - 1);
+		final CursorLevel<K> leafLevel = path.getLast();
 		final int leafIndex = leafLevel.index();
 		if (leafIndex > 0) {
 			//noinspection unchecked
@@ -3323,7 +3323,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	@Nonnull
 	private BPlusTreeNode<K, ?> buildSpine(@Nonnull List<? extends BPlusTreeNode<K, ?>> level) {
 		if (level.size() == 1) {
-			return level.get(0);
+			return level.getFirst();
 		}
 		// Pack at most internalNodeBlockSize children per parent (one below the node's children capacity of
 		// internalNodeBlockSize + 1). An assembled node must be born non-full so the first child split can still call
@@ -8516,7 +8516,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 		 */
 		@Nonnull
 		public BPlusLeafTreeNode<M> leafNode() {
-			final CursorLevel<M> deepestLevel = this.path.get(this.path.size() - 1);
+			final CursorLevel<M> deepestLevel = this.path.getLast();
 			//noinspection unchecked
 			return (BPlusLeafTreeNode<M>) deepestLevel.siblings()[deepestLevel.index()];
 		}

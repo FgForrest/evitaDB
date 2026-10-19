@@ -209,8 +209,8 @@ public class OffHeapTrafficRecorderMetricsTest implements EvitaTestSupport {
 			"exactly one SAMPLING skip event expected - the first publish emits the delta, the second idle " +
 				"publish must emit nothing"
 		);
-		assertEquals(4L, sampling.get(0).getLong("missedRecords"));
-		assertEquals(0L, sampling.get(0).getLong("droppedSessions"), "sampling never drops whole sessions");
+		assertEquals(4L, sampling.getFirst().getLong("missedRecords"));
+		assertEquals(0L, sampling.getFirst().getLong("droppedSessions"), "sampling never drops whole sessions");
 	}
 
 	@Test
@@ -284,11 +284,11 @@ public class OffHeapTrafficRecorderMetricsTest implements EvitaTestSupport {
 		final List<RecordedEvent> stats = eventsNamed(events, STATISTICS_EVENT);
 		assertEquals(1, stats.size(), "exactly one statistics emission expected");
 		assertEquals(
-			0L, stats.get(0).getLong("recordedRecords"),
+			0L, stats.getFirst().getLong("recordedRecords"),
 			"no records were recorded since the last emission, so the delta must be zero"
 		);
 		assertTrue(
-			stats.get(0).getLong("recordedRecords") >= 0L,
+			stats.getFirst().getLong("recordedRecords") >= 0L,
 			"a rebaseline must never drive the recordedRecords delta negative"
 		);
 

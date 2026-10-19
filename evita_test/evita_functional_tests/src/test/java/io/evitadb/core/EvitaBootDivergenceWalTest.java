@@ -139,8 +139,8 @@ class EvitaBootDivergenceWalTest implements EvitaTestSupport {
 
 			final List<EngineMutation<?>> walMutations = readWalMutations(evita, seedVersion + 1);
 			assertEquals(1, walMutations.size());
-			assertInstanceOf(MarkCatalogMissingMutation.class, walMutations.get(0));
-			assertEquals("b", ((MarkCatalogMissingMutation) walMutations.get(0)).getCatalogName());
+			assertInstanceOf(MarkCatalogMissingMutation.class, walMutations.getFirst());
+			assertEquals("b", ((MarkCatalogMissingMutation) walMutations.getFirst()).getCatalogName());
 		}
 	}
 
@@ -165,8 +165,8 @@ class EvitaBootDivergenceWalTest implements EvitaTestSupport {
 
 			final List<EngineMutation<?>> walMutations = readWalMutations(evita, seedVersion + 1);
 			assertEquals(1, walMutations.size());
-			assertInstanceOf(RestoreCatalogSchemaMutation.class, walMutations.get(0));
-			assertEquals("d", ((RestoreCatalogSchemaMutation) walMutations.get(0)).getCatalogName());
+			assertInstanceOf(RestoreCatalogSchemaMutation.class, walMutations.getFirst());
+			assertEquals("d", ((RestoreCatalogSchemaMutation) walMutations.getFirst()).getCatalogName());
 		}
 	}
 
@@ -184,8 +184,8 @@ class EvitaBootDivergenceWalTest implements EvitaTestSupport {
 
 			final List<EngineMutation<?>> walMutations = readWalMutations(evita, seedVersion + 1);
 			assertEquals(1, walMutations.size());
-			assertInstanceOf(RestoreCatalogSchemaMutation.class, walMutations.get(0));
-			assertEquals("c", ((RestoreCatalogSchemaMutation) walMutations.get(0)).getCatalogName());
+			assertInstanceOf(RestoreCatalogSchemaMutation.class, walMutations.getFirst());
+			assertEquals("c", ((RestoreCatalogSchemaMutation) walMutations.getFirst()).getCatalogName());
 		}
 	}
 

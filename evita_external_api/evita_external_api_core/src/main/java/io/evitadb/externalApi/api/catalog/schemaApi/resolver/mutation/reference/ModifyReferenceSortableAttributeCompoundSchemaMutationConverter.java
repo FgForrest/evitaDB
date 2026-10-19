@@ -101,7 +101,7 @@ public class ModifyReferenceSortableAttributeCompoundSchemaMutationConverter
 
 		return new ModifyReferenceSortableAttributeCompoundSchemaMutation(
 			input.getProperty(ReferenceSchemaMutationDescriptor.NAME),
-			sortableAttributeCompoundSchemaMutations.get(0)
+			sortableAttributeCompoundSchemaMutations.getFirst()
 		);
 	}
 

@@ -1337,7 +1337,7 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				// product can be found by new country in category 1
 				final List<EntityReferenceContract> foundProducts = getProductByCategoryCountry(session, "FR");
 				assertEquals(1, foundProducts.size());
-				assertEquals(1, foundProducts.get(0).getPrimaryKey());
+				assertEquals(1, foundProducts.getFirst().getPrimaryKey());
 
 				// product cannot be found by old country in category 1
 				final List<EntityReferenceContract> notFoundProducts = getProductByCategoryCountry(session, "DE");
@@ -1406,10 +1406,10 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				// product can be found by empty country in category 1
 				final List<EntityReferenceContract> foundProducts = getProductByNullCategoryCountry(session);
 				assertEquals(1, foundProducts.size());
-				assertEquals(1, foundProducts.get(0).getPrimaryKey());
+				assertEquals(1, foundProducts.getFirst().getPrimaryKey());
 				final List<EntityReferenceContract> foundProductsUS = getProductByCategoryCountry(session, "US");
 				assertEquals(1, foundProductsUS.size());
-				assertEquals(1, foundProductsUS.get(0).getPrimaryKey());
+				assertEquals(1, foundProductsUS.getFirst().getPrimaryKey());
 
 				// product cannot be found by old country in category 1
 				final List<EntityReferenceContract> notFoundProductsDE = getProductByCategoryCountry(session, "DE");
@@ -1457,11 +1457,11 @@ public class EntityByDuplicateReferencesFunctionalTest {
 				// product can be found by restored country in category 1
 				final List<EntityReferenceContract> foundProductsDE = getProductByCategoryCountry(session, "DE");
 				assertEquals(1, foundProductsDE.size());
-				assertEquals(1, foundProductsDE.get(0).getPrimaryKey());
+				assertEquals(1, foundProductsDE.getFirst().getPrimaryKey());
 
 				final List<EntityReferenceContract> foundProductsUSAfterRestore = getProductByCategoryCountry(session, "US");
 				assertEquals(1, foundProductsUSAfterRestore.size());
-				assertEquals(1, foundProductsUSAfterRestore.get(0).getPrimaryKey());
+				assertEquals(1, foundProductsUSAfterRestore.getFirst().getPrimaryKey());
 
 				// product cannot be found by empty country in category 1
 				final List<EntityReferenceContract> notFoundProductsNull = getProductByNullCategoryCountry(session);

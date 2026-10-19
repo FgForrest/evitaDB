@@ -859,7 +859,7 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 		 */
 		void assertAllInvocationsPassSameInstance() {
 			assertFalse(this.invocations.isEmpty(), "no invocations to check");
-			final AbstractReducedEntityIndex first = this.invocations.get(0).indexForUpsert();
+			final AbstractReducedEntityIndex first = this.invocations.getFirst().indexForUpsert();
 			for (int i = 1; i < this.invocations.size(); i++) {
 				assertSame(
 					first, this.invocations.get(i).indexForUpsert(),
