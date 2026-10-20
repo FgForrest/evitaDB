@@ -156,10 +156,12 @@ public interface EngineMutationOperator<S, T extends EngineMutation<S>> {
 	 *   crash).
 	 * - The primary purpose remains rebuilding the `ExpandedEngineState` that the original
 	 *   `applyMutation` completion updater would have produced.
-	 * - Returning `Optional.empty()` (the default) signals that this mutation type does not
-	 *   support forward replay safely. The transaction manager will then log a loud error and
-	 *   wedge the engine rather than silently proceeding — this is intentional, because silent
-	 *   corruption is worse than an operator-visible failure.
+	 * - Returning `Optional.empty()` signals that this mutation type does not support forward
+	 *   replay safely. The transaction manager will then log a loud error and wedge the engine -
+	 *   every mutation after it is refused until the bootstrap file is reconciled by hand - rather
+	 *   than silently proceeding, because silent corruption is worse than an operator-visible
+	 *   failure. The method has no default: an operator that cannot replay returns the empty
+	 *   answer explicitly and says in its javadoc why, so the debt is a decision made on purpose.
 	 *
 	 * @param mutation       the concrete engine mutation committed to the WAL
 	 * @param targetVersion  the engine state version to apply (equals the WAL entry version)
@@ -169,13 +171,11 @@ public interface EngineMutationOperator<S, T extends EngineMutation<S>> {
 	 *         this operator does not support forward replay
 	 */
 	@Nonnull
-	default Optional<ExpandedEngineState> replayCompletionState(
+	Optional<ExpandedEngineState> replayCompletionState(
 		@Nonnull T mutation,
 		long targetVersion,
 		@Nonnull ExpandedEngineState currentState,
 		@Nonnull Evita evita
-	) {
-		return Optional.empty();
-	}
+	);
 
 }

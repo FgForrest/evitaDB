@@ -1,7 +1,7 @@
 ---
 title: A single-owner partition of a filtering-only reference is a row of a per-reference registry, and an index object exists only while a partition has two or more owners
 date: 2026-10-12
-updated: 2026-10-20 08:45
+updated: 2026-10-20 09:00
 status: accepted
 kind: optimization
 issues: [1615]
@@ -28,7 +28,7 @@ areas:
   - documentation/developer/indexes
 supersedes: []
 superseded-by: []
-relates: [2026-10-14-reference-content-filter-row-by-row, 2026-09-23-pick-first-reference-ordering-from-selection, 2026-09-17-row-scoped-reference-having-body, 2026-09-18-reference-planning-from-owner-membership, 2026-09-09-sibling-resolver-partition-cardinality, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-trapped-storage-part-content-pre-images, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-09-04-millisecond-temporal-precision, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-08-10-catalog-and-collection-statistics]
+relates: [2026-10-14-reference-content-filter-row-by-row, 2026-09-23-pick-first-reference-ordering-from-selection, 2026-09-17-row-scoped-reference-having-body, 2026-09-18-reference-planning-from-owner-membership, 2026-09-09-sibling-resolver-partition-cardinality, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-trapped-storage-part-content-pre-images, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-09-04-millisecond-temporal-precision, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-08-10-catalog-and-collection-statistics, 2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures]
 ---
 
 # A single-owner partition of a filtering-only reference is a registry row, not an index object
