@@ -1,7 +1,7 @@
 ---
 title: Statistics are selectable components at two levels, and an exact heap figure is reached one index at a time
 date: 2026-08-10
-updated: 2026-10-12 02:40
+updated: 2026-10-20 10:47
 status: accepted
 kind: feature
 issues: [1339]
@@ -9,7 +9,7 @@ prs: [1418]
 areas: [evita_api/api/statistics, evita_engine/core/catalog, evita_engine/core/collection, evita_engine/core/management, evita_engine/core/transaction, evita_engine/index, evita_external_api/evita_external_api_grpc, evita_driver, evita_store/evita_store_server, evita_store/evita_store_key_value, evita_common/utils]
 supersedes: []
 superseded-by: []
-relates: [2026-07-27-write-path-performance-tuning, 2026-09-03-content-sized-value-tree-columns, 2026-08-16-per-index-usage-statistics, 2026-09-07-storage-part-classification, 2026-10-06-unique-indexes-keep-no-record-set, 2026-10-12-single-owner-partitions-as-registry-rows]
+relates: [2026-07-27-write-path-performance-tuning, 2026-09-03-content-sized-value-tree-columns, 2026-10-20-session-free-tree-reads-are-management-only, 2026-08-16-per-index-usage-statistics, 2026-09-07-storage-part-classification, 2026-10-06-unique-indexes-keep-no-record-set, 2026-10-12-single-owner-partitions-as-registry-rows]
 ---
 
 # Statistics are selectable components at two levels, and an exact heap figure is reached one index at a time
@@ -289,7 +289,9 @@ Three residuals are known:
 
 **Revisit if** a new management reader iterates a live map or collection. It must go through `ManagementReads`,
 not through a catch of its own. The heap-walk half of the same problem is recorded in
-[2026-09-03](../2026-09-03-content-sized-value-tree-columns.md).
+[2026-09-03](../2026-09-03-content-sized-value-tree-columns.md). Which tree reads may run without a session at all - the
+counters, the forward walk and the heap walk, and nothing that looks a key up - is recorded in
+[2026-10-20](../2026-10-20-session-free-tree-reads-are-management-only.md).
 
 ## Related work
 

@@ -1195,8 +1195,10 @@ public class ChainIndex implements
 			+ this.successorsByPredecessor.getHeapSizeInBytes(
 				key -> boxedInteger, TransactionalBitmap::getHeapSizeInBytes
 			);
-		if (this.chainIndexChanges != null) {
-			size += this.chainIndexChanges.getHeapSizeInBytes();
+		// read once - a warm-up flush resets the changes under a management reader, so a second read may see `null`
+		final ChainIndexChanges theChainIndexChanges = this.chainIndexChanges;
+		if (theChainIndexChanges != null) {
+			size += theChainIndexChanges.getHeapSizeInBytes();
 		}
 		return size;
 	}
