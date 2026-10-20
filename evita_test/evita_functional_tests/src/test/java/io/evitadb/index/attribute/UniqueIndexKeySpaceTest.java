@@ -121,7 +121,7 @@ class UniqueIndexKeySpaceTest {
 	private static <T extends StoragePart> T single(@Nonnull List<StoragePart> parts, @Nonnull Class<T> partType) {
 		final List<T> matching = parts.stream().filter(partType::isInstance).map(partType::cast).toList();
 		assertEquals(1, matching.size(), "exactly one " + partType.getSimpleName());
-		return matching.get(0);
+		return matching.getFirst();
 	}
 
 	/**

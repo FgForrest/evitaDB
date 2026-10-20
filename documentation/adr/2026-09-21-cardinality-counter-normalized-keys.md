@@ -1,7 +1,7 @@
 ---
 title: One filter-index entry has one identity, and everything that describes an entry now uses it
 date: 2026-09-21
-updated: 2026-10-06 13:45
+updated: 2026-10-19 16:28
 status: accepted
 kind: fix
 issues: [1620]
@@ -9,7 +9,7 @@ prs: [1621]
 areas: [evita_engine/src/main/java/io/evitadb/index/cardinality, evita_engine/src/main/java/io/evitadb/index/attribute, evita_common/src/main/java/io/evitadb/comparator, evita_common/src/main/java/io/evitadb/dataType, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog, evita_store/evita_store_server/src/main/java/io/evitadb/store/index/serializer]
 supersedes: []
 superseded-by: []
-relates: [2026-08-10-stored-value-normalization-split, 2026-09-04-millisecond-temporal-precision, 2026-10-08-unique-indexes-normalize-like-filter-indexes]
+relates: [2026-08-10-stored-value-normalization-split, 2026-09-04-millisecond-temporal-precision, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-10-12-single-owner-partitions-as-registry-rows]
 ---
 
 # One filter-index entry has one identity, and everything that describes an entry now uses it
@@ -58,6 +58,9 @@ entries must derive its notion of identity from the index, never from the raw va
 > A second, far narrower flavour of the same thing applies to `Locale` attributes, whose order also became
 > consistent with `equals` — there the trigger is a locale carrying an **ill-formed** variant, which the language
 > tag silently drops. Same remedy: reindex.
+>
+> **Note (2026-10-19):** #1615 added further 2026.3 storage changes to the same one step of `Migration_2026_3` from
+> protocol 6 to 7, which is the upgrade this banner is about - see *Related work*.
 
 ## Why
 
@@ -550,6 +553,12 @@ should be read as the trigger to supersede this record rather than to extend the
   audit began normalizing the stored bucket as well as the counter key, which puts both sides in one key space.
   `isCollisionProne` admits `OffsetDateTime` and the type is audited like the other three. The sibling record has
   been corrected to match.
+- [2026-10-12-single-owner-partitions-as-registry-rows](2026-10-12-single-owner-partitions-as-registry-rows.md) —
+  **`Migration_2026_3` carries every 2026.3 storage change** in its one step 6 → 7, published once: this record's
+  re-key first, then the owner sort index rewrite and the conversion of single-owner partitions. A catalog a
+  development build wrote at protocol 7 before those were added is not told apart and must be recreated. The owner
+  sort index rewrite re-sorts the localized compounds 2026.2 ordered by the bare collator and, like this record's
+  *Consequences*, leaves a bucket that merged two spellings merged.
 
 ## Timeline
 

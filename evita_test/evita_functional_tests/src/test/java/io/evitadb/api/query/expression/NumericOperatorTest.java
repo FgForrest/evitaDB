@@ -94,7 +94,7 @@ class NumericOperatorTest {
 				new AdditionOperator(num(3), num(5));
 
 			final BigDecimal result =
-				(BigDecimal) op.compute(CONTEXT);
+				op.compute(CONTEXT);
 
 			assertEquals(new BigDecimal("8"), result);
 		}
@@ -106,7 +106,7 @@ class NumericOperatorTest {
 				new AdditionOperator(num("1.1"), num("2.2"));
 
 			final BigDecimal result =
-				(BigDecimal) op.compute(CONTEXT);
+				op.compute(CONTEXT);
 
 			assertEquals(new BigDecimal("3.3"), result);
 		}
@@ -150,7 +150,7 @@ class NumericOperatorTest {
 				new SubtractionOperator(num(10), num(3));
 
 			final BigDecimal result =
-				(BigDecimal) op.compute(CONTEXT);
+				op.compute(CONTEXT);
 
 			assertEquals(new BigDecimal("7"), result);
 		}
@@ -194,7 +194,7 @@ class NumericOperatorTest {
 				new MultiplicationOperator(num(4), num(5));
 
 			final BigDecimal result =
-				(BigDecimal) op.compute(CONTEXT);
+				op.compute(CONTEXT);
 
 			assertEquals(new BigDecimal("20"), result);
 		}
@@ -238,7 +238,7 @@ class NumericOperatorTest {
 				new DivisionOperator(num(10), num(2));
 
 			final BigDecimal result =
-				(BigDecimal) op.compute(CONTEXT);
+				op.compute(CONTEXT);
 
 			assertEquals(
 				0,
@@ -281,7 +281,7 @@ class NumericOperatorTest {
 				new ModuloOperator(num(10), num(3));
 
 			final BigDecimal result =
-				(BigDecimal) op.compute(CONTEXT);
+				op.compute(CONTEXT);
 
 			assertEquals(new BigDecimal("1"), result);
 		}
@@ -376,7 +376,7 @@ class NumericOperatorTest {
 			final NegativeOperator op = new NegativeOperator(num(5));
 
 			final BigDecimal result =
-				(BigDecimal) op.compute(CONTEXT);
+				op.compute(CONTEXT);
 
 			assertEquals(new BigDecimal("-5"), result);
 		}
@@ -388,7 +388,7 @@ class NumericOperatorTest {
 				new NegativeOperator(num("-5"));
 
 			final BigDecimal result =
-				(BigDecimal) op.compute(CONTEXT);
+				op.compute(CONTEXT);
 
 			assertEquals(new BigDecimal("5"), result);
 		}

@@ -135,7 +135,7 @@ class FacetExpressionTriggerFactoryTest {
 				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
 
 			assertEquals(1, triggers.size());
-			final FacetExpressionTrigger trigger = triggers.get(0);
+			final FacetExpressionTrigger trigger = triggers.getFirst();
 			assertEquals(ENTITY_TYPE, trigger.getOwnerEntityType());
 			assertEquals(REFERENCE_NAME, trigger.getReferenceName());
 			assertEquals(Scope.LIVE, trigger.getScope());
@@ -159,7 +159,7 @@ class FacetExpressionTriggerFactoryTest {
 			assertEquals(1, triggers.size());
 			assertThrows(
 				UnsupportedOperationException.class,
-				() -> triggers.get(0).getFilterByConstraint()
+				() -> triggers.getFirst().getFilterByConstraint()
 			);
 		}
 
@@ -176,7 +176,7 @@ class FacetExpressionTriggerFactoryTest {
 				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
 
 			assertEquals(1, triggers.size());
-			assertNull(triggers.get(0).getDependencyType());
+			assertNull(triggers.getFirst().getDependencyType());
 		}
 
 		@Test
@@ -191,7 +191,7 @@ class FacetExpressionTriggerFactoryTest {
 				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
 
 			assertEquals(1, triggers.size());
-			assertNull(triggers.get(0).getDependencyType());
+			assertNull(triggers.getFirst().getDependencyType());
 		}
 
 	}
@@ -213,7 +213,7 @@ class FacetExpressionTriggerFactoryTest {
 				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
 
 			assertEquals(1, triggers.size());
-			final FacetExpressionTrigger trigger = triggers.get(0);
+			final FacetExpressionTrigger trigger = triggers.getFirst();
 			assertEquals(DependencyType.REFERENCED_ENTITY_ATTRIBUTE, trigger.getDependencyType());
 			assertEquals(REFERENCED_ENTITY_TYPE, trigger.getMutatedEntityType());
 			assertEquals(Set.of("code"), trigger.getDependentAttributes());
@@ -235,7 +235,7 @@ class FacetExpressionTriggerFactoryTest {
 				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
 
 			assertEquals(1, triggers.size());
-			assertEquals(Set.of("code", "status"), triggers.get(0).getDependentAttributes());
+			assertEquals(Set.of("code", "status"), triggers.getFirst().getDependentAttributes());
 		}
 
 		@Test
@@ -252,7 +252,7 @@ class FacetExpressionTriggerFactoryTest {
 				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
 
 			assertEquals(1, triggers.size());
-			final FacetExpressionTrigger trigger = triggers.get(0);
+			final FacetExpressionTrigger trigger = triggers.getFirst();
 			assertEquals(DependencyType.REFERENCED_ENTITY_ATTRIBUTE, trigger.getDependencyType());
 			assertEquals(Set.of("name"), trigger.getDependentAttributes());
 			assertNotNull(trigger.getFilterByConstraint());
@@ -279,7 +279,7 @@ class FacetExpressionTriggerFactoryTest {
 				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
 
 			assertEquals(1, triggers.size());
-			final FacetExpressionTrigger trigger = triggers.get(0);
+			final FacetExpressionTrigger trigger = triggers.getFirst();
 			assertEquals(DependencyType.GROUP_ENTITY_ATTRIBUTE, trigger.getDependencyType());
 			assertEquals(GROUP_ENTITY_TYPE, trigger.getMutatedEntityType());
 			assertEquals(Set.of("status"), trigger.getDependentAttributes());
@@ -306,7 +306,7 @@ class FacetExpressionTriggerFactoryTest {
 				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
 
 			assertEquals(1, triggers.size());
-			final FacetExpressionTrigger trigger = triggers.get(0);
+			final FacetExpressionTrigger trigger = triggers.getFirst();
 			assertEquals(
 				DependencyType.REFERENCED_ENTITY_REFERENCE_ATTRIBUTE, trigger.getDependencyType()
 			);
@@ -331,7 +331,7 @@ class FacetExpressionTriggerFactoryTest {
 
 			assertEquals(1, triggers.size());
 			assertEquals(
-				Set.of("visible", "priority"), triggers.get(0).getDependentAttributes()
+				Set.of("visible", "priority"), triggers.getFirst().getDependentAttributes()
 			);
 		}
 
@@ -382,7 +382,7 @@ class FacetExpressionTriggerFactoryTest {
 				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
 
 			assertEquals(1, triggers.size());
-			final FacetExpressionTrigger trigger = triggers.get(0);
+			final FacetExpressionTrigger trigger = triggers.getFirst();
 			assertEquals(
 				DependencyType.GROUP_ENTITY_REFERENCE_ATTRIBUTE, trigger.getDependencyType()
 			);
@@ -405,7 +405,7 @@ class FacetExpressionTriggerFactoryTest {
 				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
 
 			assertEquals(1, triggers.size());
-			final FacetExpressionTrigger trigger = triggers.get(0);
+			final FacetExpressionTrigger trigger = triggers.getFirst();
 			assertEquals(
 				DependencyType.GROUP_ENTITY_REFERENCE_ATTRIBUTE, trigger.getDependencyType()
 			);
@@ -525,9 +525,9 @@ class FacetExpressionTriggerFactoryTest {
 			// mixed expression produces only cross-entity trigger(s), not local-only
 			assertEquals(1, triggers.size());
 			assertEquals(
-				DependencyType.REFERENCED_ENTITY_ATTRIBUTE, triggers.get(0).getDependencyType()
+				DependencyType.REFERENCED_ENTITY_ATTRIBUTE, triggers.getFirst().getDependencyType()
 			);
-			assertEquals(Set.of("code"), triggers.get(0).getDependentAttributes());
+			assertEquals(Set.of("code"), triggers.getFirst().getDependentAttributes());
 		}
 
 	}
@@ -633,7 +633,7 @@ class FacetExpressionTriggerFactoryTest {
 				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
 
 			assertEquals(1, triggers.size());
-			final FacetExpressionTrigger trigger = triggers.get(0);
+			final FacetExpressionTrigger trigger = triggers.getFirst();
 			assertEquals(Set.of("status"), trigger.getLocalEntityAttributes());
 			assertTrue(trigger.getLocalReferenceAttributes().isEmpty());
 			assertTrue(trigger.getLocalAssociatedData().isEmpty());
@@ -653,7 +653,7 @@ class FacetExpressionTriggerFactoryTest {
 				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
 
 			assertEquals(1, triggers.size());
-			final FacetExpressionTrigger trigger = triggers.get(0);
+			final FacetExpressionTrigger trigger = triggers.getFirst();
 			assertEquals(Set.of("order"), trigger.getLocalReferenceAttributes());
 			assertTrue(trigger.getLocalEntityAttributes().isEmpty());
 			assertTrue(trigger.getLocalAssociatedData().isEmpty());
@@ -673,7 +673,7 @@ class FacetExpressionTriggerFactoryTest {
 				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
 
 			assertEquals(1, triggers.size());
-			final FacetExpressionTrigger trigger = triggers.get(0);
+			final FacetExpressionTrigger trigger = triggers.getFirst();
 			assertEquals(Set.of("description"), trigger.getLocalAssociatedData());
 			assertTrue(trigger.getLocalEntityAttributes().isEmpty());
 			assertTrue(trigger.getLocalReferenceAttributes().isEmpty());
@@ -693,7 +693,7 @@ class FacetExpressionTriggerFactoryTest {
 				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
 
 			assertEquals(1, triggers.size());
-			final FacetExpressionTrigger trigger = triggers.get(0);
+			final FacetExpressionTrigger trigger = triggers.getFirst();
 			assertTrue(trigger.usesParent());
 			assertTrue(trigger.getLocalEntityAttributes().isEmpty());
 			assertTrue(trigger.getLocalReferenceAttributes().isEmpty());
@@ -717,7 +717,7 @@ class FacetExpressionTriggerFactoryTest {
 				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
 
 			assertEquals(1, triggers.size());
-			final FacetExpressionTrigger trigger = triggers.get(0);
+			final FacetExpressionTrigger trigger = triggers.getFirst();
 			assertEquals(Set.of("status"), trigger.getLocalEntityAttributes());
 			assertEquals(Set.of("order"), trigger.getLocalReferenceAttributes());
 			assertEquals(Set.of("description"), trigger.getLocalAssociatedData());
@@ -740,7 +740,7 @@ class FacetExpressionTriggerFactoryTest {
 
 			// mixed expression produces only cross-entity trigger(s)
 			assertEquals(1, triggers.size());
-			final FacetExpressionTrigger trigger = triggers.get(0);
+			final FacetExpressionTrigger trigger = triggers.getFirst();
 			assertEquals(DependencyType.REFERENCED_ENTITY_ATTRIBUTE, trigger.getDependencyType());
 			// but local deps are still populated
 			assertEquals(Set.of("status"), trigger.getLocalEntityAttributes());
@@ -760,7 +760,7 @@ class FacetExpressionTriggerFactoryTest {
 				FacetExpressionTriggerFactory.buildTriggersForReference(ENTITY_TYPE, refSchema);
 
 			assertEquals(1, triggers.size());
-			final FacetExpressionTrigger trigger = triggers.get(0);
+			final FacetExpressionTrigger trigger = triggers.getFirst();
 			assertTrue(trigger.getLocalEntityAttributes().isEmpty());
 			assertTrue(trigger.getLocalReferenceAttributes().isEmpty());
 			assertTrue(trigger.getLocalAssociatedData().isEmpty());

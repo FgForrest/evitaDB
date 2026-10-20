@@ -44,6 +44,7 @@ import lombok.extern.slf4j.Slf4j;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Collections;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -54,9 +55,9 @@ import java.util.function.Consumer;
  *
  * Forward-replay is intentionally **not** implemented here. Activation requires a previously-loaded `Catalog`
  * (produced by `evita.loadCatalogInternal`) and deactivation closes all sessions and terminates the catalog. Neither
- * side effect can be recreated from the WAL mutation alone at replay time without re-running the work phase. The
- * default `Optional.empty()` in `EngineMutationOperator` causes the transaction manager to wedge loudly — safer than
- * silently producing an inconsistent catalog snapshot.
+ * side effect can be recreated from the WAL mutation alone at replay time without re-running the work phase.
+ * `replayCompletionState` therefore returns `Optional.empty()`, which makes the transaction manager wedge loudly —
+ * safer than silently producing an inconsistent catalog snapshot.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -323,6 +324,22 @@ public class SetCatalogStateMutationOperator implements EngineMutationOperator<V
 				catalogName, withdrawalFailure
 			);
 		}
+	}
+
+	/**
+	 * Forward replay is not supported - the class javadoc says why.
+	 *
+	 * @return always empty, so a crash between the write-ahead log append and the bootstrap rewrite wedges the engine
+	 */
+	@Nonnull
+	@Override
+	public Optional<ExpandedEngineState> replayCompletionState(
+		@Nonnull SetCatalogStateMutation mutation,
+		long targetVersion,
+		@Nonnull ExpandedEngineState currentState,
+		@Nonnull Evita evita
+	) {
+		return Optional.empty();
 	}
 
 }

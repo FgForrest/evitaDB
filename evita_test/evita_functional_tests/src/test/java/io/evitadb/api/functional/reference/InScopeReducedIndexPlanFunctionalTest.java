@@ -1748,7 +1748,7 @@ public class InScopeReducedIndexPlanFunctionalTest {
 				levels.stream().map(it -> it.entity().getPrimaryKey()).toList(),
 				() -> "the live statistics must describe the live root 1, got: " + levels
 			);
-			assertEquals(Integer.valueOf(LIVE_SUBTREE.length), levels.get(0).queriedEntityCount());
+			assertEquals(Integer.valueOf(LIVE_SUBTREE.length), levels.getFirst().queriedEntityCount());
 		}
 
 		/**
@@ -1856,8 +1856,8 @@ public class InScopeReducedIndexPlanFunctionalTest {
 				children.stream().map(it -> it.entity().getPrimaryKey()).toList(),
 				() -> "the archived statistics must describe the archived root 11, got: " + children
 			);
-			assertTrue(children.get(0).requested());
-			assertEquals(Integer.valueOf(ARCHIVED_SUBTREE.length), children.get(0).queriedEntityCount());
+			assertTrue(children.getFirst().requested());
+			assertEquals(Integer.valueOf(ARCHIVED_SUBTREE.length), children.getFirst().queriedEntityCount());
 		}
 
 		/**

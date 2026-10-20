@@ -1331,7 +1331,7 @@ public class ArrayUtils {
 	 *         is less than, equal to, or greater than the second array
 	 */
 	public static <T extends Comparable<T>> int compare(@Nonnull T[] a, @Nonnull T[] b) {
-		return compare((Object[]) a, (Object[]) b);
+		return compare(a, (Object[]) b);
 	}
 
 	/**

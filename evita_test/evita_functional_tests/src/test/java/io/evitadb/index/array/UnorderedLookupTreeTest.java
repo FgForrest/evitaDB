@@ -306,16 +306,16 @@ class UnorderedLookupTreeTest {
 			}
 			for (int i = 0; i < 500; i++) {
 				tested.addAtHead(2_000_000 + i);
-				oracle.add(0, 2_000_000 + i);
+				oracle.addFirst(2_000_000 + i);
 			}
 			assertConsistentWithOracle(tested, oracle);
 
 			// after deep multi-level growth the rightmost descent must land on the true last record
-			assertEquals(oracle.get(oracle.size() - 1).intValue(), tested.tree.getLastRecordId());
+			assertEquals(oracle.getLast().intValue(), tested.tree.getLastRecordId());
 			// removing the current last record re-targets getLastRecordId to the new tail
-			final int lastRecordId = oracle.remove(oracle.size() - 1);
+			final int lastRecordId = oracle.removeLast();
 			tested.remove(lastRecordId);
-			assertEquals(oracle.get(oracle.size() - 1).intValue(), tested.tree.getLastRecordId());
+			assertEquals(oracle.getLast().intValue(), tested.tree.getLastRecordId());
 			assertConsistentWithOracle(tested, oracle);
 		}
 
@@ -419,7 +419,7 @@ class UnorderedLookupTreeTest {
 			final List<Integer> oracle = new ArrayList<>();
 			for (int i = 0; i < 2_000; i++) {
 				tested.addAtHead(1000 + i);
-				oracle.add(0, 1000 + i);
+				oracle.addFirst(1000 + i);
 			}
 			assertConsistentWithOracle(tested, oracle);
 		}
@@ -484,7 +484,7 @@ class UnorderedLookupTreeTest {
 					final int recordId = nextRecordId++;
 					if (size == 0 || random.nextInt(10) == 0) {
 						tested.addAtHead(recordId);
-						oracle.add(0, recordId);
+						oracle.addFirst(recordId);
 					} else {
 						final int prevIndex = random.nextInt(size);
 						tested.addAfter(oracle.get(prevIndex), recordId);
@@ -513,7 +513,7 @@ class UnorderedLookupTreeTest {
 					if (size == 0) {
 						tested.addAtHead(recordId);
 						array.addRecord(Integer.MIN_VALUE, recordId);
-						live.add(0, recordId);
+						live.addFirst(recordId);
 					} else {
 						final int prev = live.get(random.nextInt(size));
 						tested.addAfter(prev, recordId);
@@ -693,7 +693,7 @@ class UnorderedLookupTreeTest {
 		 */
 		private static void drainFromHead(@Nonnull TreeWithIndex tested, @Nonnull List<Integer> oracle) {
 			while (!oracle.isEmpty()) {
-				tested.remove(oracle.remove(0));
+				tested.remove(oracle.removeFirst());
 				assertConsistent(tested);
 			}
 			assertTrue(tested.tree.isEmpty());
@@ -706,7 +706,7 @@ class UnorderedLookupTreeTest {
 		 */
 		private static void drainFromTail(@Nonnull TreeWithIndex tested, @Nonnull List<Integer> oracle) {
 			while (!oracle.isEmpty()) {
-				tested.remove(oracle.remove(oracle.size() - 1));
+				tested.remove(oracle.removeLast());
 				assertConsistent(tested);
 			}
 			assertTrue(tested.tree.isEmpty());
@@ -762,7 +762,7 @@ class UnorderedLookupTreeTest {
 				for (int ins = 0; ins < inserts; ins++) {
 					final int recordId = nextRecordId++;
 					tested.addAtHead(recordId);
-					oracle.add(0, recordId);
+					oracle.addFirst(recordId);
 					assertConsistent(tested);
 				}
 			}
@@ -784,7 +784,7 @@ class UnorderedLookupTreeTest {
 			}
 			// one record left - the tree must now be a single root container (height fully collapsed)
 			assertConsistentWithOracle(tested, oracle);
-			tested.remove(oracle.remove(0));
+			tested.remove(oracle.removeFirst());
 			assertTrue(tested.tree.isEmpty());
 			assertConsistent(tested);
 		}
@@ -1784,7 +1784,7 @@ class UnorderedLookupTreeTest {
 			final List<UnorderedLookupTree.LeafPageHandle> handles = tested.tree.leafPageHandles();
 			assertEquals(1, handles.size());
 			assertArrayEquals(
-				new int[]{11, 22, 33, 44}, handles.get(0).recordIds(),
+				new int[]{11, 22, 33, 44}, handles.getFirst().recordIds(),
 				"the page must carry the live run, never a padded zero record id"
 			);
 		}

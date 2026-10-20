@@ -1069,11 +1069,11 @@ class ChangeCaptureRingBufferTest {
 
             // If the control list is larger than the buffer size, remove the oldest items
             while (controlList.size() > bufferSize) {
-                controlList.remove(0);
+                controlList.removeFirst();
             }
         }
 
-        final ChangeCatalogCapture firstActive = controlList.get(0);
+        final ChangeCatalogCapture firstActive = controlList.getFirst();
 
         // Verify the buffer state
         assertEquals(firstActive.version(), buffer.getEffectiveStartCatalogVersion());
@@ -1082,8 +1082,8 @@ class ChangeCaptureRingBufferTest {
         // Perform 10 random copy-to operations
         for (int i = 0; i < 10; i++) {
             // Generate a random start index for the copy operation
-            final int startIndex = random.nextInt(captureCount - controlList.get(0).index());
-            int startSequenceNo = controlList.get(0).index() + startIndex;
+            final int startIndex = random.nextInt(captureCount - controlList.getFirst().index());
+            int startSequenceNo = controlList.getFirst().index() + startIndex;
 
             // Create a WAL pointer for the start index
             final WalPointer walPointer = new WalPointer(1L, startSequenceNo);

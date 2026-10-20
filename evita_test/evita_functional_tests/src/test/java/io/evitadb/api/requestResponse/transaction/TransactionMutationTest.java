@@ -255,7 +255,7 @@ class TransactionMutationTest implements EvitaTestSupport {
 				).toList();
 
 			assertEquals(1, captures.size());
-			final ChangeCatalogCapture capture = captures.get(0);
+			final ChangeCatalogCapture capture = captures.getFirst();
 			assertAll(
 				() -> assertEquals(VERSION, capture.version()),
 				() -> assertEquals(0, capture.index()),
@@ -286,7 +286,7 @@ class TransactionMutationTest implements EvitaTestSupport {
 				).toList();
 
 			assertEquals(1, captures.size());
-			assertNull(captures.get(0).body());
+			assertNull(captures.getFirst().body());
 		}
 
 		@Test
@@ -341,7 +341,7 @@ class TransactionMutationTest implements EvitaTestSupport {
 
 			assertEquals(
 				CaptureArea.INFRASTRUCTURE,
-				captures.get(0).area()
+				captures.getFirst().area()
 			);
 		}
 	}
@@ -364,7 +364,7 @@ class TransactionMutationTest implements EvitaTestSupport {
 				).toList();
 
 			assertEquals(1, captures.size());
-			final ChangeSystemCapture capture = captures.get(0);
+			final ChangeSystemCapture capture = captures.getFirst();
 			assertAll(
 				() -> assertEquals(VERSION, capture.version()),
 				() -> assertEquals(0, capture.index()),
@@ -392,7 +392,7 @@ class TransactionMutationTest implements EvitaTestSupport {
 				).toList();
 
 			assertEquals(1, captures.size());
-			assertNull(captures.get(0).body());
+			assertNull(captures.getFirst().body());
 		}
 
 		@Test

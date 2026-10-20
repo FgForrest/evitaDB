@@ -184,7 +184,7 @@ public class QueryPlanner {
 			Assert.isPremiseValid(!queryPlanBuilders.isEmpty(), "Unexpectedly no query plan was created!");
 
 			// select preferred plan
-			final QueryPlanBuilder preferredPlan = queryPlanBuilders.get(0);
+			final QueryPlanBuilder preferredPlan = queryPlanBuilders.getFirst();
 
 			// verify results in alternative indexes if the debug option is on
 			final List<? extends TargetIndexes<?>> targetIndexes = indexSelectionResult.targetIndexes();
@@ -264,7 +264,7 @@ public class QueryPlanner {
 			Assert.isPremiseValid(!queryPlanBuilders.isEmpty(), "Unexpectedly, no query plan was created!");
 
 			// select preferred plan builder
-			final QueryPlanBuilder preferredPlan = queryPlanBuilders.get(0);
+			final QueryPlanBuilder preferredPlan = queryPlanBuilders.getFirst();
 
 			// verify results in alternative indexes
 			final List<? extends TargetIndexes<?>> targetIndexes = indexSelectionResult.targetIndexes();
@@ -435,7 +435,7 @@ public class QueryPlanner {
 						final QueryPlanBuilder queryPlanBuilder = new QueryPlanBuilder(
 							queryContext, adeptFormula, filterByVisitor, targetIndex, prefetchFormulaVisitor
 						);
-						if (result.isEmpty() || adeptFormula.getEstimatedCost() < result.get(0).getEstimatedCost()) {
+						if (result.isEmpty() || adeptFormula.getEstimatedCost() < result.getFirst().getEstimatedCost()) {
 							result.addFirst(queryPlanBuilder);
 						} else {
 							result.addLast(queryPlanBuilder);
@@ -472,7 +472,7 @@ public class QueryPlanner {
 			if (result.isEmpty()) {
 				queryContext.popStep(() -> "No index selected!");
 			} else {
-				queryContext.popStep(() -> "Selected index: " + result.get(0).getDescriptionWithCosts());
+				queryContext.popStep(() -> "Selected index: " + result.getFirst().getDescriptionWithCosts());
 			}
 		}
 	}
@@ -527,7 +527,7 @@ public class QueryPlanner {
 			if (builders.isEmpty()) {
 				return EmptyFormula.INSTANCE;
 			}
-			final Formula nestedFormula = builders.get(0).getFilterFormula();
+			final Formula nestedFormula = builders.getFirst().getFilterFormula();
 
 			// fold the nested filter's prefetch demand into the outer plan so prefetch can fire when the rewrite
 			// narrows down to a small set of entities even if the outer filter alone wouldn't have triggered it

@@ -539,7 +539,7 @@ class WarmUpSavepointCollectionRollbackTest {
 			list.add(0, "z");
 			list.set(2, "B");
 			list.remove("c");
-			list.remove(0);
+			list.removeFirst();
 			list.addAll(List.of("e", "f"));
 			assertEquals(List.of("a", "B", "d", "e", "f"), new ArrayList<>(list), "self-check on in-savepoint state");
 			savepoint.rollback();
@@ -714,7 +714,7 @@ class WarmUpSavepointCollectionRollbackTest {
 			// only two honest options are to journal it or to refuse it - and silently losing it is neither
 			assertThrows(UnsupportedOperationException.class, () -> view.set(0, "z"));
 			assertThrows(UnsupportedOperationException.class, () -> view.add("z"));
-			assertThrows(UnsupportedOperationException.class, () -> view.remove(0));
+			assertThrows(UnsupportedOperationException.class, () -> view.removeFirst());
 			savepoint.rollback();
 
 			assertEquals(List.of("a", "b", "c"), new ArrayList<>(list), "Nothing was written, so nothing is rewound.");

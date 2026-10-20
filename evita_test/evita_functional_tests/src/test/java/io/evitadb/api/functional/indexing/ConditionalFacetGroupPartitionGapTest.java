@@ -352,7 +352,7 @@ class ConditionalFacetGroupPartitionGapTest implements EvitaTestSupport {
 	private void prepare(@Nonnull CatalogState state, @Nonnull String widgetType) {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				defineSchemaAndFixtures(session, widgetType);
 				if (state == CatalogState.ALIVE) {
 					session.goLiveAndClose();

@@ -121,7 +121,7 @@ class LocaleSerializablePredicateTest {
 		void shouldRejectWhenLocalesIsNullAndNoImplicitLocale() {
 			final LocaleSerializablePredicate predicate =
 				new LocaleSerializablePredicate(
-					(Locale) null, (Set<Locale>) null
+					null, (Set<Locale>) null
 				);
 
 			assertFalse(predicate.test(Locale.ENGLISH));
@@ -269,7 +269,7 @@ class LocaleSerializablePredicateTest {
 		void shouldCombineNullLocalesWithRequestLocales() {
 			final LocaleSerializablePredicate predicate =
 				new LocaleSerializablePredicate(
-					(Locale) null, (Set<Locale>) null
+					null, (Set<Locale>) null
 				);
 
 			final EvitaRequest evitaRequest = Mockito.mock(EvitaRequest.class);

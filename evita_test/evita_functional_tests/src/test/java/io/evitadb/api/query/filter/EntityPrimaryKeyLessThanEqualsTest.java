@@ -66,7 +66,7 @@ class EntityPrimaryKeyLessThanEqualsTest {
 	@Test
 	void shouldRecognizeNotApplicability() {
 		assertFalse(
-			new EntityPrimaryKeyLessThanEquals((Integer) null).isApplicable()
+			new EntityPrimaryKeyLessThanEquals(null).isApplicable()
 		);
 	}
 

@@ -30,8 +30,6 @@ import io.evitadb.api.query.Query;
 import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.management.FileManagementService;
-import io.evitadb.exception.NotMonitored;
-import io.evitadb.store.traffic.OffHeapTrafficRecorder.MemoryNotAvailableException;
 import io.evitadb.store.traffic.event.TrafficRecorderMissReason;
 import io.evitadb.test.Entities;
 import io.evitadb.test.EvitaTestSupport;
@@ -47,10 +45,6 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
@@ -70,8 +64,8 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * Verifies the {@link OffHeapTrafficRecorder} observability behaviour: that the periodic metric event
  * emits DELTAS (not cumulative totals), that skips/drops are attributed to the correct
- * {@link TrafficRecorderMissReason}, that {@link MemoryNotAvailableException} is opted out of error
- * monitoring, and that the sampling rate no longer folds in involuntary failure drops.
+ * {@link TrafficRecorderMissReason}, and that the sampling rate no longer folds in involuntary failure drops. That
+ * the memory exhaustion it reports is kept out of error monitoring is shown by `EvitaErrorMonitoringTest`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -130,19 +124,6 @@ public class OffHeapTrafficRecorderMetricsTest implements EvitaTestSupport {
 	void tearDown() throws IOException {
 		this.trafficRecorder.close();
 		FileUtils.deleteDirectory(this.workDirectory);
-	}
-
-	@Test
-	@DisplayName("MemoryNotAvailableException is opted out of error monitoring via @NotMonitored")
-	void shouldOptMemoryNotAvailableOutOfErrorMonitoring() {
-		assertTrue(
-			MemoryNotAvailableException.class.isAnnotationPresent(NotMonitored.class),
-			"MemoryNotAvailableException must carry @NotMonitored so the error-monitoring agent skips it"
-		);
-		// RUNTIME retention is load-bearing, not incidental: the agent instruments only the roots of the evitaDB
-		// error hierarchies, so this marker is read reflectively at runtime rather than while instrumenting
-		assertEquals(RetentionPolicy.RUNTIME, NotMonitored.class.getAnnotation(Retention.class).value());
-		assertArrayEquals(new ElementType[]{ElementType.TYPE}, NotMonitored.class.getAnnotation(Target.class).value());
 	}
 
 	@Test
@@ -209,8 +190,8 @@ public class OffHeapTrafficRecorderMetricsTest implements EvitaTestSupport {
 			"exactly one SAMPLING skip event expected - the first publish emits the delta, the second idle " +
 				"publish must emit nothing"
 		);
-		assertEquals(4L, sampling.get(0).getLong("missedRecords"));
-		assertEquals(0L, sampling.get(0).getLong("droppedSessions"), "sampling never drops whole sessions");
+		assertEquals(4L, sampling.getFirst().getLong("missedRecords"));
+		assertEquals(0L, sampling.getFirst().getLong("droppedSessions"), "sampling never drops whole sessions");
 	}
 
 	@Test
@@ -284,11 +265,11 @@ public class OffHeapTrafficRecorderMetricsTest implements EvitaTestSupport {
 		final List<RecordedEvent> stats = eventsNamed(events, STATISTICS_EVENT);
 		assertEquals(1, stats.size(), "exactly one statistics emission expected");
 		assertEquals(
-			0L, stats.get(0).getLong("recordedRecords"),
+			0L, stats.getFirst().getLong("recordedRecords"),
 			"no records were recorded since the last emission, so the delta must be zero"
 		);
 		assertTrue(
-			stats.get(0).getLong("recordedRecords") >= 0L,
+			stats.getFirst().getLong("recordedRecords") >= 0L,
 			"a rebaseline must never drive the recordedRecords delta negative"
 		);
 

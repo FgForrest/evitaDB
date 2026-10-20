@@ -631,7 +631,7 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 			);
 		}
 
-		final ExpressionNode predicateArg = methodStep.getArgumentOperands().get(0);
+		final ExpressionNode predicateArg = methodStep.getArgumentOperands().getFirst();
 		final ExpressionNode unwrapped = unwrap(predicateArg);
 
 		if (!(unwrapped instanceof BinaryExpressionNode comparison)) {
@@ -852,7 +852,7 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 		for (final Map.Entry<String, List<FilterConstraint>> entry : refGroups.entrySet()) {
 			final List<FilterConstraint> innerConstraints = entry.getValue();
 			if (innerConstraints.size() == 1) {
-				merged.add(referenceHaving(entry.getKey(), innerConstraints.get(0)));
+				merged.add(referenceHaving(entry.getKey(), innerConstraints.getFirst()));
 			} else {
 				merged.add(referenceHaving(
 					entry.getKey(),
@@ -1023,7 +1023,7 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 					"argument for FilterBy translation."
 			);
 		}
-		final ExpressionNode predicateArg = methodStep.getArgumentOperands().get(0);
+		final ExpressionNode predicateArg = methodStep.getArgumentOperands().getFirst();
 		final ExpressionNode unwrappedPredicate = unwrap(predicateArg);
 
 		if (!(unwrappedPredicate instanceof BinaryExpressionNode comparison)) {
@@ -1090,7 +1090,7 @@ public class ExpressionToQueryTranslator implements ExpressionNodeVisitor {
 		collectBinaryBooleanOperands(node, ConjunctionOperator.class, operands);
 		final List<FilterConstraint> merged = mergeReferenceHaving(operands);
 		this.result = merged.size() == 1
-			? merged.get(0)
+			? merged.getFirst()
 			: and(merged.toArray(FilterConstraint[]::new));
 	}
 

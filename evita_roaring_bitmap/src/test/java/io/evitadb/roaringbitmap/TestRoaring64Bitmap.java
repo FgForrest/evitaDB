@@ -1712,7 +1712,7 @@ public class TestRoaring64Bitmap {
 			map.flip(0);
 
 			assertFalse(map.contains(0));
-			assertTrue(map.getLongCardinality() == 0);
+			assertEquals(0, map.getLongCardinality());
 		}
 	}
 
@@ -2922,12 +2922,12 @@ public class TestRoaring64Bitmap {
 			PersistentLongRoaringBitmap b1 = PersistentLongRoaringBitmap.bitmapOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
 			b1.runOptimize();
 			b1.or(b1);
-			assertTrue(b1.equals(PersistentLongRoaringBitmap.bitmapOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+			assertEquals(b1, PersistentLongRoaringBitmap.bitmapOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
 			b1.xor(b1);
 			assertTrue(b1.isEmpty());
 			b1 = PersistentLongRoaringBitmap.bitmapOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
 			b1.and(b1);
-			assertTrue(b1.equals(PersistentLongRoaringBitmap.bitmapOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+			assertEquals(b1, PersistentLongRoaringBitmap.bitmapOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
 			b1.andNot(b1);
 			assertTrue(b1.isEmpty());
 		}

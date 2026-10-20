@@ -1064,8 +1064,7 @@ class ExistingEntityBuilderTest extends AbstractBuilderTest {
 			);
 
 			final ReferenceContract findRealParameter = eb.getReferences(new ReferenceKey(PARAMETER, 100))
-			                                              .iterator()
-			                                              .next();
+			                                              .getFirst();
 			eb.removeReference(findRealParameter.getReferenceKey());
 
 			final Entity modifiedInstance = eb.toInstance();

@@ -24,6 +24,7 @@
 package io.evitadb.index.component.loader;
 
 import io.evitadb.index.HistogramIndex;
+import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.index.attribute.FilterIndex;
@@ -66,7 +67,8 @@ public sealed interface LoadedComponentBundle
 	LoadedComponentBundle.AttributeCardinalityIndexes,
 	LoadedComponentBundle.Histograms,
 	LoadedComponentBundle.ReferenceTypeCardinality,
-	LoadedComponentBundle.GroupCardinality {
+	LoadedComponentBundle.GroupCardinality,
+	LoadedComponentBundle.VirtualReferencePartitions {
 
 	/**
 	 * The reloaded {@link io.evitadb.index.attribute.AttributeIndex} component, broken into its
@@ -174,6 +176,17 @@ public sealed interface LoadedComponentBundle
 	record GroupCardinality(
 		@Nonnull Map<Integer, Integer> pkCardinalities,
 		@Nonnull Map<Integer, TransactionalBitmap> referencedPrimaryKeysIndex
+	) implements LoadedComponentBundle {
+	}
+
+	/**
+	 * The reloaded virtual reference partition index carried by `ReferencedTypeEntityIndex` - empty when no root was
+	 * persisted.
+	 *
+	 * @param virtualReferencePartitionIndex the rehydrated index
+	 */
+	record VirtualReferencePartitions(
+		@Nonnull VirtualReferencePartitionIndex virtualReferencePartitionIndex
 	) implements LoadedComponentBundle {
 	}
 

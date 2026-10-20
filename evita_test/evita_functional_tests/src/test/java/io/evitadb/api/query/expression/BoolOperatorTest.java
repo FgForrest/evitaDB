@@ -105,7 +105,7 @@ class BoolOperatorTest {
 			final ConjunctionOperator op =
 				new ConjunctionOperator(bool(true), bool(true));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(true, result);
 		}
@@ -116,7 +116,7 @@ class BoolOperatorTest {
 			final ConjunctionOperator op =
 				new ConjunctionOperator(bool(true), bool(false));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(false, result);
 		}
@@ -127,7 +127,7 @@ class BoolOperatorTest {
 			final ConjunctionOperator op =
 				new ConjunctionOperator(bool(false), bool(false));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(false, result);
 		}
@@ -175,7 +175,7 @@ class BoolOperatorTest {
 			final DisjunctionOperator op =
 				new DisjunctionOperator(bool(true), bool(false));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(true, result);
 		}
@@ -186,7 +186,7 @@ class BoolOperatorTest {
 			final DisjunctionOperator op =
 				new DisjunctionOperator(bool(false), bool(false));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(false, result);
 		}
@@ -197,7 +197,7 @@ class BoolOperatorTest {
 			final DisjunctionOperator op =
 				new DisjunctionOperator(bool(true), bool(true));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(true, result);
 		}
@@ -222,7 +222,7 @@ class BoolOperatorTest {
 			final XorOperator op =
 				new XorOperator(bool(true), bool(false));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(true, result);
 		}
@@ -233,7 +233,7 @@ class BoolOperatorTest {
 			final XorOperator op =
 				new XorOperator(bool(true), bool(true));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(false, result);
 		}
@@ -244,7 +244,7 @@ class BoolOperatorTest {
 			final XorOperator op =
 				new XorOperator(bool(false), bool(false));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(false, result);
 		}
@@ -268,7 +268,7 @@ class BoolOperatorTest {
 		void shouldReturnFalseWhenTrue() {
 			final InverseOperator op = new InverseOperator(bool(true));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(false, result);
 		}
@@ -278,7 +278,7 @@ class BoolOperatorTest {
 		void shouldReturnTrueWhenFalse() {
 			final InverseOperator op = new InverseOperator(bool(false));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(true, result);
 		}
@@ -313,7 +313,7 @@ class BoolOperatorTest {
 			final EqualsOperator op =
 				new EqualsOperator(num(5), num(5));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(true, result);
 		}
@@ -324,7 +324,7 @@ class BoolOperatorTest {
 			final EqualsOperator op =
 				new EqualsOperator(str("a"), str("a"));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(true, result);
 		}
@@ -335,7 +335,7 @@ class BoolOperatorTest {
 			final EqualsOperator op =
 				new EqualsOperator(bool(true), bool(true));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(true, result);
 		}
@@ -346,7 +346,7 @@ class BoolOperatorTest {
 			final EqualsOperator op =
 				new EqualsOperator(num(5), num(6));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(false, result);
 		}
@@ -404,7 +404,7 @@ class BoolOperatorTest {
 			final NotEqualsOperator op =
 				new NotEqualsOperator(num(5), num(4));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(true, result);
 		}
@@ -415,7 +415,7 @@ class BoolOperatorTest {
 			final NotEqualsOperator op =
 				new NotEqualsOperator(num(5), num(5));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(false, result);
 		}
@@ -452,7 +452,7 @@ class BoolOperatorTest {
 			final GreaterThanOperator op =
 				new GreaterThanOperator(num(10), num(5));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(true, result);
 		}
@@ -463,7 +463,7 @@ class BoolOperatorTest {
 			final GreaterThanOperator op =
 				new GreaterThanOperator(num(5), num(10));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(false, result);
 		}
@@ -474,7 +474,7 @@ class BoolOperatorTest {
 			final GreaterThanOperator op =
 				new GreaterThanOperator(num(5), num(5));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(false, result);
 		}
@@ -541,7 +541,7 @@ class BoolOperatorTest {
 			final GreaterThanEqualsOperator op =
 				new GreaterThanEqualsOperator(num(10), num(5));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(true, result);
 		}
@@ -552,7 +552,7 @@ class BoolOperatorTest {
 			final GreaterThanEqualsOperator op =
 				new GreaterThanEqualsOperator(num(5), num(5));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(true, result);
 		}
@@ -563,7 +563,7 @@ class BoolOperatorTest {
 			final GreaterThanEqualsOperator op =
 				new GreaterThanEqualsOperator(num(4), num(5));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(false, result);
 		}
@@ -603,7 +603,7 @@ class BoolOperatorTest {
 			final LesserThanOperator op =
 				new LesserThanOperator(num(5), num(10));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(true, result);
 		}
@@ -614,7 +614,7 @@ class BoolOperatorTest {
 			final LesserThanOperator op =
 				new LesserThanOperator(num(10), num(5));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(false, result);
 		}
@@ -625,7 +625,7 @@ class BoolOperatorTest {
 			final LesserThanOperator op =
 				new LesserThanOperator(num(5), num(5));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(false, result);
 		}
@@ -667,7 +667,7 @@ class BoolOperatorTest {
 			final LesserThanEqualsOperator op =
 				new LesserThanEqualsOperator(num(5), num(10));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(true, result);
 		}
@@ -678,7 +678,7 @@ class BoolOperatorTest {
 			final LesserThanEqualsOperator op =
 				new LesserThanEqualsOperator(num(5), num(5));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(true, result);
 		}
@@ -689,7 +689,7 @@ class BoolOperatorTest {
 			final LesserThanEqualsOperator op =
 				new LesserThanEqualsOperator(num(6), num(5));
 
-			final Boolean result = (Boolean) op.compute(CONTEXT);
+			final Boolean result = op.compute(CONTEXT);
 
 			assertEquals(false, result);
 		}

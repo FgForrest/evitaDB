@@ -34,7 +34,8 @@ container, they operate on
 the <Term location="/documentation/developer/indexes/overview.md" name="Reduced Entity Index">[ReducedEntityIndex](index-hierarchy.md#referenced_entity)</Term>
 instead
 of the <Term location="/documentation/developer/indexes/overview.md" name="Global Entity Index">
-GlobalEntityIndex</Term>. When the attribute schema declares the attribute as `unique`, the translator
+GlobalEntityIndex</Term>, or on the ReferencedTypeEntityIndex for the candidate partitions kept as rows
+of the registry of single-owner partitions. When the attribute schema declares the attribute as `unique`, the translator
 prefers UniqueIndex hash-map lookup (O(1)) over FilterIndex histogram lookup (O(log n)).
 
 ### Filtering -- Hierarchy
@@ -66,7 +67,7 @@ Facet formulas are wrapped in specialized formula types (`FacetGroupOrFormula`,
 
 | EvitaQL Constraint | Index Type                                                 | Data Structure                                                             | Notes                                                                                                                                                                                                                                                                                                                                                 |
 |--------------------|------------------------------------------------------------|----------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `referenceHaving`  | [ReducedEntityIndex](index-hierarchy.md#referenced_entity) | All sub-indexes within ReducedEntityIndex (FilterIndex, UniqueIndex, etc.) | Switches the processing context from GlobalEntityIndex to ReducedEntityIndex. The list of ReducedEntityIndex instances is determined by the reference name and scope. Child constraints are evaluated against these reduced indexes.                                                                                                                  |
+| `referenceHaving`  | [ReducedEntityIndex](index-hierarchy.md#referenced_entity) / [registry rows](index-hierarchy.md#reference-partitions-and-the-registry-of-single-owner-partitions) | All sub-indexes within ReducedEntityIndex (FilterIndex, UniqueIndex, etc.); [registry of single-owner partitions](data-structures.md#registry-of-single-owner-partitions) | Switches the processing context from GlobalEntityIndex to the partitions of the reference. The candidate partitions are found in the ReferencedTypeEntityIndex of the reference name and scope, and split by form (`ReferencePartitionSplit`): child constraints are evaluated against the ReducedEntityIndex of each candidate that has one, and the candidates kept as rows of the registry of single-owner partitions are answered by `VirtualPartitionBodyEvaluator` without any index object.                                                                                                                  |
 | `entityHaving`     | GlobalEntityIndex of the **referenced** entity type        | Nested query on the referenced collection                                  | Plans a nested query against the referenced entity type's GlobalEntityIndex. The resulting PK bitmap is then translated back to the owning entity's PKs via `ReferenceOwnerTranslatingFormula` or `ReferencedEntityIndexPrimaryKeyTranslatingFormula` (when inside a [ReferencedTypeEntityIndex](index-hierarchy.md#referenced_entity_type) context). |
 | `groupHaving`      | GlobalEntityIndex of the **referenced group** entity type  | Nested query on the group entity collection                                | Same mechanism as `entityHaving` but targets `referenceSchema.getReferencedGroupType()` instead of `getReferencedEntityType()`. Requires the group entity type to be managed by evitaDB.                                                                                                                                                              |
 
@@ -96,7 +97,7 @@ specific ones emit `SkipFormula.INSTANCE` to avoid redundant computation.
 
 | EvitaQL Constraint     | Index Type        | Data Structure                                                                                                          | Notes                                                                                                                                                                                                                            |
 |------------------------|-------------------|-------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `attributeNatural`     | GlobalEntityIndex | [SortIndex](data-structures.md#attributeindex) `getAscendingOrderRecordsSupplier` / `getDescendingOrderRecordsSupplier` | For Predecessor-typed attributes, uses ChainIndex instead of SortIndex. Also supports SortableAttributeCompoundSchema for compound sort keys. When used inside `referenceProperty`, operates on ReducedEntityIndex sort indexes. |
+| `attributeNatural`     | GlobalEntityIndex | [SortIndex](data-structures.md#attributeindex) `getAscendingOrderRecordsSupplier` / `getDescendingOrderRecordsSupplier` | For Predecessor-typed attributes, uses ChainIndex instead of SortIndex. Also supports SortableAttributeCompoundSchema for compound sort keys. When used inside `referenceProperty`, operates on ReducedEntityIndex sort indexes, and on the sort value the registry of single-owner partitions holds for a partition kept as a row. |
 | `attributeSetExact`    | GlobalEntityIndex | FilterIndex (for lookup) + custom `AttributeExactSorter`                                                                | Sorts entities into the exact order of values provided in the constraint. Reads attribute values at prefetch time.                                                                                                               |
 | `attributeSetInFilter` | GlobalEntityIndex | FilterIndex (for lookup) + custom `AttributeExactSorter`                                                                | Like `attributeSetExact` but derives the value order from the `attributeInSet` filter constraint in the same query.                                                                                                              |
 
@@ -110,7 +111,7 @@ specific ones emit `SkipFormula.INSTANCE` to avoid redundant computation.
 
 | EvitaQL Constraint  | Index Type                                                                                                                          | Data Structure                                  | Notes                                                                                                                                                                                                                                                                                                                                                |
 |---------------------|-------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `referenceProperty` | [ReducedEntityIndex](index-hierarchy.md#referenced_entity) / [ReferencedTypeEntityIndex](index-hierarchy.md#referenced_entity_type) | SortIndex, ChainIndex within ReducedEntityIndex | Locates ReducedEntityIndex instances for the given reference name. Sorts them by referenced entity PK order (using `pickFirstByEntityProperty` or `traverseByEntityProperty`). Then delegates child ordering constraints (e.g., `attributeNatural`) to these reduced indexes. For hierarchical referenced entities, supports tree-traversal sorting. |
+| `referenceProperty` | [ReducedEntityIndex](index-hierarchy.md#referenced_entity) / [ReferencedTypeEntityIndex](index-hierarchy.md#referenced_entity_type) | SortIndex, ChainIndex within ReducedEntityIndex; sort values and chain predecessors of the registry of single-owner partitions | Locates the partitions of the given reference name -- ReducedEntityIndex instances and registry rows read as `VirtualReferencePartition` handles. Sorts them by referenced entity PK order (using `pickFirstByEntityProperty` or `traverseByEntityProperty`). Then delegates child ordering constraints (e.g., `attributeNatural`) to these partitions; a registry row contributes its single owner with the value the registry holds for it. For hierarchical referenced entities, supports tree-traversal sorting. |
 
 ### Sorting -- Random
 
@@ -140,10 +141,10 @@ The query engine selects which index to operate on through a layered strategy:
 flowchart TD
     A[Query arrives] --> B{referenceHaving present?}
     B -- No --> C[Use GlobalEntityIndex]
-    B -- Yes --> D[Switch to ReducedEntityIndex\nfor the named reference]
+    B -- Yes --> D[Switch to the partitions\nof the named reference]
     D --> E{entityHaving present inside?}
     E -- Yes --> F[Plan nested query on\nreferenced type GlobalEntityIndex]
-    E -- No --> G[Evaluate child constraints\nagainst ReducedEntityIndex]
+    E -- No --> G[Evaluate child constraints\nagainst ReducedEntityIndex,\nor the registry row of a\nsingle-owner partition]
     F --> H[Translate result PKs back\nto owning entity PKs]
     C --> I{groupHaving present?}
     I -- Yes --> J[Plan nested query on\ngroup type GlobalEntityIndex]
@@ -155,14 +156,18 @@ flowchart TD
 the queried entity type. All attribute, price, hierarchy, and facet indexes
 are read from this global index.
 
-**With `referenceHaving`.** The engine switches the processing context to
-<Term location="/documentation/developer/indexes/overview.md" name="Reduced Entity Index">`ReducedEntityIndex`</Term>
-instances -- a <Term location="/documentation/developer/indexes/overview.md" name="partitioned view">partitioned
-view</Term> containing only one per
+**With `referenceHaving`.** The engine switches the processing context to the partitions of the
+named reference -- one per
 <Term location="/documentation/developer/indexes/overview.md" name="referenced entity">referenced entity</Term> primary
-key that has the named reference. Child constraints
-(attribute filters, `entityPrimaryKeyInSet`, etc.) are evaluated against these smaller, pre-partitioned
-indexes.
+key (and combination of representative attribute values) that has the named reference. A partition is a
+<Term location="/documentation/developer/indexes/overview.md" name="Reduced Entity Index">`ReducedEntityIndex`</Term>
+-- a <Term location="/documentation/developer/indexes/overview.md" name="partitioned view">partitioned
+view</Term> -- or, when it has a single owner of a reference indexed `FOR_FILTERING`, a row of the
+registry of single-owner partitions. The candidates are found in the `ReferencedTypeEntityIndex` and
+split by form (`ReferencePartitionSplit`); child constraints (attribute filters, `entityPrimaryKeyInSet`,
+etc.) are evaluated against the smaller, pre-partitioned indexes of the materialized candidates, and
+`VirtualPartitionBodyEvaluator` answers the candidates kept as rows, reading their owners out of the
+registry (see [index-hierarchy.md](index-hierarchy.md#how-reads-reach-a-row)).
 
 **With `entityHaving`.** A full nested query is planned against the referenced entity type's own
 `GlobalEntityIndex`. The resulting primary key bitmap is then translated back to the
@@ -195,9 +200,10 @@ The following invariants should be verified in integration tests:
   <Term location="/documentation/developer/indexes/overview.md" name="Global Entity Index">`GlobalEntityIndex`</Term>.
   Verify by inspecting the formula tree for absence of `ReducedEntityIndex` references.
 - **Invariant:** Wrapping attribute constraints inside `referenceHaving("refName", ...)` causes the
-  engine to switch to <Term location="/documentation/developer/indexes/overview.md" name="Reduced Entity Index">
-  `ReducedEntityIndex`</Term>. Verify that the formula tree contains
-  `ReducedEntityIndex`-sourced formulas.
+  engine to switch to the partitions of the reference. Verify that the formula tree contains
+  <Term location="/documentation/developer/indexes/overview.md" name="Reduced Entity Index">
+  `ReducedEntityIndex`</Term>-sourced formulas for the partitions with an index object, and that the
+  partitions kept as registry rows touch no index object -- their owners come from the registry.
 - **Invariant:** `entityHaving` inside `referenceHaving` triggers a nested query on the
   <Term location="/documentation/developer/indexes/overview.md" name="referenced entity">referenced entity</Term>
   type's `GlobalEntityIndex`. Verify the formula tree contains

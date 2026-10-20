@@ -1,7 +1,7 @@
 ---
 title: JDK 21 modernization is adopted only where it is provably behaviour-preserving
 date: 2026-09-08
-updated: 2026-09-10 09:50
+updated: 2026-10-20 09:00
 status: accepted
 kind: refactor
 issues: [1518]
@@ -9,7 +9,7 @@ prs: [1519]
 areas: [pom.xml, evita_common/dataType, evita_common/utils, evita_query/api/query/expression, evita_engine/core/expression, evita_engine/index/map, evita_external_api/evita_external_api_graphql, evita_external_api/evita_external_api_grpc, evita_external_api/evita_external_api_grpc/client, evita_external_api/evita_external_api_rest, evita_store/evita_store_server]
 supersedes: []
 superseded-by: []
-relates: [2026-09-10-jdk21-virtual-threads-and-scoped-values, 2026-09-10-simd-vector-api-feasibility]
+relates: [2026-09-10-jdk21-virtual-threads-and-scoped-values, 2026-09-10-simd-vector-api-feasibility, 2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures]
 ---
 
 # JDK 21 modernization is adopted only where it is provably behaviour-preserving
@@ -205,6 +205,9 @@ The sealing was proved the same way: deleting one `case` arm makes javac reject 
   changed the dispatch mechanism on the write path, so the proof was moved somewhere free instead:
   `LocalMutationDispatchCoverageTest#dispatchBranchOf` repeats the arms as a default-less pattern
   switch, so a new permitted subtype the production chain would drop fails to compile the test module.
+  **Update 2026-10-20 (#1615):** that test was removed. The switch cannot move into `Entity` either:
+  `evita_api` compiles for Java 17, where a pattern `switch` is not available. The trailing throw and the
+  javadoc of `LocalMutation` carry the rule - see `2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures`.
 * **`ExtraResultsJsonSerializer#serialize` has the same shape.** Currently unreachable —
   `CacheableAttributeHistogram` and `CacheablePriceHistogram` are never constructed anywhere, which
   also makes those two classes look like dead code.

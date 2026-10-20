@@ -181,7 +181,7 @@ class QueryPlanningContextTelemetryTest {
 			assertEquals(1, message.invocations(), "The step outcome must be built exactly once!");
 			assertEquals(1, root.getSteps().size());
 			assertArrayEquals(
-				new String[]{"Selected index: PRIMARY_KEY"}, root.getSteps().get(0).getArguments()
+				new String[]{"Selected index: PRIMARY_KEY"}, root.getSteps().getFirst().getArguments()
 			);
 		}
 	}

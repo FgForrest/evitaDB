@@ -272,7 +272,7 @@ public class PersistentRoaringBitmap
 	public static PersistentRoaringBitmap add(
 		@Nonnull final PersistentRoaringBitmap rb, final int rangeStart, final int rangeEnd) {
 		if (rangeStart >= 0) {
-			return add(rb, (long) rangeStart, (long) rangeEnd);
+			return add(rb, rangeStart, (long) rangeEnd);
 		}
 		// rangeStart being -ve and rangeEnd being positive is not expected)
 		// so assume both -ve
@@ -537,7 +537,7 @@ public class PersistentRoaringBitmap
 	public static PersistentRoaringBitmap flip(
 		@Nonnull final PersistentRoaringBitmap rb, final int rangeStart, final int rangeEnd) {
 		if (rangeStart >= 0) {
-			return flip(rb, (long) rangeStart, (long) rangeEnd);
+			return flip(rb, rangeStart, (long) rangeEnd);
 		}
 		// rangeStart being -ve and rangeEnd being positive is not expected)
 		// so assume both -ve
@@ -839,7 +839,7 @@ public class PersistentRoaringBitmap
 	public static PersistentRoaringBitmap remove(
 		@Nonnull final PersistentRoaringBitmap rb, final int rangeStart, final int rangeEnd) {
 		if (rangeStart >= 0) {
-			return remove(rb, (long) rangeStart, (long) rangeEnd);
+			return remove(rb, rangeStart, (long) rangeEnd);
 		}
 		// rangeStart being -ve and rangeEnd being positive is not expected)
 		// so assume both -ve
@@ -977,7 +977,7 @@ public class PersistentRoaringBitmap
 	@Deprecated
 	public static PersistentRoaringBitmap and(
 		@Nonnull final Iterator<? extends PersistentRoaringBitmap> bitmaps, final int rangeStart, final int rangeEnd) {
-		return and(bitmaps, (long) rangeStart, (long) rangeEnd);
+		return and(bitmaps, rangeStart, (long) rangeEnd);
 	}
 
 	/**
@@ -1022,7 +1022,7 @@ public class PersistentRoaringBitmap
 		@Nonnull final PersistentRoaringBitmap x1, @Nonnull final PersistentRoaringBitmap x2, final int rangeStart,
 		final int rangeEnd
 	) {
-		return andNot(x1, x2, (long) rangeStart, (long) rangeEnd);
+		return andNot(x1, x2, rangeStart, (long) rangeEnd);
 	}
 
 	/**
@@ -1174,7 +1174,7 @@ public class PersistentRoaringBitmap
 	@Deprecated
 	public static PersistentRoaringBitmap or(
 		@Nonnull final Iterator<? extends PersistentRoaringBitmap> bitmaps, final int rangeStart, final int rangeEnd) {
-		return or(bitmaps, (long) rangeStart, (long) rangeEnd);
+		return or(bitmaps, rangeStart, (long) rangeEnd);
 	}
 
 	/**
@@ -1233,7 +1233,7 @@ public class PersistentRoaringBitmap
 	@Deprecated
 	public static PersistentRoaringBitmap xor(
 		@Nonnull final Iterator<? extends PersistentRoaringBitmap> bitmaps, final int rangeStart, final int rangeEnd) {
-		return xor(bitmaps, (long) rangeStart, (long) rangeEnd);
+		return xor(bitmaps, rangeStart, (long) rangeEnd);
 	}
 
 	/**
@@ -1829,7 +1829,7 @@ public class PersistentRoaringBitmap
 	public void add(final int rangeStart, final int rangeEnd) {
 		unlend();
 		if (rangeStart >= 0) {
-			add((long) rangeStart, (long) rangeEnd);
+			add(rangeStart, (long) rangeEnd);
 		}
 		// rangeStart being -ve and rangeEnd being positive is not expected)
 		// so assume both -ve
@@ -3043,7 +3043,7 @@ public class PersistentRoaringBitmap
 	public void flip(final int rangeStart, final int rangeEnd) {
 		unlend();
 		if (rangeStart >= 0) {
-			flip((long) rangeStart, (long) rangeEnd);
+			flip(rangeStart, (long) rangeEnd);
 		} else {
 			// rangeStart being -ve and rangeEnd being positive is not expected)
 			// so assume both -ve
@@ -3509,7 +3509,7 @@ public class PersistentRoaringBitmap
 	public void remove(final int rangeStart, final int rangeEnd) {
 		unlend();
 		if (rangeStart >= 0) {
-			remove((long) rangeStart, (long) rangeEnd);
+			remove(rangeStart, (long) rangeEnd);
 		}
 		// rangeStart being -ve and rangeEnd being positive is not expected)
 		// so assume both -ve

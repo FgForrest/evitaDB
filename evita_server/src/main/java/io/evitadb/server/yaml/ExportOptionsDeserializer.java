@@ -171,7 +171,7 @@ public class ExportOptionsDeserializer extends StdDeserializer<ExportOptions> {
 		}
 
 		if (explicitlyEnabled.size() == 1) {
-			final ExportOptions selected = explicitlyEnabled.get(0);
+			final ExportOptions selected = explicitlyEnabled.getFirst();
 			selected.validateWhenEnabled();
 			return selected;
 		}

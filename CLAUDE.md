@@ -153,6 +153,15 @@ rather than its signature, and what changing an existing one costs: `.claude/rul
 - All classes and methods must have comprehensible JavaDoc
 - No TODO statements in committed code
 - No commented out code
+- No production code without a production caller when the work merges. A method, constructor, field or class that
+  only tests reach is dead code: delete it together with the tests that exist only to exercise it, and rewrite tests
+  that merely used it onto the paths production calls. When new code supersedes old code, the old path goes in the
+  same change - it is never kept "in case it is needed later", and is re-added with its first real caller if one
+  ever appears. Two exceptions:
+  - **New functionality built ahead of its caller.** A step of a plan may land a new structure whose production
+    caller a later step of the same plan adds, as long as both land in the same pull request. Before that pull
+    request opens, every member it adds must have a production caller - check it, do not assume it.
+  - Public client API retired under `.claude/rules/deprecation-policy.md`.
 - `@Deprecated(since = ...)` follows a specific convention (and has a verification tool): see `.claude/rules/deprecation-policy.md`
 
 ## Documentation

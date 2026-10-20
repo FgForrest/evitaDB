@@ -471,7 +471,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 				children = isFacetSelectionNarrowedByConjunction(children, true) ?
 					addNewFormulaAsNegation(
 						negatedFormulas.size() == 1 ?
-							negatedFormulas.get(0) : FormulaFactory.or(negatedFormulas.toArray(Formula[]::new)),
+							negatedFormulas.getFirst() : FormulaFactory.or(negatedFormulas.toArray(Formula[]::new)),
 						children,
 						this.baseFormulaWithoutUserFilter
 					) :
@@ -522,7 +522,7 @@ public abstract class AbstractFacetFormulaGenerator implements FormulaVisitor {
 	@Nonnull
 	private Formula composeFacetSelection(@Nonnull List<Formula> groupFormulas) {
 		return groupFormulas.size() == 1 ?
-			groupFormulas.get(0) :
+			groupFormulas.getFirst() :
 			FacetHavingTranslator.composeFacetSelectionFormula(
 				this.referenceSchema.getName(), groupFormulas, this::getRelationBetweenGroups
 			);

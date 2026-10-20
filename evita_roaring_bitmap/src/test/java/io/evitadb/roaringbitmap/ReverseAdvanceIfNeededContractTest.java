@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -55,7 +56,7 @@ public class ReverseAdvanceIfNeededContractTest {
 		// two values only - comfortably under DEFAULT_MAX_SIZE, so the container stays an array
 		final PersistentRoaringBitmap bitmap = PersistentRoaringBitmap.bitmapOf(1000, 2000);
 		final Container container = singleContainerOf(bitmap);
-		assertTrue(container instanceof ArrayContainer, "fixture must produce an array container");
+		assertInstanceOf(ArrayContainer.class, container, "fixture must produce an array container");
 
 		final PeekableCharIterator iterator = container.getReverseCharIterator();
 		iterator.advanceIfNeeded((char) 500);
@@ -73,7 +74,7 @@ public class ReverseAdvanceIfNeededContractTest {
 			bitmap.add(value);
 		}
 		final Container container = singleContainerOf(bitmap);
-		assertTrue(container instanceof BitmapContainer, "fixture must produce a bitmap container");
+		assertInstanceOf(BitmapContainer.class, container, "fixture must produce a bitmap container");
 
 		final PeekableCharIterator iterator = container.getReverseCharIterator();
 		iterator.advanceIfNeeded((char) 4000);
@@ -110,7 +111,7 @@ public class ReverseAdvanceIfNeededContractTest {
 		bitmap.add(5000L, 9000L);
 		assertTrue(bitmap.runOptimize(), "fixture must collapse into a run container");
 		final Container container = singleContainerOf(bitmap);
-		assertTrue(container instanceof RunContainer, "fixture must produce a run container");
+		assertInstanceOf(RunContainer.class, container, "fixture must produce a run container");
 
 		final PeekableCharIterator iterator = container.getReverseCharIterator();
 		iterator.advanceIfNeeded((char) 4000);

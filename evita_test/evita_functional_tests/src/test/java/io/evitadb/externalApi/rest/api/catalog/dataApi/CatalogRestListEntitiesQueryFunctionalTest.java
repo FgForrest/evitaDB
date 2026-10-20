@@ -1638,9 +1638,9 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 										attributeEquals(ATTRIBUTE_ALIAS, false),
 										attributeInSet(
 											ATTRIBUTE_PRIORITY,
-											(Long)withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
-											(Long)withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
-											(Long)withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
+											withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
+											withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
+											withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
 											(Long)withFalseAlias.get(3).getAttribute(ATTRIBUTE_PRIORITY)
 										)
 									)
@@ -1699,10 +1699,10 @@ class CatalogRestListEntitiesQueryFunctionalTest extends CatalogRestDataEndpoint
 				withTrueAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
 				withTrueAlias.get(1).getAttribute(ATTRIBUTE_ALIAS),
 				withTrueAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long)withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long)withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long)withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
-				(Long)withFalseAlias.get(3).getAttribute(ATTRIBUTE_PRIORITY),
+				         withFalseAlias.get(0).getAttribute(ATTRIBUTE_PRIORITY),
+				         withFalseAlias.get(1).getAttribute(ATTRIBUTE_PRIORITY),
+				         withFalseAlias.get(2).getAttribute(ATTRIBUTE_PRIORITY),
+				         withFalseAlias.get(3).getAttribute(ATTRIBUTE_PRIORITY),
 				withFalseAlias.get(4).getAttribute(ATTRIBUTE_CODE),
 				Integer.MAX_VALUE)
 			.executeAndThen()

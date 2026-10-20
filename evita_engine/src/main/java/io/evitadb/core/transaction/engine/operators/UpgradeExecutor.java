@@ -44,7 +44,7 @@ import javax.annotation.Nonnull;
  * transient retryable failure rather than wedging the engine.
  *
  * Forward-replay note: the upgrade executor has non-trivial disk side effects, so operators backed by this
- * interface should leave `EngineMutationOperator#replayCompletionState` at its `Optional.empty()` default. The
+ * interface should return `Optional.empty()` from `EngineMutationOperator#replayCompletionState`. The
  * transaction manager then wedges loudly on `walV == stateV + 1` for an upgrade mutation, which is safer than
  * silently re-running the migration mid-crash-recovery.
  *

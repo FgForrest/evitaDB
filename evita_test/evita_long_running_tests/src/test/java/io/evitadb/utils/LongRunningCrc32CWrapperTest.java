@@ -76,7 +76,7 @@ class LongRunningCrc32CWrapperTest implements TimeBoundedTestSupport {
 		runFor(
 			input,
 			10_000,
-			(Object) null,
+			null,
 			(random, state) -> {
 				// pick a random scenario
 				final int scenario = random.nextInt(5);

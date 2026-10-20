@@ -213,7 +213,7 @@ public class UniqueIndexStoragePart implements AttributeIndexStoragePart, Record
 		@Nonnull AttributeIndexKey attributeIndexKey,
 		@Nonnull Class<? extends Serializable> type
 	) {
-		this(entityIndexPrimaryKey, attributeIndexKey, type, (Long) null);
+		this(entityIndexPrimaryKey, attributeIndexKey, type, null);
 	}
 
 	/**

@@ -1379,10 +1379,10 @@ class ReferenceSchemaBuilderTest {
 				),
 				() -> assertInstanceOf(
 					CreateReferenceSchemaMutation.class,
-					mutations.get(0)
+					mutations.getFirst()
 				),
 				() -> assertTrue(
-					((CreateReferenceSchemaMutation) mutations.get(0))
+					((CreateReferenceSchemaMutation) mutations.getFirst())
 						.isIndexed()
 				)
 			);
@@ -1461,7 +1461,7 @@ class ReferenceSchemaBuilderTest {
 				),
 				() -> assertInstanceOf(
 					CreateReferenceSchemaMutation.class,
-					mutations.get(0)
+					mutations.getFirst()
 				)
 			);
 		}

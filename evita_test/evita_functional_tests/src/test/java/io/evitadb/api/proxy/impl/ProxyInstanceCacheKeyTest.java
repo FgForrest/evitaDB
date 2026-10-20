@@ -32,13 +32,10 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.PROXY;
 import static io.evitadb.test.TestTags.CACHE;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests for the various {@link ProxyInstanceCacheKey} implementations used
@@ -131,7 +128,7 @@ class ProxyInstanceCacheKeyTest {
 					"brand", 1, ReferencedObjectType.TARGET
 				);
 			// just verify it's an instanceof
-			assertTrue(key instanceof ProxyInstanceCacheKey);
+			assertInstanceOf(ProxyInstanceCacheKey.class, key);
 		}
 	}
 

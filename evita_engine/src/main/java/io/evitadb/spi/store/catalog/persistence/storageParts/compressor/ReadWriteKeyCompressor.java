@@ -23,6 +23,7 @@
 
 package io.evitadb.spi.store.catalog.persistence.storageParts.compressor;
 
+import io.evitadb.api.exception.IdentifierOverflowException;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -234,6 +235,11 @@ public class ReadWriteKeyCompressor implements KeyCompressor {
 					!(key instanceof String),
 					"String keys are not supported by ReadWriteKeyCompressor! Always use specialized classes to avoid conflicts!"
 				);
+				// the write lock serializes every mint, so the check cannot race the increment; refusing inside
+				// the mapping function leaves both indexes as they were
+				if (this.sequence.get() == Integer.MAX_VALUE) {
+					throw keyIdsExhausted(key);
+				}
 				final int id = this.sequence.incrementAndGet();
 				this.idToKeyIndex.put(id, o);
 				// invalidate the memoized snapshot — the next snapshot reader will rebuild
@@ -272,6 +278,29 @@ public class ReadWriteKeyCompressor implements KeyCompressor {
 	private String missingKeyDiagnostic(int id) {
 		return "There is no key for id " + id + "! Compressor size=" + this.idToKeyIndex.size() +
 			", peak=" + this.sequence.get();
+	}
+
+	/**
+	 * Builds the refusal of {@link #getId(Comparable)} for a key that would need an id after the sequence has handed
+	 * out `Integer.MAX_VALUE`. The compressor does not know which storage file it belongs to, so the public message
+	 * names both owners a key dictionary can have.
+	 *
+	 * @param key the key no id is left for
+	 * @return the exception to throw
+	 */
+	@Nonnull
+	private static IdentifierOverflowException keyIdsExhausted(@Nonnull Object key) {
+		return new IdentifierOverflowException(
+			"The key ids of this key compressor are exhausted: id " + Integer.MAX_VALUE + " has been handed out and " +
+				"the next one, needed for key `" + key + "`, would wrap into the negative range. The keys are " +
+				"persisted with the storage file and carried over by every compaction, so neither a restart nor a " +
+				"compaction resets the sequence - the entity collection or catalog owning the file must be rebuilt.",
+			"The key dictionary of a storage file is exhausted. It is persisted with the file and carried over by " +
+				"every compaction, so neither a restart nor a compaction helps - rebuild the entity collection " +
+				"being written (insert its entities into a new collection and swap it in with " +
+				"`replaceCollection`), or the whole catalog if the file is the catalog's own (insert its data " +
+				"into a new catalog and swap it in with `replaceCatalog`)."
+		);
 	}
 
 	@Nullable

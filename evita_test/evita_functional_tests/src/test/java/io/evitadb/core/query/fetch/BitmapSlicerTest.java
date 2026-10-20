@@ -33,6 +33,7 @@ import io.evitadb.api.requestResponse.chunk.PageTransformer;
 import io.evitadb.api.requestResponse.chunk.StripTransformer;
 import io.evitadb.api.requestResponse.data.AttributesContract;
 import io.evitadb.api.requestResponse.data.ReferenceContract;
+import io.evitadb.api.requestResponse.data.ReferenceContract.GroupEntityReference;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.ReferenceComparator;
@@ -121,7 +122,8 @@ class BitmapSlicerTest {
 					REFERENCE_NAME,
 					(refName, epk) -> EmptyFormula.INSTANCE,
 					emptyGroupTranslator(),
-					unsupported
+					unsupported,
+					false
 				)
 			);
 
@@ -147,7 +149,8 @@ class BitmapSlicerTest {
 				REFERENCE_NAME,
 				referencedEntityIdsFormula(refsByEntity),
 				emptyGroupTranslator(),
-				NoTransformer.INSTANCE
+				NoTransformer.INSTANCE,
+				false
 			);
 
 			// act — NoTransformer must not chunk, so the sorted-slice returns all candidates
@@ -260,17 +263,16 @@ class BitmapSlicerTest {
 		}
 
 		@Test
-		@DisplayName("Should return the last element when the strip offset sits at the end of the candidate range")
-		void shouldReturnLastElementWhenStripOffsetEqualsCandidateSize() {
-			// strip(offset=3, limit=5) with 3 candidates: `stripOffsetAndLimit` clamps offset
-			// to size-1=2, then `Math.min(offset+limit, candidates.length)=3`, producing the
-			// single-element tail of the sorted candidates. Reversed PK order is [30, 20, 10],
-			// index 2 -> 10.
+		@DisplayName("Should start a strip whose offset lies past the candidate range at the first candidate")
+		void shouldStartStripPastTheCandidateRangeAtTheFirstCandidate() {
+			// strip(offset=3, limit=1) with 3 candidates: the decorator's `StripTransformer` starts a strip past
+			// the last record at offset 0, so the slice must as well. Reversed PK order is [30, 20, 10], index 0 -> 30
+			// (the last candidate, 10, is what a strip clamped to the end would have fetched instead)
 			final int sourceEntityPk = 1;
 			final Map<Integer, List<ReferenceContract>> refsByEntity = singletonRefMap(
 				sourceEntityPk, ref(10), ref(20), ref(30)
 			);
-			final BitmapSlicer slicer = newStripSlicer(refsByEntity, new Strip(3, 5));
+			final BitmapSlicer slicer = newStripSlicer(refsByEntity, new Strip(3, 1));
 
 			final Bitmap result = slicer.sliceEntityIdsSorted(
 				new ConstantFormula(new BaseBitmap(10, 20, 30)),
@@ -279,7 +281,16 @@ class BitmapSlicerTest {
 				new ReversedPkComparator()
 			);
 
-			assertArrayEquals(new int[]{10}, result.getArray());
+			assertArrayEquals(new int[]{30}, result.getArray());
+			// the slice of the keys alone starts at the first key the same way
+			assertArrayEquals(
+				new int[]{10},
+				newStripSlicer(refsByEntity, new Strip(5, 1))
+					.sliceEntityIds(
+						new ConstantFormula(new BaseBitmap(10, 20, 30)), permissiveValidityMapping(refsByEntity), null
+					)
+					.getArray()
+			);
 		}
 
 		@Test
@@ -413,7 +424,8 @@ class BitmapSlicerTest {
 				REFERENCE_NAME,
 				referencedEntityIdsFormula(refsByEntity),
 				emptyGroupTranslator(),
-				new PageTransformer(new Page(1, 5), new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0])
+				new PageTransformer(new Page(1, 5), new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0]),
+				false
 			);
 
 			slicer.sliceEntityIdsSorted(
@@ -472,7 +484,8 @@ class BitmapSlicerTest {
 				REFERENCE_NAME,
 				referencedEntityIdsFormula(refsByEntity),
 				emptyGroupTranslator(),
-				new PageTransformer(new Page(1, 1), new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0])
+				new PageTransformer(new Page(1, 1), new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0]),
+				false
 			);
 
 			final Bitmap result = slicer.sliceEntityIdsSorted(
@@ -507,7 +520,8 @@ class BitmapSlicerTest {
 				new PageTransformer(
 					new Page(1, 1),
 					new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0]
-				)
+				),
+				false
 			);
 
 			slicer.sliceEntityIdsSorted(
@@ -551,7 +565,8 @@ class BitmapSlicerTest {
 				new PageTransformer(
 					new Page(1, 5),
 					new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0]
-				)
+				),
+				false
 			);
 
 			final Bitmap result = slicer.sliceEntityIdsSorted(
@@ -615,7 +630,8 @@ class BitmapSlicerTest {
 				REFERENCE_NAME,
 				referencedEntityIdsFormula(refsByEntity),
 				(epk, refName, refId) -> IntStream.empty(),
-				new PageTransformer(new Page(1, 5), new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0])
+				new PageTransformer(new Page(1, 5), new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0]),
+				false
 			);
 
 			slicer.sliceEntityIdsSorted(
@@ -685,7 +701,8 @@ class BitmapSlicerTest {
 				REFERENCE_NAME,
 				referencedEntityIdsFormula(refsByEntity),
 				emptyGroupTranslator(),
-				new PageTransformer(new Page(1, 5), new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0])
+				new PageTransformer(new Page(1, 5), new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0]),
+				false
 			);
 			final ReferenceComparator chained = new ReversedPkComparator();
 			final ReferenceComparator leaky = new MonotoneNonSortedAccumulator(chained);
@@ -757,6 +774,141 @@ class BitmapSlicerTest {
 
 	}
 
+	@Nested
+	@DisplayName("Validity mapping filled row by row")
+	class AdmittedRowsTest {
+
+		@Test
+		@DisplayName("Should slice each source entity by the keys admitted for it, not for another source sharing them")
+		void shouldSliceEachSourceEntityByItsOwnAdmittedKeys() {
+			// both sources reference 10 and 20; the filter admitted 10 for A and 20 for B only
+			final int sourceEntityA = 1;
+			final int sourceEntityB = 2;
+			final Map<Integer, List<ReferenceContract>> refsByEntity = new LinkedHashMap<>();
+			refsByEntity.put(sourceEntityA, List.of(refWithGroup(10, 100), refWithGroup(20, 200)));
+			refsByEntity.put(sourceEntityB, List.of(refWithGroup(10, 100), refWithGroup(20, 200)));
+			final ValidEntityToReferenceMapping validityMapping = restrictedValidityMapping(
+				Map.of(sourceEntityA, new int[]{10}, sourceEntityB, new int[]{20})
+			);
+			final BitmapSlicer slicer = new BitmapSlicer(
+				Collections.singletonMap(Scope.LIVE, new int[]{sourceEntityA, sourceEntityB}),
+				REFERENCE_NAME,
+				referencedEntityIdsFormula(refsByEntity),
+				groupTranslator(refsByEntity),
+				new PageTransformer(new Page(1, 5), new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0]),
+				false
+			);
+
+			final Bitmap result = slicer.sliceEntityIds(
+				new ConstantFormula(new BaseBitmap(10, 20)), validityMapping, null
+			);
+
+			assertArrayEquals(new int[]{10, 20}, result.getArray());
+			assertArrayEquals(new int[]{100}, slicer.getGroupIds(sourceEntityA).compute().getArray());
+			assertArrayEquals(new int[]{200}, slicer.getGroupIds(sourceEntityB).compute().getArray());
+		}
+
+		@Test
+		@DisplayName("Should sort and slice each source entity by the keys admitted for it")
+		void shouldSortAndSliceEachSourceEntityByItsOwnAdmittedKeys() {
+			// page(1, 1) over reversed PK: A keeps only 10 (its single admitted key), B gets 30 over 20
+			final int sourceEntityA = 1;
+			final int sourceEntityB = 2;
+			final Map<Integer, List<ReferenceContract>> refsByEntity = new LinkedHashMap<>();
+			refsByEntity.put(sourceEntityA, List.of(refWithGroup(10, 100), refWithGroup(30, 300)));
+			refsByEntity.put(sourceEntityB, List.of(refWithGroup(20, 200), refWithGroup(30, 300)));
+			final ValidEntityToReferenceMapping validityMapping = restrictedValidityMapping(
+				Map.of(sourceEntityA, new int[]{10}, sourceEntityB, new int[]{20, 30})
+			);
+			final BitmapSlicer slicer = new BitmapSlicer(
+				Collections.singletonMap(Scope.LIVE, new int[]{sourceEntityA, sourceEntityB}),
+				REFERENCE_NAME,
+				referencedEntityIdsFormula(refsByEntity),
+				emptyGroupTranslator(),
+				new PageTransformer(new Page(1, 1), new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0]),
+				false
+			);
+
+			final Bitmap result = slicer.sliceEntityIdsSorted(
+				new ConstantFormula(new BaseBitmap(10, 20, 30)),
+				validityMapping,
+				referenceContractsAccessor(refsByEntity),
+				new ReversedPkComparator()
+			);
+
+			assertArrayEquals(new int[]{10, 30}, result.getArray());
+			assertArrayEquals(new int[]{100}, slicer.getGroupIds(sourceEntityA).compute().getArray());
+			final int[] groupsOfB = slicer.getGroupIds(sourceEntityB).compute().getArray();
+			Arrays.sort(groupsOfB);
+			assertArrayEquals(new int[]{200, 300}, groupsOfB);
+		}
+
+		@Test
+		@DisplayName("Should page the rows rather than the keys when several selected rows share a key")
+		void shouldPageRowsSharingKeyWithoutOrdering() {
+			// the decorator pages the rows 10, 10 and 20 in the order of their keys: page 2 holds the second row of 10
+			// and page 3 the row of 20, while the distinct keys {10, 20} put 20 on page 2 and have no page 3
+			final int sourceEntityPk = 1;
+			final Map<Integer, List<ReferenceContract>> refsByEntity = singletonRefMap(
+				sourceEntityPk, ref(20), ref(10), ref(10)
+			);
+			final ValidEntityToReferenceMapping validityMapping = permissiveValidityMapping(refsByEntity);
+			final int[][] expectedByPage = {{10}, {10}, {20}};
+			for (int page = 1; page <= expectedByPage.length; page++) {
+				assertArrayEquals(
+					expectedByPage[page - 1],
+					newPageSlicer(refsByEntity, new Page(page, 1))
+						.sliceEntityIds(
+							new ConstantFormula(new BaseBitmap(10, 20)), validityMapping,
+							referenceContractsAccessor(refsByEntity)
+						)
+						.getArray(),
+					"page " + page
+				);
+			}
+			// the first page of two rows holds both rows of 10 and no row of 20, which the first two keys would fetch
+			assertArrayEquals(
+				new int[]{10},
+				newPageSlicer(refsByEntity, new Page(1, 2))
+					.sliceEntityIds(
+						new ConstantFormula(new BaseBitmap(10, 20)), validityMapping,
+						referenceContractsAccessor(refsByEntity)
+					)
+					.getArray()
+			);
+		}
+
+		@Test
+		@DisplayName("Should keep a row sharing an admitted key but not selected itself out of the sorted page")
+		void shouldKeepUnselectedRowSharingAdmittedKeyOutOfSortedPage() {
+			// the dropped row of 10 sorts first, while key 10 is admitted through the other row of 10, which sorts
+			// last - kept in the buffer, the dropped row would take the only slot of the page and push out 20
+			final int sourceEntityPk = 1;
+			final FakeReferenceContract dropped10 = droppedRef(10);
+			final FakeReferenceContract r20 = ref(20);
+			final FakeReferenceContract r10 = ref(10);
+			final Map<Integer, List<ReferenceContract>> refsByEntity = singletonRefMap(
+				sourceEntityPk, dropped10, r20, r10
+			);
+			final ValidEntityToReferenceMapping validityMapping = new ValidEntityToReferenceMapping(
+				1, referenceSchema(), false
+			);
+			validityMapping.admit(sourceEntityPk, r20);
+			validityMapping.admit(sourceEntityPk, r10);
+			final BitmapSlicer slicer = newPageSlicer(refsByEntity, new Page(1, 1));
+
+			final Bitmap result = slicer.sliceEntityIdsSorted(
+				new ConstantFormula(new BaseBitmap(10, 20)),
+				validityMapping,
+				referenceContractsAccessor(refsByEntity),
+				new RankComparator(List.of(dropped10, r20, r10))
+			);
+
+			assertArrayEquals(new int[]{20}, result.getArray());
+		}
+
+	}
+
 	// ---------------------------------------------------------------------------------------------
 	// fixtures and helpers
 	// ---------------------------------------------------------------------------------------------
@@ -805,51 +957,70 @@ class BitmapSlicerTest {
 	}
 
 	/**
-	 * Builds a `ValidEntityToReferenceMapping` whose per-source allow-set is exactly the reference
-	 * PKs found in `refsByEntity` for that source entity — equivalent to "no validity restriction
-	 * beyond what the source already exposes". Use this in tests that focus on slicing behavior
-	 * rather than validity filtering.
+	 * Builds a `ValidEntityToReferenceMapping` admitting every reference found in `refsByEntity` for its source
+	 * entity — equivalent to "no validity restriction beyond what the source already exposes". Use this in tests
+	 * that focus on slicing behavior rather than validity filtering.
 	 */
 	@Nonnull
 	private static ValidEntityToReferenceMapping permissiveValidityMapping(
 		@Nonnull Map<Integer, List<ReferenceContract>> refsByEntity
 	) {
-		final ReferenceSchema schema = ReferenceSchema._internalBuild(
-			REFERENCE_NAME, "referenced", false, Cardinality.ZERO_OR_MORE,
-			null, false, null, null
-		);
 		final ValidEntityToReferenceMapping mapping = new ValidEntityToReferenceMapping(
-			refsByEntity.size(), schema
+			refsByEntity.size(), referenceSchema(), false
 		);
 		for (Map.Entry<Integer, List<ReferenceContract>> entry : refsByEntity.entrySet()) {
-			final int[] pks = entry.getValue().stream()
-				.mapToInt(ReferenceContract::getReferencedPrimaryKey)
-				.toArray();
-			mapping.setInitialVisibilityForEntity(entry.getKey(), new BaseBitmap(pks));
+			for (ReferenceContract reference : entry.getValue()) {
+				mapping.admit(entry.getKey(), reference);
+			}
 		}
 		return mapping;
 	}
 
 	/**
-	 * Builds a `ValidEntityToReferenceMapping` restricted to exactly the given allowed referenced
-	 * PKs per source entity. References not listed for a source entity are rejected by the
-	 * validity gate even if the source entity owns them.
+	 * Builds a `ValidEntityToReferenceMapping` admitting exactly the given referenced PKs per source entity.
+	 * References not listed for a source entity are rejected by the validity gate even if the source entity owns
+	 * them.
 	 */
 	@Nonnull
 	private static ValidEntityToReferenceMapping restrictedValidityMapping(
 		@Nonnull Map<Integer, int[]> allowedByEntity
 	) {
-		final ReferenceSchema schema = ReferenceSchema._internalBuild(
+		final ValidEntityToReferenceMapping mapping = new ValidEntityToReferenceMapping(
+			allowedByEntity.size(), referenceSchema(), false
+		);
+		for (Map.Entry<Integer, int[]> entry : allowedByEntity.entrySet()) {
+			for (int referencedPk : entry.getValue()) {
+				mapping.admit(entry.getKey(), ref(referencedPk));
+			}
+		}
+		return mapping;
+	}
+
+	/**
+	 * Returns the schema of the sliced reference - a reference without duplicates to an unmanaged entity type.
+	 */
+	@Nonnull
+	private static ReferenceSchema referenceSchema() {
+		return ReferenceSchema._internalBuild(
 			REFERENCE_NAME, "referenced", false, Cardinality.ZERO_OR_MORE,
 			null, false, null, null
 		);
-		final ValidEntityToReferenceMapping mapping = new ValidEntityToReferenceMapping(
-			allowedByEntity.size(), schema
-		);
-		for (Map.Entry<Integer, int[]> entry : allowedByEntity.entrySet()) {
-			mapping.setInitialVisibilityForEntity(entry.getKey(), new BaseBitmap(entry.getValue()));
-		}
-		return mapping;
+	}
+
+	/**
+	 * Produces a `referencedEntityToGroupIdTranslator` resolving the groups of a referenced entity of a source entity
+	 * from the test's reference map.
+	 */
+	@Nonnull
+	private static TriFunction<Integer, String, Integer, IntStream> groupTranslator(
+		@Nonnull Map<Integer, List<ReferenceContract>> refsByEntity
+	) {
+		return (epk, refName, refId) -> refsByEntity.getOrDefault(epk, List.of())
+			.stream()
+			.filter(it -> it.getReferencedPrimaryKey() == refId)
+			.map(ReferenceContract::getGroup)
+			.flatMap(Optional::stream)
+			.mapToInt(GroupEntityReference::getPrimaryKeyOrThrowException);
 	}
 
 	/**
@@ -874,7 +1045,8 @@ class BitmapSlicerTest {
 			REFERENCE_NAME,
 			referencedEntityIdsFormula(refsByEntity),
 			emptyGroupTranslator(),
-			new PageTransformer(page, new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0])
+			new PageTransformer(page, new io.evitadb.api.requestResponse.EvitaRequest.ConditionalGap[0]),
+			false
 		);
 	}
 
@@ -892,7 +1064,8 @@ class BitmapSlicerTest {
 			REFERENCE_NAME,
 			referencedEntityIdsFormula(refsByEntity),
 			emptyGroupTranslator(),
-			new StripTransformer(strip)
+			new StripTransformer(strip),
+			false
 		);
 	}
 
@@ -914,6 +1087,14 @@ class BitmapSlicerTest {
 	}
 
 	/**
+	 * Builds a fake dropped reference contract with the given referenced primary key and no group.
+	 */
+	@Nonnull
+	private static FakeReferenceContract droppedRef(int referencedPk) {
+		return new FakeReferenceContract(referencedPk, null, true);
+	}
+
+	/**
 	 * Hand-rolled stub that implements only the methods `BitmapSlicer` invokes. Everything
 	 * else throws `UnsupportedOperationException`, which keeps the test failure modes loud
 	 * if the production code starts depending on something new.
@@ -922,10 +1103,16 @@ class BitmapSlicerTest {
 		@Serial private static final long serialVersionUID = -1161299331361146718L;
 		private final ReferenceKey referenceKey;
 		@Nullable private final GroupEntityReference group;
+		private final boolean dropped;
 
 		FakeReferenceContract(int referencedPk, @Nullable Integer groupPk) {
+			this(referencedPk, groupPk, false);
+		}
+
+		FakeReferenceContract(int referencedPk, @Nullable Integer groupPk, boolean dropped) {
 			this.referenceKey = new ReferenceKey(REFERENCE_NAME, referencedPk);
 			this.group = groupPk == null ? null : new GroupEntityReference("group", groupPk);
+			this.dropped = dropped;
 		}
 
 		@Nonnull
@@ -978,7 +1165,7 @@ class BitmapSlicerTest {
 
 		@Override
 		public boolean dropped() {
-			return false;
+			return this.dropped;
 		}
 
 		@Override
@@ -1106,6 +1293,51 @@ class BitmapSlicerTest {
 		@Override
 		public int compare(ReferenceContract o1, ReferenceContract o2) {
 			return Integer.compare(o2.getReferencedPrimaryKey(), o1.getReferencedPrimaryKey());
+		}
+
+		@Override
+		public int getNonSortedReferenceCount() {
+			return 0;
+		}
+
+		@Nonnull
+		@Override
+		public ReferenceComparator andThen(@Nonnull ReferenceComparator comparatorForUnknownRecords) {
+			throw new UnsupportedOperationException("not used");
+		}
+
+		@Nullable
+		@Override
+		public ReferenceComparator getNextComparator() {
+			return null;
+		}
+	}
+
+	/**
+	 * Comparator that orders the references by their position in a list, comparing them by identity - it tells apart
+	 * two references sharing one referenced primary key.
+	 */
+	private static final class RankComparator implements ReferenceComparator, Serializable {
+		@Serial private static final long serialVersionUID = -5402117219931183208L;
+
+		private final List<ReferenceContract> ranking;
+
+		RankComparator(@Nonnull List<ReferenceContract> ranking) {
+			this.ranking = ranking;
+		}
+
+		@Override
+		public int compare(ReferenceContract o1, ReferenceContract o2) {
+			return Integer.compare(rankOf(o1), rankOf(o2));
+		}
+
+		private int rankOf(@Nonnull ReferenceContract reference) {
+			for (int i = 0; i < this.ranking.size(); i++) {
+				if (this.ranking.get(i) == reference) {
+					return i;
+				}
+			}
+			throw new IllegalArgumentException("Unranked reference " + reference.getReferenceKey());
 		}
 
 		@Override

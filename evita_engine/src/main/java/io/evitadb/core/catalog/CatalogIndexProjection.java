@@ -291,9 +291,9 @@ final class CatalogIndexProjection {
 			catalogIndex.getHeapSizeInBytes(),
 			new IndexCardinality(
 				// a catalog index has no entity-index kind, no sibling to be discriminated from, no primary-key bitmap
-				// to count entities off, and no reference dimension - all four absences are the index's shape rather
-				// than a reading that could not be taken
-				null, scope, null, null, null,
+				// to count entities off, no reference dimension and no registry of reference partitions - all five
+				// absences are the index's shape rather than a reading that could not be taken
+				null, scope, null, null, null, null,
 				attributes.toArray(AttributeCardinality[]::new)
 			),
 			activity == null ? 0L : activity.getQueryCount(),

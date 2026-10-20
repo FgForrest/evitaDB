@@ -38,6 +38,7 @@ import io.evitadb.utils.Assert;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -57,7 +58,7 @@ import java.util.function.Consumer;
  * restored folder into an `UnusableCatalog` stub), it rests on a precondition the work phase established: that
  * the folder resolved for the catalog exists and holds the restored data. At replay time that folder may or may
  * not have been written, and the reservation naming it did not survive the restart — so rather than re-deriving
- * the invariant we wedge loudly via the default `Optional.empty()` in `EngineMutationOperator`.
+ * the invariant we wedge loudly: `replayCompletionState` returns `Optional.empty()`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -137,6 +138,22 @@ public class RestoreCatalogSchemaMutationOperator
 				return null;
 			}
 		);
+	}
+
+	/**
+	 * Forward replay is not supported - the class javadoc says why.
+	 *
+	 * @return always empty, so a crash between the write-ahead log append and the bootstrap rewrite wedges the engine
+	 */
+	@Nonnull
+	@Override
+	public Optional<ExpandedEngineState> replayCompletionState(
+		@Nonnull RestoreCatalogSchemaMutation mutation,
+		long targetVersion,
+		@Nonnull ExpandedEngineState currentState,
+		@Nonnull Evita evita
+	) {
+		return Optional.empty();
 	}
 
 }

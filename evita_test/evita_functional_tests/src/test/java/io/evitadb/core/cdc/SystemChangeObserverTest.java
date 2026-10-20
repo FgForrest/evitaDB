@@ -885,7 +885,7 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 				infraSubscriber, "hostEvent_target", HostSystemEvent.CatalogInstalledIntoLiveView.class
 			);
 			assertEquals(1, received.size(), "Should have exactly one matching host event");
-			assertEquals(CatalogState.ALIVE, received.get(0).observedState());
+			assertEquals(CatalogState.ALIVE, received.getFirst().observedState());
 		}
 	}
 
@@ -1238,7 +1238,7 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 				received.isEmpty(),
 				"Deleting a catalog must emit CatalogRemovedFromLiveView for that catalog"
 			);
-			assertEquals(victim, received.get(0).catalogName());
+			assertEquals(victim, received.getFirst().catalogName());
 		}
 	}
 
@@ -1347,7 +1347,7 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 				1, received.size(),
 				"Exactly one CatalogSchemaUpdated must fire per WARMING_UP session that bumped the schema; got " + received.size()
 			);
-			final HostSystemEvent.CatalogSchemaUpdated event = received.get(0);
+			final HostSystemEvent.CatalogSchemaUpdated event = received.getFirst();
 			assertEquals(catalog, event.catalogName());
 			assertTrue(
 				event.newSchemaVersion() >= 1,
@@ -1445,7 +1445,7 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 				"CatalogSchemaUpdated must fire even when the termination callback throws; got "
 					+ received.size() + " events"
 			);
-			final HostSystemEvent.CatalogSchemaUpdated event = received.get(0);
+			final HostSystemEvent.CatalogSchemaUpdated event = received.getFirst();
 			assertEquals(catalog, event.catalogName());
 			assertTrue(
 				event.newSchemaVersion() >= 1,
@@ -1582,7 +1582,7 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 				1, received.size(),
 				"Exactly one CatalogSchemaUpdated must fire per ALIVE schema transaction; got " + received.size()
 			);
-			final HostSystemEvent.CatalogSchemaUpdated event = received.get(0);
+			final HostSystemEvent.CatalogSchemaUpdated event = received.getFirst();
 			assertEquals(catalog, event.catalogName());
 			assertTrue(
 				event.newSchemaVersion() >= 1,
@@ -1898,7 +1898,7 @@ class SystemChangeObserverTest implements EvitaTestSupport {
 					+ installedEvents.size()
 			);
 			assertEquals(
-				CatalogState.ALIVE, installedEvents.get(0).observedState(),
+				CatalogState.ALIVE, installedEvents.getFirst().observedState(),
 				"observedState must be ALIVE for the goLiveAndClose transition"
 			);
 

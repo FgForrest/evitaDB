@@ -67,10 +67,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Verifies {@link EntityStoragePart#createPreImage()} — the copy a savepoint puts back into the slot of a trapped part
@@ -137,7 +134,7 @@ class EntityStoragePartPreImageTest {
 				neverSet.add(field.getName());
 			}
 		}
-		assertTrue(!neverSet.isEmpty(), "No instance field was found - the walk itself is broken.");
+		assertFalse(neverSet.isEmpty(), "No instance field was found - the walk itself is broken.");
 		for (final EntityStoragePart source : sources) {
 			assertSame(type, source.getClass(), "All sources must be of one type.");
 			final EntityStoragePart preImage = source.createPreImage();

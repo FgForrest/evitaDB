@@ -278,7 +278,7 @@ public class GuiHandler implements HttpService {
 			// connections not cached
 			this.defaultConnections == null ||
 			// or cached with different URL than incoming
-			(incomingRequestHostAndPort != null && !Objects.equals(incomingRequestHostAndPort, this.defaultConnections.get(0).serverUrl()))
+			(incomingRequestHostAndPort != null && !Objects.equals(incomingRequestHostAndPort, this.defaultConnections.getFirst().serverUrl()))
 		) {
 			// generate self-connection
 			final String serverUrl;

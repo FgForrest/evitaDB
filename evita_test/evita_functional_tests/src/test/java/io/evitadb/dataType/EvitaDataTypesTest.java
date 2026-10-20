@@ -25,7 +25,6 @@ package io.evitadb.dataType;
 
 import io.evitadb.dataType.exception.InconvertibleDataTypeException;
 import io.evitadb.dataType.exception.UnsupportedDataTypeException;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.JolHeapSize;
 import io.evitadb.utils.MemoryMeasuringConstants;
@@ -35,6 +34,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -2617,6 +2617,18 @@ class EvitaDataTypesTest {
 			LocalTime.of(10, 15, 30, 123_456_789);
 		private static final LocalTime TRUNCATED_TIME =
 			LocalTime.of(10, 15, 30, 123_000_000);
+		/**
+		 * The latest moment evitaDB holds, written out independently of the production constants: the last whole
+		 * millisecond of the highest epoch second whose millisecond count still fits a `long` with one second to
+		 * spare.
+		 */
+		private static final long LATEST_SUPPORTED_EPOCH_MILLI = (Long.MAX_VALUE / 1_000L - 1L) * 1_000L + 999L;
+		/**
+		 * The earliest moment evitaDB holds - the first millisecond of the lowest supported epoch second.
+		 */
+		private static final long EARLIEST_SUPPORTED_EPOCH_MILLI = (Long.MIN_VALUE / 1_000L + 1L) * 1_000L;
+		private static final Instant LATEST_SUPPORTED_INSTANT = Instant.ofEpochMilli(LATEST_SUPPORTED_EPOCH_MILLI);
+		private static final Instant EARLIEST_SUPPORTED_INSTANT = Instant.ofEpochMilli(EARLIEST_SUPPORTED_EPOCH_MILLI);
 
 		@Test
 		@DisplayName(
@@ -2947,82 +2959,95 @@ class EvitaDataTypesTest {
 		}
 
 		@Test
-		@DisplayName(
-			"should reject the JDK temporal"
-			+ " sentinels"
-		)
-		void shouldRejectJdkSentinels() {
-			// none of these can be expressed as epoch milliseconds in a 64-bit long
-			assertThrows(
-				EvitaInvalidUsageException.class,
-				() -> EvitaDataTypes
-					.toSupportedStoredType(
-						LocalDateTime.MIN
-					)
+		@DisplayName("should clamp the JDK temporal sentinels to the edges of the supported window")
+		void shouldClampJdkSentinelsToSupportedWindow() {
+			final OffsetDateTime latest = (OffsetDateTime) EvitaDataTypes.toSupportedType(OffsetDateTime.MAX);
+			final OffsetDateTime earliest = (OffsetDateTime) EvitaDataTypes.toSupportedType(OffsetDateTime.MIN);
+
+			// the instant is clamped, the offset of the sentinel is kept
+			assertEquals(OffsetDateTime.ofInstant(LATEST_SUPPORTED_INSTANT, ZoneOffset.MIN), latest);
+			assertEquals("+292278994-08-16T13:12:54.999-18:00", latest.toString());
+			assertEquals(OffsetDateTime.ofInstant(EARLIEST_SUPPORTED_INSTANT, ZoneOffset.MAX), earliest);
+			// both edges encode as epoch milliseconds without overflow - what every temporal index key needs
+			assertEquals(LATEST_SUPPORTED_EPOCH_MILLI, latest.toInstant().toEpochMilli());
+			assertEquals(EARLIEST_SUPPORTED_EPOCH_MILLI, earliest.toInstant().toEpochMilli());
+
+			// a local date-time is clamped as the wall clock at UTC
+			assertEquals(
+				LocalDateTime.ofInstant(LATEST_SUPPORTED_INSTANT, ZoneOffset.UTC),
+				EvitaDataTypes.toSupportedStoredType(LocalDateTime.MAX)
 			);
-			assertThrows(
-				EvitaInvalidUsageException.class,
-				() -> EvitaDataTypes
-					.toSupportedStoredType(
-						LocalDateTime.MAX
-					)
-			);
-			assertThrows(
-				EvitaInvalidUsageException.class,
-				() -> EvitaDataTypes.toSupportedType(
-					OffsetDateTime.MIN
-				)
-			);
-			assertThrows(
-				EvitaInvalidUsageException.class,
-				() -> EvitaDataTypes.toSupportedType(
-					OffsetDateTime.MAX
-				)
+			assertEquals(
+				LocalDateTime.ofInstant(EARLIEST_SUPPORTED_INSTANT, ZoneOffset.UTC),
+				EvitaDataTypes.toSupportedStoredType(LocalDateTime.MIN)
 			);
 		}
 
 		@Test
-		@DisplayName(
-			"should name the value and the supported"
-			+ " range when rejecting"
-		)
-		void shouldExplainWhyAValueIsRejected() {
-			final EvitaInvalidUsageException ex =
-				assertThrows(
-					EvitaInvalidUsageException.class,
-					() -> EvitaDataTypes
-						.toSupportedStoredType(
-							LocalDateTime.MAX
-						)
-				);
-
-			assertTrue(
-				ex.getMessage()
-					.contains("+999999999-12-31"),
-				ex.getMessage()
+		@DisplayName("should clamp a stored value and a query probe of the same sentinel to the same moment")
+		void shouldClampStoredValueAndQueryProbeAlike() {
+			assertEquals(
+				EvitaDataTypes.toSupportedStoredType(OffsetDateTime.MAX),
+				EvitaDataTypes.toSupportedType(OffsetDateTime.MAX)
 			);
-			assertTrue(
-				ex.getMessage()
-					.contains("292278994"),
-				ex.getMessage()
+			assertEquals(
+				EvitaDataTypes.toSupportedStoredType(OffsetDateTime.MIN),
+				EvitaDataTypes.toSupportedType(OffsetDateTime.MIN)
+			);
+			// the query path turns a local date-time into an offset one at UTC - after clamping, at the same instant
+			final OffsetDateTime probe = (OffsetDateTime) EvitaDataTypes.toSupportedType(LocalDateTime.MAX);
+			assertEquals(ZoneOffset.UTC, probe.getOffset());
+			assertEquals(
+				((LocalDateTime) EvitaDataTypes.toSupportedStoredType(LocalDateTime.MAX)).toInstant(ZoneOffset.UTC),
+				probe.toInstant()
 			);
 		}
 
 		@Test
-		@DisplayName(
-			"should reject a sentinel inside a"
-			+ " temporal array"
-		)
-		void shouldRejectSentinelInsideArray() {
-			assertThrows(
-				EvitaInvalidUsageException.class,
-				() -> EvitaDataTypes
-					.toSupportedStoredTypeOrItsArray(
-						new LocalDateTime[]{
-							NANO_PRECISE_LOCAL_MOMENT,
-							LocalDateTime.MAX
-						}
-					)
+		@DisplayName("should keep the offset of a clamped moment whatever it is")
+		void shouldKeepOffsetOfClampedMoment() {
+			final ZoneOffset offset = ZoneOffset.ofHours(5);
+			final OffsetDateTime clamped = (OffsetDateTime) EvitaDataTypes.toSupportedStoredType(
+				LocalDateTime.MAX.atOffset(offset)
+			);
+
+			assertEquals(offset, clamped.getOffset());
+			assertEquals(LATEST_SUPPORTED_INSTANT, clamped.toInstant());
+		}
+
+		@Test
+		@DisplayName("should leave a moment inside the window untouched and never clamp below it")
+		void shouldLeaveMomentInsideWindowUntouched() {
+			// the last second of the window, half way through - accepted as the very same instance
+			final OffsetDateTime insideLastSecond = OffsetDateTime.ofInstant(
+				LATEST_SUPPORTED_INSTANT.minusMillis(499L), ZoneOffset.UTC
+			);
+			assertSame(insideLastSecond, EvitaDataTypes.toSupportedStoredType(insideLastSecond));
+			final OffsetDateTime insideFirstSecond =
+				OffsetDateTime.ofInstant(EARLIEST_SUPPORTED_INSTANT, ZoneOffset.UTC);
+			assertSame(insideFirstSecond, EvitaDataTypes.toSupportedStoredType(insideFirstSecond));
+
+			// one second beyond the window lands on its last millisecond, which sorts after anything accepted as is
+			final OffsetDateTime beyond = (OffsetDateTime) EvitaDataTypes.toSupportedStoredType(
+				OffsetDateTime.ofInstant(LATEST_SUPPORTED_INSTANT.plusSeconds(1L), ZoneOffset.UTC)
+			);
+			assertEquals(LATEST_SUPPORTED_INSTANT, beyond.toInstant());
+			assertTrue(beyond.isAfter(insideLastSecond));
+		}
+
+		@Test
+		@DisplayName("should clamp a sentinel inside a temporal array")
+		void shouldClampSentinelInsideArray() {
+			final Serializable result = EvitaDataTypes.toSupportedStoredTypeOrItsArray(
+				new LocalDateTime[]{NANO_PRECISE_LOCAL_MOMENT, LocalDateTime.MAX}
+			);
+
+			assertArrayEquals(
+				new LocalDateTime[]{
+					TRUNCATED_LOCAL_MOMENT,
+					LocalDateTime.ofInstant(LATEST_SUPPORTED_INSTANT, ZoneOffset.UTC)
+				},
+				(LocalDateTime[]) result
 			);
 		}
 

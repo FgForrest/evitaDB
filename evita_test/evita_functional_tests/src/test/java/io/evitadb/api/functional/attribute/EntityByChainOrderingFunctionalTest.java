@@ -1430,7 +1430,7 @@ public class EntityByChainOrderingFunctionalTest {
 
 				assertEquals(1, result.getRecordData().size());
 				assertSortedResultEquals(
-					result.getRecordData().get(0)
+					result.getRecordData().getFirst()
 						.getReferences(REFERENCE_CATEGORY_PRODUCTS)
 						.stream()
 						.map(ReferenceContract::getReferencedPrimaryKey)
@@ -1481,7 +1481,7 @@ public class EntityByChainOrderingFunctionalTest {
 
 				assertEquals(1, result.getRecordData().size());
 				assertSortedResultEquals(
-					result.getRecordData().get(0)
+					result.getRecordData().getFirst()
 						.getReferences(REFERENCE_CATEGORY_PRODUCTS)
 						.stream()
 						.map(ReferenceContract::getReferencedPrimaryKey)
@@ -1736,7 +1736,7 @@ public class EntityByChainOrderingFunctionalTest {
 
 				assertEquals(1, result.getRecordData().size());
 				assertSortedResultEquals(
-					result.getRecordData().get(0)
+					result.getRecordData().getFirst()
 						.getReferences(REFERENCE_CATEGORY_PRODUCTS)
 						.stream()
 						.map(ReferenceContract::getReferencedPrimaryKey)
@@ -1788,7 +1788,7 @@ public class EntityByChainOrderingFunctionalTest {
 
 				assertEquals(1, result.getRecordData().size());
 				assertSortedResultEquals(
-					result.getRecordData().get(0)
+					result.getRecordData().getFirst()
 						.getReferences(REFERENCE_CATEGORY_PRODUCTS)
 						.stream()
 						.map(ReferenceContract::getReferencedPrimaryKey)

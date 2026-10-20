@@ -1048,7 +1048,7 @@ public class SharedContainerLockstepFuzzTest {
 		for (int key = 0; key < 5; key++) {
 			if ((mask & (1 << key)) != 0) {
 				final int start = (key << 16) + 1_000;
-				bitmap.add((long) start, (long) start + 100);
+				bitmap.add(start, (long) start + 100);
 				for (int value = start; value < start + 100; value++) {
 					model.add(value);
 				}

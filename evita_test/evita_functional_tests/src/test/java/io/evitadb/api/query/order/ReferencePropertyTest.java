@@ -220,7 +220,7 @@ class ReferencePropertyTest implements EvitaTestSupport {
 			final List<OrderConstraint> orderConstraints = constraint.getOrderConstraints();
 
 			assertEquals(1, orderConstraints.size());
-			assertInstanceOf(AttributeNatural.class, orderConstraints.get(0));
+			assertInstanceOf(AttributeNatural.class, orderConstraints.getFirst());
 		}
 
 		@Test
@@ -235,7 +235,7 @@ class ReferencePropertyTest implements EvitaTestSupport {
 			final List<OrderConstraint> orderConstraints = constraint.getOrderConstraints();
 
 			assertEquals(1, orderConstraints.size());
-			assertInstanceOf(AttributeNatural.class, orderConstraints.get(0));
+			assertInstanceOf(AttributeNatural.class, orderConstraints.getFirst());
 		}
 
 		@Test

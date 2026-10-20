@@ -1,7 +1,7 @@
 ---
 title: Answer reference-planning cardinality from the owner→partition map, widened and retuned to 64
 date: 2026-09-18
-updated: 2026-09-23 23:30
+updated: 2026-10-12 02:40
 status: partially-implemented
 kind: optimization
 issues: [1585, 1603]
@@ -14,7 +14,7 @@ areas:
   - evita_test/evita_performance_tests/src/main/java/io/evitadb/spike
 supersedes: []
 superseded-by: []
-relates: [2026-09-09-sibling-resolver-partition-cardinality, 2026-09-17-row-scoped-reference-having-body, 2026-09-23-pick-first-reference-ordering-from-selection]
+relates: [2026-09-09-sibling-resolver-partition-cardinality, 2026-09-17-row-scoped-reference-having-body, 2026-09-23-pick-first-reference-ordering-from-selection, 2026-10-12-single-owner-partitions-as-registry-rows]
 ---
 
 # Answer reference-planning cardinality from the owner→partition map, widened and retuned to 64
@@ -285,6 +285,13 @@ maintains, leaving a walk over the residual set only (38 partitions against 161,
 `ParameterValue.products`). That is where the 197 ms is. It is not designed yet, and the open question is how
 fast a seeded slice converges, since `ReducedIndexMembership:233-245` puts every partition in the residual set
 until each is written again.
+
+**Update 2026-10-12 (#1615):** a single-owner partition of a filtering-only reference is now a registry row, answered
+from the type-level structures as one operand rather than one bitmap per partition - see
+[2026-10-12-single-owner-partitions-as-registry-rows](2026-10-12-single-owner-partitions-as-registry-rows.md). On the
+same corpus, three `referenceHaving` body shapes over `Product.media` (`attributeEquals`, `attributeIs` NULL and
+NOT_NULL) fell from 157-227 ms to 2.6-4.5 ms. The bare `referenceHaving(R)` measured above was not re-measured, and
+`ReducedIndexMembership` itself is unchanged: rows are covered entries in it.
 
 This record stays `partially-implemented`: the widening is maintained and measured free on the write path, it
 serves the cross-entity facet trigger it was built for, and its second consumer has moved rather than

@@ -43,6 +43,7 @@ import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
 import java.util.Collections;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Consumer;
 
@@ -54,9 +55,8 @@ import java.util.function.Consumer;
  * exist": the target folder is allocated during the work phase and its token lives only in an in-memory
  * reservation, which a restart discards. `DuplicateCatalogMutation` does not carry that token, so a replay
  * cannot know which folder the copy was written into — and binding the wrong one would leave the copy
- * unreferenced under a name that looks correctly bound. The default `Optional.empty()` in
- * `EngineMutationOperator` therefore stands: the transaction manager logs a loud error and stops, which is
- * preferable to silent drift.
+ * unreferenced under a name that looks correctly bound. `replayCompletionState` therefore returns
+ * `Optional.empty()`: the transaction manager logs a loud error and stops, which is preferable to silent drift.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -166,6 +166,22 @@ public class DuplicateCatalogMutationOperator implements EngineMutationOperator<
 		// the call that took it, because its registering mutation looks the folder up by catalog name.
 		duplication.whenComplete((result, ex) -> reservation.close());
 		return duplication;
+	}
+
+	/**
+	 * Forward replay is not supported - the class javadoc says why.
+	 *
+	 * @return always empty, so a crash between the write-ahead log append and the bootstrap rewrite wedges the engine
+	 */
+	@Nonnull
+	@Override
+	public Optional<ExpandedEngineState> replayCompletionState(
+		@Nonnull DuplicateCatalogMutation mutation,
+		long targetVersion,
+		@Nonnull ExpandedEngineState currentState,
+		@Nonnull Evita evita
+	) {
+		return Optional.empty();
 	}
 
 }

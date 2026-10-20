@@ -160,7 +160,7 @@ class CreateAttributeSchemaMutationTest {
 	static AttributeSchemaContract createAttributeSchemaOfType(@Nonnull Class<? extends Serializable> type) {
 		return AttributeSchema._internalBuild(
 			ATTRIBUTE_NAME, null, null,
-			(ScopedAttributeUniquenessType[]) null,
+			null,
 			Scope.NO_SCOPE, null, Scope.NO_SCOPE,
 			false, false, false,
 			type, null, 0,
@@ -188,7 +188,7 @@ class CreateAttributeSchemaMutationTest {
 	static EntityAttributeSchemaContract createStringEntityAttributeSchema() {
 		return EntityAttributeSchema._internalBuild(
 			ATTRIBUTE_NAME, null, null,
-			(ScopedAttributeUniquenessType[]) null,
+			null,
 			Scope.NO_SCOPE, null, Scope.NO_SCOPE,
 			false, false, false,
 			String.class, null, 0,
@@ -206,7 +206,7 @@ class CreateAttributeSchemaMutationTest {
 		// the untyped nulls would leave the array- and map-shaped overloads equally applicable
 		return GlobalAttributeSchema._internalBuild(
 			ATTRIBUTE_NAME, null, null,
-			(ScopedAttributeUniquenessType[]) null,
+			null,
 			(ScopedGlobalAttributeUniquenessType[]) null,
 			Scope.NO_SCOPE, null, Scope.NO_SCOPE,
 			false, false, false,

@@ -254,7 +254,7 @@ class ChainIndexLegacyLoadTransactionalFlushTest {
 					"the commit merge, otherwise every leaf would look fresh again!"
 			);
 			assertEquals(
-				2, outcome.leafPages().get(0).getPageSequence(),
+				2, outcome.leafPages().getFirst().getPageSequence(),
 				"The mutation lands in the last leaf, so its already-allocated page must be reused!"
 			);
 			// a content-only commit leaves the persisted leaf-page list byte-identical, so the root is skipped; a

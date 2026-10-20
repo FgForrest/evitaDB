@@ -80,7 +80,7 @@ class QueryUtilsTest {
 			);
 			final Constraint<?> found = QueryUtils.findConstraint(
 				filterBy,
-				c -> c instanceof AttributeEquals && "name".equals(((AttributeEquals) c).getArguments()[0])
+				c -> c instanceof AttributeEquals && "name".equals(c.getArguments()[0])
 			);
 			assertNotNull(found);
 		}
@@ -158,7 +158,7 @@ class QueryUtilsTest {
 				filterBy, AttributeEquals.class, Or.class
 			);
 			assertEquals(1, found.size());
-			assertEquals("code", found.get(0).getArguments()[0]);
+			assertEquals("code", found.getFirst().getArguments()[0]);
 		}
 
 		@Test

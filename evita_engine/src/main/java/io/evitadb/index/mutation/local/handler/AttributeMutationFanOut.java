@@ -25,6 +25,7 @@ package io.evitadb.index.mutation.local.handler;
 
 import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.mutation.attribute.AttributeMutation;
+import io.evitadb.api.requestResponse.data.mutation.attribute.RemoveAttributeMutation;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.catalog.CatalogExpressionTriggerRegistry;
@@ -35,6 +36,7 @@ import io.evitadb.index.IndexType;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor.Target;
 import io.evitadb.index.mutation.local.EntitySchemaAttributeAndCompoundSchemaProvider;
+import io.evitadb.index.mutation.local.PartitionWriteKind;
 import io.evitadb.index.mutation.local.ReferenceIndexConsumer;
 import io.evitadb.index.mutation.local.ReferenceIndexMutator;
 import io.evitadb.index.mutation.local.dataAccess.ExistingAttributeValueSupplier;
@@ -116,7 +118,8 @@ final class AttributeMutationFanOut {
 		executor.fanOutUniquePerIndex(
 			ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
 			attrConsumer, Droppable::exists, true,
-			ReferenceIndexMutator.IterationPath.BOTH
+			ReferenceIndexMutator.IterationPath.BOTH,
+			mutation instanceof RemoveAttributeMutation ? PartitionWriteKind.REMOVING : PartitionWriteKind.ADDING
 		);
 		// defer re-evaluation to after storage write so expression reads updated attribute values
 		if (executor.hasFacetExpressionTriggers()) {

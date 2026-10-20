@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -55,7 +56,7 @@ public class ContainerBinaryOpFreshnessTest {
 		for (int i = 0; i < 64; i++) {
 			c = c.add((char) (offset + i * 97));
 		}
-		assertTrue(c instanceof ArrayContainer, "fixture drifted off the array shape");
+		assertInstanceOf(ArrayContainer.class, c, "fixture drifted off the array shape");
 		return c;
 	}
 

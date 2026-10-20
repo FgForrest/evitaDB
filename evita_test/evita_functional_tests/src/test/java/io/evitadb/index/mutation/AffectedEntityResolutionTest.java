@@ -175,7 +175,7 @@ class AffectedEntityResolutionTest implements TimeBoundedTestSupport {
 			);
 
 			assertEquals(1, entries.size());
-			assertEquals(new AffectedReferenceEntry(1, 100, 20), entries.get(0));
+			assertEquals(new AffectedReferenceEntry(1, 100, 20), entries.getFirst());
 		}
 
 		@Test
@@ -275,7 +275,7 @@ class AffectedEntityResolutionTest implements TimeBoundedTestSupport {
 
 			assertEquals(2, entries.size());
 
-			final AffectedReferenceEntry ungrouped = entries.get(0);
+			final AffectedReferenceEntry ungrouped = entries.getFirst();
 			assertEquals(42, ungrouped.referencedEntityPK());
 			assertNull(ungrouped.groupPK(), "Ungrouped facet must have null groupPK");
 			assertEquals(7, ungrouped.ownerPK());
