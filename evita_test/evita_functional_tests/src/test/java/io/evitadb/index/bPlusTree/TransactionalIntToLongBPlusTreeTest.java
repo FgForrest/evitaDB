@@ -3099,7 +3099,7 @@ class TransactionalIntToLongBPlusTreeTest {
 			int[] previousArray = null;
 
 			for (int entries = 1; entries <= blockSize - 1; entries++) {
-				tree.insert(entries - 1, (long) entries);
+				tree.insert(entries - 1, entries);
 				final int[] current = ((BPlusLeafTreeNode) tree.getRoot()).getKeys();
 				//noinspection ArrayEquality
 				if (current != previousArray) {

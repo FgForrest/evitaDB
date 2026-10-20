@@ -506,7 +506,7 @@ class VirtualHierarchyParityTest implements EvitaTestSupport {
 			for (int i = 0; i < children.length; i++) {
 				cloned[i] = withClones(children[i]);
 			}
-			return (FilterConstraint) container.getCopyWithNewChildren(cloned, container.getAdditionalChildren());
+			return container.getCopyWithNewChildren(cloned, container.getAdditionalChildren());
 		} else {
 			return constraint;
 		}

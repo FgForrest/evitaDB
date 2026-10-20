@@ -813,7 +813,7 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 					try (
 						final Stream<CatalogBoundMutation> stream = CatalogWriteAheadLogIntegrationTest.this.wal
 							.getCommittedLiveMutationStream(
-								(long) transactionSizes.length, (long) transactionSizes.length,
+								transactionSizes.length, transactionSizes.length,
 								VersionSource.INTERNAL
 							)
 					) {

@@ -1003,7 +1003,7 @@ class VirtualPartitionReloadInvariantTest implements EvitaTestSupport {
 		final PartitionIdentityLedger ledger = ledgerOf(catalogName);
 		theEvita.queryCatalog(
 			catalogName,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				for (final String entityType : new TreeSet<>(catalogOf(theEvita, catalogName).getEntityTypes())) {
 					VirtualReferencePartitionRawRowOracle.assertConsistent(
 						label, session, collectionOf(theEvita, catalogName, entityType), ledger

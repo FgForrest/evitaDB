@@ -419,7 +419,7 @@ public final class VirtualPartitionInvariants {
 		final String rebuildName = catalogName + "HistoryFreeRebuild";
 		final CatalogContent content = evita.queryCatalog(
 			catalogName,
-			(Function<EvitaSessionContract, CatalogContent>) VirtualPartitionInvariants::readContent
+			VirtualPartitionInvariants::readContent
 		);
 		evita.deleteCatalogIfExists(rebuildName);
 		try {
@@ -755,7 +755,7 @@ public final class VirtualPartitionInvariants {
 		@Nonnull String catalogName,
 		@Nonnull String entityType
 	) {
-		return (EntityCollection) catalogOf(evita, catalogName).getCollectionForEntityOrThrowException(entityType);
+		return catalogOf(evita, catalogName).getCollectionForEntityOrThrowException(entityType);
 	}
 
 	/**

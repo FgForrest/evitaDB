@@ -782,7 +782,7 @@ public class GlobalUniqueIndex implements
 	 */
 	@Nullable
 	private EntityWithTypeTuple lookupTupleByKey(@Nonnull Comparable<?> key) {
-		final OptionalLong packed = this.tree.getLongRecordEqualTo((Comparable) key);
+		final OptionalLong packed = this.tree.getLongRecordEqualTo(key);
 		return packed.isPresent() ? unpackTuple(packed.getAsLong()) : null;
 	}
 

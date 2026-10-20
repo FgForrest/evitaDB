@@ -239,7 +239,7 @@ class LocaleRemovalWithArchivingFunctionalTest implements EvitaTestSupport {
 
 				evita.queryCatalog(
 					TEST_CATALOG,
-					(Consumer<EvitaSessionContract>) session -> {
+					session -> {
 						final SealedEntity product = session.getEntity(
 							ENTITY_PRODUCT, PRODUCT_PK, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()
 						).orElseThrow();
@@ -357,7 +357,7 @@ class LocaleRemovalWithArchivingFunctionalTest implements EvitaTestSupport {
 				);
 				evita.queryCatalog(
 					TEST_CATALOG,
-					(Consumer<EvitaSessionContract>) session -> {
+					session -> {
 						assertEquals(1, countWithLocale(session, Locale.FRENCH, Scope.ARCHIVED));
 						assertEquals(0, countWithLocale(session, Locale.FRENCH, Scope.LIVE));
 						assertEquals(1, countWithLocale(session, Locale.GERMAN, Scope.ARCHIVED));
@@ -388,7 +388,7 @@ class LocaleRemovalWithArchivingFunctionalTest implements EvitaTestSupport {
 			final TestPaths paths = createTestPaths("UniqueValueRemovedWithArchiving_" + alsoLosingGerman);
 			try (final Evita evita = new Evita(newTestEvitaConfigurationBuilder(paths).build())) {
 				evita.defineCatalog(TEST_CATALOG);
-				evita.updateCatalog(TEST_CATALOG, (Consumer<EvitaSessionContract>) UniqueValueInTargetScope::setUpProductsSharingCode);
+				evita.updateCatalog(TEST_CATALOG, UniqueValueInTargetScope::setUpProductsSharingCode);
 				final List<LocalMutation<?, ?>> all = new ArrayList<>(3);
 				all.add(new RemoveAttributeMutation(ATTRIBUTE_CODE));
 				if (alsoLosingGerman) {
@@ -405,7 +405,7 @@ class LocaleRemovalWithArchivingFunctionalTest implements EvitaTestSupport {
 
 				evita.queryCatalog(
 					TEST_CATALOG,
-					(Consumer<EvitaSessionContract>) session -> {
+					session -> {
 						final SealedEntity product = session.getEntity(
 							ENTITY_PRODUCT, PRODUCT_PK, new Scope[]{Scope.ARCHIVED}, entityFetchAllContent()
 						).orElseThrow();
@@ -433,7 +433,7 @@ class LocaleRemovalWithArchivingFunctionalTest implements EvitaTestSupport {
 			final TestPaths paths = createTestPaths("UniqueValueKeptWithArchiving_" + alsoLosingGerman);
 			try (final Evita evita = new Evita(newTestEvitaConfigurationBuilder(paths).build())) {
 				evita.defineCatalog(TEST_CATALOG);
-				evita.updateCatalog(TEST_CATALOG, (Consumer<EvitaSessionContract>) UniqueValueInTargetScope::setUpProductsSharingCode);
+				evita.updateCatalog(TEST_CATALOG, UniqueValueInTargetScope::setUpProductsSharingCode);
 				final List<LocalMutation<?, ?>> all = new ArrayList<>(2);
 				if (alsoLosingGerman) {
 					all.add(new RemoveAttributeMutation(ATTRIBUTE_NAME, Locale.GERMAN));
@@ -450,7 +450,7 @@ class LocaleRemovalWithArchivingFunctionalTest implements EvitaTestSupport {
 
 				evita.queryCatalog(
 					TEST_CATALOG,
-					(Consumer<EvitaSessionContract>) session -> {
+					session -> {
 						final SealedEntity product = session.getEntity(
 							ENTITY_PRODUCT, PRODUCT_PK, entityFetchAllContent()
 						).orElseThrow();

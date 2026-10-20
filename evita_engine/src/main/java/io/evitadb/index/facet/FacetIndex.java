@@ -391,7 +391,7 @@ public class FacetIndex implements FacetIndexContract, TransactionalLayerProduce
 		} else {
 			final FacetIndex facetIndex = new FacetIndex(
 				// this is a HACK - facetingEntities id indexes produce NonTransactionalCopy instead of type than generics would suggest
-				(Map) transactionalLayer.getStateCopyWithCommittedChanges(this.facetingEntities)
+				transactionalLayer.getStateCopyWithCommittedChanges(this.facetingEntities)
 			);
 			ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
 			return facetIndex;

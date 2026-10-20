@@ -337,7 +337,7 @@ class EvitaClientHeadLabelPropagationTest implements TestConstants, EvitaTestSup
 		final QueryRequestCapturingInterceptor capture = new QueryRequestCapturingInterceptor();
 		try (final EvitaClient client = new EvitaClient(
 			clientConfiguration(evitaServer),
-			(Consumer<GrpcClientBuilder>) builder -> builder.intercept(capture)
+			builder -> builder.intercept(capture)
 		)) {
 			client.queryCatalog(TEST_CATALOG, queryInvocation);
 		}

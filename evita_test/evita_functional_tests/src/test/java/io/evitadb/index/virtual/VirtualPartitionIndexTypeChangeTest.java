@@ -1328,7 +1328,7 @@ class VirtualPartitionIndexTypeChangeTest implements EvitaTestSupport {
 	) {
 		return theEvita.queryCatalog(
 			CATALOG,
-			(Function<EvitaSessionContract, List<Integer>>) session -> {
+			session -> {
 				final Map<Integer, Integer> parents = new TreeMap<>();
 				for (int pk = 1; pk <= CATEGORY_COUNT; pk++) {
 					session.getEntity(ENTITY_CATEGORY, pk, new Scope[]{scope}, entityFetchAllContent())

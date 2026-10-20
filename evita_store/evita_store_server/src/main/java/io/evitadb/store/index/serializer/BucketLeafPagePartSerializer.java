@@ -72,7 +72,7 @@ public abstract class BucketLeafPagePartSerializer<T> extends AbstractLeafPagePa
 				output.writeVarInt(primitive.getRecordId(), true);
 			} else {
 				output.writeByte(BUCKET_KIND_BITMAP);
-				kryo.writeObject(output, (ValueToRecordBitmap) bucket);
+				kryo.writeObject(output, bucket);
 			}
 		}
 	}

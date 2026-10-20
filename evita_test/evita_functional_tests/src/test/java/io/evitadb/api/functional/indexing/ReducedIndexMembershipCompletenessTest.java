@@ -1468,7 +1468,7 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 	) {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.defineEntitySchema(ENTITY_CATEGORY).updateVia(session);
 				session.defineEntitySchema(ENTITY_BRAND).updateVia(session);
 				session.defineEntitySchema(ENTITY_TAG).updateVia(session);
@@ -1621,7 +1621,7 @@ class ReducedIndexMembershipCompletenessTest implements EvitaTestSupport {
 	private void prepareReflected() {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.defineEntitySchema(ENTITY_PARAMETER_VALUE).updateVia(session);
 				session.defineEntitySchema(ENTITY_PARAMETER)
 					.withAttribute(

@@ -430,7 +430,7 @@ final class VirtualPartitionHistory implements AutoCloseable {
 			catalog.getCatalogState() == CatalogState.WARMING_UP ? this.ledger : null;
 		for (final String entityType : new TreeSet<>(session.getAllEntityTypes())) {
 			final EntityCollection collection =
-				(EntityCollection) catalog.getCollectionForEntityOrThrowException(entityType);
+				catalog.getCollectionForEntityOrThrowException(entityType);
 			VirtualPartitionInvariants.assertNoPartitionObjectBelowTwoOwners(label, collection);
 			VirtualPartitionInvariants.assertMembershipKnowsOnlyExistingPartitions(label, collection);
 			VirtualReferencePartitionRawRowOracle.assertConsistent(label, session, collection, theLedger);
@@ -446,7 +446,7 @@ final class VirtualPartitionHistory implements AutoCloseable {
 		VirtualPartitionInvariants.assertInvariants(label, this.evita, CATALOG);
 		this.evita.queryCatalog(
 			CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				for (final String entityType : new TreeSet<>(session.getAllEntityTypes())) {
 					VirtualReferencePartitionRawRowOracle.assertConsistent(
 						label, session, VirtualPartitionInvariants.collectionOf(this.evita, CATALOG, entityType),

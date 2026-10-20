@@ -147,7 +147,7 @@ class CatalogRestListUnknownEntitiesQueryFunctionalTest extends CatalogRestDataE
 			),
 			SealedEntity.class
 		);
-		assertNotEquals((String) liveEntity.getAttribute(ATTRIBUTE_CODE), (String) archivedEntity.getAttribute(ATTRIBUTE_CODE));
+		assertNotEquals(liveEntity.getAttribute(ATTRIBUTE_CODE), (String) archivedEntity.getAttribute(ATTRIBUTE_CODE));
 
 		final var expectedBodyOfArchivedEntities = Stream.of(liveEntity, archivedEntity)
 			.map(entity -> new EntityReference(entity.getType(), entity.getPrimaryKey()))

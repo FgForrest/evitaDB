@@ -197,8 +197,8 @@ class FrontCodedStringColumnTest {
 			}
 
 			// asBoxedArray (cold path) decodes to the same prefix and has the column's full capacity length
-			final String[] frontArray = (String[]) dstFront.asBoxedArray();
-			final String[] boxedArray = (String[]) dstBoxed.asBoxedArray();
+			final String[] frontArray = dstFront.asBoxedArray();
+			final String[] boxedArray = dstBoxed.asBoxedArray();
 			assertEquals(BLOCK_SIZE, frontArray.length);
 			for (int i = 0; i < 3; i++) {
 				assertEquals(boxedArray[i], frontArray[i]);
@@ -287,7 +287,7 @@ class FrontCodedStringColumnTest {
 				assertEquals(keys[i], column.keyAt(i), "round-trip mismatch at slot " + i);
 			}
 			// asBoxedArray runs the decodeAll path (separate reused-scratch loop); first `keys.length` slots are live
-			final String[] decoded = (String[]) column.asBoxedArray();
+			final String[] decoded = column.asBoxedArray();
 			for (int i = 0; i < keys.length; i++) {
 				assertEquals(keys[i], decoded[i], "decodeAll mismatch at slot " + i);
 			}
@@ -321,7 +321,7 @@ class FrontCodedStringColumnTest {
 			assertEquals("z", column.keyAt(2), "zero-shared key must not inherit the long predecessor's tail");
 
 			// sequential decode (decodeAll, via asBoxedArray) round-trips the same keys
-			final String[] decoded = (String[]) column.asBoxedArray();
+			final String[] decoded = column.asBoxedArray();
 			for (int i = 0; i < keys.length; i++) {
 				assertEquals(keys[i], decoded[i], "decodeAll mismatch at slot " + i);
 			}
@@ -374,7 +374,7 @@ class FrontCodedStringColumnTest {
 
 			// the blob is fully reset: capacity survives and every slot decodes back to null on the cold path
 			assertEquals(BLOCK_SIZE, column.capacity());
-			final String[] emptied = (String[]) column.asBoxedArray();
+			final String[] emptied = column.asBoxedArray();
 			assertEquals(BLOCK_SIZE, emptied.length);
 			for (int i = 0; i < emptied.length; i++) {
 				assertNull(emptied[i], "Slot " + i + " must be empty after full drain");
@@ -578,7 +578,7 @@ class FrontCodedStringColumnTest {
 
 			// fillEmpty(0, size) truncates the whole column to empty; the slots are free again
 			column.fillEmpty(0, keys.length);
-			final String[] emptied = (String[]) column.asBoxedArray();
+			final String[] emptied = column.asBoxedArray();
 			for (int i = 0; i < emptied.length; i++) {
 				assertNull(emptied[i], "Slot " + i + " must be empty after truncate-to-zero");
 			}

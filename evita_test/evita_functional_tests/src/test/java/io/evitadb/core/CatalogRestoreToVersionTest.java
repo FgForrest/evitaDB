@@ -485,7 +485,7 @@ class CatalogRestoreToVersionTest implements EvitaTestSupport {
 					"A task the scheduler never received must not report itself as queued!"
 				);
 				assertTrue(
-					management.listTaskStatuses(1, 100, (String[]) null).getData().stream()
+					management.listTaskStatuses(1, 100, null).getData().stream()
 						.noneMatch(it -> it.taskId().equals(backupTask.getStatus().taskId())),
 					"The backup task must not appear among the scheduler's tasks - nobody queued it!"
 				);

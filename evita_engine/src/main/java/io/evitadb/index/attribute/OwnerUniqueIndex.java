@@ -314,7 +314,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	@Nullable
 	@Override
 	public Integer getRecordIdByUniqueValue(@Nonnull Serializable value) {
-		final Bitmap records = this.tree.getRecordsEqualTo((Comparable) toKey(this.normalizer, value));
+		final Bitmap records = this.tree.getRecordsEqualTo(toKey(this.normalizer, value));
 		return records.isEmpty() ? null : records.getFirst();
 	}
 
@@ -670,7 +670,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 */
 	@Nullable
 	private Integer getRecordIdByKey(@Nonnull Comparable<?> key) {
-		final Bitmap records = this.tree.getRecordsEqualTo((Comparable) key);
+		final Bitmap records = this.tree.getRecordsEqualTo(key);
 		return records.isEmpty() ? null : records.getFirst();
 	}
 

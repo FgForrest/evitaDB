@@ -796,7 +796,7 @@ public class VirtualReferencePartitionIndex
 			this.entries.removeLongRecord(key);
 			releaseTuple((int) previousTupleId.getAsLong());
 		}
-		this.entries.addLongRecord(key, (long) tupleId);
+		this.entries.addLongRecord(key, tupleId);
 		this.dirty.setToTrue();
 	}
 
@@ -1955,7 +1955,7 @@ public class VirtualReferencePartitionIndex
 			final Serializable previousValue = releaseSortValue(slotId, (int) previousValueId.getAsLong());
 			removeFromSortIndex(sortKey, sortIndex, previousValue, partitionPrimaryKey);
 		}
-		this.entries.addLongRecord(key, (long) valueId);
+		this.entries.addLongRecord(key, valueId);
 		if (compound) {
 			// the sort index normalizes the array it is given in place, and the caller's array stays untouched
 			final Serializable[] elements = (Serializable[]) value;

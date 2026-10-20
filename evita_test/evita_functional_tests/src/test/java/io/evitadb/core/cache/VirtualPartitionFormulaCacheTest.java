@@ -937,7 +937,7 @@ class VirtualPartitionFormulaCacheTest implements EvitaTestSupport {
 	 */
 	@Nonnull
 	private Run run(@Nonnull String catalogName, @Nonnull Query query, @Nullable CacheAnteroom anteroom) {
-		final String entityType = (String) query.getCollection().getEntityType();
+		final String entityType = query.getCollection().getEntityType();
 		return inEngineSession(
 			catalogName,
 			session -> {

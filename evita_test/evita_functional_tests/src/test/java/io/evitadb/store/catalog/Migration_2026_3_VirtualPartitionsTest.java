@@ -1423,7 +1423,7 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 		assertInvariants(label, engine, GENERATED_CATALOG);
 		engine.queryCatalog(
 			GENERATED_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				for (final String entityType : new TreeSet<>(catalogOf(engine, GENERATED_CATALOG).getEntityTypes())) {
 					VirtualReferencePartitionRawRowOracle.assertConsistent(
 						label, session, collectionOf(engine, GENERATED_CATALOG, entityType)

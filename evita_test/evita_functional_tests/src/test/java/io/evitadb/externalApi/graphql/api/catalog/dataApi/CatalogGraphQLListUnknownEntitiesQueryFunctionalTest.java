@@ -361,7 +361,7 @@ public class CatalogGraphQLListUnknownEntitiesQueryFunctionalTest extends Catalo
 			),
 			SealedEntity.class
 		);
-		assertNotEquals((String) liveEntity.getAttribute(ATTRIBUTE_CODE), (String) archivedEntity.getAttribute(ATTRIBUTE_CODE));
+		assertNotEquals(liveEntity.getAttribute(ATTRIBUTE_CODE), (String) archivedEntity.getAttribute(ATTRIBUTE_CODE));
 
 		final var expectedBodyOfArchivedEntities = Stream.of(liveEntity, archivedEntity)
 			.map(entity ->

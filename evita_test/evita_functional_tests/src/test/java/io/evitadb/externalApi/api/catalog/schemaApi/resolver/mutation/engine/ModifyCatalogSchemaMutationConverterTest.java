@@ -116,7 +116,7 @@ public class ModifyCatalogSchemaMutationConverterTest {
 					.build()
 			)
 		);
-		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(null));
 	}
 
 	@Test

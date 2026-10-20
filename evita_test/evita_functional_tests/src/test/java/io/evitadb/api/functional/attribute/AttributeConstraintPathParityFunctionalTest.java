@@ -751,7 +751,7 @@ class AttributeConstraintPathParityFunctionalTest implements EvitaTestSupport {
 		rowAnswers.put("greaterThanEquals(huge)", "[]");
 		constraints.put("between(1.00,huge)", a -> attributeBetween(a, one, huge));
 		rowAnswers.put("between(1.00,huge)", "[1, 2, 3]");
-		constraints.put("between(null,huge)", a -> attributeBetween(a, (BigDecimal) null, huge));
+		constraints.put("between(null,huge)", a -> attributeBetween(a, null, huge));
 		rowAnswers.put("between(null,huge)", "[1, 2, 3, 4]");
 		constraints.put("between(-huge,1.00)", a -> attributeBetween(a, huge.negate(), one));
 		rowAnswers.put("between(-huge,1.00)", "[2, 4]");
@@ -872,7 +872,7 @@ class AttributeConstraintPathParityFunctionalTest implements EvitaTestSupport {
 		answers.put("lessThanEquals(1.45)", "[ownerScaleTwo:1, ownerScaleTwo:2, ownerScaleZero:1, ownerScaleZero:2]");
 		this.evita.queryCatalog(
 			TEST_CATALOG,
-			(Function<EvitaSessionContract, Object>) session -> {
+			session -> {
 				for (Map.Entry<String, Function<String, FilterConstraint>> entry : constraints.entrySet()) {
 					final FilterConstraint constraint = entry.getValue().apply(ATTR);
 					final String together = outcome(() -> typedKeys(session.query(
@@ -909,7 +909,7 @@ class AttributeConstraintPathParityFunctionalTest implements EvitaTestSupport {
 		final String refusal = FROM_TO_REFUSAL + "10 vs. 5";
 		final String[] outcomes = this.evita.queryCatalog(
 			TEST_CATALOG,
-			(Function<EvitaSessionContract, String[]>) session -> new String[]{
+			session -> new String[]{
 				outcome(() -> keys(session.query(
 					query(
 						collection(NO_ENTITIES.entityType()), filterBy(inverted),
@@ -937,7 +937,7 @@ class AttributeConstraintPathParityFunctionalTest implements EvitaTestSupport {
 		final String refusal = FROM_TO_REFUSAL + "10 vs. 5";
 		this.evita.queryCatalog(
 			TEST_CATALOG,
-			(Function<EvitaSessionContract, Object>) session -> {
+			session -> {
 				// no candidate: there is no schema to validate against
 				assertEquals("[]", entityFiltering(session, new String[]{"no-such-code"}, inverted));
 				assertEquals("[]", entityFiltering(session, NO_ENTITIES.codes(), inverted));
@@ -986,7 +986,7 @@ class AttributeConstraintPathParityFunctionalTest implements EvitaTestSupport {
 	private String[] outcomesOf(@Nonnull Fixture fixture, @Nonnull Function<String, FilterConstraint> constraint) {
 		return this.evita.queryCatalog(
 			TEST_CATALOG,
-			(Function<EvitaSessionContract, String[]>) session -> new String[]{
+			session -> new String[]{
 				indexArm(session, fixture, constraint),
 				prefetchArm(session, fixture, constraint),
 				rowArm(session, fixture, constraint),
@@ -1287,8 +1287,8 @@ class AttributeConstraintPathParityFunctionalTest implements EvitaTestSupport {
 		cases.add(new Case(INTEGER, "greaterThan(5)", a -> attributeGreaterThan(a, 5), SELECTS));
 		cases.add(new Case(INTEGER, "greaterThanEquals(5)", a -> attributeGreaterThanEquals(a, 5), SELECTS));
 		cases.add(new Case(INTEGER, "between(5,10)", a -> attributeBetween(a, 5, 10), SELECTS));
-		cases.add(new Case(INTEGER, "between(null,10)", a -> attributeBetween(a, (Integer) null, 10), SELECTS));
-		cases.add(new Case(INTEGER, "between(10,null)", a -> attributeBetween(a, 10, (Integer) null), SELECTS));
+		cases.add(new Case(INTEGER, "between(null,10)", a -> attributeBetween(a, null, 10), SELECTS));
+		cases.add(new Case(INTEGER, "between(10,null)", a -> attributeBetween(a, 10, null), SELECTS));
 		cases.add(new Case(INTEGER, "between(10,5) inverted", a -> attributeBetween(a, 10, 5), inverted("10", "5")));
 		cases.add(
 			new Case(INTEGER, "between(5L,10L) Long bounds", a -> attributeBetween(a, (Serializable) 5L, 10L), SELECTS)
@@ -1317,8 +1317,8 @@ class AttributeConstraintPathParityFunctionalTest implements EvitaTestSupport {
 		cases.add(new Case(LONG, "greaterThanEquals(5L)", a -> attributeGreaterThanEquals(a, 5L), SELECTS));
 		cases.add(new Case(LONG, "between(5L,10L)", a -> attributeBetween(a, 5L, 10L), SELECTS));
 		cases.add(new Case(LONG, "between(5,10) Integer bounds", a -> attributeBetween(a, 5, 10), SELECTS));
-		cases.add(new Case(LONG, "between(null,10L)", a -> attributeBetween(a, (Long) null, 10L), SELECTS));
-		cases.add(new Case(LONG, "between(10L,null)", a -> attributeBetween(a, 10L, (Long) null), SELECTS));
+		cases.add(new Case(LONG, "between(null,10L)", a -> attributeBetween(a, null, 10L), SELECTS));
+		cases.add(new Case(LONG, "between(10L,null)", a -> attributeBetween(a, 10L, null), SELECTS));
 		cases.add(new Case(LONG, "between(10L,5L) inverted", a -> attributeBetween(a, 10L, 5L), inverted("10", "5")));
 		cases.add(
 			new Case(
@@ -1374,13 +1374,13 @@ class AttributeConstraintPathParityFunctionalTest implements EvitaTestSupport {
 		);
 		cases.add(
 			new Case(
-				DECIMAL, "between(null,1.00)", a -> attributeBetween(a, (BigDecimal) null, new BigDecimal("1.00")),
+				DECIMAL, "between(null,1.00)", a -> attributeBetween(a, null, new BigDecimal("1.00")),
 				SELECTS
 			)
 		);
 		cases.add(
 			new Case(
-				DECIMAL, "between(1.01,null)", a -> attributeBetween(a, new BigDecimal("1.01"), (BigDecimal) null),
+				DECIMAL, "between(1.01,null)", a -> attributeBetween(a, new BigDecimal("1.01"), null),
 				SELECTS
 			)
 		);
@@ -1427,13 +1427,13 @@ class AttributeConstraintPathParityFunctionalTest implements EvitaTestSupport {
 		cases.add(
 			new Case(
 				STRING, "between(null,NFC cafe)",
-				a -> attributeBetween(a, (String) null, NFC_CAFE), SELECTS
+				a -> attributeBetween(a, null, NFC_CAFE), SELECTS
 			)
 		);
 		cases.add(
 			new Case(
 				STRING, "between(NFC cafe,null)",
-				a -> attributeBetween(a, NFC_CAFE, (String) null), SELECTS
+				a -> attributeBetween(a, NFC_CAFE, null), SELECTS
 			)
 		);
 		cases.add(new Case(STRING, "between(z,a) inverted", a -> attributeBetween(a, "z", "a"), inverted("z", "a")));
@@ -1481,7 +1481,7 @@ class AttributeConstraintPathParityFunctionalTest implements EvitaTestSupport {
 		);
 		cases.add(
 			new Case(
-				OFFSET, "between(null,11:00Z)", a -> attributeBetween(a, (OffsetDateTime) null, instantZ), SELECTS
+				OFFSET, "between(null,11:00Z)", a -> attributeBetween(a, null, instantZ), SELECTS
 			)
 		);
 		cases.add(
@@ -1881,12 +1881,12 @@ class AttributeConstraintPathParityFunctionalTest implements EvitaTestSupport {
 		);
 		cases.add(
 			new Case(
-				fixture, "between(null," + second + ")", a -> attributeBetween(a, (Serializable) null, second), SELECTS
+				fixture, "between(null," + second + ")", a -> attributeBetween(a, null, second), SELECTS
 			)
 		);
 		cases.add(
 			new Case(
-				fixture, "between(" + third + ",null)", a -> attributeBetween(a, third, (Serializable) null), SELECTS
+				fixture, "between(" + third + ",null)", a -> attributeBetween(a, third, null), SELECTS
 			)
 		);
 		cases.add(

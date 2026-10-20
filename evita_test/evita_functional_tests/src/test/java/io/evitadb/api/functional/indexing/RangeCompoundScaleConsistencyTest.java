@@ -472,7 +472,7 @@ class RangeCompoundScaleConsistencyTest implements EvitaTestSupport {
 	private void prepare(@Nonnull CatalogState state, int schemaScale) {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.defineEntitySchema(ENTITY_BRAND).updateVia(session);
 				session.defineEntitySchema(ENTITY_PRODUCT)
 					.withAttribute(

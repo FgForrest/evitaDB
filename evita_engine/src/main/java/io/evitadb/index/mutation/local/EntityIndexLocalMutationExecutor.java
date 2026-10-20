@@ -1854,7 +1854,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	@Nonnull
 	public PriceSuperIndex getGlobalPriceIndex(@Nonnull Scope scope) {
-		return ((GlobalEntityIndex) getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, scope))).getPriceIndex();
+		return getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, scope)).getPriceIndex();
 	}
 
 	/**

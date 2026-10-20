@@ -550,7 +550,7 @@ class FilterIndexLoadRepairPersistenceTest implements EvitaTestSupport {
 				query(
 					collection(Entities.PRODUCT),
 					filter == null ? null : filterBy(filter),
-					(OrderBy) null,
+					null,
 					require(page(1, ALL_PRODUCTS))
 				)
 			)

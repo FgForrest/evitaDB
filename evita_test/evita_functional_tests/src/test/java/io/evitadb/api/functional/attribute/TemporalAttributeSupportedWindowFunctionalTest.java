@@ -285,7 +285,7 @@ class TemporalAttributeSupportedWindowFunctionalTest implements EvitaTestSupport
 	private List<Integer> queryPrimaryKeys(@Nullable FilterConstraint filter, @Nullable OrderConstraint order) {
 		return this.evita.queryCatalog(
 			TEST_CATALOG,
-			(Function<EvitaSessionContract, List<Integer>>) session -> {
+			session -> {
 				final List<EntityReference> references = session.query(
 					query(
 						collection(ENTITY_PRODUCT),
@@ -315,7 +315,7 @@ class TemporalAttributeSupportedWindowFunctionalTest implements EvitaTestSupport
 	private Serializable readAttribute(int pk, @Nonnull String attributeName) {
 		return this.evita.queryCatalog(
 			TEST_CATALOG,
-			(Function<EvitaSessionContract, Serializable>) session -> {
+			session -> {
 				final SealedEntity entity = session.getEntity(ENTITY_PRODUCT, pk, attributeContentAll())
 					.orElseThrow(() -> new AssertionError("Product `" + pk + "` was not found!"));
 				return entity.getAttribute(attributeName);

@@ -118,7 +118,7 @@ public class SystemGraphQLQueriesFunctionalTest extends SystemGraphQLEndpointFun
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue())
-			.body(CATALOG_PATH, equalTo(createCatalogDto((Catalog) testCatalog)));
+			.body(CATALOG_PATH, equalTo(createCatalogDto(testCatalog)));
 	}
 
 	@Test

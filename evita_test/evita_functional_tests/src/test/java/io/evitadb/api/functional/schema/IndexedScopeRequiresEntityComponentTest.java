@@ -405,7 +405,7 @@ class IndexedScopeRequiresEntityComponentTest implements EvitaTestSupport {
 
 			final EntitySchema categorySchema = EntitySchema._internalBuild(Entities.CATEGORY);
 			final ReflectedReferenceSchema switched = ((ReflectedReferenceSchema) new SetReferenceSchemaIndexedMutation(
-				REF_REFLECTED_PRODUCTS, (ScopedReferenceIndexType[]) null, ScopedReferenceIndexedComponents.EMPTY
+				REF_REFLECTED_PRODUCTS, null, ScopedReferenceIndexedComponents.EMPTY
 			).mutate(categorySchema, stored, ConsistencyChecks.SKIP))
 				.withReferencedSchemaAfterSchemaChange(original);
 			assertTrue(

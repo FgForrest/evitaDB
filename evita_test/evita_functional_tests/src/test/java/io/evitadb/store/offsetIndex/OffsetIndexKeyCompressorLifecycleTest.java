@@ -174,9 +174,9 @@ class OffsetIndexKeyCompressorLifecycleTest {
 			storageSettings,
 			this.recordTypeRegistry,
 			this.writeHandle,
-			(Consumer<OffsetIndex.NonFlushedBlock>) nonFlushedBlock -> {
+			nonFlushedBlock -> {
 			},
-			(Consumer<Optional<OffsetDateTime>>) oldestRecord -> {
+			oldestRecord -> {
 			}
 		);
 	}

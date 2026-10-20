@@ -238,7 +238,7 @@ class RangeOrderingRouteParityFunctionalTest implements EvitaTestSupport {
 	private int[] queryOrder(@Nonnull PlanPreference route, @Nonnull OrderConstraint ordering) {
 		return this.evita.queryCatalog(
 			TEST_CATALOG,
-			(Function<EvitaSessionContract, int[]>) session -> {
+			session -> {
 				final EvitaResponse<EntityReference> response = session.query(
 					query(
 						collection(ENTITY_PRODUCT),
@@ -281,7 +281,7 @@ class RangeOrderingRouteParityFunctionalTest implements EvitaTestSupport {
 	private void prepare(@Nonnull CatalogState state) {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.defineEntitySchema(ENTITY_BRAND).updateVia(session);
 				session.defineEntitySchema(ENTITY_PRODUCT)
 					.withAttribute(

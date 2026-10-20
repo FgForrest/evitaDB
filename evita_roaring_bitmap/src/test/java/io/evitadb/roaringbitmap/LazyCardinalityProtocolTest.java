@@ -163,7 +163,7 @@ public class LazyCardinalityProtocolTest {
 				bitmap.add(COMMON_VALUES[c]);
 			}
 			final int blockStart = 10000 + i * PRIVATE_BLOCK_SIZE;
-			bitmap.add((long) blockStart, (long) (blockStart + PRIVATE_BLOCK_SIZE));
+			bitmap.add(blockStart, (long) (blockStart + PRIVATE_BLOCK_SIZE));
 			inputs[i] = bitmap;
 		}
 		return inputs;

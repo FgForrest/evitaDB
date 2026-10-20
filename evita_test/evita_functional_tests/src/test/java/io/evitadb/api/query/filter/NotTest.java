@@ -151,7 +151,7 @@ class NotTest {
 			);
 
 			assertInstanceOf(Not.class, copy);
-			assertFalse(((Not) copy).isApplicable());
+			assertFalse(copy.isApplicable());
 		}
 
 		@Test

@@ -73,7 +73,7 @@ class TransactionalBucketBPlusTreeLongPayloadTest {
 	@SuppressWarnings({"unchecked", "rawtypes"})
 	private static TransactionalBucketBPlusTree<Integer> newLongTree(int blockSize) {
 		final ValueColumnFactory factory =
-			ValueColumnFactory.forKey(Integer.class, (Comparator) Comparator.naturalOrder());
+			ValueColumnFactory.forKey(Integer.class, Comparator.naturalOrder());
 		//noinspection unchecked
 		return TransactionalBucketBPlusTree.withLongPayload(
 			blockSize, blockSize / 2,

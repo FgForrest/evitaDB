@@ -303,7 +303,7 @@ class JolHeapSizeTest {
 		void shouldMeasureABoundMethodReference() {
 			// the other refused shape: a method reference that captured a receiver. `EntityCollection` builds its
 			// index maps with exactly this (`EntityIndex.class::cast`)
-			final Function<Object, Object> bound = String.class::cast;
+			final Function<Object, Object> bound = o -> o;
 
 			// the captured receiver is a Class, which the walk excludes by path - so only the lambda object remains
 			assertEquals(JolHeapSize.shallowSize(bound), JolHeapSize.ownedSize(bound));

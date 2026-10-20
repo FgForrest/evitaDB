@@ -200,7 +200,7 @@ public class TestRoaringBitmap {
 		}
 		rb.runOptimize();
 		ContainerPointer cp = rb.getContainerPointer();
-		ContainerPointer cpo = (ContainerPointer) cp.clone();
+		ContainerPointer cpo = cp.clone();
 		assertNotEquals(null, cp.getContainer());
 		assertNotEquals(null, cpo.getContainer());
 
@@ -1867,13 +1867,13 @@ public class TestRoaringBitmap {
 			}
 
 			if ((i & 1) == 0) {
-				rb2 = PersistentRoaringBitmap.flip(rb1, (long) start, (long) end);
+				rb2 = PersistentRoaringBitmap.flip(rb1, start, (long) end);
 				// tweak the other, catch bad sharing
 				long r1 = r.nextInt(65536 * 20);
 				long r2 = r.nextInt(65536 * 20);
 				rb1.flip(r1, r2);
 			} else {
-				rb1 = PersistentRoaringBitmap.flip(rb2, (long) start, (long) end);
+				rb1 = PersistentRoaringBitmap.flip(rb2, start, (long) end);
 				long r1 = r.nextInt(65536 * 20);
 				long r2 = r.nextInt(65536 * 20);
 				rb2.flip(r1, r2);
@@ -1889,7 +1889,7 @@ public class TestRoaringBitmap {
 				final BitSet mask1 = new BitSet();
 				final int startM = r.nextInt(65536 * 20);
 				final int endM = startM + 100000;
-				mask.flip((long) startM, (long) endM);
+				mask.flip(startM, (long) endM);
 				mask1.flip(startM, endM);
 				mask.flip(0L, 65536L * 20 + 100000);
 				mask1.flip(0, 65536 * 20 + 100000);
@@ -4847,7 +4847,7 @@ public class TestRoaringBitmap {
 				list.add(rb1);
 				list.add(rb2);
 				PersistentRoaringBitmap result =
-					PersistentRoaringBitmap.or(list.iterator(), (long) rangeStart, (long) rangeEnd);
+					PersistentRoaringBitmap.or(list.iterator(), rangeStart, (long) rangeEnd);
 				Set<Integer> actualResultSet = new TreeSet<>();
 				IntIterator intIterator = result.getIntIterator();
 				while (intIterator.hasNext()) {
@@ -4946,7 +4946,7 @@ public class TestRoaringBitmap {
 				list.add(rb1);
 				list.add(rb2);
 				PersistentRoaringBitmap result =
-					PersistentRoaringBitmap.and(list.iterator(), (long) rangeStart, (long) rangeEnd);
+					PersistentRoaringBitmap.and(list.iterator(), rangeStart, (long) rangeEnd);
 				Set<Integer> actualResultSet = new TreeSet<>();
 				IntIterator intIterator = result.getIntIterator();
 				while (intIterator.hasNext()) {
@@ -5048,7 +5048,7 @@ public class TestRoaringBitmap {
 				list.add(rb1);
 				list.add(rb2);
 				PersistentRoaringBitmap result =
-					PersistentRoaringBitmap.xor(list.iterator(), (long) rangeStart, (long) rangeEnd);
+					PersistentRoaringBitmap.xor(list.iterator(), rangeStart, (long) rangeEnd);
 				Set<Integer> actualResultSet = new TreeSet<>();
 				IntIterator intIterator = result.getIntIterator();
 				while (intIterator.hasNext()) {
@@ -5151,7 +5151,7 @@ public class TestRoaringBitmap {
 					}
 				}
 				PersistentRoaringBitmap result = PersistentRoaringBitmap.andNot(
-					rb1, rb2, (long) rangeStart, (long) rangeEnd);
+					rb1, rb2, rangeStart, (long) rangeEnd);
 				Set<Integer> actualResultSet = new TreeSet<>();
 				IntIterator intIterator = result.getIntIterator();
 				while (intIterator.hasNext()) {

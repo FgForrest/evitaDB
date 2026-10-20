@@ -1509,7 +1509,7 @@ class SortIndexTest {
 
 			Transaction.executeInTransactionIfProvided(
 				new Transaction(sortIndex),
-				(Runnable) () -> {
+				() -> {
 					// warms the committed-snapshot cache fast path (nothing written yet in this transaction)
 					final int[] beforeWrite = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
 					assertFalse(ArrayUtils.contains(beforeWrite, 8));
@@ -1536,7 +1536,7 @@ class SortIndexTest {
 
 			Transaction.executeInTransactionIfProvided(
 				new Transaction(sortIndex),
-				(Runnable) () -> {
+				() -> {
 					final int[] first = sortIndex.getAscendingOrderRecordsSupplier().getSortedRecordIds();
 
 					// writing to a DIFFERENT SortIndex must not disturb this one's cache eligibility - the

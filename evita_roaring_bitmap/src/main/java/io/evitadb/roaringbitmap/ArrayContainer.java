@@ -1635,13 +1635,13 @@ public final class ArrayContainer extends Container implements Cloneable {
 	public int nextAbsentValue(final char fromValue) {
 		int index = Util.advanceUntil(this.content, -1, this.cardinality, fromValue);
 		if (index >= this.cardinality) {
-			return (int) (fromValue);
+			return fromValue;
 		}
 		if (index == this.cardinality - 1) {
 			return fromValue == this.content[this.cardinality - 1] ? (int) (fromValue) + 1 : (int) (fromValue);
 		}
 		if (this.content[index] != fromValue) {
-			return (int) (fromValue);
+			return fromValue;
 		}
 		if (this.content[index + 1] > fromValue + 1) {
 			return (int) (fromValue) + 1;
@@ -1675,13 +1675,13 @@ public final class ArrayContainer extends Container implements Cloneable {
 	public int previousAbsentValue(final char fromValue) {
 		int index = Util.advanceUntil(this.content, -1, this.cardinality, fromValue);
 		if (index >= this.cardinality) {
-			return (int) (fromValue);
+			return fromValue;
 		}
 		if (index == 0) {
 			return fromValue == this.content[0] ? (int) (fromValue) - 1 : (int) (fromValue);
 		}
 		if (this.content[index] != fromValue) {
-			return (int) (fromValue);
+			return fromValue;
 		}
 		if (this.content[index - 1] < fromValue - 1) {
 			return (int) (fromValue) - 1;

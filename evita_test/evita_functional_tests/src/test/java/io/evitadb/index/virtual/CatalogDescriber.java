@@ -209,7 +209,7 @@ public final class CatalogDescriber {
 	public static SortedMap<String, String> describeQueriesOf(@Nonnull Evita evita, @Nonnull String catalogName) {
 		return evita.queryCatalog(
 			catalogName,
-			(Function<EvitaSessionContract, SortedMap<String, String>>) session -> {
+			session -> {
 				final Lines lines = new Lines();
 				for (final String entityType : new TreeSet<>(session.getAllEntityTypes())) {
 					final EntitySchemaContract schema = session.getEntitySchemaOrThrowException(entityType);

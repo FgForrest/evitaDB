@@ -724,7 +724,7 @@ class WarmUpSavepointDataStoreChangesTest {
 	 * @param primaryKey the storage-part primary key
 	 */
 	private void trapPart(int primaryKey) {
-		this.dataStoreChanges.trapPutStoragePart(new StubStoragePart((long) primaryKey));
+		this.dataStoreChanges.trapPutStoragePart(new StubStoragePart(primaryKey));
 	}
 
 	/**

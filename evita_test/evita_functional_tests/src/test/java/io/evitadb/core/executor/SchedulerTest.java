@@ -477,8 +477,8 @@ class SchedulerTest {
 			final long before = SchedulerTest.this.scheduler.getSubmittedTaskCount();
 
 			// schedule with a long delay so the tasks never actually run during the test
-			SchedulerTest.this.scheduler.schedule((Runnable) () -> {}, 1, TimeUnit.HOURS);
-			SchedulerTest.this.scheduler.schedule((Callable<Integer>) () -> 1, 1, TimeUnit.HOURS);
+			SchedulerTest.this.scheduler.schedule(() -> {}, 1, TimeUnit.HOURS);
+			SchedulerTest.this.scheduler.schedule(() -> 1, 1, TimeUnit.HOURS);
 
 			assertEquals(before + 2, SchedulerTest.this.scheduler.getSubmittedTaskCount());
 		}
@@ -495,7 +495,7 @@ class SchedulerTest {
 		@DisplayName("counts a submitted callable")
 		void shouldCountSubmittedCallable() {
 			final long before = SchedulerTest.this.scheduler.getSubmittedTaskCount();
-			SchedulerTest.this.scheduler.submit((Callable<Integer>) () -> 1);
+			SchedulerTest.this.scheduler.submit(() -> 1);
 			assertEquals(before + 1, SchedulerTest.this.scheduler.getSubmittedTaskCount());
 		}
 
@@ -504,7 +504,7 @@ class SchedulerTest {
 		void shouldCountInvokeAllSubmissions() throws InterruptedException {
 			final long before = SchedulerTest.this.scheduler.getSubmittedTaskCount();
 			final List<Future<Integer>> futures = SchedulerTest.this.scheduler.invokeAll(
-				List.of((Callable<Integer>) () -> 1, () -> 2, () -> 3)
+				List.of(() -> 1, () -> 2, () -> 3)
 			);
 			// the counter must grow by exactly the number of futures the executor reported as submitted
 			assertEquals(before + futures.size(), SchedulerTest.this.scheduler.getSubmittedTaskCount());
@@ -514,7 +514,7 @@ class SchedulerTest {
 		@DisplayName("counts an invokeAny submission")
 		void shouldCountInvokeAnySubmission() throws InterruptedException, ExecutionException {
 			final long before = SchedulerTest.this.scheduler.getSubmittedTaskCount();
-			final Integer result = SchedulerTest.this.scheduler.invokeAny(List.of((Callable<Integer>) () -> 42));
+			final Integer result = SchedulerTest.this.scheduler.invokeAny(List.of(() -> 42));
 			assertEquals(42, result);
 			assertEquals(before + 1, SchedulerTest.this.scheduler.getSubmittedTaskCount());
 		}
@@ -524,7 +524,7 @@ class SchedulerTest {
 		void shouldCountTimedInvokeAnySubmission() throws InterruptedException, ExecutionException, TimeoutException {
 			final long before = SchedulerTest.this.scheduler.getSubmittedTaskCount();
 			final Integer result = SchedulerTest.this.scheduler.invokeAny(
-				List.of((Callable<Integer>) () -> 42), 5, TimeUnit.SECONDS
+				List.of(() -> 42), 5, TimeUnit.SECONDS
 			);
 			assertEquals(42, result);
 			assertEquals(before + 1, SchedulerTest.this.scheduler.getSubmittedTaskCount());

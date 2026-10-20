@@ -6092,7 +6092,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				"group filter of the reference summary",
 				scopedProductSummaryQuery(
 					referenceSummaryOfReference(
-						REF_TAG, FacetStatisticsDepth.COUNTS, (FilterBy) null, filterGroupBy(archivedNote)
+						REF_TAG, FacetStatisticsDepth.COUNTS, null, filterGroupBy(archivedNote)
 					)
 				)
 			),
@@ -6219,7 +6219,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				"referenceHaving in the group filter of the reference summary restricted to the archived scope",
 				scopedProductSummaryQuery(
 					referenceSummaryOfReference(
-						REF_TAG, FacetStatisticsDepth.COUNTS, (FilterBy) null,
+						REF_TAG, FacetStatisticsDepth.COUNTS, null,
 						filterGroupBy(inScope(Scope.ARCHIVED, referenceNote))
 					)
 				)

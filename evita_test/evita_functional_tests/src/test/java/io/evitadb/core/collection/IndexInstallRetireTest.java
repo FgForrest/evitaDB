@@ -231,7 +231,7 @@ class IndexInstallRetireTest implements EvitaTestSupport {
 	private void prepare(@Nonnull CatalogState state) {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.defineEntitySchema(ENTITY_CATEGORY)
 					.withoutGeneratedPrimaryKey()
 					.updateVia(session);

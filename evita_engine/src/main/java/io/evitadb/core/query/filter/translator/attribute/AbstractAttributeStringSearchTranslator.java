@@ -464,7 +464,7 @@ public class AbstractAttributeStringSearchTranslator extends AbstractAttributeTr
 			return null;
 		}
 		return filterByVisitor.getQueryContext().computeOnlyOnce(
-			List.of((EntityIndex) globalEntityIndex),
+			List.of(globalEntityIndex),
 			attributeConstraint,
 			// EAGER assembly - the one place in this path that presupposes eager evaluation
 			() -> sharedValueTree.toFormula(matched, TrigramSubstringSearch.versionIdsOf(trigramIndex)),

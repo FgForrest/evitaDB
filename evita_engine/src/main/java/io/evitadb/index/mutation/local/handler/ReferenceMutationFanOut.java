@@ -74,8 +74,8 @@ final class ReferenceMutationFanOut {
 		final ReferenceIndexConsumer crossRefConsumer =
 			(theReferenceSchema, indexForRemoval, indexForUpsert) -> executor.updateReferencesInReferenceIndex(
 				mutation, theReferenceSchema,
-				(AbstractReducedEntityIndex) indexForRemoval,
-				(AbstractReducedEntityIndex) indexForUpsert
+				indexForRemoval,
+				indexForUpsert
 			);
 		// avoid indexing the referenced index that got updated by updateReferences method
 		final Predicate<io.evitadb.api.requestResponse.data.ReferenceContract> crossRefPredicate =

@@ -199,7 +199,7 @@ class OtherOwnerReferenceRowVisibilityTest implements EvitaTestSupport {
 
 			OtherOwnerReferenceRowVisibilityTest.this.evita.updateCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					updateFirstOwnerPriority(session, stagedPriority);
 
 					final Catalog catalog = catalog();
@@ -241,7 +241,7 @@ class OtherOwnerReferenceRowVisibilityTest implements EvitaTestSupport {
 
 			OtherOwnerReferenceRowVisibilityTest.this.evita.updateCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					// written on the category side; the engine propagates it to the product's own reference
 					session.getEntity(ENTITY_CATEGORY, CATEGORY_PK, entityFetchAllContent())
 						.orElseThrow()
@@ -287,7 +287,7 @@ class OtherOwnerReferenceRowVisibilityTest implements EvitaTestSupport {
 
 			OtherOwnerReferenceRowVisibilityTest.this.evita.updateCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final Catalog catalog = catalog();
 					final ContainerizedLocalMutationExecutor secondOwner =
 						openMutationOfSecondOwner(session, new RootMutation(catalog));
@@ -327,7 +327,7 @@ class OtherOwnerReferenceRowVisibilityTest implements EvitaTestSupport {
 
 			OtherOwnerReferenceRowVisibilityTest.this.evita.updateCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final Catalog catalog = catalog();
 					final RootMutation rootMutation = new RootMutation(catalog);
 					final ContainerizedLocalMutationExecutor secondOwner =
@@ -379,7 +379,7 @@ class OtherOwnerReferenceRowVisibilityTest implements EvitaTestSupport {
 
 			OtherOwnerReferenceRowVisibilityTest.this.evita.updateCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final Catalog catalog = catalog();
 					final ContainerizedLocalMutationExecutor[] nested =
 						openNestedReflectedInserts(session, new RootMutation(catalog));
@@ -429,7 +429,7 @@ class OtherOwnerReferenceRowVisibilityTest implements EvitaTestSupport {
 
 			OtherOwnerReferenceRowVisibilityTest.this.evita.updateCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final Catalog catalog = catalog();
 					// traps both categories' references parts in the buffer
 					assertOneUpsertJoinsBothCategories(session, collection(catalog, ENTITY_CATEGORY));
@@ -469,7 +469,7 @@ class OtherOwnerReferenceRowVisibilityTest implements EvitaTestSupport {
 
 			OtherOwnerReferenceRowVisibilityTest.this.evita.updateCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final Catalog catalog = catalog();
 					final RootMutation rootMutation = new RootMutation(catalog);
 					final EntityMutation productMutation = session
@@ -518,7 +518,7 @@ class OtherOwnerReferenceRowVisibilityTest implements EvitaTestSupport {
 
 			OtherOwnerReferenceRowVisibilityTest.this.evita.updateCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final RootMutation rootMutation = new RootMutation(catalog());
 					final ContainerizedLocalMutationExecutor secondOwner =
 						openMutationOfSecondOwner(session, rootMutation);
@@ -698,7 +698,7 @@ class OtherOwnerReferenceRowVisibilityTest implements EvitaTestSupport {
 
 			OtherOwnerReferenceRowVisibilityTest.this.evita.updateCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final Catalog catalog = catalog();
 					final RootMutation rootMutation = RootMutation.keepingForeignParts(catalog);
 					final ContainerizedLocalMutationExecutor secondOwner =
@@ -751,7 +751,7 @@ class OtherOwnerReferenceRowVisibilityTest implements EvitaTestSupport {
 
 			OtherOwnerReferenceRowVisibilityTest.this.evita.updateCatalog(
 				TEST_CATALOG,
-				(Consumer<EvitaSessionContract>) session -> {
+				session -> {
 					final RootMutation rootMutation = RootMutation.keepingForeignParts(catalog());
 					final ContainerizedLocalMutationExecutor secondOwner =
 						openMutationOfSecondOwner(session, rootMutation);
@@ -941,7 +941,7 @@ class OtherOwnerReferenceRowVisibilityTest implements EvitaTestSupport {
 	private void prepare(@Nonnull CatalogState state) {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.defineEntitySchema(ENTITY_PRODUCT)
 					.withoutGeneratedPrimaryKey()
 					.withLocale(Locale.ENGLISH)

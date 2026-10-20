@@ -971,7 +971,7 @@ public class CatalogGraphQLGetEntityQueryFunctionalTest extends CatalogGraphQLDa
 	                    }
 	                }
 					""",
-				(String)entity.getAttribute(ATTRIBUTE_CODE, String.class)
+				entity.getAttribute(ATTRIBUTE_CODE, String.class)
 			)
 			.executeAndThen()
 			.statusCode(200)
