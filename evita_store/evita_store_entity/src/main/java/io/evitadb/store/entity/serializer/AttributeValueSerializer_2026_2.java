@@ -54,8 +54,13 @@ import java.time.OffsetDateTime;
  * The reader cannot be retired as long as a body written by those releases may exist: compaction copies records
  * that were not updated byte for byte, so such a body keeps its old version until its entity is next written.
  *
- * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
- * @deprecated Reads the legacy layout only; writing is delegated to {@link AttributeValueSerializer}.
+ * @deprecated kept for backward compatibility; can be removed once no catalog holds an entity body written before
+ *             2026.3 - which upgrading to protocol 7 does NOT establish. `Migration_2026_3` rewrites no entity body,
+ *             so every body 2026.2 wrote keeps this vintage's `serialVersionUID` and stays readable only through this
+ *             class until its entity is next written. This reader therefore outlives the migration rather than
+ *             leaving with it. It only reads: `SerialVersionBasedSerializer` writes every value with
+ *             {@link AttributeValueSerializer}.
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Deprecated(since = "2026.3", forRemoval = true)
 @RequiredArgsConstructor
@@ -102,14 +107,16 @@ public class AttributeValueSerializer_2026_2 extends Serializer<AttributeValue> 
 	}
 
 	/**
-	 * Clamps the elements of the array, copying it only when an element lies outside the window.
+	 * Clamps the elements of the array, copying it only when an element lies outside the window. A `null` element
+	 * is kept as it is: the array conversion of 2026.2 stored one, and so does this version's.
 	 */
 	@Nonnull
 	private static OffsetDateTime[] clampArray(@Nonnull OffsetDateTime[] values) {
 		OffsetDateTime[] result = values;
 		for (int i = 0; i < values.length; i++) {
-			final OffsetDateTime clamped = EvitaDataTypes.clampToSupportedWindow(values[i]);
-			if (clamped != values[i]) {
+			final OffsetDateTime value = values[i];
+			final OffsetDateTime clamped = value == null ? null : EvitaDataTypes.clampToSupportedWindow(value);
+			if (clamped != value) {
 				if (result == values) {
 					result = values.clone();
 				}
@@ -120,14 +127,16 @@ public class AttributeValueSerializer_2026_2 extends Serializer<AttributeValue> 
 	}
 
 	/**
-	 * Clamps the elements of the array, copying it only when an element lies outside the window.
+	 * Clamps the elements of the array, copying it only when an element lies outside the window. A `null` element
+	 * is kept as it is: the array conversion of 2026.2 stored one, and so does this version's.
 	 */
 	@Nonnull
 	private static LocalDateTime[] clampArray(@Nonnull LocalDateTime[] values) {
 		LocalDateTime[] result = values;
 		for (int i = 0; i < values.length; i++) {
-			final LocalDateTime clamped = EvitaDataTypes.clampToSupportedWindow(values[i]);
-			if (clamped != values[i]) {
+			final LocalDateTime value = values[i];
+			final LocalDateTime clamped = value == null ? null : EvitaDataTypes.clampToSupportedWindow(value);
+			if (clamped != value) {
 				if (result == values) {
 					result = values.clone();
 				}

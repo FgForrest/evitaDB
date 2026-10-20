@@ -276,11 +276,16 @@ import java.util.function.Function;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @deprecated removable once no catalog older than 2026.3 can be encountered — at which point no catalog can
- * still carry raw-keyed cardinality counters, raw-keyed unique indexes, owner sort indexes holding raw temporal values
- * or ordered by the bare collator, a language tag or whole seconds, or single-owner reference partitions held by index
- * objects, and this migration has nothing left to do. `AttributeCardinalityIndexStoragePartSerializer_2026_2` does not
- * leave with it: a counter part this migration found already canonical is not rewritten and keeps that reader's
- * `serialVersionUID` - see the reader's own deprecation note.
+ * still carry raw-keyed cardinality counters, raw-keyed unique indexes, temporal keys beyond the supported window,
+ * owner sort indexes holding raw temporal values or ordered by the bare collator, a language tag or whole seconds, or
+ * single-owner reference partitions held by index objects, and this migration has nothing left to do. Two readers do
+ * not leave with it, each because records keep their `serialVersionUID` until they are rewritten - see each reader's
+ * own deprecation note:
+ *
+ * - `AttributeCardinalityIndexStoragePartSerializer_2026_2`: a counter part this migration found already canonical is
+ *   not rewritten;
+ * - `AttributeValueSerializer_2026_2`: this migration rewrites no entity body at all, so every body 2026.2 wrote is
+ *   read through it until its entity is next written.
  */
 @Deprecated(since = "2026.3", forRemoval = true)
 public interface Migration_2026_3 {
@@ -2236,16 +2241,25 @@ public interface Migration_2026_3 {
 
 	/**
 	 * Watches the buckets of one filter tree in the order they are stored in and finds, in a unique attribute, two
-	 * adjacent buckets of different owners that clamping moves onto one key. Clamping preserves the order, so keys
-	 * that become equal are adjacent, and a comparison with the previous bucket sees them all.
+	 * adjacent buckets of different owners that the upgrade moves onto one key. The clamp and the load path's
+	 * normalization both preserve the order, so keys that become equal are adjacent, and a comparison with the
+	 * previous bucket sees them all.
+	 *
+	 * The keys are compared as the load path will build the tree - the clamp followed by
+	 * {@link FilterIndex#getNormalizer(Class, int)}, which truncates to whole milliseconds - because that is where two
+	 * buckets merge. `OffsetDateTime.MIN` clamps onto the first millisecond of the window, and a stored value one
+	 * nanosecond later is not clamped at all, yet the two load as one key. Only a pair with at least one clamped
+	 * bucket is reported: a pair that meets through the truncation alone is not a collision this step creates.
 	 */
 	final class FilterKeyCollisionDetector {
 		private final boolean unique;
 		private final String structure;
 		private final String entityType;
 		private final EntityIndexStoragePart indexPart;
+		private final Function<Object, Serializable> normalizer;
 		@Nullable private ValueToRecord previous;
-		@Nullable private ValueToRecord previousClamped;
+		@Nullable private Serializable previousKey;
+		private boolean previousClamped;
 
 		/**
 		 * @param unique     whether the attribute is unique, and so may hold one owner per key only
@@ -2264,14 +2278,17 @@ public interface Migration_2026_3 {
 			this.structure = "attribute `" + describeAttribute(root.getAttributeIndexKey()) + "` of entity `" +
 				this.entityType + "`";
 			this.indexPart = indexPart;
+			this.normalizer = LegacyOwnerSortIndexCorrection.createClampingNormalizer(
+				plainTypeOf(root.getAttributeType()), root.getIndexedDecimalPlaces()
+			);
 		}
 
 		/**
-		 * Takes the next bucket of the tree and appends a collision to `collisions` when it is clamped onto the key of
-		 * the previous one while the two hold different records.
+		 * Takes the next bucket of the tree and appends a collision to `collisions` when it loads under the key of the
+		 * previous one, either of the two is clamped, and the two hold different records.
 		 *
-		 * @param bucket  the bucket as persisted
-		 * @param clamped the bucket after the clamp
+		 * @param bucket     the bucket as persisted
+		 * @param clamped    the bucket after the clamp - the very instance `bucket` when its key lies inside the window
 		 * @param collisions receives the collision
 		 */
 		void accept(
@@ -2279,10 +2296,12 @@ public interface Migration_2026_3 {
 			@Nonnull ValueToRecord clamped,
 			@Nonnull List<UniqueKeyCollision> collisions
 		) {
+			final Serializable key = this.normalizer.apply(bucket.getValue());
+			final boolean bucketClamped = clamped != bucket;
 			if (
-				this.unique && this.previous != null && this.previousClamped != null &&
-					this.previousClamped.getValue().equals(clamped.getValue()) &&
-					!this.previous.getValue().equals(bucket.getValue()) &&
+				this.unique && this.previous != null &&
+					(this.previousClamped || bucketClamped) &&
+					Objects.equals(this.previousKey, key) &&
 					!this.previous.recordSetEquals(bucket)
 			) {
 				final boolean globalIndex = this.indexPart.getEntityIndexKey().type() == EntityIndexType.GLOBAL;
@@ -2301,7 +2320,8 @@ public interface Migration_2026_3 {
 				);
 			}
 			this.previous = bucket;
-			this.previousClamped = clamped;
+			this.previousKey = key;
+			this.previousClamped = bucketClamped;
 		}
 	}
 

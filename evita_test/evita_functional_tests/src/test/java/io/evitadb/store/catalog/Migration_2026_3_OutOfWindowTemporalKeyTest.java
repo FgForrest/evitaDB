@@ -179,7 +179,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  *   2026.2 reader hands back the same buckets with no value ids and flags second-granularity range thresholds, which
  *   only a `DateTimeRange` attribute reads - none is involved here;
  * - the cardinality and unique parts are written in the current layout too, carrying the raw values 2026.2 kept;
- * - the reference attributes inside the entity body keep the placeholder - nothing on the load path reads a body.
+ * - only the bodies holding the placeholder - entity and reference attributes alike - are rewritten, and they are
+ *   written through Kryo with the 2026.2 `serialVersionUID` ({@link ReleasedAttributeValueImages}); every other body
+ *   keeps the current one, which the version dispatch tells apart value by value.
  *
  * The cases with an in-window value of the 2026.2 shape - nanosecond-exact, stored unclamped - are the controls: they
  * run the same image through the same steps and must load, so a failure of the out-of-window cases is the value and
@@ -1024,6 +1026,53 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 			);
 			assertTrue(message.contains("1 unique value(s)"), message);
 			assertTrue(message.contains("beyond the supported date-time window"), message);
+			assertTrue(message.contains("attribute `validUntil` of entity `product`"), message);
+			assertTrue(message.contains("`product` 1") && message.contains("`product` 2"), message);
+			assertEquals(before, catalogFileDigests(configuration), "a refused upgrade must write nothing");
+		}
+
+		@Test
+		@DisplayName("refuses the upgrade when a clamped value loads under the millisecond of another owner's value")
+		void shouldRefuseUpgradeWhenClampedKeyMeetsInWindowKeyOfAnotherOwner() {
+			final EvitaConfiguration configuration = configurationOf(allocatePaths("foldedEdgeCollision"));
+			final OffsetDateTime earlierPlaceholder = EARLIEST_PLACEHOLDER;
+			final OffsetDateTime laterPlaceholder = EARLIEST_PLACEHOLDER.plusDays(1);
+			// one nanosecond after the edge `OffsetDateTime.MIN` is clamped onto: inside the window, so not clamped,
+			// yet truncated onto that very edge when the filter tree loads
+			final OffsetDateTime justInsideEdge = OffsetDateTime.ofInstant(
+				EvitaDataTypes.clampToSupportedWindow(OffsetDateTime.MIN).toInstant().plusNanos(1), ZoneOffset.UTC
+			);
+			writeCatalog(
+				configuration,
+				session -> {
+					session.defineEntitySchema(ENTITY_PRODUCT)
+						.withoutGeneratedPrimaryKey()
+						.withAttribute(ATTRIBUTE_VALID_UNTIL, OffsetDateTime.class, thatIs -> thatIs.unique().nullable())
+						.updateVia(session);
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setAttribute(ATTRIBUTE_VALID_UNTIL, earlierPlaceholder)
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PRODUCT, 2)
+						.setAttribute(ATTRIBUTE_VALID_UNTIL, laterPlaceholder)
+						.upsertVia(session);
+				}
+			);
+			assertTrue(
+				stampReleasedState(
+					configuration, Set.of(ATTRIBUTE_VALID_UNTIL),
+					new Respelling(earlierPlaceholder, OffsetDateTime.MIN, 1), true
+				).contains("FILTER validUntil in GLOBAL (inline)")
+			);
+			assertTrue(
+				stampReleasedState(
+					configuration, Set.of(ATTRIBUTE_VALID_UNTIL), new Respelling(laterPlaceholder, justInsideEdge, 2), true
+				).contains("FILTER validUntil in GLOBAL (inline)")
+			);
+			stamp(configuration, CATALOG, RELEASED_PROTOCOL, RELEASED_PROTOCOL);
+			final Map<String, String> before = catalogFileDigests(configuration);
+
+			final String message = refusalOfStart(configuration);
+			assertTrue(message.contains("1 unique value(s)"), message);
 			assertTrue(message.contains("attribute `validUntil` of entity `product`"), message);
 			assertTrue(message.contains("`product` 1") && message.contains("`product` 2"), message);
 			assertEquals(before, catalogFileDigests(configuration), "a refused upgrade must write nothing");

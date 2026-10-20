@@ -42,8 +42,6 @@ import javax.annotation.Nonnull;
 import java.io.ObjectStreamClass;
 import java.io.Serializable;
 import java.math.BigDecimal;
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -62,8 +60,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Verifies that {@link AttributeValueSerializer_2026_2} brings out-of-window temporal values of a body written by
  * release 2026.2 into the supported window, while a current-version body and every other value read back unchanged.
  *
- * A legacy body is built by hand: the current serializer's output with the `serialVersionUID` replaced by the one
- * the record carried in release 2026.2. The layout never changed, only the version discriminator did.
+ * A legacy body is written the way release 2026.2 wrote it: the `serialVersionUID` the record carried in that
+ * release, followed by the payload of the current {@link AttributeValueSerializer}. The layout never changed, only
+ * the version discriminator did.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -79,6 +78,7 @@ class AttributeValueSerializer_2026_2Test {
 	private static final long LEGACY_ATTRIBUTE_VALUE_UID = -5387437940533059959L;
 	private static final AttributeKey KEY = new AttributeKey("until");
 	private Kryo kryo;
+	private AttributeValueSerializer currentSerializer;
 
 	@BeforeEach
 	void setUp() {
@@ -87,6 +87,7 @@ class AttributeValueSerializer_2026_2Test {
 		this.kryo = KryoFactory.createKryo(
 			SharedClassesConfigurer.INSTANCE.andThen(new EntityStoragePartConfigurer(keyCompressor))
 		);
+		this.currentSerializer = new AttributeValueSerializer(keyCompressor);
 	}
 
 	@Test
@@ -127,7 +128,8 @@ class AttributeValueSerializer_2026_2Test {
 	void shouldClampArrayElements() {
 		final OffsetDateTime inside = OffsetDateTime.of(2030, 1, 2, 3, 4, 5, 6_000_007, ZoneOffset.ofHours(2));
 		final OffsetDateTime[] offsets = {inside, OffsetDateTime.MAX, OffsetDateTime.MIN};
-		final OffsetDateTime[] readOffsets = (OffsetDateTime[]) readLegacy(new AttributeValue(1, KEY, offsets, false)).value();
+		final OffsetDateTime[] readOffsets =
+			(OffsetDateTime[]) readLegacy(new AttributeValue(1, KEY, offsets, false)).value();
 		assertEquals(3, readOffsets.length);
 		assertEquals(inside, readOffsets[0]);
 		assertEquals(EvitaDataTypes.clampToSupportedWindow(OffsetDateTime.MAX), readOffsets[1]);
@@ -135,8 +137,34 @@ class AttributeValueSerializer_2026_2Test {
 
 		final LocalDateTime localInside = LocalDateTime.of(2031, 5, 6, 7, 8);
 		final LocalDateTime[] locals = {LocalDateTime.MAX, localInside};
-		final LocalDateTime[] readLocals = (LocalDateTime[]) readLegacy(new AttributeValue(1, KEY, locals, false)).value();
-		assertArrayEquals(new LocalDateTime[]{EvitaDataTypes.clampToSupportedWindow(LocalDateTime.MAX), localInside}, readLocals);
+		final LocalDateTime[] readLocals =
+			(LocalDateTime[]) readLegacy(new AttributeValue(1, KEY, locals, false)).value();
+		assertArrayEquals(
+			new LocalDateTime[]{EvitaDataTypes.clampToSupportedWindow(LocalDateTime.MAX), localInside}, readLocals
+		);
+	}
+
+	@Test
+	@DisplayName("should keep the null elements of a temporal array")
+	void shouldKeepNullArrayElements() {
+		final OffsetDateTime[] offsets = {OffsetDateTime.MAX, null};
+		assertArrayEquals(
+			new OffsetDateTime[]{EvitaDataTypes.clampToSupportedWindow(OffsetDateTime.MAX), null},
+			(OffsetDateTime[]) readLegacy(new AttributeValue(1, KEY, offsets, false)).value()
+		);
+
+		final LocalDateTime[] locals = {null, LocalDateTime.MIN, LocalDateTime.of(2031, 5, 6, 7, 8)};
+		assertArrayEquals(
+			new LocalDateTime[]{
+				null, EvitaDataTypes.clampToSupportedWindow(LocalDateTime.MIN), LocalDateTime.of(2031, 5, 6, 7, 8)
+			},
+			(LocalDateTime[]) readLegacy(new AttributeValue(1, KEY, locals, false)).value()
+		);
+
+		final OffsetDateTime[] insideOnly = {null, OffsetDateTime.of(2030, 1, 2, 3, 4, 5, 0, ZoneOffset.UTC)};
+		assertArrayEquals(
+			insideOnly, (OffsetDateTime[]) readLegacy(new AttributeValue(1, KEY, insideOnly, false)).value()
+		);
 	}
 
 	@Test
@@ -176,27 +204,24 @@ class AttributeValueSerializer_2026_2Test {
 	@DisplayName("should write the current version that a legacy body is distinguished from")
 	void shouldWriteCurrentVersion() {
 		final byte[] current = write(new AttributeValue(1, KEY, OffsetDateTime.MAX, false));
-		assertTrue(version(current).getLong(0) != LEGACY_ATTRIBUTE_VALUE_UID);
+		final long writtenVersion = new Input(current).readLong();
+		assertEquals(ObjectStreamClass.lookup(AttributeValue.class).getSerialVersionUID(), writtenVersion);
+		assertTrue(writtenVersion != LEGACY_ATTRIBUTE_VALUE_UID);
 		final AttributeValue read = read(current);
 		assertEquals(OffsetDateTime.MAX, read.value());
 	}
 
-	@Nonnull
-	private AttributeValue readLegacy(@Nonnull AttributeValue value) {
-		final byte[] bytes = write(value);
-		version(bytes).putLong(0, LEGACY_ATTRIBUTE_VALUE_UID);
-		return read(bytes);
-	}
-
 	/**
-	 * Wraps the stream so that its leading `serialVersionUID` can be read or replaced. Kryo writes the long in
-	 * little-endian order and, with references off, the version is the very first thing in the stream.
+	 * Writes `value` the way release 2026.2 wrote it - that release's `serialVersionUID`, then the unchanged payload,
+	 * which is what `SerialVersionBasedSerializer` emits in front of the payload - and reads it back through the
+	 * registered serializer, so the version decides which reader parses it.
 	 */
 	@Nonnull
-	private static ByteBuffer version(@Nonnull byte[] bytes) {
-		final ByteBuffer buffer = ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN);
-		assertEquals(ObjectStreamClass.lookup(AttributeValue.class).getSerialVersionUID(), buffer.getLong(0));
-		return buffer;
+	private AttributeValue readLegacy(@Nonnull AttributeValue value) {
+		final Output output = new Output(256, -1);
+		output.writeLong(LEGACY_ATTRIBUTE_VALUE_UID);
+		this.currentSerializer.write(this.kryo, output, value);
+		return read(output.toBytes());
 	}
 
 	@Nonnull
