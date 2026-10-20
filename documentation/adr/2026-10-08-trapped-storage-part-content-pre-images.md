@@ -9,7 +9,7 @@ prs: [1724]
 areas: [evita_engine/core/buffer, evita_engine/core/collection, evita_engine/index/mutation/storagePart, evita_engine/spi/store/catalog/persistence/storageParts/entity]
 supersedes: []
 superseded-by: []
-relates: [2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-10-12-single-owner-partitions-as-registry-rows]
+relates: [2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-10-20-single-owner-partitions-as-registry-rows]
 ---
 
 # A trapped storage part is rolled back by content, not by slot
@@ -220,7 +220,7 @@ each other's writes.
   #1615 (2026-10-12 note):** the seam shipped as `InFlightEntityAccessorLookup`. No test found when #1615
   was recorded proves that a nested change rolled back by a savepoint is also rolled back in what the registry
   serves to a later read of the same root mutation; the comment on #1678 says so - see
-  [2026-10-12-single-owner-partitions-as-registry-rows](2026-10-12-single-owner-partitions-as-registry-rows.md).
+  [2026-10-20-single-owner-partitions-as-registry-rows](2026-10-20-single-owner-partitions-as-registry-rows.md).
 
 ## Related work
 

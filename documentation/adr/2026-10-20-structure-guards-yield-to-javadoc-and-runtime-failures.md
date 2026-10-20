@@ -16,7 +16,7 @@ areas:
   - documentation/developer/stm
 supersedes: []
 superseded-by: []
-relates: [2026-10-12-single-owner-partitions-as-registry-rows, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-09-23-internal-member-annotation, 2026-09-08-jdk21-safe-modernization]
+relates: [2026-10-20-single-owner-partitions-as-registry-rows, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-09-23-internal-member-annotation, 2026-09-08-jdk21-safe-modernization]
 ---
 
 # A rule about the code's structure lives in the javadoc of the type it constrains, not in a test that scans the code against a list
@@ -27,7 +27,7 @@ and compared what it found with a hand-kept list of approved sites, names or exe
 now lives in the javadoc of the type a developer holds when about to break it; one became a compiler check; the
 others rest on a runtime refusal that already existed and on the functional tests that exercise it. The same
 reasoning removed two guards of the #1615 branch itself, recorded in
-`2026-10-12-single-owner-partitions-as-registry-rows`.
+`2026-10-20-single-owner-partitions-as-registry-rows`.
 
 ## Why
 
@@ -145,7 +145,7 @@ and the two kept tests `LazyAttributeIndexFamilyTest` and `InterruptionAdviceWov
 
 ## Related work
 
-- `2026-10-12-single-owner-partitions-as-registry-rows` - the two #1615 guards removed for the same reasons, recorded
+- `2026-10-20-single-owner-partitions-as-registry-rows` - the two #1615 guards removed for the same reasons, recorded
   as declined options there.
 - `2026-08-26-warm-up-per-entity-mutation-atomicity` - introduced `WarmUpRollbackConformanceTest`; its key technical
   details now point here.

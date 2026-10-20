@@ -1,7 +1,7 @@
 ---
 title: A single-owner partition of a filtering-only reference is a row of a per-reference registry, and an index object exists only while a partition has two or more owners
-date: 2026-10-12
-updated: 2026-10-20 09:00
+date: 2026-10-20
+updated: 2026-10-20 12:51
 status: accepted
 kind: optimization
 issues: [1615]
@@ -28,7 +28,7 @@ areas:
   - documentation/developer/indexes
 supersedes: []
 superseded-by: []
-relates: [2026-10-14-reference-content-filter-row-by-row, 2026-09-23-pick-first-reference-ordering-from-selection, 2026-09-17-row-scoped-reference-having-body, 2026-09-18-reference-planning-from-owner-membership, 2026-09-09-sibling-resolver-partition-cardinality, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-trapped-storage-part-content-pre-images, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-09-04-millisecond-temporal-precision, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-08-10-catalog-and-collection-statistics, 2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures]
+relates: [2026-10-20-reference-content-filter-row-by-row, 2026-09-23-pick-first-reference-ordering-from-selection, 2026-09-17-row-scoped-reference-having-body, 2026-09-18-reference-planning-from-owner-membership, 2026-09-09-sibling-resolver-partition-cardinality, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-trapped-storage-part-content-pre-images, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-09-04-millisecond-temporal-precision, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-08-10-catalog-and-collection-statistics, 2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures]
 ---
 
 # A single-owner partition of a filtering-only reference is a registry row, not an index object
@@ -583,7 +583,10 @@ outside its writer is guarded by a test (see the two declined guards below): the
 - **Names declined:** `ReducedIndexHandle`, because a row is not an index; `RepresentativeReferenceSlice`, because
   "slice" is spent on `ReducedIndexMembership`; `ReferencedEntityPartition`, longer with the same ambiguity. "Partition"
   here is unrelated to the `FOR_FILTERING_AND_PARTITIONING` level, and the interface's javadoc says so in its first
-  paragraph.
+  paragraph. *Promotion* and *demotion* (a row becoming an object when a second owner joins, and back) share their
+  words with `ReducedIndexMembership`'s coverage hysteresis, which promotes a reduced index out of coverage above the
+  coverage threshold of owners and demotes it back at half of it. The two are unrelated - a row holds one owner, so it
+  is always a covered entry - and the interface's javadoc says so too.
 - **Declined — a bytecode guard over every direct access to the reduced index family** (`ReferencePartitionAccessGuardTest`,
   built in phase 1 and removed at review on 2026-10-19). It scanned the bytecode of `evita_engine` and
   `evita_store_server` under seven rules against an allow-list of 165 sites, each with a reason, and it tracked the
@@ -768,6 +771,14 @@ the Registry of Single-Owner Partitions") and `data-structures.md` ("Registry of
 - **A test-only switch can carry production semantics, and a "remove me" marker on an assertion can be a runtime
   premise.** The cleanup found both (invariant 4, and the owner-read resolver above). Read what a scaffold does before
   deleting it.
+- **The generated datasets never hold a row.** `DataGenerator` declares all three of its references
+  `indexedForFilteringAndPartitioning()`, and only a `FOR_FILTERING` reference gets rows. In the forced full suite
+  25,149 of the 28,733 listed tests held no eligible reference and 672 read a row; in the hierarchy, facet and
+  reference packages 1,042 of 1,175 tests were ineligible (forced read run, 2026-10-07). The conditional facet and
+  bucket generational catalogs hold no eligible reference either, and until T6 gave it a `referenceHaving` check,
+  `LongRunningEvitaReferencesGenerationalTest` wrote rows without ever reading one. A new read route that passes the
+  functional suite has therefore proved nothing about rows: give it a case in the parity suites (T3) or a fixture with
+  a `FOR_FILTERING` reference.
 
 ## Verification
 
@@ -789,7 +800,7 @@ production probes counted work. All of it is gone. What replaced it:
   asserts it selects a known singleton row; `virtualPartitionCountIfKnown()` > 0 on one side and 0 on the other proves
   the twin non-vacuous. It backs the six read-parity suites (`VirtualReferenceHavingParityTest`,
   `VirtualReferenceContentFilterParityTest` (deleted with the index route of `referenceContent`; its hand-written cases
-  live in `ReferenceContentCrossScopeRowsTest`, see `2026-10-14-reference-content-filter-row-by-row`),
+  live in `ReferenceContentCrossScopeRowsTest`, see `2026-10-20-reference-content-filter-row-by-row`),
   `VirtualPickFirstParityTest`, `VirtualTraverseParityTest`,
   `VirtualChainParityTest`, `VirtualHierarchyParityTest`); five of the six consuming stages are proven by a
   counterfactual of their own (L7).
@@ -927,6 +938,10 @@ same writer, 3 interleaved rounds, result cache off:
 - **The answers were checked, not assumed.** Route and record-count lines matched between the copies in every round;
   the `referenceHaving` counts matched an oracle computed from owner bodies (IS_NOT_NULL 53,542 owners).
 - No configuration was slower by more than 5 % in every round.
+- **Not measured on rows:** unnarrowed `referenceHaving` on `Category.products`; hierarchy statistics; `groupHaving`
+  over many groups; traverse over `parameterValues`; pick-first cold, after a write, on deep pages and descending;
+  allocation and planning share per query. "No configuration was slower by more than 5 % in every round" covers only
+  the configurations above.
 
 **Writes on rows (M3).** One operation per run on a fresh reflink copy, rows against objects. Full corpus: single shots
 are bimodal, so only the direction is readable - CREATE_0_1, DEMOTE_2_1, LOCALE_GAIN and RELOCATE were faster on rows in
@@ -988,6 +1003,38 @@ On catalog version 8103 of the production retail corpus:
   removes, every one a remove + re-insert of the same owner and target in one version - 258 / 284 / 284 / 258 crossings
   of 0 → 1 / 1 → 2 / 2 → 1 / 1 → 0, zero net; `Product.tags`, `stocks` and `stockVisibilities` a few dozen writes, no
   crossing; `Product.media`, `Parameter.parameterValues` none.
+
+**Rebuilding them.** Neither probe survives; this is what a re-run needs.
+
+- **Where they lived.** `SingleOwnerPartitionCensus <storageDir> <catalog> [--entities]` and
+  `ReferencePartitionChurnCensus <storageDir> <catalog>`, in package `io.evitadb.index` of `evita_performance_tests`.
+  That module has no `module-info`, so the split package is legal on the class path and could read `EntityIndex`'s
+  protected sub-indexes without reflection or a new API. Both opened a **copy** of the catalog and never wrote to it;
+  `-Dcensus.compress=true` opened a compressed one.
+- **Partition census.** Per reference × scope whose index type is not `NONE`, over the `REFERENCED_ENTITY` family only,
+  it walked `ReferencedTypeEntityIndex#forEachReferenceIndexPrimaryKey` together with
+  `EntityCollection#getIndexByPrimaryKeyIfExists`, counted each partition's owners, and split the model heap of every
+  single-owner partition into owner bitmap, locale bitmaps, attribute index (and of it the sort and chain indexes),
+  facet, hierarchy, price and the remaining shell. It also reported, per sort and chain key, the presence in
+  single-owner partitions, the distinct values and the value-block distribution; the owners holding only single-owner
+  partitions, only shared ones, or both; single-owner partitions per owner (p50 / p95 / max); distinct representative
+  tuples, rows per tuple and distinct characters; and totals split by whether the reference has anything sortable in
+  the scope.
+- **`--entities`** fetched every owner of a single-owner partition (`referenceContentWithAttributes`, all locales),
+  matched each row to its partition by target and representative values, and compared per key "the row has a value"
+  with "the index holds it".
+- **Churn census.** It took the final owner count per `(collection, reference, target)` from the reduced indexes,
+  summed over scopes, then walked `getMutationsHistoryReversed` (body content) newest first: an
+  `InsertReferenceMutation` means the count was one lower before it, a `RemoveReferenceMutation` one higher. It
+  classified every step by the boundary it crossed and counted removes re-inserted for the same owner and target in
+  one version.
+- **Running them.** `mvn -o -P full -pl evita_test/evita_performance_tests -am compile -DskipTests`, then
+  `java -Xmx24g -XX:+ExitOnOutOfMemoryError -cp <classpath> io.evitadb.index.SingleOwnerPartitionCensus <storageDir>
+  <catalog> [--entities]`, and the same for `io.evitadb.index.ReferencePartitionChurnCensus <storageDir> <catalog>`.
+  The class path is every module's `target/classes`, plus `mvn dependency:build-classpath` of `evita_store_server` and
+  of `evita_export_fs` without the external-API modules (they pull in OpenTelemetry, which that class path lacks), plus
+  the `hppc` jar - without it the load fails with `NoClassDefFoundError: com/carrotsearch/hppc/LongSet`, so a probe must
+  report an unusable catalog rather than wait for it to load. The corpus opened in 13 s at `-Xmx24g`.
 
 Limits to carry into any re-run:
 
@@ -1134,7 +1181,9 @@ Found later in the cleanup and accepted by the maintainer on 2026-10-12:
   `zh`), so such an owner sort index may be refused (paged) or merged (inline) by the rewrite - untested; the prefetch
   assertions of `TemporalSortValueFunctionalTest` are probably vacuous (pre-existing). And a 2026.2 owner sort index
   with a `Locale` element exists only in a catalog never restarted on 2026.2, whose `Locale` reader could not read its
-  own bytes (`4cdb6aab28`), so that rewrite's reach is narrow.
+  own bytes (`4cdb6aab28`), so that rewrite's reach is narrow. `facetHaving` evaluates its body `IN_PLACE`, where
+  `EntityLocaleEqualsTranslator` still answers `entityLocaleEquals` on the type index with a `SkipFormula`, so it may
+  skip the leaf and narrow an enclosing `or`, the way candidate discovery did before `a2b5e43c7a`.
 
 ### For #409 (schema alteration with rebuild)
 
@@ -1173,7 +1222,7 @@ Found later in the cleanup and accepted by the maintainer on 2026-10-12:
 
 ## Related work
 
-- **`2026-10-14-reference-content-filter-row-by-row`:** the filter of `referenceContent` is evaluated over the fetched
+- **`2026-10-20-reference-content-filter-row-by-row`:** the filter of `referenceContent` is evaluated over the fetched
   owners' rows, so the fetch no longer reads a partition, a row or an index object of the reference; it removed the
   `referenceContent` consumer of the registry rows (`VirtualPartitionRows.InScopeReading`,
   `VirtualPartitionBodyEvaluator#getMatchingPartitionsPerRow`) and the parity test that compared them with index objects.

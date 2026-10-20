@@ -50,7 +50,10 @@ import javax.annotation.Nonnull;
  * A reference indexed `FOR_FILTERING` with the referenced entity component keeps a partition with a single owner as
  * a registry row and nothing else, and gives it an index object only once a second owner joins it; a reference
  * indexed for partitioning creates an index object for every partition (see
- * {@link io.evitadb.index.mutation.local.VirtualReferencePartitionWriter}).
+ * {@link io.evitadb.index.mutation.local.VirtualReferencePartitionWriter}). That change of form - *promotion* when a
+ * second owner joins, *demotion* when one owner is left - is unrelated to the coverage hysteresis of
+ * {@link io.evitadb.index.membership.ReducedIndexMembership}, which uses the same words for a reduced index leaving
+ * coverage above a threshold of owners and returning to it: a registry row holds one owner and is always covered.
  *
  * The interface is sealed so that code which genuinely needs the object - a write that goes through the generic
  * {@link EntityIndex} write API, the query body channel that is bound to {@link Index} (see

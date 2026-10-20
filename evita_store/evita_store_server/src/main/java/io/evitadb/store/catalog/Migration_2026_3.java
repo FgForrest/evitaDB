@@ -254,8 +254,9 @@ import java.util.function.Function;
  * @deprecated removable once no catalog older than 2026.3 can be encountered — at which point no catalog can
  * still carry raw-keyed cardinality counters, raw-keyed unique indexes, owner sort indexes holding raw temporal values
  * or ordered by the bare collator, a language tag or whole seconds, or single-owner reference partitions held by index
- * objects, and neither this migration nor `AttributeCardinalityIndexStoragePartSerializer_2026_2` has anything left to
- * do
+ * objects, and this migration has nothing left to do. `AttributeCardinalityIndexStoragePartSerializer_2026_2` does not
+ * leave with it: a counter part this migration found already canonical is not rewritten and keeps that reader's
+ * `serialVersionUID` - see the reader's own deprecation note.
  */
 @Deprecated(since = "2026.3", forRemoval = true)
 public interface Migration_2026_3 {
@@ -735,6 +736,8 @@ public interface Migration_2026_3 {
 		if (filterPart != null) {
 			return OptionalInt.of(filterPart.getIndexedDecimalPlaces());
 		}
+		// `Migration_2026_2` is deprecated ahead of this class: when it is removed, move `resolveIndexedDecimalPlaces`
+		// here rather than deleting it - `resolveScale` and `resolveOwnerScale` both depend on it
 		try {
 			return OptionalInt.of(
 				Migration_2026_2.resolveIndexedDecimalPlaces(
@@ -1164,6 +1167,8 @@ public interface Migration_2026_3 {
 		if (!isScaleDependent(plainType)) {
 			return OptionalInt.of(0);
 		}
+		// `Migration_2026_2` is deprecated ahead of this class: when it is removed, move `resolveIndexedDecimalPlaces`
+		// here rather than deleting it - `resolveScale` and `resolveOwnerScale` both depend on it
 		try {
 			return OptionalInt.of(Migration_2026_2.resolveIndexedDecimalPlaces(entitySchema, referenceName, attributeName));
 		} catch (GenericEvitaInternalError ex) {

@@ -9,7 +9,7 @@ prs: [1494]
 areas: [evita_engine/core/transaction/memory, evita_engine/core/collection, evita_engine/core/buffer, evita_engine/index]
 supersedes: []
 superseded-by: []
-relates: [2026-07-10-more-optimized-data-structures, 2026-07-31-bulk-ingest-write-path, 2026-09-08-warm-up-invalid-schema-refuses-to-publish, 2026-10-08-trapped-storage-part-content-pre-images, 2026-10-12-single-owner-partitions-as-registry-rows, 2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures]
+relates: [2026-07-10-more-optimized-data-structures, 2026-07-31-bulk-ingest-write-path, 2026-09-08-warm-up-invalid-schema-refuses-to-publish, 2026-10-08-trapped-storage-part-content-pre-images, 2026-10-20-single-owner-partitions-as-registry-rows, 2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures]
 ---
 
 # Per-entity mutation atomicity in WARM_UP — a savepoint the structures journal into

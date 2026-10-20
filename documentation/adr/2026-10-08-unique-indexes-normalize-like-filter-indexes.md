@@ -9,7 +9,7 @@ prs: [1722]
 areas: [evita_engine/src/main/java/io/evitadb/index/attribute/UniqueIndexBPlusTreeSupport.java, evita_engine/src/main/java/io/evitadb/index/attribute/OwnerUniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/GlobalUniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/UniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/FilterIndex.java, evita_engine/src/main/java/io/evitadb/index/bPlusTree/ValueColumnFactory.java, evita_engine/src/main/java/io/evitadb/index/component/loader/AttributeIndexLoader.java, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/attribute, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog/Migration_2026_3.java, evita_store/evita_store_server/src/main/java/io/evitadb/store/index/serializer/ComparableLocaleSerializer.java]
 supersedes: []
 superseded-by: []
-relates: [2026-09-04-millisecond-temporal-precision, 2026-10-06-unique-indexes-keep-no-record-set, 2026-09-21-cardinality-counter-normalized-keys, 2026-08-10-stored-value-normalization-split, 2026-10-12-single-owner-partitions-as-registry-rows]
+relates: [2026-09-04-millisecond-temporal-precision, 2026-10-06-unique-indexes-keep-no-record-set, 2026-09-21-cardinality-counter-normalized-keys, 2026-08-10-stored-value-normalization-split, 2026-10-20-single-owner-partitions-as-registry-rows]
 ---
 
 # Standalone unique indexes key every value exactly as the filter index does
@@ -176,7 +176,7 @@ decimal places (both `1.24`, `HALF_UP`). That is how the filter index and the fo
   load, and a colliding pair refuses to load. Re-index such a catalog. **Note (2026-10-19):** #1615 extended
   `Migration_2026_3` but kept it one step from protocol 6 to 7, so such a catalog still skips it - and with it the owner
   sort rewrite and the conversion of single-owner partitions #1615 added, which makes it unsupported: recreate it - see
-  [2026-10-12-single-owner-partitions-as-registry-rows](2026-10-12-single-owner-partitions-as-registry-rows.md). The
+  [2026-10-20-single-owner-partitions-as-registry-rows](2026-10-20-single-owner-partitions-as-registry-rows.md). The
   load-time detection of a colliding pair stays, for a part the migration did not reach.
 - **Stored `Currency[]` / `Locale[]` filter keys** written as strings by any earlier version are not re-keyed by the
   migration; those trees were already unusable for lookups, and a re-index repairs them.

@@ -1961,6 +1961,12 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * its own comparator-driven normalization during removal — normalizing here as well would double-fold the key
 	 * and miss the bucket. The normalizer's output therefore feeds the sanity check only, never the write.
 	 *
+	 * The premise is deliberately strict — do not relax it into a skip. The tree below already ignores a removal it
+	 * cannot match ({@link InvertedIndex#removeRecord(Serializable, int...)}: "nothing happens"), so this check is the
+	 * engine's only detector of a structure that describes the entries — a cardinality counter, an array fold —
+	 * disagreeing with the tree, and it is what surfaced #1620 from production. Skipping instead would silence every
+	 * symptom of that family and keep the wrong query results.
+	 *
 	 * @param recordId the record id to detach from the value's bucket
 	 * @param value    the raw attribute value whose association is removed
 	 * @param sink     learns when this removal takes the value out of existence, or `null` when nobody is interested
