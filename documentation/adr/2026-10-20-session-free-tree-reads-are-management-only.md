@@ -1,11 +1,11 @@
 ---
 title: Only the management reads of the B+ trees are session-free, so only their walks keep reader-side guards
-date: 2026-10-19
-updated: 2026-10-19 13:08
+date: 2026-10-20
+updated: 2026-10-20 11:03
 status: accepted
 kind: refactor
 issues: [1761]
-prs: []
+prs: [1764]
 areas: [evita_engine/index/bPlusTree, evita_engine/index/array, evita_engine/core/management, evita_test/evita_functional_tests/index/bPlusTree, evita_test/evita_functional_tests/index/array, evita_test/evita_long_running_tests/index/bPlusTree]
 supersedes: []
 superseded-by: []
@@ -119,8 +119,10 @@ entry points that a production reader really takes without a session, and leaves
 code its own thread already makes safe. Option B guards an unbounded surface for no reader, and cannot be made
 complete on the primitive columns however far it is taken.
 
-**Revisit if a production session-free key lookup appears** - a management call that samples values, decodes keys,
-looks a key up, or walks keyed or backwards. The first answer then is to give that read a happens-before edge (run
+**Revisit if a production session-free key lookup appears** - a management call that looks a key up, walks keyed
+or backwards, or reads values out of a boxed or front-coded key column. Reading a primitive `long` key column
+through the forward walk is not one; the registry count under *Key technical details* does exactly that, and is
+covered. The first answer then is to give that read a happens-before edge (run
 it in a session, or on a published version), not to revive the reader-side guards; only if that is impossible does
 Option B or one of the writer-side options above come back on the table, with the costs stated there.
 
@@ -138,6 +140,12 @@ Option B or one of the writer-side options above come back on the table, with th
     of the long tree, `AbstractIntKeyedInternalNode` and `UnorderedLookupTree.InternalNode`;
   - `observableLiveRun` on every column and the bound in `OverflowColumn#recordsAt`, which the forward cursor and
     the heap walk index through; the `volatile` bucket count and both non-negative count guards.
+- **One management walk reads keys: the registry count.** `VirtualReferencePartitionIndex#countRegisteredPartitions`
+  (#1738, behind `IndexCardinality#virtualPartitionCount`) walks the registry's entry tree with `cursor()` and
+  decodes each key to stop at the end of the owner slot. It needs no guard of its own: the key column is the
+  primitive `LongValueColumn`, the cursor bounds every index by the column's live run, and a column array only ever
+  grows in place, so a torn read yields a stale key and a miscount, never a throw. The same read on a boxed or
+  front-coded key column is not covered by that argument - see the trigger under *Decision*.
 - **What went**: everything listed under *Previous state*, plus `observableChildIndex`, the int-to-long tree's
   `observableLeafPeek` and `UnorderedLookupTree#observableLeafCount`, which had no caller left.
 - **Looks like a bug, is not**: the forward cursor is bounded and the reverse cursor is not; the forward walk is the
@@ -177,6 +185,11 @@ Option B or one of the writer-side options above come back on the table, with th
   reduced to `return peek`, the narrowed multi-level sweep failed 3 runs of 3, at rounds 13, 737 and 38 of 5,000, in
   0.10-1.11 s, every time from `ForwardBucketCursor#moveToNextLeaf` - on a 24-core x86_64 box under a load average
   of about 15.
+- **Re-verified after merging #1738**, whose registry count is the forward-walk reader above. The full functional
+  suite ran 29,291 tests with one failure and one error, both environmental: `EvitaServerTest`'s protocol
+  restriction timed out in the sandbox, and `ExportS3ServiceTest` found no Docker. The long-running sweep was
+  green in 7.2 s. The whole reactor compiled except `evita_performance_tests`, which the offline build could not
+  resolve. Its benchmarks reach no package-private code of the trees, and the change removes no public member.
 
 ## Consequences & open follow-ups
 
@@ -207,3 +220,5 @@ Option B or one of the writer-side options above come back on the table, with th
 - **2026-09-02 - 2026-09-28** — the reader-side guard family built, escape by escape (see the two records above)
 - **2026-10-19** — the weekly sweep's AArch64-only `midVal is null` escape; the contract narrowed to the management
   reads, the lookup-only guards and their tests removed, the sweep narrowed and re-calibrated
+- **2026-10-20** — merged with #1738, whose registry count reads `long` keys through the kept forward walk;
+  re-verified on the merged tree

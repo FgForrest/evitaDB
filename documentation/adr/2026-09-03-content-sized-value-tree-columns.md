@@ -1,7 +1,7 @@
 ---
 title: Size the value tree's leaf columns to their live content instead of adding a second array-backed representation
 date: 2026-09-03
-updated: 2026-10-19 13:08
+updated: 2026-10-20 10:47
 status: accepted
 kind: optimization
 issues: [1486]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_engine/index/bPlusTree, evita_engine/index/array, evita_engine/index/map, evita_roaring_bitmap, evita_engine/index/invertedIndex, evita_engine/core/session, evita_common/dataType, evita_test/evita_performance_tests/spike/trigram]
 supersedes: []
 superseded-by: []
-relates: [2026-10-19-session-free-tree-reads-are-management-only, 2026-09-06-go-live-session-drain, 2026-08-10-catalog-and-collection-statistics, 2026-09-04-long-keyed-tree-content-sizing, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-10-more-optimized-data-structures, 2026-08-31-front-coded-column-stores-wtf8, 2026-08-31-trigram-query-path-optimization, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-09-04-millisecond-temporal-precision]
+relates: [2026-10-20-session-free-tree-reads-are-management-only, 2026-09-06-go-live-session-drain, 2026-08-10-catalog-and-collection-statistics, 2026-09-04-long-keyed-tree-content-sizing, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-10-more-optimized-data-structures, 2026-08-31-front-coded-column-stores-wtf8, 2026-08-31-trigram-query-path-optimization, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-09-04-millisecond-temporal-precision]
 ---
 
 # Size the value tree's leaf columns to their live content instead of adding a second representation
@@ -239,8 +239,8 @@ this record prices, measured a second way.
   an array in place — the trim allocates a new one, on a leaf being rebuilt anyway — which is why a
   bound taken once stays valid. It costs nothing on the write path.
 
-  **Superseded in part (2026-10-19)** by
-  [`2026-10-19-session-free-tree-reads-are-management-only`](2026-10-19-session-free-tree-reads-are-management-only.md):
+  **Superseded in part (2026-10-20)** by
+  [`2026-10-20-session-free-tree-reads-are-management-only`](2026-10-20-session-free-tree-reads-are-management-only.md):
   only the forward cursor and the heap walk take it now; the reverse and single-leaf cursors serve no session-free
   reader and lost the bound.
 - **Two column details look like oversights and are not.** `OverflowColumn.duplicate()` is a shallow
@@ -459,8 +459,8 @@ proportionally larger against a smaller total, and the census charged the tempor
   whose live run is independent — so `getRecords`, `previousRecord` and `getValueIndex` needed the
   cross-column minimum too. All fixed in PR #1617, each with a test proven in both arms.
 
-  **Superseded (2026-10-19)** by
-  [`2026-10-19-session-free-tree-reads-are-management-only`](2026-10-19-session-free-tree-reads-are-management-only.md):
+  **Superseded (2026-10-20)** by
+  [`2026-10-20-session-free-tree-reads-are-management-only`](2026-10-20-session-free-tree-reads-are-management-only.md):
   all three bounds - the previous-node rebuild, `lastRecord()` and the cross-column bound on `getRecords`,
   `previousRecord` and `getValueIndex` - are removed. Their readers are reached without a session only through a
   point lookup, which no production code takes off the writer's thread.
@@ -472,8 +472,8 @@ proportionally larger against a smaller total, and the census charged the tempor
   columns return for an unmaterialized slot — `0` as a record id and `0` as `RESERVED_PRIMARY_KEY` — are
   indistinguishable from legitimate answers.
 
-  **Superseded (2026-10-19)** by
-  [`2026-10-19-session-free-tree-reads-are-management-only`](2026-10-19-session-free-tree-reads-are-management-only.md):
+  **Superseded (2026-10-20)** by
+  [`2026-10-20-session-free-tree-reads-are-management-only`](2026-10-20-session-free-tree-reads-are-management-only.md):
   the bound is removed with the other point-lookup guards. The observation stands, and is one of that record's
   reasons for not guarding lookups at all: on a primitive column no reader-side check can tell an unpublished slot
   from data.
@@ -488,8 +488,8 @@ proportionally larger against a smaller total, and the census charged the tempor
   needed no change, because `searchIndex` refuses `fromIndex(0) > toIndex(-1)` before any child is indexed —
   which is why the keyed descent, and with it the write path, is untouched by any of this.
 
-  **Narrowed (2026-10-19)** by
-  [`2026-10-19-session-free-tree-reads-are-management-only`](2026-10-19-session-free-tree-reads-are-management-only.md):
+  **Narrowed (2026-10-20)** by
+  [`2026-10-20-session-free-tree-reads-are-management-only`](2026-10-20-session-free-tree-reads-are-management-only.md):
   only the forward walk still steps over an emptied node; the reverse walk and the point descent no longer do,
   because no session-free reader takes them.
 - **The two failures are worth telling apart, because only one of them announces itself.** The cursor rebuild
@@ -502,8 +502,8 @@ proportionally larger against a smaller total, and the census charged the tempor
   for it;** a sentinel that collides with a legitimate return value is what turns a missing clamp into a
   correctness bug rather than a crash.
 
-  **Superseded (2026-10-19)** by
-  [`2026-10-19-session-free-tree-reads-are-management-only`](2026-10-19-session-free-tree-reads-are-management-only.md):
+  **Superseded (2026-10-20)** by
+  [`2026-10-20-session-free-tree-reads-are-management-only`](2026-10-20-session-free-tree-reads-are-management-only.md):
   both bounds are removed; neither reader is reached without a session in production.
 - **This content-sizing hazard belongs to the bucket tree alone, and the identical code shape elsewhere is not a
   defect.** Only `TransactionalBucketBPlusTree` content-sizes its *internal-node* arrays (`children` starts at
@@ -517,8 +517,8 @@ proportionally larger against a smaller total, and the census charged the tempor
   heap walks below). The three sibling trees do content-size their leaf arrays, and each already applies its own
   `observableLeafPeek` at every point-lookup site; the bucket tree was the outlier that did not.
 
-  **Superseded in part (2026-10-19)** by
-  [`2026-10-19-session-free-tree-reads-are-management-only`](2026-10-19-session-free-tree-reads-are-management-only.md):
+  **Superseded in part (2026-10-20)** by
+  [`2026-10-20-session-free-tree-reads-are-management-only`](2026-10-20-session-free-tree-reads-are-management-only.md):
   the sibling trees' point-lookup bounds are removed; only their heap-walk bounds stay.
 - **`IntRecordColumn#intAt` / `longAt` remain bounded by `size` rather than by the array they index, and that is
   a deliberate hold rather than an oversight.** `OverflowColumn#recordsAt` next door already reads its array into
@@ -609,8 +609,8 @@ proportionally larger against a smaller total, and the census charged the tempor
   as "every way into the tree is covered". The sweep now probes `contains`, `cardinalityOf`, `valueIdOf`,
   `getRecordsEqualTo` and `computePreviousRecord` on every pass.
 
-  **Superseded (2026-10-19)** by
-  [`2026-10-19-session-free-tree-reads-are-management-only`](2026-10-19-session-free-tree-reads-are-management-only.md):
+  **Superseded (2026-10-20)** by
+  [`2026-10-20-session-free-tree-reads-are-management-only`](2026-10-20-session-free-tree-reads-are-management-only.md):
   both bounds - the point descent's child-array bound and the five `findKeyPosition` clamps - are removed, and the
   sweep no longer probes point lookups, because production takes none of them without a session.
 - **Bounding an index by its array is not enough: a slot inside the bound can still read `null`, and AArch64
@@ -631,8 +631,8 @@ proportionally larger against a smaller total, and the census charged the tempor
   - The reverse walk's rightmost re-descent.
   - The previous-node rebuild.
 
-  **Superseded in part (2026-10-19)** by
-  [`2026-10-19-session-free-tree-reads-are-management-only`](2026-10-19-session-free-tree-reads-are-management-only.md):
+  **Superseded in part (2026-10-20)** by
+  [`2026-10-20-session-free-tree-reads-are-management-only`](2026-10-20-session-free-tree-reads-are-management-only.md):
   `observableChildIndex`, the trailing-separator trim and the emptied-donor `null` answer are removed with the
   descents they served; the forward walk's and the heap walk's skip of a `null` child stays.
 
@@ -651,8 +651,8 @@ proportionally larger against a smaller total, and the census charged the tempor
   path. The reader-side step reuses the slot load the descent makes anyway. Revisit only if an escape turns up
   that stepping cannot absorb.
 
-  **Superseded (2026-10-19)** by
-  [`2026-10-19-session-free-tree-reads-are-management-only`](2026-10-19-session-free-tree-reads-are-management-only.md):
+  **Superseded (2026-10-20)** by
+  [`2026-10-20-session-free-tree-reads-are-management-only`](2026-10-20-session-free-tree-reads-are-management-only.md):
   the trigger fired again - neighbour (1) below escaped on AArch64 - and the answer this time was to narrow the
   contract to the readers production has rather than to extend either side.
 - **Three neighbours of that fix remain open.** (1) A reallocated array whose copied content the reader cannot see
@@ -675,8 +675,8 @@ proportionally larger against a smaller total, and the census charged the tempor
   purpose, but deliberately asserts only that they do not fail. Revisit if a session-free caller of
   `contains`, `cardinalityOf`, `getRecordsEqualTo`, `valueIdOf` or `computePreviousRecord` appears.
 
-  **Closed (2026-10-19)** by
-  [`2026-10-19-session-free-tree-reads-are-management-only`](2026-10-19-session-free-tree-reads-are-management-only.md):
+  **Closed (2026-10-20)** by
+  [`2026-10-20-session-free-tree-reads-are-management-only`](2026-10-20-session-free-tree-reads-are-management-only.md):
   neighbour (1) is what escaped on the macOS/AArch64 leg on 2026-10-19, through a session-free point lookup only the
   sweep drove. None of the three has a production reader, which is now the stated contract rather than an
   observation, and the sweep no longer drives the readers that could meet them.
@@ -724,8 +724,8 @@ proportionally larger against a smaller total, and the census charged the tempor
   then updated copy-on-write inside a `Transaction` and republished through an `AtomicReference`, and nothing in
   production calls its heap walk.
 
-  **Superseded in part (2026-10-19)** by
-  [`2026-10-19-session-free-tree-reads-are-management-only`](2026-10-19-session-free-tree-reads-are-management-only.md):
+  **Superseded in part (2026-10-20)** by
+  [`2026-10-20-session-free-tree-reads-are-management-only`](2026-10-20-session-free-tree-reads-are-management-only.md):
   the bucket tree's descents lost their guards too, for the reason given here for the siblings; it keeps them only
   on the forward walk and the heap walk.
 - **The same heap walk crosses two more structures with the same hazard, and both are fixed.**
@@ -759,8 +759,8 @@ proportionally larger against a smaller total, and the census charged the tempor
   `2026-08-31-front-coded-column-stores-wtf8`, and the comment at the search site says so explicitly so
   the partial guard cannot be read as a complete one.
 
-  **Superseded in part (2026-10-19)** by
-  [`2026-10-19-session-free-tree-reads-are-management-only`](2026-10-19-session-free-tree-reads-are-management-only.md):
+  **Superseded in part (2026-10-20)** by
+  [`2026-10-20-session-free-tree-reads-are-management-only`](2026-10-20-session-free-tree-reads-are-management-only.md):
   the search bound is removed - no session-free reader searches a column - so the torn publish matters to no
   production reader.
 - **The public go-live path did not drain incumbent warm-up sessions — fixed under issue #1495.** When this
@@ -852,6 +852,6 @@ proportionally larger against a smaller total, and the census charged the tempor
   of a session-free caller; the same heap walk's roaring backbone and `HashMap` sizing made tolerant of an
   in-place warm-up writer; a review found that stepping left does not make a mid-split point lookup exact, so the
   claim was withdrawn and the silent miss recorded as the third open neighbour
-- **2026-10-19** — the session-free bullets above superseded by
-  `2026-10-19-session-free-tree-reads-are-management-only`: the guards that served only point lookups, keyed and
+- **2026-10-20** — the session-free bullets above superseded by
+  `2026-10-20-session-free-tree-reads-are-management-only`: the guards that served only point lookups, keyed and
   reverse walks removed with their tests; the forward walk and the heap walk keep theirs
