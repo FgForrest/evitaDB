@@ -50,7 +50,7 @@ import java.util.Map;
  * writes the concrete class alongside each value, mirroring `HistogramCardinalityStoragePartSerializer`, and
  * this reader survives only to parse what the older writer left behind.
  *
- * The keys it returns are RAW, un-normalized values. They are re-keyed by the storage-protocol 6 → 8
+ * The keys it returns are RAW, un-normalized values. They are re-keyed by the storage-protocol 6 → 7
  * migration, which owns the attribute schema and therefore the scale the normalizer needs; this reader
  * deliberately does not attempt it, having no access to either.
  *
