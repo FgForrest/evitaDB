@@ -376,8 +376,8 @@ class VirtualChainParityTest implements EvitaTestSupport {
 	@Test
 	@DisplayName("should order the reflected references of duplicate single-owner partitions identically")
 	void shouldOrderReflectedReferenceContentOfDuplicatesIdentically() {
-		assertTrue(
-			this.duplicateTargets.singleOwnerTargets(REFERENCE_OWNERS, Scope.LIVE).size() == OWNER_COUNT,
+		assertEquals(
+			OWNER_COUNT, this.duplicateTargets.singleOwnerTargets(REFERENCE_OWNERS, Scope.LIVE).size(),
 			"Every partition of the reflected reference must be single-owner"
 		);
 		for (OrderDirection direction : OrderDirection.values()) {

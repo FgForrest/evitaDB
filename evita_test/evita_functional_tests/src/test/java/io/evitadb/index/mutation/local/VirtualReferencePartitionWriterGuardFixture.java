@@ -83,7 +83,7 @@ final class VirtualReferencePartitionWriterGuardFixture {
 	 */
 	@Nonnull
 	static Runnable lambdaShape(@Nonnull VirtualReferencePartitionIndex registry) {
-		return () -> registry.retireAllKeysIfNoPartition();
+		return registry::retireAllKeysIfNoPartition;
 	}
 
 	/**

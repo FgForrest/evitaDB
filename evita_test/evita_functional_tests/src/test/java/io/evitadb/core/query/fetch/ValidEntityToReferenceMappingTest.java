@@ -366,7 +366,7 @@ class ValidEntityToReferenceMappingTest {
 
 		@Nonnull
 		@Override
-		public Optional<AttributeValue> getAttributeValue(@Nonnull String attributeName) {
+		public Optional<AttributeValue> getAttributeValue(String attributeName) {
 			if (COUNTRY.equals(attributeName)) {
 				this.representativeReads++;
 			}

@@ -254,6 +254,7 @@ class AttributeValueMatcherTest {
 	 * @param stored               the stored values
 	 * @param probes               the constraint values
 	 */
+	@SuppressWarnings("NonShortCircuitBooleanExpression")
 	private static void assertScalarParity(
 		@Nonnull AttributeIndexKey key,
 		@Nonnull Class<?> attributeType,
@@ -379,6 +380,7 @@ class AttributeValueMatcherTest {
 	 * @param stored        the stored values
 	 * @param texts         the searched texts
 	 */
+	@SuppressWarnings("NonShortCircuitBooleanExpression")
 	private static void assertStringSearchParity(
 		@Nonnull AttributeIndexKey key,
 		@Nonnull Class<?> attributeType,
@@ -432,6 +434,7 @@ class AttributeValueMatcherTest {
 	 * @param bounds               the bounds of the intervals, pairs of from and to, either may be NULL
 	 * @param inRangeProbes        the constraints of `attributeInRange`
 	 */
+	@SuppressWarnings("NonShortCircuitBooleanExpression")
 	private static void assertRangeParity(
 		@Nonnull Class<?> attributeType,
 		@Nonnull Class<? extends Serializable> plainType,

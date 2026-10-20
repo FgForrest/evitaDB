@@ -3,12 +3,7 @@ package io.evitadb.roaringbitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Pins how precisely the static binary operations of {@link PersistentRoaringBitmap} raise
@@ -55,9 +50,10 @@ public class SharedFlagPrecisionTest {
 			fillDenseChunk(bitmap, key, offset);
 		}
 		for (int i = 0; i < bitmap.highLowContainer.size(); i++) {
-			assertTrue(
-				bitmap.getContainerAtIndex(i) instanceof BitmapContainer,
-				"fixture drifted off the bitmap-container shape at slot " + i);
+			assertInstanceOf(
+				BitmapContainer.class, bitmap.getContainerAtIndex(i),
+				"fixture drifted off the bitmap-container shape at slot " + i
+			);
 		}
 		return bitmap;
 	}

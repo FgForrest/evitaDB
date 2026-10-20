@@ -270,8 +270,8 @@ public final class LegacyOwnerSortIndexWriter {
 			new OwnerSortIndex(this.comparatorBase[0].type(), this.attributeIndexKey) :
 			new OwnerSortIndex(this.comparatorBase, this.attributeIndexKey);
 		for (Map.Entry<Integer, Serializable> entry : this.valuesByRecord.entrySet()) {
-			if (entry.getValue() instanceof ComparableArray compound) {
-				final Serializable[] elements = compound.array().clone();
+			if (entry.getValue() instanceof ComparableArray(Serializable[] array)) {
+				final Serializable[] elements = array.clone();
 				for (int i = 0; i < elements.length; i++) {
 					elements[i] = unwrap(elements[i]);
 				}

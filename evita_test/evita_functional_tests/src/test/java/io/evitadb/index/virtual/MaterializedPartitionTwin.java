@@ -83,6 +83,7 @@ import static io.evitadb.api.query.QueryConstraints.referenceContentWithAttribut
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
@@ -574,8 +575,8 @@ public final class MaterializedPartitionTwin {
 				referenceName + "` as rows"
 		);
 		final List<IndexCardinality> objectTypeIndexes = typeIndexesOf(this.objectCatalog, referenceName);
-		assertTrue(
-			!objectTypeIndexes.isEmpty(),
+		assertFalse(
+			objectTypeIndexes.isEmpty(),
 			"The object catalog `" + this.objectCatalog + "` must index `" + this.ownerType + "." + referenceName + "`"
 		);
 		for (final IndexCardinality index : objectTypeIndexes) {
@@ -899,8 +900,8 @@ public final class MaterializedPartitionTwin {
 					.stream()
 					.filter(it -> it.getReferencedPrimaryKey() == original)
 					.toList();
-				assertTrue(
-					!rows.isEmpty(),
+				assertFalse(
+					rows.isEmpty(),
 					"`" + targetType + "` " + targetPrimaryKey + " must hold the row reflected by `" + schema.getName() +
 						"` " + original
 				);

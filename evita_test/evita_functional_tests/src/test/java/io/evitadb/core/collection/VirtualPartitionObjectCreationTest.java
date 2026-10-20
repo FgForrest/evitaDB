@@ -23,11 +23,11 @@
 
 package io.evitadb.core.collection;
 
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.dataType.Scope;
@@ -42,16 +42,11 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
-import java.util.function.Consumer;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.REFERENCE;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Verifies the index objects a collection writes into next to the registry rows of a reference indexed for filtering
@@ -117,7 +112,7 @@ class VirtualPartitionObjectCreationTest implements EvitaTestSupport {
 		this.evita.defineCatalog(CATALOG).updateViaNewSession(this.evita);
 		this.evita.updateCatalog(
 			CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.defineEntitySchema(ENTITY_CATEGORY)
 					.withoutGeneratedPrimaryKey()
 					.updateVia(session);
@@ -125,11 +120,11 @@ class VirtualPartitionObjectCreationTest implements EvitaTestSupport {
 					.withoutGeneratedPrimaryKey()
 					.withReferenceToEntity(
 						REF_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.indexedForFiltering()
+						ReferenceSchemaEditor::indexedForFiltering
 					)
 					.withReferenceToEntity(
 						REF_PARTITIONED_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.indexedForFilteringAndPartitioning()
+						ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 					)
 					.updateVia(session);
 				session.createNewEntity(ENTITY_CATEGORY, SHARED_CATEGORY_PK).upsertVia(session);

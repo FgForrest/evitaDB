@@ -3,10 +3,7 @@ package io.evitadb.roaringbitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Pins two properties that together keep an emptied chunk from turning into an alias of a live
@@ -39,7 +36,7 @@ public class HorizontalXorEmptyChunkTest {
 		final PersistentRoaringBitmap b = new PersistentRoaringBitmap();
 		b.add((((long) key) << 16), (((long) key) << 16) + 12_000);
 		b.runOptimize();
-		assertTrue(b.getContainerAtIndex(0) instanceof RunContainer, "fixture drifted off the run shape");
+		assertInstanceOf(RunContainer.class, b.getContainerAtIndex(0), "fixture drifted off the run shape");
 		return b;
 	}
 
@@ -49,8 +46,7 @@ public class HorizontalXorEmptyChunkTest {
 		for (int i = 0; i < ARRAY_CARDINALITY; i++) {
 			b.add((key << 16) | (40_000 + i * 7));
 		}
-		assertTrue(
-			b.getContainerAtIndex(0) instanceof ArrayContainer, "fixture drifted off the array shape");
+		assertInstanceOf(ArrayContainer.class, b.getContainerAtIndex(0), "fixture drifted off the array shape");
 		return b;
 	}
 
@@ -66,10 +62,11 @@ public class HorizontalXorEmptyChunkTest {
 			runChunk(0).getContainerAtIndex(0).xor(runChunk(0).getContainerAtIndex(0));
 
 		assertTrue(cancelled.isEmpty(), "the two run chunks no longer cancel");
-		assertTrue(
-			cancelled instanceof RunContainer,
+		assertInstanceOf(
+			RunContainer.class, cancelled,
 			"the cancelled chunk is a " + cancelled.getClass().getSimpleName() + ", so the empty-run "
-				+ "receiver this class pins is no longer reachable from this fixture");
+				+ "receiver this class pins is no longer reachable from this fixture"
+		);
 		assertTrue(
 			ARRAY_CARDINALITY < 32,
 			"the array input is no longer sparse enough for RunContainer.xor to take its lazy path");

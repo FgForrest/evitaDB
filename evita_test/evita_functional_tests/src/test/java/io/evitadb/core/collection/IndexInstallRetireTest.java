@@ -242,7 +242,7 @@ class IndexInstallRetireTest implements EvitaTestSupport {
 						REF_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
 						whichIs -> whichIs
 							.indexedForFiltering()
-							.withAttribute(ATTRIBUTE_ORDER, Integer.class, thatIs -> thatIs.filterable())
+							.withAttribute(ATTRIBUTE_ORDER, Integer.class, AttributeSchemaEditor::filterable)
 					)
 					.updateVia(session);
 				for (int category = FIRST_CATEGORY_PK; category <= FOURTH_CATEGORY_PK; category++) {

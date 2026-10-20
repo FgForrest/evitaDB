@@ -88,11 +88,7 @@ import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.page;
 import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.api.query.QueryConstraints.scope;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * The invariants every catalog representing its single-owner reference partitions virtually keeps once a root mutation
@@ -510,8 +506,8 @@ public final class VirtualPartitionInvariants {
 					break;
 				}
 			} while (bodies.size() - before < total);
-			assertTrue(
-				bodies.size() - before == total,
+			assertEquals(
+				total, bodies.size() - before,
 				"the rebuild must read every body of `" + entityType + "`: " + (bodies.size() - before) + " of " +
 					total
 			);

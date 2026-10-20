@@ -317,7 +317,7 @@ class BucketRecordTierTest {
 
 			tree.addRecord(VALUE, 3);
 
-			assertTrue(before == overflowSlot(tree), "a no-op add must leave the very same array in the slot");
+			assertSame(before, overflowSlot(tree), "a no-op add must leave the very same array in the slot");
 			assertArrayEquals(idsUpTo(5), recordsOfValue(tree));
 		}
 
@@ -530,8 +530,8 @@ class BucketRecordTierTest {
 			);
 
 			assertArrayEquals(idsUpTo(4), recordsOfValue(tree), "the rolled-back record must not survive");
-			assertTrue(
-				committedSlotBefore == overflowSlot(tree),
+			assertSame(
+				committedSlotBefore, overflowSlot(tree),
 				"the committed leaf must still point at the very array it held before the transaction"
 			);
 			assertArrayEquals(
@@ -899,7 +899,7 @@ class BucketRecordTierTest {
 
 			tree.removeRecord(VALUE, 77, 88);
 
-			assertTrue(before == overflowSlot(tree), "a no-op removal must leave the very same array in the slot");
+			assertSame(before, overflowSlot(tree), "a no-op removal must leave the very same array in the slot");
 			assertArrayEquals(idsUpTo(5), recordsOfValue(tree));
 		}
 

@@ -1040,10 +1040,7 @@ class LegacyOwnerSortIndexCorrectionTest {
 			);
 
 			// refused at the twin, not at the pages the release ordered
-			final GenericEvitaInternalError error = assertRefusedAsCorruption(corruptedParts);
-			assertTrue(
-				error.getPrivateMessage().contains("on leaf page " + twinSequence + "."), error.getPrivateMessage()
-			);
+			assertRefusedAsCorruption(corruptedParts, "on leaf page " + twinSequence + ".");
 		}
 
 		@Test
@@ -1400,10 +1397,12 @@ class LegacyOwnerSortIndexCorrectionTest {
 	 * Persists the parts and asserts that the rewrite refuses them as corruption rather than merging them.
 	 *
 	 * @param corruptedParts leaf pages and a paged root no writer produces
-	 * @return the refusal
+	 * @param messageDetails further fragments the refusal must name besides the pages out of order
 	 */
-	@Nonnull
-	private GenericEvitaInternalError assertRefusedAsCorruption(@Nonnull List<StoragePart> corruptedParts) {
+	private void assertRefusedAsCorruption(
+		@Nonnull List<StoragePart> corruptedParts,
+		@Nonnull String... messageDetails
+	) {
 		final OffsetIndex offsetIndex = openWritableOffsetIndex();
 		try {
 			writeEmission(offsetIndex, LEGACY_VERSION, corruptedParts);
@@ -1417,9 +1416,12 @@ class LegacyOwnerSortIndexCorrectionTest {
 				() -> LegacyOwnerSortIndexCorrection.rewrite(corruptedRoot, corruptedPages, sink),
 				"pages out of order are corruption, not a legacy form to rewrite"
 			);
-			assertTrue(error.getPrivateMessage().contains("not in ascending order"), error.getPrivateMessage());
+			final String message = error.getPrivateMessage();
+			assertTrue(message.contains("not in ascending order"), message);
+			for (final String messageDetail : messageDetails) {
+				assertTrue(message.contains(messageDetail), message);
+			}
 			assertEquals(0, sink.getTrappedChangesCount(), "nothing may be emitted for a refused index");
-			return error;
 		} finally {
 			IOUtils.closeQuietly(offsetIndex::close);
 		}
@@ -1489,8 +1491,8 @@ class LegacyOwnerSortIndexCorrectionTest {
 	private static void assertNormalized(@Nonnull ComparatorSource[] base, @Nonnull List<?> values) {
 		for (Object item : values) {
 			final Serializable value = item instanceof ValueToRecord bucket ? bucket.getValue() : (Serializable) item;
-			final Serializable[] elements = value instanceof ComparableArray compound ?
-				compound.array() : new Serializable[]{value};
+			final Serializable[] elements = value instanceof ComparableArray(Serializable[] array) ?
+				array : new Serializable[]{value};
 			for (int i = 0; i < base.length; i++) {
 				if (SortIndex.isTemporal(base[i].type()) && elements[i] != null) {
 					assertSame(
@@ -1514,8 +1516,8 @@ class LegacyOwnerSortIndexCorrectionTest {
 	private static void assertLegacy(@Nonnull SortIndexStoragePart root, @Nonnull List<Serializable> values) {
 		final ComparatorSource[] base = root.getComparatorBase();
 		for (Serializable value : values) {
-			final Serializable[] elements = value instanceof ComparableArray compound ?
-				compound.array() : new Serializable[]{value};
+			final Serializable[] elements = value instanceof ComparableArray(Serializable[] array) ?
+				array : new Serializable[]{value};
 			for (int i = 0; i < base.length; i++) {
 				if (
 					SortIndex.isTemporal(base[i].type()) && elements[i] != null &&

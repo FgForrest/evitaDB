@@ -217,7 +217,7 @@ class SortIndexValueOfRecordTest {
 		 * @param value    the value
 		 * @param recordId the record
 		 */
-		private void insert(
+		private static void insert(
 			@Nonnull SortIndex view,
 			@Nonnull InvertedIndex shared,
 			@Nonnull OffsetDateTime value,

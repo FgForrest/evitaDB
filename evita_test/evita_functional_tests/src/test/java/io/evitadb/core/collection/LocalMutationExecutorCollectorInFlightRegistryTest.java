@@ -29,6 +29,7 @@ import io.evitadb.api.exception.ReferenceCardinalityViolatedException;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor.ImplicitMutationBehavior;
@@ -43,19 +44,12 @@ import org.junit.jupiter.params.provider.EnumSource;
 
 import javax.annotation.Nonnull;
 import java.util.EnumSet;
-import java.util.function.Consumer;
 
 import static io.evitadb.api.query.QueryConstraints.entityFetchAllContent;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.TRANSACTION;
-import static org.junit.jupiter.api.Assertions.assertAll;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Verifies the lifetime of the in-flight executor registry of {@link LocalMutationExecutorCollector}: the executors of
@@ -119,7 +113,7 @@ class LocalMutationExecutorCollectorInFlightRegistryTest implements EvitaTestSup
 
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				final EntityMutation mutation = session.getEntity(ENTITY_PRODUCT, PRODUCT_PK, entityFetchAllContent())
 					.orElseThrow()
 					.openForWrite()
@@ -155,7 +149,7 @@ class LocalMutationExecutorCollectorInFlightRegistryTest implements EvitaTestSup
 
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				final EntityMutation mutation = session.getEntity(ENTITY_PRODUCT, PRODUCT_PK, entityFetchAllContent())
 					.orElseThrow()
 					.openForWrite()
@@ -196,7 +190,7 @@ class LocalMutationExecutorCollectorInFlightRegistryTest implements EvitaTestSup
 
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				final EntityMutation mutation = session.getEntity(ENTITY_PRODUCT, PRODUCT_PK, entityFetchAllContent())
 					.orElseThrow()
 					.openForWrite()
@@ -239,12 +233,12 @@ class LocalMutationExecutorCollectorInFlightRegistryTest implements EvitaTestSup
 	private void prepare(@Nonnull CatalogState state) {
 		this.evita.updateCatalog(
 			TEST_CATALOG,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				session.defineEntitySchema(ENTITY_PRODUCT)
 					.withoutGeneratedPrimaryKey()
 					.withReferenceToEntity(
 						REF_CATEGORIES, ENTITY_CATEGORY, Cardinality.ONE_OR_MORE,
-						whichIs -> whichIs.indexedForFilteringAndPartitioning()
+						ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 					)
 					.updateVia(session);
 				session.defineEntitySchema(ENTITY_CATEGORY)

@@ -68,6 +68,7 @@ import java.util.stream.Stream;
 
 import static io.evitadb.store.catalog.DefaultCatalogPersistenceService.serializeBootstrapRecord;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -176,7 +177,7 @@ public final class OfflineCatalogImages {
 		@Nonnull String catalogName
 	) {
 		final List<CatalogBootstrap> records = bootstrapRecords(configuration, catalogName);
-		assertTrue(!records.isEmpty(), "catalog `" + catalogName + "` holds no bootstrap record");
+		assertFalse(records.isEmpty(), "catalog `" + catalogName + "` holds no bootstrap record");
 		return records.getLast();
 	}
 

@@ -297,10 +297,9 @@ class VirtualReferencePartitionResolutionTest implements EvitaTestSupport {
 				final RepresentativeReferenceKey thumbnail = media(SHARED_MEDIA, ROLE_THUMBNAIL);
 				final ReferencedTypeEntityIndex galleryTypeIndex = typeIndexOf(products, REFERENCE_GALLERY, Scope.LIVE);
 				assertNotNull(galleryTypeIndex);
-				assertTrue(
-					galleryTypeIndex.getVirtualReferencePartitionIndex()
-						.getTupleId(thumbnail.representativeAttributeValues()) ==
-						VirtualReferencePartitionIndex.NO_TUPLE_ID,
+				assertEquals(
+					VirtualReferencePartitionIndex.NO_TUPLE_ID, galleryTypeIndex.getVirtualReferencePartitionIndex()
+						.getTupleId(thumbnail.representativeAttributeValues()),
 					"The premise of the case: the registry does not know the thumbnail tuple"
 				);
 				assertEquals(

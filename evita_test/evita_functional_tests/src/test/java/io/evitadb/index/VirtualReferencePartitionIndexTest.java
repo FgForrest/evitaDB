@@ -58,17 +58,7 @@ import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static io.evitadb.utils.AssertionUtils.assertWarmUpSavepointCommitKeeps;
 import static io.evitadb.utils.AssertionUtils.assertWarmUpSavepointRollbackRestores;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Verifies the in-memory behaviour of {@link VirtualReferencePartitionIndex}: the owner and tuple slots, the reference
@@ -111,9 +101,7 @@ class VirtualReferencePartitionIndexTest {
 			index,
 			(partitionPrimaryKey, tupleId) -> {
 				final Serializable[] tuple = index.getTuple((int) tupleId);
-				assertTrue(
-					tuple != null, "Partition " + partitionPrimaryKey + " refers to an unknown tuple " + tupleId
-				);
+				assertNotNull(tuple, "Partition " + partitionPrimaryKey + " refers to an unknown tuple " + tupleId);
 				tuples.put(partitionPrimaryKey, Arrays.asList(tuple));
 			}
 		);

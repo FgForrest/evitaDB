@@ -87,6 +87,7 @@ import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -1379,7 +1380,7 @@ class VirtualReferenceHavingParityTest implements EvitaTestSupport {
 	@Nonnull
 	private MaterializedPartitionTwin twinOf(@Nonnull String catalog, @Nonnull String ownerType) {
 		final MaterializedPartitionTwin twin = this.twins.get(twinKey(catalog, ownerType));
-		assertTrue(twin != null, "No twin of `" + catalog + "` clones `" + ownerType + "`");
+		assertNotNull(twin, "No twin of `" + catalog + "` clones `" + ownerType + "`");
 		return twin;
 	}
 

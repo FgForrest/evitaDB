@@ -5536,20 +5536,20 @@ public class TestRoaringBitmap {
 	public void issue418() {
 		final PersistentRoaringBitmap rb = new PersistentRoaringBitmap();
 		rb.add(0);
-		assertEquals(true, rb.contains(0));
+		assertTrue(rb.contains(0));
 		assertEquals(1, rb.getCardinality());
 		long vals[] = {100, 0xFFFF0000L, 0xFFFF0001L};
 		for (long s : vals) {
 			PersistentRoaringBitmap shifted = PersistentRoaringBitmap.addOffset(rb, s);
 			System.out.println("moved " + shifted);
-			assertEquals(true, shifted.contains((int) s));
+			assertTrue(shifted.contains((int) s));
 			assertEquals(1, shifted.getCardinality());
 			System.out.println("moving back by " + (-s));
 
 			shifted = PersistentRoaringBitmap.addOffset(shifted, -s);
 			System.out.println("back " + shifted);
 
-			assertEquals(true, shifted.contains(0));
+			assertTrue(shifted.contains(0));
 			assertEquals(1, shifted.getCardinality());
 		}
 	}
@@ -5812,12 +5812,12 @@ public class TestRoaringBitmap {
 		PersistentRoaringBitmap b1 = PersistentRoaringBitmap.bitmapOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
 		b1.runOptimize();
 		b1.or(b1);
-		assertTrue(b1.equals(PersistentRoaringBitmap.bitmapOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+		assertEquals(b1, PersistentRoaringBitmap.bitmapOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
 		b1.xor(b1);
 		assertTrue(b1.isEmpty());
 		b1 = PersistentRoaringBitmap.bitmapOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
 		b1.and(b1);
-		assertTrue(b1.equals(PersistentRoaringBitmap.bitmapOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)));
+		assertEquals(b1, PersistentRoaringBitmap.bitmapOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10));
 		b1.andNot(b1);
 		assertTrue(b1.isEmpty());
 	}

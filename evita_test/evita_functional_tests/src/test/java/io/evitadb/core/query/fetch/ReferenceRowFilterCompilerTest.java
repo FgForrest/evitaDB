@@ -1367,9 +1367,9 @@ class ReferenceRowFilterCompilerTest {
 				session -> {
 					final SealedEntity owner = session.getEntity(ENTITY_PRODUCT, 1, referenceContentAll())
 						.orElseThrow();
-					assertTrue(
+					assertSame(
+						((EntityDecorator) owner).getDelegate(),
 						ReferencedEntityFetcher.getOwnerCarryingEveryRow(owner, REF_BRANDS)
-							== ((EntityDecorator) owner).getDelegate()
 					);
 					return null;
 				}

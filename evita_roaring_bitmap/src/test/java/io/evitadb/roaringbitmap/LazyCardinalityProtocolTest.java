@@ -142,7 +142,7 @@ public class LazyCardinalityProtocolTest {
 		}
 
 		final Container intersected = lazy.iand(other);
-		assertTrue(intersected instanceof BitmapContainer, "a lazy intersection never demotes on its own");
+		assertInstanceOf(BitmapContainer.class, intersected, "a lazy intersection never demotes on its own");
 		assertEquals(-1, ((BitmapContainer) intersected).cardinality, "the lazy protocol must survive iand");
 		assertEquals(5000, intersected.repairAfterLazy().getCardinality());
 	}

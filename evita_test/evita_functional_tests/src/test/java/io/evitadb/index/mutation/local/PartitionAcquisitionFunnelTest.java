@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
@@ -152,7 +153,7 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 		schemaBuilder
 			.withReferenceTo(
 				SINGLE_REFERENCE, SINGLE_REFERENCE, Cardinality.ZERO_OR_MORE,
-				thatIs -> thatIs.indexedForFiltering()
+				ReferenceSchemaEditor::indexedForFiltering
 			)
 			.withReferenceTo(
 				DUPLICATE_REFERENCE, DUPLICATE_REFERENCE, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
@@ -162,7 +163,7 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			)
 			.withReferenceTo(
 				PARTITIONING_REFERENCE, PARTITIONING_REFERENCE, Cardinality.ZERO_OR_MORE,
-				thatIs -> thatIs.indexedForFilteringAndPartitioning()
+				ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 			)
 			.withReferenceTo(
 				PARTITIONING_DUPLICATE_REFERENCE, PARTITIONING_DUPLICATE_REFERENCE,
@@ -1174,7 +1175,6 @@ class PartitionAcquisitionFunnelTest extends AbstractMutatorTestBase {
 			return existing == null ? register(createIndex(entityIndexKey)) : existing;
 		}
 
-		@SuppressWarnings("DataFlowIssue")
 		@Nonnull
 		@Override
 		public EntityIndex getOrCreateIndexByPrimaryKey(int indexPrimaryKey) {

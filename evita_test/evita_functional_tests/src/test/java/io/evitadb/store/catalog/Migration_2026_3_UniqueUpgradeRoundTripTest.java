@@ -110,13 +110,7 @@ import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.STORAGE;
-import static org.junit.jupiter.api.Assertions.assertAll;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Drives the REAL v6→v7 upgrade of the standalone unique indexes end to end - the boot-time
@@ -1196,7 +1190,7 @@ class Migration_2026_3_UniqueUpgradeRoundTripTest implements EvitaTestSupport {
 			final Serializable previous = this.byAttribute
 				.computeIfAbsent(attributeName, name -> new HashMap<>())
 				.put(UniqueIndex.toPersistedValue(type, DECIMAL_PLACES, written), stored);
-			assertTrue(previous == null, () -> "two written values of `" + attributeName + "` share one key");
+			assertNull(previous, () -> "two written values of `" + attributeName + "` share one key");
 			return written;
 		}
 

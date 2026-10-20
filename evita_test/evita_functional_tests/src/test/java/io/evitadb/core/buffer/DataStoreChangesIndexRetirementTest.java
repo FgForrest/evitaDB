@@ -285,9 +285,9 @@ class DataStoreChangesIndexRetirementTest {
 	 */
 	private void apply(@Nonnull List<StoragePart> parts) {
 		for (final StoragePart part : parts) {
-			if (part instanceof RemovedStoragePart removedStoragePart) {
+			if (part instanceof RemovedStoragePart(Class<? extends StoragePart> containerType, long storagePartPK)) {
 				this.store.removeStoragePart(
-					CATALOG_VERSION, removedStoragePart.storagePartPK(), removedStoragePart.containerType()
+					CATALOG_VERSION, storagePartPK, containerType
 				);
 			} else if (part instanceof DeferredRemovalStoragePart deferredRemoval) {
 				final long removedPartPK = deferredRemoval.computeUniquePartIdAndSet(

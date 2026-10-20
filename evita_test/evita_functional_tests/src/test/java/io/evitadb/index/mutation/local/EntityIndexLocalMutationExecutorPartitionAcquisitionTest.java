@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
@@ -155,7 +156,7 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 		schemaBuilder
 			.withReferenceTo(
 				SINGLE_REFERENCE, SINGLE_REFERENCE, Cardinality.ZERO_OR_MORE,
-				thatIs -> thatIs.indexedForFiltering()
+				ReferenceSchemaEditor::indexedForFiltering
 			)
 			.withReferenceTo(
 				DUPLICATE_REFERENCE, DUPLICATE_REFERENCE, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
@@ -165,7 +166,7 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 			)
 			.withReferenceTo(
 				PARTITIONING_REFERENCE, PARTITIONING_REFERENCE, Cardinality.ZERO_OR_MORE,
-				thatIs -> thatIs.indexedForFilteringAndPartitioning()
+				ReferenceSchemaEditor::indexedForFilteringAndPartitioning
 			);
 	}
 

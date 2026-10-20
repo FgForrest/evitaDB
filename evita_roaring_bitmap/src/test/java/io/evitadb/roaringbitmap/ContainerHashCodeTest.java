@@ -397,7 +397,7 @@ public class ContainerHashCodeTest {
 			final Container run = fill(new RunContainer(), values);
 			assertInstanceOf(ArrayContainer.class, array);
 			assertInstanceOf(RunContainer.class, run);
-			assertTrue(run.equals(array), "the two encodings must compare equal for the hash to be required to agree");
+			assertEquals(run, array, "the two encodings must compare equal for the hash to be required to agree");
 			assertEquals(array.hashCode(), run.hashCode());
 		}
 
@@ -442,9 +442,9 @@ public class ContainerHashCodeTest {
 			final Container run = encodings.get(1);
 			final Container bitmap = encodings.get(2);
 
-			assertTrue(array.equals(run));
-			assertTrue(run.equals(bitmap));
-			assertFalse(array.equals(bitmap), "if this starts passing, equals was fixed and this test should go");
+			assertEquals(array, run);
+			assertEquals(run, bitmap);
+			assertNotEquals(array, bitmap, "if this starts passing, equals was fixed and this test should go");
 
 			// the hash is required to agree only where equals says true - but it agrees everywhere anyway,
 			// because it describes the set rather than the encoding

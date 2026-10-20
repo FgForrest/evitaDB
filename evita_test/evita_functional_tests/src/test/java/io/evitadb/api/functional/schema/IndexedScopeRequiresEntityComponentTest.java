@@ -71,6 +71,7 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.REFERENCE;
 import static io.evitadb.test.TestTags.SCHEMA;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -220,8 +221,8 @@ class IndexedScopeRequiresEntityComponentTest implements EvitaTestSupport {
 					final ReferenceSchemaContract reflected = session
 						.getEntitySchemaOrThrowException(Entities.CATEGORY)
 						.getReferenceOrThrowException(REF_REFLECTED_PRODUCTS);
-					assertTrue(
-						reflected instanceof ReflectedReferenceSchemaContract,
+					assertInstanceOf(
+						ReflectedReferenceSchemaContract.class, reflected,
 						"The premise is a reflected reference, was: " + reflected.getClass().getSimpleName()
 					);
 					assertEquals(
