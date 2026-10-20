@@ -9,8 +9,8 @@ prs: [1646, 1667, 1668]
 areas: [evita_engine/src/main/java/io/evitadb/core/query/filter/translator/reference, evita_engine/src/main/java/io/evitadb/core/query/algebra/reference, evita_engine/src/main/java/io/evitadb/core/query/filter/FilterByVisitor.java, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/bool, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/entity, evita_engine/src/main/java/io/evitadb/index/ReferencedTypeEntityIndex.java]
 supersedes: []
 superseded-by: []
-relates: [2026-10-14-reference-content-filter-row-by-row, 2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-09-08-conditional-histogram-per-contribution-verdicts, 2026-09-15-non-collapsible-formula-marker,
-  2026-09-18-reference-planning-from-owner-membership, 2026-09-25-attribute-is-null-in-reference-having, 2026-09-28-indexed-reference-scope-requires-entity-component, 2026-10-12-single-owner-partitions-as-registry-rows]
+relates: [2026-10-20-reference-content-filter-row-by-row, 2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-09-08-conditional-histogram-per-contribution-verdicts, 2026-09-15-non-collapsible-formula-marker,
+  2026-09-18-reference-planning-from-owner-membership, 2026-09-25-attribute-is-null-in-reference-having, 2026-09-28-indexed-reference-scope-requires-entity-component, 2026-10-20-single-owner-partitions-as-registry-rows]
 ---
 
 # A `referenceHaving` body binds one reference row, and is evaluated by transposing the planned formula per reduced index
@@ -361,7 +361,7 @@ test over 2,000 random bodies. What is **still open**:
   one evaluation per distinct `NestedQueryRestriction` across the alternatives; an expensive nested body on a
   query with many alternatives pays it on plans that are then discarded.
   (`NestedQueryRestriction` was removed with the index route of `referenceContent`, its only producer - see
-  `2026-10-14-reference-content-filter-row-by-row`; the memo is keyed by the nested filter alone.)
+  `2026-10-20-reference-content-filter-row-by-row`; the memo is keyed by the nested filter alone.)
 
 **The fetch side now runs the same adapters, and doing so fixed a crash.** `ReferencedEntityFetcher
 #computeResultWithPassedIndex` used to suppress `EntityPrimaryKeyInSet` while translating a reference body,

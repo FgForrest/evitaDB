@@ -324,8 +324,8 @@ millisecond become indistinguishable — they compare equal, sort as ties and sh
 [DateTimeRange](#datetimerange) follows the same rule. It compares, sorts and matches its boundaries at millisecond
 precision, so two ranges whose boundaries differ only below the millisecond are the same range — they compare equal,
 sort as ties and share one index entry. A range keeps the sub-millisecond digits of the boundary values you gave it,
-but nothing in the database ever looks at them. (Ranges used to compare at whole-**second** granularity; they are
-strictly more precise now, and two ranges less than a second apart are no longer treated as one.)
+but nothing in the database ever looks at them. Two ranges whose boundaries differ by a millisecond or more are
+different ranges, even when the boundaries fall within the same second.
 
 `LocalDate` is the only date/time type left out — it carries no sub-day component, so there is nothing to truncate.
 
@@ -384,8 +384,8 @@ become indistinguishable — they compare equal, sort as ties and share one inde
 [DateTimeRange](#datetimerange) follows the same rule. It compares, sorts and matches its boundaries at millisecond
 precision, so two ranges whose boundaries differ only below the millisecond are the same range — they compare equal,
 sort as ties and share one index entry. A range keeps the sub-millisecond digits of the boundary values you gave it,
-but nothing in the database ever looks at them. (Ranges used to compare at whole-**second** granularity; they are
-strictly more precise now, and two ranges less than a second apart are no longer treated as one.)
+but nothing in the database ever looks at them. Two ranges whose boundaries differ by a millisecond or more are
+different ranges, even when the boundaries fall within the same second.
 
 `DateOnly` is the only date/time type left out — it carries no sub-day component, so there is nothing to truncate.
 

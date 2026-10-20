@@ -1,7 +1,7 @@
 ---
 title: One filter-index entry has one identity, and everything that describes an entry now uses it
 date: 2026-09-21
-updated: 2026-10-19 16:28
+updated: 2026-10-20 12:47
 status: accepted
 kind: fix
 issues: [1620]
@@ -9,7 +9,7 @@ prs: [1621]
 areas: [evita_engine/src/main/java/io/evitadb/index/cardinality, evita_engine/src/main/java/io/evitadb/index/attribute, evita_common/src/main/java/io/evitadb/comparator, evita_common/src/main/java/io/evitadb/dataType, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog, evita_store/evita_store_server/src/main/java/io/evitadb/store/index/serializer]
 supersedes: []
 superseded-by: []
-relates: [2026-08-10-stored-value-normalization-split, 2026-09-04-millisecond-temporal-precision, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-10-12-single-owner-partitions-as-registry-rows]
+relates: [2026-08-10-stored-value-normalization-split, 2026-09-04-millisecond-temporal-precision, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-10-20-single-owner-partitions-as-registry-rows]
 ---
 
 # One filter-index entry has one identity, and everything that describes an entry now uses it
@@ -507,6 +507,19 @@ should be read as the trigger to supersede this record rather than to extend the
   downgrade path, and the failure names the reason. (An earlier reading of this had the failure being
   data-dependent — surfacing only for catalogs that actually contain a rewritten part. It is not: the header
   check runs first and refuses uniformly.)
+- **Not backported to 2026.2, because the upgrade is one-way.** A full backport including the 6 → 7 bump was
+  built as #1634 (→ `master`; its description lists the four production hunks and two test-side changes the
+  2026.2 API needed, and the one control dropped there) and closed unmerged on 2026-10-11: a one-way storage
+  upgrade is too risky to ship in a patch release. No 2026.2 tag contains any fix this record describes, so that
+  line keeps all four defects — the raw-keyed counter, the unfolded array write path with its unique siblings, the
+  collated localized-`String` identity, and the `ComparableLocale` order. **A later backport cannot revive #1634
+  as built.** Protocol 7 now denotes every 2026.3 storage change in one step (see *Related work*), and this
+  version reads any protocol-7 catalog as its own and migrates nothing —
+  `2026-10-20-single-owner-partitions-as-registry-rows` rests on no tag ever having written it. A 2026.2.x writing
+  7 would reach 2026.3 with its counters re-keyed and its owner sort indexes and single-owner partitions never
+  converted. Dropping the protocol bump does not remove the reason #1634 was declined, either: a counter part
+  stored under the new `serialVersionUID` is unreadable by every earlier 2026.2.x
+  (`StoredVersionNotSupportedException`), so the new layout is one-way on its own.
 - **A catalog damaged BEFORE the upgrade is reported, not repaired.** Summing the counters restores the correct
   count over an entry that is already gone. `Migration_2026_3` detects this by comparing each counter against the
   bucket it names and logs an ERROR at startup — catalog, collection, attributes, number of missing entries — and
@@ -529,8 +542,9 @@ should be read as the trigger to supersede this record rather than to extend the
   `OffsetDateTime` on the grounds that the audit had no key space to compare in. That was a consequence of
   comparing a normalized counter key against a raw stored bucket, and it disappeared with the fix below; see
   *The audit normalizes both sides*.
-- **`Migration_2026_3` calls `Migration_2026_2.resolveIndexedDecimalPlaces`**, so the older migration cannot be
-  deleted without moving that method. Accepted knowingly; the instruction to move it lives at the call site.
+- **`Migration_2026_3` calls `Migration_2026_2.resolveIndexedDecimalPlaces`** — from `resolveScale` and from
+  `resolveOwnerScale` — so the older migration cannot be deleted without moving that method. Accepted knowingly;
+  the instruction to move it lives at both call sites.
 - **A schema change to `indexedDecimalPlaces` is accepted and rebuilds nothing — checked, not assumed.**
   `AttributeCardinalityIndex.normalizeKey` reads the *live* schema's scale while the tree's keys sit at the scale
   frozen into its storage part, so this record left open whether `ModifyAttributeSchemaTypeMutation` forces a
@@ -553,7 +567,7 @@ should be read as the trigger to supersede this record rather than to extend the
   audit began normalizing the stored bucket as well as the counter key, which puts both sides in one key space.
   `isCollisionProne` admits `OffsetDateTime` and the type is audited like the other three. The sibling record has
   been corrected to match.
-- [2026-10-12-single-owner-partitions-as-registry-rows](2026-10-12-single-owner-partitions-as-registry-rows.md) —
+- [2026-10-20-single-owner-partitions-as-registry-rows](2026-10-20-single-owner-partitions-as-registry-rows.md) —
   **`Migration_2026_3` carries every 2026.3 storage change** in its one step 6 → 7, published once: this record's
   re-key first, then the owner sort index rewrite and the conversion of single-owner partitions. A catalog a
   development build wrote at protocol 7 before those were added is not told apart and must be recreated. The owner
@@ -579,3 +593,5 @@ should be read as the trigger to supersede this record rather than to extend the
 - **2026-09-21** — adversarial review found the read-side half of the migration hazard: a legacy bucket yields
   false positives AND false negatives, and the index and prefetch paths disagree over it. Verified by probe,
   pinned by test, accepted as a documented breaking change after no cheap screen could be found
+- **2026-10-11** — the 2026.2 backport #1634 closed unmerged: the one-way protocol bump is too risky for a patch
+  release

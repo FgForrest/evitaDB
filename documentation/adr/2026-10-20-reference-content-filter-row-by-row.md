@@ -1,7 +1,7 @@
 ---
 title: The filter of referenceContent is evaluated row by row over the fetched owners' references, and its index route is deleted
-date: 2026-10-14
-updated: 2026-10-19 22:11
+date: 2026-10-20
+updated: 2026-10-20 12:50
 status: accepted
 kind: refactor
 issues: [1615]
@@ -16,7 +16,7 @@ areas:
   - evita_engine/src/main/java/io/evitadb/index/attribute
 supersedes: []
 superseded-by: []
-relates: [2026-10-12-single-owner-partitions-as-registry-rows, 2026-09-23-reference-decode-narrowing-by-referenced-key, 2026-09-28-indexed-reference-scope-requires-entity-component, 2026-09-17-row-scoped-reference-having-body, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-scope-faithful-planning-and-facet-summary-parity]
+relates: [2026-10-20-single-owner-partitions-as-registry-rows, 2026-09-23-reference-decode-narrowing-by-referenced-key, 2026-09-28-indexed-reference-scope-requires-entity-component, 2026-09-17-row-scoped-reference-having-body, 2026-09-25-attribute-is-null-in-reference-having, 2026-10-08-scope-faithful-planning-and-facet-summary-parity]
 ---
 
 # The filter of `referenceContent` is evaluated row by row over the fetched owners' references
@@ -36,7 +36,7 @@ Three things came together in #1615:
 
 - **The index route stands on the structures #1615 turns into registry rows.** A single-owner partition is a row of a
   per-reference registry, and an index object exists only while a partition has two or more owners
-  ([2026-10-12-single-owner-partitions-as-registry-rows](2026-10-12-single-owner-partitions-as-registry-rows.md)). The
+  ([2026-10-20-single-owner-partitions-as-registry-rows](2026-10-20-single-owner-partitions-as-registry-rows.md)). The
   index route had to evaluate every constraint of the filter twice - against index objects and, through
   `VirtualPartitionBodyEvaluator`, against registry rows - and keep the two answers equal for every constraint it
   admitted. That second evaluator already read the owners' bodies.
@@ -135,7 +135,7 @@ as tags only; every place states the decision itself.
 | Fork | Chosen | Rejected because |
 |---|---|---|
 | Existence gate under `ANY` with a filter (R11) | **keep it**: a filtered row whose target does not exist in the examined scopes is not returned | dropping it returns bodiless rows (the body request inherits the request scopes) for live owners referencing archived targets - routine: the corpus of the #1615 record holds 40,344 archived products next to 130,033 live ones - and flips `not(entityHaving(f))` to TRUE for missing targets. **Revisit** as its own change with a docs change and an upgrade note |
-| Scope of the filter: apply to all owners or only to owners of scopes indexing the reference (U1/U2) | **all scopes**; `inScope(S, ...)` confines it | the ignore-or-refuse behaviour was incidental to the trait loop of `AttributeSchemaAccessor`, not a decision |
+| Scope of the filter: apply to all owners or only to owners of scopes indexing the reference (U1/U2) | **all scopes**; `inScope(S, ...)` confines it | #1048 (`649da332f9`) stated the ignoring as intent: the filter ignored for an owner living in a scope that does not index the reference, and the targets living in such a scope added unfiltered. Both are reversed on purpose (the maintainer, 2026-10-13): the second rested on the false premise that such rows are not indexed, the bypass held only where no partition of the target had been evaluated, so the answer depended on the data and on the page mates, and `inScope(LIVE, ...)` gives an archived owner the old reading. The refusal was incidental to the trait loop of `AttributeSchemaAccessor`, not a decision |
 | Reference attribute leaves require `filterable`/`unique` (R1) | **no**, but they behave exactly as index filtering | a requirement that exists to guard an index lookup guards nothing when no index is read; the behaviour is kept identical so a user does not meet two meanings of one constraint |
 | A constraint without a meaning on a row (R6), `scope(...)` below the root | **refused** with `EvitaInvalidUsageException`, at planning and at fetch | admitting `entityPrimaryKeyBetween`, `priceBetween`, `hierarchyWithin`, ... would keep their accidental owner-level reading; omitting a nested `scope(...)` from its boolean parent leaves `not(scope(...))` without a meaning to omit into |
 | Locale of a localized leaf (Q1) | the locale of the filter's own `entityLocaleEquals`, found **exactly** as `findReferenceFilterLocale` finds it, else the owner query's | a dedicated finder that stops at `entityHaving` would split the leaves from the body fetch, the `EXISTING` gate and the ordering in exactly the shape `entityHaving(entityLocaleEquals(L))` |
@@ -143,6 +143,7 @@ as tags only; every place states the decision itself.
 | Sharing the leaf test with the main query's prefetch predicates | **yes** (flipped by the review of #1738, 2026-10-16): one `AttributeValueMatcher` per value constraint, created by its translator (`AttributeValueMatchingTranslator`) and asked by the prefetch alternative, the entity filtering of a collection-less query and the row filter alike | separate hand-written predicates per path - what shipped first. The four-arm parity class measured 41 of 184 cases diverging between the index, the prefetch, the entity filtering and the reference row (wrong answers and internal errors on the main query), and a new attribute constraint had a second and third place to be forgotten in. **Revisit** only if the matcher has to answer something a per-value test cannot |
 | Invalid constraint values (an inverted scalar `attributeBetween`, a decimal the index key cannot encode) | **refused before any index is read, wherever the attribute schema is known**; a collection-less query refuses them per candidate entity type (Johnny, 2026-10-16: "agree - refuse") | a "do not refuse" mode that keeps today's data-dependent refusals: the index refuses only when it holds a value of the attribute, which the prefetch and the entity filtering cannot reproduce, and it keeps an answer that depends on the plan and the data - the thing this change removes. It costs one visible change: a query over an empty attribute is an error, not an empty result (upgrade note) |
 | Which decimal probe is refused | one **beyond the `int` key of the attribute's indexed decimal places, when the attribute has a filter index in a requested scope** (`hasFilterIndexInScope`: filterable or unique) | refusing always - it would refuse probes on attributes no index holds, which entity filtering and the reference row compare as wide decimals; mirroring each scope's own unique-or-filter index choice - the answer would depend on the plan again; `isFilterableInScope` alone - a unique-only decimal attribute is index-encoded by the same normalizer and would keep leaking the raw `ArithmeticException` |
+| A catalog attribute constraint of a query naming no collection (2026-10-17) | **entity filtering** over the entities the query finds; only `attributeEquals` / `attributeInSet` of an attribute unique globally in a requested scope keep the lookup in the catalog unique index | refusing the comparisons, intervals and string searches there - it removes a shape the entity filtering answers correctly; a filter index per globally unique attribute in `CatalogIndex` - a storage format change (a serializer with a backward-compatible reader, the bootstrap of existing catalogs) and memory for every unique attribute, for a shape nobody asked for. **Revisit** if collection-less range lookups become a measured workload |
 | Completeness of the contract | a **load-time invariant** in the static initializer of `FilterByVisitor`, so the class fails to load and every query test fails | a unit test alone - it sees only what it enumerates, and a constraint added without the test is simply not checked; the descriptor registry as the enumeration - a constraint registered only for execution never appears there (Codex), so the check reads the execution registry itself |
 | Decimal values on the reference row | the row keeps comparing **wide decimals** with no `int` limit - the one deliberate difference between the paths | a reference attribute need not be filterable or unique, so its stored values were never index-encoded; refusing a probe there would refuse what the data can answer. The refusal therefore lives in `assertIndexable` of the main-query wiring and must stay out of `createMatcher` |
 | Recording only the groups of admitted rows on the unsorted paths | no, they stay keyed by referenced primary key | `isGroupAssignmentVarying` reads the same translator; the effect is extra group bodies, never a visible row |
@@ -454,7 +455,13 @@ filterable reference attributes in the filter (Q4); the wider acceptance is avai
   an attribute unique in `LIVE` and filterable in both never matches `ARCHIVED` entities in the main query. The row
   route reads such a scope by its own declaration; the main query keeps its reading. The same holds without a
   collection: `attributeEquals` / `attributeInSet` on a catalog attribute unique globally in one requested scope only
-  are answered from the unique index of that scope alone (read from the code, not tested).
+  are answered from the unique index of that scope alone (read from the code, not tested). The first shape is built
+  only through raw schema mutations: the schema builder refuses an attribute filterable in any scope and unique in any
+  scope (`AbstractAttributeSchemaBuilder`, "cannot be both unique and filterable"),
+  `SetAttributeSchemaFilterableMutation` and `SetAttributeSchemaUniqueMutation` do not check it, and the per-owner-scope
+  reading of the row route (OQ-U) is tested through them. Of the same family and never tested: the entity filtering
+  reads the value of `attributeEquals` / `attributeInSet` in the query locale, while the unique index of a localized
+  attribute unique across locales finds it in any locale.
 - **A nested query ignores its own filter's `entityLocaleEquals`** and reads the parent's locale (suspected).
 - **A root `scope(...)` in the reference filter widens the examined scopes** so targets in the added scope pass the
   existence gate, but the body request keeps the request scopes, so those targets come back without bodies (suspected;
@@ -466,6 +473,23 @@ filterable reference attributes in the filter (Q4); the wider acceptance is avai
   owners outside the request scopes; left alone).
 - **Range indexes of partitions sharing a border** differ between the routes' oracles (known issue #1699); the sweep that
   met it is deleted.
+- **The trait check of the prefetch and entity-filtering filters reads the scopes of the moment the filter runs**
+  (suspected, from the code; raised by the Codex review of 2026-10-16 and left alone as older than the matcher round).
+  `AttributeBitmapFilter#filter` resolves the attribute schema through `ProcessingScope#getAttributeSchema` with the
+  traits the translator passed (`FILTERABLE` for `attributeBetween` and `attributeIs`), and that lookup reads
+  `ProcessingScope#getScopes` when the filter runs - after `inScope` has ended. The matcher is created over the scopes
+  of translation; this check is not. Since the `inScope` fix of 2026-10-19, a collection-less query over
+  `scope(LIVE, ARCHIVED)` with `inScope(ARCHIVED, attributeBetween(a, ...))` on an attribute filterable in `ARCHIVED`
+  only may be refused with `AttributeNotFilterableException`, and so may the prefetch path of a query naming its
+  collection (`FilterByVisitor#isPrefetchPossible` stays true inside `inScope`) - a refusal that depends on the plan.
+  Not run.
+- **Array values of scalar `String` constraints** are compared as the array's identity string
+  (`[Ljava.lang.String;@...`) on every path: the index normalizer stringifies any value that is not a `String`
+  (`FilterIndex#getNormalizer`) and the matcher follows it. `attributeEquals` therefore matches nothing (see *Main
+  query changes of the matcher review*), but `attributeGreaterThan(a, new String[]{"bar"})` selects every value
+  starting with a letter - `AttributeConstraintPathParityFunctionalTest` pins that answer - and an `attributeBetween`
+  with array bounds depends on identity hash codes. An `Integer[]` value is refused (`UnsupportedDataTypeException`).
+  Refusing a `String[]` value too is the likely fix; it changes a public answer.
 
 ### Traps for a later change
 
@@ -500,7 +524,7 @@ filterable reference attributes in the filter (Q4); the wider acceptance is avai
 
 ## Related work
 
-- [2026-10-12-single-owner-partitions-as-registry-rows](2026-10-12-single-owner-partitions-as-registry-rows.md) - the
+- [2026-10-20-single-owner-partitions-as-registry-rows](2026-10-20-single-owner-partitions-as-registry-rows.md) - the
   record whose registry rows made the index route a double evaluator; this one lands in the same pull request.
 - [2026-09-23-reference-decode-narrowing-by-referenced-key](2026-09-23-reference-decode-narrowing-by-referenced-key.md) -
   the decode narrowing that guarantees an owner carries every row the filter could admit.
@@ -529,6 +553,11 @@ filterable reference attributes in the filter (Q4); the wider acceptance is avai
   the catalog index it targets answers only a globally unique lookup, so comparisons, intervals, string searches and
   the equality of a catalog attribute not unique globally answered `[]`;
   `CatalogAttributeWithoutCollectionFunctionalTest` showed 32 of 36 red before the fix and 36 green after.
+  The maintainer declined backporting the hash fix of 2026-10-16 to `release_2026-2` on 2026-10-17; the
+  catalog-attribute fix above and the collection-less `inScope` fix of 2026-10-19 that followed are likewise on `dev`
+  only. 2026.2 therefore keeps all three: a collection-less query applies only the first of its entity-filtering
+  constraints, answers `[]` to a comparison, an interval or a string search on a catalog attribute (and to the equality
+  of one not unique globally), and answers `[]` to an `inScope` container.
 - **2026-10-19** - manual review of #1738. Fixed in passing, older than #1615: an `inScope` container of a
   collection-less query answered `[]`, because `FilterByVisitor#getSuperSetFormula(Scope)` - every entity of the
   scope, which the container is intersected with - read entity indexes only. Without a collection it is now the

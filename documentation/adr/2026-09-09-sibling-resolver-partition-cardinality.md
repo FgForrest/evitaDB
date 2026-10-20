@@ -14,7 +14,7 @@ areas:
 supersedes: []
 superseded-by: []
 relates: [2026-04-23-conditional-facet-indexing, 2026-08-31-cross-entity-histogram-removal-pre-pass,
-  2026-09-18-reference-planning-from-owner-membership, 2026-10-12-single-owner-partitions-as-registry-rows]
+  2026-09-18-reference-planning-from-owner-membership, 2026-10-20-single-owner-partitions-as-registry-rows]
 ---
 
 # Bound the sibling-resolver walk with a size-thresholded owner→partition index

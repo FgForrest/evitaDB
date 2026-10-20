@@ -14,7 +14,7 @@ areas:
   - documentation/user/en/query/ordering
 supersedes: []
 superseded-by: []
-relates: [2026-09-18-reference-planning-from-owner-membership, 2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-10-08-scope-faithful-planning-and-facet-summary-parity, 2026-10-12-single-owner-partitions-as-registry-rows]
+relates: [2026-09-18-reference-planning-from-owner-membership, 2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-10-08-scope-faithful-planning-and-facet-summary-parity, 2026-10-20-single-owner-partitions-as-registry-rows]
 ---
 
 # A pick-first reference ordering sorts on the first row of every selected owner, resolved from the selection
@@ -319,7 +319,7 @@ a measured production shape: that is where the per-query cost still follows `row
 - **The chain-ordering gate issue #1614 handed to #1615 is met (2026-10-12 note).** The gate: chains keep their
   per-partition blocks, so a single-owner partition without an index object must resolve as chain position `0` with
   the record id the write path indexes. #1615 implements exactly that (`a03e8d0445`) - see
-  [2026-10-12-single-owner-partitions-as-registry-rows](2026-10-12-single-owner-partitions-as-registry-rows.md).
+  [2026-10-20-single-owner-partitions-as-registry-rows](2026-10-20-single-owner-partitions-as-registry-rows.md).
 - **Found, fixed for pick-first only: the prefetch route ignores `inScope`.** The pick-first comparators now admit
   owners of the ordering's scopes only. The entity-level `AttributeComparator` (and the other entity comparators)
   still sort owners of every scope on the prefetch route under `inScope`, while their index route sorts the named
@@ -344,7 +344,7 @@ a measured production shape: that is where the per-query cost still follows `row
   before the fix lack these entries, and removing a reference, archiving or deleting an affected owner then fails -
   they must be rebuilt (release note on #1615); removal was deliberately not made tolerant, because that would hide
   genuine inconsistency. It was fixed first because promoting a single-owner partition would otherwise have changed
-  ordering - see [2026-10-12-single-owner-partitions-as-registry-rows](2026-10-12-single-owner-partitions-as-registry-rows.md).
+  ordering - see [2026-10-20-single-owner-partitions-as-registry-rows](2026-10-20-single-owner-partitions-as-registry-rows.md).
 - **Found, not fixed: the two routes disagree on `traverseByEntityProperty`.** On the oracle test's dataset the
   index route and the prefetch route return different orders for a traverse ordering - off by 4-9 positions over
   live owners, by more than 100 over both scopes, the index route placing archived owners after live ones within a
