@@ -41,8 +41,9 @@ import io.evitadb.utils.ExceptionUtils;
 import javax.annotation.Nonnull;
 
 /**
- * This decorator invokes {@link RequestEvent} when the request is completed tracking number of success and error responses.
- * It also tracks the request cancellation - e.g. timed out requests.
+ * This decorator begins a {@link RequestEvent} when a request is served and commits it once the request log
+ * completes, so the event's duration spans the whole asynchronous request. The event tracks the number of success
+ * and error responses as well as the request cancellation - e.g. timed out requests.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */
@@ -57,14 +58,19 @@ public class HttpMetricDecorator extends SimpleDecoratingHttpService implements 
 		this.apiCode = apiCode;
 	}
 
+	/**
+	 * Begins request timing before serving and publishes the completed request log as a JFR event.
+	 */
 	@Nonnull
 	@Override
 	public HttpResponse serve(@Nonnull ServiceRequestContext ctx, @Nonnull HttpRequest req) throws Exception {
+		final RequestEvent requestEvent = new RequestEvent(this.apiCode);
+		requestEvent.begin();
 		ctx.log()
 			.whenComplete()
 			.thenAccept(requestLog -> {
 				final Result result;
-				HttpStatus httpStatus = requestLog.responseStatus();
+				final HttpStatus httpStatus = requestLog.responseStatus();
 				if (requestLog.responseContent() instanceof CompletableRpcResponse crr) {
 					final Throwable error = crr.cause();
 					if (error == null) {
@@ -89,8 +95,7 @@ public class HttpMetricDecorator extends SimpleDecoratingHttpService implements 
 				}
 				// publish the event
 				final String serviceName = requestLog.serviceName();
-				new RequestEvent(
-					this.apiCode,
+				requestEvent.finish(
 					result,
 					httpStatus.code(),
 					serviceName != null ? serviceName : "",
@@ -101,7 +106,7 @@ public class HttpMetricDecorator extends SimpleDecoratingHttpService implements 
 					requestLog.responseDurationNanos(),
 					requestLog.requestLength(),
 					requestLog.responseLength()
-				).commit();
+				);
 			});
 		return this.unwrap().serve(ctx, req);
 	}
