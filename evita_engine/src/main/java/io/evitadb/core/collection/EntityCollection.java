@@ -24,21 +24,6 @@
 package io.evitadb.core.collection;
 
 import io.evitadb.api.CatalogState;
-import io.evitadb.api.statistics.CatalogStatisticsComponent;
-import io.evitadb.api.statistics.DataStoreFragmentation;
-import io.evitadb.api.statistics.CollectionHeaderInfo;
-import io.evitadb.api.statistics.CollectionIndexSummary;
-import io.evitadb.api.statistics.CollectionIndexSummary.IndexTypeCount;
-import io.evitadb.api.statistics.CollectionRecordCounts;
-import io.evitadb.api.statistics.CollectionStorageComposition;
-import io.evitadb.api.statistics.CollectionStorageSize;
-import io.evitadb.api.statistics.DataStoreVolatileState;
-import io.evitadb.api.statistics.IndexDetail;
-import io.evitadb.api.statistics.EntityCollectionStatistics;
-import io.evitadb.api.index.EntityIndexType;
-import io.evitadb.api.statistics.IndexBrowseCriteria;
-import io.evitadb.api.statistics.IndexBrowseResult;
-import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.exception.ConcurrentSchemaUpdateException;
@@ -50,6 +35,7 @@ import io.evitadb.api.exception.InvalidMutationException;
 import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.SchemaNotFoundException;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
@@ -63,9 +49,9 @@ import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.DeletedHierarchy;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityContract;
-import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.api.requestResponse.data.ReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation;
 import io.evitadb.api.requestResponse.data.mutation.EntityMutation.EntityExistence;
@@ -89,18 +75,7 @@ import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContract
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
-import io.evitadb.api.requestResponse.schema.Cardinality;
-import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.EntitySchemaDecorator;
-import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
-import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.SealedCatalogSchema;
-import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
+import io.evitadb.api.requestResponse.schema.*;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
@@ -109,9 +84,12 @@ import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.entity.SetEntitySchemaWithHierarchyMutation;
+import io.evitadb.api.statistics.*;
+import io.evitadb.api.statistics.CollectionIndexSummary.IndexTypeCount;
 import io.evitadb.core.buffer.DataStoreChanges;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
 import io.evitadb.core.buffer.DataStoreReader;
+import io.evitadb.core.buffer.StorageAccessScope;
 import io.evitadb.core.buffer.TransactionalDataStoreMemoryBuffer;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.buffer.WarmUpDataStoreMemoryBuffer;
@@ -125,7 +103,6 @@ import io.evitadb.core.catalog.VolatileStateProjection;
 import io.evitadb.core.expression.trigger.DependencyType;
 import io.evitadb.core.expression.trigger.FacetExpressionTrigger;
 import io.evitadb.core.expression.trigger.HistogramExpressionTrigger;
-import io.evitadb.core.buffer.StorageAccessScope;
 import io.evitadb.core.management.ManagementReads;
 import io.evitadb.core.query.QueryPlan;
 import io.evitadb.core.query.QueryPlanner;
@@ -146,11 +123,12 @@ import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.core.transaction.memory.TransactionalStateProducer;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityRemoveMutation;
 import io.evitadb.core.transaction.stage.mutation.ServerEntityUpsertMutation;
+import io.evitadb.dataType.DataChunk;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.champ.ChampMap;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
-import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.index.*;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
@@ -179,8 +157,8 @@ import io.evitadb.spi.store.catalog.header.HeaderInfoSupplier;
 import io.evitadb.spi.store.catalog.header.model.CollectionReference;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.CatalogPersistenceService;
-import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.CollectionStorageFootprint;
+import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService.BinaryEntityWithFetchCount;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService.EntityWithFetchCount;
 import io.evitadb.spi.store.catalog.persistence.EntitySchemaContext;
@@ -197,7 +175,6 @@ import io.evitadb.spi.store.catalog.trafficRecorder.TrafficRecorder;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
-import io.evitadb.dataType.DataChunk;
 import io.evitadb.utils.IOUtils;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
@@ -218,8 +195,6 @@ import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.core.transaction.Transaction.getTransactionalLayerMaintainer;
@@ -1129,9 +1104,6 @@ public final class EntityCollection implements
 			verifyNoAcceleratorAddedToNonEmptyCollection(originalSchema, updatedSchema);
 
 			if (updatedSchema.version() > originalSchema.version()) {
-				/* TOBEDONE JNO (#501) - apply this just before commit happens in case validations are enabled */
-				// assertAllReferencedEntitiesExist(newSchema);
-				// assertReferences(newSchema);
 				exchangeSchema(originalSchema, updatedSchema);
 			}
 		} catch (RuntimeException ex) {
@@ -2263,8 +2235,8 @@ public final class EntityCollection implements
 	 * anything**, so the caller can capture the pre-mutation answer before the batch is applied. The result is
 	 * handed back on the dispatched mutation as
 	 * {@link ReevaluateExpressionMutation#previouslyIndexedOwnerPKs()}; see
-	 * {@link ReevaluateExpressionExecutor#evaluateHistogramConditionState} for why the executor cannot derive it
-	 * itself.
+	 * {@link io.evitadb.index.mutation.ReevaluateExpressionExecutor#evaluateHistogramConditionState} for why the
+	 * executor cannot derive it itself.
 	 *
 	 * The session is set for the duration of the evaluation exactly as in {@link #applyIndexMutations}, because
 	 * condition evaluation goes through `evaluateFilter()` and needs a `QueryPlanningContext`.
@@ -2748,12 +2720,12 @@ public final class EntityCollection implements
 	 * @throws InvalidMutationException if an unsupported mutation type is encountered.
 	 */
 	private void applyMutationInternal(@Nullable EvitaSessionContract session, @Nonnull EntityMutation entityMutation) {
-		if (entityMutation instanceof EntityUpsertMutation upsertMutation) {
-			upsertEntityInternal(session, upsertMutation, null, Void.class);
-		} else if (entityMutation instanceof ServerEntityRemoveMutation removeMutation) {
-			applyMutations(
+		switch (entityMutation) {
+			case EntityUpsertMutation upsertMutation ->
+				upsertEntityInternal(session, upsertMutation, null, Void.class);
+			case ServerEntityRemoveMutation removeMutation -> applyMutations(
 				session,
-				entityMutation,
+				removeMutation,
 				removeMutation.shouldRollbackOnError(),
 				removeMutation.shouldVerifyConsistency(),
 				null,
@@ -2761,10 +2733,9 @@ public final class EntityCollection implements
 				createLocalMutationExecutorCollector(),
 				Void.class
 			);
-		} else if (entityMutation instanceof EntityRemoveMutation) {
-			applyMutations(
+			case EntityRemoveMutation entityRemoveMutation -> applyMutations(
 				session,
-				entityMutation,
+				entityRemoveMutation,
 				true,
 				true,
 				null,
@@ -2772,8 +2743,7 @@ public final class EntityCollection implements
 				createLocalMutationExecutorCollector(),
 				Void.class
 			);
-		} else {
-			throw new InvalidMutationException(
+			default -> throw new InvalidMutationException(
 				"Unexpected mutation type: " + entityMutation.getClass().getName(),
 				"Unexpected mutation type."
 			);
@@ -4205,7 +4175,7 @@ public final class EntityCollection implements
 
 		@Nonnull
 		@Override
-		public EntityIndex mergeSurviving(@Nonnull EntityIndexKey key, @Nullable EntityIndex index) {
+		public EntityIndex mergeSurviving(@Nonnull EntityIndexKey key, @Nullable final EntityIndex index) {
 			if (key.type() == EntityIndexType.GLOBAL) {
 				// resolved (and possibly merged) upfront - hand back the very same instance every other resolution uses
 				final Scope scope = key.scope();
@@ -4216,9 +4186,8 @@ public final class EntityCollection implements
 				);
 				return newGlobal;
 			}
-			final EntityIndex theIndex = index;
 			Assert.isPremiseValid(
-				theIndex != null, () -> "Entity index `" + key + "` is unexpectedly NULL!"
+				index != null, () -> "Entity index `" + key + "` is unexpectedly NULL!"
 			);
 			// the merge walks the delta, and every key of that delta is in `rebuiltKeys` by construction. A key arriving
 			// here that is NOT means the walk widened behind this merger's back - which would hand a clean index to
@@ -4227,7 +4196,7 @@ public final class EntityCollection implements
 				this.rebuiltKeys.contains(key),
 				() -> "Entity index `" + key + "` reached the commit merge without being marked as rebuilt!"
 			);
-			return mergeCommittedIndex(this.transactionalLayer, theIndex);
+			return mergeCommittedIndex(this.transactionalLayer, index);
 		}
 
 		@Override
@@ -4293,51 +4262,6 @@ public final class EntityCollection implements
 			() -> "Global entity index of scope `" + scope + "` must exist to wire super price indexes!"
 		);
 		return (GlobalEntityIndex) globalIndex;
-	}
-
-	/**
-	 * Method verifies that all referenced entities in updated schema are actually present in catalog.
-	 */
-	private void assertAllReferencedEntitiesExist(@Nonnull EntitySchema newSchema) {
-		Stream.concat(
-				newSchema.getReferences().values().stream().filter(ReferenceSchemaContract::isReferencedEntityTypeManaged).map(ReferenceSchemaContract::getReferencedEntityType),
-				newSchema.getReferences().values().stream().filter(ReferenceSchemaContract::isReferencedGroupTypeManaged).map(ReferenceSchemaContract::getReferencedGroupType)
-			)
-			.distinct()
-			.forEach(it -> {
-				Assert.isTrue(
-					this.catalog.getCollectionForEntity(it).isPresent(),
-					() -> new InvalidMutationException(
-						"Entity schema `" + newSchema.getName() + "` references entity `" + it + "`," +
-							" but such entity is not known in catalog `" + this.catalog.getName() + "`."
-					)
-				);
-			});
-	}
-
-	/**
-	 * Method verifies that no 0..1:N reference has sortable and non-nullable attributes.
-	 */
-	private void assertReferences(@Nonnull EntitySchema newSchema) {
-		for (ReferenceSchemaContract referenceSchema : newSchema.getReferences().values()) {
-			final Cardinality cardinality = referenceSchema.getCardinality();
-			if (cardinality.getMax() > 1) {
-				final String[] invalidAttributes = referenceSchema.getAttributes()
-					.values()
-					.stream()
-					.filter(it -> it.isSortableInAnyScope() && !it.isNullable())
-					.map(NamedSchemaContract::getName)
-					.toArray(String[]::new);
-				if (invalidAttributes.length > 0) {
-					throw new InvalidSchemaMutationException(
-						"The attribute(s) " + Arrays.stream(invalidAttributes).map(it -> "`" + it + "`").collect(Collectors.joining(", ")) +
-							" in entity `" + newSchema.getName() +
-							"` schema for reference with name `" + referenceSchema.getName() + "` cannot be both sortable and non-nullable if " +
-							"reference cardinality is set to " + cardinality + "! The sorting wouldn't make sense."
-					);
-				}
-			}
-		}
 	}
 
 	/**
