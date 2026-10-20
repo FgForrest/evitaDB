@@ -29,6 +29,8 @@ import io.evitadb.externalApi.api.catalog.model.cdc.ChangeCatalogCaptureCriteria
 import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 
+import java.util.UUID;
+
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nullableListRef;
 
@@ -39,6 +41,18 @@ import static io.evitadb.externalApi.api.model.TypePropertyDataTypeDescriptor.nu
  */
 public interface ChangeCatalogCaptureRequestDescriptor {
 
+	PropertyDescriptor CATALOG_ID = PropertyDescriptor.builder()
+		.name("catalogId")
+		.description("""
+			Specifies the identity of the catalog incarnation the resume position (`sinceVersion`, `sinceIndex`) was
+			recorded on - the `catalogId` of the last capture the client processed, which should be stored together
+			with the position. Catalog versions mean something only within one incarnation of the catalog: replacing,
+			restoring or duplicating a catalog starts a different version sequence under the same name. If the id does
+			not match the current incarnation of the catalog, the stream is refused with an error instead of delivering
+			changes from an unrelated version sequence. If not specified, no identity is checked.
+			""")
+		.type(nullable(UUID.class))
+		.build();
 	PropertyDescriptor SINCE_VERSION = PropertyDescriptor.builder()
 		.name("sinceVersion")
 		.description("""
@@ -78,6 +92,7 @@ public interface ChangeCatalogCaptureRequestDescriptor {
 			 The request contains the recipe for the messages that the subscriber is interested in, and that are sent to it by
 			 CDC stream.
              """)
+		.staticProperty(CATALOG_ID)
 		.staticProperty(SINCE_VERSION)
 		.staticProperty(SINCE_INDEX)
 		.staticProperty(CRITERIA)

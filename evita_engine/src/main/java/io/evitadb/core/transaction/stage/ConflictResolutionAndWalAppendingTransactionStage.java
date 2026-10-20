@@ -695,8 +695,10 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 				this.transactionManager.getLastAssignedCatalogVersion(),
 				this.transactionManager.getLastWrittenCatalogVersion(),
 				this.transactionManager.getLastFinalizedCatalogVersion(),
-				livingCatalog.getFirstCatalogVersionInMutationStream(),
-				livingCatalog.getLastCatalogVersionInMutationStream(),
+				// absent once the transaction manager was closed meanwhile - the diagnostic must not replace the
+				// mismatch it describes
+				livingCatalog == null ? null : livingCatalog.getFirstCatalogVersionInMutationStream(),
+				livingCatalog == null ? null : livingCatalog.getLastCatalogVersionInMutationStream(),
 				ex
 			);
 			throw ex;

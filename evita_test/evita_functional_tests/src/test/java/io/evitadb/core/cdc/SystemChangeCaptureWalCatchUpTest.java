@@ -27,6 +27,7 @@ import io.evitadb.api.configuration.ChangeDataCaptureOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
 import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.TransactionOptions;
+import io.evitadb.api.exception.ChangeCaptureResumePositionInvalidException;
 import io.evitadb.api.exception.TemporalDataNotAvailableException;
 import io.evitadb.api.requestResponse.cdc.ChangeCaptureContent;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
@@ -286,6 +287,11 @@ class SystemChangeCaptureWalCatchUpTest implements EvitaTestSupport {
 			firstReplayableVersion,
 			temporalDataNotAvailable.getCatalogVersion(),
 			"The error must name the oldest version the subscriber can still resume from."
+		);
+		assertFalse(
+			temporalDataNotAvailable instanceof ChangeCaptureResumePositionInvalidException,
+			"The engine stream belongs to no catalog incarnation, so it has no catalog identity to report - its " +
+				"retention error stays the plain type."
 		);
 		assertTrue(
 			subscriber.getItems().isEmpty(),

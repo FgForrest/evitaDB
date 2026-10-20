@@ -29,6 +29,8 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
 
+import java.util.UUID;
+
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
@@ -60,10 +62,44 @@ class ChangeCatalogCaptureRequestTest implements EvitaTestSupport {
 				.build();
 
 			assertNotNull(request);
+			assertNull(request.catalogId());
 			assertNull(request.sinceVersion());
 			assertNull(request.sinceIndex());
 			assertNull(request.criteria());
 			assertEquals(ChangeCaptureContent.HEADER, request.content());
+		}
+
+		@Test
+		@DisplayName("should build with the expected catalog identity as part of the resume position")
+		void shouldBuildWithCatalogId() {
+			final UUID catalogId = UUID.randomUUID();
+			final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
+				.catalogId(catalogId)
+				.sinceVersion(100L)
+				.sinceIndex(5)
+				.build();
+
+			assertEquals(catalogId, request.catalogId());
+			assertEquals(100L, request.sinceVersion());
+			assertEquals(5, request.sinceIndex());
+		}
+
+		@Test
+		@DisplayName("should state no expected catalog identity when built by the compatibility constructor")
+		void shouldStateNoCatalogIdWhenBuiltByCompatibilityConstructor() {
+			final ChangeCatalogCaptureRequest request = new ChangeCatalogCaptureRequest(
+				100L, 5, null, ChangeCaptureContent.BODY
+			);
+
+			assertNull(request.catalogId());
+			assertEquals(
+				ChangeCatalogCaptureRequest.builder()
+					.sinceVersion(100L)
+					.sinceIndex(5)
+					.content(ChangeCaptureContent.BODY)
+					.build(),
+				request
+			);
 		}
 
 		@Test
@@ -282,6 +318,35 @@ class ChangeCatalogCaptureRequestTest implements EvitaTestSupport {
 		}
 
 		@Test
+		@DisplayName("should not be equal when only the expected catalog identity differs")
+		void shouldNotBeEqualWhenOnlyCatalogIdDiffers() {
+			final UUID catalogId = UUID.randomUUID();
+			final ChangeCatalogCaptureRequest withId = ChangeCatalogCaptureRequest.builder()
+				.catalogId(catalogId)
+				.sinceVersion(100L)
+				.build();
+			final ChangeCatalogCaptureRequest withSameId = ChangeCatalogCaptureRequest.builder()
+				.catalogId(catalogId)
+				.sinceVersion(100L)
+				.build();
+			final ChangeCatalogCaptureRequest withOtherId = ChangeCatalogCaptureRequest.builder()
+				.catalogId(UUID.randomUUID())
+				.sinceVersion(100L)
+				.build();
+			final ChangeCatalogCaptureRequest withoutId = ChangeCatalogCaptureRequest.builder()
+				.sinceVersion(100L)
+				.build();
+
+			// the driver keys its shared publishers by request equality - two requests resuming different
+			// incarnations must never share one
+			assertEquals(withId, withSameId);
+			assertEquals(withId.hashCode(), withSameId.hashCode());
+			assertNotEquals(withId, withOtherId);
+			assertNotEquals(withId, withoutId);
+			assertNotEquals(withoutId, withId);
+		}
+
+		@Test
 		@DisplayName("should not be equal to null")
 		void shouldNotBeEqualToNull() {
 			final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
@@ -329,10 +394,23 @@ class ChangeCatalogCaptureRequestTest implements EvitaTestSupport {
 				.build();
 
 			final String result = request.toString();
+			assertTrue(result.contains("catalogId=null"));
 			assertTrue(result.contains("sinceVersion=100"));
 			assertTrue(result.contains("sinceIndex=5"));
 			assertTrue(result.contains("content=BODY"));
 			assertTrue(result.contains("criteria="));
+		}
+
+		@Test
+		@DisplayName("should include the expected catalog identity in toString")
+		void shouldIncludeCatalogIdInToString() {
+			final UUID catalogId = UUID.randomUUID();
+			final ChangeCatalogCaptureRequest request = ChangeCatalogCaptureRequest.builder()
+				.catalogId(catalogId)
+				.sinceVersion(100L)
+				.build();
+
+			assertTrue(request.toString().contains("catalogId=" + catalogId));
 		}
 	}
 }

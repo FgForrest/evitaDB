@@ -27,6 +27,7 @@ import io.evitadb.exception.EvitaInvalidUsageException;
 import lombok.Getter;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.io.Serial;
 import java.time.OffsetDateTime;
 
@@ -99,6 +100,40 @@ public class TemporalDataNotAvailableException extends EvitaInvalidUsageExceptio
 	 */
 	public TemporalDataNotAvailableException(long catalogVersion, @Nonnull Throwable cause) {
 		super("The oldest data available is for catalog version " + catalogVersion + ".", cause);
+		this.offsetDateTime = null;
+		this.catalogVersion = catalogVersion;
+	}
+
+	/**
+	 * Creates a new exception with a message composed by a subtype that knows more about why the data is out of
+	 * reach than this class does. The subtype must keep {@link #getCatalogVersion()} meaning the oldest available
+	 * catalog version - consumers that handle this type do not know about the subtype and read it that way.
+	 *
+	 * @param publicMessage  the message describing the situation and what the client should do about it
+	 * @param catalogVersion the earliest catalog version for which data is still available, or `null` when it
+	 *                       could not be determined
+	 */
+	protected TemporalDataNotAvailableException(@Nonnull String publicMessage, @Nullable Long catalogVersion) {
+		super(publicMessage);
+		this.offsetDateTime = null;
+		this.catalogVersion = catalogVersion;
+	}
+
+	/**
+	 * Creates a new exception with a message composed by a subtype, recognized only after an operation had already
+	 * failed - see {@link #TemporalDataNotAvailableException(String, Long)}.
+	 *
+	 * @param publicMessage  the message describing the situation and what the client should do about it
+	 * @param catalogVersion the earliest catalog version for which data is still available, or `null` when it
+	 *                       could not be determined
+	 * @param cause          the failure of the operation that ran into the unavailable data
+	 */
+	protected TemporalDataNotAvailableException(
+		@Nonnull String publicMessage,
+		@Nullable Long catalogVersion,
+		@Nonnull Throwable cause
+	) {
+		super(publicMessage, cause);
 		this.offsetDateTime = null;
 		this.catalogVersion = catalogVersion;
 	}

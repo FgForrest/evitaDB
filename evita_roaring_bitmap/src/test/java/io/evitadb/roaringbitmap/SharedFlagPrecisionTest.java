@@ -17,11 +17,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * flags are tracked per slot: a chunk lent from one operand is flagged, a chunk recombined from both
  * into a private container ({@link ContainerBinaryOpFreshnessTest} pins that privateness) is not.
  *
- * **The operands** are marked wholesale instead, and that is on purpose rather than an oversight — see
- * `markAllShared`. A live bitmap can be an operand of two concurrent queries, and the flag array is
- * written unsynchronised; a full fill converges on the conservative value under a lost update, while
- * sparse writes would leave behind the unsafe one. The operand-side tests below therefore assert the
- * *conservative* behaviour deliberately, and tightening it is not a free optimisation.
+ * **The operands** are marked wholesale through `lent`. Concurrent borrowers set only that
+ * idempotent field; their next owner mutation expands it into the per-slot flags. Results keep
+ * precise flags, while operands conservatively clone every container they later write.
  */
 @DisplayName("Static or/xor/andNot flag result chunks precisely and operands conservatively")
 public class SharedFlagPrecisionTest {
@@ -112,8 +110,10 @@ public class SharedFlagPrecisionTest {
 		// every result chunk was recombined from both operands, so all three containers are private
 		assertAllFlags(result, false, "or result");
 		// the operands are still marked wholesale - deliberately conservative, see the class comment
-		assertAllFlags(left, true, "or left operand");
-		assertAllFlags(right, true, "or right operand");
+		assertTrue(left.lent);
+		assertTrue(right.lent);
+		assertArrayEquals(new boolean[left.shared.length], left.shared);
+		assertArrayEquals(new boolean[right.shared.length], right.shared);
 	}
 
 	@Test
@@ -165,6 +165,9 @@ public class SharedFlagPrecisionTest {
 		assertTrue(result.isShared(2), "chunk 2 has no counterpart and is aliased");
 
 		// andNot never carries a container out of its subtrahend, so it is not marked at all
+		assertTrue(left.lent);
+		assertFalse(right.lent);
+		assertArrayEquals(new boolean[left.shared.length], left.shared);
 		assertAllFlags(right, false, "andNot right operand");
 	}
 

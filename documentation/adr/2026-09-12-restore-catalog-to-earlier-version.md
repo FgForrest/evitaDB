@@ -9,7 +9,7 @@ prs: []
 areas: [evita_api/io.evitadb.api, evita_engine/io.evitadb.core.management, evita_external_api/evita_external_api_grpc]
 supersedes: []
 superseded-by: []
-relates: [2026-08-06-catalog-folder-decoupling, 2026-08-06-time-travel-disk-budget]
+relates: [2026-08-06-catalog-folder-decoupling, 2026-08-06-time-travel-disk-budget, 2026-10-08-cdc-resume-position-carries-catalog-identity]
 ---
 
 # Restore a live catalog to an earlier version by composing backup, restore, activate and replace

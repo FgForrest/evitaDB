@@ -70,6 +70,10 @@ class ChangeCaptureConverterMutationsHistoryTest {
 	 */
 	private static final OffsetDateTime TIMESTAMP =
 		OffsetDateTime.of(2026, 5, 6, 12, 0, 0, 0, ZoneOffset.UTC);
+	/**
+	 * Identity of the catalog incarnation the round-tripped captures belong to.
+	 */
+	private static final UUID CATALOG_ID = UUID.fromString("0d5f8a0e-6b0c-4c0e-9a4b-3c9e2f1d7a55");
 
 	/**
 	 * Catalog version the paged handler resolves as the upper bound of the request when the client
@@ -290,7 +294,7 @@ class ChangeCaptureConverterMutationsHistoryTest {
 				transactionId, 42L, 13, 4096L, TIMESTAMP
 			);
 			final ChangeCatalogCapture capture = new ChangeCatalogCapture(
-				42L, 0, TIMESTAMP, CaptureArea.INFRASTRUCTURE, null, null, Operation.TRANSACTION, source
+				CATALOG_ID, 42L, 0, TIMESTAMP, CaptureArea.INFRASTRUCTURE, null, null, Operation.TRANSACTION, source
 			);
 
 			final GrpcChangeCatalogCapture grpc =
@@ -300,7 +304,7 @@ class ChangeCaptureConverterMutationsHistoryTest {
 				"server must serialise a transaction header into the infrastructureMutation arm"
 			);
 
-			final ChangeCatalogCapture roundTripped = ChangeCaptureConverter.toChangeCatalogCapture(grpc);
+			final ChangeCatalogCapture roundTripped = ChangeCaptureConverter.toChangeCatalogCapture(grpc, CATALOG_ID);
 
 			assertNotNull(roundTripped.body(), "transaction header body must survive the round-trip");
 			final TransactionMutation result =
@@ -319,13 +323,15 @@ class ChangeCaptureConverterMutationsHistoryTest {
 				UUID.fromString("6c2f6d5a-1f8d-4a2e-9c1b-0f4a3d7e8b21"), 42L, 13, 4096L, TIMESTAMP
 			);
 			final ChangeCatalogCapture capture = new ChangeCatalogCapture(
-				42L, 0, TIMESTAMP, CaptureArea.INFRASTRUCTURE, null, null, Operation.TRANSACTION, source
+				CATALOG_ID, 42L, 0, TIMESTAMP, CaptureArea.INFRASTRUCTURE, null, null, Operation.TRANSACTION, source
 			);
 
 			final ChangeCatalogCapture roundTripped = ChangeCaptureConverter.toChangeCatalogCapture(
-				ChangeCaptureConverter.toGrpcChangeCatalogCapture(capture, null)
+				ChangeCaptureConverter.toGrpcChangeCatalogCapture(capture, null), CATALOG_ID
 			);
 
+			// the identity does not travel with the capture - the receiving side stamps it from its own context
+			assertEquals(CATALOG_ID, roundTripped.catalogId());
 			assertEquals(42L, roundTripped.version());
 			// the transaction header always occupies index 0 of its version
 			assertEquals(0, roundTripped.index());
@@ -340,11 +346,11 @@ class ChangeCaptureConverterMutationsHistoryTest {
 			// CHANGE_HEADER content mode leaves every arm of the body oneof unset - that must stay a
 			// legitimate null body rather than being mistaken for an unhandled mutation type
 			final ChangeCatalogCapture capture = new ChangeCatalogCapture(
-				42L, 0, TIMESTAMP, CaptureArea.INFRASTRUCTURE, null, null, Operation.TRANSACTION, null
+				CATALOG_ID, 42L, 0, TIMESTAMP, CaptureArea.INFRASTRUCTURE, null, null, Operation.TRANSACTION, null
 			);
 
 			final ChangeCatalogCapture roundTripped = ChangeCaptureConverter.toChangeCatalogCapture(
-				ChangeCaptureConverter.toGrpcChangeCatalogCapture(capture, null)
+				ChangeCaptureConverter.toGrpcChangeCatalogCapture(capture, null), CATALOG_ID
 			);
 
 			assertEquals(42L, roundTripped.version());

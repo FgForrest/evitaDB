@@ -23,17 +23,30 @@
 
 package io.evitadb.api.requestResponse.cdc;
 
+import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.exception.ChangeCaptureResumePositionInvalidException;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
  * Record describing the capture request for the {@link ChangeCapturePublisher} of {@link ChangeCatalogCapture}s.
  * The request contains the recipe for the messages that the subscriber is interested in, and that are sent to it by
  * {@link ChangeCapturePublisher}.
  *
+ * `catalogId`, `sinceVersion` and `sinceIndex` together form the **resume position** of a consumer that continues
+ * a stream it has consumed before. A version means something only within one incarnation of a catalog - replacing,
+ * restoring or duplicating a catalog starts a different version sequence under the same name - so a consumer that
+ * stores its position should store {@link ChangeCatalogCapture#catalogId()} with it and pass it back here. A position
+ * the catalog cannot serve is refused with {@link ChangeCaptureResumePositionInvalidException}.
  *
+ * @param catalogId    the identity ({@link EvitaSessionContract#getCatalogId()}) of the catalog incarnation the
+ *                     position was recorded on; when set, a request evaluated against a different incarnation is
+ *                     refused rather than served from an unrelated version sequence; when `null`, no identity is
+ *                     checked
  * @param sinceVersion specifies the initial capture point (catalog version) for the CDC stream, if not specified
  *                     it is assumed to begin at the most recent / greatest available version
  * @param sinceIndex   specifies the initial capture point for the CDC stream, it is optional and can be used
@@ -45,23 +58,47 @@ import java.util.Objects;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
 public record ChangeCatalogCaptureRequest(
+	@Nullable UUID catalogId,
 	@Nullable Long sinceVersion,
 	@Nullable Integer sinceIndex,
 	@Nullable ChangeCatalogCaptureCriteria[] criteria,
 	@Nonnull ChangeCaptureContent content
 ) implements ChangeCaptureRequest {
 
+	/**
+	 * Creates a request that states no expected catalog identity - the form every request had before the identity
+	 * became part of the resume position. Such a request is still checked against the catalog's version sequence,
+	 * but a position recorded on another incarnation of the catalog that happens to fit into it cannot be told apart.
+	 *
+	 * @param sinceVersion the initial capture point (catalog version), see {@link #sinceVersion()}
+	 * @param sinceIndex   the initial capture point within the version, see {@link #sinceIndex()}
+	 * @param criteria     the criteria of the capture, see {@link #criteria()}
+	 * @param content      the requested content of the capture, see {@link #content()}
+	 */
+	public ChangeCatalogCaptureRequest(
+		@Nullable Long sinceVersion,
+		@Nullable Integer sinceIndex,
+		@Nullable ChangeCatalogCaptureCriteria[] criteria,
+		@Nonnull ChangeCaptureContent content
+	) {
+		this(null, sinceVersion, sinceIndex, criteria, content);
+	}
+
 	@Override
 	public boolean equals(Object o) {
 		if (!(o instanceof final ChangeCatalogCaptureRequest that)) return false;
 
-		return Objects.equals(this.sinceVersion, that.sinceVersion) && Objects.equals(
-			this.sinceIndex, that.sinceIndex) && this.content == that.content && Arrays.equals(this.criteria, that.criteria);
+		return Objects.equals(this.catalogId, that.catalogId) &&
+			Objects.equals(this.sinceVersion, that.sinceVersion) &&
+			Objects.equals(this.sinceIndex, that.sinceIndex) &&
+			this.content == that.content &&
+			Arrays.equals(this.criteria, that.criteria);
 	}
 
 	@Override
 	public int hashCode() {
-		int result = Objects.hashCode(this.sinceVersion);
+		int result = Objects.hashCode(this.catalogId);
+		result = 31 * result + Objects.hashCode(this.sinceVersion);
 		result = 31 * result + Objects.hashCode(this.sinceIndex);
 		result = 31 * result + Arrays.hashCode(this.criteria);
 		result = 31 * result + this.content.hashCode();
@@ -72,7 +109,8 @@ public record ChangeCatalogCaptureRequest(
 	@Override
 	public String toString() {
 		return "ChangeCatalogCaptureRequest{" +
-			"sinceVersion=" + this.sinceVersion +
+			"catalogId=" + this.catalogId +
+			", sinceVersion=" + this.sinceVersion +
 			", sinceIndex=" + this.sinceIndex +
 			", criteria=" + Arrays.toString(this.criteria) +
 			", content=" + this.content +
@@ -93,6 +131,7 @@ public record ChangeCatalogCaptureRequest(
 	 * Builder class for {@link ChangeCatalogCaptureRequest}.
 	 */
 	public static class Builder {
+		private UUID catalogId;
 		private Long sinceVersion;
 		private Integer sinceIndex;
 		private ChangeCatalogCaptureCriteria[] criteria;
@@ -117,6 +156,18 @@ public record ChangeCatalogCaptureRequest(
 		@Nonnull
 		public Builder content(@Nonnull ChangeCaptureContent content) {
 			this.content = content;
+			return this;
+		}
+
+		/**
+		 * Sets the identity of the catalog incarnation the resume position was recorded on - see
+		 * {@link ChangeCatalogCaptureRequest#catalogId()}.
+		 * @param catalogId the expected catalog identity, `null` to check none
+		 * @return this builder
+		 */
+		@Nonnull
+		public Builder catalogId(@Nullable UUID catalogId) {
+			this.catalogId = catalogId;
 			return this;
 		}
 
@@ -149,6 +200,7 @@ public record ChangeCatalogCaptureRequest(
 		@Nonnull
 		public ChangeCatalogCaptureRequest build() {
 			return new ChangeCatalogCaptureRequest(
+				this.catalogId,
 				this.sinceVersion,
 				this.sinceIndex,
 				this.criteria,

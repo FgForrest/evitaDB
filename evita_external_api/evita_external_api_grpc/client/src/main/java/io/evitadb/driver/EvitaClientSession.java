@@ -39,6 +39,7 @@ import io.evitadb.api.SchemaPostProcessorCapturingResult;
 import io.evitadb.api.SessionTraits;
 import io.evitadb.api.TransactionContract.CommitBehavior;
 import io.evitadb.api.exception.*;
+import io.evitadb.api.exception.ChangeCaptureResumePositionInvalidException.Reason;
 import io.evitadb.api.file.FileForFetch;
 import io.evitadb.api.proxy.ProxyFactory;
 import io.evitadb.api.proxy.SealedEntityProxy;
@@ -114,6 +115,7 @@ import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc.EvitaSessio
 import io.evitadb.externalApi.grpc.generated.EvitaSessionServiceGrpc.EvitaSessionServiceStub;
 import io.evitadb.externalApi.grpc.generated.GrpcBackupCatalogRequest.Builder;
 import io.evitadb.externalApi.grpc.query.QueryConverter;
+import io.evitadb.externalApi.grpc.requestResponse.ErrorInfoConverter;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.ResponseConverter;
 import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
@@ -727,6 +729,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 						this.streamingTimeout,
 						// capture callbacks get their own executor - never the shared client pool
 						this.evita.cdcCallbackExecutor(),
+						request,
 						subscriber -> {
 							final AsyncCallFunction<EvitaSessionServiceStub, Void> callFunction = evitaService -> {
 								evitaService.registerChangeCatalogCapture(
@@ -735,14 +738,20 @@ public class EvitaClientSession implements EvitaSessionContract {
 								);
 								return null;
 							};
+							// the stream belongs to the catalog of the session it is registered in - bound before the
+							// RPC starts, because the acknowledgement checked against it may arrive on another thread
+							// before the call below returns
 							if (this.isActive()) {
+								subscriber.bindRegisteringCatalogId(this.catalogId);
 								executeWithStreamingEvitaCdcSessionService(callFunction);
 							} else {
-								// when current session is no longer active, create new one
+								// when current session is no longer active, create new one - possibly in another
+								// incarnation of the catalog, if it has been replaced since this session was opened
 								final EvitaClientSession session = this.evita.createSession(
 									new SessionTraits(this.catalogName)
 								);
 								// and register the change capture on it
+								subscriber.bindRegisteringCatalogId(session.getCatalogId());
 								session.executeWithStreamingEvitaCdcSessionService(callFunction);
 							}
 						},
@@ -2005,9 +2014,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public Stream<ChangeCatalogCapture> getMutationsHistoryReversed(@Nonnull ChangeCatalogCaptureRequest request) {
 		assertActive();
+		assertSameCatalogIncarnation(request);
 
 		// Observer reference that needs to be used for closing the stream
-		final MutationsStreamObserver streamObserver = new MutationsStreamObserver(this.streamingTimeout);
+		final MutationsStreamObserver streamObserver = new MutationsStreamObserver(this.streamingTimeout, this.catalogId);
 		// Call reference is needed for cancelling stream on the server side
 		final AtomicReference<ClientCall<?, ?>> callRef = new AtomicReference<>();
 
@@ -2054,9 +2064,10 @@ public class EvitaClientSession implements EvitaSessionContract {
 	@Override
 	public Stream<ChangeCatalogCapture> getMutationsHistoryForward(@Nonnull ChangeCatalogCaptureRequest request) {
 		assertActive();
+		assertSameCatalogIncarnation(request);
 
 		// Observer reference that needs to be used for closing the stream
-		final MutationsStreamObserver streamObserver = new MutationsStreamObserver(this.streamingTimeout);
+		final MutationsStreamObserver streamObserver = new MutationsStreamObserver(this.streamingTimeout, this.catalogId);
 		// Call reference is needed for cancelling stream on the server side
 		final AtomicReference<ClientCall<?, ?>> callRef = new AtomicReference<>();
 
@@ -3109,6 +3120,33 @@ public class EvitaClientSession implements EvitaSessionContract {
 	}
 
 	/**
+	 * Verifies that the resume position of a history request was recorded on the catalog incarnation this session
+	 * is bound to. A server that knows the identity checks it too, but a server that predates it ignores the field
+	 * and would stream an unrelated version sequence - or, for a version the new incarnation has not reached, an
+	 * empty one - with nothing telling the caller why. History reads have no acknowledgement that would reveal
+	 * which kind of server answers, so the check runs here for every server; on a newer one it merely comes first.
+	 *
+	 * @param request the history request whose position is checked
+	 * @throws ChangeCaptureResumePositionInvalidException when the request expects another incarnation
+	 */
+	private void assertSameCatalogIncarnation(@Nonnull ChangeCatalogCaptureRequest request) {
+		final UUID expectedCatalogId = request.catalogId();
+		if (expectedCatalogId != null && !expectedCatalogId.equals(this.catalogId)) {
+			throw new ChangeCaptureResumePositionInvalidException(
+				Reason.DIFFERENT_INCARNATION,
+				this.catalogId,
+				getCatalogVersion(),
+				// the client cannot tell how far back the server retains the history, and a guess would mislead
+				// a consumer reading it as the retention floor
+				null,
+				expectedCatalogId,
+				request.sinceVersion(),
+				request.sinceIndex()
+			);
+		}
+	}
+
+	/**
 	 * Stream observer that stores the values returned by the server into the underlying queue. The observer cancels
 	 * the transmission when closed.
 	 */
@@ -3119,6 +3157,12 @@ public class EvitaClientSession implements EvitaSessionContract {
 		 * This helps keep the streaming connection alive as long as messages are being received.
 		 */
 		private final Duration streamingTimeout;
+		/**
+		 * Identity of the catalog incarnation of the session the history is read in - the incarnation every
+		 * streamed capture belongs to, since the server streams the history of the session's catalog. The captures
+		 * are stamped with it, the wire does not carry it.
+		 */
+		private final UUID catalogId;
 		/**
 		 * Queue that holds the values returned by the server.
 		 */
@@ -3137,7 +3181,7 @@ public class EvitaClientSession implements EvitaSessionContract {
 			// Convert the response and add to the queue
 			getMutationsHistoryResponse.getChangeCaptureList()
 				.stream()
-				.map(ChangeCaptureConverter::toChangeCatalogCapture)
+				.map(capture -> ChangeCaptureConverter.toChangeCatalogCapture(capture, this.catalogId))
 				.forEach(it -> this.queue.add(new StreamValueWrapper<>(it)));
 
 			// restart the response deadline from now so a silent stream unblocks the caller
@@ -3159,7 +3203,13 @@ public class EvitaClientSession implements EvitaSessionContract {
 		/**
 		 * Blocks the current thread until the next mutation is available.
 		 *
+		 * A server error that describes a recognised evitaDB exception - a refused resume position, history no
+		 * longer retained - is rethrown as that exception, rebuilt from the error details, so that the consumer can
+		 * catch it the same way as with an embedded evitaDB; any other failure is wrapped as before.
+		 *
 		 * @return next mutation or empty if the stream has been completed
+		 * @throws EvitaInvalidUsageException when the server terminated the stream with a recognised exception
+		 * @throws GenericEvitaInternalError  when the stream failed for any other reason
 		 */
 		@Nonnull
 		public Optional<ChangeCatalogCapture> take() {
@@ -3167,6 +3217,11 @@ public class EvitaClientSession implements EvitaSessionContract {
 				final StreamValueWrapper<ChangeCatalogCapture> valueWrapper = this.queue.take();
 				if (valueWrapper.completed()) {
 					if (valueWrapper.error() != null) {
+						final EvitaInvalidUsageException typedError =
+							ErrorInfoConverter.toTypedException(valueWrapper.error());
+						if (typedError != null) {
+							throw typedError;
+						}
 						throw new GenericEvitaInternalError(
 							"Error while retrieving a mutation stream.",
 							valueWrapper.error()

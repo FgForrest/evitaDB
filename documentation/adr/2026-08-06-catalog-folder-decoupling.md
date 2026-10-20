@@ -9,7 +9,7 @@ prs: []
 areas: [evita_engine/src/main/java/io/evitadb/core/engine, evita_engine/src/main/java/io/evitadb/core/session, evita_engine/src/main/java/io/evitadb/spi/store/engine, evita_engine/src/main/java/io/evitadb/core/transaction/engine/operators, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog, evita_store/evita_store_server/src/main/java/io/evitadb/store/engine]
 supersedes: []
 superseded-by: []
-relates: [2026-09-12-restore-catalog-to-earlier-version]
+relates: [2026-09-12-restore-catalog-to-earlier-version, 2026-10-08-cdc-resume-position-carries-catalog-identity]
 ---
 
 # Bind catalogs to opaque folder tokens, and make rename and replace a pointer swap

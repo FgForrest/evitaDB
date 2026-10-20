@@ -30,6 +30,7 @@ import io.evitadb.core.Evita;
 import io.evitadb.core.executor.ImmediateScheduledThreadPoolExecutor;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.session.EvitaInternalSessionContract;
+import io.evitadb.core.session.task.SessionKillerTestSupport.HeldInvocation;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.test.EvitaTestSupport.TestPaths;
 import org.junit.jupiter.api.AfterEach;
@@ -41,16 +42,14 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentMatchers;
 import org.mockito.Mockito;
 
-import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.util.UUID;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.FutureTask;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Stream;
 
+import static io.evitadb.core.session.task.SessionKillerTestSupport.awaitExpiry;
+import static io.evitadb.core.session.task.SessionKillerTestSupport.awaitInactivityPastTimeout;
+import static io.evitadb.core.session.task.SessionKillerTestSupport.internal;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.SESSION;
 import static org.junit.jupiter.api.Assertions.*;
@@ -86,65 +85,10 @@ class SessionKillerTest implements EvitaTestSupport {
 	 * The inactivity timeout in milliseconds, used to verify the "recently active" premise.
 	 */
 	private static final long INACTIVITY_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(INACTIVITY_TIMEOUT_SECONDS);
-	/**
-	 * Upper bound for every wait in this test, so that a defect surfaces as a failure rather than a hang.
-	 */
-	private static final long AWAIT_TIMEOUT_SECONDS = 30;
-	/**
-	 * Interval between two inactivity probes while waiting for a session to age past the timeout.
-	 */
-	private static final long POLL_INTERVAL_MILLIS = 50;
 	private TestPaths paths;
 	private Evita evita;
 	private Scheduler killerScheduler;
 	private SessionKiller sessionKiller;
-
-	/**
-	 * Returns the internal contract of the session, which exposes the inactivity probes the killer relies on.
-	 * Those probes are answered by the session proxy itself and do not count as session activity.
-	 *
-	 * @param session the session created by the evitaDB instance
-	 * @return the same session viewed through its internal contract
-	 */
-	@Nonnull
-	private static EvitaInternalSessionContract internal(@Nonnull EvitaSessionContract session) {
-		return assertInstanceOf(EvitaInternalSessionContract.class, session);
-	}
-
-	/**
-	 * Waits until the session reports an inactivity of at least the timeout. The inactivity is measured from the
-	 * last call that entered or left the session, so the wait is a lower bound - it never ends early, and a slow
-	 * machine only prolongs it.
-	 *
-	 * @param session the session to wait for
-	 * @throws InterruptedException when the waiting thread is interrupted
-	 */
-	private static void awaitInactivityPastTimeout(@Nonnull EvitaInternalSessionContract session)
-		throws InterruptedException {
-		final long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(AWAIT_TIMEOUT_SECONDS);
-		while (session.getInactivityDurationInSeconds() < INACTIVITY_TIMEOUT_SECONDS) {
-			assertTrue(
-				System.nanoTime() < deadline,
-				"The session did not report inactivity past the timeout within " + AWAIT_TIMEOUT_SECONDS + "s."
-			);
-			Thread.sleep(POLL_INTERVAL_MILLIS);
-		}
-	}
-
-	/**
-	 * Waits until the session is old enough to be killed and verifies nothing keeps it alive, so the following
-	 * {@link SessionKiller#run()} is expected to terminate it.
-	 *
-	 * @param session the session to wait for
-	 * @throws InterruptedException when the waiting thread is interrupted
-	 */
-	private static void awaitExpiry(@Nonnull EvitaInternalSessionContract session) throws InterruptedException {
-		awaitInactivityPastTimeout(session);
-		assertTrue(
-			session.isInactiveAndIdle(INACTIVITY_TIMEOUT_SECONDS),
-			"The session is expected to be inactive and idle - nothing is calling it."
-		);
-	}
 
 	/**
 	 * Aborts the test when more than the inactivity timeout elapsed since the last touch of a session that is
@@ -197,7 +141,7 @@ class SessionKillerTest implements EvitaTestSupport {
 		void shouldKillSessionAfterIntervalOfInactivity() throws InterruptedException {
 			SessionKillerTest.this.evita.defineCatalog("test");
 			final EvitaSessionContract session = SessionKillerTest.this.evita.createReadOnlySession("test");
-			awaitExpiry(internal(session));
+			awaitExpiry(internal(session), INACTIVITY_TIMEOUT_SECONDS);
 
 			SessionKillerTest.this.sessionKiller.run();
 
@@ -210,7 +154,7 @@ class SessionKillerTest implements EvitaTestSupport {
 			SessionKillerTest.this.evita.defineCatalog("test");
 			final EvitaSessionContract session = SessionKillerTest.this.evita.createReadOnlySession("test");
 			// the session is old enough to be killed, so only the invocation below can save it
-			awaitExpiry(internal(session));
+			awaitExpiry(internal(session), INACTIVITY_TIMEOUT_SECONDS);
 
 			final long touchedAt = System.currentTimeMillis();
 			assertNotNull(session.getCatalogName());
@@ -243,8 +187,8 @@ class SessionKillerTest implements EvitaTestSupport {
 			// the verdict independent of how long the killer pass takes, so no premise of this test depends on timing
 			try (final HeldInvocation heldInvocation = HeldInvocation.start(internal(activeSession))) {
 				heldInvocation.awaitEntered();
-				awaitExpiry(internal(inactiveSession));
-				awaitInactivityPastTimeout(internal(activeSession));
+				awaitExpiry(internal(inactiveSession), INACTIVITY_TIMEOUT_SECONDS);
+				awaitInactivityPastTimeout(internal(activeSession), INACTIVITY_TIMEOUT_SECONDS);
 
 				SessionKillerTest.this.sessionKiller.run();
 
@@ -265,7 +209,7 @@ class SessionKillerTest implements EvitaTestSupport {
 			try (final HeldInvocation heldInvocation = HeldInvocation.start(internalSession)) {
 				heldInvocation.awaitEntered();
 				// the last call entered longer than the timeout ago, so only the call in flight keeps the session
-				awaitInactivityPastTimeout(internalSession);
+				awaitInactivityPastTimeout(internalSession, INACTIVITY_TIMEOUT_SECONDS);
 				assertTrue(internalSession.methodIsRunning());
 
 				SessionKillerTest.this.sessionKiller.run();
@@ -276,7 +220,7 @@ class SessionKillerTest implements EvitaTestSupport {
 			}
 
 			// with no call in flight the session expires like any other
-			awaitExpiry(internalSession);
+			awaitExpiry(internalSession, INACTIVITY_TIMEOUT_SECONDS);
 			SessionKillerTest.this.sessionKiller.run();
 			assertFalse(session.isActive());
 		}
@@ -300,7 +244,7 @@ class SessionKillerTest implements EvitaTestSupport {
 			try (final HeldInvocation heldInvocation = HeldInvocation.start(internalSession)) {
 				heldInvocation.awaitEntered();
 				// the method started longer than the timeout ago
-				awaitInactivityPastTimeout(internalSession);
+				awaitInactivityPastTimeout(internalSession, INACTIVITY_TIMEOUT_SECONDS);
 
 				// the atomic check must identify that a method is still running
 				assertFalse(internalSession.isInactiveAndIdle(INACTIVITY_TIMEOUT_SECONDS));
@@ -342,7 +286,7 @@ class SessionKillerTest implements EvitaTestSupport {
 		void shouldKillOtherExpiredSessionsWhenOneSessionIsCaughtMidCall() throws InterruptedException {
 			SessionKillerTest.this.evita.defineCatalog("test");
 			final EvitaSessionContract expiredSession = SessionKillerTest.this.evita.createReadWriteSession("test");
-			awaitExpiry(internal(expiredSession));
+			awaitExpiry(internal(expiredSession), INACTIVITY_TIMEOUT_SECONDS);
 
 			// A read-write session whose client call started after the killer's idle check: the call claims the
 			// proxy's ownership guard before it is counted as in flight, so the check sees the session idle, and the
@@ -393,127 +337,6 @@ class SessionKillerTest implements EvitaTestSupport {
 			SessionKillerTest.this.sessionKiller.close();
 			// direct run() should still work even after close() stops scheduling
 			assertDoesNotThrow(() -> SessionKillerTest.this.sessionKiller.run());
-		}
-	}
-
-	/**
-	 * A real session call held open on a dedicated thread. The call goes through the session proxy, so the proxy
-	 * counts it as in flight from the moment {@link #awaitEntered()} returns until {@link #release()} lets it
-	 * finish. Before it returns, the call asks the session for its catalog version, which fails when the session
-	 * was terminated while the call was held - {@link #awaitCompletion()} then reports that failure.
-	 */
-	private static final class HeldInvocation implements AutoCloseable {
-		/**
-		 * Opened by the held call once it runs inside the session proxy.
-		 */
-		private final CountDownLatch entered = new CountDownLatch(1);
-		/**
-		 * Opened by the test to let the held call finish.
-		 */
-		private final CountDownLatch released = new CountDownLatch(1);
-		/**
-		 * The held call and its outcome.
-		 */
-		private final FutureTask<Long> call;
-		/**
-		 * The dedicated thread the held call runs on.
-		 */
-		private final Thread thread;
-
-		/**
-		 * Creates the held call for the session without starting it.
-		 *
-		 * @param session the session the call is made on
-		 */
-		private HeldInvocation(@Nonnull EvitaInternalSessionContract session) {
-			this.call = new FutureTask<>(
-				() -> session.execute(
-					plainSession -> {
-						this.entered.countDown();
-						awaitLatch(this.released);
-						// asserts the session is still active - a terminated session throws here
-						return plainSession.getCatalogVersion();
-					}
-				)
-			);
-			this.thread = new Thread(this.call, "SessionKillerTest-held-invocation");
-			this.thread.setDaemon(true);
-		}
-
-		/**
-		 * Starts a held call on the session on a dedicated thread.
-		 *
-		 * @param session the session the call is made on
-		 * @return the started held call
-		 */
-		@Nonnull
-		static HeldInvocation start(@Nonnull EvitaInternalSessionContract session) {
-			final HeldInvocation heldInvocation = new HeldInvocation(session);
-			heldInvocation.thread.start();
-			return heldInvocation;
-		}
-
-		/**
-		 * Waits for the latch inside the held call, failing the call when it is not opened in time.
-		 *
-		 * @param latch the latch to wait for
-		 */
-		private static void awaitLatch(@Nonnull CountDownLatch latch) {
-			try {
-				if (!latch.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-					throw new IllegalStateException("The held call was not released in time.");
-				}
-			} catch (InterruptedException ex) {
-				Thread.currentThread().interrupt();
-				throw new IllegalStateException("The held call was interrupted.", ex);
-			}
-		}
-
-		/**
-		 * Waits until the held call runs inside the session proxy and is therefore counted as in flight.
-		 *
-		 * @throws InterruptedException when the waiting thread is interrupted
-		 */
-		void awaitEntered() throws InterruptedException {
-			assertTrue(
-				this.entered.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS),
-				"The held call did not enter the session in time."
-			);
-		}
-
-		/**
-		 * Lets the held call finish.
-		 */
-		void release() {
-			this.released.countDown();
-		}
-
-		/**
-		 * Waits for the held call to finish and verifies it succeeded.
-		 *
-		 * @throws InterruptedException when the waiting thread is interrupted
-		 * @throws TimeoutException     when the held call does not finish in time
-		 */
-		void awaitCompletion() throws InterruptedException, TimeoutException {
-			try {
-				this.call.get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-			} catch (ExecutionException ex) {
-				throw new AssertionError(
-					"The held call failed - the session was terminated while the call was in flight.",
-					ex.getCause()
-				);
-			}
-		}
-
-		/**
-		 * Releases the held call and waits for its thread, so a failed test leaves no thread behind.
-		 *
-		 * @throws InterruptedException when the waiting thread is interrupted
-		 */
-		@Override
-		public void close() throws InterruptedException {
-			this.released.countDown();
-			this.thread.join(TimeUnit.SECONDS.toMillis(AWAIT_TIMEOUT_SECONDS));
 		}
 	}
 }
