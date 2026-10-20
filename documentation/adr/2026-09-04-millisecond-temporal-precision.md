@@ -1,7 +1,7 @@
 ---
 title: Cut every temporal value to whole milliseconds as it enters, and carry every temporal index key in one long column
 date: 2026-09-04
-updated: 2026-10-20 16:35
+updated: 2026-10-20 21:33
 status: accepted
 kind: feature
 issues: [1486, 1696]
@@ -168,8 +168,16 @@ ARCHIVED to LIVE, a schema change that makes the attribute indexed.
 
 Two shapes cannot be clamped without losing information, so the upgrade refuses them before anything is
 published (the catalog stays on protocol 6):
-- two owners of a unique attribute whose different values clamp onto one key - in a standalone unique index
-  and in a unique attribute folded onto its filter tree, which the unique pre-pass skips;
+- two owners of a unique attribute whose different values load as one key - clamped onto one edge of the
+  window, or truncated onto one millisecond - in a standalone unique index and in a unique attribute folded
+  onto its filter tree, which the unique pre-pass skips. The folded check walks the tree of every
+  `OffsetDateTime` and `LocalDateTime` attribute whether or not it holds a key beyond the window, and of every
+  unique `LocalTime` attribute. Values that meet only through the truncation were a gap older than #1696: the
+  load path merges the two buckets, uniting their records, and the folded unique view answers a lookup with the
+  first of them, so the other owner silently lost its value. Leaving that gap to a later change was the
+  alternative. *Rejected because:* it keeps a silent winner on the folded path, the outcome
+  [2026-10-08-unique-indexes-normalize-like-filter-indexes](2026-10-08-unique-indexes-normalize-like-filter-indexes.md)
+  replaced with a loud refusal on the standalone one, and the check is the same walk the clamp already makes;
 - a reference partition keyed by an out-of-window representative value. The key is persisted as a whole and
   names storage parts, so re-keying it means renaming them. The message tells a gRPC client to use a year before
   9999, which 2026.2 would turn into the sentinel again.
@@ -284,16 +292,22 @@ New and extended coverage, by name: `AttributeMillisecondPrecisionFunctionalTest
 `AttributeIndexLoaderTest`, `LegacyRangeThresholdScaleSerializerTest`, `EvitaDataTypesConverterTest`,
 `LeafIndexHeapSizeTest`, `ColumnHeapSizeTest`.
 
-**Stored values beyond the window (#1696).** `Migration_2026_3_OutOfWindowTemporalKeyTest` (67 tests) builds a
+**Stored values beyond the window (#1696).** `Migration_2026_3_OutOfWindowTemporalKeyTest` (93 tests) builds a
 2026.2-shaped catalog - the indexes rewritten to the raw sentinels, the bodies written through Kryo with the
 2026.2 `serialVersionUID` - for `OffsetDateTime` and `LocalDateTime`, `MAX` and `MIN`. It covers filter
-(inline, paged, across leaf pages), unique (owner and global), owner sort (plain and compound), reference
+(inline, paged, across leaf pages), unique (owner and global), owner sort (plain, paged and compound), reference
 attributes, arrays, ARCHIVED to LIVE, entity removal after the upgrade, the audit, and both refusals - the
-folded-unique one also for a clamped key that meets another owner's in-window key only after truncation.
+folded-unique one also for a clamped key that meets another owner's in-window key only after truncation, and
+for two owners whose `OffsetDateTime`, `LocalDateTime` or `LocalTime` values differ only below the millisecond
+(with the standalone owner unique index as the control). On the folded path that case was red, "nothing was
+thrown", for `OffsetDateTime` before the detector compared unclamped keys and for `LocalTime` before the walk
+admitted its trees; the standalone control was green throughout.
 `AttributeValueSerializer_2026_2Test` (9) pins the reader, null array elements included. Before the fix, 20 of
 the original 38 tests were red. Each clamp and guard was proven by a counterfactual (removed, the expected tests
 red, restored). Without the body reader's clamp, 40 of the 65 tests at that point went red, mostly `long overflow`
-on removal.
+on removal. On the finished branch the functional suite ran `Tests run: 29398, Failures: 0, Errors: 1` (the same
+Docker-only `ExportS3ServiceTest`), and `EvitaBackwardCompatibilityTest` passed 5 of 5 over the released 2025.1 to
+2026.2 datasets - the 2026.2 one upgraded from storage protocol 6 to 7 without a refusal.
 
 **Per-tree budgets.** A one-key temporal index: **440 B → 408 B**, against a 424 B budget. A one-key range
 index: **512 B → 456 B**.
@@ -340,7 +354,10 @@ catalog a test reads was written by the current writer.
   `UniqueValueViolationException`. The scope is narrower than it sounds — an attribute that is unique **and**
   filterable is safe, its unique role being a view folded onto the FILTER tree that the reload repair already
   covers, so only globally-unique and unique-but-not-filterable temporal attributes are exposed, and a catalog
-  created after this change cannot contain such a pair at all.
+  created after this change cannot contain such a pair at all. *(Corrected on 2026-10-20, #1696: the folded
+  attribute was not safe. The reload repair merges the two buckets into one holding both owners, and the folded
+  view answers a lookup with the first of them. `Migration_2026_3` now refuses the upgrade over such a pair - see
+  "Stored values beyond the window" above.)*
   **Rejected because** no known dataset declares a temporal attribute as a unique identifier, which puts the
   realistic exposure at roughly zero, while the fix is not small: a normalizer at the unique-index boundary
   applied at *four* entry points — register, unregister, lookup and reload — on `OwnerUniqueIndex` as well as
@@ -471,4 +488,5 @@ catalog a test reads was written by the current writer.
   both paths and at the gRPC boundary (`58916f5a1c`, merged with PR #1738 on 2026-10-20).
 - **2026-10-20** - #1696: the stored sentinels are clamped too. `Migration_2026_3` clamps every stored temporal
   key and refuses the two shapes it cannot clamp; `AttributeValueSerializer_2026_2` clamps the bodies on read.
-  Reviewed by an advisor and Codex before implementation; options A-D above.
+  Reviewed by an advisor and Codex before implementation; options A-D above. The same change refuses folded
+  unique values that meet only through the truncation, a gap the consequence above had called safe.
