@@ -32,6 +32,7 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.query.require.DebugMode;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaEditor.EntitySchemaBuilder;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.core.Evita;
@@ -430,7 +431,7 @@ class Migration_2026_3_OwnerSortRewriteTest implements EvitaTestSupport {
 						.withoutGeneratedPrimaryKey()
 						.withLocale(Locale.ENGLISH)
 						.withAttribute(ATTRIBUTE_LABEL, String.class, thatIs -> thatIs.localized().nullable())
-						.withAttribute(ATTRIBUTE_MOMENT, OffsetDateTime.class, thatIs -> thatIs.nullable())
+						.withAttribute(ATTRIBUTE_MOMENT, OffsetDateTime.class, AttributeSchemaEditor::nullable)
 						.withSortableAttributeCompound(
 							COMPOUND_LABEL_MOMENT,
 							AttributeElement.attributeElement(ATTRIBUTE_LABEL, OrderDirection.ASC),
@@ -962,7 +963,7 @@ class Migration_2026_3_OwnerSortRewriteTest implements EvitaTestSupport {
 					.withoutGeneratedPrimaryKey()
 					.withLocale(Locale.ENGLISH)
 					.withAttribute(ATTRIBUTE_LABEL, String.class, thatIs -> thatIs.localized().nullable())
-					.withAttribute(ATTRIBUTE_RANK, Integer.class, thatIs -> thatIs.nullable())
+					.withAttribute(ATTRIBUTE_RANK, Integer.class, AttributeSchemaEditor::nullable)
 					.withSortableAttributeCompound(
 						COMPOUND_LABEL_RANK,
 						AttributeElement.attributeElement(ATTRIBUTE_LABEL, OrderDirection.ASC),
@@ -1030,8 +1031,8 @@ class Migration_2026_3_OwnerSortRewriteTest implements EvitaTestSupport {
 			session -> {
 				final EntitySchemaBuilder schema = session.defineEntitySchema(ENTITY_ENTRY)
 					.withoutGeneratedPrimaryKey()
-					.withAttribute(ATTRIBUTE_LANGUAGE, Locale.class, thatIs -> thatIs.nullable())
-					.withAttribute(ATTRIBUTE_RANK, Integer.class, thatIs -> thatIs.nullable());
+					.withAttribute(ATTRIBUTE_LANGUAGE, Locale.class, AttributeSchemaEditor::nullable)
+					.withAttribute(ATTRIBUTE_RANK, Integer.class, AttributeSchemaEditor::nullable);
 				if (withLabel) {
 					schema
 						.withLocale(Locale.ENGLISH)
@@ -1119,13 +1120,13 @@ class Migration_2026_3_OwnerSortRewriteTest implements EvitaTestSupport {
 			session -> {
 				final EntitySchemaBuilder schema = session.defineEntitySchema(ENTITY_ENTRY)
 					.withoutGeneratedPrimaryKey()
-					.withAttribute(ATTRIBUTE_RANK, Integer.class, thatIs -> thatIs.nullable())
-					.withAttribute(ATTRIBUTE_MOMENT, OffsetDateTime.class, thatIs -> thatIs.nullable());
+					.withAttribute(ATTRIBUTE_RANK, Integer.class, AttributeSchemaEditor::nullable)
+					.withAttribute(ATTRIBUTE_MOMENT, OffsetDateTime.class, AttributeSchemaEditor::nullable);
 				if (plain) {
 					schema.withAttribute(ATTRIBUTE_PERIOD, DateTimeRange.class, thatIs -> thatIs.sortable().nullable());
 				} else {
 					schema
-						.withAttribute(ATTRIBUTE_PERIOD, DateTimeRange.class, thatIs -> thatIs.nullable())
+						.withAttribute(ATTRIBUTE_PERIOD, DateTimeRange.class, AttributeSchemaEditor::nullable)
 						.withSortableAttributeCompound(
 							sortedBy,
 							AttributeElement.attributeElement(ATTRIBUTE_PERIOD, OrderDirection.ASC),

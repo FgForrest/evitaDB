@@ -663,8 +663,8 @@ final class LegacyOwnerSortImages {
 	 * @return `true` when the value is normalized
 	 */
 	private static boolean isNormalized(@Nonnull ComparatorSource[] base, @Nonnull Serializable value) {
-		final Serializable[] elements = value instanceof SortIndex.ComparableArray compound ?
-			compound.array() : new Serializable[]{value};
+		final Serializable[] elements = value instanceof SortIndex.ComparableArray(Serializable[] array) ?
+			array : new Serializable[]{value};
 		for (int i = 0; i < base.length; i++) {
 			final Class<?> type = base[i].type();
 			final boolean temporal = OffsetDateTime.class.isAssignableFrom(type) ||

@@ -31,6 +31,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualRefere
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart.ChainPredecessorSlot;
 import io.evitadb.utils.NumberUtils;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -58,14 +59,7 @@ import static io.evitadb.test.TestTags.TRANSACTION;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static io.evitadb.utils.AssertionUtils.assertWarmUpSavepointRollbackRestores;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Verifies the chain predecessor slots of {@link VirtualReferencePartitionIndex} in memory: declaring and retiring
@@ -462,7 +456,7 @@ class VirtualReferencePartitionIndexChainPredecessorTest {
 					assertMatchesModels(original, models, 100);
 				},
 				// the commit verifies that no layer of the index was left behind
-				(original, committed) -> assertSame(original, committed)
+				Assertions::assertSame
 			);
 		}
 	}

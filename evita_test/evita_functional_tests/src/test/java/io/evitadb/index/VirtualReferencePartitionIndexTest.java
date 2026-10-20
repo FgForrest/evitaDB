@@ -34,6 +34,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualRefere
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionRootRemoval;
 import io.evitadb.utils.NumberUtils;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
@@ -708,7 +709,7 @@ class VirtualReferencePartitionIndexTest {
 			assertStateAfterCommit(
 				index,
 				original -> original.getPartitionOwner(1),
-				(original, committed) -> assertSame(original, committed)
+				Assertions::assertSame
 			);
 		}
 
@@ -788,7 +789,7 @@ class VirtualReferencePartitionIndexTest {
 					assertEquals(before, contentOf(original), "Without its layers the index reads its committed state");
 				},
 				// the commit verifies that no layer of the index was left behind
-				(original, committed) -> assertSame(original, committed)
+				Assertions::assertSame
 			);
 		}
 	}

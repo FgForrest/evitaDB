@@ -51,16 +51,8 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStor
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.KeyCompressorSnapshot;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIdsStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceNameKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexLeafPagePart;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexLeafPageRemoval;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.*;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart.SortValueSlot;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionLeafStreamKey;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionRootRemoval;
 import io.evitadb.store.catalog.CatalogHeaderKryoConfigurer;
 import io.evitadb.store.index.IndexStoragePartConfigurer;
 import io.evitadb.store.index.SharedIndexStoragePartConfigurer;
@@ -468,7 +460,7 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 		 * @return the emitted removals
 		 */
 		@Nonnull
-		private List<StoragePart> drop(@Nonnull VirtualReferencePartitionIndex index) {
+		private static List<StoragePart> drop(@Nonnull VirtualReferencePartitionIndex index) {
 			final TrappedChanges sink = new TrappedChanges();
 			new VirtualReferencePartitionComponent(index, REFERENCE_NAME)
 				.emitPersistedFootprintRemovals(ENTITY_INDEX_PK, sink);
@@ -1227,7 +1219,7 @@ class VirtualReferencePartitionIndexPagingRoundTripTest implements EvitaTestSupp
 			.getId(new VirtualReferencePartitionLeafStreamKey(ENTITY_INDEX_PK, REFERENCE_NAME));
 		return this.offsetIndex.get(
 			this.version,
-			VirtualReferencePartitionIndexLeafPagePart.computeUniquePartId(streamId, pageSequence),
+			AbstractLeafPagePart.computeUniquePartId(streamId, pageSequence),
 			VirtualReferencePartitionIndexLeafPagePart.class
 		);
 	}

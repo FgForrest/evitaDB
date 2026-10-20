@@ -385,7 +385,7 @@ class BackupTaskStorageProtocolTest implements EvitaTestSupport {
 		try (
 			Stream<CatalogBootstrap> records = DefaultCatalogPersistenceService.getCatalogBootstrapRecordStream(
 				bootstrapFile(catalogStoragePath).getFileName().toString()
-					.replace(CatalogPersistenceService.BOOT_FILE_SUFFIX, ""),
+					.replace(PersistenceService.BOOT_FILE_SUFFIX, ""),
 				catalogStoragePath,
 				bootstrapStorageSettings()
 			)
@@ -414,7 +414,7 @@ class BackupTaskStorageProtocolTest implements EvitaTestSupport {
 	@Nonnull
 	private static Path bootstrapFile(@Nonnull Path catalogStoragePath) {
 		final File[] bootstrapFiles = catalogStoragePath.toFile().listFiles(
-			(dir, name) -> name.endsWith(CatalogPersistenceService.BOOT_FILE_SUFFIX)
+			(dir, name) -> name.endsWith(PersistenceService.BOOT_FILE_SUFFIX)
 		);
 		assertNotNull(bootstrapFiles);
 		assertEquals(1, bootstrapFiles.length, "a catalog folder holds exactly one bootstrap file");

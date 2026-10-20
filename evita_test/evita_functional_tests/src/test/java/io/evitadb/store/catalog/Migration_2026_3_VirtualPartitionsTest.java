@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.ReflectedReferenceSchemaEditor;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
@@ -568,9 +569,7 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 				Exception.class,
 				() -> refusing.queryCatalog(
 					GENERATED_CATALOG,
-					session -> {
-						return session.getAllEntityTypes();
-					}
+					EvitaSessionContract::getAllEntityTypes
 				)
 			);
 			final GenericEvitaInternalError premise = findCause(failure, GenericEvitaInternalError.class);
@@ -1149,7 +1148,8 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 			// no index type and no components - the reflection inherits them from the reference it reflects
 			session.defineEntitySchema(ENTITY_TARGET)
 				.withReflectedReferenceToEntity(
-					REFERENCE_OWNERS, ENTITY_OWNER, REFERENCE_TARGETS, whichIs -> whichIs.withAttributesInherited()
+					REFERENCE_OWNERS, ENTITY_OWNER, REFERENCE_TARGETS,
+					ReflectedReferenceSchemaEditor::withAttributesInherited
 				)
 				.updateVia(session);
 		}
@@ -1788,10 +1788,9 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 				catalogParts.putStoragePart(catalogVersion, collectionService.getEntityCollectionHeader());
 				final Map<String, CollectionFileReference> collectionFileIndex =
 					new HashMap<>(header.collectionFileIndex());
-				final CollectionFileReference reference = collectionFileIndex.get(ENTITY_OWNER);
-				collectionFileIndex.put(
+				collectionFileIndex.compute(
 					ENTITY_OWNER,
-					new CollectionFileReference(
+					(k, reference) -> new CollectionFileReference(
 						ENTITY_OWNER, reference.entityTypePrimaryKey(), reference.fileIndex(), descriptor.fileLocation()
 					)
 				);

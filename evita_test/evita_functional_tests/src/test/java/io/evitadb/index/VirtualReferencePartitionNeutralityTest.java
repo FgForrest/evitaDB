@@ -27,6 +27,7 @@ import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.api.statistics.CatalogStatisticsComponent;
 import io.evitadb.api.statistics.StoragePartUsage;
 import io.evitadb.core.Evita;
@@ -100,7 +101,7 @@ class VirtualReferencePartitionNeutralityTest implements EvitaTestSupport {
 				session.defineEntitySchema(ENTITY_PRODUCT)
 					.withReferenceToEntity(
 						REFERENCE_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
-						whichIs -> whichIs.indexedForFiltering()
+						ReferenceSchemaEditor::indexedForFiltering
 					)
 					.withReferenceToEntity(
 						REFERENCE_GALLERY, ENTITY_MEDIA, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
@@ -152,7 +153,8 @@ class VirtualReferencePartitionNeutralityTest implements EvitaTestSupport {
 	@DisplayName("a catalog persisted without any root of the index loads and answers reference queries alike")
 	void shouldLoadCatalogWithoutAnyRoot() {
 		this.evita.updateCatalog(CATALOG, EvitaSessionContract::goLiveAndClose);
-		final List<List<EntityReferenceContract>> before = this.evita.queryCatalog(CATALOG, this::queryByReferences);
+		final List<List<EntityReferenceContract>> before =
+			this.evita.queryCatalog(CATALOG, VirtualReferencePartitionNeutralityTest::queryByReferences);
 		assertFalse(before.get(0).isEmpty(), "The category query must match products");
 		assertEquals(PRODUCT_COUNT, before.get(1).size(), "Every product has a thumbnail");
 
@@ -160,7 +162,9 @@ class VirtualReferencePartitionNeutralityTest implements EvitaTestSupport {
 		this.evita = new Evita(newTestEvitaConfigurationBuilder(this.paths).build());
 		this.evita.waitUntilFullyInitialized();
 
-		assertEquals(before, this.evita.queryCatalog(CATALOG, this::queryByReferences));
+		assertEquals(
+			before, this.evita.queryCatalog(CATALOG, VirtualReferencePartitionNeutralityTest::queryByReferences)
+		);
 		assertNoVirtualReferencePartitionParts();
 	}
 
@@ -172,7 +176,7 @@ class VirtualReferencePartitionNeutralityTest implements EvitaTestSupport {
 	 * @return the products referencing category 1, then the products with a thumbnail
 	 */
 	@Nonnull
-	private List<List<EntityReferenceContract>> queryByReferences(@Nonnull EvitaSessionContract session) {
+	private static List<List<EntityReferenceContract>> queryByReferences(@Nonnull EvitaSessionContract session) {
 		return List.of(
 			session.queryListOfEntityReferences(
 				query(

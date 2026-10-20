@@ -225,6 +225,7 @@ class VirtualReferencePartitionIndexNormalizedSortValueTest {
 	 */
 	record ValueFixture(@Nonnull SortKeyFixture sortKey, @Nonnull List<Serializable> values) {
 
+		@Nonnull
 		@Override
 		public String toString() {
 			return this.sortKey.toString();
