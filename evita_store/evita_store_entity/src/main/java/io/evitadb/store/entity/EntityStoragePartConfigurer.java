@@ -77,7 +77,12 @@ public class EntityStoragePartConfigurer implements Consumer<Kryo> {
 		kryo.register(AttributesSetKey.class, new SerialVersionBasedSerializer<>(new AttributesSetKeySerializer(), AttributesSetKey.class), index++);
 		kryo.register(AssociatedDataStoragePart.class, new SerialVersionBasedSerializer<>(new AssociatedDataStoragePartSerializer(this.keyCompressor), AssociatedDataStoragePart.class), index++);
 
-		kryo.register(AttributeValue.class, new SerialVersionBasedSerializer<>(new AttributeValueSerializer(this.keyCompressor), AttributeValue.class), index++);
+		kryo.register(
+			AttributeValue.class,
+			new SerialVersionBasedSerializer<>(new AttributeValueSerializer(this.keyCompressor), AttributeValue.class)
+				.addBackwardCompatibleSerializer(-5387437940533059959L, new AttributeValueSerializer_2026_2(this.keyCompressor)),
+			index++
+		);
 		kryo.register(AssociatedDataValue.class, new SerialVersionBasedSerializer<>(new AssociatedDataValueSerializer(this.keyCompressor), AssociatedDataValue.class), index++);
 		kryo.register(
 			Reference.class,

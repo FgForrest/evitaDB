@@ -2984,6 +2984,29 @@ class EvitaDataTypesTest {
 		}
 
 		@Test
+		@DisplayName("should clamp without truncating through the public clamp-only helper")
+		void shouldClampWithoutTruncatingThroughPublicHelper() {
+			assertEquals(
+				OffsetDateTime.ofInstant(LATEST_SUPPORTED_INSTANT, ZoneOffset.MIN),
+				EvitaDataTypes.clampToSupportedWindow(OffsetDateTime.MAX)
+			);
+			assertEquals(
+				LocalDateTime.ofInstant(EARLIEST_SUPPORTED_INSTANT, ZoneOffset.UTC),
+				EvitaDataTypes.clampToSupportedWindow(LocalDateTime.MIN)
+			);
+			assertEquals(LATEST_SUPPORTED_INSTANT, EvitaDataTypes.clampToSupportedWindow(Instant.MAX));
+			assertEquals(EARLIEST_SUPPORTED_INSTANT, EvitaDataTypes.clampToSupportedWindow(Instant.MIN));
+
+			// inside the window the very same instance returns, sub-millisecond digits included
+			final OffsetDateTime nanos = OffsetDateTime.of(2030, 1, 2, 3, 4, 5, 123_456_789, ZoneOffset.UTC);
+			assertSame(nanos, EvitaDataTypes.clampToSupportedWindow(nanos));
+			final LocalDateTime localNanos = LocalDateTime.of(2030, 1, 2, 3, 4, 5, 123_456_789);
+			assertSame(localNanos, EvitaDataTypes.clampToSupportedWindow(localNanos));
+			final Instant instantNanos = nanos.toInstant();
+			assertSame(instantNanos, EvitaDataTypes.clampToSupportedWindow(instantNanos));
+		}
+
+		@Test
 		@DisplayName("should clamp a stored value and a query probe of the same sentinel to the same moment")
 		void shouldClampStoredValueAndQueryProbeAlike() {
 			assertEquals(
