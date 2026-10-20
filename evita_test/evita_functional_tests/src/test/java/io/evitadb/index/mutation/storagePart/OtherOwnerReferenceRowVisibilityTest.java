@@ -39,6 +39,8 @@ import io.evitadb.api.requestResponse.data.mutation.reference.InsertReferenceMut
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.Price.PriceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaEditor;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.core.Evita;
 import io.evitadb.core.buffer.DataStoreMemoryBuffer;
@@ -943,9 +945,9 @@ class OtherOwnerReferenceRowVisibilityTest implements EvitaTestSupport {
 				session.defineEntitySchema(ENTITY_PRODUCT)
 					.withoutGeneratedPrimaryKey()
 					.withLocale(Locale.ENGLISH)
-					.withAttribute(ATTR_CODE, String.class, thatIs -> thatIs.nullable())
+					.withAttribute(ATTR_CODE, String.class, AttributeSchemaEditor::nullable)
 					.withAttribute(ATTR_NAME, String.class, thatIs -> thatIs.localized().nullable())
-					.withAssociatedData(ASSOCIATED_DATA_NOTE, String.class, thatIs -> thatIs.nullable())
+					.withAssociatedData(ASSOCIATED_DATA_NOTE, String.class, AssociatedDataSchemaEditor::nullable)
 					.withPriceInCurrency(CURRENCY_CZK)
 					.withReferenceToEntity(
 						REF_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,

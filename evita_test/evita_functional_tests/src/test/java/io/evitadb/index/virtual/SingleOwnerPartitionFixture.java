@@ -30,6 +30,7 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.api.requestResponse.schema.AttributeSchemaEditor;
 import io.evitadb.api.requestResponse.schema.Cardinality;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
@@ -380,7 +381,7 @@ public final class SingleOwnerPartitionFixture {
 		session.defineEntitySchema(ENTITY_BRAND).updateVia(session);
 		session.defineEntitySchema(ENTITY_PRODUCT)
 			.withLocale(Locale.ENGLISH, Locale.GERMAN)
-			.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.unique())
+			.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::unique)
 			.withAttribute(ATTRIBUTE_NAME, String.class, whichIs -> whichIs.localized().nullable())
 			.withReferenceToEntity(
 				REFERENCE_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,
@@ -517,7 +518,7 @@ public final class SingleOwnerPartitionFixture {
 		session.defineEntitySchema(ENTITY_MEDIA).updateVia(session);
 		session.defineEntitySchema(ENTITY_BRAND).updateVia(session);
 		session.defineEntitySchema(ENTITY_PRODUCT)
-			.withAttribute(ATTRIBUTE_CODE, String.class, whichIs -> whichIs.unique())
+			.withAttribute(ATTRIBUTE_CODE, String.class, AttributeSchemaEditor::unique)
 			.withAttribute(ATTRIBUTE_RANK, Integer.class, whichIs -> whichIs.filterable().sortable().nullable())
 			.withReferenceToEntity(
 				REFERENCE_CATEGORIES, ENTITY_CATEGORY, Cardinality.ZERO_OR_MORE,

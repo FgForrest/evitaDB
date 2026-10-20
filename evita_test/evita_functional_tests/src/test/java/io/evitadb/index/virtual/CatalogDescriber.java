@@ -270,6 +270,7 @@ public final class CatalogDescriber {
 		boolean faceted = false;
 		final List<String> histogramNames = new ArrayList<>(4);
 		for (final ReferenceSchemaContract referenceSchema : schema.getReferences().values()) {
+			//noinspection NonShortCircuitBooleanExpression
 			faceted |= referenceSchema.isFacetedInScope(scope);
 			histogramNames.addAll(new TreeSet<>(referenceSchema.getHistogramIndexDefinitions(scope).keySet()));
 			if (!referenceSchema.isIndexedInScope(scope)) {
@@ -534,7 +535,7 @@ public final class CatalogDescriber {
 			final List<Serializable> values = sample.getAttributeValues(referenceName, attributeName);
 			if (
 				!attributeSchema.isFilterableInScope(scope) || attributeSchema.isLocalized() ||
-					!isComparablePlainType(attributeSchema.getPlainType()) || values.isEmpty()
+					isNotComparablePlainType(attributeSchema.getPlainType()) || values.isEmpty()
 			) {
 				continue;
 			}
@@ -794,7 +795,7 @@ public final class CatalogDescriber {
 			final Integer exactTarget = sample.getTargetWithValue(referenceName, attributeName);
 			if (
 				!attributeSchema.isSortableInScope(scope) || attributeSchema.isLocalized() ||
-					!isComparablePlainType(attributeSchema.getPlainType()) || values.isEmpty() || exactTarget == null
+					isNotComparablePlainType(attributeSchema.getPlainType()) || values.isEmpty() || exactTarget == null
 			) {
 				continue;
 			}
@@ -940,13 +941,14 @@ public final class CatalogDescriber {
 	}
 
 	/**
-	 * Returns TRUE for the attribute types whose values the bounded and exact lines can name - numbers and strings.
+	 * Returns TRUE for the attribute types whose values the bounded and exact lines cannot name - anything but numbers
+	 * and strings.
 	 *
 	 * @param plainType the plain type of the attribute
-	 * @return TRUE when the type is comparable by value
+	 * @return TRUE when the type is not comparable by value
 	 */
-	private static boolean isComparablePlainType(@Nonnull Class<?> plainType) {
-		return String.class.equals(plainType) || Number.class.isAssignableFrom(plainType);
+	private static boolean isNotComparablePlainType(@Nonnull Class<?> plainType) {
+		return !String.class.equals(plainType) && !Number.class.isAssignableFrom(plainType);
 	}
 
 	/**

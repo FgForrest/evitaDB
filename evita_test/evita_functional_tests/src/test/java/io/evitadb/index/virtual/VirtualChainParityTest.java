@@ -806,7 +806,7 @@ class VirtualChainParityTest implements EvitaTestSupport {
 	) {
 		return this.evita.queryCatalog(
 			catalog,
-			(Function<EvitaSessionContract, Map<Integer, List<Integer>>>) session -> {
+			session -> {
 				final Map<Integer, List<Integer>> result = CollectionUtils.createLinkedHashMap(64);
 				for (SealedEntity entity : session.queryList(
 					query(

@@ -641,7 +641,7 @@ public final class MaterializedPartitionTwin {
 	 *
 	 * @param referenceName the reference
 	 * @param scope         the scope
-	 * @return the number of owners by the encoding of the partition key
+	 * @return the owner count of each partition, keyed by the encoding of the partition key
 	 */
 	@Nonnull
 	private Map<String, Integer> ownerCountsOf(@Nonnull String referenceName, @Nonnull Scope scope) {

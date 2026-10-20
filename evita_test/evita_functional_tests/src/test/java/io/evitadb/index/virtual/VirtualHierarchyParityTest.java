@@ -424,6 +424,7 @@ class VirtualHierarchyParityTest implements EvitaTestSupport {
 	 *
 	 * @param parityCase the case
 	 */
+	@SuppressWarnings("NonShortCircuitBooleanExpression")
 	private void assertParity(@Nonnull ParityCase parityCase) {
 		boolean matchedAny = false;
 		boolean reachedRows = false;

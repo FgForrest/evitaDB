@@ -34,6 +34,7 @@ import io.evitadb.index.attribute.SortIndex.ComparableArray;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -199,13 +200,13 @@ final class CanonicalValue {
 		} else if (value instanceof final UUID uuid) {
 			target.append("UUID(").append(uuid.getMostSignificantBits())
 				.append(", ").append(uuid.getLeastSignificantBits()).append(')');
-		} else if (value instanceof final Predecessor predecessor) {
-			target.append("Predecessor(").append(predecessor.predecessorPk()).append(')');
-		} else if (value instanceof final ReferencedEntityPredecessor predecessor) {
-			target.append("ReferencedEntityPredecessor(").append(predecessor.predecessorPk()).append(')');
-		} else if (value instanceof final ComparableArray array) {
+		} else if (value instanceof Predecessor(int predecessorPk)) {
+			target.append("Predecessor(").append(predecessorPk).append(')');
+		} else if (value instanceof ReferencedEntityPredecessor(int predecessorPk)) {
+			target.append("ReferencedEntityPredecessor(").append(predecessorPk).append(')');
+		} else if (value instanceof ComparableArray(Serializable[] elements)) {
 			target.append("ComparableArray");
-			appendElements(array.array(), indexed, target);
+			appendElements(elements, indexed, target);
 		} else if (value instanceof final Object[] array) {
 			target.append(array.getClass().getComponentType().getSimpleName()).append("[]");
 			appendElements(array, indexed, target);
