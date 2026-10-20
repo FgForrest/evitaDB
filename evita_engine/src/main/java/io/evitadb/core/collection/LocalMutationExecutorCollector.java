@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutationExecutor;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
@@ -163,7 +164,7 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 	 *
 	 * Allocated by the first registration, i.e. once per root mutation.
 	 */
-	@Nullable private Map<InFlightEntityKey, ContainerizedLocalMutationExecutor> inFlightExecutors;
+	@Nullable private Map<EntityReference, ContainerizedLocalMutationExecutor> inFlightExecutors;
 	/**
 	 * The storage parts this root mutation has read of the entities it does not mutate, keyed by the entity - the
 	 * answer of {@link #getForeignEntityStorageParts}, consulted by the storage-part executors only after
@@ -178,7 +179,7 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 	 *
 	 * Allocated by the first read, which most root mutations never make.
 	 */
-	@Nullable private Map<InFlightEntityKey, ForeignEntityStorageParts> foreignStorageParts;
+	@Nullable private Map<EntityReference, ForeignEntityStorageParts> foreignStorageParts;
 	/**
 	 * The primary keys of the partitions without an index object this root mutation has vacated, reserved for an owner
 	 * entering a partition of the same key again within it, and whether the root mutation is finishing - handed to
@@ -259,18 +260,6 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 	 * Lazily allocated — stays null for the overwhelming majority of mutations, which fire no histogram trigger.
 	 */
 	@Nullable private Map<ConditionStateKey, Map<String, ContributionVerdicts>> preMutationConditionState;
-
-	/**
-	 * Key of {@link #inFlightExecutors} and {@link #foreignStorageParts} — identifies an entity of the root mutation.
-	 *
-	 * @param entityType       the entity collection name
-	 * @param entityPrimaryKey the primary key of the entity
-	 */
-	private record InFlightEntityKey(
-		@Nonnull String entityType,
-		int entityPrimaryKey
-	) {
-	}
 
 	/**
 	 * Key of {@link #preMutationConditionState} — a captured condition answer belongs to one trigger *in one
@@ -737,7 +726,7 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 	) {
 		return this.inFlightExecutors == null
 			? null
-			: this.inFlightExecutors.get(new InFlightEntityKey(entityType, entityPrimaryKey));
+			: this.inFlightExecutors.get(new EntityReference(entityType, entityPrimaryKey));
 	}
 
 	/**
@@ -755,7 +744,7 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 			this.foreignStorageParts = CollectionUtils.createHashMap(4);
 		}
 		return this.foreignStorageParts.computeIfAbsent(
-			new InFlightEntityKey(entityType, entityPrimaryKey), key -> new ForeignEntityStorageParts()
+			new EntityReference(entityType, entityPrimaryKey), key -> new ForeignEntityStorageParts()
 		);
 	}
 
@@ -775,7 +764,7 @@ class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 		if (this.inFlightExecutors == null) {
 			this.inFlightExecutors = CollectionUtils.createHashMap(4);
 		}
-		final InFlightEntityKey key = new InFlightEntityKey(executor.getEntityType(), executor.getEntityPrimaryKey());
+		final EntityReference key = new EntityReference(executor.getEntityType(), executor.getEntityPrimaryKey());
 		this.inFlightExecutors.put(key, executor);
 		if (this.foreignStorageParts != null) {
 			this.foreignStorageParts.remove(key);

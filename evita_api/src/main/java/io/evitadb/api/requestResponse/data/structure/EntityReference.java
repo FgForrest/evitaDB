@@ -30,7 +30,6 @@ import javax.annotation.concurrent.Immutable;
 import javax.annotation.concurrent.ThreadSafe;
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Objects;
 
 /**
  * This class is used as nested object in {@link Reference} to reference external entities that are represented by reference
@@ -77,6 +76,11 @@ public record EntityReference(
 	@Override
 	public boolean equals(Object o) {
 		if (this == o) return true;
+		// the instance is a hash key on the write path - compare the fields directly rather than through the boxed
+		// `getPrimaryKey()` of the contract
+		if (o instanceof EntityReference that) {
+			return this.primaryKey == that.primaryKey && this.type.equals(that.type);
+		}
 		if (o == null || !EntityReferenceContract.class.isAssignableFrom(o.getClass())) return false;
 		EntityReferenceContract that = (EntityReferenceContract) o;
 		return this.primaryKey == that.getPrimaryKey() && this.type.equals(that.getType());
@@ -84,7 +88,9 @@ public record EntityReference(
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(this.type, this.primaryKey);
+		// the same value `Objects.hash(this.type, this.primaryKey)` produces, without boxing the key and allocating
+		// the varargs array
+		return 31 * (31 + this.type.hashCode()) + this.primaryKey;
 	}
 
 	@Nonnull
