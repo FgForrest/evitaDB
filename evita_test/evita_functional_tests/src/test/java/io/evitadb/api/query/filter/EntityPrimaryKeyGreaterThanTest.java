@@ -63,7 +63,7 @@ class EntityPrimaryKeyGreaterThanTest {
 
 	@Test
 	void shouldRecognizeNotApplicability() {
-		assertFalse(new EntityPrimaryKeyGreaterThan((Integer) null).isApplicable());
+		assertFalse(new EntityPrimaryKeyGreaterThan(null).isApplicable());
 	}
 
 	@Test

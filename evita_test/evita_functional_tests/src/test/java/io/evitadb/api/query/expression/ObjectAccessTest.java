@@ -440,7 +440,7 @@ class ObjectAccessTest {
 					42,
 					Map.of(
 						"list",
-						(Serializable) new java.util.ArrayList<>(
+						new java.util.ArrayList<>(
 							java.util.Arrays.asList(1, null, 3)
 						)
 					)

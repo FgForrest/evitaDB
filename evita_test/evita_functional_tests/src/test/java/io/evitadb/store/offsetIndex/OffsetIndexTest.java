@@ -2041,6 +2041,73 @@ class OffsetIndexTest implements EvitaTestSupport {
 					}
 				}
 			}
+
+			@DisplayName("a record removed and put back within one version keeps the put, also after reload")
+			@Test
+			void shouldKeepRecordPutAfterRemovalInSameVersion() {
+				final StorageSettings storageSettings = new StorageSettings(
+					StorageOptions.temporary(),
+					DEFAULT_TRANSACTION_OPTIONS
+				);
+				try (final ObservableOutputKeeper observableOutputKeeper = createMockedObservableOutputKeeper()) {
+					final EntityBodyStoragePart original = bodyPartWithLocale(1, 1, Locale.ENGLISH);
+					final EntityBodyStoragePart rePut = bodyPartWithLocale(2, 1, Locale.GERMAN);
+					OffsetIndexDescriptor descriptor = null;
+
+					final OffsetIndex offsetIndex = createNewOffsetIndex(
+						0L,
+						storageSettings,
+						createWriteOnlyFileHandle(
+							OffsetIndexTest.this.targetFile, storageSettings, observableOutputKeeper
+						),
+						OffsetIndexTest.this.offsetIndexRecordTypeRegistry
+					);
+					try {
+						offsetIndex.put(1L, original);
+						offsetIndex.flush(1L);
+						// one flush applies a removal and then a put of the same record key in iteration order - the
+						// shape a flush takes when a record is dropped and written anew within the same version
+						offsetIndex.remove(2L, 1, EntityBodyStoragePart.class);
+						offsetIndex.put(2L, rePut);
+						descriptor = offsetIndex.flush(2L);
+
+						assertEquals(rePut, offsetIndex.get(2L, 1, EntityBodyStoragePart.class),
+							"get at v2 should return the record put after the removal");
+						assertEquals(original, offsetIndex.get(1L, 1, EntityBodyStoragePart.class),
+							"get at v1 should still return the record flushed there");
+						assertEquals(1, offsetIndex.count(2L),
+							"count at v2 should be one - the removal and the put fold into an overwrite");
+					} finally {
+						IOUtils.closeQuietly(offsetIndex::close);
+					}
+
+					OffsetIndex reloaded = null;
+					try {
+						reloaded = loadOffsetIndex(
+							2L,
+							descriptor,
+							storageSettings,
+							createWriteOnlyFileHandle(
+								OffsetIndexTest.this.targetFile, storageSettings, observableOutputKeeper
+							),
+							OffsetIndexTest.this.offsetIndexRecordTypeRegistry
+						);
+
+						assertEquals(rePut, reloaded.get(2L, 1, EntityBodyStoragePart.class),
+							"reloaded get should return the record put after the removal");
+						assertTrue(reloaded.contains(2L, 1, EntityBodyStoragePart.class),
+							"reloaded contains should agree with get");
+						assertEquals(1, reloaded.count(2L),
+							"reloaded count should be one");
+						assertEquals(1, reloaded.count(2L, EntityBodyStoragePart.class),
+							"reloaded per-type count should be one");
+					} finally {
+						if (reloaded != null) {
+							IOUtils.closeQuietly(reloaded::close);
+						}
+					}
+				}
+			}
 		}
 
 		/**

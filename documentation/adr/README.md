@@ -33,7 +33,10 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-10-20 | [Tests that pin the code's structure by scanning sources or bytecode against hand-kept lists are removed; the rule goes into the javadoc of the type it constrains, the compiler where it can, and a runtime refusal where one exists](2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures.md) | process | accepted | #1615, PR #1738 |
 | 2026-10-19 | [Only the management reads of the B+ trees are session-free, so only their walks keep reader-side guards](2026-10-19-session-free-tree-reads-are-management-only.md) | refactor | accepted | #1761 |
+| 2026-10-14 | [The filter of referenceContent is evaluated row by row over the fetched owners' references, and its index route is deleted](2026-10-14-reference-content-filter-row-by-row.md) | refactor | accepted | #1615, PR #1738 |
+| 2026-10-12 | [A single-owner partition of a filtering-only reference is a row of a per-reference registry, and an index object exists only while a partition has two or more owners](2026-10-12-single-owner-partitions-as-registry-rows.md) | optimization | accepted | #1615, PR #1738 |
 | 2026-10-08 | [Standalone unique indexes key every value exactly as the filter index does](2026-10-08-unique-indexes-normalize-like-filter-indexes.md) | fix | accepted | #1712, #1713, PR #1722 |
 | 2026-10-08 | [Restore the content of a trapped storage part on rollback from a pre-image journalled when the part is read inside a savepoint](2026-10-08-trapped-storage-part-content-pre-images.md) | fix | accepted | #1678, PR #1724 |
 | 2026-10-08 | [Every requested scope is planned, checked and counted as if it were queried alone, and the facet summary predicts exactly what facetHaving selects](2026-10-08-scope-faithful-planning-and-facet-summary-parity.md) | fix | accepted | #1681, #1686, #1695, PR #1720 |

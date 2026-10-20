@@ -641,6 +641,58 @@ class TransactionalLongBPlusTreeTest {
 	class DeleteOperationsTest {
 
 		@Test
+		@DisplayName("deleting an absent key in a transaction opens no write layer on its leaf")
+		void shouldOpenNoWriteLayerWhenDeletingAbsentKey() {
+			final TransactionalLongBPlusTree<String> tree = new TransactionalLongBPlusTree<>(3, String.class);
+			tree.insert(1, "Value1");
+			tree.insert(2, "Value2");
+			// both keys fit one leaf, so the root IS the leaf every removal below lands on
+			final BPlusLeafTreeNode<String> leaf = (BPlusLeafTreeNode<String>) tree.getRoot();
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					tested.delete(99);
+					assertNull(
+						Transaction.getTransactionalMemoryLayerIfExists(leaf),
+						"an absent key must be settled on the current state: no layer opened, nothing copied"
+					);
+				},
+				(original, committed) -> {
+					assertEquals(2, committed.size());
+					assertEquals("Value1", committed.search(1).orElseThrow());
+					assertEquals("Value2", committed.search(2).orElseThrow());
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("deleting a present key in a transaction writes through a layer on its leaf")
+		void shouldWriteThroughLayerWhenDeletingPresentKey() {
+			final TransactionalLongBPlusTree<String> tree = new TransactionalLongBPlusTree<>(3, String.class);
+			tree.insert(1, "Value1");
+			tree.insert(2, "Value2");
+			// both keys fit one leaf, so the root IS the leaf every removal below lands on
+			final BPlusLeafTreeNode<String> leaf = (BPlusLeafTreeNode<String>) tree.getRoot();
+			assertStateAfterCommit(
+				tree,
+				tested -> {
+					tested.delete(1);
+					assertNotNull(
+						Transaction.getTransactionalMemoryLayerIfExists(leaf),
+						"a removal that changes the leaf must write into the transaction's layer, not the shared node"
+					);
+				},
+				(original, committed) -> {
+					assertEquals(2, original.size());
+					assertEquals("Value1", original.search(1).orElseThrow());
+					assertEquals(1, committed.size());
+					assertTrue(committed.search(1).isEmpty());
+					assertEquals("Value2", committed.search(2).orElseThrow());
+				}
+			);
+		}
+
+		@Test
 		@DisplayName("deletes all elements one by one in random order")
 		void shouldDeleteEntireContentsOfTheTree() {
 			final Random rnd = new Random(42);

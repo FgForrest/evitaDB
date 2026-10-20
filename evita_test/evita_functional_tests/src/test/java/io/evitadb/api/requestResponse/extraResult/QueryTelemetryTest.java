@@ -112,7 +112,7 @@ class QueryTelemetryTest implements EvitaTestSupport {
 				new QueryTelemetry[]{innerStep}
 			);
 			assertEquals(1, telemetry.getSteps().size());
-			assertEquals(QueryPhase.PLANNING_FILTER, telemetry.getSteps().get(0).getOperation());
+			assertEquals(QueryPhase.PLANNING_FILTER, telemetry.getSteps().getFirst().getOperation());
 		}
 	}
 
@@ -187,7 +187,7 @@ class QueryTelemetryTest implements EvitaTestSupport {
 			final QueryTelemetry existingStep = new QueryTelemetry(QueryPhase.EXECUTION);
 			telemetry.addStep(existingStep);
 			assertEquals(1, telemetry.getSteps().size());
-			assertSame(existingStep, telemetry.getSteps().get(0));
+			assertSame(existingStep, telemetry.getSteps().getFirst());
 		}
 
 		@Test

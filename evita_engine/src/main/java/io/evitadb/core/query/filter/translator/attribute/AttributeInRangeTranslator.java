@@ -25,7 +25,6 @@ package io.evitadb.core.query.filter.translator.attribute;
 
 import io.evitadb.api.query.filter.AttributeInRange;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
-import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
@@ -37,25 +36,20 @@ import io.evitadb.core.query.algebra.prefetch.SelectionFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
-import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBitmapFilter;
+import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
 import io.evitadb.dataType.BigDecimalNumberRange;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.NumberRange;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.Index;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
-import java.util.Arrays;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.function.Predicate;
-import java.util.stream.Stream;
+import java.util.function.Supplier;
 
-import static io.evitadb.api.query.QueryConstraints.attributeContent;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -64,158 +58,44 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class AttributeInRangeTranslator extends AbstractAttributeTranslator
-	implements FilteringConstraintTranslator<AttributeInRange> {
+	implements FilteringConstraintTranslator<AttributeInRange>, AttributeValueMatchingTranslator<AttributeInRange> {
 
 	/**
-	 * Creates a predicate to check if any attribute value in a stream is valid within a given date-time range.
-	 * The predicate will evaluate each optional attribute value in the stream and determine if it falls within the date-time range specified by the given moment.
+	 * Computes a comparable long value from the provided filter constraint based on the attribute definition type -
+	 * the point the {@link io.evitadb.index.range.RangeIndex} of the attribute is probed with.
 	 *
-	 * @param theMoment The date-time moment against which the attribute values are validated.
-	 * @return A predicate that evaluates whether any attribute value within the stream is within the specified date-time range.
-	 */
-	@Nonnull
-	public static Predicate<Stream<Optional<AttributeValue>>> getDateTimeRangePredicate(@Nonnull OffsetDateTime theMoment) {
-		return attrStream -> attrStream.anyMatch(
-			attr -> {
-				if (attr.isEmpty()) {
-					return false;
-				} else {
-					final Predicate<DateTimeRange> predicate = attrValue -> attrValue != null && attrValue.isValidFor(theMoment);
-					final Serializable attrValue = Objects.requireNonNull(attr.get().value());
-					if (attrValue.getClass().isArray()) {
-						return Arrays.stream((Object[]) attrValue).map(DateTimeRange.class::cast).anyMatch(predicate);
-					} else {
-						return predicate.test((DateTimeRange) attrValue);
-					}
-				}
-			}
-		);
-	}
-
-	/**
-	 * Creates a predicate to check if any attribute value in a stream is valid within a given numeric range.
-	 * The predicate will evaluate each optional attribute value in the stream and determine if it falls within
-	 * the range specified by the given BigDecimal value.
+	 * The matcher of this translator tests a single stored range against the very same point instead of probing an
+	 * index, so both read one encoding.
 	 *
-	 * @param theValue The BigDecimal value against which the attribute values are validated.
-	 * @return A predicate that evaluates whether any attribute value within the stream is within the specified numeric range.
-	 */
-	@Nonnull
-	public static Predicate<Stream<Optional<AttributeValue>>> getNumberRangePredicate(@Nonnull BigDecimal theValue) {
-		return attrStream -> attrStream.anyMatch(
-			attr -> {
-				if (attr.isEmpty()) {
-					return false;
-				} else {
-					final Predicate<BigDecimalNumberRange> predicate = attrValue -> attrValue != null && attrValue.isWithin(theValue);
-					final Serializable attrValue = Objects.requireNonNull(attr.get().value());
-					if (attrValue.getClass().isArray()) {
-						return Arrays.stream((Object[]) attrValue).map(BigDecimalNumberRange.class::cast).anyMatch(predicate);
-					} else {
-						return predicate.test((BigDecimalNumberRange) attrValue);
-					}
-				}
-			}
-		);
-	}
-
-	/**
-	 * Creates a predicate to check if any attribute value in a stream is valid within a given numeric range.
-	 * The predicate will evaluate each optional attribute value in the stream and determine if it falls within
-	 * the range specified by the given Number value.
-	 *
-	 * @param theValue The Number value against which the attribute values are validated.
-	 * @return A predicate that evaluates whether any attribute value within the stream is within the specified numeric range.
-	 */
-	@Nonnull
-	public static Predicate<Stream<Optional<AttributeValue>>> getNumberRangePredicate(@Nonnull Number theValue) {
-		return attrStream -> attrStream.anyMatch(
-			attr -> {
-				if (attr.isEmpty()) {
-					return false;
-				} else {
-					final Predicate<NumberRange<Number>> predicate = attrValue -> attrValue != null && attrValue.isWithin(theValue);
-					final Serializable attrValue = Objects.requireNonNull(attr.get().value());
-					if (attrValue.getClass().isArray()) {
-						//noinspection unchecked
-						return Arrays.stream((Object[]) attrValue).anyMatch(it -> predicate.test((NumberRange<Number>) it));
-					} else {
-						//noinspection unchecked
-						return predicate.test((NumberRange<Number>) attrValue);
-					}
-				}
-			}
-		);
-	}
-
-	/**
-	 * Creates an {@link AttributeBitmapFilter} instance to filter entities based on a range constraint on an attribute.
-	 *
-	 * @param attributeInRange an instance of {@link AttributeInRange} containing the range constraint information.
-	 * @param filterByVisitor  an instance of {@link FilterByVisitor} providing the current processing context and helper methods.
-	 * @param attributeName    the name of the attribute to apply the filter on.
-	 * @return an {@link AttributeBitmapFilter} that can be applied to filter entities based on the given range constraint.
-	 */
-	@Nonnull
-	private static AttributeBitmapFilter createAlternativeBitmapFilter(
-		@Nonnull AttributeInRange attributeInRange,
-		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull String attributeName
-	) {
-		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
-		return new AttributeBitmapFilter(
-			attributeName,
-			attributeContent(attributeName),
-			processingScope::getAttributeSchema,
-			(entityContract, theAttributeName) -> processingScope.getAttributeValueStream(entityContract, theAttributeName, filterByVisitor.getLocale()),
-			attributeSchema -> {
-				if (NumberRange.class.isAssignableFrom(attributeSchema.getPlainType())) {
-					final Number theValue = attributeInRange.getTheValue();
-					Assert.notNull(theValue, "Argument of InRange must not be null.");
-					if (theValue instanceof BigDecimal) {
-						return getNumberRangePredicate((BigDecimal) theValue);
-					} else {
-						return getNumberRangePredicate(theValue);
-					}
-				} else if (DateTimeRange.class.isAssignableFrom(attributeSchema.getPlainType())) {
-					final OffsetDateTime theMoment = ofNullable(attributeInRange.getTheMoment()).orElseGet(filterByVisitor::getNow);
-					return getDateTimeRangePredicate(theMoment);
-				} else {
-					throw new EvitaInvalidUsageException("Range types accepts only Number or DateTime types - type " + attributeInRange.getUnknownArgument() + " cannot be used!");
-				}
-			}
-		);
-	}
-
-	/**
-	 * Computes a comparable long value from the provided filter constraint based on the attribute definition type.
-	 *
-	 * @param filterConstraint    AttributeInRange object containing the constraint information.
-	 * @param filterByVisitor     FilterByVisitor object providing additional context and operations.
-	 * @param attributeDefinition AttributeSchemaContract object defining the attribute schema.
+	 * @param filterConstraint     AttributeInRange object containing the constraint information.
+	 * @param now                  supplier of the moment of the query, consulted when the constraint names no moment
+	 *                             for a date-time range
+	 * @param plainType            the plain type of the attribute
+	 * @param indexedDecimalPlaces the decimal places the attribute's numbers are indexed with
 	 * @return A long representation of the comparable value derived from the filter constraint.
 	 * @throws EvitaInvalidUsageException If the attribute type is not supported.
 	 */
-	private static long getComparableValue(
+	public static long getComparableValue(
 		@Nonnull AttributeInRange filterConstraint,
-		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull AttributeSchemaContract attributeDefinition
+		@Nonnull Supplier<OffsetDateTime> now,
+		@Nonnull Class<?> plainType,
+		int indexedDecimalPlaces
 	) {
-		if (NumberRange.class.isAssignableFrom(attributeDefinition.getPlainType())) {
+		if (NumberRange.class.isAssignableFrom(plainType)) {
 			final Number theValue = filterConstraint.getTheValue();
 			Assert.notNull(theValue, "Argument of InRange must not be null.");
 			if (theValue instanceof BigDecimal) {
-				return BigDecimalNumberRange.toComparableLong((BigDecimal) theValue, attributeDefinition.getIndexedDecimalPlaces());
+				return BigDecimalNumberRange.toComparableLong((BigDecimal) theValue, indexedDecimalPlaces);
 			} else {
 				// non-BigDecimal numeric arguments must be scaled by indexedDecimalPlaces too, otherwise the
 				// probe (e.g. `90`) is encoded as a raw long while the range index holds scale-encoded bounds
 				// (e.g. `900000` at 4 decimal places) - mirrors AttributeBetweenTranslator's bound encoding
 				return BigDecimalNumberRange.toComparableLong(
-					BigDecimal.valueOf(theValue.longValue()), attributeDefinition.getIndexedDecimalPlaces()
+					BigDecimal.valueOf(theValue.longValue()), indexedDecimalPlaces
 				);
 			}
-		} else if (DateTimeRange.class.isAssignableFrom(attributeDefinition.getPlainType())) {
-			final OffsetDateTime theMoment = ofNullable(filterConstraint.getTheMoment()).orElseGet(filterByVisitor::getNow);
+		} else if (DateTimeRange.class.isAssignableFrom(plainType)) {
+			final OffsetDateTime theMoment = ofNullable(filterConstraint.getTheMoment()).orElseGet(now);
 			return DateTimeRange.toComparableLong(theMoment);
 		} else {
 			throw new EvitaInvalidUsageException("Range types accepts only Number or DateTime types - type " + filterConstraint.getUnknownArgument() + " cannot be used!");
@@ -231,7 +111,13 @@ public class AttributeInRangeTranslator extends AbstractAttributeTranslator
 			final AttributeSchemaContract attributeSchema = filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE);
 			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
-			final long comparableValue = getComparableValue(attributeInRange, filterByVisitor, attributeSchema);
+			final AttributeValueMatcher matcher = createMainQueryMatcher(
+				attributeInRange, filterByVisitor, attributeSchema
+			);
+			final long comparableValue = getComparableValue(
+				attributeInRange, filterByVisitor::getNow,
+				attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces()
+			);
 			final boolean isNowOnDateTimeRange =
 				DateTimeRange.class.isAssignableFrom(attributeSchema.getPlainType())
 					&& attributeInRange.getTheMoment() == null;
@@ -249,7 +135,7 @@ public class AttributeInRangeTranslator extends AbstractAttributeTranslator
 			if (filterByVisitor.isPrefetchPossible()) {
 				return new SelectionFormula(
 					filteringFormula,
-					createAlternativeBitmapFilter(attributeInRange, filterByVisitor, attributeName)
+					createAlternativeBitmapFilter(attributeInRange, filterByVisitor, matcher)
 				);
 			} else {
 				return filteringFormula;
@@ -257,9 +143,25 @@ public class AttributeInRangeTranslator extends AbstractAttributeTranslator
 		} else {
 			return new EntityFilteringFormula(
 				"attribute in range filter",
-				createAlternativeBitmapFilter(attributeInRange, filterByVisitor, attributeName)
+				createEntityFilteringBitmapFilter(attributeInRange, filterByVisitor)
 			);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public AttributeValueMatcher createMatcher(
+		@Nonnull AttributeInRange attributeInRange,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Supplier<OffsetDateTime> now
+	) {
+		return AttributeValueMatcher.enveloping(
+			attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces(),
+			getComparableValue(
+				attributeInRange, now, attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces()
+			)
+		);
 	}
 
 }

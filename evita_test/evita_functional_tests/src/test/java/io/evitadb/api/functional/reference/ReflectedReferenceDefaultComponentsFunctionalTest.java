@@ -516,8 +516,7 @@ class ReflectedReferenceDefaultComponentsFunctionalTest implements EvitaTestSupp
 			Map.of("archived", List.of(ARCHIVED_CATEGORY_PK).toString(), "live", List.of(LIVE_CATEGORY_PK).toString()),
 			this.evita.queryCatalog(
 				TEST_CATALOG,
-				(Function<EvitaSessionContract, Map<String, String>>)
-					ReflectedReferenceDefaultComponentsFunctionalTest::findOwners
+				ReflectedReferenceDefaultComponentsFunctionalTest::findOwners
 			),
 			"The committed catalog must answer the same"
 		);

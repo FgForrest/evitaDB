@@ -84,7 +84,7 @@ public class Node4Test {
 		checkKeyAndPosAlign(deserializedNode4);
 
 		Node node = node4.remove(0);
-		Assertions.assertTrue(node instanceof LeafNode);
+		Assertions.assertInstanceOf(LeafNode.class, node);
 	}
 
 	@Nested
@@ -277,7 +277,7 @@ public class Node4Test {
 
 			// value checks
 			Assertions.assertTrue((key1 + 1) < (key2 - 1));
-			Assertions.assertTrue(node instanceof Node4);
+			Assertions.assertInstanceOf(Node4.class, node);
 
 			// search for the first key we just added returns the
 			SearchResult sr = node.getNearestChildPos(key1);
@@ -343,7 +343,7 @@ public class Node4Test {
 				nodes = nodes.insert(leafNode, key);
 			}
 			// check we are testing the correct thing
-			Assertions.assertTrue(nodes instanceof Node4);
+			Assertions.assertInstanceOf(Node4.class, nodes);
 
 			// check that searching for each key, is FOUND
 			for (int i = 0; i < insertCount; i++) {
@@ -386,7 +386,7 @@ public class Node4Test {
 				nodes = nodes.insert(leafNode, key);
 			}
 			// check we are testing the correct thing
-			Assertions.assertTrue(nodes instanceof Node4);
+			Assertions.assertInstanceOf(Node4.class, nodes);
 
 			// check that searching for each key, is FOUND
 			for (int i = 0; i < insertCount; i++) {
@@ -472,7 +472,7 @@ public class Node4Test {
 				nodes = nodes.insert(leafNode, (byte) (offset + i));
 			}
 			// check we are testing the correct data structure
-			Assertions.assertTrue(nodes instanceof Node4);
+			Assertions.assertInstanceOf(Node4.class, nodes);
 
 			// The position of a value before the "first" value dose not exist thus ILLEGAL_IDX
 			Assertions.assertEquals(BranchNode.ILLEGAL_IDX, nodes.getNextSmallerPos(nodes.getMinPos()));
@@ -512,7 +512,7 @@ public class Node4Test {
 				nodes = nodes.insert(leafNode, (byte) (offset + (i * step)));
 			}
 			// check we are testing the correct data structure
-			Assertions.assertTrue(nodes instanceof Node4);
+			Assertions.assertInstanceOf(Node4.class, nodes);
 
 			// The position of a value before the "first" value dose not exist thus ILLEGAL_IDX
 			Assertions.assertEquals(BranchNode.ILLEGAL_IDX, nodes.getNextSmallerPos(nodes.getMinPos()));

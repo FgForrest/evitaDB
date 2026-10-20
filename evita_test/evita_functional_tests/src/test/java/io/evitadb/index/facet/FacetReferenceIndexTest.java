@@ -658,10 +658,10 @@ class FacetReferenceIndexTest {
 
 			assertEquals(1, formulas.size());
 			assertNull(
-				formulas.get(0).getFacetGroupId(),
+				formulas.getFirst().getFacetGroupId(),
 				"the ungrouped index is keyed by null, which a grouping collector would have rejected"
 			);
-			assertArrayEquals(new int[]{10, 11}, formulas.get(0).getFacetIds().getArray());
+			assertArrayEquals(new int[]{10, 11}, formulas.getFirst().getFacetIds().getArray());
 		}
 
 		@Test
@@ -695,7 +695,7 @@ class FacetReferenceIndexTest {
 			);
 
 			assertEquals(1, formulas.size());
-			final FacetGroupFormula formula = formulas.get(0);
+			final FacetGroupFormula formula = formulas.getFirst();
 			assertArrayEquals(new int[]{10, 11}, formula.getFacetIds().getArray());
 			assertEquals(2, formula.getBitmaps().length);
 			assertArrayEquals(new int[]{100, 101}, formula.getBitmaps()[0].getArray());
@@ -715,7 +715,7 @@ class FacetReferenceIndexTest {
 			);
 
 			assertEquals(1, formulas.size());
-			final FacetGroupFormula formula = formulas.get(0);
+			final FacetGroupFormula formula = formulas.getFirst();
 			assertNull(formula.getFacetGroupId());
 			assertArrayEquals(new int[]{10}, formula.getFacetIds().getArray());
 			assertEquals(1, formula.getBitmaps().length);
@@ -734,7 +734,7 @@ class FacetReferenceIndexTest {
 			);
 
 			assertEquals(1, formulas.size());
-			assertArrayEquals(new int[]{10}, formulas.get(0).getFacetIds().getArray());
+			assertArrayEquals(new int[]{10}, formulas.getFirst().getFacetIds().getArray());
 		}
 
 		@Test

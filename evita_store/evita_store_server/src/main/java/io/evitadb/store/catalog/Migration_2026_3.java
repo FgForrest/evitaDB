@@ -27,8 +27,10 @@ package io.evitadb.store.catalog;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
+import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.dataType.array.CompositeLongArray;
@@ -40,6 +42,7 @@ import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.attribute.EntityReferenceWithLocale;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
+import io.evitadb.index.attribute.LegacyOwnerSortIndexCorrection;
 import io.evitadb.index.attribute.OwnerUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -47,8 +50,10 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex.AttributeCardinalityKey;
+import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.spi.store.catalog.header.model.CatalogHeader;
+import io.evitadb.spi.store.catalog.persistence.PersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AbstractLeafPagePart;
@@ -66,20 +71,25 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueI
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.GlobalUniqueLeafStreamKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.LeafStreamKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.SortIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexLeafPageRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.UniqueIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;
 import io.evitadb.store.catalog.Migration_2025_6.NoChangeHeaderInfoSupplier;
+import io.evitadb.store.catalog.VirtualReferencePartitionConversion.CollectionConversion;
 import io.evitadb.store.model.header.CollectionFileReference;
 import io.evitadb.store.model.header.EntityCollectionFileHeader;
 import io.evitadb.store.model.reference.LogFileRecordReference;
-import io.evitadb.store.offsetIndex.OffsetIndexDescriptor;
+import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.ConsoleWriter;
 import io.evitadb.utils.ConsoleWriter.ConsoleColor;
 import io.evitadb.utils.ConsoleWriter.ConsoleDecoration;
+import io.evitadb.utils.IOUtils;
+import io.evitadb.utils.IOUtils.ExceptionThrowingRunnable;
 import io.evitadb.utils.NumberUtils;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
@@ -109,8 +119,12 @@ import java.util.function.Function;
 
 /**
  * Upgrades a catalog from storage protocol version 6 to 7 by re-keying every persisted
- * {@link AttributeCardinalityIndex} onto the canonical form its sibling value tree keys on, and every persisted
- * standalone unique index onto the key space of the filter index (see *Standalone unique indexes* below).
+ * {@link AttributeCardinalityIndex} onto the canonical form its sibling value tree keys on, every persisted
+ * standalone unique index onto the key space of the filter index (see *Standalone unique indexes* below), by
+ * rewriting every owner sort index that stores temporal values raw or holds localized texts in the order of the bare
+ * collator, locales in the order of their language tag or date time ranges in the order of whole seconds (see *Owner
+ * sort indexes* below), and by converting the single-owner reference partitions into rows of their registry (see
+ * *Single-owner reference partitions* below) - one migration, published once.
  *
  * # What was wrong
  *
@@ -189,10 +203,59 @@ import java.util.function.Function;
  * make. All collisions are collected by a pre-pass that writes nothing, and the upgrade is then refused with every
  * pair named, so the catalog stays exactly as the release that wrote it left it and can be fixed there.
  *
+ * # Owner sort indexes
+ *
+ * An owner sort index - a sort-only attribute, every sortable attribute compound - of 2026.2 and every older release
+ * differs from the one this version writes in four ways. It stored `OffsetDateTime`, `LocalDateTime` and `LocalTime`
+ * values as they were written, while this version stores and compares their millisecond form. And it ordered a
+ * localized `String` element by the bare collator, which equates two spellings such as `ab` with and without a
+ * zero-width space between its letters, while this version breaks that tie - so a compound holding such a pair,
+ * ordered by its next element, is stored in an order this version may reverse, and its pages fail to load as they are.
+ * It ordered a `Locale` element by its language tag alone, which drops an ill-formed variant, so `en-US` with and
+ * without one tie the same way. And it compared a `DateTimeRange` element at whole epoch seconds, an open bound derived
+ * from the zone offset of the other one, while this version compares milliseconds with one constant for an open bound:
+ * two ranges opening in the same second tie the same way, and two ranges open at one end whose other bounds carry
+ * different offsets compare the other way, so even an index of a `DateTimeRange` alone is out of order.
+ *
+ * Every owner sort index of every entity index a collection lists that has a temporal, a localized `String`, a
+ * `Locale` or a `DateTimeRange` element is read in full, and one holding a raw value or out of the order this version
+ * compares its values in is rewritten whole in the current form and order ({@link LegacyOwnerSortIndexCorrection}): an
+ * inline one as a new part, a paged one as new leaf pages above the persisted high-water, a new root, and the removal
+ * of every persisted leaf page.
+ * Apart from a paged index of `DateTimeRange` values alone, which it re-sorts at whole seconds, nothing on the load
+ * path normalizes or re-sorts these values any more, so after this migration the catalog holds none of them in the old
+ * form or order. A bucket in which the release merged two values its comparator equated - two spellings, two locales
+ * of one tag, two ranges equal at whole seconds - stays merged, under the value it was stored with: it does not say
+ * which record holds which value.
+ *
+ * # Single-owner reference partitions
+ *
+ * A catalog of 2026.2 represents every reference partition by an index object of its own; this version keeps a
+ * partition of a reference indexed for filtering as a row of the registry on its referenced-type entity index while
+ * it has a single owner. Once the indexes of a collection are re-keyed and its sort indexes rewritten,
+ * {@link VirtualReferencePartitionConversion} converts its single-owner partitions into rows - after those steps,
+ * because the conversion reads only the entity indexes the published collection header lists, reads them with the
+ * parts those steps rewrote, and its final flush writes whatever they left unflushed. The re-key writes the
+ * cardinality parts of the referenced-type and group indexes and the owner unique parts, the sort rewrite the owner
+ * sort parts, and the conversion the registries and the removals of the partitions it converts. They meet only on a
+ * partition object holding an owner unique part or an owner sort part - one of a reference that was indexed for
+ * partitioning when the owner's attributes were written into it, or one carrying a sortable reference attribute: the
+ * earlier steps rewrite the part, and the conversion, running later, removes it with the rest of the object.
+ *
+ * # Publication
+ *
+ * Everything above only appends to the data files: a collection data store is flushed into records and an offset
+ * index fragment no published header names, and the new collection headers and the re-keyed catalog-level parts wait
+ * unflushed in the catalog data store. The post-upgrade action publishes all of it at once - the catalog header of
+ * protocol 7 and one bootstrap record. A failure before it leaves the published state of protocol 6 as it was, and the
+ * next start runs the whole migration again from it. No file is deleted on the way.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @deprecated removable once no catalog older than 2026.3 can be encountered — at which point no catalog can
- * still carry raw-keyed cardinality counters or raw-keyed unique indexes, and neither this migration nor
- * `AttributeCardinalityIndexStoragePartSerializer_2026_2` has anything left to do
+ * still carry raw-keyed cardinality counters, raw-keyed unique indexes, owner sort indexes holding raw temporal values
+ * or ordered by the bare collator, a language tag or whole seconds, or single-owner reference partitions held by index
+ * objects, and neither this migration nor `AttributeCardinalityIndexStoragePartSerializer_2026_2` has anything left to
+ * do
  */
 @Deprecated(since = "2026.3", forRemoval = true)
 public interface Migration_2026_3 {
@@ -210,13 +273,21 @@ public interface Migration_2026_3 {
 
 	/**
 	 * Re-keys every persisted attribute cardinality index and standalone unique index of every collection, and every
-	 * global unique index of the catalog, onto its normalized form and commits the catalog header at protocol
-	 * version 7. Refuses the upgrade, before writing anything, when two persisted unique values of different owners
-	 * name one key - see {@link #refuseUpgradeOverUniqueKeyCollisions}.
+	 * global unique index of the catalog, onto its normalized form, rewrites every owner sort index storing temporal
+	 * values raw, localized texts in the order of the bare collator, locales in the order of their language tag or
+	 * date time ranges in the order of whole seconds, converts the single-owner reference partitions of every
+	 * collection into registry rows, and commits the catalog header at protocol version 7. Refuses the upgrade, before
+	 * writing anything, when two persisted unique values of different owners name one key - see
+	 * {@link #refuseUpgradeOverUniqueKeyCollisions}.
+	 *
+	 * Every collection persistence service the upgrade opens through the factory is closed before it returns, whether
+	 * it succeeds, refuses or fails - an open service keeps a handle of the collection's data file, which on some
+	 * platforms keeps a later compaction from deleting the file it retires.
 	 *
 	 * @param catalogHeader                             the catalog header being upgraded
 	 * @param storagePartPersistenceService             the catalog-level storage part service
-	 * @param entityCollectionPersistenceServiceFactory builds a persistence service for one collection
+	 * @param entityCollectionPersistenceServiceFactory builds a persistence service for one collection - a new
+	 *                                                  instance on every call, closed by the upgrade
 	 * @param postUpgradeAction                         commits the rewritten catalog header
 	 */
 	static void upgradeFromStorageProtocolVersion_6_to_7(
@@ -225,9 +296,62 @@ public interface Migration_2026_3 {
 		@Nonnull Function<EntityCollectionFileHeader, DefaultEntityCollectionPersistenceService> entityCollectionPersistenceServiceFactory,
 		@Nonnull Consumer<CatalogHeader<LogFileRecordReference, CollectionFileReference>> postUpgradeAction
 	) {
+		final List<DefaultEntityCollectionPersistenceService> openedServices =
+			new ArrayList<>(catalogHeader.getEntityTypeFileIndexes().size());
+		try {
+			rekeyCatalog(
+				catalogHeader,
+				storagePartPersistenceService,
+				// a service is recorded the moment it exists, so one opened right before a failure is closed as well
+				entityCollectionHeader -> {
+					final DefaultEntityCollectionPersistenceService service =
+						entityCollectionPersistenceServiceFactory.apply(entityCollectionHeader);
+					if (service != null) {
+						openedServices.add(service);
+					}
+					return service;
+				},
+				postUpgradeAction
+			);
+		} finally {
+			// a close deletes nothing: after a success it writes nothing either - every collection the upgrade
+			// changed was flushed before its header was recorded - and after a failure it can only append what a
+			// collection had not flushed yet, which no published header names; so one close after everything,
+			// the publication included, covers every path. A close that fails is logged and the others still run
+			IOUtils.closeQuietly(
+				openedServices.stream()
+					.map(service -> (ExceptionThrowingRunnable) service::close)
+					.toArray(ExceptionThrowingRunnable[]::new)
+			);
+		}
+	}
+
+	/**
+	 * Re-keys every persisted attribute cardinality index and standalone unique index of every collection, and every
+	 * global unique index of the catalog, rewrites every owner sort index storing temporal values raw, localized texts
+	 * in the order of the bare collator, locales in the order of their language tag or date time ranges in the order of
+	 * whole seconds, converts the single-owner reference partitions of every collection into registry rows, and commits
+	 * the catalog header at protocol version 7 - the work of {@link #upgradeFromStorageProtocolVersion_6_to_7}, which
+	 * owns the collection persistence services it opens.
+	 *
+	 * @param catalogHeader                 the catalog header being upgraded
+	 * @param storagePartPersistenceService the catalog-level storage part service
+	 * @param collectionServiceFactory      opens the persistence service of one collection
+	 * @param postUpgradeAction             commits the rewritten catalog header
+	 */
+	private static void rekeyCatalog(
+		@Nonnull CatalogHeader<LogFileRecordReference, CollectionFileReference> catalogHeader,
+		@Nonnull CatalogOffsetIndexStoragePartPersistenceService storagePartPersistenceService,
+		@Nonnull
+		Function<EntityCollectionFileHeader, DefaultEntityCollectionPersistenceService> collectionServiceFactory,
+		@Nonnull Consumer<CatalogHeader<LogFileRecordReference, CollectionFileReference>> postUpgradeAction
+	) {
 		ConsoleWriter.writeLine(
 			"Catalog `" + catalogHeader.catalogName() + "` uses storage protocol version 6; re-keying attribute " +
-				"cardinality indexes and standalone unique indexes to their canonical form (protocol 7).",
+				"cardinality indexes and standalone unique indexes to their canonical form, rewriting sort indexes " +
+				"of temporal values, localized texts, locales and date time ranges, and converting single-owner " +
+				"reference partitions into registry rows (protocol " +
+				PersistenceService.STORAGE_PROTOCOL_VERSION + ").",
 			ConsoleColor.BRIGHT_BLUE
 		);
 
@@ -253,7 +377,7 @@ public interface Migration_2026_3 {
 				)
 			);
 			final DefaultEntityCollectionPersistenceService collectionPersistenceService = Objects.requireNonNull(
-				entityCollectionPersistenceServiceFactory.apply(entityCollectionHeader)
+				collectionServiceFactory.apply(entityCollectionHeader)
 			);
 			final Set<Integer> indexIds = new HashSet<>(entityCollectionHeader.usedEntityIndexPrimaryKeys());
 			if (entityCollectionHeader.globalEntityIndexPrimaryKey() != null) {
@@ -271,6 +395,15 @@ public interface Migration_2026_3 {
 				)
 			);
 		}
+		// the conversion classifies the partitions against the schema the loaded catalog will have: a reflected
+		// reference may inherit its indexing from the reference it reflects, which the stored schema alone does not
+		// say - the re-key keeps reading the stored schema, as it always did
+		final Map<String, EntitySchema> storedSchemas = CollectionUtils.createHashMap(collections.size());
+		for (final CollectionUnderUpgrade collection : collections) {
+			storedSchemas.put(collection.header().entityType(), collection.entitySchema());
+		}
+		final Function<String, Optional<? extends EntitySchemaContract>> schemaLookup =
+			entityType -> Optional.ofNullable(storedSchemas.get(entityType));
 
 		// THE PRE-PASS. The standalone unique trees are re-keyed onto the filter index's key space, and two stored
 		// spellings of one value held by different owners would become one key with two owners - a state no unique
@@ -306,14 +439,9 @@ public interface Migration_2026_3 {
 			final List<String> damagedAttributes = new ArrayList<>();
 			final List<String> uncheckedAttributes = new ArrayList<>();
 			for (final Integer indexPrimaryKey : collection.indexIds()) {
-				final EntityIndexStoragePart indexPart = collectionStoragePartService.getStoragePart(
-					catalogVersion, indexPrimaryKey, EntityIndexStoragePart.class
+				final EntityIndexStoragePart indexPart = requireEntityIndexPart(
+					collectionStoragePartService, catalogVersion, indexPrimaryKey
 				);
-				if (indexPart == null) {
-					throw new GenericEvitaInternalError(
-						"Entity index storage part for primary key " + indexPrimaryKey + " is missing!"
-					);
-				}
 				// the reference scope comes from the OWNING index key - a legacy-rehydrated AttributeIndexKey
 				// carries a null reference name, so a reference attribute would otherwise be looked up at entity level
 				final String referenceName = indexPart.getEntityIndexKey().referenceName();
@@ -350,12 +478,43 @@ public interface Migration_2026_3 {
 					catalogVersion, entityCollectionHeader.entityType(), uniqueIndexRekey, collectionStoragePartService
 				);
 			}
+			final boolean rekeyed = rekeyedCounters > 0 || !uniqueIndexRekeys.isEmpty();
+			// the owner sort indexes in the form or order of an older release are rewritten before the conversion, for
+			// two reasons: the conversion removes the partition objects it turns into rows, so a rewrite after it would
+			// meet entity indexes no longer stored, and its final flush - the one the collection is published by -
+			// writes the rewritten parts too. The rows it writes do not depend on the order: the registry normalizes
+			// every sort value it receives
+			final int rewrittenSortIndexes = rewriteLegacyOwnerSortIndexes(catalogVersion, collection);
+			// whether the steps running before the conversion left anything unflushed in the data store - each such
+			// step adds its own term here, the publication below does not need to know which of them wrote; a
+			// collection with nothing but sort indexes to rewrite must still publish its new collection header, or
+			// protocol 7 would be published over the legacy parts
+			final boolean changedBeforeConversion = rekeyed || rewrittenSortIndexes > 0;
 
-			if (rekeyedCounters > 0 || !uniqueIndexRekeys.isEmpty()) {
-				final OffsetIndexDescriptor offsetIndexDescriptor = collectionPersistenceService.flush(
-					catalogVersion,
-					new NoChangeHeaderInfoSupplier(entityCollectionHeader)
-				);
+			// the parts written so far are still unflushed - the conversion reads them like any other part (the offset
+			// index serves a record before it is flushed), removes those of the partitions it converts, and its final
+			// flush writes the rest together with its own
+			final CollectionConversion conversion = VirtualReferencePartitionConversion.convertCollection(
+				catalogVersion, entityCollectionHeader, collectionPersistenceService,
+				EntityCollection.bindReflectedReferences(entitySchema, schemaLookup),
+				VirtualReferencePartitionConversion.DEFAULT_FLUSH_THRESHOLD
+			);
+
+			// the reference published for the collection: the conversion's final flush when it wrote anything,
+			// otherwise a flush of its own when an earlier step wrote anything, otherwise the published reference
+			if (conversion.changed() || changedBeforeConversion) {
+				final FileLocation collectionFileLocation;
+				if (conversion.changed()) {
+					// the final flush of the conversion wrote the parts of the earlier steps too, with a collection
+					// header that no longer lists the converted partitions - flushing again would only write that
+					// header once more
+					collectionFileLocation = collectionPersistenceService.getEntityCollectionHeader().fileLocation();
+				} else {
+					collectionFileLocation = collectionPersistenceService.flush(
+						catalogVersion,
+						new NoChangeHeaderInfoSupplier(entityCollectionHeader)
+					).fileLocation();
+				}
 				final EntityCollectionFileHeader newCollectionHeader =
 					collectionPersistenceService.getEntityCollectionHeader();
 				storagePartPersistenceService.putStoragePart(catalogVersion, newCollectionHeader);
@@ -365,18 +524,30 @@ public interface Migration_2026_3 {
 						entityTypeFileIndex.entityType(),
 						entityTypeFileIndex.entityTypePrimaryKey(),
 						entityTypeFileIndex.fileIndex(),
-						offsetIndexDescriptor.fileLocation()
+						collectionFileLocation
 					)
 				);
+			} else {
+				// nothing to do - no step changed anything in this collection: every counter, unique key and owner
+				// sort index was already canonical, and it holds no single-owner partition to convert
+				newCollectionFileIndex.put(entityTypeFileIndex.entityType(), entityTypeFileIndex);
+			}
+			if (rekeyed) {
 				ConsoleWriter.writeLine(
 					"Entity collection `" + entityCollectionHeader.entityType() + "`: re-keyed " + rekeyedCounters +
 						" attribute cardinality index(es) and " + uniqueIndexRekeys.size() + " unique index(es).",
 					ConsoleColor.BRIGHT_BLUE
 				);
-			} else {
-				// nothing to do - every counter and unique key of this collection was already canonical
-				newCollectionFileIndex.put(entityTypeFileIndex.entityType(), entityTypeFileIndex);
 			}
+			if (rewrittenSortIndexes > 0) {
+				ConsoleWriter.writeLine(
+					"Entity collection `" + entityCollectionHeader.entityType() + "`: rewrote " + rewrittenSortIndexes +
+						" sort index(es) an older release stored with raw temporal values or in the order of its " +
+						"collator, language tags or whole seconds.",
+					ConsoleColor.BRIGHT_BLUE
+				);
+			}
+			VirtualReferencePartitionConversion.report(catalogHeader.catalogName(), conversion);
 
 			reportPreExistingDamage(
 				catalogHeader.catalogName(), entityCollectionHeader.entityType(),
@@ -396,9 +567,10 @@ public interface Migration_2026_3 {
 			);
 		}
 
+		// the single publication of everything above
 		postUpgradeAction.accept(
 			new CatalogHeader<>(
-				7,
+				PersistenceService.STORAGE_PROTOCOL_VERSION,
 				catalogVersion,
 				catalogHeader.walFileReference(),
 				newCollectionFileIndex,
@@ -412,7 +584,8 @@ public interface Migration_2026_3 {
 		);
 
 		ConsoleWriter.writeLine(
-			"Catalog `" + catalogHeader.catalogName() + "` was successfully upgraded to the protocol version 7.",
+			"Catalog `" + catalogHeader.catalogName() + "` was successfully upgraded to the protocol version " +
+				PersistenceService.STORAGE_PROTOCOL_VERSION + ".",
 			ConsoleColor.BRIGHT_BLUE, ConsoleDecoration.BOLD
 		);
 	}
@@ -1151,12 +1324,7 @@ public interface Migration_2026_3 {
 				// reported by the rewrite pass, which cannot proceed without it either
 				continue;
 			}
-			final Set<AttributeIndexKey> foldedKeys = new HashSet<>();
-			for (final AttributeIndexStorageKey storageKey : indexPart.getAttributeIndexes()) {
-				if (storageKey.indexType() == AttributeIndexType.FILTER) {
-					foldedKeys.add(storageKey.attribute());
-				}
-			}
+			final Set<AttributeIndexKey> foldedKeys = filterIndexKeys(indexPart);
 			for (final AttributeIndexStorageKey storageKey : indexPart.getAttributeIndexes()) {
 				if (
 					storageKey.indexType() != AttributeIndexType.UNIQUE ||
@@ -1385,6 +1553,162 @@ public interface Migration_2026_3 {
 	}
 
 	/**
+	 * Rewrites every owner sort index of one collection that stores temporal values raw, localized texts in the order
+	 * of the bare collator, locales in the order of their language tag or date time ranges in the order of whole
+	 * seconds - see *Owner sort indexes* in the class documentation - into the collection data store, unflushed.
+	 *
+	 * Every entity index the collection lists is inspected - its global index, its referenced-type indexes and every
+	 * partition object, with one owner or with several - and in each every sort index the load path restores as an
+	 * owner: one with no filter index under the same key. A sort index with one is a view over that filter index and
+	 * ignores the values its part may carry, so it has nothing to rewrite. Only a sort index with a temporal, a
+	 * localized `String`, a `Locale` or a `DateTimeRange` element is read in full, and only one holding a raw value or
+	 * out of the order of the current comparator is written - a catalog holding no such value pays the reads, never a
+	 * write.
+	 *
+	 * The rewritten parts are put into the data store here and now, never left to a flush of an index flagged dirty:
+	 * the conversion reads them as stored, and a flush writes them together with everything else the collection wrote.
+	 *
+	 * @param catalogVersion the catalog version being upgraded
+	 * @param collection     the collection whose entity indexes are inspected
+	 * @return how many sort indexes were rewritten
+	 * @throws GenericEvitaInternalError when a listed entity index or a sort index it lists is missing, or the leaf
+	 *                                   pages of a sort index to rewrite are not in the ascending order of the release
+	 *                                   that wrote them
+	 */
+	private static int rewriteLegacyOwnerSortIndexes(
+		long catalogVersion,
+		@Nonnull CollectionUnderUpgrade collection
+	) {
+		final OffsetIndexStoragePartPersistenceService service =
+			collection.service().getStoragePartPersistenceService();
+		int rewritten = 0;
+		for (final Integer indexPrimaryKey : collection.indexIds()) {
+			final EntityIndexStoragePart indexPart = requireEntityIndexPart(service, catalogVersion, indexPrimaryKey);
+			final Set<AttributeIndexKey> viewKeys = filterIndexKeys(indexPart);
+			for (final AttributeIndexStorageKey storageKey : indexPart.getAttributeIndexes()) {
+				if (storageKey.indexType() != AttributeIndexType.SORT || viewKeys.contains(storageKey.attribute())) {
+					continue;
+				}
+				final SortIndexStoragePart root = service.getStoragePart(
+					catalogVersion,
+					AttributeIndexStoragePart.computeUniquePartId(
+						indexPrimaryKey, AttributeIndexType.SORT, storageKey.attribute(),
+						service.getReadOnlyKeyCompressor()
+					),
+					SortIndexStoragePart.class
+				);
+				if (root == null) {
+					throw new GenericEvitaInternalError(
+						"Sort index with id " + indexPrimaryKey + " with key " + storageKey.attribute() +
+							" was not found in persistent storage!"
+					);
+				}
+				if (
+					!LegacyOwnerSortIndexCorrection.isApplicable(
+						root.getComparatorBase(), root.getAttributeIndexKey().locale()
+					)
+				) {
+					continue;
+				}
+				final ValueToRecord[][] perPageBuckets = root.isPaged() ?
+					readSortIndexLeafPages(catalogVersion, indexPrimaryKey, root, service) : null;
+				final TrappedChanges changes = new TrappedChanges();
+				if (LegacyOwnerSortIndexCorrection.rewrite(root, perPageBuckets, changes)) {
+					drain(catalogVersion, changes, service);
+					rewritten++;
+				}
+			}
+		}
+		return rewritten;
+	}
+
+	/**
+	 * Reads the buckets of every leaf page a paged owner sort index root lists, in the order it lists them - the way
+	 * the load path reads them.
+	 *
+	 * @param catalogVersion  the catalog version being upgraded
+	 * @param indexPrimaryKey the entity index holding the sort index
+	 * @param root            the paged root of the sort index
+	 * @param service         the collection's storage part service
+	 * @return the buckets of every leaf page
+	 * @throws GenericEvitaInternalError when a listed leaf page is missing
+	 */
+	@Nonnull
+	private static ValueToRecord[][] readSortIndexLeafPages(
+		long catalogVersion,
+		int indexPrimaryKey,
+		@Nonnull SortIndexStoragePart root,
+		@Nonnull OffsetIndexStoragePartPersistenceService service
+	) {
+		final int streamId = service.getReadOnlyKeyCompressor().getId(
+			new LeafStreamKey(
+				indexPrimaryKey, new AttributeKeyWithIndexType(root.getAttributeIndexKey(), AttributeIndexType.SORT)
+			)
+		);
+		final int[] pageSequences = root.getLeafPageSequencesOrThrowException();
+		final ValueToRecord[][] perPageBuckets = new ValueToRecord[pageSequences.length][];
+		for (int i = 0; i < pageSequences.length; i++) {
+			final SortIndexLeafPagePart leafPage = service.getStoragePart(
+				catalogVersion, AbstractLeafPagePart.computeUniquePartId(streamId, pageSequences[i]),
+				SortIndexLeafPagePart.class
+			);
+			if (leafPage == null) {
+				throw new GenericEvitaInternalError(
+					"Sort index leaf page " + pageSequences[i] + " (stream " + streamId + ") for key " +
+						root.getAttributeIndexKey() + " was not found in persistent storage!"
+				);
+			}
+			perPageBuckets[i] = leafPage.getBuckets();
+		}
+		return perPageBuckets;
+	}
+
+	/**
+	 * Reads the manifest of an entity index a collection header lists - its absence means the published catalog is
+	 * damaged, and no step of the migration can proceed without it.
+	 *
+	 * @param service         the collection's storage part service
+	 * @param catalogVersion  the catalog version being upgraded
+	 * @param indexPrimaryKey the primary key of the entity index
+	 * @return the manifest of the entity index
+	 * @throws GenericEvitaInternalError when the manifest is missing
+	 */
+	@Nonnull
+	private static EntityIndexStoragePart requireEntityIndexPart(
+		@Nonnull OffsetIndexStoragePartPersistenceService service,
+		long catalogVersion,
+		int indexPrimaryKey
+	) {
+		final EntityIndexStoragePart indexPart = service.getStoragePart(
+			catalogVersion, indexPrimaryKey, EntityIndexStoragePart.class
+		);
+		if (indexPart == null) {
+			throw new GenericEvitaInternalError(
+				"Entity index storage part for primary key " + indexPrimaryKey + " is missing!"
+			);
+		}
+		return indexPart;
+	}
+
+	/**
+	 * Returns the attributes of every filter index an entity index lists - the keys under which a unique or a sort
+	 * index of the same entity index views the filter index rather than owning values of its own.
+	 *
+	 * @param indexPart the manifest of the entity index
+	 * @return the attributes of its filter indexes
+	 */
+	@Nonnull
+	private static Set<AttributeIndexKey> filterIndexKeys(@Nonnull EntityIndexStoragePart indexPart) {
+		final Set<AttributeIndexKey> filterKeys = new HashSet<>();
+		for (final AttributeIndexStorageKey storageKey : indexPart.getAttributeIndexes()) {
+			if (storageKey.indexType() == AttributeIndexType.FILTER) {
+				filterKeys.add(storageKey.attribute());
+			}
+		}
+		return filterKeys;
+	}
+
+	/**
 	 * Applies every part in `changes` to `service`: a removal instruction removes the part it names, anything else is
 	 * stored - the same drain the regular flush performs.
 	 *
@@ -1429,7 +1753,8 @@ public interface Migration_2026_3 {
 		for (final UniqueKeyCollision collision : collisions) {
 			described.add(collision.describe());
 		}
-		final String message = "Catalog `" + catalogName + "` cannot be upgraded to storage protocol version 7: " +
+		final String message = "Catalog `" + catalogName + "` cannot be upgraded to storage protocol version " +
+			PersistenceService.STORAGE_PROTOCOL_VERSION + ": " +
 			collisions.size() + " unique value(s) are stored in two spellings held by different owners. This version " +
 			"compares unique values exactly as it compares filtered ones, so it treats as ONE unique value the same " +
 			"instant written at two offsets, two Unicode spellings of one text (for example a precomposed `\\u010D` " +

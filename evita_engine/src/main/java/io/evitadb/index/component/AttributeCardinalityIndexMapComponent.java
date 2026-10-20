@@ -83,9 +83,7 @@ public final class AttributeCardinalityIndexMapComponent implements IndexCompone
 		@Nonnull EntityIndexManifest manifest,
 		@Nonnull TrappedChanges trappedChanges
 	) {
-		// emit one storage part per dirty cardinality index AND announce a CARDINALITY key for
-		// every live entry — manifest population is unconditional so that a clean entry still
-		// shows up in the parent's EntityIndexStoragePart manifest.
+		// emit one storage part per dirty cardinality index, then announce a CARDINALITY key for every live entry.
 		// `forEach` rather than `entrySet()`: a HashMap keeps the view it hands out, so an accessor asked for on this
 		// path would stay on the map for the lifetime of the owning index - see `TransactionalMap#forEach`
 		this.cardinalityIndexes.forEach((key, index) -> {
@@ -93,10 +91,19 @@ public final class AttributeCardinalityIndexMapComponent implements IndexCompone
 			if (part != null) {
 				trappedChanges.addChangeToStore(part);
 			}
-			manifest.addAttributeKey(
-				new AttributeIndexStorageKey(this.entityIndexKey, AttributeIndexType.CARDINALITY, key)
-			);
 		});
+		announceKeys(manifest);
+	}
+
+	@Override
+	public void announceKeys(@Nonnull EntityIndexManifest manifest) {
+		// manifest population is unconditional so that a clean entry still shows up in the parent's
+		// EntityIndexStoragePart manifest; `forEach` for the reason given on `collectModifiedStorageParts` above
+		this.cardinalityIndexes.forEach(
+			(key, index) -> manifest.addAttributeKey(
+				new AttributeIndexStorageKey(this.entityIndexKey, AttributeIndexType.CARDINALITY, key)
+			)
+		);
 	}
 
 	@Override

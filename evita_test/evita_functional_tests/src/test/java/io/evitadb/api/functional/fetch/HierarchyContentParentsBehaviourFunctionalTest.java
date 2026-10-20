@@ -1506,7 +1506,7 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 			// is cut below 32 rather than stepping over it
 			assertChain(chain, "B(33)");
 			assertTrue(
-				assertBody(chain.get(0), 33).parentAvailable(),
+				assertBody(chain.getFirst(), 33).parentAvailable(),
 				"A cut chain reports parentAvailable() on 33 exactly as a genuine root does."
 			);
 		}
@@ -1675,7 +1675,7 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 				EntityFetchAwareDecorator.class, wholeChain.get(0)
 			);
 			final EntityFetchAwareDecorator immediateAlone = assertInstanceOf(
-				EntityFetchAwareDecorator.class, boundedChain.get(0)
+				EntityFetchAwareDecorator.class, boundedChain.getFirst()
 			);
 
 			assertTrue(root.getIoFetchCount() > 0, "Reading the root body has to cost at least one fetch.");
@@ -1728,7 +1728,7 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 				EntityFetchAwareDecorator.class, wholeChain.get(0)
 			);
 			final EntityFetchAwareDecorator immediateAlone = assertInstanceOf(
-				EntityFetchAwareDecorator.class, boundedChain.get(0)
+				EntityFetchAwareDecorator.class, boundedChain.getFirst()
 			);
 
 			assertTrue(
@@ -1975,7 +1975,7 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 			// the very same inner requirement that cannot rescue the ancestor in N5 returns its body here,
 			// with the localized attribute simply absent - only the query-level locale acts as a gate
 			assertChain(chain, "B(11)");
-			assertNull(assertBody(chain.get(0), 11).getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
+			assertNull(assertBody(chain.getFirst(), 11).getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH));
 		}
 
 		/**
@@ -1994,7 +1994,7 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 			);
 			assertChain(chain, "B(33)");
 			// the narrowed requirement still delivers the global attribute on the ancestor that survives
-			assertEquals(expectedCode(33), assertBody(chain.get(0), 33).getAttribute(ATTRIBUTE_CODE));
+			assertEquals(expectedCode(33), assertBody(chain.getFirst(), 33).getAttribute(ATTRIBUTE_CODE));
 		}
 
 		/**
@@ -2021,7 +2021,7 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 			);
 			assertChain(chain, "B(2)");
 			assertTrue(
-				assertBody(chain.get(0), 2).parentAvailable(),
+				assertBody(chain.getFirst(), 2).parentAvailable(),
 				"The cut chain still reports parentAvailable() on 2."
 			);
 		}
@@ -2050,7 +2050,7 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 			);
 			assertChain(chain, "B(2)");
 			assertTrue(
-				assertBody(chain.get(0), 2).parentAvailable(),
+				assertBody(chain.getFirst(), 2).parentAvailable(),
 				"The cut chain still reports parentAvailable() on 2."
 			);
 		}
@@ -2393,8 +2393,8 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 
 			final List<SealedEntity> brands = fetchBrands(evita, 103, false);
 			assertEquals(1, brands.size(), "The very same query without a locale must return the brand.");
-			assertEquals(103, brands.get(0).getPrimaryKey());
-			assertChain(parentChainOf(brands.get(0)), "B(102)", "B(101)");
+			assertEquals(103, brands.getFirst().getPrimaryKey());
+			assertChain(parentChainOf(brands.getFirst()), "B(102)", "B(101)");
 		}
 	}
 
@@ -2454,7 +2454,7 @@ class HierarchyContentParentsBehaviourFunctionalTest {
 			final List<EntityClassifierWithParent> chain = standardParentChain(evita, 83);
 			assertChain(chain, "B(82)");
 			assertTrue(
-				assertBody(chain.get(0), 82).parentAvailable(),
+				assertBody(chain.getFirst(), 82).parentAvailable(),
 				"The cut chain still reports parentAvailable() on 82."
 			);
 		}

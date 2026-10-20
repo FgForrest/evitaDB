@@ -115,7 +115,7 @@ public class QuerySerializationTest {
 	 */
 	private final Kryo kryo = KryoFactory.createKryo(
 		QuerySerializationKryoConfigurer.INSTANCE
-			.andThen((Consumer<Kryo>) k -> k.register(
+			.andThen(k -> k.register(
 				HistogramHaving.class,
 				instantiateHistogramHavingSerializer(),
 				HISTOGRAM_HAVING_LOCAL_ID

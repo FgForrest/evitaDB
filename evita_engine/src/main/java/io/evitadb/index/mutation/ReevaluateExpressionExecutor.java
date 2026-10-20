@@ -23,6 +23,7 @@
 
 package io.evitadb.index.mutation;
 
+import io.evitadb.api.exception.ReferencePartitionReindexRequiredException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.EntityHaving;
@@ -53,8 +54,13 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.HistogramIndex;
+import io.evitadb.index.IndexWriteTarget;
 import io.evitadb.index.ReducedGroupEntityIndex;
+import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.VirtualReferencePartition;
+import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -69,6 +75,7 @@ import io.evitadb.index.mutation.local.ReferenceIndexMutator;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import io.evitadb.utils.NumberUtils;
 import lombok.extern.slf4j.Slf4j;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
@@ -84,6 +91,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.OptionalLong;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
 import java.util.function.ObjIntConsumer;
@@ -130,7 +138,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				return new BaseBitmap();
 			}
 			if (this.groups.size() == 1) {
-				return this.groups.get(0).ownerPKs();
+				return this.groups.getFirst().ownerPKs();
 			}
 			final PersistentRoaringBitmap[] bitmaps = new PersistentRoaringBitmap[this.groups.size()];
 			for (int i = 0; i < this.groups.size(); i++) {
@@ -463,6 +471,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		final Map<Integer, List<SiblingReducedIndex>> siblingReducedIndexes = resolveSiblingReducedIndexes(
 			target, scope, referenceName, allAffectedOwnerPKs
 		);
+		final String entityType = target.getEntitySchema().getName();
 
 		// Apply the *same* presence-aware decision matrix the local indexing path uses
 		// (ReferenceIndexMutator#applyFacetDecisionMatrix). The cross-entity executor never migrates a
@@ -483,7 +492,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				target, refTypeIndex, groupTypeIndex, groupComponentIndexed,
 				refSchema, refKey, entry, true
 			);
-			applyFacetToSiblingReducedIndexes(siblingReducedIndexes, refKey, entry, true);
+			applyFacetToSiblingReducedIndexes(siblingReducedIndexes, entityType, refKey, entry, true);
 		}
 		for (AffectedReferenceEntry entry : affected.entriesForOwnerPKs(split.shouldNotBeIndexed())) {
 			final ReferenceKey refKey = new ReferenceKey(referenceName, entry.referencedEntityPK());
@@ -494,7 +503,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				target, refTypeIndex, groupTypeIndex, groupComponentIndexed,
 				refSchema, refKey, entry, false
 			);
-			applyFacetToSiblingReducedIndexes(siblingReducedIndexes, refKey, entry, false);
+			applyFacetToSiblingReducedIndexes(siblingReducedIndexes, entityType, refKey, entry, false);
 		}
 	}
 
@@ -567,9 +576,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 					target, scope, EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE, siblingSchema, affected, result
 				);
 			} else {
-				collectOwnersFromMembership(target, siblingSchema, membership, affected, result);
+				collectOwnersFromMembership(target, scope, siblingSchema, membership, affected, result);
 				collectOwnersOfProbedIndexes(
-					target, siblingSchema, membership.getResidualIndexPrimaryKeys(), affected, result
+					target, scope, siblingSchema, membership.getResidualIndexPrimaryKeys(), affected, result
 				);
 			}
 		}
@@ -594,6 +603,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * merged across the collection (measured 0.4 % apart in the sparse shape).
 	 *
 	 * @param target         access to the entity collection's index store
+	 * @param scope          the scope whose indexes are inspected
 	 * @param siblingSchema  the reference whose lookup is consulted
 	 * @param membership     the reference's reverse lookup
 	 * @param affected       roaring bitmap of affected owner PKs
@@ -601,6 +611,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 */
 	private static void collectOwnersFromMembership(
 		@Nonnull IndexMutationTarget target,
+		@Nonnull Scope scope,
 		@Nonnull ReferenceSchemaContract siblingSchema,
 		@Nonnull ReducedIndexMembership membership,
 		@Nonnull PersistentRoaringBitmap affected,
@@ -617,7 +628,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		for (final int owner : and(getRoaringBitmap(coveredOwners), affected).toArray()) {
 			selectedIndexPKs.addAll(membership.getIndexPrimaryKeys(owner));
 		}
-		collectOwnersOfProbedIndexes(target, siblingSchema, selectedIndexPKs, affected, result);
+		collectOwnersOfProbedIndexes(target, scope, siblingSchema, selectedIndexPKs, affected, result);
 	}
 
 	/**
@@ -635,21 +646,26 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * nothing until {@link ReducedIndexMembership#ownerAdded} has demoted the small ones as they are written.
 	 *
 	 * @param target           access to the entity collection's index store
+	 * @param scope            the scope whose indexes are inspected
 	 * @param siblingSchema    the reference whose reduced indexes are probed
 	 * @param indexPrimaryKeys primary keys of the reduced indexes to probe
 	 * @param affected         roaring bitmap of affected owner PKs, intersected against each index
 	 * @param result           accumulator, keyed by owner PK
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the sibling reference is not indexed for
+	 *                                                         partitioning in the scope
 	 */
 	private static void collectOwnersOfProbedIndexes(
 		@Nonnull IndexMutationTarget target,
+		@Nonnull Scope scope,
 		@Nonnull ReferenceSchemaContract siblingSchema,
 		@Nonnull Bitmap indexPrimaryKeys,
 		@Nonnull PersistentRoaringBitmap affected,
 		@Nonnull Map<Integer, List<SiblingReducedIndex>> result
 	) {
+		assertPartitioningSibling(siblingSchema, scope);
 		final OfInt it = indexPrimaryKeys.iterator();
 		while (it.hasNext()) {
-			probeReducedIndexForAffectedOwners(target, siblingSchema, it.nextInt(), affected, result);
+			probeReducedIndexForAffectedOwners(target, scope, siblingSchema, it.nextInt(), affected, result);
 		}
 	}
 
@@ -663,6 +679,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * means.
 	 *
 	 * @param target         access to the entity collection's index store
+	 * @param scope          the scope whose indexes are inspected
 	 * @param siblingSchema  the reference whose reduced index is probed
 	 * @param reducedIndexPK primary key of the reduced index to probe
 	 * @param affected       roaring bitmap of affected owner PKs, intersected against the index
@@ -670,6 +687,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 */
 	private static void probeReducedIndexForAffectedOwners(
 		@Nonnull IndexMutationTarget target,
+		@Nonnull Scope scope,
 		@Nonnull ReferenceSchemaContract siblingSchema,
 		int reducedIndexPK,
 		@Nonnull PersistentRoaringBitmap affected,
@@ -683,8 +701,10 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		// on the 1 -> 0 crossing, in the same synchronous step. A set naming an index that no longer
 		// resolves is therefore a stale SELECTOR entry, which this structure's contract tolerates by design
 		// - nothing it records is an answer, and an index the collection does not hold can hold no affected
-		// owner. The unaccelerated walk skips such a key the same way.
+		// owner. The unaccelerated walk skips such a key the same way. A key naming a single-owner partition the
+		// registry holds a row for is no stale entry - its owner is collected from the row.
 		if (probedIndex == null) {
+			collectOwnerOfRegisteredPartition(target, scope, siblingSchema, reducedIndexPK, affected, result);
 			return;
 		}
 		final int[] owners = and(getRoaringBitmap(probedIndex.getAllPrimaryKeys()), affected).toArray();
@@ -733,6 +753,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param siblingSchema the reference whose partitions are walked
 	 * @param affected      roaring bitmap of affected owner PKs, intersected against each partition
 	 * @param result        accumulator, keyed by owner PK
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the sibling reference is not indexed for
+	 *                                                         partitioning in the scope
 	 */
 	private static void collectOwnersOfReducedIndexes(
 		@Nonnull IndexMutationTarget target,
@@ -742,6 +764,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull PersistentRoaringBitmap affected,
 		@Nonnull Map<Integer, List<SiblingReducedIndex>> result
 	) {
+		assertPartitioningSibling(siblingSchema, scope);
 		// absence is legitimate - the reference simply has no partitions of this kind yet - but an index
 		// registered under a REFERENCED_*_TYPE key is a ReferencedTypeEntityIndex by construction, so any
 		// other type is a programming error and must not be skipped silently
@@ -758,7 +781,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		// lookup, so those per-partition allocations are the bulk of the walk's constant factor.
 		referencedTypeIndex.forEachReferenceIndexPrimaryKey(
 			reducedIndexPK -> probeReducedIndexForAffectedOwners(
-				target, siblingSchema, reducedIndexPK, affected, result
+				target, scope, siblingSchema, reducedIndexPK, affected, result
 			)
 		);
 	}
@@ -767,13 +790,21 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * Applies the facet decision matrix to the owner's sibling reduced indexes resolved by
 	 * {@link #resolveSiblingReducedIndexes}. No-op for owners that belong to no partition.
 	 *
+	 * A sibling partition may be a registry row the sibling reference left while it was indexed for filtering only,
+	 * before it became indexed for partitioning. Such a row holds no facet: a facet the decision keeps out of the
+	 * partitions passes it over, a facet the decision puts into them is refused - exactly as the local re-evaluation
+	 * decides it (see `ReferenceIndexMutator#reEvaluateFacetExpressionsInAllIndexes`).
+	 *
 	 * @param siblingReducedIndexes owner PK to sibling reduced indexes
+	 * @param entityType            the entity type owning the references
 	 * @param refKey                the `(referenceName, referencedEntityPK)` key
 	 * @param entry                 the `(referencedEntityPK, groupPK, ownerPK)` triple
 	 * @param nowFaceted            `true` when the owner should be faceted in `entry.groupPK()`
+	 * @throws ReferencePartitionReindexRequiredException when the facet would enter a row of the former indexing
 	 */
 	private static void applyFacetToSiblingReducedIndexes(
 		@Nonnull Map<Integer, List<SiblingReducedIndex>> siblingReducedIndexes,
+		@Nonnull String entityType,
 		@Nonnull ReferenceKey refKey,
 		@Nonnull AffectedReferenceEntry entry,
 		boolean nowFaceted
@@ -782,14 +813,89 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		if (indexes == null) {
 			return;
 		}
-		for (int i = 0; i < indexes.size(); i++) {
-			final SiblingReducedIndex sibling = indexes.get(i);
-			// the schema handed to a reduced index identifies *that index's* reference, not the facet's -
-			// see SiblingReducedIndex
-			ReferenceIndexMutator.applyFacetDecisionMatrix(
-				sibling.index(), sibling.indexSchema(), refKey, entry.groupPK(), entry.ownerPK(), nowFaceted
-			);
+		for (final SiblingReducedIndex sibling : indexes) {
+			switch (sibling.index()) {
+				// the schema handed to a reduced index identifies *that index's* reference, not the facet's -
+				// see SiblingReducedIndex
+				case EntityIndex index -> ReferenceIndexMutator.applyFacetDecisionMatrix(
+					index, sibling.indexSchema(), refKey, entry.groupPK(), entry.ownerPK(), nowFaceted
+				);
+				// a row of the former indexing holds no facet - a facet leaving it or staying out of it leaves it as
+				// it is, a facet entering it has no place there
+				case VirtualReferencePartition row -> {
+					if (nowFaceted) {
+						throw new ReferencePartitionReindexRequiredException(
+							entityType, row.getRepresentativeReferenceKey().referenceName(), row.getIndexKey().scope()
+						);
+					}
+				}
+			}
 		}
+	}
+
+	/**
+	 * Asserts that a sibling reference whose reduced indexes the facet trigger walks is indexed for partitioning -
+	 * {@link #resolveSiblingReducedIndexes} filters every other reference out before any walk begins, and only a
+	 * partitioned reference keeps facets in its reduced indexes.
+	 *
+	 * @param siblingSchema the sibling reference
+	 * @param scope         the scope whose indexes are walked
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the sibling reference is not indexed for
+	 *                                                         partitioning in the scope
+	 */
+	private static void assertPartitioningSibling(
+		@Nonnull ReferenceSchemaContract siblingSchema,
+		@Nonnull Scope scope
+	) {
+		Assert.isPremiseValid(
+			siblingSchema.getReferenceIndexType(scope) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+			() -> "Sibling reference `" + siblingSchema.getName() + "` is not indexed for partitioning in scope `" +
+				scope + "` - its reduced indexes hold no facets to walk!"
+		);
+	}
+
+	/**
+	 * Collects the owner of a single-owner partition that a primary key the sibling probe could not resolve to an
+	 * index names, when the registry of the sibling reference holds the partition's row and its owner is affected.
+	 * The probe is reached only for references indexed for partitioning (see {@link #assertPartitioningSibling}),
+	 * whose registry holds no row but those the reference left while it was indexed for filtering only - a reference
+	 * raised to partitioning converts nothing, and the residual set seeded from its advertisement names its registered
+	 * partitions as well. Skipping such a primary key as a stale selector entry would silently skip the row's owner,
+	 * whose facet decision {@link #applyFacetToSiblingReducedIndexes} must still take. A primary key naming neither an
+	 * index nor a row is a stale selector entry and is skipped.
+	 *
+	 * Only the branch that found no index pays the registry lookup.
+	 *
+	 * @param target         access to the entity collection's index store
+	 * @param scope          the scope whose indexes are inspected
+	 * @param siblingSchema  the reference whose reduced index was probed
+	 * @param reducedIndexPK primary key the probe could not resolve to an index
+	 * @param affected       roaring bitmap of affected owner PKs
+	 * @param result         accumulator, keyed by owner PK
+	 */
+	private static void collectOwnerOfRegisteredPartition(
+		@Nonnull IndexMutationTarget target,
+		@Nonnull Scope scope,
+		@Nonnull ReferenceSchemaContract siblingSchema,
+		int reducedIndexPK,
+		@Nonnull PersistentRoaringBitmap affected,
+		@Nonnull Map<Integer, List<SiblingReducedIndex>> result
+	) {
+		final ReferencedTypeEntityIndex typeIndex = findReferencedTypeEntityIndex(
+			target, EntityIndexType.REFERENCED_ENTITY_TYPE, scope, siblingSchema.getName()
+		);
+		if (typeIndex == null) {
+			return;
+		}
+		final OptionalLong row = typeIndex.getVirtualReferencePartitionIndex().getPartitionOwner(reducedIndexPK);
+		if (row.isEmpty() || !affected.contains(NumberUtils.unpackHigh(row.getAsLong()))) {
+			return;
+		}
+		final VirtualReferencePartition partition = Objects.requireNonNull(
+			ReferencePartitions.resolveRegisteredForWrite(typeIndex, reducedIndexPK)
+		);
+		result.computeIfAbsent(partition.ownerPrimaryKey(), __ -> new ArrayList<>(4))
+			.add(new SiblingReducedIndex(partition, siblingSchema));
 	}
 
 	/**
@@ -802,11 +908,15 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * {@link ReferenceIndexType#FOR_FILTERING} reference into partitions belonging to other references, the
 	 * two must be kept apart.
 	 *
-	 * @param index       the reduced index holding the owner
+	 * A partition the other reference left as a registry row while it was indexed for filtering only is paired too:
+	 * it holds no facet, so the decision passes it over unless a facet would enter it, which is refused (see
+	 * {@link #applyFacetToSiblingReducedIndexes}).
+	 *
+	 * @param index       the reduced index holding the owner, or the row of the former indexing of its reference
 	 * @param indexSchema the schema of the reference the index was created for
 	 */
 	private record SiblingReducedIndex(
-		@Nonnull EntityIndex index,
+		@Nonnull IndexWriteTarget index,
 		@Nonnull ReferenceSchemaContract indexSchema
 	) {
 	}
@@ -867,6 +977,11 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * key is family-specific: the referenced entity's PK for the entity-side family, the group's PK for the
 	 * group-side one.
 	 *
+	 * The family may contain registry rows the reference left while it was indexed for filtering only, before it
+	 * became indexed for partitioning. Such a row holds no facet: a facet the decision keeps out of it passes it over,
+	 * a facet of its owner the decision puts into it is refused - as the local re-evaluation decides it. Only a type
+	 * index whose registry holds a row pays the lookup of the row.
+	 *
 	 * @param target       access to the entity collection's index store
 	 * @param typeIndex    the `*_TYPE` index of the family being walked
 	 * @param partitionKey key the family is partitioned by - referenced entity PK or group PK
@@ -874,6 +989,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param refKey       the `(referenceName, referencedEntityPK)` key
 	 * @param entry        the `(referencedEntityPK, groupPK, ownerPK)` triple
 	 * @param nowFaceted   `true` when the owner should be faceted in `entry.groupPK()`, `false` otherwise
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the reference is not indexed for partitioning in
+	 *                                                         the type index's scope
+	 * @throws ReferencePartitionReindexRequiredException     when the facet would enter a row of the former indexing
 	 */
 	private static void applyFacetToReducedIndexFamily(
 		@Nonnull IndexMutationTarget target,
@@ -884,8 +1002,34 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull AffectedReferenceEntry entry,
 		boolean nowFaceted
 	) {
+		// only a reference indexed for partitioning keeps facets in its reduced indexes - see `targetReduced`
+		final Scope scope = typeIndex.getIndexKey().scope();
+		Assert.isPremiseValid(
+			refSchema.getReferenceIndexType(scope) == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+			() -> "Facets of reference `" + refSchema.getName() + "` are not maintained in its reduced indexes - " +
+				"it is not indexed for partitioning in scope `" + scope + "`!"
+		);
 		final int[] reducedStoragePKs = typeIndex.getAllReferenceIndexes(partitionKey);
+		// a reference indexed for partitioning has registry rows only from its former indexing for filtering alone, and
+		// only in its entity-side family - a group is never a single-owner partition kept as a row
+		final VirtualReferencePartitionIndex rowsOfFormerIndexing =
+			typeIndex.getIndexKey().type() == EntityIndexType.REFERENCED_ENTITY_TYPE ?
+				typeIndex.getVirtualReferencePartitionIndex() : null;
+		final boolean anyRowOfFormerIndexing = rowsOfFormerIndexing != null && !rowsOfFormerIndexing.isEmpty();
 		for (int reducedStoragePK : reducedStoragePKs) {
+			if (anyRowOfFormerIndexing) {
+				final OptionalLong row = rowsOfFormerIndexing.getPartitionOwner(reducedStoragePK);
+				if (row.isPresent()) {
+					// a row of the former indexing holds no facet - a facet leaving it or staying out of it leaves it
+					// as it is, a facet of its owner entering it has no place there
+					if (nowFaceted && NumberUtils.unpackHigh(row.getAsLong()) == entry.ownerPK()) {
+						throw new ReferencePartitionReindexRequiredException(
+							target.getEntitySchema().getName(), refSchema.getName(), scope
+						);
+					}
+					continue;
+				}
+			}
 			final EntityIndex reducedIndex = target.getOrCreateIndexByPrimaryKey(reducedStoragePK);
 			Assert.isPremiseValid(
 				reducedIndex != null,
@@ -1200,10 +1344,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		if (owners.isEmpty()) {
 			return;
 		}
-		final Bitmap existing = target.get(referencedEntityPK);
-		target.put(
+		target.compute(
 			referencedEntityPK,
-			existing == null
+			(k, existing) -> existing == null
 				? new BaseBitmap(owners)
 				: new BaseBitmap(or(getRoaringBitmap(existing), owners))
 		);
@@ -2281,9 +2424,11 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			// entity component indexes exist — use reduced entity indexes to find owner PKs
 			final List<AffectedReferenceGroup> groups = new ArrayList<>(storagePKs.length);
 			for (int storagePK : storagePKs) {
-				final EntityIndex reducedIndex = target.getIndexByPrimaryKeyIfExists(storagePK);
-				if (reducedIndex != null) {
-					final Bitmap ownerPKs = reducedIndex.getAllPrimaryKeys();
+				// lenient - a partition the type index still advertises but the collection no longer holds is skipped;
+				// only the owners are read, so a partition the registry holds a row for answers them from its row
+				final ReferencePartition partition = target.resolvePartitionForOwnerReadIfExists(rtei, storagePK);
+				if (partition != null) {
+					final Bitmap ownerPKs = partition.getAllPrimaryKeys();
 					if (!ownerPKs.isEmpty()) {
 						groups.add(new AffectedReferenceGroup(refEntityPK, null, ownerPKs));
 					}
@@ -2446,11 +2591,13 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		for (int refPK : allRefPKs) {
 			final int[] storagePKs = rtei.getAllReferenceIndexes(refPK);
 			for (int storagePK : storagePKs) {
-				final EntityIndex reducedIndex = target.getIndexByPrimaryKeyIfExists(storagePK);
-				if (reducedIndex == null) {
+				// lenient - a partition the type index still advertises but the collection no longer holds is skipped;
+				// only the owners are read, so a partition the registry holds a row for answers them from its row
+				final ReferencePartition partition = target.resolvePartitionForOwnerReadIfExists(rtei, storagePK);
+				if (partition == null) {
 					continue;
 				}
-				final Bitmap ownerPKs = reducedIndex.getAllPrimaryKeys();
+				final Bitmap ownerPKs = partition.getAllPrimaryKeys();
 				if (!ownerPKs.isEmpty()) {
 					// Intersect the reduced index's owner PKs with the hierarchy children bitmap;
 					// only owners that are actually children of the mutated parent are relevant.
@@ -2913,12 +3060,14 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		private void advance() {
 			this.nextEntry = null;
 			while (this.groupIdx < this.groups.size()) {
-				if (this.currentOwnerPKs == null) {
+				int[] ownerPKs = this.currentOwnerPKs;
+				if (ownerPKs == null) {
 					// Load the next group: cache its reference/group PKs and obtain the raw owner PK array.
 					final AffectedReferenceGroup group = this.groups.get(this.groupIdx);
 					this.currentRefEntityPK = group.referencedEntityPK();
 					this.currentGroupPK = group.groupPK();
-					this.currentOwnerPKs = group.ownerPKs().getArray();
+					ownerPKs = group.ownerPKs().getArray();
+					this.currentOwnerPKs = ownerPKs;
 					// re-read the membership set for this group: the verdict may differ between two of an
 					// owner's references, and collapsing them onto one is the defect this iterator avoids
 					this.filterBitmap = getRoaringBitmap(
@@ -2926,8 +3075,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 					);
 					this.ownerIdx = 0;
 				}
-				while (this.ownerIdx < this.currentOwnerPKs.length) {
-					final int ownerPK = this.currentOwnerPKs[this.ownerIdx++];
+				while (this.ownerIdx < ownerPKs.length) {
+					final int ownerPK = ownerPKs[this.ownerIdx++];
 					if (Objects.requireNonNull(this.filterBitmap).contains(ownerPK)) {
 						this.nextEntry = new AffectedReferenceEntry(
 							this.currentRefEntityPK, this.currentGroupPK, ownerPK

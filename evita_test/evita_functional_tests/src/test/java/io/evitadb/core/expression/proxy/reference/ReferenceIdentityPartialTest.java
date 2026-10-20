@@ -80,7 +80,7 @@ class ReferenceIdentityPartialTest {
 		all[partials.length] = CatchAllPartial.OBJECT_METHODS;
 		all[partials.length + 1] = CatchAllPartial.INSTANCE;
 
-		return (ReferenceContract) ByteBuddyProxyGenerator.instantiate(
+		return ByteBuddyProxyGenerator.instantiate(
 			new ByteBuddyDispatcherInvocationHandler<>(state, all),
 			new Class<?>[]{ IdentityTestReference.class },
 			EMPTY_CLASS_ARRAY,

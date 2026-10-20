@@ -120,7 +120,7 @@ public class Node48Test {
 			int key48 = 48;
 			leafNode = new LeafNode(key48, key48);
 			Node node = node48.insert(leafNode, (byte) key48);
-			Assertions.assertTrue(node instanceof Node256);
+			Assertions.assertInstanceOf(Node256.class, node);
 			Node256 node256 = (Node256) node;
 			int pos48 = node256.getChildPos((byte) key48);
 			Assertions.assertEquals(48, pos48);
@@ -139,7 +139,7 @@ public class Node48Test {
 			int maxPos = node48.getMaxPos();
 			Assertions.assertEquals(12, maxPos);
 			Node node = node48.remove(maxPos);
-			Assertions.assertTrue(node instanceof Node16);
+			Assertions.assertInstanceOf(Node16.class, node);
 			Node16 node16 = (Node16) node;
 			int pos = node16.getChildPos((byte) 0);
 			Assertions.assertEquals(0, pos);
@@ -166,7 +166,7 @@ public class Node48Test {
 				nodes = nodes.insert(leafNode, key);
 			}
 			// check we are testing the correct thing
-			Assertions.assertTrue(nodes instanceof Node48);
+			Assertions.assertInstanceOf(Node48.class, nodes);
 
 			// check that searching for each key, is FOUND
 			for (int i = 0; i < insertCount; i++) {
@@ -206,7 +206,7 @@ public class Node48Test {
 				nodes = nodes.insert(leafNode, key);
 			}
 			// check we are testing the correct thing
-			Assertions.assertTrue(nodes instanceof Node48);
+			Assertions.assertInstanceOf(Node48.class, nodes);
 
 			// check that searching for each key, is FOUND
 			for (int i = 0; i < insertCount; i++) {
@@ -290,7 +290,7 @@ public class Node48Test {
 				nodes = nodes.insert(leafNode, (byte) (offset + i));
 			}
 			// check we are testing the correct data structure
-			Assertions.assertTrue(nodes instanceof Node48);
+			Assertions.assertInstanceOf(Node48.class, nodes);
 
 			// this is bad test, because it's checking the internal implementation which really
 			// should not matter, because the small nodes do not use this gappy method, therefore
@@ -335,7 +335,7 @@ public class Node48Test {
 				nodes = nodes.insert(leafNode, (byte) (offset + (i * step)));
 			}
 			// check we are testing the correct data structure
-			Assertions.assertTrue(nodes instanceof Node48);
+			Assertions.assertInstanceOf(Node48.class, nodes);
 
 			// this is bad test, because it's checking the internal implementation which really
 			// should not matter, because the small nodes do not use this gap method, therefore
@@ -414,7 +414,7 @@ public class Node48Test {
 
 			nodes = nodes.insert(leafNode, (byte) 67);
 			// check we are testing the correct thing
-			Assertions.assertTrue(nodes instanceof Node48);
+			Assertions.assertInstanceOf(Node48.class, nodes);
 
 			Assertions.assertEquals(BranchNode.ILLEGAL_IDX, nodes.getNextSmallerPos(66));
 			Assertions.assertNotEquals(BranchNode.ILLEGAL_IDX, nodes.getNextSmallerPos(74));

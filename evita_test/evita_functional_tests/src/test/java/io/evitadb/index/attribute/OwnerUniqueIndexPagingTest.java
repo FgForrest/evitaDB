@@ -294,7 +294,7 @@ class OwnerUniqueIndexPagingTest {
 
 		final List<StoragePart> parts = flush(index);
 		assertEquals(1, parts.size(), "a SINGLE index emits exactly the one inline root part");
-		final StoragePart only = parts.get(0);
+		final StoragePart only = parts.getFirst();
 		final UniqueIndexStoragePart root = assertInstanceOf(UniqueIndexStoragePart.class, only, "the single part is the root");
 		assertFalse(root.isPaged(), "the root is the inline SINGLE shape");
 		assertNotNull(root.getValues(), "a SINGLE root carries the value column inline");
@@ -611,7 +611,7 @@ class OwnerUniqueIndexPagingTest {
 				.filter(UniqueIndexLeafPageRemoval.class::isInstance).count();
 
 			assertEquals(1, roots.size(), "the collapse emits exactly one root");
-			final UniqueIndexStoragePart root = roots.get(0);
+			final UniqueIndexStoragePart root = roots.getFirst();
 			assertFalse(root.isPaged(), "the collapsed root is the inline SINGLE shape");
 			assertNotNull(root.getValues(), "a SINGLE root carries the value column inline");
 			assertEquals(KEPT_VALUES, root.getValues().length, "the SINGLE root carries every surviving value");

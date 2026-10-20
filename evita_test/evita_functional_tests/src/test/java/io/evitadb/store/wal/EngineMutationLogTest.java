@@ -547,7 +547,7 @@ class EngineMutationLogTest implements EvitaTestSupport {
 			assertNotNull(descriptors);
 			assertEquals(1, descriptors.size());
 
-			final WriteAheadLogVersionDescriptor descriptor = descriptors.get(0);
+			final WriteAheadLogVersionDescriptor descriptor = descriptors.getFirst();
 			final TxData expectedTxData = txData.get(2);
 
 			assertEquals(expectedTxData.version(), descriptor.version());

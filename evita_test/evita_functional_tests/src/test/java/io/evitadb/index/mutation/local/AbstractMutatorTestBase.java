@@ -168,7 +168,8 @@ abstract class AbstractMutatorTestBase {
 			this.usageRegistry,
 			this.catalogUsageRegistry,
 
-			true
+			true,
+			new PartitionReservations()
 		);
 
 		final EntityCollection productCollection = Mockito.mock(EntityCollection.class);

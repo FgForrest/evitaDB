@@ -37,21 +37,24 @@ import io.evitadb.core.query.algebra.prefetch.EntityFilteringFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
+import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Supplier;
 
-import static io.evitadb.core.query.filter.translator.attribute.AbstractAttributeComparisonTranslator.createAlternativeBitmapFilter;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -60,7 +63,7 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public class AttributeInSetTranslator extends AbstractAttributeTranslator
-	implements FilteringConstraintTranslator<AttributeInSet> {
+	implements FilteringConstraintTranslator<AttributeInSet>, AttributeValueMatchingTranslator<AttributeInSet> {
 
 	/**
 	 * Creates an AttributeFormula for a unique attribute by utilizing hash map lookups for efficient access. Each value
@@ -151,11 +154,13 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 		final String attributeName = attributeInSet.getAttributeName();
 		final Optional<GlobalAttributeSchemaContract> optionalGlobalAttributeSchema = getOptionalGlobalAttributeSchema(filterByVisitor, attributeName, AttributeTrait.FILTERABLE);
 
-		if (filterByVisitor.isEntityTypeKnown() || optionalGlobalAttributeSchema.isPresent()) {
+		if (isTypedLookupPossible(filterByVisitor, optionalGlobalAttributeSchema.orElse(null))) {
 			final Set<Scope> scopes = filterByVisitor.getProcessingScope().getScopes();
 			final AttributeSchemaContract attributeSchema = optionalGlobalAttributeSchema
 				.map(AttributeSchemaContract.class::cast)
 				.orElseGet(() -> filterByVisitor.getAttributeSchema(attributeName, AttributeTrait.FILTERABLE));
+			// refused before any index is read, so a value the attribute cannot hold is refused whatever it stores
+			assertIndexable(attributeInSet, attributeSchema, scopes);
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
 
 			final Class<? extends Serializable> plainType = attributeSchema.getPlainType();
@@ -182,9 +187,34 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 		} else {
 			return new EntityFilteringFormula(
 				"attribute in set filter",
-				createAlternativeBitmapFilter(filterByVisitor, attributeName, comparedValues, result -> result == 0)
+				createEntityFilteringBitmapFilter(attributeInSet, filterByVisitor)
 			);
 		}
+	}
+
+	@Nonnull
+	@Override
+	public AttributeValueMatcher createMatcher(
+		@Nonnull AttributeInSet attributeInSet,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull Supplier<OffsetDateTime> now
+	) {
+		return AttributeValueMatcher.equalToAny(
+			attributeIndexKey, attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces(),
+			attributeInSet.getAttributeValues()
+		);
+	}
+
+	@Nonnull
+	@Override
+	public Serializable[] getIndexProbeValues(@Nonnull AttributeInSet attributeInSet) {
+		return attributeInSet.getAttributeValues();
+	}
+
+	@Override
+	public boolean isAnsweredByUniqueIndex() {
+		return true;
 	}
 
 }

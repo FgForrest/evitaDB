@@ -171,7 +171,7 @@ public final class FacetGroupOccurrences {
 	public Bitmap getEntityIds(@Nullable Integer groupId) {
 		final Bitmap entityIds;
 		if (this.entityIdsByGroup == null) {
-			entityIds = Objects.equals(this.groupsInQuery.get(0), groupId) ? this.singleGroupEntityIds : null;
+			entityIds = Objects.equals(this.groupsInQuery.getFirst(), groupId) ? this.singleGroupEntityIds : null;
 		} else {
 			entityIds = this.entityIdsByGroup.get(groupId);
 		}

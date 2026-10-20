@@ -91,7 +91,7 @@ class MetricHandlerBuildInfoTest {
 				&& "io_evitadb_build".equals(infoSnapshot.getMetadata().getName())) {
 				return infoSnapshot.getDataPoints().isEmpty()
 					? null
-					: infoSnapshot.getDataPoints().get(0);
+					: infoSnapshot.getDataPoints().getFirst();
 			}
 		}
 		return null;

@@ -678,8 +678,8 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	 * at the supplied `indexedDecimalPlaces` rather than the value's intrinsic scale. This matches the scale the
 	 * source attribute's filter / range index stores (the main attribute path coerces range values the same way via
 	 * `EvitaDataTypes.toTargetType`), so the histogram bucket keys reconstructed from those thresholds at query time
-	 * use the same magnitude. The operation is idempotent — a range already at the target scale rebuilds to an equal
-	 * range — and preserves open-ended bounds.
+	 * use the same magnitude. The operation is idempotent — a range that retains the target scale already is returned
+	 * as it is, as a rebuild would produce an equal range — and preserves open-ended bounds.
 	 *
 	 * @param range                the source range whose precise `BigDecimal` bounds are rescaled
 	 * @param indexedDecimalPlaces decimal-places scale to encode the range thresholds at
@@ -692,8 +692,12 @@ public abstract sealed class FilterIndex implements IndexDataStructure, WarmUpTo
 	) {
 		final BigDecimal preciseFrom = range.getPreciseFrom();
 		final BigDecimal preciseTo = range.getPreciseTo();
+		final Integer retainedDecimalPlaces = range.getRetainedDecimalPlaces();
 		if (preciseFrom == null && preciseTo == null) {
 			// fully open (infinite) range — there are no bounds to rescale
+			return range;
+		} else if (retainedDecimalPlaces != null && retainedDecimalPlaces == indexedDecimalPlaces) {
+			// the thresholds of the range are computed at the very scale already, a rebuild would return an equal range
 			return range;
 		} else if (preciseFrom != null && preciseTo != null) {
 			return BigDecimalNumberRange.between(preciseFrom, preciseTo, indexedDecimalPlaces);

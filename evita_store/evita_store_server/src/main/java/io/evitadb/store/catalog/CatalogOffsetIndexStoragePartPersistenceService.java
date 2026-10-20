@@ -91,7 +91,7 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 	/**
 	 * Creates a CatalogOffsetIndexStoragePartPersistenceService object with the given parameters.
 	 * The code cannot be directly in the constructor, because we need to execute
-	 * {@link #loadOffsetIndex(String, Path, StorageSettings, CatalogBootstrap, OffsetIndexRecordTypeRegistry, ObservableOutputKeeper, Function, Consumer, Consumer, Consumer, PendingSyncRegistry)}
+	 * {@link #loadOffsetIndex}
 	 * and within it initialize the {@link #currentCatalogHeader} variable. This cannot be done in the consturctor
 	 * because the super constructor needs to be called first.
 	 *
@@ -401,7 +401,9 @@ public class CatalogOffsetIndexStoragePartPersistenceService extends OffsetIndex
 				nonFlushedBlockObserver,
 				historyKeptObserver
 			);
-			final CatalogHeader<LogFileRecordReference, CollectionFileReference> newHeader = new CatalogHeader<>(UUID.randomUUID(), catalogName);
+			final CatalogHeader<LogFileRecordReference, CollectionFileReference> newHeader = new CatalogHeader<>(
+				UUID.randomUUID(), catalogName
+			);
 			newOffsetIndex.put(0L, newHeader);
 			catalogHeaderConsumer.accept(newHeader);
 			return newOffsetIndex;

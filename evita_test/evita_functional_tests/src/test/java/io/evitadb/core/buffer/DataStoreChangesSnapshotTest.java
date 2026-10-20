@@ -51,8 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
  * Verifies the {@link DataStoreChanges} savepoint contract ({@code snapshot()} / {@code restore(...)}) around the
  * dirty-index maps, with a focus on the interplay between the by-key map ({@code dirtyEntityIndexes}) and the by-pk
  * map ({@code dirtyEntityIndexesByPk}). The two maps must be rewound to exactly the snapshot-time state as a
- * consistent PAIR — {@code removeIndex} drops only the by-key entry (never the by-pk one), so a by-pk entry may
- * legitimately exist without its by-key twin, and a restore must preserve that exact asymmetry.
+ * consistent PAIR — {@code removeIndex} drops the index from both, and a restore must reinstate both or neither.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -111,17 +110,16 @@ class DataStoreChangesSnapshotTest {
 	}
 
 	@Test
-	@DisplayName("a by-pk entry that predates the snapshot survives a rollback of an in-window re-creation")
-	void shouldKeepPreSnapshotByPkEntryWhenIndexIsRecreatedInsideSavepointWindow() {
+	@DisplayName("a drop before the snapshot stays in effect in both maps when an in-window re-creation is rolled back")
+	void shouldKeepPreSnapshotDropWhenIndexIsRecreatedInsideSavepointWindow() {
 		final EntityIndex index = entityIndexStub(INDEX_PRIMARY_KEY);
 
-		// pre-snapshot: create the dirty index, then remove it by key — removeIndex deliberately leaves the by-pk
-		// entry in place, so the snapshot-time state is: by-key ABSENT, by-pk PRESENT
+		// pre-snapshot: create the dirty index, then drop it - the snapshot-time state is: by-key ABSENT, by-pk ABSENT
 		this.changes.getOrCreateIndexForModification(this.indexKey, key -> index);
 		this.changes.removeIndex(0L, this.indexKey, key -> null);
-		assertSame(
-			index, this.changes.getIndexIfExists(INDEX_PRIMARY_KEY, pk -> null),
-			"self-check: removeIndex must leave the by-pk entry in place"
+		assertNull(
+			this.changes.getIndexIfExists(INDEX_PRIMARY_KEY, pk -> null),
+			"self-check: removeIndex must drop the by-pk entry too"
 		);
 
 		final DataStoreChangesMemento memento = this.changes.snapshot();
@@ -133,9 +131,9 @@ class DataStoreChangesSnapshotTest {
 			this.changes.getIndexIfExists(this.indexKey, key -> null),
 			"the by-key entry re-created inside the savepoint window must be dropped on restore"
 		);
-		assertSame(
-			index, this.changes.getIndexIfExists(INDEX_PRIMARY_KEY, pk -> null),
-			"the by-pk entry that already existed at snapshot time must survive the restore"
+		assertNull(
+			this.changes.getIndexIfExists(INDEX_PRIMARY_KEY, pk -> null),
+			"the by-pk entry re-created inside the savepoint window must be dropped on restore"
 		);
 	}
 

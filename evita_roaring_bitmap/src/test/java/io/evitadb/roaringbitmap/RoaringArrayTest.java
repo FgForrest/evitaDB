@@ -93,10 +93,10 @@ public class RoaringArrayTest {
 			array.removeAtIndex(1);
 
 			assertEquals(2, array.size);
-			assertEquals(1, (int) array.getKeyAtIndex(0));
-			assertEquals(3, (int) array.getKeyAtIndex(1));
+			assertEquals(1, array.getKeyAtIndex(0));
+			assertEquals(3, array.getKeyAtIndex(1));
 			// the freed trailing slot must not retain a stale reference or key
-			assertEquals(0, (int) array.keys[2]);
+			assertEquals(0, array.keys[2]);
 			assertNull(array.values[2]);
 			assertTrue(array.validate());
 		}
@@ -109,8 +109,8 @@ public class RoaringArrayTest {
 			array.removeIndexRange(1, 4);
 
 			assertEquals(2, array.size);
-			assertEquals(1, (int) array.getKeyAtIndex(0));
-			assertEquals(5, (int) array.getKeyAtIndex(1));
+			assertEquals(1, array.getKeyAtIndex(0));
+			assertEquals(5, array.getKeyAtIndex(1));
 			assertNull(array.values[2]);
 			assertNull(array.values[3]);
 			assertNull(array.values[4]);
@@ -139,11 +139,11 @@ public class RoaringArrayTest {
 
 			// copyRange is a raw structural move; it does not adjust size
 			assertEquals(4, array.size);
-			assertEquals(10, (int) array.keys[0]);
-			assertEquals(30, (int) array.keys[1]);
-			assertEquals(40, (int) array.keys[2]);
+			assertEquals(10, array.keys[0]);
+			assertEquals(30, array.keys[1]);
+			assertEquals(40, array.keys[2]);
 			// the source tail slot is left as-is by copyRange
-			assertEquals(40, (int) array.keys[3]);
+			assertEquals(40, array.keys[3]);
 		}
 
 		@Test
@@ -155,7 +155,7 @@ public class RoaringArrayTest {
 			target.appendCopy(source, 0);
 
 			assertEquals(1, target.size);
-			assertEquals(7, (int) target.getKeyAtIndex(0));
+			assertEquals(7, target.getKeyAtIndex(0));
 			assertNotSame(
 				source.getContainerAtIndex(0), target.getContainerAtIndex(0),
 				"appendCopy must clone the container, not alias it"
@@ -232,7 +232,7 @@ public class RoaringArrayTest {
 			assertEquals(original, restored);
 			assertTrue(restored.validate());
 			// the high-bit key must survive the little-endian, unsigned encoding intact
-			assertEquals(0x8000, (int) restored.getKeyAtIndex(1));
+			assertEquals(0x8000, restored.getKeyAtIndex(1));
 		}
 
 		@Test

@@ -37,6 +37,7 @@ import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.query.filter.HierarchyWithinRoot;
 import io.evitadb.api.query.filter.ReferenceHaving;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
@@ -46,19 +47,21 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ReducedIndexCandidates;
+import io.evitadb.core.query.filter.SplitTargetPartitions;
 import io.evitadb.core.query.filter.translator.reference.BidirectionalReferenceRewriter;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinRootTranslator;
 import io.evitadb.core.query.filter.translator.hierarchy.HierarchyWithinTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes.EligibilityObstacle;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.function.Functions;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.bitmap.Bitmap;
 import lombok.Getter;
 
@@ -72,7 +75,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -177,6 +180,11 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 	 * Inside an `inScope(...)` container of a query over more scopes the candidate is built for the container's
 	 * scope only: it is registered with {@link EligibilityObstacle#PARTIAL_SCOPE_COVERAGE} when it holds any index,
 	 * and not at all when it holds none.
+	 *
+	 * An option some of whose node partitions are registry rows is registered with
+	 * {@link EligibilityObstacle#NOT_PARTITIONED_INDEX} even when the reference is indexed for partitioning - the rows
+	 * were left by its former indexing for filtering only. It stays registered, because the translation of the
+	 * constraint and the orderings narrowed by it read the rows, so the query falls back to the global index.
 	 */
 	private void addHierarchyIndexOption(@Nonnull HierarchyFilterConstraint constraint) {
 		constraint.getReferenceName().ifPresent(
@@ -217,29 +225,34 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 						// we may quickly return empty result
 						this.targetIndexes.add(TargetIndexes.EMPTY);
 					}
-					// locate all hierarchy indexes
+					// locate all hierarchy indexes - the partitions of the nodes split by representation, so the
+					// registered single-owner ones are read out of the registry rather than resolved
 					final Bitmap requestedHierarchyNodes = requestedHierarchyNodesFormula.compute();
-					final List<ReducedEntityIndex> theTargetIndexes =
-						new ArrayList<>(requestedHierarchyNodes.size() * scopes.size());
-					final AtomicLong cardinalityCounter = new AtomicLong(0L);
-					for (Integer hierarchyEntityId : requestedHierarchyNodes) {
-						for (Scope scope : scopes) {
-							this.queryContext.getReducedEntityIndexes(
-								scope, hierarchyEntityId, entitySchema, referenceSchema, Functions.noOpBiFunction()
-							).forEach(ix -> {
-								theTargetIndexes.add(ix);
-								cardinalityCounter.addAndGet(ix.size());
-							});
-						}
-					}
-					if (partialScopeCoverage && theTargetIndexes.isEmpty()) {
+					final SplitTargetPartitions partitions = this.queryContext.resolvePartitionsOfTargetsForRead(
+						entitySchema, referenceSchema, scopes, requestedHierarchyNodes
+					);
+					final List<ReducedEntityIndex> materializedIndexes = partitions.materializedIndexes();
+					if (partialScopeCoverage && materializedIndexes.isEmpty() && partitions.virtualCount() == 0) {
 						// no owner in the scopes of the enclosing `inScope` references the nodes - the same reasoning
 						// as for the empty node set above: an empty candidate would empty the whole query
 						return;
 					}
 					final long cardinalityLimit = (long) this.mainIndexCardinality / 2;
-					final boolean partitioned = allIndexesArePartitioned(scopes, referenceSchema);
-					final boolean withinCardinalityLimit = cardinalityCounter.get() <= cardinalityLimit;
+					// a partition of the nodes the registry holds a row of was left there while the reference was
+					// indexed for filtering only, and it holds none of the content an index object of the partitioning
+					// keeps - a plan within the option would answer the other constraints from the index objects alone
+					// and miss the row's owner, so the option is not partitioned while any of its partitions is a row
+					final boolean partitioned = partitions.virtualCount() == 0 &&
+						allIndexesArePartitioned(scopes, referenceSchema);
+					final boolean withinCardinalityLimit = partitions.getOwnerRowCount() <= cardinalityLimit;
+					// without a virtual partition the materialized ones are every partition of the nodes; otherwise a
+					// registered partition has no object to resolve, so the supplier cannot answer every partition and
+					// the consumers needing the objects read the split instead (see `resolveAllPartitionsOfNodes`)
+					final Supplier<List<ReducedEntityIndex>> allIndexes = partitions.virtualCount() == 0 ?
+						() -> materializedIndexes :
+						() -> resolveAllPartitionsOfNodes(
+							entitySchema, referenceSchema, scopes, requestedHierarchyNodes
+						);
 					// add indexes as potential target indexes
 					this.targetIndexes.add(
 						new TargetIndexes<>(
@@ -248,7 +261,9 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 							constraint,
 							scopes,
 							ReducedEntityIndex.class,
-							theTargetIndexes,
+							materializedIndexes.size() + partitions.virtualCount(),
+							allIndexes,
+							partitions,
 							Stream.of(
 									partitioned ? null : EligibilityObstacle.NOT_PARTITIONED_INDEX,
 									withinCardinalityLimit ? null : EligibilityObstacle.HIGH_CARDINALITY,
@@ -261,6 +276,44 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 				}
 			}
 		);
+	}
+
+	/**
+	 * Resolves the index object of every partition of the hierarchy nodes in every scope, node by node and scope by
+	 * scope - the object-only list of a hierarchy option, which reads no partition virtually. It is the list of an
+	 * option only when a partition of its nodes is a registry row, and such a partition has no index object: the lookup
+	 * through the type index of a reference allowing duplicates fails on it, the lookup by key of one that does not
+	 * yields nothing for it. So nothing reads the list: such an option carries
+	 * {@link EligibilityObstacle#NOT_PARTITIONED_INDEX} and never wins a separate plan, the consumers of the objects
+	 * of a set holding a row skip it (`FilterByVisitor#holdsIndexObjectsOnly`), and the translation of the hierarchy
+	 * constraint and the block-by-block orderings narrowed by the option read the split.
+	 *
+	 * @param entitySchema    the queried entity schema
+	 * @param referenceSchema the reference the hierarchy constraint names
+	 * @param scopes          the scopes of the partitions
+	 * @param nodes           the primary keys of the hierarchy nodes
+	 * @return the index objects of the partitions of the nodes
+	 */
+	@Nonnull
+	private List<ReducedEntityIndex> resolveAllPartitionsOfNodes(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Set<Scope> scopes,
+		@Nonnull Bitmap nodes
+	) {
+		final List<ReducedEntityIndex> result = new ArrayList<>(nodes.size() * scopes.size());
+		for (Integer hierarchyEntityId : nodes) {
+			for (Scope scope : scopes) {
+				final ReferencePartition[] partitions = this.queryContext.resolvePartitionsOfTarget(
+					entitySchema, referenceSchema, scope, hierarchyEntityId
+				);
+				for (final ReferencePartition partition : partitions) {
+					// the target indexes are evaluated through the query body channel
+					result.add(ReferencePartitions.toReducedEntityIndex(partition));
+				}
+			}
+		}
+		return result;
 	}
 
 	/**
@@ -335,6 +388,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 						ReducedEntityIndex.class,
 						candidateCount,
 						candidates::resolve,
+						candidates,
 						Stream.of(
 								partitioned ? null : EligibilityObstacle.NOT_PARTITIONED_INDEX,
 								countSettlesCardinality ? EligibilityObstacle.HIGH_CARDINALITY : null,
@@ -359,6 +413,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 						scopes,
 						ReducedEntityIndex.class,
 						theTargetIndexes,
+						candidates,
 						ownerRows <= cardinalityLimit
 							? new EligibilityObstacle[0]
 							: new EligibilityObstacle[]{EligibilityObstacle.HIGH_CARDINALITY}

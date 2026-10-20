@@ -643,7 +643,7 @@ class DataMutationConflictKeyEmissionTest {
 				PK
 			);
 			assertEquals(1, keys.size());
-			final AttributeDeltaConflictKey key = (AttributeDeltaConflictKey) keys.get(0);
+			final AttributeDeltaConflictKey key = (AttributeDeltaConflictKey) keys.getFirst();
 			assertTrue(key.sharedSurface());
 			assertEquals(new EntityResidualConflictKey(ENTITY, PK), key.parentConflictKey());
 		}
@@ -660,7 +660,7 @@ class DataMutationConflictKeyEmissionTest {
 				PK
 			);
 			assertEquals(1, keys.size());
-			final AttributeDeltaConflictKey key = (AttributeDeltaConflictKey) keys.get(0);
+			final AttributeDeltaConflictKey key = (AttributeDeltaConflictKey) keys.getFirst();
 			assertFalse(key.sharedSurface());
 			assertEquals(new AttributeConflictKey(ENTITY, PK, ATTRIBUTE), key.parentConflictKey());
 		}
@@ -768,7 +768,7 @@ class DataMutationConflictKeyEmissionTest {
 				PK
 			);
 			assertEquals(1, keys.size());
-			final ReferenceAttributeDeltaConflictKey key = (ReferenceAttributeDeltaConflictKey) keys.get(0);
+			final ReferenceAttributeDeltaConflictKey key = (ReferenceAttributeDeltaConflictKey) keys.getFirst();
 			assertTrue(key.sharedSurface());
 			assertEquals(new EntityResidualConflictKey(ENTITY, PK), key.parentConflictKey());
 		}

@@ -106,7 +106,7 @@ public class ReferenceAttributeMutationConverter extends ReferenceMutationConver
 			() -> getExceptionFactory().createInvalidArgumentException("Field `" + ReferenceAttributeMutationDescriptor.ATTRIBUTE_MUTATION.name() + "` in mutation `" + getMutationName() + "` is required and is expected to have exactly one mutation")
 		);
 
-		return new ReferenceAttributeMutation(referenceKey, attributeMutations.get(0));
+		return new ReferenceAttributeMutation(referenceKey, attributeMutations.getFirst());
 	}
 
 	@Override

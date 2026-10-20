@@ -98,11 +98,11 @@ class CatalogRestDeleteEntityMutationsFunctionalTest extends CatalogRestDataEndp
 
 		tester.test(TEST_CATALOG)
 			.httpMethod(Request.METHOD_DELETE)
-			.urlPathSuffix("/PRODUCT/" + entitiesToDelete.get(0).getPrimaryKey())
+			.urlPathSuffix("/PRODUCT/" + entitiesToDelete.getFirst().getPrimaryKey())
 			.executeAndThen()
 			.statusCode(200);
 
-		assertProductDeleted(entitiesToDelete.get(0).getPrimaryKey(), tester);
+		assertProductDeleted(entitiesToDelete.getFirst().getPrimaryKey(), tester);
 	}
 
 	@Test

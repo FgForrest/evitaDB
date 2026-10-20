@@ -196,7 +196,7 @@ class EntityPropertyTest implements EvitaTestSupport {
 			);
 
 			assertInstanceOf(EntityProperty.class, copy);
-			assertFalse(((EntityProperty) copy).isApplicable());
+			assertFalse(copy.isApplicable());
 		}
 
 		@Test

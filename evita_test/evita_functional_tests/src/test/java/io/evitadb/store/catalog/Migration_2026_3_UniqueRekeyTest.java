@@ -132,7 +132,7 @@ class Migration_2026_3_UniqueRekeyTest {
 			type, indexedDecimalPlaces, new Serializable[]{first, second}, new long[]{1, 2}, true
 		);
 		assertEquals(1, rekeying.collisions().size(), type.getSimpleName() + ": " + first + " vs " + second);
-		assertArrayEquals(new int[]{0, 1}, rekeying.collisions().get(0));
+		assertArrayEquals(new int[]{0, 1}, rekeying.collisions().getFirst());
 	}
 
 	private static UniqueKeyRekeying rekeyed(Class<?> type, int indexedDecimalPlaces, Serializable[] values) {

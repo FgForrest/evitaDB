@@ -173,6 +173,7 @@ class HeldPartsJournalPreconditionTest {
 			},
 			() -> schema,
 			entityType -> null,
+			(entityType, entityPrimaryKey) -> null,
 			() -> 1,
 			false
 		);

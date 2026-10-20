@@ -357,7 +357,7 @@ class BucketBPlusTreeValueIdTest {
 			tree.bulkLoadPage(new Object[]{10, 20, 30}, new long[]{1, 2, 3}, null, null, 3);
 
 			assertColumnsAlignedWithLeaves(tree);
-			final RecordColumn valueIds = tree.enumerateLeaves().get(0).getValueIds();
+			final RecordColumn valueIds = tree.enumerateLeaves().getFirst().getValueIds();
 			assertNotNull(valueIds, "an id-carrying tree must give every leaf a column");
 			assertEquals(3, valueIds.size(), "the column must cover the page it was attached to");
 			for (int slot = 0; slot < 3; slot++) {
@@ -378,7 +378,7 @@ class BucketBPlusTreeValueIdTest {
 			);
 
 			assertColumnsAlignedWithLeaves(tree);
-			final RecordColumn valueIds = tree.enumerateLeaves().get(0).getValueIds();
+			final RecordColumn valueIds = tree.enumerateLeaves().getFirst().getValueIds();
 			assertNotNull(valueIds);
 			assertEquals(3, valueIds.size());
 			assertArrayEquals(new int[]{11, 22, 33}, new int[]{
@@ -387,7 +387,7 @@ class BucketBPlusTreeValueIdTest {
 			// exactly the page, with no geometric overshoot: the id column must not cost more than the record column
 			// it runs beside, which was bulk-loaded from the same page
 			assertEquals(
-				tree.enumerateLeaves().get(0).getRecords().getHeapSizeInBytes(), valueIds.getHeapSizeInBytes(),
+				tree.enumerateLeaves().getFirst().getRecords().getHeapSizeInBytes(), valueIds.getHeapSizeInBytes(),
 				"the id column must be sized exactly to the page, like every other bulk-loaded column"
 			);
 		}
@@ -488,7 +488,7 @@ class BucketBPlusTreeValueIdTest {
 		@DisplayName("a vacated slot reads back as unassigned")
 		void shouldReadBackZeroFromAVacatedSlot() {
 			final TransactionalBucketBPlusTree<Integer> tree = treeWithIds(4);
-			final RecordColumn valueIds = tree.enumerateLeaves().get(0).getValueIds();
+			final RecordColumn valueIds = tree.enumerateLeaves().getFirst().getValueIds();
 			assertNotNull(valueIds);
 			assertEquals(4, valueIds.size());
 
@@ -514,7 +514,7 @@ class BucketBPlusTreeValueIdTest {
 			assertEquals(1, tree.enumerateLeaves().size(), "the fixture must stay a single leaf");
 
 			tree.installValueIdMinter(new ValueIdAllocator()::allocate);
-			final RecordColumn valueIds = tree.enumerateLeaves().get(0).getValueIds();
+			final RecordColumn valueIds = tree.enumerateLeaves().getFirst().getValueIds();
 			assertNotNull(valueIds);
 			assertEquals(100, valueIds.size());
 
@@ -529,7 +529,7 @@ class BucketBPlusTreeValueIdTest {
 				"the back-filled id column must be sized exactly to the leaf's 100 buckets"
 			);
 			assertTrue(
-				exact < tree.enumerateLeaves().get(0).getRecords().getHeapSizeInBytes(),
+				exact < tree.enumerateLeaves().getFirst().getRecords().getHeapSizeInBytes(),
 				"the geometrically grown record column beside it must be the larger of the two"
 			);
 		}

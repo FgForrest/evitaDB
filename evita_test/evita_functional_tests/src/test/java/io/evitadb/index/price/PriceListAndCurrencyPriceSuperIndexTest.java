@@ -1015,7 +1015,7 @@ class PriceListAndCurrencyPriceSuperIndexTest {
 
 			assertTrue(found);
 			assertEquals(1, streamed.size());
-			assertEquals(10, streamed.get(0).internalPriceId());
+			assertEquals(10, streamed.getFirst().internalPriceId());
 		}
 
 		@Test

@@ -38,6 +38,7 @@ import io.evitadb.index.Index;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
@@ -49,7 +50,7 @@ import java.util.function.Predicate;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
-class AbstractAttributeTranslator {
+public class AbstractAttributeTranslator {
 
 	/**
 	 * Generates an AttributeKey object based on the provided filterByVisitor and attributeDefinition.
@@ -125,6 +126,33 @@ class AbstractAttributeTranslator {
 	}
 
 	/**
+	 * Tells whether `attributeEquals` / `attributeInSet` may be translated into a lookup of an index: the query names
+	 * a collection, or it names none and the catalog attribute is unique globally in at least one requested scope,
+	 * which is the only lookup the catalog index answers. Any other attribute of a query with no collection is
+	 * evaluated on the entities found otherwise.
+	 *
+	 * @param filterByVisitor       the visitor that provides the requested scopes
+	 * @param globalAttributeSchema the schema of the attribute when it is an attribute of the catalog, NULL otherwise
+	 * @return true when the translation may look the value up in an index
+	 */
+	protected static boolean isTypedLookupPossible(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nullable GlobalAttributeSchemaContract globalAttributeSchema
+	) {
+		if (filterByVisitor.isEntityTypeKnown()) {
+			return true;
+		}
+		if (globalAttributeSchema != null) {
+			for (final Scope scope : filterByVisitor.getProcessingScope().getScopes()) {
+				if (globalAttributeSchema.isUniqueGloballyInScope(scope)) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	/**
 	 * Tells whether a localized attribute is read in the query locale alone in the scope, i.e. whether a record
 	 * carrying its value there holds the query locale. That is not so where the uniqueness of the attribute ignores
 	 * the locale: unique across locales within the collection, or globally unique across the whole catalog - a value
@@ -134,7 +162,7 @@ class AbstractAttributeTranslator {
 	 * @param scope           the scope the attribute is read in
 	 * @return true when only the value in the query locale counts as carried in the scope
 	 */
-	protected static boolean isBoundToQueryLocale(
+	public static boolean isBoundToQueryLocale(
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull Scope scope
 	) {

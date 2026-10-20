@@ -86,7 +86,7 @@ class SetAttributeSchemaConflictResolutionOverrideMutationConverterTest {
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(
 			map().e(SetAttributeSchemaConflictResolutionOverrideMutationDescriptor.CONFLICT_RESOLUTION_OVERRIDE.name(), ConflictResolutionOverride.GRANULAR).build()));
 		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(Map.of()));
-		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(null));
 	}
 
 	@Test

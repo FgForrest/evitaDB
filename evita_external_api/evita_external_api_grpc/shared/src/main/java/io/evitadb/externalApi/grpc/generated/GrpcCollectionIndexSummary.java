@@ -35,6 +35,11 @@ package io.evitadb.externalApi.grpc.generated;
  * This is what turns the historically opaque single index count into something a developer can act on: forty
  * thousand indexes of one referenced entity and forty global ones are very different situations that used to render
  * as the same number.
+ *
+ * The counts are of physical indexes. A reference indexed for filtering only keeps each partition that has a single
+ * owner as a row of a registry held by its reference-type index rather than as a per-referenced-entity index of its
+ * own, so such a partition is not counted here. How many of them a reference holds is reported by
+ * `GrpcIndexCardinality.virtualPartitionCount`.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexSummary}
@@ -331,6 +336,11 @@ private static final long serialVersionUID = 0L;
    * This is what turns the historically opaque single index count into something a developer can act on: forty
    * thousand indexes of one referenced entity and forty global ones are very different situations that used to render
    * as the same number.
+   *
+   * The counts are of physical indexes. A reference indexed for filtering only keeps each partition that has a single
+   * owner as a row of a registry held by its reference-type index rather than as a per-referenced-entity index of its
+   * own, so such a partition is not counted here. How many of them a reference holds is reported by
+   * `GrpcIndexCardinality.virtualPartitionCount`.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcCollectionIndexSummary}

@@ -110,7 +110,7 @@ public class SchemaUtils {
 	@SuppressWarnings({"rawtypes"})
 	private static Schema getFirstSchemaFromListWhenOnlyOneSchemaAllowed(@Nonnull Schema parentSchema, @Nonnull List<Schema> schemas) {
 		if(schemas.size() == 1) {
-			return schemas.get(0);
+			return schemas.getFirst();
 		}
 		throw new RestInternalError("Can't get schema from list, found more than one schema in list. " +
 			"Parent schema: " + parentSchema.getName(),"Error when parsing input data.");

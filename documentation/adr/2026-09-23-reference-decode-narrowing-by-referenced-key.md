@@ -1,7 +1,7 @@
 ---
 title: Bound the reference decode by the referenced keys a requirement names, and let named reference content own the names only it asked for
 date: 2026-09-23
-updated: 2026-09-23 19:35
+updated: 2026-10-14 22:34
 status: accepted
 kind: optimization
 issues: [1637, 1640]
@@ -9,7 +9,7 @@ prs: [1638, 1639]
 areas: [evita_api/src/main/java/io/evitadb/api/requestResponse, evita_engine/src/main/java/io/evitadb/core/query/response, evita_engine/src/main/java/io/evitadb/core/collection, evita_engine/src/main/java/io/evitadb/spi/store/catalog/persistence, evita_store/evita_store_entity, evita_store/evita_store_server]
 supersedes: []
 superseded-by: []
-relates: [2026-09-11-reference-name-narrowing, 2026-09-23-internal-member-annotation]
+relates: [2026-10-14-reference-content-filter-row-by-row, 2026-09-11-reference-name-narrowing, 2026-09-23-internal-member-annotation]
 ---
 
 # Bound the reference decode by the referenced keys a requirement names
@@ -175,6 +175,9 @@ an API semantics decision rather than an optimization.
 
 ## Related work
 
+- [`2026-10-14-reference-content-filter-row-by-row`](2026-10-14-reference-content-filter-row-by-row.md) — the filter
+  of `referenceContent` is evaluated over exactly the rows this narrowing keeps; `getOwnerCarryingEveryRow` guards the
+  premise that an owner carries every row the filter could admit.
 - [`2026-09-11-reference-name-narrowing`](2026-09-11-reference-name-narrowing.md) — the *name* axis.
   This record is its second axis and inherits its safety argument: a reference this read skips is one
   the predicate would have filtered out of the composed entity anyway. That record's proposed

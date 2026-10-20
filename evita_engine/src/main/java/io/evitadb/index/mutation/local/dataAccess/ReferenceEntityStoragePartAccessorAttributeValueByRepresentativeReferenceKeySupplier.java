@@ -139,7 +139,14 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 	 *
 	 * The method ensures that the memoized reference is up-to-date by checking its validity against the current
 	 * references. If the memoized reference is deemed obsolete or null, it searches for the reference
-	 * within the available references and memoizes it.
+	 * within the available references and memoizes it - the first reference in the array matching the current or the
+	 * stored representative reference key.
+	 *
+	 * The references are kept sorted by their name and the primary key of the referenced entity (see
+	 * {@link ReferencesStoragePart}), so the references a target key can match form one contiguous run: the run is
+	 * found by a binary search and only the references within it - the duplicates of one target - are matched by their
+	 * representative values. The search costs `log2(n)` key comparisons rather than a scan of all `n` references of
+	 * the entity, which matters when a partition is populated from another owner holding hundreds of references.
 	 *
 	 * @return an {@link Optional} containing the memoized {@link ReferenceContract} if found, otherwise an empty {@link Optional}.
 	 */
@@ -150,43 +157,70 @@ class ReferenceEntityStoragePartAccessorAttributeValueByRepresentativeReferenceK
 		// we need to check the memoized instance is still the same, when the reference or its contents are modified
 		// the entire reference is replaced, so we need to retrieve it again
 		if (isReferenceNullOrObsolete(references)) {
-			this.memoizedReferenceIndex = -1;
-			// hoist the target reference keys so the pre-filter below can skip references that cannot match without
-			// allocating a RepresentativeReferenceKey (and computing representative values) for every reference
 			final ReferenceKey currentTargetKey = this.currentReferenceKey.referenceKey();
 			final ReferenceKey storedTargetKey = this.storedReferenceKey.referenceKey();
-			for (int i = 0; i < references.length; i++) {
-				final ReferenceContract reference = references[i];
-				if (!reference.exists()) {
-					continue;
-				}
-				final ReferenceKey referenceKey = reference.getReferenceKey();
-				// RepresentativeReferenceKey equality requires the ReferenceKey to match in general (reference name
-				// and primary key); a reference matching neither target key can never match, so skip it before the
-				// (relatively expensive) RepresentativeReferenceKey allocation and representative-value computation
-				if (!referenceKey.equalsInGeneral(currentTargetKey) && !referenceKey.equalsInGeneral(storedTargetKey)) {
-					continue;
-				}
-				final RepresentativeReferenceKey theReferenceKey =
-					this.referenceSchema.getName().equals(reference.getReferenceName()) &&
-						this.referenceSchema.getCardinality().allowsDuplicates() ?
-						new RepresentativeReferenceKey(
-							referenceKey,
-							this.referenceSchema.getRepresentativeAttributeDefinition()
-								.getRepresentativeValues(reference)
-						) :
-						new RepresentativeReferenceKey(referenceKey);
-				if (Objects.equals(theReferenceKey, this.currentReferenceKey) || Objects.equals(theReferenceKey, this.storedReferenceKey)) {
-					this.memoizedReference = Optional.of(reference);
-					this.memoizedReferenceIndex = i;
-					break;
-				}
-			}
-			if (this.memoizedReferenceIndex == -1) {
-				this.memoizedReference = Optional.empty();
-			}
+			final int currentMatch = findMatchInRunOf(references, currentTargetKey);
+			// the stored key targets another run only when the target itself differs - otherwise the run was matched
+			// against both keys already
+			final int storedMatch = storedTargetKey.equalsInGeneral(currentTargetKey)
+				? -1 : findMatchInRunOf(references, storedTargetKey);
+			// the first reference in the array matching either key wins
+			this.memoizedReferenceIndex = currentMatch == -1 || (storedMatch != -1 && storedMatch < currentMatch)
+				? storedMatch : currentMatch;
+			this.memoizedReference = this.memoizedReferenceIndex == -1
+				? Optional.empty() : Optional.of(references[this.memoizedReferenceIndex]);
 		}
 		return this.memoizedReference;
+	}
+
+	/**
+	 * Finds the first existing reference matching the current or the stored representative reference key among the
+	 * references of the given target - the run of references whose key equals the target key in general (by name and
+	 * referenced primary key), found by a binary search over the sorted references.
+	 *
+	 * @param references the references of the entity, sorted by their name and referenced primary key
+	 * @param targetKey  the key of the target whose run is searched
+	 * @return the index of the matching reference, or -1 when the run holds none
+	 */
+	private int findMatchInRunOf(@Nonnull ReferenceContract[] references, @Nonnull ReferenceKey targetKey) {
+		// the lower bound of the run - the first reference not ordered before the target
+		int low = 0;
+		int high = references.length;
+		while (low < high) {
+			final int middle = (low + high) >>> 1;
+			if (ReferenceKey.GENERIC_COMPARATOR.compare(references[middle].getReferenceKey(), targetKey) < 0) {
+				low = middle + 1;
+			} else {
+				high = middle;
+			}
+		}
+		for (int i = low; i < references.length; i++) {
+			final ReferenceContract reference = references[i];
+			final ReferenceKey referenceKey = reference.getReferenceKey();
+			if (!referenceKey.equalsInGeneral(targetKey)) {
+				// the end of the run
+				return -1;
+			}
+			if (!reference.exists()) {
+				continue;
+			}
+			final RepresentativeReferenceKey theReferenceKey =
+				this.referenceSchema.getName().equals(reference.getReferenceName()) &&
+					this.referenceSchema.getCardinality().allowsDuplicates() ?
+					new RepresentativeReferenceKey(
+						referenceKey,
+						this.referenceSchema.getRepresentativeAttributeDefinition()
+							.getRepresentativeValues(reference)
+					) :
+					new RepresentativeReferenceKey(referenceKey);
+			if (
+				Objects.equals(theReferenceKey, this.currentReferenceKey) ||
+					Objects.equals(theReferenceKey, this.storedReferenceKey)
+			) {
+				return i;
+			}
+		}
+		return -1;
 	}
 
 	/**

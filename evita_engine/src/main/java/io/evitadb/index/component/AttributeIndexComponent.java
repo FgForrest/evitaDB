@@ -75,6 +75,11 @@ public final class AttributeIndexComponent implements IndexComponent {
 		@Nonnull TrappedChanges trappedChanges
 	) {
 		this.attributeIndex.getModifiedStorageParts(entityIndexPrimaryKey, trappedChanges);
+		announceKeys(manifest);
+	}
+
+	@Override
+	public void announceKeys(@Nonnull EntityIndexManifest manifest) {
 		this.attributeIndex.collectKeys(this.entityIndexKey, manifest.getAttributeKeys());
 	}
 

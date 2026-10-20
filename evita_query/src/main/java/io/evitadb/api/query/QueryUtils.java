@@ -248,7 +248,7 @@ public class QueryUtils {
 			return null;
 		}
 		//noinspection unchecked
-		return (T) FinderVisitor.findConstraint(filterBy, new ConstraintTypeMatcher(constraintType));
+		return FinderVisitor.findConstraint(filterBy, new ConstraintTypeMatcher(constraintType));
 	}
 
 	/**
@@ -267,7 +267,7 @@ public class QueryUtils {
 			return null;
 		}
 		//noinspection unchecked
-		return (T) FinderVisitor.findConstraint(filterBy, new ConstraintTypeMatcher(constraintType), stopContainerType::isInstance);
+		return FinderVisitor.findConstraint(filterBy, new ConstraintTypeMatcher(constraintType), stopContainerType::isInstance);
 	}
 
 	/**
@@ -285,7 +285,7 @@ public class QueryUtils {
 			return Collections.emptyList();
 		}
 		//noinspection unchecked
-		return (List<T>) (List<?>) FinderVisitor.findConstraints(filterBy, new ConstraintTypeMatcher(constraintType));
+		return FinderVisitor.findConstraints(filterBy, new ConstraintTypeMatcher(constraintType));
 	}
 
 	/**
@@ -306,7 +306,7 @@ public class QueryUtils {
 			return null;
 		}
 		//noinspection unchecked
-		return (T) FinderVisitor.findConstraint(orderBy, new ConstraintTypeMatcher(constraintType));
+		return FinderVisitor.findConstraint(orderBy, new ConstraintTypeMatcher(constraintType));
 	}
 
 	/**
@@ -327,7 +327,7 @@ public class QueryUtils {
 			return null;
 		}
 		//noinspection unchecked
-		return (T) FinderVisitor.findConstraint(require, new ConstraintTypeMatcher(constraintType));
+		return FinderVisitor.findConstraint(require, new ConstraintTypeMatcher(constraintType));
 	}
 
 	/**
@@ -346,7 +346,7 @@ public class QueryUtils {
 			return null;
 		}
 		//noinspection unchecked
-		return (T) FinderVisitor.findConstraint(require, new ConstraintTypeMatcher(constraintType), stopContainerType::isInstance);
+		return FinderVisitor.findConstraint(require, new ConstraintTypeMatcher(constraintType), stopContainerType::isInstance);
 	}
 
 	/**
@@ -364,7 +364,7 @@ public class QueryUtils {
 			return Collections.emptyList();
 		}
 		//noinspection unchecked
-		return (List<T>) (List<?>) FinderVisitor.findConstraints(require, new ConstraintTypeMatcher(constraintType));
+		return FinderVisitor.findConstraints(require, new ConstraintTypeMatcher(constraintType));
 	}
 
 	/**
@@ -383,7 +383,7 @@ public class QueryUtils {
 			return Collections.emptyList();
 		}
 		//noinspection unchecked
-		return (List<T>) (List<?>) FinderVisitor.findConstraints(require, new ConstraintTypeMatcher(constraintType), stopContainerType::isInstance);
+		return FinderVisitor.findConstraints(require, new ConstraintTypeMatcher(constraintType), stopContainerType::isInstance);
 	}
 
 	/**

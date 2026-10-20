@@ -109,6 +109,8 @@ public class TraverseReferencePredecessorAttributeComparator
 		super(
 			attributeName,
 			type,
+			// a predecessor carries no decimal places to compare at
+			0,
 			referenceSchema,
 			locale,
 			orderDirection

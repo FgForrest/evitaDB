@@ -284,6 +284,47 @@ class TransactionalMapTest {
 		}
 
 		@Test
+		@DisplayName("removing an absent key opens no diff layer and commits the very same delegate map")
+		void shouldOpenNoLayerWhenRemovingAbsentKey() {
+			final Map<String, Integer> delegate = new HashMap<>(Map.of("a", 1, "b", 2));
+			final TransactionalMap<String, Integer> map = new TransactionalMap<>(delegate);
+			assertStateAfterCommit(
+				map,
+				tested -> {
+					assertNull(tested.remove("z"));
+					assertNull(
+						Transaction.getTransactionalMemoryLayerIfExists(tested),
+						"an absent key must be settled on the delegate: no layer opened for a removal changing nothing"
+					);
+				},
+				(original, committedVersion) -> {
+					// with no layer the commit hands the delegate over instead of rebuilding a copy of it
+					assertSame(delegate, committedVersion);
+					assertMapContains(committedVersion, new Tuple("a", 1), new Tuple("b", 2));
+				}
+			);
+		}
+
+		@Test
+		@DisplayName("removing a present key opens a diff layer and commits a map without the key")
+		void shouldOpenLayerWhenRemovingPresentKey() {
+			final Map<String, Integer> delegate = new HashMap<>(Map.of("a", 1, "b", 2));
+			final TransactionalMap<String, Integer> map = new TransactionalMap<>(delegate);
+			assertStateAfterCommit(
+				map,
+				tested -> {
+					assertEquals(1, tested.remove("a"));
+					assertNotNull(Transaction.getTransactionalMemoryLayerIfExists(tested));
+				},
+				(original, committedVersion) -> {
+					assertNotSame(delegate, committedVersion);
+					assertMapContains(original, new Tuple("a", 1), new Tuple("b", 2));
+					assertMapContains(committedVersion, new Tuple("b", 2));
+				}
+			);
+		}
+
+		@Test
 		@DisplayName("mixed removals, updates, and insertions produce correct committed map")
 		void shouldMergeRemovalsAndUpdatesAndInsertionsOnTransactionCommit() {
 			assertStateAfterCommit(
@@ -1796,8 +1837,8 @@ class TransactionalMapTest {
 			});
 
 			assertEquals(1, released.size());
-			assertEquals("removed", released.get(0).getKey());
-			assertSame(removedValue, released.get(0).getValue());
+			assertEquals("removed", released.getFirst().getKey());
+			assertSame(removedValue, released.getFirst().getValue());
 			assertEquals(1, merged.size());
 			assertTrue(merged.containsKey("survivor"));
 			assertFalse(merged.containsKey("removed"));

@@ -927,7 +927,7 @@ class WarmUpSavepointBPlusTreeRollbackTest {
 		private static BPlusLeafTreeNode<Integer> onlyLeaf(@Nonnull TransactionalBucketBPlusTree<Integer> tree) {
 			final List<BPlusLeafTreeNode<Integer>> leaves = tree.enumerateLeaves();
 			assertEquals(1, leaves.size(), "self-check: this test needs a single-leaf tree");
-			return leaves.get(0);
+			return leaves.getFirst();
 		}
 
 		/**

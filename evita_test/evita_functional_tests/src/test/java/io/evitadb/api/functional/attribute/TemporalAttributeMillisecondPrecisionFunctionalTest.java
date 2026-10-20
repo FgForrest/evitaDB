@@ -32,7 +32,6 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.DateTimeRange;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.EvitaTestSupport;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -43,6 +42,7 @@ import org.junit.jupiter.api.TestInstance;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -66,7 +66,6 @@ import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FILTER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * End-to-end coverage for the millisecond precision guarantee: evitaDB cuts every temporal value to whole
@@ -120,6 +119,10 @@ public class TemporalAttributeMillisecondPrecisionFunctionalTest implements Evit
 	private static final String ATTR_RANGE = "validityRange";
 	/** The `DateTimeRange` attribute the `attributeInRange` boundary scenario probes. */
 	private static final String ATTR_RANGE_BOUNDARY = "validityRangeBoundary";
+	/** The `OffsetDateTime` attribute of the scenario writing a moment beyond the representable window. */
+	private static final String ATTR_MOMENT_EDGE = "validityEdge";
+	/** The `LocalDateTime` attribute of the scenario writing a moment beyond the representable window. */
+	private static final String ATTR_LOCAL_MOMENT_EDGE = "publishedAtEdge";
 
 	/**
 	 * Three moments sharing the same 123rd millisecond and differing only below it. They exist so the test can
@@ -147,6 +150,11 @@ public class TemporalAttributeMillisecondPrecisionFunctionalTest implements Evit
 	private static final LocalTime TIME_TRUNCATED = LocalTime.of(12, 19, 26, 123_000_000);
 	private static final LocalDate DAY = LocalDate.of(2026, 5, 20);
 
+	/** The last whole millisecond evitaDB can hold, written out independently of the production constants. */
+	private static final long LATEST_SUPPORTED_EPOCH_MILLI = (Long.MAX_VALUE / 1_000L - 1L) * 1_000L + 999L;
+	/** The first whole millisecond evitaDB can hold, written out independently of the production constants. */
+	private static final long EARLIEST_SUPPORTED_EPOCH_MILLI = (Long.MIN_VALUE / 1_000L + 1L) * 1_000L;
+
 	/** The lower bound of the validity range the boundary scenario indexes, on a whole millisecond. */
 	private static final OffsetDateTime RANGE_START =
 		OffsetDateTime.of(2026, 5, 20, 12, 19, 26, 123_000_000, ZoneOffset.UTC);
@@ -171,6 +179,8 @@ public class TemporalAttributeMillisecondPrecisionFunctionalTest implements Evit
 			.withAttribute(ATTR_DAY, LocalDate.class, whichIs -> whichIs.filterable().nullable())
 			.withAttribute(ATTR_RANGE, DateTimeRange.class, whichIs -> whichIs.filterable().nullable())
 			.withAttribute(ATTR_RANGE_BOUNDARY, DateTimeRange.class, whichIs -> whichIs.filterable().nullable())
+			.withAttribute(ATTR_MOMENT_EDGE, OffsetDateTime.class, whichIs -> whichIs.filterable().nullable())
+			.withAttribute(ATTR_LOCAL_MOMENT_EDGE, LocalDateTime.class, whichIs -> whichIs.filterable().nullable())
 			.updateVia(session);
 	}
 
@@ -456,18 +466,26 @@ public class TemporalAttributeMillisecondPrecisionFunctionalTest implements Evit
 	}
 
 	@Test
-	@DisplayName("should refuse a moment evitaDB cannot represent as epoch milliseconds")
-	void shouldRefuseUnrepresentableMoment() {
+	@DisplayName("should clamp a moment beyond the representable window to its edge and still match it")
+	void shouldClampUnrepresentableMoment() {
 		runScenario(
 			session -> {
-				assertThrows(
-					EvitaInvalidUsageException.class,
-					() -> createProduct(session, 61, ATTR_MOMENT, OffsetDateTime.MAX)
+				createProduct(session, 61, ATTR_MOMENT_EDGE, OffsetDateTime.MAX);
+				createProduct(session, 62, ATTR_LOCAL_MOMENT_EDGE, LocalDateTime.MIN);
+
+				// the write half: the instant is clamped to the last / first whole millisecond evitaDB can hold
+				assertEquals(
+					OffsetDateTime.ofInstant(Instant.ofEpochMilli(LATEST_SUPPORTED_EPOCH_MILLI), ZoneOffset.MIN),
+					readAttribute(session, 61, ATTR_MOMENT_EDGE)
 				);
-				assertThrows(
-					EvitaInvalidUsageException.class,
-					() -> createProduct(session, 62, ATTR_LOCAL_MOMENT, LocalDateTime.MIN)
+				assertEquals(
+					LocalDateTime.ofInstant(Instant.ofEpochMilli(EARLIEST_SUPPORTED_EPOCH_MILLI), ZoneOffset.UTC),
+					readAttribute(session, 62, ATTR_LOCAL_MOMENT_EDGE)
 				);
+
+				// the query half: the very same sentinel is clamped alike, so it finds the stored value
+				assertEquals(List.of(61), primaryKeysMatching(session, ATTR_MOMENT_EDGE, OffsetDateTime.MAX));
+				assertEquals(List.of(62), primaryKeysMatching(session, ATTR_LOCAL_MOMENT_EDGE, LocalDateTime.MIN));
 			}
 		);
 	}

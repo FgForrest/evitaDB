@@ -40,6 +40,7 @@ import io.evitadb.dataType.ConsistencySensitiveDataStructure;
 import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.array.CompositeIntArray;
 import io.evitadb.dataType.array.CompositeObjectArray;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.IndexDataStructure;
 import io.evitadb.index.IndexHeapSize;
 import io.evitadb.index.bPlusTree.BucketBPlusTree;
@@ -904,11 +905,15 @@ public class InvertedIndex implements
 	 * bounds' whole epoch seconds, lower bound first. Reconstructed from the precise bounds the buckets carry, which
 	 * is what makes the order a legacy writer sorted by recomputable on load.
 	 *
+	 * It is exactly `DateTimeRange#compareTo` of release 2026.2 and every older one, open bounds included, which is
+	 * why it is public: the storage migration to protocol 7 checks the persisted pages of an owner sort index with a
+	 * `DateTimeRange` element by it as well (`LegacyOwnerSortIndexCorrection`).
+	 *
 	 * @param left  the range persisted first
 	 * @param right the range persisted next
 	 * @return the sign of the second-granularity comparison
 	 */
-	private static int compareAtSecondGranularity(@Nonnull DateTimeRange left, @Nonnull DateTimeRange right) {
+	public static int compareAtSecondGranularity(@Nonnull DateTimeRange left, @Nonnull DateTimeRange right) {
 		final int lowerBoundComparison =
 			Long.compare(secondGranularityFrom(left), secondGranularityFrom(right));
 		return lowerBoundComparison != 0
@@ -1483,19 +1488,22 @@ public class InvertedIndex implements
 	 * {@link io.evitadb.index.Index#getModifiedStorageParts} is documented as a pure, idempotent read, with the
 	 * baseline advance deliberately relocated to `notifyFlushed` — so a baseline that moves here looks, at first
 	 * glance, like it is in the wrong place. It is not, and the reason is worth stating because it is not local: in
-	 * production `EntityIndex#getModifiedStorageParts` is reached from exactly two places, and both are accounted for.
-	 * `DataStoreChanges#popTrappedUpdates` collects the parts that are then written, and `notifyFlushed` immediately
-	 * re-runs the same collect through `captureOriginalsFromComponents` into a sink it discards. The second pass
-	 * finds this mark already advanced and the page list unchanged, so it emits no root at all — pinned by
-	 * `FilterIndexValueIdRootEmissionTest#shouldNotDisturbValueIdHighWaterWhenBaselineCaptureRepeatsTheCollect`.
+	 * production `EntityIndex#getModifiedStorageParts` is reached from exactly one place,
+	 * `DataStoreChanges#popTrappedUpdates`, which writes the parts it collects. The change-detection baseline the
+	 * entity index captures when it is built and after every flush (`captureOriginalsFromComponents`) only announces
+	 * keys and never collects. A collect repeated over an unchanged tree finds this mark already advanced and the page
+	 * list unchanged, so it emits no root at all — pinned by
+	 * `FilterIndexValueIdRootEmissionTest#shouldNotDisturbValueIdHighWaterWhenCollectIsRepeated`.
 	 *
-	 * A third caller that collected and threw the result away WOULD strand the mark: the next real flush would find
-	 * it clean, skip the root, and leave the persisted high-water behind ids the leaf pages already carry, which a
-	 * restart resolves by handing one id to two values. No such caller exists, and the page-stream registry beside
-	 * this one makes exactly the same assumption — {@link #collectChangedPages()} publishes the previous flush's
-	 * staged page set and clears each leaf's dirty flag on the way through, so a discarded collect loses leaf pages
-	 * outright, before this mark is even reached. Adding one is therefore not a licence to stage this mark instead;
-	 * it is a change that has to be weighed against that whole contract at once.
+	 * A caller that collected and threw the result away WOULD strand the mark: the next real flush would find it
+	 * clean, skip the root, and leave the persisted high-water behind ids the leaf pages already carry, which a
+	 * restart resolves by handing one id to two values. The page-stream registry beside this one makes exactly the
+	 * same assumption — {@link #collectChangedPages()} publishes the previous flush's staged page set and clears each
+	 * leaf's dirty flag on the way through, so a discarded collect loses leaf pages outright, before this mark is even
+	 * reached. That is not hypothetical: the baseline capture used to be such a collect, and it lost every page a
+	 * load-time repair of this tree had released (`FilterIndexLoadRepairPersistenceTest`). Adding one is therefore
+	 * not a licence to stage this mark instead; it is a change that has to be weighed against that whole contract at
+	 * once.
 	 */
 	public void markValueIdHighWaterEmitted() {
 		this.emittedNextValueId = getNextValueId();
@@ -1809,7 +1817,8 @@ public class InvertedIndex implements
 	 * nothing happens. If the bucket contains no record id that match passed record id, nothing happens. If removal
 	 * of the record ids leaves the bucket empty, it's entirely removed (the tree releases the value's transactional
 	 * layer). A bitmap bucket is mutated in place; a single-record bucket can only be deleted (it holds a single
-	 * id, so removing that id empties it). The dirty flag is always raised to mirror the historical behaviour.
+	 * id, so removing that id empties it). The dirty flag is raised unconditionally, before the tree is touched — see
+	 * {@link #removeRecord(Serializable, ValueLifecycleSink, int...)} for why that order is deliberate.
 	 */
 	public void removeRecord(@Nonnull Serializable value, int... recordId) {
 		removeRecord(value, null, recordId);
@@ -1830,7 +1839,14 @@ public class InvertedIndex implements
 	 */
 	public void removeRecord(@Nonnull Serializable value, @Nullable ValueLifecycleSink sink, @Nonnull int... recordId) {
 		Assert.isTrue(!ArrayUtils.isEmpty(recordId), "Record ids must be not null and non-empty!");
-		// historical quirk: the dirty flag is raised unconditionally BEFORE the lookup, even on a no-op remove
+		// deliberately unconditional and BEFORE the tree is touched, even for a removal that changes nothing. Both the
+		// commit merge (`createCopyWithMergedTransactionalMemory`) and the flush skip `buckets` entirely while this flag
+		// is false, and the tree cannot tell us whether a removal changed it: it reports a bucket's death, not records
+		// leaving a surviving bucket, and even a removal of ids the bucket does not hold decouples the leaf into a
+		// write layer. Raising the flag only on an observed change would therefore leave that layer unconsumed at
+		// commit (a `StaleTransactionMemoryException` at the sweep) and an in-place shrink of a surviving bucket
+		// neither merged nor persisted; raising it first keeps every exit from the call, a throwing one included,
+		// covered by the merge that consumes whatever layer the tree opened
 		this.dirty.setToTrue();
 		final Comparable normalizedValue = (Comparable) this.normalizer.apply(value);
 		if (sink == null) {
@@ -2391,7 +2407,7 @@ public class InvertedIndex implements
 		if (bitmaps.isEmpty()) {
 			return EmptyFormula.INSTANCE;
 		} else if (bitmaps.size() == 1) {
-			return new ConstantFormula(bitmaps.get(0));
+			return new ConstantFormula(bitmaps.getFirst());
 		} else {
 			return new OrFormula(leafVersionIds, bitmaps.toArray(Bitmap[]::new));
 		}
@@ -2611,6 +2627,32 @@ public class InvertedIndex implements
 	}
 
 	/**
+	 * Makes this index - built afresh and never flushed - the successor of a persisted `PAGED` index it replaces whole,
+	 * reusing none of its pages: the page stream continues from the persisted high-water, and the persisted pages
+	 * become the live set the first emission diffs against. That emission therefore gives every leaf a page sequence
+	 * above `highWaterPageSequence`, frees every persisted page and re-emits the root - or, when this index fits one
+	 * leaf, frees every persisted page through {@link #currentLeafPageSequences()} before it falls back to the inline
+	 * shape. Page sequences stay advance-only, so a persisted page and a page of the successor never share an identity.
+	 *
+	 * @param highWaterPageSequence  the persisted stream high-water (largest page sequence ever allocated)
+	 * @param persistedPageSequences the leaf-page sequences the persisted root lists, in its order
+	 * @throws GenericEvitaInternalError when this index knows a page stream already - it was flushed, or reassembled
+	 *                                   from persisted pages, so it is no successor built afresh
+	 * @deprecated exists only for the rewrite of owner sort indexes 2026.2 or an older release persisted: its only
+	 * caller is `LegacyOwnerSortIndexCorrection#rewrite`, which only the storage migration `Migration_2026_3` calls,
+	 * and it is removed together with them
+	 */
+	@Deprecated(since = "2026.3", forRemoval = true)
+	public void supersedePersistedPages(int highWaterPageSequence, @Nonnull int[] persistedPageSequences) {
+		Assert.isPremiseValid(
+			!this.pageStreamRegistry.isKnown(BUCKET_PAGE_STREAM),
+			"Only an inverted index built afresh can supersede persisted pages - this one knows its page stream " +
+				"already."
+		);
+		this.pageStreamRegistry.restore(BUCKET_PAGE_STREAM, highWaterPageSequence, persistedPageSequences);
+	}
+
+	/**
 	 * Promotes the page set staged by the PREVIOUS flush to the live change-detection baseline, so this flush's
 	 * freed-page diff is taken against what disk actually holds.
 	 *
@@ -2632,7 +2674,7 @@ public class InvertedIndex implements
 	 *
 	 * Publishing a staged set HERE — rather than only at the merge — is correct for every path, because of one
 	 * invariant: **a failed flush is never followed by another flush of the same data**. Note that this publish runs at
-	 * COLLECT time, before this flush has written anything (the baseline-capture pass re-enters this pipeline), so it
+	 * COLLECT time, before this flush has written anything, so it
 	 * cannot and does not lean on the previous flush's bytes having landed by now. It does not need to: a flush that
 	 * fails during trunk incorporation SUSPENDS the catalog's transaction processing ({@code TransactionManager.suspend}),
 	 * and a flush that fails on the warm-up path makes the catalog UNPUBLISHABLE

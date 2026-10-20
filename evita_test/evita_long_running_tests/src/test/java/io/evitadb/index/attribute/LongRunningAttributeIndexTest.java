@@ -194,13 +194,13 @@ class LongRunningAttributeIndexTest implements TimeBoundedTestSupport {
 			if (random.nextInt(4) == 0) {
 				// CHAIN op: tail append or tail removal keeps the single chain consistent
 				if (chain.isEmpty() || (chain.size() < CHAIN_CAP && random.nextBoolean())) {
-					final int predecessorId = chain.isEmpty() ? 0 : chain.get(chain.size() - 1);
-					final int recordId = chain.isEmpty() ? CHAIN_BASE : chain.get(chain.size() - 1) + 1;
+					final int predecessorId = chain.isEmpty() ? 0 : chain.getLast();
+					final int recordId = chain.isEmpty() ? CHAIN_BASE : chain.getLast() + 1;
 					code.append("chainInsert(index, ").append(predecessorId).append(", ").append(recordId).append(");\n");
 					chainInsert(index, predecessorId, recordId);
 					chain.add(recordId);
 				} else {
-					final int recordId = chain.remove(chain.size() - 1);
+					final int recordId = chain.removeLast();
 					code.append("chainRemove(index, ").append(recordId).append(");\n");
 					chainRemove(index, recordId);
 				}

@@ -417,6 +417,9 @@ class CatalogIndexProjectionTest {
 			assertNull(detail.cardinality().entityCount());
 			assertTrue(detail.cardinality().entityCountIfKnown().isEmpty());
 			assertNull(detail.cardinality().referencedEntityCount());
+			// a catalog index holds no registry of reference partitions, so it reports no count rather than zero
+			assertNull(detail.cardinality().virtualPartitionCount());
+			assertTrue(detail.cardinality().virtualPartitionCountIfKnown().isEmpty());
 			assertEquals(0, detail.cardinality().attributes().length);
 			// nothing has been recorded on this index's holder, so both counters read zero and both stamps state
 			// absence rather than the epoch, which a client would render as a date in 1970

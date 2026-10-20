@@ -80,7 +80,7 @@ class ModifyCatalogSchemaDescriptionMutationConverterTest {
 
 	@Test
 	void shouldNotResolveInputWhenMissingRequiredData() {
-		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput((Object) null));
+		assertThrows(EvitaInvalidUsageException.class, () -> this.converter.convertFromInput(null));
 	}
 
 	@Test

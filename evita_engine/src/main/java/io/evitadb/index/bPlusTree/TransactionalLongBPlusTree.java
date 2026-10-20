@@ -678,7 +678,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	@Nullable
 	BPlusLeafTreeNode<V> predecessorLeaf(@Nonnull Cursor cursor) {
 		final List<CursorLevel> path = cursor.path();
-		final CursorLevel leafLevel = path.get(path.size() - 1);
+		final CursorLevel leafLevel = path.getLast();
 		final int leafIndex = leafLevel.index();
 		if (leafIndex > 0) {
 			//noinspection unchecked
@@ -832,7 +832,7 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 	@Nonnull
 	private BPlusTreeNode<?> buildSpine(@Nonnull List<? extends BPlusTreeNode<?>> level) {
 		if (level.size() == 1) {
-			return level.get(0);
+			return level.getFirst();
 		}
 		// Pack at most internalNodeBlockSize children per parent (one below the node's children capacity of
 		// internalNodeBlockSize + 1). An assembled node must be born non-full so the first child split can still call
@@ -3643,50 +3643,42 @@ public class TransactionalLongBPlusTree<V> extends AbstractTransactionalBPlusTre
 		 * @return true if the key was found and removed, false otherwise
 		 */
 		public boolean delete(long key) {
+			// presence is settled on the current state BEFORE a write layer is resolved, so deleting an absent key stays
+			// a pure read: no layer opened, no array copied and no page flagged for re-emission for a call that changes nothing
+			final int index = getValueIndex(key);
+			if (index < 0) {
+				return false;
+			}
+			// the index stays valid below: a freshly opened layer shares this node's arrays and peek, and the
+			// decouple copies them without reordering
 			final BPlusLeafTreeNode<V> layer = perOperationWriteLayer(this, this.transactionalLayer);
-			// deleting an entry mutates this leaf's page: flag it for re-emission (a no-op delete over-reports at worst)
+			// deleting an entry mutates this leaf's page: flag it for re-emission
 			if (layer == null) {
 				this.dirty = true;
+				// journalled BEFORE the first column write, as WarmUpSavepoint#push requires of every inverse
+				journalEntryDeletionIfOpen(key, this.values[index]);
+				// the value is discarded from the tree - release its transactional diff layer (if any)
+				// so it is not left ALIVE and detected as stale during commit; outside a transaction the
+				// guard short-circuits and this is a no-op
+				discardRemovedValueLayer(this.values[index]);
+				removeLongFromSameArrayOnIndex(this.keys, index);
+				removeRecordFromSameArrayOnIndex(this.values, index);
+				this.keys[this.peek] = 0L;
+				this.values[this.peek] = null;
+				this.peek--;
 			} else {
 				layer.dirty = true;
-			}
-			if (layer == null) {
-				final int index = Arrays.binarySearch(this.keys, 0, this.peek + 1, key);
-
-				if (index >= 0) {
-					// journalled BEFORE the first column write, as WarmUpSavepoint#push requires of every inverse
-					journalEntryDeletionIfOpen(key, this.values[index]);
-					// the value is discarded from the tree - release its transactional diff layer (if any)
-					// so it is not left ALIVE and detected as stale during commit; outside a transaction the
-					// guard short-circuits and this is a no-op
-					discardRemovedValueLayer(this.values[index]);
-					removeLongFromSameArrayOnIndex(this.keys, index);
-					removeRecordFromSameArrayOnIndex(this.values, index);
-					this.keys[this.peek] = 0L;
-					this.values[this.peek] = null;
-					this.peek--;
-					return true;
-				} else {
-					return false;
-				}
-			} else {
 				decoupleTransactionalArrays();
-				final int index = Arrays.binarySearch(layer.keys, 0, layer.peek + 1, key);
-
-				if (index >= 0) {
-					// the value is discarded from the tree - release its transactional diff layer (if any)
-					// so it is not left ALIVE and detected as stale during commit
-					discardRemovedValueLayer(layer.values[index]);
-					removeLongFromSameArrayOnIndex(layer.keys, index);
-					removeRecordFromSameArrayOnIndex(layer.values, index);
-					layer.keys[layer.peek] = 0L;
-					layer.values[layer.peek] = null;
-					layer.peek--;
-					return true;
-				} else {
-					return false;
-				}
+				// the value is discarded from the tree - release its transactional diff layer (if any)
+				// so it is not left ALIVE and detected as stale during commit
+				discardRemovedValueLayer(layer.values[index]);
+				removeLongFromSameArrayOnIndex(layer.keys, index);
+				removeRecordFromSameArrayOnIndex(layer.values, index);
+				layer.keys[layer.peek] = 0L;
+				layer.values[layer.peek] = null;
+				layer.peek--;
 			}
+			return true;
 		}
 
 		/**

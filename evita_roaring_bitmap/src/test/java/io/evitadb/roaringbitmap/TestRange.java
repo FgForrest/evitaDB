@@ -674,7 +674,7 @@ public class TestRange {
 			}
 
 			// clear and check bitmap, if really empty
-			bitmap.remove(0L, (long) bits);
+			bitmap.remove(0L, bits);
 			assertEquals(0, bitmap.getCardinality(), "fails with bits: " + bitset);
 			assertTrue(bitmap.isEmpty());
 
@@ -719,13 +719,13 @@ public class TestRange {
 		for (int end = 1; end < N; ++end) {
 			for (int start = 0; start < end; ++start) {
 				PersistentRoaringBitmap bs1 = new PersistentRoaringBitmap();
-				bs1.add(0L, (long) N);
+				bs1.add(0L, N);
 				for (int k = start; k < end; ++k) {
 					bs1.remove(k);
 				}
 				PersistentRoaringBitmap bs2 = new PersistentRoaringBitmap();
-				bs2 = PersistentRoaringBitmap.add(bs2, 0L, (long) N);
-				bs2 = PersistentRoaringBitmap.remove(bs2, (long) start, (long) end);
+				bs2 = PersistentRoaringBitmap.add(bs2, 0L, N);
+				bs2 = PersistentRoaringBitmap.remove(bs2, start, (long) end);
 				assertEquals(bs1, bs2);
 			}
 		}
@@ -741,7 +741,7 @@ public class TestRange {
 					bs1.add(k);
 				}
 				PersistentRoaringBitmap bs2 = new PersistentRoaringBitmap();
-				bs2 = PersistentRoaringBitmap.add(bs2, (long) start, (long) end);
+				bs2 = PersistentRoaringBitmap.add(bs2, start, (long) end);
 				assertEquals(bs1, bs2);
 			}
 		}

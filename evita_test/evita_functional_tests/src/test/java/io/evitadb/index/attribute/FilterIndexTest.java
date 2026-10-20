@@ -1149,6 +1149,28 @@ class FilterIndexTest {
 		}
 
 		@Test
+		@DisplayName("getNormalizer for BigDecimalNumberRange returns a range retaining the scale as it is")
+		void shouldNotRebuildBigDecimalRangeRetainingTheIndexedScale() {
+			final Function<Object, Serializable> normalizer =
+				FilterIndex.getNormalizer(BigDecimalNumberRange.class, 2);
+			final BigDecimal from = new BigDecimal("1.005");
+			final BigDecimal to = new BigDecimal("2.0049");
+			final BigDecimalNumberRange atScale = BigDecimalNumberRange.between(from, to, 2);
+
+			// the range that retains the indexed scale is the very instance, and equal to what a rebuild yields
+			assertSame(atScale, normalizer.apply(atScale));
+			assertEquals(BigDecimalNumberRange.between(from, to, 2), normalizer.apply(atScale));
+			// a range that retains another scale, or none, is rebuilt at the indexed one
+			final BigDecimalNumberRange rebuilt = (BigDecimalNumberRange) normalizer.apply(
+				BigDecimalNumberRange.between(from, to)
+			);
+			assertEquals(BigDecimalNumberRange.between(from, to, 2), rebuilt);
+			assertEquals(Integer.valueOf(2), rebuilt.getRetainedDecimalPlaces());
+			assertEquals(101L, rebuilt.getFrom());
+			assertEquals(200L, rebuilt.getTo());
+		}
+
+		@Test
 		@DisplayName("getNormalizer for BigDecimal scales to an order-preserving int and is idempotent")
 		void shouldScaleBigDecimalToInt() {
 			final Function<Object, Serializable> normalizer =
@@ -1186,6 +1208,15 @@ class FilterIndexTest {
 			final BigDecimalNumberRange toOnly =
 				(BigDecimalNumberRange) normalizer.apply(BigDecimalNumberRange.to(new BigDecimal("9.9")));
 			assertEquals(990L, toOnly.getTo());
+
+			// a range open at the end survives the rescale as well
+			final BigDecimalNumberRange fromOnly =
+				(BigDecimalNumberRange) normalizer.apply(BigDecimalNumberRange.from(new BigDecimal("1.5")));
+			assertEquals(2, fromOnly.getRetainedDecimalPlaces());
+			assertEquals(150L, fromOnly.getFrom());
+
+			// a range with no bounds has nothing to rescale
+			assertSame(BigDecimalNumberRange.INFINITE, normalizer.apply(BigDecimalNumberRange.INFINITE));
 
 			// idempotent: a range already at the target scale rescales to an equal range
 			final BigDecimalNumberRange reNormalized = (BigDecimalNumberRange) normalizer.apply(rescaled);

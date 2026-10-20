@@ -192,12 +192,12 @@ public class ContainerHashCodeTest {
 			for (int run = 0; run < 100; run++) {
 				grown = grown.iadd(run * 600, run * 600 + 200);
 			}
-			assertEquals(100, ((RunContainer) grown).numberOfRuns(), "the test needs a container to shrink");
+			assertEquals(100, grown.numberOfRuns(), "the test needs a container to shrink");
 			for (int run = 99; run >= 1; run--) {
 				grown = grown.iremove(run * 600, run * 600 + 200);
 			}
 			assertInstanceOf(RunContainer.class, grown);
-			assertEquals(1, ((RunContainer) grown).numberOfRuns(), "the test needs a shrunken container");
+			assertEquals(1, grown.numberOfRuns(), "the test needs a shrunken container");
 
 			final Container fresh = new RunContainer().iadd(0, 200);
 			assertEquals(fresh.hashCode(), grown.hashCode());
@@ -286,7 +286,7 @@ public class ContainerHashCodeTest {
 			final int[] asArray = values.stream().mapToInt(Integer::intValue).toArray();
 			final Container run = fill(new RunContainer(), asArray);
 			assertInstanceOf(RunContainer.class, run, "the test needs a run container");
-			assertEquals(2, ((RunContainer) run).numberOfRuns(), "the test needs two runs inside one word");
+			assertEquals(2, run.numberOfRuns(), "the test needs two runs inside one word");
 			assertEquals(ContainerHash.ofWords(canonicalWords(asArray)), run.hashCode());
 		}
 
@@ -397,7 +397,7 @@ public class ContainerHashCodeTest {
 			final Container run = fill(new RunContainer(), values);
 			assertInstanceOf(ArrayContainer.class, array);
 			assertInstanceOf(RunContainer.class, run);
-			assertTrue(run.equals(array), "the two encodings must compare equal for the hash to be required to agree");
+			assertEquals(run, array, "the two encodings must compare equal for the hash to be required to agree");
 			assertEquals(array.hashCode(), run.hashCode());
 		}
 
@@ -442,9 +442,9 @@ public class ContainerHashCodeTest {
 			final Container run = encodings.get(1);
 			final Container bitmap = encodings.get(2);
 
-			assertTrue(array.equals(run));
-			assertTrue(run.equals(bitmap));
-			assertFalse(array.equals(bitmap), "if this starts passing, equals was fixed and this test should go");
+			assertEquals(array, run);
+			assertEquals(run, bitmap);
+			assertNotEquals(array, bitmap, "if this starts passing, equals was fixed and this test should go");
 
 			// the hash is required to agree only where equals says true - but it agrees everywhere anyway,
 			// because it describes the set rather than the encoding

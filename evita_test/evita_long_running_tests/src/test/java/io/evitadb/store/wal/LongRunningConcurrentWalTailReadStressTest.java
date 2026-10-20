@@ -504,7 +504,7 @@ public class LongRunningConcurrentWalTailReadStressTest implements EvitaTestSupp
 			detail.append("Reading a WAL while it was being appended to surfaced ")
 				.append(escapedFailures.size()).append(" failure(s) to the caller. Stack of the first:\n");
 			final StringWriter stackWriter = new StringWriter();
-			escapedFailures.get(0).printStackTrace(new PrintWriter(stackWriter));
+			escapedFailures.getFirst().printStackTrace(new PrintWriter(stackWriter));
 			detail.append(stackWriter);
 			detail.append("\nInternal errors constructed during the same run: ")
 				.append(Set.copyOf(CONSTRUCTED_ERRORS));

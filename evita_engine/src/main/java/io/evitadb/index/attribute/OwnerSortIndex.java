@@ -111,7 +111,7 @@ public final class OwnerSortIndex extends SortIndex {
 	 */
 	@Nonnull
 	@SuppressWarnings({"rawtypes"})
-	private static InvertedIndex createOwnedTree(
+	static InvertedIndex createOwnedTree(
 		@Nonnull ComparatorSource[] comparatorBase,
 		@Nonnull Comparator comparator,
 		int indexedDecimalPlaces
@@ -175,7 +175,11 @@ public final class OwnerSortIndex extends SortIndex {
 	 * (`comparatorBase.length == 1 ? comparatorBase[0].type() : Comparable.class`) and combined comparator (direction +
 	 * NULL handling) {@link #createOwnedTree} uses, so the reloaded tree is indistinguishable from a freshly built one: the
 	 * persisted leaf values are ALREADY normalized (the base normalizes before the value-side hooks), so the identity
-	 * normalizer stores them verbatim, and the comparator orders those normalized keys.
+	 * normalizer stores them verbatim, and the comparator orders those normalized keys. Nothing here normalizes a raw
+	 * temporal value the pages of 2026.2 or an older release hold, nor re-sorts the localized texts or locales such a
+	 * release ordered by the bare collator or the language tag: the storage migration to protocol 7 rewrites every such
+	 * page before a catalog of that release loads. A catalog that reaches protocol 7 with such pages otherwise - only a
+	 * development build of 2026.3 writes one - is not supported, and its values are read as they are stored.
 	 *
 	 * @param comparatorBase        one descriptor per element (a single entry for plain attributes)
 	 * @param referenceKey          owning reference discriminator, or `null` for the global index
@@ -375,9 +379,10 @@ public final class OwnerSortIndex extends SortIndex {
 	/**
 	 * Internal constructor used by {@link #copyWithMergedValueSide} to wrap the already-merged (committed) sorted-records
 	 * façade and owned tree directly, instead of rebuilding them from arrays (preserves the structural sharing of the
-	 * underlying two-tree backing and the owned {@link InvertedIndex} across commits).
+	 * underlying two-tree backing and the owned {@link InvertedIndex} across commits), and by the load paths that build
+	 * the owned tree themselves.
 	 */
-	private OwnerSortIndex(
+	OwnerSortIndex(
 		@Nonnull ComparatorSource[] comparatorBase,
 		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeIndexKey attributeIndexKey,
