@@ -27,6 +27,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.dataType.ComplexDataObject;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PaginatedListDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.StripListDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDescriptor;
@@ -201,6 +202,9 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 		this.fullResponseObjectBuilder.buildCommonTypes();
 	}
 
+	/**
+	 * Builds collection endpoints and their entity unions, using the generic classifier for an empty catalog.
+	 */
 	private void buildEndpoints() {
 		this.buildingContext.registerEndpoint(this.endpointBuilder.buildCollectionsEndpoint());
 
@@ -230,7 +234,12 @@ public class CatalogDataApiRestBuilder extends PartialRestBuilder<CatalogRestBui
 			this.buildingContext.registerEndpoint(this.endpointBuilder.buildDeleteEntitiesByQueryEndpoint(entitySchema));
 		});
 
-		buildEntityUnion(false).ifPresent(this.buildingContext::registerType);
+		buildEntityUnion(false).ifPresentOrElse(
+			this.buildingContext::registerType,
+			() -> this.buildingContext.registerType(
+				EntityDescriptor.THIS_CLASSIFIER.to(this.objectBuilderTransformer).build()
+			)
+		);
 		buildEntityUnion(true).ifPresent(this.buildingContext::registerType);
 
 		final List<GlobalAttributeSchemaContract> globallyUniqueAttributes = this.buildingContext.getSchema()

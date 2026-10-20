@@ -54,6 +54,7 @@ import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
 import io.swagger.v3.oas.models.servers.Server;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import java.util.Collections;
@@ -73,6 +74,7 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
+@Slf4j
 public abstract class RestBuildingContext {
 
 	@Nonnull protected final AbstractApiOptions restConfig;
@@ -131,6 +133,12 @@ public abstract class RestBuildingContext {
 	protected abstract String getOpenApiTitle();
 
 	/**
+	 * Identifies the catalog or system document in validation diagnostics.
+	 */
+	@Nonnull
+	protected abstract String getOpenApiDocumentName();
+
+	/**
 	 * Registers new custom enum if there is not enum with same name.
 	 */
 	public void registerCustomEnumIfAbsent(@Nonnull OpenApiEnum customEnum) {
@@ -173,6 +181,12 @@ public abstract class RestBuildingContext {
 	}
 
 
+	/**
+	 * Builds the OpenAPI document and the endpoint handlers from everything registered so far.
+	 *
+	 * A reference to a component schema the document does not define is logged at ERROR, naming the document, and
+	 * the API is still built: a documentation defect must not take the REST API down.
+	 */
 	@Nonnull
 	public Rest buildRest() {
 		final OpenAPI openApi = buildOpenApi();
@@ -240,14 +254,18 @@ public abstract class RestBuildingContext {
 		return Collections.unmodifiableList(builtEndpoints);
 	}
 
-	private static void validateReferences(OpenAPI openApi) {
+	/**
+	 * Reports documentation defects without preventing endpoint registration.
+	 */
+	private void validateReferences(@Nonnull OpenAPI openApi) {
 		final OpenApiReferenceValidator referenceValidator = new OpenApiReferenceValidator(openApi);
 		final Set<String> missingSchemas = referenceValidator.validateSchemaReferences();
 
 		if (!missingSchemas.isEmpty()) {
-			final StringBuilder errorMessageBuilder = new StringBuilder("Found missing schema in OpenAPI :`\n");
-			missingSchemas.forEach(it -> errorMessageBuilder.append("- `").append(it).append("`\n"));
-			throw new OpenApiBuildingError(errorMessageBuilder.toString());
+			log.error(
+				"OpenAPI document `{}` references missing schemas: {}.",
+				getOpenApiDocumentName(), String.join(", ", missingSchemas)
+			);
 		}
 	}
 }
