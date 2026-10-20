@@ -89,6 +89,15 @@ import java.util.function.UnaryOperator;
  * representative attribute values tell it apart from the other partitions of the same owner and referenced entity.
  * It is carried by {@link ReferencedTypeEntityIndex}.
  *
+ * # Who writes it
+ *
+ * Only {@link io.evitadb.index.mutation.local.VirtualReferencePartitionWriter} calls the methods that change the index.
+ * The reference, attribute and entity index mutators call the writer when a partition's owner count changes or when a
+ * value is written into a partition, and the storage protocol migration calls it when it demotes a stored
+ * single-owner partition. Those are the places that see the owner count change. A write from anywhere else - a schema
+ * change, a load step, a query - would record a row no owner-count change decided, and the index would drift from
+ * the partitions it describes.
+ *
  * # One tree, several slots
  *
  * Every entry lives in a single UNIQUE {@link LongPayloadBucketTree} keyed by `pack(slotId, partitionPrimaryKey)` and

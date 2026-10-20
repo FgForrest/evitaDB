@@ -152,10 +152,9 @@ import static org.junit.jupiter.api.Assertions.fail;
  * {@link #assertUnchangedModuloReminted}); every index the last checkpoint published keeps its primary key, and every
  * other line is compared as it is.
  *
- * Loading a catalog and taking it live run `initSchema` over every collection, and a schema-driven path writing the
- * registry there would pass `VirtualReferencePartitionWriterGuardTest`, which restricts the direct callers of the
- * writer only. The behavioural half of that guarantee is here: a clean reload followed by a close leaves every file of
- * the catalog byte for byte as it was, and going live leaves the description of the registry as it was.
+ * Loading a catalog and taking it live run `initSchema` over every collection, so a schema-driven path writing the
+ * registry would write it there. This class catches that: a clean reload followed by a close leaves every file of the
+ * catalog byte for byte as it was, and going live leaves the description of the registry as it was.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
