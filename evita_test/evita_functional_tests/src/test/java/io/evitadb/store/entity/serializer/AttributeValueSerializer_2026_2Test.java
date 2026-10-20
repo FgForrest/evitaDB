@@ -76,8 +76,11 @@ class AttributeValueSerializer_2026_2Test {
 	 * {@link AttributeValueSerializer_2026_2} is registered under.
 	 */
 	private static final long LEGACY_ATTRIBUTE_VALUE_UID = -5387437940533059959L;
+	/** The attribute every value is written under - known to the key compressor, so both readers resolve it. */
 	private static final AttributeKey KEY = new AttributeKey("until");
+	/** Kryo with the entity storage registrations: the version in front of a body selects the reader. */
 	private Kryo kryo;
+	/** Writes the payload of a legacy body, whose layout release 2026.2 shared. */
 	private AttributeValueSerializer currentSerializer;
 
 	@BeforeEach
@@ -201,8 +204,8 @@ class AttributeValueSerializer_2026_2Test {
 	}
 
 	@Test
-	@DisplayName("should write the current version that a legacy body is distinguished from")
-	void shouldWriteCurrentVersion() {
+	@DisplayName("should write the current version, whose body reads back unclamped")
+	void shouldWriteCurrentVersionAndReadItBackUnclamped() {
 		final byte[] current = write(new AttributeValue(1, KEY, OffsetDateTime.MAX, false));
 		final long writtenVersion = new Input(current).readLong();
 		assertEquals(ObjectStreamClass.lookup(AttributeValue.class).getSerialVersionUID(), writtenVersion);
@@ -224,6 +227,9 @@ class AttributeValueSerializer_2026_2Test {
 		return read(output.toBytes());
 	}
 
+	/**
+	 * Writes `value` through the registered serializer, which writes the current version in front of the payload.
+	 */
 	@Nonnull
 	private byte[] write(@Nonnull AttributeValue value) {
 		final Output output = new Output(256, -1);
@@ -231,6 +237,9 @@ class AttributeValueSerializer_2026_2Test {
 		return output.toBytes();
 	}
 
+	/**
+	 * Reads a value through the registered serializer, which picks the reader by the version in front of the payload.
+	 */
 	@Nonnull
 	private AttributeValue read(@Nonnull byte[] bytes) {
 		return this.kryo.readObject(new Input(bytes), AttributeValue.class);

@@ -103,6 +103,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -131,9 +132,11 @@ import static io.evitadb.api.query.QueryConstraints.collection;
 import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.orderBy;
+import static io.evitadb.api.query.QueryConstraints.page;
 import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
 import static io.evitadb.api.query.QueryConstraints.referenceContentAll;
 import static io.evitadb.api.query.QueryConstraints.referenceHaving;
+import static io.evitadb.api.query.QueryConstraints.require;
 import static io.evitadb.store.catalog.OfflineCatalogImages.lastBootstrap;
 import static io.evitadb.store.catalog.OfflineCatalogImages.stamp;
 import static io.evitadb.store.catalog.OfflineCatalogImages.withOfflineCatalog;
@@ -148,8 +151,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
 /**
- * Drives the REAL v6→v7 upgrade over a catalog in which evitaDB 2026.2 stored a temporal value outside the window this
- * version represents - the epoch milliseconds a `long` holds, roughly ±292 million years around 1970.
+ * Drives the REAL v6→v7 upgrade over a catalog in which evitaDB 2026.2 stored a temporal value outside the window
+ * this version represents - the epoch milliseconds a `long` holds, roughly ±292 million years around 1970.
  *
  * # Why 2026.2 holds such values
  *
@@ -169,12 +172,15 @@ import static org.junit.jupiter.api.Assertions.fail;
  *
  * No binary fixture. The catalog is written by the current engine with an in-window **placeholder** where the
  * sentinel belongs - the latest (or earliest) value of the attribute, so the sentinel takes the very position the
- * placeholder holds in every ordered structure. With the engine stopped, every part holding the placeholder is
- * rewritten, through the current persistence services, to hold what 2026.2 stored for the sentinel, and the result
- * is stamped with storage protocol 6 ({@link OfflineCatalogImages#stamp}); the next start runs the migration.
+ * placeholder holds in every ordered structure. With the engine stopped, every filter, unique, cardinality, body and
+ * representative-key part holding the placeholder is rewritten, through the current persistence services, to hold
+ * what 2026.2 stored for the sentinel, and the result is stamped with storage protocol 6
+ * ({@link OfflineCatalogImages#stamp}); the next start runs the migration.
  *
  * Departures from a release-written catalog, none of which the load path distinguishes:
  *
+ * - the owner sort indexes, of an attribute and of a compound, are not rewritten from the current ones: the sort cases
+ *   replace them with the parts {@link LegacyOwnerSortImages} builds, a replica of the release's own writer;
  * - the filter parts are written in the current layout, which appends a value id section the 2026.2 layout lacks; the
  *   2026.2 reader hands back the same buckets with no value ids and flags second-granularity range thresholds, which
  *   only a `DateTimeRange` attribute reads - none is involved here;
@@ -209,6 +215,8 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 	private static final String ATTRIBUTE_PUBLISHED_AT = "publishedAt";
 	/** Attribute of the product's reference to a brand, filterable. */
 	private static final String ATTRIBUTE_SINCE = "since";
+	/** A second attribute of the product's reference to a brand, filterable. */
+	private static final String ATTRIBUTE_UNTIL = "until";
 	/** The product's reference to a brand. */
 	private static final String REFERENCE_BRAND = "brand";
 	/** Catalog attribute of the rank of a product - an element of {@link #COMPOUND_RANK_PUBLISHED_AT}. */
@@ -376,6 +384,67 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 		PARTITIONED,
 		/** For filtering only - the upgrade reads every single-owner partition to convert it into a registry row. */
 		CONVERTED
+	}
+
+	/**
+	 * A temporal type this version truncates to whole milliseconds while 2026.2 kept it as written, so two values of it
+	 * that 2026.2 held apart below the millisecond are one value here.
+	 */
+	enum SubMillisecondTwins {
+		/** Two `OffsetDateTime` values of one millisecond. */
+		OFFSET_DATE_TIME(OffsetDateTime.class),
+		/** Two `LocalDateTime` values of one millisecond. */
+		LOCAL_DATE_TIME(LocalDateTime.class),
+		/** Two `LocalTime` values of one millisecond - a type with no window to leave, truncated all the same. */
+		LOCAL_TIME(LocalTime.class);
+
+		/**
+		 * The declared type of the attribute holding the values.
+		 */
+		@Nonnull private final Class<? extends Serializable> type;
+
+		SubMillisecondTwins(@Nonnull Class<? extends Serializable> type) {
+			this.type = type;
+		}
+
+		/**
+		 * Returns the declared type of the attribute holding the values.
+		 */
+		@Nonnull
+		Class<? extends Serializable> type() {
+			return this.type;
+		}
+
+		/**
+		 * Returns the value the current engine writes for product `owner` - whole hours apart, because the engine
+		 * truncates every value it is given to whole milliseconds, so only {@link #stampSubMillisecondTwins} can
+		 * store the two twins.
+		 */
+		@Nonnull
+		Serializable placeholderOf(int owner) {
+			return inType(FIRST_MOMENT.plusHours(owner));
+		}
+
+		/**
+		 * Returns the value 2026.2 stored for product `owner`: 100 microseconds after {@link #FIRST_MOMENT} for product
+		 * 1, 200 for product 2 - two keys in 2026.2 and one millisecond in this version.
+		 */
+		@Nonnull
+		Serializable twinOf(int owner) {
+			return inType(FIRST_MOMENT.plusNanos(100_000L * owner));
+		}
+
+		/**
+		 * Returns the moment as a value of {@link #type}.
+		 */
+		@Nonnull
+		private Serializable inType(@Nonnull OffsetDateTime moment) {
+			return switch (this) {
+				case OFFSET_DATE_TIME -> moment;
+				case LOCAL_DATE_TIME -> moment.toLocalDateTime();
+				case LOCAL_TIME -> moment.toLocalTime();
+			};
+		}
 	}
 
 	/**
@@ -566,14 +635,14 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 	class FilterIndexOfAReferenceAttribute {
 
 		@ParameterizedTest(name = "{0}")
-		@EnumSource(value = Sentinel.class, names = {"OFFSET_DATE_TIME_MAX", "IN_WINDOW_OFFSET_DATE_TIME"})
+		@EnumSource(Sentinel.class)
 		@DisplayName("loads the partitions of a partitioned reference holding the value and finds the owner by it")
 		void shouldLoadPartitionedReferenceWhenUpgradedWithValue(@Nonnull Sentinel sentinel) {
 			assertReferenceUpgrades(sentinel, ReferenceIndexing.PARTITIONED);
 		}
 
 		@ParameterizedTest(name = "{0}")
-		@EnumSource(value = Sentinel.class, names = {"OFFSET_DATE_TIME_MAX", "IN_WINDOW_OFFSET_DATE_TIME"})
+		@EnumSource(Sentinel.class)
 		@DisplayName("converts the single-owner partitions holding the value and finds the owner by it")
 		void shouldConvertSingleOwnerPartitionsWhenUpgradedWithValue(@Nonnull Sentinel sentinel) {
 			assertReferenceUpgrades(sentinel, ReferenceIndexing.CONVERTED);
@@ -691,9 +760,26 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 
 		@ParameterizedTest(name = "{0}")
 		@EnumSource(Sentinel.class)
-		@DisplayName("rewrites an owner sort index holding the value and orders the owner by it")
+		@DisplayName("rewrites an inline owner sort index holding the value and orders the owner by it")
 		void shouldRewriteOwnerSortIndexWhenUpgradedWithValue(@Nonnull Sentinel sentinel) {
-			final EvitaConfiguration configuration = configurationOf(allocatePaths("sort_" + sentinel));
+			assertOwnerSortIndexUpgrades(sentinel, Shape.INLINE);
+		}
+
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(Sentinel.class)
+		@DisplayName("rewrites a paged owner sort index holding the value and orders the owner by it")
+		void shouldRewritePagedOwnerSortIndexWhenUpgradedWithValue(@Nonnull Sentinel sentinel) {
+			assertOwnerSortIndexUpgrades(sentinel, Shape.PAGED);
+		}
+
+		/**
+		 * Writes `shape` products with a sort-only attribute, replaces their owner sort index with the one 2026.2
+		 * wrote - the raw values, in the order of its comparator, in the layout of `shape` - stores the sentinel's body
+		 * 2026.2's way, upgrades the catalog and asserts the owners are ordered by the value, the sentinel's owner
+		 * included, and stay ordered once it is removed.
+		 */
+		private void assertOwnerSortIndexUpgrades(@Nonnull Sentinel sentinel, @Nonnull Shape shape) {
+			final EvitaConfiguration configuration = configurationOf(allocatePaths("sort_" + shape + "_" + sentinel));
 			writeCatalog(
 				configuration,
 				session -> {
@@ -701,7 +787,7 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 						.withoutGeneratedPrimaryKey()
 						.withAttribute(ATTRIBUTE_PUBLISHED_AT, sentinel.type(), thatIs -> thatIs.sortable().nullable())
 						.updateVia(session);
-					for (int owner = 1; owner <= Shape.INLINE.owners(); owner++) {
+					for (int owner = 1; owner <= shape.owners(); owner++) {
 						session.createNewEntity(ENTITY_PRODUCT, owner)
 							.setAttribute(ATTRIBUTE_PUBLISHED_AT, sentinel.writtenValueOf(owner))
 							.upsertVia(session);
@@ -709,11 +795,11 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 				}
 			);
 			// the release stored the raw value of every record, in the order of its own comparator
-			assertFalse(
-				LegacyOwnerSortImages.writeLegacySortIndexes(
-					configuration, CATALOG, ENTITY_PRODUCT, Set.of(ATTRIBUTE_PUBLISHED_AT), sentinel::rawValueOf
-				).isEmpty()
+			final List<LegacyOwnerSortImages.LegacySortIndex> legacy = LegacyOwnerSortImages.writeLegacySortIndexes(
+				configuration, CATALOG, ENTITY_PRODUCT, Set.of(ATTRIBUTE_PUBLISHED_AT), sentinel::rawValueOf
 			);
+			assertEquals(1, legacy.size(), "the products hold one owner sort index: " + legacy);
+			assertEquals(shape == Shape.PAGED, legacy.getFirst().paged(), "the legacy sort index must be " + shape);
 			assertEquals(
 				Set.of("BODY publishedAt"),
 				stampReleasedState(configuration, Set.of(ATTRIBUTE_PUBLISHED_AT), sentinel, true)
@@ -722,26 +808,12 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 
 			final Evita upgraded = start(configuration);
 			assertUpgraded(upgraded);
-			assertEquals(
-				sentinel.ascendingOrderOf(Shape.INLINE.owners()),
-				upgraded.queryCatalog(
-					CATALOG,
-					session -> {
-						return session.queryListOfEntityReferences(
-								query(
-									collection(ENTITY_PRODUCT),
-									orderBy(attributeNatural(ATTRIBUTE_PUBLISHED_AT, OrderDirection.ASC))
-								)
-							)
-							.stream()
-							.map(EntityReferenceContract::getPrimaryKey)
-							.toList();
-					}
-				)
-			);
+			assertEquals(sentinel.ascendingOrderOf(shape.owners()), naturalOrder(upgraded, ATTRIBUTE_PUBLISHED_AT));
 			// the owner's body is read clamped, so a removal must find the key the rewritten sort index holds
-			upgraded.updateCatalog(CATALOG, session -> { assertTrue(session.deleteEntity(ENTITY_PRODUCT, SENTINEL_OWNER)); });
-			final List<Integer> remaining = new ArrayList<>(sentinel.ascendingOrderOf(Shape.INLINE.owners()));
+			upgraded.updateCatalog(CATALOG, session -> {
+				assertTrue(session.deleteEntity(ENTITY_PRODUCT, SENTINEL_OWNER));
+			});
+			final List<Integer> remaining = new ArrayList<>(sentinel.ascendingOrderOf(shape.owners()));
 			remaining.remove(Integer.valueOf(SENTINEL_OWNER));
 			assertEquals(remaining, naturalOrder(upgraded, ATTRIBUTE_PUBLISHED_AT));
 		}
@@ -784,7 +856,9 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 					}
 				}
 			);
-			final Set<String> stamped = stampReleasedState(configuration, Set.of(ATTRIBUTE_VALID_UNTIL), sentinel, true);
+			final Set<String> stamped = stampReleasedState(
+				configuration, Set.of(ATTRIBUTE_VALID_UNTIL), sentinel, true
+			);
 			assertTrue(
 				stamped.containsAll(Set.of("FILTER validUntil in GLOBAL (inline)", "BODY validUntil")),
 				"the image must hold the value where 2026.2 stored it, or the case proves nothing: " + stamped
@@ -853,7 +927,9 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 			final Evita upgraded = start(configuration);
 			assertUpgraded(upgraded);
 			assertEquals(List.of(), productsMatching(upgraded, attributeEquals(ATTRIBUTE_VALID_UNTIL, sentinel.raw())));
-			upgraded.updateCatalog(CATALOG, session -> { assertTrue(session.restoreEntity(ENTITY_PRODUCT, SENTINEL_OWNER)); });
+			upgraded.updateCatalog(CATALOG, session -> {
+				assertTrue(session.restoreEntity(ENTITY_PRODUCT, SENTINEL_OWNER));
+			});
 			assertEquals(
 				List.of(SENTINEL_OWNER),
 				productsMatching(upgraded, attributeEquals(ATTRIBUTE_VALID_UNTIL, sentinel.raw()))
@@ -913,7 +989,9 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 				sentinel.ascendingOrderOf(Shape.INLINE.owners()),
 				naturalOrder(upgraded, COMPOUND_RANK_PUBLISHED_AT)
 			);
-			upgraded.updateCatalog(CATALOG, session -> { assertTrue(session.deleteEntity(ENTITY_PRODUCT, SENTINEL_OWNER)); });
+			upgraded.updateCatalog(CATALOG, session -> {
+				assertTrue(session.deleteEntity(ENTITY_PRODUCT, SENTINEL_OWNER));
+			});
 			final List<Integer> remaining = new ArrayList<>(sentinel.ascendingOrderOf(Shape.INLINE.owners()));
 			remaining.remove(Integer.valueOf(SENTINEL_OWNER));
 			assertEquals(remaining, naturalOrder(upgraded, COMPOUND_RANK_PUBLISHED_AT));
@@ -987,7 +1065,11 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 				List.of(1, 2), productsMatching(upgraded, attributeEquals(ATTRIBUTE_VALID_UNTIL, SECOND_LATEST_RAW))
 			);
 			assertEquals(
-				List.of(3), productsMatching(upgraded, attributeEquals(ATTRIBUTE_VALID_UNTIL, Sentinel.OFFSET_DATE_TIME_MAX.ordinaryValueOf(3)))
+				List.of(3),
+				productsMatching(
+					upgraded,
+					attributeEquals(ATTRIBUTE_VALID_UNTIL, Sentinel.OFFSET_DATE_TIME_MAX.ordinaryValueOf(3))
+				)
 			);
 			upgraded.updateCatalog(CATALOG, session -> { assertTrue(session.deleteEntity(ENTITY_PRODUCT, 1)); });
 			assertEquals(
@@ -1010,20 +1092,16 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 		void shouldRefuseUpgradeWhenTwoOwnersAreClampedOntoOneKey(@Nonnull Shape shape) {
 			final EvitaConfiguration configuration = configurationOf(allocatePaths("foldedCollision_" + shape));
 			writeTwoValues(configuration, shape.owners(), true);
-			assertTrue(stampTwoValues(configuration).contains("BODY validUntil"));
+			final String layout = shape == Shape.PAGED ? "paged" : "inline";
+			final Set<String> stamped = stampTwoValues(configuration);
+			assertTrue(
+				stamped.containsAll(Set.of("FILTER validUntil in GLOBAL (" + layout + ")", "BODY validUntil")),
+				"the image must hold the values where 2026.2 stored them, or the case proves nothing: " + stamped
+			);
 			stamp(configuration, CATALOG, RELEASED_PROTOCOL, RELEASED_PROTOCOL);
 			final Map<String, String> before = catalogFileDigests(configuration);
 
-			final Exception failure = assertThrows(Exception.class, () -> start(configuration));
-			assertEquals(CatalogState.CORRUPTED, stateOfFailedStart());
-			final ObsoleteStorageProtocolException refusal = findCause(failure, ObsoleteStorageProtocolException.class);
-			final String message = refusal.getMessage();
-			assertTrue(
-				message.contains(
-					"cannot be upgraded to storage protocol version " + PersistenceService.STORAGE_PROTOCOL_VERSION
-				),
-				message
-			);
+			final String message = refusalOfStart(configuration);
 			assertTrue(message.contains("1 unique value(s)"), message);
 			assertTrue(message.contains("beyond the supported date-time window"), message);
 			assertTrue(message.contains("attribute `validUntil` of entity `product`"), message);
@@ -1047,7 +1125,10 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 				session -> {
 					session.defineEntitySchema(ENTITY_PRODUCT)
 						.withoutGeneratedPrimaryKey()
-						.withAttribute(ATTRIBUTE_VALID_UNTIL, OffsetDateTime.class, thatIs -> thatIs.unique().nullable())
+						.withAttribute(
+							ATTRIBUTE_VALID_UNTIL, OffsetDateTime.class,
+							thatIs -> thatIs.unique().nullable()
+						)
 						.updateVia(session);
 					session.createNewEntity(ENTITY_PRODUCT, 1)
 						.setAttribute(ATTRIBUTE_VALID_UNTIL, earlierPlaceholder)
@@ -1065,8 +1146,45 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 			);
 			assertTrue(
 				stampReleasedState(
-					configuration, Set.of(ATTRIBUTE_VALID_UNTIL), new Respelling(laterPlaceholder, justInsideEdge, 2), true
+					configuration,
+					Set.of(ATTRIBUTE_VALID_UNTIL),
+					new Respelling(laterPlaceholder, justInsideEdge, 2),
+					true
 				).contains("FILTER validUntil in GLOBAL (inline)")
+			);
+			stamp(configuration, CATALOG, RELEASED_PROTOCOL, RELEASED_PROTOCOL);
+			final Map<String, String> before = catalogFileDigests(configuration);
+
+			final String message = refusalOfStart(configuration);
+			assertTrue(message.contains("1 unique value(s)"), message);
+			assertTrue(message.contains("attribute `validUntil` of entity `product`"), message);
+			assertTrue(message.contains("`product` 1") && message.contains("`product` 2"), message);
+			assertEquals(before, catalogFileDigests(configuration), "a refused upgrade must write nothing");
+		}
+
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(SubMillisecondTwins.class)
+		@DisplayName("refuses the upgrade over two owners whose values differ below the millisecond, writing nothing")
+		void shouldRefuseUpgradeWhenTwoOwnersMeetOnlyThroughMillisecondTruncation(@Nonnull SubMillisecondTwins twins) {
+			final EvitaConfiguration configuration =
+				configurationOf(allocatePaths("foldedSubMillisecondTwins_" + twins));
+			writeCatalog(
+				configuration,
+				session -> {
+					session.defineEntitySchema(ENTITY_PRODUCT)
+						.withoutGeneratedPrimaryKey()
+						.withAttribute(ATTRIBUTE_VALID_UNTIL, twins.type(), thatIs -> thatIs.unique().nullable())
+						.updateVia(session);
+					for (int owner = 1; owner <= 2; owner++) {
+						session.createNewEntity(ENTITY_PRODUCT, owner)
+							.setAttribute(ATTRIBUTE_VALID_UNTIL, twins.placeholderOf(owner))
+							.upsertVia(session);
+					}
+				}
+			);
+			assertTrue(
+				stampSubMillisecondTwins(configuration, ATTRIBUTE_VALID_UNTIL, twins)
+					.containsAll(Set.of("FILTER validUntil in GLOBAL (inline)", "BODY validUntil"))
 			);
 			stamp(configuration, CATALOG, RELEASED_PROTOCOL, RELEASED_PROTOCOL);
 			final Map<String, String> before = catalogFileDigests(configuration);
@@ -1170,7 +1288,8 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 						.withoutGeneratedPrimaryKey()
 						.withLocale(Locale.ENGLISH)
 						.withAttribute(
-							ATTRIBUTE_RELEASED_AT, OffsetDateTime.class, thatIs -> thatIs.localized().unique().nullable()
+							ATTRIBUTE_RELEASED_AT, OffsetDateTime.class,
+							thatIs -> thatIs.localized().unique().nullable()
 						)
 						.updateVia(session);
 					for (int owner = 1; owner <= Shape.INLINE.owners(); owner++) {
@@ -1193,6 +1312,45 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 			assertTrue(message.contains("`product` 1") && message.contains("`product` 2"), message);
 			assertEquals(before, catalogFileDigests(configuration), "a refused upgrade must write nothing");
 		}
+
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(SubMillisecondTwins.class)
+		@DisplayName("refuses the upgrade over an owner unique index holding values that differ below the millisecond")
+		void shouldRefuseUpgradeWhenOwnerUniqueValuesMeetOnlyThroughMillisecondTruncation(
+			@Nonnull SubMillisecondTwins twins
+		) {
+			final EvitaConfiguration configuration =
+				configurationOf(allocatePaths("ownerSubMillisecondTwins_" + twins));
+			writeCatalog(
+				configuration,
+				session -> {
+					session.defineEntitySchema(ENTITY_PRODUCT)
+						.withoutGeneratedPrimaryKey()
+						.withLocale(Locale.ENGLISH)
+						.withAttribute(
+							ATTRIBUTE_RELEASED_AT, twins.type(), thatIs -> thatIs.localized().unique().nullable()
+						)
+						.updateVia(session);
+					for (int owner = 1; owner <= 2; owner++) {
+						session.createNewEntity(ENTITY_PRODUCT, owner)
+							.setAttribute(ATTRIBUTE_RELEASED_AT, Locale.ENGLISH, twins.placeholderOf(owner))
+							.upsertVia(session);
+					}
+				}
+			);
+			assertTrue(
+				stampSubMillisecondTwins(configuration, ATTRIBUTE_RELEASED_AT, twins)
+					.containsAll(Set.of("UNIQUE releasedAt in GLOBAL (inline)", "BODY releasedAt"))
+			);
+			stamp(configuration, CATALOG, RELEASED_PROTOCOL, RELEASED_PROTOCOL);
+			final Map<String, String> before = catalogFileDigests(configuration);
+
+			final String message = refusalOfStart(configuration);
+			assertTrue(message.contains("1 unique value(s)"), message);
+			assertTrue(message.contains("attribute `releasedAt"), message);
+			assertTrue(message.contains("`product` 1") && message.contains("`product` 2"), message);
+			assertEquals(before, catalogFileDigests(configuration), "a refused upgrade must write nothing");
+		}
 	}
 
 	/**
@@ -1203,11 +1361,14 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 	class RepresentativeReferenceKeyHoldingTheValue {
 
 		@ParameterizedTest(name = "{0}")
-		@EnumSource(value = Sentinel.class, names = {"OFFSET_DATE_TIME_MAX", "OFFSET_DATE_TIME_MIN"})
+		@EnumSource(
+			value = Sentinel.class,
+			names = {"OFFSET_DATE_TIME_MAX", "OFFSET_DATE_TIME_MIN", "LOCAL_DATE_TIME_MAX", "LOCAL_DATE_TIME_MIN"}
+		)
 		@DisplayName("refuses the upgrade over a value beyond the window, naming the partition and writing nothing")
 		void shouldRefuseUpgradeWhenRepresentativeValueIsBeyondWindow(@Nonnull Sentinel sentinel) {
 			final EvitaConfiguration configuration = configurationOf(allocatePaths("representative_" + sentinel));
-			writeRepresentativeCatalog(configuration, sentinel);
+			writeRepresentativeCatalog(configuration, sentinel, List.of(ATTRIBUTE_SINCE));
 			final Set<String> stamped = stampReleasedState(configuration, Set.of(ATTRIBUTE_SINCE), sentinel, true);
 			assertTrue(
 				stamped.contains("KEY since in REFERENCED_ENTITY"),
@@ -1219,18 +1380,21 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 			final Exception failure = assertThrows(Exception.class, () -> start(configuration));
 			final ObsoleteStorageProtocolException refusal = findCause(failure, ObsoleteStorageProtocolException.class);
 			final String message = refusal.getMessage();
-			assertTrue(message.contains("representative attribute value beyond the supported date-time window"), message);
+			assertTrue(
+				message.contains("representative attribute value beyond the supported date-time window"),
+				message
+			);
 			assertTrue(message.contains("reference `brand` to 1 of `product`"), message);
 			assertTrue(message.contains("stays on storage protocol version 6"), message);
 			assertEquals(before, catalogFileDigests(configuration), "a refused upgrade must write nothing");
 		}
 
 		@ParameterizedTest(name = "{0}")
-		@EnumSource(value = Sentinel.class, names = {"IN_WINDOW_OFFSET_DATE_TIME"})
+		@EnumSource(value = Sentinel.class, names = {"IN_WINDOW_OFFSET_DATE_TIME", "IN_WINDOW_LOCAL_DATE_TIME"})
 		@DisplayName("upgrades when the representative value lies inside the window")
 		void shouldUpgradeWhenRepresentativeValueIsInsideWindow(@Nonnull Sentinel sentinel) {
 			final EvitaConfiguration configuration = configurationOf(allocatePaths("representativeInside_" + sentinel));
-			writeRepresentativeCatalog(configuration, sentinel);
+			writeRepresentativeCatalog(configuration, sentinel, List.of(ATTRIBUTE_SINCE));
 			final Set<String> stamped = stampReleasedState(configuration, Set.of(ATTRIBUTE_SINCE), sentinel, true);
 			assertTrue(stamped.contains("KEY since in REFERENCED_ENTITY"), stamped.toString());
 			stamp(configuration, CATALOG, RELEASED_PROTOCOL, RELEASED_PROTOCOL);
@@ -1238,11 +1402,41 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 			assertUpgraded(start(configuration));
 		}
 
+		@Test
+		@DisplayName("names a partition keyed by several values beyond the window once, listing all of them")
+		void shouldListPartitionOnceWhenSeveralRepresentativeValuesAreBeyondWindow() {
+			final Sentinel sentinel = Sentinel.OFFSET_DATE_TIME_MAX;
+			final EvitaConfiguration configuration = configurationOf(allocatePaths("representativeTwice"));
+			writeRepresentativeCatalog(configuration, sentinel, List.of(ATTRIBUTE_SINCE, ATTRIBUTE_UNTIL));
+			final Set<String> stamped =
+				stampReleasedState(configuration, Set.of(ATTRIBUTE_SINCE, ATTRIBUTE_UNTIL), sentinel, true);
+			assertTrue(
+				stamped.contains("KEY since in REFERENCED_ENTITY"),
+				"the image must hold the value where 2026.2 stored it, or the case proves nothing: " + stamped
+			);
+			stamp(configuration, CATALOG, RELEASED_PROTOCOL, RELEASED_PROTOCOL);
+			final Map<String, String> before = catalogFileDigests(configuration);
+
+			final Exception failure = assertThrows(Exception.class, () -> start(configuration));
+			final String message = findCause(failure, ObsoleteStorageProtocolException.class).getMessage();
+			assertTrue(message.contains(": 1 reference partition(s) are keyed"), message);
+			final String partition = "reference `brand` to 1 of `product`";
+			assertEquals(message.indexOf(partition), message.lastIndexOf(partition), message);
+			// both values of the one key are named, which is what makes the key one of two out-of-window values
+			final String value = "`" + OffsetDateTime.MAX + "`";
+			assertEquals(2, (message.length() - message.replace(value, "").length()) / value.length(), message);
+			assertEquals(before, catalogFileDigests(configuration), "a refused upgrade must write nothing");
+		}
+
 		/**
-		 * Writes three products, each referencing a brand of its own, with a representative temporal attribute that
-		 * keys the partition of the reference.
+		 * Writes three products, each referencing a brand of its own, with representative temporal attributes that
+		 * key the partition of the reference - each of them holding the same value.
 		 */
-		private void writeRepresentativeCatalog(@Nonnull EvitaConfiguration configuration, @Nonnull Sentinel sentinel) {
+		private void writeRepresentativeCatalog(
+			@Nonnull EvitaConfiguration configuration,
+			@Nonnull Sentinel sentinel,
+			@Nonnull List<String> attributeNames
+		) {
 			writeCatalog(
 				configuration,
 				session -> {
@@ -1251,12 +1445,14 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 						.withoutGeneratedPrimaryKey()
 						.withReferenceToEntity(
 							REFERENCE_BRAND, ENTITY_BRAND, Cardinality.ZERO_OR_MORE_WITH_DUPLICATES,
-							whichIs -> whichIs
-								.indexedForFilteringAndPartitioning()
-								.withAttribute(
-									ATTRIBUTE_SINCE, sentinel.type(),
-									thatIs -> thatIs.representative().filterable()
-								)
+							whichIs -> {
+								whichIs.indexedForFilteringAndPartitioning();
+								for (final String attributeName : attributeNames) {
+									whichIs.withAttribute(
+										attributeName, sentinel.type(), thatIs -> thatIs.representative().filterable()
+									);
+								}
+							}
 						)
 						.updateVia(session);
 					for (int owner = 1; owner <= Shape.INLINE.owners(); owner++) {
@@ -1265,7 +1461,11 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 						session.createNewEntity(ENTITY_PRODUCT, owner)
 							.setOrUpdateReference(
 								REFERENCE_BRAND, brand, reference -> true,
-								whichIs -> whichIs.setAttribute(ATTRIBUTE_SINCE, sentinel.writtenValueOf(brand))
+								whichIs -> {
+									for (final String attributeName : attributeNames) {
+										whichIs.setAttribute(attributeName, sentinel.writtenValueOf(brand));
+									}
+								}
 							)
 							.upsertVia(session);
 					}
@@ -1284,41 +1484,68 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 
 		@ParameterizedTest(name = "{0}")
 		@EnumSource(value = Sentinel.class, names = {"OFFSET_DATE_TIME_MAX", "OFFSET_DATE_TIME_MIN"})
-		@DisplayName("reports no damage when the counter and the bucket are both clamped, and a false one when only the counter is")
+		@DisplayName("reports no damage when the counter and the bucket it names are both clamped")
 		void shouldReportNoDamageWhenBothSidesAreClamped(@Nonnull Sentinel sentinel) {
-			final Respelling respelling = new Respelling(sentinel);
-			final Map<AttributeCardinalityKey, Integer> counters = Map.of(
+			final Function<Object, Serializable> clamping =
+				LegacyOwnerSortIndexCorrection.createClampingNormalizer(OffsetDateTime.class, 0);
+
+			assertEquals(
+				0,
+				Migration_2026_3.countOrphanedCounters(
+					Objects.requireNonNull(
+						Migration_2026_3.rekeyCardinalities(releasedCountersOf(sentinel), clamping)
+					),
+					releasedFilterPartOf(sentinel), OffsetDateTime.class, clamping
+				)
+			);
+		}
+
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(value = Sentinel.class, names = {"OFFSET_DATE_TIME_MAX", "OFFSET_DATE_TIME_MIN"})
+		@DisplayName("reports a false orphan when only the counter is clamped")
+		void shouldReportOrphanWhenOnlyTheCounterIsClamped(@Nonnull Sentinel sentinel) {
+			final Function<Object, Serializable> clamping =
+				LegacyOwnerSortIndexCorrection.createClampingNormalizer(OffsetDateTime.class, 0);
+			final Function<Object, Serializable> plain = FilterIndex.getNormalizer(OffsetDateTime.class, 0);
+
+			// the bucket the unclamped normalizer keeps is not the one the clamped counter names
+			assertEquals(
+				1,
+				Migration_2026_3.countOrphanedCounters(
+					Objects.requireNonNull(
+						Migration_2026_3.rekeyCardinalities(releasedCountersOf(sentinel), clamping)
+					),
+					releasedFilterPartOf(sentinel), OffsetDateTime.class, plain
+				)
+			);
+		}
+
+		/**
+		 * Returns the counters 2026.2 kept for the sentinel's owner and one ordinary owner: the raw values.
+		 */
+		@Nonnull
+		private static Map<AttributeCardinalityKey, Integer> releasedCountersOf(@Nonnull Sentinel sentinel) {
+			return Map.of(
 				new AttributeCardinalityKey(SENTINEL_OWNER, sentinel.raw()), 1,
 				new AttributeCardinalityKey(2, sentinel.ordinaryValueOf(2)), 1
 			);
-			final FilterIndexStoragePart filterPart = new FilterIndexStoragePart(
+		}
+
+		/**
+		 * Returns the filter index holding the buckets {@link #releasedCountersOf} names: the sentinel under the key
+		 * 2026.2 gave it, the ordinary value under its current key.
+		 */
+		@Nonnull
+		private static FilterIndexStoragePart releasedFilterPartOf(@Nonnull Sentinel sentinel) {
+			return new FilterIndexStoragePart(
 				0, new AttributeIndexKey(null, ATTRIBUTE_VALID_UNTIL, null), OffsetDateTime.class,
 				new ValueToRecordBitmap[]{
-					new ValueToRecordBitmap(respelling.releasedFilterKey(), SENTINEL_OWNER),
+					new ValueToRecordBitmap(new Respelling(sentinel).releasedFilterKey(), SENTINEL_OWNER),
 					new ValueToRecordBitmap(
 						FilterIndex.getNormalizer(OffsetDateTime.class, 0).apply(sentinel.ordinaryValueOf(2)), 2
 					)
 				},
 				null, 0L
-			);
-			final Function<Object, Serializable> clamping =
-				LegacyOwnerSortIndexCorrection.createClampingNormalizer(OffsetDateTime.class, 0);
-			final Function<Object, Serializable> plain = FilterIndex.getNormalizer(OffsetDateTime.class, 0);
-
-			assertEquals(
-				0,
-				Migration_2026_3.countOrphanedCounters(
-					Objects.requireNonNull(Migration_2026_3.rekeyCardinalities(counters, clamping)),
-					filterPart, OffsetDateTime.class, clamping
-				)
-			);
-			// the counter alone clamped: the bucket the unclamped normalizer keeps is not the one the counter names
-			assertEquals(
-				1,
-				Migration_2026_3.countOrphanedCounters(
-					Objects.requireNonNull(Migration_2026_3.rekeyCardinalities(counters, clamping)),
-					filterPart, OffsetDateTime.class, plain
-				)
 			);
 		}
 	}
@@ -1390,7 +1617,8 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Returns the primary keys of the products ordered by an ascending sort of the attribute or compound.
+	 * Returns the primary keys of all products - as many as the largest {@link Shape} writes - ordered by an ascending
+	 * sort of the attribute or compound.
 	 */
 	@Nonnull
 	private static List<Integer> naturalOrder(@Nonnull Evita evita, @Nonnull String sortedBy) {
@@ -1398,7 +1626,11 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 			CATALOG,
 			session -> {
 				return session.queryListOfEntityReferences(
-						query(collection(ENTITY_PRODUCT), orderBy(attributeNatural(sortedBy, OrderDirection.ASC)))
+						query(
+							collection(ENTITY_PRODUCT),
+							orderBy(attributeNatural(sortedBy, OrderDirection.ASC)),
+							require(page(1, Shape.PAGED.owners()))
+						)
 					)
 					.stream()
 					.map(EntityReferenceContract::getPrimaryKey)
@@ -1457,7 +1689,10 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 	 * @return the labels of the parts rewritten
 	 */
 	@Nonnull
-	private static Set<String> stampTwoValues(@Nonnull EvitaConfiguration configuration, @Nonnull String attributeName) {
+	private static Set<String> stampTwoValues(
+		@Nonnull EvitaConfiguration configuration,
+		@Nonnull String attributeName
+	) {
 		return stampTwoValues(configuration, attributeName, false);
 	}
 
@@ -1489,13 +1724,38 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 	}
 
 	/**
+	 * Stores the values {@link SubMillisecondTwins#placeholderOf} gave products 1 and 2 in the named attribute the way
+	 * 2026.2 stored two values of one millisecond, {@link SubMillisecondTwins#twinOf}.
+	 *
+	 * @return the labels of the parts rewritten
+	 */
+	@Nonnull
+	private static Set<String> stampSubMillisecondTwins(
+		@Nonnull EvitaConfiguration configuration,
+		@Nonnull String attributeName,
+		@Nonnull SubMillisecondTwins twins
+	) {
+		final Set<String> stamped = new TreeSet<>();
+		for (int owner = 1; owner <= 2; owner++) {
+			final Respelling respelling = new Respelling(twins.placeholderOf(owner), twins.twinOf(owner), owner);
+			stamped.addAll(stampReleasedState(configuration, Set.of(attributeName), respelling, true));
+		}
+		return stamped;
+	}
+
+	/**
 	 * Returns the value a product holds in the two-values cases: the two placeholders for the first two products, an
 	 * ordinary value for the rest.
 	 */
 	@Nonnull
 	private static OffsetDateTime twoValuesOf(int owner) {
-		return owner == 1 ? LATEST_PLACEHOLDER :
-			owner == 2 ? SECOND_LATEST_PLACEHOLDER : (OffsetDateTime) Sentinel.OFFSET_DATE_TIME_MAX.ordinaryValueOf(owner);
+		if (owner == 1) {
+			return LATEST_PLACEHOLDER;
+		}
+		if (owner == 2) {
+			return SECOND_LATEST_PLACEHOLDER;
+		}
+		return (OffsetDateTime) Sentinel.OFFSET_DATE_TIME_MAX.ordinaryValueOf(owner);
 	}
 
 	/**
@@ -1508,7 +1768,9 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 		assertEquals(CatalogState.CORRUPTED, stateOfFailedStart());
 		final String message = findCause(failure, ObsoleteStorageProtocolException.class).getMessage();
 		assertTrue(
-			message.contains("cannot be upgraded to storage protocol version " + PersistenceService.STORAGE_PROTOCOL_VERSION),
+			message.contains(
+				"cannot be upgraded to storage protocol version " + PersistenceService.STORAGE_PROTOCOL_VERSION
+			),
 			message
 		);
 		return message;
@@ -1536,7 +1798,8 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 	}
 
 	/**
-	 * Returns the first throwable of type `type` in the cause chain of `throwable`, failing the test when there is none.
+	 * Returns the first throwable of type `type` in the cause chain of `throwable`,
+	 * failing the test when there is none.
 	 */
 	@Nonnull
 	private static <T extends Throwable> T findCause(@Nonnull Throwable throwable, @Nonnull Class<T> type) {
@@ -1629,13 +1892,17 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 
 		/**
 		 * Returns the key 2026.2 gave the raw value in a filter index: its `Instant`, a `LocalDateTime` anchored at
-		 * UTC, never truncated.
+		 * UTC, a `LocalTime` as it is - never truncated.
 		 */
 		@Nonnull
 		Serializable releasedFilterKey() {
-			return this.raw instanceof OffsetDateTime offsetDateTime ?
-				offsetDateTime.toInstant() :
-				((LocalDateTime) this.raw).toInstant(ZoneOffset.UTC);
+			if (this.raw instanceof OffsetDateTime offsetDateTime) {
+				return offsetDateTime.toInstant();
+			} else if (this.raw instanceof LocalDateTime localDateTime) {
+				return localDateTime.toInstant(ZoneOffset.UTC);
+			} else {
+				return (LocalTime) this.raw;
+			}
 		}
 
 		/**
@@ -1871,7 +2138,9 @@ class Migration_2026_3_OutOfWindowTemporalKeyTest implements EvitaTestSupport {
 			catalogVersion,
 			new EntityIndexStoragePart(
 				manifest.getPrimaryKey(), manifest.getVersion(),
-				new EntityIndexKey(indexKey.type(), indexKey.scope(), new RepresentativeReferenceKey(key.referenceKey(), values)),
+				new EntityIndexKey(
+					indexKey.type(), indexKey.scope(), new RepresentativeReferenceKey(key.referenceKey(), values)
+				),
 				manifest.getAttributeIndexes(), manifest.getPriceIndexes(), manifest.isHierarchyIndex(),
 				manifest.getFacetIndexes(), manifest.getHistogramIndexes()
 			)

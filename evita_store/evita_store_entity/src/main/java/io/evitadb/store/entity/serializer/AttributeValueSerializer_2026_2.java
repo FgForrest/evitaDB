@@ -38,6 +38,7 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.util.function.UnaryOperator;
 
 /**
  * This {@link Serializer} reads {@link AttributeValue} written by release 2026.2 and earlier. The binary layout is
@@ -98,9 +99,9 @@ public class AttributeValueSerializer_2026_2 extends Serializer<AttributeValue> 
 		} else if (value instanceof LocalDateTime localDateTime) {
 			return EvitaDataTypes.clampToSupportedWindow(localDateTime);
 		} else if (value instanceof OffsetDateTime[] offsetDateTimes) {
-			return clampArray(offsetDateTimes);
+			return clampArray(offsetDateTimes, EvitaDataTypes::clampToSupportedWindow);
 		} else if (value instanceof LocalDateTime[] localDateTimes) {
-			return clampArray(localDateTimes);
+			return clampArray(localDateTimes, EvitaDataTypes::clampToSupportedWindow);
 		} else {
 			return value;
 		}
@@ -109,33 +110,17 @@ public class AttributeValueSerializer_2026_2 extends Serializer<AttributeValue> 
 	/**
 	 * Clamps the elements of the array, copying it only when an element lies outside the window. A `null` element
 	 * is kept as it is: the array conversion of 2026.2 stored one, and so does this version's.
+	 *
+	 * @param values the array read from the stream
+	 * @param clamp  the clamp of one element, returning the very instance it is given when it lies inside the window
+	 * @return the array itself when no element needed clamping, otherwise a clamped copy
 	 */
 	@Nonnull
-	private static OffsetDateTime[] clampArray(@Nonnull OffsetDateTime[] values) {
-		OffsetDateTime[] result = values;
+	private static <T> T[] clampArray(@Nonnull T[] values, @Nonnull UnaryOperator<T> clamp) {
+		T[] result = values;
 		for (int i = 0; i < values.length; i++) {
-			final OffsetDateTime value = values[i];
-			final OffsetDateTime clamped = value == null ? null : EvitaDataTypes.clampToSupportedWindow(value);
-			if (clamped != value) {
-				if (result == values) {
-					result = values.clone();
-				}
-				result[i] = clamped;
-			}
-		}
-		return result;
-	}
-
-	/**
-	 * Clamps the elements of the array, copying it only when an element lies outside the window. A `null` element
-	 * is kept as it is: the array conversion of 2026.2 stored one, and so does this version's.
-	 */
-	@Nonnull
-	private static LocalDateTime[] clampArray(@Nonnull LocalDateTime[] values) {
-		LocalDateTime[] result = values;
-		for (int i = 0; i < values.length; i++) {
-			final LocalDateTime value = values[i];
-			final LocalDateTime clamped = value == null ? null : EvitaDataTypes.clampToSupportedWindow(value);
+			final T value = values[i];
+			final T clamped = value == null ? null : clamp.apply(value);
 			if (clamped != value) {
 				if (result == values) {
 					result = values.clone();
