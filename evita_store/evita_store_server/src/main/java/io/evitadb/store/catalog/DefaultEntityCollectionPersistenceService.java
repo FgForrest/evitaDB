@@ -494,8 +494,9 @@ public class DefaultEntityCollectionPersistenceService
 
 	/**
 	 * Fetches associated data containers not covered by the previous predicate.
-	 * An empty requested locale set includes every stored locale for each requested name; a null set includes
-	 * only global associated data.
+	 * Localized associated data are selected in the implicit and the explicitly requested locales together, as
+	 * attributes are. An empty explicit set includes every stored locale for each requested name; with neither an
+	 * implicit nor an explicit locale only global associated data are included.
 	 */
 	@Nonnull
 	private static <T> List<T> fetchAssociatedData(
@@ -508,7 +509,7 @@ public class DefaultEntityCollectionPersistenceService
 		// if there is single request for associated data
 		if (newAssociatedDataValuePredicate.isRequiresEntityAssociatedData()) {
 			final Set<AssociatedDataKey> missingAssociatedDataSet = createHashSet(allAssociatedDataKeys.size());
-			final Set<Locale> requestedLocales = newAssociatedDataValuePredicate.getLocales();
+			final Set<Locale> requestedLocales = newAssociatedDataValuePredicate.getAllLocales();
 			final Set<String> requestedAssociatedDataSet = newAssociatedDataValuePredicate.getAssociatedDataSet();
 			final Predicate<AssociatedDataKey> wasNotFetched =
 				associatedDataKey -> previousAssociatedDataValuePredicate == null || !previousAssociatedDataValuePredicate.wasFetched(associatedDataKey);

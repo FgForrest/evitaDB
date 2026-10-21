@@ -225,6 +225,33 @@ class AssociatedDataValueSerializablePredicateTest {
 				)
 			);
 		}
+
+		/**
+		 * The storage loads the implicit locale with the explicit ones, so an enrichment must not load it again.
+		 */
+		@Test
+		@DisplayName(
+			"wasFetched(AssociatedDataKey) counts a localized key "
+				+ "in the implicit locale as fetched"
+		)
+		void shouldReturnTrueForLocalizedKeyInImplicitLocale() {
+			final AssociatedDataValueSerializablePredicate predicate =
+				new AssociatedDataValueSerializablePredicate(
+					Locale.ENGLISH, Locale.ENGLISH, null,
+					Set.of("data"), true
+				);
+
+			assertTrue(
+				predicate.wasFetched(
+					new AssociatedDataKey("data", Locale.ENGLISH)
+				)
+			);
+			assertFalse(
+				predicate.wasFetched(
+					new AssociatedDataKey("data", Locale.FRENCH)
+				)
+			);
+		}
 	}
 
 	@Nested
