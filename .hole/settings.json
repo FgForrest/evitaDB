@@ -8,16 +8,16 @@
     ]
   },
   "libraries": {
-    "/www/oss/lucene": "/www/oss/lucene",
-    "/www/oss/solr": "/www/oss/solr",
-    "/www/oss/elasticsearch": "/www/oss/elasticsearch",
-    "/www/oss/OpenSearch": "/www/oss/OpenSearch",
-    "/www/oss/vespa": "/www/oss/vespa",
-    "/www/oss/meilisearch": "/www/oss/meilisearch",
-    "/www/oss/typesense": "/www/oss/typesense",
-    "/www/oss/jvector": "/www/oss/jvector",
-    "/www/oss/hnsw-sb": "/www/oss/hnsw-sb",
-    "/www/oss/ai-powered-search": "/www/oss/ai-powered-search",
-    "/www/oss/Sage": "/www/oss/Sage"
+    "$OSS_PROJECT_PATH/lucene": "$OSS_PROJECT_PATH/lucene",
+    "$OSS_PROJECT_PATH/solr": "$OSS_PROJECT_PATH/solr",
+    "$OSS_PROJECT_PATH/elasticsearch": "$OSS_PROJECT_PATH/elasticsearch",
+    "$OSS_PROJECT_PATH/OpenSearch": "$OSS_PROJECT_PATH/OpenSearch",
+    "$OSS_PROJECT_PATH/vespa": "$OSS_PROJECT_PATH/vespa",
+    "$OSS_PROJECT_PATH/meilisearch": "$OSS_PROJECT_PATH/meilisearch",
+    "$OSS_PROJECT_PATH/typesense": "$OSS_PROJECT_PATH/typesense",
+    "$OSS_PROJECT_PATH/jvector": "$OSS_PROJECT_PATH/jvector",
+    "$OSS_PROJECT_PATH/hnsw-sb": "$OSS_PROJECT_PATH/hnsw-sb",
+    "$OSS_PROJECT_PATH/ai-powered-search": "$OSS_PROJECT_PATH/ai-powered-search",
+    "$OSS_PROJECT_PATH/Sage": "$OSS_PROJECT_PATH/Sage"
   }
 }

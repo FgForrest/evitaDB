@@ -142,9 +142,12 @@ public final class LevenshteinDictionaryWalker {
 			throw new IllegalStateException("Levenshtein automaton is expected to have no dead states.");
 		}
 		this.acceptorsByDistance = new CharacterRunAutomaton[maxEdits + 1];
-		for (int distance = 0; distance <= maxEdits; distance++) {
+		for (int distance = 0; distance < maxEdits; distance++) {
 			this.acceptorsByDistance[distance] = new CharacterRunAutomaton(builder.toAutomaton(distance, prefix));
 		}
+		// the widest acceptor is the walk's own automaton; building it a second time costs about 0.43 ms at
+		// distance 2 (Lucene's toAutomaton(2) in Java) and changes nothing
+		this.acceptorsByDistance[maxEdits] = new CharacterRunAutomaton(this.automaton);
 	}
 
 	/**

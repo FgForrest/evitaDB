@@ -31,6 +31,7 @@ import io.evitadb.test.fulltext.TypoExpansion.ExpandedTerm;
 import io.evitadb.test.fulltext.TypoExpansion.LengthBase;
 import io.evitadb.test.fulltext.TypoExpansion.QueryWord;
 import io.evitadb.test.fulltext.TypoExpansion.UnfinishedWordMode;
+import io.evitadb.test.fulltext.TypoExpansion.UnfinishedWordRules;
 import io.evitadb.test.fulltext.TypoThresholds;
 import io.evitadb.utils.CollectionUtils;
 import org.junit.jupiter.api.AfterAll;
@@ -61,7 +62,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * The engine has no fulltext query yet, so the examples run against a **reference** of the proposal: the catalog
  * is indexed through the production `czech` chain, the query through the production `czech-search` chain, every
- * query word is expanded by {@link TypoExpansion} with the thresholds of §7.1, and the result is ranked by the
+ * query word is expanded by {@link TypoExpansion} with the thresholds of §7.1 and, for a word still being typed,
+ * the unfinished-word rules of §7.8 ({@link UnfinishedWordRules#PROPOSAL}), and the result is ranked by the
  * proposed lanes of §8.2 — every query word must match, then fewer typos, then better exactness (exact before
  * prefix before fuzzy), then primary key for determinism. The impact lane is left out: the catalog has no field
  * weights and one field. A failing example means the *proposal* misbehaves, not the engine.
@@ -186,8 +188,10 @@ class TypoToleranceBehaviourTest {
 			// it is ranked below every prefix match, which is the lane order working as proposed
 			new Example("search-as-you-type: prefix matches first, a one-edit neighbour trails",
 				"pansk", true, List.of(1, 3, 6, 7), List.of(2, 4)),
-			new Example("U7: while typing, exact ranks above prefix",
-				"kabat", true, List.of(10, 11), List.of()),
+			// the stem variants of `kabat` are `kabat` and the over-stripped `kab` (the `-at` paradigm fork); the
+			// prefix scan from `kab` reaches `kabelk`, ranked last as a prefix hit — the noise of prefix(hypotheses)
+			new Example("U7: while typing, exact ranks above prefix; an over-stripped variant trails",
+				"kabat", true, List.of(10, 11, 16), List.of()),
 			new Example("U6: an unfinished word with a typo is still found while typing",
 				"mikna", true, List.of(5, 6), List.of())
 		);
@@ -221,8 +225,9 @@ class TypoToleranceBehaviourTest {
 		for (int i = 0; i < words.size(); i++) {
 			final UnfinishedWordMode mode = typing && i == words.size() - 1
 				? UnfinishedWordMode.PREFIX_AND_OPEN_END_TYPO : UnfinishedWordMode.FINISHED;
-			final List<ExpandedTerm> terms =
-				TypoExpansion.expand(dictionary, words.get(i), TypoThresholds.PROPOSAL, LengthBase.TYPED, mode);
+			final List<ExpandedTerm> terms = TypoExpansion.expand(
+				dictionary, words.get(i), TypoThresholds.PROPOSAL, LengthBase.TYPED, mode, UnfinishedWordRules.PROPOSAL
+			);
 			final Map<String, ExpandedTerm> byTerm = CollectionUtils.createHashMap(terms.size());
 			for (final ExpandedTerm term : terms) {
 				byTerm.put(term.term(), term);
