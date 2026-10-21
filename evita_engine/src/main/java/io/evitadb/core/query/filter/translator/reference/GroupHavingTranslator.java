@@ -43,9 +43,10 @@ import java.util.function.Supplier;
 
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link GroupHaving} to {@link AbstractFormula}.
- * The translator filters entities by evaluating a nested query against the group entity type of a reference and
- * then translating the matched group entity primary keys back to owner entity primary keys using group-specific
- * indexes ({@link EntityIndexType#REFERENCED_GROUP_ENTITY_TYPE} / {@link EntityIndexType#REFERENCED_GROUP_ENTITY}).
+ * The translator evaluates a nested query against the group entity type of a reference. During index discovery,
+ * matching groups narrow candidate reference partitions when row evaluation follows, while strict discovery keeps
+ * all candidates. Virtual rows are checked exactly. During reduced-index row evaluation, group-specific indexes
+ * select only the owners whose rows in that index carry a matching group.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -98,7 +99,6 @@ public class GroupHavingTranslator implements FilteringConstraintTranslator<Grou
 				referencedGroupType,
 				referenceSchema.isReferencedGroupTypeManaged(),
 				EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE,
-				filterByVisitor::getReferencedGroupEntityIndexes,
 				nestedQueryDescription
 			);
 		}

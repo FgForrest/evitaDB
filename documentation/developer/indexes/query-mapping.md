@@ -68,8 +68,8 @@ Facet formulas are wrapped in specialized formula types (`FacetGroupOrFormula`,
 | EvitaQL Constraint | Index Type                                                 | Data Structure                                                             | Notes                                                                                                                                                                                                                                                                                                                                                 |
 |--------------------|------------------------------------------------------------|----------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `referenceHaving`  | [ReducedEntityIndex](index-hierarchy.md#referenced_entity) / [registry rows](index-hierarchy.md#reference-partitions-and-the-registry-of-single-owner-partitions) | All sub-indexes within ReducedEntityIndex (FilterIndex, UniqueIndex, etc.); [registry of single-owner partitions](data-structures.md#registry-of-single-owner-partitions) | Switches the processing context from GlobalEntityIndex to the partitions of the reference. The candidate partitions are found in the ReferencedTypeEntityIndex of the reference name and scope, and split by form (`ReferencePartitionSplit`): child constraints are evaluated against the ReducedEntityIndex of each candidate that has one, and the candidates kept as rows of the registry of single-owner partitions are answered by `VirtualPartitionBodyEvaluator` without any index object.                                                                                                                  |
-| `entityHaving`     | GlobalEntityIndex of the **referenced** entity type        | Nested query on the referenced collection                                  | Plans a nested query against the referenced entity type's GlobalEntityIndex. The resulting PK bitmap is then translated back to the owning entity's PKs via `ReferenceOwnerTranslatingFormula` or `ReferencedEntityIndexPrimaryKeyTranslatingFormula` (when inside a [ReferencedTypeEntityIndex](index-hierarchy.md#referenced_entity_type) context). |
-| `groupHaving`      | GlobalEntityIndex of the **referenced group** entity type  | Nested query on the group entity collection                                | Same mechanism as `entityHaving` but targets `referenceSchema.getReferencedGroupType()` instead of `getReferencedEntityType()`. Requires the group entity type to be managed by evitaDB.                                                                                                                                                              |
+| `entityHaving`     | GlobalEntityIndex of the **referenced** entity type        | Nested query on the referenced collection                                  | Plans a nested query against the referenced entity type's GlobalEntityIndex. During discovery, `ReferencedEntityIndexPrimaryKeyTranslatingFormula` translates matching targets into candidate partition PKs. During row evaluation, a reduced entity index contributes its owners only when its target matches. |
+| `groupHaving`      | GlobalEntityIndex of the **referenced group** entity type  | Nested query on the group entity collection                                | Plans a nested query against the group entity type. Discovery can narrow candidate partitions by matching groups when row evaluation follows; row evaluation checks the group of each row in its index. Requires the group entity type to be managed by evitaDB.                                                                                                                                                              |
 
 ### Filtering -- Prices
 
@@ -170,15 +170,16 @@ etc.) are evaluated against the smaller, pre-partitioned indexes of the material
 registry (see [index-hierarchy.md](index-hierarchy.md#how-reads-reach-a-row)).
 
 **With `entityHaving`.** A full nested query is planned against the referenced entity type's own
-`GlobalEntityIndex`. The resulting primary key bitmap is then translated back to the
-<Term location="/documentation/developer/indexes/overview.md" name="owning entity">owning entity</Term>'s
-PK space using either `ReferenceOwnerTranslatingFormula` (when the outer context is a GlobalEntityIndex)
-or `ReferencedEntityIndexPrimaryKeyTranslatingFormula` (when the outer context is a
+`GlobalEntityIndex`. During discovery in a
 <Term location="/documentation/developer/indexes/overview.md" name="Referenced Type Entity Index">
-ReferencedTypeEntityIndex</Term>).
+ReferencedTypeEntityIndex</Term>, `ReferencedEntityIndexPrimaryKeyTranslatingFormula` translates matching target
+primary keys into candidate partition primary keys. During row evaluation, a reduced entity index contributes its
+owner primary keys only when its target matches the nested query.
 
-**With `groupHaving`.** Operates identically to `entityHaving` but targets the group entity type
-(`referenceSchema.getReferencedGroupType()`) instead of the referenced entity type.
+**With `groupHaving`.** A nested query targets the group entity type
+(`referenceSchema.getReferencedGroupType()`). Discovery can narrow candidate partitions by the matching groups when
+row evaluation follows; strict discovery keeps all candidates. Virtual rows are checked exactly. During reduced-index
+row evaluation, group indexes select the owners whose rows in that index carry a matching group.
 
 **Facets.** The `facetHaving` constraint always reads from the current entity's `GlobalEntityIndex`
 FacetIndex. However, the facet IDs themselves may be resolved via a nested filter on a
@@ -206,8 +207,9 @@ The following invariants should be verified in integration tests:
   partitions kept as registry rows touch no index object -- their owners come from the registry.
 - **Invariant:** `entityHaving` inside `referenceHaving` triggers a nested query on the
   <Term location="/documentation/developer/indexes/overview.md" name="referenced entity">referenced entity</Term>
-  type's `GlobalEntityIndex`. Verify the formula tree contains
-  `ReferenceOwnerTranslatingFormula` or `ReferencedEntityIndexPrimaryKeyTranslatingFormula`.
+  type's `GlobalEntityIndex`. Verify discovery selects the matching targets' candidate partitions and row evaluation
+  contributes owners only from indexes whose targets match. Discovery uses
+  `ReferencedEntityIndexPrimaryKeyTranslatingFormula`; row evaluation uses tagged index-local owner formulas.
 - **Invariant:** `groupHaving` inside `referenceHaving` triggers a nested query on the group type's
   `GlobalEntityIndex`, not the referenced entity type's.
 
