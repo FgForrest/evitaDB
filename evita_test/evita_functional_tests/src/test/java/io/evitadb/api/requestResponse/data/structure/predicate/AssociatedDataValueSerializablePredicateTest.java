@@ -587,6 +587,9 @@ class AssociatedDataValueSerializablePredicateTest {
 			);
 		}
 
+		/**
+		 * Adding an explicit locale widens a predicate that previously fetched only global data.
+		 */
 		@Test
 		@DisplayName(
 			"creates richer copy when request adds new locales"
@@ -594,7 +597,7 @@ class AssociatedDataValueSerializablePredicateTest {
 		void shouldCreateRicherCopyForGlobalAssociatedData() {
 			final AssociatedDataValueSerializablePredicate predicate =
 				new AssociatedDataValueSerializablePredicate(
-					null, null, Collections.emptySet(),
+					null, null, null,
 					Collections.emptySet(), true
 				);
 

@@ -814,6 +814,9 @@ class ReferenceContractSerializablePredicateTest {
 			);
 		}
 
+		/**
+		 * Requesting English widens a predicate with no localized reference content fetched yet.
+		 */
 		@Test
 		@DisplayName(
 			"creates richer copy when adding locales"
@@ -822,7 +825,7 @@ class ReferenceContractSerializablePredicateTest {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
 					Collections.emptyMap(), Collections.emptySet(), null, true,
-					null, Collections.emptySet()
+					null, null
 				);
 
 			final EvitaRequest evitaRequest =
@@ -1095,6 +1098,9 @@ class ReferenceContractSerializablePredicateTest {
 			);
 		}
 
+		/**
+		 * A subset of reference attributes at the same locale scope reuses the existing predicate.
+		 */
 		@Test
 		@DisplayName(
 			"returns same when ALL basis gets specific subset"
@@ -1127,7 +1133,7 @@ class ReferenceContractSerializablePredicateTest {
 			Mockito.when(evitaRequest.getImplicitLocale())
 				.thenReturn(null);
 			Mockito.when(evitaRequest.getRequiredLocales())
-				.thenReturn(Collections.emptySet());
+				.thenReturn(Set.of(Locale.ENGLISH));
 			Mockito.when(evitaRequest.getDefaultReferenceRequirement())
 				.thenReturn(null);
 
@@ -1146,7 +1152,7 @@ class ReferenceContractSerializablePredicateTest {
 			final ReferenceContractSerializablePredicate predicate =
 				new ReferenceContractSerializablePredicate(
 					Collections.emptyMap(), Collections.emptySet(), null, true,
-					null, Collections.emptySet()
+					null, null
 				);
 
 			final EvitaRequest evitaRequest =
@@ -1158,7 +1164,7 @@ class ReferenceContractSerializablePredicateTest {
 			Mockito.when(evitaRequest.getImplicitLocale())
 				.thenReturn(Locale.ENGLISH);
 			Mockito.when(evitaRequest.getRequiredLocales())
-				.thenReturn(Collections.emptySet());
+				.thenReturn(null);
 			Mockito.when(evitaRequest.getDefaultReferenceRequirement())
 				.thenReturn(null);
 

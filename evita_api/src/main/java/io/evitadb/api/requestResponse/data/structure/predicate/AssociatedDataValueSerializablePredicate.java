@@ -330,7 +330,7 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 	 *
 	 * Enrichment logic:
 	 * - Associated data: Union of existing and new associated data sets (empty set dominates as "all data")
-	 * - Locales: Union of existing and new locale sets
+	 * - Locales: Union of existing and new locale sets (empty set dominates as "all locales")
 	 * - RequiresAssociatedData: OR logic (once true, stays true)
 	 *
 	 * @param evitaRequest the request containing additional associated data and locale requirements to merge
