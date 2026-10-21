@@ -171,7 +171,7 @@ class LongRunningAttributeCardinalityIndexTest implements TimeBoundedTestSupport
 				final List<AttributeCardinalityKey> keys =
 					new ArrayList<>(referenceMap.keySet());
 				final AttributeCardinalityKey key = keys.get(random.nextInt(keys.size()));
-				index.addRecord((String) key.value(), key.recordId());
+				index.addRecord(key.value(), key.recordId());
 				referenceMap.merge(key, 1, Integer::sum);
 			} else if (operation == 2) {
 				// decrement an entry with count > 1; fall back to increment when none exists
@@ -186,12 +186,12 @@ class LongRunningAttributeCardinalityIndexTest implements TimeBoundedTestSupport
 					final List<AttributeCardinalityKey> keys =
 						new ArrayList<>(referenceMap.keySet());
 					final AttributeCardinalityKey key = keys.get(random.nextInt(keys.size()));
-					index.addRecord((String) key.value(), key.recordId());
+					index.addRecord(key.value(), key.recordId());
 					referenceMap.merge(key, 1, Integer::sum);
 				} else {
 					final AttributeCardinalityKey key =
 						candidates.get(random.nextInt(candidates.size()));
-					index.removeRecord((String) key.value(), key.recordId());
+					index.removeRecord(key.value(), key.recordId());
 					referenceMap.merge(key, -1, Integer::sum);
 				}
 			} else {
@@ -207,12 +207,12 @@ class LongRunningAttributeCardinalityIndexTest implements TimeBoundedTestSupport
 					final List<AttributeCardinalityKey> keys =
 						new ArrayList<>(referenceMap.keySet());
 					final AttributeCardinalityKey key = keys.get(random.nextInt(keys.size()));
-					index.addRecord((String) key.value(), key.recordId());
+					index.addRecord(key.value(), key.recordId());
 					referenceMap.merge(key, 1, Integer::sum);
 				} else {
 					final AttributeCardinalityKey key =
 						candidates.get(random.nextInt(candidates.size()));
-					index.removeRecord((String) key.value(), key.recordId());
+					index.removeRecord(key.value(), key.recordId());
 					referenceMap.remove(key);
 				}
 			}

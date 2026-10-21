@@ -316,7 +316,8 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			new SchemaCapabilityUsageRegistry(),
 			new SchemaCapabilityUsageRegistry(),
 			new FulltextAnalyzerRegistry(),
-			true
+			true,
+			new PartitionReservations()
 		);
 	}
 
@@ -1251,7 +1252,8 @@ class EntityIndexLocalMutationExecutorTriggerTest {
 			new SchemaCapabilityUsageRegistry(),
 			new SchemaCapabilityUsageRegistry(),
 			new FulltextAnalyzerRegistry(),
-			true
+			true,
+			new PartitionReservations()
 		);
 	}
 

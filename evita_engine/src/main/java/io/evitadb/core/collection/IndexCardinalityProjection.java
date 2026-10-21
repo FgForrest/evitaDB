@@ -77,6 +77,11 @@ import java.util.function.BiConsumer;
  * count from. That is `O(values)`, which is acceptable only because this component is requested explicitly and never
  * polled.
  *
+ * **The single-owner partitions of a reference indexed for filtering only are not indexes.** They are rows of the
+ * registry the reference type index carries, so they are neither described nor counted as omitted; the reference type
+ * index reports how many it holds instead (`virtualPartitionCount`). Counting them walks the rows, which makes that
+ * reading `O(single-owner partitions)` of the reference - the other exception to the `O(1)` readings.
+ *
  * A consequence worth knowing: an index whose reference name is no longer in the schema - a reference dropped whose
  * index has not been reclaimed yet - is counted as omitted rather than described. That is the accurate reading; it is
  * not a live part of the schema any more.
@@ -171,6 +176,10 @@ final class IndexCardinalityProjection {
 	 * single index and needs the full rendering `BrowsedIndex` carries. Deriving it here would force one of the two
 	 * to be wrong.
 	 *
+	 * A single-owner partition is a registry row and never an index as well, so the rows the reference type index
+	 * reports (`virtualPartitionCount`) and the indexes described or counted as omitted never count one partition
+	 * twice.
+	 *
 	 * @param indexKey      key identifying the index
 	 * @param discriminator rendered discriminator of the index, or null for one that carries none
 	 * @param entityIndex   the index itself
@@ -235,8 +244,35 @@ final class IndexCardinalityProjection {
 			entityIndex.size(),
 			entityIndex instanceof ReferencedTypeEntityIndex referencedTypeIndex ?
 				referencedTypeIndex.getAllTrackedReferencedEntityPrimaryKeys().size() : null,
+			describeVirtualPartitionCount(indexKey, entityIndex),
 			attributes.toArray(AttributeCardinality[]::new)
 		);
+	}
+
+	/**
+	 * Counts the single-owner partitions the index holds as registry rows. Only the
+	 * {@link EntityIndexType#REFERENCED_ENTITY_TYPE} index carries the registry - the group family never holds a
+	 * partition as a row - so every other index reports none at all rather than `0`.
+	 *
+	 * @param indexKey    key identifying the index
+	 * @param entityIndex the index itself
+	 * @return the number of rows, or null for an index that carries no registry
+	 */
+	@Nullable
+	private static Integer describeVirtualPartitionCount(
+		@Nonnull EntityIndexKey indexKey,
+		@Nonnull EntityIndex entityIndex
+	) {
+		if (indexKey.type() != EntityIndexType.REFERENCED_ENTITY_TYPE) {
+			return null;
+		}
+		Assert.isPremiseValid(
+			entityIndex instanceof ReferencedTypeEntityIndex,
+			() -> "Index `" + indexKey + "` is expected to be a referenced type entity index!"
+		);
+		// a walk of the rows, `O(single-owner partitions)` - see the class javadoc
+		return ((ReferencedTypeEntityIndex) entityIndex).getVirtualReferencePartitionIndex()
+			.countRegisteredPartitions();
 	}
 
 	/**

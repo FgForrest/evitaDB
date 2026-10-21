@@ -31,7 +31,7 @@ import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.sort.NoSorter;
 import io.evitadb.core.query.sort.Sorter;
 import io.evitadb.core.query.sort.attribute.sorter.PreSortedRecordsSorter.MergeMode;
-import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -51,18 +51,25 @@ import java.util.function.IntConsumer;
  */
 public class SequentialSorter implements Sorter {
 	/**
-	 * Array of {@link ReducedEntityIndex} that are used to filter the input records. Each block is sorted
+	 * Blocks of {@link ReferencePartition}s that are used to filter the input records. Each block is sorted
 	 * separately by {@link #embeddedSorters} and the order of the block matters (pk sorted earlier are not sorted
 	 * in later blocks even if they're present there as well - 1:N references).
 	 */
-	private final ReducedEntityIndex[][] atomicBlocks;
+	private final ReferencePartition[][] atomicBlocks;
 	/**
 	 * Sorters that are applied on the {@link #atomicBlocks} one by one. The order of the sorters matters.
 	 */
 	private final List<Sorter> embeddedSorters;
 
+	/**
+	 * Creates the sorter.
+	 *
+	 * @param atomicBlocks    blocks of partitions sorted one after another; an owner sorted in an earlier block is
+	 *                        not sorted again
+	 * @param embeddedSorters sorters applied to each block in order; a {@link NoSorter} is dropped
+	 */
 	public SequentialSorter(
-		@Nonnull ReducedEntityIndex[][] atomicBlocks,
+		@Nonnull ReferencePartition[][] atomicBlocks,
 		@Nonnull List<Sorter> embeddedSorters
 	) {
 		this.atomicBlocks = atomicBlocks;
@@ -91,7 +98,7 @@ public class SequentialSorter implements Sorter {
 
 		SortingContext nextSortingContext = sortingContext;
 		top:
-		for (ReducedEntityIndex[] atomicBlock : this.atomicBlocks) {
+		for (ReferencePartition[] atomicBlock : this.atomicBlocks) {
 			final Bitmap limitedInput = FormulaFactory.or(
 				Arrays.stream(atomicBlock)
 					.map(

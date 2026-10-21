@@ -1273,7 +1273,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				);
 
 				assertEquals(1, result.getRecordData().size());
-				assertTrue(result.getRecordData().get(0).getReferences(Entities.BRAND).isEmpty());
+				assertTrue(result.getRecordData().getFirst().getReferences(Entities.BRAND).isEmpty());
 				assertNull(result.getExtraResult(FacetSummary.class).getFacetGroupStatistics(Entities.BRAND));
 				return null;
 			}
@@ -6092,7 +6092,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				"group filter of the reference summary",
 				scopedProductSummaryQuery(
 					referenceSummaryOfReference(
-						REF_TAG, FacetStatisticsDepth.COUNTS, (FilterBy) null, filterGroupBy(archivedNote)
+						REF_TAG, FacetStatisticsDepth.COUNTS, null, filterGroupBy(archivedNote)
 					)
 				)
 			),
@@ -6219,7 +6219,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				"referenceHaving in the group filter of the reference summary restricted to the archived scope",
 				scopedProductSummaryQuery(
 					referenceSummaryOfReference(
-						REF_TAG, FacetStatisticsDepth.COUNTS, (FilterBy) null,
+						REF_TAG, FacetStatisticsDepth.COUNTS, null,
 						filterGroupBy(inScope(Scope.ARCHIVED, referenceNote))
 					)
 				)
@@ -6961,9 +6961,10 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 * {@link #FACET_SCOPE_SHAPES} data set that the schema refuses. The fetched references are filtered and ordered
 	 * only while an entity is fetched, and only when it references an entity existing in the scope - so the rows cover
 	 * the products of a scope with data (whose tags exist in it) and without (whose tags do not), no product at all,
-	 * and the groups, which reference nothing by {@link #REF_CATEGORY}. They cover the filter by the referenced entity,
-	 * by the referenced group and by an attribute of the reference, and the ordering by the referenced entity, by the
-	 * referenced group and by an attribute of the reference. Each row has the shape of
+	 * and the groups, which reference nothing by {@link #REF_CATEGORY}. They cover the filter by the referenced entity
+	 * and by the referenced group, and the ordering by the referenced entity, by the referenced group and by an
+	 * attribute of the reference. A filter by an attribute of the reference is not refused: it reads the reference rows
+	 * themselves, which needs no index (see {@link #evaluableNestedConstraintRows()}). Each row has the shape of
 	 * {@link #hierarchyConstraintRows()}.
 	 *
 	 * @return the row arguments
@@ -7007,11 +7008,6 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					scope -> scopedTagGroupFetchQuery(
 						scope, referenceContent(REF_CATEGORY, filterBy(entityHaving(note)))
 					),
-					AttributeNotFilterableException.class, ATTRIBUTE_NOTE
-				),
-				inEveryScope(
-					"attribute filter of the references of the groups referencing nothing",
-					scope -> scopedTagGroupFetchQuery(scope, referenceContent(REF_CATEGORY, filterBy(note))),
 					AttributeNotFilterableException.class, ATTRIBUTE_NOTE
 				),
 				inEveryScope(
@@ -7194,7 +7190,8 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	/**
 	 * Returns the evaluable counterparts of {@link #hierarchyConstraintRows()}, {@link #nestedOrderingRows()} and
 	 * {@link #hierarchyContentRows()} in the archived scope, where the folders, the tags and their groups hold no
-	 * entity, and of a root folder fetched with its parents. Each row is a label, the query, the primary keys it must
+	 * entity, of a root folder fetched with its parents, and the filter of the fetched references by an attribute of
+	 * the reference that is filterable nowhere. Each row is a label, the query, the primary keys it must
 	 * return, the reference whose hierarchy statistics it computes (NULL for the queried entity's own) and the outputs
 	 * of those statistics that must be absent - a scope without any node has no tree to describe.
 	 *
@@ -7431,6 +7428,23 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 					orderBy(referenceProperty(REF_FOLDER, entityProperty(entityPrimaryKeyNatural(OrderDirection.DESC))))
 				),
 				new int[] {2}, null, new String[0]
+			),
+			// the filter of the fetched references reads each row itself, so an attribute of
+			// the reference that is filterable nowhere is evaluated rather than refused - in a scope with groups and in
+			// one without; the groups reference nothing, so there is no row to admit
+			Arguments.of(
+				"attribute filter of the references of the groups referencing nothing in LIVE",
+				scopedTagGroupFetchQuery(
+					Scope.LIVE, referenceContent(REF_CATEGORY, filterBy(attributeEquals(ATTRIBUTE_NOTE, "anything")))
+				),
+				IntStream.of(SCOPED_TAG_GROUPS).distinct().sorted().toArray(), null, new String[0]
+			),
+			Arguments.of(
+				"attribute filter of the references of the groups referencing nothing in ARCHIVED",
+				scopedTagGroupFetchQuery(
+					archived, referenceContent(REF_CATEGORY, filterBy(attributeEquals(ATTRIBUTE_NOTE, "anything")))
+				),
+				new int[0], null, new String[0]
 			),
 			Arguments.of(
 				"primary key of the referenced tags in the ordering of the groups",
@@ -9761,7 +9775,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 						require(page(1, 1))
 					),
 					EntityReference.class
-				).getRecordData().get(0).getPrimaryKeyOrThrowException();
+				).getRecordData().getFirst().getPrimaryKeyOrThrowException();
 				final Set<Integer> subtree = session.query(
 						query(
 							collection(Entities.CATEGORY),
@@ -10376,7 +10390,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 * @deprecated Use {@link #assertReferenceSummary} instead. Remove this method once FacetSummary is removed.
 	 */
 	@Deprecated(since = "2026.2", forRemoval = true)
-	private void assertFacetSummary(
+	private static void assertFacetSummary(
 		@Nonnull FacetSummaryWithResultCount expectedSummary,
 		@Nullable FacetSummary actualFacetSummary,
 		@Nonnull Function<SealedEntity, Boolean> facetEntitiesAssertFunction,
@@ -10405,7 +10419,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 *
 	 */
 	@Deprecated(since = "2026.2", forRemoval = true)
-	private void assertFacetSummaryEntities(
+	private static void assertFacetSummaryEntities(
 		@Nonnull FacetSummary facetSummary,
 		@Nonnull Function<SealedEntity, Boolean> facetEntitiesAssertFunction,
 		@Nonnull Function<SealedEntity, Boolean> groupEntitiesAssertFunction
@@ -10647,7 +10661,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	/**
 	 * Asserts reference summary against expected with full entity data asserts.
 	 */
-	private void assertReferenceSummary(
+	private static void assertReferenceSummary(
 		@Nonnull ReferenceSummaryWithResultCount expectedSummary,
 		@Nullable ReferenceSummary actualReferenceSummary,
 		@Nonnull Function<SealedEntity, Boolean> facetEntitiesAssertFunction,
@@ -10673,7 +10687,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	 * Checks all group and facet entities and verifies them. This method expects that both actual reference summary and
 	 * expected reference summary are equal.
 	 */
-	private void assertReferenceSummaryEntities(
+	private static void assertReferenceSummaryEntities(
 		@Nonnull ReferenceSummary referenceSummary,
 		@Nonnull Function<SealedEntity, Boolean> facetEntitiesAssertFunction,
 		@Nonnull Function<SealedEntity, Boolean> groupEntitiesAssertFunction
@@ -10827,7 +10841,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 				);
 
 				assertEquals(1, result.getRecordData().size());
-				assertTrue(result.getRecordData().get(0).getReferences(Entities.BRAND).isEmpty());
+				assertTrue(result.getRecordData().getFirst().getReferences(Entities.BRAND).isEmpty());
 				assertNull(result.getExtraResult(ReferenceSummary.class).getReferenceGroupStatistics(Entities.BRAND));
 				return null;
 			}

@@ -437,7 +437,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						this.usageRegistry,
 						this.catalogUsageRegistry,
 						new FulltextAnalyzerRegistry(),
-						true
+						true,
+						new PartitionReservations()
 					),
 					null,
 					this.productAttributeSchemaProvider,
@@ -469,7 +470,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						this.usageRegistry,
 						this.catalogUsageRegistry,
 						new FulltextAnalyzerRegistry(),
-						true
+						true,
+						new PartitionReservations()
 					),
 					null,
 					this.productAttributeSchemaProvider,
@@ -506,7 +508,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.usageRegistry,
 				this.catalogUsageRegistry,
 				new FulltextAnalyzerRegistry(),
-				true
+				true,
+				new PartitionReservations()
 			),
 			null,
 			this.productAttributeSchemaProvider,
@@ -533,7 +536,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.usageRegistry,
 				this.catalogUsageRegistry,
 				new FulltextAnalyzerRegistry(),
-				true
+				true,
+				new PartitionReservations()
 			),
 			null,
 			this.productAttributeSchemaProvider,
@@ -665,7 +669,8 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.usageRegistry,
 				this.catalogUsageRegistry,
 				new FulltextAnalyzerRegistry(),
-				true
+				true,
+				new PartitionReservations()
 			),
 			null,
 			this.productAttributeSchemaProvider,
@@ -692,7 +697,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 			getEntityAttributeValueSupplier(this.productSchema, 1),
 			this.productIndex,
 			this.productIndex,
-			attrVariantCount, -3
+			attrVariantCount, -3, true
 		);
 
 		assertArrayEquals(new int[]{1}, this.productIndex.getFilterIndex(null, variantCountSchema, null).getRecordsEqualTo(7).getArray());

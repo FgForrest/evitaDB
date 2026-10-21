@@ -341,7 +341,7 @@ public class LongRunningGrpcRestoreCatalogUploadTest {
 
 		evitaClient.queryCatalog(
 			restoredCatalogName,
-			(Consumer<EvitaSessionContract>) session -> {
+			session -> {
 				for (int primaryKey = 1; primaryKey <= entityCount; primaryKey++) {
 					final int currentKey = primaryKey;
 					final SealedEntity entity = session

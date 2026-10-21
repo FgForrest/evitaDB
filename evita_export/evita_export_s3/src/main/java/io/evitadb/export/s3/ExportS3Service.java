@@ -415,7 +415,7 @@ public class ExportS3Service implements ExportService {
 			fileId,
 			fileForFetchFuture
 				.thenApply(fileForFetch -> {
-					this.files.add(0, fileForFetch);
+					this.files.addFirst(fileForFetch);
 					return fileForFetch;
 				}),
 			objectKey,
@@ -812,7 +812,7 @@ public class ExportS3Service implements ExportService {
 					break;
 				}
 			}
-			current.add(0, file);
+			current.addFirst(file);
 		} catch (Exception e) {
 			log.debug("Failed to refresh cache entry for object key {}", objectKey, e);
 		}

@@ -89,11 +89,11 @@ class BucketBPlusTreeHeapSizeTest {
 		final int minBlock = BLOCK_SIZE / 2 - 1;
 		final int minInternal = (int) (Math.ceil((float) minBlock / 2.0) - 1);
 		final ValueColumnFactory factory = ValueColumnFactory.forKey(
-			Integer.class, (Comparator) Comparator.naturalOrder()
+			Integer.class, Comparator.naturalOrder()
 		);
 		final TransactionalBucketBPlusTree tree = new TransactionalBucketBPlusTree<>(
 			BLOCK_SIZE, minBlock, minBlock, minInternal,
-			Comparable.class, (Comparator) Comparator.naturalOrder(), factory
+			Comparable.class, Comparator.naturalOrder(), factory
 		);
 		if (withValueIds) {
 			// switched on while the tree is still empty, so every leaf it ever allocates is born with the id column
@@ -102,13 +102,13 @@ class BucketBPlusTreeHeapSizeTest {
 		for (int i = 0; i < distinctValues; i++) {
 			final Integer key = 2 * i;
 			if (recordsPerValue == 1) {
-				tree.addRecord((Comparable) key, i);
+				tree.addRecord(key, i);
 			} else {
 				final int[] recordIds = new int[recordsPerValue];
 				for (int r = 0; r < recordsPerValue; r++) {
 					recordIds[r] = i * recordsPerValue + r;
 				}
-				tree.addRecord((Comparable) key, recordIds);
+				tree.addRecord(key, recordIds);
 			}
 		}
 		return tree;

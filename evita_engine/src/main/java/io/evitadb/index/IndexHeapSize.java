@@ -29,6 +29,7 @@ import io.evitadb.dataType.ComparableCurrency;
 import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.bPlusTree.BucketBPlusTree;
 import io.evitadb.utils.VMLayout;
 
@@ -77,28 +78,18 @@ public final class IndexHeapSize {
 	 * because `estimateSize` throws for a type outside evitaDB's own set and would take a real catalog's statistics
 	 * request down with it. Both wrappers hold a JVM-interned instance and are charged for the wrapper alone.
 	 *
+	 * # The compound key
+	 *
+	 * The sort tree of a sortable attribute compound holds a {@link ComparableArray}: a wrapper, its reference array
+	 * and one normalized value per element, any of which may itself be one of the keys above. It is priced as all
+	 * three, each element through this very sizer, and a missing element costs only its array slot.
+	 *
 	 * A key that is not {@link Serializable} **throws** rather than being priced at zero. Every value entering these
 	 * trees is verified `Serializable` on the way in, so reaching this branch means the invariant broke somewhere
 	 * upstream — and a zero would hide that behind a plausible-looking total instead of surfacing it.
 	 * {@link EvitaDataTypes#estimateSize} throws in the same spirit for a type evitaDB does not support.
 	 */
-	public static final ToLongFunction<Object> OWNED_KEY_SIZER = key -> {
-		if (key instanceof Instant) {
-			// a seconds `long` and a nanos `int`
-			final VMLayout layout = VMLayout.current();
-			return layout.sizeOfObject(Long.BYTES + Integer.BYTES);
-		} else if (key instanceof ComparableCurrency || key instanceof ComparableLocale) {
-			// a wrapper over an instance the JVM interns per currency code / language tag
-			final VMLayout layout = VMLayout.current();
-			return layout.sizeOfObject(layout.referenceSize());
-		} else if (key instanceof final Serializable serializable) {
-			return EvitaDataTypes.estimateSize(serializable);
-		}
-		throw new GenericEvitaInternalError(
-			"Indexed key of type `" + key.getClass().getName() + "` is not Serializable, which every value entering " +
-				"an index tree is verified to be - its heap footprint cannot be priced."
-		);
-	};
+	public static final ToLongFunction<Object> OWNED_KEY_SIZER = IndexHeapSize::ownedKeySizeInBytes;
 
 	/**
 	 * Prices a {@link Formula} an index memoized, as **scaffolding alone** — never the bitmaps it holds, and never
@@ -185,6 +176,42 @@ public final class IndexHeapSize {
 			result += elementSizer.applyAsLong(element);
 		}
 		return result;
+	}
+
+	/**
+	 * Prices one owned key, see {@link #OWNED_KEY_SIZER}.
+	 *
+	 * @param key the key, in the normalized form the tree holds it in
+	 * @return the heap footprint of the key in bytes
+	 */
+	private static long ownedKeySizeInBytes(@Nonnull Object key) {
+		if (key instanceof Instant) {
+			// a seconds `long` and a nanos `int`
+			final VMLayout layout = VMLayout.current();
+			return layout.sizeOfObject(Long.BYTES + Integer.BYTES);
+		} else if (key instanceof ComparableCurrency || key instanceof ComparableLocale) {
+			// a wrapper over an instance the JVM interns per currency code / language tag
+			final VMLayout layout = VMLayout.current();
+			return layout.sizeOfObject(layout.referenceSize());
+		} else if (key instanceof final ComparableArray compound) {
+			// the wrapper, its array and every element present in it
+			final VMLayout layout = VMLayout.current();
+			final Serializable[] elements = compound.array();
+			long size = layout.sizeOfObject(layout.referenceSize())
+				+ layout.sizeOfArray(elements.length, layout.referenceSize());
+			for (final Serializable element : elements) {
+				if (element != null) {
+					size += ownedKeySizeInBytes(element);
+				}
+			}
+			return size;
+		} else if (key instanceof final Serializable serializable) {
+			return EvitaDataTypes.estimateSize(serializable);
+		}
+		throw new GenericEvitaInternalError(
+			"Indexed key of type `" + key.getClass().getName() + "` is not Serializable, which every value entering " +
+				"an index tree is verified to be - its heap footprint cannot be priced."
+		);
 	}
 
 	private IndexHeapSize() {

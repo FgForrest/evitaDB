@@ -32,10 +32,10 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
@@ -93,6 +93,14 @@ import java.util.function.Supplier;
  * When the selection holds more covered owners than the reference has reduced indexes, the whole family is walked
  * instead: the gather would not visit fewer indexes and would cost more lookups.
  *
+ * Every candidate is resolved by the scoped read resolver of the query
+ * ({@link QueryPlanningContext#resolvePartitionForReadIfExists(ReferencedTypeEntityIndex, int)}): a registered
+ * single-owner partition is handed over as its {@link VirtualReferencePartition} - one registry lookup, the index
+ * object is never touched - and takes part in the target order exactly like a materialized one. A virtual candidate of
+ * an unselected owner may be handed over too (under the plain primary key order nothing is probed, and the whole-family
+ * fallback lists every owner's partitions); {@link PickFirstReferenceSorter} admits a virtual partition only through
+ * the unclaimed rest of the selection.
+ *
  * # Target order
  *
  * The targets of the kept indexes are ordered by the ordering specification of {@link PickFirstByEntityProperty}: by
@@ -143,11 +151,11 @@ public final class PickFirstReducedIndexResolver {
 	/**
 	 * Supplier of the planning-time reduced indexes, see {@link #getPlanningIndexes()}.
 	 */
-	@Nonnull private final Supplier<ReducedEntityIndex[]> planningIndexes;
+	@Nonnull private final Supplier<ReferencePartition[]> planningIndexes;
 	/**
 	 * Memoized result of {@link #planningIndexes}.
 	 */
-	@Nullable private ReducedEntityIndex[] memoizedPlanningIndexes;
+	@Nullable private ReferencePartition[] memoizedPlanningIndexes;
 
 	/**
 	 * Creates a resolver.
@@ -165,7 +173,7 @@ public final class PickFirstReducedIndexResolver {
 		@Nonnull Scope[] scopes,
 		@Nullable NestedContextSorter targetSorter,
 		boolean targetsDescending,
-		@Nonnull Supplier<ReducedEntityIndex[]> planningIndexes
+		@Nonnull Supplier<ReferencePartition[]> planningIndexes
 	) {
 		this.queryContext = queryContext;
 		this.referenceSchema = referenceSchema;
@@ -202,11 +210,11 @@ public final class PickFirstReducedIndexResolver {
 	}
 
 	/**
-	 * Resolves the reduced indexes that may hold a row of the selected owners, in target order: a superset of those
+	 * Resolves the partitions that may hold a row of the selected owners, in target order: a superset of those
 	 * that do under the plain primary key order, exactly those that do under any other target order.
 	 *
 	 * @param selection primary keys of the owners being sorted
-	 * @return the indexes and the rank function of their targets
+	 * @return the partitions and the rank function of their targets
 	 */
 	@Nonnull
 	public ResolvedReducedIndexes resolve(@Nonnull Bitmap selection) {
@@ -214,7 +222,7 @@ public final class PickFirstReducedIndexResolver {
 			return this.memoizedResult;
 		}
 		final PersistentRoaringBitmap selected = RoaringBitmapBackedBitmap.getRoaringBitmap(selection);
-		final List<ReducedEntityIndex> found = new ArrayList<>(64);
+		final List<ReferencePartition> found = new ArrayList<>(64);
 		if (!selected.isEmpty()) {
 			for (Scope scope : this.scopes) {
 				final ReferencedTypeEntityIndex typeIndex = getTypeIndex(scope);
@@ -222,14 +230,12 @@ public final class PickFirstReducedIndexResolver {
 					final Bitmap candidates = selectCandidates(scope, typeIndex, selected);
 					final OfInt it = candidates.iterator();
 					while (it.hasNext()) {
-						final ReducedEntityIndex index = resolveReducedIndex(it.nextInt(), scope);
-						if (
-							index != null &&
-								(this.targetSorter == null || PersistentRoaringBitmap.intersects(
-									RoaringBitmapBackedBitmap.getRoaringBitmap(index.getAllPrimaryKeys()), selected
-								))
-						) {
-							found.add(index);
+						// the scoped read resolver answers a registered single-owner partition with its virtual handle,
+						// without touching the index object
+						final ReferencePartition partition =
+							this.queryContext.resolvePartitionForReadIfExists(typeIndex, it.nextInt());
+						if (partition != null && (this.targetSorter == null || holdsSelectedOwner(partition, selected))) {
+							found.add(partition);
 						}
 					}
 				}
@@ -256,15 +262,15 @@ public final class PickFirstReducedIndexResolver {
 	}
 
 	/**
-	 * Returns the reduced indexes for the consumers that need an index array at planning time, before any selection
+	 * Returns the partitions for the consumers that need a partition array at planning time, before any selection
 	 * exists - the block-by-block orderings of chain attributes and the single-index orderings - which therefore keep
 	 * the planning-time index set of the block orderings: the candidates of a `referenceHaving` on the same reference
 	 * when there are any, the whole family otherwise. Resolved once per instance, and only when asked for.
 	 *
-	 * @return the planning-time reduced indexes in target order
+	 * @return the planning-time partitions in target order - reduced entity indexes and virtual partitions
 	 */
 	@Nonnull
-	public ReducedEntityIndex[] getPlanningIndexes() {
+	public ReferencePartition[] getPlanningIndexes() {
 		if (this.memoizedPlanningIndexes == null) {
 			this.memoizedPlanningIndexes = this.planningIndexes.get();
 		}
@@ -331,56 +337,53 @@ public final class PickFirstReducedIndexResolver {
 	}
 
 	/**
-	 * Resolves a candidate primary key to a reduced index of this reference's entity family in the scope, tolerating
-	 * keys that name nothing or an index of another family.
+	 * Returns true when the partition holds a row of a selected owner. A virtual partition is answered by its only
+	 * owner, read out of the handle, a materialized one by intersecting its owners with the selection.
 	 *
-	 * @param indexPrimaryKey primary key of the candidate index
-	 * @param scope           the scope the candidate was found in
-	 * @return the reduced index or `null` when the key does not name one of this reference in the scope
+	 * @param partition the partition
+	 * @param selected  the selected owners
+	 * @return true if one of the partition's owners is selected
 	 */
-	@Nullable
-	private ReducedEntityIndex resolveReducedIndex(int indexPrimaryKey, @Nonnull Scope scope) {
-		final EntityIndex index = this.queryContext.getEntityIndexByPrimaryKeyIfExists(indexPrimaryKey);
-		if (
-			index instanceof ReducedEntityIndex reducedIndex &&
-				reducedIndex.getIndexKey().type() == EntityIndexType.REFERENCED_ENTITY &&
-				reducedIndex.getIndexKey().scope() == scope &&
-				reducedIndex.getIndexKey().discriminator() instanceof RepresentativeReferenceKey rrk &&
-				this.referenceSchema.getName().equals(rrk.referenceName())
-		) {
-			return reducedIndex;
-		}
-		return null;
+	private static boolean holdsSelectedOwner(
+		@Nonnull ReferencePartition partition,
+		@Nonnull PersistentRoaringBitmap selected
+	) {
+		return partition instanceof VirtualReferencePartition virtual ?
+			selected.contains(virtual.ownerPrimaryKey()) :
+			PersistentRoaringBitmap.intersects(
+				RoaringBitmapBackedBitmap.getRoaringBitmap(partition.getAllPrimaryKeys()), selected
+			);
 	}
 
 	/**
-	 * Orders the found indexes by the rank of their target, and indexes sharing one target by their representative
-	 * attribute values.
+	 * Orders the found partitions by the rank of their target, and partitions sharing one target by their
+	 * representative attribute values.
 	 *
-	 * @param found the indexes in any order
-	 * @return the ordered indexes along with the rank function of the targets
+	 * @param found the partitions in any order
+	 * @return the ordered partitions along with the rank function of the targets
 	 */
 	@Nonnull
-	private ResolvedReducedIndexes order(@Nonnull List<ReducedEntityIndex> found) {
+	private ResolvedReducedIndexes order(@Nonnull List<ReferencePartition> found) {
 		if (this.targetSorter == null) {
 			// the plain primary key order needs no grouping: one sort by target, then by representative values
-			final ReducedEntityIndex[] ordered = found.toArray(ReducedEntityIndex[]::new);
-			final Comparator<ReducedEntityIndex> byTarget = Comparator.comparingInt(it -> it.getReferenceKey().primaryKey());
+			final ReferencePartition[] ordered = found.toArray(ReferencePartition[]::new);
+			final Comparator<ReferencePartition> byTarget =
+				Comparator.comparingInt(it -> it.getReferenceKey().primaryKey());
 			Arrays.sort(
 				ordered,
 				(this.targetsDescending ? byTarget.reversed() : byTarget)
 					.thenComparing(
-						ReducedEntityIndex::getRepresentativeReferenceKey,
+						ReferencePartition::getRepresentativeReferenceKey,
 						RepresentativeReferenceKey.GENERIC_COMPARATOR
 					)
 			);
 			return new ResolvedReducedIndexes(ordered, createTargetRank(ArrayUtils.EMPTY_INT_ARRAY));
 		}
-		final IntObjectHashMap<List<ReducedEntityIndex>> indexesByTarget = new IntObjectHashMap<>(found.size());
+		final IntObjectHashMap<List<ReferencePartition>> indexesByTarget = new IntObjectHashMap<>(found.size());
 		final RoaringBitmapWriter<PersistentRoaringBitmap> targetWriter = RoaringBitmapBackedBitmap.buildWriter();
-		for (ReducedEntityIndex index : found) {
+		for (ReferencePartition index : found) {
 			final int target = index.getReferenceKey().primaryKey();
-			List<ReducedEntityIndex> sameTarget = indexesByTarget.get(target);
+			List<ReferencePartition> sameTarget = indexesByTarget.get(target);
 			if (sameTarget == null) {
 				sameTarget = new ArrayList<>(1);
 				indexesByTarget.put(target, sameTarget);
@@ -389,10 +392,10 @@ public final class PickFirstReducedIndexResolver {
 			sameTarget.add(index);
 		}
 		final int[] orderedTargets = orderTargets(new BaseBitmap(targetWriter.get()));
-		final ReducedEntityIndex[] ordered = new ReducedEntityIndex[found.size()];
+		final ReferencePartition[] ordered = new ReferencePartition[found.size()];
 		int peak = 0;
 		for (int target : orderedTargets) {
-			final List<ReducedEntityIndex> sameTarget = indexesByTarget.get(target);
+			final List<ReferencePartition> sameTarget = indexesByTarget.get(target);
 			if (sameTarget.size() > 1) {
 				sameTarget.sort(
 					(a, b) -> RepresentativeReferenceKey.GENERIC_COMPARATOR.compare(
@@ -400,7 +403,7 @@ public final class PickFirstReducedIndexResolver {
 					)
 				);
 			}
-			for (ReducedEntityIndex index : sameTarget) {
+			for (ReferencePartition index : sameTarget) {
 				ordered[peak++] = index;
 			}
 		}
@@ -445,13 +448,13 @@ public final class PickFirstReducedIndexResolver {
 	}
 
 	/**
-	 * The reduced indexes resolved for one selection.
+	 * The partitions resolved for one selection.
 	 *
-	 * @param indexes    reduced indexes that may hold a row of the selection, in target order
+	 * @param indexes    partitions that may hold a row of the selection, in target order
 	 * @param targetRank function returning a lower number for a target that comes first in target order
 	 */
 	public record ResolvedReducedIndexes(
-		@Nonnull ReducedEntityIndex[] indexes,
+		@Nonnull ReferencePartition[] indexes,
 		@Nonnull IntUnaryOperator targetRank
 	) {
 	}

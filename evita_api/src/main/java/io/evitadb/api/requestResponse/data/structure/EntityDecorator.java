@@ -34,6 +34,7 @@ import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.PriceContentMode;
 import io.evitadb.api.query.require.QueryPriceMode;
 import io.evitadb.api.requestResponse.EvitaRequest;
+import io.evitadb.api.requestResponse.data.Droppable;
 import io.evitadb.api.requestResponse.data.EntityClassifierWithParent;
 import io.evitadb.api.requestResponse.data.EntityEditor.EntityBuilder;
 import io.evitadb.api.requestResponse.data.PriceContract;
@@ -633,7 +634,9 @@ public class EntityDecorator implements SealedEntity {
 					.getReference(thisReferenceName)
 				    .orElseThrow(() -> new GenericEvitaInternalError("Sanity check!"));
 				entityFetcher = referenceFetcher.getEntityFetcher(referenceSchema);
-				entityGroupFetcher = referenceFetcher.getEntityGroupFetcher(referenceSchema);
+				// a fetcher that can only answer NULL is swapped for the no-op one, which `fetchReference` skips
+				entityGroupFetcher = referenceFetcher.mayCarryGroupBodies(referenceSchema) ?
+					referenceFetcher.getEntityGroupFetcher(referenceSchema) : Functions.noOpFunction();
 				entityFilter = referenceFetcher.getEntityFilter(referenceSchema);
 				fetchedReferenceComparator = referenceFetcher.getEntityComparator(referenceSchema);
 				// both are decided by the reference *name*, and the loop body runs once per reference contract -
@@ -912,11 +915,8 @@ public class EntityDecorator implements SealedEntity {
 		}
 		for (int i = from; i < toExclusive; i++) {
 			final ReferenceDecorator reference = references[i];
-			if (reference.getReferencedEntity().isPresent()) {
-				// the group is already exposed beside its referenced entity, so the walk will find it. This test
-				// stands in for "does this reference already expose its group", which holds only while
-				// `fetchReference` attaches a group solely beside a referenced entity - should that ever change,
-				// this has to become `getGroupEntity().isPresent()` or the exposed group is noted a second time
+			if (reference.getGroupEntity().isPresent()) {
+				// the group is already exposed on the reference, so the walk will find it
 				continue;
 			}
 			// deliberately not `getGroup().map(...).orElse(null)`: that allocates an Optional and a capturing
@@ -2272,9 +2272,17 @@ public class EntityDecorator implements SealedEntity {
 			referenceSchema.isReferencedEntityTypeManaged() && referenceEntityFetcher != Functions.<Integer, SealedEntity>noOpFunction() ?
 				referenceEntityFetcher.apply(reference.getReferenceKey().primaryKey()) : null;
 
-		final SealedEntity referencedGroupEntity = referenceSchema.isReferencedGroupTypeManaged() && referencedEntity != null ?
-			reference.getGroup().map(group -> referenceGroupEntityFetcher.apply(group.primaryKey())).orElse(null) :
-			null;
+		// the group body does not depend on the referenced entity body - `entityGroupFetch` may be requested without
+		// `entityFetch`; the no-op check spares the boxed key of a lookup that can only answer NULL. A dropped group is
+		// no group - `ReferenceDecorator#getGroup` hides it - so it gets no body either
+		final SealedEntity referencedGroupEntity =
+			referenceSchema.isReferencedGroupTypeManaged() &&
+				referenceGroupEntityFetcher != Functions.<Integer, SealedEntity>noOpFunction() ?
+				reference.getGroup()
+					.filter(Droppable::exists)
+					.map(group -> referenceGroupEntityFetcher.apply(group.primaryKey()))
+					.orElse(null) :
+				null;
 		// this is the only place a referenced or group body is ever put onto a reference, so it is the only place
 		// that can say whether this entity carries any - see #referenceBodiesAttached
 		this.referenceBodiesAttached |= referencedEntity != null || referencedGroupEntity != null;

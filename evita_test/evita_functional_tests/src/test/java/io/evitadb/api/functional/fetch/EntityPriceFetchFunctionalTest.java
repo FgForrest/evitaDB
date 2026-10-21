@@ -159,7 +159,7 @@ class EntityPriceFetchFunctionalTest extends AbstractEntityFetchingFunctionalTes
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 				final Optional<PriceContract> priceForSale = product.getPriceForSale();
 
 				assertTrue(priceForSale.isPresent(), "Product should have a price for sale!");
@@ -216,7 +216,7 @@ class EntityPriceFetchFunctionalTest extends AbstractEntityFetchingFunctionalTes
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 				final Optional<PriceContract> priceForSale = product.getPriceForSale();
 
 				assertTrue(priceForSale.isPresent(), "Product should have a price for sale!");
@@ -334,7 +334,7 @@ class EntityPriceFetchFunctionalTest extends AbstractEntityFetchingFunctionalTes
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 				final Optional<PriceContract> priceForSale = product.getPriceForSale();
 
 				assertTrue(priceForSale.isPresent(), "Product should have a price for sale!");
@@ -584,7 +584,7 @@ class EntityPriceFetchFunctionalTest extends AbstractEntityFetchingFunctionalTes
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 
 				// parent product has priceForSale in EUR / basic
 				final Optional<PriceContract> priceForSale = product.getPriceForSale();

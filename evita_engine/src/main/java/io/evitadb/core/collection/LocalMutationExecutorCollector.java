@@ -38,6 +38,7 @@ import io.evitadb.api.requestResponse.data.mutation.EntityUpsertMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutation;
 import io.evitadb.api.requestResponse.data.mutation.LocalMutationExecutor;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.spi.store.catalog.persistence.ReferenceDecodeCoverageContext;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceDecodeCoverage;
 import io.evitadb.api.requestResponse.data.structure.predicate.ReferenceContractSerializablePredicate;
@@ -60,13 +61,18 @@ import io.evitadb.index.mutation.IndexImplicitMutations;
 import io.evitadb.index.mutation.IndexMutation;
 import io.evitadb.index.mutation.ReevaluateExpressionMutation;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
+import io.evitadb.index.mutation.local.PartitionReservations;
 import io.evitadb.index.mutation.storagePart.ContainerizedLocalMutationExecutor;
+import io.evitadb.index.mutation.storagePart.ForeignEntityStorageParts;
+import io.evitadb.index.mutation.storagePart.InFlightEntityAccessorLookup;
 import io.evitadb.spi.store.catalog.header.model.EntityCollectionHeader;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.EntityCollectionPersistenceService.EntityWithFetchCount;
 import io.evitadb.spi.store.catalog.persistence.StorageDescriptor;
+import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
+import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 import javax.annotation.Nonnull;
@@ -115,7 +121,7 @@ import static io.evitadb.api.requestResponse.data.mutation.EntityRemoveMutation.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 @RequiredArgsConstructor
-class LocalMutationExecutorCollector {
+class LocalMutationExecutorCollector implements InFlightEntityAccessorLookup {
 	/**
 	 * The timestamp when the collector was created.
 	 */
@@ -140,6 +146,47 @@ class LocalMutationExecutorCollector {
 	 * The list of all entity mutations applied within this collector.
 	 */
 	private final List<EntityMutation> entityMutations = new ArrayList<>(16);
+	/**
+	 * The storage-part executors of every entity this root mutation mutates - the root entity's own and those of the
+	 * implicit and reflected mutations it spawns, in any collection, since the nested invocations share this collector
+	 * - keyed by the entity they mutate. It answers {@link #findInFlightAccessor}, the
+	 * {@link InFlightEntityAccessorLookup} every executor of this root mutation is created with.
+	 *
+	 * The registry exists because no executor writes its storage parts into the data store buffer before the root
+	 * mutation commits them all in {@link #finish()}, after every executor - nested ones included - has applied its
+	 * changes. Until then an entity's applied state lives only in its executor, so a read of that entity issued from
+	 * another entity's executor has to be served by it.
+	 *
+	 * An executor is registered when its mutation enters {@link #execute} and stays registered until the root mutation
+	 * finishes, whatever the outcome: a failure at any level fails the root mutation as a whole (the nested invocation
+	 * rethrows it into the enclosing one), so no level discards its executors on its own and the registry never holds
+	 * an executor the root mutation does not. {@link #finish()} drops it after the commit or the rollback.
+	 *
+	 * Allocated by the first registration, i.e. once per root mutation.
+	 */
+	@Nullable private Map<EntityReference, ContainerizedLocalMutationExecutor> inFlightExecutors;
+	/**
+	 * The storage parts this root mutation has read of the entities it does not mutate, keyed by the entity - the
+	 * answer of {@link #getForeignEntityStorageParts}, consulted by the storage-part executors only after
+	 * {@link #findInFlightAccessor} found no executor of the entity. An entity the root mutation does not mutate cannot
+	 * change while it runs, so a part read once serves every later read of it, however many executors and populations
+	 * of reference partitions read it.
+	 *
+	 * The parts of an entity are dropped when the entity starts being mutated (see {@link #registerInFlightExecutor}) -
+	 * its executor answers every read of it from then on - and all of them are dropped when the root mutation finishes,
+	 * committed or rolled back. The map is not capped: it holds at most the entities the root mutation reads without
+	 * mutating them.
+	 *
+	 * Allocated by the first read, which most root mutations never make.
+	 */
+	@Nullable private Map<EntityReference, ForeignEntityStorageParts> foreignStorageParts;
+	/**
+	 * The primary keys of the partitions without an index object this root mutation has vacated, reserved for an owner
+	 * entering a partition of the same key again within it, and whether the root mutation is finishing - handed to
+	 * every index executor created for it, as {@link #findInFlightAccessor} is to every storage-part executor. See
+	 * {@link PartitionReservations}. {@link #finish()} drops the reservations after the commit or the rollback.
+	 */
+	@Getter @Nonnull private final PartitionReservations partitionReservations = new PartitionReservations();
 	/**
 	 * Reference to the fully fetched entity that is being mutated. This entity is needed for removal / archive / restore
 	 * mutations to generate local mutations for all necessary parts of the entity.
@@ -417,6 +464,7 @@ class LocalMutationExecutorCollector {
 		// first register all mutation applicators and mutations to the internal state
 		this.executors.add(entityIndexUpdater);
 		this.executors.add(changeCollector);
+		registerInFlightExecutor(changeCollector);
 		final LocalMutationExecutor[] orderedExecutors = {entityIndexUpdater, changeCollector};
 
 		// add the mutation to the list of mutations, but only for root level mutations
@@ -662,6 +710,68 @@ class LocalMutationExecutorCollector {
 	}
 
 	/**
+	 * Returns the accessor of the executor mutating the given entity within this root mutation - the
+	 * {@link InFlightEntityAccessorLookup} handed to every executor created for it. See {@link #inFlightExecutors}.
+	 *
+	 * @param entityType       the entity collection name
+	 * @param entityPrimaryKey the primary key of the entity
+	 * @return the in-flight executor of the entity, or `null` when this root mutation does not mutate it or has already
+	 *         finished
+	 */
+	@Nullable
+	@Override
+	public WritableEntityStorageContainerAccessor findInFlightAccessor(
+		@Nonnull String entityType,
+		int entityPrimaryKey
+	) {
+		return this.inFlightExecutors == null
+			? null
+			: this.inFlightExecutors.get(new EntityReference(entityType, entityPrimaryKey));
+	}
+
+	/**
+	 * Returns the storage parts this root mutation has read so far of an entity it does not mutate, creating the
+	 * holder empty when the entity is asked for first. See {@link #foreignStorageParts}.
+	 *
+	 * @param entityType       the entity collection name
+	 * @param entityPrimaryKey the primary key of the entity
+	 * @return the parts of the entity read so far
+	 */
+	@Nonnull
+	@Override
+	public ForeignEntityStorageParts getForeignEntityStorageParts(@Nonnull String entityType, int entityPrimaryKey) {
+		if (this.foreignStorageParts == null) {
+			this.foreignStorageParts = CollectionUtils.createHashMap(4);
+		}
+		return this.foreignStorageParts.computeIfAbsent(
+			new EntityReference(entityType, entityPrimaryKey), key -> new ForeignEntityStorageParts()
+		);
+	}
+
+	/**
+	 * Registers the storage-part executor of a mutation entering {@link #execute} into {@link #inFlightExecutors}, and
+	 * drops the storage parts of its entity read before it - the executor answers every read of the entity from now on,
+	 * and the entity's parts change with it (see {@link #foreignStorageParts}).
+	 *
+	 * An entity is expected to have at most one executor per root mutation: the external mutations an executor spawns
+	 * are merged per target entity, and the nested mutations spawn none that lead back to an entity already in flight.
+	 * Should a second one appear nevertheless, it replaces the first: it is the later one, so the reads issued after its
+	 * creation belong to its part of the root mutation.
+	 *
+	 * @param executor the executor to register
+	 */
+	private void registerInFlightExecutor(@Nonnull ContainerizedLocalMutationExecutor executor) {
+		if (this.inFlightExecutors == null) {
+			this.inFlightExecutors = CollectionUtils.createHashMap(4);
+		}
+		final EntityReference key = new EntityReference(executor.getEntityType(), executor.getEntityPrimaryKey());
+		this.inFlightExecutors.put(key, executor);
+		if (this.foreignStorageParts != null) {
+			this.foreignStorageParts.remove(key);
+		}
+	}
+
+	/**
 	 * Completes the local mutation execution process by determining whether to commit or rollback changes.
 	 *
 	 * Finalization happens in two steps. First, {@link LocalMutationExecutor#applyChanges()} is invoked on every
@@ -676,20 +786,33 @@ class LocalMutationExecutorCollector {
 	 * changes.
 	 */
 	private void finish() {
-		// fallible finalization step — a throw here routes to rollback rather than a half-commit
-		if (this.exception == null) {
-			try {
-				for (final LocalMutationExecutor executor : this.executors) {
-					executor.applyChanges();
+		try {
+			// fallible finalization step — a throw here routes to rollback rather than a half-commit
+			if (this.exception == null) {
+				// no owner may enter a partition while the executors apply their changes
+				this.partitionReservations.setFinishing(true);
+				try {
+					for (final LocalMutationExecutor executor : this.executors) {
+						executor.applyChanges();
+					}
+				} catch (RuntimeException ex) {
+					this.exception = ex;
+				} finally {
+					this.partitionReservations.setFinishing(false);
 				}
-			} catch (RuntimeException ex) {
-				this.exception = ex;
 			}
-		}
-		if (this.exception == null) {
-			commit();
-		} else {
-			rollback();
+			if (this.exception == null) {
+				commit();
+			} else {
+				rollback();
+			}
+		} finally {
+			// the executors are committed or rolled back - none of them is in flight any longer, the parts read of
+			// the other entities may be outdated by the commit, and the partitions vacated by the root mutation
+			// nobody entered again are gone
+			this.inFlightExecutors = null;
+			this.foreignStorageParts = null;
+			this.partitionReservations.clear();
 		}
 	}
 

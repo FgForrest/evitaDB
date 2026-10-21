@@ -1387,10 +1387,10 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertFalse(categoryHierarchy.get("sideMenu").isEmpty());
 		// each output name is deserialized with the `entityFetch` of the constraint that declared it - `megaMenu`
 		// asked for a body with attributes, `sideMenu` asked for nothing but the reference
-		final EntityClassifier megaMenuEntity = categoryHierarchy.get("megaMenu").get(0).entity();
+		final EntityClassifier megaMenuEntity = categoryHierarchy.get("megaMenu").getFirst().entity();
 		assertInstanceOf(SealedEntity.class, megaMenuEntity);
 		assertTrue(((SealedEntity) megaMenuEntity).getAttributeValue(ATTRIBUTE_CODE).isPresent());
-		assertInstanceOf(EntityReference.class, categoryHierarchy.get("sideMenu").get(0).entity());
+		assertInstanceOf(EntityReference.class, categoryHierarchy.get("sideMenu").getFirst().entity());
 	}
 
 	/**
@@ -1424,10 +1424,10 @@ class EvitaClientReadOnlyTest implements TestConstants, EvitaTestSupport {
 		assertNotNull(hierarchy);
 		assertFalse(hierarchy.getSelfHierarchy("megaMenu").isEmpty());
 		assertFalse(hierarchy.getSelfHierarchy("sideMenu").isEmpty());
-		final EntityClassifier megaMenuEntity = hierarchy.getSelfHierarchy("megaMenu").get(0).entity();
+		final EntityClassifier megaMenuEntity = hierarchy.getSelfHierarchy("megaMenu").getFirst().entity();
 		assertInstanceOf(SealedEntity.class, megaMenuEntity);
 		assertTrue(((SealedEntity) megaMenuEntity).getAttributeValue(ATTRIBUTE_CODE).isPresent());
-		assertInstanceOf(EntityReference.class, hierarchy.getSelfHierarchy("sideMenu").get(0).entity());
+		assertInstanceOf(EntityReference.class, hierarchy.getSelfHierarchy("sideMenu").getFirst().entity());
 	}
 
 	/**

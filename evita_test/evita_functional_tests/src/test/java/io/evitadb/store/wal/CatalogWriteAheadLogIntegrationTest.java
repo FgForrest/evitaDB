@@ -418,7 +418,7 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 			final TransactionMutation transactionMutation = (TransactionMutation) mutation;
 			final List<Mutation> mutationsInTx = txInMutations.get(transactionMutation.getVersion());
 			assertTransactionMutationEquals(
-				(TransactionMutation) mutationsInTx.get(0),
+				(TransactionMutation) mutationsInTx.getFirst(),
 				transactionMutation
 			);
 			for (int i = 0; i < transactionMutation.getMutationCount(); i++) {
@@ -813,7 +813,7 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 					try (
 						final Stream<CatalogBoundMutation> stream = CatalogWriteAheadLogIntegrationTest.this.wal
 							.getCommittedLiveMutationStream(
-								(long) transactionSizes.length, (long) transactionSizes.length,
+								transactionSizes.length, transactionSizes.length,
 								VersionSource.INTERNAL
 							)
 					) {
@@ -1124,7 +1124,7 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 				final List<Mutation> mutations = txInMutations.get((long) i);
 				final List<Mutation> nextMutations = txInMutations.get((long) i + 1);
 				final TransactionMutationWithLocation transactionMutation =
-					(TransactionMutationWithLocation) mutations.get(0);
+					(TransactionMutationWithLocation) mutations.getFirst();
 				final Optional<TransactionMutationWithWalFileReference> txId = CatalogWriteAheadLogIntegrationTest.this.wal.getFirstNonProcessedTransaction(
 					new LogFileRecordReference(
 						index -> CatalogPersistenceService.getWalFileName(TEST_CATALOG, index),
@@ -1134,13 +1134,13 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 					)
 				);
 				assertTrue(txId.isPresent());
-				assertInstanceOf(TransactionMutation.class, nextMutations.get(0));
-				assertTransactionMutationEquals((TransactionMutation) nextMutations.get(0), txId.get().transactionMutation());
+				assertInstanceOf(TransactionMutation.class, nextMutations.getFirst());
+				assertTransactionMutationEquals((TransactionMutation) nextMutations.getFirst(), txId.get().transactionMutation());
 			}
 
 			// last transaction must return empty value (there is no next transaction to transition to)
 			final List<Mutation> mutations = txInMutations.get((long) aFewTransactions.length);
-			final TransactionMutationWithLocation transactionMutation = (TransactionMutationWithLocation) mutations.get(0);
+			final TransactionMutationWithLocation transactionMutation = (TransactionMutationWithLocation) mutations.getFirst();
 			final Optional<TransactionMutationWithWalFileReference> txId = CatalogWriteAheadLogIntegrationTest.this.wal.getFirstNonProcessedTransaction(
 				new LogFileRecordReference(
 					index -> CatalogPersistenceService.getWalFileName(TEST_CATALOG, index),
@@ -1189,7 +1189,7 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 			);
 
 			final TransactionMutationWithLocation tx2Location =
-				(TransactionMutationWithLocation) txInMutations.get(2L).get(0);
+				(TransactionMutationWithLocation) txInMutations.get(2L).getFirst();
 			final long tx2Start = tx2Location.getTransactionSpan().startingPosition();
 
 			// lie about transaction 2's declared content length so the coarse length pre-check is satisfied by a
@@ -1246,7 +1246,7 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 			);
 
 			final TransactionMutationWithLocation tx2Location =
-				(TransactionMutationWithLocation) txInMutations.get(2L).get(0);
+				(TransactionMutationWithLocation) txInMutations.get(2L).getFirst();
 			final long tx2Start = tx2Location.getTransactionSpan().startingPosition();
 			falsifyContentLengthPrefix(tx2Start);
 			truncateWalFileTo(
@@ -1378,7 +1378,7 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 			final Map<Long, List<Mutation>> txInMutations = writeWal(
 				CatalogWriteAheadLogIntegrationTest.this.bigOffHeapMemoryManager, txSizes
 			);
-			return (TransactionMutationWithLocation) txInMutations.get((long) txSizes.length).get(0);
+			return (TransactionMutationWithLocation) txInMutations.get((long) txSizes.length).getFirst();
 		}
 
 		@Test
@@ -1456,7 +1456,7 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 
 			// only one call would occur with the latest version possible
 			assertEquals(1, CatalogWriteAheadLogIntegrationTest.this.offsetConsumer.getCatalogVersions().size());
-			assertEquals(3, CatalogWriteAheadLogIntegrationTest.this.offsetConsumer.getCatalogVersions().get(0));
+			assertEquals(3, CatalogWriteAheadLogIntegrationTest.this.offsetConsumer.getCatalogVersions().getFirst());
 		}
 	}
 
@@ -1539,7 +1539,7 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 				while (it.hasNext()) {
 					final TransactionMutation txMutation = assertInstanceOf(TransactionMutation.class, it.next());
 					final List<Mutation> written = txInMutations.get(txMutation.getVersion());
-					assertTransactionMutationEquals((TransactionMutation) written.get(0), txMutation);
+					assertTransactionMutationEquals((TransactionMutation) written.getFirst(), txMutation);
 					for (int i = 1; i <= txMutation.getMutationCount(); i++) {
 						assertEquals(written.get(i), it.next(), "Mutation " + i + " of transaction " + txMutation.getVersion());
 					}
@@ -1547,7 +1547,7 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 				}
 			}
 			assertEquals(TRANSACTION_COUNT, deliveredVersions.size());
-			assertEquals(TRANSACTION_COUNT, deliveredVersions.get(deliveredVersions.size() - 1));
+			assertEquals(TRANSACTION_COUNT, deliveredVersions.getLast());
 
 			// the greedy read CDC catches up with must not end early either - it turns every failure into an end
 			try (final Stream<CatalogBoundMutation> stream = outer.wal.getCommittedMutationStream(1L)) {
@@ -1608,7 +1608,7 @@ public class CatalogWriteAheadLogIntegrationTest implements EvitaTestSupport {
 						firstTimestamp.plusSeconds(i)
 					);
 					outer.wal.append(txMutation, walReference);
-					mutations.add(0, txMutation);
+					mutations.addFirst(txMutation);
 				} finally {
 					isolatedWal.close();
 				}

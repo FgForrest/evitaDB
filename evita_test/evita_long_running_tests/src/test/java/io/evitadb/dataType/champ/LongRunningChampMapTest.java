@@ -157,7 +157,7 @@ class LongRunningChampMapTest implements TimeBoundedTestSupport {
 				final List<Snapshot> nextRetained = new ArrayList<>(retained);
 				nextRetained.add(new Snapshot(map, new HashMap<>(oracle)));
 				while (nextRetained.size() > RETAINED_SNAPSHOTS) {
-					nextRetained.remove(0);
+					nextRetained.removeFirst();
 				}
 
 				return new TestState(code, map, oracle, nextRetained);

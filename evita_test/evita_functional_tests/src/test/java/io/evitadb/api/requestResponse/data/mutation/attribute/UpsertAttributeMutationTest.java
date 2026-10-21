@@ -26,12 +26,12 @@ package io.evitadb.api.requestResponse.data.mutation.attribute;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeValue;
 import io.evitadb.api.requestResponse.data.mutation.AbstractMutationTest;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
@@ -42,7 +42,6 @@ import org.junit.jupiter.api.Tag;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
@@ -192,16 +191,20 @@ class UpsertAttributeMutationTest extends AbstractMutationTest {
 	}
 
 	@Test
-	@DisplayName("should reject a moment evitaDB cannot represent")
-	void shouldRejectUnrepresentableMoment() {
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> new UpsertAttributeMutation(new AttributeKey("validity"), LocalDateTime.MAX)
+	@DisplayName("should clamp a moment beyond the representable window to its edge")
+	void shouldClampUnrepresentableMoment() {
+		final UpsertAttributeMutation latest = new UpsertAttributeMutation(
+			new AttributeKey("validity"), LocalDateTime.MAX
 		);
-		assertThrows(
-			EvitaInvalidUsageException.class,
-			() -> new UpsertAttributeMutation(new AttributeKey("validity"), OffsetDateTime.MIN)
+		final UpsertAttributeMutation earliest = new UpsertAttributeMutation(
+			new AttributeKey("validity"), OffsetDateTime.MIN
 		);
+
+		// the declared type is kept, the moment becomes the last / first whole millisecond evitaDB can hold
+		final Instant latestInstant = Instant.ofEpochMilli((Long.MAX_VALUE / 1_000L - 1L) * 1_000L + 999L);
+		final Instant earliestInstant = Instant.ofEpochMilli((Long.MIN_VALUE / 1_000L + 1L) * 1_000L);
+		assertEquals(LocalDateTime.ofInstant(latestInstant, ZoneOffset.UTC), latest.getAttributeValue());
+		assertEquals(OffsetDateTime.ofInstant(earliestInstant, ZoneOffset.MAX), earliest.getAttributeValue());
 	}
 
 	/**

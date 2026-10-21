@@ -74,7 +74,7 @@ class ConflictEmissionGapTest {
 					.toList()
 			);
 			assertEquals(1, keys.size());
-			assertInstanceOf(AttributeDeltaConflictKey.class, keys.get(0));
+			assertInstanceOf(AttributeDeltaConflictKey.class, keys.getFirst());
 		}
 
 		@Test

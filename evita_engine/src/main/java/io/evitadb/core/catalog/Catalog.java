@@ -206,6 +206,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
 import java.util.function.LongSupplier;
@@ -3455,6 +3456,8 @@ public final class Catalog
 	 * @param createEntitySchemaMutation The mutation used to create the entity schema.
 	 * @param catalogSchema              The catalog schema to add the new entity schema to.
 	 * @return The updated catalog schema.
+	 * @throws io.evitadb.api.exception.IdentifierOverflowException when the entity collection primary keys of the
+	 *                                                              catalog are exhausted, before anything changes
 	 */
 	@Nonnull
 	private CatalogSchema createEntitySchema(
@@ -3468,7 +3471,10 @@ public final class Catalog
 			entityType
 		);
 		final long catalogVersion = this.getVersion();
-		final int entityTypePrimaryKey = this.entityTypeSequence.incrementAndGet();
+		final int entityTypePrimaryKey = SequenceService.nextValueOrExhausted(this.entityTypeSequence);
+		if (entityTypePrimaryKey == SequenceService.EXHAUSTED) {
+			throw SequenceService.exhausted(SequenceType.ENTITY_COLLECTION, getName(), null);
+		}
 		final EntityCollectionPersistenceService<StorageDescriptor, EntityCollectionHeader> entityCollectionPersistenceService = this.persistenceService
 			.getOrCreateEntityCollectionPersistenceService(
 				catalogVersion, entityType, entityTypePrimaryKey
@@ -3898,6 +3904,34 @@ public final class Catalog
 		@Override
 		public void removeIndex(@Nonnull CatalogIndexKey entityIndexKey) {
 			throw new GenericEvitaInternalError("Global catalog index is not expected to be removed!");
+		}
+
+		/**
+		 * Catalog indexes are never retired, so there is never a primary key to install one under again.
+		 *
+		 * @throws GenericEvitaInternalError always
+		 */
+		@Nonnull
+		@Override
+		public CatalogIndex installIndex(
+			@Nonnull CatalogIndexKey catalogIndexKey,
+			int primaryKey,
+			@Nonnull IntFunction<CatalogIndex> factory
+		) {
+			throw new GenericEvitaInternalError(
+				"Catalog index `" + catalogIndexKey + "` is not expected to be installed under primary key " +
+					primaryKey + "!"
+			);
+		}
+
+		/**
+		 * Catalog indexes are not addressable by storage primary key, so none is ever allocated for them.
+		 *
+		 * @throws GenericEvitaInternalError always
+		 */
+		@Override
+		public int allocatePartitionPrimaryKey() {
+			throw new GenericEvitaInternalError("Catalog indexes are not expected to allocate primary keys!");
 		}
 
 	}

@@ -83,6 +83,11 @@ public final class ReferenceTypeCardinalityComponent implements IndexComponent {
 	}
 
 	@Override
+	public void announceKeys(@Nonnull EntityIndexManifest manifest) {
+		// the granular cardinality parts are addressed independently of the parent manifest - nothing to announce
+	}
+
+	@Override
 	public void emitPersistedFootprintRemovals(
 		int entityIndexPrimaryKey,
 		@Nonnull TrappedChanges trappedChanges

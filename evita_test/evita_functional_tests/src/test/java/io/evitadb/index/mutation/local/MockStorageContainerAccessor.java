@@ -37,9 +37,11 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.OptionalInt;
+import java.util.Set;
 
 /**
  * This mock object is used in tests to provide container object without necessity to load them from persistent data
@@ -50,6 +52,15 @@ import java.util.OptionalInt;
 class MockStorageContainerAccessor implements WritableEntityStorageContainerAccessor {
 	private final Map<Locale, AttributesStoragePart> localizedAttributesStorageContainer = new HashMap<>();
 	private final Map<AssociatedDataKey, AssociatedDataStoragePart> associatedDataStorageContainer = new HashMap<>();
+	/**
+	 * The accessors {@link #getAccessorOfOtherEntity(int)} hands out, by the primary key of the entity they serve.
+	 */
+	private final Map<Integer, WritableEntityStorageContainerAccessor> accessorsOfOtherEntities = new HashMap<>();
+	/**
+	 * The primary keys of the other entities {@link #isOtherEntityInFlight(int)} reports as mutated by the root
+	 * mutation.
+	 */
+	private final Set<Integer> otherEntitiesInFlight = new HashSet<>();
 	private EntityBodyStoragePart entityStorageContainer;
 	private AttributesStoragePart attributesStorageContainer;
 	private ReferencesStoragePart referencesStorageContainer;
@@ -58,6 +69,44 @@ class MockStorageContainerAccessor implements WritableEntityStorageContainerAcce
 	@Getter private final LocaleWithScope[] addedLocales = new LocaleWithScope[0];
 	@Getter private final LocaleWithScope[] removedLocales = new LocaleWithScope[0];
 	@Getter private int localesIdentityHash;
+
+	/**
+	 * Registers the accessor {@link #getAccessorOfOtherEntity(int)} returns for another entity. The registration
+	 * survives {@link #reset()}, which clears only the containers of the entity this accessor serves itself.
+	 *
+	 * @param entityPrimaryKey the primary key of the other entity
+	 * @param accessor         the accessor serving the other entity
+	 */
+	void registerAccessorOfOtherEntity(int entityPrimaryKey, @Nonnull WritableEntityStorageContainerAccessor accessor) {
+		this.accessorsOfOtherEntities.put(entityPrimaryKey, accessor);
+	}
+
+	/**
+	 * Marks another entity as mutated by the root mutation from now on - see {@link #isOtherEntityInFlight(int)}. The
+	 * mark survives {@link #reset()}, as the registrations of accessors do.
+	 *
+	 * @param entityPrimaryKey the primary key of the other entity
+	 */
+	void markOtherEntityInFlight(int entityPrimaryKey) {
+		this.otherEntitiesInFlight.add(entityPrimaryKey);
+	}
+
+	@Override
+	public boolean isOtherEntityInFlight(int entityPrimaryKey) {
+		return this.otherEntitiesInFlight.contains(entityPrimaryKey);
+	}
+
+	@Nonnull
+	@Override
+	public WritableEntityStorageContainerAccessor getAccessorOfOtherEntity(int entityPrimaryKey) {
+		final WritableEntityStorageContainerAccessor accessor = this.accessorsOfOtherEntities.get(entityPrimaryKey);
+		if (accessor == null) {
+			throw new UnsupportedOperationException(
+				"The mock accessor serves no other entity with primary key " + entityPrimaryKey + "."
+			);
+		}
+		return accessor;
+	}
 
 	@Override
 	public boolean isEntityRemovedEntirely() {

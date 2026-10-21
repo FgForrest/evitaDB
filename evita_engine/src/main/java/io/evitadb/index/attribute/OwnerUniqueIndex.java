@@ -314,7 +314,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	@Nullable
 	@Override
 	public Integer getRecordIdByUniqueValue(@Nonnull Serializable value) {
-		final Bitmap records = this.tree.getRecordsEqualTo((Comparable) toKey(this.normalizer, value));
+		final Bitmap records = this.tree.getRecordsEqualTo(toKey(this.normalizer, value));
 		return records.isEmpty() ? null : records.getFirst();
 	}
 
@@ -569,7 +569,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 *
 	 * Publishing HERE, before every flush rather than only at the commit-merge, is safe for every path because a failed
 	 * flush is never followed by another flush of the same data. This call runs at COLLECT time, before this flush has
-	 * written anything (the baseline-capture pass re-enters the collect path), so it cannot rest on the previous
+	 * written anything, so it cannot rest on the previous
 	 * flush's bytes having landed — and it does not need to. A flush that fails during trunk incorporation SUSPENDS the
 	 * catalog's transaction processing ({@code TransactionManager.suspend}); a flush that fails during warm-up POISONS
 	 * the catalog unpublishable ({@code Catalog.markUnpublishable}), so every later flush of it refuses
@@ -670,7 +670,7 @@ public final class OwnerUniqueIndex extends UniqueIndex {
 	 */
 	@Nullable
 	private Integer getRecordIdByKey(@Nonnull Comparable<?> key) {
-		final Bitmap records = this.tree.getRecordsEqualTo((Comparable) key);
+		final Bitmap records = this.tree.getRecordsEqualTo(key);
 		return records.isEmpty() ? null : records.getFirst();
 	}
 

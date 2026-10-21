@@ -75,7 +75,7 @@ class ConflictResolutionMutationConverterTest {
 	@Nonnull
 	private static LocalCatalogSchemaMutation catalogRoundTrip(@Nonnull LocalCatalogSchemaMutation mutation) {
 		final DelegatingLocalCatalogSchemaMutationConverter converter = DelegatingLocalCatalogSchemaMutationConverter.INSTANCE;
-		return (LocalCatalogSchemaMutation) converter.convert(converter.convert(mutation));
+		return converter.convert(converter.convert(mutation));
 	}
 
 	@Test

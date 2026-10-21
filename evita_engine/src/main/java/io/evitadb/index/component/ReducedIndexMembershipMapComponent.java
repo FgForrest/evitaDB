@@ -56,7 +56,7 @@ import javax.annotation.Nonnull;
  * commit and rollback along with every other sub-index's. This is what puts it into the parent index's
  * single uniform loop rather than into a hand-rolled extra hop.
  *
- * @author Claude (issue #1529 sibling-resolver optimization), FG Forrest a.s. (c) 2026
+ * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 public final class ReducedIndexMembershipMapComponent implements IndexComponent {
 
@@ -83,6 +83,11 @@ public final class ReducedIndexMembershipMapComponent implements IndexComponent 
 	) {
 		// derived state - see the class javadoc. Nothing is written, and nothing is announced into the
 		// manifest, because announcing a key would promise a reload path that reads it back off disk.
+	}
+
+	@Override
+	public void announceKeys(@Nonnull EntityIndexManifest manifest) {
+		// derived state - see the class javadoc and `collectModifiedStorageParts`
 	}
 
 	@Override

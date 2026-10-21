@@ -49,6 +49,7 @@ import java.util.stream.Collectors;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -241,7 +242,7 @@ class CatalogIndexConcurrentWriteTest {
 	 * @param values  how many values the index holds
 	 */
 	private static void assertReading(@Nullable AttributeCardinality reading, int values) {
-		assertTrue(reading != null, "the unique index must be described");
+		assertNotNull(reading, "the unique index must be described");
 		assertEquals(values, reading.distinctValueCount());
 		assertEquals(values, reading.recordsCovered());
 	}

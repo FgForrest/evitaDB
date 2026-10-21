@@ -39,7 +39,7 @@ import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.ClientTlsOptions;
 import io.evitadb.driver.config.ClientTimeoutOptions;
 import io.evitadb.driver.config.EvitaClientConfiguration;
-import io.evitadb.performance.warmupload.CatalogCopySupport;
+import io.evitadb.test.builder.CatalogCopySupport;
 import io.evitadb.test.builder.CopyExistingEntityBuilder;
 
 import javax.annotation.Nonnull;

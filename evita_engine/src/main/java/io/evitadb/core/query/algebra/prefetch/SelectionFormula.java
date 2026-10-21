@@ -349,7 +349,7 @@ public class SelectionFormula extends AbstractFormula
 			return getFilteredPriceRecords(context);
 		}
 		if (exposingAccessors.size() == 1) {
-			return exposingAccessors.get(0).getFilteredPriceRecordsForHistogram(context);
+			return exposingAccessors.getFirst().getFilteredPriceRecordsForHistogram(context);
 		}
 		final PriceRecordContract[] merged = FilteredPriceRecords.mergePerInnerRecordHistogramRecords(
 			exposingAccessors, context

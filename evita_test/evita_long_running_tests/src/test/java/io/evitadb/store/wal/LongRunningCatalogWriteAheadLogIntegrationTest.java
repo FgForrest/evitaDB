@@ -310,7 +310,7 @@ public class LongRunningCatalogWriteAheadLogIntegrationTest implements EvitaTest
 			final TransactionMutation transactionMutation = (TransactionMutation) mutation;
 			final List<Mutation> mutationsInTx = txInMutations.get(transactionMutation.getVersion());
 			assertTransactionMutationEquals(
-				(TransactionMutation) mutationsInTx.get(0),
+				(TransactionMutation) mutationsInTx.getFirst(),
 				transactionMutation
 			);
 			for (int i = 0; i < transactionMutation.getMutationCount(); i++) {

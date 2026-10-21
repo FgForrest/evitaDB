@@ -2482,6 +2482,115 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 			);
 		}
 
+
+		/**
+		 * Removing the collection's last value deletes its source FilterIndex. The remaining reference must
+		 * contribute its `??` default just as a newly written owner would in the same null-valued state.
+		 */
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should restore the default when the last source value is removed")
+		void shouldRestoreDefaultWhenLastSourceValueIsRemoved(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+					session.createNewEntity(ENTITY_PARAMETER, 10)
+						.setAttribute(ATTR_INPUT_WIDGET_TYPE, "INTERVAL")
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.setAttribute(ATTR_BASIC_UNIT_VALUE, new BigDecimal("4"))
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(
+							REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 1,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 10)
+						)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 10,
+						HISTOGRAM_VALUE, new BigDecimal("4"), 1
+					);
+					session.getEntity(ENTITY_PARAMETER_VALUE, 1, entityFetchAllContent())
+						.orElseThrow().openForWrite()
+						.removeAttribute(ATTR_BASIC_UNIT_VALUE)
+						.upsertVia(session);
+
+					assertHistogramBucketNotContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 10,
+						HISTOGRAM_VALUE, new BigDecimal("4"), 1
+					);
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 10,
+						HISTOGRAM_VALUE, BigDecimal.ZERO, 1
+					);
+
+					// removing the only reference must consume exactly the restored default contribution
+					session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+						.orElseThrow().openForWrite()
+						.removeReference(REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 1)
+						.upsertVia(session);
+					assertHistogramNotIndexed(
+						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 10, HISTOGRAM_VALUE, 1
+					);
+				}
+			);
+		}
+
+		/**
+		 * A null-valued reference loses its default when its group stops qualifying. Restoring eligibility
+		 * must re-add that default even when no entity in the source collection has ever had a value.
+		 */
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should restore the default when a group qualifies without a source index")
+		void shouldRestoreDefaultWhenGroupQualifiesWithoutSourceIndex(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+					session.createNewEntity(ENTITY_PARAMETER, 10)
+						.setAttribute(ATTR_INPUT_WIDGET_TYPE, "INTERVAL")
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1).upsertVia(session);
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(
+							REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 1,
+							whichIs -> whichIs.setGroup(ENTITY_PARAMETER, 10)
+						)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+					assertHistogramBucketContains(
+						productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 10,
+						HISTOGRAM_VALUE, BigDecimal.ZERO, 1
+					);
+					// repeat the transition to catch a default counted more than once
+					for (int round = 0; round < 2; round++) {
+						session.getEntity(ENTITY_PARAMETER, 10, entityFetchAllContent())
+							.orElseThrow().openForWrite()
+							.setAttribute(ATTR_INPUT_WIDGET_TYPE, "CHECKBOX")
+							.upsertVia(session);
+						assertHistogramNotIndexed(
+							productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 10, HISTOGRAM_VALUE, 1
+						);
+						session.getEntity(ENTITY_PARAMETER, 10, entityFetchAllContent())
+							.orElseThrow().openForWrite()
+							.setAttribute(ATTR_INPUT_WIDGET_TYPE, "INTERVAL")
+							.upsertVia(session);
+						assertHistogramBucketContains(
+							productCollection, REF_PARAM_BY_GROUP_ATTR_WITH_DEFAULT, 10,
+							HISTOGRAM_VALUE, BigDecimal.ZERO, 1
+						);
+					}
+				}
+			);
+		}
+
 		/**
 		 * The same `??` default as above, but this time the value source is missing because the referenced entity
 		 * itself does not exist yet: `referencedEntity` is `null` while the owner is indexed. When the referenced
@@ -3900,6 +4009,153 @@ class ConditionalBucketIndexingTest implements EvitaTestSupport, IndexingTestSup
 					assertUngroupedLocalizedHistogramBucketContains(
 						productCollection, REF_PARAM_BY_LOCALIZED_ATTR,
 						HISTOGRAM_LOCALIZED, Locale.ENGLISH, new BigDecimal("17.64"), 2
+					);
+				}
+			);
+		}
+
+		/**
+		 * Deleting the last value in one locale must restore its default without duplicating the untouched locale.
+		 */
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should restore a localized default when the last source value is removed")
+		void shouldRestoreLocalizedDefaultWhenLastSourceValueIsRemoved(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+					// keep English on the entity after its last English numeric value is removed
+					session.defineEntitySchema(ENTITY_PARAMETER_VALUE)
+						.withAttribute(ATTR_CODE, String.class, whichIs -> whichIs.localized().nullable())
+						.updateVia(session);
+					session.defineEntitySchema(ENTITY_PRODUCT)
+						.withReferenceToEntity(
+							REF_PARAM_BY_LOCALIZED_ATTR, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
+							whichIs -> whichIs.bucketed(
+								HISTOGRAM_LOCALIZED,
+								ExpressionFactory.parse(
+									"$reference.referencedEntity?.localizedAttributes['localizedWeight'] ?? 0"
+								)
+							)
+						)
+						.updateVia(session);
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.setAttribute(ATTR_CODE, Locale.ENGLISH, "value")
+						.setAttribute(ATTR_LOCALIZED_WEIGHT, Locale.ENGLISH, new BigDecimal("4"))
+						.setAttribute(ATTR_LOCALIZED_WEIGHT, new Locale("cs"), new BigDecimal("50"))
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(REF_PARAM_BY_LOCALIZED_ATTR, 1)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+					assertUngroupedLocalizedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_LOCALIZED_ATTR,
+						HISTOGRAM_LOCALIZED, Locale.ENGLISH, new BigDecimal("4"), 1
+					);
+					session.getEntity(ENTITY_PARAMETER_VALUE, 1, entityFetchAllContent())
+						.orElseThrow().openForWrite()
+						.removeAttribute(ATTR_LOCALIZED_WEIGHT, Locale.ENGLISH)
+						.upsertVia(session);
+					assertUngroupedLocalizedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_LOCALIZED_ATTR,
+						HISTOGRAM_LOCALIZED, Locale.ENGLISH, BigDecimal.ZERO, 1
+					);
+					assertUngroupedLocalizedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_LOCALIZED_ATTR,
+						HISTOGRAM_LOCALIZED, new Locale("cs"), new BigDecimal("50"), 1
+					);
+					session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+						.orElseThrow().openForWrite()
+						.removeReference(REF_PARAM_BY_LOCALIZED_ATTR, 1)
+						.upsertVia(session);
+					assertUngroupedLocalizedHistogramNotIndexed(
+						productCollection, REF_PARAM_BY_LOCALIZED_ATTR, HISTOGRAM_LOCALIZED, Locale.ENGLISH, 1
+					);
+					assertUngroupedLocalizedHistogramNotIndexed(
+						productCollection, REF_PARAM_BY_LOCALIZED_ATTR, HISTOGRAM_LOCALIZED, new Locale("cs"), 1
+					);
+				}
+			);
+		}
+
+		/**
+		 * An absent locale-specific FilterIndex must not hide defaults when a cross-entity condition becomes true.
+		 */
+		@ParameterizedTest(name = "catalog state: {0}")
+		@EnumSource(value = CatalogState.class, names = {"WARMING_UP", "ALIVE"})
+		@DisplayName("Should restore a localized default when the condition qualifies without a source index")
+		void shouldRestoreLocalizedDefaultWhenConditionQualifiesWithoutSourceIndex(CatalogState state) {
+			withCatalogInState(
+				state,
+				session -> {
+					defineConditionalBucketSchema(session);
+					// keep English on the entity after its last English numeric value is removed
+					session.defineEntitySchema(ENTITY_PARAMETER_VALUE)
+						.withAttribute(ATTR_CODE, String.class, whichIs -> whichIs.localized().nullable())
+						.updateVia(session);
+					session.defineEntitySchema(ENTITY_PRODUCT)
+						.withReferenceToEntity(
+							REF_PARAM_BY_LOCALIZED_ATTR, ENTITY_PARAMETER_VALUE, Cardinality.ZERO_OR_MORE,
+							whichIs -> whichIs.bucketed(
+								HISTOGRAM_LOCALIZED,
+								ExpressionFactory.parse(
+									"$reference.referencedEntity?.localizedAttributes['localizedWeight'] ?? 0"
+								)
+							)
+						)
+						.updateVia(session);
+					session.createNewEntity(ENTITY_PARAMETER_VALUE, 1)
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.setAttribute(ATTR_CODE, Locale.ENGLISH, "value")
+						.setAttribute(ATTR_LOCALIZED_WEIGHT, Locale.ENGLISH, new BigDecimal("4"))
+						.setAttribute(ATTR_LOCALIZED_WEIGHT, new Locale("cs"), new BigDecimal("50"))
+						.upsertVia(session);
+					session.getEntity(ENTITY_PARAMETER_VALUE, 1, entityFetchAllContent())
+						.orElseThrow().openForWrite()
+						.removeAttribute(ATTR_LOCALIZED_WEIGHT, Locale.ENGLISH)
+						.upsertVia(session);
+					session.createNewEntity(ENTITY_PRODUCT, 1)
+						.setReference(REF_PARAM_BY_LOCALIZED_ATTR, 1)
+						.upsertVia(session);
+				},
+				session -> {
+					final EntityCollectionContract productCollection = getProductCollection();
+					assertUngroupedLocalizedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_LOCALIZED_ATTR,
+						HISTOGRAM_LOCALIZED, Locale.ENGLISH, BigDecimal.ZERO, 1
+					);
+					session.getEntity(ENTITY_PARAMETER_VALUE, 1, entityFetchAllContent())
+						.orElseThrow().openForWrite()
+						.setAttribute(ATTR_STATUS, "INACTIVE")
+						.upsertVia(session);
+					assertUngroupedLocalizedHistogramNotIndexed(
+						productCollection, REF_PARAM_BY_LOCALIZED_ATTR, HISTOGRAM_LOCALIZED, Locale.ENGLISH, 1
+					);
+					session.getEntity(ENTITY_PARAMETER_VALUE, 1, entityFetchAllContent())
+						.orElseThrow().openForWrite()
+						.setAttribute(ATTR_STATUS, "ACTIVE")
+						.upsertVia(session);
+					assertUngroupedLocalizedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_LOCALIZED_ATTR,
+						HISTOGRAM_LOCALIZED, Locale.ENGLISH, BigDecimal.ZERO, 1
+					);
+					assertUngroupedLocalizedHistogramBucketContains(
+						productCollection, REF_PARAM_BY_LOCALIZED_ATTR,
+						HISTOGRAM_LOCALIZED, new Locale("cs"), new BigDecimal("50"), 1
+					);
+					session.getEntity(ENTITY_PRODUCT, 1, entityFetchAllContent())
+						.orElseThrow().openForWrite()
+						.removeReference(REF_PARAM_BY_LOCALIZED_ATTR, 1)
+						.upsertVia(session);
+					assertUngroupedLocalizedHistogramNotIndexed(
+						productCollection, REF_PARAM_BY_LOCALIZED_ATTR, HISTOGRAM_LOCALIZED, Locale.ENGLISH, 1
+					);
+					assertUngroupedLocalizedHistogramNotIndexed(
+						productCollection, REF_PARAM_BY_LOCALIZED_ATTR, HISTOGRAM_LOCALIZED, new Locale("cs"), 1
 					);
 				}
 			);

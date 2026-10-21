@@ -1260,7 +1260,7 @@ class ReflectedReferenceSchemaTest {
 				NamingConvention.generate("Product"),
 				null, null,
 				null,
-				true, false, (Set<Scope>) null, false, (Set<Scope>) null, 2,
+				true, false, null, false, (Set<Scope>) null, 2,
 				Collections.emptySet(), Collections.emptySet(),
 				Collections.emptyMap(), Collections.emptyMap(),
 				Map.of("productRef", originalReference),

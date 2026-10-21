@@ -240,8 +240,8 @@ class PriceListAndCurrencyPriceSuperIndexPagingTest {
 
 		final List<StoragePart> parts = flush(index);
 		assertEquals(1, parts.size(), "a SINGLE index emits exactly the one inline root part");
-		assertInstanceOf(PriceListAndCurrencySuperIndexStoragePart.class, parts.get(0), "the single part is the root");
-		final PriceListAndCurrencySuperIndexStoragePart root = (PriceListAndCurrencySuperIndexStoragePart) parts.get(0);
+		assertInstanceOf(PriceListAndCurrencySuperIndexStoragePart.class, parts.getFirst(), "the single part is the root");
+		final PriceListAndCurrencySuperIndexStoragePart root = (PriceListAndCurrencySuperIndexStoragePart) parts.getFirst();
 		assertFalse(root.isPaged(), "the root is the inline SINGLE shape");
 		assertEquals(10, root.getPriceRecords().length, "a SINGLE root carries every record inline");
 	}

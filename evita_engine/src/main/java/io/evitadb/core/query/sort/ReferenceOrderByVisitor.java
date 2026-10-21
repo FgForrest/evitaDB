@@ -72,10 +72,12 @@ import io.evitadb.core.query.sort.translator.OrderInScopeTranslator;
 import io.evitadb.core.query.sort.translator.ReferenceOrderingConstraintTranslator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.EntityIndex;
-import io.evitadb.index.EntityIndexKey;
-import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.core.query.sort.reference.sorter.VirtualPartitionSortedRecords;
+import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.VirtualReferencePartition;
+import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.ChainIndex;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
@@ -89,6 +91,7 @@ import javax.annotation.Nullable;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -139,8 +142,8 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	 */
 	private final AttributeSchemaAccessor attributeSchemaAccessor;
 	/**
-	 * Pre-initialized comparator initialized during entity filtering (if it's performed) allowing to order references
-	 * by sorter defined on referenced entity (requiring nested query).
+	 * Comparator allowing to order references by sorter defined on referenced entity (requiring nested query). The
+	 * fetch of the references initializes its sorters (and sets the locale of the reference filter) before it is used.
 	 */
 	private EntityNestedQueryComparator nestedQueryComparator;
 	/**
@@ -157,7 +160,7 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	 * The last retrieved chain index used in processing and determining the position of the chain in the reference order.
 	 * This variable is internally updated during the traversal and comparison of constraints.
 	 */
-	@Nullable private ChainIndex lastRetrievedChainIndex;
+	@Nullable private SortedRecordsSupplierFactory lastRetrievedChainIndex;
 	/**
 	 * Contemporary stack for scopes used on each level of the ordering query tree.
 	 */
@@ -327,7 +330,10 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	}
 
 	/**
-	 * Retrieves the {@link ChainIndex} associated with the given entity primary key, {@link ReferenceKey}, and {@link AttributeKey}.
+	 * Retrieves the chain ({@link ChainIndex} of a materialized partition, the singleton chain of a virtual one)
+	 * associated with the given entity primary key, {@link ReferenceKey}, and {@link AttributeKey}. The partition is
+	 * resolved by its key through the memo of the query (see {@link io.evitadb.index.PartitionKeyMemo}), so a query
+	 * resolving the chains of many owners sharing one target builds the registered partitions of the target once.
 	 * The method employs caching mechanisms to improve performance by reusing previously retrieved results when the parameters match.
 	 *
 	 * The chain index is retrieved from the query context based on the reference schema and entity schema. If the reference schema
@@ -338,10 +344,10 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 	 * @param entityPrimaryKey the primary key of the entity for which the chain index is being requested. May be null.
 	 * @param referenceKey the key representing the reference under which the chain index is categorized.
 	 * @param attributeKey the key representing the attribute for which the chain index is requested.
-	 * @return an {@link Optional} containing the {@link ChainIndex} if found, or an empty {@link Optional} if not found.
+	 * @return an {@link Optional} containing the chain if found, or an empty {@link Optional} if not found.
 	 */
 	@Nonnull
-	public Optional<ChainIndex> getChainIndex(
+	public Optional<SortedRecordsSupplierFactory> getChainIndex(
 		@Nullable Integer entityPrimaryKey,
 		@Nonnull RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeKey attributeKey
@@ -383,23 +389,19 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 				HavingTranslatorHelper.assertEntityComponentIndexed(
 					targetEntitySchema, targetReferenceSchema, scope, EnumSet.of(scope)
 				);
-				// get the index from the referenced entity collection using inverted key specification
-				final Optional<ChainIndex> chainIndex = this.queryContext.getEntityIndex(
-					this.referenceSchema.getReferencedEntityType(),
-					new EntityIndexKey(
-						EntityIndexType.REFERENCED_ENTITY,
-						scope,
-						// this would fail if the entity primary key is null, but it should never happen, and if so, exception is thrown
-						theLookupReferenceKey
-					),
-					EntityIndex.class
-				).map(
-					it -> it.getChainIndex(
-						targetReferenceSchema,
-						targetReferenceSchema.getAttribute(attributeKey.attributeName())
-							.orElseThrow(() -> new AttributeNotFoundException(attributeKey.attributeName(), this.referenceSchema, this.getSchema())),
-						attributeKey.locale()
+				// get the partition from the referenced entity collection using inverted key specification - read
+				// through the memo of the query
+				final AttributeSchemaContract targetAttributeSchema = targetReferenceSchema
+					.getAttribute(attributeKey.attributeName())
+					.orElseThrow(() -> new AttributeNotFoundException(
+						attributeKey.attributeName(), this.referenceSchema, this.getSchema()
+					));
+				final Optional<SortedRecordsSupplierFactory> chainIndex = Optional.ofNullable(
+					this.queryContext.resolvePartitionForReadIfExists(
+						this.referenceSchema.getReferencedEntityType(), scope, theLookupReferenceKey
 					)
+				).map(
+					it -> getChainOfPartition(it, targetReferenceSchema, targetAttributeSchema, attributeKey.locale())
 				);
 				// cache the result for future use
 				this.lastRetrievedChainIndexKey = new LastRetrievedChainIndexKey(
@@ -430,21 +432,19 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 				HavingTranslatorHelper.assertEntityComponentIndexed(
 					this.getSchema(), this.referenceSchema, scope, EnumSet.of(scope)
 				);
-				// get the index from this entity collection using the reference key
-				final Optional<ChainIndex> chainIndex = this.queryContext.getIndexIfExists(
-					new EntityIndexKey(
-						EntityIndexType.REFERENCED_ENTITY,
-						scope,
-						referenceKey
-					),
-					ReducedEntityIndex.class
+				// get the partition from this entity collection using the reference key, through the memo of the query
+				final AttributeSchemaContract attributeSchema = this.referenceSchema
+					.getAttribute(attributeKey.attributeName())
+					.orElseThrow(() -> new AttributeNotFoundException(
+						attributeKey.attributeName(), this.referenceSchema, this.getSchema()
+					));
+				final String entityType = this.queryContext.getEntityType();
+				final Optional<SortedRecordsSupplierFactory> chainIndex = Optional.ofNullable(
+					entityType == null ?
+						this.queryContext.resolvePartitionIfExists(scope, referenceKey) :
+						this.queryContext.resolvePartitionForReadIfExists(entityType, scope, referenceKey)
 				).map(
-					it -> it.getChainIndex(
-						this.referenceSchema,
-						this.referenceSchema.getAttribute(attributeKey.attributeName())
-							.orElseThrow(() -> new AttributeNotFoundException(attributeKey.attributeName(), this.referenceSchema, this.getSchema())),
-						attributeKey.locale()
-					)
+					it -> getChainOfPartition(it, this.referenceSchema, attributeSchema, attributeKey.locale())
 				);
 				// cache the result for future use
 				this.lastRetrievedChainIndexKey = new LastRetrievedChainIndexKey(referenceKey, attributeKey);
@@ -452,6 +452,36 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 				return chainIndex;
 			}
 		}
+	}
+
+	/**
+	 * Returns the chain of the attribute in the partition: the chain index of a materialized partition, the singleton
+	 * chain read out of the registry row of a virtual one (see {@link VirtualPartitionSortedRecords#ofChainFactory}) -
+	 * one `O(log n)` registry lookup. The chain of a partition is keyed by the referenced entity for a
+	 * `ReferencedEntityPredecessor` of the reference of the partition's collection, by the owner otherwise.
+	 *
+	 * @param partition       the partition
+	 * @param referenceSchema the reference of the partition's collection
+	 * @param attributeSchema the chained attribute of that reference
+	 * @param locale          the locale of the chain, `null` for a non-localized one
+	 * @return the chain, or `null` when the partition is not chained under the attribute
+	 */
+	@Nullable
+	private SortedRecordsSupplierFactory getChainOfPartition(
+		@Nonnull ReferencePartition partition,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nullable Locale locale
+	) {
+		return switch (partition) {
+			case ReducedEntityIndex reducedEntityIndex ->
+				reducedEntityIndex.getChainIndex(referenceSchema, attributeSchema, locale);
+			case VirtualReferencePartition virtualPartition -> VirtualPartitionSortedRecords.ofChainFactory(
+				virtualPartition,
+				AttributeIndex.createAttributeKey(referenceSchema, attributeSchema, locale),
+				ReferencedEntityPredecessor.class.equals(attributeSchema.getPlainType())
+			);
+		};
 	}
 
 	/**

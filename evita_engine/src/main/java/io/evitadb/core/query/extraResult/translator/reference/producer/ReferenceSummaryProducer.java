@@ -571,7 +571,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		if (entityIds.isEmpty()) {
 			return EmptyBitmap.INSTANCE;
 		} else if (entityIds.size() == 1) {
-			return entityIds.get(0);
+			return entityIds.getFirst();
 		} else {
 			return new BaseBitmap(
 				PersistentRoaringBitmap.or(
@@ -739,7 +739,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		if (this.defaultRequest == null || requests.isEmpty()) {
 			return null;
 		}
-		return buildFromDefault(requests.get(0).referenceSchema(), new AtomicInteger());
+		return buildFromDefault(requests.getFirst().referenceSchema(), new AtomicInteger());
 	}
 
 	/**
@@ -873,7 +873,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		) {
 			final List<GroupAccumulator> accs = entry.getValue();
 			// Collectors.groupingBy never emits an empty bucket, so accs.get(0) matches the original findFirst() semantics
-			final GroupAccumulator groupAcc = accs.get(0);
+			final GroupAccumulator groupAcc = accs.getFirst();
 			// single pass: size the buffer optimistically and trim only if nulls were skipped
 			final int[] buffer = new int[accs.size()];
 			int count = 0;
@@ -908,7 +908,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		) {
 			final List<GroupAccumulator> accs = entry.getValue();
 			// Collectors.groupingBy never emits an empty bucket, so accs.get(0) matches the original findFirst() semantics
-			final GroupAccumulator groupAcc = accs.get(0);
+			final GroupAccumulator groupAcc = accs.getFirst();
 			// collect distinct facet ids as primitives to avoid the Stream#distinct auto-boxing pipeline
 			final IntHashSet distinctFacetIds = new IntHashSet(32);
 			for (GroupAccumulator acc : accs) {

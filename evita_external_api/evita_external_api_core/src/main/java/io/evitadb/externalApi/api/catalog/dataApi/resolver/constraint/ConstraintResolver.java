@@ -412,7 +412,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 	 */
 	@Nullable
 	private Object extractFromArgumentFromWrapperRange(@Nonnull ParsedConstraintDescriptor parsedConstraintDescriptor, @Nonnull Object value) {
-		return extractRangeFromWrapperRange(parsedConstraintDescriptor, value).get(0);
+		return extractRangeFromWrapperRange(parsedConstraintDescriptor, value).getFirst();
 	}
 
 	/**
@@ -708,7 +708,7 @@ public abstract class ConstraintResolver<C extends Constraint<?>> {
 					);
 				}
 
-				return !children.isEmpty() ? children.get(0) : null;
+				return !children.isEmpty() ? children.getFirst() : null;
 			} else {
 				Assert.isPremiseValid(
 					getWrapperContainer().isPresent(),

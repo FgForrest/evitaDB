@@ -29,6 +29,7 @@ import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
+import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
@@ -49,10 +50,8 @@ import io.evitadb.core.query.algebra.reference.ReferencedEntityIndexPrimaryKeyTr
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
+import io.evitadb.core.query.filter.VirtualPartitionRows;
 import io.evitadb.core.query.filter.NegationResolution;
-import io.evitadb.core.query.filter.NestedQueryRestriction;
-import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator;
-import io.evitadb.core.query.sort.entity.comparator.EntityNestedQueryComparator.EntityPropertyWithScopes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.AbstractReducedEntityIndex;
@@ -62,6 +61,7 @@ import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
+import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -86,7 +86,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -238,80 +237,34 @@ public class HavingTranslatorHelper {
 		if (globalIndexes.isEmpty()) {
 			return List.of(new GlobalIndexAndFormula(null, EmptyFormula.INSTANCE));
 		} else {
-			// the restriction is a set of primary keys, and primary keys only mean anything inside one collection -
-			// so it narrows the nested query it was built for and passes every other one through untouched. The
-			// `groupHaving` route arrives here with the reference's *group* type, whose keys live in an unrelated
-			// universe, and would otherwise be intersected with the referenced entities' keys and come out empty
-			final NestedQueryRestriction restriction = processingScope.getNestedQueryRestriction();
-			final FilterConstraint enrichedConstraint = restriction == null ?
-				filter :
-				restriction.applyTo(
-					processingScope.getReferenceSchema() == null ?
-						null : processingScope.getReferenceSchema().getName(),
-					targetEntityType,
-					filter
-				);
-			final FilterBy combinedFilterBy = enrichedConstraint instanceof FilterBy fb ?
-				fb : new FilterBy(enrichedConstraint);
-			final Optional<EntityNestedQueryComparator> entityNestedQueryComparator =
-				ofNullable(processingScope.getEntityNestedQueryComparator());
-
 			return globalIndexes
 				.stream()
 				.map(globalIndex -> new GlobalIndexAndFormula(
 						globalIndex,
 						filterByVisitor.computeOnlyOnce(
 							Collections.singletonList(globalIndex),
-							combinedFilterBy,
+							nestedFilterBy,
 							() -> {
 								// ordered - a unique lookup in the nested query prefers the scope its `scope(...)` lists first
 								final Set<Scope> targetedScopes = CollectionUtils.createLinkedHashSet(4);
 								Collections.addAll(
 									targetedScopes,
-									ofNullable(
-										QueryUtils.findConstraint(
-											combinedFilterBy, EntityScope.class,
-											SeparateEntityScopeContainer.class
-										)
-									).map(EntityScope::getScopesInRequestedOrder)
+									ofNullable(nestedScope).map(EntityScope::getScopesInRequestedOrder)
 										.orElseGet(() -> new Scope[]{
 											globalIndex.getIndexKey().scope()
 										})
 								);
-								final QueryPlanningContext nestedQueryContext = entityNestedQueryComparator
-									.map(it -> {
-										final Optional<EntityPropertyWithScopes> orderBy =
-											ofNullable(it.getOrderBy());
-										orderBy.ifPresent(
-											ob -> targetedScopes.addAll(ob.scopes())
-										);
-										return targetEntityCollection.createQueryContext(
-											filterByVisitor.getQueryContext(),
-											filterByVisitor.getEvitaRequest().deriveCopyWith(
-												targetEntityType,
-												combinedFilterBy,
-												orderBy
-													.map(EntityPropertyWithScopes::createStandaloneOrderBy)
-													.orElse(null),
-												it.getLocale(),
-												targetedScopes
-											),
-											filterByVisitor.getEvitaSession()
-										);
-									})
-									.orElseGet(
-										() -> targetEntityCollection.createQueryContext(
-											filterByVisitor.getQueryContext(),
-											filterByVisitor.getEvitaRequest().deriveCopyWith(
-												targetEntityType,
-												combinedFilterBy,
-												null,
-												null,
-												targetedScopes
-											),
-											filterByVisitor.getEvitaSession()
-										)
-									);
+								final QueryPlanningContext nestedQueryContext = targetEntityCollection.createQueryContext(
+									filterByVisitor.getQueryContext(),
+									filterByVisitor.getEvitaRequest().deriveCopyWith(
+										targetEntityType,
+										nestedFilterBy,
+										null,
+										null,
+										targetedScopes
+									),
+									filterByVisitor.getEvitaSession()
+								);
 
 								return QueryPlanner.planNestedQuery(
 									nestedQueryContext, taskDescriptionSupplier
@@ -419,7 +372,7 @@ public class HavingTranslatorHelper {
 	 * the passed scope, and refuses the lookup that is about to read it when it does not.
 	 *
 	 * Every query path over a reference - `referenceHaving` (including under `not`), `hierarchyWithin`,
-	 * `hierarchyOfReference`, `referenceContent` with a filter or with an ordering by a predecessor attribute,
+	 * `hierarchyOfReference`, `referenceContent` with an ordering by a predecessor attribute,
 	 * `referenceProperty` ordering, the histograms of `referenceSummaryOfReference` and `histogramHaving`, which is
 	 * rewritten into a `referenceHaving` - reads the reduced entity indexes, and only the entity component builds them.
 	 * A scope indexed for {@link ReferenceIndexedComponents#REFERENCED_GROUP_ENTITY} alone, or with no component at
@@ -429,7 +382,7 @@ public class HavingTranslatorHelper {
 	 * catalog stored before the rule existed still carries it and reaches this guard.
 	 *
 	 * The guard is called where the entity index family is looked up - `FilterByVisitor#getReducedIndexPrimaryKeyFormula`,
-	 * `QueryPlanningContext#getReducedEntityIndexes`, the chain-index lookup of `ReferenceOrderByVisitor` and the
+	 * `QueryPlanningContext#resolvePartitionsOfTarget`, the chain-index lookup of `ReferenceOrderByVisitor` and the
 	 * type-index lookup of `ReferenceHistogramAccumulator` - rather than once per constraint, so that no path reading
 	 * the family can bypass it; `ReferencePropertyTranslator` checks every ordered scope up front, because it may be
 	 * handed a reduced index set that index selection narrowed with `inScope(...)` and never look the family up at
@@ -726,23 +679,29 @@ public class HavingTranslatorHelper {
 							// and a far smaller one than the whole family, which every later per-index step
 							// multiplies. When the returned set IS the answer (strict mode), the unrestricted set
 							// is kept, exactly as before.
-							case REFERENCED_GROUP_ENTITY_TYPE -> FormulaFactory.or(
-								processingScope
-									.getIndexStream()
-									.filter(it -> processingScope.getScopes().contains(it.getIndexKey().scope()))
-									.map(ReferencedTypeEntityIndex.class::cast)
-									.map(
-										it -> processingScope.getNegationResolution() == NegationResolution.PER_ROW ?
-											groupNarrowedReducedIndexPksFormula(
-												it,
-												getGroupRowLookup(
-													filterByVisitor, entitySchema, referenceSchema, nestedResult
-												)
-											) :
-											allReducedIndexPksFormula(it)
-									)
-									.toArray(Formula[]::new)
-							);
+							case REFERENCED_GROUP_ENTITY_TYPE -> processingScope.getVirtualPartitionRows() != null ?
+								// rows of single-owner partitions answered exactly - each looked up among the reduced
+								// group indexes of the matching groups, as its reduced entity index would be
+								getGroupRowLookup(filterByVisitor, entitySchema, referenceSchema, nestedResult)
+									.selectMatchingRows(processingScope.getVirtualPartitionRows()) :
+								FormulaFactory.or(
+									processingScope
+										.getIndexStream()
+										.filter(it -> processingScope.getScopes().contains(it.getIndexKey().scope()))
+										.map(ReferencedTypeEntityIndex.class::cast)
+										.map(
+											it -> processingScope.getNegationResolution() ==
+												NegationResolution.PER_ROW ?
+												groupNarrowedReducedIndexPksFormula(
+													it,
+													getGroupRowLookup(
+														filterByVisitor, entitySchema, referenceSchema, nestedResult
+													)
+												) :
+												allReducedIndexPksFormula(it)
+										)
+										.toArray(Formula[]::new)
+								);
 							case REFERENCED_ENTITY_TYPE -> FormulaFactory.or(
 								processingScope
 									.getIndexStream()
@@ -797,13 +756,10 @@ public class HavingTranslatorHelper {
 						// branch above exists to avoid. A `not` around it then complements an owner-level set and
 						// answers "this owner references nothing matching", dropping every owner holding a matching
 						// row AND a non-matching one.
-						// the guard names the ABSTRACT class deliberately, and narrowing it to `ReducedEntityIndex`
-						// silently reopens the defect on the fetch path: `ReferenceHavingTranslator` declares its
-						// scope as `ReducedEntityIndex`, but `ReferencedEntityFetcher#computeResultWithPassedIndex`
-						// declares the superclass - it may legitimately be handed a group index - even though the
-						// index it passes is a reduced entity one. Which rows survive a filtered `referenceContent`
-						// is decided here too, so both scopes have to reach this branch. Dispatching on the actual
-						// indexes rather than on the declared class is what the filter below does.
+						// the guard names the ABSTRACT class deliberately: a scope declared with the superclass must
+						// reach this branch too, and `ReducedEntityIndex.class.isAssignableFrom(...)` of the
+						// superclass is FALSE. Dispatching on the actual indexes rather than on the declared class is
+						// what the filter below does.
 						if (nestedResult.globalIndex() == null) {
 							return EmptyFormula.INSTANCE;
 						}
@@ -897,9 +853,10 @@ public class HavingTranslatorHelper {
 	 * nested formula never stays visible in the owner's filter tree, so the score source is registered on the owner's
 	 * visitor instead - see {@link ReferenceOwnerFulltextScoreAccessor}.
 	 *
-	 * The owners of a target are the owners of its reduced indexes - entity indexes for `entityHaving`, group indexes
-	 * for `groupHaving` - in the scopes being processed now, captured here because the lookup runs only when the
-	 * sorter asks for the scores, long after this processing scope is gone.
+	 * The owners of a target are the owners of its reference partitions for `entityHaving` - materialized or virtual,
+	 * see {@link ReferencePartition} - and of its group indexes for `groupHaving`, in the scopes being processed now,
+	 * captured here because the lookup runs only when the sorter asks for the scores, long after this processing scope
+	 * is gone.
 	 *
 	 * The score is the best of the targets an owner references through any row; a row condition beside
 	 * `entityHaving` in the same `referenceHaving` narrows which owners match, not which of their targets score.
@@ -931,12 +888,13 @@ public class HavingTranslatorHelper {
 						scope -> groups ?
 							queryContext.getReducedGroupEntityIndexes(
 								scope, targetPrimaryKey, entitySchema, referenceSchema, (schema, key) -> null
-							) :
-							queryContext.getReducedEntityIndexes(
-								scope, targetPrimaryKey, entitySchema, referenceSchema, (schema, key) -> null
-							)
+							).map(EntityIndex::getAllPrimaryKeys) :
+							Arrays.stream(
+								queryContext.resolvePartitionsOfTargetForRead(
+									entitySchema, referenceSchema, scope, targetPrimaryKey
+								)
+							).map(ReferencePartition::getAllPrimaryKeys)
 					)
-					.map(EntityIndex::getAllPrimaryKeys)
 					.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
 					.toArray(PersistentRoaringBitmap[]::new);
 				final PersistentRoaringBitmap combined = owners.length == 1 ?
@@ -973,14 +931,12 @@ public class HavingTranslatorHelper {
 	 * Returns the {@link GroupRowLookup} for the matching groups of one nested `groupHaving` query, building it on
 	 * the first request and memoizing it in the planning context for the rest of the plan.
 	 *
-	 * The memo matters more than it looks: `ReferencedEntityFetcher` evaluates a filtered `referenceContent` once per
-	 * reduced index, each time with a single-index scope, and the index-discovery pass and the per-index pass of
-	 * one `referenceHaving` both need the same lookup. Rebuilding it on every call would cost the matching groups'
-	 * index resolution once per index - worse than the per-group scan it replaces.
+	 * The memo matters more than it looks: the index-discovery pass and the per-index pass of one `referenceHaving`
+	 * both need the same lookup. Rebuilding it on every call would cost the matching groups' index resolution once per
+	 * index - worse than the per-group scan it replaces.
 	 *
-	 * Neither caller can hand over the same constraint instance twice - the fetch path re-translates its filter per
-	 * index and `histogramHaving` rewrites itself anew on every translation - so the memo is keyed by value, see
-	 * {@link GroupRowLookupKey}.
+	 * Callers cannot hand over the same constraint instance twice - `histogramHaving` rewrites itself anew on every
+	 * translation - so the memo is keyed by value, see {@link GroupRowLookupKey}.
 	 *
 	 * @param filterByVisitor visitor providing the planning context and the processing scope
 	 * @param entitySchema    schema of the entity owning the reference
@@ -1095,8 +1051,7 @@ public class HavingTranslatorHelper {
 	 * - the processing scopes the group indexes are resolved in,
 	 * - the matching groups, by the instance of the nested query's formula - compared by identity, because
 	 *   {@link FilterByVisitor#computeOnlyOnce} hands out one instance per group global index and value-equal nested
-	 *   filter. The same instance therefore means the same groups, while a nested filter changed by a
-	 *   {@link NestedQueryRestriction} is another instance and another lookup.
+	 *   filter. The same instance therefore means the same groups.
 	 *
 	 * @param entityType     type of the entity owning the reference - the group indexes belong to it
 	 * @param referenceName  name of the reference carrying the group
@@ -1268,6 +1223,58 @@ public class HavingTranslatorHelper {
 		}
 
 		/**
+		 * Selects the rows of registered single-owner partitions that belong to one of the matching groups - the answer
+		 * {@link #createIndexLocalGroupFormula(ReducedEntityIndex)} gives for the reduced entity index of each
+		 * partition: the bucket of the row's scope and representative values is looked up, and the row matches when a
+		 * group index there lists its only owner for its target.
+		 *
+		 * Costs one pass over the rows: a registry read of the representative values and a hash lookup each, plus one
+		 * bitmap lookup per group index in the bucket - one for the single group a `histogramHaving` selects.
+		 *
+		 * @param rows the rows answered
+		 * @return the constant over the partition primary keys of the matching rows, or {@link EmptyFormula#INSTANCE}
+		 */
+		@Nonnull
+		Formula selectMatchingRows(@Nonnull VirtualPartitionRows rows) {
+			if (this.buckets.isEmpty()) {
+				return EmptyFormula.INSTANCE;
+			}
+			final Scope scope = rows.getScope();
+			return rows.select(row -> matchesVirtualRow(
+				scope, rows.getRepresentativeReferenceKey(row), rows.getOwnerPrimaryKey(row)
+			));
+		}
+
+		/**
+		 * Tells whether the row of a single-owner partition belongs to one of the matching groups.
+		 *
+		 * @param scope                      the scope of the row
+		 * @param representativeReferenceKey the representative reference key of the row's partition
+		 * @param ownerPrimaryKey            the only owner of the row
+		 * @return TRUE when a group index of the row's bucket lists the owner for the row's target
+		 */
+		boolean matchesVirtualRow(
+			@Nonnull Scope scope,
+			@Nonnull RepresentativeReferenceKey representativeReferenceKey,
+			int ownerPrimaryKey
+		) {
+			final List<ReducedGroupEntityIndex> bucket = this.buckets.get(
+				new GroupBucketKey(scope, Arrays.asList(representativeReferenceKey.representativeAttributeValues()))
+			);
+			if (bucket == null) {
+				return false;
+			}
+			final int targetPrimaryKey = representativeReferenceKey.primaryKey();
+			for (final ReducedGroupEntityIndex groupIndex : bucket) {
+				final Bitmap groupOwners = groupIndex.getOwnerPKsForReferencedEntity(targetPrimaryKey);
+				if (groupOwners != null && groupOwners.contains(ownerPrimaryKey)) {
+					return true;
+				}
+			}
+			return false;
+		}
+
+		/**
 		 * Builds the row-exact owner formula contributed by one reduced entity index for a `groupHaving` body: the
 		 * owners whose row held by this index belongs to one of the matching groups.
 		 *
@@ -1291,7 +1298,7 @@ public class HavingTranslatorHelper {
 			}
 			return switch (owners.size()) {
 				case 0 -> EmptyFormula.INSTANCE;
-				case 1 -> new IndexTaggedFormula(targetIndex.getPrimaryKey(), owners.get(0));
+				case 1 -> new IndexTaggedFormula(targetIndex.getPrimaryKey(), owners.getFirst());
 				default -> new IndexTaggedFormula(
 					targetIndex.getPrimaryKey(), FormulaFactory.or(owners.toArray(Formula[]::new))
 				);

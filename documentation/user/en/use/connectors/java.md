@@ -439,7 +439,7 @@ described in detail in the [schema API chapter](../../use/api/schema-api.md#decl
 Entity in the form of custom contract can be read from the database using dedicated methods on
 <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> interface:
 
-<SourceCodeTabs requires="/documentation/user/en/use/connectors/examples/selective-imports.java,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,documentation/user/en/use/api/example/declarative-schema-definition.java" langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/use/connectors/examples/selective-imports.java,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/use/connectors/examples/brand-collection-setup.java,documentation/user/en/use/api/example/declarative-schema-definition.java" langSpecificTabOnly local>
 
 [Fetching the entity using custom interface](/documentation/user/en/use/connectors/examples/custom-contract-reading.java)
 
@@ -459,7 +459,7 @@ Read-only entity fetching is described in detail in the [read API chapter](../..
 Entity in the form of custom contract can be written to the database using dedicated methods on
 <SourceClass>evita_api/src/main/java/io/evitadb/api/EvitaSessionContract.java</SourceClass> interface:
 
-<SourceCodeTabs requires="/documentation/user/en/use/connectors/examples/selective-imports.java,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,documentation/user/en/use/api/example/declarative-schema-definition.java" langSpecificTabOnly local>
+<SourceCodeTabs requires="/documentation/user/en/use/connectors/examples/selective-imports.java,/documentation/user/en/get-started/example/complete-startup.java,/documentation/user/en/get-started/example/define-test-catalog.java,/documentation/user/en/use/connectors/examples/brand-collection-setup.java,documentation/user/en/use/api/example/declarative-schema-definition.java" langSpecificTabOnly local>
 
 [Writing the entity using custom interface](/documentation/user/en/use/connectors/examples/custom-contract-writing.java)
 

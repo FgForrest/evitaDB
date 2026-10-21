@@ -695,7 +695,7 @@ class ReducedIndexSubstringAccelerationTest {
 				"the intersection and its verification must be paid once for the whole fan-out"
 			);
 			assertEquals(PARTITION_COUNT, conjunctions.size(), "one intersection per partition");
-			final Formula sharedOperand = conjunctions.get(0).getInnerFormulas()[1];
+			final Formula sharedOperand = conjunctions.getFirst().getInnerFormulas()[1];
 			for (final AndFormula conjunction : conjunctions) {
 				assertEquals(2, conjunction.getInnerFormulas().length, "primary keys AND the global answer");
 				assertSame(

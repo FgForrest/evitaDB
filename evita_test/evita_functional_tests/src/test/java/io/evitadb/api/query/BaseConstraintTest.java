@@ -26,12 +26,12 @@ package io.evitadb.api.query;
 import io.evitadb.api.query.filter.AttributeEquals;
 import io.evitadb.api.query.filter.AttributeInRange;
 import io.evitadb.api.query.head.Collection;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.OffsetDateTime;
@@ -192,16 +192,16 @@ class BaseConstraintTest {
 		}
 
 		@Test
-		@DisplayName("should reject a moment evitaDB cannot represent")
-		void shouldRejectUnrepresentableMoment() {
-			assertThrows(
-				EvitaInvalidUsageException.class,
-				() -> attributeEquals("validity", LocalDateTime.MAX)
-			);
-			assertThrows(
-				EvitaInvalidUsageException.class,
-				() -> attributeEquals("validity", OffsetDateTime.MIN)
-			);
+		@DisplayName("should clamp a moment beyond the representable window to its edge")
+		void shouldClampUnrepresentableMoment() {
+			final AttributeEquals latest = attributeEquals("validity", LocalDateTime.MAX);
+			final AttributeEquals earliest = attributeEquals("validity", OffsetDateTime.MIN);
+
+			// a query argument lands on the same edge a stored value does, so the two still meet
+			final Instant latestInstant = Instant.ofEpochMilli((Long.MAX_VALUE / 1_000L - 1L) * 1_000L + 999L);
+			final Instant earliestInstant = Instant.ofEpochMilli((Long.MIN_VALUE / 1_000L + 1L) * 1_000L);
+			assertEquals(OffsetDateTime.ofInstant(latestInstant, ZoneOffset.UTC), latest.getAttributeValue());
+			assertEquals(OffsetDateTime.ofInstant(earliestInstant, ZoneOffset.MAX), earliest.getAttributeValue());
 		}
 	}
 

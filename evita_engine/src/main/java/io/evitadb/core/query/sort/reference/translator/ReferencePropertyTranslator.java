@@ -51,6 +51,9 @@ import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
+import io.evitadb.core.query.filter.FilterByVisitor.ReducedIndexCandidates;
+import io.evitadb.core.query.filter.FilterByVisitor.SplitReducedIndexCandidates;
+import io.evitadb.core.query.filter.SplitTargetPartitions;
 import io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper;
 import io.evitadb.core.query.indexSelection.IndexSelectionVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
@@ -66,10 +69,13 @@ import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.ReducedEntityIndex;
+import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.ReferencePartitionSplit;
+import io.evitadb.index.ReferencePartitions;
+import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -87,6 +93,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -106,17 +113,28 @@ import static io.evitadb.api.query.QueryConstraints.traverseByEntityProperty;
  */
 public class ReferencePropertyTranslator implements OrderingConstraintTranslator<ReferenceProperty>, SelfTraversingTranslator {
 	/**
-	 * Planning-time index array of a `pickFirst` ordering, whose indexes are resolved at execution time instead.
+	 * Planning-time partition array of a `pickFirst` ordering, whose partitions are resolved at execution time instead.
 	 */
-	private static final ReducedEntityIndex[] EMPTY_REDUCED_INDEXES = new ReducedEntityIndex[0];
+	private static final ReferencePartition[] EMPTY_PARTITIONS = new ReferencePartition[0];
 
 	/**
-	 * Method locates all {@link EntityIndex} from the resolved list of {@link TargetIndexes} which were identified
+	 * Method locates all partitions from the resolved list of {@link TargetIndexes} which were identified
 	 * by the {@link IndexSelectionVisitor}. The list is expected to be much smaller than the full list computed
 	 * in {@link #selectFullEntityIndexSet(OrderByVisitor, String)}.
+	 *
+	 * The candidates of a `referenceHaving` are split by representation: the registered single-owner partitions among
+	 * them answer their {@link VirtualReferencePartition} handles and only the rest is resolved to index objects - one
+	 * merge of the candidates with the registry rows, no index object per virtual candidate. The partitions of a
+	 * hierarchy option keep the split the option was built with (see {@link SplitTargetPartitions#getPartitions()}):
+	 * the registered single-owner partitions of the nodes answer their virtual handles; when the nodes have none,
+	 * every partition is the index object of {@link TargetIndexes#getIndexes()}.
+	 *
+	 * @param orderByVisitor the visitor of the planned query
+	 * @param referenceName  the reference being ordered by
+	 * @return the partitions in partition primary key order, empty when no index set of the reference was selected
 	 */
 	@Nonnull
-	private static List<ReducedEntityIndex> selectReducedEntityIndexSet(
+	private static List<ReferencePartition> selectReducedEntityIndexSet(
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull String referenceName
 	) {
@@ -129,14 +147,30 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 				ReducedEntityIndex.class.equals(targetIndex.getIndexType()) &&
 					namesReference(targetIndex.getRepresentedConstraint(), referenceName)
 			) {
-				//noinspection unchecked
-				final List<ReducedEntityIndex> reducedIndexes = (List<ReducedEntityIndex>) targetIndex.getIndexes();
+				final ReducedIndexCandidates candidates = targetIndex.getReducedIndexCandidates();
+				final SplitTargetPartitions nodePartitions = targetIndex.getSplitTargetPartitions();
+				final List<? extends ReferencePartition> partitions;
+				if (candidates != null) {
+					//noinspection unchecked
+					final SplitReducedIndexCandidates split = candidates.resolveSplit(
+						() -> (List<ReducedEntityIndex>) targetIndex.getIndexes()
+					);
+					partitions = mergeByPrimaryKey(split.materializedIndexes(), split.split());
+				} else if (nodePartitions != null && nodePartitions.virtualCount() > 0) {
+					// the partitions of the nodes of a hierarchy option keep their split - the registered
+					// single-owner ones are handed over as their virtual handles, never resolved to their objects
+					partitions = nodePartitions.getPartitions();
+				} else {
+					//noinspection unchecked
+					partitions = (List<? extends ReferencePartition>) targetIndex.getIndexes();
+				}
 				if (
-					!reducedIndexes.isEmpty() &&
-						reducedIndexes.get(0).getIndexKey().discriminator() instanceof RepresentativeReferenceKey rk &&
+					!partitions.isEmpty() &&
+						partitions.getFirst().getIndexKey().discriminator() instanceof RepresentativeReferenceKey rk &&
 						referenceName.equals(rk.referenceName())
 				) {
-					return reducedIndexes;
+					//noinspection unchecked
+					return (List<ReferencePartition>) partitions;
 				}
 			}
 		}
@@ -199,16 +233,24 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	}
 
 	/**
-	 * Method locates all {@link EntityIndex} instances that are related to the given reference name. The list is
-	 * resolved from {@link ReferencedTypeEntityIndex}.
+	 * Method locates all partitions that are related to the given reference name. The list is resolved from
+	 * {@link ReferencedTypeEntityIndex}: the partition primary keys of each processed scope are split by
+	 * representation in one merge with the registry rows (see {@link ReferencePartitions#split}), the registered
+	 * single-owner partitions answer their {@link VirtualReferencePartition} handles and only the rest is resolved to
+	 * index objects.
+	 *
+	 * @param orderByVisitor the visitor of the planned query
+	 * @param referenceName  the reference being ordered by
+	 * @return the partitions, scope by scope, each scope in partition primary key order
 	 */
 	@Nonnull
-	private static List<ReducedEntityIndex> selectFullEntityIndexSet(
+	private static List<ReferencePartition> selectFullEntityIndexSet(
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull String referenceName
 	) {
 		final Set<Scope> allowedScopes = orderByVisitor.getProcessingScope().getScopes();
-		Stream<ReducedEntityIndex> indexes = Stream.empty();
+		final String entityType = orderByVisitor.getSchema().getName();
+		final List<ReferencePartition> partitions = new ArrayList<>(16);
 		for (Scope scope : Scope.values()) {
 			if (allowedScopes.contains(scope)) {
 				final EntityIndexKey entityIndexKey = new EntityIndexKey(
@@ -219,21 +261,56 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 				final Optional<ReferencedTypeEntityIndex> referencedEntityTypeIndex = orderByVisitor.getIndexIfExists(
 					entityIndexKey, ReferencedTypeEntityIndex.class
 				);
-
-				indexes = Stream.concat(
-					indexes,
-					referencedEntityTypeIndex
-						.map(
-							it -> it
-								.getAllPrimaryKeys()
-								.stream()
-								.mapToObj(indexPk -> orderByVisitor.getEntityIndexByPrimaryKey(indexPk, ReducedEntityIndex.class))
-						)
-						.orElse(Stream.empty())
-				);
+				if (referencedEntityTypeIndex.isPresent()) {
+					final Bitmap partitionPrimaryKeys = referencedEntityTypeIndex.get().getAllPrimaryKeys();
+					final ReferencePartitionSplit split = orderByVisitor.splitPartitionsForRead(
+						entityType, referenceName, partitionPrimaryKeys, scope
+					);
+					final Bitmap materializedPrimaryKeys = split.getMaterializedPrimaryKeys();
+					final List<ReferencePartition> materialized = new ArrayList<>(materializedPrimaryKeys.size());
+					final OfInt it = materializedPrimaryKeys.iterator();
+					while (it.hasNext()) {
+						// the partitions are sorted through the query body channel
+						materialized.add(
+							ReferencePartitions.toReducedEntityIndex(orderByVisitor.resolvePartition(it.nextInt()))
+						);
+					}
+					partitions.addAll(mergeByPrimaryKey(materialized, split));
+				}
 			}
 		}
-		return indexes.toList();
+		return partitions;
+	}
+
+	/**
+	 * Merges the materialized partitions of a split with its virtual partitions into one list in partition primary
+	 * key order - the order the partitions of one target keep in the blocks of the ordering.
+	 *
+	 * @param materialized the materialized partitions of the split, in partition primary key order
+	 * @param split        the split carrying the virtual partitions, in partition primary key order
+	 * @return the merged partitions
+	 */
+	@Nonnull
+	private static List<? extends ReferencePartition> mergeByPrimaryKey(
+		@Nonnull List<? extends ReferencePartition> materialized,
+		@Nonnull ReferencePartitionSplit split
+	) {
+		final int virtualCount = split.getVirtualCount();
+		if (virtualCount == 0) {
+			return materialized;
+		}
+		final List<ReferencePartition> result = new ArrayList<>(materialized.size() + virtualCount);
+		int virtualIndex = 0;
+		for (final ReferencePartition partition : materialized) {
+			while (virtualIndex < virtualCount && split.getVirtualPrimaryKey(virtualIndex) < partition.getPrimaryKey()) {
+				result.add(split.getVirtualPartition(virtualIndex++));
+			}
+			result.add(partition);
+		}
+		while (virtualIndex < virtualCount) {
+			result.add(split.getVirtualPartition(virtualIndex++));
+		}
+		return result;
 	}
 
 	/**
@@ -543,7 +620,8 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	) {
 		final ProcessingScope processingScope = orderByVisitor.getProcessingScope();
 		final String referenceName = referenceSchema.getName();
-		final ReducedEntityIndex[] emptyIndexes = {
+		// an empty, unregistered reduced index stands for the rows of one referenced entity - nothing is read from it
+		final ReferencePartition[] emptyIndexes = {
 			new ReducedEntityIndex(
 				-1,
 				orderByVisitor.getSchema().getName(),
@@ -556,7 +634,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		};
 		orderByVisitor.getQueryContext().executeDiscardingRequirementsToPrefetch(
 			() -> orderByVisitor.executeInContext(
-				pickFirstByEntityProperty == null ? emptyIndexes : EMPTY_REDUCED_INDEXES,
+				pickFirstByEntityProperty == null ? emptyIndexes : EMPTY_PARTITIONS,
 				referenceSchema,
 				null,
 				processingScope.withReferenceSchemaAccessor(referenceName),
@@ -619,25 +697,24 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 	 * @return the ordered reduced indexes, empty when the reference has none
 	 */
 	@Nonnull
-	private static ReducedEntityIndex[] selectPlanningReducedIndexes(
+	private static ReferencePartition[] selectPlanningReducedIndexes(
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull String referenceName,
 		@Nonnull Function<Formula, IntStream> targetOrder
 	) {
-		final List<ReducedEntityIndex> reducedEntityIndexSet = selectReducedEntityIndexSet(orderByVisitor, referenceName);
-		final List<ReducedEntityIndex> referenceIndexes = reducedEntityIndexSet.isEmpty() ?
+		final List<ReferencePartition> reducedEntityIndexSet = selectReducedEntityIndexSet(orderByVisitor, referenceName);
+		final List<ReferencePartition> referenceIndexes = reducedEntityIndexSet.isEmpty() ?
 			selectFullEntityIndexSet(orderByVisitor, referenceName) :
 			reducedEntityIndexSet;
 		if (referenceIndexes.isEmpty()) {
-			return EMPTY_REDUCED_INDEXES;
+			return EMPTY_PARTITIONS;
 		}
-		final IntObjectMap<Stream<ReducedEntityIndex>> reducedIndexesMap = new IntObjectHashMap<>(referenceIndexes.size());
+		final IntObjectMap<Stream<ReferencePartition>> reducedIndexesMap = new IntObjectHashMap<>(referenceIndexes.size());
 		final RoaringBitmapWriter<PersistentRoaringBitmap> writer = RoaringBitmapBackedBitmap.buildWriter();
-		for (ReducedEntityIndex referenceIndex : referenceIndexes) {
-			final ReferenceKey discriminator = Objects.requireNonNull((RepresentativeReferenceKey) referenceIndex.getIndexKey().discriminator()).referenceKey();
-			final int referencedPk = discriminator.primaryKey();
+		for (ReferencePartition referenceIndex : referenceIndexes) {
+			final int referencedPk = referenceIndex.getReferenceKey().primaryKey();
 			writer.add(referencedPk);
-			final Stream<ReducedEntityIndex> existingValue = reducedIndexesMap.get(referencedPk);
+			final Stream<ReferencePartition> existingValue = reducedIndexesMap.get(referencedPk);
 			if (existingValue == null) {
 				reducedIndexesMap.put(referencedPk, Stream.of(referenceIndex));
 			} else {
@@ -648,7 +725,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 			.mapToObj(reducedIndexesMap::get)
 			.filter(Objects::nonNull)
 			.flatMap(Function.identity())
-			.toArray(ReducedEntityIndex[]::new);
+			.toArray(ReferencePartition[]::new);
 	}
 
 	/**
@@ -669,7 +746,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		@Nonnull OrderByVisitor orderByVisitor,
 		@Nonnull ReferenceSchema referenceSchema,
 		@Nonnull OrderConstraint[] pickFirstByEntityProperty,
-		@Nonnull Supplier<ReducedEntityIndex[]> planningIndexes
+		@Nonnull Supplier<ReferencePartition[]> planningIndexes
 	) {
 		final Set<Scope> allowedScopes = orderByVisitor.getProcessingScope().getScopes();
 		final Scope[] scopes = Arrays.stream(Scope.values())
@@ -738,7 +815,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 			// selected owner takes part, whatever the filter says about the same reference - so they are resolved
 			// at execution time and the candidates of a `referenceHaving` in the filter are deliberately ignored
 			orderByVisitor.executeInContext(
-				EMPTY_REDUCED_INDEXES,
+				EMPTY_PARTITIONS,
 				referenceSchema,
 				null,
 				processingScope.withReferenceSchemaAccessor(referenceName),
@@ -768,7 +845,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		final NestedContextSorter traversalSorter = createTraversalSorter(
 			orderByVisitor, referenceSchema, traversalOrdering
 		);
-		final ReducedEntityIndex[] sortedReducedIndexes = selectPlanningReducedIndexes(
+		final ReferencePartition[] sortedReducedIndexes = selectPlanningReducedIndexes(
 			orderByVisitor,
 			referenceName,
 			referenceIndexIds -> referencedEntityHierarchical ?
@@ -789,7 +866,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		}
 
 		// split the indexes into blocks of one referenced entity each
-		final List<ReducedEntityIndex[]> atomicBlocks = new ArrayList<>(sortedReducedIndexes.length);
+		final List<ReferencePartition[]> atomicBlocks = new ArrayList<>(sortedReducedIndexes.length);
 		int start = 0;
 		ReferenceKey referenceKey = null;
 		for (int i = 0; i < sortedReducedIndexes.length; i++) {
@@ -815,7 +892,7 @@ public class ReferencePropertyTranslator implements OrderingConstraintTranslator
 		);
 
 		return Stream.of(
-			new SequentialSorter(atomicBlocks.toArray(ReducedEntityIndex[][]::new), sorters)
+			new SequentialSorter(atomicBlocks.toArray(ReferencePartition[][]::new), sorters)
 		);
 	}
 

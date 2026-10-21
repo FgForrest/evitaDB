@@ -89,7 +89,7 @@ class EntityAttributeFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				assertProduct(productByPk.getRecordData().get(0), 2, true, false, false, false);
+				assertProduct(productByPk.getRecordData().getFirst(), 2, true, false, false, false);
 				return null;
 			}
 		);
@@ -163,7 +163,7 @@ class EntityAttributeFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 				assertProductHasAttributesInLocale(product, LOCALE_CZECH, ATTRIBUTE_NAME, ATTRIBUTE_URL);
 				assertProductHasNotAttributesInLocale(product, Locale.ENGLISH, ATTRIBUTE_NAME, ATTRIBUTE_URL);
 				return null;
@@ -207,7 +207,7 @@ class EntityAttributeFetchFunctionalTest extends AbstractEntityFetchingFunctiona
 				assertEquals(1, productByPk.getRecordData().size());
 				assertEquals(1, productByPk.getTotalRecordCount());
 
-				final SealedEntity product = productByPk.getRecordData().get(0);
+				final SealedEntity product = productByPk.getRecordData().getFirst();
 				assertProductHasAttributesInLocale(product, LOCALE_CZECH, ATTRIBUTE_NAME, ATTRIBUTE_URL);
 				assertProductHasAttributesInLocale(product, Locale.ENGLISH, ATTRIBUTE_NAME, ATTRIBUTE_URL);
 				return null;

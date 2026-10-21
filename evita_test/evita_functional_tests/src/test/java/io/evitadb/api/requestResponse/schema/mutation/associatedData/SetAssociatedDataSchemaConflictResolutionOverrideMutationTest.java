@@ -152,7 +152,7 @@ class SetAssociatedDataSchemaConflictResolutionOverrideMutationTest {
 
 			assertThrows(
 				GenericEvitaInternalError.class,
-				() -> mutation.mutate((AssociatedDataSchemaContract) null)
+				() -> mutation.mutate(null)
 			);
 		}
 	}

@@ -3408,7 +3408,7 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 					// this mutation will generate a conflict, but only at the time of the commit, not now
 					assertTrue(
 						session.deleteEntity(
-							productSchema.getName(), createdEntities.get(0).getPrimaryKey()
+							productSchema.getName(), createdEntities.getFirst().getPrimaryKey()
 						)
 					);
 
@@ -3868,9 +3868,8 @@ public class EvitaTransactionalFunctionalTest implements EvitaTestSupport {
 			assertTrue(transactionCount >= 3, "Should have at least 3 TRANSACTION operations");
 
 			// Verify that the highest version transaction comes first in reversed stream
-			final TransactionMutation firstTransaction = reversedTransactionMutations.get(0);
-			final TransactionMutation lastTransaction = reversedTransactionMutations.get(
-				reversedTransactionMutations.size() - 1);
+			final TransactionMutation firstTransaction = reversedTransactionMutations.getFirst();
+			final TransactionMutation lastTransaction = reversedTransactionMutations.getLast();
 			assertTrue(
 				firstTransaction.getVersion() > lastTransaction.getVersion(),
 				"First transaction in reversed stream should have higher version than last"

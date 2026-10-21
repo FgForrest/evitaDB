@@ -232,7 +232,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 		ioService.trimBootstrapFile(sinceCatalogVersion);
 
 		final PaginatedList<MaterializedVersionBlock> catalogVersions = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 20);
-		final MaterializedVersionBlock firstRecord = catalogVersions.getData().get(0);
+		final MaterializedVersionBlock firstRecord = catalogVersions.getData().getFirst();
 		assertEquals(sinceCatalogVersion, firstRecord.endVersion());
 		assertEquals(expectedVersion, firstRecord.endVersion());
 		assertEquals(expectedCount, catalogVersions.getTotalRecordCount());
@@ -994,7 +994,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			}
 
 			final PaginatedList<MaterializedVersionBlock> catalogVersions0 = ioService.getCatalogVersions(TimeFlow.FROM_OLDEST_TO_NEWEST, 1, 20);
-			assertEquals(0, catalogVersions0.getData().get(0).endVersion());
+			assertEquals(0, catalogVersions0.getData().getFirst().endVersion());
 			assertEquals(13, catalogVersions0.getTotalRecordCount());
 
 			trimAndCheck(ioService, 4, 4, 9);
@@ -1594,8 +1594,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				);
 				// the surviving file must be the newest one - reclaiming from the wrong end would destroy the catalog
 				assertEquals(
-					beforeGuard.get(beforeGuard.size() - 1).getName(),
-					afterGuard.get(0).getName()
+					beforeGuard.getLast().getName(),
+					afterGuard.getFirst().getName()
 				);
 				assertEquals(0L, ioService.computeRetainedHistoryBytes());
 			}
@@ -1630,8 +1630,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 					"warm-up leftovers must be reclaimable too, got " + afterGuard.size() + " files"
 				);
 				assertEquals(
-					beforeGuard.get(beforeGuard.size() - 1).getName(),
-					afterGuard.get(0).getName()
+					beforeGuard.getLast().getName(),
+					afterGuard.getFirst().getName()
 				);
 			}
 		}
@@ -1758,8 +1758,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 					"an unlimited budget is no reason to keep unreachable files, got " + afterGuard.size() + " files"
 				);
 				assertEquals(
-					beforeGuard.get(beforeGuard.size() - 1).getName(),
-					afterGuard.get(0).getName()
+					beforeGuard.getLast().getName(),
+					afterGuard.getFirst().getName()
 				);
 			}
 		}
@@ -1824,8 +1824,8 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 				);
 				// the newest generation always survives - reclaiming from the wrong end would destroy the catalog
 				assertEquals(
-					beforeGuard.get(beforeGuard.size() - 1).getName(),
-					afterGuard.get(afterGuard.size() - 1).getName()
+					beforeGuard.getLast().getName(),
+					afterGuard.getLast().getName()
 				);
 			}
 		}
@@ -2032,7 +2032,7 @@ class DefaultCatalogPersistenceServiceTest implements EvitaTestSupport {
 			// needs with it, which surfaces far away as `Catalog version N not found ...` out of an observability emit
 			final List<File> walFiles = listWalFiles();
 			assertEquals(1, walFiles.size());
-			assertEquals(0, AbstractMutationLog.getIndexFromWalFileName(walFiles.get(0).getName()));
+			assertEquals(0, AbstractMutationLog.getIndexFromWalFileName(walFiles.getFirst().getName()));
 
 			final Scheduler openScheduler = Mockito.mock(Scheduler.class);
 			try (

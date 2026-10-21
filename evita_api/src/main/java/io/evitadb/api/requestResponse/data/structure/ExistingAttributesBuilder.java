@@ -192,8 +192,8 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 	 * Behavior:
 	 * - Upsert: validates schema and type, creates implicit schema if allowed, stores mutation only
 	 *   when it changes the current value; otherwise removes a previously stored mutation.
-	 * - Remove: stores removal when there is an existing value or a prior change that would create one;
-	 *   otherwise it is ignored.
+	 * - Remove: stores removal when the base holds a value that was not removed yet; otherwise it only discards
+	 *   a previously staged mutation of the attribute.
 	 * - ApplyDelta: computes new value from the current baseline plus any previously staged mutation and
 	 *   converts it to an upsert if needed so that subsequent reads reflect the newest value.
 	 *
@@ -233,7 +233,12 @@ abstract class ExistingAttributesBuilder<S extends AttributeSchemaContract, T ex
 			}
 		} else if (localMutation instanceof RemoveAttributeMutation removeAttributeMutation) {
 			final AttributeKey attributeKey = removeAttributeMutation.getAttributeKey();
-			if (this.baseAttributes.getAttributeValueWithoutSchemaCheck(attributeKey).isEmpty()) {
+			// a dropped base value is a tombstone of an earlier removal - there is nothing left to remove
+			if (
+				this.baseAttributes.getAttributeValueWithoutSchemaCheck(attributeKey)
+					.filter(Droppable::exists)
+					.isEmpty()
+			) {
 				this.attributeMutations.remove(attributeKey);
 			} else {
 				if (isValueDiffers(removeAttributeMutation)) {

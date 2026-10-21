@@ -296,7 +296,7 @@ public class ExportFileService implements ExportService {
 									.toArray(String[]::new)
 							);
 							writeFileMetadata(fileForFetch, StandardOpenOption.CREATE_NEW);
-							this.files.add(0, fileForFetch);
+							this.files.addFirst(fileForFetch);
 							return fileForFetch;
 						} catch (IOException e) {
 							throw new UnexpectedIOException(

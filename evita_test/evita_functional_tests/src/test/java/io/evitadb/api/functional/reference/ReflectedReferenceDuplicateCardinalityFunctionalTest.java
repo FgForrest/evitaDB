@@ -127,7 +127,7 @@ class ReflectedReferenceDuplicateCardinalityFunctionalTest implements EvitaTestS
 			.orElseThrow()
 			.getReferences(referenceName)
 			.stream()
-			.map(ReferenceContract.class::cast)
+			.map(referenceContract -> referenceContract)
 			.map(it -> it.getReferencedPrimaryKey() + ":" + it.getAttribute(ATTRIBUTE_COUNTRY))
 			.sorted()
 			.toList();

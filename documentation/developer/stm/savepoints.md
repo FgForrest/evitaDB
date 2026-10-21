@@ -366,11 +366,12 @@ absent. Since `Transaction#getTransactionalLayerMaintainer()` is `null` exactly 
 A great deal rests on this. Every index mutator whose journalling sits behind an
 `if (!isTransactionAvailable())` gate is correct only because that gate is always taken while a
 savepoint is open, and the delegate-branch backstop below guards only the no-transaction path for the
-same reason. A second opening site would invalidate all of it at once, so the invariant is **asserted
-rather than assumed**: `WarmUpRollbackConformanceTest` scans the engine sources and pins the single
-opening site, the maintainer-absence guard on it, and an allowlist of the `io.evitadb.index` sources
-permitted to branch on transaction availability at all -- each allowlist entry carrying the reason its
-gates are not a rollback hole.
+same reason. A second opening site would invalidate all of it at once, so `WarmUpSavepoint#open()` must
+keep its single caller, and an index structure must not branch on transaction availability to choose
+what it writes outside a transaction. The javadoc of `WarmUpSavepoint#open()` and of
+`Transaction#isTransactionAvailable()` state both rules, together with the kinds of gate that remain
+and why none of them lets a write escape the journal. Nothing checks them mechanically; why, see
+`documentation/adr/2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures.md`.
 
 ### Enforcement -- declared, not inferred
 
@@ -508,7 +509,6 @@ The warm-up mechanism additionally has:
 | `WarmUpSavepoint*RollbackTest` (per structure family) | the journalling itself: a savepoint opened directly, mutations applied, rollback compared against the pre-image |
 | `WarmUpSavepointTest` | the savepoint's own contract -- nesting rejected, detach-before-work, the `Snapshotable` / self-capture exclusivity |
 | `WarmUpRollbackBackstopTest` | that an undeclared structure mutated inside a savepoint fails loudly |
-| `WarmUpRollbackConformanceTest` | the source-level invariants: the single opening site, its maintainer-absence guard, the `supportsWarmUpRollback()` declarations, and the transaction-availability allowlist |
 | `EntityAtomicMutationRollbackWarmUpFunctionalTest` | the end-to-end behaviour -- a failed entity in a bulk load leaves neither index entries nor a storage body behind |
 
 The warm-up fuzz methods run on their own budget (`-DwarmUpFuzz.seconds`) rather than the

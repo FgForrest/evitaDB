@@ -1,7 +1,7 @@
 ---
 title: Make every warm-up entity write atomic through a thread-local savepoint whose participants journal their own absolute inverses, unconditionally
 date: 2026-08-26
-updated: 2026-10-08 06:45
+updated: 2026-10-20 09:00
 status: accepted
 kind: feature
 issues: [1432]
@@ -9,7 +9,7 @@ prs: [1494]
 areas: [evita_engine/core/transaction/memory, evita_engine/core/collection, evita_engine/core/buffer, evita_engine/index]
 supersedes: []
 superseded-by: []
-relates: [2026-07-10-more-optimized-data-structures, 2026-07-31-bulk-ingest-write-path, 2026-09-08-warm-up-invalid-schema-refuses-to-publish, 2026-10-08-trapped-storage-part-content-pre-images]
+relates: [2026-07-10-more-optimized-data-structures, 2026-07-31-bulk-ingest-write-path, 2026-09-08-warm-up-invalid-schema-refuses-to-publish, 2026-10-08-trapped-storage-part-content-pre-images, 2026-10-20-single-owner-partitions-as-registry-rows, 2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures]
 ---
 
 # Per-entity mutation atomicity in WARM_UP — a savepoint the structures journal into
@@ -473,6 +473,9 @@ tree the rollback is about to undo, so putting it back would re-bless a director
   while a savepoint is open. A second opening site invalidates all of them at once, which is why
   `WarmUpRollbackConformanceTest` asserts the single site, its maintainer-absence guard, and an
   allowlist of the sources permitted to branch on transaction availability at all.
+  **Update 2026-10-20 (#1615):** that test was removed; the javadoc of `WarmUpSavepoint#open()` and of
+  `Transaction#isTransactionAvailable()` state these rules, and the `INVARIANT` comment at the opening site keeps
+  the statement order - see `2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures`.
 - **Invariants a future change must preserve:** inverses are absolute restores, pushed *before* the
   first in-place write of their operation; the journal is replayed completely to zero, never to a
   mark; per-slot journalling is mutually exclusive with a node's whole-node memento; the stamp

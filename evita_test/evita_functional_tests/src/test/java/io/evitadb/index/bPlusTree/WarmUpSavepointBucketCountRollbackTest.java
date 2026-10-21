@@ -42,8 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * nothing else would put it back, so the tree journals it itself. A count left one too high outlives the rollback as a
  * tree that reports buckets it does not hold, which `recordCount()` and every emptiness check then read.
  *
- * The sibling {@code WarmUpRollbackConformanceTest} enforces that this tree DECLARES rollback support; this one
- * enforces that it delivers it.
+ * The tree declares rollback support, which the runtime backstop reads; this test enforces that it delivers it.
  *
  * @author Johnny (Jan Novotný), FG Forrest a.s. (c) 2026
  */

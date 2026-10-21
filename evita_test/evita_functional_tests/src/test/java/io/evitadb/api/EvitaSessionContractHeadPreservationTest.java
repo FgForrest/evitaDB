@@ -167,12 +167,12 @@ class EvitaSessionContractHeadPreservationTest {
 		// prepends a collection to a header that already names one
 		final List<Collection> collections = QueryUtils.findConstraints(head, Collection.class);
 		assertEquals(1, collections.size(), () -> "the collection was lost or duplicated by the rebuild: " + rebuiltQuery);
-		assertEquals(ENTITY_TYPE, collections.get(0).getEntityType());
+		assertEquals(ENTITY_TYPE, collections.getFirst().getEntityType());
 
 		final List<Label> labels = QueryUtils.findConstraints(head, Label.class);
 		assertEquals(1, labels.size(), () -> "the head label was dropped during the rebuild: " + rebuiltQuery);
-		assertEquals(LABEL_NAME, labels.get(0).getLabelName());
-		assertEquals(LABEL_VALUE, labels.get(0).getLabelValue());
+		assertEquals(LABEL_NAME, labels.getFirst().getLabelName());
+		assertEquals(LABEL_VALUE, labels.getFirst().getLabelValue());
 	}
 
 	@Test

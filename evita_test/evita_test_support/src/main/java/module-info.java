@@ -49,6 +49,7 @@ module evita.test.support {
 	requires io.netty.common;
 	requires awaitility;
 	requires java.management;
+	requires jdk.management;
 
 	/*
 		The test modules run on the classpath, where the `META-INF/services` files are what registers

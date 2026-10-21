@@ -23,6 +23,9 @@
 
 package io.evitadb.index.mutation.local;
 
+import com.carrotsearch.hppc.IntHashSet;
+import com.carrotsearch.hppc.IntObjectHashMap;
+import io.evitadb.api.exception.ReferencePartitionReindexRequiredException;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.AssociatedDataContract.AssociatedDataKey;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
@@ -103,6 +106,7 @@ import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageCo
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleScope;
 import io.evitadb.spi.store.catalog.persistence.accessor.WritableEntityStorageContainerAccessor.LocaleWithScope;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.AssociatedDataStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.entity.EntityBodyStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.PricesStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.spi.store.catalog.shared.model.PriceWithInternalIds;
@@ -120,7 +124,9 @@ import java.util.Map.Entry;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.function.IntSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -182,6 +188,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * different primary keys depending on the index type.
 	 */
 	private final LinkedList<ToIntBiFunction<IndexType, Target>> entityPrimaryKey = new LinkedList<>();
+	/**
+	 * The primary key of the entity this executor mutates - the owner of every reference it indexes. Unlike
+	 * {@link #getPrimaryKeyToIndex(IndexType, Target)}, it is never replaced by a primary key pushed for a nested
+	 * operation (see {@link #executeWithDifferentPrimaryKeyToIndex(ToIntBiFunction, Runnable)}).
+	 */
+	private final int ownerPrimaryKey;
 	/**
 	 * The accessor that allows to create or remove {@link CatalogIndex} instances.
 	 */
@@ -258,6 +270,22 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	private final boolean usageStatisticsTracking;
 	/**
+	 * Whether this executor writes the registry of single-owner partitions - records the sort values and chain
+	 * predecessors it writes into a partition in the partition's registry row (see
+	 * {@link VirtualReferencePartitionWriter}). TRUE for every executor but one writing as another owner of a partition
+	 * (see {@link #createExecutorOfOtherOwner(int)}): that executor populates the index object of a partition gaining
+	 * its second owner with what the partition holds of its first owner, and the first owner's row holds those values
+	 * already - recording them again would write them into the row a second time. The row is dropped once the
+	 * entering owner makes the partition a shared one.
+	 */
+	private final boolean partitionRegistryWritten;
+	/**
+	 * The primary keys of the partitions without an index object the root mutation has vacated, reserved for an owner
+	 * entering them again, and whether the root mutation is finishing - shared by every executor of the root mutation,
+	 * see {@link PartitionReservations}.
+	 */
+	@Nonnull private final PartitionReservations partitionReservations;
+	/**
 	 * Set contains keys of indexes that were accessed in this particular entity upsert / removal.
 	 */
 	private final Set<EntityIndexKey> accessedIndexes = CollectionUtils.createHashSet(32);
@@ -303,6 +331,31 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * Set of keys of indexes that were created in this particular entity upsert.
 	 */
 	private Set<RepresentativeReferenceKey> createdReferences;
+	/**
+	 * The partitions of references whose partitions may be virtual that this mutation left with one owner of two
+	 * (2 -> 1), each listed once, in the order they were left. Whether such a partition is a single-owner one again is
+	 * known only once every mutation of the root mutation has been dispatched - another owner may join it meanwhile -
+	 * so {@link #applyChanges()} demotes them (see {@link VirtualReferencePartitionWriter#partitionLeftWithOneOwner}).
+	 * Only their keys and primary keys are relied upon: each is resolved anew by its key when it is demoted.
+	 * Allocated lazily, because most entity mutations leave no partition with one owner.
+	 */
+	@Nullable private List<ReferencePartition> partitionsLeftWithOneOwner;
+	/**
+	 * The executors writing as other owners of reference partitions that this one has created (see
+	 * {@link #createExecutorOfOtherOwner(int)}), by the primary key of the owner - only of owners the root mutation
+	 * does not mutate, whose data cannot change while it runs, so the executor and everything it derives from the
+	 * owner's data serve every population of a partition with that owner. Allocated lazily, because most entity
+	 * mutations populate no partition with another owner.
+	 */
+	@Nullable private IntObjectHashMap<EntityIndexLocalMutationExecutor> otherOwnerExecutors;
+	/**
+	 * The primary keys of the partitions the acquisition has handed to a write taking content out of them as the rows
+	 * a reference left in the registry while it was indexed for filtering only - see
+	 * {@link #releaseRowOfFormerIndexing}. The write paths those rows reach accept them by this set, while a virtual
+	 * partition of such a reference reaching them in any other way is a defect. Allocated lazily, because the rows
+	 * exist only after the reference's indexing changed.
+	 */
+	@Nullable private IntHashSet rowsOfFormerIndexingReleased;
 	/**
 	 * List of all mutations that are being processed right now.
 	 */
@@ -422,7 +475,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Creates an executor that applies the local mutations of one entity to the indexes of its collection.
+	 * Creates the index executor of one entity's local mutations, which writes the registry of single-owner
+	 * partitions.
 	 *
 	 * @param containerAccessor            accessor of the current and previous storage containers of the entity
 	 * @param entityPrimaryKey             primary key of the mutated entity
@@ -443,6 +497,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * @param fulltextAnalyzerRegistry     the catalog-owned analyzer registry, which supplies the analyzer when the
 	 *                                     fulltext index of a locale is first created
 	 * @param usageStatisticsTracking      whether the mutation counts the index-maintenance effort it costs
+	 * @param partitionReservations        the reservations of the root mutation the executor belongs to, shared by all
+	 *                                     its executors - see {@link PartitionReservations}
 	 */
 	public EntityIndexLocalMutationExecutor(
 		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
@@ -459,10 +515,48 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull SchemaCapabilityUsageRegistry usageRegistry,
 		@Nonnull SchemaCapabilityUsageRegistry catalogUsageRegistry,
 		@Nonnull FulltextAnalyzerRegistry fulltextAnalyzerRegistry,
-		boolean usageStatisticsTracking
+		boolean usageStatisticsTracking,
+		@Nonnull PartitionReservations partitionReservations
+	) {
+		this(
+			containerAccessor, entityPrimaryKey, entityIndexCreatingAccessor, catalogIndexCreatingAccessor,
+			schemaAccessor, priceInternalIdSupplier, fullEntitySupplier, triggerRegistrySupplier,
+			localFacetTriggerSupplier, crossEntitySchemaResolver, entityTypeClassifierResolver, usageRegistry,
+			catalogUsageRegistry, fulltextAnalyzerRegistry, usageStatisticsTracking, true, partitionReservations
+		);
+	}
+
+	/**
+	 * Creates the index executor of one entity's local mutations.
+	 *
+	 * @param partitionRegistryWritten TRUE when the executor writes the registry of single-owner partitions, FALSE
+	 *                                 only for an executor writing as another owner of a partition - see
+	 *                                 {@link #partitionRegistryWritten}
+	 * @param partitionReservations    the reservations of the root mutation the executor belongs to, shared by all its
+	 *                                 executors - see {@link PartitionReservations}
+	 */
+	private EntityIndexLocalMutationExecutor(
+		@Nonnull WritableEntityStorageContainerAccessor containerAccessor,
+		int entityPrimaryKey,
+		@Nonnull IndexMaintainer<EntityIndexKey, EntityIndex> entityIndexCreatingAccessor,
+		@Nonnull IndexMaintainer<CatalogIndexKey, CatalogIndex> catalogIndexCreatingAccessor,
+		@Nonnull Supplier<EntitySchema> schemaAccessor,
+		@Nonnull IntSupplier priceInternalIdSupplier,
+		@Nonnull Supplier<Entity> fullEntitySupplier,
+		@Nullable Supplier<CatalogExpressionTriggerRegistry> triggerRegistrySupplier,
+		@Nullable BiFunction<String, Scope, FacetExpressionTrigger> localFacetTriggerSupplier,
+		@Nullable Function<String, EntitySchemaContract> crossEntitySchemaResolver,
+		@Nonnull EntityTypeClassifierResolver entityTypeClassifierResolver,
+		@Nonnull SchemaCapabilityUsageRegistry usageRegistry,
+		@Nonnull SchemaCapabilityUsageRegistry catalogUsageRegistry,
+		@Nonnull FulltextAnalyzerRegistry fulltextAnalyzerRegistry,
+		boolean usageStatisticsTracking,
+		boolean partitionRegistryWritten,
+		@Nonnull PartitionReservations partitionReservations
 	) {
 		this.containerAccessor = containerAccessor;
 		this.entityPrimaryKey.add((anyType, anyPurpose) -> entityPrimaryKey);
+		this.ownerPrimaryKey = entityPrimaryKey;
 		this.entityIndexCreatingAccessor = entityIndexCreatingAccessor;
 		this.catalogIndexCreatingAccessor = catalogIndexCreatingAccessor;
 		this.schemaAccessor = schemaAccessor;
@@ -477,6 +571,132 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		this.catalogUsageRegistry = catalogUsageRegistry;
 		this.fulltextAnalyzerRegistry = fulltextAnalyzerRegistry;
 		this.usageStatisticsTracking = usageStatisticsTracking;
+		this.partitionRegistryWritten = partitionRegistryWritten;
+		this.partitionReservations = partitionReservations;
+	}
+
+	/**
+	 * Returns TRUE when this executor writes the registry of single-owner partitions - FALSE only for an executor
+	 * writing as another owner of a partition, see {@link #partitionRegistryWritten}.
+	 *
+	 * @return TRUE when the registry is written
+	 */
+	boolean isPartitionRegistryWritten() {
+		return this.partitionRegistryWritten;
+	}
+
+	/**
+	 * Remembers a partition of a reference whose partitions may be virtual that this mutation has just left with one
+	 * owner of two (2 -> 1), so that {@link #applyChanges()} demotes it. A partition remembered already is not
+	 * remembered twice.
+	 *
+	 * @param partition the partition left with one owner
+	 */
+	void addPartitionLeftWithOneOwner(@Nonnull ReferencePartition partition) {
+		if (this.partitionsLeftWithOneOwner == null) {
+			this.partitionsLeftWithOneOwner = new ArrayList<>(2);
+		} else {
+			for (final ReferencePartition remembered : this.partitionsLeftWithOneOwner) {
+				if (remembered.getPrimaryKey() == partition.getPrimaryKey()) {
+					return;
+				}
+			}
+		}
+		this.partitionsLeftWithOneOwner.add(partition);
+	}
+
+	/**
+	 * Returns the primary key of the entity this executor mutates - the owner of every reference it indexes - whatever
+	 * primary key the indexes are currently written with (see {@link #getPrimaryKeyToIndex(IndexType, Target)}).
+	 *
+	 * @return the primary key of the mutated entity
+	 */
+	int getOwnerPrimaryKey() {
+		return this.ownerPrimaryKey;
+	}
+
+	/**
+	 * Creates an executor that writes as another entity of this collection - another owner of a reference partition -
+	 * into the indexes it is handed, and into nothing else. It reads the other entity's data as the root mutation sees
+	 * it (see {@link WritableEntityStorageContainerAccessor#getAccessorOfOtherEntity(int)}), so the indexes receive
+	 * that entity's state and never this one's, and it is isolated from everything the entity mutation running it
+	 * keeps:
+	 *
+	 * - it acquires no index - every entity or catalog index acquisition fails, so a write that would reach beyond the
+	 *   indexes handed to it surfaces instead of joining this mutation's indexes, their persistence or their sweep;
+	 * - it counts no usage, assigns no price identifier and resolves no full entity;
+	 * - it vacates no partition and brings no owner into one, so it refuses the reservations of the root mutation;
+	 * - it writes no registry of single-owner partitions (see {@link #isPartitionRegistryWritten()});
+	 * - it keeps its own bookkeeping, which nothing applies or commits.
+	 *
+	 * It is the executor that writes a partition's existing owner into the partition when the partition is built
+	 * anew (see {@link ReferenceIndexMutator#populatePartitionWithOwner}).
+	 *
+	 * The executor of an owner the root mutation does not mutate is created once and handed out again on every later
+	 * call: the owner cannot change while the root mutation runs, so neither can anything the executor derives from its
+	 * data, and the populations of many partitions with one owner share one executor. Whether the owner is mutated is
+	 * asked on every call, before the remembered executor is considered - an owner the root mutation has started
+	 * mutating since gets a new executor reading its staged state, never again the remembered one, which is forgotten.
+	 * The executor of an owner being mutated is never remembered: its state goes on changing.
+	 *
+	 * @param ownerPrimaryKey the primary key of the other entity
+	 * @return the executor writing as the other entity
+	 */
+	@Nonnull
+	EntityIndexLocalMutationExecutor createExecutorOfOtherOwner(int ownerPrimaryKey) {
+		if (this.containerAccessor.isOtherEntityInFlight(ownerPrimaryKey)) {
+			if (this.otherOwnerExecutors != null) {
+				this.otherOwnerExecutors.remove(ownerPrimaryKey);
+			}
+			return newExecutorOfOtherOwner(ownerPrimaryKey);
+		}
+		if (this.otherOwnerExecutors == null) {
+			this.otherOwnerExecutors = new IntObjectHashMap<>(4);
+		}
+		EntityIndexLocalMutationExecutor executor = this.otherOwnerExecutors.get(ownerPrimaryKey);
+		if (executor == null) {
+			executor = newExecutorOfOtherOwner(ownerPrimaryKey);
+			this.otherOwnerExecutors.put(ownerPrimaryKey, executor);
+		}
+		return executor;
+	}
+
+	/**
+	 * Creates a new executor writing as another entity of this collection - see
+	 * {@link #createExecutorOfOtherOwner(int)}, which decides whether a remembered one is handed out instead.
+	 *
+	 * @param ownerPrimaryKey the primary key of the other entity
+	 * @return the new executor writing as the other entity
+	 */
+	@Nonnull
+	private EntityIndexLocalMutationExecutor newExecutorOfOtherOwner(int ownerPrimaryKey) {
+		return new EntityIndexLocalMutationExecutor(
+			this.containerAccessor.getAccessorOfOtherEntity(ownerPrimaryKey),
+			ownerPrimaryKey,
+			new RefusingIndexMaintainer<>(ownerPrimaryKey),
+			new RefusingIndexMaintainer<>(ownerPrimaryKey),
+			this.schemaAccessor,
+			() -> {
+				throw new GenericEvitaInternalError(
+					"The executor writing as entity " + ownerPrimaryKey + " must not assign a price identifier!"
+				);
+			},
+			() -> {
+				throw new GenericEvitaInternalError(
+					"The executor writing as entity " + ownerPrimaryKey + " must not resolve the full entity!"
+				);
+			},
+			this.triggerRegistrySupplier,
+			this.localFacetTriggerSupplier,
+			this.crossEntitySchemaResolver,
+			this.entityTypeClassifierResolver,
+			this.usageRegistry,
+			this.catalogUsageRegistry,
+			this.fulltextAnalyzerRegistry,
+			false,
+			false,
+			PartitionReservations.REFUSING
+		);
 	}
 
 	/**
@@ -554,22 +774,27 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * `ReferenceIndexMutator.forEachReferenceIndex` so the handler call site spells out the
 	 * `IterationPath` exactly once and never reaches into the static method directly.
 	 *
-	 * @param indexType                 minimum reference-index level required for a reference to qualify
+	 * @param indexType                 minimum reference-index level required for a reference to qualify; must be
+	 *                                  {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}
 	 * @param consumer                  callback invoked for each qualifying reference
 	 * @param referencePredicate        additional predicate applied after the schema-level filter
 	 * @param referencePresenceExpected whether the referenced/group primary key is expected to be
 	 *                                  present in the index when resolving the representative key
 	 * @param path                      which path(s) to traverse
+	 * @param writeKind                 whether the consumer may put content into the partitions or only takes content
+	 *                                  out of them - see {@link PartitionWriteKind}
 	 */
 	public void fanOutPerReference(
 		@Nonnull ReferenceIndexType indexType,
 		@Nonnull ReferenceIndexConsumer consumer,
 		@Nonnull Predicate<ReferenceContract> referencePredicate,
 		boolean referencePresenceExpected,
-		@Nonnull ReferenceIndexMutator.IterationPath path
+		@Nonnull ReferenceIndexMutator.IterationPath path,
+		@Nonnull PartitionWriteKind writeKind
 	) {
+		assertPartitioningFanOut(indexType);
 		ReferenceIndexMutator.forEachReferenceIndex(
-			indexType, this, consumer, referencePredicate, referencePresenceExpected, path
+			indexType, this, consumer, referencePredicate, referencePresenceExpected, path, writeKind
 		);
 	}
 
@@ -579,22 +804,43 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * locale tracking. Thin wrapper around `ReferenceIndexMutator.forEachUniqueReferenceIndex`
 	 * with explicit `IterationPath` at the call site.
 	 *
-	 * @param indexType                 minimum reference-index level required for a reference to qualify
+	 * @param indexType                 minimum reference-index level required for a reference to qualify; must be
+	 *                                  {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}
 	 * @param consumer                  callback invoked at most once per unique target index
 	 * @param referencePredicate        additional predicate applied after the schema-level filter
 	 * @param referencePresenceExpected whether the referenced/group primary key is expected to be
 	 *                                  present in the index when resolving the representative key
 	 * @param path                      which path(s) to traverse
+	 * @param writeKind                 whether the consumer may put content into the partitions or only takes content
+	 *                                  out of them - see {@link PartitionWriteKind}
 	 */
 	public void fanOutUniquePerIndex(
 		@Nonnull ReferenceIndexType indexType,
 		@Nonnull ReferenceIndexConsumer consumer,
 		@Nonnull Predicate<ReferenceContract> referencePredicate,
 		boolean referencePresenceExpected,
-		@Nonnull ReferenceIndexMutator.IterationPath path
+		@Nonnull ReferenceIndexMutator.IterationPath path,
+		@Nonnull PartitionWriteKind writeKind
 	) {
+		assertPartitioningFanOut(indexType);
 		ReferenceIndexMutator.forEachUniqueReferenceIndex(
-			indexType, this, consumer, referencePredicate, referencePresenceExpected, path
+			indexType, this, consumer, referencePredicate, referencePresenceExpected, path, writeKind
+		);
+	}
+
+	/**
+	 * Verifies that a fan-out helper was called with the only index type its generic write consumers support.
+	 * Every handler fans out into the reduced indexes of references indexed for partitioning only - the partitions
+	 * of a reference indexed for filtering must never reach the generic write consumers.
+	 *
+	 * @param indexType the reference-index level requested by the caller
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the level is not
+	 *                                                         {@link ReferenceIndexType#FOR_FILTERING_AND_PARTITIONING}
+	 */
+	private static void assertPartitioningFanOut(@Nonnull ReferenceIndexType indexType) {
+		Assert.isPremiseValid(
+			indexType == ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING,
+			() -> "Fan-out below FOR_FILTERING_AND_PARTITIONING is not supported, got `" + indexType + "`!"
 		);
 	}
 
@@ -900,7 +1146,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	/**
 	 * Finalizes this entity's index changes that can only be resolved once every local mutation for the entity
 	 * has been applied: per-locale language upsert / removal, the full removal of the entity from the indexes
-	 * (when it is removed entirely) and the sweep of indexes that became empty.
+	 * (when it is removed entirely), demoting the partitions this mutation left with one owner of two in the
+	 * registry of single-owner partitions, and the sweep of indexes that became empty.
 	 *
 	 * This work historically lived in {@code commit()}, but the collector invoked {@code commit()} from its
 	 * {@code finish()} step in a way that bypassed rollback on failure, so a throw here produced a
@@ -943,6 +1190,16 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		if (this.containerAccessor.isEntityRemovedEntirely()) {
 			// remove the entity itself from the indexes
 			removeEntity(primaryKeyToIndex);
+		}
+
+		// the partitions this mutation left with one owner of two get their rows back in the registry of single-owner
+		// partitions, filled with what each holds for its remaining owner - by now every owner the root mutation adds
+		// to them or takes from them has been dispatched
+		if (this.partitionsLeftWithOneOwner != null) {
+			for (final ReferencePartition partition : this.partitionsLeftWithOneOwner) {
+				VirtualReferencePartitionWriter.partitionLeftWithOneOwner(this, partition);
+			}
+			this.partitionsLeftWithOneOwner = null;
 		}
 
 		// one instant for the whole entity mutation, so a single upsert cannot stamp the indexes it touched with two
@@ -1355,86 +1612,90 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Updates or inserts (upserts) the specified entity attribute locale into the target index.
+	 * Updates or inserts (upserts) the specified entity attribute locale into the target - an index object, or a
+	 * virtual partition the registry of single-owner partitions alone receives the locale's compounds for.
 	 *
 	 * @param locale                      the locale information that needs to be updated or inserted
 	 * @param entitySchema                the schema of the entity the locale information belongs to
-	 * @param targetIndex                 the target index where the locale data should be upserted
+	 * @param target                      the target where the locale data should be upserted
 	 * @param existingDataSupplierFactory the factory supplying existing data supplier methods for lookups
 	 */
 	public void upsertEntityAttributeLocaleInTargetIndex(
 		@Nonnull Locale locale,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull EntityIndex targetIndex,
+		@Nonnull IndexWriteTarget target,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		insertInitialSuiteOfSortableAttributeCompounds(
-			locale, entitySchema, targetIndex, existingDataSupplierFactory
+			locale, entitySchema, target, existingDataSupplierFactory
 		);
 	}
 
 	/**
-	 * Updates or inserts (upserts) the specified entity attribute locale into the target index,
+	 * Updates or inserts (upserts) the specified entity attribute locale into the target,
 	 * using an explicit reference key. This overload is used when the index discriminator may not
 	 * contain the correct reference key (e.g. for group-level reduced indexes).
 	 *
 	 * @param locale                      the locale information that needs to be updated or inserted
 	 * @param entitySchema                the schema of the entity the locale information belongs to
-	 * @param targetIndex                 the target index where the locale data should be upserted
+	 * @param target                      the target where the locale data should be upserted - an index object, or
+	 *                                    a virtual partition
 	 * @param referenceKey                the explicit reference key to use instead of extracting from the index discriminator
 	 * @param existingDataSupplierFactory the factory supplying existing data supplier methods for lookups
 	 */
 	public void upsertEntityAttributeLocaleInTargetIndex(
 		@Nonnull Locale locale,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull EntityIndex targetIndex,
+		@Nonnull IndexWriteTarget target,
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		insertInitialSuiteOfSortableAttributeCompounds(
-			locale, entitySchema, targetIndex, referenceKey, existingDataSupplierFactory
+			locale, entitySchema, target, referenceKey, existingDataSupplierFactory
 		);
 	}
 
 	/**
-	 * Removes a specific locale's data from the target entity index.
+	 * Removes a specific locale's data from the target - an index object, or a virtual partition the registry of
+	 * single-owner partitions alone holds the locale's compounds for.
 	 *
-	 * @param locale                      the locale that should be removed from the target index
+	 * @param locale                      the locale that should be removed from the target
 	 * @param entitySchema                the schema of the entity defining its structure and constraints
-	 * @param targetIndex                 the target index from which the locale data should be removed
+	 * @param target                      the target from which the locale data should be removed
 	 * @param existingDataSupplierFactory a factory for supplying existing data related to the entity
 	 */
 	public void removeEntityAttributeLocaleInTargetIndex(
 		@Nonnull Locale locale,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull EntityIndex targetIndex,
+		@Nonnull IndexWriteTarget target,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		removeEntireSuiteOfSortableAttributeCompounds(
-			locale, entitySchema, targetIndex, existingDataSupplierFactory
+			locale, entitySchema, target, existingDataSupplierFactory
 		);
 	}
 
 	/**
-	 * Removes a specific locale's data from the target entity index, using an explicit reference key.
+	 * Removes a specific locale's data from the target, using an explicit reference key.
 	 * This overload is used when the index discriminator may not contain the correct reference key
 	 * (e.g. for group-level reduced indexes).
 	 *
-	 * @param locale                      the locale that should be removed from the target index
+	 * @param locale                      the locale that should be removed from the target
 	 * @param entitySchema                the schema of the entity defining its structure and constraints
-	 * @param targetIndex                 the target index from which the locale data should be removed
+	 * @param target                      the target from which the locale data should be removed - an index object,
+	 *                                    or a virtual partition
 	 * @param referenceKey                the explicit reference key to use instead of extracting from the index discriminator
 	 * @param existingDataSupplierFactory a factory for supplying existing data related to the entity
 	 */
 	public void removeEntityAttributeLocaleInTargetIndex(
 		@Nonnull Locale locale,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull EntityIndex targetIndex,
+		@Nonnull IndexWriteTarget target,
 		@Nonnull ReferenceKey referenceKey,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		removeEntireSuiteOfSortableAttributeCompounds(
-			locale, entitySchema, targetIndex, referenceKey, existingDataSupplierFactory
+			locale, entitySchema, target, referenceKey, existingDataSupplierFactory
 		);
 	}
 
@@ -1649,7 +1910,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 */
 	@Nonnull
 	public PriceSuperIndex getGlobalPriceIndex(@Nonnull Scope scope) {
-		return ((GlobalEntityIndex) getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, scope))).getPriceIndex();
+		return getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, scope)).getPriceIndex();
 	}
 
 	/**
@@ -1669,21 +1930,23 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Returns the existing entity index by its storage primary key, or `null` if not found.
-	 * Used for resolving reduced indexes from their internal primary key without creating new indexes.
+	 * Returns the existing index for the given key registered for modification tracking, so that its changed storage
+	 * parts are persisted on flush, but - unlike {@link #getOrCreateIndex(EntityIndexKey)} - without adding it to the
+	 * indexes the end of the mutation inspects for emptiness. Meant for an index the mutation writes into on the side,
+	 * whose existence the mutation must not decide.
 	 *
-	 * @param indexPrimaryKey the storage primary key of the index
-	 * @return the existing index, or `null` if no index with the given PK exists
+	 * @param entityIndexKey the key of an index known to exist
+	 * @return the existing index registered for modification
 	 */
-	@Nullable
-	EntityIndex getEntityIndexByPrimaryKeyIfExists(int indexPrimaryKey) {
-		return this.entityIndexCreatingAccessor.getIndexByPrimaryKeyIfExists(indexPrimaryKey);
+	@Nonnull
+	EntityIndex getIndexForSideWrite(@Nonnull EntityIndexKey entityIndexKey) {
+		return this.entityIndexCreatingAccessor.getOrCreateIndex(entityIndexKey);
 	}
 
 	/**
 	 * Returns the existing entity index by its storage primary key and registers it for modification tracking
 	 * so that its changed storage parts are persisted on flush. Returns `null` if no index with the given PK exists.
-	 * Use this method instead of {@link #getEntityIndexByPrimaryKeyIfExists(int)} when the caller intends to
+	 * Use this method instead of a plain read by primary key when the caller intends to
 	 * mutate the returned index (e.g. inserting/removing histogram values).
 	 *
 	 * @param indexPrimaryKey the storage primary key of the index
@@ -1695,16 +1958,55 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
+	 * Returns the existing index of the group family of a reference by its storage primary key, registered for
+	 * modification - see {@link #getEntityIndexByPrimaryKeyForModification(int)}. The primary keys of the group family
+	 * never name a partition of the entity family, so a primary key without an index object must not name a registry
+	 * row of the reference's single-owner partitions either: a registered partition reached by the group-family walk
+	 * means the two families got mixed up.
+	 *
+	 * @param scope           the scope of the group family
+	 * @param referenceName   the reference of this collection's entity type the group family belongs to
+	 * @param indexPrimaryKey the storage primary key of the index
+	 * @return the existing index registered for modification, or `null` if no index with the given PK exists
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when no index exists and the primary key names a registry
+	 *                                                         row of the reference in the scope
+	 */
+	@Nullable
+	EntityIndex getGroupIndexByPrimaryKeyForModification(
+		@Nonnull Scope scope,
+		@Nonnull String referenceName,
+		int indexPrimaryKey
+	) {
+		final EntityIndex index = getEntityIndexByPrimaryKeyForModification(indexPrimaryKey);
+		if (index == null) {
+			final ReferencedTypeEntityIndex typeIndex = getReferencedTypeIndexIfExists(scope, referenceName);
+			isPremiseValid(
+				typeIndex == null ||
+					typeIndex.getVirtualReferencePartitionIndex().getPartitionOwner(indexPrimaryKey).isEmpty(),
+				() -> "The group family of reference `" + referenceName + "` in scope `" + scope + "` lists primary " +
+					"key " + indexPrimaryKey + ", which names a registered single-owner partition of the reference " +
+					"rather than a group index!"
+			);
+		}
+		return index;
+	}
+
+	/**
 	 * Method returns existing index by primary key and adds it to the changed set of indexes that needs persisting.
 	 *
 	 * The resolution MUST go through the registering accessor, not the plain read: every caller of this method mutates
-	 * the index it gets back (it is the by-primary-key half of {@code getAllReducedIndexes}, which feeds the reduced
-	 * indexes an entity upsert then writes into). An index that is mutated without being registered is invisible to the
+	 * the index it gets back - it is the by-primary-key half of
+	 * {@link #forEachPartitionOfTargetForWrite(Scope, ReferenceSchemaContract, int, PartitionWriteKind, Consumer)} and
+	 * of the group-index walk in {@link #applyOnExistingReducedIndexes}, and both feed the reduced indexes an entity
+	 * upsert then writes into. An index that is mutated without being registered is invisible to the
 	 * flush, so its changed storage parts are never persisted — and it is invisible to the dirty-key snapshot the
 	 * commit-time merge prunes on, so the merge carries it across the catalog version by reference and orphans the
 	 * transactional layers its mutation created, which surfaces as a `StaleTransactionMemoryException` that suspends
 	 * the catalog. {@link #accessedIndexes} does not cover this: that set drives the empty-index cleanup, not
 	 * persistence.
+	 *
+	 * @param indexPrimaryKey the storage primary key of the index
+	 * @return the existing index registered for modification, or empty when no index with the given PK exists
 	 */
 	@Nonnull
 	Optional<EntityIndex> getIndexByPrimaryKey(int indexPrimaryKey) {
@@ -1714,40 +2016,670 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Method processes all mutations that targets entity attributes - e.g. {@link AttributeMutation}.
+	 * Returns the reference partition of the representative reference key in the scope, acquired for writing a
+	 * partition the reference already holds - see {@link #getOrCreatePartitionForInsert}, which may also bring one into
+	 * existence.
+	 *
+	 * Unless the mutation writes the single-owner partitions of the reference in the scope virtually, the acquisition
+	 * is that of {@link #getOrCreateIndex(EntityIndexKey)}: the partition is created when the collection holds none yet,
+	 * registered for modification tracking so that its changed storage parts are persisted on flush, and added to the
+	 * set of indexes the end-of-mutation sweep inspects. When it does, the partition is looked up and never created:
+	 * its index object, registered the same way, when there is one, its virtual handle built from the registry row of
+	 * the key otherwise.
+	 *
+	 * The one exception is a partition the reference left as a registry row while it was indexed for filtering only,
+	 * before its indexing changed - see {@link #releaseRowOfFormerIndexing}.
+	 *
+	 * @param scope                      the scope of the partition
+	 * @param representativeReferenceKey the representative reference key of the partition
+	 * @param writeSite                  names the write path acquiring the partition, for the error message
+	 * @param writeKind                  whether the write may put content into the partition or only takes content
+	 *                                   out of it
+	 * @return the existing (or, off the virtual writing, newly created) partition
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key holds an index that is not a reference
+	 *                                                         partition, or the mutation writes the partition
+	 *                                                         virtually and neither its index object nor its
+	 *                                                         registry row exists
+	 * @throws ReferencePartitionReindexRequiredException     when the partition is a row of the former indexing of the
+	 *                                                         reference and the write may put content into it
+	 */
+	@Nonnull
+	ReferencePartition getPartitionForWrite(
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey,
+		@Nonnull String writeSite,
+		@Nonnull PartitionWriteKind writeKind
+	) {
+		if (isReferenceWrittenVirtually(scope, representativeReferenceKey)) {
+			final ReferencePartition partition = findPartitionWrittenVirtually(scope, representativeReferenceKey);
+			if (partition == null) {
+				final int reserved = this.partitionReservations.peek(
+					this.entityType, scope, representativeReferenceKey
+				);
+				throw new GenericEvitaInternalError(
+					"The write path `" + writeSite + "` found no partition of `" + representativeReferenceKey +
+						"` in scope `" + scope + "` of entity type `" + getEntitySchema().getName() + "` - neither " +
+						"its index object nor its registry row exists" +
+						(reserved == PartitionReservations.NO_RESERVATION ?
+							"!" :
+							", its last owner left it as partition " + reserved + " within this root mutation and " +
+								"no owner entered it again!")
+				);
+			}
+			return partition;
+		}
+		return getPartitionNotWrittenVirtually(scope, representativeReferenceKey, writeKind);
+	}
+
+	/**
+	 * Returns the reference partition of the representative reference key in the scope, acquired for writing an owner
+	 * into it: the partition the reference already holds, as {@link #getPartitionForWrite} finds it, or a new one when
+	 * there is none.
+	 *
+	 * Unless the mutation writes the single-owner partitions of the reference in the scope virtually, the acquisition
+	 * is that of {@link #getOrCreateIndex(EntityIndexKey)} - see {@link #getPartitionForWrite}. When it does, a
+	 * partition the reference holds neither as an index object nor as a registry row is brought into existence as a
+	 * virtual handle without a row: under the primary key the root mutation reserved for the key when the partition's
+	 * last owner left it, or under a primary key newly allocated from the index sequence - the one an index object
+	 * created here would have taken. The handle names this executor's entity as the owner; the owner's entering the
+	 * partition registers its row (see {@link ReferenceIndexMutator}). No owner may enter a partition while the root
+	 * mutation is finishing.
+	 *
+	 * The one exception is a partition the reference left as a registry row while it was indexed for filtering only,
+	 * before its indexing changed - see {@link #releaseRowOfFormerIndexing}. No index object is created next to such a
+	 * row: an owner entering the partition, which puts content into it, is refused.
+	 *
+	 * @param scope                      the scope of the partition
+	 * @param representativeReferenceKey the representative reference key of the partition
+	 * @param writeSite                  names the write path acquiring the partition, for the error message
+	 * @param writeKind                  whether the write may put content into the partition or only takes content
+	 *                                   out of it
+	 * @return the existing or newly created partition
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key holds an index that is not a reference
+	 *                                                         partition, or the mutation writes the partition
+	 *                                                         virtually and the root mutation is finishing or the
+	 *                                                         reference has no referenced-type index in the scope
+	 * @throws ReferencePartitionReindexRequiredException     when the partition is a row of the former indexing of the
+	 *                                                         reference and the write may put content into it
+	 */
+	@Nonnull
+	ReferencePartition getOrCreatePartitionForInsert(
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey,
+		@Nonnull String writeSite,
+		@Nonnull PartitionWriteKind writeKind
+	) {
+		if (isReferenceWrittenVirtually(scope, representativeReferenceKey)) {
+			isPremiseValid(
+				!this.partitionReservations.isFinishing(),
+				() -> "The write path `" + writeSite + "` brings an owner into the partition of `" +
+					representativeReferenceKey + "` in scope `" + scope + "` of entity type `" +
+					getEntitySchema().getName() + "` while the root mutation is finishing - no owner may enter a " +
+					"partition once the executors apply their changes!"
+			);
+			final ReferencePartition partition = findPartitionWrittenVirtually(scope, representativeReferenceKey);
+			if (partition != null) {
+				return partition;
+			}
+			return mintPartitionWrittenVirtually(scope, representativeReferenceKey, writeSite);
+		}
+		return getPartitionNotWrittenVirtually(scope, representativeReferenceKey, writeKind);
+	}
+
+	/**
+	 * Returns TRUE when the mutation writes the single-owner partitions of the key's reference in the scope virtually -
+	 * see {@link VirtualReferencePartitionWriter#isWrittenVirtually}.
+	 *
+	 * @param scope                      the scope of the partition
+	 * @param representativeReferenceKey the representative reference key of the partition
+	 * @return TRUE when the partitions of the key's reference are written virtually in the scope
+	 */
+	private boolean isReferenceWrittenVirtually(
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey
+	) {
+		return VirtualReferencePartitionWriter.isWrittenVirtually(
+			getEntitySchema().getReferenceOrThrowException(representativeReferenceKey.referenceName()), scope
+		);
+	}
+
+	/**
+	 * Returns the partition of the representative reference key in the scope for a mutation that does not write the
+	 * single-owner partitions of the reference virtually: the row the reference left for it while it was indexed for
+	 * filtering only, decided as {@link #releaseRowOfFormerIndexing} decides it, when there is one, and the index
+	 * object of the partition, created when the collection holds none yet, otherwise.
+	 *
+	 * @param scope                      the scope of the partition
+	 * @param representativeReferenceKey the representative reference key of the partition
+	 * @param writeKind                  whether the write may put content into the partition or only takes content
+	 *                                   out of it
+	 * @return the row of the former indexing, or the existing or newly created index object
+	 * @throws ReferencePartitionReindexRequiredException when the partition is a row of the former indexing of the
+	 *                                                    reference and the write may put content into it
+	 */
+	@Nonnull
+	private ReferencePartition getPartitionNotWrittenVirtually(
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey,
+		@Nonnull PartitionWriteKind writeKind
+	) {
+		final VirtualReferencePartition rowOfFormerIndexing = findRowOfFormerIndexing(
+			scope, representativeReferenceKey
+		);
+		if (rowOfFormerIndexing != null) {
+			return releaseRowOfFormerIndexing(rowOfFormerIndexing, writeKind);
+		}
+		return createPartitionObjectIfMissing(scope, representativeReferenceKey);
+	}
+
+	/**
+	 * Finds the registry row the reference left for the partition of the key while it was indexed for filtering only
+	 * - a row of a reference whose partitions may no longer be virtual in the scope, because its index type or its
+	 * indexed components changed since (see {@link VirtualReferencePartitionWriter#isWrittenVirtually}). The registry
+	 * keeps rows of a reference only while its partitions may be virtual, and nothing converts them when that ends, so
+	 * every row of such a reference is one of its former indexing. A partition with an index object is never such a
+	 * row: the object wins - one the reference created since its indexing changed, or one with several owners from
+	 * before.
+	 *
+	 * Unless the registry of the reference holds a row, the lookup costs a lookup of the referenced-type index; the
+	 * scan of the target's family runs only when it does.
+	 *
+	 * @param scope                      the scope of the partition
+	 * @param representativeReferenceKey the representative reference key of the partition, of a reference whose
+	 *                                   partitions may not be virtual in the scope
+	 * @return the row of the partition, or `null` when the partition has an index object or no row
+	 */
+	@Nullable
+	private VirtualReferencePartition findRowOfFormerIndexing(
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey
+	) {
+		final ReferencedTypeEntityIndex typeIndex = findTypeIndexWithRowsOfFormerIndexing(
+			scope, representativeReferenceKey.referenceName()
+		);
+		if (
+			typeIndex == null ||
+				ReferencePartitions.resolveIfExists(this::getIndexIfExists, scope, representativeReferenceKey) != null
+		) {
+			return null;
+		}
+		return ReferencePartitions.findRegisteredForWrite(typeIndex, representativeReferenceKey);
+	}
+
+	/**
+	 * Returns the referenced-type index of the reference in the scope when its registry holds a row while the
+	 * reference's partitions may not be virtual there - a row of the reference's former indexing, see
+	 * {@link #findRowOfFormerIndexing}. Constant time: the type index is looked up and only its registry's emptiness is
+	 * read.
+	 *
+	 * @param scope         the scope
+	 * @param referenceName the reference of this collection's entity type, whose partitions may not be virtual in the
+	 *                      scope
+	 * @return the type index, or `null` when the reference has no type index in the scope or its registry holds no row
+	 */
+	@Nullable
+	private ReferencedTypeEntityIndex findTypeIndexWithRowsOfFormerIndexing(
+		@Nonnull Scope scope,
+		@Nonnull String referenceName
+	) {
+		final ReferencedTypeEntityIndex typeIndex = getReferencedTypeIndexIfExists(scope, referenceName);
+		return typeIndex == null || typeIndex.getVirtualReferencePartitionIndex().isEmpty() ? null : typeIndex;
+	}
+
+	/**
+	 * Decides a write that reaches a partition the reference left as a registry row while it was indexed for filtering
+	 * only (see {@link #findRowOfFormerIndexing}). The row holds only what that indexing kept of the partition, and its
+	 * reference is indexed for partitioning now, so:
+	 *
+	 * - a write that may put content into the partition is refused - the content the reference's indexing requires
+	 *   has no place in a row, and the row is never converted into an index object;
+	 * - a write that only takes content out of the partition proceeds on the row alone: it takes out what the row
+	 *   holds and passes over everything else, which the row never held. Its write paths accept the row by
+	 *   {@link #isReleasedRowOfFormerIndexing}.
+	 *
+	 * @param row       the row of the partition
+	 * @param writeKind whether the write may put content into the partition or only takes content out of it
+	 * @return the row, released to a write taking content out of it
+	 * @throws ReferencePartitionReindexRequiredException when the write may put content into the partition
+	 */
+	@Nonnull
+	private VirtualReferencePartition releaseRowOfFormerIndexing(
+		@Nonnull VirtualReferencePartition row,
+		@Nonnull PartitionWriteKind writeKind
+	) {
+		switch (writeKind) {
+			case ADDING -> throw new ReferencePartitionReindexRequiredException(
+				this.entityType, row.getRepresentativeReferenceKey().referenceName(), row.getIndexKey().scope()
+			);
+			case REMOVING -> {
+				if (this.rowsOfFormerIndexingReleased == null) {
+					this.rowsOfFormerIndexingReleased = new IntHashSet(4);
+				}
+				this.rowsOfFormerIndexingReleased.add(row.getPrimaryKey());
+			}
+		}
+		return row;
+	}
+
+	/**
+	 * Returns TRUE when the target is a partition the acquisition of this executor released to a write taking content
+	 * out of it as a row the reference left in the registry while it was indexed for filtering only - see
+	 * {@link #releaseRowOfFormerIndexing}.
+	 *
+	 * @param target the target a write path met
+	 * @return TRUE when the target is such a released row
+	 */
+	boolean isReleasedRowOfFormerIndexing(@Nonnull IndexWriteTarget target) {
+		return this.rowsOfFormerIndexingReleased != null &&
+			target instanceof VirtualReferencePartition partition &&
+			this.rowsOfFormerIndexingReleased.contains(partition.getPrimaryKey());
+	}
+
+	/**
+	 * Brings a partition the reference holds neither as an index object nor as a registry row into existence as a
+	 * virtual handle without a row, named after this executor's entity as its owner - see
+	 * {@link #getOrCreatePartitionForInsert}. The primary key reserved for the key within the root mutation is taken
+	 * first, a new one is allocated from the index sequence only when there is none.
+	 *
+	 * @param scope                      the scope of the partition
+	 * @param representativeReferenceKey the representative reference key of the partition
+	 * @param writeSite                  names the write path acquiring the partition, for the error message
+	 * @return the virtual handle of the partition
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the reference has no referenced-type index in the
+	 *                                                         scope to carry the partition's row
+	 */
+	@Nonnull
+	private VirtualReferencePartition mintPartitionWrittenVirtually(
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey,
+		@Nonnull String writeSite
+	) {
+		final ReferencedTypeEntityIndex typeIndex = getReferencedTypeIndexIfExists(
+			scope, representativeReferenceKey.referenceName()
+		);
+		if (typeIndex == null) {
+			throw new GenericEvitaInternalError(
+				"The write path `" + writeSite + "` brings an owner into a new partition of `" +
+					representativeReferenceKey + "` in scope `" + scope + "` of entity type `" +
+					getEntitySchema().getName() + "` before the referenced-type index carrying its row exists!"
+			);
+		}
+		final int reserved = this.partitionReservations.take(this.entityType, scope, representativeReferenceKey);
+		final int partitionPrimaryKey = reserved == PartitionReservations.NO_RESERVATION ?
+			this.entityIndexCreatingAccessor.allocatePartitionPrimaryKey() : reserved;
+		return ReferencePartitions.toWriteHandle(
+			typeIndex, partitionPrimaryKey, this.ownerPrimaryKey, representativeReferenceKey
+		);
+	}
+
+	/**
+	 * Reserves the primary key of a partition whose last owner - this executor's entity - has just left it and that
+	 * has no index object any more - its row was dropped, or its index object retired - so that an owner entering a
+	 * partition of the same key within the root mutation keeps it (see {@link PartitionReservations}).
+	 *
+	 * @param partition the partition its last owner has just left
+	 */
+	void reserveVacatedPartition(@Nonnull ReferencePartition partition) {
+		this.partitionReservations.reserve(
+			this.entityType, partition.getIndexKey().scope(), partition.getRepresentativeReferenceKey(),
+			partition.getPrimaryKey()
+		);
+	}
+
+	/**
+	 * Gives a partition represented by its registry row alone an index object, because the partition is about to gain
+	 * its second owner (1 -> 2). The object is installed under the partition's primary key - the one its row carries
+	 * and the one the partition keeps - registered for modification tracking so that its storage parts are persisted on
+	 * flush, and added to the indexes the end-of-mutation sweep inspects, as the acquisition of
+	 * {@link #getOrCreateIndex(EntityIndexKey)} registers an index it creates. The object is empty: the caller writes
+	 * the partition's first owner into it.
+	 *
+	 * No owner may enter a partition while the root mutation is finishing, so no partition is promoted then.
+	 *
+	 * @param partition the partition gaining its second owner
+	 * @param writeSite names the write path promoting the partition, for the error message
+	 * @return the empty index object of the partition
+	 * @throws GenericEvitaInternalError when the root mutation is finishing, or the index object cannot be installed
+	 *                                   under the partition's key and primary key (see
+	 *                                   {@link IndexMaintainer#installIndex(IndexKey, int, IntFunction)})
+	 */
+	@Nonnull
+	ReducedEntityIndex installPartitionObject(
+		@Nonnull VirtualReferencePartition partition,
+		@Nonnull String writeSite
+	) {
+		final EntityIndexKey indexKey = partition.getIndexKey();
+		isPremiseValid(
+			!this.partitionReservations.isFinishing(),
+			() -> "The write path `" + writeSite + "` promotes partition " + partition.getPrimaryKey() + " `" +
+				indexKey + "` of entity type `" + this.entityType + "` while the root mutation is finishing - no " +
+				"owner may enter a partition once the executors apply their changes!"
+		);
+		final EntityIndex installed = this.entityIndexCreatingAccessor.installIndex(
+			indexKey,
+			partition.getPrimaryKey(),
+			primaryKey -> new ReducedEntityIndex(primaryKey, this.entityType, indexKey, this.usageStatisticsTracking)
+		);
+		this.accessedIndexes.add(indexKey);
+		return (ReducedEntityIndex) installed;
+	}
+
+	/**
+	 * Retires the index object of a partition that has become a single-owner one again (2 -> 1) and whose registry
+	 * row holds everything the object holds of its only owner, or of a partition its last owner has just left (1 -> 0)
+	 * - the object is removed by its key, together with its registration by primary key and its persisted footprint
+	 * (see {@link IndexMaintainer#removeIndex(IndexKey)}). The partition keeps its primary key in the row, or in the
+	 * reservation of the root mutation. The end-of-mutation sweep of every executor finds the object gone and
+	 * passes it over.
+	 *
+	 * @param partition the partition whose index object is retired
+	 */
+	void retirePartitionObject(@Nonnull ReferencePartition partition) {
+		this.entityIndexCreatingAccessor.removeIndex(partition.getIndexKey());
+	}
+
+	/**
+	 * Returns the index object of the partition of the representative reference key in the scope, creating it when
+	 * the collection holds none yet - the acquisition of {@link #getOrCreateIndex(EntityIndexKey)}.
+	 *
+	 * @param scope                      the scope of the partition
+	 * @param representativeReferenceKey the representative reference key of the partition
+	 * @return the existing or newly created partition
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key holds an index that is not a reference
+	 *                                                         partition
+	 */
+	@Nonnull
+	private ReferencePartition createPartitionObjectIfMissing(
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey
+	) {
+		return Objects.requireNonNull(
+			ReferencePartitions.requireMaterialized(
+				ReferencePartitions.resolveIfExists(this::getOrCreateIndex, scope, representativeReferenceKey),
+				"createPartitionObjectIfMissing"
+			)
+		);
+	}
+
+	/**
+	 * Looks up the partition of the representative reference key in the scope for a mutation that writes it virtually,
+	 * creating nothing: the index object when there is one - registered for modification tracking and for the
+	 * end-of-mutation sweep as {@link #getOrCreateIndex(EntityIndexKey)} registers it - and the virtual handle built
+	 * from the registry row of the key otherwise.
+	 *
+	 * @param scope                      the scope of the partition
+	 * @param representativeReferenceKey the representative reference key of the partition
+	 * @return the partition, or `null` when neither its index object nor its registry row exists
+	 */
+	@Nullable
+	private ReferencePartition findPartitionWrittenVirtually(
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey
+	) {
+		if (ReferencePartitions.resolveIfExists(this::getIndexIfExists, scope, representativeReferenceKey) != null) {
+			// the key holds an index - the enrolling accessor registers it and creates nothing
+			return ReferencePartitions.resolveIfExists(this::getOrCreateIndex, scope, representativeReferenceKey);
+		}
+		final ReferencedTypeEntityIndex typeIndex = getReferencedTypeIndexIfExists(
+			scope, representativeReferenceKey.referenceName()
+		);
+		return typeIndex == null ?
+			null : ReferencePartitions.findRegisteredForWrite(typeIndex, representativeReferenceKey);
+	}
+
+	/**
+	 * Looks up the partition of a primary key the type index lists for a mutation that writes it virtually, creating
+	 * nothing: the index object when there is one - registered as {@link #getIndexByPrimaryKey(int)} registers it -
+	 * and the virtual handle built from the registry row of the primary key otherwise.
+	 *
+	 * @param typeIndex           the referenced-type entity index listing the primary key
+	 * @param partitionPrimaryKey the primary key of the partition
+	 * @param writeSite           names the write path acquiring the partition, for the error message
+	 * @return the partition
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when neither the index object nor the registry row of the
+	 *                                                         primary key exists, or the index object is not a
+	 *                                                         partition of the type index's reference and scope
+	 */
+	@Nonnull
+	private ReferencePartition getPartitionByPrimaryKeyWrittenVirtually(
+		@Nonnull ReferencedTypeEntityIndex typeIndex,
+		int partitionPrimaryKey,
+		@Nonnull String writeSite
+	) {
+		final EntityIndexKey typeIndexKey = typeIndex.getIndexKey();
+		final String referenceName = typeIndex.getReferenceName();
+		if (this.entityIndexCreatingAccessor.getIndexByPrimaryKeyIfExists(partitionPrimaryKey) != null) {
+			final EntityIndex index = getIndexByPrimaryKey(partitionPrimaryKey).orElseThrow();
+			final ReferencePartition partition = ReferencePartitions.requirePartition(
+				index, getEntitySchema().getName(), partitionPrimaryKey
+			);
+			isPremiseValid(
+				ReferencePartitions.belongsTo(partition, typeIndexKey.scope(), referenceName),
+				() -> "Type index `" + typeIndexKey + "` lists primary key " + partitionPrimaryKey + ", which names " +
+					index + " rather than a partition of reference `" + referenceName + "` in scope `" +
+					typeIndexKey.scope() + "`!"
+			);
+			return partition;
+		}
+		final ReferencePartition registered = ReferencePartitions.resolveRegisteredForWrite(
+			typeIndex, partitionPrimaryKey
+		);
+		if (registered == null) {
+			throw new GenericEvitaInternalError(
+				"The write path `" + writeSite + "` found no partition of primary key " + partitionPrimaryKey +
+					" listed by `" + typeIndexKey + "` of entity type `" + getEntitySchema().getName() + "` - " +
+					"neither its index object nor its registry row exists!"
+			);
+		}
+		return registered;
+	}
+
+	/**
+	 * Returns the referenced-type entity index of the reference in the scope without creating it and without
+	 * registering it for modification tracking.
+	 *
+	 * @param scope         the scope
+	 * @param referenceName the reference of this collection's entity type
+	 * @return the type index, or `null` when the collection holds none
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key holds an index that is not a
+	 *                                                         referenced-type entity index
+	 */
+	@Nullable
+	private ReferencedTypeEntityIndex getReferencedTypeIndexIfExists(
+		@Nonnull Scope scope,
+		@Nonnull String referenceName
+	) {
+		final EntityIndexKey typeIndexKey = new EntityIndexKey(
+			EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName
+		);
+		final EntityIndex typeIndex = getIndexIfExists(typeIndexKey);
+		if (typeIndex == null) {
+			return null;
+		}
+		isPremiseValid(
+			typeIndex instanceof ReferencedTypeEntityIndex,
+			() -> "Expected " + ReferencedTypeEntityIndex.class.getSimpleName() + " under `" + typeIndexKey +
+				"` but got " + typeIndex.getClass() + "!"
+		);
+		return (ReferencedTypeEntityIndex) typeIndex;
+	}
+
+	/**
+	 * Passes every reference partition holding rows of the reference that point to the target entity in the scope to
+	 * the consumer, each acquired for writing.
+	 *
+	 * Unless the mutation writes the single-owner partitions of the reference in the scope virtually, the acquisition
+	 * creates what it does not find - the type index of a reference allowing duplicates, the single partition of one
+	 * that does not; a primary key the type index lists must resolve. When it does, nothing is created: each partition
+	 * is its index object when there is one, its virtual handle built from the registry row otherwise, a target
+	 * without a partition yields none, and a primary key the type index lists must still resolve to one or the other.
+	 *
+	 * A partition the reference left as a registry row while it was indexed for filtering only, before its indexing
+	 * changed, is decided as {@link #releaseRowOfFormerIndexing} decides it.
+	 *
+	 * @param scope            the scope of the partitions
+	 * @param referenceSchema  the reference of this collection's entity type
+	 * @param targetPrimaryKey the primary key of the referenced entity
+	 * @param writeKind        whether the write may put content into the partitions or only takes content out of
+	 *                         them
+	 * @param consumer         receives each partition of the target, registered for modification
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when a primary key the type index lists names no
+	 *                                                         partition of the reference in the scope
+	 * @throws ReferencePartitionReindexRequiredException     when a partition is a row of the former indexing of the
+	 *                                                         reference and the write may put content into it
+	 */
+	void forEachPartitionOfTargetForWrite(
+		@Nonnull Scope scope,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		int targetPrimaryKey,
+		@Nonnull PartitionWriteKind writeKind,
+		@Nonnull Consumer<ReferencePartition> consumer
+	) {
+		final ReferencePartition[] partitions;
+		if (VirtualReferencePartitionWriter.isWrittenVirtually(referenceSchema, scope)) {
+			partitions = findPartitionsOfTargetWrittenVirtually(scope, referenceSchema, targetPrimaryKey);
+		} else if (findTypeIndexWithRowsOfFormerIndexing(scope, referenceSchema.getName()) != null) {
+			partitions = findPartitionsOfTargetWithRowsOfFormerIndexing(
+				scope, referenceSchema, targetPrimaryKey, writeKind
+			);
+		} else {
+			partitions = ReferencePartitions.requireMaterialized(
+				ReferencePartitions.resolveOfTargetOrThrow(
+					this::getOrCreateIndex,
+					partitionPrimaryKey -> getIndexByPrimaryKey(partitionPrimaryKey).orElse(null),
+					scope, referenceSchema.getName(), referenceSchema.getCardinality().allowsDuplicates(),
+					targetPrimaryKey, getEntitySchema().getName()
+				),
+				"forEachPartitionOfTargetForWrite"
+			);
+		}
+		for (final ReferencePartition partition : partitions) {
+			consumer.accept(partition);
+		}
+	}
+
+	/**
+	 * Finds every partition of the target of a reference whose registry holds rows of its former indexing - see
+	 * {@link #forEachPartitionOfTargetForWrite}. Each partition is its index object when there is one and its row of
+	 * the former indexing otherwise, decided as {@link #releaseRowOfFormerIndexing} decides it; the single partition of
+	 * a reference without duplicates that is neither is created, as the acquisition without rows creates it.
+	 *
+	 * @param scope            the scope of the partitions
+	 * @param referenceSchema  the reference of this collection's entity type, whose partitions may not be virtual in
+	 *                         the scope
+	 * @param targetPrimaryKey the primary key of the referenced entity
+	 * @param writeKind        whether the write may put content into the partitions or only takes content out of
+	 *                         them
+	 * @return the partitions of the target, possibly empty
+	 * @throws ReferencePartitionReindexRequiredException when a partition is a row of the former indexing and the
+	 *                                                    write may put content into it
+	 */
+	@Nonnull
+	private ReferencePartition[] findPartitionsOfTargetWithRowsOfFormerIndexing(
+		@Nonnull Scope scope,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		int targetPrimaryKey,
+		@Nonnull PartitionWriteKind writeKind
+	) {
+		final ReferencePartition[] partitions = findPartitionsOfTargetWrittenVirtually(
+			scope, referenceSchema, targetPrimaryKey
+		);
+		if (partitions.length == 0 && !referenceSchema.getCardinality().allowsDuplicates()) {
+			return new ReferencePartition[]{
+				createPartitionObjectIfMissing(
+					scope,
+					new RepresentativeReferenceKey(new ReferenceKey(referenceSchema.getName(), targetPrimaryKey))
+				)
+			};
+		}
+		for (int i = 0; i < partitions.length; i++) {
+			if (partitions[i] instanceof final VirtualReferencePartition row) {
+				partitions[i] = releaseRowOfFormerIndexing(row, writeKind);
+			}
+		}
+		return partitions;
+	}
+
+	/**
+	 * Finds every partition of the target for a mutation that writes the single-owner partitions of the reference in
+	 * the scope virtually - see {@link #forEachPartitionOfTargetForWrite}. The lookup follows the cardinality of the
+	 * reference as the object-only resolution does: the single partition of a reference without duplicates by its key,
+	 * the partitions of one with duplicates through the type index.
+	 *
+	 * @param scope            the scope of the partitions
+	 * @param referenceSchema  the reference of this collection's entity type
+	 * @param targetPrimaryKey the primary key of the referenced entity
+	 * @return the partitions of the target, possibly empty
+	 */
+	@Nonnull
+	private ReferencePartition[] findPartitionsOfTargetWrittenVirtually(
+		@Nonnull Scope scope,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		int targetPrimaryKey
+	) {
+		final String referenceName = referenceSchema.getName();
+		if (!referenceSchema.getCardinality().allowsDuplicates()) {
+			final ReferencePartition partition = findPartitionWrittenVirtually(
+				scope,
+				new RepresentativeReferenceKey(new ReferenceKey(referenceName, targetPrimaryKey))
+			);
+			return partition == null ?
+				ReferencePartitions.EMPTY_PARTITIONS : new ReferencePartition[]{partition};
+		}
+		final ReferencedTypeEntityIndex typeIndex = getReferencedTypeIndexIfExists(scope, referenceName);
+		if (typeIndex == null) {
+			return ReferencePartitions.EMPTY_PARTITIONS;
+		}
+		final int[] partitionPrimaryKeys = typeIndex.getAllReferenceIndexes(targetPrimaryKey);
+		final ReferencePartition[] result = new ReferencePartition[partitionPrimaryKeys.length];
+		for (int i = 0; i < partitionPrimaryKeys.length; i++) {
+			result[i] = getPartitionByPrimaryKeyWrittenVirtually(
+				typeIndex, partitionPrimaryKeys[i], "forEachPartitionOfTargetForWrite"
+			);
+		}
+		return result;
+	}
+
+	/**
+	 * Method processes all mutations that targets entity attributes - e.g. {@link AttributeMutation}. The targets are
+	 * index objects, or virtual partitions the registry of single-owner partitions alone receives the values for -
+	 * see {@link AttributeIndexMutator}.
 	 */
 	public void updateAttribute(
 		@Nullable ReferenceSchemaContract referenceSchema,
 		@Nonnull AttributeMutation attributeMutation,
 		@Nonnull AttributeAndCompoundSchemaProvider attributeSchemaProvider,
 		@Nonnull ExistingAttributeValueSupplier existingValueSupplier,
-		@Nonnull EntityIndex indexForRemoval,
-		@Nonnull EntityIndex indexForUpsert,
+		@Nonnull IndexWriteTarget targetForRemoval,
+		@Nonnull IndexWriteTarget targetForUpsert,
 		boolean updateGlobalIndex,
 		boolean updateCompounds
 	) {
 		final AttributeKey affectedAttribute = attributeMutation.getAttributeKey();
 
-		if (attributeMutation instanceof UpsertAttributeMutation) {
-			final Serializable attributeValue = ((UpsertAttributeMutation) attributeMutation).getAttributeValue();
-			AttributeIndexMutator.executeAttributeUpsert(
+		switch (attributeMutation) {
+			case UpsertAttributeMutation upsertAttributeMutation -> {
+				final Serializable attributeValue = upsertAttributeMutation.getAttributeValue();
+				AttributeIndexMutator.executeAttributeUpsert(
+					this, referenceSchema, attributeSchemaProvider, existingValueSupplier,
+					targetForRemoval, targetForUpsert, affectedAttribute, attributeValue, updateGlobalIndex,
+					updateCompounds
+				);
+			}
+			case RemoveAttributeMutation __ -> AttributeIndexMutator.executeAttributeRemoval(
 				this, referenceSchema, attributeSchemaProvider, existingValueSupplier,
-				indexForRemoval, indexForUpsert, affectedAttribute, attributeValue, updateGlobalIndex, updateCompounds
+				targetForRemoval, targetForUpsert, affectedAttribute, updateGlobalIndex, updateCompounds
 			);
-		} else if (attributeMutation instanceof RemoveAttributeMutation) {
-			AttributeIndexMutator.executeAttributeRemoval(
-				this, referenceSchema, attributeSchemaProvider, existingValueSupplier,
-				indexForRemoval, indexForUpsert, affectedAttribute, updateGlobalIndex, updateCompounds
-			);
-		} else if (attributeMutation instanceof ApplyDeltaAttributeMutation<?> applyDeltaAttributeMutation) {
-			final Number attributeValue = applyDeltaAttributeMutation.getAttributeValue();
-			AttributeIndexMutator.executeAttributeDelta(
-				this, referenceSchema, attributeSchemaProvider, existingValueSupplier,
-				indexForRemoval, indexForUpsert, affectedAttribute, attributeValue
-			);
-		} else {
-			// SHOULD NOT EVER HAPPEN
-			throw new GenericEvitaInternalError("Unknown mutation: " + attributeMutation.getClass());
+			case ApplyDeltaAttributeMutation<?> applyDeltaAttributeMutation -> {
+				final Number attributeValue = applyDeltaAttributeMutation.getAttributeValue();
+				AttributeIndexMutator.executeAttributeDelta(
+					this, referenceSchema, attributeSchemaProvider, existingValueSupplier,
+					targetForRemoval, targetForUpsert, affectedAttribute, attributeValue, updateGlobalIndex
+				);
+			}
+			default ->
+				// SHOULD NOT EVER HAPPEN
+				throw new GenericEvitaInternalError("Unknown mutation: " + attributeMutation.getClass());
 		}
 	}
 
@@ -2223,7 +3155,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				ReferenceIndexMutator.getOrCreateReferencedGroupTypeEntityIndex(
 					this, rrk.referenceName(), scope
 				);
-			final AbstractReducedEntityIndex groupIndex = ReferenceIndexMutator.getOrCreateReferencedGroupEntityIndex(
+			final ReducedGroupEntityIndex groupIndex = ReferenceIndexMutator.getOrCreateReferencedGroupEntityIndex(
 				this, rrk, groupPK, scope
 			);
 			ReferenceIndexMutator.referenceRemovalPerComponent(
@@ -2262,7 +3194,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			ReferenceIndexMutator.getOrCreateReferencedGroupTypeEntityIndex(
 				this, rrk.referenceName(), scope
 			);
-		final AbstractReducedEntityIndex groupIndex =
+		final ReducedGroupEntityIndex groupIndex =
 			ReferenceIndexMutator.getOrCreateReferencedGroupEntityIndex(
 				this, rrk, groupPK, scope
 			);
@@ -2329,23 +3261,25 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 							ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
 								this, referenceKey.referenceName(), scope
 							);
-						final ReducedEntityIndex formerReferenceIndex =
-							ReferenceIndexMutator.getOrCreateReferencedEntityIndex(
-								this, bothKeys.stored(), scope
+						final ReferencePartition formerPartition =
+							getPartitionForWrite(
+								scope, bothKeys.stored(), "getRepresentativeReferenceKeysAndUpdateIndexesIfNecessary",
+								PartitionWriteKind.REMOVING
 							);
-						final ReducedEntityIndex newReferenceIndex =
-							ReferenceIndexMutator.getOrCreateReferencedEntityIndex(
-								this, bothKeys.current(), scope
+						final ReferencePartition newPartition =
+							getOrCreatePartitionForInsert(
+								scope, bothKeys.current(), "getRepresentativeReferenceKeysAndUpdateIndexesIfNecessary",
+								PartitionWriteKind.ADDING
 							);
 						ReferenceIndexMutator.referenceRemovalPerComponent(
 							entityPrimaryKey, entitySchema, referenceSchema, this,
-							referenceTypeIndex, formerReferenceIndex, referenceKey,
+							referenceTypeIndex, formerPartition, referenceKey,
 							referenceKey.primaryKey(),
 							existingStoragePartFactory
 						);
 						ReferenceIndexMutator.referenceInsertPerComponent(
 							entityPrimaryKey, entitySchema, referenceSchema, this,
-							referenceTypeIndex, newReferenceIndex, referenceKey,
+							referenceTypeIndex, newPartition, referenceKey,
 							referenceKey.primaryKey(), groupId,
 							existingStoragePartFactory
 						);
@@ -2395,19 +3329,19 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 *
 	 * @param locale                      the locale context for the operation, which may be null;
 	 *                                    if null, the operation is performed without locale-specific considerations
-	 * @param targetIndex                 the target entity index where the sortable attribute compounds will be inserted;
-	 *                                    it must not be null
+	 * @param target                      the target where the sortable attribute compounds will be inserted; it
+	 *                                    must not be null
 	 * @param existingDataSupplierFactory the factory to create suppliers that provide existing
 	 *                                    data used during the insert; it must not be null
 	 */
 	private void insertInitialSuiteOfSortableAttributeCompounds(
 		@Nullable Locale locale,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull EntityIndex targetIndex,
+		@Nonnull IndexWriteTarget target,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		insertInitialSuiteOfSortableAttributeCompounds(
-			locale, entitySchema, targetIndex, null, existingDataSupplierFactory
+			locale, entitySchema, target, null, existingDataSupplierFactory
 		);
 	}
 
@@ -2419,8 +3353,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 *
 	 * @param locale                      the locale context for the operation, which may be null;
 	 *                                    if null, the operation is performed without locale-specific considerations
-	 * @param targetIndex                 the target entity index where the sortable attribute compounds will be inserted;
-	 *                                    it must not be null
+	 * A virtual partition receives the compounds of its own reference only, see
+	 * {@link ReferenceIndexMutator#applyVirtualPartitionCompoundSuite}.
+	 *
+	 * @param entitySchema                the entity schema the target belongs to
+	 * @param target                      the target where the sortable attribute compounds will be inserted; it
+	 *                                    must not be null
 	 * @param referenceKey                the explicit reference key to use for the reduced entity index lookup;
 	 *                                    when non-null it overrides the key extracted from the index discriminator
 	 * @param existingDataSupplierFactory the factory to create suppliers that provide existing
@@ -2429,31 +3367,43 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	private void insertInitialSuiteOfSortableAttributeCompounds(
 		@Nullable Locale locale,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull EntityIndex targetIndex,
+		@Nonnull IndexWriteTarget target,
 		@Nullable ReferenceKey referenceKey,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
-		if (targetIndex instanceof AbstractReducedEntityIndex reducedEntityIndex &&
-			targetIndex.getIndexKey().discriminator() instanceof RepresentativeReferenceKey representativeKey) {
+		if (target instanceof VirtualReferencePartition partition) {
+			final ReferenceKey effectiveReferenceKey =
+				referenceKey != null ? referenceKey : partition.getReferenceKey();
+			ReferenceIndexMutator.applyVirtualPartitionCompoundSuite(
+				this,
+				entitySchema.getReferenceOrThrowException(effectiveReferenceKey.referenceName()),
+				partition,
+				effectiveReferenceKey,
+				locale,
+				existingDataSupplierFactory,
+				AttributeIndexMutator::insertInitialSuiteOfSortableAttributeCompounds
+			);
+		} else if (target instanceof AbstractReducedEntityIndex reducedEntityIndex &&
+			target.getIndexKey().discriminator() instanceof RepresentativeReferenceKey representativeKey) {
 			final ReferenceKey effectiveReferenceKey = referenceKey != null
 				? referenceKey : representativeKey.referenceKey();
 			final ReferenceSchemaContract referenceSchema = entitySchema
 				.getReferenceOrThrowException(effectiveReferenceKey.referenceName());
-			if (ReferenceIndexMutator.isIndexedReferenceForFilteringAndPartitioning(referenceSchema, getScope())) {
-				ReferenceIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
-					this,
-					referenceSchema,
-					reducedEntityIndex,
-					effectiveReferenceKey,
-					locale,
-					existingDataSupplierFactory
-				);
-			}
+			// every reduced index holds the reference-level compounds, whatever the indexing level - the mutator itself
+			// restricts the entity-level half to references indexed for partitioning
+			ReferenceIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
+				this,
+				referenceSchema,
+				reducedEntityIndex,
+				effectiveReferenceKey,
+				locale,
+				existingDataSupplierFactory
+			);
 		} else {
 			AttributeIndexMutator.insertInitialSuiteOfSortableAttributeCompounds(
 				this,
 				null,
-				targetIndex,
+				target,
 				locale,
 				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
 				entitySchema,
@@ -2467,8 +3417,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 *
 	 * @param locale                      The locale for which the attribute compounds should be removed.
 	 *                                    This may be null if locale-specific processing is not required.
-	 * @param targetIndex                 The target entity index from which the sortable attribute
-	 *                                    compounds will be removed. Must not be null.
+	 * @param target                      The target from which the sortable attribute compounds will be removed.
+	 *                                    Must not be null.
 	 * @param existingDataSupplierFactory A factory for creating suppliers of existing data
 	 *                                    that may be used to assist in the removal process.
 	 *                                    Must not be null.
@@ -2476,11 +3426,11 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	private void removeEntireSuiteOfSortableAttributeCompounds(
 		@Nullable Locale locale,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull EntityIndex targetIndex,
+		@Nonnull IndexWriteTarget target,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		removeEntireSuiteOfSortableAttributeCompounds(
-			locale, entitySchema, targetIndex, null, existingDataSupplierFactory
+			locale, entitySchema, target, null, existingDataSupplierFactory
 		);
 	}
 
@@ -2492,8 +3442,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 *
 	 * @param locale                      the locale for which the attribute compounds should be removed;
 	 *                                    this may be null if locale-specific processing is not required
-	 * @param targetIndex                 the target entity index from which the sortable attribute
-	 *                                    compounds will be removed; must not be null
+	 * A virtual partition holds the compounds of its own reference only, see
+	 * {@link ReferenceIndexMutator#applyVirtualPartitionCompoundSuite}.
+	 *
+	 * @param entitySchema                the entity schema the target belongs to
+	 * @param target                      the target from which the sortable attribute compounds will be removed;
+	 *                                    must not be null
 	 * @param referenceKey                the explicit reference key to use for the reduced entity index lookup;
 	 *                                    when non-null it overrides the key extracted from the index discriminator
 	 * @param existingDataSupplierFactory a factory for creating suppliers of existing data
@@ -2503,32 +3457,43 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	private void removeEntireSuiteOfSortableAttributeCompounds(
 		@Nullable Locale locale,
 		@Nonnull EntitySchema entitySchema,
-		@Nonnull EntityIndex targetIndex,
+		@Nonnull IndexWriteTarget target,
 		@Nullable ReferenceKey referenceKey,
 		@Nonnull ExistingDataSupplierFactory existingDataSupplierFactory
 	) {
 		ReferenceSchemaContract referenceSchema = null;
-		if (targetIndex instanceof AbstractReducedEntityIndex reducedEntityIndex &&
-			targetIndex.getIndexKey().discriminator() instanceof RepresentativeReferenceKey representativeKey) {
+		if (target instanceof VirtualReferencePartition partition) {
+			final ReferenceKey effectiveReferenceKey =
+				referenceKey != null ? referenceKey : partition.getReferenceKey();
+			ReferenceIndexMutator.applyVirtualPartitionCompoundSuite(
+				this,
+				entitySchema.getReferenceOrThrowException(effectiveReferenceKey.referenceName()),
+				partition,
+				effectiveReferenceKey,
+				locale,
+				existingDataSupplierFactory,
+				AttributeIndexMutator::removeEntireSuiteOfSortableAttributeCompounds
+			);
+		} else if (target instanceof AbstractReducedEntityIndex reducedEntityIndex &&
+			target.getIndexKey().discriminator() instanceof RepresentativeReferenceKey representativeKey) {
 			final ReferenceKey effectiveReferenceKey = referenceKey != null
 				? referenceKey : representativeKey.referenceKey();
 			final String referenceName = effectiveReferenceKey.referenceName();
 			// same contract as the previous getReference(..).orElseThrow(..) chain, without the Optional and the lambda
 			referenceSchema = entitySchema.getReferenceOrThrowException(referenceName);
-			if (ReferenceIndexMutator.isIndexedReferenceForFilteringAndPartitioning(referenceSchema, getScope())) {
-				ReferenceIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
-					this,
-					referenceSchema, reducedEntityIndex,
-					effectiveReferenceKey,
-					locale,
-					existingDataSupplierFactory
-				);
-			}
+			// the exact inverse of the insertion - ungated, the mutator restricts the entity-level half itself
+			ReferenceIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
+				this,
+				referenceSchema, reducedEntityIndex,
+				effectiveReferenceKey,
+				locale,
+				existingDataSupplierFactory
+			);
 		} else {
 			AttributeIndexMutator.removeEntireSuiteOfSortableAttributeCompounds(
 				this,
 				referenceSchema,
-				targetIndex,
+				target,
 				locale,
 				new EntitySchemaAttributeAndCompoundSchemaProvider(entitySchema),
 				entitySchema,
@@ -2625,9 +3590,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Unindexes the locales associated with the provided entity.
-	 * This method iterates through each locale in the entity and ensures that
-	 * the locale is removed from the global index.
+	 * Unindexes the locales associated with the provided entity from the global index - the sortable attribute
+	 * compounds of every attribute locale and the language of every entity locale the global index holds for it.
+	 *
+	 * Those are the locales the entity had before its running mutation (see
+	 * {@link ReferenceIndexMutator#getLocalesBeforeMutation}), not the locales its body has now: the body gains or loses
+	 * a locale the moment the first or the last localized value lands, while the global index learns about it only in
+	 * {@link #applyChanges()}. A locale the mutation removed earlier is therefore still in the source scope and must be
+	 * removed from it here, and a locale it added has never reached the source scope.
 	 *
 	 * @param entity                      The entity whose locales are to be unindexed.
 	 * @param entitySchema                The schema of the entity for which locales are being unindexed.
@@ -2641,10 +3611,17 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull EntityExistingDataFactory existingDataSupplierFactory
 	) {
 		final int epk = entity.getPrimaryKeyOrThrowException();
-		for (Locale locale : entity.getAttributeLocales()) {
+		final EntityBodyStoragePart entityCnt = this.containerAccessor.getEntityStoragePart(
+			this.entityType, epk, EntityExistence.MUST_EXIST
+		);
+		for (Locale locale : ReferenceIndexMutator.getLocalesBeforeMutation(
+			this.containerAccessor, entityCnt.getAttributeLocales(), LocaleScope.ATTRIBUTE
+		)) {
 			removeEntityAttributeLocaleInTargetIndex(locale, entitySchema, globalIndex, existingDataSupplierFactory);
 		}
-		for (Locale locale : entity.getLocales()) {
+		for (Locale locale : ReferenceIndexMutator.getLocalesBeforeMutation(
+			this.containerAccessor, entityCnt.getLocales(), LocaleScope.ENTITY
+		)) {
 			removeEntityLocaleInTargetIndex(locale, entitySchema, globalIndex, epk);
 		}
 	}
@@ -2787,11 +3764,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 							ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
 								this, referenceKey.referenceName(), scope
 							);
-						final ReducedEntityIndex mainReferenceIndex =
-							ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
+						final ReferencePartition partition = getPartitionForWrite(
+							scope, rrk, "unindexReferences", PartitionWriteKind.REMOVING
+						);
 						ReferenceIndexMutator.referenceRemovalPerComponent(
 							epk, entitySchema, referenceSchema, this,
-							referenceTypeIndex, mainReferenceIndex, referenceKey,
+							referenceTypeIndex, partition, referenceKey,
 							referenceKey.primaryKey(),
 							existingDataSupplierFactory
 						);
@@ -2843,12 +3821,22 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					applyOnExistingReducedIndexes(
 						scope,
 						referenceSupplier,
-						(referenceSchema, index) -> {
-							if (ReferenceIndexMutator.isIndexedReferenceFor(
-								referenceSchema, scope,
-								ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING
-							)) {
-								priceRemovalOperation.accept(referenceSchema, index, price);
+						PartitionWriteKind.REMOVING,
+						(referenceSchema, target) -> {
+							// a row the reference left while it was indexed for filtering only holds no price
+							if (
+								ReferenceIndexMutator.isIndexedReferenceFor(
+									referenceSchema, scope,
+									ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING
+								) && !isReleasedRowOfFormerIndexing(target)
+							) {
+								priceRemovalOperation.accept(
+									referenceSchema,
+									ReferenceIndexMutator.requireIndexObject(
+										target, referenceSchema, "unindexAllPrices"
+									),
+									price
+								);
 							}
 						}
 					);
@@ -2891,8 +3879,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	}
 
 	/**
-	 * Indexes all locales for the given entity by invoking the method to upsert language-specific entities
-	 * into the target index.
+	 * Indexes all locales for the given entity into the global index - the sortable attribute compounds of every
+	 * attribute locale and the language of every entity locale.
+	 *
+	 * Those are the locales the entity had before its running mutation (see
+	 * {@link ReferenceIndexMutator#getLocalesBeforeMutation}), exactly as the reduced indexes the entity enters in the
+	 * target scope receive them: {@link #applyChanges()} then moves the global index and every reduced index of the
+	 * entity in the target scope to the locales the mutation added or removed. Indexing the locales the body has now
+	 * would make it add a locale the target scope holds already and remove one it never received.
 	 *
 	 * @param entity                      The entity containing locales to be indexed.
 	 * @param entitySchema                The schema of the entity providing structure and constraints.
@@ -2906,10 +3900,17 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull EntityExistingDataFactory existingDataSupplierFactory
 	) {
 		final int epk = entity.getPrimaryKeyOrThrowException();
-		for (Locale locale : entity.getAttributeLocales()) {
+		final EntityBodyStoragePart entityCnt = this.containerAccessor.getEntityStoragePart(
+			this.entityType, epk, EntityExistence.MUST_EXIST
+		);
+		for (Locale locale : ReferenceIndexMutator.getLocalesBeforeMutation(
+			this.containerAccessor, entityCnt.getAttributeLocales(), LocaleScope.ATTRIBUTE
+		)) {
 			upsertEntityAttributeLocaleInTargetIndex(locale, entitySchema, globalIndex, existingDataSupplierFactory);
 		}
-		for (Locale locale : entity.getLocales()) {
+		for (Locale locale : ReferenceIndexMutator.getLocalesBeforeMutation(
+			this.containerAccessor, entityCnt.getLocales(), LocaleScope.ENTITY
+		)) {
 			upsertEntityLocaleInTargetIndex(locale, entitySchema, globalIndex, epk);
 		}
 	}
@@ -3027,12 +4028,19 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					applyOnExistingReducedIndexes(
 						scope,
 						referenceSupplier,
-						(referenceSchema, index) -> {
+						PartitionWriteKind.ADDING,
+						(referenceSchema, target) -> {
 							if (ReferenceIndexMutator.isIndexedReferenceFor(
 								referenceSchema, scope,
 								ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING
 							)) {
-								priceUpsertOperation.accept(referenceSchema, index, price);
+								priceUpsertOperation.accept(
+									referenceSchema,
+									ReferenceIndexMutator.requireIndexObject(
+										target, referenceSchema, "indexAllPrices"
+									),
+									price
+								);
 							}
 						}
 					);
@@ -3112,13 +4120,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 							ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
 								this, rrk.referenceName(), scope
 							);
-						final ReducedEntityIndex mainReferenceIndex =
-							ReferenceIndexMutator.getOrCreateReferencedEntityIndex(
-								this, rrk, scope
-							);
+						final ReferencePartition partition = getOrCreatePartitionForInsert(
+							scope, rrk, "indexAllReferences", PartitionWriteKind.ADDING
+						);
 						ReferenceIndexMutator.referenceInsertPerComponent(
 							epk, entitySchema, referenceSchema, this,
-							referenceTypeIndex, mainReferenceIndex, referenceKey,
+							referenceTypeIndex, partition, referenceKey,
 							referenceKey.primaryKey(), groupId,
 							existingDataSupplierFactory
 						);
@@ -3128,8 +4135,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 								if (ReferenceKey.FULL_COMPARATOR.compare(
 									rrk.referenceKey(), otherRef.getReferenceKey()
 								) != 0) {
-									ReferenceIndexMutator.addFacetToIndex(
-										mainReferenceIndex,
+									ReferenceIndexMutator.addFacetToPartition(
+										partition,
 										referenceSchema,
 										referenceKey,
 										groupId,
@@ -3160,15 +4167,39 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 
 	/**
 	 * Applies passed consumer function on all {@link AbstractReducedEntityIndex} related to currently existing
-	 * {@link ReferenceContract} of the entity.
+	 * {@link ReferenceContract} of the entity, each of them exactly once.
+	 *
+	 * One index can be reached from several references of the entity - every partition of a target from each
+	 * duplicate reference to it, every group index from each reference in the group - while the consumers insert and
+	 * remove entries the index holds once per entity, so a second visit would insert an entry again or remove it from
+	 * a structure the first visit already emptied. The primary keys of the visited indexes are therefore tracked, in a
+	 * set created only for the references that can reach an index twice.
+	 *
+	 * Entity-family partitions are acquired for writing through {@link #forEachPartitionOfTargetForWrite}, and group
+	 * indexes through the group type index; both are acquired before any consumer runs. An entity-family partition is
+	 * handed over in the form the acquisition found it in - an index object, or the virtual partition of a mutation
+	 * writing the single-owner partitions of its reference virtually, which only its registry row represents - or a
+	 * row the reference left while it was indexed for filtering only, released to a write taking content out of it
+	 * (see {@link #releaseRowOfFormerIndexing}).
+	 *
+	 * @param scope                the scope the existing references are indexed in
+	 * @param referenceSupplier    supplies the entity's currently existing reference keys
+	 * @param writeKind            whether the consumer may put content into the partitions or only takes content out
+	 *                             of them
+	 * @param entityIndexConsumer  receives each distinct reduced index or partition with the reference schema it was
+	 *                             reached through
+	 * @throws ReferencePartitionReindexRequiredException when a partition is a row of the former indexing of its
+	 *                                                    reference and the consumer may put content into it
 	 */
 	private void applyOnExistingReducedIndexes(
 		@Nonnull Scope scope,
 		@Nonnull ReferenceSupplier referenceSupplier,
-		@Nonnull BiConsumer<ReferenceSchemaContract, EntityIndex> entityIndexConsumer
+		@Nonnull PartitionWriteKind writeKind,
+		@Nonnull BiConsumer<ReferenceSchemaContract, IndexWriteTarget> entityIndexConsumer
 	) {
 		final EntitySchema entitySchema = getEntitySchema();
 		final AtomicReference<ReferenceSchemaContract> referenceSchema = new AtomicReference<>();
+		final AtomicReference<IntHashSet> visitedIndexes = new AtomicReference<>();
 		referenceSupplier
 			.getReferenceKeys()
 			.forEach(refKey -> {
@@ -3180,21 +4211,30 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				}
 				// entity reduced indexes (only when entity component is configured)
 				if (ReferenceIndexMutator.isIndexedForEntityComponent(theReferenceSchema, scope)) {
-					final List<ReducedEntityIndex> allReducedIndexes =
-						ContainerizedLocalMutationExecutor.getAllReducedIndexes(
-							eik -> ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(this, eik),
-							eik -> (ReducedEntityIndex) getOrCreateIndex(eik),
-							epk -> getIndexByPrimaryKey(epk).map(ReducedEntityIndex.class::cast).orElse(null),
-							scope,
-							theReferenceSchema.getName(),
-							refKey.primaryKey(),
-							theReferenceSchema.getCardinality().allowsDuplicates(),
-							EntityIndexType.REFERENCED_ENTITY_TYPE,
-							EntityIndexType.REFERENCED_ENTITY
-						);
-					for (ReducedEntityIndex reducedIndex : allReducedIndexes) {
-						entityIndexConsumer.accept(theReferenceSchema, reducedIndex);
-					}
+					final ReferenceSchemaContract partitionSchema = theReferenceSchema;
+					// only duplicates of one reference share partitions - the partitions of a target are all
+					// resolved for each of them
+					final IntHashSet visitedPartitions = partitionSchema.getCardinality().allowsDuplicates() ?
+						visitedIndexes.updateAndGet(it -> it == null ? new IntHashSet() : it) : null;
+					forEachPartitionOfTargetForWrite(
+						scope, partitionSchema, refKey.primaryKey(), writeKind,
+						// a virtual partition reaches the consumers only from a mutation writing it virtually, and
+						// each consumer decides what of its write the partition's registry row takes
+						partition -> {
+							if (visitedPartitions == null || visitedPartitions.add(partition.getPrimaryKey())) {
+								switch (partition) {
+									case ReducedEntityIndex reducedIndex ->
+										entityIndexConsumer.accept(partitionSchema, reducedIndex);
+									case VirtualReferencePartition virtual -> entityIndexConsumer.accept(
+										partitionSchema,
+										ReferenceIndexMutator.requireWrittenVirtually(
+											this, partitionSchema, virtual, "applyOnExistingReducedIndexes"
+										)
+									);
+								}
+							}
+						}
+					);
 				}
 				// group reduced indexes
 				if (ReferenceIndexMutator.isIndexedForGroupComponent(theReferenceSchema, scope)) {
@@ -3204,21 +4244,27 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 					if (reference != null) {
 						final Integer groupPK = extractActiveGroupPrimaryKey(reference);
 						if (groupPK != null) {
-							final List<ReducedGroupEntityIndex> groupReducedIndexes =
-								ContainerizedLocalMutationExecutor.getAllReducedIndexes(
-									eik -> ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(this, eik),
-									eik -> (ReducedGroupEntityIndex) getOrCreateIndex(eik),
-									epk -> getIndexByPrimaryKey(epk).map(ReducedGroupEntityIndex.class::cast)
-										.orElse(null),
-									scope,
-									theReferenceSchema.getName(),
-									groupPK,
-									// always use type index path to locate all reduced group indexes for a given group PK
-									true,
-									EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE,
-									EntityIndexType.REFERENCED_GROUP_ENTITY
+							// always use type index path to locate all reduced group indexes for a given group PK -
+							// one group is shared by many references, so the group key alone would find only one
+							final ReferencedTypeEntityIndex groupTypeIndex =
+								ReferenceIndexMutator.getOrCreateReferencedGroupTypeEntityIndex(
+									this, theReferenceSchema.getName(), scope
 								);
-							for (AbstractReducedEntityIndex groupIndex : groupReducedIndexes) {
+							final int[] groupIndexPrimaryKeys = groupTypeIndex.getAllReferenceIndexes(groupPK);
+							// every reference in the group resolves the same group indexes
+							final IntHashSet visitedGroupIndexes =
+								visitedIndexes.updateAndGet(it -> it == null ? new IntHashSet() : it);
+							// every group index is acquired for writing before the first consumer runs
+							final List<ReducedGroupEntityIndex> groupReducedIndexes =
+								new ArrayList<>(groupIndexPrimaryKeys.length);
+							for (final int groupIndexPrimaryKey : groupIndexPrimaryKeys) {
+								if (visitedGroupIndexes.add(groupIndexPrimaryKey)) {
+									getIndexByPrimaryKey(groupIndexPrimaryKey)
+										.map(ReducedGroupEntityIndex.class::cast)
+										.ifPresent(groupReducedIndexes::add);
+								}
+							}
+							for (ReducedGroupEntityIndex groupIndex : groupReducedIndexes) {
 								entityIndexConsumer.accept(theReferenceSchema, groupIndex);
 							}
 						}
@@ -3253,33 +4299,28 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			referenceSchema, scope);
 		final boolean groupIndexingEnabled = ReferenceIndexMutator.isIndexedForGroupComponent(referenceSchema, scope);
 
-		if (referenceMutation instanceof SetReferenceGroupMutation m) {
-			updateReferenceOnSetGroup(
+		switch (referenceMutation) {
+			case SetReferenceGroupMutation m -> updateReferenceOnSetGroup(
 				m, entityIndex, epk, referenceKey, referenceSchema,
 				entityComponentEnabled, groupIndexingEnabled, scope
 			);
-		} else if (referenceMutation instanceof RemoveReferenceGroupMutation m) {
-			updateReferenceOnRemoveGroup(
+			case RemoveReferenceGroupMutation m -> updateReferenceOnRemoveGroup(
 				m, entityIndex, epk, referenceKey, referenceSchema,
 				entityComponentEnabled, groupIndexingEnabled, scope
 			);
-		} else if (referenceMutation instanceof ReferenceAttributeMutation m) {
-			updateReferenceOnAttributeChange(
+			case ReferenceAttributeMutation m -> updateReferenceOnAttributeChange(
 				m, entityIndex, epk, referenceKey, referenceSchema,
 				entityComponentEnabled, groupIndexingEnabled, scope
 			);
-		} else if (referenceMutation instanceof InsertReferenceMutation) {
-			updateReferenceOnInsert(
+			case InsertReferenceMutation __ -> updateReferenceOnInsert(
 				entityIndex, epk, referenceKey, referenceSchema,
 				entityComponentEnabled, scope
 			);
-		} else if (referenceMutation instanceof RemoveReferenceMutation) {
-			updateReferenceOnRemoval(
+			case RemoveReferenceMutation __ -> updateReferenceOnRemoval(
 				entityIndex, epk, referenceKey, referenceSchema,
 				entityComponentEnabled, groupIndexingEnabled, scope
 			);
-		} else {
-			throw new GenericEvitaInternalError("Unknown mutation: " + referenceMutation.getClass());
+			default -> throw new GenericEvitaInternalError("Unknown mutation: " + referenceMutation.getClass());
 		}
 	}
 
@@ -3310,14 +4351,23 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		);
 		// entity component: update facet group in entity reduced index
 		if (entityComponentEnabled) {
-			final ReducedEntityIndex referenceIndex =
-				ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
-			ReferenceIndexMutator.setFacetGroupInIndex(
-				epk, referenceIndex, referenceSchema,
-				mutation.getReferenceKey(),
-				mutation.getGroupPrimaryKey(),
-				this
+			// the acquisition enrols the partition even when the reference holds no facets there
+			final ReferencePartition partition = getPartitionForWrite(
+				scope, rrk, "updateReferenceOnSetGroup", PartitionWriteKind.ADDING
 			);
+			switch (partition) {
+				case ReducedEntityIndex referenceIndex -> ReferenceIndexMutator.setFacetGroupInIndex(
+					epk, referenceIndex, referenceSchema,
+					mutation.getReferenceKey(),
+					mutation.getGroupPrimaryKey(),
+					this
+				);
+				// a partition of a reference not indexed for partitioning holds no facets, the global index alone
+				// moved this one to its new group
+				case VirtualReferencePartition virtual -> ReferenceIndexMutator.requireWrittenVirtually(
+					this, referenceSchema, virtual, "setFacetGroupInIndex"
+				);
+			}
 		}
 		// defer histogram group transfer while cardinality data is still present
 		deferHistogramGroupTransfer(referenceKey, mutation.getGroupPrimaryKey(), epk, scope);
@@ -3367,13 +4417,21 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		);
 		// entity component: update facet group in entity reduced index
 		if (entityComponentEnabled) {
-			final ReducedEntityIndex referenceIndex =
-				ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
-			ReferenceIndexMutator.removeFacetGroupInIndex(
-				epk, referenceIndex, referenceSchema,
-				mutation.getReferenceKey(),
-				this
+			// the acquisition enrols the partition even when the reference holds no facets there
+			final ReferencePartition partition = getPartitionForWrite(
+				scope, rrk, "updateReferenceOnRemoveGroup", PartitionWriteKind.REMOVING
 			);
+			switch (partition) {
+				case ReducedEntityIndex referenceIndex -> ReferenceIndexMutator.removeFacetGroupInIndex(
+					epk, referenceIndex, referenceSchema,
+					mutation.getReferenceKey(),
+					this
+				);
+				// a partition of a reference not indexed for partitioning holds no facets, see the set counterpart
+				case VirtualReferencePartition virtual -> ReferenceIndexMutator.requireWrittenVirtually(
+					this, referenceSchema, virtual, "removeFacetGroupInIndex"
+				);
+			}
 		}
 		// defer histogram group transfer while cardinality data is still present
 		deferHistogramGroupTransfer(referenceKey, null, epk, scope);
@@ -3413,14 +4471,17 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
 					this, referenceKey.referenceName(), scope
 				);
-			final ReducedEntityIndex referenceIndex =
-				ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
+			final ReferencePartition partition = getPartitionForWrite(
+				scope, rrk, "updateReferenceOnAttributeChange",
+				attributeMutation instanceof RemoveAttributeMutation ?
+					PartitionWriteKind.REMOVING : PartitionWriteKind.ADDING
+			);
 			ReferenceIndexMutator.attributeUpdate(
 				this, existingStoragePartFactory,
 				referenceTypeIndex,
 				// we may pass the same index for both removal and upsert, because in
 				// method `getRepresentativeReferenceKey` all data are migrated already
-				referenceIndex, referenceIndex,
+				partition, partition,
 				referenceSchema, referenceKey, attributeMutation
 			);
 		}
@@ -3482,11 +4543,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
 					this, referenceKey.referenceName(), scope
 				);
-			final ReducedEntityIndex referenceIndex =
-				ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
+			final ReferencePartition partition = getOrCreatePartitionForInsert(
+				scope, rrk, "updateReferenceOnInsert", PartitionWriteKind.ADDING
+			);
 			ReferenceIndexMutator.referenceInsertPerComponent(
 				epk, entitySchema, referenceSchema, this,
-				referenceTypeIndex, referenceIndex, referenceKey,
+				referenceTypeIndex, partition, referenceKey,
 				referenceKey.primaryKey(), null,
 				getStoragePartExistingDataFactory()
 			);
@@ -3554,11 +4616,12 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				ReferenceIndexMutator.getOrCreateReferencedTypeEntityIndex(
 					this, rrk.referenceName(), scope
 				);
-			final ReducedEntityIndex referenceIndex =
-				ReferenceIndexMutator.getOrCreateReferencedEntityIndex(this, rrk, scope);
+			final ReferencePartition partition = getPartitionForWrite(
+				scope, rrk, "updateReferenceOnRemoval", PartitionWriteKind.REMOVING
+			);
 			ReferenceIndexMutator.referenceRemovalPerComponent(
 				epk, entitySchema, referenceSchema, this,
-				referenceTypeIndex, referenceIndex, referenceKey,
+				referenceTypeIndex, partition, referenceKey,
 				referenceKey.primaryKey(),
 				getStoragePartExistingDataFactory()
 			);
@@ -3743,7 +4806,17 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		applyOnExistingReducedIndexes(
 			getScope(),
 			existingDataSupplierFactory.getReferenceSupplier(),
-			(referenceSchema, index) -> upsertEntityLocaleInTargetIndex(locale, entitySchema, index, epk)
+			PartitionWriteKind.ADDING,
+			(referenceSchema, target) -> {
+				// a virtual partition keeps no language records - the locales of its only owner are those of the
+				// owner in the global index. Every partition of the target is visited, including the siblings other
+				// owners hold under another representative key, and only a partition holding the entity may take
+				// its language: a sibling would keep it after the entity left and answer `entityLocaleEquals` with
+				// an entity it does not hold
+				if (target instanceof EntityIndex index && index.contains(epk)) {
+					upsertEntityLocaleInTargetIndex(locale, entitySchema, index, epk);
+				}
+			}
 		);
 	}
 
@@ -3758,16 +4831,16 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		final int epk = getPrimaryKeyToIndex(IndexType.ENTITY_INDEX, Target.EXISTING);
 		final EntityIndex globalIndex = getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, getScope()));
 		removeEntityLocaleInTargetIndex(locale, entitySchema, globalIndex, epk);
+		// a reduced index created in this mutation holds the locales before it as well (see
+		// `ReferenceIndexMutator#getLocalesBeforeMutation`), so it loses the language like any other
 		applyOnExistingReducedIndexes(
 			getScope(),
 			existingDataSupplierFactory.getReferenceSupplier(),
-			(referenceSchema, index) -> {
-				// removal mutations happen before indexes are created and thus the created indexes will not have
-				// the language set (entity already lacks the language) - so we cannot remove it for those indexes
-				final RepresentativeReferenceKey referenceKey = Objects.requireNonNull(
-					(RepresentativeReferenceKey) index.getIndexKey().discriminator()
-				);
-				if (this.createdReferences == null || !this.createdReferences.contains(referenceKey)) {
+			PartitionWriteKind.REMOVING,
+			(referenceSchema, target) -> {
+				// a virtual partition keeps no language records, and a sibling the entity does not own never received
+				// it, see `upsertEntityLocale`
+				if (target instanceof EntityIndex index && index.contains(epk)) {
 					removeEntityLocaleInTargetIndex(locale, entitySchema, index, epk);
 				}
 			}
@@ -3787,8 +4860,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		applyOnExistingReducedIndexes(
 			getScope(),
 			existingDataSupplierFactory.getReferenceSupplier(),
-			(referenceSchema, index) ->
-				upsertEntityAttributeLocaleInTargetIndex(locale, entitySchema, index, existingDataSupplierFactory)
+			PartitionWriteKind.ADDING,
+			(referenceSchema, target) ->
+				upsertEntityAttributeLocaleInTargetIndex(locale, entitySchema, target, existingDataSupplierFactory)
 		);
 	}
 
@@ -3802,19 +4876,14 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	) {
 		final EntityIndex globalIndex = getOrCreateIndex(new EntityIndexKey(EntityIndexType.GLOBAL, getScope()));
 		removeEntityAttributeLocaleInTargetIndex(locale, entitySchema, globalIndex, existingDataSupplierFactory);
+		// a reduced index created in this mutation holds the locales before it as well (see
+		// `ReferenceIndexMutator#getLocalesBeforeMutation`), so it loses the locale like any other
 		applyOnExistingReducedIndexes(
 			getScope(),
 			existingDataSupplierFactory.getReferenceSupplier(),
-			(referenceSchema, index) -> {
-				// removal mutations happen before indexes are created and thus the created indexes will not have
-				// the language set (entity already lacks the language) - so we cannot remove it for those indexes
-				final RepresentativeReferenceKey referenceKey = Objects.requireNonNull(
-					(RepresentativeReferenceKey) index.getIndexKey().discriminator()
-				);
-				if (this.createdReferences == null || !this.createdReferences.contains(referenceKey)) {
-					removeEntityAttributeLocaleInTargetIndex(locale, entitySchema, index, existingDataSupplierFactory);
-				}
-			}
+			PartitionWriteKind.REMOVING,
+			(referenceSchema, target) ->
+				removeEntityAttributeLocaleInTargetIndex(locale, entitySchema, target, existingDataSupplierFactory)
 		);
 	}
 
@@ -3830,8 +4899,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull AbstractReducedEntityIndex indexForRemoval,
 		@Nonnull AbstractReducedEntityIndex indexForUpsert
 	) {
-		if (referenceMutation instanceof SetReferenceGroupMutation upsertReferenceGroupMutation) {
-			ReferenceIndexMutator.setFacetGroupInIndex(
+		switch (referenceMutation) {
+			case SetReferenceGroupMutation upsertReferenceGroupMutation -> ReferenceIndexMutator.setFacetGroupInIndex(
 				getPrimaryKeyToIndex(IndexType.FACET_INDEX, Target.NEW),
 				indexForUpsert,
 				referenceSchema,
@@ -3839,18 +4908,18 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				upsertReferenceGroupMutation.getGroupPrimaryKey(),
 				this
 			);
-		} else if (referenceMutation instanceof RemoveReferenceGroupMutation removeReferenceGroupMutation) {
-			ReferenceIndexMutator.removeFacetGroupInIndex(
-				getPrimaryKeyToIndex(IndexType.FACET_INDEX, Target.EXISTING),
-				indexForRemoval,
-				referenceSchema,
-				removeReferenceGroupMutation.getReferenceKey(),
-				this
-			);
-		} else if (referenceMutation instanceof ReferenceAttributeMutation) {
-			// do nothing - attributes are not indexed in reduced entity index
-		} else if (referenceMutation instanceof InsertReferenceMutation) {
-			ReferenceIndexMutator.addFacetToIndex(
+			case RemoveReferenceGroupMutation removeReferenceGroupMutation ->
+				ReferenceIndexMutator.removeFacetGroupInIndex(
+					getPrimaryKeyToIndex(IndexType.FACET_INDEX, Target.EXISTING),
+					indexForRemoval,
+					referenceSchema,
+					removeReferenceGroupMutation.getReferenceKey(),
+					this
+				);
+			case ReferenceAttributeMutation __ -> {
+				// do nothing - attributes are not indexed in reduced entity index
+			}
+			case InsertReferenceMutation __ -> ReferenceIndexMutator.addFacetToIndex(
 				indexForUpsert,
 				referenceSchema,
 				referenceMutation.getReferenceKey(),
@@ -3858,17 +4927,16 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 				getPrimaryKeyToIndex(IndexType.FACET_INDEX, Target.NEW),
 				this
 			);
-		} else if (referenceMutation instanceof RemoveReferenceMutation) {
-			ReferenceIndexMutator.removeFacetInIndex(
+			case RemoveReferenceMutation __ -> ReferenceIndexMutator.removeFacetInIndex(
 				indexForRemoval,
 				referenceSchema,
 				referenceMutation.getReferenceKey(),
 				getPrimaryKeyToIndex(IndexType.FACET_INDEX, Target.EXISTING),
 				this
 			);
-		} else {
-			// SHOULD NOT EVER HAPPEN
-			throw new GenericEvitaInternalError("Unknown mutation: " + referenceMutation.getClass());
+			default ->
+				// SHOULD NOT EVER HAPPEN
+				throw new GenericEvitaInternalError("Unknown mutation: " + referenceMutation.getClass());
 		}
 	}
 
@@ -3922,7 +4990,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			ReferenceIndexMutator.forEachUniqueReferenceIndex(
 				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this,
 				pricesRemoval::accept, Functions.alwaysTrue(), true,
-				ReferenceIndexMutator.IterationPath.BOTH
+				ReferenceIndexMutator.IterationPath.BOTH, PartitionWriteKind.REMOVING
 			);
 
 			// now we can safely remove the data from a super index
@@ -3939,7 +5007,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			ReferenceIndexMutator.forEachUniqueReferenceIndex(
 				ReferenceIndexType.FOR_FILTERING_AND_PARTITIONING, this,
 				pricesInsertion::accept, Functions.alwaysTrue(), true,
-				ReferenceIndexMutator.IterationPath.BOTH
+				ReferenceIndexMutator.IterationPath.BOTH, PartitionWriteKind.ADDING
 			);
 		}
 	}
@@ -4114,6 +5182,86 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nullable Capability capability,
 		@Nonnull Scope scope
 	) {
+	}
+
+	/**
+	 * The index accessor of an executor writing as another owner of a partition (see
+	 * {@link #createExecutorOfOtherOwner(int)}): it refuses every acquisition and every lookup, so an index write that
+	 * reaches beyond the indexes the executor was handed fails loudly instead of touching the indexes of the running
+	 * mutation.
+	 *
+	 * @param <K> the type of the index key
+	 * @param <T> the type of the index
+	 */
+	private static final class RefusingIndexMaintainer<K extends IndexKey, T extends Index<K>>
+		implements IndexMaintainer<K, T> {
+		/**
+		 * The primary key of the entity the executor writes as, for the failure message.
+		 */
+		private final int ownerPrimaryKey;
+
+		/**
+		 * Creates the accessor.
+		 *
+		 * @param ownerPrimaryKey the primary key of the entity the executor writes as
+		 */
+		RefusingIndexMaintainer(int ownerPrimaryKey) {
+			this.ownerPrimaryKey = ownerPrimaryKey;
+		}
+
+		@Nonnull
+		@Override
+		public T getOrCreateIndex(@Nonnull K entityIndexKey) {
+			throw refusal(entityIndexKey);
+		}
+
+		@Nonnull
+		@Override
+		public T getOrCreateIndexByPrimaryKey(int indexPrimaryKey) {
+			throw refusal("primary key " + indexPrimaryKey);
+		}
+
+		@Nullable
+		@Override
+		public T getIndexIfExists(@Nonnull K entityIndexKey) {
+			throw refusal(entityIndexKey);
+		}
+
+		@Nullable
+		@Override
+		public T getIndexByPrimaryKeyIfExists(int indexPrimaryKey) {
+			throw refusal("primary key " + indexPrimaryKey);
+		}
+
+		@Override
+		public void removeIndex(@Nonnull K entityIndexKey) {
+			throw refusal(entityIndexKey);
+		}
+
+		@Nonnull
+		@Override
+		public T installIndex(@Nonnull K indexKey, int primaryKey, @Nonnull IntFunction<T> factory) {
+			throw refusal(indexKey);
+		}
+
+		@Override
+		public int allocatePartitionPrimaryKey() {
+			throw refusal("a newly allocated primary key");
+		}
+
+		/**
+		 * Creates the failure of a refused access.
+		 *
+		 * @param index the index asked for
+		 * @return the failure
+		 */
+		@Nonnull
+		private GenericEvitaInternalError refusal(@Nonnull Object index) {
+			return new GenericEvitaInternalError(
+				"The executor writing as entity " + this.ownerPrimaryKey + " into the indexes it was handed must " +
+					"not reach the index `" + index + "`!"
+			);
+		}
 	}
 
 }

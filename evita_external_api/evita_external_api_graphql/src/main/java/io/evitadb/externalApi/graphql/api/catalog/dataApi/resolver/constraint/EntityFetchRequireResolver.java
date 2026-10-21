@@ -364,7 +364,7 @@ public class EntityFetchRequireResolver {
 		if (parentFields.isEmpty()) {
 			return null;
 		}
-		final Object stopAtArgument = parentFields.get(0).getArguments().get(ParentsFieldHeaderDescriptor.STOP_AT.name());
+		final Object stopAtArgument = parentFields.getFirst().getArguments().get(ParentsFieldHeaderDescriptor.STOP_AT.name());
 		if (stopAtArgument == null) {
 			return null;
 		}
@@ -855,7 +855,7 @@ public class EntityFetchRequireResolver {
 		final List<SelectedField> dataChuckInnerFields = referenceNestedFields.getImmediateFields();
 
 		return dataChuckInnerFields.size() == 1 &&
-			dataChuckInnerFields.get(0).getName().equals(DataChunkDescriptor.TOTAL_RECORD_COUNT.name());
+			dataChuckInnerFields.getFirst().getName().equals(DataChunkDescriptor.TOTAL_RECORD_COUNT.name());
 	}
 
 	@Nonnull

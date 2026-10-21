@@ -202,13 +202,13 @@ public abstract class ConstraintToJsonConverter {
 		final ConstraintValueStructure valueStructure = creator.valueStructure();
 		final JsonNode constraintValue = switch (valueStructure) {
 			case NONE -> convertNoneStructure();
-			case PRIMITIVE -> convertValueParameter(constraint, 0, creator.valueParameters().get(0)).orElse(null);
+			case PRIMITIVE -> convertValueParameter(constraint, 0, creator.valueParameters().getFirst()).orElse(null);
 			case RANGE -> convertWrapperRangeStructure(constraint, creator.valueParameters());
 			case CONTAINER -> convertChildParameter(
 					convertContext,
 					constraint,
 					parsedConstraintDescriptor,
-					creator.childParameters().get(0)
+					creator.childParameters().getFirst()
 				)
 				.map(JsonConstraint::value)
 				.orElse(this.jsonNodeFactory.objectNode());
