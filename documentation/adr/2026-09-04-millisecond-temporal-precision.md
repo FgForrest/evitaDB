@@ -9,7 +9,7 @@ prs: []
 areas: [evita_common/src/main/java/io/evitadb/dataType, evita_api/src/main/java/io/evitadb/api/query, evita_api/src/main/java/io/evitadb/api/requestResponse/data/structure, evita_engine/src/main/java/io/evitadb/index/bPlusTree, evita_engine/src/main/java/io/evitadb/index/attribute, evita_engine/src/main/java/io/evitadb/index/range, evita_engine/src/main/java/io/evitadb/index/invertedIndex, evita_store/evita_store_server/src/main/java/io/evitadb/store/index, evita_external_api/evita_external_api_grpc, documentation/user]
 supersedes: []
 superseded-by: []
-relates: [2026-09-03-content-sized-value-tree-columns, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-05-schema-handling-write-path-optimizations, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-10-20-single-owner-partitions-as-registry-rows]
+relates: [2026-09-03-content-sized-value-tree-columns, 2026-08-10-stored-value-normalization-split, 2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-05-schema-handling-write-path-optimizations, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-10-20-single-owner-partitions-as-registry-rows, 2026-08-24-fulltext-search-lucene-vs-inhouse]
 ---
 
 # Temporal precision is millisecond, stated once and enforced at the boundary

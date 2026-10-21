@@ -464,8 +464,10 @@ another" reason as the dictionary registry.
   as the identity of the *logical* index across committed copies — see [Reclaim](#reclaim).
 - `FulltextIndex#isDirty` gates the whole flush. Every write sets it, including a field registration
   (the registry is persisted even before the field holds a value) and a retirement.
-  `FulltextIndexMapComponent` resets it inside the collect, because the flush pipeline re-runs the collect
-  into a discarded sink to capture the manifest baseline, and that second pass must find the index clean.
+  `FulltextIndexMapComponent` resets it inside the collect, because nothing on the flush path resets it
+  afterwards and the next collect must not stage the same pages again. The manifest baseline is captured through
+  `IndexComponent#announceKeys`, which collects nothing, so an index still dirty when an entity index is built
+  over it keeps its changes for the next flush.
 
 ### Flush emission order
 

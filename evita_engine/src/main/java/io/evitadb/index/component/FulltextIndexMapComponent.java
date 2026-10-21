@@ -25,7 +25,6 @@ package io.evitadb.index.component;
 
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
-import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.fulltext.FieldLengthTable.LengthBlock;
 import io.evitadb.index.fulltext.FieldLengthTable.LengthBlockEmission;
 import io.evitadb.index.fulltext.FulltextIndex;
@@ -41,7 +40,6 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextField
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexStoragePart.FieldEntry;
-import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.VMLayout;
 
@@ -70,11 +68,12 @@ import java.util.Objects;
  * baseline - announces exactly the same set. An index that was never written to is neither flushed nor announced: it
  * holds nothing, and announcing it would promise a root the reload could not find.
  *
- * ## Clean on construction
+ * ## Construction over an unflushed index
  *
- * Every caller hands over clean indexes: a reload builds them from their pages, the commit merge copy runs after the
- * transaction's flush collected them, and go-live is preceded by a flush of the warm-up state. The constructor checks
- * it, so a new caller that breaks the rule fails at once, with a message naming the locale.
+ * An index may still be dirty when an entity index is built over it - a commit merge copy carries it forward as it
+ * is. That is safe because the entity index captures its baseline through {@link #announceKeys(EntityIndexManifest)},
+ * which collects nothing: the pending changes stay for the next flush that writes the entity index, and an index
+ * never flushed is not announced, so that flush finds the manifest changed and lists it.
  *
  * ## Reclaim
  *
@@ -116,18 +115,10 @@ public final class FulltextIndexMapComponent implements IndexComponent {
 	}
 
 	/**
-	 * @param fulltextIndexes the wrapped per-locale map; every index in it must be clean - see "Clean on construction"
-	 *                        in the class documentation
-	 * @throws GenericEvitaInternalError when an index of the map has changes no flush has collected yet
+	 * @param fulltextIndexes the wrapped per-locale map; an index in it may hold changes no flush has collected yet -
+	 *                        see "Construction over an unflushed index" in the class documentation
 	 */
 	public FulltextIndexMapComponent(@Nonnull TransactionalMap<Locale, FulltextIndex> fulltextIndexes) {
-		fulltextIndexes.forEach(
-			(locale, index) -> Assert.isPremiseValid(
-				!index.isDirty(),
-				() -> "The fulltext index of locale `" + locale + "` has changes no flush has collected. Flush the " +
-					"index before handing it over."
-			)
-		);
 		this.fulltextIndexes = fulltextIndexes;
 		this.persistedFootprints = snapshotFootprints(fulltextIndexes);
 	}

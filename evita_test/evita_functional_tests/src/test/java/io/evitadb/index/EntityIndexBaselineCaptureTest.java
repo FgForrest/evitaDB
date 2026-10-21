@@ -37,6 +37,9 @@ import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.component.EntityIndexManifest;
 import io.evitadb.index.component.IndexComponent;
+import io.evitadb.index.fulltext.FulltextFieldKey;
+import io.evitadb.index.fulltext.FulltextIndex;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexLeafPagePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FilterIndexStoragePart;
@@ -155,6 +158,7 @@ class EntityIndexBaselineCaptureTest implements EvitaTestSupport {
 			expected.getFacetReferencedEntities(), actual.getFacetReferencedEntities(), "facet keys of " + subject
 		);
 		assertEquals(expected.getHistogramKeys(), actual.getHistogramKeys(), "histogram keys of " + subject);
+		assertEquals(expected.getFulltextKeys(), actual.getFulltextKeys(), "fulltext keys of " + subject);
 		assertEquals(expected.isHierarchyPresent(), actual.isHierarchyPresent(), "hierarchy presence of " + subject);
 	}
 
@@ -222,6 +226,32 @@ class EntityIndexBaselineCaptureTest implements EvitaTestSupport {
 			assertFalse(announced.getAttributeKeys().isEmpty(), "the fixture must populate attribute sub-indexes");
 			assertTrue(sink.getTrappedChangesCount() > 0, "the collect of a dirty index must emit its parts");
 			assertSameManifest(collected, announced, "a populated global index");
+		}
+
+		@Test
+		@DisplayName("announces a fulltext index with pages on disk exactly as the collect of the flush does")
+		void shouldAnnounceAFulltextIndexTheCollectAnnounces() {
+			final GlobalEntityIndex index = new GlobalEntityIndex(
+				INDEX_PK, ENTITY_TYPE, new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE)
+			);
+			final FulltextAnalyzerRegistry registry = new FulltextAnalyzerRegistry();
+			final FulltextIndex czech = index.getOrCreateFulltextIndex(
+				Locale.forLanguageTag("cs"), registry.getIndexAnalyzer(ENTITY_TYPE, Locale.forLanguageTag("cs"))
+			);
+			czech.addValue(FulltextFieldKey.attribute("title"), 10, "první titulek");
+			index.getModifiedStorageParts(new TrappedChanges());
+			index.notifyFlushed();
+			// dirty again, with its pages on disk - a fulltext index never flushed is announced only by the collect
+			// that writes it, see `GlobalEntityIndexFulltextPersistenceTest`
+			czech.addValue(FulltextFieldKey.attribute("title"), 11, "druhý titulek");
+
+			final EntityIndexManifest announced = announcedManifest(index);
+			final TrappedChanges sink = new TrappedChanges();
+			final EntityIndexManifest collected = collectedManifest(index, sink);
+
+			assertFalse(announced.getFulltextKeys().isEmpty(), "the fixture must persist a fulltext index");
+			assertTrue(sink.getTrappedChangesCount() > 0, "the collect of a dirty index must emit its parts");
+			assertSameManifest(collected, announced, "a global index with a fulltext index");
 		}
 
 	}
