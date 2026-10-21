@@ -27,16 +27,19 @@ import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
 import io.evitadb.api.exception.EntityIsNotHierarchicalException;
 import io.evitadb.api.exception.EntityNotManagedException;
+import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.require.FacetRelationType;
+import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.Capability;
 import io.evitadb.api.statistics.SchemaCapabilityUsageStatistics.ElementKind;
 import io.evitadb.core.exception.HierarchyNotIndexedException;
 import io.evitadb.core.exception.ReferenceNotFacetedException;
+import io.evitadb.core.query.QueryPlanner.EnclosingContainerRelation;
 import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
@@ -49,6 +52,7 @@ import io.evitadb.core.query.algebra.facet.FacetGroupAndFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupFormula;
 import io.evitadb.core.query.algebra.facet.FacetGroupOrFormula;
 import io.evitadb.core.query.algebra.facet.FacetHavingFormula;
+import io.evitadb.core.query.algebra.facet.FacetLocaleFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -64,6 +68,8 @@ import io.evitadb.index.Index;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 
@@ -74,6 +80,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -271,7 +278,9 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 		// entities store about them - the primary keys and the reference attributes; the data of the facet entities
 		// themselves is not there to be asked about
 		if (!referenceSchema.isReferencedEntityTypeManaged() &&
-			QueryUtils.findConstraint(facetHaving, EntityHaving.class, SeparateEntityScopeContainer.class) != null) {
+			!QueryUtils.findConstraints(
+				facetHaving, EntityHaving.class, SeparateEntityScopeContainer.class
+			).isEmpty()) {
 			throw new EntityNotManagedException(referenceSchema.getReferencedEntityType());
 		}
 
@@ -279,6 +288,13 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 		// there is no index to search - no entity can match
 		if (searchedIndexes.isEmpty()) {
 			return EmptyFormula.INSTANCE;
+		}
+
+		// only a facet filter naming an owner locale is split into guarded branches - any other keeps the facet
+		// evaluator below and pays nothing for the owner guard
+		final Locale ownerLocale = QueryUtils.resolveLocale(new FilterBy(facetHaving.getChildren()));
+		if (ownerLocale != null) {
+			return translateOwnerLocale(facetHaving, ownerLocale, filterByVisitor, entitySchema, referenceSchema);
 		}
 
 		final FacetFiltering facetFiltering = isolateFilteringConstraints(
@@ -392,6 +408,202 @@ public class FacetHavingTranslator implements FilteringConstraintTranslator<Face
 				.toList(),
 			it -> filterByVisitor.getFacetRelationType(referenceSchema, it.getFacetGroupId(), WITH_DIFFERENT_GROUPS)
 		);
+	}
+
+	/**
+	 * Splits the owner-level locale predicate into its true and false branches. Each branch selects facets using the
+	 * unchanged facet evaluator, then restricts owners. This preserves `or` and `not` without making other reference
+	 * predicates row-scoped. A tautological branch means any facet of the reference, independently of group relations,
+	 * and so does a branch left with children-expansion specifications only (see {@link #isChildrenExpansionOnly}).
+	 * The locale guard stays outside the facet-selection carrier so summary impact recomposition retains it.
+	 * The any-facet universe exposes only ordinary bitmap unions, so it never marks a facet group as selected.
+	 */
+	@Nonnull
+	private Formula translateOwnerLocale(
+		@Nonnull FacetHaving facetHaving,
+		@Nonnull Locale locale,
+		@Nonnull FilterByVisitor visitor,
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema
+	) {
+		final Formula allFacetsFormula = visitor.getReferencedRecordIdFormula(
+			entitySchema, referenceSchema, new FilterBy()
+		);
+		allFacetsFormula.initialize(visitor.getInternalExecutionContext());
+		final Bitmap allFacets = allFacetsFormula.compute();
+		if (allFacets.isEmpty()) {
+			return EmptyFormula.INSTANCE;
+		}
+		// These sentinels also represent truth values in containers that are not boolean operators.
+		final FilterConstraint truth = entityPrimaryKeyInSet(allFacets.getArray());
+		final FilterConstraint falsity = not(truth);
+		final Formula ownersWithLocale = visitor.applyOnIndexes(index -> index.getRecordsWithLanguageFormula(locale));
+		final And facetFilter = new And(facetHaving.getChildren());
+		final Formula[] branches = new Formula[2];
+		for (int branch = 0; branch < branches.length; branch++) {
+			final boolean matches = branch == 0;
+			final FilterConstraint resolved = resolveOwnerLocaleFilter(facetFilter, matches, truth, falsity);
+			if (resolved == falsity) {
+				branches[branch] = EmptyFormula.INSTANCE;
+			} else {
+				final Formula selection = translateBranchSelection(
+					facetHaving, visitor, referenceSchema, allFacets, resolved, truth
+				);
+				branches[branch] = new FacetLocaleFormula(
+					facetHaving.getReferenceName(),
+					matches ? ownersWithLocale : FormulaFactory.not(ownersWithLocale, visitor.getSuperSetFormula()),
+					selection
+				);
+			}
+		}
+		return FormulaFactory.or(branches);
+	}
+
+	/**
+	 * Translates the facet selection of one branch of the owner-locale split, settling a negation sentinel against
+	 * the superset so that the selection can be intersected with the owner guard directly.
+	 *
+	 * @param facetHaving     the facet filter naming the owner locale
+	 * @param visitor         the visitor translating the selection
+	 * @param referenceSchema the schema of the faceted reference
+	 * @param allFacets       every facet of the reference referenced in the searched indexes
+	 * @param resolved        the facet filter of the branch, with the owner locale substituted
+	 * @param truth           the sentinel substituted for a satisfied locale
+	 * @return the facet selection of the branch
+	 */
+	@Nonnull
+	private Formula translateBranchSelection(
+		@Nonnull FacetHaving facetHaving,
+		@Nonnull FilterByVisitor visitor,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Bitmap allFacets,
+		@Nonnull FilterConstraint resolved,
+		@Nonnull FilterConstraint truth
+	) {
+		final Formula selection;
+		if (resolved == truth || isChildrenExpansionOnly(resolved)) {
+			if (resolved != truth) {
+				// the bypassed facet evaluator would have refused the expansion of a reference that is not
+				// hierarchical
+				assertReferenceIsHierarchical(visitor, referenceSchema, visitor.getProcessingScope().getScopes());
+			}
+			selection = visitor.applyOnIndexes(
+				index -> createAnyFacetOwnersFormula(index, facetHaving.getReferenceName(), allFacets)
+			);
+		} else {
+			selection = translate(new FacetHaving(facetHaving.getReferenceName(), resolved), visitor);
+		}
+		return selection instanceof FutureNotFormula ?
+			FutureNotFormula.postProcess(new Formula[]{selection}, EnclosingContainerRelation.CONJUNCTION,
+				visitor::getSuperSetFormula) : selection;
+	}
+
+	/**
+	 * Creates the owners in `index` referencing any of `allFacets` - the selection of a locale branch that accepts any
+	 * facet of the reference. The summary generators read a facet group formula in the user filter as a selected facet
+	 * group and enrich it with the summarized facet, so the universe stays a plain constant for the predicted impact to
+	 * match the query with that facet selected. The owners of all facets fold into one constant, because impact
+	 * recomposition walks the whole user filter once per summarized facet, and a single leaf keeps that walk
+	 * independent of the number of facets of the reference.
+	 *
+	 * @param index         the searched index
+	 * @param referenceName the name of the faceted reference
+	 * @param allFacets     every facet of the reference referenced in the searched indexes
+	 * @return the owners referencing any of the facets, or an empty formula when the index holds none
+	 */
+	@Nonnull
+	private static Formula createAnyFacetOwnersFormula(
+		@Nonnull EntityIndex index, @Nonnull String referenceName, @Nonnull Bitmap allFacets
+	) {
+		// the facet group formulas only carry the owner bitmaps out of the index - none of them enters the result
+		final List<Bitmap> owners = new ArrayList<>();
+		for (final FacetGroupFormula group : index.getFacetReferencingEntityIdsFormula(
+			referenceName,
+			(groupId, facetIds, groupOwners) -> new FacetGroupOrFormula(referenceName, groupId, facetIds, groupOwners),
+			allFacets
+		)) {
+			for (final Bitmap facetOwners : group.getBitmaps()) {
+				owners.add(facetOwners);
+			}
+		}
+		if (owners.isEmpty()) {
+			return EmptyFormula.INSTANCE;
+		} else if (owners.size() == 1) {
+			return new ConstantFormula(owners.getFirst());
+		} else {
+			final PersistentRoaringBitmap[] roaringBitmaps = new PersistentRoaringBitmap[owners.size()];
+			for (int i = 0; i < roaringBitmaps.length; i++) {
+				roaringBitmaps[i] = RoaringBitmapBackedBitmap.getRoaringBitmap(owners.get(i));
+			}
+			return new ConstantFormula(new BaseBitmap(PersistentRoaringBitmap.or(roaringBitmaps)));
+		}
+	}
+
+	/**
+	 * Returns true if the resolved branch filter holds nothing but children-expansion specifications - what remains
+	 * of a conjunction whose locale folded into truth. Such a branch selects any facet: expanding the referenced
+	 * facets to their children adds no owner that a reference to any facet does not select already. A locale inside a
+	 * specification belongs to the subcategories' own level, so the substitution leaves it in place and it does not
+	 * change the answer.
+	 *
+	 * @param resolved the branch filter with the owner locale substituted
+	 * @return true if the branch filter consists of children-expansion specifications only
+	 */
+	private static boolean isChildrenExpansionOnly(@Nonnull FilterConstraint resolved) {
+		final FilterConstraint[] constraints = resolved instanceof And and ?
+			and.getChildren() : new FilterConstraint[]{resolved};
+		for (final FilterConstraint constraint : constraints) {
+			if (!(constraint instanceof HierarchyReferenceSpecificationFilterConstraint)) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Substitutes the owner locale's truth value, folding boolean operators while respecting entity-level boundaries.
+	 * Other containers retain their translation and receive the equivalent all-facets or no-facets predicate.
+	 */
+	@Nonnull
+	private static FilterConstraint resolveOwnerLocaleFilter(
+		@Nonnull FilterConstraint constraint, boolean matches,
+		@Nonnull FilterConstraint truth, @Nonnull FilterConstraint falsity
+	) {
+		if (constraint instanceof EntityLocaleEquals) {
+			return matches ? truth : falsity;
+		} else if (constraint instanceof DifferentEntityFilterContainer) {
+			return constraint;
+		} else if (constraint instanceof Not not) {
+			final FilterConstraint child = resolveOwnerLocaleFilter(not.getChildren()[0], matches, truth, falsity);
+			if (child == truth) {
+				return falsity;
+			} else if (child == falsity) {
+				return truth;
+			}
+			return new Not(child);
+		} else if (constraint instanceof And || constraint instanceof Or || constraint instanceof FilterBy) {
+			final boolean disjunction = constraint instanceof Or;
+			final List<FilterConstraint> children = new ArrayList<>();
+			for (final FilterConstraint child : ((ConstraintContainer<FilterConstraint>) constraint).getChildren()) {
+				final FilterConstraint resolved = resolveOwnerLocaleFilter(child, matches, truth, falsity);
+				if (resolved == (disjunction ? truth : falsity)) {
+					return resolved;
+				} else if (resolved != (disjunction ? falsity : truth)) {
+					children.add(resolved);
+				}
+			}
+			if (children.isEmpty()) {
+				return disjunction ? falsity : truth;
+			} else if (children.size() == 1) {
+				return children.getFirst();
+			}
+			return disjunction ? new Or(children.toArray(FilterConstraint[]::new)) :
+				new And(children.toArray(FilterConstraint[]::new));
+		} else {
+			return Objects.requireNonNull(ConstraintCloneVisitor.clone(constraint, (cloner, child) ->
+				child instanceof EntityLocaleEquals && !cloner.isWithin(DifferentEntityFilterContainer.class) ?
+					(matches ? truth : falsity) : child));
+		}
 	}
 
 	/**

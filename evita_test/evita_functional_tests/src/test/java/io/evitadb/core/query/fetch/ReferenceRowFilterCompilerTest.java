@@ -817,19 +817,19 @@ class ReferenceRowFilterCompilerTest {
 		}
 
 		@Test
-		@DisplayName("a locale found inside entityHaving is the locale of the leaves, as the body fetch reads it")
+		@DisplayName("a locale inside entityHaving belongs to the referenced entity, the leaves read the owner's locale")
 		@UseDataSet(ROW_FILTER)
-		void shouldReadLocaleFoundInsideEntityHaving(Evita evita) {
-			// brand 1 alone holds German; owner 1 calls it `Rot` in German and `Red` in English
-			assertVerdicts(
-				evita,
-				filterBy(entityHaving(entityLocaleEquals(Locale.GERMAN)), attributeEquals(ATTR_LABEL, "Rot")),
-				Locale.ENGLISH,
-				expected(true, false, false, false)
-			);
+		void shouldReadOwnerLocaleWhenLocaleIsOnlyInsideEntityHaving(Evita evita) {
+			// brand 1 alone holds German; its rows are labelled `Red` in English, owner 1 calls it `Rot` in German
 			assertVerdicts(
 				evita,
 				filterBy(entityHaving(entityLocaleEquals(Locale.GERMAN)), attributeEquals(ATTR_LABEL, "Red")),
+				Locale.ENGLISH,
+				expected(true, false, true, false)
+			);
+			assertVerdicts(
+				evita,
+				filterBy(entityHaving(entityLocaleEquals(Locale.GERMAN)), attributeEquals(ATTR_LABEL, "Rot")),
 				Locale.ENGLISH,
 				expected(false, false, false, false)
 			);
@@ -1290,9 +1290,9 @@ class ReferenceRowFilterCompilerTest {
 		}
 
 		@Test
-		@DisplayName("inScope of a scope the request does not ask for and two filter locales are refused")
+		@DisplayName("inScope of a scope the request does not ask for and two locales at one level are refused")
 		@UseDataSet(ROW_FILTER)
-		void shouldRefuseUnrequestedScopeAndSecondLocale(Evita evita) {
+		void shouldRefuseUnrequestedScopeAndSecondLocaleOfOneLevel(Evita evita) {
 			final Fixture fixture = new Fixture(evita);
 			assertThrows(
 				EvitaInvalidUsageException.class,
@@ -1304,6 +1304,12 @@ class ReferenceRowFilterCompilerTest {
 			assertThrows(
 				EvitaInvalidUsageException.class,
 				() -> fixture.compile(
+					filterBy(entityLocaleEquals(Locale.ENGLISH), entityLocaleEquals(Locale.GERMAN)), null
+				)
+			);
+			// the reference level and the referenced entity's level may name different locales
+			assertNotNull(
+				fixture.compile(
 					filterBy(entityLocaleEquals(Locale.ENGLISH), entityHaving(entityLocaleEquals(Locale.GERMAN))),
 					null
 				)

@@ -24,7 +24,9 @@
 package io.evitadb.core.query.filter.translator.hierarchy;
 
 import io.evitadb.api.exception.EntityIsNotHierarchicalException;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyWithin;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -44,7 +46,6 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
-import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.utils.Assert;
@@ -54,6 +55,7 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -144,7 +146,7 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 			final Formula hierarchyParentFormula = createFormulaForTheFilter(
 				queryContext,
 				scopeToLookup,
-				createFilter(queryContext, parentFilter),
+				createFilter(queryContext, hierarchyWithin),
 				targetEntitySchema.getName(),
 				() -> "Finding hierarchy parent node: " + parentFilter
 			);
@@ -273,19 +275,24 @@ public class HierarchyWithinTranslator extends AbstractHierarchyTranslator<Hiera
 	}
 
 	/**
-	 * Creates a {@link FilterBy} instance based on the provided query context and parent filter constraint.
-	 * This method generates a filter by incorporating a locale-specific filter when the query context
-	 * has a defined locale. If no locale is specified in the query context, it uses the parent filter directly.
+	 * Builds the parent filter in the hierarchy level's locale, inheriting the enclosing locale only when the
+	 * whole hierarchy level (including its specifications) names none.
 	 *
-	 * @param queryContext the context of the query, used to access configurations, dependencies, and the locale (if available).
-	 * @param parentFilter the parent {@link FilterConstraint} that serves as the base for building the filter structure.
-	 * @return a {@link FilterBy} instance containing the constructed filter constraints.
+	 * @param queryContext the enclosing query context
+	 * @param hierarchyWithin the hierarchy level whose parent is selected
+	 * @return the parent filter carrying the hierarchy level's resolved locale
 	 */
 	@Nonnull
-	private static FilterBy createFilter(@Nonnull QueryPlanningContext queryContext, @Nonnull FilterConstraint parentFilter) {
-		return ofNullable(queryContext.getLocale())
-			.map(locale -> filterBy(parentFilter, entityLocaleEquals(locale)))
-			.orElseGet(() -> filterBy(parentFilter));
+	private static FilterBy createFilter(
+		@Nonnull QueryPlanningContext queryContext, @Nonnull HierarchyWithin hierarchyWithin
+	) {
+		final FilterConstraint parentFilter = hierarchyWithin.getParentFilter();
+		final Locale ownLocale = resolveHierarchyLocale(hierarchyWithin);
+		final Locale locale = ownLocale == null ? queryContext.getLocale() : ownLocale;
+		// a parent filter naming the locale itself needs no copy of it
+		final boolean parentNamesLocale = QueryUtils.resolveLocale(parentFilter) != null;
+		return parentNamesLocale || locale == null ?
+			filterBy(parentFilter) : filterBy(parentFilter, entityLocaleEquals(locale));
 	}
 
 	/**

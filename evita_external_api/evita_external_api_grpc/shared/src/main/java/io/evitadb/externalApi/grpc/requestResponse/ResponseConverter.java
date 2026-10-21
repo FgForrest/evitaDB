@@ -23,7 +23,11 @@
 
 package io.evitadb.externalApi.grpc.requestResponse;
 
+import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.filter.FilterBy;
+import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.FacetSummaryOfReference;
@@ -39,19 +43,19 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.extraResult.AttributeHistogram;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary;
 import io.evitadb.api.requestResponse.extraResult.FacetSummary.FacetGroupStatistics;
-import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
-import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
-import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
-import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.RequestImpact;
+import io.evitadb.api.requestResponse.extraResult.FormulaPlan;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy;
 import io.evitadb.api.requestResponse.extraResult.Hierarchy.LevelInfo;
 import io.evitadb.api.requestResponse.extraResult.Histogram;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract;
 import io.evitadb.api.requestResponse.extraResult.HistogramContract.Bucket;
 import io.evitadb.api.requestResponse.extraResult.PriceHistogram;
-import io.evitadb.api.requestResponse.extraResult.FormulaPlan;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.StepMetric;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.FacetStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
+import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.RequestImpact;
 import io.evitadb.api.requestResponse.schema.SealedEntitySchema;
 import io.evitadb.dataType.DataChunk;
 import io.evitadb.dataType.PaginatedList;
@@ -65,12 +69,14 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -254,6 +260,9 @@ public class ResponseConverter {
 				)
 			);
 
+		// the body requests depend on the reference only, so the groups of one reference share them
+		final Map<String, EvitaRequest> entityRequests = new HashMap<>();
+		final Map<String, EvitaRequest> groupRequests = new HashMap<>();
 		return new ReferenceSummary(
 			extraResults.getReferenceGroupStatisticsList()
 				.stream()
@@ -272,6 +281,12 @@ public class ResponseConverter {
 
 					return toReferenceGroupStatistics(
 						entitySchemaFetcher, evitaRequest,
+						entityRequests.computeIfAbsent(referenceName, name -> withSummaryLocale(
+							evitaRequest, facetSummaryRequestIndex.get(name), referenceSummaryRequirementDefaults, false
+						)),
+						groupRequests.computeIfAbsent(referenceName, name -> withSummaryLocale(
+							evitaRequest, facetSummaryRequestIndex.get(name), referenceSummaryRequirementDefaults, true
+						)),
 						entityFetch, entityGroupFetch,
 						it
 					);
@@ -315,6 +330,9 @@ public class ResponseConverter {
 				)
 			);
 
+		// the body requests depend on the reference only, so the groups of one reference share them
+		final Map<String, EvitaRequest> entityRequests = new HashMap<>();
+		final Map<String, EvitaRequest> groupRequests = new HashMap<>();
 		return new FacetSummary(
 			extraResults.getFacetGroupStatisticsList()
 				.stream()
@@ -332,7 +350,13 @@ public class ResponseConverter {
 						.orElse(defaultEntityGroupFetch);
 
 					return toFacetGroupStatistics(
-						entitySchemaFetcher, evitaRequest,
+						entitySchemaFetcher,
+						entityRequests.computeIfAbsent(referenceName, name -> withSummaryLocale(
+							evitaRequest, facetSummaryRequestIndex.get(name), facetSummaryRequirementDefaults, false
+						)),
+						groupRequests.computeIfAbsent(referenceName, name -> withSummaryLocale(
+							evitaRequest, facetSummaryRequestIndex.get(name), facetSummaryRequirementDefaults, true
+						)),
 						entityFetch, entityGroupFetch,
 						it
 					);
@@ -342,12 +366,47 @@ public class ResponseConverter {
 	}
 
 	/**
-	 * Method converts {@link GrpcReferenceGroupStatistics} to {@link ReferenceGroupStatistics}.
+	 * Applies the summary target level's own locale to the request decorating its received bodies. A named
+	 * summary replaces the default summary entirely, as it does on the server, so a named summary without a filter
+	 * takes no locale from the default one; a missing opinion inherits the enclosing request.
+	 *
+	 * @param ownerRequest the enclosing request
+	 * @param specific the named summary, NULL when absent
+	 * @param defaults the default summary, NULL when absent
+	 * @param group whether to resolve the group filter
+	 * @return a request carrying this target level's resolved locale
+	 */
+	@Nonnull
+	private static EvitaRequest withSummaryLocale(
+		@Nonnull EvitaRequest ownerRequest, @Nullable ConstraintContainer<?> specific,
+		@Nullable ConstraintContainer<?> defaults, boolean group
+	) {
+		final ConstraintContainer<?> summary = specific != null ? specific : defaults;
+		Constraint<?> filter = null;
+		if (summary != null) {
+			for (final Constraint<?> child : summary.getAdditionalChildren()) {
+				if (group ? child instanceof FilterGroupBy : child instanceof FilterBy) {
+					filter = child;
+					break;
+				}
+			}
+		}
+		final Locale ownLocale = QueryUtils.resolveLocale(filter);
+		return ownLocale == null ? ownerRequest : ownerRequest.deriveCopyWith(
+			ownerRequest.getEntityType(), null, null, ownLocale, ownerRequest.getScopes()
+		);
+	}
+
+	/**
+	 * Converts reference statistics, keeping entity, group and histogram body requests in their respective
+	 * enclosing locale contexts. Histogram anchors have no filter opinion of their own.
 	 */
 	@Nonnull
 	private static ReferenceGroupStatistics toReferenceGroupStatistics(
 		@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
+		@Nonnull EvitaRequest histogramRequest,
 		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull EvitaRequest groupRequest,
 		@Nullable EntityFetch entityFetch,
 		@Nullable EntityGroupFetch entityGroupFetch,
 		@Nonnull GrpcReferenceGroupStatistics grpcReferenceGroupStatistics
@@ -362,7 +421,7 @@ public class ResponseConverter {
 			for (Map.Entry<String, GrpcHistogram> entry : grpcHistograms.entrySet()) {
 				histogramStatistics.put(
 					entry.getKey(),
-					toHistogram(entitySchemaFetcher, evitaRequest, entityFetch, entry.getValue())
+					toHistogram(entitySchemaFetcher, histogramRequest, entityFetch, entry.getValue())
 				);
 			}
 		}
@@ -372,7 +431,7 @@ public class ResponseConverter {
 			grpcReferenceGroupStatistics.hasGroupEntity() ?
 				EntityConverter.toEntity(
 					entitySchemaFetcher,
-					evitaRequest.deriveCopyWith(
+					groupRequest.deriveCopyWith(
 						grpcReferenceGroupStatistics.getGroupEntity().getEntityType(), entityGroupFetch
 					),
 					grpcReferenceGroupStatistics.getGroupEntity(),
@@ -407,6 +466,7 @@ public class ResponseConverter {
 	private static FacetGroupStatistics toFacetGroupStatistics(
 		@Nonnull Function<GrpcSealedEntity, SealedEntitySchema> entitySchemaFetcher,
 		@Nonnull EvitaRequest evitaRequest,
+		@Nonnull EvitaRequest groupRequest,
 		@Nullable EntityFetch entityFetch,
 		@Nullable EntityGroupFetch entityGroupFetch,
 		@Nonnull GrpcFacetGroupStatistics grpcFacetGroupStatistics
@@ -416,7 +476,7 @@ public class ResponseConverter {
 			grpcFacetGroupStatistics.hasGroupEntity() ?
 				EntityConverter.toEntity(
 					entitySchemaFetcher,
-					evitaRequest.deriveCopyWith(
+					groupRequest.deriveCopyWith(
 						grpcFacetGroupStatistics.getGroupEntity().getEntityType(), entityGroupFetch
 					),
 					grpcFacetGroupStatistics.getGroupEntity(),

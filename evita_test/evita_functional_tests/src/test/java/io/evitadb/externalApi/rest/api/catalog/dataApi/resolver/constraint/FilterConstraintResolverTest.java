@@ -30,6 +30,7 @@ import io.evitadb.exception.EvitaInternalError;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.test.Entities;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -52,6 +53,7 @@ import static io.evitadb.test.TestTags.FILTER;
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2022
  */
+@DisplayName("REST filter constraint resolution")
 @Tag(REST)
 @Tag(EXTERNAL_API)
 @Tag(QUERY)
@@ -330,8 +332,12 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 		);
 	}
 
+	/**
+	 * Resolves all entity scope fields into conjunctive children within a complex filter tree.
+	 */
 	@Test
-	void shouldResolveComplexFilterConstraintTree() {
+	@DisplayName("Resolves several entity scope children in a complex tree")
+	void shouldResolveSeveralChildrenWhenFilterTreeIsComplex() {
 		//noinspection ConstantConditions
 		assertEquals(
 			filterBy(
@@ -349,12 +355,10 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 						attributeStartsWith("CODE", "ab"),
 						entityPrimaryKeyInSet(2),
 						entityHaving(
-							and(
-								attributeEquals("NAME", "cd"),
-								referenceHaving(
-									"RELATED_PRODUCTS",
-									attributeEquals("ORDER", 1)
-								)
+							attributeEquals("NAME", "cd"),
+							referenceHaving(
+								"RELATED_PRODUCTS",
+								attributeEquals("ORDER", 1)
 							)
 						)
 					)
@@ -399,8 +403,12 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 		);
 	}
 
+	/**
+	 * Omits undefined filters while preserving all entity scope fields as conjunctive children.
+	 */
 	@Test
-	void shouldResolveComplexFilterAndFilterOutUndefinedConstraints() {
+	@DisplayName("Omits undefined constraints while retaining all entity scope children")
+	void shouldOmitUndefinedConstraintsWhenFilterTreeIsComplex() {
 		//noinspection ConstantConditions
 		assertEquals(
 			filterBy(
@@ -412,12 +420,10 @@ class FilterConstraintResolverTest extends AbstractConstraintResolverTest {
 						attributeStartsWith("CODE", "ab"),
 						entityPrimaryKeyInSet(2),
 						entityHaving(
-							and(
-								attributeEquals("NAME", "cd"),
-								referenceHaving(
-									"RELATED_PRODUCTS",
-									attributeEquals("ORDER", 1)
-								)
+							attributeEquals("NAME", "cd"),
+							referenceHaving(
+								"RELATED_PRODUCTS",
+								attributeEquals("ORDER", 1)
 							)
 						)
 					)

@@ -25,12 +25,14 @@ package io.evitadb.core.query.filter;
 
 import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.exception.ReferencePartitionReindexRequiredException;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.AttributeConstraint;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.ConstraintLeaf;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityContentRequire;
@@ -99,12 +101,10 @@ import io.evitadb.core.query.filter.translator.reference.ReferenceHavingTranslat
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.ReducedEntityIndex;
@@ -122,13 +122,15 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.mutation.local.VirtualReferencePartitionWriter;
+import io.evitadb.index.price.PriceSuperIndex;
+import io.evitadb.index.usage.SchemaCapabilityUsage;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.experimental.Delegate;
-import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
-import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -479,6 +481,10 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull Supplier<String> stepDescriptionSupplier,
 		boolean constraintCheckOnly
 	) {
+		final QueryPlanningContext localeContext = queryContext.getContextInLocale(
+			queryContext.getEntityType(), filterBy, QueryUtils.resolveLocale(filterBy), queryContext.getScopes(),
+			"resolve nested filter locale"
+		);
 		final Formula theFormula;
 		try {
 			queryContext.pushStep(
@@ -487,8 +493,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			);
 			// create a visitor
 			final FilterByVisitor theFilterByVisitor = new FilterByVisitor(
-				createRootProcessingScope(queryContext, TargetIndexes.EMPTY),
-				queryContext,
+				createRootProcessingScope(localeContext, TargetIndexes.EMPTY),
+				localeContext,
 				Collections.emptyList(),
 				TargetIndexes.EMPTY,
 				constraintCheckOnly
@@ -537,6 +543,11 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			}
 		} finally {
 			queryContext.popStep();
+		}
+		if (localeContext != queryContext) {
+			for (final SchemaCapabilityUsage capability : localeContext.drainRequestedCapabilities()) {
+				queryContext.registerRequestedCapability(capability);
+			}
 		}
 		return theFormula;
 	}

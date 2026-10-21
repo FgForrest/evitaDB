@@ -25,6 +25,7 @@ package io.evitadb.core.query.filter.translator.reference;
 
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.GroupHaving;
@@ -607,6 +608,20 @@ public class HavingTranslatorHelper {
 		return " On a collection that already holds data the schema change does not index the entities already " +
 			"stored - they are indexed only as they are written - so data written before the change stays invisible " +
 			"to these queries until it is written again.";
+	}
+
+	/**
+	 * Returns the single filter the nested query of an `entityHaving` / `groupHaving` container evaluates. The
+	 * container combines its children with logical AND, so several children become one {@link And} of them in
+	 * their order, while a sole child is returned as it is. A container without children has no filter to
+	 * evaluate - callers handle that case before asking for one.
+	 *
+	 * @param children the children of the container, at least one
+	 * @return the sole child, or an {@link And} of all children
+	 */
+	@Nonnull
+	public static FilterConstraint conjunctionOf(@Nonnull FilterConstraint[] children) {
+		return children.length == 1 ? children[0] : new And(children);
 	}
 
 	/**

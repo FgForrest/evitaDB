@@ -7763,6 +7763,7 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 	@Nonnull
 	static Stream<Arguments> unevaluableUnmanagedOptionSelectionRows() {
 		final FilterConstraint byEntityCode = entityHaving(attributeEquals(ATTRIBUTE_CODE, "anything"));
+		final FilterConstraint byOtherEntityCode = entityHaving(attributeEquals(ATTRIBUTE_CODE, "other"));
 		return Stream.of(
 			Arguments.of("entity attribute", new FilterConstraint[]{byEntityCode}),
 			Arguments.of(
@@ -7772,6 +7773,14 @@ public abstract class AbstractEntityByFacetFilteringFunctionalTest implements Ev
 			Arguments.of(
 				"entity attribute beside a primary key",
 				new FilterConstraint[]{entityPrimaryKeyInSet(1), byEntityCode}
+			),
+			Arguments.of(
+				"two entity attributes in a logical container",
+				new FilterConstraint[]{or(byEntityCode, byOtherEntityCode)}
+			),
+			Arguments.of(
+				"two entity attributes side by side",
+				new FilterConstraint[]{byEntityCode, byOtherEntityCode}
 			)
 		)
 			.flatMap(row -> Stream.of(false, true).map(withSummary -> Arguments.of(

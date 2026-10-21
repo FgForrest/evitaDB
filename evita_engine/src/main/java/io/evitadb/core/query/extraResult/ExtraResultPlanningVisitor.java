@@ -29,6 +29,8 @@ import io.evitadb.api.query.ConstraintLeaf;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
+import io.evitadb.api.query.QueryConstraints;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.FilterBy;
@@ -66,9 +68,6 @@ import io.evitadb.core.query.extraResult.translator.RequireInScopeTranslator;
 import io.evitadb.core.query.extraResult.translator.RequireTranslator;
 import io.evitadb.core.query.extraResult.translator.facet.FacetSummaryOfReferenceTranslator;
 import io.evitadb.core.query.extraResult.translator.facet.FacetSummaryTranslator;
-import io.evitadb.core.query.extraResult.translator.reference.ReferenceHistogramStatisticsTranslator;
-import io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryOfReferenceTranslator;
-import io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.HierarchyChildrenTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.HierarchyFromNodeTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.HierarchyFromRootTranslator;
@@ -85,6 +84,9 @@ import io.evitadb.core.query.extraResult.translator.reference.EntityGroupFetchTr
 import io.evitadb.core.query.extraResult.translator.reference.HierarchyContentTranslator;
 import io.evitadb.core.query.extraResult.translator.reference.PriceContentTranslator;
 import io.evitadb.core.query.extraResult.translator.reference.ReferenceContentTranslator;
+import io.evitadb.core.query.extraResult.translator.reference.ReferenceHistogramStatisticsTranslator;
+import io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryOfReferenceTranslator;
+import io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.sort.NestedContextSorter;
@@ -962,6 +964,64 @@ public class ExtraResultPlanningVisitor implements ConstraintVisitor {
 				.filter(Objects::nonNull),
 			Stream.of(current)
 		);
+	}
+
+	/**
+	 * Derives the request of the body containing the requirement, from the outermost fetch inward. Each body resolves
+	 * its own locale before inheriting its enclosing body's locale; a fetch without its own `dataInLocales` inherits
+	 * the requirement of the enclosing fetch (see {@link #deriveBodyRequest}). Reference attributes remain at their
+	 * owner's body level. A body no level resolves a locale for gets a request without one.
+	 *
+	 * @param current the content requirement being validated
+	 * @return the request that will fetch its data
+	 * @throws io.evitadb.exception.EvitaInvalidUsageException when a reference filter names conflicting locales on one
+	 *                                                         level
+	 */
+	@Nonnull
+	public EvitaRequest getEntityFetchRequest(@Nonnull EntityContentRequire current) {
+		EvitaRequest request = getEvitaRequest();
+		ReferenceContent enclosing = null;
+		final Iterator<RequireConstraint> chain = getEntityContentRequireChain(current).iterator();
+		while (chain.hasNext()) {
+			final RequireConstraint requirement = chain.next();
+			if (requirement instanceof ReferenceContent referenceContent) {
+				enclosing = referenceContent;
+			} else if (requirement instanceof EntityFetchRequire fetch) {
+				final Locale locale = enclosing == null ? request.getRequiredOrImplicitLocale() :
+					QueryUtils.resolveReferenceBodyLocale(
+						enclosing.getFilterBy().orElse(null), fetch instanceof EntityGroupFetch,
+						request.getRequiredOrImplicitLocale()
+					);
+				request = deriveBodyRequest(
+					request, request.getEntityType(), new FilterBy(QueryConstraints.entityLocaleEquals(locale)), fetch
+				);
+				enclosing = null;
+			}
+		}
+		return request;
+	}
+
+	/**
+	 * Derives the request of a nested body from the request of its enclosing level. The derived copy takes over the
+	 * memoized required locales of `parent` instead of computing them, so they are computed here first: a fetch that
+	 * names no `dataInLocales` then inherits the requirement of the enclosing fetch, as the bodies do when they are
+	 * fetched after their owners.
+	 *
+	 * @param parent     the request of the enclosing level
+	 * @param entityType the entity type of the body
+	 * @param filterBy   the filter supplying the locale of the body, NULL to keep the locale of `parent`
+	 * @param fetch      the fetch requirement of the body
+	 * @return the request fetching the body
+	 */
+	@Nonnull
+	public static EvitaRequest deriveBodyRequest(
+		@Nonnull EvitaRequest parent,
+		@Nullable String entityType,
+		@Nullable FilterBy filterBy,
+		@Nonnull EntityFetchRequire fetch
+	) {
+		parent.getRequiredLocales();
+		return parent.deriveCopyWith(entityType, filterBy, null, fetch);
 	}
 
 	/**

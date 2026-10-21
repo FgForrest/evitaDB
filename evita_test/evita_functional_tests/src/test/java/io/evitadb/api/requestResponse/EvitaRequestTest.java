@@ -88,6 +88,93 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(QUERY)
 class EvitaRequestTest {
 
+	/**
+	 * Covers both nested derivation constructors and explicit overrides.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Nested locale inheritance")
+	class LocaleInheritanceTest {
+		/** Refusing a level must not mark its failed locale lookup as successfully memoized. */
+		@Test
+		@DisplayName("Refuses conflicting opinions on every lookup")
+		void shouldRejectEachLookupWhenLocaleOpinionsConflict() {
+			final EvitaRequest request = createRequest(query(collection("a"),
+				filterBy(entityLocaleEquals(Locale.ENGLISH), entityLocaleEquals(Locale.FRENCH))));
+			for (int attempt = 0; attempt < 2; attempt++) {
+				final EvitaInvalidUsageException error = assertThrows(EvitaInvalidUsageException.class,
+					request::getLocale, "Each lookup must reject the same conflicting level");
+				assertTrue(error.getMessage().contains("Conflicting locales `en` and `fr`"), error.getMessage());
+			}
+		}
+
+		/** An explicit override chooses the context, while contradictory predicates remain invalid. */
+		@Test
+		@DisplayName("Validates opinions even with an explicit locale override")
+		void shouldRejectWhenOverrideAccompaniesConflictingOpinions() {
+			final EvitaRequest owner = createRequest(
+				query(collection("a"), filterBy(entityLocaleEquals(Locale.GERMAN)))
+			);
+			final EvitaInvalidUsageException error = assertThrows(EvitaInvalidUsageException.class, () ->
+				owner.deriveCopyWith(
+					"b", filterBy(entityLocaleEquals(Locale.ENGLISH), entityLocaleEquals(Locale.FRENCH)),
+					null, Locale.GERMAN, EnumSet.of(Scope.LIVE)));
+			assertTrue(error.getMessage().contains("Conflicting locales `en` and `fr`"), error.getMessage());
+		}
+
+		/** The French owner request every nested request below is derived from. */
+		private final EvitaRequest owner = createRequest(
+			query(collection("a"), filterBy(entityLocaleEquals(Locale.FRENCH)))
+		);
+		/** A nested filter naming its own English opinion. */
+		private final FilterBy english = filterBy(entityLocaleEquals(Locale.ENGLISH));
+
+		/** A body fetch derived with a filter takes that filter's own opinion over the owner's locale. */
+		@Test
+		@DisplayName("Fetch derivation uses the nested filter's own locale")
+		void shouldUseOwnOpinionWhenDerivingFetchRequest() {
+			assertEquals(Locale.ENGLISH, this.owner.deriveCopyWith("b", this.english, null, entityFetch()).getLocale(),
+				"Nested fetch must use its own English opinion");
+		}
+
+		/** A nested planning request derived without an override takes its filter's own opinion. */
+		@Test
+		@DisplayName("Planning derivation uses the nested filter's own locale")
+		void shouldUseOwnOpinionWhenDerivingPlanningRequest() {
+			assertEquals(Locale.ENGLISH, this.owner.deriveCopyWith(
+				"b", this.english, null, null, EnumSet.of(Scope.LIVE)
+			).getLocale(), "Nested planning must use its own English opinion");
+		}
+
+		/** A level without an opinion inherits the level right above it, not the outermost one. */
+		@Test
+		@DisplayName("Grandchild without an opinion inherits its immediate parent")
+		void shouldInheritImmediateParentWhenGrandchildHasNoOpinion() {
+			final EvitaRequest child = this.owner.deriveCopyWith("b", this.english, null, null, EnumSet.of(Scope.LIVE));
+			assertEquals(Locale.ENGLISH, child.deriveCopyWith("c", filterBy(attributeEquals("code", "a")),
+				null, null, EnumSet.of(Scope.LIVE)).getLocale(),
+				"Grandchild must inherit the immediate parent's English locale");
+		}
+
+		/** An explicit locale passed to the derivation wins over the nested filter's own opinion. */
+		@Test
+		@DisplayName("Explicit locale override wins over the nested filter's own locale")
+		void shouldPreferExplicitLocaleOverOwnOpinion() {
+			assertEquals(Locale.GERMAN, this.owner.deriveCopyWith(
+				"b", this.english, null, Locale.GERMAN, EnumSet.of(Scope.LIVE)
+			).getLocale());
+		}
+
+		/** An opinion that only a nested entity level names leaves the main request without a locale. */
+		@Test
+		@DisplayName("Nested-only locale does not become the main request's locale")
+		void shouldNotPromoteNestedOnlyOpinionToMainLocale() {
+			assertNull(createRequest(query(collection("a"), filterBy(referenceHaving("brand",
+				entityHaving(entityLocaleEquals(Locale.ENGLISH)))))).getLocale());
+		}
+	}
+
 	/** Shared timestamp for all tests. */
 	private static final OffsetDateTime NOW =
 		OffsetDateTime.now();
