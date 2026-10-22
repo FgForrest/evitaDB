@@ -140,6 +140,29 @@ public final class TypoExpansion {
 	}
 
 	/**
+	 * The rules for the last, unfinished query word (`typo-tolerance-fulltext-dictionary.md` §7.8): below which
+	 * fragment length no prefix expansion runs, how many typos the unfinished word may have at most, and whether
+	 * the prefix scan also starts from the fragment's stem hypotheses.
+	 *
+	 * @param minFragmentLength  the shortest fragment that gets a prefix expansion; shorter fragments get exact and
+	 *                           typo expansion only
+	 * @param maxEdits           the most typos the unfinished word may have, capping the thresholds
+	 * @param prefixOfHypotheses whether the prefix scan starts from the stem hypotheses as well as the fragment
+	 */
+	public record UnfinishedWordRules(int minFragmentLength, int maxEdits, boolean prefixOfHypotheses) {
+		/**
+		 * The rules proposed in §7.8: prefix from three characters, at most one typo, prefix of the fragment and of
+		 * its hypotheses.
+		 */
+		public static final UnfinishedWordRules PROPOSAL = new UnfinishedWordRules(3, 1, true);
+		/**
+		 * The rules the measurements of §10.2 ran with: prefix from any length, the thresholds uncapped, prefix of
+		 * the fragment only.
+		 */
+		public static final UnfinishedWordRules UNRESTRICTED = new UnfinishedWordRules(0, 2, false);
+	}
+
+	/**
 	 * Runs a query through the search-side analyzer and groups the emitted terms by position into query words.
 	 *
 	 * @param searchAnalyzer the search-slot analyzer (`czech-search` for Czech)
@@ -258,6 +281,33 @@ public final class TypoExpansion {
 		@Nonnull LengthBase base,
 		@Nonnull UnfinishedWordMode mode
 	) {
+		return expand(tree, word, thresholds, base, mode, UnfinishedWordRules.UNRESTRICTED);
+	}
+
+	/**
+	 * Expands one query word into dictionary terms, applying the rules for an unfinished last word.
+	 *
+	 * @param tree       the dictionary of folded stems
+	 * @param word       the query word
+	 * @param thresholds the threshold function
+	 * @param base       which length the thresholds read
+	 * @param mode       how the word is treated as an unfinished last word, or {@link UnfinishedWordMode#FINISHED}
+	 * @param rules      the rules for an unfinished word; ignored for a finished one
+	 * @return the expanded terms, each once with its best exactness and distance, sorted best first and then by term
+	 */
+	@Nonnull
+	public static List<ExpandedTerm> expand(
+		@Nonnull TransactionalBucketBPlusTree<String> tree,
+		@Nonnull QueryWord word,
+		@Nonnull TypoThresholds thresholds,
+		@Nonnull LengthBase base,
+		@Nonnull UnfinishedWordMode mode,
+		@Nonnull UnfinishedWordRules rules
+	) {
+		final boolean unfinished = mode != UnfinishedWordMode.FINISHED;
+		final int editCap = unfinished ? rules.maxEdits() : 2;
+		final boolean prefixAllowed = unfinished
+			&& word.typed().codePointCount(0, word.typed().length()) >= rules.minFragmentLength();
 		final Map<String, ExpandedTerm> best = CollectionUtils.createHashMap(32);
 		// exact: every hypothesis that is a dictionary key
 		for (final String hypothesis : word.hypotheses()) {
@@ -265,16 +315,24 @@ public final class TypoExpansion {
 				offer(best, new ExpandedTerm(hypothesis, Exactness.EXACT, 0));
 			}
 		}
-		// prefix: the typed fragment of an unfinished word
-		if (mode != UnfinishedWordMode.FINISHED) {
+		// prefix: the typed fragment of an unfinished word, and its stem hypotheses when the rules say so
+		if (prefixAllowed) {
 			for (final String term : prefix(tree, word.typed())) {
 				offer(best, new ExpandedTerm(term, Exactness.PREFIX, 0));
+			}
+			if (rules.prefixOfHypotheses()) {
+				for (final String hypothesis : word.hypotheses()) {
+					for (final String term : prefix(tree, hypothesis)) {
+						final Exactness exactness = term.equals(hypothesis) ? Exactness.EXACT : Exactness.PREFIX;
+						offer(best, new ExpandedTerm(term, exactness, 0));
+					}
+				}
 			}
 		}
 		// fuzzy: every hypothesis within its budget; skipped for the prefix-only mode
 		if (mode != UnfinishedWordMode.PREFIX_ONLY) {
 			for (final String hypothesis : word.hypotheses()) {
-				final int edits = maxEdits(thresholds, base, word.typed(), hypothesis);
+				final int edits = Math.min(editCap, maxEdits(thresholds, base, word.typed(), hypothesis));
 				if (edits > 0) {
 					final LevenshteinDictionaryWalker walker =
 						new LevenshteinDictionaryWalker(hypothesis, edits, thresholds.frozenPrefix(hypothesis));
@@ -286,8 +344,8 @@ public final class TypoExpansion {
 			}
 		}
 		// open-ended fuzzy over the typed fragment: mistyped and unfinished at once
-		if (mode == UnfinishedWordMode.PREFIX_AND_OPEN_END_TYPO) {
-			final int edits = thresholds.maxEdits(word.typed());
+		if (mode == UnfinishedWordMode.PREFIX_AND_OPEN_END_TYPO && prefixAllowed) {
+			final int edits = Math.min(editCap, thresholds.maxEdits(word.typed()));
 			if (edits > 0) {
 				final LevenshteinDictionaryWalker walker = new LevenshteinDictionaryWalker(
 					word.typed(), edits, thresholds.frozenPrefix(word.typed()), 0, true
