@@ -106,6 +106,8 @@ public class CreateAttributeSchemaMutationConverter
 			uniqueInScopes,
 			input.getProperty(CreateAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES),
 			acceleratorsInScopes,
+			// searchability has no GraphQL/REST mirror, so a mutation arriving this way never declares it
+			null,
 			input.getProperty(CreateAttributeSchemaMutationDescriptor.SORTABLE_IN_SCOPES),
 			input.getProperty(CreateAttributeSchemaMutationDescriptor.LOCALIZED, false),
 			input.getProperty(CreateAttributeSchemaMutationDescriptor.NULLABLE, false),

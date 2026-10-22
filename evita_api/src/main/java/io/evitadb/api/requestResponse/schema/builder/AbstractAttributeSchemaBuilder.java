@@ -45,6 +45,7 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSche
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaLocalizedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaNullableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaRepresentativeMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSearchableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSortableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaUniqueMutation;
 import io.evitadb.dataType.EvitaDataTypes;
@@ -166,6 +167,39 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 					this.baseSchema.getName(),
 					Arrays.stream(Scope.values())
 						.filter(it -> isFilterableInScope(it) && !excludedScopes.contains(it))
+						.toArray(Scope[]::new)
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	@Override
+	@Nonnull
+	public T searchableInScope(@Nonnull Scope... inScope) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaSearchableMutation(
+					this.baseSchema.getName(),
+					inScope
+				)
+			)
+		);
+		return (T) this;
+	}
+
+	@Nonnull
+	@Override
+	public T nonSearchableInScope(@Nonnull Scope... inScope) {
+		final EnumSet<Scope> excludedScopes = ArrayUtils.toEnumSet(Scope.class, inScope);
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaSearchableMutation(
+					this.baseSchema.getName(),
+					Arrays.stream(Scope.values())
+						.filter(it -> isSearchableInScope(it) && !excludedScopes.contains(it))
 						.toArray(Scope[]::new)
 				)
 			)

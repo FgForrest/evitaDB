@@ -290,6 +290,9 @@ The in-memory structures above are independent of the on-disk catalog format:
 - `SingleRecordBitmap` / `ValueToRecordPrimitive` are runtime-only compaction representations; the
   serialized bucket form does not depend on them.
 
+How the leaf pages are identified, emitted, removed and reassembled — and how the fulltext trees use the same
+machinery — is described in [bplus-tree-persistence.md](bplus-tree-persistence.md).
+
 ---
 
 ## Test Blueprint Hints

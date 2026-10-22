@@ -853,6 +853,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 	private BuiltFieldDescriptor buildOnEntitySchemaChangeField(@Nonnull EntitySchemaContract entitySchema) {
 		final GraphQLFieldDefinition onEntitySchemaChangeField = GraphQLCatalogSchemaApiRootDescriptor.ON_COLLECTION_SCHEMA_CHANGE
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(this.propertyDataTypeBuilderTransformer, entitySchema))
+			.argument(OnSchemaChangeHeaderDescriptor.CATALOG_ID.to(this.argumentBuilderTransformer))
 			.argument(OnSchemaChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
 			.argument(OnSchemaChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
 			.argument(OnSchemaChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))
@@ -870,6 +871,7 @@ public class EntitySchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<Catal
 	private BuiltFieldDescriptor buildOnEntitySchemaChangeUntypedField(@Nonnull EntitySchemaContract entitySchema) {
 		final GraphQLFieldDefinition onEntitySchemaChangeField = GraphQLCatalogSchemaApiRootDescriptor.ON_COLLECTION_SCHEMA_UNTYPED_CHANGE
 			.to(new EndpointDescriptorToGraphQLFieldTransformer(this.propertyDataTypeBuilderTransformer, entitySchema))
+			.argument(OnSchemaChangeHeaderDescriptor.CATALOG_ID.to(this.argumentBuilderTransformer))
 			.argument(OnSchemaChangeHeaderDescriptor.SINCE_VERSION.to(this.argumentBuilderTransformer))
 			.argument(OnSchemaChangeHeaderDescriptor.SINCE_INDEX.to(this.argumentBuilderTransformer))
 			.argument(OnSchemaChangeHeaderDescriptor.OPERATION.to(this.argumentBuilderTransformer))

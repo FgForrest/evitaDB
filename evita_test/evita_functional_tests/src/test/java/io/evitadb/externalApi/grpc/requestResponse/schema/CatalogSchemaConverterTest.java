@@ -108,6 +108,7 @@ class CatalogSchemaConverterTest {
 					new ScopedAttributeFilterAccelerators[] {
 						new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 					},
+					null,
 					new Scope[] { Scope.LIVE },
 					true,
 					true,

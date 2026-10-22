@@ -33,6 +33,14 @@ filename date that disagrees with `date:`.
 
 | Date | Record | Kind | Status | Refs |
 |------|--------|------|--------|------|
+| 2026-10-08 | [Standalone unique indexes key every value exactly as the filter index does](2026-10-08-unique-indexes-normalize-like-filter-indexes.md) | fix | accepted | #1712, #1713, PR #1722 |
+| 2026-10-08 | [Restore the content of a trapped storage part on rollback from a pre-image journalled when the part is read inside a savepoint](2026-10-08-trapped-storage-part-content-pre-images.md) | fix | accepted | #1678, PR #1724 |
+| 2026-10-08 | [Every requested scope is planned, checked and counted as if it were queried alone, and the facet summary predicts exactly what facetHaving selects](2026-10-08-scope-faithful-planning-and-facet-summary-parity.md) | fix | accepted | #1681, #1686, #1695, PR #1720 |
+| 2026-10-08 | [A cross-entity condition pins a reference axis it does not read only when it needs it to tell rows apart](2026-10-08-cross-entity-condition-pins-only-what-it-reads.md) | fix | accepted | #1726, PR #1727 |
+| 2026-10-08 | [A catalog CDC resume position names the catalog incarnation it belongs to, and a position the catalog cannot serve is refused with a typed reason](2026-10-08-cdc-resume-position-carries-catalog-identity.md) | fix | accepted | #1680, PR #1729 |
+| 2026-10-06 | [Unique indexes keep no record-id set, and a unique value occurs once whatever the locale](2026-10-06-unique-indexes-keep-no-record-set.md) | refactor | accepted | #1658, PR #1676 |
+| 2026-10-05 | [A schema change is never refused because the collection holds data; a filter accelerator declared over stored values stays dormant](2026-10-05-schema-changes-never-refused-dormant-accelerator.md) | fix | accepted | #258, #409 |
+| 2026-10-01 | [A CDC subscriber catching up from the WAL is served everything it is owed or told why not](2026-10-01-cdc-catch-up-delivers-everything-owed-or-fails.md) | fix | accepted | #1687, #1446, #1690, PR #1688 |
 | 2026-09-28 | [Every scope a reference is indexed in must carry REFERENCED_ENTITY; a stored catalog lacking it loads, and every query and schema change over it refuses loudly](2026-09-28-indexed-reference-scope-requires-entity-component.md) | fix | accepted | #1601, #1583, PR #1657 |
 | 2026-09-25 | [attributeIsNull inside referenceHaving widens candidate discovery and is answered one reference row at a time](2026-09-25-attribute-is-null-in-reference-having.md) | fix | accepted | #1584, PR #1664 |
 | 2026-09-23 | [Mark members that are public only for cross-module reach with @Internal, and enforce it from bytecode](2026-09-23-internal-member-annotation.md) | infrastructure | accepted | #1640, PR #1642 |
@@ -73,7 +81,7 @@ filename date that disagrees with `date:`.
 | 2026-08-28 | [Index caches memoize the bitmap, never the formula, because a formula node carries per-query state](2026-08-28-index-lifetime-formula-memoization.md) | fix | accepted | #1458, PR #1459, PR #1460 |
 | 2026-08-28 | [Count each evitaDB error once, at the hierarchy root, and record where it was created](2026-08-28-attributable-internal-error-metrics.md) | fix | accepted | #1461, PR #1462, PR #1463 |
 | 2026-08-26 | [Make every warm-up entity write atomic through a thread-local savepoint whose participants journal their own absolute inverses, unconditionally](2026-08-26-warm-up-per-entity-mutation-atomicity.md) | feature | accepted | #1432, PR #1494 |
-| 2026-08-24 | [Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene](2026-08-24-fulltext-search-lucene-vs-inhouse/) | feature | partially-implemented | #258, #1454, PR #1453, PR #1483 |
+| 2026-08-24 | [Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene](2026-08-24-fulltext-search-lucene-vs-inhouse/) | feature | partially-implemented | #258, #1454, PR #1453, PR #1483, PR #1647, PR #1704 |
 | 2026-08-24 | [Price histogram granularity is decided per accessor, not all-or-nothing across the query](2026-08-24-price-histogram-per-accessor-granularity.md) | fix | accepted | #1433, PR #1435, PR #1436 |
 | 2026-08-24 | [Pace gRPC server-streaming producers with a readiness gate, and unblock large file transfers](2026-08-24-grpc-streaming-backpressure-readiness-gate.md) | fix | accepted | #1441, PR #1450, PR #1451 |
 | 2026-08-24 | [Keep the reference bundle in step with the reference collection](2026-08-24-refresh-provisional-representative-key.md) | fix | accepted | #1438, #1444, PR #1442, PR #1443 |

@@ -347,6 +347,7 @@ class ModifyAttributeSchemaTypeMutationTest {
 					EnumSet.of(Scope.LIVE),
 					capabilities,
 					null,
+					null,
 					false, false, false,
 					Integer.class, null, 0,
 					ConflictResolutionOverride.INHERITED

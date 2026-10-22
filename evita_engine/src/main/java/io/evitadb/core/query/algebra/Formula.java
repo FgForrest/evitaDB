@@ -133,12 +133,16 @@ public interface Formula extends TransactionalDataRelatedStructure, PrettyPrinta
 	 *   strip-clone passes such as the hierarchy-statistics shortcut) drops the wrapper from its parent's
 	 *   child list rather than letting the empty result propagate upward as the absorbing element through the
 	 *   surrounding `AND`/`OR` chain. This is the right answer for wrappers that have no meaningful semantics
-	 *   without children — `AndFormula`, `OrFormula`, `UserFilterFormula`, `ScopeContainerFormula`, etc.
+	 *   without children — `AndFormula`, `OrFormula`, `UserFilterFormula`, etc.
 	 * - **Returning anything other than {@link EmptyFormula#INSTANCE}** keeps the wrapper as the **absorbing
 	 *   element** when emptied — its emptiness propagates up the conjunction normally and reduces the parent
 	 *   to empty too. This is the right answer for wrappers whose presence carries semantics independently of
 	 *   their children (e.g. `FacetGroupOrFormula` / `FacetGroupAndFormula` carriers that the FACET_IMPACT
 	 *   relaxer must still find by type).
+	 * - `ScopeContainerFormula` picks between the two by construction: a container built without a whole-scope
+	 *   substitute follows the identity-element case, while one built via `ScopeContainerFormula#restrictingScope`
+	 *   is replaced by a third, non-empty formula standing for its whole scope - neither dropped nor absorbing.
+	 *   See its override of this method.
 	 *
 	 * Wrapper implementations must therefore choose deliberately: returning `EmptyFormula.INSTANCE` on empty
 	 * input is an explicit opt-in to drop-on-strip semantics, not a defensive no-op.

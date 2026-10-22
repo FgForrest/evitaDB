@@ -94,6 +94,7 @@ public class GlobalAttributeSchemaSerializer_2026_1 extends Serializer<GlobalAtt
 			uniqueGlobally,
 			filterable,
 			null,
+			null,
 			sortable,
 			localized, nullable, representative,
 			type, (Serializable) defaultValue, indexedDecimalPlaces,

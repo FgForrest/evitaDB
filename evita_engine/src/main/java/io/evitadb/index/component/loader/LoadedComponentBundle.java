@@ -34,6 +34,7 @@ import io.evitadb.index.range.RangeIndex;
 import io.evitadb.index.cardinality.AttributeCardinalityIndex;
 import io.evitadb.index.cardinality.ReferenceTypeCardinalityIndex;
 import io.evitadb.index.facet.FacetIndex;
+import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import io.evitadb.index.price.PriceListAndCurrencyPriceRefIndex;
 import io.evitadb.index.price.PriceListAndCurrencyPriceSuperIndex;
@@ -41,6 +42,7 @@ import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 
 import javax.annotation.Nonnull;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -66,7 +68,8 @@ public sealed interface LoadedComponentBundle
 	LoadedComponentBundle.AttributeCardinalityIndexes,
 	LoadedComponentBundle.Histograms,
 	LoadedComponentBundle.ReferenceTypeCardinality,
-	LoadedComponentBundle.GroupCardinality {
+	LoadedComponentBundle.GroupCardinality,
+	LoadedComponentBundle.FulltextIndexes {
 
 	/**
 	 * The reloaded {@link io.evitadb.index.attribute.AttributeIndex} component, broken into its
@@ -174,6 +177,16 @@ public sealed interface LoadedComponentBundle
 	record GroupCardinality(
 		@Nonnull Map<Integer, Integer> pkCardinalities,
 		@Nonnull Map<Integer, TransactionalBitmap> referencedPrimaryKeysIndex
+	) implements LoadedComponentBundle {
+	}
+
+	/**
+	 * The reloaded per-locale fulltext indexes carried by `GlobalEntityIndex`. Empty when the manifest lists none.
+	 *
+	 * @param fulltextIndexes the fulltext indexes keyed by the locale of the partition each serves
+	 */
+	record FulltextIndexes(
+		@Nonnull Map<Locale, FulltextIndex> fulltextIndexes
 	) implements LoadedComponentBundle {
 	}
 

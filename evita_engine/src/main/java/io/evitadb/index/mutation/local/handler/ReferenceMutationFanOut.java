@@ -34,6 +34,7 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexType;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor.Target;
+import io.evitadb.index.mutation.local.FulltextIndexMutator;
 import io.evitadb.index.mutation.local.ReferenceIndexConsumer;
 import io.evitadb.index.mutation.local.ReferenceIndexMutator;
 
@@ -50,6 +51,9 @@ import java.util.function.Predicate;
  * The type-specific work lives inside `executor.updateReferences` (cross-reference paths) and
  * `executor.updateReferencesInReferenceIndex` (this-reference paths); both still dispatch on the
  * concrete mutation type because they are shared helpers, not per-mutation entry points.
+ *
+ * Before any of that, every reference mutation reaches the fulltext indexes of the global index through
+ * {@link FulltextIndexMutator#executeReferenceMutation}, whether the reference is indexed or not.
  */
 final class ReferenceMutationFanOut {
 
@@ -57,12 +61,29 @@ final class ReferenceMutationFanOut {
 		// no instances
 	}
 
+	/**
+	 * Applies the reference mutation to the indexes of the entity:
+	 *
+	 * - first the fulltext indexes of the global index, **before** the `isIndexedInScope` early return, so a
+	 *   reference that is not indexed still contributes its searchable attributes to their union;
+	 * - then, for an indexed reference only, the global and reference indexes and the per-reference fan-out over the
+	 *   reduced indexes;
+	 * - finally the deferred re-evaluation of facet expressions and histograms that depend on a changed reference
+	 *   attribute.
+	 *
+	 * @param mutation    the reference mutation
+	 * @param executor    the executor of the entity mutation
+	 * @param globalIndex the global index of the scope being written
+	 */
 	static void apply(
 		@Nonnull ReferenceMutation<?> mutation,
 		@Nonnull EntityIndexLocalMutationExecutor executor,
 		@Nonnull GlobalEntityIndex globalIndex
 	) {
 		final ReferenceKey referenceKey = mutation.getReferenceKey();
+		// the fulltext index unites a searchable reference attribute in the global index, which keeps it whether the
+		// reference itself is indexed or not
+		FulltextIndexMutator.executeReferenceMutation(executor, globalIndex, mutation);
 		final ReferenceSchemaContract referenceSchema =
 			executor.getEntitySchema().getReferenceOrThrowException(referenceKey.referenceName());
 		if (!referenceSchema.isIndexedInScope(executor.getScope())) {

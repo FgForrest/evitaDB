@@ -325,11 +325,14 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	long getLastAppliedCatalogVersion();
 
 	/**
-	 * Returns {@link CatalogHeader} that is used for this service. The header is initialized in the instance constructor
-	 * and (because it's immutable) is exchanged with each {@link #storeHeader(UUID, CatalogState, long, int, TransactionMutation, List, DataStoreMemoryBuffer)}   method call.
+	 * Returns {@link CatalogHeader} valid at `catalogVersion`. The header is initialized in the instance constructor
+	 * and (because it's immutable) is exchanged with each
+	 * {@link #storeHeader(UUID, CatalogState, long, int, TransactionMutation, List, DataStoreMemoryBuffer)} method call -
+	 * but a request for a version older than the newest stored header answers the header of that older version, never
+	 * the newest one. See {@link CatalogStoragePartPersistenceService#getCatalogHeader(long)} for the full contract.
 	 *
-	 * @param catalogVersion the version of the catalog
-	 * @return the header of the catalog
+	 * @param catalogVersion the version of the catalog the header must be valid at
+	 * @return the header of the catalog valid at `catalogVersion`
 	 */
 	@Nonnull
 	CatalogHeader<S, T> getCatalogHeader(long catalogVersion);
@@ -601,6 +604,20 @@ public non-sealed interface CatalogPersistenceService<S extends LogRecordReferen
 	 * @return the first catalog version in the current WAL file, or `-1` if the current WAL file is empty
 	 */
 	long getFirstCatalogVersionInMutationStream();
+
+	/**
+	 * Retrieves the first catalog version the WAL can still replay once retention has removed older WAL files -
+	 * the version a reader positioned below it can no longer be served from. Unlike
+	 * {@link #getFirstCatalogVersionInMutationStream()} it looks at the oldest surviving WAL file, not the current
+	 * one.
+	 *
+	 * A WAL that has never lost a file answers `-1` even when its first transaction starts above version one: the
+	 * versions below it were never transactions (they belong to the warm-up phase), so nothing was removed and a
+	 * reader starting below them misses nothing.
+	 *
+	 * @return the first replayable catalog version, or `-1` when retention has not removed any WAL file
+	 */
+	long getFirstReplayableCatalogVersion();
 
 	/**
 	 * We need to forget all volatile data when the data written to catalog aren't going to be committed (incorporated

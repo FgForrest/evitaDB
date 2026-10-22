@@ -96,6 +96,11 @@ public class CreateGlobalAttributeSchemaMutation
 	 * empty array, i.e. plain filterability.
 	 */
 	@Getter @Nonnull private final ScopedAttributeFilterAccelerators[] acceleratorsInScopes;
+	/**
+	 * The scopes in which the newly created attribute is searchable. Never `null` after construction - the field is
+	 * optional on the wire, and an older client that never sends it lands on the empty array, i.e. not searchable.
+	 */
+	@Getter @Nonnull private final Scope[] searchableInScopes;
 	@Getter @Nonnull private final Scope[] sortableInScopes;
 	@Getter private final boolean localized;
 	@Getter private final boolean nullable;
@@ -172,7 +177,7 @@ public class CreateGlobalAttributeSchemaMutation
 	) {
 		this(
 			name, description, deprecationNotice,
-			uniqueInScopes, uniqueGloballyInScopes, filterableInScopes, null, sortableInScopes,
+			uniqueInScopes, uniqueGloballyInScopes, filterableInScopes, null, null, sortableInScopes,
 			localized, nullable, representative, type, defaultValue, indexedDecimalPlaces,
 			ConflictResolutionOverride.INHERITED
 		);
@@ -222,7 +227,7 @@ public class CreateGlobalAttributeSchemaMutation
 	) {
 		this(
 			name, description, deprecationNotice,
-			uniqueInScopes, uniqueGloballyInScopes, filterableInScopes, null, sortableInScopes,
+			uniqueInScopes, uniqueGloballyInScopes, filterableInScopes, null, null, sortableInScopes,
 			localized, nullable, representative, type, defaultValue, indexedDecimalPlaces,
 			conflictResolutionOverride
 		);
@@ -239,6 +244,7 @@ public class CreateGlobalAttributeSchemaMutation
 	 *                                   the whole catalog (may be `null`)
 	 * @param filterableInScopes         the scopes in which the attribute is filterable (may be `null`)
 	 * @param acceleratorsInScopes       the accelerator carriers the mutation transports (may be `null`)
+	 * @param searchableInScopes         the scopes in which the attribute is searchable (may be `null`)
 	 * @param sortableInScopes           the scopes in which the attribute is sortable (may be `null`)
 	 * @param localized                  whether the attribute values are locale-specific
 	 * @param nullable                   whether the attribute value can be null
@@ -267,6 +273,7 @@ public class CreateGlobalAttributeSchemaMutation
 		@Nullable ScopedGlobalAttributeUniquenessType[] uniqueGloballyInScopes,
 		@Nullable Scope[] filterableInScopes,
 		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
+		@Nullable Scope[] searchableInScopes,
 		@Nullable Scope[] sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -309,6 +316,7 @@ public class CreateGlobalAttributeSchemaMutation
 		verifyAcceleratorsApplicableToType(
 			this.name, type, AttributeSchema.toAcceleratorsEnumMap(this.acceleratorsInScopes)
 		);
+		this.searchableInScopes = searchableInScopes == null ? NO_SCOPE : searchableInScopes;
 		this.sortableInScopes = sortableInScopes == null ? NO_SCOPE : sortableInScopes;
 		this.localized = localized;
 		this.nullable = nullable;
@@ -339,6 +347,15 @@ public class CreateGlobalAttributeSchemaMutation
 
 	public boolean isFilterable() {
 		return !ArrayUtils.isEmptyOrItsValuesNull(this.filterableInScopes);
+	}
+
+	/**
+	 * Whether the created attribute is searchable in at least one scope.
+	 *
+	 * @return true when at least one scope is named in {@link #getSearchableInScopes()}
+	 */
+	public boolean isSearchable() {
+		return !ArrayUtils.isEmptyOrItsValuesNull(this.searchableInScopes);
 	}
 
 	public boolean isSortable() {
@@ -404,6 +421,14 @@ public class CreateGlobalAttributeSchemaMutation
 								)
 								.toArray(ScopedAttributeFilterAccelerators[]::new),
 							newValue -> new SetAttributeSchemaAcceleratedMutation(this.name, newValue)
+						),
+						makeMutationIfDifferent(
+							GlobalAttributeSchemaContract.class,
+							createdVersion, existingVersion,
+							schema -> Arrays.stream(Scope.values())
+								.filter(schema::isSearchableInScope)
+								.toArray(Scope[]::new),
+							newValue -> new SetAttributeSchemaSearchableMutation(this.name, newValue)
 						),
 						makeMutationIfDifferent(
 							GlobalAttributeSchemaContract.class,
@@ -478,7 +503,7 @@ public class CreateGlobalAttributeSchemaMutation
 		return (S) GlobalAttributeSchema._internalBuild(
 			this.name, this.description, this.deprecationNotice,
 			this.uniqueInScopes, this.uniqueGloballyInScopes,
-			this.filterableInScopes, this.acceleratorsInScopes, this.sortableInScopes,
+			this.filterableInScopes, this.acceleratorsInScopes, this.searchableInScopes, this.sortableInScopes,
 			this.localized, this.nullable, this.representative,
 			(Class) this.type, this.defaultValue,
 			this.indexedDecimalPlaces,
@@ -546,6 +571,8 @@ public class CreateGlobalAttributeSchemaMutation
 			", filterable=" + (isFilterable() ? "(in scopes: " + Arrays.toString(this.filterableInScopes) + ")" : "no") +
 			(this.acceleratorsInScopes.length == 0 ?
 				"" : ", accelerators=(" + join(this.acceleratorsInScopes) + ")") +
+			", searchable=" +
+			(isSearchable() ? "(in scopes: " + Arrays.toString(this.searchableInScopes) + ")" : "no") +
 			", sortable=" + (isSortable() ? "(in scopes: " + Arrays.toString(this.sortableInScopes) + ")" : "no") +
 			", localized=" + this.localized +
 			", nullable=" + this.nullable +

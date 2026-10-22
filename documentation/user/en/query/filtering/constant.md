@@ -108,6 +108,12 @@ will only get entities from the archive scope. You can also mix entities from bo
 `scope(LIVE, ARCHIVE)`, and in such a case the [`referenceHaving`](../filtering/references.md#reference-having)
 may also match entities from different scopes than the one being queried.
 
+The hierarchy filters [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) and
+[`hierarchyWithinRoot`](../filtering/hierarchy.md#hierarchy-within-root) read the hierarchy tree of every queried
+scope. Each tree is searched exactly as in a query over its scope alone, and an entity of any queried scope matches
+when it references a node selected in any of those trees - so `scope(LIVE, ARCHIVED)` returns both an archived product
+placed in a live category and an archived product placed in an archived category.
+
 <Note type="warning">
 
 <NoteTitle toggles="true">
@@ -132,6 +138,12 @@ reference in the first listed scope wins.
 
 A negation of such a constraint (e.g. `not(attributeEquals('code', 'ABC-123'))`) is the complement of the preferred
 answer. It therefore returns the entity from the later scope, even though that entity carries the very value.
+
+The parent filter of [`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) is resolved in each queried scope
+separately, in the hierarchy tree of that scope, and so are the `having`, `anyHaving` and `excluding` filters of
+[`hierarchyWithin`](../filtering/hierarchy.md#hierarchy-within) and
+[`hierarchyWithinRoot`](../filtering/hierarchy.md#hierarchy-within-root). A unique value held by one category in the
+live scope and by another in the archived scope therefore selects both categories, each in the tree of its own scope.
 
 This behavior is not applied when only a partial match is used (e.g.
 [attribute starts with](../filtering/string.md#attribute-starts-with), etc.), nor to

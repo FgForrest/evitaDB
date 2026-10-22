@@ -475,6 +475,13 @@ class LocalMutationExecutorCollector {
 		EntityWithFetchCount result = null;
 		try {
 			this.level++;
+			// the root executor fetched the entity body in its constructor, before the bracket above opened, so that
+			// read recorded nothing - a trapped body is the very instance the buffer keeps, and the executor is about
+			// to mutate it in place. Done inside the try, because the bracket's invariant forbids anything throwable
+			// between opening it and this block
+			if (addToWAL && (this.savepoint != null || this.warmUpSavepoint != null)) {
+				changeCollector.journalPartsHeldBeforeSavepoint();
+			}
 
 			final List<? extends LocalMutation<?, ?>> localMutations;
 			final boolean entityRemoval;
@@ -781,7 +788,10 @@ class LocalMutationExecutorCollector {
 	 *
 	 * - A TRAPPED write (implicit, nested mutations) only changes `DataStoreChanges`' in-memory cache, which its
 	 *   memento rewinds — that memento is a journal POSITION rather than a copy, so the mark taken when the index
-	 *   phase first touched the layer still covers everything written afterwards.
+	 *   phase first touched the layer still covers everything written afterwards. Replaying the journal restores
+	 *   which instance a slot holds; the CONTENT of a trapped part, which the executors mutate in place, is restored
+	 *   from the pre-image journalled when the part was read inside the bracket — or, for the parts the root executor
+	 *   fetched before the bracket opened, by `ContainerizedLocalMutationExecutor#journalPartsHeldBeforeSavepoint`.
 	 * - A DIRECT write — what a root mutation does, since it runs with `trapChanges == false` — reaches the
 	 *   persistence service, and no in-memory memento can undo that. `DataStoreChanges#putStoragePart` /
 	 *   `removeStoragePart` therefore read the record's pre-image and push its absolute restore straight into the open

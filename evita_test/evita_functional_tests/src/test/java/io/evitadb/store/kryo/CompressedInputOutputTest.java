@@ -32,13 +32,19 @@ import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.utils.BitUtils;
 import org.junit.jupiter.api.Test;
 
+import javax.annotation.Nonnull;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.Random;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.STORAGE;
 import static io.evitadb.test.TestTags.SERIALIZATION;
 
@@ -52,6 +58,13 @@ import static io.evitadb.test.TestTags.SERIALIZATION;
 public class CompressedInputOutputTest extends AbstractObservableInputOutputTest {
 	public static final int REPETITIONS = 50;
 	private final static int BIG_PAYLOAD_SIZE = PAYLOAD_SIZE * REPETITIONS;
+	/**
+	 * Words compressible payloads are assembled from - a small vocabulary deflates well, so every record keeps its
+	 * compression bit.
+	 */
+	private static final String[] VOCABULARY = {
+		"product", "variant", "price", "stock", "category", "brand", "attribute", "reference", "locale", "currency"
+	};
 
 	@Test
 	void shouldWriteAndReadCompressedData() {
@@ -138,6 +151,95 @@ public class CompressedInputOutputTest extends AbstractObservableInputOutputTest
 			Arrays.copyOfRange(controlPayload, HEADER_SIZE, HEADER_SIZE + PAYLOAD_SIZE),
 			payload
 		);
+	}
+
+	/**
+	 * A compressed record whose raw bytes do not fit into the rest of the input buffer forces the inflater to refill
+	 * the raw buffer from the underlying stream. `total()` after the record must still equal the stream offset of the
+	 * record end - the WAL reader derives record sizes from its difference and refuses an intact file otherwise.
+	 *
+	 * The records are read once for every shift of the stream against the raw buffer, so where a compressed record
+	 * ends relative to the buffer - including right at its edge, where the inflater has consumed the whole buffer -
+	 * is swept rather than left to the payload sizes the seed happens to produce.
+	 */
+	@Test
+	void shouldReportStreamOffsetAfterCompressedRecordsSpanningRawBufferRefills() {
+		final int inputBufferSize = 64;
+		for (int leadingBytes = 0; leadingBytes < inputBufferSize; leadingBytes++) {
+			assertStreamOffsetsAfterCompressedRecords(inputBufferSize, leadingBytes);
+		}
+	}
+
+	/**
+	 * Writes compressed records after the passed number of plain leading bytes, reads them back through an input with
+	 * the passed buffer size and checks the stream offset reported after every record.
+	 *
+	 * @param inputBufferSize size of the input buffer, which is also the size of the raw buffer it inflates from
+	 * @param leadingBytes    number of bytes preceding the first record, shifting every record against the buffer
+	 */
+	private void assertStreamOffsetsAfterCompressedRecords(int inputBufferSize, int leadingBytes) {
+		final int recordCount = 40;
+		final Random seededRandom = new Random(1687);
+		final ByteArrayOutputStream baos = new ByteArrayOutputStream(65_536);
+		baos.writeBytes(new byte[leadingBytes]);
+		final ObservableOutput<?> output = new ObservableOutput<>(
+			baos, 16_384, 16_384, 0,
+			Crc32CChecksumFactory.INSTANCE.createChecksum(),
+			ZipCompressionFactory.INSTANCE.createCompressor().orElseThrow()
+		);
+
+		final byte[][] payloads = new byte[recordCount][];
+		final long[] recordEnds = new long[recordCount];
+		for (int i = 0; i < recordCount; i++) {
+			payloads[i] = generateCompressibleBytes(200 + seededRandom.nextInt(3_000), seededRandom);
+			writeRecord(output, null, payloads[i].length, payloads[i]);
+			// `total()` counts the uncompressed bytes, the stream offset is what actually reached the stream
+			recordEnds[i] = leadingBytes + output.getWrittenBytesSinceReset();
+		}
+		output.flush();
+
+		final ObservableInput<?> input = new ObservableInput<>(
+			new ByteArrayInputStream(baos.toByteArray()), inputBufferSize,
+			Crc32CChecksumFactory.INSTANCE.createChecksum(),
+			ZipCompressionFactory.INSTANCE.createDecompressor().orElseThrow()
+		);
+		input.skip(leadingBytes);
+
+		final String shift = leadingBytes + " leading bytes";
+		int refillingRecords = 0;
+		long recordStart = leadingBytes;
+		for (int i = 0; i < recordCount; i++) {
+			// a compressed payload longer than the raw buffer cannot be inflated without at least one refill
+			if (recordEnds[i] - recordStart - OVERHEAD_SIZE > inputBufferSize) {
+				refillingRecords++;
+			}
+			assertArrayEquals(
+				payloads[i], readAndVerifyRecord(input, payloads[i].length), "Payload of record " + i + ", " + shift
+			);
+			assertEquals(recordEnds[i], input.total(), "Stream offset after record " + i + ", " + shift);
+			recordStart = recordEnds[i];
+		}
+		// the scenario is only proven when records actually refilled the raw buffer
+		assertTrue(
+			refillingRecords > recordCount / 2,
+			"Only " + refillingRecords + " records refilled the raw buffer, " + shift + "."
+		);
+	}
+
+	/**
+	 * Generates a payload of words from {@link #VOCABULARY} that deflates well.
+	 *
+	 * @param count     exact number of bytes to generate
+	 * @param theRandom random number generator picking the words
+	 * @return compressible payload of exactly `count` bytes
+	 */
+	@Nonnull
+	private static byte[] generateCompressibleBytes(int count, @Nonnull Random theRandom) {
+		final StringBuilder sb = new StringBuilder(count + 16);
+		while (sb.length() < count) {
+			sb.append(VOCABULARY[theRandom.nextInt(VOCABULARY.length)]).append(' ');
+		}
+		return Arrays.copyOf(sb.toString().getBytes(StandardCharsets.US_ASCII), count);
 	}
 
 }

@@ -316,7 +316,7 @@ answer is a miss rather than a wrong bucket -- until the next write happens to r
 | Memoized caches -- `FilterIndex`, `SortIndex`, `HierarchyIndex`, `RangeIndex`, `ReferenceTypeCardinalityIndex`, `UnorderedLookupTree`, the price indexes, and `InvertedIndex`'s value id directory | first touch, recorded through `pushPostRestoreInvalidation` | *none* -- the inverse is a re-invalidation, see [Derived state does not belong in the journal](#derived-state-does-not-belong-in-the-journal) and [Accepted residues](#accepted-residues). Where the cache lives in a helper (`SortIndexChanges`, `ChainIndexChanges`) the helper is the `Snapshotable` that registers itself. |
 | Index population counters (`IndexPopulation`) | first touch, self-captured | a clone of the fixed-size per-`(EntityIndexType, Scope)` count array |
 | `ValueIdAllocator` | first touch, self-captured | the `int` high-water mark, restored absolutely rather than decremented -- the ids minted inside the savepoint go back to the pool |
-| `DataStoreChanges` | first touch, `Snapshotable` **plus** per-write record inverses | a **journal position** for its in-memory state, a **stored record's pre-image** for each direct write -- see below |
+| `DataStoreChanges` | first touch, `Snapshotable` **plus** per-write record inverses **plus** per-read content inverses | a **journal position** for its in-memory state, a **stored record's pre-image** for each direct write, a **content copy** of each trapped part it hands out -- see below |
 
 `DataStoreChanges` is worth singling out because it is what makes the entity *body* atomic with its
 indexes, and because it is the one participant that needs **both** granularities at once.
@@ -324,7 +324,18 @@ indexes, and because it is the one participant that needs **both** granularities
 Its memento is `DataStoreChangesMemento(int mark)`, an `O(1)` position in its own internal journal, and
 its `snapshot()` is what lazily allocates that journal -- which is precisely why `recordFirstTouch` must
 run at the *entry* of a mutating method rather than after the fact. That mark rewinds the layer's
-**in-memory** state: the dirty-index bookkeeping and the trapped storage-part cache.
+**in-memory** state: the dirty-index bookkeeping and *which instance* each trapped storage-part slot holds.
+
+It does **not** by itself rewind the *content* of a trapped part. `getStoragePart` hands out the trapped
+instance itself, and the storage executor mutates it in place, so restoring the slot to that instance
+restores nothing. The first read of a trapped slot inside a savepoint therefore journals an inverse that
+installs `EntityStoragePart#createPreImage()` -- an `O(part size)` content copy -- back into the slot
+(`DataStoreChanges#journalTrappedContent`). Only the first read per slot and savepoint copies: the
+earliest pre-image replays last and wins, so later ones would be dead weight. Parts the root executor
+fetched before the bracket opened are journalled by `journalPartsHeldBeforeSavepoint` once it is open,
+and in a transaction the buffer resolves the layer through the *write*-variant accessor, so the snapshot
+mark precedes the push. Reasoning and measurements:
+`documentation/adr/2026-10-08-trapped-storage-part-content-pre-images.md`.
 
 It does **not** rewind a write that reached the persistence service, and root entity mutations issue
 exactly those: they run with `trapChanges == false`, so `ContainerizedLocalMutationExecutor#commit`

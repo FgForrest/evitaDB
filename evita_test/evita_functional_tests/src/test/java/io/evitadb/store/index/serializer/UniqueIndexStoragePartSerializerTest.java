@@ -27,6 +27,7 @@ import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.index.attribute.OwnerUniqueIndex;
+import io.evitadb.index.attribute.UniqueIndexTestSupport;
 import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.compressor.ReadWriteKeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -270,11 +271,12 @@ class UniqueIndexStoragePartSerializerTest {
 
 			assertArrayEquals(new Serializable[]{"a", "b", "c"}, deserialized.getValues());
 			assertArrayEquals(new int[]{5, 5, 9}, deserialized.getRecordIds());
-			// the membership bitmap the owner index rebuilds from the columns collapses the duplicate record id
+			// the owner index restored from the columns counts the record owning two values once
 			final OwnerUniqueIndex restored = new OwnerUniqueIndex(
-				"PRODUCT", ATTRIBUTE_KEY, String.class, deserialized.getValues(), deserialized.getRecordIds()
+				"PRODUCT", ATTRIBUTE_KEY, String.class, 0, deserialized.getValues(), deserialized.getRecordIds()
 			);
-			assertArrayEquals(new int[]{5, 9}, restored.getRecordIds().getArray());
+			assertArrayEquals(new int[]{5, 9}, UniqueIndexTestSupport.ownerRecordIds(restored));
+			assertEquals(2, restored.size());
 		}
 	}
 

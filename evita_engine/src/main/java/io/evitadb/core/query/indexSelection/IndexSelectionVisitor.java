@@ -173,6 +173,10 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 	 * Registers {@link TargetIndexes} that represents hierarchy placement. It finds collection of
 	 * {@link EntityIndexType#REFERENCED_ENTITY} indexes that contains all relevant data for entities that
 	 * are part of the requested tree. This significantly limits the scope that needs to be examined.
+	 *
+	 * Inside an `inScope(...)` container of a query over more scopes the candidate is built for the container's
+	 * scope only: it is registered with {@link EligibilityObstacle#PARTIAL_SCOPE_COVERAGE} when it holds any index,
+	 * and not at all when it holds none.
 	 */
 	private void addHierarchyIndexOption(@Nonnull HierarchyFilterConstraint constraint) {
 		constraint.getReferenceName().ifPresent(
@@ -187,6 +191,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 							throw new ReferenceNotIndexedException(referenceSchema.getName(), entitySchema, scope);
 						}
 					}
+					final boolean partialScopeCoverage = coversFewerScopesThanQuery(scopes, theFilterByVisitor);
 
 					final Formula requestedHierarchyNodesFormula;
 					if (constraint instanceof final HierarchyWithinRoot hierarchyWithinRoot) {
@@ -202,6 +207,12 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 						throw new GenericEvitaInternalError("Should never happen");
 					}
 					if (requestedHierarchyNodesFormula instanceof EmptyFormula) {
+						if (partialScopeCoverage) {
+							// no node matches in the scopes of the enclosing `inScope` - that empties its branch only,
+							// the other queried scopes may still match, so the whole query must not be short-circuited
+							// (the translator computes the same empty branch without a registered candidate)
+							return;
+						}
 						// if target entity has no global index present, it means that the query cannot be fulfilled
 						// we may quickly return empty result
 						this.targetIndexes.add(TargetIndexes.EMPTY);
@@ -221,6 +232,11 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 							});
 						}
 					}
+					if (partialScopeCoverage && theTargetIndexes.isEmpty()) {
+						// no owner in the scopes of the enclosing `inScope` references the nodes - the same reasoning
+						// as for the empty node set above: an empty candidate would empty the whole query
+						return;
+					}
 					final long cardinalityLimit = (long) this.mainIndexCardinality / 2;
 					final boolean partitioned = allIndexesArePartitioned(scopes, referenceSchema);
 					final boolean withinCardinalityLimit = cardinalityCounter.get() <= cardinalityLimit;
@@ -230,11 +246,13 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 							EntityIndexType.REFERENCED_ENTITY.name() +
 								" composed of " + requestedHierarchyNodes.size() + " indexes",
 							constraint,
+							scopes,
 							ReducedEntityIndex.class,
 							theTargetIndexes,
 							Stream.of(
 									partitioned ? null : EligibilityObstacle.NOT_PARTITIONED_INDEX,
-									withinCardinalityLimit ? null : EligibilityObstacle.HIGH_CARDINALITY
+									withinCardinalityLimit ? null : EligibilityObstacle.HIGH_CARDINALITY,
+									partialScopeCoverage ? EligibilityObstacle.PARTIAL_SCOPE_COVERAGE : null
 								)
 								.filter(Objects::nonNull)
 								.toArray(EligibilityObstacle[]::new)
@@ -249,6 +267,10 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 	 * Registers {@link TargetIndexes} that represents hierarchy placement. It finds collection of
 	 * {@link EntityIndexType#REFERENCED_ENTITY} indexes that contains all relevant data for entities that
 	 * are related to respective entity type and id. This may significantly limit the scope that needs to be examined.
+	 *
+	 * Inside an `inScope(...)` container of a query over more scopes the candidate is built for the container's
+	 * scope only: it is registered with {@link EligibilityObstacle#PARTIAL_SCOPE_COVERAGE} when it holds any index,
+	 * and not at all when it holds none.
 	 */
 	private void addReferenceIndexOption(@Nonnull ReferenceHaving constraint) {
 		final EntitySchema entitySchema = this.queryContext.getSchema();
@@ -275,10 +297,11 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 		final ReducedIndexCandidates candidates = theFilterByVisitor
 			.getReferencedRecordEntityIndexCandidates(constraint, scopes);
 		final int candidateCount = candidates.size();
+		final boolean partialScopeCoverage = coversFewerScopesThanQuery(scopes, theFilterByVisitor);
 
-		if (candidateCount == 0 && !scopes.equals(theFilterByVisitor.getScopes())) {
-			// if the scopes were redefined in processing scope (differ from globally allowed scopes)
-			// skip this indexing option
+		if (candidateCount == 0 && partialScopeCoverage) {
+			// an empty candidate built for the scopes of the enclosing `inScope` only would empty the whole query
+			// (`IndexSelectionResult#isEmpty`), although the other queried scopes may still match - skip it
 		} else {
 			final String indexDescription = EntityIndexType.REFERENCED_ENTITY.name() +
 				" composed of " + candidateCount + " indexes";
@@ -299,19 +322,23 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 			// what keeps the obstacle reported for a reference that is rejected on its schema before the sum is
 			// ever computed.
 			final boolean countSettlesCardinality = candidateCount > cardinalityLimit;
-			if (!partitioned || countSettlesCardinality) {
-				// every obstacle is decided from the schema and the candidate count alone, so the partitions stay
-				// unresolved unless something downstream genuinely needs the objects
+			if (!partitioned || countSettlesCardinality || partialScopeCoverage) {
+				// every obstacle is decided from the schema, the scopes and the candidate count alone, so
+				// the partitions stay unresolved unless something downstream genuinely needs the objects - a candidate
+				// covering fewer scopes than the query is ineligible whatever its exact cardinality, so the sum below
+				// would buy nothing
 				this.targetIndexes.add(
 					new TargetIndexes<>(
 						indexDescription,
 						constraint,
+						scopes,
 						ReducedEntityIndex.class,
 						candidateCount,
 						candidates::resolve,
 						Stream.of(
 								partitioned ? null : EligibilityObstacle.NOT_PARTITIONED_INDEX,
-								countSettlesCardinality ? EligibilityObstacle.HIGH_CARDINALITY : null
+								countSettlesCardinality ? EligibilityObstacle.HIGH_CARDINALITY : null,
+								partialScopeCoverage ? EligibilityObstacle.PARTIAL_SCOPE_COVERAGE : null
 							)
 							.filter(Objects::nonNull)
 							.toArray(EligibilityObstacle[]::new)
@@ -329,6 +356,7 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 					new TargetIndexes<>(
 						indexDescription,
 						constraint,
+						scopes,
 						ReducedEntityIndex.class,
 						theTargetIndexes,
 						ownerRows <= cardinalityLimit
@@ -338,6 +366,30 @@ public class IndexSelectionVisitor implements ConstraintVisitor {
 				);
 			}
 		}
+	}
+
+	/**
+	 * Decides whether a candidate built for `candidateScopes` covers fewer scopes than the query requests - which is
+	 * the case for every candidate built inside an `inScope(...)` container of a query over more scopes than the one
+	 * the container names.
+	 *
+	 * Such a candidate is a correct answer for the container's branch, but not for the whole query: its partitions hold
+	 * no entity of the other queried scopes, so a plan built on it would answer every constraint outside the container
+	 * from the narrowed scope alone. See {@link EligibilityObstacle#PARTIAL_SCOPE_COVERAGE}.
+	 *
+	 * In a valid query the processing scopes are a subset of the query scopes, so inequality is the same as being
+	 * a proper subset. An `inScope` naming a scope the query does not request is refused later by its translator;
+	 * until then the inequality keeps such a candidate out of the plan as well.
+	 *
+	 * @param candidateScopes the processing scopes the candidate is built for
+	 * @param filterByVisitor the visitor providing the scopes requested by the query
+	 * @return `true` when the candidate does not cover every scope the query requests
+	 */
+	private static boolean coversFewerScopesThanQuery(
+		@Nonnull Set<Scope> candidateScopes,
+		@Nonnull FilterByVisitor filterByVisitor
+	) {
+		return !candidateScopes.equals(filterByVisitor.getScopes());
 	}
 
 	/**

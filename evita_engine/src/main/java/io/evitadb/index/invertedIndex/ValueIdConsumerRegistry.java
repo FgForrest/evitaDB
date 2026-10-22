@@ -61,9 +61,10 @@ import java.util.Set;
  * two moments at which that happens, and both are single-writer:
  *
  * 1. **The entity write path**, at the moment a shared value tree is created for an attribute whose schema declares
- *    a capability needing ids. It cannot be the schema mutation itself: a capability may only be declared on an
- *    EMPTY collection, and `AttributeIndex` creates the tree lazily on the attribute's first write — so at
- *    schema-mutation time there is no tree to attach to. Warm-up runs a single session and a live catalog
+ *    a capability needing ids. It cannot be the schema mutation itself: `AttributeIndex` creates the tree lazily on
+ *    the attribute's first write, so at schema-mutation time there is usually no tree to attach to - and a capability
+ *    declared over a tree that already holds values does not attach at all, it stays dormant (see
+ *    `GlobalEntityIndex#obtainTrigramIndex`). Warm-up runs a single session and a live catalog
  *    serializes every write through trunk incorporation, so the single-writer premise holds either way.
  * 2. **The catalog load path**, which re-registers what this registry does not persist. The ids themselves come
  *    back inside the leaf pages; the names do not, because they say which compiled-in subsystem wants them rather

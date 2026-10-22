@@ -46,7 +46,10 @@ import java.util.Arrays;
  * Without this constraint the built-in defaults are:
  *
  * - facets **within the same group** → `DISJUNCTION` (logical OR)
- * - facets **across different groups or references** → `CONJUNCTION` (logical AND)
+ * - facets **across different groups** of the same reference → `CONJUNCTION` (logical AND)
+ *
+ * Facets of different references are always combined by logical AND, because `userFilter` combines its constraints
+ * the way `and` does - neither argument changes that.
  *
  * ## Arguments
  *
@@ -54,8 +57,8 @@ import java.util.Arrays;
  *
  * - **facetsWithSameGroup** — the default relation applied to facets **within** the same group; null defaults to
  *   `DISJUNCTION`
- * - **facetsWithDifferentGroups** — the default relation applied to facets **across** different groups or references;
- *   null defaults to `CONJUNCTION`
+ * - **facetsWithDifferentGroups** — the default relation applied to facets **across** different groups of the same
+ *   reference; null defaults to `CONJUNCTION`
  *
  * Available relation types:
  *

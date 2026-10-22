@@ -33,6 +33,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.UUID;
 
 import static io.evitadb.core.cdc.predicate.MutationPredicateFactory.createPredicateUsingComparator;
 
@@ -69,15 +70,20 @@ public record ChangeCatalogCriteriaBundle(
 	 * Creates a {@link MutationPredicate} instance using the predefined {@link ChangeCatalogCaptureCriteria} array.
 	 * The predicate is designed to filter mutations based on the specified criteria.
 	 *
+	 * @param catalogId           identity of the catalog incarnation the mutations belong to, stamped onto every
+	 *                            capture created through the predicate
+	 * @param sinceCatalogVersion the version the captured mutations start at, `null` for no lower bound
+	 * @param sinceIndex          the index within that version the captured mutations start at, `null` for none
 	 * @return a {@link MutationPredicate} that filters mutations according to the bundled criteria
 	 */
 	@Nonnull
 	public MutationPredicate createPredicate(
+		@Nonnull UUID catalogId,
 		@Nullable Long sinceCatalogVersion,
 		@Nullable Integer sinceIndex
 	) {
 		return createPredicateUsingComparator(
-			sinceCatalogVersion, sinceIndex, this.criteria,
+			catalogId, sinceCatalogVersion, sinceIndex, this.criteria,
 			Comparator.naturalOrder(), Comparator.naturalOrder(),
 			StreamDirection.FORWARD
 		);

@@ -148,6 +148,7 @@ import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.IndexMaintainer;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.map.MapChanges;
 import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.core.expression.trigger.ExpressionIndexTrigger;
@@ -199,12 +200,15 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongConsumer;
 import java.util.function.LongFunction;
+import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
 import static io.evitadb.core.transaction.Transaction.isTransactionAvailable;
@@ -426,6 +430,17 @@ public final class Catalog
 	 */
 	@Nonnull private final SchemaCapabilityUsageRegistry usageRegistry;
 	/**
+	 * The analyzers this catalog's fulltext indexes are built and read back with: one registry per catalog, so that
+	 * every collection shares the analyzer instances of a language rather than each building its own chain.
+	 *
+	 * **Carried by reference across catalog versions** - a commit, going live and a rename all hand it on - because the
+	 * instances it holds are stateless chains with no versioned content, and a fresh registry per commit would rebuild
+	 * every chain on the next write. Only a brand-new catalog and one loaded from disk mint their own. It is closed by
+	 * {@link #terminate()}, together with the persistence service that shares its lifetime: a Lucene analyzer keeps its
+	 * per-thread stream components reachable until it is closed.
+	 */
+	@Nonnull private final FulltextAnalyzerRegistry fulltextAnalyzerRegistry;
+	/**
 	 * Last persisted schema version of the catalog.
 	 */
 	private long lastPersistedSchemaVersion;
@@ -500,11 +515,14 @@ public final class Catalog
 	 * @param evita                     reference to the main Evita instance
 	 * @param exportService             service used for handling file export operations
 	 * @param newCatalogVersionConsumer consumer to handle actions when a new catalog version is created
-	 * @param onSuccess                 callback function to be invoked upon successful catalog load, receiving the catalog name and loaded catalog
+	 * @param onSuccess                 callback invoked upon successful catalog load, receiving the catalog name
+	 *                                  and the catalog loaded at the version its bootstrap record published; it
+	 *                                  returns the instance the returned future completes with, which is the loaded
+	 *                                  one or the instance its write-ahead log was replayed to
 	 * @param onFailure                 callback function to be invoked upon failure, receiving the catalog name and the encountered exception
 	 * @param tracingContext            tracing context used for distributed tracing and monitoring
 	 * @return a {@link ProgressingFuture} object that tracks the progress of the catalog loading process and eventually
-	 * resolves to a {@link Catalog} instance
+	 * resolves to the {@link Catalog} instance `onSuccess` settled on
 	 */
 	@Nonnull
 	public static ProgressingFuture<Catalog> loadCatalog(
@@ -516,7 +534,7 @@ public final class Catalog
 		@Nonnull ExportService exportService,
 		@Nonnull FileManagementService fileManagementService,
 		@Nonnull Consumer<Catalog> newCatalogVersionConsumer,
-		@Nonnull BiConsumer<String, Catalog> onSuccess,
+		@Nonnull BiFunction<String, Catalog, Catalog> onSuccess,
 		@Nonnull BiConsumer<String, Throwable> onFailure,
 		@Nonnull TracingContext tracingContext
 	) {
@@ -601,7 +619,8 @@ public final class Catalog
 									if (globalIndexPk != null) {
 										globalIndex = entityCollectionPersistenceService.readEntityIndex(
 											catalogVersion, globalIndexPk, entityCollection.getInternalSchema(),
-											initBulk.catalog().isUsageStatisticsTracked()
+											initBulk.catalog().isUsageStatisticsTracked(),
+											initBulk.catalog().getFulltextAnalyzerRegistry()
 										);
 										initBulk.addGlobalIndex(entityCollection.getEntityType(), globalIndex);
 									} else {
@@ -627,7 +646,8 @@ public final class Catalog
 													final EntityIndex loadedIndex = entityCollectionPersistenceService
 														.readEntityIndex(
 															catalogVersion, eid, entityCollection.getInternalSchema(),
-															initBulk.catalog().isUsageStatisticsTracked()
+															initBulk.catalog().isUsageStatisticsTracked(),
+															initBulk.catalog().getFulltextAnalyzerRegistry()
 														);
 													if (loadedIndex.getIndexKey().type() == EntityIndexType.GLOBAL) {
 														initBulk.addGlobalIndex(
@@ -684,9 +704,11 @@ public final class Catalog
 				for (EntityCollection collection : initBulk.collections().values()) {
 					collection.rebuildReducedIndexMembership();
 				}
-				onSuccess.accept(catalogName, catalog);
+				// the callback may replay the write-ahead log beyond the loaded version, and the future has to
+				// yield the instance it settled on - the loaded one is superseded the moment a replay ran
+				final Catalog settledCatalog = onSuccess.apply(catalogName, catalog);
 				theFuture.updateProgress(1);
-				return catalog;
+				return settledCatalog;
 			},
 			(initBulk, exception) -> {
 				if (initBulk != null) {
@@ -766,6 +788,7 @@ public final class Catalog
 		// nothing today; it is here so that a future constructor accepting a populated schema cannot skip it
 		this.usageRegistry = new SchemaCapabilityUsageRegistry();
 		this.usageRegistry.alignWith(internalCatalogSchema);
+		this.fulltextAnalyzerRegistry = new FulltextAnalyzerRegistry();
 		this.proxyFactory = proxyFactory;
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
 		this.lastPersistedSchemaVersion = internalCatalogSchema.version();
@@ -856,6 +879,7 @@ public final class Catalog
 		// has its row before the first query arrives rather than from whenever one first names it
 		this.usageRegistry = new SchemaCapabilityUsageRegistry();
 		this.usageRegistry.alignWith(catalogSchema);
+		this.fulltextAnalyzerRegistry = new FulltextAnalyzerRegistry();
 		this.persistenceService.readCatalogIndex(this, Scope.ARCHIVED)
 			.filter(it -> !it.isEmpty())
 			.ifPresent(this.archiveCatalogIndex::set);
@@ -932,6 +956,7 @@ public final class Catalog
 		// the registry travels with it exactly as the catalog index's own activity holder does. Minting one here would
 		// reset the counters on every commit, which is to say on precisely the catalogs worth measuring
 		this.usageRegistry = previousCatalogVersion.usageRegistry;
+		this.fulltextAnalyzerRegistry = previousCatalogVersion.fulltextAnalyzerRegistry;
 		this.archiveCatalogIndex.set(archiveCatalogIndex);
 		this.persistenceService = persistenceService;
 		this.cacheSupervisor = previousCatalogVersion.cacheSupervisor;
@@ -1045,9 +1070,6 @@ public final class Catalog
 		final Set<String> rebuildFrame = new LazyHashSet<>(4);
 		rebuildStack.push(rebuildFrame);
 		try {
-			// refuse the whole batch before a single schema is exchanged - see the method's own documentation for why
-			// a mid-cascade refusal cannot be undone
-			verifyEntitySchemaMutationsApplicable(schemaMutation);
 			final Optional<Transaction> transactionRef = Transaction.getTransaction();
 			ModifyEntitySchemaMutation[] modifyEntitySchemaMutations = null;
 			CatalogSchema currentSchema = originalSchema;
@@ -1180,6 +1202,38 @@ public final class Catalog
 	@Override
 	public long getVersion() {
 		return Objects.requireNonNull(this.versionId.get());
+	}
+
+	/**
+	 * Creates a supplier of the newest version this catalog **incarnation** has reached in the live view - not the
+	 * version of this particular instance, which is an immutable snapshot, and not the version of whatever catalog
+	 * carries this catalog's name later.
+	 *
+	 * The incarnation is followed through its {@link TransactionManager}, which every catalog version derived from
+	 * this one shares and a rename keeps, while a replacement, restore or duplication starts a new one. Once the
+	 * incarnation leaves the live view (it was replaced, removed or the engine shut down), its transaction manager
+	 * forgets the living catalog and the supplier keeps reporting the last version it saw - it never switches to
+	 * another incarnation and never throws, which is what lets the change capture heartbeat call it unguarded.
+	 *
+	 * The supplier deliberately captures the transaction manager, never this instance: a long-lived consumer of it
+	 * (a change capture stream may stay open for days) would otherwise pin this snapshot and everything it
+	 * references in memory, long after the live view has moved on. The transaction manager references only the
+	 * catalog currently living, and nothing once it is closed.
+	 *
+	 * @return the supplier, starting at the version of this instance
+	 */
+	@Nonnull
+	public LongSupplier createLiveVersionSupplier() {
+		final TransactionManager theTransactionManager = this.transactionManager;
+		final AtomicLong lastKnownVersion = new AtomicLong(getVersion());
+		return () -> {
+			final Catalog livingCatalog = theTransactionManager.getLivingCatalog();
+			return livingCatalog == null ?
+				lastKnownVersion.get() :
+				// never reported going backwards - a session may have been bound to a version the live view had
+				// not published yet when the supplier was created
+				lastKnownVersion.accumulateAndGet(livingCatalog.getVersion(), Math::max);
+		};
 	}
 
 	/**
@@ -1538,6 +1592,9 @@ public final class Catalog
 			getCatalogState() == CatalogState.ALIVE,
 			() -> new CatalogNotAliveException(getInternalSchema().getName())
 		);
+		// the transaction manager verifies the resume position - it is the boundary every registration passes, and it
+		// serves exactly the incarnation `this` belongs to, so the position is judged against that one incarnation
+		// even when the catalog is being replaced concurrently
 		return this.transactionManager.registerObserver(request);
 	}
 
@@ -2148,7 +2205,11 @@ public final class Catalog
 			try {
 				terminateInternally();
 			} finally {
-				this.persistenceService.close();
+				try {
+					this.persistenceService.close();
+				} finally {
+					this.fulltextAnalyzerRegistry.close();
+				}
 			}
 		}
 	}
@@ -2241,6 +2302,17 @@ public final class Catalog
 	@Nonnull
 	public SchemaCapabilityUsageRegistry getUsageRegistry() {
 		return this.usageRegistry;
+	}
+
+	/**
+	 * Returns the registry of the analyzers this catalog's fulltext indexes are built and read back with - shared by
+	 * every collection and every version of this catalog, see {@link #fulltextAnalyzerRegistry}.
+	 *
+	 * @return the catalog's analyzer registry
+	 */
+	@Nonnull
+	public FulltextAnalyzerRegistry getFulltextAnalyzerRegistry() {
+		return this.fulltextAnalyzerRegistry;
 	}
 
 	/**
@@ -2553,6 +2625,16 @@ public final class Catalog
 	 */
 	public long getFirstCatalogVersionInMutationStream() {
 		return this.persistenceService.getFirstCatalogVersionInMutationStream();
+	}
+
+	/**
+	 * Retrieves the first catalog version the WAL can still replay once retention has removed older WAL files.
+	 * See {@link CatalogPersistenceService#getFirstReplayableCatalogVersion()}.
+	 *
+	 * @return the first replayable catalog version, or `-1` when retention has not removed any WAL file
+	 */
+	public long getFirstReplayableCatalogVersion() {
+		return this.persistenceService.getFirstReplayableCatalogVersion();
 	}
 
 	/**
@@ -3467,40 +3549,6 @@ public final class Catalog
 			flushMidSessionIfSchemaValid();
 		}
 		return result;
-	}
-
-	/**
-	 * Preflights every {@link ModifyEntitySchemaMutation} in a batch against the collection it targets, so that a
-	 * refusal is raised **before** any schema is exchanged.
-	 *
-	 * The problem this solves is failure atomicity, not validation coverage. A catalog-level change to a global
-	 * attribute fans out into one entity mutation per consuming collection, and the loop below applies them one at a
-	 * time - each exchanging its schema and writing its storage part. If the fourth collection refuses, the `catch`
-	 * restores only {@link #schema}: the three collections already updated keep the change, in memory and on disk,
-	 * while the catalog schema says the operation failed. Checking all of them first is what makes the cascade
-	 * all-or-nothing without holding a rollback log of exchanged schemas.
-	 *
-	 * Collections that do not exist yet are skipped - a batch may create one and then modify it, and there is nothing
-	 * to preflight against until it exists.
-	 *
-	 * @param schemaMutations the batch about to be applied
-	 * @throws io.evitadb.api.exception.InvalidSchemaMutationException when any affected collection refuses its share
-	 */
-	private void verifyEntitySchemaMutationsApplicable(
-		@Nonnull LocalCatalogSchemaMutation[] schemaMutations
-	) {
-		final CatalogSchema currentCatalogSchema = getInternalSchema();
-		for (final LocalCatalogSchemaMutation theMutation : schemaMutations) {
-			if (theMutation instanceof ModifyEntitySchemaMutation modifyEntitySchemaMutation) {
-				final EntityCollection entityCollection =
-					this.entityCollections.get(modifyEntitySchemaMutation.getName());
-				if (entityCollection != null) {
-					entityCollection.verifySchemaMutationsApplicable(
-						currentCatalogSchema, modifyEntitySchemaMutation.getSchemaMutations()
-					);
-				}
-			}
-		}
 	}
 
 	/**

@@ -187,6 +187,11 @@ public class WarmUpDataStoreMemoryBuffer implements DataStoreMemoryBuffer {
 		this.dataStoreChanges.trapPutStoragePart(value);
 	}
 
+	@Override
+	public <T extends StoragePart> void journalTrappedContent(long primaryKey, @Nonnull Class<T> containerType) {
+		this.dataStoreChanges.journalTrappedContent(primaryKey, containerType);
+	}
+
 	@Nonnull
 	@Override
 	public TrappedChanges popTrappedChanges() {

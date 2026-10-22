@@ -24,6 +24,7 @@
 package io.evitadb.core.query.indexSelection;
 
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.GlobalEntityIndex;
@@ -37,6 +38,7 @@ import java.util.Collections;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -65,6 +67,15 @@ public class TargetIndexes<T extends Index<?>> {
 	 * The filtering constraint instance from the input query the indexes are related to.
 	 */
 	private final FilterConstraint representedConstraint;
+	/**
+	 * The processing scopes the set was built for, or `null` for a set representing no constraint.
+	 *
+	 * One constraint instance may be visited in several scope contexts - the same Java object placed both in
+	 * `inScope(LIVE, ...)` and in `inScope(ARCHIVED, ...)` - and index selection then registers one set per context,
+	 * each built from the partitions of its own scope. The identity of the constraint alone cannot tell them apart,
+	 * so a lookup must match these scopes too (see `FilterByVisitor#findTargetIndexSet`).
+	 */
+	@Nullable private final Set<Scope> scopes;
 	/**
 	 * The type of the indexes.
 	 */
@@ -108,6 +119,7 @@ public class TargetIndexes<T extends Index<?>> {
 	public TargetIndexes(@Nonnull String indexDescription, @Nonnull Class<T> indexType, @Nonnull List<T> indexes) {
 		this.indexDescription = indexDescription;
 		this.representedConstraint = null;
+		this.scopes = null;
 		this.indexType = indexType;
 		this.indexes = indexes;
 		this.indexSupplier = null;
@@ -115,15 +127,27 @@ public class TargetIndexes<T extends Index<?>> {
 		this.eligibilityObstacles = EnumSet.noneOf(EligibilityObstacle.class);
 	}
 
+	/**
+	 * Creates a set representing a constraint, with its indexes already resolved.
+	 *
+	 * @param indexDescription      human readable description of the index set
+	 * @param representedConstraint the constraint the indexes answer
+	 * @param scopes                the processing scopes the set was built for
+	 * @param indexType             type of the indexes
+	 * @param indexes               the indexes
+	 * @param eligibilityObstacle   obstacles that make this set ineligible for a separate query plan
+	 */
 	public TargetIndexes(
 		@Nonnull String indexDescription,
 		@Nonnull FilterConstraint representedConstraint,
+		@Nonnull Set<Scope> scopes,
 		@Nonnull Class<T> indexType,
 		@Nonnull List<T> indexes,
 		@Nonnull EligibilityObstacle... eligibilityObstacle
 	) {
 		this.indexDescription = indexDescription;
 		this.representedConstraint = representedConstraint;
+		this.scopes = scopes;
 		this.indexType = indexType;
 		this.indexes = indexes;
 		this.indexSupplier = null;
@@ -141,6 +165,7 @@ public class TargetIndexes<T extends Index<?>> {
 	 *
 	 * @param indexDescription      human readable description of the index set
 	 * @param representedConstraint the constraint the indexes answer
+	 * @param scopes                the processing scopes the set was built for
 	 * @param indexType             type of the indexes the supplier will produce
 	 * @param indexCount            how many indexes the supplier will produce, known in advance
 	 * @param indexSupplier         resolves the indexes on first demand
@@ -149,6 +174,7 @@ public class TargetIndexes<T extends Index<?>> {
 	public TargetIndexes(
 		@Nonnull String indexDescription,
 		@Nonnull FilterConstraint representedConstraint,
+		@Nonnull Set<Scope> scopes,
 		@Nonnull Class<T> indexType,
 		int indexCount,
 		@Nonnull Supplier<List<T>> indexSupplier,
@@ -156,6 +182,7 @@ public class TargetIndexes<T extends Index<?>> {
 	) {
 		this.indexDescription = indexDescription;
 		this.representedConstraint = representedConstraint;
+		this.scopes = scopes;
 		this.indexType = indexType;
 		this.indexes = null;
 		this.indexSupplier = indexSupplier;
@@ -175,6 +202,21 @@ public class TargetIndexes<T extends Index<?>> {
 			this.indexes = Objects.requireNonNull(this.indexSupplier).get();
 		}
 		return this.indexes;
+	}
+
+	/**
+	 * Returns true if this set was built for the passed constraint instance in the passed processing scopes.
+	 *
+	 * Both halves are needed: the constraint is matched by identity, because equal constraints at different places
+	 * of the query are different questions, and the scopes, because one instance placed in two `inScope`
+	 * containers is answered by a different set in each of them.
+	 *
+	 * @param filterConstraint the constraint instance being translated
+	 * @param processingScopes the processing scopes it is being translated in
+	 * @return true when this set represents the constraint in those scopes
+	 */
+	public boolean represents(@Nonnull FilterConstraint filterConstraint, @Nonnull Set<Scope> processingScopes) {
+		return this.representedConstraint == filterConstraint && processingScopes.equals(this.scopes);
 	}
 
 	/**
@@ -275,9 +317,31 @@ public class TargetIndexes<T extends Index<?>> {
 		 * It is also raised from the candidate count alone, without summing anything - the count is a lower bound
 		 * on that sum, so a count already over the limit settles the question. The converse does not hold: when a
 		 * reference is rejected on its schema the sum is never computed, so this obstacle appears next to
-		 * {@link #NOT_PARTITIONED_INDEX} only where the count alone decided it.
+		 * {@link #NOT_PARTITIONED_INDEX} or {@link #PARTIAL_SCOPE_COVERAGE} only where the count alone decided it.
 		 */
-		HIGH_CARDINALITY
+		HIGH_CARDINALITY,
+		/**
+		 * Indicates that the index set was built for fewer scopes than the query requests - the constraint it
+		 * represents sits in an `inScope(...)` container of a query over several scopes, and only the partitions of
+		 * the container's scope were collected.
+		 *
+		 * Unlike the two obstacles above this one is about **correctness**, not cost. The disjunction of the set's
+		 * indexes is the answer of the container's branch, not of the query (the contract on {@link TargetIndexes}
+		 * no longer holds): the indexes hold no entity of the other queried scopes, so a plan built on them would
+		 * answer every constraint outside the container - locale, attributes, prices, facets, negation - from the
+		 * narrowed scope alone, and the other scopes' entities would be lost.
+		 *
+		 * The set still stays registered, because the translator of the represented constraint looks it up by
+		 * constraint identity to evaluate the container's branch, which it answers correctly. It must never be
+		 * registered **empty**, though: {@code IndexSelectionResult#isEmpty()} reads any empty candidate as "the
+		 * whole query matches nothing" regardless of its eligibility, while an empty narrowed set says nothing about
+		 * the other scopes - so index selection skips it instead.
+		 *
+		 * Eligibility governs the choice of the plan only. Ordering still consults registered candidates without
+		 * looking at their obstacles (`ReferencePropertyTranslator#selectReducedEntityIndexSet`), so a narrowed set
+		 * keeps feeding reference ordering exactly as before it was marked.
+		 */
+		PARTIAL_SCOPE_COVERAGE
 
 	}
 

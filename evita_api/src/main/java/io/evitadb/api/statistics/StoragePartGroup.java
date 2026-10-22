@@ -32,7 +32,7 @@ import javax.annotation.Nonnull;
  * no way to tell which of those names is an index and which is entity data.
  *
  * **Closed on purpose.** The set of part types is open; this set is not. A new storage-part type is expected to land
- * in an existing group, so a client that knows these fourteen values keeps rendering a correct table across engine
+ * in an existing group, so a client that knows these fifteen values keeps rendering a correct table across engine
  * versions without being taught anything. Adding a value here is therefore a deliberate, documented event rather than
  * a side effect of adding a part type - and the reason a classification is declared once, at registration, instead of
  * being derived from a name. Two of the engine's index parts carry no `Index` in their class name at all, so any
@@ -140,6 +140,17 @@ public enum StoragePartGroup {
 	 * require constraint. An operator seeing bytes here is paying for that reference feature and nothing else.
 	 */
 	REFERENCE_HISTOGRAM_INDEX(StoragePartKind.INDEX),
+
+	/**
+	 * Everything built because an attribute is `searchable` - the fulltext index of each locale: its root record, the
+	 * leaf pages of its term dictionary with the impact of every posting, and the pages of its field length tables.
+	 * Associated data is not indexed for fulltext search.
+	 *
+	 * Charged apart from {@link #ATTRIBUTE_INDEX} because searchability is a separate schema decision from
+	 * filterability and sortability, and an operator weighing whether to keep a field searchable needs to see what
+	 * that costs on its own.
+	 */
+	FULLTEXT_INDEX(StoragePartKind.INDEX),
 
 	/**
 	 * Schema records - the catalog schema and one entity schema per collection. One record each, so this group is

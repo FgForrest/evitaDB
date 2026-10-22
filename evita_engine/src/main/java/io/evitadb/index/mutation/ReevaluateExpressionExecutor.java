@@ -1129,7 +1129,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		final Map<Integer, Bitmap> shouldNotBePerRef = CollectionUtils.createHashMap(groups.size());
 		for (final AffectedReferenceGroup group : groups) {
 			final FilterBy parameterizedFilter = parameterizeForContribution(
-				trigger.getFilterByConstraint(), mutation.referenceName(), group
+				trigger.getFilterByConstraint(), mutation.referenceName(), group,
+				!trigger.getLocalReferenceAttributes().isEmpty()
 			);
 			final Bitmap truePKs = evaluateConditionFilter(target, parameterizedFilter, mutation);
 			final PersistentRoaringBitmap groupOwnerPKs = getRoaringBitmap(group.ownerPKs());
@@ -1223,25 +1224,39 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * whichever pin runs second still finds the scope container the first one left behind, wherever an `and`
 	 * put it.
 	 *
-	 * @param triggerFilterBy the pre-translated `FilterBy` from the trigger
-	 * @param referenceName   name of the reference whose `referenceHaving` clauses receive the pins
-	 * @param group           the contribution being decided
+	 * **An axis the condition does not read is pinned only when the reference row cannot be told apart
+	 * otherwise.** Every pin reaches the query engine as a lookup of the target entity, and the engine does not
+	 * see a reference whose managed target does not exist (yet) - whereas the owner's own write evaluates the
+	 * expression per reference and indexes such a reference with its `??` default. A pin the condition does not
+	 * need would therefore answer "did not contribute" for a contribution that exists, and the default would
+	 * stay in the histogram once the target arrives. The contribution's owner set already scopes the answer to
+	 * the right owners, so a group-only condition is answered exactly by the group pin, and the group pin itself
+	 * is never needed beside the referenced-entity one: an owner holds one reference to a target, and the
+	 * verdicts are keyed by the referenced entity alone. Only a condition reading the reference's own attributes
+	 * needs the referenced entity pinned without a container to hold it, and for that shape a missing target
+	 * still reads as not matching.
+	 *
+	 * @param triggerFilterBy          the pre-translated `FilterBy` from the trigger
+	 * @param referenceName            name of the reference whose `referenceHaving` clauses receive the pins
+	 * @param group                    the contribution being decided
+	 * @param readsReferenceAttributes `true` when the condition reads attributes of the reference itself
 	 * @return a `FilterBy` answering for that contribution alone
 	 */
 	@Nonnull
 	private static FilterBy parameterizeForContribution(
 		@Nonnull FilterBy triggerFilterBy,
 		@Nonnull String referenceName,
-		@Nonnull AffectedReferenceGroup group
+		@Nonnull AffectedReferenceGroup group,
+		boolean readsReferenceAttributes
 	) {
 		FilterBy result = rewriteMatchingReferenceHavings(
 			triggerFilterBy, referenceName,
-			new EntityPrimaryKeyInSet(group.referencedEntityPK()), false
+			new EntityPrimaryKeyInSet(group.referencedEntityPK()), false, readsReferenceAttributes
 		);
 		final Integer groupPK = group.groupPK();
 		if (groupPK != null) {
 			result = rewriteMatchingReferenceHavings(
-				result, referenceName, new EntityPrimaryKeyInSet(groupPK), true
+				result, referenceName, new EntityPrimaryKeyInSet(groupPK), true, false
 			);
 		}
 		return result;
@@ -2488,7 +2503,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		final EntityPrimaryKeyInSet pkConstraint = new EntityPrimaryKeyInSet(mutatedEntityPK);
 		final boolean isGroupScope = dependencyType == DependencyType.GROUP_ENTITY_ATTRIBUTE
 			|| dependencyType == DependencyType.GROUP_ENTITY_REFERENCE_ATTRIBUTE;
-		return rewriteMatchingReferenceHavings(triggerFilterBy, referenceName, pkConstraint, isGroupScope);
+		return rewriteMatchingReferenceHavings(triggerFilterBy, referenceName, pkConstraint, isGroupScope, true);
 	}
 
 	/**
@@ -2519,6 +2534,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 * @param pkConstraint   the PK constraint to merge into each matching `ReferenceHaving`
 	 * @param isGroupScope   `true` for {@link GroupHaving}-scoped injection, `false` for
 	 *                       {@link EntityHaving}-scoped injection
+	 * @param pinWithoutContainer `true` to append a new scope container when the clause holds none to merge
+	 *                       the PK into, `false` to leave such a clause unpinned
 	 * @return the rewritten filter; structurally identical when no owner-scope `ReferenceHaving`
 	 *         matched
 	 */
@@ -2527,7 +2544,8 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 		@Nonnull FilterBy filterBy,
 		@Nonnull String referenceName,
 		@Nonnull EntityPrimaryKeyInSet pkConstraint,
-		boolean isGroupScope
+		boolean isGroupScope,
+		boolean pinWithoutContainer
 	) {
 		final FilterBy rewritten = (FilterBy) ConstraintCloneVisitor.clone(
 			filterBy,
@@ -2537,7 +2555,7 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 				&& !visitor.isWithin(GroupHaving.class)
 				&& !visitor.isWithin(HierarchyWithin.class)
 				&& !visitor.isWithin(HierarchyWithinRoot.class)
-				? injectPkScope(rh, referenceName, pkConstraint, isGroupScope)
+				? injectPkScope(rh, referenceName, pkConstraint, isGroupScope, pinWithoutContainer)
 				: constraint
 		);
 		// ConstraintCloneVisitor.clone is @Nullable because it returns null when the cloned tree
@@ -2583,21 +2601,26 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	 *
 	 * When no scope container is reachable, a new one wrapping the PK constraint is appended as an
 	 * And-sibling — the widest scoping available for that shape, and the behaviour that predates this
-	 * descent.
+	 * descent — unless `pinWithoutContainer` says the caller does not need the axis pinned; see
+	 * {@link #parameterizeForContribution} for why an unneeded pin is harmful.
 	 *
 	 * @param rh            the original referenceHaving clause
 	 * @param referenceName the reference name for the new ReferenceHaving
 	 * @param pkConstraint  the PK constraint to inject
 	 * @param isGroupScope  `true` when the scope container is {@link GroupHaving}, `false` for
 	 *                      {@link EntityHaving}
-	 * @return a new {@link ReferenceHaving} with the PK constraint injected
+	 * @param pinWithoutContainer `true` to append a new scope container when none is reachable, `false` to
+	 *                      return the clause unchanged in that case
+	 * @return a new {@link ReferenceHaving} with the PK constraint injected, or `rh` itself when there was
+	 *         nothing to merge into and `pinWithoutContainer` is `false`
 	 */
 	@Nonnull
 	private static ReferenceHaving injectPkScope(
 		@Nonnull ReferenceHaving rh,
 		@Nonnull String referenceName,
 		@Nonnull EntityPrimaryKeyInSet pkConstraint,
-		boolean isGroupScope
+		boolean isGroupScope,
+		boolean pinWithoutContainer
 	) {
 		final FilterConstraint[] rhChildren = rh.getChildren();
 		final FilterConstraint[] updatedChildren = mergePkIntoScopeContainers(
@@ -2607,6 +2630,9 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 			return updatedChildren.length == 1
 				? new ReferenceHaving(referenceName, updatedChildren[0])
 				: new ReferenceHaving(referenceName, new And(updatedChildren));
+		}
+		if (!pinWithoutContainer) {
+			return rh;
 		}
 		// No reachable scope container — wrap PK in a new one and add as an And-sibling.
 		final FilterConstraint pkScope = isGroupScope

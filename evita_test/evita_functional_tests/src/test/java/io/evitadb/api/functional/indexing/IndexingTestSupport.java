@@ -34,6 +34,7 @@ import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
+import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -247,13 +248,18 @@ public interface IndexingTestSupport {
 	 *
 	 * @param categoryIndex the entity index to verify
 	 * @param recordId      the expected record id in the indexes
+	 * @param uniqueValue   the EAN the record carries, which the unique index must resolve back to `recordId`
 	 */
-	static void assertDataWasPropagated(@Nonnull EntityIndex categoryIndex, int recordId) {
+	static void assertDataWasPropagated(
+		@Nonnull EntityIndex categoryIndex,
+		int recordId,
+		@Nonnull Serializable uniqueValue
+	) {
 		assertNotNull(categoryIndex);
-		assertTrue(
-			categoryIndex.getUniqueIndex(null, ATTRIBUTE_EAN_SCHEMA, null)
-				.getRecordIds().contains(recordId)
-		);
+		// the unique index answers a value lookup; which records carry a value is answered by the filter index below
+		final UniqueIndex uniqueIndex = categoryIndex.getUniqueIndex(null, ATTRIBUTE_EAN_SCHEMA, null);
+		assertNotNull(uniqueIndex);
+		assertEquals(Integer.valueOf(recordId), uniqueIndex.getRecordIdByUniqueValue(uniqueValue));
 		assertTrue(
 			categoryIndex.getFilterIndex(null, ATTRIBUTE_EAN_SCHEMA, null)
 				.getAllRecords().contains(recordId)

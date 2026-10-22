@@ -39,6 +39,7 @@ import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeInde
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStoragePart.AttributeIndexType;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.EntityIndexStoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.FulltextIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.HistogramIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceNameKey;
 import lombok.RequiredArgsConstructor;
@@ -103,6 +104,12 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 			output.writeString(histogramKey.histogramName());
 			kryo.writeObjectOrNull(output, histogramKey.locale(), Locale.class);
 		}
+
+		final Set<FulltextIndexKey> fulltextIndexes = entityIndex.getFulltextIndexes();
+		output.writeVarInt(fulltextIndexes.size(), true);
+		for (FulltextIndexKey fulltextKey : fulltextIndexes) {
+			output.writeVarInt(this.keyCompressor.getId(fulltextKey), true);
+		}
 	}
 
 	@Override
@@ -155,12 +162,19 @@ public class EntityIndexStoragePartSerializer extends Serializer<EntityIndexStor
 			));
 		}
 
+		final int fulltextIndexesCount = input.readVarInt(true);
+		final Set<FulltextIndexKey> fulltextIndexes = createHashSet(fulltextIndexesCount);
+		for (int i = 0; i < fulltextIndexesCount; i++) {
+			fulltextIndexes.add(this.keyCompressor.getKeyForId(input.readVarInt(true)));
+		}
+
 		return new EntityIndexStoragePart(
 			primaryKey, version, entityIndexKey,
 			attributeIndexes,
 			priceIndexes,
 			hierarchyIndex, facetIndexes,
-			histogramIndexes
+			histogramIndexes,
+			fulltextIndexes
 		);
 	}
 }

@@ -259,6 +259,7 @@ public interface Migration_2025_6 {
 							deprecatedIndexBody.getPriceIndexes(),
 							deprecatedIndexBody.isHierarchyIndex(),
 							deprecatedIndexBody.getFacetIndexes(),
+							java.util.Collections.emptySet(),
 							java.util.Collections.emptySet()
 						)
 					);

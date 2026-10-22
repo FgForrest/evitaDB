@@ -54,6 +54,7 @@ import io.evitadb.index.bitmap.TransactionalBitmap;
 import io.evitadb.index.component.loader.LoadedComponentBundle.AttributeIndexes;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.invertedIndex.ValueIdAllocator;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.invertedIndex.ValueToRecordBitmap;
 import io.evitadb.index.page.PageEmission;
 import io.evitadb.index.range.RangeIndex;
@@ -121,6 +122,11 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(ATTRIBUTE)
 class AttributeIndexLoaderTest {
 
+	/**
+	 * The analyzer registry every load context carries. These manifests list no fulltext index, so it is never asked
+	 * for an analyzer and holds nothing that would need closing.
+	 */
+	private static final FulltextAnalyzerRegistry ANALYZER_REGISTRY = new FulltextAnalyzerRegistry();
 	private static final String ENTITY_TYPE = "Product";
 	private static final String ATTRIBUTE_CODE = "code";
 	private static final String ATTRIBUTE_PRIORITY = "priority";
@@ -159,8 +165,7 @@ class AttributeIndexLoaderTest {
 			view.getRecordIdByUniqueValue("WRONG"),
 			"The legacy full part's value-to-record map must be discarded on reload"
 		);
-		assertTrue(view.getRecordIds().contains(10), "View record ids come from the shared tree");
-		assertFalse(view.getRecordIds().contains(999), "Legacy record-id bitmap must be discarded");
+		assertEquals(1, view.size(), "The view counts only the shared tree's record, not the legacy part's");
 	}
 
 	@Test
@@ -177,12 +182,12 @@ class AttributeIndexLoaderTest {
 		final UniqueIndex owner = bundle.uniqueIndexes().get(key);
 		assertNotNull(owner, "Standalone unique must be reconstructed as an owner");
 		assertInstanceOf(OwnerUniqueIndex.class, owner, "Standalone unique must be an OwnerUniqueIndex");
-		// the owner restores its own value map / record bitmap from the full part
+		// the owner restores its own value map from the full part
 		assertEquals(
 			Integer.valueOf(10), owner.getRecordIdByUniqueValue("ABC"),
 			"Owner must resolve the value from its own persisted map"
 		);
-		assertTrue(owner.getRecordIds().contains(10), "Owner record ids come from its own bitmap");
+		assertEquals(1, owner.size(), "The owner counts the record owning its only value");
 	}
 
 	@Test
@@ -347,7 +352,8 @@ class AttributeIndexLoaderTest {
 			EmptyBitmap.INSTANCE,
 			Map.of(),
 			storage,
-			null
+			null,
+			ANALYZER_REGISTRY
 		);
 		final LoadedComponentBundle bundle = new AttributeIndexLoader().load(context);
 		return assertInstanceOf(AttributeIndexes.class, bundle, "Loader must return an AttributeIndexes bundle");
@@ -758,7 +764,7 @@ class AttributeIndexLoaderTest {
 			return new EntityIndexStoragePart(
 				INDEX_PK, 1, entityIndexKey,
 				new BaseBitmap(), new HashMap<Locale, TransactionalBitmap>(0),
-				this.manifestKeys, Set.of(), false, Set.of(), Set.of()
+				this.manifestKeys, Set.of(), false, Set.of(), Set.of(), Set.of()
 			);
 		}
 
@@ -988,7 +994,8 @@ class AttributeIndexLoaderTest {
 				storage,
 				// REFERENCED_ENTITY_TYPE indexes carry a String discriminator and a `null` referenceKey, exactly as the
 				// engine's DefaultEntityCollectionPersistenceService builds the context
-				null
+				null,
+				ANALYZER_REGISTRY
 			);
 			final LoadedComponentBundle bundle = new AttributeIndexLoader().load(context);
 			return assertInstanceOf(AttributeIndexes.class, bundle, "Loader must return an AttributeIndexes bundle");

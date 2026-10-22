@@ -2659,7 +2659,7 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Sets global default relation types for combining selected facets within the same group and across different groups or references in a query. Overrides built-in defaults (OR within group, AND across groups) unless per-group constraints are specified, which always take precedence. Applies only to the current query.
+	 * Sets global default relation types for combining selected facets within the same group and across different groups of the same reference in a query. Overrides built-in defaults (OR within group, AND across groups) unless per-group constraints are specified, which always take precedence. Facets of different references are always combined by logical AND. Applies only to the current query.
 	 *
 	 * ```evitaql
 	 * require(

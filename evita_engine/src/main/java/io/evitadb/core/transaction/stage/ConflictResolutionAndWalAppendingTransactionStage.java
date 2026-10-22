@@ -519,7 +519,7 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 					"commitStartTime={}, catalogSchemaVersionDelta={}) - rolling back {} catalog " +
 					"version(s) and {} catalog schema version delta(s); TransactionManager state " +
 					"is lastAssigned={}, lastWritten={}, lastFinalized={}; living catalog version={}; " +
-					"current WAL file holds versions [{}..{}].",
+					"WAL: first version of the active file={}, last version in the log={}.",
 				task.transactionId(),
 				task.catalogName(),
 				expectedCatalogVersion,
@@ -684,7 +684,7 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 					"catalogVersion={}, mutationCount={}, walSizeInBytes={}, commitStartTime={}) " +
 					"could not be appended because the WAL reports currentTransactionVersion={} " +
 					"while TransactionManager state is lastAssigned={}, lastWritten={}, " +
-					"lastFinalized={}; current WAL file holds versions [{}..{}].",
+					"lastFinalized={}; WAL: first version of the active file={}, last version in the log={}.",
 				task.catalogName(),
 				task.transactionId(),
 				commitVersions.catalogVersion(),
@@ -695,8 +695,10 @@ public final class ConflictResolutionAndWalAppendingTransactionStage
 				this.transactionManager.getLastAssignedCatalogVersion(),
 				this.transactionManager.getLastWrittenCatalogVersion(),
 				this.transactionManager.getLastFinalizedCatalogVersion(),
-				livingCatalog.getFirstCatalogVersionInMutationStream(),
-				livingCatalog.getLastCatalogVersionInMutationStream(),
+				// absent once the transaction manager was closed meanwhile - the diagnostic must not replace the
+				// mismatch it describes
+				livingCatalog == null ? null : livingCatalog.getFirstCatalogVersionInMutationStream(),
+				livingCatalog == null ? null : livingCatalog.getLastCatalogVersionInMutationStream(),
 				ex
 			);
 			throw ex;

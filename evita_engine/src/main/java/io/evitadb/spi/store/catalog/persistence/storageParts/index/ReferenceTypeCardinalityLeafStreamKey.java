@@ -39,20 +39,21 @@ import java.io.Serializable;
  * and that id must encode the FULL sub-index identity in a single `int` because the other half of the joined `long` PK is
  * consumed by `pageSequence`.
  *
- * The id is obtained by registering this key with the catalog's {@link KeyCompressor}, exactly as the root part already
- * obtains its compressed id from `(entityIndexPrimaryKey, referenceName)`
- * ({@link ReferenceTypeCardinalityIndexStoragePart#computeUniquePartId}). The difference is that the root part may spend
- * both 32-bit halves of its PK on identity (`pack(entityIndexPrimaryKey, compressor.getId(ReferenceNameKey))`), so its
- * compressed id need only cover the reference name; a leaf page may not, so its stream id must ALSO fold in the
- * `entityIndexPrimaryKey`. `ReferenceTypeCardinalityLeafStreamKey` is therefore `(entityIndexPrimaryKey, referenceName)`
- * — the entity-index-level analog of {@link GlobalUniqueLeafStreamKey} (whose identity is the catalog-level
+ * The id is obtained by registering this key with the {@link KeyCompressor} of the entity collection whose data store
+ * holds the pages, exactly as the root part already obtains its compressed id from
+ * `(entityIndexPrimaryKey, referenceName)` ({@link ReferenceTypeCardinalityIndexStoragePart#computeUniquePartId}). The
+ * difference is that the root part may spend both 32-bit halves of its PK on identity
+ * (`pack(entityIndexPrimaryKey, compressor.getId(ReferenceNameKey))`), so its compressed id need only cover the
+ * reference name; a leaf page may not, so its stream id must ALSO fold in the `entityIndexPrimaryKey`.
+ * `ReferenceTypeCardinalityLeafStreamKey` is therefore `(entityIndexPrimaryKey, referenceName)` — the
+ * entity-index-level analog of {@link GlobalUniqueLeafStreamKey} (whose identity is the catalog-level
  * `(scope, attributeKey)` pair).
  *
  * The {@link KeyCompressor} is a bijective, restart-stable, transactionally-allocated dictionary persisted whole in the
- * catalog header, so `compressor.getId(referenceTypeCardinalityLeafStreamKey)` is a GUARANTEED-unique (never
- * probabilistic) and deterministic `int`: distinct sub-indexes get distinct ids, and an assigned id never changes. The
- * number of sub-indexes is far below 2^31, so the id fits the high 32 bits of the page PK while `pageSequence` fills the
- * low 32.
+ * header of the entity collection whose data store holds the pages, so
+ * `compressor.getId(referenceTypeCardinalityLeafStreamKey)` is a GUARANTEED-unique (never probabilistic) and
+ * deterministic `int`: distinct sub-indexes get distinct ids, and an assigned id never changes. The number of
+ * sub-indexes is far below 2^31, so the id fits the high 32 bits of the page PK while `pageSequence` fills the low 32.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

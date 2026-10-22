@@ -210,6 +210,37 @@ public class ReferencesStoragePart implements EntityStoragePart {
 	}
 
 	/**
+	 * Creates the pre-image of `source` (see {@link #createPreImage()}): every field is carried over, the working
+	 * array {@link #modifiedReferences} and the pending reassignment set are copied.
+	 *
+	 * {@link #references} is shared on purpose: no write ever lands in it — every mutator obtains its array through
+	 * {@link #getReferencesForUpdate()}, which copies it into {@link #modifiedReferences} first — so sharing it costs
+	 * nothing and keeps the pre-image at one array copy, which matters for the hot target of a reflected reference
+	 * that can carry hundreds of thousands of references.
+	 *
+	 * @param source the part whose current content is copied
+	 */
+	private ReferencesStoragePart(@Nonnull ReferencesStoragePart source) {
+		this.entityPrimaryKey = source.entityPrimaryKey;
+		this.sizeInBytes = source.sizeInBytes;
+		this.lastUsedPrimaryKey = source.lastUsedPrimaryKey;
+		this.references = source.references;
+		this.modifiedReferences = source.modifiedReferences == null ?
+			null : Arrays.copyOf(source.modifiedReferences, source.modifiedReferences.length);
+		this.dirty = source.dirty;
+		this.unassignedPrimaryKeys = source.unassignedPrimaryKeys;
+		this.referenceKeysForReassignment = source.referenceKeysForReassignment == null ?
+			null : new HashSet<>(source.referenceKeysForReassignment);
+		this.decodeCoverage = source.decodeCoverage;
+	}
+
+	@Nonnull
+	@Override
+	public ReferencesStoragePart createPreImage() {
+		return new ReferencesStoragePart(this);
+	}
+
+	/**
 	 * Returns true when this part carries every reference of the entity, false when it was decoded for a subset of
 	 * the reference names only.
 	 *

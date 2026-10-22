@@ -72,6 +72,8 @@ public class CreateAttributeSchemaMutationConverter implements SchemaMutationCon
 			uniqueInScopes,
 			filterableInScopes,
 			acceleratorsInScopes,
+			// searchability has no gRPC mirror, so a mutation arriving this way never declares it
+			null,
 			sortableInScopes,
 			mutation.getLocalized(),
 			mutation.getNullable(),

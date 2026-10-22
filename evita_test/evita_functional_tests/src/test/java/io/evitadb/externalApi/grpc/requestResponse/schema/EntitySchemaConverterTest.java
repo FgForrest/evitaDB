@@ -124,6 +124,7 @@ class EntitySchemaConverterTest {
 					new ScopedAttributeFilterAccelerators[]{
 						new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 					},
+					null,
 					new Scope[]{Scope.LIVE},
 					true,
 					true,
@@ -191,6 +192,7 @@ class EntitySchemaConverterTest {
 							new ScopedAttributeFilterAccelerators[]{
 								new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 							},
+							null,
 							new Scope[]{Scope.LIVE},
 							true,
 							true,
@@ -389,6 +391,7 @@ class EntitySchemaConverterTest {
 					new ScopedAttributeFilterAccelerators[]{
 						new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 					},
+					null,
 					Scope.NO_SCOPE,
 					false, false, false,
 					String.class, null, 0,

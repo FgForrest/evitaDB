@@ -119,6 +119,7 @@ class LongRunningReducedGroupEntityIndexTest implements TimeBoundedTestSupport {
 			new Scope[]{Scope.LIVE},
 			null,
 			null,
+			null,
 			false, false, false,
 			type, null,
 			ConflictResolutionOverride.INHERITED

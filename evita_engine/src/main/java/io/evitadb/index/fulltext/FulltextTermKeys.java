@@ -48,8 +48,9 @@ import javax.annotation.Nonnull;
  * Four digits address 65,536 fields per dictionary, far beyond any realistic schema; the limit is checked rather than
  * assumed.
  *
- * The encoding is shared by the write path, the query path and (later) the persisted form, so it lives in one place.
- * The measured campaign ran on exactly this shape (`p1-index-core-measurements.md`, the "field prefix width 4" runs).
+ * The encoding is shared by the write path, the persisted dictionary pages and the query path, so it lives in one
+ * place. The index-core measurements of the fulltext decision record ran on exactly this shape, a four-digit field
+ * prefix.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

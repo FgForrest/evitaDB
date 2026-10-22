@@ -87,6 +87,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -95,6 +96,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.IntFunction;
+import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
 import java.util.stream.Stream;
 
@@ -421,13 +423,102 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 * needs down with it. Indices survive a catalog rename, so file `0` being present means what it says; a restore
 	 * that ever renumbered from a non-zero base would only make this keep more history than it has to.
 	 *
+	 * The lookup runs concurrently with the retention, which removes files on the scheduler, oldest first. The oldest
+	 * file listed may therefore be gone by the time it is read - see
+	 * {@link #resolveFirstReplayableVersion(IntSupplier, IntFunction, WalKind)} for how that is told apart from a
+	 * failure to read it.
+	 *
 	 * @return the first replayable catalog version, or -1 when the log has nothing to derive one from - no file at
 	 *         all, nothing ever purged, or a stub left behind by a crash between rotation and the first append
 	 */
 	public long getFirstReplayableVersion() {
-		// `{0, 0}` when the folder holds no WAL file at all, which the gate below rejects along with an unpurged log
-		final int oldestWalFileIndex = getFirstAndLastWalFileIndex(this.storageFolder)[0];
-		return oldestWalFileIndex > 0 ? getFirstVersionOf(oldestWalFileIndex) : -1L;
+		return resolveFirstReplayableVersion(
+			// `0` when the folder holds no WAL file at all, which the gate rejects along with an unpurged log
+			() -> getOldestWalFileIndex(this.storageFolder),
+			this::readFirstVersionOf,
+			this.walKind
+		);
+	}
+
+	/**
+	 * Returns the index of the oldest WAL file in the folder.
+	 *
+	 * Unlike {@link #getFirstAndLastWalFileIndex(Path)} it does not require the listed files to be contiguous. A
+	 * listing taken while the retention removes several files in one sweep may still report a file deleted after the
+	 * listing passed it and miss one deleted before - a gap that says nothing about how far back the log reaches.
+	 * Only the oldest file listed matters here, and its vanishing in turn is handled by
+	 * {@link #resolveFirstReplayableVersion(IntSupplier, IntFunction, WalKind)}.
+	 *
+	 * @param storageFolder the folder holding the WAL files
+	 * @return the index of the oldest WAL file, `0` when the folder holds none
+	 */
+	private static int getOldestWalFileIndex(@Nonnull Path storageFolder) {
+		final File[] walFiles = storageFolder.toFile().listFiles((dir, name) -> name.endsWith(WAL_FILE_SUFFIX));
+		if (walFiles == null || walFiles.length == 0) {
+			return 0;
+		}
+		int oldestWalFileIndex = Integer.MAX_VALUE;
+		for (final File walFile : walFiles) {
+			oldestWalFileIndex = Math.min(oldestWalFileIndex, getIndexFromWalFileName(walFile.getName()));
+		}
+		return oldestWalFileIndex;
+	}
+
+	/**
+	 * Resolves the first version of the oldest WAL file, following the retention when it removes that file while the
+	 * lookup is in progress.
+	 *
+	 * Listing the oldest file and reading its head are two separate steps, and the retention may remove the file in
+	 * between. Neither of the two outcomes that used to follow is acceptable: the vanished file read as a stub, and
+	 * the lookup answered `-1` - "nothing was ever purged" - for a log that had just been purged; or opening it
+	 * failed, and a caller merely asking how far back the log reaches was told the log cannot be read. Its readers
+	 * then report a position the log still holds as an error.
+	 *
+	 * So a vanished file sends the lookup back to the listing, which now starts one file later. The retention removes
+	 * files oldest first and only ever the ones it rotated away, never the active one, so every retry has to see a
+	 * strictly newer oldest file - the loop ends after at most as many steps as there are files. A retry that does
+	 * not move forward means the file disappeared for some other reason, which is reported rather than retried.
+	 *
+	 * Package-private so the race can be reproduced deterministically: a reader that reports a file as vanished stands
+	 * in for a removal landing between the two steps.
+	 *
+	 * @param oldestWalFileIndexSupplier lists the folder and returns the index of its oldest WAL file, `0` when the
+	 *                                   log still has its first file or no file at all
+	 * @param firstVersionReader         reads the first version of the file with the given index; empty when the
+	 *                                   file no longer exists, `-1` when it holds no transaction, and throws when it
+	 *                                   exists and cannot be read
+	 * @param walKind                    flavor of the log, stamped on the exception reporting a file that vanished
+	 *                                   outside the retention
+	 * @return the first version of the oldest WAL file, or `-1` when the log has nothing to derive it from
+	 * @throws WriteAheadLogCorruptedException when the oldest file vanished and no newer one took its place
+	 */
+	static long resolveFirstReplayableVersion(
+		@Nonnull IntSupplier oldestWalFileIndexSupplier,
+		@Nonnull IntFunction<OptionalLong> firstVersionReader,
+		@Nonnull WalKind walKind
+	) {
+		int oldestWalFileIndex = oldestWalFileIndexSupplier.getAsInt();
+		while (oldestWalFileIndex > 0) {
+			final OptionalLong firstVersion = firstVersionReader.apply(oldestWalFileIndex);
+			if (firstVersion.isPresent()) {
+				return firstVersion.getAsLong();
+			}
+			final int vanishedWalFileIndex = oldestWalFileIndex;
+			oldestWalFileIndex = oldestWalFileIndexSupplier.getAsInt();
+			final int nextOldestWalFileIndex = oldestWalFileIndex;
+			Assert.isPremiseValid(
+				nextOldestWalFileIndex > vanishedWalFileIndex,
+				() -> new WriteAheadLogCorruptedException(
+					walKind,
+					"The oldest WAL file (index " + vanishedWalFileIndex + ") disappeared while its first version " +
+						"was being read, and the oldest file listed afterwards (index " + nextOldestWalFileIndex +
+						") is not newer - the retention removes files oldest first and never the active one, so " +
+						"something else removed it!",
+					"The oldest WAL file disappeared outside the retention!"
+				)
+			);
+		}
+		return -1L;
 	}
 
 	/**
@@ -1009,6 +1100,9 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 					activeWalFileIndex,
 					versions.firstVersion(),
 					versions.lastVersion(),
+					// the active file may hold no transaction yet (see above), and the log's last written version
+					// is then the last version of the finalized run before it
+					lastVersion.map(FirstAndLastVersionsInWalFile::lastVersion).orElse(-1L),
 					walFilePath,
 					walFileChannel,
 					theOutput,
@@ -1172,17 +1266,42 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 * and is valid, it extracts and returns the version of the first record stored within.
 	 *
 	 * @param walFileIndex the index of the WAL file to read from
-	 * @return the version of the first record found in the specified WAL file, or -1 if the file does not exist,
-	 * is invalid, or cannot be processed
+	 * @return the version of the first record found in the specified WAL file, or -1 if the file does not exist or
+	 * holds no transaction (a stub carrying only its cumulative checksum header)
+	 * @throws UnexpectedIOException when the file exists and cannot be read
 	 */
 	public long getFirstVersionOf(int walFileIndex) {
+		return readFirstVersionOf(walFileIndex).orElse(-1L);
+	}
+
+	/**
+	 * Reads the version of the first record of the WAL file with the given index, telling a file that no longer
+	 * exists apart from one that holds no transaction.
+	 *
+	 * The two must not be merged for {@link #getFirstReplayableVersion()}: a stub is a legitimate answer about the
+	 * log, whereas a file that vanished - the retention removed it after it was listed - says nothing about the log
+	 * and has to be looked up again. A file that exists and cannot be read is neither, and fails.
+	 *
+	 * @param walFileIndex the index of the WAL file to read from
+	 * @return the version of the first record, `-1` when the file holds no transaction, or empty when the file does
+	 *         not exist (any more)
+	 * @throws UnexpectedIOException when the file exists and cannot be read
+	 */
+	@Nonnull
+	private OptionalLong readFirstVersionOf(int walFileIndex) {
 		final File walFile = this.storageFolder.resolve(this.walFileNameProvider.apply(walFileIndex)).toFile();
+		// `length()` answers zero for a file that does not exist, so the existence check has to come after it - a
+		// file removed between the two calls would otherwise read as an empty stub
+		final long walFileLength = walFile.length();
+		if (walFileLength == 0L && !walFile.exists()) {
+			return OptionalLong.empty();
+		}
 		// the read below skips the cumulative checksum *and* the transaction prefix before it reaches a record, so
 		// anything not longer than the two of them together is a stub - rotation writes the checksum when it creates
 		// the file and a crash before the first append leaves it at exactly that. Demanding only the prefix let those
 		// stubs through to a read that seeks past their end
-		if (!walFile.exists() || walFile.length() <= CUMULATIVE_CRC32_SIZE + TRANSACTION_PREFIX_SIZE) {
-			return -1L;
+		if (walFileLength <= CUMULATIVE_CRC32_SIZE + TRANSACTION_PREFIX_SIZE) {
+			return OptionalLong.of(-1L);
 		} else {
 			final Kryo kryo = this.kryoPool.obtain();
 			try (
@@ -1196,11 +1315,23 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				// next 4 bytes are the length of the entire transaction block
 				observableInput.skip(TRANSACTION_PREFIX_SIZE);
 				// first record is the TransactionMutation
-				return Objects.requireNonNull(
-					StorageRecord.read(
-						observableInput, (stream, length) -> (TransactionMutation) kryo.readClassAndObject(stream)
-					).payload()
-				).getVersion();
+				return OptionalLong.of(
+					Objects.requireNonNull(
+						StorageRecord.read(
+							observableInput, (stream, length) -> (TransactionMutation) kryo.readClassAndObject(stream)
+						).payload()
+					).getVersion()
+				);
+			} catch (FileNotFoundException e) {
+				// removed between the length check above and the open - nothing about the file can be read any more
+				if (!walFile.exists()) {
+					return OptionalLong.empty();
+				}
+				throw new UnexpectedIOException(
+					"Failed to open WAL file `" + walFile.getName() + "`!",
+					"Failed to open WAL file!",
+					e
+				);
 			} catch (IOException e) {
 				throw new UnexpectedIOException(
 					"Failed to read WAL file `" + walFile.getName() + "`!",
@@ -1223,11 +1354,31 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	}
 
 	/**
-	 * Retrieves the last written catalog version.
+	 * Retrieves the version of the last transaction written to the log - to any of its files, not just the active one.
 	 *
-	 * @return the last written catalog version
+	 * This is what "the last version in the mutation stream" means to everyone outside the log: the upper bound of
+	 * what a reader can be served, the version a restarted transaction manager must continue after, and the version
+	 * the persisted state is checked against at startup. The active file alone cannot answer it while it holds no
+	 * transaction yet - briefly after every rotation, and indefinitely after a crash between rotation creating the
+	 * next file (with only its cumulative checksum header) and the first append landing in it, a state the
+	 * constructor accepts as it is. Answering `-1` for that stretch would have every one of those callers act on a
+	 * log that looks empty while all its transactions are intact one file over.
+	 *
+	 * Use {@link #getLastWrittenVersionOfCurrentWalFile()} where the active file itself is meant.
+	 *
+	 * @return the last written version of the log, or `-1` when the log holds no transaction at all
 	 */
 	public long getLastWrittenVersion() {
+		return this.currentWalFile.get().getLastWrittenVersionInLog();
+	}
+
+	/**
+	 * Retrieves the version of the last transaction written to the active WAL file - the counterpart of
+	 * {@link #getFirstVersionOfCurrentWalFile()}, describing the same file.
+	 *
+	 * @return the last written version of the active file, or `-1` while it holds no transaction yet
+	 */
+	public long getLastWrittenVersionOfCurrentWalFile() {
 		return this.currentWalFile.get().getLastWrittenVersion();
 	}
 
@@ -1338,7 +1489,13 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 
 		final long currentWalFileSize = this.currentWalFile.get().getCurrentWalFileSize();
 		final long newWalFileSize = currentWalFileSize + transactionMutation.getWalSizeInBytes() + TRANSACTION_PREFIX_SIZE;
-		if (newWalFileSize > this.maxWalFileSizeBytes) {
+		// Only a file that holds a transaction can be rotated away - rotation finalizes it with the version range of
+		// its transactions, and an empty one has none (see the premises in `rotateWalFileInternal`). The last written
+		// version is set last in an append, so it vouches for the first version too. An empty file is a fresh log or
+		// one rotation left behind, and rotating it would only produce another empty file the same transaction does
+		// not fit either. A transaction cannot be split across files, so one sized up to `maxWalFileSizeBytes` is
+		// appended to the empty file and overruns the limit by its prefix, its leading record and its checksum.
+		if (newWalFileSize > this.maxWalFileSizeBytes && getLastWrittenVersionOfCurrentWalFile() >= 1) {
 			// rotate the WAL file
 			rotateWalFile();
 		}
@@ -1582,7 +1739,14 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 	 * transaction of a file rotation has since finalized, in which case the transactions still to be replayed
 	 * begin in a later file; the search walks forward until it finds one or runs out of files.
 	 *
-	 * @param walReference the position already processed, or `null` to start from the beginning of the newest file
+	 * A `null` reference means the published state has processed no transaction of this log at all - a catalog that
+	 * has gone live and never published a checkpoint since - so every transaction in it is still to be replayed and
+	 * the search starts at the beginning of the **oldest** file. Nothing can have been removed from such a log, since
+	 * the retention removes only files whose versions were processed. Starting at the newest file instead skipped
+	 * every file before it, and found nothing at all when the newest file held no transaction yet - a crash between
+	 * rotation and the first append leaves exactly that - so the whole log went unreplayed.
+	 *
+	 * @param walReference the position already processed, or `null` when no transaction has been processed yet
 	 * @return the first transaction after `walReference`, or empty when nothing remains to be replayed
 	 */
 	@Nonnull
@@ -1593,7 +1757,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		int walFileIndex;
 		long startPosition;
 		if (walReference == null) {
-			walFileIndex = newestWalFileIndex;
+			walFileIndex = getFirstAndLastWalFileIndex(this.storageFolder)[0];
 			startPosition = CUMULATIVE_CRC32_SIZE;
 		} else {
 			walFileIndex = walReference.fileIndex();
@@ -2252,7 +2416,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		try {
 			// write information about last and first catalog version in this WAL file
 			final long firstCvInFile = this.getFirstVersionOfCurrentWalFile();
-			final long lastCvInFile = this.getLastWrittenVersion();
+			final long lastCvInFile = this.getLastWrittenVersionOfCurrentWalFile();
 			Assert.isPremiseValid(
 				firstCvInFile >= 1,
 				() -> new WriteAheadLogCorruptedException(this.walKind,
@@ -2283,6 +2447,8 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 		}
 
 		final int newWalFileIndex = theCurrentWalFile.getWalFileIndex() + 1;
+		// the file just finalized holds the newest transactions of the log until the first append lands in the next one
+		final long lastVersionOfFinalizedFile = theCurrentWalFile.getLastWrittenVersion();
 		final OffsetDateTime firstCommitTimestamp = null;
 		try {
 			final Path walFilePath = this.storageFolder.resolve(this.walFileNameProvider.apply(newWalFileIndex));
@@ -2318,6 +2484,7 @@ public abstract class AbstractMutationLog<T extends Mutation> implements AutoClo
 				new CurrentMutationLogFile(
 					newWalFileIndex,
 					-1L, -1L,
+					lastVersionOfFinalizedFile,
 					walFilePath,
 					walFileChannel,
 					theOutput,

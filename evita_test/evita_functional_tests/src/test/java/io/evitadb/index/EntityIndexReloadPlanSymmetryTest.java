@@ -32,6 +32,7 @@ import io.evitadb.index.component.GroupCardinalityComponent;
 import io.evitadb.index.component.HistogramIndexMapComponent;
 import io.evitadb.index.component.IndexComponent;
 import io.evitadb.index.component.PriceIndexComponent;
+import io.evitadb.index.component.FulltextIndexMapComponent;
 import io.evitadb.index.component.ReducedIndexMembershipMapComponent;
 import io.evitadb.index.component.ReferenceTypeCardinalityComponent;
 import io.evitadb.index.component.TrigramIndexMapComponent;
@@ -39,6 +40,7 @@ import io.evitadb.index.component.loader.AttributeCardinalityIndexMapLoader;
 import io.evitadb.index.component.loader.AttributeIndexLoader;
 import io.evitadb.index.component.loader.ComponentLoader;
 import io.evitadb.index.component.loader.FacetIndexLoader;
+import io.evitadb.index.component.loader.FulltextIndexMapLoader;
 import io.evitadb.index.component.loader.GroupCardinalityLoader;
 import io.evitadb.index.component.loader.HierarchyIndexLoader;
 import io.evitadb.index.component.loader.HistogramIndexMapLoader;
@@ -116,7 +118,8 @@ class EntityIndexReloadPlanSymmetryTest {
 			AttributeCardinalityIndexMapComponent.class, AttributeCardinalityIndexMapLoader.class,
 			HistogramIndexMapComponent.class, HistogramIndexMapLoader.class,
 			GroupCardinalityComponent.class, GroupCardinalityLoader.class,
-			ReferenceTypeCardinalityComponent.class, ReferenceTypeCardinalityLoader.class
+			ReferenceTypeCardinalityComponent.class, ReferenceTypeCardinalityLoader.class,
+			FulltextIndexMapComponent.class, FulltextIndexMapLoader.class
 		);
 
 	@Test
@@ -257,7 +260,8 @@ class EntityIndexReloadPlanSymmetryTest {
 			GroupCardinalityComponent.class,
 			ReferenceTypeCardinalityComponent.class,
 			TrigramIndexMapComponent.class,
-			ReducedIndexMembershipMapComponent.class
+			ReducedIndexMembershipMapComponent.class,
+			FulltextIndexMapComponent.class
 		);
 		// the components that deliberately have no loader, each for a reason stated at its arm of
 		// `expectedLoaderFor`: price is subclass-dispatched and symmetry is asserted by the per-subclass tests,

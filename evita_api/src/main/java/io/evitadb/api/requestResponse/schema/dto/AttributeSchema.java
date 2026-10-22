@@ -109,6 +109,12 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	 */
 	@Getter protected final Map<Scope, Set<AttributeFilterAccelerator>> acceleratorsInScopes;
 	/**
+	 * Set of scopes where the attribute is searchable - its values are analyzed into words and indexed in the
+	 * fulltext index of that scope. See {@link AttributeSchemaContract#getSearchableInScopes()} and
+	 * {@link AttributeSchemaContract#isSearchableInScope(Scope)}.
+	 */
+	@Getter protected final Set<Scope> searchableInScopes;
+	/**
 	 * Number of fractional places important for indexing numeric values (especially {@link java.math.BigDecimal}).
 	 * Values are scaled by 10^indexedDecimalPlaces and stored as integers, therefore the scaled value must fit into
 	 * {@link Integer} range. See {@link AttributeSchemaContract#getIndexedDecimalPlaces()}.
@@ -283,6 +289,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			toUniquenessEnumMap(null),
 			EnumSet.noneOf(Scope.class),
 			null,
+			null,
 			EnumSet.noneOf(Scope.class),
 			localized, false, false,
 			type, null,
@@ -303,6 +310,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
 		@Nullable Scope[] filterableInScopes,
 		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
+		@Nullable Scope[] searchableInScopes,
 		@Nullable Scope[] sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -327,6 +335,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			theUniquenessType,
 			theFilterableInScopes,
 			toAcceleratorsEnumMap(acceleratorsInScopes),
+			ArrayUtils.toEnumSet(Scope.class, searchableInScopes),
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -349,6 +358,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
 		@Nullable Scope[] filterableInScopes,
 		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
+		@Nullable Scope[] searchableInScopes,
 		@Nullable Scope[] sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -368,6 +378,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			theUniquenessType,
 			theFilterableInScopes,
 			toAcceleratorsEnumMap(acceleratorsInScopes),
+			ArrayUtils.toEnumSet(Scope.class, searchableInScopes),
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -390,6 +401,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nullable Map<Scope, AttributeUniquenessType> uniquenessTypeInScopes,
 		@Nullable Set<Scope> filterableInScopes,
 		@Nullable Map<Scope, Set<AttributeFilterAccelerator>> acceleratorsInScopes,
+		@Nullable Set<Scope> searchableInScopes,
 		@Nullable Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -405,6 +417,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			uniquenessTypeInScopes,
 			filterableInScopes,
 			acceleratorsInScopes,
+			searchableInScopes,
 			sortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -428,6 +441,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nullable Map<Scope, AttributeUniquenessType> uniquenessTypeInScopes,
 		@Nullable Set<Scope> filterableInScopes,
 		@Nullable Map<Scope, Set<AttributeFilterAccelerator>> acceleratorsInScopes,
+		@Nullable Set<Scope> searchableInScopes,
 		@Nullable Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -443,6 +457,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			uniquenessTypeInScopes,
 			filterableInScopes,
 			acceleratorsInScopes,
+			searchableInScopes,
 			sortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -466,6 +481,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
 		@Nullable Scope[] filterableInScopes,
 		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
+		@Nullable Scope[] searchableInScopes,
 		@Nullable Scope[] sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -485,6 +501,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			theUniquenessType,
 			theFilterableInScopes,
 			toAcceleratorsEnumMap(acceleratorsInScopes),
+			ArrayUtils.toEnumSet(Scope.class, searchableInScopes),
 			theSortableInScopes,
 			localized, nullable, representative,
 			type, defaultValue,
@@ -501,6 +518,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		@Nullable Map<Scope, AttributeUniquenessType> uniquenessTypeInScopes,
 		@Nullable Set<Scope> filterableInScopes,
 		@Nullable Map<Scope, Set<AttributeFilterAccelerator>> acceleratorsInScopes,
+		@Nullable Set<Scope> searchableInScopes,
 		@Nullable Set<Scope> sortableInScopes,
 		boolean localized,
 		boolean nullable,
@@ -526,6 +544,9 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 		);
 		this.acceleratorsInScopes = normalizeAccelerators(
 			name, EvitaDataTypes.toWrappedForm(type), acceleratorsInScopes
+		);
+		this.searchableInScopes = CollectionUtils.toUnmodifiableSet(
+			searchableInScopes == null ? EnumSet.noneOf(Scope.class) : searchableInScopes
 		);
 		this.sortableInScopes = CollectionUtils.toUnmodifiableSet(
 			sortableInScopes == null ? EnumSet.noneOf(Scope.class) : sortableInScopes
@@ -707,6 +728,11 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 	}
 
 	@Override
+	public boolean isSearchableInScope(@Nonnull Scope scope) {
+		return this.searchableInScopes.contains(scope);
+	}
+
+	@Override
 	public boolean isSortableInScope(@Nonnull Scope scope) {
 		return this.sortableInScopes.contains(scope);
 	}
@@ -728,6 +754,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 				this.uniquenessTypeInScopes,
 				this.filterableInScopes,
 				this.acceleratorsInScopes,
+				this.searchableInScopes,
 				this.sortableInScopes,
 				this.localized,
 				this.nullable,
@@ -746,6 +773,7 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 				this.uniquenessTypeInScopes,
 				this.filterableInScopes,
 				this.acceleratorsInScopes,
+				this.searchableInScopes,
 				this.sortableInScopes,
 				this.localized,
 				this.nullable,
@@ -771,6 +799,8 @@ public sealed class AttributeSchema implements AttributeSchemaContract
 			(this.filterableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.filterableInScopes) + ")") +
 			(this.acceleratorsInScopes.isEmpty() ?
 				"" : ", accelerators=(" + joinAccelerators(this.acceleratorsInScopes) + ")") +
+			", searchable=" +
+			(this.searchableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.searchableInScopes) + ")") +
 			", sortable=" +
 			(this.sortableInScopes.isEmpty() ? "no" : "(in scopes: " + join(this.sortableInScopes) + ")") +
 			", localized=" + this.localized +

@@ -49,7 +49,8 @@ public sealed interface ComponentLoader
 	AttributeCardinalityIndexMapLoader,
 	HistogramIndexMapLoader,
 	ReferenceTypeCardinalityLoader,
-	GroupCardinalityLoader {
+	GroupCardinalityLoader,
+	FulltextIndexMapLoader {
 
 	/**
 	 * Reloads this loader's sub-index family from the storage parts referenced by

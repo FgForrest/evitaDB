@@ -105,6 +105,7 @@ import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcEvitaSessionResponse;
 import io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateRequest;
 import io.evitadb.externalApi.grpc.generated.GrpcGetCatalogStateResponse;
+import io.evitadb.externalApi.grpc.requestResponse.ErrorInfoConverter;
 import io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter;
 import io.evitadb.externalApi.grpc.requestResponse.cdc.ChangeCaptureConverter;
 import io.evitadb.externalApi.grpc.requestResponse.schema.mutation.DelegatingEngineMutationConverter;
@@ -585,6 +586,10 @@ public class EvitaClient implements EvitaContract {
 	 * The status name is therefore only prepended on the fallback path, where the description carries no code and the
 	 * name is the sole classification available.
 	 *
+	 * An `INVALID_ARGUMENT` status whose error details describe one of the exceptions {@link ErrorInfoConverter} can
+	 * rebuild is turned into that exception rather than into a generic {@link EvitaInvalidUsageException}; any other
+	 * status is transformed as described above.
+	 *
 	 * Package-private rather than private so `EvitaClientErrorTransformationTest` can drive it directly; it needs no
 	 * server, and standing up one to assert on a regex would only obscure what is being tested.
 	 *
@@ -607,6 +612,13 @@ public class EvitaClient implements EvitaContract {
 			onUnauthenticated.run();
 			return new InstanceTerminatedException("session");
 		} else if (statusCode == Code.INVALID_ARGUMENT || statusCode == Code.PERMISSION_DENIED) {
+			// a recognised exception whose fields the server sent along is rebuilt as itself - a consumer reacting
+			// to it (a refused change capture resume position, history out of retention) needs its type and
+			// fields, not just the error code and message
+			final EvitaInvalidUsageException typedException = ErrorInfoConverter.toTypedException(statusRuntimeException);
+			if (typedException != null) {
+				return typedException;
+			}
 			return codeRecovered ?
 				EvitaInvalidUsageException.createExceptionWithErrorCode(
 					expectedFormat.group(2), expectedFormat.group(1)

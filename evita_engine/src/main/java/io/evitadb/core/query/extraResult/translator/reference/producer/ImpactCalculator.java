@@ -47,7 +47,8 @@ public interface ImpactCalculator {
 	 * Blank implementation of this interface always return null {@link RequestImpact} - meaning, that the data was
 	 * not computed.
 	 */
-	ImpactCalculator NO_IMPACT = (entityType, facetId, facetGroupId, required, facetEntityIds) -> null;
+	ImpactCalculator NO_IMPACT =
+		(entityType, facetId, facetGroupId, required, facetEntityIds, facetGroupOccurrences) -> null;
 
 	/**
 	 * Computes and returns {@link RequestImpact} data. The impact object captures the situation how many products
@@ -58,6 +59,7 @@ public interface ImpactCalculator {
 	 * @param facetGroupId    {@link GroupEntityReference#getPrimaryKey()} the facet is part of
 	 * @param required        true if facet is currently selected within {@link UserFilter} of the {@link EvitaRequest}
 	 * @param facetEntityIds  bitmaps that represent primary keys of all entities that posses this facet
+	 * @param facetGroupOccurrences the groups the facet is referenced under - selecting it selects it in each of them
 	 * @return computed {@link RequestImpact} object
 	 */
 	@Nullable
@@ -66,7 +68,8 @@ public interface ImpactCalculator {
 		int facetId,
 		@Nullable Integer facetGroupId,
 		boolean required,
-		@Nonnull Bitmap[] facetEntityIds
+		@Nonnull Bitmap[] facetEntityIds,
+		@Nonnull FacetGroupOccurrences facetGroupOccurrences
 	);
 
 }

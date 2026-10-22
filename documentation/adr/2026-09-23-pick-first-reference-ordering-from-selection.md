@@ -1,7 +1,7 @@
 ---
 title: A pick-first reference ordering sorts on the first row of every selected owner, resolved from the selection rather than from the filter
 date: 2026-09-23
-updated: 2026-09-30 14:30
+updated: 2026-10-06 11:45
 status: accepted
 kind: fix
 issues: [1614]
@@ -14,7 +14,7 @@ areas:
   - documentation/user/en/query/ordering
 supersedes: []
 superseded-by: []
-relates: [2026-09-18-reference-planning-from-owner-membership, 2026-09-15-bidirectional-reference-counterpart-rewrite]
+relates: [2026-09-18-reference-planning-from-owner-membership, 2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-10-08-scope-faithful-planning-and-facet-summary-parity]
 ---
 
 # A pick-first reference ordering sorts on the first row of every selected owner, resolved from the selection
@@ -359,6 +359,9 @@ a measured production shape: that is where the per-query cost still follows `row
   without that widening the gather would find no membership for most references and fall back to the family walk.
 - `2026-09-15-bidirectional-reference-counterpart-rewrite` - its ordering guard exists because of the narrowing this
   record removes for comparable pick-first orderings.
+- `2026-10-08-scope-faithful-planning-and-facet-summary-parity` - the pick-first path without rows translates its children over one empty reduced
+  index (`ReferencePropertyTranslator#checkChildConstraintsWithoutRows`), so an ordering the schema refuses fails
+  whether or not an owner holds a row, and the prefetch it would register is discarded.
 
 ## Timeline
 

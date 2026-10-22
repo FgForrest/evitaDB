@@ -35,6 +35,7 @@ import io.evitadb.index.IndexType;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor.Target;
 import io.evitadb.index.mutation.local.EntitySchemaAttributeAndCompoundSchemaProvider;
+import io.evitadb.index.mutation.local.FulltextIndexMutator;
 import io.evitadb.index.mutation.local.ReferenceIndexConsumer;
 import io.evitadb.index.mutation.local.ReferenceIndexMutator;
 import io.evitadb.index.mutation.local.dataAccess.ExistingAttributeValueSupplier;
@@ -44,8 +45,8 @@ import javax.annotation.Nonnull;
 /**
  * Shared entity-side fan-out used by all three concrete attribute-mutation handlers
  * (`Upsert`, `Remove`, `ApplyDelta`). The three differ only in the inner branch of
- * `updateAttribute` — every step before and after (pre-mutation capture, global update, unique
- * fan-out across reduced indexes, deferred facet re-evaluation) is identical, so it lives here
+ * `updateAttribute` — every step before and after (pre-mutation capture, global update, fulltext
+ * update, unique fan-out across reduced indexes, deferred facet re-evaluation) is identical, so it lives here
  * exactly once. The handlers are thin shells whose only responsibility is naming the concrete
  * mutation class.
  */
@@ -56,11 +57,12 @@ final class AttributeMutationFanOut {
 	}
 
 	/**
-	 * Applies the attribute mutation to the global index, then fans out to every unique reduced
-	 * index via `IterationPath.BOTH`. The unique fan-out is required because entity-level
-	 * attribute bookkeeping is indexed once per (entity, reduced-index) pair — a per-reference
-	 * variant would double-decrement the `AttributeCardinalityIndex` whenever N sibling references
-	 * resolve to a single shared `ReducedGroupEntityIndex`.
+	 * Applies the attribute mutation to the global index and to the fulltext indexes the global index
+	 * holds (see {@link FulltextIndexMutator#executeAttributeMutation}, which takes no part in the fan-out),
+	 * then fans out to every unique reduced index via `IterationPath.BOTH`. The unique fan-out is
+	 * required because entity-level attribute bookkeeping is indexed once per (entity, reduced-index)
+	 * pair — a per-reference variant would double-decrement the `AttributeCardinalityIndex` whenever N
+	 * sibling references resolve to a single shared `ReducedGroupEntityIndex`.
 	 */
 	static void apply(
 		@Nonnull AttributeMutation mutation,
@@ -101,6 +103,8 @@ final class AttributeMutationFanOut {
 		}
 		//noinspection DataFlowIssue
 		applicator.accept(true, globalIndex, globalIndex, null);
+		// the fulltext indexes live in the global index only, so they take no part in the fan-out below
+		FulltextIndexMutator.executeAttributeMutation(executor, globalIndex, mutation, entityAttributeValueSupplier);
 		// Entity-level attribute mutations fan out to every reference reduced index. When multiple
 		// references on the same entity resolve to the same shared `ReducedGroupEntityIndex` (shared
 		// group + representative attribute values), the entity-level bookkeeping — indexed once per

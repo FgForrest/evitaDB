@@ -66,7 +66,8 @@ message GrpcReferenceGroupStatistics {
   GrpcEntityReference groupEntityReference = 2;
   // Contains referenced entity representing this group.
   GrpcSealedEntity groupEntity = 3;
-  // Contains number of distinct entities in the response that possess any reference in this group.
+  // Contains number of distinct entities of the query result, filtered without its user filter part, that possess
+  // any reference in this group.
   int32 count = 4;
   // Contains statistics of individual facets.
   repeated GrpcFacetStatistics facetStatistics = 5;
@@ -88,7 +89,8 @@ message GrpcFacetGroupStatistics {
   GrpcEntityReference groupEntityReference = 2;
   // Contains referenced entity representing this group.
   GrpcSealedEntity groupEntity = 3;
-  // Contains number of distinct entities in the response that possess any reference in this group.
+  // Contains number of distinct entities of the query result, filtered without its user filter part, that possess
+  // any reference in this group.
   int32 count = 4;
   // Contains statistics of individual facets.
   repeated GrpcFacetStatistics facetStatistics = 5;
@@ -102,7 +104,10 @@ message GrpcFacetStatistics {
   GrpcSealedEntity facetEntity = 2;
   // Contains TRUE if the facet was part of the query filtering constraints.
   bool requested = 3;
-  // Contains number of distinct entities in the response that possess of this reference.
+  // Contains number of distinct entities of the query result, filtered without its user filter part, that possess
+  // this reference under the group of the statistics - or, when the query negates the group, that do not possess it
+  // under that group. A facet referenced under several groups is listed in each of them, and each entry counts only
+  // the entities referencing the facet (or, in a negated group, not referencing it) under its own group.
   int32 count = 4;
   // This field is not null only when this facet is not requested.
   // Contains projected impact on the current response if this facet is also requested in filtering constraints.

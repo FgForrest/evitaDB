@@ -75,7 +75,7 @@ public class EntityIndexStoragePartDeprecated extends EntityIndexStoragePart {
 		super(
 			primaryKey, version, entityIndexKey,
 			entityIds, entityIdsByLanguage, attributeIndexes, priceIndexes, hierarchyIndex, facetIndexes,
-			java.util.Collections.emptySet()
+			java.util.Collections.emptySet(), java.util.Collections.emptySet()
 		);
 		this.internalPriceIdSequence = internalPriceIdSequence;
 		this.referenceTypeCardinalityIndex = referenceTypeCardinalityIndex;

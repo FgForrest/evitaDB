@@ -1361,7 +1361,7 @@ private static final long serialVersionUID = 0L;
    * <pre>
    * Binds a `GrpcFacetGroupRelationLevel` enum parameter into the query, used by facet summary
    * impact calculation to select whether the relation applies between facets in the same group or
-   * across different groups/references.
+   * across different groups of the same reference.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
@@ -1374,7 +1374,7 @@ private static final long serialVersionUID = 0L;
    * <pre>
    * Binds a `GrpcFacetGroupRelationLevel` enum parameter into the query, used by facet summary
    * impact calculation to select whether the relation applies between facets in the same group or
-   * across different groups/references.
+   * across different groups of the same reference.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
@@ -1390,7 +1390,7 @@ private static final long serialVersionUID = 0L;
    * <pre>
    * Binds a `GrpcFacetGroupRelationLevel` enum parameter into the query, used by facet summary
    * impact calculation to select whether the relation applies between facets in the same group or
-   * across different groups/references.
+   * across different groups of the same reference.
    * </pre>
    *
    * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
@@ -7498,7 +7498,7 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Binds a `GrpcFacetGroupRelationLevel` enum parameter into the query, used by facet summary
      * impact calculation to select whether the relation applies between facets in the same group or
-     * across different groups/references.
+     * across different groups of the same reference.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
@@ -7512,7 +7512,7 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Binds a `GrpcFacetGroupRelationLevel` enum parameter into the query, used by facet summary
      * impact calculation to select whether the relation applies between facets in the same group or
-     * across different groups/references.
+     * across different groups of the same reference.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
@@ -7529,7 +7529,7 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Binds a `GrpcFacetGroupRelationLevel` enum parameter into the query, used by facet summary
      * impact calculation to select whether the relation applies between facets in the same group or
-     * across different groups/references.
+     * across different groups of the same reference.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
@@ -7546,7 +7546,7 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Binds a `GrpcFacetGroupRelationLevel` enum parameter into the query, used by facet summary
      * impact calculation to select whether the relation applies between facets in the same group or
-     * across different groups/references.
+     * across different groups of the same reference.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
@@ -7565,7 +7565,7 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Binds a `GrpcFacetGroupRelationLevel` enum parameter into the query, used by facet summary
      * impact calculation to select whether the relation applies between facets in the same group or
-     * across different groups/references.
+     * across different groups of the same reference.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>
@@ -7585,7 +7585,7 @@ private static final long serialVersionUID = 0L;
      * <pre>
      * Binds a `GrpcFacetGroupRelationLevel` enum parameter into the query, used by facet summary
      * impact calculation to select whether the relation applies between facets in the same group or
-     * across different groups/references.
+     * across different groups of the same reference.
      * </pre>
      *
      * <code>.io.evitadb.externalApi.grpc.generated.GrpcFacetGroupRelationLevel facetGroupRelationLevel = 26;</code>

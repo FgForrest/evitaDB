@@ -226,6 +226,7 @@ class EntityIndexRoundTripTest {
 			new Scope[]{Scope.LIVE},
 			null,
 			null,
+			null,
 			false, false, false,
 			type, null,
 			ConflictResolutionOverride.INHERITED
@@ -478,7 +479,7 @@ class EntityIndexRoundTripTest {
 					uniqueIndexes.put(
 						attrKey,
 						new OwnerUniqueIndex(
-							entityType, attrKey, uniquePart.getType(),
+							entityType, attrKey, uniquePart.getType(), 0,
 							Objects.requireNonNull(uniquePart.getValues()),
 							Objects.requireNonNull(uniquePart.getRecordIds())
 						)
@@ -1324,7 +1325,7 @@ class EntityIndexRoundTripTest {
 			final EntityIndexStoragePart legacyManifest = new EntityIndexStoragePart(
 				INDEX_PK, 1, key,
 				entityIds, entityIdsByLanguage,
-				Set.of(), Set.of(), false, Set.of(), Set.of()
+				Set.of(), Set.of(), false, Set.of(), Set.of(), Set.of()
 			);
 			final CapturedStorage storage = new CapturedStorage();
 			// mirror the on-disk shape of an older-format catalog: the manifest carries the bitmaps

@@ -53,7 +53,7 @@ import java.util.Set;
  */
 @ToString(of = "entityIndexKey")
 public class EntityIndexStoragePart implements StoragePart {
-	@Serial private static final long serialVersionUID = -3842757193845629481L;
+	@Serial private static final long serialVersionUID = 2363223814817045376L;
 
 	/**
 	 * Unique id that identifies {@link io.evitadb.index.EntityIndex}.
@@ -108,11 +108,16 @@ public class EntityIndexStoragePart implements StoragePart {
 	 * allows to locate both filter and cardinality sub-parts in persistent storage.
 	 */
 	@Getter private final Set<HistogramIndexStorageKey> histogramIndexes;
+	/**
+	 * Contains references to the {@link FulltextIndexStoragePart} roots in the form of {@link FulltextIndexKey} - one
+	 * per locale the index keeps a fulltext index for. Empty in every manifest written before the 2026.3 format.
+	 */
+	@Getter private final Set<FulltextIndexKey> fulltextIndexes;
 
 	/**
 	 * Canonical constructor used by backward-compatible serializers and migrations that still carry the
-	 * entity-id bitmaps inline. The current (2026.2) write path uses the bitmap-less constructor
-	 * {@link #EntityIndexStoragePart(int, int, EntityIndexKey, Set, Set, boolean, Set, Set)} instead.
+	 * entity-id bitmaps inline. The current write path uses the bitmap-less constructor
+	 * {@link #EntityIndexStoragePart(int, int, EntityIndexKey, Set, Set, boolean, Set, Set, Set)} instead.
 	 */
 	public EntityIndexStoragePart(
 		int primaryKey,
@@ -124,7 +129,8 @@ public class EntityIndexStoragePart implements StoragePart {
 		@Nonnull Set<PriceIndexKey> priceIndexes,
 		boolean hierarchyIndex,
 		@Nonnull Set<String> facetIndexes,
-		@Nonnull Set<HistogramIndexStorageKey> histogramIndexes
+		@Nonnull Set<HistogramIndexStorageKey> histogramIndexes,
+		@Nonnull Set<FulltextIndexKey> fulltextIndexes
 	) {
 		this.primaryKey = primaryKey;
 		this.version = version;
@@ -136,11 +142,12 @@ public class EntityIndexStoragePart implements StoragePart {
 		this.hierarchyIndex = hierarchyIndex;
 		this.facetIndexes = facetIndexes;
 		this.histogramIndexes = histogramIndexes;
+		this.fulltextIndexes = fulltextIndexes;
 	}
 
 	/**
-	 * Modern (2026.2) constructor: the entity-id bitmaps are persisted separately in a sibling
-	 * {@link EntityIdsStoragePart}, so this manifest carries no inline bitmaps ({@link #entityIds} and
+	 * Constructor of the current format, in which the entity-id bitmaps are persisted separately in a sibling
+	 * {@link EntityIdsStoragePart} (since 2026.2), so this manifest carries no inline bitmaps ({@link #entityIds} and
 	 * {@link #entityIdsByLanguage} are left `null`).
 	 */
 	public EntityIndexStoragePart(
@@ -151,12 +158,13 @@ public class EntityIndexStoragePart implements StoragePart {
 		@Nonnull Set<PriceIndexKey> priceIndexes,
 		boolean hierarchyIndex,
 		@Nonnull Set<String> facetIndexes,
-		@Nonnull Set<HistogramIndexStorageKey> histogramIndexes
+		@Nonnull Set<HistogramIndexStorageKey> histogramIndexes,
+		@Nonnull Set<FulltextIndexKey> fulltextIndexes
 	) {
 		this(
 			primaryKey, version, entityIndexKey,
 			null, null,
-			attributeIndexes, priceIndexes, hierarchyIndex, facetIndexes, histogramIndexes
+			attributeIndexes, priceIndexes, hierarchyIndex, facetIndexes, histogramIndexes, fulltextIndexes
 		);
 	}
 

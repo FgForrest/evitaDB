@@ -27,7 +27,9 @@ import io.evitadb.api.CommitProgress.CommitVersions;
 import io.evitadb.api.CommitProgressRecord;
 import io.evitadb.api.configuration.ChangeDataCaptureOptions;
 import io.evitadb.api.configuration.EvitaConfiguration;
+import io.evitadb.api.exception.ChangeCaptureResumePositionInvalidException;
 import io.evitadb.api.exception.ConflictingCatalogMutationException;
+import io.evitadb.api.exception.InstanceTerminatedException;
 import io.evitadb.api.exception.TransactionException;
 import io.evitadb.api.exception.TransactionTimedOutException;
 import io.evitadb.api.requestResponse.cdc.ChangeCapturePublisher;
@@ -61,6 +63,7 @@ import io.evitadb.core.buffer.RingBuffer.OutsideScopeException;
 import io.evitadb.core.catalog.Catalog;
 import io.evitadb.core.cdc.CatalogChangeObserver;
 import io.evitadb.core.cdc.ChangeCatalogObserverContract;
+import io.evitadb.core.cdc.ResumePositionValidator;
 import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.ObservableExecutorService;
 import io.evitadb.core.executor.Scheduler;
@@ -168,6 +171,13 @@ public class TransactionManager implements Closeable {
 	 */
 	private final Consumer<Catalog> newCatalogVersionConsumer;
 	/**
+	 * Identity of the catalog incarnation this manager serves. Every catalog version derived from another one inherits
+	 * both its identity and its transaction manager, and a rename keeps both, so the identity never changes during the
+	 * manager's lifetime (see {@link #notifyCatalogPresentInLiveView(Catalog)}). Kept here rather than read from a
+	 * catalog instance, because those references are cleared when the manager closes.
+	 */
+	private final UUID catalogId;
+	/**
 	 * Contains the latest version created for appending to the WAL - this practically represents a sequence
 	 * number increased with each committed transaction and denotes the next catalog version.
 	 */
@@ -226,7 +236,8 @@ public class TransactionManager implements Closeable {
 	 * The catalog is being exchanged regularly and the instance of the TransactionManager is not recreated - i.e. stays
 	 * the same for different catalog versions and is propagated throughout the whole lifetime of the "logical" catalog.
 	 *
-	 * This catalog might not be visible yet in evita instance and may differ from {@link #livingCatalog}.
+	 * This catalog might not be visible yet in evita instance and may differ from {@link #livingCatalog}. It is `null`
+	 * once this manager has been closed.
 	 */
 	private final AtomicReference<Catalog> lastFinalizedCatalog;
 	/**
@@ -416,6 +427,7 @@ public class TransactionManager implements Closeable {
 		this.transactionalExecutor = transactionalExecutor;
 		this.transactionalPipeline = createTransactionalPublisher();
 		this.newCatalogVersionConsumer = newCatalogVersionConsumer;
+		this.catalogId = catalog.getCatalogId();
 		this.transactionAcceptanceTimeout = this.configuration.transaction().waitForTransactionAcceptanceInMillis();
 		final ChangeDataCaptureOptions cdcOptions = this.configuration.server().changeDataCapture();
 		this.changeObserver = cdcOptions.enabled() ?
@@ -615,11 +627,12 @@ public class TransactionManager implements Closeable {
 	 * and reloading simply replays the transaction, whereas a post-durability failure leaves disk holding a version
 	 * whose incorporation did not pass, which a reload would land straight back on.
 	 *
-	 * @param catalogVersion the version whose incorporation failed
+	 * @param lastFinalizedCatalog the last finalized catalog, read by the caller while this manager was still open
+	 * @param catalogVersion       the version whose incorporation failed
 	 * @return true when the version is already on disk
 	 */
-	private boolean isVersionPersisted(long catalogVersion) {
-		return getLastFinalizedCatalog().getLastPersistedCatalogVersion() >= catalogVersion;
+	private static boolean isVersionPersisted(@Nonnull Catalog lastFinalizedCatalog, long catalogVersion) {
+		return lastFinalizedCatalog.getLastPersistedCatalogVersion() >= catalogVersion;
 	}
 
 	/**
@@ -720,12 +733,18 @@ public class TransactionManager implements Closeable {
 		if (numberOfDroppedCatalogVersions > 0) {
 			this.lastAssignedCatalogVersion.addAndGet(-numberOfDroppedCatalogVersions);
 			this.accumulatedCatalogSchemaVersionDelta.addAndGet(-schemaVersionDelta);
+			// releasing a reservation is the cleanup of a commit that failed - possibly because this manager was
+			// closed under it - so it goes through on a closed manager too. Only the cross-check needs the living
+			// catalog, and a closed manager has none left to check against
 			final Catalog theLivingCatalog = getLivingCatalog();
-			final long theLastAssignedCatalogVersion = getLastAssignedCatalogVersion();
-			Assert.isPremiseValid(
-				theLastAssignedCatalogVersion >= theLivingCatalog.getVersion(),
-				"Unexpected catalog version " + theLivingCatalog.getVersion() + " vs. " + theLastAssignedCatalogVersion + "!"
-			);
+			if (theLivingCatalog != null) {
+				final long theLastAssignedCatalogVersion = getLastAssignedCatalogVersion();
+				Assert.isPremiseValid(
+					theLastAssignedCatalogVersion >= theLivingCatalog.getVersion(),
+					() -> "Unexpected catalog version " + theLivingCatalog.getVersion() + " vs. " +
+						theLastAssignedCatalogVersion + "!"
+				);
+			}
 		} else if (numberOfDroppedCatalogVersions < 0) {
 			throw new GenericEvitaInternalError("Negative number of dropped catalog versions!");
 		}
@@ -856,7 +875,7 @@ public class TransactionManager implements Closeable {
 	 * durable **before** calling this - see {@link Catalog#syncWal()}.
 	 */
 	public void syncWal() {
-		getLivingCatalog().syncWal();
+		requireLivingCatalog().syncWal();
 	}
 
 	/**
@@ -920,9 +939,36 @@ public class TransactionManager implements Closeable {
 	/**
 	 * Notifies the system that a catalog is present in the live view.
 	 * This method is used to indicate that a catalog is currently available in the live view.
+	 *
+	 * Every premise is verified before any state is touched: a refusal half-way through would leave the living
+	 * catalog, the finalized catalog and the change observer each describing a different catalog.
+	 *
+	 * @param livingCatalog the catalog instance now present in the live view, of the incarnation this manager serves
+	 * @throws InstanceTerminatedException when this manager has already been closed
 	 */
 	public void notifyCatalogPresentInLiveView(@Nonnull Catalog livingCatalog) {
 		final Catalog previousLivingCatalog = getLivingCatalog();
+		// the living catalog is absent only once this manager has been closed - which happens when its catalog is
+		// terminated, and takes the change observer and the pipeline down with it. A publication arriving later
+		// raced that termination (a commit or a write-ahead log replay finishing during shutdown or deactivation) and
+		// has no live view left to enter. It is refused before any state is touched, just as the closed change
+		// observer would refuse it, rather than handing a closed manager a catalog it would keep for ever. The check
+		// is not atomic with `close()`: a publication already past it still reaches the closed observer, which
+		// refuses it as well
+		if (previousLivingCatalog == null) {
+			throw createTerminatedException();
+		}
+		// a transaction manager serves exactly one catalog incarnation - every catalog version derived from another
+		// one inherits both its identity and its transaction manager, and a rename keeps both - so the identity
+		// never changes here. The change observer's shared publishers rely on it: they stamp every capture with the
+		// identity they were created with, and a catalog of another incarnation reaching them would make those
+		// captures lie about the version sequence they belong to
+		Assert.isPremiseValid(
+			Objects.equals(previousLivingCatalog.getCatalogId(), livingCatalog.getCatalogId()),
+			() -> "The transaction manager of catalog `" + previousLivingCatalog.getCatalogId() + "` cannot " +
+				"publish catalog `" + livingCatalog.getCatalogId() + "` - a different incarnation has its own " +
+				"transaction manager!"
+		);
 		final long catalogVersion = livingCatalog.getVersion();
 		if (catalogVersion > 0L) {
 			// what this guards is that the live view never regresses to an older state - so the comparison is
@@ -934,13 +980,13 @@ public class TransactionManager implements Closeable {
 			// would reject a republication of the very same instance that used to be allowed at any version
 			Assert.isPremiseValid(
 				previousLivingCatalog.getVersion() <= catalogVersion || previousLivingCatalog == livingCatalog,
-				"Catalog versions must be in order! " +
+				() -> "Catalog versions must be in order! " +
 					"Expected " + previousLivingCatalog.getVersion() + ", got " + catalogVersion + "."
 			);
 			final long theLastFinalizedVersion = getLastFinalizedCatalogVersion();
 			Assert.isPremiseValid(
 				theLastFinalizedVersion >= catalogVersion,
-				"Catalog versions must be in order! " +
+				() -> "Catalog versions must be in order! " +
 					"Expected " + theLastFinalizedVersion + ", got " + catalogVersion + "."
 			);
 		}
@@ -1012,7 +1058,7 @@ public class TransactionManager implements Closeable {
 					"Reserved catalog version " + reservedCatalogVersion + " must directly follow " +
 						"the last assigned catalog version " + theLastAssignedCatalogVersion + "!"
 				);
-				final Catalog theLivingCatalog = getLivingCatalog();
+				final Catalog theLivingCatalog = requireLivingCatalog();
 				final long livingCatalogVersion = theLivingCatalog.getVersion();
 				final Map<Object, CommutativeConflictResolver<?>> aggregates =
 					initializeAggregatesIfNecessary(conflictKeys);
@@ -1150,7 +1196,7 @@ public class TransactionManager implements Closeable {
 		// missing from the pool is not merely garbage: the pool mints a replacement, so the count of instances
 		// a writer and its readers share creeps upward for as long as the process runs.
 		try (
-			final Stream<CatalogBoundMutation> committedMutations = getLivingCatalog()
+			final Stream<CatalogBoundMutation> committedMutations = theLivingCatalog
 				// both bounds are the engine's own bookkeeping, so a version missing from the log is genuine
 				// damage
 				.getCommittedLiveMutationStream(
@@ -1362,7 +1408,7 @@ public class TransactionManager implements Closeable {
 					"Transaction cannot be written to the WAL out of order. " +
 						"Expected version " + (theLastWrittenCatalogVersion + 1) + ", got " + transactionMutation.getVersion() + "."
 				);
-				return getLivingCatalog()
+				return requireLivingCatalog()
 					.appendWalAndDiscardDeferringSync(
 						transactionMutation,
 						walReference
@@ -1567,13 +1613,19 @@ public class TransactionManager implements Closeable {
 					// we need to forget about the data written to disk, but not yet propagated to indexes (volatile data)
 					latestCatalog.forgetVolatileData();
 					final Catalog catalog = this.lastFinalizedCatalog.get();
+					if (catalog == null) {
+						// the manager was closed while this round ran - `close()` took the change observer down and
+						// failed every commit still pending, so there are no captures left to retract and no later
+						// round to suspend. Reading the getter here would replace the failure with the closed state
+						throw ex;
+					}
 					this.changeObserver.forgetMutationsAfter(catalog, catalog.getVersion());
 
 					if (collectingVersion >= 0) {
 						// a failed flush/merge: suspend rather than retry. The retry is what would diff the next flush
 						// against the baselines this one left behind, and it can never succeed by repetition anyway -
 						// a deterministic failure spins forever, a transient one corrupts.
-						suspend(ex, isVersionPersisted(collectingVersion), collectingVersion);
+						suspend(ex, isVersionPersisted(catalog, collectingVersion), collectingVersion);
 					}
 					// rethrow the exception - a failure BEFORE the collect (an unreadable WAL tail, a replay error) is
 					// still safely retryable and keeps its bounded retry
@@ -1661,7 +1713,8 @@ public class TransactionManager implements Closeable {
 	 */
 	public void waitUntilLiveVersionReaches(long catalogVersion) {
 		waitUntilVersionReaches(
-			() -> getLivingCatalog().getVersion(),
+			// a closed manager never publishes again, so the wait ends with the closure rather than at its deadline
+			() -> requireLivingCatalog().getVersion(),
 			catalogVersion,
 			safetyDeadlineMs(),
 			getCatalogName()
@@ -1742,11 +1795,26 @@ public class TransactionManager implements Closeable {
 	/**
 	 * Returns the current catalog instance that is visible as living catalog instance to all the queries.
 	 *
-	 * @return the living catalog instance visible to all queries
+	 * @return the living catalog instance visible to all queries, `null` once this manager has been closed
 	 */
-	@Nonnull
+	@Nullable
 	public Catalog getLivingCatalog() {
 		return this.livingCatalog.get();
+	}
+
+	/**
+	 * Returns the living catalog for work that cannot proceed without one.
+	 *
+	 * @return the living catalog instance visible to all queries
+	 * @throws InstanceTerminatedException when this manager has already been closed
+	 */
+	@Nonnull
+	private Catalog requireLivingCatalog() {
+		final Catalog theLivingCatalog = this.livingCatalog.get();
+		if (theLivingCatalog == null) {
+			throw createTerminatedException();
+		}
+		return theLivingCatalog;
 	}
 
 	/**
@@ -1757,20 +1825,45 @@ public class TransactionManager implements Closeable {
 	 * This catalog might not be visible yet in evita instance and may differ from {@link #livingCatalog}.
 	 *
 	 * @return the latest catalog instance visible only to trunk incorporation stage
+	 * @throws InstanceTerminatedException when this manager has already been closed - it no longer holds any catalog
 	 */
 	@Nonnull
 	public Catalog getLastFinalizedCatalog() {
-		return this.lastFinalizedCatalog.get();
+		final Catalog theLastFinalizedCatalog = this.lastFinalizedCatalog.get();
+		if (theLastFinalizedCatalog == null) {
+			throw createTerminatedException();
+		}
+		return theLastFinalizedCatalog;
 	}
 
 	/**
 	 * Registers an observer to capture changes based on the provided request.
 	 *
+	 * The resume position of the request is verified here, at the single boundary every catalog change capture
+	 * registration passes, so that no entry point can create a subscription the check would have refused. It is
+	 * judged against this manager's incarnation and its last finalized version: finalization precedes every way a
+	 * version becomes visible - to new sessions and, later still, to the change observer - so no consumer can have
+	 * learnt a version this manager has not finalized yet, while a session or the observer may both still describe
+	 * the version before (see {@link ResumePositionValidator#assertSubscriptionPosition}). The refusal is thrown
+	 * synchronously, before a subscription that would stay silent exists.
+	 *
 	 * @param request the request containing the criteria and configuration for capturing changes
 	 * @return an instance of ChangeCapturePublisher that allows the caller to manage the registered observer
+	 * @throws ChangeCaptureResumePositionInvalidException when the resume position of the request cannot be served by
+	 *                                                     the incarnation this manager serves
 	 */
 	@Nonnull
-	public ChangeCapturePublisher<ChangeCatalogCapture> registerObserver(@Nonnull ChangeCatalogCaptureRequest request) {
+	public ChangeCapturePublisher<ChangeCatalogCapture> registerObserver(
+		@Nonnull ChangeCatalogCaptureRequest request
+	) throws ChangeCaptureResumePositionInvalidException {
+		ResumePositionValidator.assertSubscriptionPosition(
+			request,
+			this.catalogId,
+			getLastFinalizedCatalogVersion(),
+			// consulted only to describe a refusal; a closed manager fails the lookup with
+			// `InstanceTerminatedException`, and the validator keeps the refusal and attaches that failure to it
+			() -> getLastFinalizedCatalog().getFirstReplayableCatalogVersion()
+		);
 		return this.changeObserver.registerObserver(request);
 	}
 
@@ -1789,6 +1882,16 @@ public class TransactionManager implements Closeable {
 		this.pendingCommitProgressRegistry.failAllPending("the transaction manager is being closed");
 		this.livingCatalog.set(null);
 		this.lastFinalizedCatalog.set(null);
+	}
+
+	/**
+	 * Creates the exception every entry point refuses with once this manager has been closed.
+	 *
+	 * @return the exception naming the catalog this manager served
+	 */
+	@Nonnull
+	private InstanceTerminatedException createTerminatedException() {
+		return new InstanceTerminatedException("transaction manager of catalog `" + this.catalogName + "`");
 	}
 
 	/**
@@ -1954,6 +2057,12 @@ public class TransactionManager implements Closeable {
 			// path by the trunk-incorporation stage; the drainer owns no commit-progress record and must not
 			// let an uncaught throw permanently pause this task.
 			return 0;
+		} catch (InstanceTerminatedException ex) {
+			// a drain that was already running when this manager closed: there is no catalog left to drain into,
+			// and the closed task would not run again anyway
+			log.debug(
+				"Draining the WAL of catalog `{}` stopped - its transaction manager was closed.", this.catalogName
+			);
 		}
 		// pause the task
 		return -1;

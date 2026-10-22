@@ -549,24 +549,26 @@ if it does not hold:
     <dd>attributes shared across the whole catalog qualify too, but attributes attached to a
     [reference](#reference) do not. The index is kept per entity collection and never sees values stored on
     references. The plan is to lift this restriction in a future version</dd>
-    <dt>the entity collection does not contain any entities yet</dt>
-    <dd>the index is filled as entities are inserted, and evitaDB has no way to rebuild it for data that is already
-    there - so the accelerator has to be declared before the first entity is inserted</dd>
 </dl>
 
 <Note type="warning">
 
 <NoteTitle toggles="false">
 
-##### You cannot switch this accelerator on for data you already have
+##### Declared over data you already have, the accelerator stays dormant
 </NoteTitle>
 
-Because the declaration is rejected on a collection that already contains entities, there is no way to enable the
-accelerator on an existing, populated catalog in place.
+The accelerator is built as values are written, and evitaDB cannot yet rebuild it for values that are already stored.
+Declaring it on an attribute that already holds values is accepted, but the accelerator stays **dormant**: substring
+queries over that attribute keep scanning, exactly as they did before. The results are correct, but they are not any
+faster. evitaDB logs a warning when the schema change is made and again every time the catalog is loaded, so a dormant
+accelerator is never mistaken for an active one.
 
-The route today is to create a new catalog, declare the accelerator on it before inserting anything, load the data
-into it, and then replace the original catalog with the new one. Plan for this when you size a migration - it is a
-full re-import, not a schema tweak.
+A dormant accelerator becomes active once the attribute holds no values at all - for example after its entities have
+been removed - because the next value starts the index afresh. To accelerate an existing catalog today, create a new
+catalog, declare the accelerator on it before inserting anything, load the data into it, and then replace the
+original catalog with the new one. Plan for this when you size a migration - it is a full re-import, not a schema
+tweak.
 
 </Note>
 
@@ -920,6 +922,8 @@ Each reference schema has a certain cardinality. The cardinality describes the e
 When you allow definition of *duplicate* references using one of the cardinality types: `ZERO_OR_MORE_WITH_DUPLICATES` or `ONE_OR_MORE_WITH_DUPLICATES`, you'll be able to define two references to the same target entity within a single entity instance. In such a case you need to select at least one reference attribute that would make the two references distinguishable and set it as `representative`. The representative attribute would then be used to identify the specific reference when querying or manipulating the entity. If no representative attribute is defined, an exception is thrown when you try to create duplicate references.
 
 There are situations when duplicate references come in handy. Imagine you have an entity type `Product` that has a reference `medias` to an entity of type `Media`. You want to be able to link multiple media items to a single product, and you also want to be able to distinguish between them based on their role (e.g., "thumbnail", "gallery", "video", etc.). In such a case you can define reference attribute `role` as `representative`, and then you'll be able to create multiple references to the same `Media` entity with different `role` values.
+
+A [reflected reference](#reference-directionality) allows duplicates exactly when the original reference it reflects does. It inherits the cardinality of the original reference by default; when it declares its own cardinality, both cardinalities must either allow duplicates or disallow them, and a reflected reference allowing duplicates must also inherit all representative attributes of the original reference. A schema whose two references disagree - whether the mismatch is declared directly or arises later by changing the cardinality of either reference - is refused with an `InvalidSchemaMutationException` when the session that changed the schema closes.
 
 ## Scopes
 

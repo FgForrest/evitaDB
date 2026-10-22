@@ -42,10 +42,9 @@ public enum AttributeIndexType {
 	 * covers are *expected* to agree, which is what makes a divergence between them worth looking into rather than a
 	 * routine ratio to be read for selectivity.
 	 *
-	 * They are not, however, equal by construction, and code must not assume they are: a localized attribute that is
-	 * also globally unique has one locale-less key covering every locale, so one record can own several values in a
-	 * single index. See {@link CollectionIndexCardinality.AttributeCardinality#recordsCovered()} for that case and
-	 * for the membership bitmap's own staleness, which is the other way the two readings part company.
+	 * They are not, however, equal by construction, and code must not assume they are: a localized attribute unique
+	 * across locales has one locale-less key, so one record can own a distinct value per locale in a single index. See
+	 * {@link CollectionIndexCardinality.AttributeCardinality#recordsCovered()} for that case.
 	 */
 	UNIQUE,
 

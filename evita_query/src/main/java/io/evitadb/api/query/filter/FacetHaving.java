@@ -128,6 +128,30 @@ import java.io.Serializable;
  * It matches the same entities as `referenceHaving("brand", entityPrimaryKeyInSet(1, 5))` only when both brands belong to the same facet
  * group (or to none) and no facet group relation is changed by the query: brands of two different groups are combined by logical AND.
  *
+ * ## Facet Groups Belong to References
+ *
+ * The group of a facet is a property of the reference, not of the facet: each reference names its own group, so one
+ * facet may be referenced under several groups - one entity referencing it in group A, another one in group B or
+ * without a group. A selected facet takes part in every group it is referenced under in the searched scopes, each time
+ * with the entities referencing it under that group, and these groups are combined by their relations like the groups
+ * of any other selected facets: by default the facet referenced in groups A and B alone matches only the entities
+ * referencing it in both groups. The facet summary lists such a facet in each of its groups: each entry counts the
+ * entities referencing the facet under its own group, and the impact of every entry predicts the same selection. A
+ * catalog that wants a facet to act as a single option references it under a single group.
+ *
+ * A selected facet no entity of the searched scope references has no reference to take a group from, so it is a facet
+ * without a group there: its term matches no entity and follows the relations of the facets without a group - under the
+ * default conjunction it empties the result, under a disjunction it changes nothing, and under a negation it excludes
+ * nothing. The relations of the group the facet has in another scope do not apply. A query over several scopes that
+ * selects the facet once, for all of them, gives it the groups of every scope that references it, while the same
+ * selection placed in `inScope` containers composes the facet in each scope by the groups of that scope alone, so the
+ * two selections may return different entities.
+ *
+ * Only a filter consisting of exactly one {@link EntityPrimaryKeyInSet} - the way a client selects options by their
+ * primary keys - selects a facet the searched scope does not reference. Any other filter (reference attributes,
+ * {@link EntityHaving}, logical containers, a primary key set next to another constraint, or a filter including the
+ * children of hierarchical facets) selects among the facets the searched scope references only.
+ *
  * ## Faceted Reference Filtering
  *
  * Like {@link ReferenceHaving}, `facetHaving` can filter on reference attributes or referenced entity properties:

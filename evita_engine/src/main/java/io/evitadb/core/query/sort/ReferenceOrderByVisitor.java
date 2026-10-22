@@ -176,10 +176,13 @@ public class ReferenceOrderByVisitor implements ConstraintVisitor, FetchRequirem
 			queryContext,
 			fetchRequirementCollector,
 			referenceSchema,
+			// the ordering is a part of the query, so it records the reference attributes it names - counted when the
+			// ordering is checked while the query is planned, see `ReferencedEntityFetcher#verifyReferenceOrdering`
 			new AttributeSchemaAccessor(
 				queryContext.getCatalogSchema(),
 				entitySchema,
-				__ -> referenceSchema
+				__ -> referenceSchema,
+				queryContext
 			)
 		);
 		orderBy.accept(orderVisitor);

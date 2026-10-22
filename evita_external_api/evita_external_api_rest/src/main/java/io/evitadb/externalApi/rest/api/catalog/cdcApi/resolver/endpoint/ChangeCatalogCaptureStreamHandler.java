@@ -61,6 +61,7 @@ public class ChangeCatalogCaptureStreamHandler extends RestWebSocketHandler<Cata
 			null,
 			null,
 			null,
+			null,
 			ChangeCaptureContent.HEADER
 		);
 

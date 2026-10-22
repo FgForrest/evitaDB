@@ -24,6 +24,7 @@
 package io.evitadb.api.requestResponse.data.annotation;
 
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
@@ -110,6 +111,21 @@ public @interface Attribute {
 	boolean sortable() default false;
 
 	/**
+	 * Asks the attribute's filter index to maintain the listed optional accelerators, each speeding up one particular
+	 * shape of filter at the price of additional memory and write-path work. The attribute must be `filterable` or
+	 * `unique` in the same scope, because an accelerator speeds up an index that has to exist.
+	 * Propagates to {@link AttributeSchemaContract#getAccelerators()}.
+	 */
+	AttributeFilterAccelerator[] acceleratedFor() default {};
+
+	/**
+	 * Makes the words of the attribute searchable. Only a {@link #localized()} attribute of type {@link String} or
+	 * `String[]` may be searchable; searchability is independent of {@link #filterable()}.
+	 * Propagates to {@link AttributeSchemaContract#isSearchable()}.
+	 */
+	boolean searchable() default false;
+
+	/**
 	 * Sets attribute of this type to be locale sensitive. I.e. to separate values for different locales.
 	 * Propagates to {@link AttributeSchemaContract#isLocalized()}.
 	 */
@@ -135,13 +151,13 @@ public @interface Attribute {
 	 * Allows to define different settings for different scopes.
 	 *
 	 * If `scope = {}` (default, empty array), the general settings (`unique`, `uniqueGlobally`, `filterable`,
-	 * `sortable`) apply to {@link Scope#LIVE} only; in {@link Scope#ARCHIVED} the attribute is not indexed whatsoever
-	 * (not filterable, not sortable, not unique).
+	 * `sortable`, `acceleratedFor`, `searchable`) apply to {@link Scope#LIVE} only; in {@link Scope#ARCHIVED} the
+	 * attribute is not indexed whatsoever (not filterable, not sortable, not unique, not accelerated, not searchable).
 	 *
 	 * If `scope = {…}` is non-empty, the per-scope settings **completely replace** what the general settings would
-	 * otherwise produce — the analyzer requires the general `unique`, `uniqueGlobally`, `filterable` and `sortable`
-	 * properties to be left at their defaults (otherwise an assertion fires). Scopes not listed in the array stay
-	 * non-indexed; the general settings are not used as a fallback.
+	 * otherwise produce — the analyzer requires the general `unique`, `uniqueGlobally`, `filterable`, `sortable`,
+	 * `acceleratedFor` and `searchable` properties to be left at their defaults (otherwise an assertion fires).
+	 * Scopes not listed in the array stay non-indexed; the general settings are not used as a fallback.
 	 */
 	ScopeAttributeSettings[] scope() default {};
 

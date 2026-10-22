@@ -34,6 +34,7 @@ import io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryTr
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Set;
 
 /**
  * This implementation of {@link RequireConstraintTranslator} converts {@link FacetSummary} to
@@ -66,6 +67,8 @@ public class FacetSummaryTranslator implements RequireConstraintTranslator<Facet
 			facetSummary.getFilterGroupBy().orElse(null),
 			facetSummary.getOrderBy().orElse(null),
 			facetSummary.getOrderGroupBy().orElse(null),
+			// the deprecated summary requests no histogram
+			Set.of(),
 			FacetSummaryAdapter.INSTANCE,
 			extraResultPlanner
 		);

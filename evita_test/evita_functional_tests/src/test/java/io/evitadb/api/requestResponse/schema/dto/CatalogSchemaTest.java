@@ -111,6 +111,7 @@ class CatalogSchemaTest {
 						(ScopedGlobalAttributeUniquenessType[]) null,
 						filterableInScopes,
 						acceleratorsInScopes,
+						null,
 						Scope.NO_SCOPE,
 						false, false, false,
 						String.class, null, 0,
@@ -242,6 +243,7 @@ class CatalogSchemaTest {
 					)
 				},
 				new Scope[]{Scope.LIVE},
+				null,
 				null,
 				null,
 				false, false, false,

@@ -229,12 +229,14 @@ Every generational test class lives in `evita_test/evita_long_running_tests` and
 | `TransactionalBitmap`                | `LongRunningTransactionalBitmapTest`              | Add, remove bits, cardinality                          |
 | `TransactionalBoolean`               | `LongRunningTransactionalBooleanTest`             | Set/clear, toggle                                      |
 | `TransactionalComplexObjArray`       | `LongRunningTransactionalComplexObjArrayTest`     | Insert, merge, subtract, obsolete check                |
-| `TransactionalBucketBPlusTree`       | `LongRunningTransactionalBucketBPlusTreeTest`     | Insert, remove, lookup; columnar bucket store          |
+| `TransactionalBucketBPlusTree`       | `LongRunningTransactionalBucketBPlusTreeTest`     | Insert, remove, lookup; columnar bucket store; impact column kept aligned with records (impact-carrying mode) |
 | `TransactionalLongBPlusTree`         | `LongRunningTransactionalLongBPlusTreeTest`       | Insert, remove, lookup, range queries (primitive long key) |
 | `TransactionalObjectBPlusTree`       | `LongRunningTransactionalObjectBPlusTreeTest`     | Insert, remove, lookup with comparable keys            |
 | `CumulativeWeightBPlusTree`          | `LongRunningCumulativeWeightBPlusTreeTest`        | Insert, remove, cumulative-weight / rank queries       |
 | `PersistentTransactionalMap`         | `LongRunningPersistentTransactionalMapTest`       | Put, remove, iterator-update, iterator-remove vs. a `HashMap` oracle (committed snapshot must be a `ChampMap`) |
 | `PersistentTransactionalProducerMap` | `LongRunningPersistentTransactionalProducerMapTest` | Insert, remove, **in-place marked mutation** vs. a `key → committedValue` oracle |
+| `FulltextIndex`                      | `LongRunningFulltextIndexTest`                    | Value add/replace/remove, field registration and retirement vs. an oracle derived from the indexed values (`FulltextIndexModel`) |
+| `FieldLengthTable`                   | `LongRunningFieldLengthTableTest`                 | Put, remove, one block steered across both dense/sparse thresholds vs. a `primaryKey → encodedLength` oracle |
 
 The bare functional `…Test` classes (e.g. `PersistentTransactionalMapTest`) keep only fast example-based unit
 tests; each one points at its `LongRunning…Test` sibling in a class-javadoc note so the generational proof is

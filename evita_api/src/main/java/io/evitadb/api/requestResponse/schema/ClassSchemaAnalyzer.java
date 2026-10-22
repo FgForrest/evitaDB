@@ -955,6 +955,16 @@ public class ClassSchemaAnalyzer {
 			} else if (!attributeAnnotation.sortable() && editor.isSortableInScope(Scope.DEFAULT_SCOPE)) {
 				editor.nonSortableInScope(Scope.DEFAULT_SCOPE);
 			}
+			// accelerators - reconcile DEFAULT_SCOPE with annotation
+			reconcileAccelerators(
+				editor, Scope.DEFAULT_SCOPE, toAcceleratorSet(attributeAnnotation.acceleratedFor())
+			);
+			// searchable - reconcile DEFAULT_SCOPE with annotation
+			if (attributeAnnotation.searchable() && !editor.isSearchableInScope(Scope.DEFAULT_SCOPE)) {
+				editor.searchable();
+			} else if (!attributeAnnotation.searchable() && editor.isSearchableInScope(Scope.DEFAULT_SCOPE)) {
+				editor.nonSearchableInScope(Scope.DEFAULT_SCOPE);
+			}
 		} else {
 			Assert.isTrue(
 				attributeAnnotation.unique() == AttributeUniquenessType.NOT_UNIQUE,
@@ -972,6 +982,18 @@ public class ClassSchemaAnalyzer {
 				!attributeAnnotation.sortable(),
 				"When `scope` is defined in `@Attribute` annotation, " +
 					"the value of `sortable` property is not taken into an account " +
+					"(and thus it doesn't make sense to set it to true)!"
+			);
+			Assert.isTrue(
+				attributeAnnotation.acceleratedFor().length == 0,
+				"When `scope` is defined in `@Attribute` annotation, " +
+					"the value of `acceleratedFor` property is not taken into an account " +
+					"(and thus it doesn't make sense to set it to any value)!"
+			);
+			Assert.isTrue(
+				!attributeAnnotation.searchable(),
+				"When `scope` is defined in `@Attribute` annotation, " +
+					"the value of `searchable` property is not taken into an account " +
 					"(and thus it doesn't make sense to set it to true)!"
 			);
 
@@ -1028,7 +1050,74 @@ public class ClassSchemaAnalyzer {
 			if (!desiredSortableScopes.equals(currentSortableScopes)) {
 				editor.sortableInScope(desiredSortableScopes.toArray(Scope[]::new));
 			}
+			// accelerators - reconcile every scope, a scope not listed declares none
+			for (final Scope scope : Scope.values()) {
+				reconcileAccelerators(editor, scope, collectAcceleratorsOfScope(scopedDefinition, scope));
+			}
+			// searchable - reconcile per-scope desired set
+			final EnumSet<Scope> desiredSearchableScopes = collectScopesByPredicate(
+				scopedDefinition, ScopeAttributeSettings::searchable
+			);
+			final EnumSet<Scope> currentSearchableScopes = collectScopes(
+				Scope.values(), editor::isSearchableInScope
+			);
+			if (!desiredSearchableScopes.equals(currentSearchableScopes)) {
+				editor.searchableInScope(desiredSearchableScopes.toArray(Scope[]::new));
+			}
 		}
+	}
+
+	/**
+	 * Makes the accelerators the editor declares in `scope` exactly the `desired` ones: declares the missing ones and
+	 * withdraws the ones the annotation no longer lists, leaving the editor untouched when both sets agree.
+	 */
+	private static void reconcileAccelerators(
+		@Nonnull AttributeSchemaEditor<?> editor,
+		@Nonnull Scope scope,
+		@Nonnull EnumSet<AttributeFilterAccelerator> desired
+	) {
+		final Set<AttributeFilterAccelerator> current = editor.getAcceleratorsInScope(scope);
+		final EnumSet<AttributeFilterAccelerator> missing = EnumSet.copyOf(desired);
+		missing.removeAll(current);
+		if (!missing.isEmpty()) {
+			editor.acceleratedForInScope(scope, missing.toArray(AttributeFilterAccelerator[]::new));
+		}
+		final EnumSet<AttributeFilterAccelerator> withdrawn = EnumSet.noneOf(AttributeFilterAccelerator.class);
+		withdrawn.addAll(current);
+		withdrawn.removeAll(desired);
+		if (!withdrawn.isEmpty()) {
+			editor.nonAcceleratedForInScope(scope, withdrawn.toArray(AttributeFilterAccelerator[]::new));
+		}
+	}
+
+	/**
+	 * Returns the accelerators the {@link ScopeAttributeSettings} entries for `scope` list, united when the scope is
+	 * listed more than once.
+	 */
+	@Nonnull
+	private static EnumSet<AttributeFilterAccelerator> collectAcceleratorsOfScope(
+		@Nonnull ScopeAttributeSettings[] scopedDefinition,
+		@Nonnull Scope scope
+	) {
+		final EnumSet<AttributeFilterAccelerator> result = EnumSet.noneOf(AttributeFilterAccelerator.class);
+		for (final ScopeAttributeSettings settings : scopedDefinition) {
+			if (settings.scope() == scope) {
+				result.addAll(toAcceleratorSet(settings.acceleratedFor()));
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Converts the accelerators listed in an annotation to a set.
+	 */
+	@Nonnull
+	private static EnumSet<AttributeFilterAccelerator> toAcceleratorSet(
+		@Nonnull AttributeFilterAccelerator[] accelerators
+	) {
+		final EnumSet<AttributeFilterAccelerator> result = EnumSet.noneOf(AttributeFilterAccelerator.class);
+		Collections.addAll(result, accelerators);
+		return result;
 	}
 
 	/**

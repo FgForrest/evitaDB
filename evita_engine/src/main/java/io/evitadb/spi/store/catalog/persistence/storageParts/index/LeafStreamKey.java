@@ -39,16 +39,18 @@ import java.io.Serializable;
  * compact, restart-stable `int` id — and that id must encode the FULL sub-index identity in a single `int` because the
  * other half of the joined `long` PK is consumed by `pageSequence`.
  *
- * The id is obtained by registering this key with the catalog's {@link KeyCompressor}, exactly as the root part already
- * obtains its compressed id from {@link AttributeKeyWithIndexType} ({@link AttributeIndexStoragePart#computeUniquePartId}).
+ * The id is obtained by registering this key with the {@link KeyCompressor} of the entity collection whose data store
+ * holds the pages, exactly as the root part already obtains its compressed id from {@link AttributeKeyWithIndexType}
+ * ({@link AttributeIndexStoragePart#computeUniquePartId}).
  * The difference is that the root part may spend both 32-bit halves of its PK on identity, so its compressed id need
  * only cover `(attributeKey, indexType)`; a leaf page may not, so its stream id must ALSO fold in the
  * `entityIndexPrimaryKey`. `LeafStreamKey` is therefore `(entityIndexPrimaryKey, {@link AttributeKeyWithIndexType})`.
  *
  * The {@link KeyCompressor} is a bijective, restart-stable, transactionally-allocated dictionary persisted whole in the
- * catalog header, so `compressor.getId(leafStreamKey)` is a GUARANTEED-unique (never probabilistic) and deterministic
- * `int`: distinct sub-indexes get distinct ids, and an assigned id never changes. The number of sub-indexes is far below
- * 2^31, so the id fits the high 32 bits of the page PK while `pageSequence` fills the low 32.
+ * header of the entity collection whose data store holds the pages, so `compressor.getId(leafStreamKey)` is a
+ * GUARANTEED-unique (never probabilistic) and deterministic `int`: distinct sub-indexes get distinct ids, and an
+ * assigned id never changes. The number of sub-indexes is far below 2^31, so the id fits the high 32 bits of the page
+ * PK while `pageSequence` fills the low 32.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */

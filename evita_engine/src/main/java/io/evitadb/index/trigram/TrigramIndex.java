@@ -41,6 +41,7 @@ import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -112,6 +113,7 @@ import java.util.Map.Entry;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @NotThreadSafe
+@Slf4j
 public class TrigramIndex implements
 	VoidTransactionMemoryProducer<TrigramIndex>,
 	ValueLifecycleSink {
@@ -216,8 +218,12 @@ public class TrigramIndex implements
 	 * the name — {@link InvertedIndex#detachValueIdConsumer(String)} returns silently when no registry was ever
 	 * created.
 	 *
-	 * A tree that turns out to be unusable — populated, accelerator declared, yet carrying no ids — FAILS THE LOAD.
-	 * See the comment at the site for why degrading to a silently absent accelerator is the worse of the two.
+	 * A populated tree that carries no ids leaves its accelerator **dormant**: no index is built and the substring
+	 * translators scan it, which answers correctly. That is the shape an accelerator declared over values indexed
+	 * before the declaration comes back in - a schema change is never refused because the collection holds data
+	 * (reindexing is issue #409), and the ids cannot be switched on for a populated tree without rewriting every one of
+	 * its pages. The load logs it once per attribute and locale, so an operator can tell a dormant accelerator from
+	 * a missing one.
 	 *
 	 * Runs on the single-writer catalog load path with no transaction open, which is what makes both the attach and
 	 * the `O(values)` walk behind it legal here.
@@ -225,9 +231,8 @@ public class TrigramIndex implements
 	 * @param entitySchema       the schema saying which attributes declare the accelerator
 	 * @param scope              the scope of the index being loaded
 	 * @param sharedValueIndexes the reloaded shared value trees, keyed by attribute and locale
-	 * @return one index per `(attribute, locale)` that declares the accelerator, empty when none does
-	 * @throws io.evitadb.exception.GenericEvitaInternalError when an attribute whose schema declares the accelerator
-	 * comes back with a tree that carries no value ids
+	 * @return one index per `(attribute, locale)` that declares the accelerator over a tree carrying value ids, empty
+	 * when none does
 	 */
 	@Nonnull
 	public static Map<AttributeIndexKey, TrigramIndex> rebuildAll(
@@ -254,10 +259,18 @@ public class TrigramIndex implements
 				continue;
 			}
 			final InvertedIndex sharedValueTree = entry.getValue();
-			// deliberately NOT wrapped in a catch: a tree this rebuild cannot use means the persisted state and the
-			// schema disagree, and skipping it would open the catalog with an accelerator silently missing - every
-			// substring query against that attribute would then quietly match fewer entities than it should. Failing
-			// the load says so at the one moment an operator can still act on it
+			if (!sharedValueTree.carriesValueIds() && !sharedValueTree.isEmpty()) {
+				// declared over values indexed before the declaration - the accelerator stays dormant and the
+				// substring translators scan this attribute, which is slower but answers exactly as the index would
+				log.warn(
+					"Filter accelerator `{}` of attribute `{}`{} in scope `{}` of entity `{}` stays dormant: it " +
+						"was declared after the attribute already held values, which are indexed without the value " +
+						"ids the accelerator needs. Substring queries over it scan and stay correct.",
+					AttributeFilterAccelerator.SUBSTRING_SEARCH, key.attributeName(),
+					key.locale() == null ? "" : " (locale `" + key.locale() + "`)", scope, entitySchema.getName()
+				);
+				continue;
+			}
 			sharedValueTree.attachValueIdConsumer(VALUE_ID_CONSUMER_NAME);
 			if (rebuilt == null) {
 				rebuilt = CollectionUtils.createHashMap(sharedValueIndexes.size());

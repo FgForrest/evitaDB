@@ -129,6 +129,7 @@ class CreateAttributeSchemaMutationConverterTest {
 			new ScopedAttributeFilterAccelerators[]{
 				new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 			},
+			null,
 			Scope.NO_SCOPE,
 			false,
 			false,

@@ -58,7 +58,16 @@ public interface CatalogStoragePartPersistenceService<S extends LogRecordReferen
 	 * The catalog header is represented by the {@link CatalogHeader} class and maps the data maintained
 	 * by the {@link Catalog} object.
 	 *
-	 * @return The catalog header object.
+	 * The header returned is the one **valid at `catalogVersion`** - the most recent header written at that version or
+	 * before it - never a newer one. A reader holding an older version (a backup copying the published state while
+	 * transactions keep committing) therefore gets the collection set, WAL pointer and counters that belong to the
+	 * data it reads at that version. A version at or above the newest header written to this data file answers that
+	 * newest header. A version older than any history retained in this file resolves against the oldest retained
+	 * state, so a caller that needs an exact historical version must hold it against reclamation (see
+	 * {@link io.evitadb.api.CatalogVersionPin}) for as long as it reads.
+	 *
+	 * @param catalogVersion the catalog version the header must be valid at
+	 * @return The catalog header object valid at `catalogVersion`.
 	 */
 	@Nonnull
 	CatalogHeader<S, T> getCatalogHeader(long catalogVersion);

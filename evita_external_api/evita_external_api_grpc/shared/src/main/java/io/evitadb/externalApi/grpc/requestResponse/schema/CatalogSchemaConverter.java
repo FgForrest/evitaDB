@@ -237,6 +237,8 @@ public class CatalogSchemaConverter {
 		// absent on the wire for an older server - proto3 renders that as an empty list, which converts to `null`
 		final ScopedAttributeFilterAccelerators[] acceleratorsInScopes =
 			toScopedAttributeFilterAccelerators(attributeSchema.getAcceleratorsInScopesList());
+		// searchability has no gRPC mirror, so a schema converted from the wire reports no attribute as searchable
+		final Scope[] searchableInScopes = null;
 		final Scope[] sortableInScopes = toBooleanScopes(attributeSchema.getSortableInScopesList(), attributeSchema.getSortable());
 
 		return GlobalAttributeSchema._internalBuild(
@@ -247,6 +249,7 @@ public class CatalogSchemaConverter {
 			uniqueGloballyInScopes,
 			filterableInScopes,
 			acceleratorsInScopes,
+			searchableInScopes,
 			sortableInScopes,
 			attributeSchema.getLocalized(),
 			attributeSchema.getNullable(),

@@ -103,7 +103,7 @@ class GlobalUniqueIndexWarmUpFlushMergeTest {
 	@Test
 	@DisplayName("should free the merged-away leaf page after a second warm-up flush merges a leaf")
 	void shouldFreeStalePageAfterWarmUpFlushMerge() {
-		final GlobalUniqueIndex index = new GlobalUniqueIndex(Scope.LIVE, URL_KEY, Integer.class);
+		final GlobalUniqueIndex index = new GlobalUniqueIndex(Scope.LIVE, URL_KEY, Integer.class, 0);
 		for (int i = 1; i <= VALUE_COUNT; i++) {
 			index.registerUniqueKey(i, ENTITY_TYPE, null, i, this.classifierResolver);
 		}

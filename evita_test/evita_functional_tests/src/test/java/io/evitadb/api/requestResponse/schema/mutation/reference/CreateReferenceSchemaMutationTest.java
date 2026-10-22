@@ -146,6 +146,7 @@ class CreateReferenceSchemaMutationTest {
 					},
 					Scope.NO_SCOPE,
 					null,
+					null,
 					Scope.NO_SCOPE,
 					false,
 					false,
@@ -166,6 +167,7 @@ class CreateReferenceSchemaMutationTest {
 						)
 					},
 					Scope.NO_SCOPE,
+					null,
 					null,
 					Scope.NO_SCOPE,
 					false,

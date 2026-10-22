@@ -317,7 +317,7 @@ class LongRunningAttributeIndexTest implements TimeBoundedTestSupport {
 		final SortIndex sortIndex = index.getSortIndex(null, SORTABLE_PRIORITY, null);
 		final ChainIndex chainIndex = index.getChainIndex(null, CHAIN_ORDER, null);
 		return new AttributeSnapshot(
-			uniqueIndex == null ? List.of() : toList(uniqueIndex.getRecordIds().getArray()),
+			uniqueIndex == null ? List.of() : toList(UniqueIndexTestSupport.ownerRecordIds(uniqueIndex)),
 			filterIndex == null ? List.of() : toList(filterIndex.getAllRecords().getArray()),
 			sortIndex == null ? List.of() : toList(sortIndex.getSortedRecords()),
 			chainIndex == null ? List.of() : toList(chainIndex.getUnorderedLookup().getArray())

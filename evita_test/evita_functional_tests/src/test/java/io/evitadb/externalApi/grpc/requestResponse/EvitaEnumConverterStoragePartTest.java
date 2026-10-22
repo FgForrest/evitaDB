@@ -88,6 +88,7 @@ class EvitaEnumConverterStoragePartTest {
 					StoragePartGroup.REFERENCE_HISTOGRAM_INDEX,
 					GrpcStoragePartGroup.STORAGE_PART_GROUP_REFERENCE_HISTOGRAM_INDEX
 				),
+				Map.entry(StoragePartGroup.FULLTEXT_INDEX, GrpcStoragePartGroup.STORAGE_PART_GROUP_FULLTEXT_INDEX),
 				Map.entry(StoragePartGroup.SCHEMA, GrpcStoragePartGroup.STORAGE_PART_GROUP_SCHEMA),
 				Map.entry(StoragePartGroup.HEADER, GrpcStoragePartGroup.STORAGE_PART_GROUP_HEADER)
 			)

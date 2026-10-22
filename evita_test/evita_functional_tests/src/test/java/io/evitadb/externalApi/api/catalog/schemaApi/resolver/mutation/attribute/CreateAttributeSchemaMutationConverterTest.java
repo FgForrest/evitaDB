@@ -227,6 +227,8 @@ class CreateAttributeSchemaMutationConverterTest {
 					.e(CreateAttributeSchemaMutationDescriptor.FILTERABLE_IN_SCOPES.name(), array()
 						.i(Scope.LIVE.name()))
 					.e(CreateAttributeSchemaMutationDescriptor.ACCELERATORS_IN_SCOPES.name(), list())
+					// no descriptor yet - the property is emitted by reflection over the mutation's creator
+					.e("searchableInScopes", array())
 					.e(CreateAttributeSchemaMutationDescriptor.SORTABLE_IN_SCOPES.name(), array()
 						.i(Scope.LIVE.name()))
 					.e(CreateAttributeSchemaMutationDescriptor.LOCALIZED.name(), false)
@@ -251,6 +253,7 @@ class CreateAttributeSchemaMutationConverterTest {
 			new ScopedAttributeFilterAccelerators[] {
 				new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 			},
+			null,
 			null,
 			false,
 			false,
@@ -320,6 +323,7 @@ class CreateAttributeSchemaMutationConverterTest {
 				new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 			},
 			null,
+			null,
 			false,
 			false,
 			false,
@@ -344,6 +348,7 @@ class CreateAttributeSchemaMutationConverterTest {
 				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION)
 			},
 			new Scope[] { Scope.LIVE },
+			null,
 			null,
 			new Scope[] { Scope.LIVE },
 			false,

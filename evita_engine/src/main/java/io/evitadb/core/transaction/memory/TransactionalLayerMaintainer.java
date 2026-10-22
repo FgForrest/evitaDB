@@ -436,6 +436,16 @@ public class TransactionalLayerMaintainer {
 	}
 
 	/**
+	 * Returns whether a savepoint opened by {@link #openSavepoint()} is still open, i.e. neither committed nor rolled
+	 * back yet. Lets a caller whose work is meaningful only inside the bracket verify that it runs inside one.
+	 *
+	 * @return `true` while a savepoint is open over this maintainer
+	 */
+	public boolean isSavepointOpen() {
+		return this.currentSavepoint != null;
+	}
+
+	/**
 	 * Commits (accepts) the given savepoint: the captured pre-mutation state is discarded and all changes made while
 	 * the savepoint was open remain part of the transaction. This merely drops the savepoint bookkeeping; no diff
 	 * layer is modified.

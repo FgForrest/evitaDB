@@ -28,7 +28,9 @@ import io.evitadb.dataType.SupportedEnum;
 /**
  * Defines the logical relation type applied between selected facet options when computing facet summary statistics
  * and filtering results. The relation type can be configured at two granularity levels (see {@link FacetGroupRelationLevel}):
- * between facets within the same group, and between facets that belong to different groups or references.
+ * between facets within the same group, and between facets that belong to different groups of the same reference.
+ * Facets of different references are always combined by logical AND, because `userFilter` combines its constraints
+ * the way `and` does.
  *
  * The default evitaDB facet behaviour without any overrides is:
  * - within the same group: `DISJUNCTION` (OR) — multiple selected options of the same attribute are alternatives.

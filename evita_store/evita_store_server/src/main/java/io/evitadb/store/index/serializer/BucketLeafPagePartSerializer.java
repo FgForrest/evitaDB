@@ -63,7 +63,24 @@ public abstract class BucketLeafPagePartSerializer<T> extends AbstractLeafPagePa
 
 	@Override
 	protected void writePayload(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull T page) {
-		final ValueToRecord[] buckets = buckets(page);
+		writeBuckets(kryo, output, buckets(page));
+	}
+
+	@Nonnull
+	@Override
+	protected T readPayload(@Nonnull Kryo kryo, @Nonnull Input input, int streamId, int pageSequence) {
+		return create(streamId, pageSequence, readBuckets(kryo, input));
+	}
+
+	/**
+	 * Writes the length-prefixed run of buckets - the bucket payload every bucket-shaped page shares. Exposed to the
+	 * package for a page whose payload does not end with the buckets and therefore cannot extend this class.
+	 *
+	 * @param kryo    the Kryo instance
+	 * @param output  the output to write to
+	 * @param buckets the buckets, in the order they must be persisted
+	 */
+	static void writeBuckets(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull ValueToRecord[] buckets) {
 		output.writeVarInt(buckets.length, true);
 		for (final ValueToRecord bucket : buckets) {
 			if (bucket instanceof final ValueToRecordPrimitive primitive) {
@@ -77,9 +94,15 @@ public abstract class BucketLeafPagePartSerializer<T> extends AbstractLeafPagePa
 		}
 	}
 
+	/**
+	 * Reads a run of buckets written by {@link #writeBuckets(Kryo, Output, ValueToRecord[])}.
+	 *
+	 * @param kryo  the Kryo instance
+	 * @param input the input to read from
+	 * @return the buckets, in the order they were persisted
+	 */
 	@Nonnull
-	@Override
-	protected T readPayload(@Nonnull Kryo kryo, @Nonnull Input input, int streamId, int pageSequence) {
+	static ValueToRecord[] readBuckets(@Nonnull Kryo kryo, @Nonnull Input input) {
 		final int bucketCount = input.readVarInt(true);
 		final ValueToRecord[] buckets = new ValueToRecord[bucketCount];
 		for (int i = 0; i < bucketCount; i++) {
@@ -92,7 +115,7 @@ public abstract class BucketLeafPagePartSerializer<T> extends AbstractLeafPagePa
 				buckets[i] = kryo.readObject(input, ValueToRecordBitmap.class);
 			}
 		}
-		return create(streamId, pageSequence, buckets);
+		return buckets;
 	}
 
 	/**

@@ -23,6 +23,7 @@
 
 package io.evitadb.api.requestResponse.data.annotation;
 
+import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
@@ -72,5 +73,19 @@ public @interface ScopeAttributeSettings {
 	 * Propagates to {@link AttributeSchemaContract#isSortable()}.
 	 */
 	boolean sortable() default false;
+
+	/**
+	 * Asks the attribute's filter index to maintain the listed optional accelerators in this scope. The attribute must
+	 * be `filterable` or `unique` in this scope, because an accelerator speeds up an index that has to exist.
+	 * Propagates to {@link AttributeSchemaContract#getAcceleratorsInScope(Scope)}.
+	 */
+	AttributeFilterAccelerator[] acceleratedFor() default {};
+
+	/**
+	 * Makes the words of the attribute searchable in this scope. Only a localized attribute of type {@link String} or
+	 * `String[]` may be searchable; searchability is independent of {@link #filterable()}.
+	 * Propagates to {@link AttributeSchemaContract#isSearchableInScope(Scope)}.
+	 */
+	boolean searchable() default false;
 
 }

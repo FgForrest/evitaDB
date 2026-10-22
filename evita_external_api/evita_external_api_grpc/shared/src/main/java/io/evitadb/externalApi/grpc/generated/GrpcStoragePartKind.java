@@ -30,7 +30,7 @@ package io.evitadb.externalApi.grpc.generated;
 /**
  * <pre>
  * What a storage part fundamentally is - the coarse fold of `GrpcStoragePartGroup`, and the one a composition table
- * uses when it wants three rows rather than fourteen. The three answer different questions: entity data shrinks only
+ * uses when it wants three rows rather than fifteen. The three answer different questions: entity data shrinks only
  * by storing less, an index shrinks by indexing less (a schema decision that loses no data), and metadata is what the
  * store needs to describe itself and cannot be acted on at all.
  * </pre>

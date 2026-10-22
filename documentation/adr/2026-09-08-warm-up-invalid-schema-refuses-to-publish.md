@@ -9,7 +9,7 @@ prs: [1520]
 areas: [evita_engine/src/main/java/io/evitadb/core/session, evita_engine/src/main/java/io/evitadb/core/catalog, evita_engine/src/main/java/io/evitadb/core/transaction/engine, evita_api/src/main/java/io/evitadb/api]
 supersedes: []
 superseded-by: []
-relates: [2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-09-06-go-live-session-drain]
+relates: [2026-07-18-paged-index-corruption-and-flush-failure-boundary, 2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-09-06-go-live-session-drain, 2026-10-05-schema-changes-never-refused-dormant-accelerator]
 ---
 
 # A warm-up schema change refused by validation raises the unpublishable barrier
@@ -152,7 +152,10 @@ forbids partial replay.
   one engine call site — `EvitaSession#validateCatalogSchema`, reached from `closeInternal` — which is why the
   hard stop is limited to post-exchange failures: the pre-flight refusals
   (`verifyEntitySchemaMutationsApplicable`, `verifyNoAcceleratorAddedToNonEmptyCollection`, the mutations' own
-  asserts) are untouched and keep refusing cleanly, so an ordinary schema typo never costs a reload. This change
+  asserts) are untouched and keep refusing cleanly, so an ordinary schema typo never costs a reload. (The first
+  two were removed on 2026-10-05, when a schema change stopped being refused for stored data - see
+  [2026-10-05-schema-changes-never-refused-dormant-accelerator](2026-10-05-schema-changes-never-refused-dormant-accelerator.md);
+  the mutations' own asserts still refuse before the exchange.) This change
   adds two more call sites, and **neither of them may be turned into a refusal**:
   - `Catalog#isSchemaValid()`, behind `Catalog#flushMidSessionIfSchemaValid()`. The three warm-up DDL flushes
     (`createEntitySchema`, `removeEntitySchema`, `doReplaceEntityCollectionInternal`) publish inline while the

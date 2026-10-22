@@ -33,7 +33,7 @@ import javax.annotation.Nonnull;
 /**
  * This {@link Serializer} implementation reads/writes a {@link RangeIndexLeafPagePart} — one leaf page of a granular
  * FilterIndex range tree — from/to binary format. The `(streamId, pageSequence)` pair fully determines the
- * storage-part primary key (via `join`), so the key is recomputed on read rather than stored; only the identifying pair
+ * storage-part primary key (via `pack`), so the key is recomputed on read rather than stored; only the identifying pair
  * and the leaf's range points are written. Each point is serialized with the already-registered
  * {@link TransactionalRangePoint} serializer. The range-page frame is defined once in {@link RangeLeafPagePartSerializer}.
  *

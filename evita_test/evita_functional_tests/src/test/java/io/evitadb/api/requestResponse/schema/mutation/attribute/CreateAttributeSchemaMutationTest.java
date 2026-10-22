@@ -81,6 +81,7 @@ class CreateAttributeSchemaMutationTest {
 			},
 			Scope.NO_SCOPE,
 			null,
+			null,
 			Scope.NO_SCOPE,
 			false,
 			false,
@@ -106,6 +107,7 @@ class CreateAttributeSchemaMutationTest {
 			},
 			Scope.NO_SCOPE,
 			null,
+			null,
 			Scope.NO_SCOPE,
 			false,
 			false,
@@ -127,6 +129,7 @@ class CreateAttributeSchemaMutationTest {
 				new ScopedAttributeUniquenessType(Scope.LIVE, AttributeUniquenessType.NOT_UNIQUE)
 			},
 			Scope.NO_SCOPE,
+			null,
 			null,
 			Scope.NO_SCOPE,
 			false,
@@ -161,7 +164,7 @@ class CreateAttributeSchemaMutationTest {
 		return AttributeSchema._internalBuild(
 			ATTRIBUTE_NAME, null, null,
 			(ScopedAttributeUniquenessType[]) null,
-			Scope.NO_SCOPE, null, Scope.NO_SCOPE,
+			Scope.NO_SCOPE, null, null, Scope.NO_SCOPE,
 			false, false, false,
 			type, null, 0,
 			ConflictResolutionOverride.INHERITED
@@ -189,7 +192,7 @@ class CreateAttributeSchemaMutationTest {
 		return EntityAttributeSchema._internalBuild(
 			ATTRIBUTE_NAME, null, null,
 			(ScopedAttributeUniquenessType[]) null,
-			Scope.NO_SCOPE, null, Scope.NO_SCOPE,
+			Scope.NO_SCOPE, null, null, Scope.NO_SCOPE,
 			false, false, false,
 			String.class, null, 0,
 			ConflictResolutionOverride.INHERITED
@@ -208,7 +211,7 @@ class CreateAttributeSchemaMutationTest {
 			ATTRIBUTE_NAME, null, null,
 			(ScopedAttributeUniquenessType[]) null,
 			(ScopedGlobalAttributeUniquenessType[]) null,
-			Scope.NO_SCOPE, null, Scope.NO_SCOPE,
+			Scope.NO_SCOPE, null, null, Scope.NO_SCOPE,
 			false, false, false,
 			String.class, null, 0,
 			ConflictResolutionOverride.INHERITED
@@ -420,6 +423,7 @@ class CreateAttributeSchemaMutationTest {
 				new ScopedAttributeFilterAccelerators[]{
 					new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 				},
+				null,
 				Scope.NO_SCOPE, false, false, false,
 				String.class, null, 0,
 				ConflictResolutionOverride.INHERITED
@@ -437,7 +441,7 @@ class CreateAttributeSchemaMutationTest {
 		void shouldDefaultFilterCapabilitiesToNoneWhenAbsentOnTheWire() {
 			final CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
 				ATTRIBUTE_NAME, null, null,
-				null, Scope.DEFAULT_SCOPES, null, Scope.NO_SCOPE, false, false, false,
+				null, Scope.DEFAULT_SCOPES, null, null, Scope.NO_SCOPE, false, false, false,
 				String.class, null, 0,
 				ConflictResolutionOverride.INHERITED
 			);
@@ -459,6 +463,7 @@ class CreateAttributeSchemaMutationTest {
 					new ScopedAttributeFilterAccelerators[]{
 						new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 					},
+					null,
 					Scope.NO_SCOPE, false, false, false,
 					Integer.class, null, 0,
 					ConflictResolutionOverride.INHERITED
@@ -482,6 +487,7 @@ class CreateAttributeSchemaMutationTest {
 							Scope.ARCHIVED, AttributeFilterAccelerator.SUBSTRING_SEARCH
 						)
 					},
+					null,
 					Scope.NO_SCOPE, false, false, false,
 					String.class, null, 0,
 					ConflictResolutionOverride.INHERITED
@@ -505,6 +511,7 @@ class CreateAttributeSchemaMutationTest {
 				new ScopedAttributeFilterAccelerators[]{
 					new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 				},
+				null,
 				Scope.NO_SCOPE, false, false, false,
 				String.class, null, 0,
 				ConflictResolutionOverride.INHERITED
@@ -535,6 +542,7 @@ class CreateAttributeSchemaMutationTest {
 							Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH
 						)
 					},
+					null,
 					Scope.NO_SCOPE, false, false, false,
 					String.class, null, 0,
 					ConflictResolutionOverride.INHERITED
@@ -554,6 +562,7 @@ class CreateAttributeSchemaMutationTest {
 				new ScopedAttributeFilterAccelerators[]{
 					new ScopedAttributeFilterAccelerators(Scope.LIVE, AttributeFilterAccelerator.SUBSTRING_SEARCH)
 				},
+				null,
 				Scope.NO_SCOPE, false, false, false,
 				String.class, null, 0,
 				ConflictResolutionOverride.INHERITED
@@ -573,7 +582,7 @@ class CreateAttributeSchemaMutationTest {
 		void shouldStillAllowCreatingPlainlyFilterableReferenceAttribute() {
 			final CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
 				ATTRIBUTE_NAME, null, null,
-				null, Scope.DEFAULT_SCOPES, null, Scope.NO_SCOPE, false, false, false,
+				null, Scope.DEFAULT_SCOPES, null, null, Scope.NO_SCOPE, false, false, false,
 				String.class, null, 0,
 				ConflictResolutionOverride.INHERITED
 			);

@@ -233,6 +233,8 @@ class ConflictResolutionBackwardCompatibilityTest {
 		assertEquals("code", deserialized.getName());
 		// … and the absent override defaults to INHERITED
 		assertEquals(ConflictResolutionOverride.INHERITED, deserialized.getConflictResolutionOverride());
+		// the format predates searchability too, so the attribute reads back searchable nowhere
+		assertTrue(deserialized.getSearchableInScopes().isEmpty());
 	}
 
 	@Test
@@ -257,6 +259,8 @@ class ConflictResolutionBackwardCompatibilityTest {
 		assertEquals("url", deserialized.getName());
 		// … and the absent override defaults to INHERITED
 		assertEquals(ConflictResolutionOverride.INHERITED, deserialized.getConflictResolutionOverride());
+		// the format predates searchability too, so the attribute reads back searchable nowhere
+		assertTrue(deserialized.getSearchableInScopes().isEmpty());
 	}
 
 	@Test
@@ -281,6 +285,8 @@ class ConflictResolutionBackwardCompatibilityTest {
 		assertEquals("name", deserialized.getName());
 		// … and the absent override defaults to INHERITED
 		assertEquals(ConflictResolutionOverride.INHERITED, deserialized.getConflictResolutionOverride());
+		// the format predates searchability too, so the attribute reads back searchable nowhere
+		assertTrue(deserialized.getSearchableInScopes().isEmpty());
 	}
 
 	@Test
@@ -363,7 +369,7 @@ class ConflictResolutionBackwardCompatibilityTest {
 	void shouldReadPreConflictCreateAttributeSchemaMutationAsInheritedOverride() {
 		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 		final CreateAttributeSchemaMutation mutation = new CreateAttributeSchemaMutation(
-			"code", null, null, null, null, null, null,
+			"code", null, null, null, null, null, null, null,
 			false, false, false, String.class, null, 0,
 			ConflictResolutionOverride.GRANULAR
 		);
@@ -378,6 +384,8 @@ class ConflictResolutionBackwardCompatibilityTest {
 
 		assertEquals("code", deserialized.getName());
 		assertEquals(ConflictResolutionOverride.INHERITED, deserialized.getConflictResolutionOverride());
+		// the format predates searchability too, so the mutation reads back searchable nowhere
+		assertEquals(0, deserialized.getSearchableInScopes().length);
 	}
 
 	@Test
@@ -385,7 +393,7 @@ class ConflictResolutionBackwardCompatibilityTest {
 	void shouldReadPreConflictCreateGlobalAttributeSchemaMutationAsInheritedOverride() {
 		final Kryo walKryo = KryoFactory.createKryo(WalKryoConfigurer.INSTANCE);
 		final CreateGlobalAttributeSchemaMutation mutation = new CreateGlobalAttributeSchemaMutation(
-			"url", null, null, null, null, null, null, null,
+			"url", null, null, null, null, null, null, null, null,
 			false, false, false, String.class, null, 0,
 			ConflictResolutionOverride.GRANULAR
 		);
@@ -400,6 +408,8 @@ class ConflictResolutionBackwardCompatibilityTest {
 
 		assertEquals("url", deserialized.getName());
 		assertEquals(ConflictResolutionOverride.INHERITED, deserialized.getConflictResolutionOverride());
+		// the format predates searchability too, so the mutation reads back searchable nowhere
+		assertEquals(0, deserialized.getSearchableInScopes().length);
 	}
 
 	@Test

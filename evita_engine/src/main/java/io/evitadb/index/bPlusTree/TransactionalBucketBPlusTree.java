@@ -1031,19 +1031,46 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 	 *                 {@code valueIds[0, count)} are read. {@code null} when the tree carries no value ids, in which
 	 *                 case the page is loaded without an id column
 	 * @param count    the number of live entries ({@code 1 <= count <= valueBlockSize})
-	 * @throws GenericEvitaInternalError when this tree carries impacts, which a page cannot restore yet, or the page
-	 *                                   is malformed
+	 * @throws GenericEvitaInternalError when this tree carries impacts - those load through
+	 *                                   {@link #bulkLoadPage(Object[], long[], Object[], int[], byte[][], int)} - or
+	 *                                   the page is malformed
 	 */
-	@SuppressWarnings("unchecked")
 	public void bulkLoadPage(
 		@Nonnull Object[] keys, @Nonnull long[] payloads, @Nullable Object[] overflow,
 		@Nullable int[] valueIds, int count
 	) {
-		// the page format carries no impacts, and an impact-carrying leaf without them would hold null slots - a
-		// shape ImpactRecords defines as illegal, surfacing at the first read far from the load that caused it
+		bulkLoadPage(keys, payloads, overflow, valueIds, null, count);
+	}
+
+	/**
+	 * Impact-aware sibling of {@link #bulkLoadPage(Object[], long[], Object[], int[], int)}: restores a persisted page
+	 * together with the impact byte of every record, which an impact-carrying tree requires and any other tree refuses.
+	 *
+	 * @param keys     the ascending-ordered, distinct keys to load; only {@code keys[0, count)} are read
+	 * @param payloads the single-record payload for each key that is NOT overflow-promoted
+	 * @param overflow per-key pre-built multi-record set, or {@code null} at a single-record slot; {@code null}
+	 *                 entirely when no key in this page is multi-record
+	 * @param valueIds the persisted value id of each key, or {@code null} when the tree carries no value ids
+	 * @param impacts  the impacts of each key's records in the order its records enumerate in (unsigned ascending),
+	 *                 {@code impacts[i]} belonging to {@code keys[i]}; required exactly when this tree carries
+	 *                 impacts. The arrays of array-tier buckets are adopted, not copied.
+	 * @param count    the number of live entries ({@code 1 <= count <= valueBlockSize})
+	 * @throws GenericEvitaInternalError when impacts are passed to a tree without them or missing for one with them,
+	 *                                   when a bucket's impacts do not cover its records, or the page is malformed
+	 */
+	@SuppressWarnings("unchecked")
+	public void bulkLoadPage(
+		@Nonnull Object[] keys, @Nonnull long[] payloads, @Nullable Object[] overflow,
+		@Nullable int[] valueIds, @Nullable byte[][] impacts, int count
+	) {
+		// an impact-carrying leaf without its impacts would hold null slots - a shape ImpactRecords defines as illegal,
+		// surfacing at the first read far from the load that caused it - and impacts handed to a tree without them
+		// would be dropped silently
 		Assert.isPremiseValid(
-			!this.impactCarrying,
-			"A bulk-loaded page carries no impacts - an impact-carrying tree cannot be loaded from one!"
+			(impacts != null) == this.impactCarrying,
+			this.impactCarrying
+				? "An impact-carrying tree must be loaded with the impacts of its page!"
+				: "A tree without impacts cannot load a page that carries them!"
 		);
 		Assert.isPremiseValid(count > 0, "A bulk-loaded page must hold at least one entry.");
 		Assert.isPremiseValid(
@@ -1098,8 +1125,24 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			valueIdColumn = RecordColumnFactory.INT.create(this.valueBlockSize);
 			valueIdColumn.bulkLoad(widenedValueIds, count);
 		}
+		final OverflowColumn impactColumn;
+		if (impacts == null) {
+			impactColumn = null;
+		} else {
+			Assert.isPremiseValid(
+				impacts.length >= count,
+				"The persisted impacts cover " + impacts.length + " buckets of a page holding " + count + "!"
+			);
+			// each slot takes the shape the record tier chosen above dictates, so the leaf is born aligned
+			final Object[] impactSlots = new Object[count];
+			for (int i = 0; i < count; i++) {
+				impactSlots[i] = ImpactRecords.loaded(impacts[i], overflow == null ? null : overflow[i]);
+			}
+			impactColumn = new OverflowColumn(this.valueBlockSize);
+			impactColumn.bulkLoad(impactSlots, count);
+		}
 		setRoot(new BPlusLeafTreeNode<>(
-			keyColumn, recordColumn, overflowColumn, valueIdColumn, null, count - 1,
+			keyColumn, recordColumn, overflowColumn, valueIdColumn, impactColumn, count - 1,
 			this.comparator, true
 		));
 	}
@@ -2970,7 +3013,7 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			totalBuckets += orderedLeaf.size();
 		}
 		final BPlusTreeNode<K, ?> assembledRoot = buildSpine(new ArrayList<>(orderedLeaves));
-		return new TransactionalBucketBPlusTree<>(
+		final TransactionalBucketBPlusTree<K> assembled = new TransactionalBucketBPlusTree<>(
 			this.valueBlockSize, this.minValueBlockSize,
 			this.internalNodeBlockSize, this.minInternalNodeBlockSize,
 			this.keyType,
@@ -2980,6 +3023,10 @@ public class TransactionalBucketBPlusTree<K extends Comparable<K>> implements
 			assembledRoot,
 			totalBuckets
 		);
+		// the leaves carry impact columns exactly when the tree they were loaded into carries impacts, and the
+		// assembled tree must say so too, or it would read them as absent and refuse every impact-aware insert
+		assembled.impactCarrying = this.impactCarrying;
+		return assembled;
 	}
 
 	/**

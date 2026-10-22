@@ -39,6 +39,7 @@ import io.evitadb.index.attribute.EntityReferenceWithLocale;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
+import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.mutation.local.dataAccess.EntityStoragePartExistingDataFactory;
 import io.evitadb.index.mutation.local.dataAccess.ExistingAttributeValueSupplier;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
@@ -435,7 +436,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						this.classifierResolver,
 						this.usageRegistry,
 						this.catalogUsageRegistry,
-
+						new FulltextAnalyzerRegistry(),
 						true
 					),
 					null,
@@ -467,7 +468,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 						this.classifierResolver,
 						this.usageRegistry,
 						this.catalogUsageRegistry,
-
+						new FulltextAnalyzerRegistry(),
 						true
 					),
 					null,
@@ -504,7 +505,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.classifierResolver,
 				this.usageRegistry,
 				this.catalogUsageRegistry,
-
+				new FulltextAnalyzerRegistry(),
 				true
 			),
 			null,
@@ -531,7 +532,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.classifierResolver,
 				this.usageRegistry,
 				this.catalogUsageRegistry,
-
+				new FulltextAnalyzerRegistry(),
 				true
 			),
 			null,
@@ -663,7 +664,7 @@ class AttributeIndexMutatorTest extends AbstractMutatorTestBase {
 				this.classifierResolver,
 				this.usageRegistry,
 				this.catalogUsageRegistry,
-
+				new FulltextAnalyzerRegistry(),
 				true
 			),
 			null,

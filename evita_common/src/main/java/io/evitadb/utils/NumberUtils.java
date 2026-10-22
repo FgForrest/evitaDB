@@ -39,6 +39,12 @@ import java.math.RoundingMode;
  */
 public class NumberUtils {
 
+	/**
+	 * Count of byte values {@link #intToByte4(int)} spends on encoding values as themselves - every byte value the
+	 * four-bit float of `Integer.MAX_VALUE` leaves unused. Evaluates to `24`.
+	 */
+	private static final int BYTE4_EXACT_VALUES = 255 - encodeInt4(Integer.MAX_VALUE);
+
 	private NumberUtils() {
 	}
 
@@ -339,6 +345,79 @@ public class NumberUtils {
 	 */
 	public static int unpackLow32(long packed) {
 		return (int) packed;
+	}
+
+	/**
+	 * Encodes a non-negative int into one byte: exact for small values, a float with four significant bits beyond
+	 * them, and monotone throughout, so a larger value never encodes below a smaller one. Inverse of
+	 * {@link #byte4ToInt(byte)}, which decodes to the value itself or the largest representable value below it.
+	 *
+	 * The bytes are identical to those of Lucene's `SmallFloat#intToByte4`, which the fulltext field lengths were first
+	 * persisted with, so the encoding must never change: stored bytes have to decode the same forever.
+	 *
+	 * Values below {@link #BYTE4_EXACT_VALUES} stand for themselves. The remaining byte values hold
+	 * `value - BYTE4_EXACT_VALUES` in the four-bit float of {@link #encodeInt4(long)}, whose largest code - the one of
+	 * `Integer.MAX_VALUE` - fixes how many byte values are left to spend on the exact range.
+	 *
+	 * @param value the value to encode, zero or more
+	 * @return the encoded byte; read it with {@link Byte#toUnsignedInt(byte)} to compare two encodings
+	 * @throws GenericEvitaInternalError when the value is negative
+	 */
+	public static byte intToByte4(int value) {
+		// hand-rolled check keeps this per-value encoder zero-allocation on success (no eager string, no lambda)
+		if (value < 0) {
+			throw new GenericEvitaInternalError(
+				"Only a non-negative value can be encoded into a byte, got " + value + "."
+			);
+		}
+		return value < BYTE4_EXACT_VALUES
+			? (byte) value
+			: (byte) (BYTE4_EXACT_VALUES + encodeInt4(value - BYTE4_EXACT_VALUES));
+	}
+
+	/**
+	 * Decodes a byte produced by {@link #intToByte4(int)}: the encoded value when it is exactly representable,
+	 * otherwise the largest representable value below it.
+	 *
+	 * @param encoded the encoded byte, any of the 256 values
+	 * @return the decoded value, zero or more
+	 */
+	public static int byte4ToInt(byte encoded) {
+		final int unsigned = Byte.toUnsignedInt(encoded);
+		return unsigned < BYTE4_EXACT_VALUES
+			? unsigned
+			// the largest code decodes to 2,013,265,944, so the sum never leaves the int range
+			: (int) (BYTE4_EXACT_VALUES + decodeInt4(unsigned - BYTE4_EXACT_VALUES));
+	}
+
+	/**
+	 * Encodes a non-negative long as an order-preserving float with four significant bits: three explicit mantissa bits
+	 * in the low bits and the exponent above them. A value of fewer than four bits is stored as is under exponent `0`;
+	 * a longer one keeps its four leading bits, drops the implicit leading one and stores its shift plus one as the
+	 * exponent.
+	 *
+	 * @param value the value to encode, zero or more
+	 * @return the code, non-negative
+	 */
+	private static int encodeInt4(long value) {
+		final int significantBits = Long.SIZE - Long.numberOfLeadingZeros(value);
+		if (significantBits < 4) {
+			return (int) value;
+		}
+		final int shift = significantBits - 4;
+		return (int) ((value >>> shift) & 0x07) | ((shift + 1) << 3);
+	}
+
+	/**
+	 * Decodes a code of {@link #encodeInt4(long)}, restoring the implicit leading one of a value of four bits or more.
+	 *
+	 * @param code the code, non-negative
+	 * @return the value, with every bit below the four significant ones cleared
+	 */
+	private static long decodeInt4(int code) {
+		final long mantissa = code & 0x07;
+		final int shift = (code >>> 3) - 1;
+		return shift < 0 ? mantissa : (mantissa | 0x08) << shift;
 	}
 
 	/**

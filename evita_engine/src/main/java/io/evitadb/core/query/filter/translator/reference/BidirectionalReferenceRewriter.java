@@ -177,6 +177,9 @@ public class BidirectionalReferenceRewriter {
 		if (plan == null) {
 			return empty();
 		}
+		checkAttributeConstraintsOnOwnerSide(
+			filterByVisitor, ownerEntitySchema, ownerReference, processingScope, plan.split().attributeConstraints()
+		);
 		if (plan.candidateOwners().length == 0) {
 			return of(EmptyFormula.INSTANCE);
 		}
@@ -204,6 +207,57 @@ public class BidirectionalReferenceRewriter {
 					plan.counterpartScopes()
 				)
 			)
+		);
+	}
+
+	/**
+	 * Translates the reference-attribute constraints the rewrite takes over on the **owner** side, over no index, only
+	 * for the schema capabilities they request there - and throws the formula away.
+	 *
+	 * The query names the attributes of the owner's reference, and the owner-side evaluation records them (and the
+	 * reference's `indexed()` they depend on) with the query. The rewrite evaluates them against the counterpart's
+	 * indexes instead, by an accessor that resolves them on the counterpart, and it is taken only when the counterpart
+	 * holds enough data to be worth it - so without this translation the query would count the attributes where the
+	 * owner side answers it, which includes every query over no data, and not where the rewrite does. Translating the
+	 * constraints exactly as the owner side does, over no index, records exactly what it records; the inherited
+	 * attributes the rewrite requires ({@link #attributesMirrored}) carry the same flags on both ends, so the
+	 * translation refuses nothing the rewrite accepts.
+	 *
+	 * @param filterByVisitor      the visitor translating the constraint
+	 * @param ownerEntitySchema    schema of the entity the query targets
+	 * @param ownerReference       reference the `referenceHaving` filters on
+	 * @param processingScope      the processing scope of the constraint
+	 * @param attributeConstraints the reference-attribute constraints the rewrite evaluates, empty when there are none
+	 */
+	private static void checkAttributeConstraintsOnOwnerSide(
+		@Nonnull FilterByVisitor filterByVisitor,
+		@Nonnull EntitySchemaContract ownerEntitySchema,
+		@Nonnull ReferenceSchemaContract ownerReference,
+		@Nonnull ProcessingScope<?> processingScope,
+		@Nonnull List<FilterConstraint> attributeConstraints
+	) {
+		if (attributeConstraints.isEmpty()) {
+			return;
+		}
+		final String referenceName = ownerReference.getName();
+		filterByVisitor.executeInContextAndIsolatedFormulaStack(
+			ReducedEntityIndex.class,
+			Collections::emptyList,
+			ReferenceContent.ALL_REFERENCES,
+			ownerEntitySchema,
+			ownerReference,
+			processingScope.getNestedQueryRestriction(),
+			null,
+			processingScope.withReferenceSchemaAccessor(referenceName),
+			(entityContract, attributeName, locale) -> entityContract.getReferences(referenceName)
+				.stream()
+				.map(it -> it.getAttributeValue(attributeName, locale)),
+			() -> {
+				for (final FilterConstraint attributeConstraint : attributeConstraints) {
+					attributeConstraint.accept(filterByVisitor);
+				}
+				return filterByVisitor.getCollectedFormulasOnCurrentLevel();
+			}
 		);
 	}
 

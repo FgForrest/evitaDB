@@ -47,6 +47,7 @@ import io.evitadb.core.query.extraResult.translator.reference.producer.Reference
 import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryProducer.SummaryDeclaration;
 import io.evitadb.core.query.extraResult.translator.reference.producer.ReferenceSummaryResultAdapter;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
+import io.evitadb.core.query.sort.NestedContextSorter;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.EntityIndex;
@@ -62,6 +63,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.IntPredicate;
 import java.util.stream.Collectors;
 
 import static io.evitadb.core.query.extraResult.translator.reference.ReferenceSummaryOfReferenceTranslator.createFacetGroupPredicate;
@@ -113,6 +115,8 @@ public class ReferenceSummaryTranslator
 	 * @param filterGroupBy              optional filter for reference groups
 	 * @param orderBy                    optional ordering for individual references
 	 * @param orderGroupBy               optional ordering for reference groups
+	 * @param referencesWithHistograms   names of the references the summary computes requested histograms for - see
+	 *                                   {@link #collectReferencesWithRequestedHistograms}; empty when it requests none
 	 * @param resultAdapter              adapter that decides which concrete DTO the producer emits — the deprecated
 	 *                                   {@link FacetSummary} or the
 	 *                                   canonical {@link ReferenceSummary}.
@@ -131,6 +135,7 @@ public class ReferenceSummaryTranslator
 		@Nullable FilterGroupBy filterGroupBy,
 		@Nullable OrderBy orderBy,
 		@Nullable OrderGroupBy orderGroupBy,
+		@Nonnull Set<String> referencesWithHistograms,
 		@Nonnull ReferenceSummaryResultAdapter<? extends ReferenceGroupStatistics> resultAdapter,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
 	) {
@@ -213,32 +218,122 @@ public class ReferenceSummaryTranslator
 			)
 		);
 
+		// the predicates and the sorters are created while the query is planned, for every reference the summary covers,
+		// so that their filters and orderings are checked and counted with the query whether the reference has an option
+		// to filter and order or not
+		final Function<ReferenceSchemaContract, IntPredicate> facetPredicate = filterBy == null ?
+			null :
+			createForSummarizedReferences(
+				entitySchema, scopes, referencesDescribedBySpecificSummary, referencesWithHistograms,
+				referenceSchema -> createFacetPredicate(extraResultPlanner, filterBy, referenceSchema, false)
+			);
+		final Function<ReferenceSchemaContract, IntPredicate> groupPredicate = filterGroupBy == null ?
+			null :
+			createForSummarizedReferences(
+				entitySchema, scopes, referencesDescribedBySpecificSummary, referencesWithHistograms,
+				referenceSchema -> createFacetGroupPredicate(extraResultPlanner, filterGroupBy, referenceSchema, false)
+			);
+		final Function<ReferenceSchemaContract, NestedContextSorter> facetSorter = orderBy == null ?
+			null :
+			createForSummarizedReferences(
+				entitySchema, scopes, referencesDescribedBySpecificSummary, referencesWithHistograms,
+				referenceSchema -> createFacetSorter(
+					extraResultPlanner, orderBy, findLocale(filterBy), extraResultPlanner, referenceSchema, false
+				)
+			);
+		final Function<ReferenceSchemaContract, NestedContextSorter> groupSorter = orderGroupBy == null ?
+			null :
+			createForSummarizedReferences(
+				entitySchema, scopes, referencesDescribedBySpecificSummary, referencesWithHistograms,
+				referenceSchema -> createFacetGroupSorter(
+					extraResultPlanner, orderGroupBy, findLocale(filterGroupBy), extraResultPlanner, referenceSchema,
+					false
+				)
+			);
 		referenceSummaryProducer.requireDefaultReferenceSummary(
 			statisticsDepth,
-			referenceSchema -> filterBy != null
-				? createFacetPredicate(extraResultPlanner, filterBy, referenceSchema, false)
-				: null,
-			referenceSchema -> filterGroupBy != null
-				? createFacetGroupPredicate(extraResultPlanner, filterGroupBy, referenceSchema, false)
-				: null,
-			referenceSchema -> orderBy != null
-				?
-				createFacetSorter(
-					extraResultPlanner, orderBy, findLocale(filterBy),
-					extraResultPlanner, referenceSchema, false
-				)
-				: null,
-			referenceSchema -> orderGroupBy != null
-				?
-				createFacetGroupSorter(
-					extraResultPlanner, orderGroupBy,
-					findLocale(filterGroupBy), extraResultPlanner, referenceSchema, false
-				)
-				: null,
+			facetPredicate,
+			groupPredicate,
+			facetSorter,
+			groupSorter,
 			facetEntityRequirement,
 			groupEntityReq
 		);
 		return referenceSummaryProducer;
+	}
+
+	/**
+	 * Creates the predicate or the sorter of every reference the summary of all references covers - each reference
+	 * faceted in one of the processing scopes or carrying a histogram the summary requests, that no reference-specific
+	 * summary claims, a reflection not attached yet excepted - right away, and returns the function the producer
+	 * resolves the predicate or the sorter of a reference by when the summary is computed. A reference carrying a
+	 * requested histogram is covered whether it is faceted or not: the summary computes the histogram for its groups,
+	 * and resolves the predicates and the sorters of the reference to do so.
+	 *
+	 * The filter and the ordering of the summary are evaluated against the entity type each reference targets, and they
+	 * are a part of the query whether that reference holds an option to filter and order or not: creating the
+	 * predicates and the sorters while the query is planned checks the filter and the ordering against every such
+	 * type - so the query fails or passes regardless of the data - and hands the schema capabilities they request to the
+	 * planning context of the query, which counts them once with its own before the plan is executed. A predicate or a
+	 * sorter created only when the summary is computed would do neither: it would be created for the references holding
+	 * an option only, and after the query had already counted what it requested.
+	 *
+	 * The function falls back to creating the predicate or the sorter of a reference outside that set, should the
+	 * summary ever reach one.
+	 *
+	 * @param entitySchema                         the schema of the summarized entity type
+	 * @param scopes                               the processing scopes of the summary
+	 * @param referencesDescribedBySpecificSummary the references a reference-specific summary claims
+	 * @param referencesWithHistograms             the references the summary computes requested histograms for
+	 * @param factory                              creates the predicate or the sorter of a reference, NULL when it has
+	 *                                             none
+	 * @param <T>                                  the type of what is created - a predicate or a sorter
+	 * @return the function resolving what was created for a reference, NULL when the reference has none
+	 */
+	@Nonnull
+	private static <T> Function<ReferenceSchemaContract, T> createForSummarizedReferences(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull Set<Scope> scopes,
+		@Nonnull Set<String> referencesDescribedBySpecificSummary,
+		@Nonnull Set<String> referencesWithHistograms,
+		@Nonnull Function<ReferenceSchemaContract, T> factory
+	) {
+		final Map<String, T> created = CollectionUtils.createHashMap(entitySchema.getReferences().size());
+		for (final ReferenceSchemaContract referenceSchema : entitySchema.getReferences().values()) {
+			// a reflection not attached yet holds no option, and it cannot name the group type its groups would be
+			// filtered or ordered by - even when it states its own `faceted()` - see `isUnattachedReflection`
+			if (referencesDescribedBySpecificSummary.contains(referenceSchema.getName())
+				|| isUnattachedReflection(referenceSchema)
+				|| (!referencesWithHistograms.contains(referenceSchema.getName())
+				&& scopes.stream().noneMatch(referenceSchema::isFacetedInScope))
+			) {
+				continue;
+			}
+			created.put(referenceSchema.getName(), factory.apply(referenceSchema));
+		}
+		return referenceSchema -> {
+			final String referenceName = referenceSchema.getName();
+			return created.containsKey(referenceName) ?
+				created.get(referenceName) : factory.apply(referenceSchema);
+		};
+	}
+
+	/**
+	 * Returns true for a reflected reference not attached to the reference it mirrors yet - a legal state of a schema
+	 * being built, in which the reflection may be declared before the reference it mirrors exists. Such a reflection
+	 * holds no data, so a summary has no option of it to describe, and it cannot answer anything it inherits: neither
+	 * an inherited `faceted()` nor its group type, which is always the one of the reference it mirrors, and asking
+	 * for either throws. The summary of all references therefore steps over it rather than fails a valid query.
+	 *
+	 * The recording of the `faceted()` flag in {@link #createProducerInternal} deliberately skips only the reflections
+	 * inheriting the flag: a reflection stating its own `faceted()` answers it fine while not attached.
+	 *
+	 * @param referenceSchema the reference schema to test
+	 * @return true when the reference is a reflection not attached yet
+	 */
+	private static boolean isUnattachedReflection(@Nonnull ReferenceSchemaContract referenceSchema) {
+		return referenceSchema instanceof ReflectedReferenceSchemaContract reflectedReference
+			&& !reflectedReference.isReflectedReferenceAvailable();
 	}
 
 	/**
@@ -292,6 +387,9 @@ public class ReferenceSummaryTranslator
 			// its requirements must not be validated against that reference's schema either - a fetch that is valid
 			// only for the references the generic form actually governs would otherwise be refused
 			.filter(referenceSchema -> !referencesDescribedBySpecificSummary.contains(referenceSchema.getName()))
+			// a reflection not attached yet holds no option and can tell neither whether it is faceted when it
+			// inherits the flag, nor whether its group type is managed - see `isUnattachedReflection`
+			.filter(referenceSchema -> !isUnattachedReflection(referenceSchema))
 			.filter(
 				referenceSchema -> extraResultPlanner
 					.getEvitaRequest()
@@ -372,6 +470,8 @@ public class ReferenceSummaryTranslator
 		@Nonnull ReferenceSummary referenceSummary,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
 	) {
+		final EntitySchemaContract schema = extraResultPlanner.getSchema();
+		final Set<Scope> scopes = extraResultPlanner.getProcessingScope().getScopes();
 		final ExtraResultProducer producer = createProducerInternal(
 			referenceSummary.getStatisticsDepth(),
 			referenceSummary.getReferenceEntityRequirement().orElse(null),
@@ -380,6 +480,7 @@ public class ReferenceSummaryTranslator
 			referenceSummary.getFilterGroupBy().orElse(null),
 			referenceSummary.getOrderBy().orElse(null),
 			referenceSummary.getOrderGroupBy().orElse(null),
+			collectReferencesWithRequestedHistograms(referenceSummary, schema, scopes),
 			ReferenceSummaryAdapter.INSTANCE,
 			extraResultPlanner
 		);
@@ -392,8 +493,6 @@ public class ReferenceSummaryTranslator
 		// form is applies-where-defined — references that do not declare a requested histogram in
 		// every active scope are silently skipped; only requested names declared on **no**
 		// reference in the schema raise EvitaInvalidUsageException (typo guard).
-		final EntitySchemaContract schema = extraResultPlanner.getSchema();
-		final Set<Scope> scopes = extraResultPlanner.getProcessingScope().getScopes();
 		for (final RequireConstraint child : referenceSummary.getChildren()) {
 			if (child instanceof ReferenceHistogramStatistics histogramConstraint) {
 				dispatchHistogramToMatchingReferences(
@@ -402,6 +501,46 @@ public class ReferenceSummaryTranslator
 			}
 		}
 		return producer;
+	}
+
+	/**
+	 * Collects the names of the references the histograms the summary of all references requests are computed for:
+	 * every reference declaring at least one of the requested histograms in every processing scope - exactly the
+	 * references {@link #dispatchHistogramToMatchingReferences} dispatches the requests to.
+	 *
+	 * The summary describes such a reference for its histograms whether the reference is faceted or not, and the
+	 * producer resolves the predicates and the sorters the summary derives from its generic filters and orderings for it
+	 * when it computes them - so those of these references have to be created while the query is planned too, see
+	 * {@link #createForSummarizedReferences}.
+	 *
+	 * @param referenceSummary the summary of all references
+	 * @param schema           the schema of the summarized entity type
+	 * @param scopes           the processing scopes of the summary
+	 * @return names of the references carrying a requested histogram, empty when the summary requests none
+	 */
+	@Nonnull
+	private static Set<String> collectReferencesWithRequestedHistograms(
+		@Nonnull ReferenceSummary referenceSummary,
+		@Nonnull EntitySchemaContract schema,
+		@Nonnull Set<Scope> scopes
+	) {
+		Set<String> referencesWithHistograms = null;
+		for (final RequireConstraint child : referenceSummary.getChildren()) {
+			if (child instanceof ReferenceHistogramStatistics histogramConstraint) {
+				for (final ReferenceSchemaContract referenceSchema : schema.getReferences().values()) {
+					for (final String name : histogramConstraint.getIndexNames()) {
+						if (isApplicableInAllScopes(referenceSchema, name, scopes)) {
+							if (referencesWithHistograms == null) {
+								referencesWithHistograms = CollectionUtils.createHashSet(schema.getReferences().size());
+							}
+							referencesWithHistograms.add(referenceSchema.getName());
+							break;
+						}
+					}
+				}
+			}
+		}
+		return referencesWithHistograms == null ? Set.of() : referencesWithHistograms;
 	}
 
 	/**

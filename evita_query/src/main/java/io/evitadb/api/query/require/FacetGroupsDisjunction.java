@@ -45,8 +45,9 @@ import java.util.Optional;
 
 /**
  * The `facetGroupsDisjunction` requirement overrides the default **logical AND** relation that applies **between**
- * different facet groups or references and replaces it with **logical OR** (disjunction) for the specified reference
- * and relation level.
+ * different facet groups of the same reference and replaces it with **logical OR** (disjunction) for the specified
+ * reference and relation level. The facets of different references stay combined by logical AND, because
+ * `userFilter` combines its constraints the way `and` does.
  *
  * By default, when a user selects facets from multiple different groups evitaDB requires that entities satisfy all
  * of them (AND): products must be *blue* **and** *large*. This constraint changes that behaviour for targeted groups

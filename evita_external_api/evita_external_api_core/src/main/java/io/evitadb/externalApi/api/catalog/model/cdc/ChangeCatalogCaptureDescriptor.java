@@ -28,19 +28,32 @@ import io.evitadb.externalApi.api.model.ObjectDescriptor;
 import io.evitadb.externalApi.api.model.PropertyDescriptor;
 import io.evitadb.externalApi.api.model.cdc.ChangeCaptureDescriptor;
 
+import java.util.UUID;
+
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nonNull;
 import static io.evitadb.externalApi.api.model.PrimitivePropertyDataTypeDescriptor.nullable;
 
 /**
  * Descriptor interface for catalog-specific Change Data Capture (CDC) events. Extends the base
  * {@link ChangeCaptureDescriptor} with additional properties specific to catalog operations,
- * including area, entity type, and version information. This descriptor is used to define
+ * including catalog identity, area, entity type, and version information. This descriptor is used to define
  * the structure of CDC events that occur within a specific catalog context.
  *
  * @author Lukáš Hornych, FG Forrest a.s. (c) 2023
  */
 public interface ChangeCatalogCaptureDescriptor extends ChangeCaptureDescriptor {
 
+	PropertyDescriptor CATALOG_ID = PropertyDescriptor.builder()
+		.name("catalogId")
+		.description("""
+			The identity of the catalog incarnation this capture belongs to. Together with `version` and `index`
+			it forms the position of the capture in the CDC stream. A client that wants to resume the stream later
+			should store it together with that position and pass it back as the `catalogId` of its request: catalog
+			versions mean something only within one incarnation of the catalog, and replacing, restoring or duplicating
+			a catalog starts a different version sequence under the same name.
+			""")
+		.type(nonNull(UUID.class))
+		.build();
 	PropertyDescriptor AREA = PropertyDescriptor.builder()
 		.name("area")
 		.description("""
@@ -70,6 +83,7 @@ public interface ChangeCatalogCaptureDescriptor extends ChangeCaptureDescriptor 
 		.description("""
 			Record representing a catalog-specific CDC event that is sent to the subscriber if it matches to the request he made.
 			""")
+		.staticProperty(CATALOG_ID)
 		.staticProperty(VERSION)
 		.staticProperty(INDEX)
 		.staticProperty(AREA)
