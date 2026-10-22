@@ -1615,39 +1615,13 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
-	 * Returns the target's partitions of the reference in each scope of the processing scope (the default scope
-	 * when none is set), as index objects. The stream never contains `null`.
+	 * Returns reduced group indexes containing owners whose rows of the named reference carry the given group.
+	 * Indexes are looked up in every processing scope, or in the default scope when none is set.
 	 *
-	 * @param entitySchema       the entity schema owning the reference
-	 * @param referenceSchema    the reference whose partitions of the target are returned
-	 * @param referencedEntityId the primary key of the target entity
-	 * @return the target's partitions, one per processing scope that holds any
-	 * @throws io.evitadb.core.exception.ReferenceComponentNotIndexedException when a processing scope indexes the
-	 *         reference without the `REFERENCED_ENTITY` component, propagated from
-	 *         {@link io.evitadb.core.query.QueryPlanningContext#resolvePartitionsOfTarget}
-	 */
-	@Nonnull
-	public Stream<AbstractReducedEntityIndex> getReferencedEntityIndexes(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		int referencedEntityId
-	) {
-		final Set<Scope> scopes = getProcessingScope().getScopes();
-		return (scopes.isEmpty() ? Stream.of(Scope.DEFAULT_SCOPE) : scopes.stream())
-			.flatMap(
-				scope -> Arrays.stream(
-					getQueryContext().resolvePartitionsOfTarget(entitySchema, referenceSchema, scope, referencedEntityId)
-				)
-			)
-			// the consumers read the partitions as indexes of the query body channel
-			.<AbstractReducedEntityIndex>map(ReferencePartitions::toReducedEntityIndex);
-	}
-
-	/**
-	 * Returns {@link EntityIndex} that contains indexed entities whose references have
-	 * group entity `referenceName` and `groupEntityId`. This method mirrors
-	 * {@link #getReferencedEntityIndexes(EntitySchemaContract, ReferenceSchemaContract, int)} but uses
-	 * group-specific index types.
+	 * @param entitySchema    the entity schema owning the reference
+	 * @param referenceSchema the reference whose group indexes are returned
+	 * @param groupEntityId   the primary key of the group entity
+	 * @return the group's reduced indexes across the processing scopes
 	 */
 	@Nonnull
 	public Stream<AbstractReducedEntityIndex> getReferencedGroupEntityIndexes(
