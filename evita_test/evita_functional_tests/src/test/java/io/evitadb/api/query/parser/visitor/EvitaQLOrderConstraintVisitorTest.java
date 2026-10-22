@@ -759,6 +759,18 @@ class EvitaQLOrderConstraintVisitorTest {
         assertThrows(EvitaSyntaxException.class, () -> parseOrderConstraint("orderBy(segments(segment(orderBy(random()), limit(5))))"));
     }
 
+	/**
+	 * A segment accepts the entity scope with several children without changing its own grammar rule.
+	 */
+	@Test
+	@DisplayName("Parses a segment with several entity filters")
+	void shouldParseSeveralChildrenWhenInsideSegment() {
+		final OrderConstraint expected = orderBy(segments(segment(
+			entityHaving(attributeEquals("first", true), attributeEquals("second", true)), orderBy(random())
+		)));
+		assertEquals(expected, parseOrderConstraintUnsafe(expected.toString()));
+	}
+
     @Test
     void shouldParseInScopeConstraint() {
         final OrderConstraint constraint1 = parseOrderConstraintUnsafe("inScope(LIVE, attributeNatural('code', ASC))");

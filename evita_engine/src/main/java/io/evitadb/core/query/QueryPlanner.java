@@ -335,6 +335,8 @@ public class QueryPlanner {
 	 * @return interchangeable index sets, each of which can answer the query on its own
 	 */
 	private static IndexSelectionResult<?> selectIndexes(@Nonnull QueryPlanningContext queryContext) {
+		// Validate the level even when a key-only query needs no localized attribute or entity body.
+		queryContext.getLocale();
 		return selectIndexes(queryContext, queryContext.getFilterBy());
 	}
 

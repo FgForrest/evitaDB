@@ -168,6 +168,10 @@ import java.io.Serializable;
  * - Attribute constraints to filter on reference attributes.
  * - {@code entityPrimaryKeyInSet} to filter by referenced entity primary keys.
  *
+ * Facet keys, reference attributes and scopes are isolated from owner lookups by
+ * {@link SeparateEntityScopeContainer}, just as in {@link ReferenceHaving}. Its direct children retain the owner
+ * locale; only a nested {@link DifferentEntityFilterContainer} starts another locale level.
+ *
  * ## Design Rationale
  *
  * Faceted navigation is a core e-commerce pattern where users progressively narrow search results by selecting attribute values (facets).
@@ -197,7 +201,8 @@ import java.io.Serializable;
 	userDocsLink = "/documentation/query/filtering/references#facet-having",
 	supportedIn = ConstraintDomain.ENTITY
 )
-public class FacetHaving extends AbstractFilterConstraintContainer implements FacetConstraint<FilterConstraint> {
+public class FacetHaving extends AbstractFilterConstraintContainer
+	implements FacetConstraint<FilterConstraint>, SeparateEntityScopeContainer {
 	@Serial private static final long serialVersionUID = -4135466525683422992L;
 
 	private FacetHaving(@Nonnull Serializable[] arguments, @Nonnull FilterConstraint... children) {

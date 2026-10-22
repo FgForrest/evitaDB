@@ -1664,9 +1664,9 @@ public class EvitaQLParser extends Parser {
 	}
 	@SuppressWarnings("CheckReturnValue")
 	public static class EntityHavingConstraintContext extends FilterConstraintContext {
-		public FilterConstraintArgsContext args;
-		public FilterConstraintArgsContext filterConstraintArgs() {
-			return getRuleContext(FilterConstraintArgsContext.class,0);
+		public FilterConstraintListArgsContext args;
+		public FilterConstraintListArgsContext filterConstraintListArgs() {
+			return getRuleContext(FilterConstraintListArgsContext.class,0);
 		}
 		public EntityHavingConstraintContext(FilterConstraintContext ctx) { copyFrom(ctx); }
 		@Override
@@ -1685,9 +1685,9 @@ public class EvitaQLParser extends Parser {
 	}
 	@SuppressWarnings("CheckReturnValue")
 	public static class GroupHavingConstraintContext extends FilterConstraintContext {
-		public FilterConstraintArgsContext args;
-		public FilterConstraintArgsContext filterConstraintArgs() {
-			return getRuleContext(FilterConstraintArgsContext.class,0);
+		public FilterConstraintListArgsContext args;
+		public FilterConstraintListArgsContext filterConstraintListArgs() {
+			return getRuleContext(FilterConstraintListArgsContext.class,0);
 		}
 		public GroupHavingConstraintContext(FilterConstraintContext ctx) { copyFrom(ctx); }
 		@Override
@@ -2638,7 +2638,7 @@ public class EvitaQLParser extends Parser {
 				setState(392);
 				match(T__54);
 				setState(393);
-				((EntityHavingConstraintContext)_localctx).args = filterConstraintArgs();
+				((EntityHavingConstraintContext)_localctx).args = filterConstraintListArgs();
 				}
 				break;
 			case T__55:
@@ -2648,7 +2648,7 @@ public class EvitaQLParser extends Parser {
 				setState(394);
 				match(T__55);
 				setState(395);
-				((GroupHavingConstraintContext)_localctx).args = filterConstraintArgs();
+				((GroupHavingConstraintContext)_localctx).args = filterConstraintListArgs();
 				}
 				break;
 			case T__56:
@@ -16550,8 +16550,8 @@ public class EvitaQLParser extends Parser {
 		"\u0195\u0003*\u0015\u0000\u0182\u0183\u00054\u0000\u0000\u0183\u0195\u0003"+
 		"*\u0015\u0000\u0184\u0185\u00055\u0000\u0000\u0185\u0195\u0003&\u0013"+
 		"\u0000\u0186\u0187\u00056\u0000\u0000\u0187\u0195\u0003*\u0015\u0000\u0188"+
-		"\u0189\u00057\u0000\u0000\u0189\u0195\u0003,\u0016\u0000\u018a\u018b\u0005"+
-		"8\u0000\u0000\u018b\u0195\u0003,\u0016\u0000\u018c\u018d\u00059\u0000"+
+		"\u0189\u00057\u0000\u0000\u0189\u0195\u0003*\u0015\u0000\u018a\u018b\u0005"+
+		"8\u0000\u0000\u018b\u0195\u0003*\u0015\u0000\u018c\u018d\u00059\u0000"+
 		"\u0000\u018d\u0195\u0003\u00dcn\u0000\u018e\u018f\u0005:\u0000\u0000\u018f"+
 		"\u0195\u0003D\"\u0000\u0190\u0191\u0005;\u0000\u0000\u0191\u0195\u0003"+
 		"\u00deo\u0000\u0192\u0193\u0005<\u0000\u0000\u0193\u0195\u00036\u001b"+

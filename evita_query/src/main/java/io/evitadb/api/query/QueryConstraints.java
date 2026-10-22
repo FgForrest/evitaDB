@@ -862,7 +862,9 @@ public interface QueryConstraints {
 	}
 
 	/**
-	 * Filters referenced entities by their attributes or properties within a reference context, shifting the filter scope from the relation to the referenced entity itself. Use only as a child of `referenceHaving` or `facetHaving`. Accepts one filter constraint; combine multiple conditions with logical containers like `and` or `or`.
+	 * Filters referenced entities by their attributes or properties within a reference context, shifting the filter
+	 * scope from the relation to the referenced entity itself. Use only as a child of `referenceHaving` or
+	 * `facetHaving`. Several children are combined with logical AND; use `or` for alternatives.
 	 *
 	 * ```evitaql
 	 * referenceHaving(
@@ -877,14 +879,17 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.filter.EntityHaving
 	 */
-	@SourceHash("72622cf09917785d794cf6e49573f69f")
+	@SourceHash("76ef3b7f01baf2dc5858bddd0d65c74a")
 	@Nullable
-	static EntityHaving entityHaving(@Nullable FilterConstraint filterConstraint) {
-		return filterConstraint == null ? null : new EntityHaving(filterConstraint);
+	static EntityHaving entityHaving(@Nullable FilterConstraint... filterConstraints) {
+		return ArrayUtils.isEmptyOrItsValuesNull(filterConstraints) ? null : new EntityHaving(filterConstraints);
 	}
 
 	/**
-	 * Filters referenced group entities (e.g., a Store grouping brands) by their attributes or properties within a reference context. Use only inside `referenceHaving` or `facetHaving` to target group entity fields, not the reference or referenced entity itself. Accepts any valid entity filter constraint; combine multiple conditions with logical containers.
+	 * Filters referenced group entities (e.g., a Store grouping brands) by their attributes or properties within a
+	 * reference context. Use only inside `referenceHaving` or `facetHaving` to target group entity fields, not the
+	 * reference or referenced entity itself. Several children are combined with logical AND; use `or` for
+	 * alternatives.
 	 *
 	 * ```evitaql
 	 * referenceHaving(
@@ -899,10 +904,10 @@ public interface QueryConstraints {
 	 *
 	 * @see io.evitadb.api.query.filter.GroupHaving
 	 */
-	@SourceHash("ef3d6b5ae4ac15b65f6b1db4c0748682")
+	@SourceHash("d44289b53427063520c4afc2ead5d27d")
 	@Nullable
-	static GroupHaving groupHaving(@Nullable FilterConstraint filterConstraint) {
-		return filterConstraint == null ? null : new GroupHaving(filterConstraint);
+	static GroupHaving groupHaving(@Nullable FilterConstraint... filterConstraints) {
+		return ArrayUtils.isEmptyOrItsValuesNull(filterConstraints) ? null : new GroupHaving(filterConstraints);
 	}
 
 	/**

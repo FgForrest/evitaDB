@@ -29,6 +29,7 @@ import com.linecorp.armeria.common.HttpMethod;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.HeadConstraint;
 import io.evitadb.api.query.Query;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.head.Head;
@@ -66,8 +67,6 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
-import static io.evitadb.api.query.QueryUtils.findFilter;
-import static java.util.Optional.ofNullable;
 
 /**
  * Ancestor for endpoints that accept query object as input.
@@ -243,14 +242,8 @@ public abstract class QueryOrientedEntitiesHandler extends JsonRestHandler<Colle
 				throw new RestRequiredParameterMissingException("Missing LOCALE in URL path.");
 			}
 
-			final Optional<FilterConstraint> localeEquals = ofNullable(findFilter(
-				query(
-					filterBy,
-					require()
-				),
-				EntityLocaleEquals.class
-			));
-			if (localeEquals.isPresent()) {
+			final Locale filterLocale = QueryUtils.resolveLocale(filterBy);
+			if (filterLocale != null) {
 				throw new RestInvalidArgumentException("When using localized URL path then entity_locale_equals constraint can't be present in filterBy.");
 			}
 

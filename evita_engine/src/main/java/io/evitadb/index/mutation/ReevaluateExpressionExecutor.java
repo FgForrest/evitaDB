@@ -73,6 +73,7 @@ import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.index.membership.ReducedIndexMembership;
 import io.evitadb.index.mutation.local.ReferenceIndexMutator;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.utils.NumberUtils;
@@ -2840,10 +2841,14 @@ class ReevaluateExpressionExecutor implements IndexMutationExecutor<ReevaluateEx
 	) {
 		if (isGroupScope) {
 			if (constraint instanceof final GroupHaving existing) {
-				return new GroupHaving(new And(existing.getChild(), pkConstraint));
+				return new GroupHaving(
+					ArrayUtils.mergeArrays(existing.getChildren(), new FilterConstraint[]{pkConstraint})
+				);
 			}
 		} else if (constraint instanceof final EntityHaving existing) {
-			return new EntityHaving(new And(existing.getChild(), pkConstraint));
+			return new EntityHaving(
+				ArrayUtils.mergeArrays(existing.getChildren(), new FilterConstraint[]{pkConstraint})
+			);
 		}
 		if (constraint instanceof final And and) {
 			final FilterConstraint[] rewritten = mergePkIntoScopeContainers(

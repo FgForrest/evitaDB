@@ -31,6 +31,7 @@ import io.evitadb.comparator.NullsLastComparatorWrapper;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.ComparableLocale;
 import io.evitadb.dataType.DateTimeRange;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
@@ -43,6 +44,9 @@ import io.evitadb.utils.Assert;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Locale;
@@ -496,9 +500,56 @@ public final class LegacyOwnerSortIndexCorrection {
 	}
 
 	/**
+	 * Clamps a persisted temporal value to the window of moments the current engine can hold, see
+	 * {@link EvitaDataTypes#clampToSupportedWindow(OffsetDateTime)}. Release 2026.2 and older accepted any
+	 * `OffsetDateTime` and `LocalDateTime`, the JDK sentinels included, and keyed their indexes by the `Instant` of
+	 * such a value; the current engine keys by whole epoch milliseconds, which an `Instant` outside the window does
+	 * not have, and clamps the same values as they enter. The clamp only moves a value lying outside the window and
+	 * never truncates, so a value inside it is returned as the very same instance.
+	 *
+	 * The method is public because `Migration_2026_3`, in another module, clamps the filter keys, cardinality
+	 * counters and unique keys it re-keys with the very same rule.
+	 *
+	 * @param value an `OffsetDateTime`, a `LocalDateTime`, an `Instant` (the key of a filter index) or anything else
+	 * @return the clamped value when it is temporal and lies outside the window, otherwise the value itself
+	 */
+	@Nullable
+	public static Serializable clampToSupportedWindow(@Nullable Object value) {
+		if (value instanceof OffsetDateTime offsetDateTime) {
+			return EvitaDataTypes.clampToSupportedWindow(offsetDateTime);
+		} else if (value instanceof LocalDateTime localDateTime) {
+			return EvitaDataTypes.clampToSupportedWindow(localDateTime);
+		} else if (value instanceof Instant instant) {
+			return EvitaDataTypes.clampToSupportedWindow(instant);
+		} else {
+			return (Serializable) value;
+		}
+	}
+
+	/**
+	 * Creates the normalizer of a persisted value of `type`: {@link FilterIndex#getNormalizer(Class, int)} behind
+	 * {@link #clampToSupportedWindow}, so a value outside the window of the current engine is keyed by the edge of the
+	 * window it is clamped to. A type that is not temporal gets the plain normalizer.
+	 *
+	 * @param type                 the plain type of the attribute
+	 * @param indexedDecimalPlaces the scale of a `BigDecimal` attribute, ignored for every other type
+	 * @return the normalizer
+	 */
+	@Nonnull
+	public static Function<Object, Serializable> createClampingNormalizer(
+		@Nonnull Class<?> type,
+		int indexedDecimalPlaces
+	) {
+		final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(type, indexedDecimalPlaces);
+		return SortIndex.isTemporal(type) ?
+			value -> normalizer.apply(clampToSupportedWindow(value)) : normalizer;
+	}
+
+	/**
 	 * Creates the normalizer of persisted values: the temporal normalizer the sort index applies to a new value
-	 * ({@link FilterIndex#getNormalizer(Class, int)}), applied to a persisted plain value or to the temporal elements
-	 * of a persisted {@link ComparableArray}. Every other element is left as persisted - it was normalized when it was
+	 * ({@link FilterIndex#getNormalizer(Class, int)}) behind the clamp to the supported window (see
+	 * {@link #createClampingNormalizer}), applied to a persisted plain value or to the temporal elements of a
+	 * persisted {@link ComparableArray}. Every other element is left as persisted - it was normalized when it was
 	 * written, and not every normalizer accepts its own output - so an index with no temporal element gets the
 	 * identity. The function returns the very instance it is given when that is normalized already, which is how a raw
 	 * value is told apart from a current one.
@@ -514,7 +565,7 @@ public final class LegacyOwnerSortIndexCorrection {
 		for (int i = 0; i < comparatorBase.length; i++) {
 			final Class<?> type = comparatorBase[i].type();
 			if (SortIndex.isTemporal(type)) {
-				elementNormalizers[i] = FilterIndex.getNormalizer(type, 0);
+				elementNormalizers[i] = createClampingNormalizer(type, 0);
 				temporal = true;
 			}
 		}

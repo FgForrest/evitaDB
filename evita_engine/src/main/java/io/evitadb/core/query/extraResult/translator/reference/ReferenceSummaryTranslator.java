@@ -31,6 +31,7 @@ import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderGroupBy;
 import io.evitadb.api.query.require.*;
+import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -194,6 +195,7 @@ public class ReferenceSummaryTranslator
 				referenceSchema -> referenceSchema.isReferencedEntityTypeManaged() ?
 					referenceSchema.getReferencedEntityType() : null,
 				referenceEntityRequirement,
+				filterBy,
 				referencesDescribedBySpecificSummary,
 				extraResultPlanner
 			) :
@@ -205,6 +207,7 @@ public class ReferenceSummaryTranslator
 				                   ? referenceSchema.getReferencedGroupType()
 					: null,
 				groupEntityRequirement,
+				ReferenceSummaryOfReferenceTranslator.groupFilterAsFilterBy(filterGroupBy),
 				referencesDescribedBySpecificSummary,
 				extraResultPlanner
 			) :
@@ -368,6 +371,8 @@ public class ReferenceSummaryTranslator
 	 * @param entitySchema       the entity schema
 	 * @param referencedType     function extracting the referenced type from a reference schema
 	 * @param requirement        the fetch requirement to be verified
+	 * @param filter             the summary filter of the body's level, which supplies its locale; NULL when there
+	 *                           is none
 	 * @param extraResultPlanner the visitor used for extra result planning
 	 * @param <T>                the type of the fetch requirement
 	 * @return the verified fetch requirement
@@ -377,6 +382,7 @@ public class ReferenceSummaryTranslator
 		@Nonnull EntitySchemaContract entitySchema,
 		@Nonnull Function<ReferenceSchemaContract, String> referencedType,
 		@Nonnull T requirement,
+		@Nullable FilterBy filter,
 		@Nonnull Set<String> referencesDescribedBySpecificSummary,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
 	) {
@@ -401,6 +407,9 @@ public class ReferenceSummaryTranslator
 				         final String referencedEntityType = referencedType.apply(referenceSchema);
 				         if (referencedEntityType != null) {
 					         final EntitySchemaContract referencedSchema = extraResultPlanner.getSchema(referencedEntityType);
+					         final EvitaRequest fetchRequest = ExtraResultPlanningVisitor.deriveBodyRequest(
+						         extraResultPlanner.getEvitaRequest(), referencedEntityType, filter, requirement
+					         );
 					         final EntityContentRequire[] requirements = requirement.getRequirements();
 					         String[] missingLocalizedAttributes = null;
 					         String[] missingLocalizedAssociatedData = null;
@@ -408,11 +417,12 @@ public class ReferenceSummaryTranslator
 						         try {
 							         if (require instanceof AttributeContent attributeContent) {
 								         AttributeContentTranslator.verifyAttributes(
-									         referencedSchema, null, referencedSchema, attributeContent, extraResultPlanner
+									         referencedSchema, null, referencedSchema, attributeContent,
+									         extraResultPlanner, fetchRequest
 								         );
 							         } else if (require instanceof AssociatedDataContent associatedDataContent) {
 								         AssociatedDataContentTranslator.verifyAssociatedData(
-									         associatedDataContent, referencedSchema, extraResultPlanner
+									         associatedDataContent, referencedSchema, extraResultPlanner, fetchRequest
 								         );
 							         } else if (require instanceof ReferenceContent referenceContent) {
 								         // a `referenceContent` may address several references at once, and every name it
@@ -427,7 +437,8 @@ public class ReferenceSummaryTranslator
 									         referenceContent.getAttributeContent()
 										         .ifPresent(it -> AttributeContentTranslator.verifyAttributes(
 											         referencedSchema, referencedEntityReferenceSchema,
-											         referencedEntityReferenceSchema, it, extraResultPlanner
+											         referencedEntityReferenceSchema, it, extraResultPlanner,
+											         fetchRequest
 										         ));
 								         }
 							         } else if (require instanceof DataInLocales) {

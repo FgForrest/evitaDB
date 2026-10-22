@@ -25,12 +25,12 @@ package io.evitadb.core.query.filter.translator.reference;
 
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.filter.And;
 import io.evitadb.api.query.filter.EntityScope;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.GroupHaving;
 import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
-import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -42,10 +42,7 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.fulltext.ReferenceOwnerFulltextScoreAccessor;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.core.query.algebra.deferred.DeferredFormula;
-import io.evitadb.core.query.algebra.deferred.FormulaWrapper;
 import io.evitadb.core.query.algebra.reference.IndexTaggedFormula;
-import io.evitadb.core.query.algebra.reference.ReferenceOwnerTranslatingFormula;
 import io.evitadb.core.query.algebra.reference.ReferencedEntityIndexPrimaryKeyTranslatingFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
@@ -70,7 +67,6 @@ import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.usage.SchemaCapabilityUsage;
 import io.evitadb.utils.CollectionUtils;
-import io.evitadb.utils.NumberUtils;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
@@ -89,7 +85,6 @@ import java.util.Objects;
 import java.util.PrimitiveIterator.OfInt;
 import java.util.Set;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static java.util.Optional.ofNullable;
 
@@ -100,37 +95,13 @@ import static java.util.Optional.ofNullable;
  *
  * - the target entity type (referenced entity vs. referenced group entity),
  * - the managed-type check,
- * - the index lookup method for translating matched PKs back to owner entity PKs.
+ * - the discovery of candidate partitions and evaluation of matching rows for the target type.
  *
  * This helper extracts the shared logic to avoid duplication.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class HavingTranslatorHelper {
-
-	/**
-	 * A functional interface for looking up reduced entity indexes given the entity schema,
-	 * the reference schema, and a primary key of the target entity (either referenced entity
-	 * or group entity).
-	 */
-	@FunctionalInterface
-	interface ReducedIndexLookup {
-
-		/**
-		 * Returns a stream of reduced entity indexes for the given target entity primary key.
-		 *
-		 * @param entitySchema the schema of the queried entity
-		 * @param referenceSchema the schema of the reference
-		 * @param targetEntityPk the primary key of the target entity (referenced or group)
-		 * @return stream of reduced entity indexes
-		 */
-		@Nonnull
-		Stream<? extends EntityIndex> lookup(
-			@Nonnull EntitySchemaContract entitySchema,
-			@Nonnull ReferenceSchemaContract referenceSchema,
-			int targetEntityPk
-		);
-	}
 
 	/**
 	 * Represents a combination of a global entity index and a corresponding filter formula.
@@ -612,9 +583,23 @@ public class HavingTranslatorHelper {
 	}
 
 	/**
+	 * Returns the single filter the nested query of an `entityHaving` / `groupHaving` container evaluates. The
+	 * container combines its children with logical AND, so several children become one {@link And} of them in
+	 * their order, while a sole child is returned as it is. A container without children has no filter to
+	 * evaluate - callers handle that case before asking for one.
+	 *
+	 * @param children the children of the container, at least one
+	 * @return the sole child, or an {@link And} of all children
+	 */
+	@Nonnull
+	public static FilterConstraint conjunctionOf(@Nonnull FilterConstraint[] children) {
+		return children.length == 1 ? children[0] : new And(children);
+	}
+
+	/**
 	 * Translates a having constraint (either {@link io.evitadb.api.query.filter.EntityHaving} or
-	 * {@link GroupHaving}) into a formula that computes owner entity
-	 * primary keys matching the constraint.
+	 * {@link GroupHaving}) into a formula that selects candidate partitions during discovery or computes
+	 * owner entity primary keys for matching reference rows during row evaluation.
 	 *
 	 * @param filterConstraint          the child filter constraint from the having container
 	 * @param filterByVisitor           the visitor for traversing filter constraints
@@ -632,9 +617,10 @@ public class HavingTranslatorHelper {
 	 *                                  PK universes, so the discovery-phase branch below must skip
 	 *                                  the referenced-entity PK translation when the target is the
 	 *                                  group type.
-	 * @param reducedIndexLookup        the function to look up reduced entity indexes for a target PK
 	 * @param nestedQueryDescription    a supplier for the description of this nested query
-	 * @return a formula computing matching owner entity primary keys
+	 * @return a formula computing candidate partition primary keys during index discovery, or owner entity
+	 *         primary keys contributed by matching rows during row evaluation
+	 * @throws GenericEvitaInternalError when the processing scope supports neither discovery nor row evaluation
 	 */
 	@Nonnull
 	static Formula translateHavingConstraint(
@@ -645,7 +631,6 @@ public class HavingTranslatorHelper {
 		@Nonnull String targetEntityType,
 		boolean isTargetManaged,
 		@Nonnull EntityIndexType typeLevelIndexType,
-		@Nonnull ReducedIndexLookup reducedIndexLookup,
 		@Nonnull Supplier<String> nestedQueryDescription
 	) {
 		@SuppressWarnings("unchecked")
@@ -725,8 +710,8 @@ public class HavingTranslatorHelper {
 							);
 						};
 					} else if (typeLevelIndexType == EntityIndexType.REFERENCED_GROUP_ENTITY_TYPE) {
-						// BRANCH B below resolves reduced indexes from the *collection*, so inside a reduced index
-						// it answers "does this owner have any row whose group matches" instead of "does the row
+						// Resolving reduced indexes from the collection inside a reduced index would mean
+						// answering "does this owner have any row whose group matches" instead of "does the row
 						// held by THIS index have a matching group". The two differ for every owner holding several
 						// rows of the same reference, which makes the group filter cross-row and lets it combine
 						// wrongly with sibling constraints and with `not`. Evaluate per index instead.
@@ -750,12 +735,12 @@ public class HavingTranslatorHelper {
 						);
 					} else if (processingScope.getReferenceSchema() != null &&
 						AbstractReducedEntityIndex.class.isAssignableFrom(processingScope.getIndexType())) {
-						// BRANCH B below resolves the reduced indexes from the *collection*, so inside a reduced
-						// index it answers "does this owner have any row whose target matches" instead of "does the
-						// row held by THIS index have a matching target" - the same cross-row reading the group
-						// branch above exists to avoid. A `not` around it then complements an owner-level set and
-						// answers "this owner references nothing matching", dropping every owner holding a matching
-						// row AND a non-matching one.
+						// Resolving reduced indexes from the collection inside a reduced index would mean answering
+						// "does this owner have any row whose target matches" instead of "does the row held by THIS
+						// index have a matching target" - the same cross-row reading the group branch above exists to
+						// avoid. A `not` around it then complements an owner-level set and answers "this owner
+						// references nothing matching", dropping every owner holding a matching row AND a
+						// non-matching one.
 						// the guard names the ABSTRACT class deliberately: a scope declared with the superclass must
 						// reach this branch too, and `ReducedEntityIndex.class.isAssignableFrom(...)` of the
 						// superclass is FALSE. Dispatching on the actual indexes rather than on the declared class is
@@ -794,53 +779,10 @@ public class HavingTranslatorHelper {
 								.toArray(Formula[]::new)
 						);
 					} else {
-						if (nestedResult.globalIndex() == null) {
-							return EmptyFormula.INSTANCE;
-						}
-						return filterByVisitor.computeOnlyOnce(
-							List.of(nestedResult.globalIndex()),
-							filterConstraint,
-							() -> {
-								final ReferenceOwnerTranslatingFormula outputFormula =
-									new ReferenceOwnerTranslatingFormula(
-										nestedResult.globalIndex(),
-										nestedResult.filter(),
-										it -> {
-											final PersistentRoaringBitmap combinedResult = PersistentRoaringBitmap.or(
-												reducedIndexLookup.lookup(entitySchema, referenceSchema, it)
-													.map(EntityIndex::getAllPrimaryKeys)
-													.map(RoaringBitmapBackedBitmap::getRoaringBitmap)
-													.toArray(PersistentRoaringBitmap[]::new)
-											);
-											return combinedResult.isEmpty() ?
-												EmptyBitmap.INSTANCE : new BaseBitmap(combinedResult);
-										}
-									);
-								return new DeferredFormula(
-									new FormulaWrapper(
-										outputFormula,
-										(executionContext, formula) -> {
-											try {
-												executionContext.pushStep(
-													QueryPhase.EXECUTION_FILTER_NESTED_QUERY,
-													nestedQueryDescription
-												);
-												return formula.compute();
-											} finally {
-												executionContext.popStep();
-											}
-										}
-									)
-								);
-							},
-							2L,
-							// we need to add exact pointers to the entity schema and reference schema,
-							// which play role in the lambda evaluation
-							NumberUtils.pack(
-								System.identityHashCode(entitySchema),
-								System.identityHashCode(referenceSchema)
-							),
-							nestedResult.globalIndex().getPrimaryKey()
+						throw new GenericEvitaInternalError(
+							"Unsupported processing scope for having constraint: index type `" +
+								processingScope.getIndexType().getName() + "`, reference schema `" +
+								referenceSchema.getName() + "`, constraint `" + filterConstraint + "`."
 						);
 					}
 				})

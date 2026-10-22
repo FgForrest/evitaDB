@@ -24,7 +24,10 @@
 package io.evitadb.core.query.extraResult.translator.reference;
 
 import io.evitadb.api.exception.ReferenceContentMisplacedException;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
+import io.evitadb.api.query.require.EntityFetchRequire;
+import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.ReferenceContent;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -56,7 +59,7 @@ import static java.util.Optional.of;
  * there is a reference to filter or order, so a constraint the schemas refuse would otherwise fail the query or pass
  * depending on the data it returns. The check is handed the locale the owners of the references are fetched in:
  * the locale of the query at its top level, and below it the locale each enclosing `referenceContent` fetches its
- * referenced entities in (see {@link #getOwnerLocale}).
+ * entity or group bodies in (see {@link #getOwnerLocale}).
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -114,11 +117,9 @@ public class ReferenceContentTranslator implements RequireConstraintTranslator<R
 	}
 
 	/**
-	 * Returns the locale of the request the owners of the references of the `referenceContent` are fetched with. The
-	 * entities the query returns are fetched in the locale of the query; the referenced entities of a
-	 * `referenceContent` - the owners of a `referenceContent` nested in their fetch - in the locale of its filter, or
-	 * in the locale of its own owners when the filter names none. The enclosing `referenceContent` constraints are
-	 * those on the chain of the requirements being planned, outermost first.
+	 * Returns the locale of the owners of the references being planned. Walking the requirements outermost first,
+	 * each enclosing entity fetch resolves the referenced-entity level, and each enclosing group fetch resolves the
+	 * group level. Either inherits the reference level's opinion, then its owner's locale, when it has no opinion.
 	 *
 	 * @param referenceContent           the `referenceContent` being planned
 	 * @param extraResultPlanningVisitor the visitor planning it
@@ -130,15 +131,18 @@ public class ReferenceContentTranslator implements RequireConstraintTranslator<R
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanningVisitor
 	) {
 		Locale ownerLocale = extraResultPlanningVisitor.getQueryContext().getLocale();
+		ReferenceContent enclosing = null;
 		final Iterator<RequireConstraint> requirementChain =
 			extraResultPlanningVisitor.getEntityContentRequireChain(referenceContent).iterator();
 		while (requirementChain.hasNext()) {
 			final RequireConstraint requirement = requirementChain.next();
-			// the chain ends with the planned `referenceContent` itself, whose filter concerns its own references
-			if (requirement != referenceContent && requirement instanceof ReferenceContent enclosing) {
-				ownerLocale = ReferencedEntityFetcher.getReferencedEntityLocale(
-					enclosing.getFilterBy().orElse(null), ownerLocale
+			if (requirement != referenceContent && requirement instanceof ReferenceContent parent) {
+				enclosing = parent;
+			} else if (enclosing != null && requirement instanceof EntityFetchRequire) {
+				ownerLocale = QueryUtils.resolveReferenceBodyLocale(
+					enclosing.getFilterBy().orElse(null), requirement instanceof EntityGroupFetch, ownerLocale
 				);
+				enclosing = null;
 			}
 		}
 		return ownerLocale;

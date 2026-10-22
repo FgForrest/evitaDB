@@ -25,12 +25,14 @@ package io.evitadb.core.query.filter;
 
 import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.exception.ReferencePartitionReindexRequiredException;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.AttributeConstraint;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.ConstraintLeaf;
 import io.evitadb.api.query.ConstraintVisitor;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.query.require.AttributeContent;
 import io.evitadb.api.query.require.EntityContentRequire;
@@ -103,12 +105,10 @@ import io.evitadb.core.query.filter.translator.reference.ReferenceHavingTranslat
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
-import io.evitadb.index.price.PriceSuperIndex;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.AbstractReducedEntityIndex;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.Index;
 import io.evitadb.index.ReducedEntityIndex;
@@ -126,13 +126,15 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.mutation.local.VirtualReferencePartitionWriter;
+import io.evitadb.index.price.PriceSuperIndex;
+import io.evitadb.index.usage.SchemaCapabilityUsage;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.experimental.Delegate;
-import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
-import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -492,6 +494,10 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 		@Nonnull Supplier<String> stepDescriptionSupplier,
 		boolean constraintCheckOnly
 	) {
+		final QueryPlanningContext localeContext = queryContext.getContextInLocale(
+			queryContext.getEntityType(), filterBy, QueryUtils.resolveLocale(filterBy), queryContext.getScopes(),
+			"resolve nested filter locale"
+		);
 		final Formula theFormula;
 		try {
 			queryContext.pushStep(
@@ -500,8 +506,8 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			);
 			// create a visitor
 			final FilterByVisitor theFilterByVisitor = new FilterByVisitor(
-				createRootProcessingScope(queryContext, TargetIndexes.EMPTY),
-				queryContext,
+				createRootProcessingScope(localeContext, TargetIndexes.EMPTY),
+				localeContext,
 				Collections.emptyList(),
 				TargetIndexes.EMPTY,
 				constraintCheckOnly
@@ -550,6 +556,11 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 			}
 		} finally {
 			queryContext.popStep();
+		}
+		if (localeContext != queryContext) {
+			for (final SchemaCapabilityUsage capability : localeContext.drainRequestedCapabilities()) {
+				queryContext.registerRequestedCapability(capability);
+			}
 		}
 		return theFormula;
 	}
@@ -1656,39 +1667,13 @@ public class FilterByVisitor implements ConstraintVisitor, PrefetchStrategyResol
 	}
 
 	/**
-	 * Returns the target's partitions of the reference in each scope of the processing scope (the default scope
-	 * when none is set), as index objects. The stream never contains `null`.
+	 * Returns reduced group indexes containing owners whose rows of the named reference carry the given group.
+	 * Indexes are looked up in every processing scope, or in the default scope when none is set.
 	 *
-	 * @param entitySchema       the entity schema owning the reference
-	 * @param referenceSchema    the reference whose partitions of the target are returned
-	 * @param referencedEntityId the primary key of the target entity
-	 * @return the target's partitions, one per processing scope that holds any
-	 * @throws io.evitadb.core.exception.ReferenceComponentNotIndexedException when a processing scope indexes the
-	 *         reference without the `REFERENCED_ENTITY` component, propagated from
-	 *         {@link io.evitadb.core.query.QueryPlanningContext#resolvePartitionsOfTarget}
-	 */
-	@Nonnull
-	public Stream<AbstractReducedEntityIndex> getReferencedEntityIndexes(
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		int referencedEntityId
-	) {
-		final Set<Scope> scopes = getProcessingScope().getScopes();
-		return (scopes.isEmpty() ? Stream.of(Scope.DEFAULT_SCOPE) : scopes.stream())
-			.flatMap(
-				scope -> Arrays.stream(
-					getQueryContext().resolvePartitionsOfTarget(entitySchema, referenceSchema, scope, referencedEntityId)
-				)
-			)
-			// the consumers read the partitions as indexes of the query body channel
-			.<AbstractReducedEntityIndex>map(ReferencePartitions::toReducedEntityIndex);
-	}
-
-	/**
-	 * Returns {@link EntityIndex} that contains indexed entities whose references have
-	 * group entity `referenceName` and `groupEntityId`. This method mirrors
-	 * {@link #getReferencedEntityIndexes(EntitySchemaContract, ReferenceSchemaContract, int)} but uses
-	 * group-specific index types.
+	 * @param entitySchema    the entity schema owning the reference
+	 * @param referenceSchema the reference whose group indexes are returned
+	 * @param groupEntityId   the primary key of the group entity
+	 * @return the group's reduced indexes across the processing scopes
 	 */
 	@Nonnull
 	public Stream<AbstractReducedEntityIndex> getReferencedGroupEntityIndexes(

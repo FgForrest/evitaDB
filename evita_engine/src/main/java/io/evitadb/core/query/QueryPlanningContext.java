@@ -1927,6 +1927,37 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Returns the context that plans `entityType` in `locale`: this context when no locale is supplied or this
+	 * context already plans in it, otherwise a nested context whose request carries `locale` as an explicit
+	 * override. The locale becomes context only - no predicate is added to the filter. A nested context collects
+	 * the schema capabilities its planning requests on its own; the caller drains them into this context.
+	 *
+	 * @param entityType the entity type the nested context plans
+	 * @param filterBy   the filter of the nested request, NULL when it has none
+	 * @param locale     the locale to plan in, NULL to keep the locale of this context
+	 * @param scopes     the scopes of the nested request
+	 * @param reason     why the collection of `entityType` is needed, reported when it does not exist
+	 * @return this context, or a nested context planning in `locale`
+	 */
+	@Nonnull
+	public QueryPlanningContext getContextInLocale(
+		@Nonnull String entityType,
+		@Nullable FilterBy filterBy,
+		@Nullable Locale locale,
+		@Nonnull Set<Scope> scopes,
+		@Nonnull String reason
+	) {
+		if (locale == null || locale.equals(getLocale())) {
+			return this;
+		}
+		return getEntityCollectionOrThrowException(entityType, reason).createQueryContext(
+			this,
+			this.evitaRequest.deriveCopyWith(entityType, filterBy, null, locale, scopes),
+			this.evitaSession
+		);
+	}
+
+	/**
 	 * Method creates new {@link EvitaRequest} for particular `entityType` that takes all passed `requiredConstraints`
 	 * into the account. Fabricated request is expected to be used only for passing the scope to
 	 * {@link EntityCollection#limitEntity(EntityContract, EvitaRequest, EvitaSessionContract)}  or
@@ -1948,7 +1979,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 *
 	 * The cache always lives on the **root** context - a nested context forwards the call to its parent - so
 	 * a formula computed while planning one candidate index is reused by every other candidate and by every
-	 * sub-query of the same client query.
+	 * sub-query of the same client query. The caller's resolved locale is part of the key, so identical predicates
+	 * evaluated in different inherited locales cannot share an answer.
 	 *
 	 * @param entityIndexes       indexes the formula is going to be evaluated against; their ids form part of
 	 *                            the cache key, because the very same constraint yields a different result on
@@ -1968,6 +2000,28 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull Supplier<Formula> formulaSupplier,
 		long... additionalCacheKeys
 	) {
+		return computeOnlyOnce(entityIndexes, constraint, formulaSupplier, getLocale(), additionalCacheKeys);
+	}
+
+	/**
+	 * Forwards the caller's locale unchanged to the root cache. Identical filters evaluated against the same indexes
+	 * may produce different answers when their enclosing entity levels supply different locales.
+	 *
+	 * @param entityIndexes the indexes being evaluated
+	 * @param constraint the filter being evaluated
+	 * @param formulaSupplier the formula computation
+	 * @param locale the caller's resolved locale, NULL when absent
+	 * @param additionalCacheKeys the caller's other discriminators
+	 * @return the memoized or newly computed formula
+	 */
+	@Nonnull
+	private Formula computeOnlyOnce(
+		@Nonnull List<EntityIndex> entityIndexes,
+		@Nonnull FilterConstraint constraint,
+		@Nonnull Supplier<Formula> formulaSupplier,
+		@Nullable Locale locale,
+		@Nonnull long[] additionalCacheKeys
+	) {
 		if (this.parentContext == null) {
 			if (this.internalCache == null) {
 				this.internalCache = new HashMap<>();
@@ -1977,7 +2031,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 					entityIndexes.stream().mapToLong(EntityIndex::getId),
 					Arrays.stream(additionalCacheKeys).map(Math::negateExact)
 				).toArray(),
-				constraint
+				constraint,
+				locale
 			);
 			final Formula cachedResult = this.internalCache.get(cacheKey);
 			if (cachedResult == null) {
@@ -1990,7 +2045,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			}
 		} else {
 			return this.parentContext.computeOnlyOnce(
-				entityIndexes, constraint, formulaSupplier, additionalCacheKeys
+				entityIndexes, constraint, formulaSupplier, locale, additionalCacheKeys
 			);
 		}
 	}
@@ -3127,37 +3182,44 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * The internal caching key.
+	 * The internal caching key, including the caller's locale context.
 	 *
 	 * @param indexKeys  array of {@link EntityIndex#getId()} that were used for result calculation
 	 * @param constraint the constraint that has been evaluated on those indexes
+	 * @param locale the resolved locale the formula was evaluated in
 	 */
 	private record InternalCacheKey(
 		@Nonnull long[] indexKeys,
-		@Nonnull Constraint<?> constraint
+		@Nonnull Constraint<?> constraint,
+		@Nullable Locale locale
 	) {
 
+		/** Compares the evaluated indexes, filter and resolved locale context. */
 		@Override
-		public boolean equals(Object o) {
+		public boolean equals(@Nullable Object o) {
 			if (this == o) return true;
 			if (o == null || getClass() != o.getClass()) return false;
-			InternalCacheKey that = (InternalCacheKey) o;
-			return Arrays.equals(this.indexKeys, that.indexKeys) && Objects.equals(this.constraint, that.constraint);
+			final InternalCacheKey that = (InternalCacheKey) o;
+			return Arrays.equals(this.indexKeys, that.indexKeys) && Objects.equals(this.constraint, that.constraint) &&
+				Objects.equals(this.locale, that.locale);
 		}
 
+		/** Hashes every discriminator of the evaluated formula. */
 		@Override
 		public int hashCode() {
-			int result = Objects.hash(this.constraint);
+			int result = 31 * this.constraint.hashCode() + Objects.hashCode(this.locale);
 			result = 31 * result + Arrays.hashCode(this.indexKeys);
 			return result;
 		}
 
+		/** Describes the indexes, filter and locale for cache diagnostics. */
 		@Nonnull
 		@Override
 		public String toString() {
 			return "InternalCacheKey{" +
 				"indexKeys=" + Arrays.toString(this.indexKeys) +
 				", constraint=" + this.constraint +
+				", locale=" + this.locale +
 				'}';
 		}
 	}

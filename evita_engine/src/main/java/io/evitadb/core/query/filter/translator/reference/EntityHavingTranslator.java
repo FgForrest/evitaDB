@@ -44,8 +44,9 @@ import java.util.function.Supplier;
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link EntityHaving} to
  * {@link AbstractFormula}.
- * The translator filters entities by evaluating a nested query against the referenced entity type of a reference
- * and then translating the matched referenced entity primary keys back to owner entity primary keys.
+ * The translator evaluates a nested query against the referenced entity type. During index discovery, matching
+ * targets select candidate reference partitions. During row evaluation, each reduced entity index contributes its
+ * owner primary keys only when its target matches the nested query.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -70,8 +71,9 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 			() -> "Filtering constraint `" + entityHaving + "` targets entity " +
 				"`" + referencedEntityType + "` that is not managed by evitaDB."
 		);
-		final FilterConstraint filterConstraint = entityHaving.getChild();
-		if (filterConstraint != null) {
+		final FilterConstraint[] children = entityHaving.getChildren();
+		if (children.length > 0) {
+			final FilterConstraint filterConstraint = HavingTranslatorHelper.conjunctionOf(children);
 			final Supplier<String> nestedQueryDescription = () ->
 				"filtering reference `" + referenceSchema.getName() +
 					"` by entity `" + referencedEntityType + "` having: " + filterConstraint;
@@ -84,7 +86,6 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 				referencedEntityType,
 				referenceSchema.isReferencedEntityTypeManaged(),
 				EntityIndexType.REFERENCED_ENTITY_TYPE,
-				filterByVisitor::getReferencedEntityIndexes,
 				nestedQueryDescription
 			);
 		}

@@ -940,10 +940,9 @@ public class BidirectionalReferenceRewriter {
 		// The nested plan belongs to the *target* collection's namespace, and more than thirty places in the engine
 		// walk a planned filter tree matching nodes by reference name, facet id or price accessor without any way to
 		// tell whose namespace a node came from. Exposing it as a visible child therefore leaks target-side facets,
-		// hierarchy constraints and price accessors into owner-side extra results. The ordinary owner-side path never
-		// exposes it either - `HavingTranslatorHelper` buries the identical plan behind a terminal `DeferredFormula`
-		// whose child array is empty and whose `getCloneWithInnerFormulas` throws - so this is not a new device, it is
-		// the same one, applied at the one place the rewrite had skipped it.
+		// hierarchy constraints and price accessors into owner-side extra results. A terminal `DeferredFormula` keeps
+		// this rewrite's nested plan out of those walks: its child array is empty and its
+		// `getCloneWithInnerFormulas` throws.
 		return new DeferredFormula(
 			new FormulaWrapper(
 				nestedFormula,

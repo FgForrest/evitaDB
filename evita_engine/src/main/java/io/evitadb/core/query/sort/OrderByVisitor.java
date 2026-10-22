@@ -179,7 +179,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 					entityType,
 					null,
 					new OrderBy(orderBy.getChildren()),
-					queryContext.getLocale(),
+					locale,
 					scopes
 				),
 				queryContext.getEvitaSession()

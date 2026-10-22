@@ -1069,7 +1069,6 @@ class EvitaQLFilterConstraintVisitorTest {
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("entityHaving"));
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("entityHaving()"));
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("entityHaving(collection('a'))"));
-			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("entityHaving(attributeEquals('a',1),attributeEquals('b','c'))"));
 		}
 
 	}
@@ -1961,7 +1960,6 @@ class EvitaQLFilterConstraintVisitorTest {
         assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("groupHaving"));
         assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("groupHaving()"));
         assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("groupHaving(collection('a'))"));
-        assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("groupHaving(attributeEquals('a',1),attributeEquals('b','c'))"));
     }
 
         @DisplayName("Should parse scope constraint")
@@ -2113,7 +2111,78 @@ class EvitaQLFilterConstraintVisitorTest {
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inField('')"));
 			assertThrows(EvitaSyntaxException.class, () -> parseFilterConstraintUnsafe("inField('a','b')"));
 		}
+	}
 
+	/**
+	 * Verifies EvitaQL round-trips of both scope containers with multiple children.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	@Nested
+	@DisplayName("Several children in scope filters")
+	class SeveralChildrenTest {
+
+		/**
+		 * EvitaQL preserves the varargs shape emitted by Java and gRPC queries.
+		 */
+		@Test
+		@DisplayName("Round-trips entityHaving with several children")
+		void shouldParseSeveralChildrenWhenEntityHavingRoundTrips() {
+			final FilterConstraint expected = entityHaving(
+				attributeEquals("first", true), attributeEquals("second", true)
+			);
+			assertEquals(expected, parseFilterConstraintUnsafe(expected.toString()));
+		}
+
+		/**
+		 * The group scope has the same list syntax as the entity scope.
+		 */
+		@Test
+		@DisplayName("Round-trips groupHaving with several children")
+		void shouldParseSeveralChildrenWhenGroupHavingRoundTrips() {
+			final FilterConstraint expected = groupHaving(
+				attributeEquals("first", true), attributeEquals("second", true)
+			);
+			assertEquals(expected, parseFilterConstraintUnsafe(expected.toString()));
+		}
+
+		/**
+		 * A query written by hand, not produced by the printer, keeps every child including a nested logical one.
+		 */
+		@Test
+		@DisplayName("Parses hand-written entityHaving with several children")
+		void shouldParseEveryChildWhenEntityHavingIsWrittenByHand() {
+			final FilterConstraint constraint = parseFilterConstraintUnsafe(
+				"entityHaving(attributeEquals('first',true), or(attributeEquals('a',1), attributeEquals('b',2)))"
+			);
+
+			assertEquals(
+				entityHaving(
+					attributeEquals("first", true),
+					or(attributeEquals("a", 1L), attributeEquals("b", 2L))
+				),
+				constraint
+			);
+		}
+
+		/**
+		 * The group scope parses a hand-written list of children the same way as the entity scope.
+		 */
+		@Test
+		@DisplayName("Parses hand-written groupHaving with several children")
+		void shouldParseEveryChildWhenGroupHavingIsWrittenByHand() {
+			final FilterConstraint constraint = parseFilterConstraintUnsafe(
+				"groupHaving(attributeEquals('first',true), or(attributeEquals('a',1), attributeEquals('b',2)))"
+			);
+
+			assertEquals(
+				groupHaving(
+					attributeEquals("first", true),
+					or(attributeEquals("a", 1L), attributeEquals("b", 2L))
+				),
+				constraint
+			);
+		}
 	}
 
     /**

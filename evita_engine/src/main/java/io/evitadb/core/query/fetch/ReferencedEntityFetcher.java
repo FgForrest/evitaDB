@@ -31,10 +31,12 @@ import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import io.evitadb.annotation.Internal;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.exception.EntityNotManagedException;
+import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.OrderConstraint;
 import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.filter.DifferentEntityFilterContainer;
 import io.evitadb.api.query.filter.EntityHaving;
 import io.evitadb.api.query.filter.EntityLocaleEquals;
 import io.evitadb.api.query.filter.EntityPrimaryKeyInSet;
@@ -53,6 +55,7 @@ import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.HierarchyParentsBehaviour;
 import io.evitadb.api.query.require.ManagedReferencesBehaviour;
+import io.evitadb.api.query.visitor.ConstraintCloneVisitor;
 import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.ReferenceContentKey;
@@ -87,8 +90,8 @@ import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.ConstantFormula;
 import io.evitadb.core.query.algebra.base.EmptyFormula;
-import io.evitadb.core.query.fetch.ReferenceRowFilterCompiler.CompileContext;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.AbstractHierarchyTranslator.TraversalDirection;
+import io.evitadb.core.query.fetch.ReferenceRowFilterCompiler.CompileContext;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.core.query.response.ServerEntityDecorator;
@@ -109,7 +112,6 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.EntityIndex;
 import io.evitadb.index.EntityIndexKey;
-import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -120,18 +122,18 @@ import io.evitadb.index.hierarchy.HierarchyIndexContract;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyTraversalPredicate.SelfTraversingPredicate;
 import io.evitadb.index.usage.SchemaCapabilityUsage;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import io.evitadb.spi.store.catalog.chunk.ServerChunkTransformerAccessor;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
-import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
-import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.util.AbstractMap.SimpleEntry;
 import java.util.*;
+import java.util.AbstractMap.SimpleEntry;
 import java.util.Map.Entry;
 import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
@@ -299,7 +301,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param entityType              represents the entity type ({@link EntitySchemaContract#getName()}) that should be loaded
 	 * @param existingEntityRetriever lambda allowing to reuse already fetched entities from previous decorator instance
 	 * @param entityFilterBy          reference level `filterBy` - only its entity level part is propagated into
-	 *                                the derived fetch request, see {@link #unwrapFilterBy(FilterBy)}
+	 *                                the derived fetch request, see {@link #unwrapFilterBy(FilterBy, boolean)}
 	 * @param entityOrderBy           reference level `orderBy` - only its entity level part is propagated into
 	 *                                the derived fetch request, see {@link #unwrapOrderBy(OrderBy)}
 	 * @param entityFetch             contains the "richness" requirements for the fetched entities
@@ -314,6 +316,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		@Nonnull String entityType,
 		@Nonnull IntFunction<Optional<SealedEntity>> existingEntityRetriever,
 		@Nullable FilterBy entityFilterBy,
+		boolean group,
 		@Nullable OrderBy entityOrderBy,
 		@Nonnull EntityFetch entityFetch,
 		@Nonnull Bitmap referencedRecordIds
@@ -325,7 +328,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			// finally, create the fetch request, get the collection and fetch the referenced entity bodies
 			final EvitaRequest fetchRequest = executionContext.getEvitaRequest().deriveCopyWith(
 				entityType,
-				unwrapFilterBy(entityFilterBy),
+				unwrapFilterBy(entityFilterBy, group),
 				unwrapOrderBy(entityOrderBy),
 				entityFetch
 			);
@@ -340,44 +343,59 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	}
 
 	/**
-	 * Unwraps the provided {@code entityFilterBy} object to extract entity-level filter criteria.
-	 * Extracts children of {@link EntityHaving} as well as standalone {@link EntityPrimaryKeyInSet}
-	 * and {@link EntityLocaleEquals} constraints. {@link GroupHaving} constraints are intentionally
-	 * excluded because they are handled separately via group-level indexes.
+	 * Builds the filter of the request fetching the referenced entity (or group) bodies from the reference-level
+	 * filter. It holds the criteria of the referenced entity level (see {@link #extractBodyFilter}) - also for a group
+	 * fetch - stripped of the `entityLocaleEquals` of that level, plus one `entityLocaleEquals` with the body's
+	 * resolved locale: the own opinion of the referenced entity level (of the group level for a group), otherwise the
+	 * opinion of the reference level. The reference and body levels are resolved separately, and the locale opinions
+	 * of deeper entity levels stay where they are.
 	 *
-	 * The lookup does not descend into {@link SeparateEntityScopeContainer} constraints - those delimit a nested
-	 * scope whose constraints must not leak into the enclosing entity level filter.
-	 *
-	 * @param entityFilterBy the `FilterBy` object potentially containing entity-level constraints
-	 * @return a new `FilterBy` instance holding the extracted entity-level constraints; `null` is returned only when
-	 * `entityFilterBy` itself is `null` - a filter that contains no matching constraints still yields a container
+	 * @param entityFilterBy the reference-level filter, NULL when there is none
+	 * @param group          true to take the locale of the group level instead of the referenced entity level
+	 * @return NULL when there is no reference filter; otherwise always a container - also when no body criteria exist -
+	 * carrying `entityLocaleEquals` whenever a locale was resolved
 	 */
 	@Nullable
-	private static FilterBy unwrapFilterBy(@Nullable FilterBy entityFilterBy) {
-		final FilterBy unwrappedEntityFilterBy;
-		if (entityFilterBy != null) {
-			final List<FilterConstraint> entityConstraints = FinderVisitor.findConstraints(
-				entityFilterBy,
-				it -> it instanceof EntityHaving ||
-					it instanceof EntityPrimaryKeyInSet ||
-					it instanceof EntityLocaleEquals,
-				SeparateEntityScopeContainer.class::isInstance
-			);
-			unwrappedEntityFilterBy = filterBy(
-				entityConstraints
-					.stream()
-					.flatMap(
-						it -> it instanceof ConstraintContainer<?> cc
-							? Arrays.stream(cc.getChildren())
-							: Stream.of(it)
-					)
-					.map(FilterConstraint.class::cast)
-					.toArray(FilterConstraint[]::new)
-			);
-		} else {
-			unwrappedEntityFilterBy = null;
+	private static FilterBy unwrapFilterBy(@Nullable FilterBy entityFilterBy, boolean group) {
+		if (entityFilterBy == null) {
+			return null;
 		}
-		return unwrappedEntityFilterBy;
+		// Keep the existing non-locale body criteria; only the group locale comes from the group level.
+		final FilterBy bodyFilter = extractBodyFilter(entityFilterBy, false);
+		final Locale ownLocale = QueryUtils.resolveLocale(group ? extractBodyFilter(entityFilterBy, true) : bodyFilter);
+		final Locale bodyLocale = ownLocale == null ? QueryUtils.resolveLocale(entityFilterBy) : ownLocale;
+		final FilterConstraint withoutLocales = ConstraintCloneVisitor.clone(
+			bodyFilter,
+			(visitor, constraint) -> constraint instanceof EntityLocaleEquals &&
+				!visitor.isWithin(DifferentEntityFilterContainer.class) ? null : constraint
+		);
+		return new FilterBy(withoutLocales, entityLocaleEquals(bodyLocale));
+	}
+
+	/**
+	 * Extracts the filter of one body level from the reference-level filter: the children of its {@link EntityHaving}
+	 * (or {@link GroupHaving}) containers and, for the referenced entity level only, the {@link EntityPrimaryKeyInSet}
+	 * constraints of the reference. Every other constraint of the reference level - its attribute constraints and its
+	 * `entityLocaleEquals` among them - is left out. The lookup does not descend into
+	 * {@link SeparateEntityScopeContainer} constraints - those delimit a nested scope whose constraints must not leak
+	 * into this body level.
+	 *
+	 * @param referenceFilter the reference-level filter
+	 * @param group           true to extract the group level, false for the referenced entity level
+	 * @return the filter of the body level, empty when the reference filter has none
+	 */
+	@Nonnull
+	private static FilterBy extractBodyFilter(@Nonnull FilterBy referenceFilter, boolean group) {
+		final List<FilterConstraint> constraints = FinderVisitor.findConstraints(
+			referenceFilter,
+			it -> (group ? it instanceof GroupHaving : it instanceof EntityHaving) ||
+				(!group && it instanceof EntityPrimaryKeyInSet),
+			SeparateEntityScopeContainer.class::isInstance
+		);
+		return filterBy(constraints.stream()
+			.flatMap(it -> it instanceof ConstraintContainer<?> container ?
+				Arrays.stream(container.getChildren()).map(FilterConstraint.class::cast) : Stream.of(it))
+			.toArray(FilterConstraint[]::new));
 	}
 
 	/**
@@ -777,7 +795,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				entityNestedQueryComparator.setLocale(referenceFilterLocale);
 			}
 		}
-		initNestedQueryComparator(entityNestedQueryComparator, referenceSchema, queryContext);
+		initNestedQueryComparator(
+			entityNestedQueryComparator, referenceSchema, queryContext,
+			getGroupEntityLocale(filterBy, queryContext.getLocale())
+		);
 		return admittedPrimaryKeys.isEmpty() ? EmptyBitmap.INSTANCE : admittedPrimaryKeys;
 	}
 
@@ -1031,12 +1052,10 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * mirrors the comparator {@link #createPrefetchedEntities} creates and its initialization in
 	 * {@link #initNestedQueryComparator}.
 	 *
-	 * The fetch orders the referenced entities and their groups in the locale of the {@link EntityLocaleEquals} of
-	 * the reference filter, which it sets on the comparator, and in the locale of the request the owners are fetched
-	 * with when the filter names none. The check creates the comparator without a filter, so it looks the locale up in
-	 * the filter the same way the body fetch does (see {@link #findReferenceFilterLocale(FilterBy)}) and falls back to
-	 * the locale of the owner context - an ordering by a localized attribute is refused only when there is no locale
-	 * in either place.
+	 * Referenced entities are ordered in their entity level's locale; groups are ordered in their group level's
+	 * locale (see {@link #getGroupEntityLocale}). Each level first uses its own opinion, then the reference filter's
+	 * opinion, then the owner's locale. The check resolves the same locales as the body fetch and its comparators;
+	 * ordering by a localized attribute is refused only when its level resolves no locale.
 	 *
 	 * @param ownerQueryContext planning context of the entity owning the references
 	 * @param entitySchema      schema of the entity owning the references
@@ -1094,7 +1113,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 				);
 				OrderByVisitor.createSorter(
 					entityGroupOrderBy.orderBy(),
-					locale,
+					getGroupEntityLocale(filterBy, ownerQueryContext.getLocale()),
 					targetEntityGroupCollection,
 					() -> "checking ordering of reference groups `" + referenceSchema.getName() +
 						"` by entity group `" + targetEntityGroupCollection.getEntityType() + "`: " +
@@ -1197,12 +1216,12 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * Resolves the locale that the referenced entity (or group) bodies will be fetched with, so that the
 	 * {@link ManagedReferencesBehaviour#EXISTING} pre-filtering (see {@link #limitToExistingEntities}) agrees with what
 	 * actually happens later during the body fetch. It deliberately reproduces the chain the body fetch goes through:
-	 * {@link #fetchReferencedEntities} derives the fetch request from {@link #unwrapFilterBy(FilterBy)}, whose locale is
-	 * then resolved by {@link EvitaRequest}'s derived-request constructor and finally consulted by the entity collection
-	 * through {@link EvitaRequest#getRequiredOrImplicitLocale()}.
+	 * {@link #fetchReferencedEntities} derives the fetch request from {@link #unwrapFilterBy(FilterBy, boolean)}. Its
+	 * locale is then resolved by {@link EvitaRequest}'s derived-request constructor and finally consulted by the entity
+	 * collection through {@link EvitaRequest#getRequiredOrImplicitLocale()}.
 	 *
-	 * At most one {@link EntityLocaleEquals} is expected inside the unwrapped filter - a filter carrying several of
-	 * them makes the constraint finder throw `MoreThanSingleResultException`.
+	 * Repeated equal locale opinions coalesce within each entity level; conflicting opinions on one level are
+	 * rejected. A nested entity opinion takes precedence over its reference level's opinion.
 	 *
 	 * @param referenceFilterBy the reference-level `filterBy` (may contain its own {@link EntityLocaleEquals})
 	 * @param executionContext  the current query execution context
@@ -1219,7 +1238,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	}
 
 	/**
-	 * Returns the locale the referenced entities (and groups) of a `referenceContent` are fetched in, which is also the
+	 * Returns the locale the referenced entities of a `referenceContent` are fetched in, which is also the
 	 * locale the references of a `referenceContent` nested in their fetch are filtered and ordered in: the locale of
 	 * the filter of the `referenceContent` ({@link #findReferenceFilterLocale}), or the locale of the request its
 	 * owners are fetched with when the filter names none - as the request derived for the fetch of the bodies
@@ -1234,33 +1253,37 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 */
 	@Nullable
 	public static Locale getReferencedEntityLocale(@Nullable FilterBy referenceFilterBy, @Nullable Locale ownerLocale) {
-		final Locale referenceFilterLocale = findReferenceFilterLocale(referenceFilterBy);
-		return referenceFilterLocale == null ? ownerLocale : referenceFilterLocale;
+		return QueryUtils.resolveReferenceBodyLocale(referenceFilterBy, false, ownerLocale);
 	}
 
 	/**
 	 * Returns the locale of the {@link EntityLocaleEquals} the reference-level `filterBy` hands to the fetch of the
-	 * referenced entity (or group) bodies - the one {@link #unwrapFilterBy(FilterBy)} propagates into the derived fetch
+	 * referenced entity bodies - the one {@link #unwrapFilterBy(FilterBy, boolean)} propagates into the derived fetch
 	 * request. The body fetch (see {@link #resolveRequiredLocale}), the planning check of the ordering of the
-	 * references (see {@link #verifyReferenceOrdering}) and the localized attribute leaves of the row filter (see
-	 * {@link ReferenceRowFilterCompiler}) look the locale up here, so they never disagree on it.
+	 * references (see {@link #verifyReferenceOrdering}) use this result. Reference attribute leaves resolve the
+	 * reference level itself, without descending into entity or group levels.
 	 *
-	 * At most one {@link EntityLocaleEquals} is expected inside the unwrapped filter - a filter carrying several of
-	 * them makes the constraint finder throw `MoreThanSingleResultException`.
+	 * Repeated equal locale opinions coalesce within each entity level; conflicting opinions on one level are
+	 * rejected. A nested entity opinion takes precedence over its reference level's opinion.
 	 *
 	 * @param referenceFilterBy the reference-level `filterBy`, NULL when there is none
 	 * @return the locale of the filter, or NULL when it names none
 	 */
 	@Nullable
 	static Locale findReferenceFilterLocale(@Nullable FilterBy referenceFilterBy) {
-		final FilterBy unwrappedFilterBy = unwrapFilterBy(referenceFilterBy);
-		if (unwrappedFilterBy != null) {
-			final EntityLocaleEquals localeConstraint = QueryUtils.findConstraint(unwrappedFilterBy, EntityLocaleEquals.class);
-			if (localeConstraint != null) {
-				return localeConstraint.getLocale();
-			}
-		}
-		return null;
+		return QueryUtils.resolveReferenceBodyLocale(referenceFilterBy, false, null);
+	}
+
+	/**
+	 * Resolves a group level's own opinion, falling back to the reference level and then its owner.
+	 *
+	 * @param referenceFilter the reference filter, NULL when absent
+	 * @param ownerLocale the enclosing owner's locale
+	 * @return the group body's locale
+	 */
+	@Nullable
+	private static Locale getGroupEntityLocale(@Nullable FilterBy referenceFilter, @Nullable Locale ownerLocale) {
+		return QueryUtils.resolveReferenceBodyLocale(referenceFilter, true, ownerLocale);
 	}
 
 	/**
@@ -1302,11 +1325,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param entityNestedQueryComparator comparator to initialize, may be null if no ordering is requested
 	 * @param referenceSchema             the schema of the reference whose entities are being ordered
 	 * @param queryContext                the query planning context providing access to entity collections and session
+	 * @param groupLocale                 the independently resolved locale of the group level
 	 */
 	private static void initNestedQueryComparator(
 		@Nullable EntityNestedQueryComparator entityNestedQueryComparator,
 		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull QueryPlanningContext queryContext
+		@Nonnull QueryPlanningContext queryContext,
+		@Nullable Locale groupLocale
 	) {
 		// the filter only sets the locale of the comparator, so the ordering is always initialized here
 		if (entityNestedQueryComparator != null && !entityNestedQueryComparator.isInitialized()) {
@@ -1321,7 +1346,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					.map(it -> queryContext.getEntityCollectionOrThrowException(it, "order references by group"))
 					.orElse(null),
 				entityNestedQueryComparator,
-				queryContext
+				queryContext,
+				groupLocale
 			);
 		}
 	}
@@ -1342,13 +1368,15 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	 * @param entityNestedQueryComparator comparator that holds information about requested ordering; its sorters
 	 *                                    are set from the global index of the referenced entity collection
 	 * @param queryContext                the planning context of the enclosing query
+	 * @param groupLocale                 the independently resolved group locale
 	 */
 	private static void initializeComparatorFromGlobalIndex(
 		@Nonnull ReferenceSchemaContract referenceSchema,
 		@Nonnull EntityCollection targetEntityCollection,
 		@Nullable EntityCollection targetEntityGroupCollection,
 		@Nonnull EntityNestedQueryComparator entityNestedQueryComparator,
-		@Nonnull QueryPlanningContext queryContext
+		@Nonnull QueryPlanningContext queryContext,
+		@Nullable Locale groupLocale
 	) {
 		final EvitaRequest evitaRequest = queryContext.getEvitaRequest();
 		final EvitaSession evitaSession = Objects.requireNonNull(queryContext.getEvitaSession());
@@ -1387,7 +1415,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					targetEntityGroupCollection.getEntityType(),
 					null,
 					orderBy,
-					entityNestedQueryComparator.getLocale(),
+					groupLocale,
 					entityGroupOrderBy.scopes()
 				),
 				evitaSession
@@ -1857,8 +1885,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			slicingMode.groupSortActive()
 		);
 
-		// the referenced entities and their groups are fetched by a single derived request - resolve the locale it will
-		// use once, so that the EXISTING pre-filtering of both agrees with the actual body fetch
+		// Resolve entity and group locales independently, so EXISTING agrees with each body's fetch request.
 		final Locale requiredLocale = requirements.managedReferencesBehaviour() == ManagedReferencesBehaviour.EXISTING
 			? resolveRequiredLocale(requirements.filterBy(), executionContext)
 			: null;
@@ -1912,6 +1939,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					referenceSchema.getReferencedEntityType(),
 					pk -> existingEntityRetriever.getExistingEntity(referenceName, pk),
 					requirements.filterBy(),
+					false,
 					requirements.orderBy(),
 					requirements.entityFetch(),
 					filteredAndSlicedReferencedIds
@@ -1939,7 +1967,13 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 			// if so, fetch them
 			final Bitmap filteredReferencedGroupEntityIds = getReferencedGroupIds(
 				entityPrimaryKey, executionContext, referenceSchema,
-				requirements.managedReferencesBehaviour(), requiredLocale, slicer
+				requirements.managedReferencesBehaviour(),
+				requirements.managedReferencesBehaviour() == ManagedReferencesBehaviour.EXISTING ?
+					getGroupEntityLocale(
+						requirements.filterBy(), executionContext.getEvitaRequest().getRequiredOrImplicitLocale()
+					) :
+					null,
+				slicer
 			);
 
 			if (requirements.entityGroupFetch() != null && !filteredReferencedGroupEntityIds.isEmpty()) {
@@ -1949,6 +1983,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 					referenceSchema.getReferencedGroupType(),
 					pk -> existingEntityRetriever.getExistingGroupEntity(referenceName, pk),
 					requirements.filterBy(),
+					true,
 					requirements.orderBy(),
 					new EntityFetch(requirements.entityGroupFetch().getRequirements()),
 					filteredReferencedGroupEntityIds
