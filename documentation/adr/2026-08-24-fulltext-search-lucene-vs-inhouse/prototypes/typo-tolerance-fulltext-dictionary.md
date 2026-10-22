@@ -13,7 +13,11 @@
 > consistency (§11.6, 2026-10-15); and, on 2026-10-20, the frozen first letter, the open-ended walk for a mistyped
 > unfinished word, Damerau distance in the dictionary, surface forms in the dictionary and a cap of 50 terms
 > per leg (§2.2, §7.1); on 2026-10-21, one edit from 4 letters and two from 8 in the submitted search (§7.1, §9).
-> §10.7 repeats the measurements on a real corpus. Everything else is proposal or measurement.
+> §10.7 repeats the measurements on a real corpus. On 2026-10-21 the review of the implementation specification
+> decided the rest of §9 (see there), and §5.4.1 measured the intra-leaf seek as worth building. The decided
+> algorithm alone, without the reasoning, is in
+> [`typo-tolerance-fulltext-dictionary-algorithm.md`](typo-tolerance-fulltext-dictionary-algorithm.md).
+> Everything else is proposal or measurement.
 > The Damerau metric for fuzzy `contains` is decided in the sibling document
 > [`typo-tolerance-fuzzy-contains.md`](typo-tolerance-fuzzy-contains.md).
 >
@@ -82,8 +86,9 @@ What is **settled**, what is **proposed** and what is **open**:
    the thousands of terms a three-letter prefix reaches. Precomputed short-prefix postings meet it with a wide
    margin at about the base index's memory but 4–11 times its bytes rewritten per document (§12). Whether to
    revisit the README's rejection of index-time materialization for that is open.
-7. **Deferred — the intra-leaf seek optimisation** has proven reach and unproven gain (§5.4); it is a decision
-   for the real dataset, not for now.
+7. **Decided 2026-10-21 — the intra-leaf seek is worth building** (§5.4, §5.4.1). On the real corpus and the
+   production tree shape, 55 % of walk time is root-to-leaf descents, and 96 % of rejections land in the current
+   leaf. The upper bound on the saving is 54 % of walk time, and 63–65 % for two-edit walks.
 
 The behaviour we want is written as fourteen executable examples (§10.4), and every open question has a
 measurement or a stated reason why it cannot have one yet. §9 lists them in order.
@@ -663,6 +668,93 @@ dictionary of a production catalog, and the dictionary layout itself (stems only
 forms, P5 §6 / P1 K3) is not decided. Whether the fast path is worth its footprint in the tree is a question
 to answer over the real dataset once P1's dictionary exists and the whole-query budget is measured. Until
 then the read-ahead stays in the POC as the record of the reach, and the plain walk is the reference.
+
+### 5.4.1 The intra-leaf seek on the real corpus — worth building (2026-10-21)
+
+The deferral above waited for a real dictionary. §10.7's corpus A (972,611 articles, 804,858 stems, 1,601,674
+folded surface forms) is that dictionary, so the reach and an upper bound on the gain were measured on it, together
+with a fact §5.4 could not see: the earlier trees were not production-shaped.
+
+**Setup.** `CorpusTypoMeasurementTest#shouldMeasureIntraLeafSeekReach`, slow-tagged, on the corpus of §10.7.
+
+- **Walks.** These are the walks the decided algorithm runs (§7.1, §11.5), for 1,000 words of each cohort, every
+  other word with one synthetic typo after the first letter: 26,825 walks with at least one edit.
+  - A **finished word** walks every stem variant over the stems, budgeted by the variant's length. It walks the
+    typed word over the lane by its typed length. The thresholds are 4 / 8. A word of eight or more letters is also
+    walked capped at one edit, as while typing.
+  - Every **fragment of four or more letters** walks the same dictionaries **open-ended**. From four letters it uses
+    the submitted-search thresholds, and from five letters it is also capped at one edit.
+  - Exact lookups (zero edits) are not walks and are left out.
+- **Two tree shapes.**
+  - The **harness** shape is the one of every measurement before this one: leaves of 63 keys in a boxed `String`
+    column.
+  - The **production** shape is the one `FulltextIndex` builds: leaves of 256 keys, its minimum sizes, and the
+    front-coded string column (`ValueColumnFactory.forKey(String.class, null)`).
+
+  Both shapes hold the same keys. The production copy carries no field prefix.
+- **Three runs per walk:**
+  - plain, which gives the walk time;
+  - plain with every root-to-leaf descent timed (`LevenshteinDictionaryWalker#timingSeeks`), which gives the share
+    of walk time spent descending;
+  - with a read-ahead of one leaf (63 or 256 keys), which gives how many rejections land in the current leaf, and
+    what reading the leaf sequentially costs.
+
+  The read-ahead run returned exactly the plain run's hits for every walk (asserted).
+- **The upper bound** assumes every rejection resolved inside the leaf is a descent saved at no cost: the number of
+  in-leaf rejections × the mean descent time ÷ the plain walk time. The binary search inside the leaf is not free,
+  so the bound is optimistic on purpose. Single-threaded JUnit wall-clock after a warm-up pass over every walk. The
+  run took 505 s, 179 s of it analysing the corpus.
+
+```shell
+mvn -nsu -pl evita_test/evita_functional_tests test -Dsurefire.failIfNoSpecifiedTests=false \
+  -Dtest='CorpusTypoMeasurementTest#shouldMeasureIntraLeafSeekReach' -Dsurefire.maxHeapSize=14g \
+  -Dfulltext.corpus.file=<flat file>
+```
+
+**Results, production shape:**
+
+| dictionary | walk | edits | walks | seeks per walk | descent | descents of walk time | rejections in the leaf | upper bound: walk time saved | incl. automaton build | read-ahead / plain | walk p50 / p99, plain |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| stems | finite | 1 | 4,121 | 194 | 0.64 µs | 63.3 % | 86.6 % | 52.6 % | 39.7 % | 8.21× | 0.20 / 0.33 ms |
+| stems | finite | 2 | 1,629 | 3,245 | 0.64 µs | 62.0 % | 99.3 % | 64.9 % | 46.7 % | 1.76× | 3.17 / 4.88 ms |
+| stems | open-ended | 1 | 8,153 | 179 | 0.65 µs | 36.3 % | 85.1 % | 30.2 % | 25.9 % | 5.59× | 0.23 / 2.09 ms |
+| stems | open-ended | 2 | 1,784 | 3,293 | 0.64 µs | 60.9 % | 99.3 % | 63.4 % | 46.7 % | 1.75× | 3.31 / 5.13 ms |
+| lane | finite | 1 | 1,903 | 201 | 0.69 µs | 64.5 % | 81.5 % | 49.0 % | 37.9 % | 9.11× | 0.23 / 0.37 ms |
+| lane | finite | 2 | 886 | 3,432 | 0.68 µs | 63.2 % | 97.9 % | 64.7 % | 47.8 % | 2.65× | 3.54 / 5.63 ms |
+| lane | open-ended | 1 | 6,837 | 181 | 0.70 µs | 24.3 % | 79.0 % | 18.9 % | 17.3 % | 4.57× | 0.28 / 4.78 ms |
+| lane | open-ended | 2 | 1,512 | 3,495 | 0.68 µs | 61.9 % | 97.9 % | 63.4 % | 48.2 % | 2.66× | 3.72 / 5.90 ms |
+| **all** | | | **26,825** | **871** | **0.66 µs** | **54.8 %** | **96.1 %** | **54.2 %** | **41.7 %** | **3.10×** | 0.26 / 4.82 ms |
+
+**The same walks, harness shape** (totals only): a descent costs 0.39 µs, and descents are 51.8 % of walk time.
+90.2 % of rejections land in the current leaf, and the upper bound is 42.0 % of walk time (29.6 % with the
+automaton build). Read-ahead is 0.93× plain. A walk takes 0.19 ms at p50 and 3.92 ms at p99.
+
+**Readings.**
+
+- **Descents are half the walk on the real dictionary.** 55 % of walk time goes into root-to-leaf descents, and
+  96 % of the rejections that cause them have their target in the leaf the cursor is already on. The reach of §5.4
+  (71–98 % on the hunspell lemma list) holds and is higher. With leaves of 256 keys it is 79–99 %.
+- **The upper bound is large where the cost is.** Two-edit walks are the expensive band of §9 item 5 and §10.7 (i):
+  3.2–3.7 ms at p50 per walk. 98–99 % of their rejections stay in the leaf, and up to 63–65 % of their time is
+  descents an intra-leaf seek would avoid. For one-edit finite walks the bound is 49–53 %. It is lowest for
+  open-ended one-edit walks (19–30 %), whose p99 tail is spent reading the keys of whole subtrees, not seeking.
+- **The production shape gains more than the harness suggested.** A descent through the front-coded tree costs
+  0.64–0.70 µs, against 0.33–0.44 µs through boxed keys, because each level decodes keys to compare them. Bigger
+  leaves keep more targets inside one leaf. The bound is 54 % of walk time against 42 % on the harness shape, so
+  the §5.4 numbers understated it.
+- **Reading the leaf sequentially is not the optimisation.** On the production shape the read-ahead makes walks
+  3.1× slower: every `next()` decodes a front-coded key, and a 256-key leaf is long. That confirms the second
+  conclusion of §5.4 more strongly than the harness could. The gain exists only with a **binary search inside the
+  leaf**, which needs the engine change §5.4 describes.
+- **What the bound is not.** The in-leaf binary search decodes a few keys of the front-coded block, and the real
+  saving is below the bound by that cost. Walks are also only part of the expansion: the prefix scans, the postings
+  union and the ranking are untouched. The bound is an argument to build, not a forecast. Only the engine change
+  can measure the real number.
+
+**Decision (2026-10-21): worth building, proposed and not scheduled.** `BucketCursor#seek(K)` with a binary search
+over the current leaf, as §5.4 specifies, falling back to a descent when the target lies beyond the leaf. It changes
+`TransactionalBucketBPlusTree` and is not part of the current line of work. Its verification compares it against
+this bound on the same corpus and the same walks.
 
 ### 5.5 Approaches not pursued
 
@@ -1355,15 +1447,34 @@ only the typo-correctness argument); lane order in the composite (P7); DSL namin
 - Thresholds, stem variants, the cap, the as-you-type budget, two edits and the noise refinements on a real corpus
   of 972,611 articles (§10.7).
 
+**Decided 2026-10-21 in the review of the implementation specification**
+([`typo-tolerance-fulltext-dictionary-algorithm.md`](typo-tolerance-fulltext-dictionary-algorithm.md)), besides
+items 1, 4 and 11 below:
+
+- the submitted search's open-ended walk on the last word uses the full thresholds, two edits from 8 letters;
+- the prefix leg runs unconditionally whenever the rules allow it, never only when exact and typo matching find
+  too little (§11.4);
+- two edits are governed by the length threshold alone, never a fallback when one edit finds too little;
+- the opt-outs beyond the digit rule (§7.5) are a question of the developer-facing API, not of the algorithm,
+  whose only hook is 0 edits for an opted-out word or attribute;
+- the typo-lane weights (item 6) need real-world queries, judged results or click data, before any value other
+  than raw typo counts is chosen;
+- the lane's counter unit and field prefix (§3.4, *Open for the discussion*) are implementation details.
+
 **Open, in order of what blocks the most.** Items 1–5 and 7 now carry the real-corpus answer of §10.7
 (2026-10-20); what is left of each is a decision, not a measurement.
 
-1. **The as-you-type budget at three letters.** On the real corpus (§10.7 d) the budget is met from five letters
+1. **The as-you-type budget at three letters — Decided 2026-10-21: no prefix leg below four letters.** The
+   minimum fragment length rises from 3 to 4, because precomputed prefix postings stay rejected (README, *Rejected
+   outright*). The open-ended walk starts at **5 letters while typing** and at **4 in a submitted search**, which
+   runs once and has the 25 ms phase-1 budget. A submitted search tolerating more than the preview keeps pattern 1
+   (§11.6). The measurement behind it: on the real corpus (§10.7 d) the budget is met from five letters
    with the proposal. It is met from four once the open-ended walk starts at five letters and the 50-term cap
    applies: p99 3.3 ms, with four-letter typo recall falling from 98.7 % to 59.8 % until the fifth letter. Three
-   letters stays at 8.6–14.8 ms p99 under every lever. What remains is a choice between precomputed 3-letter
-   prefix postings (§12, revisiting the README's *Rejected outright* row with P2 and P8 costed) and no prefix leg
-   below four letters. No engine merges every term a short prefix reaches. They precompute short prefixes
+   letters stays at 8.6–14.8 ms p99 under every lever. The choice was between precomputed 3-letter prefix postings
+   (§12, which would have revisited the README's *Rejected outright* row) and no prefix leg below four letters; the
+   latter was taken. With the 50-per-leg cap, four- and five-letter keystrokes still measured 7.5–7.7 ms at p99
+   with the open-ended walk from five letters (§10.7 d), over the 5 ms target. No engine merges every term a short prefix reaches. They precompute short prefixes
    (Meilisearch, by the same rule as §12 arm C) or keep a few best-first terms (Typesense) (§11.7).
 2. **The expansion cap — Done (2026-10-20), §7.1.** 50 per leg of each query word: all exact terms, the 50 most
    frequent prefix terms, the 50 nearest-then-most-frequent typo terms (§10.7 c).
@@ -1374,7 +1485,8 @@ only the typo-correctness argument); lane order in the composite (P7); DSL namin
    - **The length read is the stem's on the stem dictionary and the typed word's on the surface-form lane.** That
      finds 95.5–99.4 % of mistyped words against 83.8–97.5 % for the typed length everywhere, at about half the
      noise. Every engine that stems reads the stem (§11.7).
-4. **A surface-form lane walked by typo and prefix expansion — measured, ready to decide** (P5 §6 variant 3, U9
+4. **A surface-form lane walked by typo and prefix expansion — Decided 2026-10-21: built**, as designed in §3.4.
+   On the unfinished last word the lane is walked open-ended as the stems are, and nowhere else (P5 §6 variant 3, U9
    decided 2026-10-20; §10.7 a, f, h). It recovers every typo a stem-only dictionary cannot reach (3.0–5.8 % on real
    text, 6.8–19.4 % on the fixtures) and the 2.1 % of unfinished keystrokes no stem input reaches. **The design for
    the discussion is §3.4**: keys and stems, no postings, every stem per folded form, the accented form U9 shows,
@@ -1419,7 +1531,9 @@ only the typo-correctness argument); lane order in the composite (P7); DSL namin
 10. **Everything on P1's real catalog — Done for the CMS corpus (2026-10-20), §10.7.** The e-commerce corpus of P1
     (short names and codes, two locales) is not on the development machine; its shape differs most for the
     as-you-type budget, where short fields mean sparser postings.
-11. The intra-leaf seek (§5.4), over P1's real dictionary — **for later discussion** (2026-10-16).
+11. **The intra-leaf seek — Done (2026-10-21): worth building** (§5.4.1). It was measured on the real corpus in
+    the production tree shape. The upper bound is 54 % of walk time, and the real gain is measured once
+    `BucketCursor#seek(K)` exists.
 12. Fold the outcome into `p3-suggester.md` §4.3, or into its own record superseding that section — postponed on
     2026-10-06.
 

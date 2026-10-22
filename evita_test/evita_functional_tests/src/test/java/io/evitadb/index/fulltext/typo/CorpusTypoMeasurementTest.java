@@ -26,6 +26,8 @@ package io.evitadb.index.fulltext.typo;
 import io.evitadb.core.query.algebra.base.AndFormula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree;
+import io.evitadb.index.bPlusTree.TransactionalBucketBPlusTree.BucketCursor;
+import io.evitadb.index.bPlusTree.ValueColumnFactory;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -73,6 +75,7 @@ import java.util.Set;
 import static io.evitadb.test.TestTags.ENGINE;
 import static io.evitadb.test.TestTags.FULLTEXT;
 import static io.evitadb.test.TestTags.SLOW;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
@@ -100,6 +103,10 @@ class CorpusTypoMeasurementTest {
 	private static final String ENTITY_TYPE = "ARTICLE";
 	private static final Locale CZECH = Locale.forLanguageTag("cs");
 	private static final int LEAF_BLOCK_SIZE = 63;
+	/**
+	 * The leaf size `FulltextIndex` builds its dictionary with.
+	 */
+	private static final int PRODUCTION_LEAF_BLOCK_SIZE = 256;
 	/**
 	 * Number of words per cohort in the threshold and fan-out measurements.
 	 */
@@ -416,6 +423,188 @@ class CorpusTypoMeasurementTest {
 		}
 		System.out.println(refinements.report());
 		assertTrue(queries.size() == QUERY_COUNT, "expected the full query set");
+	}
+
+	@Test
+	@DisplayName("§5.4: how often a seek target sits in the current leaf, and what descents cost, on real data")
+	void shouldMeasureIntraLeafSeekReach() {
+		final List<WalkSpec> specs = intraLeafWalkSpecs();
+		final TreeShape[] shapes = {
+			new TreeShape("harness (leaf 63, boxed keys)", LEAF_BLOCK_SIZE, corpus.stems(), corpus.surfaces()),
+			new TreeShape(
+				"production (leaf 256, front-coded keys)", PRODUCTION_LEAF_BLOCK_SIZE,
+				productionTree(corpus.stems()), productionTree(corpus.surfaces())
+			)
+		};
+		// warm-up: every walk once on every shape, nothing recorded
+		for (final TreeShape shape : shapes) {
+			for (final WalkSpec spec : specs) {
+				new LevenshteinDictionaryWalker(spec.query(), spec.maxEdits(), spec.frozenPrefix(), 0, spec.openEnd())
+					.walk(shape.tree(spec.lane()));
+			}
+		}
+		System.out.printf(
+			Locale.ROOT, "[intra-leaf] %d walks per shape; %d stems, %d folded surface forms%n",
+			specs.size(), corpus.stemCount(), corpus.surfaceCount()
+		);
+		System.out.println("| tree | dictionary | walk | edits | walks | seeks per walk | descent µs | descents of"
+			+ " walk time | rejections resolved in the leaf | upper bound: walk time saved | of walk + automaton"
+			+ " build | read-ahead / plain | walk µs p50 / p99, plain | read-ahead |");
+		System.out.println("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+		for (final TreeShape shape : shapes) {
+			// [lane][openEnd][edits - 1]
+			final SeekStats[][][] stats = new SeekStats[2][2][2];
+			final SeekStats total = new SeekStats();
+			for (final WalkSpec spec : specs) {
+				final SeekStats[] byEdits = stats[spec.lane() ? 1 : 0][spec.openEnd() ? 1 : 0];
+				if (byEdits[spec.maxEdits() - 1] == null) {
+					byEdits[spec.maxEdits() - 1] = new SeekStats();
+				}
+				measureWalk(spec, shape.tree(spec.lane()), shape.leafSize(), byEdits[spec.maxEdits() - 1], total);
+			}
+			for (int lane = 0; lane < 2; lane++) {
+				for (int open = 0; open < 2; open++) {
+					for (int edits = 0; edits < 2; edits++) {
+						final SeekStats cell = stats[lane][open][edits];
+						if (cell != null) {
+							System.out.println(cell.row(
+								shape.label(), lane == 1 ? "lane" : "stems", open == 1 ? "open-ended" : "finite",
+								Integer.toString(edits + 1)
+							));
+						}
+					}
+				}
+			}
+			System.out.println(total.row(shape.label(), "all", "all", "all"));
+		}
+		assertTrue(specs.size() > 10_000, "expected tens of thousands of walks, got " + specs.size());
+	}
+
+	/**
+	 * The walks the decided algorithm runs (`typo-tolerance-fulltext-dictionary-algorithm.md` §4–§7), for 1,000 words
+	 * of each cohort, every other one with one typo after the first letter. A finished word walks every stem variant
+	 * by its own length and the lane by the typed length, under the submitted-search thresholds and, for words of
+	 * eight or more letters, also capped at one edit as while typing. Every fragment of four or more letters walks the
+	 * same dictionaries open-ended: from four letters with the submitted-search thresholds, from five capped at one
+	 * edit. Walks with no edit are exact lookups and are left out. Duplicates within one word are dropped, so a
+	 * frequent word still counts as often as it is drawn.
+	 */
+	@Nonnull
+	private static List<WalkSpec> intraLeafWalkSpecs() {
+		final TypoThresholds thresholds = TypoThresholds.PROPOSAL;
+		final TypoKind[] kinds = TypoKind.values();
+		final Random random = new Random(41);
+		final List<Word> words = new ArrayList<>(2_000);
+		words.addAll(corpus.sample(Cohort.BY_TOKEN, 1_000, new Random(31)));
+		words.addAll(corpus.sample(Cohort.BY_VOCABULARY, 1_000, new Random(37)));
+		final List<WalkSpec> specs = new ArrayList<>(words.size() * 32);
+		int n = 0;
+		for (final Word sample : words) {
+			n++;
+			String typed = sample.folded();
+			if (n % 2 == 0) {
+				final String mistyped = SyntheticTypos.apply(
+					typed, kinds[n % kinds.length], 1 + random.nextInt(typed.length() - 1), random
+				);
+				typed = mistyped == null ? typed : mistyped;
+			}
+			final Set<WalkSpec> ofWord = CollectionUtils.createLinkedHashSet(32);
+			addWalks(ofWord, typed, thresholds, false, Integer.MAX_VALUE);
+			addWalks(ofWord, typed, thresholds, false, 1);
+			for (int length = 4; length < typed.length(); length++) {
+				final String fragment = typed.substring(0, length);
+				addWalks(ofWord, fragment, thresholds, true, Integer.MAX_VALUE);
+				if (length >= 5) {
+					addWalks(ofWord, fragment, thresholds, true, 1);
+				}
+			}
+			specs.addAll(ofWord);
+		}
+		return specs;
+	}
+
+	/**
+	 * Adds the walks of one word or fragment: every stem variant over the stems by its own length, the typed form
+	 * over the lane by its typed length.
+	 */
+	private static void addWalks(
+		@Nonnull Set<WalkSpec> target, @Nonnull String typed, @Nonnull TypoThresholds thresholds, boolean openEnd,
+		int editCap
+	) {
+		final List<QueryWord> analyzed = TypoExpansion.analyze(searchAnalyzer, typed);
+		if (!analyzed.isEmpty()) {
+			for (final String hypothesis : analyzed.get(0).hypotheses()) {
+				final int edits = Math.min(thresholds.maxEdits(hypothesis), editCap);
+				if (edits > 0) {
+					target.add(new WalkSpec(hypothesis, edits, thresholds.frozenPrefix(hypothesis), openEnd, false));
+				}
+			}
+		}
+		final int edits = Math.min(thresholds.maxEdits(typed), editCap);
+		if (edits > 0) {
+			target.add(new WalkSpec(typed, edits, thresholds.frozenPrefix(typed), openEnd, true));
+		}
+	}
+
+	/**
+	 * Runs one walk three times — plain, plain with every descent timed, and with a read-ahead of one leaf — and
+	 * records the counts and times. The read-ahead run must return exactly the plain run's hits.
+	 */
+	private static void measureWalk(
+		@Nonnull WalkSpec spec, @Nonnull TransactionalBucketBPlusTree<String> tree, int leafSize,
+		@Nonnull SeekStats cell, @Nonnull SeekStats total
+	) {
+		final long buildStart = System.nanoTime();
+		final LevenshteinDictionaryWalker plain = new LevenshteinDictionaryWalker(
+			spec.query(), spec.maxEdits(), spec.frozenPrefix(), 0, spec.openEnd()
+		);
+		final long walkStart = System.nanoTime();
+		final List<Hit> plainHits = plain.walk(tree);
+		final long walkEnd = System.nanoTime();
+		final LevenshteinDictionaryWalker timed = new LevenshteinDictionaryWalker(
+			spec.query(), spec.maxEdits(), spec.frozenPrefix(), 0, spec.openEnd()
+		).timingSeeks();
+		final long timedStart = System.nanoTime();
+		timed.walk(tree);
+		final long timedEnd = System.nanoTime();
+		final LevenshteinDictionaryWalker readAhead = new LevenshteinDictionaryWalker(
+			spec.query(), spec.maxEdits(), spec.frozenPrefix(), leafSize, spec.openEnd()
+		);
+		final long aheadStart = System.nanoTime();
+		final List<Hit> aheadHits = readAhead.walk(tree);
+		final long aheadEnd = System.nanoTime();
+		assertEquals(plainHits, aheadHits, "the read-ahead must not change the hits of " + spec);
+		for (final SeekStats stats : new SeekStats[]{cell, total}) {
+			stats.add(
+				walkStart - buildStart, walkEnd - walkStart, plain.getSeeks(), timed.getSeekNanos(),
+				timedEnd - timedStart, aheadEnd - aheadStart, readAhead.getSeeks(), readAhead.getReadAheadHits()
+			);
+		}
+	}
+
+	/**
+	 * Copies a harness tree into the shape `FulltextIndex` builds its dictionary in: leaves of 256 buckets, the
+	 * production minimum sizes and the front-coded string column.
+	 */
+	@Nonnull
+	@SuppressWarnings("unchecked")
+	private static TransactionalBucketBPlusTree<String> productionTree(
+		@Nonnull TransactionalBucketBPlusTree<String> source
+	) {
+		final int minValueBlockSize = PRODUCTION_LEAF_BLOCK_SIZE / 2 - 1;
+		final TransactionalBucketBPlusTree<String> tree = new TransactionalBucketBPlusTree<>(
+			PRODUCTION_LEAF_BLOCK_SIZE, minValueBlockSize, minValueBlockSize,
+			(int) (Math.ceil(minValueBlockSize / 2.0) - 1),
+			String.class,
+			null,
+			(ValueColumnFactory<String>) ValueColumnFactory.forKey(String.class, null)
+		);
+		final BucketCursor<String> cursor = source.cursor();
+		int record = 1;
+		while (cursor.next()) {
+			tree.addRecord(cursor.value(), record++);
+		}
+		return tree;
 	}
 
 	/**
@@ -1161,6 +1350,96 @@ class CorpusTypoMeasurementTest {
 			this.thresholds = thresholds;
 			this.cap = cap;
 			this.perLeg = perLeg;
+		}
+	}
+
+	/**
+	 * One dictionary walk of the intra-leaf measurement.
+	 *
+	 * @param query        the walked string: a stem variant or the typed form
+	 * @param maxEdits     1 or 2
+	 * @param frozenPrefix leading characters with no edit
+	 * @param openEnd      whether the walk is open-ended (an unfinished word)
+	 * @param lane         whether the walk goes over the surface-form lane rather than the stems
+	 */
+	private record WalkSpec(@Nonnull String query, int maxEdits, int frozenPrefix, boolean openEnd, boolean lane) {
+	}
+
+	/**
+	 * One shape of the two dictionaries the walks run over.
+	 *
+	 * @param label    the label of the shape in the report
+	 * @param leafSize the leaf size, also the read-ahead limit
+	 * @param stems    the stem dictionary
+	 * @param lane     the surface-form lane
+	 */
+	private record TreeShape(
+		@Nonnull String label,
+		int leafSize,
+		@Nonnull TransactionalBucketBPlusTree<String> stems,
+		@Nonnull TransactionalBucketBPlusTree<String> lane
+	) {
+
+		@Nonnull
+		TransactionalBucketBPlusTree<String> tree(boolean ofLane) {
+			return ofLane ? this.lane : this.stems;
+		}
+	}
+
+	/**
+	 * Seek counts and times of a group of walks, and the upper bound on what an intra-leaf seek could save: every
+	 * rejection the read-ahead resolved inside one leaf is a descent an intra-leaf seek would avoid, at no cost of
+	 * its own. The bound is optimistic on purpose — the binary search inside the leaf is not free.
+	 */
+	private static final class SeekStats {
+		private final Series plainWalk = new Series();
+		private final Series aheadWalk = new Series();
+		private long walks;
+		private long buildNanos;
+		private long plainNanos;
+		private long seeks;
+		private long seekNanos;
+		private long timedNanos;
+		private long aheadNanos;
+		private long aheadSeeks;
+		private long inLeaf;
+
+		void add(
+			long build, long plain, long plainSeeks, long timedSeekNanos, long timed, long ahead, long readAheadSeeks,
+			long readAheadHits
+		) {
+			this.walks++;
+			this.buildNanos += build;
+			this.plainNanos += plain;
+			this.plainWalk.add(plain);
+			this.seeks += plainSeeks;
+			this.seekNanos += timedSeekNanos;
+			this.timedNanos += timed;
+			this.aheadNanos += ahead;
+			this.aheadWalk.add(ahead);
+			this.aheadSeeks += readAheadSeeks;
+			this.inLeaf += readAheadHits;
+		}
+
+		@Nonnull
+		String row(@Nonnull String shape, @Nonnull String dictionary, @Nonnull String walk, @Nonnull String edits) {
+			// the first seek of a walk positions it and is never a rejection
+			final long rejections = this.inLeaf + this.aheadSeeks - this.walks;
+			final double descentNanos = this.seeks == 0 ? 0.0 : this.seekNanos / (double) this.seeks;
+			final double saved = descentNanos * this.inLeaf;
+			final long[] plainSorted = this.plainWalk.sorted();
+			final long[] aheadSorted = this.aheadWalk.sorted();
+			return String.format(
+				Locale.ROOT,
+				"| %s | %s | %s | %s | %,d | %.1f | %.2f | %.1f %% | %.1f %% | %.1f %% | %.1f %% | %.2f |"
+					+ " %.1f / %.1f | %.1f / %.1f |",
+				shape, dictionary, walk, edits, this.walks, this.seeks / (double) this.walks, descentNanos / 1e3,
+				pct(this.seekNanos, this.timedNanos), pct(this.inLeaf, rejections),
+				saved * 100.0 / this.plainNanos, saved * 100.0 / (this.plainNanos + this.buildNanos),
+				this.aheadNanos / (double) this.plainNanos,
+				Series.at(plainSorted, 0.5) / 1e3, Series.at(plainSorted, 0.99) / 1e3,
+				Series.at(aheadSorted, 0.5) / 1e3, Series.at(aheadSorted, 0.99) / 1e3
+			);
 		}
 	}
 

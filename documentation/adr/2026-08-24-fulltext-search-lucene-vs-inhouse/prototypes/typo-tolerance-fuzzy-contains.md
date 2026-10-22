@@ -10,17 +10,23 @@
 > dictionary. Facts are read from evitaDB's code on the branch.
 >
 > **Decided 2026-10-02: the metric is Damerau** (an adjacent swap costs one edit) — §6.1 records it and
-> §6.2–§6.4 the ways to implement it. **Measured, not yet decided:** the tiered shape of §1 and §7 (full
-> one-edit enumeration, swap expansion at two edits) is the recommendation; confirmation on a real corpus, and
-> the case and diacritics semantics, are still owed. Everything else here is analysis.
+> §6.2–§6.4 the ways to implement it. **Decided 2026-10-21: the tiered shape of §7** — **swap expansion** at
+> both edit levels (a Levenshtein trigram query plus the swapped variants looked up exactly), one edit from 6
+> characters, two edits from 12; no gate of its own above those limits; contains does not fold diacritics; no
+> fuzzy `attributeEndsWith`. Full one-edit enumeration (§6.4) was measured, including on a real corpus (§6.5),
+> and is not adopted. Still owed: the case semantics. The decided
+> algorithm alone, without the reasoning, is in
+> [`typo-tolerance-fuzzy-contains-algorithm.md`](typo-tolerance-fuzzy-contains-algorithm.md). Everything else
+> here is analysis.
 >
 > **How the document is layered.** §1 is the current recommendation. §2–§3 are the analysis as first written,
 > and §3's cost argument against option A is **wrong** — kept on purpose, with the correction announced in
 > place. §4 states the rule that the later work established (the bound depends on the metric and on *distinct*
 > trigrams); §5 (2026-09-30, corrected 2026-10-02) carries the measurement that overturned §3, and its §5.4
 > still states the 6 / 9 cut-off of a single threshold, which §6.4 later moves to 4 for one edit by
-> enumeration. §6 (2026-10-02) carries the one decision taken and the two further mechanisms measured, §7 the
-> resulting query flow, §8 a worked example. Reviewed 2026-10-02 by an independent reviewer and the advisor;
+> enumeration — measured, not adopted (§1). §6 carries the Damerau decision (2026-10-02), the two further
+> mechanisms measured and their measurement on a real corpus (2026-10-21), §7 the decided query flow, §8 a
+> worked example. Reviewed 2026-10-02 by an independent reviewer and the advisor;
 > their corrections are folded in (the bound depends on the metric and on *distinct* trigrams, case H was
 > wrong, the gate bound was wrong). The benchmark is `FuzzyContainsCandidateBenchmark`
 > (`evita_test/evita_performance_tests/src/main/java/io/evitadb/spike/`, committed 2026-10-02 as
@@ -35,7 +41,7 @@
 | 3 | The options as first analysed (with the corrected cost argument) |
 | 4 | The rule: edit distance follows from pattern length |
 | 5 | Measurements of the single-threshold method |
-| 6 | Damerau: the decision, and the mechanisms that implement it |
+| 6 | Damerau: the decision, the mechanisms that implement it, and their measurements on a real corpus |
 | 7 | Expected behaviour, as a flow |
 | 8 | Worked example |
 | 9 | What the trigram index could still contribute to the fulltext side |
@@ -44,28 +50,38 @@
 
 ## 1. Summary: where this leaves the contains decision
 
-Fuzzy `attributeContains` over the trigram index is **worth building as an opt-in**, with the rule of §4
-baked in rather than configurable:
+Fuzzy `attributeContains` over the trigram index is **worth building as an opt-in**, with the tiered rule
+of §7 baked in rather than configurable (§4 derives the single-threshold bound it grew out of):
 
-- above the cut-off (6 / 9 distinct-trigram lengths under plain Levenshtein, 7 / 11 under Damerau) it is
-  sound and roughly **7–150× cheaper than a scan** (§5.3): ~100× at one edit on long fragments, 12–25× at one
-  edit on 8-character fragments, and only 7–8× for Damerau at two edits, where the looser threshold admits
-  9–10 % of the corpus as candidates. Under Damerau it is not only the cut-off that moves up — every
-  threshold above it is looser by `d` trigrams. All of it is a constant-factor win with the dense counter
-  the benchmark used; the asymptotically better prefix filter lost to it at this corpus size (§5.3, §5.4);
-- below the cut-off — now 4 for one edit, 9 for two — there is no typo tolerance and the exact predicate
-  runs alone, which has to be said to the user, as every product engine does;
+- above the **single-threshold** cut-off (6 / 9 distinct-trigram lengths under plain Levenshtein, 7 / 11
+  under Damerau) it is sound and roughly **7–150× cheaper than a scan** (§5.3): ~100× at one edit on long
+  fragments, 12–25× at one edit on 8-character fragments, and only 7–8× for Damerau at two edits, where the
+  looser threshold admits 9–10 % of the corpus as candidates. Under Damerau it is not only the cut-off that
+  moves up — every threshold above it is looser by `d` trigrams. All of it is a constant-factor win with the
+  dense counter the benchmark used; the asymptotically better prefix filter lost to it at this corpus size
+  (§5.3, §5.4), and again inside swap expansion on a real corpus of 942,632 values (§6.6) — which of the two
+  ships is left to the implementation;
+- below the limits of the decided algorithm — 6 characters for one edit, 12 for two (§7; 6 is the structural
+  limit of swap expansion's Levenshtein query, 12 sits above its structural 9 for the reason §6.5 gives) — there
+  is no typo tolerance and the exact predicate runs alone, which has to be said to the user, as every product
+  engine does;
 - the superset property must be asserted in tests under the metric actually used, with all four edit
   kinds, because its failure is silent;
-- **the metric is decided: Damerau** (§6.1), and the shape is tiered by edits (§7 step 3): at one edit,
-  **full enumeration** of the neighbourhood with exact lookups — no threshold, cut-off L ≥ 4, ~1 ms per
-  pattern on a quarter-million values, candidates ≈ true matches (§6.4); at two edits, **swap expansion**
-  (threshold `u − 3` queries plus enumerated swaps, cut-off 9, §6.2–§6.3). The single `c = 4` threshold (A)
-  is dominated on every measured row and stays only as the simplest correct baseline. Confirmation on the
-  real corpus — in particular the alphabet size, which drives the lookup count — is still owed;
-- the open semantic questions are case (today's predicate is case-sensitive) and diacritics (one edit per
-  missing mark under NFD, §8 example H) — both are product decisions about what "contains with typos" should
-  mean, not engineering ones, and they decide whether the feature is useful for Czech input at all.
+- **the metric is decided: Damerau** (§6.1), and the generator is **swap expansion** at both edit levels (§7
+  step 3, §6.2–§6.3): the Levenshtein trigram query (`u − 3` at one edit, `u − 6` at two) plus the swapped
+  variants looked up exactly — offered from L ≥ 6 at one edit and from L ≥ 12 at two. **Full one-edit
+  enumeration** (§6.4) would serve one edit from 4 or 5 characters, but it needs the corpus alphabet and
+  thousands of exact lookups per query on a real one (§6.5); it was measured and is **not adopted**. The single
+  `c = 4` threshold (A) is dominated on every measured row and stays only as the simplest correct baseline. On
+  a real corpus (§6.5) a 4-character fragment with one typo matches 9.4 % of all values and two edits at 9
+  characters cost ~0.5 s a query, which is what keeps the two-edit limit at 12;
+- **no gate of its own** (decided 2026-10-21): above its limits the fuzzy path always takes the trigram index.
+  Its alternative is not the exact scan the existing gate is tuned against but a full approximate scan, which
+  every measured row above the limits beats (§6.5); only the existing declines stay (§7);
+- **diacritics are not handled** (decided 2026-10-21): `contains` does not fold, so a missing or wrong mark is an
+  ordinary edit inside the matched region and none at its end (§8 example H). Folding is the fulltext chain's job;
+- the open semantic question is case (today's predicate is case-sensitive) — a product decision about what
+  "contains with typos" should mean, not an engineering one.
 
 What it is **not**: a replacement for "search with typos". A typo is a property of a word, the fulltext
 dictionary already tokenizes, lowercases, folds and stems, and `typo-tolerance-fulltext-dictionary.md` covers
@@ -89,8 +105,10 @@ the **value ids** containing it. `TrigramSubstringSearch.match` (`index/trigram/
 then: extracts the pattern's distinct trigrams, **intersects** their postings (a value must contain *all*
 of them), resolves the candidate value ids back to values, and runs the **exact** predicate over each. The
 index is a candidate generator only; correctness comes from the verification step. It declines (falls back
-to the scan) when a transaction is open, when the pattern has fewer than 3 code points, or when the cheapest
-posting is not at least 12× narrower than the scan it would replace (`REQUIRED_NARROWING_FACTOR`).
+to the scan) when a transaction is open, when the attribute holds fewer than 256 distinct values
+(`MINIMAL_ACCELERATED_DISTINCT_VALUE_COUNT`, one leaf block scanned faster than any candidate generation), when
+the pattern has fewer than 3 code points, or when the cheapest posting is not at least 12× narrower than the scan
+it would replace (`REQUIRED_NARROWING_FACTOR`).
 `attributeStartsWith` does not use it at all — the sorted tree answers a prefix by a range walk.
 
 Two properties of this design matter for any fuzzy variant: it holds **membership only** (no positions, no
@@ -200,14 +218,16 @@ stricter — a repetitive pattern gets *less* tolerance than its length suggests
 
 In words: **plain Levenshtein gives 6 / 9, Damerau gives 7 / 11** — for a *single* threshold. The metric is
 decided (Damerau, §6.1); whether the cut-offs are 7 / 11 or 6 / 9 depends on how the transposition is
-handled, and §6.2 shows the second way (§6.4 then removes the one-edit cut-off altogether). Under plain
-Levenshtein `bnuda` → `bunda` would be distance 2 and need L ≥ 9 to be found at all, which is the practical
-reason the decision went to Damerau.
+handled, and §6.2 shows the second way (§6.4 then removes the one-edit cut-off altogether — measured, not
+adopted, §1). Under plain Levenshtein `bnuda` → `bunda` would be distance 2 and need L ≥ 9 to be found at all,
+which is the practical reason the decision went to Damerau.
 
 So the configuration carries **one number, the maximum `d`** (1 or 2), and each query derives its own:
 `d = min(maxConfigured, (u − 1) / c)`. The same `d` is then used in both places it appears — as the
 threshold of the candidate generator and as the distance handed to the verification — which is what keeps
-the superset guarantee intact.
+the superset guarantee intact. This is the rule of the single threshold; under the decided algorithm (§7) one
+edit is offered from L ≥ 6 — swap expansion's Levenshtein query needs `u − 3 ≥ 1`, which is L ≥ 6 without
+repeats — and two edits from L ≥ 12, where structurally 9 would do; §6.5 shows why the second limit sits higher.
 
 ### 4.2 How it compares to the engines' length rules
 
@@ -218,16 +238,24 @@ find "like"); ours falls out of what a trigram can *guarantee*. They land close 
 |---|---|---|---|
 | evitaDB fuzzy `contains`, plain Levenshtein | 6 | 9 | structural: below it the index proves nothing |
 | evitaDB fuzzy `contains`, Damerau | 7 | 11 | structural, a swap touches four windows |
+| evitaDB fuzzy `contains`, decided (§7) | 6 | 12 | one edit: structural (swap expansion); two edits: measured on a real corpus (§6.5), structurally 9 |
 | Meilisearch `minWordSizeForTypos` | 5 | 9 | product default |
 | Typesense `min_len_1typo` / `min_len_2typo` | 4 | 7 | product default (docs) |
 | Elasticsearch `fuzziness: AUTO` | 3 | 6 | product default |
 | Lucene `FuzzySuggester` | 3 (max 1 edit) | never | library default |
 
-Ours is a notch stricter than Meilisearch (two notches under Damerau) and cannot be loosened by
-configuration. For the fulltext term dictionary (`typo-tolerance-fulltext-dictionary.md`) no structural
-cut-off exists — the automaton handles two edits on a four-letter word — so the thresholds there are a
-quality decision; using the same 6/9 for both would keep search and `contains` from disagreeing, but there it
-is a choice and here it is a necessity.
+The single-threshold cut-offs are a notch stricter than Meilisearch (two notches under Damerau) and cannot be
+loosened by configuration — below them the index proves nothing. The decided algorithm of §7 handles
+the swap by enumeration instead of by a looser threshold, so it keeps the Levenshtein floors: one edit from 6
+(`u − 3 ≥ 1`), two from 9 (`u − 6 ≥ 1`). Full enumeration (§6.4) would escape the one-edit floor, but it is not
+adopted. The two-edit limit sits above its floor, at 12, because on a real corpus 9 stays expensive (§6.5). At
+one edit the decided limit is a notch stricter than Meilisearch and two notches stricter than Typesense; at two
+edits it is stricter than every engine in the table. For the fulltext term dictionary
+(`typo-tolerance-fulltext-dictionary.md`) no structural cut-off exists — the automaton handles two edits on a
+four-letter word — and the thresholds are decided at 4 / 8 (that document's §7.1, 2026-10-21). `contains` at
+6 / 12 is therefore two characters stricter than search at one edit and four at two: search matches whole words,
+while a substring pattern with a free start and end matches every value that contains any part of it within the
+budget, so the same length admits far more.
 
 ---
 
@@ -288,7 +316,7 @@ nearly exact:
 - **Below the cut-off there is no candidate generation at all.** A 5-character typed fragment with one
   typo cannot be served by trigrams under any edit distance; an 8-character fragment cannot be served at two
   edits. Those rows cost a scan of 15–30 ms per pattern on a quarter-million values, growing linearly with
-  the corpus. (For one edit, §6.4 later removes this limit by enumeration.)
+  the corpus. (For one edit, §6.4 later removes this limit by enumeration — measured, not adopted, §1.)
 - **The first version of the benchmark clamped the threshold to one and produced a fast, wrong answer**
   (fewer candidates than true matches at L = 5, d = 2). The second version asserted the superset property,
   but only over 32 substitution-damaged patterns of one seed under plain Levenshtein, so it could not see
@@ -349,7 +377,7 @@ Readings, on top of §5.2:
 ### 5.4 What this means for an implementation
 
 This section states the 6 / 9 cut-off of a single threshold; §6.4 later moves the one-edit cut-off to 4 by
-enumeration, and §1 has the current shape.
+enumeration — measured, not adopted — and §1 has the current shape.
 
 Fuzzy `attributeContains` on the trigram index **does make sense, as an opt-in**, with these properties:
 
@@ -493,10 +521,13 @@ Two limits before the numbers:
   which is scan territory. Below the 9 / 11 cut-off two edits stay a scan.
 - **The alphabet can be pruned by the index itself.** A substituted or inserted letter `x` at position `i`
   only matters if the trigrams it creates exist in the index, and the trigram store is an ordered tree keyed
-  by the packed `(a, b, c)` with `a` in the high bits, so a range scan on `(p[i−2], p[i−1], ·)` lists every
-  `x` the corpus actually continues with — typically a handful, not |Σ|. Not implemented in the benchmark
-  (`TrigramIndex` exposes no range scan today); it is the trigram-side analogue of the automaton walking the
-  term dictionary instead of testing every key.
+  by the packed trigram. `TrigramCodec#pack` puts the **third** code point in the high bits (first in bits
+  0–20, third in 42–62), so the tree is ordered by the last two code points, and a range scan on
+  `(·, p[i+1], p[i+2])` lists every `x` the corpus actually places before that pair — typically a handful, not
+  |Σ|. (Corrected 2026-10-21: this reading first had the packing the other way round, scanning
+  `(p[i−2], p[i−1], ·)`.) Not implemented in the benchmark, and the trigram tree is read by point lookup only
+  today (`TrigramPostingStore`); it is the trigram-side analogue of the automaton walking the term dictionary
+  instead of testing every key.
 
 **Measured (2026-10-02, arm `editEnumeration`, Damerau, one edit, short run on a loaded machine).** The
 superset assertion held for the enumeration in every row. Alphabet of the corpus: 38 code points. `enum` is
@@ -526,6 +557,106 @@ Readings:
   symbols in codes) the index-pruned alphabet (the second limit above) is what keeps the count in the
   hundreds.
 
+### 6.5 Measured on a real corpus (2026-10-21)
+
+§6.3–§6.4 ran on a synthetic vocabulary. This run repeats them on the `title` attribute of a production CMS
+catalog (972,611 articles): **942,632 distinct values** after NFD normalization, median length 70 code points
+(p10 38, p90 98), case kept as the attribute index keeps it. The corpus alphabet is **239 code points** — lower
+and upper case, digits, punctuation, combining marks and a few other scripts — against 38 in the synthetic one.
+The values were extracted with `CorpusTextExtractionTest` (HTML-stripped, which is why the distinct count is a
+little below the 943,410 P8 measured on stored values) and read by the benchmark's `CORPUS` value shape. Damerau
+only, as decided; the same short run (1 warm-up, 2 × 1 s, single fork), so the ratios inside a row hold and the
+timings do not better than ±20 %. **The superset assertion held in every trial.**
+
+One edit — candidates and true matches are averages over the 32 timing patterns; times are generation plus
+verification per query:
+
+| L | true matches | enumeration: candidates / lookups | enum +verify | B +verify | A +verify | scan |
+|---|---|---|---|---|---|---|
+| 4 | 88,306 (9.4 %) | 210,170 / 2,274 | 155 ms | 419 ms (whole corpus) | 767 ms (whole corpus) | 747 ms |
+| 5 | 10,585 (1.1 %) | 12,422 / 2,783 | 9.9 ms | 717 ms (19/32 whole) | 1,133 ms (whole corpus) | 1,060 ms |
+| 6 | 5,677 (0.60 %) | 7,780 / 3,202 | 12.4 ms | 323 ms (6/32 whole) | 820 ms (20/32 whole) | 1,189 ms |
+| 7 | 2,519 (0.27 %) | 3,185 / 3,636 | 8.1 ms | 58 ms | 831 ms (7/32 whole) | 1,392 ms |
+| 8 | 338 (0.04 %) | 416 / 4,130 | 5.5 ms | 8.8 ms | 47 ms | 1,568 ms |
+| 12 | 18 | 25 / 6,091 | 6.6 ms | 2.9 ms | 3.9 ms | 2,140 ms |
+
+Two edits — enumeration does not apply (§6.4, first limit), B is the decided generator:
+
+| L | true matches | B candidates | B +verify | A +verify | scan |
+|---|---|---|---|---|---|
+| 9 | 3,275 | 38.3 % (10/32 whole corpus) | 506 ms | 1,722 ms | 1,704 ms |
+| 12 | 11 | 2.4 % (22,305) | 68 ms | 177 ms | 2,212 ms |
+
+Today's exact path on the intact fragment costs 34–77 µs in every row.
+
+Readings:
+
+- **The method is sound and far below the scan**, as on the synthetic corpus. One-edit enumeration is ~100–300×
+  under the scan from L = 5, and its candidates stay within 1.2–1.4× of the true matches.
+- **The alphabet costs a factor of 5–10.** One-edit enumeration takes 5.5–12 ms per query here, against ~1 ms on
+  the synthetic corpus, and the lookup count — 2,800–6,100, growing with `L · |Σ|` — is now the dominant cost:
+  at L = 12 it is 6.6 ms for 25 candidates, where B needs 2.9 ms. The index-pruned alphabet of §6.4 is the fix
+  this row asks for; until it exists, B overtakes enumeration somewhere between L = 8 and L = 12. The decision
+  (§7) went to B at both edit levels instead, accepting its one-edit floor of 6.
+- **A 4-character fragment floods.** One typo at L = 4 matches 9.4 % of all titles, 88,306 values on average,
+  and costs 155 ms — the free start and end of Sellers (§8 example F) at corpus scale. At L = 5 it is 1.1 % and
+  ~10 ms. The structural limit of 4 is not a usable product limit; §7 does not adopt enumeration at all and
+  offers one edit from 6, the floor of swap expansion.
+- **Two edits are cheap only well above their structural limit.** At L = 9 a third of the patterns still take
+  the whole corpus and a query costs half a second; at L = 12 it is 68 ms. The structural limit of 9 is where the
+  index stops proving nothing, not where two edits become affordable, which is why §7 offers them from 12.
+
+### 6.6 Counting the threshold queries on a real corpus (2026-10-21)
+
+§5.3 compared the two sound ways to count a threshold query — the dense per-value counter and the prefix filter
+(§5.4) — on the synthetic corpus, for the single threshold only, and left the choice to the real corpus. This run
+makes it inside the decided generator, swap expansion (§7), on the same 942,632 titles as §6.5. The new arm
+`swapExpansionPrefixFilter` counts every threshold query of swap expansion by the prefix filter and collects the
+candidates in a `RoaringBitmap`, so that no step of it is linear in the corpus; `swapExpansion` counts with the
+dense counter and collects in a per-value mark array. The soundness check asserts that both arms return
+**identical** candidates for every pattern — it held in every trial. Damerau, 1 warm-up and 3 × 1 s, single fork;
+the run was split in two after the first was stopped for lack of memory on the machine, so the rows come from two
+JVMs.
+
+Candidate generation only, per query:
+
+| edits | L | dense counter | prefix filter |
+|---|---|---|---|
+| 1 | 6 | 1.5 ms | 4.5 ms |
+| 1 | 7 | 2.0 ms | 5.1 ms |
+| 1 | 8 | 1.8 ms | 3.8 ms |
+| 1 | 12 | 2.3 ms | 4.4 ms |
+| 2 | 12 | 11.6 ms | 28.3 ms (±61 ms) |
+| 2 | 16 | 21.1 ms | 22.1 ms |
+
+Generation plus verification, per query:
+
+| edits | L | dense counter | prefix filter |
+|---|---|---|---|
+| 1 | 6 | 274 ms | 276 ms |
+| 1 | 8 | 9.5 ms | 10.3 ms |
+| 1 | 12 | 2.2 ms | 4.8 ms |
+| 2 | 12 | 90 ms | 87 ms |
+| 2 | 16 | 22.6 ms | 22.0 ms |
+
+The L = 6 row is inflated for both arms alike: a deletion left 6 of the 32 patterns at 5 typed code points, where
+the benchmark takes the whole corpus and the decided flow (§7) offers no tolerance at all.
+
+Readings:
+
+- **The dense counter is never slower, and about 2× faster at generation.** At 942,632 values its two passes
+  over the counter array per threshold query still cost less than the prefix filter's random membership tests —
+  the same direction as §5.3, now at four to nine times the corpus size and with the `L` threshold queries of two
+  edits.
+- **End to end the choice hardly shows.** Generation costs 1.5–21 ms of queries that cost 2–90 ms in total;
+  verification of the candidates is the larger part wherever the candidate set is not tiny.
+- **The prefix filter's advantage is asymptotic and did not appear.** Its cost follows the small postings rather
+  than the corpus, and it needs no scratch array. The dense counter's cost grows linearly with the attribute and
+  it needs a counter array per concurrent query (~3.8 MB as `int[]` here, a quarter of that as `byte[]`, since a
+  count never exceeds `u`); an attribute an order of magnitude larger was not measured.
+- **Not decided here.** Which primitive ships is left to the implementation (algorithm document §4.4); the dense
+  counter additionally needs dense value ids, which nobody has checked yet (§5.4).
+
 ---
 
 ## 7. Expected behaviour, as a flow
@@ -533,24 +664,27 @@ Readings:
 1. Normalize the typed pattern as the attribute's index does; measure `L`.
 2. Run the **exact** path first: today's all-trigram intersection and `contains` (2–6 µs). Enough results →
    done. (Typesense's `typo_tokens_threshold` is the same idea: typos are a fallback, not always on.)
-3. Extract the distinct trigrams, `u` of them, and derive the tolerance from the length (§4.1, §6.2, §6.4):
-   - L ≤ 3: exact only — nothing to enumerate, nothing to threshold;
-   - `d = 1`, any L ≥ 4: **enumerate** the one-edit neighbourhood (deletions, substitutions and insertions
-     over the index's alphabet, swaps) and look each variant up exactly; no threshold is involved;
-   - `d = 2` (when configured) and L ≥ 9: **swap expansion** — Levenshtein-2 neighbourhood of the pattern
+3. Extract the distinct trigrams, `u` of them, and derive the tolerance from the length (§4.1, §6.2):
+   - L ≤ 5: exact only. Swap expansion's Levenshtein query needs `u − 3 ≥ 1`; below it the index proves nothing
+     about a substitution, insertion or deletion;
+   - `d = 1`, L ≥ 6: **swap expansion** — Levenshtein-1 neighbourhood of the pattern at threshold `u − 3`, plus
+     the `L − 1` swapped variants looked up exactly;
+   - `d = 2` (when configured) and L ≥ 12: **swap expansion** — Levenshtein-2 neighbourhood of the pattern
      at threshold `u − 6`, Levenshtein-1 neighbourhood of each swapped variant at `u' − 3`, doubly swapped
-     variants exactly; below L = 9 the second edit is not offered.
+     variants exactly; below L = 12 the second edit is not offered. Structurally it could be from 9, but at
+     9 characters a third of the patterns still take the whole corpus and a query costs ~0.5 s (§6.5).
 4. Verify each candidate with the approximate substring distance under Damerau; stop at the first `d'` that
    yields results. An empty candidate set from a sound generator is a **proof** of an empty result — no scan
    follows.
-5. A scan of the whole value set appears nowhere in this flow.
+5. A scan of the whole value set appears nowhere in this flow — outside the existing declines of §2.1 (an open
+   transaction, fewer than 256 distinct values), which the fuzzy path inherits.
 
-Expectations that follow: a single typo in any fragment of 4+ characters is found (by enumeration — with a
-threshold it would take 6+, or 7+ under Damerau, and land exactly on the threshold, §8 example G); two typos
-need 9+ characters; a short mistyped fragment (`saki` for `sako`) is not found, by design; and a missing
-diacritic costs one edit *when it sits inside the matched region* and nothing when it sits at its end,
-because `contains` does not fold and Sellers has a free end (§8 example H) — that position-dependence is the
-one semantic question the numbers do not settle.
+Expectations that follow: a single typo in any fragment of 6+ characters is found (a substitution, insertion
+or deletion lands exactly on the threshold, §8 example G; a swap through its swapped variant, §8 example J); two
+typos need 12+ characters; out of reach by design are a typo in a fragment of 5 characters or fewer (`saki` for
+`sako`, §8 example F) and two typos below 12 characters (§8 example I); and a missing diacritic costs one edit
+*when it sits inside the matched region* and nothing when it sits at its end, because `contains` does not fold
+and Sellers has a free end (§8 example H) — decided as acceptable (§1): diacritics are not handled here.
 
 ---
 
@@ -558,9 +692,9 @@ one semantic question the numbers do not settle.
 
 Five values of a `name` attribute, configuration "exact first, then up to one edit" (`maxConfigured = 1`),
 plain Levenshtein unless a case says otherwise (`c = 3`, cut-off `u ≥ 4`, i.e. L ≥ 6 without repeats) — that
-is, the single-threshold method of §4–§5. Patterns are lowercase NFD; trigrams are written with `␣` for a
-space. Lengths count code points, so a character with a diacritic in NFD counts two (`ě` = `e` + combining
-caron).
+is, the single-threshold method of §4–§5. Examples B, F and I note how the decided algorithm (§7)
+treats the same input. Patterns are lowercase NFD; trigrams are written with `␣` for a space. Lengths count code points,
+so a character with a diacritic in NFD counts two (`ě` = `e` + combining caron).
 
 ```text
 1  kalhoty modrý lampa
@@ -575,7 +709,8 @@ exact predicate runs as a scan over the values, as today. Result 1, 2, 3. No typ
 
 **B. `kalh` (L = 4, n = 2).** Exact path: `kal` ∩ `alh` → candidates 1, 2 → `contains` confirms both →
 result 1, 2. Fuzzy would need `2 − 3 < 0`, so it is not offered; `kalx` would return nothing and the UI
-would say "typo tolerance from 6 characters".
+would say "typo tolerance from 6 characters". The decided algorithm (§7) answers the same: at L = 4 it
+does not attempt fuzzy at all, so `kalx` gets the exact path only.
 
 **C. `kalhoty` (L = 7, n = 5, no typo).** Exact path: all five trigrams intersect → candidate 1 → confirmed
 → result 1. Enough results, fuzzy never runs.
@@ -593,8 +728,10 @@ Verification: value 1 holds `kalhoty`, one insertion from `kahoty` → match. Va
 false candidate the verification exists for — the benchmark sees 1–10× more candidates than matches.
 
 **F. `saki` (L = 4).** As B: `sak` ∩ `aki` → `aki` nowhere → empty; fuzzy below the cut-off. Empty result
-although `sako` is one character away. That is the price of the cut-off, and Meilisearch pays the same one
-(`saki` has four characters, tolerance there starts at five).
+although `sako` is one character away. That is the price of the cut-off, and the decided algorithm (§7) pays it
+too. Full enumeration (§6.4, not adopted) would reach it — the substitution variant `sako` → `sak ∩ ako` →
+value 5 — but a 4-character pattern then also matches every value containing its leading or trailing three
+characters (`sak`, `aki`), a one-edit deletion, which on a real corpus is 9.4 % of all values (§6.5).
 
 **G. `kalhotkz dětské` (L = 17 in NFD, u = 15, one substitution).** Exact: `tkz`, `kz␣`, `z␣d` nowhere →
 empty. Fuzzy, `d = 1`, threshold `15 − 3 = 12`: value 2 shares exactly 12 trigrams (15 minus the 3 the typo
@@ -610,12 +747,12 @@ in NFD) the typed string differs by the `z` and by the two missing marks — but
 value 2 is a candidate and the verification **accepts** it. Two lessons: a missing diacritic costs one edit
 inside the matched region and none at its end, so the semantics are position-dependent; and `contains`
 does not fold, so a fuzzy `contains` spends its edits on diacritics — exactly what the fulltext chain avoids
-by folding in the analyzer. This is the semantic question of §3 and §1.
+by folding in the analyzer. Decided (§1): diacritics are not handled in `contains`.
 
 **I. `maxConfigured = 2` and `kalhokz` (L = 7, two typos).** Cascade: `d' = 0` empty; `d' = 1`, threshold 2,
-candidates 1, 2, verification at distance 1 rejects both (they are at 2); `d' = 2` requires L ≥ 9 and the
-pattern has 7 → not permitted. Empty result. Two typos in a seven-character word are beyond what trigrams
-can guarantee, and that is a hard limit of the method, not a tuning parameter.
+candidates 1, 2, verification at distance 1 rejects both (they are at 2); `d' = 2` requires L ≥ 9 (12 under
+the decided algorithm, §7) and the pattern has 7 → not permitted. Empty result. Two typos in a seven-character
+word are beyond what trigrams can guarantee, and that is a hard limit of the method, not a tuning parameter.
 
 **J. `kahloty` (L = 7, u = 5, adjacent swap `lh` → `hl`) — why the metric matters.** Trigrams `kah ahl hlo
 lot oty`; value 1 holds `kalhoty` and shares only `oty` (the swap touched two characters and destroyed

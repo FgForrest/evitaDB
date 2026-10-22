@@ -27,6 +27,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.trigram.TrigramCodec;
 import io.evitadb.index.trigram.TrigramIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spike.trigram.TrigramCorpusExtractor;
 import io.evitadb.test.fulltext.CzechLexicon;
 import io.evitadb.test.fulltext.EditDistances;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -43,11 +44,21 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Threads;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
+import org.roaringbitmap.IntIterator;
+import org.roaringbitmap.RoaringBitmap;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.PrimitiveIterator.OfInt;
@@ -78,9 +89,13 @@ import java.util.concurrent.TimeUnit;
  *
  * The Czech vocabulary in the attribute index's own shape (lowercase, Unicode NFD, diacritics kept). `WORD` makes
  * every word a distinct value (~257 000 short values, a `code`-like attribute); `NAME` builds 100 000 values of
- * three random words (a `name`-like attribute). Patterns are fragments of real values (`patternLength` code
- * points) damaged by `maxEdits` random edits — substitution, insertion, deletion or adjacent swap — never in the
- * first character. The undamaged fragment is kept so that today's exact path can be measured on the same corpus.
+ * three random words (a `name`-like attribute). `CORPUS` reads the values of a real attribute instead: the TSV
+ * written by {@link TrigramCorpusExtractor}, whose path is the system property {@value #CORPUS_FILE_PROPERTY}.
+ * Its values are normalized to NFD and deduplicated, which is the shape the attribute index stores — case is kept.
+ * `CORPUS` is not among the default parameters, because it needs the file; select it with `-p valueShape=CORPUS`.
+ * Patterns are fragments of real values (`patternLength` code points) damaged by `maxEdits` random edits —
+ * substitution, insertion, deletion or adjacent swap — never in the first character. The undamaged fragment is kept
+ * so that today's exact path can be measured on the same corpus.
  *
  * # Arms
  *
@@ -93,13 +108,18 @@ import java.util.concurrent.TimeUnit;
  *   Damerau neighbourhood of a pattern is the union of its Levenshtein neighbourhood (threshold `u − 3d`) and the
  *   neighbourhoods of its explicitly enumerated swapped variants (`L − 1` single swaps, each at `d − 1`; the
  *   non-overlapping double swaps exactly). Up to `L` index queries per pattern, each with the tighter `c = 3`
- *   threshold. Under `LEVENSHTEIN` it degrades to `countedUnion`, so its rows there carry no information;
+ *   threshold. Under `LEVENSHTEIN` it degrades to `countedUnion`, so its rows there carry no information. Its
+ *   threshold queries count with the dense counter;
+ * - `swapExpansionPrefixFilter` — the same swap expansion with every threshold query counted by the prefix filter
+ *   instead, and the candidates collected in a `RoaringBitmap` rather than a per-value mark array, so that no step
+ *   is linear in the corpus. Identical candidates by construction, asserted in the soundness check;
  * - `editEnumeration` — the same idea pushed to every edit kind, for `d = 1` only: enumerate the whole restricted
  *   Damerau-1 neighbourhood of the pattern as explicit strings (deletions `L`, substitutions `L·|Σ|`, insertions
  *   `(L + 1)·|Σ|`, swaps `L − 1`, with `Σ` the code points occurring in the corpus) and look each up **exactly**.
  *   No threshold at all, so the cut-off drops to "the variant has a trigram" (L ≥ 4); the price is a few hundred
  *   exact lookups per pattern. For `d = 2` the neighbourhood squares and the arm takes the whole corpus;
- * - `countedUnionThenVerify`, `prefixFilterThenVerify`, `swapExpansionThenVerify`, `editEnumerationThenVerify` —
+ * - `countedUnionThenVerify`, `prefixFilterThenVerify`, `swapExpansionThenVerify`,
+ *   `swapExpansionPrefixFilterThenVerify`, `editEnumerationThenVerify` —
  *   the above followed by
  *   approximate-substring verification (Sellers), i.e. what a fuzzy `contains` would cost end to end;
  * - `fullScanApproximate` — the same verification over every value, the scan the accelerator has to beat;
@@ -111,6 +131,9 @@ import java.util.concurrent.TimeUnit;
  * ```shell
  * java -cp evita_test/evita_performance_tests/target/benchmarks.jar org.openjdk.jmh.Main \
  *   FuzzyContainsCandidateBenchmark -p valueShape=NAME -p patternLength=8 -p maxEdits=1 -p metric=DAMERAU
+ * java -cp evita_test/evita_performance_tests/target/benchmarks.jar org.openjdk.jmh.Main \
+ *   FuzzyContainsCandidateBenchmark -p valueShape=CORPUS -p patternLength=4 -p maxEdits=1 -p metric=DAMERAU \
+ *   -jvmArgsAppend -Dfuzzy.contains.corpusFile=/path/to/corpus.tsv
  * ```
  *
  * @author Lukáš Hornych (hornych@fg.cz), FG Forrest a.s. (c) 2026
@@ -126,6 +149,10 @@ public class FuzzyContainsCandidateBenchmark {
 	private static final int PATTERN_COUNT = 32;
 	private static final int SOUNDNESS_SEEDS = 3;
 	private static final String ALPHABET = "abcdefghijklmnopqrstuvwxyz";
+	/**
+	 * System property with the path of the TSV corpus the `CORPUS` value shape reads.
+	 */
+	public static final String CORPUS_FILE_PROPERTY = "fuzzy.contains.corpusFile";
 
 	/**
 	 * One pattern: the damaged fragment the user typed, its code points, its distinct trigrams, the sound threshold
@@ -147,7 +174,7 @@ public class FuzzyContainsCandidateBenchmark {
 	@State(Scope.Benchmark)
 	public static class CorpusState {
 		/**
-		 * `WORD` or `NAME`, see the class javadoc.
+		 * `WORD`, `NAME` or `CORPUS`, see the class javadoc.
 		 */
 		@Param({"WORD", "NAME"})
 		public String valueShape;
@@ -190,23 +217,26 @@ public class FuzzyContainsCandidateBenchmark {
 			};
 			this.windowsPerEdit = this.transpositions ? 4 : 3;
 			final Random random = new Random(42);
-			final Set<String> words = CzechLexicon.load(false);
-			final String[] wordArray = words.toArray(String[]::new);
-			final List<String> valueList = new ArrayList<>(
-				"WORD".equals(this.valueShape) ? wordArray.length : NAME_VALUE_COUNT
-			);
-			if ("WORD".equals(this.valueShape)) {
-				valueList.addAll(words);
-			} else if ("NAME".equals(this.valueShape)) {
-				for (int i = 0; i < NAME_VALUE_COUNT; i++) {
-					valueList.add(
-						wordArray[random.nextInt(wordArray.length)] + " " +
-							wordArray[random.nextInt(wordArray.length)] + " " +
-							wordArray[random.nextInt(wordArray.length)]
-					);
-				}
+			final List<String> valueList;
+			if ("CORPUS".equals(this.valueShape)) {
+				valueList = loadCorpus();
 			} else {
-				throw new IllegalStateException("Unknown value shape: " + this.valueShape);
+				final Set<String> words = CzechLexicon.load(false);
+				final String[] wordArray = words.toArray(String[]::new);
+				valueList = new ArrayList<>("WORD".equals(this.valueShape) ? wordArray.length : NAME_VALUE_COUNT);
+				if ("WORD".equals(this.valueShape)) {
+					valueList.addAll(words);
+				} else if ("NAME".equals(this.valueShape)) {
+					for (int i = 0; i < NAME_VALUE_COUNT; i++) {
+						valueList.add(
+							wordArray[random.nextInt(wordArray.length)] + " " +
+								wordArray[random.nextInt(wordArray.length)] + " " +
+								wordArray[random.nextInt(wordArray.length)]
+						);
+					}
+				} else {
+					throw new IllegalStateException("Unknown value shape: " + this.valueShape);
+				}
 			}
 			this.values = new String[valueList.size() + 1];
 			this.valueCodePoints = new int[valueList.size() + 1][];
@@ -228,6 +258,41 @@ public class FuzzyContainsCandidateBenchmark {
 			this.next = 0;
 			assertSoundness();
 			reportCandidateRatio();
+		}
+
+		/**
+		 * Reads the distinct values of the TSV corpus named by {@value #CORPUS_FILE_PROPERTY}, the value column of
+		 * {@link TrigramCorpusExtractor}'s format, normalized to NFD as the attribute index stores them. Order of
+		 * first occurrence is kept so that value ids are reproducible between runs.
+		 */
+		@Nonnull
+		private static List<String> loadCorpus() {
+			final String file = System.getProperty(CORPUS_FILE_PROPERTY);
+			if (file == null || file.isBlank()) {
+				throw new IllegalStateException(
+					"Value shape CORPUS needs -D" + CORPUS_FILE_PROPERTY + "=<TSV written by TrigramCorpusExtractor>."
+				);
+			}
+			final LinkedHashSet<String> distinct = new LinkedHashSet<>();
+			try (final BufferedReader reader = Files.newBufferedReader(Path.of(file), StandardCharsets.UTF_8)) {
+				String line;
+				while ((line = reader.readLine()) != null) {
+					// entityType TAB attributeName TAB locale TAB entityPrimaryKey TAB value
+					final String[] columns = line.split("\t", 5);
+					if (columns.length != 5) {
+						throw new IllegalStateException("Malformed corpus line in " + file + ": " + line);
+					}
+					final String value = Normalizer.normalize(
+						TrigramCorpusExtractor.unescape(columns[4]), Normalizer.Form.NFD
+					);
+					if (!value.isEmpty()) {
+						distinct.add(value);
+					}
+				}
+			} catch (IOException e) {
+				throw new UncheckedIOException("Cannot read corpus file " + file, e);
+			}
+			return new ArrayList<>(distinct);
 		}
 
 		@Nonnull
@@ -323,31 +388,65 @@ public class FuzzyContainsCandidateBenchmark {
 			final boolean[] candidate = new boolean[this.values.length];
 			for (int seed = 1; seed <= SOUNDNESS_SEEDS; seed++) {
 				for (final Pattern pattern : cutPatterns(new Random(seed), PATTERN_COUNT)) {
+					// the true matches are computed once per pattern and every arm is checked against them; the scan
+					// is the expensive part, and on a real corpus four of them per pattern dominate the trial
+					final int[] trueMatches = trueMatches(pattern);
 					final List<Integer> counted = new ArrayList<>(4096);
 					countedUnionCandidates(pattern, counted);
 					final List<Integer> filtered = new ArrayList<>(4096);
 					prefixFilterCandidates(pattern, filtered);
 					final List<Integer> expanded = new ArrayList<>(4096);
 					swapExpansionCandidates(pattern, expanded);
+					final List<Integer> expandedByPrefixFilter = new ArrayList<>(4096);
+					swapExpansionPrefixFilterCandidates(pattern, expandedByPrefixFilter);
+					if (!expanded.equals(expandedByPrefixFilter)) {
+						throw new IllegalStateException(
+							"Swap expansion counted by the prefix filter differs from the dense counter for pattern `" +
+								pattern.typed() + "`: " + expandedByPrefixFilter.size() + " vs " + expanded.size() +
+								" candidates"
+						);
+					}
 					final List<Integer> enumerated = new ArrayList<>(4096);
 					editEnumerationCandidates(pattern, enumerated);
-					checkSuperset(pattern, counted, candidate, "counted union");
-					checkSuperset(pattern, filtered, candidate, "prefix filter");
-					checkSuperset(pattern, expanded, candidate, "swap expansion");
-					checkSuperset(pattern, enumerated, candidate, "edit enumeration");
+					checkSuperset(pattern, trueMatches, counted, candidate, "counted union");
+					checkSuperset(pattern, trueMatches, filtered, candidate, "prefix filter");
+					checkSuperset(pattern, trueMatches, expanded, candidate, "swap expansion");
+					checkSuperset(pattern, trueMatches, enumerated, candidate, "edit enumeration");
 				}
 			}
 		}
 
+		/**
+		 * Returns the ids of every value within `maxEdits` of the pattern, by a full approximate scan.
+		 */
+		@Nonnull
+		private int[] trueMatches(@Nonnull Pattern pattern) {
+			int[] ids = new int[64];
+			int count = 0;
+			for (int id = 1; id < this.values.length; id++) {
+				if (matches(id, pattern)) {
+					if (count == ids.length) {
+						ids = Arrays.copyOf(ids, ids.length * 2);
+					}
+					ids[count++] = id;
+				}
+			}
+			return Arrays.copyOf(ids, count);
+		}
+
 		private void checkSuperset(
-			@Nonnull Pattern pattern, @Nonnull List<Integer> ids, @Nonnull boolean[] candidate, @Nonnull String arm
+			@Nonnull Pattern pattern,
+			@Nonnull int[] trueMatches,
+			@Nonnull List<Integer> ids,
+			@Nonnull boolean[] candidate,
+			@Nonnull String arm
 		) {
 			Arrays.fill(candidate, false);
 			for (final int id : ids) {
 				candidate[id] = true;
 			}
-			for (int id = 1; id < this.values.length; id++) {
-				if (!candidate[id] && matches(id, pattern)) {
+			for (final int id : trueMatches) {
+				if (!candidate[id]) {
 					throw new IllegalStateException(
 						arm + " missed a true match under " + this.metric + ": pattern `" + pattern.typed() +
 							"`, value `" + this.values[id] + "`, threshold " + pattern.threshold()
@@ -558,6 +657,123 @@ public class FuzzyContainsCandidateBenchmark {
 			return candidates;
 		}
 
+		/**
+		 * Candidate generation by swap expansion like {@link #swapExpansionCandidates}, with every threshold query
+		 * counted by the prefix filter and the candidates collected in a `RoaringBitmap`, so that no step of it is
+		 * linear in the corpus. A query whose threshold drops to zero takes the whole corpus, as in the dense variant.
+		 *
+		 * @return the number of candidates
+		 */
+		int swapExpansionPrefixFilterCandidates(@Nonnull Pattern pattern, @Nullable List<Integer> sink) {
+			final int distinct = this.values.length - 1;
+			if (!this.transpositions) {
+				// without transpositions in the metric there is nothing to expand
+				return prefixFilterCandidates(pattern, sink);
+			}
+			final RoaringBitmap accumulator = new RoaringBitmap();
+			final int[] typed = pattern.typedCodePoints();
+			if (this.maxEdits == 1) {
+				if (!addLevenshteinNeighbourhood(typed, 1, accumulator)) {
+					return wholeCorpus(sink, distinct);
+				}
+				for (int i = 0; i + 1 < typed.length; i++) {
+					if (!addExact(swapped(typed, i), accumulator)) {
+						return wholeCorpus(sink, distinct);
+					}
+				}
+			} else if (this.maxEdits == 2) {
+				if (!addLevenshteinNeighbourhood(typed, 2, accumulator)) {
+					return wholeCorpus(sink, distinct);
+				}
+				for (int i = 0; i + 1 < typed.length; i++) {
+					final int[] once = swapped(typed, i);
+					if (!addLevenshteinNeighbourhood(once, 1, accumulator)) {
+						return wholeCorpus(sink, distinct);
+					}
+					// restricted Damerau never edits a swapped pair again, so double swaps do not overlap
+					for (int j = i + 2; j + 1 < typed.length; j++) {
+						if (!addExact(swapped(once, j), accumulator)) {
+							return wholeCorpus(sink, distinct);
+						}
+					}
+				}
+			} else {
+				throw new IllegalStateException("Swap expansion is written for one or two edits, got " + this.maxEdits);
+			}
+			if (sink != null) {
+				final IntIterator ids = accumulator.getIntIterator();
+				while (ids.hasNext()) {
+					sink.add(ids.next());
+				}
+			}
+			return accumulator.getCardinality();
+		}
+
+		/**
+		 * Adds every value holding at least `u − 3·edits` of the string's distinct trigrams, found by the prefix
+		 * filter: only the `3·edits + 1` smallest postings are iterated, each id is confirmed by membership tests
+		 * against the rest, and an id already seen in an earlier small posting is skipped.
+		 *
+		 * @return `false` when the threshold drops to zero and nothing is guaranteed
+		 */
+		private boolean addLevenshteinNeighbourhood(
+			@Nonnull int[] codePoints, int edits, @Nonnull RoaringBitmap accumulator
+		) {
+			final long[] trigrams = TrigramCodec.extractUniqueTrigrams(new String(codePoints, 0, codePoints.length));
+			final int threshold = trigrams.length - 3 * edits;
+			if (threshold <= 0) {
+				return false;
+			}
+			final Bitmap[] postings = new Bitmap[trigrams.length];
+			final Integer[] order = new Integer[trigrams.length];
+			for (int i = 0; i < trigrams.length; i++) {
+				postings[i] = this.index.getValueIdsOf(trigrams[i]);
+				order[i] = i;
+			}
+			Arrays.sort(order, (a, b) -> Integer.compare(postings[a].size(), postings[b].size()));
+			final int probeCount = trigrams.length - threshold + 1;
+			for (int p = 0; p < probeCount; p++) {
+				final OfInt ids = postings[order[p]].iterator();
+				while (ids.hasNext()) {
+					final int id = ids.nextInt();
+					boolean seenInEarlierProbe = false;
+					for (int q = 0; q < p; q++) {
+						if (postings[order[q]].contains(id)) {
+							seenInEarlierProbe = true;
+							break;
+						}
+					}
+					if (seenInEarlierProbe) {
+						continue;
+					}
+					int count = 1;
+					for (int q = p + 1; q < trigrams.length && count < threshold; q++) {
+						if (postings[order[q]].contains(id)) {
+							count++;
+						}
+					}
+					if (count >= threshold) {
+						accumulator.add(id);
+					}
+				}
+			}
+			return true;
+		}
+
+		/**
+		 * Adds every value containing the string verbatim, through today's all-trigram intersection.
+		 *
+		 * @return `false` when the string is too short for a trigram and cannot be served
+		 */
+		private boolean addExact(@Nonnull int[] codePoints, @Nonnull RoaringBitmap accumulator) {
+			final long[] trigrams = TrigramCodec.extractUniqueTrigrams(new String(codePoints, 0, codePoints.length));
+			if (trigrams.length == 0) {
+				return false;
+			}
+			accumulator.add(this.index.resolveCandidateValueIds(trigrams));
+			return true;
+		}
+
 		int lastEnumerationQueries;
 
 		/**
@@ -710,6 +926,19 @@ public class FuzzyContainsCandidateBenchmark {
 		final Pattern pattern = state.nextPattern();
 		final List<Integer> candidates = new ArrayList<>(1024);
 		state.swapExpansionCandidates(pattern, candidates);
+		blackhole.consume(verify(state, pattern, candidates));
+	}
+
+	@Benchmark
+	public void swapExpansionPrefixFilter(@Nonnull CorpusState state, @Nonnull Blackhole blackhole) {
+		blackhole.consume(state.swapExpansionPrefixFilterCandidates(state.nextPattern(), null));
+	}
+
+	@Benchmark
+	public void swapExpansionPrefixFilterThenVerify(@Nonnull CorpusState state, @Nonnull Blackhole blackhole) {
+		final Pattern pattern = state.nextPattern();
+		final List<Integer> candidates = new ArrayList<>(1024);
+		state.swapExpansionPrefixFilterCandidates(pattern, candidates);
 		blackhole.consume(verify(state, pattern, candidates));
 	}
 

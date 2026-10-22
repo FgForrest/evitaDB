@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-10-02 14:40
+updated: 2026-10-21 12:00
 status: partially-implemented
 kind: feature
 issues: [258, 1454]
@@ -110,7 +110,12 @@ database entirely:
 | 2026-08-30 | The `SUBSTRING` capability requiring its scope to be **`filterable`** is a defect and will be lifted; the builder syntax that expresses it is left open | The capability was bound to `filterable(...)`, which is not the only way to get a filter index: a foldable `unique` attribute has no separate unique store and its values live in the *same* shared filter tree (`AttributeIndex#insertUniqueAttribute` does nothing and returns `BY_FILTER_WRITE`), reached through a write-path guard that is already `unique \|\| filterable \|\| sortable`. The cost of the oversight is measured rather than argued — `Product.code` is `unique`-not-`filterable` in production, and it is the single strongest result of the whole production run | `AttributeSchema:700` (`normalizeFilterCapabilities`), `AttributeIndexMutator:177`/`:325`; the three builder options and why none has won are under *Open items* |
 | 2026-08-31 | The accelerator moves onto its **own builder axis** — `acceleratedFor(...)` — superseding the 2026-08-25 fold into `filterable(...)`; this is option **C** of the three that were left open | The fold bound the accelerator to the wrong identifier. `filterable` is not the only way to get a filter index: a *foldable* `unique` attribute has no separate unique store and its values live in the **same** shared filter tree, which is why `AttributeIndex#insertUniqueAttribute` does nothing and returns `BY_FILTER_WRITE`. Option A (`unique(SUBSTRING)`) duplicated the capability argument onto a second builder family and left `unique(SUBSTRING)` + `filterable(SUBSTRING)` needing a defined meaning; option B′ (`unique().filterable(SUBSTRING)`) added no syntax but made a user declare a flag they did not want in order to reach a structure they already had, changing what the schema advertises. C matches the physical truth — the accelerator belongs to the filter index, not to whichever flag produced it — and the rule relaxes from "scope is filterable" to "scope has a filter index". Validation had to move off the mutation, which sees intermediate state and made declaration order significant, onto assembled schemas | `AttributeFilterAccelerator` (renamed from `FilterIndexCapability`, `SUBSTRING` → `SUBSTRING_SEARCH`), `SetAttributeSchemaAcceleratedMutation`, `AttributeSchemaContract#hasFilterIndexInScope`, `AbstractAttributeSchemaBuilder#validate` and a new `AttributeSchemaContract#validate` reached from `CatalogSchema#validate` — which closes the hole where mutations arriving over gRPC, REST and GraphQL bypassed validation entirely. The axis never shipped (`release_2026-2` has no reference to it), so `SetAttributeSchemaFilterableMutation` returns to its released shape and no new backward-compatible serializers were written. The value of the fix is measured rather than argued: `Product.code` is the strongest result of the production run (34/34 accelerated, worst case 8.42×) and is `unique`-not-`filterable` there, as is `code` in 16 of that catalog's other 17 collections — under the 2026-08-25 shape none of them could have declared the accelerator at all |
 | 2026-09-17 | **A searchable field must carry a locale** — schema validation refuses `searchable()` on a non-localized attribute or associated data | Fulltext structures are partitioned per (collection, locale, scope), and a non-localized field has no partition to live in. It is not hypothetical: a production CMS catalogue stores its article body as associated data with **no locale** while the `title` and `perex` beside it are localized. Three alternatives lost. **Indexing under every locale the entity has** is the only one where a Czech query gets Czech stems of the shared text and a German query German ones, with no new partition kind — *rejected because* it costs N× memory and N× analysis in an N-locale catalogue, to support a modelling shape the rule then disallows anyway; worth revisiting only if a catalogue appears whose non-localized text genuinely must be shared across locales. **One locale-less partition with the generic analyzer**, OR'd into every locale's query, is cheapest — one copy regardless of locale count — *rejected because* the generic chain does no stemming and no stop-word removal, so recall on the body (the largest and most valuable field of the CMS profile) would be markedly worse than on the localized title beside it, an indefensible asymmetry inside one collection; it also adds a second partition kind and an operand on every fulltext query. **A configured default locale** is cheap and correct for a single-language catalogue — *rejected because* it is silently wrong for a multilingual one with shared non-localized text, and it puts indexing semantics into configuration where a reader of the schema cannot see them. **The accepted cost, named before the decision was taken:** a catalogue whose text is not declared localized must migrate its schema before it can enable fulltext — for the CMS corpus, 956,323 records | Lands in F1 as the validation rule itself, next to its closest existing precedent: `AttributeSchemaContract#validate`, reached from `CatalogSchema#validate`, which is where the `acceleratedFor(...)` refusal lives. [`prototypes/p1-index-core-measurements.md`](prototypes/p1-index-core-measurements.md) part 7 |
-| 2026-10-02 | A fuzzy `attributeContains` over the trigram index counts an adjacent swap as **one** edit (restricted Damerau–Levenshtein), and the metric is carried into both halves of the method — the candidate generator's bound and the verification's distance | A swap is the most frequent keyboard mistake; the fulltext walker already builds its automaton with transpositions, every product engine surveyed does the same, and under plain Levenshtein the showcase `bnuda` → `bunda` is a two-edit case a 5–8 character fragment can never reach. The price is measured, not guessed: with a single pigeonhole threshold the per-edit constant rises from 3 to 4 trigram windows and the cut-offs move from 6 / 9 to 7 / 11 — which is why the *shape* was then measured further (swap expansion, full one-edit enumeration) and is recommended but **not yet decided**, pending the real corpus | [`prototypes/typo-tolerance-fuzzy-contains.md`](prototypes/typo-tolerance-fuzzy-contains.md) §1, §4.1, §6.1–§6.4 |
+| 2026-10-02 | A fuzzy `attributeContains` over the trigram index counts an adjacent swap as **one** edit (restricted Damerau–Levenshtein), and the metric is carried into both halves of the method — the candidate generator's bound and the verification's distance | A swap is the most frequent keyboard mistake; the fulltext walker already builds its automaton with transpositions, every product engine surveyed does the same, and under plain Levenshtein the showcase `bnuda` → `bunda` is a two-edit case a 5–8 character fragment can never reach. The price is measured, not guessed: with a single pigeonhole threshold the per-edit constant rises from 3 to 4 trigram windows and the cut-offs move from 6 / 9 to 7 / 11 — which is why the *shape* was then measured further (swap expansion, full one-edit enumeration) and was decided on the real corpus on 2026-10-21 (the row on fuzzy `attributeContains` limits below) | [`prototypes/typo-tolerance-fuzzy-contains.md`](prototypes/typo-tolerance-fuzzy-contains.md) §1, §4.1, §6.1–§6.4 |
+| 2026-10-15 | Typo rules follow the **query type**: an as-you-type query allows at most one typo on every word, a submitted search the full thresholds; both match the last word as a prefix, with one switch, and the submitted search runs its last word as the as-you-type query did (**pattern 1**) | Two edits on the keystroke that finishes a word cost 4.5 ms against 0.26 ms for one, which the 5 ms keystroke budget cannot carry; running the last word the same way in both keeps the results page a superset of the dropdown preview, which no surveyed engine guarantees | [`prototypes/typo-tolerance-fulltext-dictionary.md`](prototypes/typo-tolerance-fulltext-dictionary.md) §11.5–§11.6; [`prototypes/typo-tolerance-fulltext-dictionary-algorithm.md`](prototypes/typo-tolerance-fulltext-dictionary-algorithm.md) §7 |
+| 2026-10-20 | The dictionary walk counts an adjacent swap as one edit and freezes the first letter; expansion is capped at **50 terms per leg** of each query word (all exact terms, the 50 most frequent prefix terms, the 50 nearest-then-most-frequent typo terms) | The same metric as fuzzy `contains`; the frozen first letter is a 3× cost lever; on the real corpus one cap over all legs lets prefix completions crowd out the typo match (−3.3 points of recall), per leg −0.3, and alphabetical order cuts the target 12–44× as often | [`prototypes/typo-tolerance-fulltext-dictionary.md`](prototypes/typo-tolerance-fulltext-dictionary.md) §7.1, §10.7 c; [`prototypes/typo-tolerance-fulltext-dictionary-algorithm.md`](prototypes/typo-tolerance-fulltext-dictionary-algorithm.md) §2.1, §5 |
+| 2026-10-21 | Thresholds **0 / 1 / 2 edits from 1 / 4 / 8 letters** (two edits in a submitted search only), each stem variant budgeted by its own length on the stem dictionary and the typed word by its typed length on a **surface-form lane**, which is built | On the real corpus the stem base with the lane finds 95.5–99.4 % of mistyped words against 83.8–97.5 % for the typed length, at about half the noise; the lane reaches every typo the stemmer pushes out of reach (3.0–5.8 % on real text, up to 19.4 % in Romanian) for +141.5 MB (+19.9 %); 4 letters is the measured knee | [`prototypes/typo-tolerance-fulltext-dictionary.md`](prototypes/typo-tolerance-fulltext-dictionary.md) §3.4, §7.1, §10.7 a, g; [`prototypes/typo-tolerance-fulltext-dictionary-algorithm.md`](prototypes/typo-tolerance-fulltext-dictionary-algorithm.md) §3, §4 |
+| 2026-10-21 | **No prefix leg below four letters**; the open-ended typo walk on the last word starts at **five letters while typing and four in a submitted search** | Three-letter keystrokes stay at 8.6–14.8 ms p99 under every query-time lever, and the only fix that meets the budget — precomputed prefix postings — stays rejected; the submitted search runs once and can afford the earlier start without breaking pattern 1 | [`prototypes/typo-tolerance-fulltext-dictionary.md`](prototypes/typo-tolerance-fulltext-dictionary.md) §9 item 1, §10.7 d, §12; [`prototypes/typo-tolerance-fulltext-dictionary-algorithm.md`](prototypes/typo-tolerance-fulltext-dictionary-algorithm.md) §6 |
+| 2026-10-21 | A fuzzy `attributeContains` uses **swap expansion at both edit levels** — a Levenshtein trigram query plus the swapped variants looked up exactly — and offers **one edit from 6 characters and two from 12**; no gate of its own above those limits; no diacritics handling, no fuzzy `attributeEndsWith` | Full one-edit enumeration would reach 4–5 characters, but it needs the corpus alphabet and thousands of exact lookups per query: on the titles of a production CMS catalog (942,632 distinct values, an alphabet of 239 code points) it cost ~10 ms a query from 5 characters, and one typo on 4 characters matched 9.4 % of all values. Swap expansion keeps its structural one-edit floor of 6 and needs no alphabet. Two edits at 9 characters still took the whole corpus for a third of the patterns and ~0.5 s a query, at 12 characters 68 ms, so the two-edit limit sits above its structural 9. A gate would only compare against a full approximate scan, which every measured row above the limits beats | [`prototypes/typo-tolerance-fuzzy-contains.md`](prototypes/typo-tolerance-fuzzy-contains.md) §1, §6.5, §7; [`prototypes/typo-tolerance-fuzzy-contains-algorithm.md`](prototypes/typo-tolerance-fuzzy-contains-algorithm.md) |
 
 ### Why the in-house core won
 
@@ -223,9 +228,9 @@ dearer than linear costing suggests and the gate should be tighter.
 | **P8** — refuse a capability *withdrawal* at the schema boundary, or clean the value-id column up live | The refusal reverses two written decisions and would leave users no way to switch an index off without deleting their data; the live cleanup is blocked outright, because `removeValueIdMinter` refuses to run inside a transaction on a populated tree. What shipped instead makes the lockstep invariant unconditional at the index level | A reindexing story exists at all — the same prerequisite that gates `searchable()`. The orphaned id column is a memory cost, not a correctness one; see *Consequences* |
 | **Typo** — typo tolerance as a `TokenFilter` inside `BuiltInAnalyzers` | An analyzer is a normalizer: the same chain runs over the value and over the query and has no access to the dictionary, while typo tolerance needs one query term *and the whole dictionary* and runs at matching time. No such Lucene filter exists, and the filters that look similar (n-gram, phonetic) are index-time expansions with a different trade-off. Confirmed by the proof of concept: the typo component sits between the analyzed query and the term dictionary as a term-expansion step and needs nothing from the analyzer registry | Never; `prototypes/typo-tolerance-fulltext-dictionary.md` §3.1 |
 | **Typo** — a trie walk carrying a Levenshtein DP row (the Typesense shape) | The term dictionary is a paged B+ tree of front-coded whole keys, not a character trie, and the DP walk needs per-character edges — the same reason P3 §3.6 rejected the simultaneous-descent variant T3: the tree exposes no label boundaries | Measurement shows seeks dominant *after* the intra-leaf fast path exists; `prototypes/typo-tolerance-fulltext-dictionary.md` §5.5 |
-| **Typo** — index-time materialization of the typo neighbourhood (SymSpell-style deletion indexes, Meilisearch's materialized prefix databases) | Write amplification for a read-time feature — P8 measured a touched derived key at 30.7× the bytes of an average one — and it locks parameters that the configuration-cost rule says must stay free: anything baked into stored tokens makes a threshold change a reindex | Never for the main index; Meilisearch pays it only for prefixes and only because it has no seekable dictionary walk |
-| **Typo** — an intra-leaf `seek(K)` on `BucketCursor` to spare the guided walk a root descent per rejection | **Deferred, not rejected.** Its reach is proven — a bounded side read-ahead resolved 71–98 % of rejections inside the current leaf — and its gain is not: reading a leaf linearly costs about what a root descent does, so the gain appears only with a binary search over the leaf's key column, which is private to `ForwardBucketCursor` and means a change to the 8 000-line MVCC tree, not to the walker. Warmed, the plain walk is already 12–630 µs per query word, inside the P3 budget with a wide margin, so there is nothing to buy yet | P1's real term dictionary exists and the whole-query budget is measured over it; `prototypes/typo-tolerance-fulltext-dictionary.md` §5.4 lists what the change entails |
-| **Typo** — a single `u − 4d` pigeonhole threshold as *the* candidate generator of a Damerau fuzzy `contains` | Correct but dominated on every measured row: at the same semantics, swap expansion (a `u − 3d` Levenshtein query plus the `L − 1` swapped variants looked up exactly) yields 2–20× fewer candidates and is never slower end to end, and at one edit full enumeration of the neighbourhood needs no threshold at all, serves 4+ character fragments in ~1 ms where the threshold is a 30 ms scan, and its candidates are essentially the true matches | Kept only as the simplest correct baseline the others are asserted against; `prototypes/typo-tolerance-fuzzy-contains.md` §6.2–§6.4 |
+| **Typo** — index-time materialization of the typo neighbourhood (SymSpell-style deletion indexes, Meilisearch's materialized prefix databases) | Write amplification for a read-time feature — P8 measured a touched derived key at 30.7× the bytes of an average one — and it locks parameters that the configuration-cost rule says must stay free: anything baked into stored tokens makes a threshold change a reindex | Never for the main index. Re-examined on 2026-10-21 for three- and four-letter prefixes (`prototypes/typo-tolerance-fulltext-dictionary.md` §12, §9 item 1): the dictionary walk is cheap there, but the union of the postings it reaches is not, so Meilisearch's prefix databases buy something a seekable walk cannot. The rejection was kept, and no prefix leg runs below four letters instead |
+| **Typo** — an intra-leaf `seek(K)` on `BucketCursor` to spare the guided walk a root descent per rejection | **No longer rejected or deferred: measured as worth building on 2026-10-21, proposed and not scheduled.** On the real corpus and the production tree shape (leaves of 256 front-coded keys), root-to-leaf descents are 55 % of walk time and 96 % of rejections land in the current leaf; the upper bound on the saving is 54 % of walk time, 63–65 % for two-edit walks. Reading the leaf sequentially makes walks 3.1× slower, so the gain needs a binary search over the leaf's key column, private to `ForwardBucketCursor` — a change to the MVCC tree, not to the walker | Built when the engine change to `TransactionalBucketBPlusTree` is taken up; `prototypes/typo-tolerance-fulltext-dictionary.md` §5.4.1 has the measurement, `prototypes/typo-tolerance-fulltext-dictionary-algorithm.md` §2.4 the algorithm |
+| **Typo** — a single `u − 4d` pigeonhole threshold as *the* candidate generator of a Damerau fuzzy `contains` | Correct but dominated on every measured row: at the same semantics, swap expansion (a `u − 3d` Levenshtein query plus the `L − 1` swapped variants looked up exactly) yields 2–20× fewer candidates and is never slower end to end, and at one edit full enumeration of the neighbourhood needs no threshold at all, serves 4+ character fragments in ~1 ms where the threshold is a 30 ms scan, and its candidates are essentially the true matches (enumeration itself was then not adopted either, 2026-10-21: swap expansion is the decided generator at both edit levels) | Kept only as the simplest correct baseline the others are asserted against; `prototypes/typo-tolerance-fuzzy-contains.md` §6.2–§6.4 |
 
 **If the persisted form is ever re-proposed, four properties of the existing paged-index machinery decide
 its shape and none of them is visible from the outside.** Nothing bounds a leaf page by *bytes* — the only
@@ -421,7 +426,9 @@ expansion; P4 re-rank of the top 1000 ≤ 10 ms; P6 vector spike recall@10 ≥ 0
 its own mini-gate. The typo leg of the P3 criterion has its first number (2026-09-30): the automaton-guided
 walk over a 241 494-key folded vocabulary costs 12–28 µs per query word at one edit with a frozen first
 letter and 140–630 µs at two, against 1.1–2.3 ms for the linear scan — `LevenshteinDictionaryWalkBenchmark`,
-read in `prototypes/typo-tolerance-fulltext-dictionary.md` §5.3. The whole-query budget is still unmeasured.
+read in `prototypes/typo-tolerance-fulltext-dictionary.md` §5.3. The whole-query budget was measured on the CMS
+corpus of 972,611 articles on 2026-10-20 (same document, §10.7 d–e): a keystroke meets it from five letters, and a
+submitted search with two edits costs 6.3 ms at p50 and 24.9 ms at p99, inside the 25 ms phase-1 budget.
 
 ### P8 — measured, not planned
 
@@ -1049,27 +1056,22 @@ rather than a tuning one. Both are open items below.
 
 ### Open items — typo tolerance
 
-The three `prototypes/typo-tolerance-*.md` documents are **interim results**: the mechanism for the term
-dictionary is settled by code, the Damerau metric for fuzzy `contains` is decided, and everything below is
-what the next step has to answer.
+The `prototypes/typo-tolerance-*.md` documents are **interim results**. For the term dictionary, the algorithm to
+implement is decided and specified without its reasoning in
+[`prototypes/typo-tolerance-fulltext-dictionary-algorithm.md`](prototypes/typo-tolerance-fulltext-dictionary-algorithm.md);
+the analysis it is drawn from, with every measurement, is
+[`prototypes/typo-tolerance-fulltext-dictionary.md`](prototypes/typo-tolerance-fulltext-dictionary.md). The Damerau
+metric for fuzzy `contains` is decided. What is still open:
 
-- **Which length the thresholds read on a stemmed dictionary** — the one question no surveyed engine had
-  to answer, because none of them stems. `pánských` (8 characters, 2 edits by every convention) becomes
-  the stem `pansk` (5 characters, 1 edit); P3 §4.3 chose "measure on the typed token" without measuring.
-  The measurement is specified (`typo-tolerance-fulltext-dictionary.md` §7.3: a synthetic typo set over the
-  P5 fixture vocabulary, split by suffix vs. stem, share surviving stemming at ≤ 1 / ≤ 2 / > 2) and the
-  harness exists (`CzechLexicon`, `EditDistances`); it decides the length base, whether a typo that
-  changes the stemmer's rule path needs a mitigation, and whether the surface-form lane (P1 K3) is a
-  *correctness* requirement here as it already is for accent-stripped typing.
-- **The expansion cap and the typo-lane weights** are agreed in principle and have no value: how many
-  terms one token may expand into, what happens when the cap is hit, whether the cap is per token or per
-  M7 hypothesis, and whether a guessed hypothesis deserves the full typo budget at all (§7.2 there).
-- **Opt-outs do not exist in any record yet.** Every product engine switches typo tolerance off for
-  codes, SKUs and numbers; the digit-token rule costs nothing and per-attribute / per-word disables need
-  the same cost classification schema-design §2.1 did for the other options (§7.3 there).
-- **Behavioural examples before any number is picked** — query, expected match, expected non-match,
-  expected order — so that thresholds, opt-outs and the stemming answer are checked against something
-  rather than adopted from engines that work on English surface forms.
+- **The typo-lane weights need real-world queries.** How much one or two typos push a result down cannot be
+  read from a corpus; it needs judged results or click data. Until then raw typo counts `(0, 1, 2)` are the
+  default (algorithm document §10).
+- **The intra-leaf seek is worth building and not scheduled** — an engine change to
+  `TransactionalBucketBPlusTree` (algorithm document §2.4, analysis §5.4.1).
+- **Opt-outs beyond the digit rule** — per attribute, per word list — are a question of the developer-facing
+  API; the algorithm's only hook is 0 edits (algorithm document §9).
+- **The e-commerce corpus** (short names and codes, two locales) was not measured; every real-corpus number is
+  from the CMS corpus, and the as-you-type budget is where the two differ most (analysis §9 item 10).
 - **Fuzzy `contains` owes the real corpus.** The alphabet size drives the enumeration's lookup count
   (`L · |Σ|`, 38 code points on the fixture); the dense per-value counter beat the asymptotically better
   prefix filter by 1–2.5× at 10⁵–2.5·10⁵ values and may not at production scale; the dense counter
@@ -1202,6 +1204,23 @@ what the next step has to answer.
   resource with `lucene-analysis-stempel` dropped, a registry-closing race, `HTMLStripCharFilter` pinned by
   `HtmlMarkupStrippingAnalysisTest` with the opt-in switch designed in `prototypes/p5-analyzers.md` §13,
   and a skill for adding a language
+- **2026-10-06** — typo tolerance measured over 4.8 million generated Czech word forms: the stem length reads
+  the thresholds at half the noise of the typed length, 8.3 % of typos after the first letter are out of reach on
+  a stem-only dictionary, the open-ended walk finds mistyped unfinished words at 93–95 %, and fourteen behaviour
+  examples pass (`prototypes/typo-tolerance-fulltext-dictionary.md` §10.1–§10.5)
+- **2026-10-15** — the submitted search and the as-you-type query separated, with rules per type and pattern 1
+  for their consistency; precomputed short-prefix postings measured (same document, §11, §12)
+- **2026-10-16** — the threshold measurement repeated for Slovak, Polish and Romanian (§10.6)
+- **2026-10-20** — every measurement repeated on the CMS corpus of 972,611 articles (§10.7); Damerau, the
+  frozen first letter, surface forms for display and the cap of 50 per leg decided
+- **2026-10-21** — thresholds 4 / 8 on the stem and lane lengths, the surface-form lane, no prefix leg below
+  four letters and the open-ended walk from five / four letters decided; the intra-leaf seek measured on the
+  production tree shape as worth building (§5.4.1); the decided algorithm extracted into
+  `prototypes/typo-tolerance-fulltext-dictionary-algorithm.md`
+- **2026-10-21** — fuzzy `attributeContains` measured on the titles of the same CMS corpus and decided: swap
+  expansion at both edit levels, one edit from 6 code points and two from 12, no gate of its own, no diacritics
+  handling, no fuzzy `attributeEndsWith` (`prototypes/typo-tolerance-fuzzy-contains.md` §6.5, §7); the decided
+  algorithm extracted into `prototypes/typo-tolerance-fuzzy-contains-algorithm.md`
 
 ## Supporting material
 
@@ -1311,17 +1330,30 @@ what the next step has to answer.
   analyzer step); the proof of concept — `LevenshteinAutomata` without an index, Lucene's guided walk
   ported over the B+ tree, equivalence-tested over a quarter-million-word vocabulary — and its JMH numbers
   (12–630 µs per query word, inside the P3 budget before any optimisation); the intra-leaf seek measured
-  for reach and deferred; the one open question the engines never faced (thresholds on a stemmed
-  dictionary) with the measurement that settles it; and, folded from the first analysis, the requirements
-  U1–U9 / O1–O6 with their status, the pipeline map I1–Q8 and the parameter inventory with what is open.
+  for reach and, on the real corpus, as worth building (§5.4.1); the question the engines never faced
+  (thresholds on a stemmed dictionary) measured on generated forms, in four languages and on a real corpus of
+  972,611 articles; the prefix rules, the two query types and their consistency, precomputed short prefixes;
+  and, folded from the first analysis, the requirements U1–U9 / O1–O6 with their status, the pipeline map I1–Q8
+  and the parameter inventory. The source of every decision and number in the next document.
+- [`prototypes/typo-tolerance-fulltext-dictionary-algorithm.md`](prototypes/typo-tolerance-fulltext-dictionary-algorithm.md)
+  — the **implementation specification** of typo tolerance in the term dictionary: only the decided algorithm
+  (automaton, walks, thresholds, the surface-form lane, expansion and cap, the last word, rules per query type,
+  matching bands, configuration, required tests), each rule linked to the section of the analysis that justifies
+  it. Read this to build it, the analysis to know why.
 - [`prototypes/typo-tolerance-fuzzy-contains.md`](prototypes/typo-tolerance-fuzzy-contains.md) — whether
   the trigram index can serve a typo-tolerant `attributeContains`, written in layers: the analysis as first
   made (whose cost argument was wrong), the measurement that corrected it (a hard cut-off by pattern
   length, 40–150× under the scan above it), the rule that follows (`d_max = (u − 1) / c` over *distinct*
   trigrams, hence 6 / 9 under Levenshtein and 7 / 11 under Damerau for a single threshold), the **Damerau
   decision** and the two ways to implement it, the enumeration mechanism that removes the one-edit cut-off
-  altogether (L ≥ 4, ~1 ms per pattern, candidates ≈ true matches), a worked example over five values, and
-  the recommendation with what the real corpus still owes.
+  altogether (L ≥ 4, ~1 ms per pattern, candidates ≈ true matches), its measurement on a production corpus
+  (not adopted: the decided shape is swap expansion at both edit levels, from 6 / 12), a worked example over
+  five values, and the decided shape.
+- [`prototypes/typo-tolerance-fuzzy-contains-algorithm.md`](prototypes/typo-tolerance-fuzzy-contains-algorithm.md)
+  — the **implementation specification** of a typo-tolerant `attributeContains`: only the decided algorithm
+  (normalization and length, the 6 / 12 limits, swap expansion at both edit levels, verification, the cascade,
+  declines, configuration, required tests), each rule linked to the section of the analysis that justifies it.
+  Read this to build it, the analysis to know why.
 - The two analyses of today's plain-Lucene solution — the Edee CMS fulltext client and its
   e-commerce layer — are **internal and not published in this repository**. They were the yardstick:
   what today's client can do, capability by capability, so that "no step back" is a checkable claim
