@@ -258,11 +258,15 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 
 	/**
 	 * Method return TRUE if associated data with particular `associatedDataKey` was fetched with the entity.
+	 * A localized key counts as fetched in the implicit locale too, because the storage loads that locale together
+	 * with the explicitly requested ones (see {@link #getAllLocales()}).
 	 */
 	public boolean wasFetched(@Nonnull AssociatedDataKey associatedDataKey) {
 		if (this.requiresEntityAssociatedData) {
+			final Locale keyLocale = associatedDataKey.locale();
 			return (this.associatedDataSet.isEmpty() || this.associatedDataSet.contains(associatedDataKey.associatedDataName())) &&
-				(associatedDataKey.locale() == null || (this.locales != null && (this.locales.isEmpty() || this.locales.contains(associatedDataKey.locale()))));
+				(keyLocale == null || keyLocale.equals(this.implicitLocale) ||
+					(this.locales != null && (this.locales.isEmpty() || this.locales.contains(keyLocale))));
 		} else {
 			return false;
 		}
@@ -330,7 +334,7 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 	 *
 	 * Enrichment logic:
 	 * - Associated data: Union of existing and new associated data sets (empty set dominates as "all data")
-	 * - Locales: Union of existing and new locale sets
+	 * - Locales: Union of existing and new locale sets (empty set dominates as "all locales")
 	 * - RequiresAssociatedData: OR logic (once true, stays true)
 	 *
 	 * @param evitaRequest the request containing additional associated data and locale requirements to merge
@@ -357,6 +361,19 @@ public class AssociatedDataValueSerializablePredicate implements SerializablePre
 				evitaRequest.isRequiresEntityAssociatedData() || this.requiresEntityAssociatedData
 			);
 		}
+	}
+
+	/**
+	 * Returns all locales available in this predicate (implicit + explicit).
+	 *
+	 * Combines implicit locale with the explicit locale set for a complete view of all accessible locales. An empty
+	 * explicit set means all locales and is returned as is, even when an implicit locale is present.
+	 *
+	 * @return a set of all locales, empty when every locale is accessible, or null if no locales are defined
+	 */
+	@Nullable
+	public Set<Locale> getAllLocales() {
+		return PredicateLocaleHelper.getAllLocales(this.implicitLocale, this.locales);
 	}
 
 	/**
