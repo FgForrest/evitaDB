@@ -921,17 +921,29 @@ class ReferenceContentRowFilterFunctionalTest {
 			);
 		}
 
+		/** Reference attributes retain the owner locale when a nested target chooses another locale. */
 		@Test
-		@DisplayName("a localized leaf reads the locale of the filter found inside entityHaving")
+		@DisplayName("a localized reference leaf inherits its owner independently of entityHaving")
 		@UseDataSet(DATA_SET)
-		void shouldReadLocaleFoundInsideEntityHaving(Evita evita) {
+		void shouldReadOwnerLocaleWhenEntityHavingNamesDifferentLocale(@Nonnull Evita evita) {
+			assertEquals(
+				rows(1, List.of()),
+				queryRows(
+					evita, LIVE, Locale.ENGLISH, REF_BRANDS,
+					referenceContent(
+						REF_BRANDS,
+						filterBy(entityHaving(entityLocaleEquals(Locale.GERMAN)), attributeEquals(ATTR_LABEL, "Rot"))
+					),
+					1
+				)
+			);
 			assertEquals(
 				rows(1, List.of("1")),
 				queryRows(
 					evita, LIVE, Locale.ENGLISH, REF_BRANDS,
 					referenceContent(
 						REF_BRANDS,
-						filterBy(entityHaving(entityLocaleEquals(Locale.GERMAN)), attributeEquals(ATTR_LABEL, "Rot"))
+						filterBy(entityHaving(entityLocaleEquals(Locale.GERMAN)), attributeEquals(ATTR_LABEL, "Red"))
 					),
 					1
 				)

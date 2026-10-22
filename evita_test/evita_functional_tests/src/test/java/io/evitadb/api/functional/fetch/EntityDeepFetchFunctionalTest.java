@@ -66,6 +66,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -1405,50 +1406,38 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 		);
 	}
 
+	/**
+	 * Verifies a getEntity query that filters references by locale both on the reference level and inside
+	 * entityHaving.
+	 * The selected stores distinguish Czech descending order from primary-key and English descending order.
+	 */
 	@DisplayName("References can be eagerly deeply fetched, filtered and ordered (via. getEntity)")
 	@UseDataSet(HUNDRED_PRODUCTS)
 	@Test
 	void shouldEagerlyDeepFetchReferenceEntityBodiesFilteredAndOrderedViaGetEntity(
-		Evita evita, List<SealedEntity> originalProducts, List<SealedEntity> originalStores) {
-		final Set<Integer> storesWithCzechLocale = originalStores
-			.stream()
-			.filter(it -> it.getLocales().contains(CZECH_LOCALE))
+		@Nonnull Evita evita, @Nonnull List<SealedEntity> originalProducts, @Nonnull List<SealedEntity> originalStores
+	) {
+		final Map.Entry<Integer, List<SealedEntity>> productWithStores =
+			selectProductWithStoresOrderedByCzechNames(originalProducts, originalStores);
+		final Integer[] filteredStores = productWithStores.getValue().stream()
 			.map(EntityClassifier::getPrimaryKeyOrThrowException)
-			.collect(Collectors.toSet());
-
-		final Map<Integer, Set<Integer>> productsWithLotsOfStores = originalProducts.stream()
-			.filter(it -> it.getLocales().contains(CZECH_LOCALE))
-			.filter(
-				it -> it.getReferences(Entities.STORE)
-					.stream()
-					.filter(x -> storesWithCzechLocale.contains(x.getReferencedPrimaryKey()))
-					.count() > 3
-			)
-			.limit(1)
-			.collect(
-				Collectors.toMap(
-					EntityContract::getPrimaryKey,
-					it -> it.getReferences(Entities.STORE)
-						.stream()
-						.filter(x -> storesWithCzechLocale.contains(x.getReferencedPrimaryKey()))
-						.map(ref -> ref.getReferenceKey().primaryKey())
-						.collect(Collectors.toSet())
-				)
-			);
+			.toArray(Integer[]::new);
 
 		evita.queryCatalog(
 			TEST_CATALOG,
 			session -> {
-				final Integer[] filteredStores = productsWithLotsOfStores.values().iterator().next().toArray(
-					new Integer[0]);
 				final SealedEntity product = session.getEntity(
 					Entities.PRODUCT,
-					productsWithLotsOfStores.keySet().iterator().next(),
+					productWithStores.getKey(),
 					referenceContent(
 						Entities.STORE,
 						filterBy(
 							entityPrimaryKeyInSet(filteredStores),
-							entityLocaleEquals(LOCALE_CZECH)
+							entityLocaleEquals(LOCALE_CZECH),
+							entityHaving(and(
+								entityPrimaryKeyInSet(filteredStores),
+								entityLocaleEquals(LOCALE_CZECH)
+							))
 						),
 						orderBy(
 							entityProperty(
@@ -1460,12 +1449,9 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 				).orElseThrow();
 
 				final Collection<ReferenceContract> references = product.getReferences(Entities.STORE);
-				final Set<Integer> storeIds = productsWithLotsOfStores.get(product.getPrimaryKey());
-				final Set<Integer> filteredStoreIds = storeIds.stream()
-					.filter(it -> Arrays.asList(filteredStores).contains(it))
-					.collect(Collectors.toSet());
+				final Set<Integer> filteredStoreIds = Set.of(filteredStores);
 				assertEquals(filteredStoreIds.size(), references.size());
-				for (ReferenceContract reference : references) {
+				for (final ReferenceContract reference : references) {
 					assertTrue(filteredStoreIds.contains(reference.getReferencedPrimaryKey()));
 					final Optional<SealedEntity> storeEntity = reference.getReferencedEntity();
 					assertTrue(storeEntity.isPresent());
@@ -1487,12 +1473,69 @@ class EntityDeepFetchFunctionalTest extends AbstractEntityFetchingFunctionalTest
 					Arrays.stream(receivedOrderedNames)
 						.sorted(new LocalizedStringComparator(collator).reversed())
 						.toArray(String[]::new),
-					receivedOrderedNames
+					receivedOrderedNames,
+					"References must be ordered by Czech names descending"
 				);
 
 				return null;
 			}
 		);
+	}
+
+	/**
+	 * Selects a Czech product with at least two bilingual stores whose Czech descending order differs both from their
+	 * primary-key order and from their English descending order, so that only an ordering by Czech names yields the
+	 * order the caller expects.
+	 *
+	 * @param originalProducts the generated products
+	 * @param originalStores   the generated stores
+	 * @return the primary key of the selected product and its bilingual stores in primary-key order
+	 */
+	@Nonnull
+	private static Map.Entry<Integer, List<SealedEntity>> selectProductWithStoresOrderedByCzechNames(
+		@Nonnull List<SealedEntity> originalProducts, @Nonnull List<SealedEntity> originalStores
+	) {
+		final Map<Integer, SealedEntity> bilingualStores = originalStores.stream()
+			.filter(it -> it.getAttribute(ATTRIBUTE_NAME, LOCALE_CZECH, String.class) != null)
+			.filter(it -> it.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, String.class) != null)
+			.collect(Collectors.toMap(EntityClassifier::getPrimaryKeyOrThrowException, Function.identity()));
+		final Comparator<SealedEntity> czechNameDescending = Comparator.comparing(
+			it -> it.getAttribute(ATTRIBUTE_NAME, LOCALE_CZECH, String.class),
+			new LocalizedStringComparator(Collator.getInstance(LOCALE_CZECH)).reversed()
+		);
+		final Comparator<SealedEntity> englishNameDescending = Comparator.comparing(
+			it -> it.getAttribute(ATTRIBUTE_NAME, Locale.ENGLISH, String.class),
+			new LocalizedStringComparator(Collator.getInstance(Locale.ENGLISH)).reversed()
+		);
+		// Select by the actual generated names: the first product with Czech stores need not expose a wrong order.
+		final Optional<Map.Entry<Integer, List<SealedEntity>>> selectedProduct = originalProducts.stream()
+			.filter(it -> it.getLocales().contains(LOCALE_CZECH))
+			.map(it -> Map.entry(
+				it.getPrimaryKeyOrThrowException(),
+				it.getReferences(Entities.STORE).stream()
+					.map(ReferenceContract::getReferencedPrimaryKey)
+					.filter(bilingualStores::containsKey)
+					.map(bilingualStores::get)
+					.sorted(Comparator.comparingInt(EntityClassifier::getPrimaryKeyOrThrowException))
+					.toList()
+			))
+			.filter(it -> it.getValue().size() >= 2)
+			.filter(it -> !it.getValue().equals(it.getValue().stream().sorted(czechNameDescending).toList()))
+			.filter(it -> !it.getValue().stream().sorted(czechNameDescending).toList().equals(
+				it.getValue().stream().sorted(englishNameDescending).toList()
+			))
+			.findFirst();
+		assertTrue(selectedProduct.isPresent(),
+			"The data set must contain stores whose Czech DESC order differs from PK and English DESC order");
+		final Map.Entry<Integer, List<SealedEntity>> productWithStores = selectedProduct.orElseThrow();
+		final List<SealedEntity> stores = productWithStores.getValue();
+		final List<SealedEntity> storesInCzechOrder = stores.stream().sorted(czechNameDescending).toList();
+		assertTrue(stores.stream().map(it -> it.getAttribute(ATTRIBUTE_NAME, LOCALE_CZECH, String.class))
+			.distinct().count() >= 2, "At least two filtered stores must have different Czech names");
+		assertNotEquals(stores, storesInCzechOrder, "Czech DESC order must differ from primary-key order");
+		assertNotEquals(stores.stream().sorted(englishNameDescending).toList(), storesInCzechOrder,
+			"Czech DESC order must differ from English DESC order");
+		return productWithStores;
 	}
 
 	@DisplayName("References are ordered by a localized entity attribute in the locale of the reference filter when the query has none")

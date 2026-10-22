@@ -84,8 +84,9 @@ public class GroupHavingTranslator implements FilteringConstraintTranslator<Grou
 			referenceSchema,
 			filterByVisitor.getProcessingScope().getScopes()
 		);
-		final FilterConstraint filterConstraint = groupHaving.getChild();
-		if (filterConstraint != null) {
+		final FilterConstraint[] children = groupHaving.getChildren();
+		if (children.length > 0) {
+			final FilterConstraint filterConstraint = HavingTranslatorHelper.conjunctionOf(children);
 			final Supplier<String> nestedQueryDescription = () ->
 				"filtering reference `" + referenceSchema.getName() +
 					"` by group entity `" + referencedGroupType + "` having: " + filterConstraint;

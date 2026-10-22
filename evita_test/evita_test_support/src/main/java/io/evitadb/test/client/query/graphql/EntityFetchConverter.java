@@ -25,6 +25,7 @@ package io.evitadb.test.client.query.graphql;
 
 import io.evitadb.api.query.Query;
 import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.PriceInCurrency;
 import io.evitadb.api.query.filter.PriceInPriceLists;
 import io.evitadb.api.query.require.*;
@@ -40,10 +41,10 @@ import io.evitadb.externalApi.api.ExternalApiNamingConventions;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.HierarchyDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.InlineReferenceDataLocator;
 import io.evitadb.externalApi.api.catalog.dataApi.constraint.ManagedEntityTypePointer;
-import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.DataChunkDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.EntityDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.PriceDescriptor;
+import io.evitadb.externalApi.api.catalog.dataApi.model.entity.attribute.AttributesProviderDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDefinitionDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceDescriptor;
 import io.evitadb.externalApi.api.catalog.dataApi.model.entity.reference.ReferenceWithReferencedEntityDescriptor;
@@ -571,17 +572,21 @@ public class EntityFetchConverter extends RequireConverter {
 		);
 	}
 
+	/** Generates localized reference, entity and group selections in their independently resolved locale contexts. */
 	private void convertReferenceContentReferenceBody(@Nullable Locale filterLocale,
 	                                                  @Nullable Set<Locale> requiredLocales,
 	                                                  @Nonnull ReferenceContent referenceContent,
 													  @Nonnull ReferenceSchemaContract referenceSchema,
 	                                                  @Nonnull GraphQLOutputFieldsBuilder referenceBuilder) {
 		referenceBuilder.addPrimitiveField(ReferenceDescriptor.REFERENCED_PRIMARY_KEY);
+		final FilterBy referenceFilter = referenceContent.getFilterBy().orElse(null);
+		final Locale referenceLocale = Optional.ofNullable(QueryUtils.resolveLocale(referenceFilter))
+			.orElse(filterLocale);
 
 		referenceContent.getAttributeContent().ifPresent(attributeContent -> convertAttributeContent(
 			referenceBuilder,
 			attributeContent,
-			filterLocale,
+			referenceLocale,
 			requiredLocales,
 			referenceSchema
 		));
@@ -592,18 +597,19 @@ public class EntityFetchConverter extends RequireConverter {
 				referencedEntityBuilder -> convert(
 					referencedEntityBuilder,
 					referenceSchema.getReferencedEntityType(),
-					filterLocale,
+					QueryUtils.resolveReferenceBodyLocale(referenceFilter, false, filterLocale),
 					entityRequirement
 				)
 			));
 
+		final Locale groupLocale = QueryUtils.resolveReferenceBodyLocale(referenceFilter, true, filterLocale);
 		referenceContent.getGroupEntityRequirement().ifPresent(groupEntityRequirement ->
 			referenceBuilder.addObjectField(
 				ReferenceDefinitionDescriptor.GROUP_ENTITY,
 				referencedGroupEntityBuilder -> convert(
 					referencedGroupEntityBuilder,
 					referenceSchema.getReferencedGroupType(),
-					filterLocale,
+					groupLocale,
 					groupEntityRequirement
 				)
 			));

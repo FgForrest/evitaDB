@@ -26,6 +26,7 @@ package io.evitadb.externalApi.graphql.api.catalog.dataApi.resolver.constraint;
 import graphql.schema.SelectedField;
 import io.evitadb.api.query.Constraint;
 import io.evitadb.api.query.QueryConstraints;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.order.OrderBy;
@@ -550,6 +551,7 @@ public class EntityFetchRequireResolver {
 			.toList();
 	}
 
+	/** Resolves body content using each entity/group level's own locale before its reference level and owner. */
 	private void resolveReferenceContentFromBasicField(
 		@Nonnull ReferenceContentsBuilder contentsBuilder,
 		@Nonnull SelectedField basicReferenceField,
@@ -564,8 +566,12 @@ public class EntityFetchRequireResolver {
 
 		final SelectionSetAggregator nestedFields = SelectionSetAggregator.from(basicReferenceField.getSelectionSet());
 		final Set<String> attributes = resolveReferenceContentAttributes(nestedFields, referenceSchema);
-		final EntityFetch entityFetch = resolveReferenceContentEntityFetch(nestedFields, desiredLocale, referenceSchema);
-		final EntityGroupFetch entityGroupFetch = resolveReferenceContentEntityGroupFetch(nestedFields, desiredLocale, referenceSchema);
+		final EntityFetch entityFetch = resolveReferenceContentEntityFetch(
+			nestedFields, QueryUtils.resolveReferenceBodyLocale(filterBy, false, desiredLocale), referenceSchema
+		);
+		final EntityGroupFetch entityGroupFetch = resolveReferenceContentEntityGroupFetch(
+			nestedFields, QueryUtils.resolveReferenceBodyLocale(filterBy, true, desiredLocale), referenceSchema
+		);
 		final ChunkingRequireConstraint chunking = resolveReferenceContentChunkingFromBasicField(basicReferenceField);
 
 		resolveReferenceContent(
@@ -581,6 +587,7 @@ public class EntityFetchRequireResolver {
 		);
 	}
 
+	/** Resolves paged body content using each entity/group level's own locale before its reference level and owner. */
 	private void resolveReferenceContentFromPageField(
 		@Nonnull ReferenceContentsBuilder contentsBuilder,
 		@Nonnull SelectedField referencePageField,
@@ -597,8 +604,13 @@ public class EntityFetchRequireResolver {
 		final SelectionSetAggregator referenceBodyFields = SelectionSetAggregator.fromFields(nestedFields.getImmediateFields(
 			ReferencePageDescriptor.DATA.name()));
 		final Set<String> attributes = resolveReferenceContentAttributes(referenceBodyFields, referenceSchema);
-		final EntityFetch entityFetch = resolveReferenceContentEntityFetch(referenceBodyFields, desiredLocale, referenceSchema);
-		final EntityGroupFetch entityGroupFetch = resolveReferenceContentEntityGroupFetch(referenceBodyFields, desiredLocale, referenceSchema);
+		final EntityFetch entityFetch = resolveReferenceContentEntityFetch(
+			referenceBodyFields,
+			QueryUtils.resolveReferenceBodyLocale(filterBy, false, desiredLocale), referenceSchema
+		);
+		final EntityGroupFetch entityGroupFetch = resolveReferenceContentEntityGroupFetch(
+			referenceBodyFields, QueryUtils.resolveReferenceBodyLocale(filterBy, true, desiredLocale), referenceSchema
+		);
 		final ChunkingRequireConstraint chunking = resolveReferenceContentChunkingFromPageField(referencePageField, nestedFields);
 
 		resolveReferenceContent(
@@ -614,6 +626,7 @@ public class EntityFetchRequireResolver {
 		);
 	}
 
+	/** Resolves sliced body content using each entity/group level's own locale before its reference level and owner. */
 	private void resolveReferenceContentFromStripField(
 		@Nonnull ReferenceContentsBuilder contentsBuilder,
 		@Nonnull SelectedField referenceStripField,
@@ -630,8 +643,13 @@ public class EntityFetchRequireResolver {
 		final SelectionSetAggregator referenceBodyFields = SelectionSetAggregator.fromFields(nestedFields.getImmediateFields(
 			ReferenceStripDescriptor.DATA.name()));
 		final Set<String> attributes = resolveReferenceContentAttributes(referenceBodyFields, referenceSchema);
-		final EntityFetch entityFetch = resolveReferenceContentEntityFetch(referenceBodyFields, desiredLocale, referenceSchema);
-		final EntityGroupFetch entityGroupFetch = resolveReferenceContentEntityGroupFetch(referenceBodyFields, desiredLocale, referenceSchema);
+		final EntityFetch entityFetch = resolveReferenceContentEntityFetch(
+			referenceBodyFields,
+			QueryUtils.resolveReferenceBodyLocale(filterBy, false, desiredLocale), referenceSchema
+		);
+		final EntityGroupFetch entityGroupFetch = resolveReferenceContentEntityGroupFetch(
+			referenceBodyFields, QueryUtils.resolveReferenceBodyLocale(filterBy, true, desiredLocale), referenceSchema
+		);
 		final ChunkingRequireConstraint chunking = resolveReferenceContentChunkingFromStripField(referenceStripField, nestedFields);
 
 		resolveReferenceContent(

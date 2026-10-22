@@ -412,6 +412,13 @@ requirement is used to retrieve one or more entity or reference [attributes](../
 are only fetched if there is a *locale context* in the query, either by using the [`entityLocaleEquals`](../filtering/locale.md#entity-locale-equals)
 filter constraint or the [`dataInLocales`](#data-in-locales) require constraint.
 
+For a named localized attribute in a nested `entityFetch` or `entityGroupFetch`, the locale context belongs to that
+body's level. Its own `entityHaving` or `groupHaving` locale takes precedence, followed by the reference filter's
+locale and then the enclosing body's locale. A `dataInLocales` requirement also supplies a locale context: the
+one in the body's own fetch, or, when that fetch names none, the one of the enclosing fetch. Entity and group bodies
+are separate levels: `entityHaving` does not supply the group's locale. Named localized attributes and associated
+data require a resolved locale or a `dataInLocales` that reaches their fetch level.
+
 <Note type="info">
 
 All entity attributes are fetched from disk in bulk, so specifying only a few of them in the `attributeContent`
@@ -1810,9 +1817,10 @@ referenceContent(
         by the locale of the referenced entity, wrap the constraint in `entityHaving`.
         </p>
         <p>
-        the locale of a bare `entityLocaleEquals` in this filter is also the locale in which the referenced entities
-        fetched by this `referenceContent` return their localized data, even when the query itself filters by another
-        locale, unless [`dataInLocales`](#data-in-locales) in their `entityFetch` names a different one
+        referenced entity bodies and their ordering use the locale named by their `entityHaving` level; group bodies
+        and their ordering use the locale named by their `groupHaving` level. A level without its own opinion inherits
+        the reference filter's locale, then the enclosing owner's locale. Each body fetch can also use
+        [`dataInLocales`](#data-in-locales) to specify which localized data to fetch
         </p>
     </dd>
     <dt>orderConstraint:orderBy?</dt>
@@ -2134,10 +2142,13 @@ places of the attribute schema, strings and dates in their normalized form, loca
 locale, an array attribute matches when any of its elements does, and a range attribute by its overlap with the
 requested range.
 
-A localized reference attribute in the filter is read in the locale of the `entityLocaleEquals` constraint of that
-filter - the one directly in the filter or directly inside its `entityHaving`, never one inside `groupHaving`; there
-may be at most one. When the filter has none, the attribute is read in the locale of the query. If neither names
-a locale, the query is refused unless the attribute is unique across all locales.
+A localized reference attribute is read in the reference filter's own locale. This level excludes opinions inside
+`entityHaving` and `groupHaving`, which belong to the referenced entity and group respectively. Equal
+`entityLocaleEquals` opinions may repeat within one level; different opinions at that level are refused.
+
+Without its own opinion, the reference filter inherits the resolved locale of its immediately enclosing owner body.
+A nested entity or group opinion does not choose the locale of the reference attributes. If no locale is resolved,
+the query is refused unless the attribute is unique across all locales.
 
 </Note>
 

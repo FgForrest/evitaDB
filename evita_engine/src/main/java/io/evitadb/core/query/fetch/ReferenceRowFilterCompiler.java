@@ -27,6 +27,7 @@ import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.exception.EntityNotManagedException;
 import io.evitadb.api.query.AttributeConstraint;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.*;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
@@ -38,6 +39,7 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.attribute.AttributeValueMatchingTranslator;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
+import io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.index.bitmap.BaseBitmap;
@@ -55,7 +57,6 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -63,6 +64,7 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static io.evitadb.core.query.filter.translator.attribute.AbstractAttributeTranslator.isBoundToQueryLocale;
+import static java.util.Optional.ofNullable;
 
 /**
  * Compiles the filter of the fetched references (`referenceContent(..., filterBy(...))`) into a
@@ -92,11 +94,14 @@ import static io.evitadb.core.query.filter.translator.attribute.AbstractAttribut
  *
  * ## Which locale an attribute leaf reads
  *
- * The locale of the leaf is the locale of the filter's own `entityLocaleEquals`, looked up exactly as the body fetch
- * looks it up ({@link ReferencedEntityFetcher#findReferenceFilterLocale}), and the locale of the owner request when the
- * filter names none. A localized attribute without any locale is refused with {@link EntityLocaleMissingException},
- * unless the attribute is unique across locales in a scope the leaf is compiled for - the rule the attribute
- * translators apply.
+ * The locale of the leaf is the reference level's own opinion - the `entityLocaleEquals` of the filter outside its
+ * `entityHaving` and `groupHaving` containers, resolved by {@link QueryUtils#resolveLocale} - and the locale of the
+ * owner request when the filter names none. A nested `entityHaving` / `groupHaving` filter without an opinion of its
+ * own inherits this locale (see {@link NestedSet}). The body fetch resolves differently: the opinion of the
+ * referenced entity level comes first there ({@link ReferencedEntityFetcher#findReferenceFilterLocale}), so the
+ * leaves may read another locale than the fetched bodies. A localized attribute without any locale is refused with
+ * {@link EntityLocaleMissingException}, unless the attribute is unique across locales in a scope the leaf is compiled
+ * for - the rule the attribute translators apply.
  *
  * ## Readings chosen per scope of the owner
  *
@@ -200,7 +205,7 @@ final class ReferenceRowFilterCompiler {
 		}
 		final ReferenceRowFilterCompiler compiler = new ReferenceRowFilterCompiler(
 			context,
-			ReferencedEntityFetcher.getReferencedEntityLocale(filterBy, context.ownerLocale()),
+			ofNullable(QueryUtils.resolveLocale(filterBy)).orElse(context.ownerLocale()),
 			getRootTargetBound(filterBy)
 		);
 		final Set<Scope> examinedScopes = ReferencedEntityFetcher.gatherSearchedScopes(
@@ -468,8 +473,7 @@ final class ReferenceRowFilterCompiler {
 		if (!referenceSchema.isReferencedEntityTypeManaged()) {
 			throw new EntityNotManagedException(referencedEntityType);
 		}
-		// the child alone, as the translator of `entityHaving` reads it - an applicable container has one
-		final FilterConstraint nestedFilter = Objects.requireNonNull(entityHaving.getChild());
+		final FilterConstraint nestedFilter = HavingTranslatorHelper.conjunctionOf(entityHaving.getChildren());
 		final Supplier<Bitmap> existingTargets = this.context.existingTargets();
 		final Bitmap rootBound = this.rootTargetBound;
 		final Supplier<int[]> restriction;
@@ -482,7 +486,8 @@ final class ReferenceRowFilterCompiler {
 		}
 		return new RowTest.TargetInNested(
 			new NestedSet(
-				this.context.filterByVisitor(), referencedEntityType, nestedFilter, scopes, restriction,
+				this.context.filterByVisitor(), referencedEntityType, nestedFilter, scopes,
+				this.leafLocale, restriction,
 				() -> "filtering reference `" + referenceSchema.getName() + "` by entity `" + referencedEntityType +
 					"` having: " + nestedFilter
 			)
@@ -512,12 +517,11 @@ final class ReferenceRowFilterCompiler {
 			() -> "Filtering constraint `" + groupHaving + "` targets group entity " +
 				"`" + referencedGroupType + "` that is not managed by evitaDB."
 		);
-		// the child alone, as the translator of `groupHaving` reads it - an applicable container has one
-		final FilterConstraint nestedFilter = Objects.requireNonNull(groupHaving.getChild());
+		final FilterConstraint nestedFilter = HavingTranslatorHelper.conjunctionOf(groupHaving.getChildren());
 		final Supplier<Bitmap> rowGroups = this.context.rowGroups();
 		return new RowTest.GroupInNested(
 			new NestedSet(
-				this.context.filterByVisitor(), referencedGroupType, nestedFilter, scopes,
+				this.context.filterByVisitor(), referencedGroupType, nestedFilter, scopes, this.leafLocale,
 				rowGroups == null ? null : () -> rowGroups.get().getArray(),
 				() -> "filtering reference `" + referenceSchema.getName() + "` by group entity `" +
 					referencedGroupType + "` having: " + nestedFilter

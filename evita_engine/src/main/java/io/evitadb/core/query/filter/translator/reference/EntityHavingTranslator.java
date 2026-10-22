@@ -70,8 +70,9 @@ public class EntityHavingTranslator implements FilteringConstraintTranslator<Ent
 			() -> "Filtering constraint `" + entityHaving + "` targets entity " +
 				"`" + referencedEntityType + "` that is not managed by evitaDB."
 		);
-		final FilterConstraint filterConstraint = entityHaving.getChild();
-		if (filterConstraint != null) {
+		final FilterConstraint[] children = entityHaving.getChildren();
+		if (children.length > 0) {
+			final FilterConstraint filterConstraint = HavingTranslatorHelper.conjunctionOf(children);
 			final Supplier<String> nestedQueryDescription = () ->
 				"filtering reference `" + referenceSchema.getName() +
 					"` by entity `" + referencedEntityType + "` having: " + filterConstraint;
