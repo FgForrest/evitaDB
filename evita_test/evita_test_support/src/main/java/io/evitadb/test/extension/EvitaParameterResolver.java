@@ -23,6 +23,7 @@
 
 package io.evitadb.test.extension;
 
+import io.evitadb.api.CatalogContract;
 import io.evitadb.api.CatalogState;
 import io.evitadb.api.EntityCollectionContract;
 import io.evitadb.api.EvitaContract;
@@ -34,6 +35,7 @@ import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.api.configuration.ThreadPoolOptions;
 import io.evitadb.core.Evita;
+import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.ClientTlsOptions;
 import io.evitadb.driver.config.ClientTimeoutOptions;
@@ -60,6 +62,7 @@ import io.evitadb.test.annotation.UseDataSet;
 import io.evitadb.test.tester.GraphQLSchemaTester;
 import io.evitadb.test.tester.GraphQLTester;
 import io.evitadb.test.tester.LabApiTester;
+import io.evitadb.test.tester.RestOpenApiAssertions;
 import io.evitadb.test.tester.RestTester;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
@@ -681,6 +684,28 @@ public class EvitaParameterResolver
 		);
 	}
 
+	/**
+	 * Validates the served system and catalog documents once after each REST dataset is initialized. An unresolved
+	 * reference fails the dataset with an `AssertionError`, because production only logs it.
+	 */
+	private static void validateRestDocuments(@Nonnull Evita evita, @Nonnull EvitaServer evitaServer)
+		throws IOException {
+		final AbstractApiOptions restConfig = evitaServer.getExternalApiServer().getApiOptions()
+			.getEndpointConfiguration(RestProvider.CODE);
+		if (restConfig == null) {
+			return;
+		}
+		final RestTester tester = new RestTester("https://" + restConfig.getHost()[0].hostAddressWithPort() + "/rest");
+		RestOpenApiAssertions.assertReferencesResolve(RestOpenApiAssertions.fetchDocument(tester, "system"), "system");
+		for (final CatalogContract catalog : evita.getCatalogs()) {
+			if (!(catalog instanceof UnusableCatalog)) {
+				RestOpenApiAssertions.assertReferencesResolve(
+					RestOpenApiAssertions.fetchDocument(tester, catalog.getName()), catalog.getName()
+				);
+			}
+		}
+	}
+
 	@Override
 	public void beforeAll(@Nonnull ExtensionContext context) {
 		// index data set bootstrap methods
@@ -1171,6 +1196,10 @@ public class EvitaParameterResolver
 									dataCarrier = null;
 								}
 
+								if (evitaServer != null) {
+									validateRestDocuments(evita, evitaServer);
+								}
+
 								if (dataSetInfo.readOnly()) {
 									evita.setReadOnly();
 								}
@@ -1187,8 +1216,9 @@ public class EvitaParameterResolver
 									evita, evitaServer, dataCarrier,
 									dataStateTearDownFct
 								);
-							} catch (Exception e) {
-								// close the server instance and free ports
+							} catch (Exception | AssertionError e) {
+								// close the server instance and free ports, also when `validateRestDocuments` failed
+								// with an `AssertionError`, which `Exception` does not cover
 								ofNullable(evitaServer)
 									.ifPresentOrElse(
 										it -> getPortManager().releasePortsOnCompletion(dataSetToUse, it.stop()),
