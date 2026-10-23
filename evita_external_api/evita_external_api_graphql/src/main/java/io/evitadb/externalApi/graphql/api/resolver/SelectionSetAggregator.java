@@ -229,7 +229,7 @@ public class SelectionSetAggregator {
         } else if (selectionSets.size() == 1) {
 			// this should not be really used, there is different variant of same method for single set, but just in case
 			// someone forgets, this should prevent going with full list iteration
-			return containsImmediate(fieldNamePattern, selectionSets.get(0), entityDtoObjectTypeName);
+			return containsImmediate(fieldNamePattern, selectionSets.getFirst(), entityDtoObjectTypeName);
 		} else {
 			if (fieldNamePattern.endsWith(FIELD_NAME_PATTERN_WILDCARD)) {
 				final String normalizedPattern = fieldNamePattern.substring(0, fieldNamePattern.length() - 1);
@@ -373,7 +373,7 @@ public class SelectionSetAggregator {
 		} else if (selectionSets.size() == 1) {
 			// this should not be really used, there is different variant of same method for single set, but just in case
 			// someone forgets, this should prevent going with full list iteration
-			return getImmediateFields(fieldName, selectionSets.get(0), entityDtoObjectTypeName);
+			return getImmediateFields(fieldName, selectionSets.getFirst(), entityDtoObjectTypeName);
 		} else {
 			final List<SelectedField> matchingFields = new LinkedList<>();
 			for (DataFetchingFieldSelectionSet selectionSet : selectionSets) {
@@ -409,7 +409,7 @@ public class SelectionSetAggregator {
 		} else if (selectionSets.size() == 1) {
 			// this should not be really used, there is different variant of same method for single set, but just in case
 			// someone forgets, this should prevent going with full list iteration
-			return getImmediateFields(fieldNames, selectionSets.get(0), entityDtoObjectTypeName);
+			return getImmediateFields(fieldNames, selectionSets.getFirst(), entityDtoObjectTypeName);
 		} else {
 			final List<SelectedField> matchingFields = new LinkedList<>();
 			for (DataFetchingFieldSelectionSet selectionSet : selectionSets) {
@@ -451,7 +451,7 @@ public class SelectionSetAggregator {
 		} else if (selectionSets.size() == 1) {
 			// this should not be really used, there is different variant of same method for single set, but just in case
 			// someone forgets, this should prevent going with full list iteration
-			return isEmpty(selectionSets.get(0));
+			return isEmpty(selectionSets.getFirst());
 		} else {
 			for (DataFetchingFieldSelectionSet selectionSet : selectionSets) {
 				if (!isEmpty(selectionSet)) {
@@ -471,7 +471,7 @@ public class SelectionSetAggregator {
 		} else if (selectionSets.size() == 1) {
 			// this should not be really used, there is different variant of same method for single set, but just in case
 			// someone forgets, this should prevent going with full list iteration
-			return isEmpty(selectionSets.get(0), entityDtoObjectTypeName);
+			return isEmpty(selectionSets.getFirst(), entityDtoObjectTypeName);
 		} else {
 			for (DataFetchingFieldSelectionSet selectionSet : selectionSets) {
 				if (!isEmpty(selectionSet, entityDtoObjectTypeName)) {

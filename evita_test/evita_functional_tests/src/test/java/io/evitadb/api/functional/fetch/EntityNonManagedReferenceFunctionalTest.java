@@ -130,7 +130,7 @@ class EntityNonManagedReferenceFunctionalTest extends AbstractEntityFetchingFunc
 				);
 
 				assertEquals(1, result.getRecordData().size());
-				final SealedEntity product = result.getRecordData().get(0);
+				final SealedEntity product = result.getRecordData().getFirst();
 				final Collection<ReferenceContract> filteredRefs = product.getReferences(REFERENCE_GALLERY);
 				assertEquals(expectedCount, filteredRefs.size());
 				for (ReferenceContract ref : filteredRefs) {
@@ -178,7 +178,7 @@ class EntityNonManagedReferenceFunctionalTest extends AbstractEntityFetchingFunc
 				);
 
 				assertEquals(1, result.getRecordData().size());
-				final SealedEntity product = result.getRecordData().get(0);
+				final SealedEntity product = result.getRecordData().getFirst();
 				final Long[] receivedOrders = product.getReferences(REFERENCE_GALLERY)
 					.stream()
 					.map(ref -> ref.getAttribute(ATTRIBUTE_GALLERY_ORDER, Long.class))
@@ -252,7 +252,7 @@ class EntityNonManagedReferenceFunctionalTest extends AbstractEntityFetchingFunc
 				);
 
 				assertEquals(1, result.getRecordData().size());
-				final SealedEntity product = result.getRecordData().get(0);
+				final SealedEntity product = result.getRecordData().getFirst();
 				final Collection<ReferenceContract> filteredRefs = product.getReferences(REFERENCE_GALLERY);
 				assertEquals(expectedCount, filteredRefs.size());
 
@@ -347,7 +347,7 @@ class EntityNonManagedReferenceFunctionalTest extends AbstractEntityFetchingFunc
 				);
 
 				assertEquals(1, result.getRecordData().size());
-				final SealedEntity product = result.getRecordData().get(0);
+				final SealedEntity product = result.getRecordData().getFirst();
 				final Collection<ReferenceContract> galleryRefs = product.getReferences(REFERENCE_GALLERY);
 				assertFalse(galleryRefs.isEmpty(), "Product should have gallery references!");
 
@@ -397,7 +397,7 @@ class EntityNonManagedReferenceFunctionalTest extends AbstractEntityFetchingFunc
 				);
 
 				assertEquals(1, result.getRecordData().size());
-				final SealedEntity product = result.getRecordData().get(0);
+				final SealedEntity product = result.getRecordData().getFirst();
 				final Collection<ReferenceContract> galleryRefs = product.getReferences(REFERENCE_GALLERY);
 				assertFalse(galleryRefs.isEmpty());
 
@@ -477,7 +477,7 @@ class EntityNonManagedReferenceFunctionalTest extends AbstractEntityFetchingFunc
 				);
 
 				assertEquals(1, result.getRecordData().size());
-				final SealedEntity product = result.getRecordData().get(0);
+				final SealedEntity product = result.getRecordData().getFirst();
 
 				// verify both managed and non-managed references are present
 				assertFalse(
@@ -548,7 +548,7 @@ class EntityNonManagedReferenceFunctionalTest extends AbstractEntityFetchingFunc
 				);
 
 				assertEquals(1, result.getRecordData().size());
-				final SealedEntity product = result.getRecordData().get(0);
+				final SealedEntity product = result.getRecordData().getFirst();
 				assertInstanceOf(ServerEntityDecorator.class, product);
 				final ServerEntityDecorator serverEntity = (ServerEntityDecorator) product;
 				final DataChunk<ReferenceContract> filteredGallery = serverEntity.getReferencesForReferenceContentInstance(
@@ -595,7 +595,7 @@ class EntityNonManagedReferenceFunctionalTest extends AbstractEntityFetchingFunc
 				);
 
 				assertEquals(1, result.getRecordData().size());
-				final SealedEntity product = result.getRecordData().get(0);
+				final SealedEntity product = result.getRecordData().getFirst();
 				assertEquals(
 					targetProduct.getReferences(REFERENCE_GALLERY).size(),
 					product.getReferences(REFERENCE_GALLERY).size(),
@@ -634,7 +634,7 @@ class EntityNonManagedReferenceFunctionalTest extends AbstractEntityFetchingFunc
 				);
 
 				assertEquals(1, result.getRecordData().size());
-				final SealedEntity product = result.getRecordData().get(0);
+				final SealedEntity product = result.getRecordData().getFirst();
 				// for non-managed entities, EXISTING cannot verify entity existence,
 				// so all references should still be returned
 				assertEquals(
@@ -714,7 +714,7 @@ class EntityNonManagedReferenceFunctionalTest extends AbstractEntityFetchingFunc
 				);
 
 				assertEquals(1, result.getRecordData().size());
-				final SealedEntity product = result.getRecordData().get(0);
+				final SealedEntity product = result.getRecordData().getFirst();
 				final Collection<ReferenceContract> filteredRefs = product.getReferences(REFERENCE_GALLERY);
 				assertEquals(expectedCount, filteredRefs.size());
 
@@ -796,7 +796,7 @@ class EntityNonManagedReferenceFunctionalTest extends AbstractEntityFetchingFunc
 				);
 
 				assertEquals(1, result.getRecordData().size());
-				final SealedEntity product = result.getRecordData().get(0);
+				final SealedEntity product = result.getRecordData().getFirst();
 
 				// verify gallery (non-managed) references are filtered
 				final Collection<ReferenceContract> galleryRefs = product.getReferences(REFERENCE_GALLERY);
@@ -894,7 +894,7 @@ class EntityNonManagedReferenceFunctionalTest extends AbstractEntityFetchingFunc
 				);
 
 				assertEquals(1, result.getRecordData().size());
-				final SealedEntity product = result.getRecordData().get(0);
+				final SealedEntity product = result.getRecordData().getFirst();
 				assertFalse(product.referencesAvailable());
 				assertThrows(ContextMissingException.class, product::getReferences);
 

@@ -186,6 +186,17 @@ public final class Transaction implements TransactionContract {
 
 	/**
 	 * Returns true if transaction is present and usable.
+	 *
+	 * An index structure must not branch on this to decide what it writes outside a transaction. Warm-up writes go in
+	 * place to the delegate, and a warm-up savepoint reverts only what the structure journals on that branch; a gate
+	 * that picks a different write for the no-transaction case is where writes escaped the journal before the
+	 * savepoint existed. The gates that remain read or drop a recomputable memo, guard a `createLayer()` factory only a
+	 * transaction reaches, flag a freshly built node, refuse a call outright, run on a schema change rather than on an
+	 * entity mutation, take a faster path that journals as well, or pick how a value is represented while both arms
+	 * hand back a new value the caller journals before storing it (the impact records of the bucket B+ tree) - none of
+	 * them lets a write escape the journal. See {@link WarmUpSavepoint#open()}.
+	 *
+	 * @return true when a transaction is bound to the current thread
 	 */
 	public static boolean isTransactionAvailable() {
 		return CURRENT_TRANSACTION.get() != null;

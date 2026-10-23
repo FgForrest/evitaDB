@@ -330,7 +330,7 @@ class FacetSummaryTest implements EvitaTestSupport {
 			final FacetGroupStatistics groupStats = createFacetGroupStatistics();
 			final Collection<FacetStatistics> stats = groupStats.getFacetStatistics();
 			assertThrows(UnsupportedOperationException.class, () ->
-				((java.util.Collection<FacetStatistics>) stats).add(
+				stats.add(
 					new FacetStatistics(new EntityReference("parameter", 99), false, 1, null)
 				)
 			);

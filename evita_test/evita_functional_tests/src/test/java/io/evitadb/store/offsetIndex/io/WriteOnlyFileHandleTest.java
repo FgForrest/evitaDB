@@ -1022,7 +1022,7 @@ class WriteOnlyFileHandleTest implements EvitaTestSupport {
 				Files.delete(filePath);
 				// forced through the registered reference rather than the local one: a checkpoint holds only
 				// what the registry handed it, so that is the reference whose behaviour is under test
-				final WriteOnlyHandle pending = registered.get(0);
+				final WriteOnlyHandle pending = registered.getFirst();
 				assertDoesNotThrow(
 					pending::forceDurable,
 					"Forcing a file a compaction already removed must not fail the checkpoint."

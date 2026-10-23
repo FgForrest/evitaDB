@@ -1633,7 +1633,7 @@ public final class EvitaSession implements EvitaInternalSessionContract {
 		} else if (recordData.size() > 1) {
 			throw new UnexpectedResultCountException(recordData.size());
 		} else {
-			return of(recordData.get(0));
+			return of(recordData.getFirst());
 		}
 	}
 

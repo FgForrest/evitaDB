@@ -138,7 +138,7 @@ class AcceleratorBackwardCompatibilityTest {
 		final Kryo kryo = createSchemaKryo();
 		final AttributeSchema attributeSchema = AttributeSchema._internalBuild(
 			ATTRIBUTE_CODE, null, null,
-			(ScopedAttributeUniquenessType[]) null,
+			null,
 			Scope.DEFAULT_SCOPES,
 			SUBSTRING_IN_LIVE,
 			null,
@@ -197,7 +197,7 @@ class AcceleratorBackwardCompatibilityTest {
 		final Kryo kryo = createSchemaKryo();
 		final EntityAttributeSchema attributeSchema = EntityAttributeSchema._internalBuild(
 			ATTRIBUTE_NAME, null, null,
-			(ScopedAttributeUniquenessType[]) null,
+			null,
 			Scope.DEFAULT_SCOPES,
 			SUBSTRING_IN_LIVE,
 			null,

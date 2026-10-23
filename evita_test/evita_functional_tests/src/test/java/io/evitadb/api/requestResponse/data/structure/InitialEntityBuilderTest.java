@@ -711,7 +711,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		);
 		final List<ReferenceContract> updatedUniqueReference = builder.getReferences(new ReferenceKey(BRAND, 1));
 		assertEquals(1, updatedUniqueReference.size(), "Still single after update");
-		assertEquals(11L, updatedUniqueReference.get(0).getAttribute(BRAND_PRIORITY, Long.class).longValue());
+		assertEquals(11L, updatedUniqueReference.getFirst().getAttribute(BRAND_PRIORITY, Long.class).longValue());
 		assertCreatedReferenceInvariants(1, updatedUniqueReference);
 
 		// C) add duplicate (filter not matching) -> introduce duplication
@@ -1466,14 +1466,14 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		assertEquals(1, remaining.size(), "Exactly one reference should remain after targeted removal");
 		assertEquals(
 			secondInternalPk,
-			remaining.get(0).getReferenceKey().internalPrimaryKey(),
+			remaining.getFirst().getReferenceKey().internalPrimaryKey(),
 			"Remaining reference should match the other internal PK"
 		);
 
 		// Remove one of three GROUP references using internal PK
 		final List<ReferenceContract> groupRefs = builder.getReferences(new ReferenceKey(GROUP, 1));
 		assertEquals(3, groupRefs.size(), "Expected three GROUP references initially");
-		final int firstGroupInternalPk = groupRefs.get(0).getReferenceKey().internalPrimaryKey();
+		final int firstGroupInternalPk = groupRefs.getFirst().getReferenceKey().internalPrimaryKey();
 
 		builder.removeReference(new ReferenceKey(GROUP, 1, firstGroupInternalPk));
 		final List<ReferenceContract> remainingGroups = builder.getReferences(new ReferenceKey(GROUP, 1));
@@ -1554,7 +1554,7 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		// STORE: single occurrence -> remove exactly this one by internal id
 		final List<ReferenceContract> storeRefsBefore = builder.getReferences(new ReferenceKey(STORE, 1));
 		assertEquals(1, storeRefsBefore.size(), "Expected single STORE reference initially");
-		final int storeInternalPk = storeRefsBefore.get(0).getReferenceKey().internalPrimaryKey();
+		final int storeInternalPk = storeRefsBefore.getFirst().getReferenceKey().internalPrimaryKey();
 		builder.removeReferences(
 			ref -> STORE.equals(ref.getReferenceName()) &&
 				ref.getReferenceKey().internalPrimaryKey() == storeInternalPk
@@ -1586,14 +1586,14 @@ class InitialEntityBuilderTest extends AbstractBuilderTest {
 		assertEquals(1, brandRefsAfter.size(), "Exactly one BRAND reference should remain");
 		assertEquals(
 			brandInternalPkToRemain,
-			brandRefsAfter.get(0).getReferenceKey().internalPrimaryKey(),
+			brandRefsAfter.getFirst().getReferenceKey().internalPrimaryKey(),
 			"Remaining BRAND reference should be the other internal PK"
 		);
 
 		// GROUP: three duplicates -> remove exactly one by internal id
 		final List<ReferenceContract> groupRefsBefore = builder.getReferences(new ReferenceKey(GROUP, 1));
 		assertEquals(3, groupRefsBefore.size(), "Expected three GROUP references initially");
-		final int groupInternalPkToRemove = groupRefsBefore.get(0).getReferenceKey().internalPrimaryKey();
+		final int groupInternalPkToRemove = groupRefsBefore.getFirst().getReferenceKey().internalPrimaryKey();
 		builder.removeReferences(
 			ref -> GROUP.equals(ref.getReferenceName()) &&
 				ref.getReferenceKey().internalPrimaryKey() == groupInternalPkToRemove

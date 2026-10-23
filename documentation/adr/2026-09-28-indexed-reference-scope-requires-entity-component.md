@@ -1,7 +1,7 @@
 ---
 title: Every scope a reference is indexed in must carry REFERENCED_ENTITY; a stored catalog lacking it loads, and every query and schema change over it refuses loudly
 date: 2026-09-28
-updated: 2026-09-29 10:25
+updated: 2026-10-14 22:34
 status: accepted
 kind: fix
 issues: [1601, 1583]
@@ -9,7 +9,7 @@ prs: [1657]
 areas: [evita_api/src/main/java/io/evitadb/api/requestResponse/schema/dto/ReferenceSchema.java, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/dto/ReflectedReferenceSchema.java, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/reference, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/reference, evita_engine/src/main/java/io/evitadb/core/query/filter/FilterByVisitor.java, evita_engine/src/main/java/io/evitadb/core/query/QueryPlanningContext.java, evita_engine/src/main/java/io/evitadb/core/query/sort, evita_engine/src/main/java/io/evitadb/core/query/extraResult/translator/reference/producer, evita_engine/src/main/java/io/evitadb/index/mutation/ReevaluateExpressionExecutor.java, evita_engine/src/main/java/io/evitadb/core/collection/EntityCollection.java, evita_engine/src/main/java/io/evitadb/core/exception/ReferenceComponentNotIndexedException.java]
 supersedes: []
 superseded-by: []
-relates: [2026-09-17-row-scoped-reference-having-body, 2026-09-15-bidirectional-reference-counterpart-rewrite]
+relates: [2026-10-20-reference-content-filter-row-by-row, 2026-09-17-row-scoped-reference-having-body, 2026-09-15-bidirectional-reference-counterpart-rewrite]
 ---
 
 # Every scope a reference is indexed in must carry `REFERENCED_ENTITY`, and a stored catalog lacking it refuses loudly
@@ -28,7 +28,8 @@ silently (#1583) is fixed in the same line of work.
 #1601 reported that `referenceHaving(R, groupHaving(...))` on a reference indexed for `REFERENCED_GROUP_ENTITY` only
 matched nothing - the one constraint that component exists to serve. The cause is not the translator: every query
 path over a reference - `referenceHaving` and everything inside it, `hierarchyWithin`, `hierarchyOfReference`,
-`facetHaving`, `referenceContent` with a filter or a predecessor ordering, `referenceProperty` ordering, reference
+`facetHaving`, `referenceContent` with a predecessor ordering (its filter is evaluated row by row since
+`2026-10-20-reference-content-filter-row-by-row` and needs neither the reduced indexes nor `REFERENCED_ENTITY`), `referenceProperty` ordering, reference
 histograms and `histogramHaving` - first locates the reduced **entity** indexes, and only `REFERENCED_ENTITY` builds
 them. Index selection sees no candidate and the planner shortcut (`IndexSelectionResult#isEmpty`) answers empty before
 the body is translated. The row-scoped `referenceHaving` work had found this and deliberately left it unguarded

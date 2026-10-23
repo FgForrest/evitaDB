@@ -380,7 +380,7 @@ class AttributeSchemaTest {
 				InvalidSchemaMutationException.class,
 				() -> AttributeSchema._internalBuild(
 					"quantity", null, null,
-					(Map<Scope, AttributeUniquenessType>) null,
+					null,
 					Set.of(Scope.LIVE),
 					substringInLive,
 					null,
@@ -422,7 +422,7 @@ class AttributeSchemaTest {
 		) {
 			return AttributeSchema._internalBuild(
 				"code", null, null,
-				(Map<Scope, AttributeUniquenessType>) null,
+				null,
 				Set.of(Scope.LIVE),
 				acceleratorsInScopes,
 				null,

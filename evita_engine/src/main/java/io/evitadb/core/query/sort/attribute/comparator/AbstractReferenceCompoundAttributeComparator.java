@@ -55,7 +55,7 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.index.attribute.SortIndex.createCombinedComparatorFor;
-import static io.evitadb.index.attribute.SortIndex.createNormalizerFor;
+import static io.evitadb.index.attribute.SortIndex.createComparatorNormalizerFor;
 
 /**
  * Comparator for sorting entities according to a sortable compound attribute value. It combines multiple attribute
@@ -127,7 +127,16 @@ public abstract class AbstractReferenceCompoundAttributeComparator implements En
 			.toArray(ComparatorSource[]::new);
 
 		// initialize normalizers
-		this.normalizer = createNormalizerFor(this.comparatorSource);
+		this.normalizer = createComparatorNormalizerFor(
+			this.comparatorSource,
+			attributeElements
+				.stream()
+				.mapToInt(
+					attributeElement -> attributeSchemaExtractor.apply(attributeElement.attributeName())
+						.getIndexedDecimalPlaces()
+				)
+				.toArray()
+		);
 		final Comparator<ComparableArray> baseComparator = createCombinedComparatorFor(locale, this.comparatorSource);
 		this.comparator = orderDirection == OrderDirection.ASC ? baseComparator : baseComparator.reversed();
 		this.attributeValueFetcher = locale == null ?

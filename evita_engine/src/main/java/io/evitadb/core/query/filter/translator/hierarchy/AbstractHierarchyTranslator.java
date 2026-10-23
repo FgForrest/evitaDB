@@ -24,7 +24,9 @@
 package io.evitadb.core.query.filter.translator.hierarchy;
 
 import io.evitadb.api.query.Constraint;
+import io.evitadb.api.query.ConstraintContainer;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.HierarchyFilterConstraint;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -36,24 +38,25 @@ import io.evitadb.core.query.algebra.attribute.AttributeFormula;
 import io.evitadb.core.query.algebra.hierarchy.HierarchyFormula;
 import io.evitadb.core.query.algebra.locale.LocaleFormula;
 import io.evitadb.core.query.algebra.price.termination.PriceWrappingFormula;
-import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.SplitTargetPartitions;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.indexSelection.TargetIndexes;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.EntityIndex;
 import io.evitadb.index.hierarchy.predicate.FilteringFormulaHierarchyEntityPredicate;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
+import io.evitadb.index.usage.SchemaCapabilityUsage;
+import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.Arrays;
-import java.util.Objects;
+import java.util.Locale;
 import java.util.Set;
 import java.util.function.Supplier;
-import java.util.stream.StreamSupport;
+import java.util.stream.Stream;
 
 import static io.evitadb.api.query.QueryConstraints.*;
 
@@ -87,9 +90,28 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 	}
 
 	/**
+	 * Resolves the own locale opinion of a hierarchy level - of its parent filter, its specifications and the filters
+	 * below them up to the next level boundary. The hierarchy constraint itself starts the level, so resolving it
+	 * directly would stop at its own root; its children and additional children are resolved as one level instead.
+	 *
+	 * @param hierarchyConstraint the `hierarchyWithin` or `hierarchyWithinRoot` constraint
+	 * @return the level's own locale, NULL when the level names none
+	 */
+	@Nullable
+	protected static Locale resolveHierarchyLocale(@Nonnull ConstraintContainer<?> hierarchyConstraint) {
+		return QueryUtils.resolveLocale(new FilterBy(
+			Stream.concat(
+				Arrays.stream(hierarchyConstraint.getChildren()),
+				Arrays.stream(hierarchyConstraint.getAdditionalChildren())
+			).map(FilterConstraint.class::cast).toArray(FilterConstraint[]::new)
+		));
+	}
+
+	/**
 	 * Creates a hierarchy exclusion predicate if the exclusion filter is defined and stores it to
 	 * {@link QueryPlanningContext} for later use, under the constraint that declared it - the requirement phase
 	 * asks for the visibility of the hierarchy it describes, never for whatever a sibling constraint declared.
+	 * All parent and specification filters of the hierarchy level share its resolved locale.
 	 */
 	@Nullable
 	protected static HierarchyFilteringPredicate createAndStoreHavingPredicate(
@@ -120,14 +142,25 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 				nodeFilter = null;
 			}
 
+			final QueryPlanningContext hierarchyContext = queryContext.getContextInLocale(
+				queryContext.getEntityType(), null,
+				resolveHierarchyLocale((ConstraintContainer<?>) hierarchyFilterConstraint), requestedScopes,
+				"resolve hierarchy locale"
+			);
 			final HierarchyFilteringPredicate predicate = new FilteringFormulaHierarchyEntityPredicate(
 				parentPks,
-				queryContext,
+				hierarchyContext,
 				requestedScopes,
 				nodeFilter,
 				havingAnyPresent ? filterBy(havingAnyFilter) : null,
 				referenceSchema
 			);
+
+			if (hierarchyContext != queryContext) {
+				for (final SchemaCapabilityUsage capability : hierarchyContext.drainRequestedCapabilities()) {
+					queryContext.registerRequestedCapability(capability);
+				}
+			}
 
 			queryContext.setHierarchyHavingPredicate(hierarchyFilterConstraint, requestedScopes, predicate);
 			return predicate;
@@ -145,6 +178,10 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 	 * the same formula, which is why the computed one resolves the reduced indexes exactly the way the index
 	 * selection does: from the queried entity schema and the reference the constraint itself names, for every node
 	 * the constraint selects in any processing scope's tree and in every processing scope.
+	 *
+	 * Both branches read the partitions of the nodes split by representation (see {@link SplitTargetPartitions}): the
+	 * owners of the materialized partitions are OR'ed with one constant over the owners of all the registered
+	 * single-owner partitions of the nodes, which the query reads out of the registry rather than resolving them.
 	 */
 	@Nonnull
 	protected static Formula createFormulaForReferencingEntities(
@@ -162,27 +199,20 @@ public abstract class AbstractHierarchyTranslator<T extends FilterConstraint> im
 		if (targetIndexes == null) {
 			final Formula hierarchyNodesFormula = hierarchyNodesFormulaSupplier.get();
 			// the nodes of every processing scope's tree, each paired with the owners of every processing scope
-			return FormulaFactory.or(
-				StreamSupport.stream(hierarchyNodesFormula.compute().spliterator(), false)
-					.flatMap(
-						hierarchyNodeId -> filterByVisitor.getReferencedEntityIndexes(
-							entitySchema, referenceSchema, hierarchyNodeId
-						)
-					)
-					.filter(Objects::nonNull)
-					.map(EntityIndex::getAllPrimaryKeysFormula)
-					.toArray(Formula[]::new)
-			);
+			return filterByVisitor
+				.getReferencedEntityPartitions(entitySchema, referenceSchema, hierarchyNodesFormula.compute())
+				.createOwnersFormula(null);
 		} else {
-			// the exclusion was already evaluated when the target indexes were initialized
-			return FormulaFactory.or(
-				targetIndexes.getIndexes()
-					.stream()
-					.filter(Objects::nonNull)
-					.map(EntityIndex.class::cast)
-					.map(EntityIndex::getAllPrimaryKeysFormula)
-					.toArray(Formula[]::new)
+			// only the hierarchy option of index selection represents a hierarchy constraint, and it always carries the
+			// partitions of its nodes split by representation
+			final SplitTargetPartitions splitTargetPartitions = targetIndexes.getSplitTargetPartitions();
+			Assert.isPremiseValid(
+				splitTargetPartitions != null,
+				() -> "The target index set `" + targetIndexes + "` of `" + hierarchyWithinConstraint +
+					"` carries no split partitions of its hierarchy nodes!"
 			);
+			// the exclusion was already evaluated when the partitions of the nodes were split
+			return splitTargetPartitions.createOwnersFormula(null);
 		}
 	}
 

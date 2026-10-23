@@ -115,7 +115,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.fail;
 
 /**
  * The fulltext indexes attached to a {@link GlobalEntityIndex}, persisted and read back the way a catalog does it: the
@@ -475,6 +474,31 @@ class GlobalEntityIndexFulltextPersistenceTest {
 		}
 
 		@Test
+		@DisplayName("a baseline captured before a new index's first flush leaves that flush to list the index")
+		void shouldListANewIndexWhenTheBaselineWasCapturedBeforeItsFirstFlush() {
+			final GlobalEntityIndex index = newGlobalIndex();
+			fill(index.getOrCreateFulltextIndex(CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH)), 1, 50);
+
+			try (final Disk disk = new Disk()) {
+				disk.write(flush(index));
+				index.getOrCreateFulltextIndex(ENGLISH, registry.getIndexAnalyzer(ENTITY_TYPE, ENGLISH))
+					.addValue(attribute("title"), 1, "a brand new title");
+				// captured while the new index is dirty with nothing on disk, as building an entity index over it
+				// does - were the capture to announce it, the flush would find the manifest unchanged and the
+				// written root would stay unlisted
+				index.notifyFlushed();
+
+				final List<StoragePart> parts = flush(index);
+				assertEquals(
+					Set.of(new FulltextIndexKey(CZECH), new FulltextIndexKey(ENGLISH)),
+					manifestOf(parts).getFulltextIndexes()
+				);
+				disk.write(parts);
+				assertSameFulltext(index, disk.reload(registry));
+			}
+		}
+
+		@Test
 		@DisplayName("an existing index obtained with another analyzer keeps analyzing with its own")
 		void shouldKeepTheOwnAnalyzerOfAnExistingIndex() {
 			final GlobalEntityIndex index = newGlobalIndex();
@@ -792,45 +816,46 @@ class GlobalEntityIndexFulltextPersistenceTest {
 		}
 
 		@Test
-		@DisplayName("a commit refuses to carry an unflushed index forward, and commits once it is flushed")
-		void shouldRefuseToCarryForwardAnUnflushedIndex() {
+		@DisplayName("a commit carries an unflushed index forward, and the next flush writes and lists it")
+		void shouldCarryAnUnflushedIndexForwardToTheNextFlush() {
 			final GlobalEntityIndex index = newGlobalIndex();
-			// written outside a transaction, as warm-up writes, and not flushed - the state go-live never hands over
+			// written outside a transaction, as warm-up writes, and not flushed
 			index.getOrCreateFulltextIndex(CZECH, registry.getIndexAnalyzer(ENTITY_TYPE, CZECH))
 				.addValue(attribute("title"), 1, "rozepsaný titulek");
 
-			// the transaction writes the global index elsewhere, so the commit merge builds a copy carrying the
-			// untouched fulltext index forward
-			final Exception refusal = assertThrows(
-				Exception.class,
-				() -> assertStateAfterCommit(
+			try (final Disk disk = new Disk()) {
+				// the transaction writes the global index elsewhere, so the commit merge builds a copy carrying the
+				// untouched fulltext index forward - and capturing the copy's baseline must not consume its changes
+				assertStateAfterCommit(
 					index,
 					original -> original.insertPrimaryKeyIfMissing(1),
-					(original, committed) -> fail("The commit must not publish a copy over an unflushed index.")
-				)
-			);
-			Throwable cause = refusal;
-			while (cause != null && !(cause instanceof GenericEvitaInternalError)) {
-				cause = cause.getCause();
-			}
-			assertNotNull(cause, "The refusal is an internal error: " + refusal);
-			assertTrue(
-				cause.getMessage().contains("locale `cs` has changes no flush has collected"),
-				"The refusal names the locale and the cause: " + cause.getMessage()
-			);
+					(original, committed) -> {
+						assertNotNull(committed);
+						assertEquals(
+							index.getFulltextIndex(CZECH).getTermCount(),
+							committed.getFulltextIndex(CZECH).getTermCount(),
+							"The unflushed index is carried forward."
+						);
 
-			flush(index);
-			assertStateAfterCommit(
-				index,
-				original -> original.insertPrimaryKeyIfMissing(1),
-				(original, committed) -> {
-					assertNotNull(committed);
-					assertEquals(
-						index.getFulltextIndex(CZECH).getTermCount(), committed.getFulltextIndex(CZECH).getTermCount(),
-						"The flushed index is carried forward."
-					);
-				}
-			);
+						final List<StoragePart> parts = flush(committed);
+						assertEquals(
+							Set.of(new FulltextIndexKey(CZECH)), manifestOf(parts).getFulltextIndexes(),
+							"The manifest lists the index its first flush writes."
+						);
+						assertEquals(
+							1, partsOf(parts, FulltextIndexStoragePart.class).size(),
+							"The carried index writes its root."
+						);
+						assertFalse(
+							partsOf(parts, FulltextDictionaryLeafPagePart.class).isEmpty(),
+							"The carried index writes its dictionary."
+						);
+
+						disk.write(parts);
+						assertSameFulltext(committed, disk.reload(registry));
+					}
+				);
+			}
 		}
 
 	}

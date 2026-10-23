@@ -516,11 +516,11 @@ public class TrigramIndex implements
 	 * simplification and is a silent corruption of the index: the first in-place `and` would rewrite the posting's own
 	 * containers under every version still holding it.
 	 *
-	 * **And this shape is safe only because the operation is an intersection.** `and` is the one static operation that
-	 * leaves its operands entirely alone; `or`, `xor` and `andNot` raise the operands' copy-on-write flags as a side
-	 * effect (`markAllShared`), which is a WRITE to a posting other threads are reading, and their own javadoc says
-	 * they must not run concurrently with any other access to those operands. Anyone carrying "let the accumulator own
-	 * itself" across to a union path has to solve that first - it is not the same trick.
+	 * **This relies on the binary, unbounded static `and` overload used here.** It writes nothing to either operand,
+	 * including their copy-on-write flags; range-bounded `and` can flag borrowed operand containers via
+	 * `selectRangeWithoutCopy`. Static binary `or` and `xor` call `markAllShared` on both operands; binary
+	 * `andNot` marks only its minuend, never its subtrahend. Those writes to live postings need separate consideration
+	 * before carrying this accumulator pattern across to a union path.
 	 *
 	 * ## The accumulator demotes to the small path once it is narrow enough
 	 *

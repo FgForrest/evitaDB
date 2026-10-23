@@ -36,6 +36,7 @@ import io.evitadb.index.component.FulltextIndexMapComponent;
 import io.evitadb.index.component.ReducedIndexMembershipMapComponent;
 import io.evitadb.index.component.ReferenceTypeCardinalityComponent;
 import io.evitadb.index.component.TrigramIndexMapComponent;
+import io.evitadb.index.component.VirtualReferencePartitionComponent;
 import io.evitadb.index.component.loader.AttributeCardinalityIndexMapLoader;
 import io.evitadb.index.component.loader.AttributeIndexLoader;
 import io.evitadb.index.component.loader.ComponentLoader;
@@ -48,6 +49,7 @@ import io.evitadb.index.component.loader.IndexReloadPlan;
 import io.evitadb.index.component.loader.PriceRefIndexLoader;
 import io.evitadb.index.component.loader.PriceSuperIndexLoader;
 import io.evitadb.index.component.loader.ReferenceTypeCardinalityLoader;
+import io.evitadb.index.component.loader.VirtualReferencePartitionLoader;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.HierarchyIndex;
 import org.junit.jupiter.api.DisplayName;
@@ -119,7 +121,8 @@ class EntityIndexReloadPlanSymmetryTest {
 			HistogramIndexMapComponent.class, HistogramIndexMapLoader.class,
 			GroupCardinalityComponent.class, GroupCardinalityLoader.class,
 			ReferenceTypeCardinalityComponent.class, ReferenceTypeCardinalityLoader.class,
-			FulltextIndexMapComponent.class, FulltextIndexMapLoader.class
+			FulltextIndexMapComponent.class, FulltextIndexMapLoader.class,
+			VirtualReferencePartitionComponent.class, VirtualReferencePartitionLoader.class
 		);
 
 	@Test
@@ -259,6 +262,7 @@ class EntityIndexReloadPlanSymmetryTest {
 			HistogramIndexMapComponent.class,
 			GroupCardinalityComponent.class,
 			ReferenceTypeCardinalityComponent.class,
+			VirtualReferencePartitionComponent.class,
 			TrigramIndexMapComponent.class,
 			ReducedIndexMembershipMapComponent.class,
 			FulltextIndexMapComponent.class

@@ -1160,7 +1160,7 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 				for (final HistogramIndexLeafPageRemoval removal : leafPageRemovals(secondEmission)) {
 					removedBucketPartPks.add(removal.getStoragePartPK());
 				}
-				removedCardinalityPartPk = cardinalityRemovals(secondEmission).get(0).getStoragePartPK();
+				removedCardinalityPartPk = cardinalityRemovals(secondEmission).getFirst().getStoragePartPK();
 				secondDescriptor = offsetIndex.flush(SECOND_VERSION);
 			} finally {
 				IOUtils.closeQuietly(offsetIndex::close);
@@ -1873,7 +1873,7 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 	@Nullable
 	private static HistogramCardinalityStoragePart cardinalitySibling(@Nonnull List<StoragePart> parts) {
 		final List<HistogramCardinalityStoragePart> siblings = cardinalitySiblings(parts);
-		return siblings.isEmpty() ? null : siblings.get(0);
+		return siblings.isEmpty() ? null : siblings.getFirst();
 	}
 
 	@Nonnull
@@ -1893,7 +1893,7 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 		if (roots.isEmpty()) {
 			throw new IllegalStateException("The emission carries no HistogramIndexStoragePart root!");
 		}
-		return roots.get(0);
+		return roots.getFirst();
 	}
 
 	@Nonnull

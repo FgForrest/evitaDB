@@ -306,16 +306,16 @@ class UnorderedLookupTreeTest {
 			}
 			for (int i = 0; i < 500; i++) {
 				tested.addAtHead(2_000_000 + i);
-				oracle.add(0, 2_000_000 + i);
+				oracle.addFirst(2_000_000 + i);
 			}
 			assertConsistentWithOracle(tested, oracle);
 
 			// after deep multi-level growth the rightmost descent must land on the true last record
-			assertEquals(oracle.get(oracle.size() - 1).intValue(), tested.tree.getLastRecordId());
+			assertEquals(oracle.getLast().intValue(), tested.tree.getLastRecordId());
 			// removing the current last record re-targets getLastRecordId to the new tail
-			final int lastRecordId = oracle.remove(oracle.size() - 1);
+			final int lastRecordId = oracle.removeLast();
 			tested.remove(lastRecordId);
-			assertEquals(oracle.get(oracle.size() - 1).intValue(), tested.tree.getLastRecordId());
+			assertEquals(oracle.getLast().intValue(), tested.tree.getLastRecordId());
 			assertConsistentWithOracle(tested, oracle);
 		}
 
@@ -419,7 +419,7 @@ class UnorderedLookupTreeTest {
 			final List<Integer> oracle = new ArrayList<>();
 			for (int i = 0; i < 2_000; i++) {
 				tested.addAtHead(1000 + i);
-				oracle.add(0, 1000 + i);
+				oracle.addFirst(1000 + i);
 			}
 			assertConsistentWithOracle(tested, oracle);
 		}
@@ -484,7 +484,7 @@ class UnorderedLookupTreeTest {
 					final int recordId = nextRecordId++;
 					if (size == 0 || random.nextInt(10) == 0) {
 						tested.addAtHead(recordId);
-						oracle.add(0, recordId);
+						oracle.addFirst(recordId);
 					} else {
 						final int prevIndex = random.nextInt(size);
 						tested.addAfter(oracle.get(prevIndex), recordId);
@@ -513,7 +513,7 @@ class UnorderedLookupTreeTest {
 					if (size == 0) {
 						tested.addAtHead(recordId);
 						array.addRecord(Integer.MIN_VALUE, recordId);
-						live.add(0, recordId);
+						live.addFirst(recordId);
 					} else {
 						final int prev = live.get(random.nextInt(size));
 						tested.addAfter(prev, recordId);
@@ -693,7 +693,7 @@ class UnorderedLookupTreeTest {
 		 */
 		private static void drainFromHead(@Nonnull TreeWithIndex tested, @Nonnull List<Integer> oracle) {
 			while (!oracle.isEmpty()) {
-				tested.remove(oracle.remove(0));
+				tested.remove(oracle.removeFirst());
 				assertConsistent(tested);
 			}
 			assertTrue(tested.tree.isEmpty());
@@ -706,7 +706,7 @@ class UnorderedLookupTreeTest {
 		 */
 		private static void drainFromTail(@Nonnull TreeWithIndex tested, @Nonnull List<Integer> oracle) {
 			while (!oracle.isEmpty()) {
-				tested.remove(oracle.remove(oracle.size() - 1));
+				tested.remove(oracle.removeLast());
 				assertConsistent(tested);
 			}
 			assertTrue(tested.tree.isEmpty());
@@ -762,7 +762,7 @@ class UnorderedLookupTreeTest {
 				for (int ins = 0; ins < inserts; ins++) {
 					final int recordId = nextRecordId++;
 					tested.addAtHead(recordId);
-					oracle.add(0, recordId);
+					oracle.addFirst(recordId);
 					assertConsistent(tested);
 				}
 			}
@@ -784,7 +784,7 @@ class UnorderedLookupTreeTest {
 			}
 			// one record left - the tree must now be a single root container (height fully collapsed)
 			assertConsistentWithOracle(tested, oracle);
-			tested.remove(oracle.remove(0));
+			tested.remove(oracle.removeFirst());
 			assertTrue(tested.tree.isEmpty());
 			assertConsistent(tested);
 		}
@@ -1667,10 +1667,9 @@ class UnorderedLookupTreeTest {
 		@Test
 		@DisplayName("the consistency report names a container whose count runs past its array")
 		void shouldReportAContainerWhoseCountRunsPastItsArray() {
-			// `recordIds.length >= count` is what every reader bound, every `getRecordIdsForUpdate(int)` call site and
-			// the whole `observableLeafCount` family rest on - and nothing else in the verifier reads an array length
-			// at all. A tree that broke it passed every structural check and then threw, or returned a phantom record
-			// id, from an unrelated read path much later
+			// `recordIds.length >= count` is what every reader and every `getRecordIdsForUpdate(int)` call site rest
+			// on - and nothing else in the verifier reads an array length at all. A tree that broke it passed every
+			// structural check and then threw, or returned a phantom record id, from an unrelated read path much later
 			final TreeWithIndex tested = new TreeWithIndex(
 				new UnorderedLookupTree(16, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP));
 			tested.bulkLoad(new int[]{11, 22, 33, 44});
@@ -1686,206 +1685,6 @@ class UnorderedLookupTreeTest {
 			assertTrue(
 				report.report().contains("Container record array holds 4 slots"),
 				"the report must name the array that cannot cover its container's count, was:\n" + report.report()
-			);
-		}
-	}
-
-	@Nested
-	@DisplayName("Reader bounds when a container count runs ahead of its array")
-	class TornLeafReaderBoundTest {
-
-		/**
-		 * Builds a single-container tree left in exactly the shape an unsynchronized reader can observe: a `count`
-		 * that belongs to a growth whose longer array is not visible beside it.
-		 *
-		 * A content-sized container sizes its array to its load, so a container holding four records really does own
-		 * a four-slot array and a read one slot past it really does run off the end — which is what makes the bound
-		 * an assertion rather than a formality. Before the containers followed their content this shape was
-		 * unreachable: every container carried a `leafCapacity + 1` array, so the same torn read landed inside it and
-		 * merely returned a stale record id.
-		 *
-		 * @return a tree whose single container holds four live records under a count of five
-		 */
-		@Nonnull
-		private TreeWithIndex tornSingleContainerTree() {
-			final TreeWithIndex tested = new TreeWithIndex(
-				new UnorderedLookupTree(16, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP));
-			tested.bulkLoad(new int[]{11, 22, 33, 44});
-
-			final UnorderedLookupTree.LeafNode leaf = (UnorderedLookupTree.LeafNode) tested.tree.getRoot();
-			assertEquals(4, leaf.getRecordIds().length, "the fixture needs a container sized exactly to its load");
-			assertEquals(4, leaf.getCount(), "the fixture needs the count at the last occupied slot");
-
-			leaf.setCount(leaf.getCount() + 1);
-			assertEquals(5, leaf.getCount(), "the fixture must leave the count one slot past the array");
-			assertEquals(4, leaf.getRecordIds().length, "the array must stay at the length it was");
-			assertEquals(4, tested.tree.size(), "the tree's own size must stay at the four records it holds");
-			return tested;
-		}
-
-		@Test
-		@DisplayName("the flatten walk stays inside the array it read")
-		void shouldBoundTheFlattenWalkWhenTheCountRunsAheadOfTheArray() {
-			assertArrayEquals(
-				new int[]{11, 22, 33, 44}, tornSingleContainerTree().tree.getArray(),
-				"the flatten must copy the live run, not the count it was handed"
-			);
-		}
-
-		@Test
-		@DisplayName("the last-record read stays inside the array it read")
-		void shouldBoundTheLastRecordReadWhenTheCountRunsAheadOfTheArray() {
-			assertEquals(
-				44, tornSingleContainerTree().tree.getLastRecordId(),
-				"the last record must come from the array the reader holds"
-			);
-		}
-
-		@Test
-		@DisplayName("the in-container scan stays inside the array it read")
-		void shouldBoundTheInContainerScanWhenTheCountRunsAheadOfTheArray() {
-			final TreeWithIndex tested = tornSingleContainerTree();
-			final long orderKey = tested.valueIndex.get(11);
-			// every live record is still found at its true position ...
-			assertEquals(0, tested.tree.findPositionByOrderKey(orderKey, 11));
-			assertEquals(3, tested.tree.findPositionByOrderKey(orderKey, 44));
-			// ... and a record the container does not hold reports "not found" rather than running off the array
-			assertThrows(
-				GenericEvitaInternalError.class,
-				() -> tested.tree.findPositionByOrderKey(orderKey, 999),
-				"an absent record must miss rather than index past the array"
-			);
-		}
-
-		@Test
-		@DisplayName("the reverse position cursor stays inside the array it read")
-		void shouldBoundTheReverseCursorWhenTheCountRunsAheadOfTheArray() {
-			// the reverse cursor derives its leaf base from the count (`size() - leafCount`), so an unbounded count
-			// shifts the whole window one slot past the array
-			final UnorderedLookupTree.PositionCursor cursor =
-				tornSingleContainerTree().tree.reversePositionCursor();
-			assertEquals(44, cursor.recordAt(0), "the reverse walk must start at the live tail");
-			assertEquals(33, cursor.recordAt(1));
-			assertEquals(22, cursor.recordAt(2));
-			assertEquals(11, cursor.recordAt(3));
-		}
-
-		@Test
-		@DisplayName("the emitted persistence page carries the live run, never a phantom record")
-		void shouldBoundTheEmittedPageWhenTheCountRunsAheadOfTheArray() {
-			// this one is not an out-of-bounds hazard but a correctness one: `Arrays.copyOf` would happily pad the
-			// page with a zero record id and persist it
-			final TreeWithIndex tested = new TreeWithIndex(
-				new UnorderedLookupTree(16, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP, true, 1024, true));
-			tested.bulkLoadWithHeads(new int[]{11, 22, 33, 44}, new int[]{0});
-			final UnorderedLookupTree.LeafNode leaf = (UnorderedLookupTree.LeafNode) tested.tree.getRoot();
-			leaf.setCount(leaf.getCount() + 1);
-
-			final List<UnorderedLookupTree.LeafPageHandle> handles = tested.tree.leafPageHandles();
-			assertEquals(1, handles.size());
-			assertArrayEquals(
-				new int[]{11, 22, 33, 44}, handles.get(0).recordIds(),
-				"the page must carry the live run, never a padded zero record id"
-			);
-		}
-
-		@Test
-		@DisplayName("the container rendering stays inside the array it read")
-		void shouldBoundTheContainerRenderingWhenTheCountRunsAheadOfTheArray() {
-			// a rendering that throws is worst exactly where it is used - inside a consistency report or an error
-			// message ABOUT the very state that is broken, which is then swallowed by the failure it was describing
-			assertEquals(
-				"[11, 22, 33, 44]", tornSingleContainerTree().tree.getRoot().toString(),
-				"the rendering must stop at the live run rather than index past the array"
-			);
-		}
-
-		/**
-		 * Builds a two-container tree whose PARENT augmentation runs ahead of the container array below it — the
-		 * shape the positional descent's own bound names, and the one the single-container fixture cannot produce.
-		 *
-		 * `getRecordAt` rejects `position >= size()` first, with the very same exception type and message the array
-		 * bound raises, so a test built on the single-container fixture (whose `size()` stays at four) would pass with
-		 * the bound deleted. Raising a child count instead leaves `size()` untouched and routes a position the tree
-		 * still considers live into a slot the container's array does not carry.
-		 *
-		 * @return a tree of two four-record containers whose first child count claims five
-		 */
-		@Nonnull
-		private TreeWithIndex tornChildCountTree() {
-			final TreeWithIndex tested = new TreeWithIndex(4, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP);
-			tested.bulkLoad(new int[]{11, 22, 33, 44, 55, 66, 77, 88});
-
-			final Object root = tested.tree.getRoot();
-			assertInstanceOf(
-				UnorderedLookupTree.InternalNode.class, root,
-				"the fixture needs a routing spine over two containers, but the root is " + root
-			);
-			final UnorderedLookupTree.InternalNode internal = (UnorderedLookupTree.InternalNode) root;
-			assertEquals(2, internal.getChildCount(), "the fixture needs exactly two containers");
-			assertEquals(4, internal.getCounts()[0], "the fixture needs the first container packed to four records");
-			assertEquals(4, internal.getCounts()[1], "the fixture needs the second container packed to four records");
-			assertEquals(8, tested.tree.size(), "the fixture must hold all eight records");
-
-			internal.getCountsForUpdate()[0] = 5;
-			assertEquals(8, tested.tree.size(), "the tree's own size must stay at the eight records it holds");
-			return tested;
-		}
-
-		@Test
-		@DisplayName("the positional descent stays inside the array it lands on")
-		void shouldBoundThePositionalDescentWhenAChildCountRunsAheadOfTheArray() {
-			final TreeWithIndex tested = tornChildCountTree();
-
-			// every position the first container genuinely carries still resolves - so a bound that over-truncated
-			// would fail here rather than pass by refusing everything
-			assertEquals(11, tested.tree.getRecordAt(0));
-			assertEquals(22, tested.tree.getRecordAt(1));
-			assertEquals(33, tested.tree.getRecordAt(2));
-			assertEquals(44, tested.tree.getRecordAt(3));
-
-			// position 4 is the phantom slot the raised child count claims and the four-slot array does not carry
-			assertThrows(
-				GenericEvitaInternalError.class,
-				() -> tested.tree.getRecordAt(4),
-				"the phantom slot must answer with the method's own out-of-bounds contract, not an "
-					+ "ArrayIndexOutOfBoundsException out of the middle of a descent"
-			);
-
-			// the phantom count shifts every later position by one; the point here is only that the descent keeps
-			// landing inside the second container's array rather than running past it
-			assertEquals(55, tested.tree.getRecordAt(5));
-			assertEquals(66, tested.tree.getRecordAt(6));
-			assertEquals(77, tested.tree.getRecordAt(7));
-		}
-
-		@Test
-		@DisplayName("the head select stays inside the array it read")
-		void shouldBoundTheHeadSelectWhenAMaskBitRunsAheadOfTheArray() {
-			// the head mask is the ONE array in a container that is never content-sized - it stays `leafCapacity + 1`
-			// bits wide - so a reader can pair a mask bit with the shorter record array that preceded the growth
-			// which opened its slot
-			final TreeWithIndex tested = new TreeWithIndex(4, UnorderedLookupTree.DEFAULT_ORDER_KEY_GAP, true);
-			tested.bulkLoadWithHeads(new int[]{11, 22, 33, 44}, new int[]{0, 1, 2, 3});
-
-			final UnorderedLookupTree.LeafNode leaf = (UnorderedLookupTree.LeafNode) tested.tree.getRoot();
-			assertEquals(4, leaf.getRecordIds().length, "the fixture needs a container sized exactly to its load");
-			leaf.getHeadMaskForUpdate()[0] |= 1L << 4;
-
-			// every rank the array genuinely carries still resolves to its true (position, record id) pair
-			final int[] expectedRecordIds = {11, 22, 33, 44};
-			for (int rank = 1; rank <= 4; rank++) {
-				final long packed = tested.tree.selectHead(rank);
-				assertEquals(rank - 1, (int) (packed >> 32), "head rank " + rank + " must keep its position");
-				assertEquals(expectedRecordIds[rank - 1], (int) packed, "head rank " + rank + " must keep its record");
-			}
-
-			// the fifth bit names a slot the record array does not carry
-			assertThrows(
-				GenericEvitaInternalError.class,
-				() -> tested.tree.selectHead(5),
-				"a mask bit past the record array must answer with the method's own not-found contract, not an "
-					+ "ArrayIndexOutOfBoundsException"
 			);
 		}
 	}

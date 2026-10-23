@@ -1766,25 +1766,23 @@ public class TransactionManager implements Closeable {
 	 * ample headroom for back-pressure spikes and executor queue drain times; a floor of 60s keeps the
 	 * threshold sensible on deployments that tune the acceptance timeout very low.
 	 *
-	 * **The assumption, and where it does not hold.** This is a *wall-clock* deadline standing in for a
-	 * liveness signal: "pending longer than the worst-case pipeline latency ⇒ dangling". That inference
-	 * is sound whenever the pipeline gets to run, and false exactly when the host is oversubscribed —
-	 * a starved executor makes a perfectly healthy commit look identical to a dropped one, because the
-	 * only thing being measured is elapsed time. Symptom: commits failed by
-	 * {@link PendingCommitProgressRegistry#sweepRecordsOlderThan} on a loaded machine with nothing wrong
-	 * in the pipeline. Before hunting a transaction bug, check the load.
+	 * **The assumption, and where it does not hold.** For {@link #waitUntilLiveVersionReaches} this is a
+	 * *wall-clock* deadline standing in for a liveness signal, which is false exactly when the host is
+	 * oversubscribed — a starved executor makes a perfectly healthy propagation look identical to a stalled
+	 * one. Before hunting a transaction bug on a loaded machine, check the load.
 	 *
-	 * The threshold is deliberately **not** tuned for that case: on a live deployment a commit pending
-	 * 100s is pathological, and relaxing a safety mechanism on the evidence of a contended CI box would
-	 * trade a real guard for a test-harness convenience. Callers that knowingly run oversubscribed
-	 * should instead raise
+	 * The dangling-commit sweeper is no longer exposed to that: it measures time without pipeline
+	 * progress rather than elapsed time (see {@link PendingCommitProgressRegistry#sweepStalledRecords}),
+	 * because a wall-clock bound failed a single large transaction the pipeline was still replaying on a
+	 * loaded host. It fires only when nothing advances for the whole deadline, or when the live view has
+	 * moved past a record the pipeline never completed.
+	 *
+	 * The threshold is deliberately **not** tuned for contended hosts: on a live deployment a pipeline
+	 * stalled for 100s is pathological, and relaxing a safety mechanism on the evidence of a contended CI
+	 * box would trade a real guard for a test-harness convenience. Callers that knowingly run
+	 * oversubscribed should instead raise
 	 * {@link io.evitadb.api.configuration.TransactionOptions.Builder#waitForTransactionAcceptanceInMillis(long)},
 	 * which scales this deadline with it — see `SharedRgeiSoakTest` in `evita_long_running_tests`.
-	 *
-	 * A progress-aware sweep (re-anchoring the clock whenever a record advances a pipeline stage, or
-	 * failing only records the live catalog version has already moved past) would separate "slow" from
-	 * "dropped" without a bigger number, and is the principled upgrade should this become a recurring
-	 * problem in production rather than in tests.
 	 *
 	 * @return the stall-detection deadline in milliseconds
 	 */
@@ -2070,10 +2068,10 @@ public class TransactionManager implements Closeable {
 
 	/**
 	 * Periodic watchdog body for {@link #pendingProgressSweepTask}. Fails every record in
-	 * {@link #pendingCommitProgressRegistry} whose pending age exceeds a safety threshold derived
-	 * from the configured transaction-acceptance timeout — if a record has been pending that long
-	 * the pipeline has certainly dropped it and any client awaiting it is better served by a
-	 * descriptive exception than by silence.
+	 * {@link #pendingCommitProgressRegistry} the pipeline has evidently lost - one it has made no progress
+	 * towards, or one the live view has moved past, for longer than a safety threshold derived from the
+	 * configured transaction-acceptance timeout (see {@link PendingCommitProgressRegistry#sweepStalledRecords}).
+	 * Any client awaiting such a record is better served by a descriptive exception than by silence.
 	 *
 	 * The task pauses when the registry drains and re-schedules itself as soon as a new record is
 	 * registered (via {@link #registerPendingCommitProgress}).
@@ -2082,8 +2080,23 @@ public class TransactionManager implements Closeable {
 	 * pause when there is nothing left to watch over
 	 */
 	private long sweepDanglingCommitProgress() {
-		this.pendingCommitProgressRegistry.sweepRecordsOlderThan(Duration.ofMillis(safetyDeadlineMs()));
+		final Catalog theLivingCatalog = getLivingCatalog();
+		if (theLivingCatalog == null) {
+			// a closed manager has already failed every pending record, and the closed task would not run again
+			return -1L;
+		}
+		this.pendingCommitProgressRegistry.sweepStalledRecords(
+			Duration.ofMillis(safetyDeadlineMs()), theLivingCatalog.getVersion()
+		);
 		return this.pendingCommitProgressRegistry.size() > 0 ? 0L : -1L;
+	}
+
+	/**
+	 * Records that trunk incorporation has just advanced, so that the dangling-commit watchdog spares the records it
+	 * is still working towards - see {@link PendingCommitProgressRegistry#recordPipelineProgress()}.
+	 */
+	public void recordPipelineProgress() {
+		this.pendingCommitProgressRegistry.recordPipelineProgress();
 	}
 
 	/**
@@ -2168,6 +2181,8 @@ public class TransactionManager implements Closeable {
 					final CatalogBoundMutation mutation = mutationIterator.next();
 					log.debug("Processing mutation: {}", mutation);
 					atomicMutationCount++;
+					// a single large transaction may take long to replay - keep the watchdog from taking it for lost
+					this.pendingCommitProgressRegistry.recordPipelineProgress();
 					if (mutation instanceof EntityUpsertMutation entityUpsertMutation) {
 						lastFinalizedCatalog.applyMutation(
 							evita,

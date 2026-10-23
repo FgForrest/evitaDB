@@ -28,6 +28,7 @@ import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.bitmap.SingleRecordBitmap;
+import io.evitadb.index.fulltext.FulltextFieldKey;
 import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzer;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
@@ -118,7 +119,7 @@ class ShortPrefixPrecomputationMeasurementTest {
 	/**
 	 * The one indexed field.
 	 */
-	private static final String FIELD = "name";
+	private static final FulltextFieldKey FIELD = FulltextFieldKey.attribute("name");
 	/**
 	 * Number of sampled forms whose prefixes are the measured fragments.
 	 */

@@ -27,9 +27,11 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
+import java.util.function.IntFunction;
 
 /**
- * Extends {@link IndexProvider} with mutative operations — index removal and a fail-fast (throwing) primary key
+ * Extends {@link IndexProvider} with mutative operations — index removal, installation of an index under a primary
+ * key handed out earlier, allocation of a primary key without an index, and a fail-fast (throwing) primary key
  * lookup. Allows providing custom implementations to the logic that creates new {@link EntityIndex} instances
  * (allowing for example to create altered forms of the EntityIndex if needed) or removing existing ones.
  *
@@ -69,5 +71,38 @@ public interface IndexMaintainer<K extends IndexKey, T extends Index<K>> extends
 	 * @throws IllegalArgumentException if no index for passed key exists
 	 */
 	void removeIndex(@Nonnull K entityIndexKey);
+
+	/**
+	 * Installs the index `factory` creates under `indexKey` and a primary key the index sequence has already handed
+	 * out - one allocated by {@link #allocatePartitionPrimaryKey()} for a partition that had no index object so far,
+	 * or one whose index was retired through {@link #removeIndex(IndexKey)} earlier. Unlike
+	 * {@link #getOrCreateIndex(IndexKey)}, this never advances the sequence.
+	 *
+	 * The installed index is registered exactly as a newly created one is - under its key and under its primary key,
+	 * among the indexes the running mutation modified, and in the counts of the maintained indexes - so a rollback
+	 * reverts it and the next flush persists it like any other. Retiring it again is {@link #removeIndex(IndexKey)}.
+	 *
+	 * @param indexKey   the key to install the index under; no index may be registered under it
+	 * @param primaryKey the primary key to install the index under; the sequence must have handed it out already and
+	 *                   no index may be registered under it
+	 * @param factory    creates the index for the primary key; the index must carry `indexKey` and `primaryKey`
+	 * @return the installed index
+	 * @throws GenericEvitaInternalError when the key or the primary key is taken, when the sequence has not handed the
+	 *                                   primary key out yet, when the factory creates an index of another key or
+	 *                                   primary key, or when the maintainer does not support installing indexes
+	 */
+	@Nonnull
+	T installIndex(@Nonnull K indexKey, int primaryKey, @Nonnull IntFunction<T> factory);
+
+	/**
+	 * Hands out a new primary key from the index sequence without creating any index for it - the identity of a
+	 * partition that exists only as a row of its registry until an index object is installed under it by
+	 * {@link #installIndex(IndexKey, int, IntFunction)}. The sequence is not transactional: a primary key handed out
+	 * by a mutation that is rolled back stays used and is never handed out again.
+	 *
+	 * @return the new primary key
+	 * @throws GenericEvitaInternalError when the maintainer does not support allocating primary keys on their own
+	 */
+	int allocatePartitionPrimaryKey();
 
 }

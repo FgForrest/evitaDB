@@ -2887,8 +2887,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 				session.defineEntitySchemaFromModelClass(GetterBasedEntityNarrowingEvolutionV1.class);
 				final SealedEntitySchema initial = session.getEntitySchema(
 					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
-				assertTrue(((EntityAttributeSchema) initial.getAttribute("representativeCode")
-					.orElseThrow()).isRepresentative());
+				assertTrue(initial.getAttribute("representativeCode")
+					.orElseThrow().isRepresentative());
 
 				final LocalCatalogSchemaMutation[] mutations = analyzeAndCaptureMutations(
 					session, GetterBasedEntityNarrowingEvolutionV2NarrowAll.class
@@ -2904,8 +2904,8 @@ class ClassSchemaAnalyzerTest implements EvitaTestSupport {
 
 				final SealedEntitySchema updated = session.getEntitySchema(
 					GetterBasedEntityNarrowingEvolutionV1.ENTITY_NAME).orElseThrow();
-				assertFalse(((EntityAttributeSchema) updated.getAttribute("representativeCode")
-					.orElseThrow()).isRepresentative());
+				assertFalse(updated.getAttribute("representativeCode")
+					.orElseThrow().isRepresentative());
 			}
 		);
 	}

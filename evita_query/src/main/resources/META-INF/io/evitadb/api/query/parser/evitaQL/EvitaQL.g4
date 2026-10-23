@@ -92,8 +92,8 @@ filterConstraint
     | 'anyHaving'                           args = filterConstraintListArgs                                 # hierarchyAnyHavingConstraint
     | 'excludingRoot'                       emptyArgs                                                       # hierarchyExcludingRootConstraint
     | 'excluding'                           args = filterConstraintListArgs                                 # hierarchyExcludingConstraint
-    | 'entityHaving'                        args = filterConstraintArgs                                     # entityHavingConstraint
-    | 'groupHaving'                         args = filterConstraintArgs                                     # groupHavingConstraint
+    | 'entityHaving'                        args = filterConstraintListArgs                                 # entityHavingConstraint
+    | 'groupHaving'                         args = filterConstraintListArgs                                 # groupHavingConstraint
     | 'inScope'                             args = inScopeFilterArgs                                        # filterInScopeConstraint
     | 'scope'                               args = valueListArgs                                            # entityScopeConstraint
     ;

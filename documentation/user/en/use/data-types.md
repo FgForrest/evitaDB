@@ -260,6 +260,12 @@ wall-clock data such as opening hours or a recurring schedule. If your data *is*
 with the
 [OffsetDateTime](https://docs.oracle.com/en/java/javase/17/docs/api/java.base/java/time/OffsetDateTime.html) on the
 client side and be explicit about the offset from the first day.
+
+An `OffsetDateTime` is compared, sorted and indexed by the moment it denotes. Two values denoting the same moment at
+different offsets — `2024-01-01T11:00+02:00` and `2024-01-01T10:00+01:00` — sort as ties, whether you order by the
+attribute itself or by a sortable attribute compound containing it. The tie is broken like any other tie in the
+ordering: by the next element of the compound, or by the primary key in the ordering direction. The value you read back
+keeps the offset you wrote.
 </LS>
 <LS to="c">
 Although evitaDB supports *local* variants of the date time like
@@ -268,6 +274,12 @@ using the evitaDB server system default timezone. You can control the default Ja
 [several ways](https://www.baeldung.com/java-jvm-time-zone). If your data is time zone specific, we recommend to work
 directly with the [DateTimeOffset](https://learn.microsoft.com/en-us/dotnet/api/system.datetimeoffset)
 on the client side and be explicit about the offset from the first day.
+
+A `DateTimeOffset` is compared, sorted and indexed by the moment it denotes. Two values denoting the same moment at
+different offsets — `2024-01-01T11:00+02:00` and `2024-01-01T10:00+01:00` — sort as ties, whether you order by the
+attribute itself or by a sortable attribute compound containing it. The tie is broken like any other tie in the
+ordering: by the next element of the compound, or by the primary key in the ordering direction. The value you read back
+keeps the offset you wrote.
 </LS>
 
 <Note type="question">
@@ -312,18 +324,50 @@ millisecond become indistinguishable — they compare equal, sort as ties and sh
 [DateTimeRange](#datetimerange) follows the same rule. It compares, sorts and matches its boundaries at millisecond
 precision, so two ranges whose boundaries differ only below the millisecond are the same range — they compare equal,
 sort as ties and share one index entry. A range keeps the sub-millisecond digits of the boundary values you gave it,
-but nothing in the database ever looks at them. (Ranges used to compare at whole-**second** granularity; they are
-strictly more precise now, and two ranges less than a second apart are no longer treated as one.)
+but nothing in the database ever looks at them. Two ranges whose boundaries differ by a millisecond or more are
+different ranges, even when the boundaries fall within the same second.
 
 `LocalDate` is the only date/time type left out — it carries no sub-day component, so there is nothing to truncate.
 
-The instant a temporal value denotes must be expressible as a whole number of milliseconds since the epoch in a
-64-bit number. That range spans roughly ±292 million years around 1970, so every realistic calendar date fits
-comfortably; only the JDK's own extreme sentinels — `LocalDateTime.MIN` / `LocalDateTime.MAX` and their
-`OffsetDateTime` counterparts — fall outside it and are rejected with an error naming the value and the supported
-range. Use an explicit finite boundary, or an open-ended [DateTimeRange](#datetimerange), instead of a sentinel. A
-`DateTimeRange` boundary beyond that span is not rejected but clamped to it, which makes it behave exactly like an
-open-ended boundary.
+evitaDB holds every temporal value as a whole number of milliseconds since the epoch in a 64-bit number. That window
+spans roughly ±292 million years around 1970, so every realistic calendar date fits comfortably. A value outside it is
+clamped to its nearest edge — in practice only the JDK's own extreme sentinels such as `OffsetDateTime.MAX`, which
+therefore work as "since forever" / "until forever" markers.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### What exactly happens to a value outside the window?
+</NoteTitle>
+
+The window spans from `-292275055-05-16T16:47:06Z` to `+292278994-08-17T07:12:54.999Z`. An `OffsetDateTime` or
+`LocalDateTime` outside it is clamped to its nearest edge, both when it is written as an attribute value and when it
+is used as an argument of a query constraint. This concerns the JDK's own extreme sentinels — `LocalDateTime.MIN` /
+`LocalDateTime.MAX` and their `OffsetDateTime` counterparts: `OffsetDateTime.MAX` is stored as the latest supported
+instant, keeping its `-18:00` offset (`+292278994-08-16T13:12:54.999-18:00`), it is read back as that value, and
+`attributeEquals("validUntil", OffsetDateTime.MAX)` finds it, because the query argument is clamped to the very same
+value. A `LocalDateTime` is clamped as the wall clock at UTC. A `DateTimeRange` boundary beyond the window is clamped
+to it as well, which makes it behave exactly like an open-ended boundary.
+
+</Note>
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### How does the gRPC API carry the extreme values?
+</NoteTitle>
+
+The gRPC API narrows the window further: it carries temporal values as a protobuf `Timestamp`, which spans
+`0001-01-01T00:00:00Z` to `9999-12-31T23:59:59.999999999Z`. A value outside that range leaves the server as its
+first or last second. A value reaching the server at exactly `0001-01-01T00:00:00Z`, or anywhere within the last
+second of the range, is taken for the `MIN` / `MAX` sentinel of its type (for a `LocalDate`, the first or last day of
+the range is). Every other moment of year 1 or year 9999 is stored exactly as it was sent. The Java client therefore
+round-trips `OffsetDateTime.MAX` as `OffsetDateTime.MAX`, where the embedded API reads back the clamped value.
+
+</Note>
+
 </LS>
 <LS to="c">
 evitaDB stores and matches temporal values at **millisecond** precision. A `DateTimeOffset`, `DateTime` or `TimeOnly`
@@ -340,17 +384,33 @@ become indistinguishable — they compare equal, sort as ties and share one inde
 [DateTimeRange](#datetimerange) follows the same rule. It compares, sorts and matches its boundaries at millisecond
 precision, so two ranges whose boundaries differ only below the millisecond are the same range — they compare equal,
 sort as ties and share one index entry. A range keeps the sub-millisecond digits of the boundary values you gave it,
-but nothing in the database ever looks at them. (Ranges used to compare at whole-**second** granularity; they are
-strictly more precise now, and two ranges less than a second apart are no longer treated as one.)
+but nothing in the database ever looks at them. Two ranges whose boundaries differ by a millisecond or more are
+different ranges, even when the boundaries fall within the same second.
 
 `DateOnly` is the only date/time type left out — it carries no sub-day component, so there is nothing to truncate.
 
-The instant a temporal value denotes must be expressible as a whole number of milliseconds since the epoch in a
-64-bit number. That range spans roughly ±292 million years around 1970, so every realistic calendar date fits
-comfortably; only extreme sentinel values fall outside it and are rejected with an error naming the value and the
-supported range. Use an explicit finite boundary, or an open-ended [DateTimeRange](#datetimerange), instead of a
-sentinel. A `DateTimeRange` boundary beyond that span is not rejected but clamped to it, which makes it behave
-exactly like an open-ended boundary.
+evitaDB holds every temporal value as a whole number of milliseconds since the epoch in a 64-bit number. That window
+spans roughly ±292 million years around 1970, so it covers the whole range of `DateTime` and `DateTimeOffset`.
+`DateTime.MinValue` and `DateTime.MaxValue` work as "since forever" / "until forever" markers.
+
+<Note type="info">
+
+<NoteTitle toggles="true">
+
+##### How are `DateTime.MinValue` and `DateTime.MaxValue` stored?
+</NoteTitle>
+
+Temporal values travel to the server as a protobuf `Timestamp`, which spans `0001-01-01T00:00:00Z` to
+`9999-12-31T23:59:59.999999999Z`. A value at exactly `0001-01-01T00:00:00Z` (`DateTime.MinValue`) or anywhere within
+the last second of that range (`DateTime.MaxValue` included) is taken for the "since forever" / "until forever"
+sentinel: the server clamps it to the nearest edge of its own window, both when it is written as an attribute value
+and when it is used as an argument of a query constraint, so a query written with `DateTime.MaxValue` finds an
+attribute written with `DateTime.MaxValue`. Such a value is sent back as `0001-01-01T00:00:00Z` or
+`9999-12-31T23:59:59Z` respectively. A `DateOnly` is treated the same way at day granularity: `0001-01-01` and
+`9999-12-31` are the sentinels. Every other moment of year 1 or year 9999 is stored exactly as it was sent.
+
+</Note>
+
 </LS>
 
 ### DateTimeRange

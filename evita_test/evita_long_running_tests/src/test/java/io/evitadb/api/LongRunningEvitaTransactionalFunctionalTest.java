@@ -753,7 +753,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 					ServerOptions.builder(originalConfiguration.server())
 						.transactionThreadPool(
 							ThreadPoolOptions.transactionThreadPoolBuilder()
-								.threadPriority(Thread.MAX_PRIORITY)
 								.queueSize(16_384)
 								.build()
 						)
@@ -871,7 +870,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 					ServerOptions.builder(originalConfiguration.server())
 						.transactionThreadPool(
 							ThreadPoolOptions.transactionThreadPoolBuilder()
-								.threadPriority(Thread.MAX_PRIORITY)
 								.queueSize(16_384)
 								.build()
 						)
@@ -912,7 +910,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 					ServerOptions.builder(originalConfiguration.server())
 						.transactionThreadPool(
 							ThreadPoolOptions.transactionThreadPoolBuilder()
-								.threadPriority(Thread.MAX_PRIORITY)
 								.queueSize(16_384)
 								.build()
 						)
@@ -1018,7 +1015,6 @@ public class LongRunningEvitaTransactionalFunctionalTest implements EvitaTestSup
 					ServerOptions.builder(originalConfiguration.server())
 						.transactionThreadPool(
 							ThreadPoolOptions.transactionThreadPoolBuilder()
-								.threadPriority(Thread.MAX_PRIORITY)
 								.queueSize(16_384)
 								.build()
 						)

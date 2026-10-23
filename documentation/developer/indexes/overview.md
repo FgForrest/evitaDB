@@ -24,15 +24,36 @@
             concrete implementations exist: `ReducedEntityIndex` (for `REFERENCED_ENTITY`) and
             `ReducedGroupEntityIndex` (for `REFERENCED_GROUP_ENTITY`), which adds cardinality
             tracking for primary keys and filter attributes. Both extend `AbstractReducedEntityIndex`.
+            A `ReducedEntityIndex` is the index-object form of a reference partition; a partition with
+            a single owner of a reference indexed `FOR_FILTERING` has none and is a row of the
+            registry of single-owner partitions instead.
+        </dd>
+        <dt>reference partition</dt>
+        <dd>
+            What the engine indexes about the owners of one Representative Reference Key in one
+            scope. Reached through the sealed `ReferencePartition` handle, it takes one of two forms:
+            a `ReducedEntityIndex`, or a row of the registry of single-owner partitions read as a
+            `VirtualReferencePartition`. Every partition a reference indexed
+            `FOR_FILTERING_AND_PARTITIONING` creates is a `ReducedEntityIndex`; a partition of a
+            reference indexed `FOR_FILTERING` is a registry row while it has a single owner and a
+            `ReducedEntityIndex` while it has more.
+        </dd>
+        <dt>registry of single-owner partitions</dt>
+        <dd>
+            The `VirtualReferencePartitionIndex` a Referenced Type Entity Index carries. It holds one
+            row per single-owner partition of a reference indexed `FOR_FILTERING` -- the owner, the
+            referenced entity, the representative attribute values, and the partition's sort values
+            and chain predecessors -- and orders the partitions by their sort values. The row is the
+            partition's only representation.
         </dd>
         <dt>Referenced Type Entity Index</dt>
         <dd>
             A lightweight aggregation index that exists once per reference name. Its `entityIds`
-            bitmap stores the storage primary keys of the `ReducedEntityIndex` instances (one per
-            unique referenced target) rather than owning entity PKs. Maintains only reference
-            attribute filter indexes (no sort) with cardinality tracking to handle correct
-            deduplication when multiple owning entities contribute the same attribute value.
-            Uses VoidPriceIndex (a no-op singleton).
+            bitmap stores the primary keys of the reference's partitions -- `ReducedEntityIndex`
+            storage PKs and registry rows alike -- rather than owning entity PKs. Maintains only
+            reference attribute filter indexes (no sort) with cardinality tracking to handle correct
+            deduplication when multiple owning entities contribute the same attribute value, and
+            carries the registry of single-owner partitions. Uses VoidPriceIndex (a no-op singleton).
         </dd>
         <dt>Entity Index Key</dt>
         <dd>
@@ -52,7 +73,7 @@
             representative attributes -- declared via the schema's `representative` flag on specific
             reference attributes -- serve as tie-breakers that distinguish otherwise-identical
             reference relationships. Each distinct combination of representative attribute values
-            produces its own Reduced Entity Index instance with its own attribute and price data.
+            produces its own reference partition, holding the data of that one relationship.
             Without this mechanism, duplicate references (same source entity, same target entity,
             same reference name) would collapse into a single index and lose their individual
             attribute data.
@@ -84,8 +105,8 @@
         <dd>
             The target entity being pointed to by a reference. In a product→brand relationship, the
             brand is the referenced entity. The `entityIds` bitmap in the Referenced Type Entity
-            Index contains `ReducedEntityIndex` storage PKs (one per unique referenced target, not
-            owning entity PKs), serving as internal identifiers for per-target partitioned indexes.
+            Index contains partition PKs (one per reference partition, not owning entity PKs),
+            serving as internal identifiers of the per-target partitions.
         </dd>
         <dt>cross-reference propagation</dt>
         <dd>
@@ -149,6 +170,10 @@ new immutable snapshot of each modified index
 | `ReducedEntityIndex` | evita_engine | Per-referenced-entity <Term>partitioned view</Term> with `PriceRefIndex` |
 | `ReducedGroupEntityIndex` | evita_engine | Per-group <Term>partitioned view</Term> with PK and attribute cardinality tracking |
 | `ReferencedTypeEntityIndex` | evita_engine | Per-reference-name type-level index with cardinality tracking |
+| `ReferencePartition` / `VirtualReferencePartition` | evita_engine | Sealed handle of a <Term>reference partition</Term>; its two forms are a `ReducedEntityIndex` and a registry row |
+| `ReferencePartitions` | evita_engine | The single resolver of partitions -- object-only, read, owner-read and write resolution |
+| `VirtualReferencePartitionIndex` | evita_engine | The <Term>registry of single-owner partitions</Term> carried by `ReferencedTypeEntityIndex` |
+| `VirtualReferencePartitionWriter` | evita_engine | Keeps the registry rows in step with owner-count transitions and with the sort values and chain predecessors written into a partition |
 | `CatalogExpressionTriggerRegistryImpl` | evita_engine | Singleton registry for expression-based index triggers (facet + histogram) |
 | `AbstractExpressionIndexTriggerImpl` | evita_engine | Shared base for `FacetExpressionTriggerImpl` and `HistogramExpressionTriggerImpl` |
 | `FacetExpressionTriggerFactory` | evita_engine | Builds facet triggers from `facetedPartially` expressions |
@@ -178,7 +203,9 @@ collection; a <Term name="Reduced Entity Index">`ReducedEntityIndex`</Term> cont
 entities that reference a specific target entity; a
 <Term name="Referenced Type Entity Index">`ReferencedTypeEntityIndex`</Term> aggregates
 <Term name="reference attribute">reference-attribute</Term> filter data across all targets of a
-given reference name.
+given reference name, and carries the <Term>registry of single-owner partitions</Term> that stands
+in for a `ReducedEntityIndex` of a partition with a single owner of a reference indexed
+`FOR_FILTERING`.
 
 See [Index Hierarchy](index-hierarchy.md#global) for the full taxonomy.
 
@@ -274,6 +301,7 @@ graph TD
 
     RTEI --> RTCI
     RTEI --> ACI
+    RTEI --> VRPI["VirtualReferencePartitionIndex<br/><i>registry of single-owner partitions</i>"]
     RGEI --> ACI
     RGEI --> PKCI
 
@@ -325,7 +353,7 @@ The `entityIds` bitmap in each index type holds **different kinds of primary key
 |---|---|---|
 | <Term name="Global Entity Index">`GlobalEntityIndex`</Term> | <Term name="owning entity">Owning entity</Term> PKs | All product PKs in the collection |
 | <Term name="Reduced Entity Index">`ReducedEntityIndex`</Term> | <Term name="owning entity">Owning entity</Term> PKs | PKs of products that reference brand #42 |
-| <Term name="Referenced Type Entity Index">`ReferencedTypeEntityIndex`</Term> | `ReducedEntityIndex` storage PKs (one per unique target, cardinality-guarded) | Storage PKs of all brand-specific reduced indexes |
+| <Term name="Referenced Type Entity Index">`ReferencedTypeEntityIndex`</Term> | Partition PKs (one per reference partition, cardinality-guarded) | PKs of all brand-specific partitions, reduced indexes and registry rows alike |
 
 <Term name="Global Entity Index">`GlobalEntityIndex`</Term> and
 <Term name="Reduced Entity Index">`ReducedEntityIndex`</Term> both store the primary keys of the
@@ -334,11 +362,12 @@ scope: the global index contains all entities in the collection, while a reduced
 only the subset that holds a reference to a particular target.
 
 <Term name="Referenced Type Entity Index">`ReferencedTypeEntityIndex`</Term> is the exception --
-it stores the storage primary keys of the `ReducedEntityIndex` instances (one per unique
-referenced target), not the owning entity PKs. Each `ReducedEntityIndex` is assigned an internal
-storage PK (via `indexPkSequence`) that serves as its identifier within the type index. The
-cardinality tracking (see [data-structures.md](data-structures.md#cardinality-indexes)) ensures a
-storage PK is removed from `entityIds` only when no
+it stores the primary keys of the reference's partitions (one per
+<Term>reference partition</Term>), not the owning entity PKs. Each partition is assigned an internal
+PK (via `indexPkSequence`) that serves as its identifier within the type index -- the storage PK of
+its `ReducedEntityIndex`, or the PK its row in the <Term>registry of single-owner partitions</Term>
+carries. The cardinality tracking (see [data-structures.md](data-structures.md#cardinality-indexes))
+ensures a partition PK is removed from `entityIds` only when no
 <Term name="owning entity">owning entity</Term> references that target anymore.
 
 ## Entity Attributes vs Reference Attributes
@@ -360,7 +389,7 @@ See [schema-settings.md](schema-settings.md#reference-index-type) for the full i
 
 | Document | Description |
 |----------|-------------|
-| [Index Hierarchy](index-hierarchy.md) | `EntityIndexType`, <Term name="Entity Index Key">`EntityIndexKey`</Term>, and the three concrete index classes |
+| [Index Hierarchy](index-hierarchy.md) | `EntityIndexType`, <Term name="Entity Index Key">`EntityIndexKey`</Term>, the three concrete index classes, and the two forms of a <Term>reference partition</Term> |
 | [Data Structures](data-structures.md) | Attribute, price, hierarchy, facet, and cardinality indexes |
 | [B+ Trees & Bucket Store](bplus-tree-bucket-store.md) | The transactional B+ tree family, columnar value columns, and scaled-int decimal keys that back the attribute indexes |
 | [B+ Tree Persistence](bplus-tree-persistence.md) | How paged trees are written as leaf-page records and reloaded, including the fulltext dictionary and field length tables |
@@ -375,7 +404,8 @@ See [schema-settings.md](schema-settings.md#reference-index-type) for the full i
 The following invariants should be verified by integration tests covering the index layer:
 
 1. **Superset invariant:** Every <Term name="owning entity">entity primary key</Term> present in
-   any <Term name="Reduced Entity Index">`ReducedEntityIndex`</Term> for a given
+   any <Term name="Reduced Entity Index">`ReducedEntityIndex`</Term>, or named as the owner of a row
+   of the <Term>registry of single-owner partitions</Term>, for a given
    <Term>scope</Term> MUST also be present in the
    <Term name="Global Entity Index">`GlobalEntityIndex`</Term> for that same scope. The reverse
    does not hold -- the global index is the superset.
@@ -400,8 +430,8 @@ The following invariants should be verified by integration tests covering the in
    reduced indexes.
 
 6. **Cardinality correctness:** In `ReferencedTypeEntityIndex`, removing an owning entity's
-   reference must decrement the cardinality counter for the corresponding `ReducedEntityIndex`
-   storage PK. The storage PK must only be removed from the `entityIds` bitmap when the
+   reference must decrement the cardinality counter for the corresponding partition PK. The
+   partition PK must only be removed from the `entityIds` bitmap when the
    cardinality reaches zero (i.e., no owning entity references that target anymore), not on the
    first removal.
 

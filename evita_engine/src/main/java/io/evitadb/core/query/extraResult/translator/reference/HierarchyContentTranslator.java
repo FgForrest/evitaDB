@@ -27,6 +27,7 @@ import io.evitadb.api.exception.HierarchyContentMisplacedException;
 import io.evitadb.api.query.require.HierarchyContent;
 import io.evitadb.api.query.require.HierarchyNode;
 import io.evitadb.api.query.require.HierarchyStopAt;
+import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.data.structure.ReferenceFetcher;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.QueryPlanningContext;
@@ -36,10 +37,12 @@ import io.evitadb.core.query.extraResult.translator.RequireConstraintTranslator;
 import io.evitadb.core.query.extraResult.translator.hierarchyStatistics.AbstractHierarchyTranslator.TraversalDirection;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.usage.SchemaCapabilityUsage;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.util.Objects;
 import java.util.Optional;
 
 import static io.evitadb.core.query.extraResult.translator.hierarchyStatistics.AbstractHierarchyTranslator.stopAtConstraintToPredicate;
@@ -78,6 +81,9 @@ public class HierarchyContentTranslator implements RequireConstraintTranslator<H
 	 * scope. The parents are walked only while an entity is fetched, and only for an entity that has a parent - so the
 	 * filter would otherwise be checked or not depending on the data the query returns. It is translated here over the
 	 * global index of each scope, or over an empty index of a scope holding no entity of the type, and thrown away.
+	 * The translation runs in the locale of the body that fetches the parents
+	 * ({@link ExtraResultPlanningVisitor#getEntityFetchRequest}), and the schema capabilities it requests are passed on
+	 * to the owner's planning context, which records them for the query.
 	 *
 	 * @param hierarchyContent           the requirement whose bound is checked
 	 * @param entitySchema               the schema of the entity whose parents are fetched
@@ -90,7 +96,18 @@ public class HierarchyContentTranslator implements RequireConstraintTranslator<H
 	) {
 		final HierarchyStopAt stopAt = hierarchyContent.getStopAt().orElse(null);
 		if (stopAt != null && stopAt.getStopAtDefinition() instanceof HierarchyNode && entitySchema.isWithHierarchy()) {
-			final QueryPlanningContext queryContext = extraResultPlanningVisitor.getQueryContext();
+			final QueryPlanningContext ownerContext = extraResultPlanningVisitor.getQueryContext();
+			final EvitaRequest bodyRequest = extraResultPlanningVisitor.getEntityFetchRequest(hierarchyContent);
+			final QueryPlanningContext queryContext = ownerContext
+				.getEntityCollectionOrThrowException(entitySchema.getName(), "check fetched hierarchy bounds")
+				.createQueryContext(
+					ownerContext,
+					bodyRequest.deriveCopyWith(
+						entitySchema.getName(), null, null, bodyRequest.getRequiredOrImplicitLocale(),
+						extraResultPlanningVisitor.getProcessingScope().getScopes()
+					),
+					Objects.requireNonNull(ownerContext.getEvitaSession())
+				);
 			for (final Scope scope : extraResultPlanningVisitor.getProcessingScope().getScopes()) {
 				stopAtConstraintToPredicate(
 					TraversalDirection.BOTTOM_UP,
@@ -101,6 +118,9 @@ public class HierarchyContentTranslator implements RequireConstraintTranslator<H
 					entitySchema,
 					null
 				);
+			}
+			for (final SchemaCapabilityUsage capability : queryContext.drainRequestedCapabilities()) {
+				ownerContext.registerRequestedCapability(capability);
 			}
 		}
 	}

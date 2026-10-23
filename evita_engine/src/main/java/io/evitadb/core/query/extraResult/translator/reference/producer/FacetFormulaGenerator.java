@@ -28,6 +28,7 @@ import io.evitadb.api.query.require.FacetRelationType;
 import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.core.query.algebra.Formula;
+import io.evitadb.core.query.algebra.facet.FacetLocaleFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.facet.UserFilterFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
@@ -127,8 +128,16 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 			// and a negated user filter is subtracted, and so would be the facet replacing its contents, so the facet
 			// goes to an empty user filter over the formula without the user filter instead, the same as when there is
 			// none
-			final Formula countedFormula = isUserFilterScoped(baseFormula) || isUserFilterNegated(baseFormula) ?
-				FilterFormulaFacetOptimizeVisitor.optimize(baseFormulaWithoutUserFilter) : baseFormula;
+			final boolean rebuildUserFilter = isUserFilterScoped(baseFormula) || isUserFilterNegated(baseFormula);
+			final Formula ownerCondition = rebuildUserFilter ? FacetLocaleFormula.retainOwnerConditions(
+				baseFormula, referenceSchema.getName(), baseFormulaWithoutUserFilter
+			) : null;
+			// Preserve the owner predicate before removing a scoped or negated user filter. The single counted facet
+			// is still selected for the whole query, following the existing count convention.
+			final Formula countedFormula = rebuildUserFilter ? FilterFormulaFacetOptimizeVisitor.optimize(
+				ownerCondition == null ? baseFormulaWithoutUserFilter :
+					FormulaFactory.and(baseFormulaWithoutUserFilter, ownerCondition)
+			) : baseFormula;
 			final Formula generatedFormula = super.generateFormula(
 				countedFormula, baseFormulaWithoutUserFilter, referenceSchema, facetGroupId, facetId,
 				facetEntityIds, facetGroupOccurrences
@@ -212,6 +221,16 @@ public class FacetFormulaGenerator extends AbstractFacetFormulaGenerator {
 		return FormulaFinder.find(formula, ScopeContainerFormula.class, LookUp.SHALLOW)
 			.stream()
 			.anyMatch(it -> !FormulaFinder.find(it, UserFilterFormula.class, LookUp.SHALLOW).isEmpty());
+	}
+
+	/** Retains the owner conditions of a localized facet filter when counting the facet alone. */
+	@Override
+	protected boolean handleUserFilter(@Nonnull Formula formula, @Nonnull Formula[] updatedChildren) {
+		final Formula ownerCondition = FacetLocaleFormula.retainOwnerConditions(
+			formula, this.referenceSchema.getName(), this.baseFormulaWithoutUserFilter
+		);
+		final Formula[] retainedChildren = ownerCondition == null ? updatedChildren : new Formula[]{ownerCondition};
+		return super.handleUserFilter(formula, retainedChildren);
 	}
 
 	@Override

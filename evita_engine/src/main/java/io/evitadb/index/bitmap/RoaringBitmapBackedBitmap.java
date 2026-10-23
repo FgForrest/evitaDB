@@ -290,9 +290,9 @@ public interface RoaringBitmapBackedBitmap extends Bitmap {
 
 			PersistentRoaringBitmap intermediateResult;
 			if (roaringBitmaps.isEmpty()) {
-				intermediateResult = negativeRoaringBitmaps.get(0);
+				intermediateResult = negativeRoaringBitmaps.getFirst();
 			} else if (roaringBitmaps.size() == 1) {
-				intermediateResult = roaringBitmaps.get(0);
+				intermediateResult = roaringBitmaps.getFirst();
 			} else {
 				intermediateResult = PersistentRoaringBitmap.and(roaringBitmaps.iterator(), min, max + 1);
 			}

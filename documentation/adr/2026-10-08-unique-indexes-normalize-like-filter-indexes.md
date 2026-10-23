@@ -1,7 +1,7 @@
 ---
 title: Standalone unique indexes key every value exactly as the filter index does
 date: 2026-10-08
-updated: 2026-10-08 12:46
+updated: 2026-10-19 16:28
 status: accepted
 kind: fix
 issues: [1712, 1713]
@@ -9,7 +9,7 @@ prs: [1722]
 areas: [evita_engine/src/main/java/io/evitadb/index/attribute/UniqueIndexBPlusTreeSupport.java, evita_engine/src/main/java/io/evitadb/index/attribute/OwnerUniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/GlobalUniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/UniqueIndex.java, evita_engine/src/main/java/io/evitadb/index/attribute/FilterIndex.java, evita_engine/src/main/java/io/evitadb/index/bPlusTree/ValueColumnFactory.java, evita_engine/src/main/java/io/evitadb/index/component/loader/AttributeIndexLoader.java, evita_engine/src/main/java/io/evitadb/core/query/filter/translator/attribute, evita_store/evita_store_server/src/main/java/io/evitadb/store/catalog/Migration_2026_3.java, evita_store/evita_store_server/src/main/java/io/evitadb/store/index/serializer/ComparableLocaleSerializer.java]
 supersedes: []
 superseded-by: []
-relates: [2026-09-04-millisecond-temporal-precision, 2026-10-06-unique-indexes-keep-no-record-set, 2026-09-21-cardinality-counter-normalized-keys, 2026-08-10-stored-value-normalization-split]
+relates: [2026-09-04-millisecond-temporal-precision, 2026-10-06-unique-indexes-keep-no-record-set, 2026-09-21-cardinality-counter-normalized-keys, 2026-08-10-stored-value-normalization-split, 2026-10-20-single-owner-partitions-as-registry-rows]
 ---
 
 # Standalone unique indexes key every value exactly as the filter index does
@@ -173,7 +173,11 @@ decimal places (both `1.24`, `HALF_UP`). That is how the filter index and the fo
   the indexed decimal places. A catalog holding two such values for different owners refuses the upgrade with every
   pair named; fix the data on the release that wrote it.
 - **Catalogs written by a development build at protocol 7** skip `Migration_2026_3`; a raw key there is normalized on
-  load, and a colliding pair refuses to load. Re-index such a catalog.
+  load, and a colliding pair refuses to load. Re-index such a catalog. **Note (2026-10-19):** #1615 extended
+  `Migration_2026_3` but kept it one step from protocol 6 to 7, so such a catalog still skips it - and with it the owner
+  sort rewrite and the conversion of single-owner partitions #1615 added, which makes it unsupported: recreate it - see
+  [2026-10-20-single-owner-partitions-as-registry-rows](2026-10-20-single-owner-partitions-as-registry-rows.md). The
+  load-time detection of a colliding pair stays, for a part the migration did not reach.
 - **Stored `Currency[]` / `Locale[]` filter keys** written as strings by any earlier version are not re-keyed by the
   migration; those trees were already unusable for lookups, and a re-index repairs them.
 - The phantom left in a collection by a refused `uniqueGlobally` write (found on the earlier rework) is tracked

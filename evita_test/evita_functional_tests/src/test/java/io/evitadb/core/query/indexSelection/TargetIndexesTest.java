@@ -25,6 +25,7 @@
 package io.evitadb.core.query.indexSelection;
 
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.core.query.filter.FilterByVisitor.ReducedIndexCandidates;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReducedEntityIndex;
@@ -112,7 +113,7 @@ class TargetIndexesTest {
 		@Nonnull Set<Scope> scopes
 	) {
 		return new TargetIndexes<>(
-			"REFERENCED_ENTITY", constraint, scopes, ReducedEntityIndex.class, 0, List::of
+			"REFERENCED_ENTITY", constraint, scopes, ReducedEntityIndex.class, 0, List::of, (ReducedIndexCandidates) null
 		);
 	}
 

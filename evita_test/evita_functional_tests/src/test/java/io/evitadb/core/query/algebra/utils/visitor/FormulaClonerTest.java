@@ -597,7 +597,7 @@ class FormulaClonerTest {
 			final ConstantFormula leaf = new ConstantFormula(new ArrayBitmap(1));
 			final ConstantFormula replacement = new ConstantFormula(new ArrayBitmap(2));
 
-			final Formula result = FormulaCloner.clone(leaf, (UnaryOperator<Formula>) f -> replacement);
+			final Formula result = FormulaCloner.clone(leaf, f -> replacement);
 
 			assertSame(replacement, result);
 		}

@@ -112,10 +112,11 @@ import java.util.function.BiConsumer;
 public class CommitProgressRecord implements CommitProgress {
 
 	/**
-	 * Timestamp marking when the commit process began.
+	 * Timestamp of the creation of this `CommitProgressRecord`.
 	 *
-	 * Captured when this `CommitProgressRecord` is created (typically when {@link EvitaSessionContract#closeNowWithProgress()}
-	 * is called). Used for performance monitoring and timeout detection.
+	 * The engine's session creates its record when the session opens, not when it commits, so this time includes
+	 * everything the session did before {@link EvitaSessionContract#closeNowWithProgress()} was called. Reported in
+	 * the diagnostics of the transaction pipeline; it is not suitable for measuring how long the commit itself takes.
 	 */
 	@Getter private final OffsetDateTime commitStartTime = OffsetDateTime.now();
 

@@ -25,9 +25,12 @@ package io.evitadb.api.functional.attribute;
 
 import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.query.FilterConstraint;
+import io.evitadb.api.requestResponse.EvitaResponse;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
 import io.evitadb.api.requestResponse.data.SealedEntity;
+import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.schema.Cardinality;
+import io.evitadb.api.requestResponse.schema.ReferenceSchemaEditor;
 import io.evitadb.core.Evita;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.EvitaTestSupport;
@@ -38,13 +41,17 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 
 import javax.annotation.Nonnull;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
 import static io.evitadb.api.query.Query.query;
 import static io.evitadb.api.query.QueryConstraints.*;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -70,6 +77,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * `queried:1` deliberately shares its primary key with `holder:1`, `empty` holds no entity at all and `referrer:1`
  * references `queried:1`. `queried:5` was written and archived before `holder:1` took the same code, which is the only
  * order the per-scope uniqueness admits.
+ *
+ * Every case outside `Value held only by another collection` runs for each of the three attributes, and checks the
+ * entity references and the entity bodies the query returns, each together with the total record count it reports.
+ * Seen from `holder`, the values of `queried` are the foreign ones: `xyz` is held by the entity sharing the primary
+ * key of `holder:1`, `def` by one whose primary key `holder` lacks.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -118,7 +130,7 @@ class GlobalUniqueAttributeCollectionLookupFunctionalTest implements EvitaTestSu
 				session.defineEntitySchema(ENTITY_REFERRER)
 					.withoutGeneratedPrimaryKey()
 					.withReferenceToEntity(
-						REFERENCE_TARGET, ENTITY_QUERIED, Cardinality.ZERO_OR_ONE, whichIs -> whichIs.indexed()
+						REFERENCE_TARGET, ENTITY_QUERIED, Cardinality.ZERO_OR_ONE, ReferenceSchemaEditor::indexed
 					)
 					.updateVia(session);
 
@@ -191,6 +203,156 @@ class GlobalUniqueAttributeCollectionLookupFunctionalTest implements EvitaTestSu
 				.stream()
 				.map(EntityReferenceContract::getPrimaryKey)
 				.toList();
+		}
+	}
+
+	/**
+	 * Asserts that the query over `entityType` filtered by `filter` returns exactly the entities `expected`, both as
+	 * entity references and as entity bodies, and that each of the two queries counts exactly as many records as it
+	 * returns.
+	 *
+	 * @param expected   the primary keys the query must return, in their order
+	 * @param entityType the collection the query targets
+	 * @param filter     the filter constraints
+	 */
+	private void assertReturnsAsReferencesAndBodies(
+		@Nonnull List<Integer> expected,
+		@Nonnull String entityType,
+		@Nonnull FilterConstraint... filter
+	) {
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
+			final EvitaResponse<EntityReference> references = session.query(
+				query(collection(entityType), filterBy(filter), require(page(1, 20))),
+				EntityReference.class
+			);
+			final EvitaResponse<SealedEntity> bodies = session.query(
+				query(
+					collection(entityType),
+					filterBy(filter),
+					require(page(1, 20), entityFetch(attributeContentAll(), dataInLocalesAll()))
+				),
+				SealedEntity.class
+			);
+			final String lookup = "`" + filterBy(filter) + "` in `" + entityType + "`";
+			assertAll(
+				() -> assertEquals(
+					expected,
+					references.getRecordData().stream().map(EntityReferenceContract::getPrimaryKey).toList(),
+					lookup + " returned other entity references!"
+				),
+				() -> assertEquals(
+					expected.size(), references.getTotalRecordCount(), lookup + " counted other entity references!"
+				),
+				() -> assertEquals(
+					expected,
+					bodies.getRecordData().stream().map(SealedEntity::getPrimaryKey).toList(),
+					lookup + " returned other entity bodies!"
+				),
+				() -> assertEquals(
+					expected.size(), bodies.getTotalRecordCount(), lookup + " counted other entity bodies!"
+				)
+			);
+		}
+	}
+
+	/**
+	 * Asserts that the query over the whole catalog filtered by `filter` returns exactly the entities `expected` and
+	 * counts exactly as many records as it returns. The entities are compared as sorted `type:pk` strings, because
+	 * the order of a catalog-wide result follows the keys masking the entities of several collections apart, which
+	 * the query assigns in the order of its lookups.
+	 *
+	 * @param expected the entities the query must return, rendered as `type:pk`, sorted
+	 * @param filter   the filter constraints
+	 */
+	private void assertReturnsFromWholeCatalog(@Nonnull List<String> expected, @Nonnull FilterConstraint... filter) {
+		try (final EvitaSessionContract session = this.evita.createReadOnlySession(TEST_CATALOG)) {
+			final EvitaResponse<EntityReference> references = session.query(
+				query(filterBy(filter), require(page(1, 20))),
+				EntityReference.class
+			);
+			final String lookup = "`" + filterBy(filter) + "` in the whole catalog";
+			assertAll(
+				() -> assertEquals(
+					expected,
+					references.getRecordData()
+						.stream()
+						.map(it -> it.getType() + ":" + it.getPrimaryKey())
+						.sorted()
+						.toList(),
+					lookup + " returned other entity references!"
+				),
+				() -> assertEquals(
+					expected.size(), references.getTotalRecordCount(), lookup + " counted other entity references!"
+				)
+			);
+		}
+	}
+
+	/**
+	 * A globally unique catalog attribute of the fixture, with the form in which {@link #upsertWithValues} stores a
+	 * value in it and the locale a lookup by it needs.
+	 */
+	enum UniqueCatalogAttribute {
+		/**
+		 * `code`, not localized, unique globally in both scopes.
+		 */
+		CODE(ATTRIBUTE_CODE, "", false),
+		/**
+		 * `url`, localized, unique globally in the live scope, stored with a leading slash.
+		 */
+		URL(ATTRIBUTE_URL, "/", true),
+		/**
+		 * `slug`, localized, unique globally within locale in the live scope.
+		 */
+		SLUG(ATTRIBUTE_SLUG, "", true);
+
+		private final String attributeName;
+		private final String valuePrefix;
+		private final boolean localized;
+
+		UniqueCatalogAttribute(@Nonnull String attributeName, @Nonnull String valuePrefix, boolean localized) {
+			this.attributeName = attributeName;
+			this.valuePrefix = valuePrefix;
+			this.localized = localized;
+		}
+
+		/**
+		 * Returns `attributeEquals` of this attribute and the stored form of `value`.
+		 *
+		 * @param value the value {@link #upsertWithValues} derived the stored one from
+		 * @return the constraint
+		 */
+		@Nonnull
+		FilterConstraint equalTo(@Nonnull String value) {
+			return attributeEquals(this.attributeName, this.valuePrefix + value);
+		}
+
+		/**
+		 * Returns `attributeInSet` of this attribute and the stored forms of `values`.
+		 *
+		 * @param values the values {@link #upsertWithValues} derived the stored ones from
+		 * @return the constraint
+		 */
+		@Nonnull
+		FilterConstraint inSet(@Nonnull String... values) {
+			return attributeInSet(
+				this.attributeName,
+				Arrays.stream(values).map(it -> this.valuePrefix + it).toArray(String[]::new)
+			);
+		}
+
+		/**
+		 * Returns the filter constraints of a lookup by `constraint`, with the English locale when this attribute is
+		 * localized.
+		 *
+		 * @param constraint the constraint over this attribute
+		 * @return the filter constraints
+		 */
+		@Nonnull
+		FilterConstraint[] lookup(@Nonnull FilterConstraint constraint) {
+			return this.localized ?
+				new FilterConstraint[]{constraint, entityLocaleEquals(Locale.ENGLISH)} :
+				new FilterConstraint[]{constraint};
 		}
 	}
 
@@ -332,6 +494,190 @@ class GlobalUniqueAttributeCollectionLookupFunctionalTest implements EvitaTestSu
 					ENTITY_REFERRER,
 					referenceHaving(REFERENCE_TARGET, entityHaving(attributeEquals(ATTRIBUTE_CODE, "xyz")))
 				)
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Single value, returned as entity references and as entity bodies")
+	class SingleValueAsReferencesAndBodies {
+
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(UniqueCatalogAttribute.class)
+		@DisplayName("Should return nothing when the holder in another collection shares its primary key")
+		void shouldReturnNothingWhenTheHolderSharesThePrimaryKey(@Nonnull UniqueCatalogAttribute attribute) {
+			goLive();
+			assertReturnsAsReferencesAndBodies(List.of(), ENTITY_QUERIED, attribute.lookup(attribute.equalTo("abc")));
+			// the other way round - `queried:1` holds the value and `holder:1` shares its primary key
+			assertReturnsAsReferencesAndBodies(List.of(), ENTITY_HOLDER, attribute.lookup(attribute.equalTo("xyz")));
+		}
+
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(UniqueCatalogAttribute.class)
+		@DisplayName("Should return nothing when the queried collection lacks the primary key of the holder")
+		void shouldReturnNothingWhenThePrimaryKeyOfTheHolderIsAbsent(@Nonnull UniqueCatalogAttribute attribute) {
+			goLive();
+			// `queried:2` holds the value and `holder` has no entity 2
+			assertReturnsAsReferencesAndBodies(List.of(), ENTITY_HOLDER, attribute.lookup(attribute.equalTo("def")));
+			assertReturnsAsReferencesAndBodies(List.of(), ENTITY_EMPTY, attribute.lookup(attribute.equalTo("abc")));
+		}
+
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(UniqueCatalogAttribute.class)
+		@DisplayName("Should return nothing when the lookup is narrowed to the primary key the holder shares")
+		void shouldReturnNothingWhenNarrowedToThePrimaryKeyTheHolderShares(@Nonnull UniqueCatalogAttribute attribute) {
+			goLive();
+			assertReturnsAsReferencesAndBodies(
+				List.of(),
+				ENTITY_QUERIED,
+				attribute.lookup(and(attribute.equalTo("abc"), entityPrimaryKeyInSet(SHARED_PRIMARY_KEY)))
+			);
+			// the holder in the queried collection, narrowed to its own primary key, is the control
+			assertReturnsAsReferencesAndBodies(
+				List.of(QUERIED_OWN_PRIMARY_KEY),
+				ENTITY_QUERIED,
+				attribute.lookup(and(attribute.equalTo("def"), entityPrimaryKeyInSet(QUERIED_OWN_PRIMARY_KEY)))
+			);
+		}
+
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(UniqueCatalogAttribute.class)
+		@DisplayName("Should return the holder when it belongs to the queried collection")
+		void shouldReturnTheHolderWhenItBelongsToTheQueriedCollection(@Nonnull UniqueCatalogAttribute attribute) {
+			goLive();
+			assertReturnsAsReferencesAndBodies(
+				List.of(SHARED_PRIMARY_KEY), ENTITY_HOLDER, attribute.lookup(attribute.equalTo("abc"))
+			);
+			assertReturnsAsReferencesAndBodies(
+				List.of(SHARED_PRIMARY_KEY), ENTITY_QUERIED, attribute.lookup(attribute.equalTo("xyz"))
+			);
+			assertReturnsAsReferencesAndBodies(
+				List.of(QUERIED_OWN_PRIMARY_KEY), ENTITY_QUERIED, attribute.lookup(attribute.equalTo("def"))
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Set of values held by several collections")
+	class SetOfValuesHeldBySeveralCollections {
+
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(UniqueCatalogAttribute.class)
+		@DisplayName("Should return only the local holder when the foreign one shares its primary key")
+		void shouldReturnOnlyTheLocalHolderWhenTheForeignHolderSharesThePrimaryKey(
+			@Nonnull UniqueCatalogAttribute attribute
+		) {
+			goLive();
+			assertReturnsAsReferencesAndBodies(
+				List.of(QUERIED_OWN_PRIMARY_KEY), ENTITY_QUERIED, attribute.lookup(attribute.inSet("def", "abc"))
+			);
+		}
+
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(UniqueCatalogAttribute.class)
+		@DisplayName("Should return only the local holder when the primary key of the foreign one is absent")
+		void shouldReturnOnlyTheLocalHolderWhenThePrimaryKeyOfTheForeignHolderIsAbsent(
+			@Nonnull UniqueCatalogAttribute attribute
+		) {
+			goLive();
+			assertReturnsAsReferencesAndBodies(
+				List.of(SHARED_PRIMARY_KEY), ENTITY_HOLDER, attribute.lookup(attribute.inSet("abc", "def"))
+			);
+		}
+
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(UniqueCatalogAttribute.class)
+		@DisplayName("Should return nothing when every value is held by another collection")
+		void shouldReturnNothingWhenEveryHolderIsForeign(@Nonnull UniqueCatalogAttribute attribute) {
+			goLive();
+			assertReturnsAsReferencesAndBodies(
+				List.of(), ENTITY_HOLDER, attribute.lookup(attribute.inSet("xyz", "def"))
+			);
+		}
+
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(UniqueCatalogAttribute.class)
+		@DisplayName("Should return every holder when every value is held by the queried collection")
+		void shouldReturnEveryHolderWhenEveryHolderIsLocal(@Nonnull UniqueCatalogAttribute attribute) {
+			goLive();
+			assertReturnsAsReferencesAndBodies(
+				List.of(SHARED_PRIMARY_KEY, QUERIED_OWN_PRIMARY_KEY),
+				ENTITY_QUERIED,
+				attribute.lookup(attribute.inSet("xyz", "def"))
+			);
+		}
+
+		@Test
+		@DisplayName("Should return the archived local holder of a value another collection holds in the live scope")
+		void shouldReturnTheArchivedLocalHolderOfAValueHeldLiveByAnotherCollection() {
+			goLive();
+			// only `code` is written on `queried:5` and unique in the archived scope
+			assertReturnsAsReferencesAndBodies(
+				List.of(QUERIED_OWN_PRIMARY_KEY, QUERIED_ARCHIVED_PRIMARY_KEY),
+				ENTITY_QUERIED,
+				attributeInSet(ATTRIBUTE_CODE, "def", "abc"),
+				scope(Scope.LIVE, Scope.ARCHIVED)
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Negated lookup of a value held by another collection")
+	class NegatedLookup {
+
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(UniqueCatalogAttribute.class)
+		@DisplayName("Should keep the entity that shares the primary key of the holder")
+		void shouldKeepTheEntitySharingThePrimaryKeyOfTheHolder(@Nonnull UniqueCatalogAttribute attribute) {
+			goLive();
+			assertReturnsAsReferencesAndBodies(
+				List.of(SHARED_PRIMARY_KEY, QUERIED_OWN_PRIMARY_KEY),
+				ENTITY_QUERIED,
+				attribute.lookup(not(attribute.equalTo("abc")))
+			);
+		}
+
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(UniqueCatalogAttribute.class)
+		@DisplayName("Should exclude only the local holder of a negated set")
+		void shouldExcludeOnlyTheLocalHolderOfANegatedSet(@Nonnull UniqueCatalogAttribute attribute) {
+			goLive();
+			assertReturnsAsReferencesAndBodies(
+				List.of(SHARED_PRIMARY_KEY), ENTITY_QUERIED, attribute.lookup(not(attribute.inSet("abc", "def")))
+			);
+		}
+
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(UniqueCatalogAttribute.class)
+		@DisplayName("Should keep every entity when every value of the negated set is held by another collection")
+		void shouldKeepEveryEntityWhenEveryHolderOfTheNegatedSetIsForeign(@Nonnull UniqueCatalogAttribute attribute) {
+			goLive();
+			assertReturnsAsReferencesAndBodies(
+				List.of(SHARED_PRIMARY_KEY), ENTITY_HOLDER, attribute.lookup(not(attribute.inSet("xyz", "def")))
+			);
+		}
+	}
+
+	@Nested
+	@DisplayName("Lookup across the whole catalog")
+	class CatalogWideLookup {
+
+		@ParameterizedTest(name = "{0}")
+		@EnumSource(UniqueCatalogAttribute.class)
+		@DisplayName("Should return the holders of every collection, told apart when they share a primary key")
+		void shouldReturnTheHoldersOfEveryCollection(@Nonnull UniqueCatalogAttribute attribute) {
+			goLive();
+			assertReturnsFromWholeCatalog(
+				List.of(ENTITY_HOLDER + ":" + SHARED_PRIMARY_KEY),
+				attribute.lookup(attribute.equalTo("abc"))
+			);
+			assertReturnsFromWholeCatalog(
+				List.of(ENTITY_HOLDER + ":" + SHARED_PRIMARY_KEY, ENTITY_QUERIED + ":" + SHARED_PRIMARY_KEY),
+				attribute.lookup(attribute.inSet("abc", "xyz"))
+			);
+			assertReturnsFromWholeCatalog(
+				List.of(ENTITY_HOLDER + ":" + SHARED_PRIMARY_KEY, ENTITY_QUERIED + ":" + QUERIED_OWN_PRIMARY_KEY),
+				attribute.lookup(attribute.inSet("abc", "def"))
 			);
 		}
 	}

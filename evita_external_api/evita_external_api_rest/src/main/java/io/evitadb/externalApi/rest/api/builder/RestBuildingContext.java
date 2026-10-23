@@ -75,6 +75,11 @@ import static io.evitadb.utils.CollectionUtils.createHashMap;
  */
 public abstract class RestBuildingContext {
 
+	/**
+	 * Declared document version must match `SpecVersion.V31`; Swagger's constructor leaves it at `3.0.1`.
+	 */
+	private static final String OPEN_API_VERSION = "3.1.0";
+
 	@Nonnull protected final AbstractApiOptions restConfig;
 	@Nonnull @Getter private final Evita evita;
 	@Nonnull private final HeaderOptions headers;
@@ -182,9 +187,13 @@ public abstract class RestBuildingContext {
 		return new Rest(openApi, endpoints);
 	}
 
+	/**
+	 * Builds the OpenAPI document with a declared version matching its schema dialect.
+	 */
 	@Nonnull
 	private OpenAPI buildOpenApi() {
 		final OpenAPI openApi = new OpenAPI(SpecVersion.V31)
+			.openapi(OPEN_API_VERSION)
 			.servers(buildOpenApiServers());
 
 		final Info info = new Info();

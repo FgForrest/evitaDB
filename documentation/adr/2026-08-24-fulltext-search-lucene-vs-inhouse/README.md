@@ -1,7 +1,7 @@
 ---
 title: Prototype an in-house fulltext core over evitaDB's bitmap algebra instead of integrating Lucene
 date: 2026-08-24
-updated: 2026-10-21 12:00
+updated: 2026-10-21 16:16
 status: partially-implemented
 kind: feature
 issues: [258, 1454]
@@ -9,7 +9,7 @@ prs: [1453, 1483, 1647, 1704]
 areas: [evita_engine, evita_api, evita_query, evita_store, evita_external_api, evita_engine/index/trigram]
 supersedes: []
 superseded-by: []
-relates: [2026-07-07-roaring-bitmap-vendoring, 2026-07-10-more-optimized-data-structures, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-27-write-path-performance-tuning, 2026-08-31-trigram-query-path-optimization, 2026-08-31-front-coded-column-stores-wtf8, 2026-09-10-simd-vector-api-feasibility, 2026-09-08-jdk21-safe-modernization, 2026-09-10-jdk21-virtual-threads-and-scoped-values, 2026-10-05-schema-changes-never-refused-dormant-accelerator]
+relates: [2026-07-07-roaring-bitmap-vendoring, 2026-07-10-more-optimized-data-structures, 2026-08-01-bplustree-cursor-free-insert-path, 2026-07-27-write-path-performance-tuning, 2026-08-31-trigram-query-path-optimization, 2026-08-31-front-coded-column-stores-wtf8, 2026-09-10-simd-vector-api-feasibility, 2026-09-08-jdk21-safe-modernization, 2026-09-10-jdk21-virtual-threads-and-scoped-values, 2026-10-05-schema-changes-never-refused-dormant-accelerator, 2026-09-04-millisecond-temporal-precision]
 ---
 
 # Fulltext search in evitaDB: an in-house core over the bitmap algebra, not a Lucene integration
@@ -1345,6 +1345,14 @@ metric for fuzzy `contains` is decided. What is still open:
   expansion at both edit levels, one edit from 6 code points and two from 12, no gate of its own, no diacritics
   handling, no fuzzy `attributeEndsWith` (`prototypes/typo-tolerance-fuzzy-contains.md` §6.5, §7); the decided
   algorithm extracted into `prototypes/typo-tolerance-fuzzy-contains-algorithm.md`
+- **2026-10-21** — that guard removed. It existed because building an entity index captured its baseline by
+  collecting every component into a discarded sink, which consumed a dirty fulltext index's changes. The same hazard
+  damaged load-time repairs of the filter tree, and the fix that reached the integration branch with the `dev` merge
+  makes the capture only announce keys (`IndexComponent#announceKeys`, see
+  [`2026-09-04-millisecond-temporal-precision`](../2026-09-04-millisecond-temporal-precision.md)). An unflushed
+  fulltext index now keeps its changes until the next flush; the guard only refused a state that is now safe. The
+  fulltext component announces an index once it has dictionary pages on disk, so a baseline captured before an
+  index's first flush leaves that flush to list it in the manifest
 
 ## Supporting material
 

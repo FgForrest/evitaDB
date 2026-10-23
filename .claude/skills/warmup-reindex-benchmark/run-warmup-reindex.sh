@@ -10,6 +10,9 @@
 # already done.
 #
 #   ROOT           evitaDB checkout to measure                (default /www/oss/evita/release_2026-2)
+#   READER_ROOT    checkout the loader jar comes from         (default ROOT) - set it when the measured
+#                  build cannot open the snapshot (an older storage protocol): the reader then comes from
+#                  a build that can, and only the writer - the side being measured - comes from ROOT
 #   RUN            run label, names the log directories       (default <git-short-sha>)
 #   CATALOG        source catalog name                        (default catalog)
 #   PRISTINE_DIR   parent of the <CATALOG>/ snapshot folder   (default /var/tmp/evita-warmup-bench/pristine)
@@ -30,6 +33,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="${ROOT:-/www/oss/evita/release_2026-2}"
+READER_ROOT="${READER_ROOT:-${ROOT}}"
 CATALOG="${CATALOG:-catalog}"
 PRISTINE_DIR="${PRISTINE_DIR:-/var/tmp/evita-warmup-bench/pristine}"
 BENCH_DIR="${BENCH_DIR:-/var/tmp/evita-warmup-bench}"
@@ -62,6 +66,7 @@ stamp "checkout : ${ROOT}"
 GIT_SHA="$(git -C "${ROOT}" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 GIT_BRANCH="$(git -C "${ROOT}" branch --show-current 2>/dev/null || echo detached)"
 stamp "git      : ${GIT_SHA} (${GIT_BRANCH})"
+[[ "${READER_ROOT}" != "${ROOT}" ]] && stamp "reader   : ${READER_ROOT}"
 stamp "catalog  : ${CATALOG} from ${PRISTINE_DIR}"
 stamp "heaps    : writer ${SERVER_XMX}, reader ${READER_XMX}/${READER_XMS}"
 
@@ -122,7 +127,7 @@ stamp "target server ready"
 
 # ---------------------------------------------------------------- loader -----
 stamp "running reindex (${COLLECTIONS:-all collections}) - a full production catalog takes tens of minutes"
-ROOT="${ROOT}" CATALOG="${CATALOG}" PRISTINE_DIR="${PRISTINE_DIR}" \
+ROOT="${READER_ROOT}" CATALOG="${CATALOG}" PRISTINE_DIR="${PRISTINE_DIR}" \
 	XMX="${READER_XMX}" XMS="${READER_XMS}" MAX_PER_COLL="${MAX_PER_COLL}" \
 	COLLECTIONS="${COLLECTIONS}" \
 	WORK_DIR="${BENCH_DIR}/work" PER_ENTITY_CSV="${RUN_LOG_DIR}/per-entity.csv" \

@@ -26,19 +26,19 @@ package io.evitadb.core.query.extraResult.translator.reference.producer;
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
+import io.evitadb.api.query.QueryUtils;
 import io.evitadb.api.query.filter.FacetHaving;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.FilterGroupBy;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderGroupBy;
-import io.evitadb.dataType.EvitaDataTypes;
-import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.HistogramBehavior;
 import io.evitadb.api.query.require.ReferenceSummary;
+import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaResponseExtraResult;
 import io.evitadb.api.requestResponse.data.EntityClassifier;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
@@ -50,14 +50,17 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.core.expression.trigger.HistogramValueDescriptor;
 import io.evitadb.core.query.QueryExecutionContext;
+import io.evitadb.core.query.QueryPlanningContext;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.base.OrFormula;
 import io.evitadb.core.query.extraResult.ExtraResultProducer;
 import io.evitadb.core.query.extraResult.translator.common.RangeCarrierGroup;
 import io.evitadb.core.query.extraResult.translator.common.UserFilterRelaxer;
 import io.evitadb.core.query.sort.NestedContextSorter;
-import io.evitadb.function.TriFunction;
+import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
+import io.evitadb.exception.EvitaInvalidUsageException;
+import io.evitadb.function.TriFunction;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -66,13 +69,13 @@ import io.evitadb.index.facet.FacetGroupIndex;
 import io.evitadb.index.facet.FacetIdIndex;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.facet.FacetReferenceIndex;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
 import lombok.Data;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
-import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
-import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -81,8 +84,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumMap;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -100,6 +103,8 @@ import java.util.function.Supplier;
 import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
+import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
+import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 import static java.util.Optional.ofNullable;
@@ -223,20 +228,35 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 	/**
 	 * Returns a function that allows to fetch {@link EntityClassifier} for passed `entityType` and multiple `facetIds`
 	 * that represents primary keys of the group entity. The form and richness of the returned {@link EntityClassifier}
-	 * is controlled by the passed `entityFetch` argument.
+	 * is controlled by the passed `entityFetch` argument. The filter predicate supplies this target level's own
+	 * locale; without an own opinion the bodies inherit the enclosing execution context's locale.
 	 */
 	@Nonnull
 	private static <T extends EntityFetchRequire>
 		TriFunction<QueryExecutionContext, String, int[], EntityClassifier[]> createFetcherFunction(
 		@Nonnull QueryExecutionContext executionContext,
-		@Nullable T entityFetch
+		@Nullable T entityFetch,
+		@Nullable IntPredicate predicate
 	) {
 		if (entityFetch == null) {
 			return ENTITY_REFERENCE_CONVERTER;
 		} else {
 			final T enrichedEntityFetch = executionContext.enrichEntityFetch(entityFetch);
-			return (context, entityType, facetIds) ->
-				context.fetchEntities(entityType, facetIds, enrichedEntityFetch).toArray(EntityClassifier[]::new);
+			final Locale ownLocale = predicate instanceof FilteringFormulaPredicate filter ?
+				QueryUtils.resolveLocale(filter.getFilterBy()) : null;
+			return (context, entityType, facetIds) -> {
+				if (ownLocale == null) {
+					return context.fetchEntities(entityType, facetIds, enrichedEntityFetch)
+						.toArray(EntityClassifier[]::new);
+				}
+				final QueryPlanningContext parentContext = context.getQueryContext();
+				final EvitaRequest bodyRequest = parentContext.getEvitaRequest().deriveCopyWith(
+					entityType, filterBy(entityLocaleEquals(ownLocale)), null, enrichedEntityFetch
+				);
+				return parentContext.getEntityCollectionOrThrowException(entityType, "fetch summary bodies")
+					.fetchEntities(facetIds, bodyRequest, parentContext.getEvitaSession())
+					.toArray(EntityClassifier[]::new);
+			};
 		}
 	}
 
@@ -571,7 +591,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		if (entityIds.isEmpty()) {
 			return EmptyBitmap.INSTANCE;
 		} else if (entityIds.size() == 1) {
-			return entityIds.get(0);
+			return entityIds.getFirst();
 		} else {
 			return new BaseBitmap(
 				PersistentRoaringBitmap.or(
@@ -739,7 +759,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		if (this.defaultRequest == null || requests.isEmpty()) {
 			return null;
 		}
-		return buildFromDefault(requests.get(0).referenceSchema(), new AtomicInteger());
+		return buildFromDefault(requests.getFirst().referenceSchema(), new AtomicInteger());
 	}
 
 	/**
@@ -873,7 +893,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		) {
 			final List<GroupAccumulator> accs = entry.getValue();
 			// Collectors.groupingBy never emits an empty bucket, so accs.get(0) matches the original findFirst() semantics
-			final GroupAccumulator groupAcc = accs.get(0);
+			final GroupAccumulator groupAcc = accs.getFirst();
 			// single pass: size the buffer optimistically and trim only if nulls were skipped
 			final int[] buffer = new int[accs.size()];
 			int count = 0;
@@ -908,7 +928,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		) {
 			final List<GroupAccumulator> accs = entry.getValue();
 			// Collectors.groupingBy never emits an empty bucket, so accs.get(0) matches the original findFirst() semantics
-			final GroupAccumulator groupAcc = accs.get(0);
+			final GroupAccumulator groupAcc = accs.getFirst();
 			// collect distinct facet ids as primitives to avoid the Stream#distinct auto-boxing pipeline
 			final IntHashSet distinctFacetIds = new IntHashSet(32);
 			for (GroupAccumulator acc : accs) {
@@ -1651,7 +1671,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		) {
 			if (this.entityFetcherFunction == null) {
 				this.entityFetcherFunction = referenceSchema.isReferencedEntityTypeManaged() ?
-					facetIds -> createFetcherFunction(context, this.facetEntityRequirement)
+					facetIds -> createFetcherFunction(context, this.facetEntityRequirement, this.facetPredicate)
 						.apply(context, referenceSchema.getReferencedEntityType(), facetIds) :
 					facetIds -> ENTITY_REFERENCE_CONVERTER
 						.apply(context, referenceSchema.getReferencedEntityType(), facetIds);
@@ -1674,7 +1694,7 @@ public class ReferenceSummaryProducer implements ExtraResultProducer {
 		) {
 			if (this.entityGroupFetcherFunction == null) {
 				this.entityGroupFetcherFunction = referenceSchema.isReferencedGroupTypeManaged() ?
-					groupIds -> createFetcherFunction(context, this.groupEntityRequirement)
+					groupIds -> createFetcherFunction(context, this.groupEntityRequirement, this.groupPredicate)
 						.apply(context, Objects.requireNonNull(referenceSchema.getReferencedGroupType()), groupIds) :
 					groupIds -> ENTITY_REFERENCE_CONVERTER
 						.apply(context, Objects.requireNonNull(referenceSchema.getReferencedGroupType()), groupIds);

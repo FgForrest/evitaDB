@@ -112,6 +112,14 @@ public class EvitaDataTypesConverter {
 	 * Representation of maximal supported timestamp by gRPC. More info at <a href="https://github.com/protocolbuffers/protobuf/blob/main/src/google/protobuf/timestamp.proto">official google docs</a>.
 	 */
 	public static final Instant GRPC_MAX_INSTANT = Instant.ofEpochSecond(LocalDate.of(GRPC_YEAR_MAX, 12, 31).toEpochSecond(LocalTime.of(23, 59, 59), ZoneOffset.UTC));
+	/**
+	 * The first date a protobuf `Timestamp` can carry - the date of {@link #GRPC_MIN_INSTANT}.
+	 */
+	private static final LocalDate GRPC_MIN_DATE = LocalDate.of(GRPC_YEAR_MIN, 1, 1);
+	/**
+	 * The last date a protobuf `Timestamp` can carry - the date of {@link #GRPC_MAX_INSTANT}.
+	 */
+	private static final LocalDate GRPC_MAX_DATE = LocalDate.of(GRPC_YEAR_MAX, 12, 31);
 
 	/**
 	 * Converts the given {@link GrpcEvitaValue} to a {@link Serializable} value.
@@ -806,24 +814,83 @@ public class EvitaDataTypesConverter {
 	}
 
 	/**
+	 * Tells whether the wire timestamp denotes the upper sentinel - a timestamp in the last second of the protobuf
+	 * `Timestamp` range, i.e. whose seconds equal those of {@link #GRPC_MAX_INSTANT}.
+	 *
+	 * The nanoseconds are ignored on purpose: the Java converter sends `OffsetDateTime.MAX` as
+	 * {@link #GRPC_MAX_INSTANT} with zero nanos, while a C# client sends `DateTime.MaxValue` as
+	 * `9999-12-31T23:59:59.9999999Z`, and both mean the same "forever". A timestamp with even larger seconds cannot
+	 * come from a valid `Timestamp` - the protobuf specification forbids it, though a parser does not refuse it - and
+	 * is read as the sentinel too, because no finite value it could decode to is representable on the wire. The offset
+	 * plays no part - the comparison is made on the instant.
+	 *
+	 * @param timestamp the wire timestamp
+	 * @return `true` when the timestamp stands for the latest representable moment
+	 */
+	private static boolean isGrpcMaxSentinel(@Nonnull Timestamp timestamp) {
+		return timestamp.getSeconds() >= GRPC_MAX_INSTANT.getEpochSecond();
+	}
+
+	/**
+	 * Tells whether the wire timestamp denotes the lower sentinel - exactly {@link #GRPC_MIN_INSTANT}, seconds and
+	 * zero nanos, which is what both the Java converter and a C# client sending `DateTime.MinValue`
+	 * (`0001-01-01T00:00:00Z`) put on the wire. Unlike the upper edge, a moment later in the first second is an
+	 * ordinary finite value and decodes as such. The counterpart of {@link #isGrpcMaxSentinel(Timestamp)}: a timestamp
+	 * with smaller seconds than the range allows cannot come from a valid `Timestamp` and is read as the sentinel too.
+	 *
+	 * @param timestamp the wire timestamp
+	 * @return `true` when the timestamp stands for the earliest representable moment
+	 */
+	private static boolean isGrpcMinSentinel(@Nonnull Timestamp timestamp) {
+		final long seconds = timestamp.getSeconds();
+		final long minSeconds = GRPC_MIN_INSTANT.getEpochSecond();
+		return seconds < minSeconds || (seconds == minSeconds && timestamp.getNanos() == 0);
+	}
+
+	/**
+	 * Clamps the instant into the range a protobuf `Timestamp` may carry: a later instant leaves as
+	 * {@link #GRPC_MAX_INSTANT}, an earlier one as {@link #GRPC_MIN_INSTANT}. A client in another language decodes
+	 * an out-of-range `Timestamp` with an error, and evitaDB legitimately holds moments far outside it - the JDK
+	 * sentinels, clamped to the window of moments expressible as epoch milliseconds, lie about 292 million years
+	 * away. The edges are exactly what {@link #isGrpcMaxSentinel(Timestamp)} and {@link #isGrpcMinSentinel(Timestamp)}
+	 * read back as the sentinels, so a clamped value survives a round trip through any client.
+	 *
+	 * @param instant the instant to clamp
+	 * @return the instant itself when it fits the protobuf range, otherwise the nearest edge of it
+	 */
+	@Nonnull
+	private static Instant clampToGrpcRange(@Nonnull Instant instant) {
+		if (instant.isAfter(GRPC_MAX_INSTANT)) {
+			return GRPC_MAX_INSTANT;
+		} else if (instant.isBefore(GRPC_MIN_INSTANT)) {
+			return GRPC_MIN_INSTANT;
+		} else {
+			return instant;
+		}
+	}
+
+	/**
 	 * This method is used to convert {@link GrpcOffsetDateTime} to {@link OffsetDateTime}.
+	 *
+	 * Only the edges of the protobuf `Timestamp` range are decoded as the JDK sentinels `OffsetDateTime.MIN` /
+	 * `OffsetDateTime.MAX` - see {@link #isGrpcMinSentinel(Timestamp)} and {@link #isGrpcMaxSentinel(Timestamp)}.
+	 * Every other moment, including any other moment of year 1 or year 9999, is decoded as the moment that was sent.
 	 *
 	 * @param dateTime value to be converted
 	 * @return {@link OffsetDateTime} value
 	 */
 	@Nonnull
 	public static OffsetDateTime toOffsetDateTime(@Nonnull GrpcOffsetDateTime dateTime) {
-		final OffsetDateTime grpcOffsetDateTime = OffsetDateTime.ofInstant(
-			Instant.ofEpochSecond(dateTime.getTimestamp().getSeconds(), dateTime.getTimestamp().getNanos()),
-			ZoneOffset.of(dateTime.getOffset())
-		);
-		if (grpcOffsetDateTime.getYear() == GRPC_YEAR_MIN) {
+		final Timestamp timestamp = dateTime.getTimestamp();
+		if (isGrpcMinSentinel(timestamp)) {
 			return OffsetDateTime.MIN;
-		}
-		if (grpcOffsetDateTime.getYear() == GRPC_YEAR_MAX) {
+		} else if (isGrpcMaxSentinel(timestamp)) {
 			return OffsetDateTime.MAX;
 		}
-		return grpcOffsetDateTime;
+		return OffsetDateTime.ofInstant(
+			Instant.ofEpochSecond(timestamp.getSeconds(), timestamp.getNanos()),
+			ZoneOffset.of(dateTime.getOffset())
+		);
 	}
 
 	@Nonnull
@@ -834,22 +901,25 @@ public class EvitaDataTypesConverter {
 	/**
 	 * This method is used to convert {@link GrpcOffsetDateTime} to {@link LocalDateTime}.
 	 *
+	 * Only the edges of the protobuf `Timestamp` range are decoded as the JDK sentinels `LocalDateTime.MIN` /
+	 * `LocalDateTime.MAX` - see {@link #isGrpcMinSentinel(Timestamp)} and {@link #isGrpcMaxSentinel(Timestamp)}. Every
+	 * other moment is decoded as the moment that was sent.
+	 *
 	 * @param dateTime value to be converted
 	 * @return {@link LocalDateTime} value
 	 */
 	@Nonnull
 	public static LocalDateTime toLocalDateTime(@Nonnull GrpcOffsetDateTime dateTime) {
-		final LocalDateTime grpcLocalDateTime = LocalDateTime.ofInstant(
-			Instant.ofEpochSecond(dateTime.getTimestamp().getSeconds(), dateTime.getTimestamp().getNanos()),
-			ZoneOffset.of(dateTime.getOffset())
-		);
-		if (grpcLocalDateTime.getYear() == GRPC_YEAR_MIN) {
+		final Timestamp timestamp = dateTime.getTimestamp();
+		if (isGrpcMinSentinel(timestamp)) {
 			return LocalDateTime.MIN;
-		}
-		if (grpcLocalDateTime.getYear() == GRPC_YEAR_MAX) {
+		} else if (isGrpcMaxSentinel(timestamp)) {
 			return LocalDateTime.MAX;
 		}
-		return grpcLocalDateTime;
+		return LocalDateTime.ofInstant(
+			Instant.ofEpochSecond(timestamp.getSeconds(), timestamp.getNanos()),
+			ZoneOffset.of(dateTime.getOffset())
+		);
 	}
 
 	@Nonnull
@@ -860,19 +930,30 @@ public class EvitaDataTypesConverter {
 	/**
 	 * This method is used to convert {@link GrpcOffsetDateTime} to {@link LocalDate}.
 	 *
+	 * A date has a day's granularity, so its sentinels are the edge **days** of the protobuf `Timestamp` range:
+	 * `0001-01-01` (or earlier) is decoded as `LocalDate.MIN` and `9999-12-31` (or later - an edge instant read at a
+	 * positive offset falls on the next day) as `LocalDate.MAX`, as is any timestamp the scalar sentinels are read
+	 * from (see {@link #isGrpcMaxSentinel(Timestamp)}). A date carries no time of day, so unlike a moment it cannot be
+	 * told apart from the sentinel within the edge day. Every other date is decoded as the date that was sent.
+	 *
 	 * @param dateTime value to be converted
 	 * @return {@link LocalDate} value
 	 */
 	@Nonnull
 	public static LocalDate toLocalDate(@Nonnull GrpcOffsetDateTime dateTime) {
+		final Timestamp timestamp = dateTime.getTimestamp();
+		if (isGrpcMinSentinel(timestamp)) {
+			return LocalDate.MIN;
+		} else if (isGrpcMaxSentinel(timestamp)) {
+			return LocalDate.MAX;
+		}
 		final LocalDate grpcLocalDate = LocalDate.ofInstant(
-			Instant.ofEpochSecond(dateTime.getTimestamp().getSeconds(), dateTime.getTimestamp().getNanos()),
+			Instant.ofEpochSecond(timestamp.getSeconds(), timestamp.getNanos()),
 			ZoneOffset.of(dateTime.getOffset())
 		);
-		if (grpcLocalDate.getYear() == GRPC_YEAR_MIN) {
+		if (!grpcLocalDate.isAfter(GRPC_MIN_DATE)) {
 			return LocalDate.MIN;
-		}
-		if (grpcLocalDate.getYear() == GRPC_YEAR_MAX) {
+		} else if (!grpcLocalDate.isBefore(GRPC_MAX_DATE)) {
 			return LocalDate.MAX;
 		}
 		return grpcLocalDate;
@@ -1229,20 +1310,16 @@ public class EvitaDataTypesConverter {
 	/**
 	 * This method is used to convert {@link OffsetDateTime} to {@link GrpcOffsetDateTime}.
 	 *
+	 * An instant outside the protobuf `Timestamp` range leaves as the nearest edge of it, with the original offset -
+	 * see {@link #clampToGrpcRange(Instant)}.
+	 *
 	 * @param offsetDateTime value to be converted
 	 * @return {@link GrpcOffsetDateTime} value
 	 */
 	@Nonnull
 	public static GrpcOffsetDateTime toGrpcOffsetDateTime(@Nonnull OffsetDateTime offsetDateTime) {
 		final String offset = offsetDateTime.getOffset().getId();
-		final Instant dateTime;
-		if (LocalDate.MIN.equals(offsetDateTime.toLocalDate())) {
-			dateTime = GRPC_MIN_INSTANT;
-		} else if (LocalDate.MAX.equals(offsetDateTime.toLocalDate())) {
-			dateTime = GRPC_MAX_INSTANT;
-		} else {
-			dateTime = offsetDateTime.toInstant();
-		}
+		final Instant dateTime = clampToGrpcRange(offsetDateTime.toInstant());
 		return GrpcOffsetDateTime.newBuilder()
 			.setTimestamp(Timestamp.newBuilder()
 				.setSeconds(dateTime.getEpochSecond())
@@ -1264,20 +1341,16 @@ public class EvitaDataTypesConverter {
 	/**
 	 * This method is used to convert {@link LocalDateTime} to {@link GrpcOffsetDateTime}.
 	 *
+	 * A moment outside the protobuf `Timestamp` range leaves as the nearest edge of it - see
+	 * {@link #clampToGrpcRange(Instant)}.
+	 *
 	 * @param localDateTime value to be converted
 	 * @return {@link GrpcOffsetDateTime} value
 	 */
 	@Nonnull
 	public static GrpcOffsetDateTime toGrpcLocalDateTime(@Nonnull LocalDateTime localDateTime) {
 		final String offset = DEFAULT_ZONE_OFFSET.getId();
-		final Instant dateTime;
-		if (LocalDate.MIN.equals(localDateTime.toLocalDate())) {
-			dateTime = GRPC_MIN_INSTANT;
-		} else if (LocalDate.MAX.equals(localDateTime.toLocalDate())) {
-			dateTime = GRPC_MAX_INSTANT;
-		} else {
-			dateTime = localDateTime.toInstant(DEFAULT_ZONE_OFFSET);
-		}
+		final Instant dateTime = clampToGrpcRange(localDateTime.toInstant(DEFAULT_ZONE_OFFSET));
 		return GrpcOffsetDateTime.newBuilder()
 			.setTimestamp(Timestamp.newBuilder()
 				.setSeconds(dateTime.getEpochSecond())
@@ -1299,19 +1372,17 @@ public class EvitaDataTypesConverter {
 	/**
 	 * This method is used to convert {@link LocalDate} to {@link GrpcOffsetDateTime}.
 	 *
+	 * A date outside the protobuf `Timestamp` range leaves as the nearest edge of it - see
+	 * {@link #clampToGrpcRange(Instant)}.
+	 *
 	 * @param localDate value to be converted
 	 * @return {@link GrpcOffsetDateTime} value
 	 */
 	@Nonnull
 	public static GrpcOffsetDateTime toGrpcLocalDate(@Nonnull LocalDate localDate) {
-		final Instant dateTime;
-		if (LocalDate.MIN.equals(localDate)) {
-			dateTime = GRPC_MIN_INSTANT;
-		} else if (LocalDate.MAX.equals(localDate)) {
-			dateTime = GRPC_MAX_INSTANT;
-		} else {
-			dateTime = LocalDateTime.of(localDate, LocalTime.MIDNIGHT).toInstant(DEFAULT_ZONE_OFFSET);
-		}
+		final Instant dateTime = clampToGrpcRange(
+			LocalDateTime.of(localDate, LocalTime.MIDNIGHT).toInstant(DEFAULT_ZONE_OFFSET)
+		);
 		final String offset = DEFAULT_ZONE_OFFSET.getId();
 		return GrpcOffsetDateTime.newBuilder()
 			.setTimestamp(Timestamp.newBuilder()

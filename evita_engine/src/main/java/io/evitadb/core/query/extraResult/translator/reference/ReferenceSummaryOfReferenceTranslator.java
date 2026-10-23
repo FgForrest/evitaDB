@@ -26,20 +26,18 @@ package io.evitadb.core.query.extraResult.translator.reference;
 import io.evitadb.api.exception.ReferenceNotFoundException;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.query.GenericConstraint;
-import io.evitadb.api.query.filter.EntityLocaleEquals;
+import io.evitadb.api.query.QueryUtils;
+import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.filter.FilterBy;
 import io.evitadb.api.query.filter.FilterGroupBy;
-import io.evitadb.api.query.filter.SeparateEntityScopeContainer;
 import io.evitadb.api.query.order.OrderBy;
 import io.evitadb.api.query.order.OrderGroupBy;
-import io.evitadb.api.query.RequireConstraint;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.query.require.EntityFetchRequire;
 import io.evitadb.api.query.require.EntityGroupFetch;
 import io.evitadb.api.query.require.FacetStatisticsDepth;
 import io.evitadb.api.query.require.ReferenceHistogramStatistics;
 import io.evitadb.api.query.require.ReferenceSummaryOfReference;
-import io.evitadb.api.query.visitor.FinderVisitor;
 import io.evitadb.api.requestResponse.extraResult.ReferenceSummary.ReferenceGroupStatistics;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
@@ -81,7 +79,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static io.evitadb.utils.Assert.isTrue;
-import static java.util.Optional.ofNullable;
 
 /**
  * Translates the per-reference form of the reference-summary require constraint
@@ -273,17 +270,19 @@ public class ReferenceSummaryOfReferenceTranslator
 	 */
 	@Nullable
 	static Locale findLocale(@Nullable GenericConstraint<FilterConstraint> filterBy) {
-		return filterBy == null ?
-			null :
-			ofNullable(
-				FinderVisitor.findConstraint(
-					filterBy,
-					EntityLocaleEquals.class::isInstance,
-					SeparateEntityScopeContainer.class::isInstance
-				)
-			)
-				.map(it -> ((EntityLocaleEquals) it).getLocale())
-				.orElse(null);
+		return QueryUtils.resolveLocale(filterBy);
+	}
+
+	/**
+	 * Converts the group filter of a summary into the filter of the request that fetches the group bodies, which
+	 * resolves the locale of the group level from it.
+	 *
+	 * @param filterGroupBy the group filter of the summary, NULL when there is none
+	 * @return the same constraints as a filter, NULL when there is no group filter
+	 */
+	@Nullable
+	static FilterBy groupFilterAsFilterBy(@Nullable FilterGroupBy filterGroupBy) {
+		return filterGroupBy == null ? null : new FilterBy(filterGroupBy.getChildren());
 	}
 
 	/**
@@ -409,13 +408,18 @@ public class ReferenceSummaryOfReferenceTranslator
 		);
 
 		final EntityFetch facetEntityRequirement = referenceEntityRequirement != null ?
-			verifyFetch(referenceSchema.getReferencedEntityType(), referenceEntityRequirement, extraResultPlanner) :
+			verifyFetch(
+				referenceSchema.getReferencedEntityType(), referenceEntityRequirement, filterBy, extraResultPlanner
+			) :
 			null;
 		final EntityGroupFetch groupEntityReq;
 		if (groupEntityRequirement != null) {
 			final String referencedGroupType = referenceSchema.getReferencedGroupType();
 			groupEntityReq = referencedGroupType != null ?
-				verifyFetch(referencedGroupType, groupEntityRequirement, extraResultPlanner) :
+				verifyFetch(
+					referencedGroupType, groupEntityRequirement,
+					groupFilterAsFilterBy(filterGroupBy),
+					extraResultPlanner) :
 				groupEntityRequirement;
 		} else {
 			groupEntityReq = null;
@@ -518,6 +522,8 @@ public class ReferenceSummaryOfReferenceTranslator
 	 *
 	 * @param referencedType     the type to be referenced
 	 * @param requirement        the fetch requirement to be verified
+	 * @param filter             the summary filter of the body's level, which supplies its locale; NULL when there
+	 *                           is none
 	 * @param extraResultPlanner the visitor used for extra result planning
 	 * @param <T>                the type of the fetch requirement
 	 * @return the verified fetch requirement
@@ -526,10 +532,16 @@ public class ReferenceSummaryOfReferenceTranslator
 	private static <T extends EntityFetchRequire> T verifyFetch(
 		@Nonnull String referencedType,
 		@Nonnull T requirement,
+		@Nullable FilterBy filter,
 		@Nonnull ExtraResultPlanningVisitor extraResultPlanner
 	) {
 		final EntitySchemaContract referencedSchema = extraResultPlanner.getSchema(referencedType);
-		EntityFetchTranslator.verifyEntityFetchLocalizedAttributes(referencedSchema, requirement, extraResultPlanner);
+		EntityFetchTranslator.verifyEntityFetchLocalizedAttributes(
+			referencedSchema, requirement, extraResultPlanner,
+			ExtraResultPlanningVisitor.deriveBodyRequest(
+				extraResultPlanner.getEvitaRequest(), referencedType, filter, requirement
+			)
+		);
 		return requirement;
 	}
 

@@ -212,7 +212,7 @@ class CatalogRenameUnpublishedHeaderTest implements EvitaTestSupport {
 				.filter(path -> path.getFileName().toString().endsWith(CATALOG_FILE_SUFFIX))
 				.toList();
 			assertEquals(1, dataFiles.size(), () -> "Exactly one catalog data file is expected under " + root + "!");
-			return Files.size(dataFiles.get(0));
+			return Files.size(dataFiles.getFirst());
 		} catch (IOException ex) {
 			throw new IllegalStateException("Cannot measure the catalog data file under `" + root + "`!", ex);
 		}

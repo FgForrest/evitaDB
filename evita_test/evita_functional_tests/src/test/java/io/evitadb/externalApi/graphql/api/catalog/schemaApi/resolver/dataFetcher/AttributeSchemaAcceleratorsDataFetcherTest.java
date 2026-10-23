@@ -115,7 +115,7 @@ class AttributeSchemaAcceleratorsDataFetcherTest {
 		final AttributeSchemaContract attributeSchema = AttributeSchema._internalBuild(
 			"ean", null, null,
 			// the untyped nulls would leave the array- and map-shaped overloads equally applicable
-			(ScopedAttributeUniquenessType[]) null,
+			null,
 			Scope.DEFAULT_SCOPES,
 			(ScopedAttributeFilterAccelerators[]) null,
 			null,

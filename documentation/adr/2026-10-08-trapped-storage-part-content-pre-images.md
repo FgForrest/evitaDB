@@ -1,7 +1,7 @@
 ---
 title: Restore the content of a trapped storage part on rollback from a pre-image journalled when the part is read inside a savepoint
 date: 2026-10-08
-updated: 2026-10-08 08:23
+updated: 2026-10-12 02:40
 status: accepted
 kind: fix
 issues: [1678]
@@ -9,7 +9,7 @@ prs: [1724]
 areas: [evita_engine/core/buffer, evita_engine/core/collection, evita_engine/index/mutation/storagePart, evita_engine/spi/store/catalog/persistence/storageParts/entity]
 supersedes: []
 superseded-by: []
-relates: [2026-08-26-warm-up-per-entity-mutation-atomicity]
+relates: [2026-08-26-warm-up-per-entity-mutation-atomicity, 2026-10-20-single-owner-partitions-as-registry-rows]
 ---
 
 # A trapped storage part is rolled back by content, not by slot
@@ -216,7 +216,11 @@ each other's writes.
   (`TrappedStoragePartContentRollbackTest`); no natural trigger was searched for. Option A covers it
   regardless, because its inverse restores content whether or not the slot was re-trapped.
 - **#1615's in-flight registry seam is unaffected:** option A keeps the registry and the trapped map
-  pointing at the same live instance. That branch's pre-PR checklist should still say so.
+  pointing at the same live instance. That branch's pre-PR checklist should still say so. **Settled with
+  #1615 (2026-10-12 note):** the seam shipped as `InFlightEntityAccessorLookup`. No test found when #1615
+  was recorded proves that a nested change rolled back by a savepoint is also rolled back in what the registry
+  serves to a later read of the same root mutation; the comment on #1678 says so - see
+  [2026-10-20-single-owner-partitions-as-registry-rows](2026-10-20-single-owner-partitions-as-registry-rows.md).
 
 ## Related work
 

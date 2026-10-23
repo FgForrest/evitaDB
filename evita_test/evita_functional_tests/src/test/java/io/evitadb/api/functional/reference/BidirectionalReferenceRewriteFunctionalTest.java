@@ -32,8 +32,8 @@ import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.core.Evita;
-import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.core.exception.ReferenceNotIndexedException;
+import io.evitadb.core.query.QueryPlanner;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.test.Entities;
@@ -57,34 +57,12 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 import static io.evitadb.api.query.Query.query;
-import static io.evitadb.api.query.QueryConstraints.and;
-import static io.evitadb.api.query.QueryConstraints.attributeEquals;
-import static io.evitadb.api.query.QueryConstraints.attributeInSet;
-import static io.evitadb.api.query.QueryConstraints.attributeNatural;
-import static io.evitadb.api.query.QueryConstraints.collection;
-import static io.evitadb.api.query.QueryConstraints.debug;
-import static io.evitadb.api.query.QueryConstraints.entityHaving;
-import static io.evitadb.api.query.QueryConstraints.entityLocaleEquals;
-import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
-import static io.evitadb.api.query.QueryConstraints.filterBy;
-import static io.evitadb.api.query.QueryConstraints.not;
-import static io.evitadb.api.query.QueryConstraints.or;
-import static io.evitadb.api.query.QueryConstraints.orderBy;
-import static io.evitadb.api.query.QueryConstraints.page;
-import static io.evitadb.api.query.QueryConstraints.queryTelemetry;
-import static io.evitadb.api.query.QueryConstraints.referenceHaving;
-import static io.evitadb.api.query.QueryConstraints.referenceProperty;
-import static io.evitadb.api.query.QueryConstraints.require;
-import static io.evitadb.api.query.QueryConstraints.scope;
+import static io.evitadb.api.query.QueryConstraints.*;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.FILTER;
 import static io.evitadb.test.TestTags.REFERENCE;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Pins **which constraint shapes the bidirectional-reference rewrite takes over, and which it must leave alone**.
@@ -1576,9 +1554,9 @@ public class BidirectionalReferenceRewriteFunctionalTest
 	/**
 	 * A reference allowing duplicate rows per `(owner, referenced)` pair used to be a hard decline, on the grounds
 	 * that its reduced-index family is addressed by index primary key rather than by a fully qualified key. That was
-	 * an *addressing* problem, not a semantic one, and it has been fixed in
-	 * {@link io.evitadb.core.query.QueryPlanningContext#getEntityIndexByPrimaryKey(String, int, Class)} by naming the
-	 * collection the keys came from. The rewrite is now taken here.
+	 * an *addressing* problem, not a semantic one, and it is resolved by
+	 * {@link io.evitadb.core.query.QueryPlanningContext#resolvePartitionsOfTarget}, which resolves the listed
+	 * primary keys in the collection that handed them out. The rewrite is taken here.
 	 *
 	 * The fixture writes three `PRODUCT.variants` rows per product 1..{@link #LAST_VARIANT_PRODUCT_PK}: two pointing
 	 * at category 1 (tags `a` and `b`) and one at category 2 (tag `a`). Tag `b` therefore reaches exactly one

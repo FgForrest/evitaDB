@@ -48,8 +48,8 @@ import java.util.stream.IntStream;
 
 /**
  * This DTO envelopes cached access to referenced entity group primary key to referenced entity primary keys mapping.
- * This mapping is used in {@link EntityNestedQueryComparator#setFilteredEntities(int[], int[], Function)} method
- * when the references are sorted first by group entity and then by referenced entity.
+ * This mapping is used in {@link EntityNestedQueryComparator#setFilteredEntities(int[], int[], Function, boolean)}
+ * method when the references are sorted first by group entity and then by referenced entity.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2025
  */

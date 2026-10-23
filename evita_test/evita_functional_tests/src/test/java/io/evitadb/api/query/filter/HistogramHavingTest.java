@@ -165,7 +165,7 @@ class HistogramHavingTest {
 		@DisplayName("should return null from 4-arg factory with histogramName when both bounds are null")
 		void shouldReturnNullFrom4ArgFactoryWithHistogramNameWhenBothBoundsAreNull() {
 			// cast arg-3 to Integer — matches the (String,String,T,T) overload uniquely
-			assertNull(histogramHaving("price-range", "name", (Integer) null, (Integer) null));
+			assertNull(histogramHaving("price-range", "name", null, (Integer) null));
 		}
 
 		@Test
@@ -173,7 +173,7 @@ class HistogramHavingTest {
 		void shouldReturnNullFrom4ArgFactoryWithGroupSelectorWhenBothBoundsAreNull() {
 			// cast bound types to Integer — matches the (String,T,T,FilterConstraint) overload uniquely
 			assertNull(histogramHaving(
-				"price-range", (Integer) null, (Integer) null, groupSelector("height")
+				"price-range", null, (Integer) null, groupSelector("height")
 			));
 		}
 
@@ -182,7 +182,7 @@ class HistogramHavingTest {
 		void shouldReturnNullFrom5ArgFactoryWhenBothBoundsAreNull() {
 			// cast bound types to Integer — matches the full-arity (String,String,T,T,FilterConstraint)
 			assertNull(histogramHaving(
-				"price-range", "name", (Integer) null, (Integer) null, groupSelector("height")
+				"price-range", "name", null, (Integer) null, groupSelector("height")
 			));
 		}
 
@@ -329,7 +329,7 @@ class HistogramHavingTest {
 		void shouldBeApplicableWithHistogramNameAndOnlyOneBoundSet() {
 			// applicability depends on from/to only — supplying histogramName must not flip the flag;
 			// cast null to Integer to uniquely pick the (String,String,T,T) overload
-			assertTrue(histogramHaving("parameterValues", "basicUnitValue", 50, (Integer) null).isApplicable());
+			assertTrue(histogramHaving("parameterValues", "basicUnitValue", 50, null).isApplicable());
 			assertTrue(histogramHaving("parameterValues", "basicUnitValue", null, 120).isApplicable());
 		}
 
@@ -339,7 +339,7 @@ class HistogramHavingTest {
 			// applicability depends on from/to only — supplying groupSelector must not flip the flag;
 			// cast null to Integer to uniquely pick the (String,T,T,FilterConstraint) overload
 			assertTrue(histogramHaving("parameterValues", 50, null, groupSelector("height")).isApplicable());
-			assertTrue(histogramHaving("parameterValues", (Integer) null, 120, groupSelector("height")).isApplicable());
+			assertTrue(histogramHaving("parameterValues", null, 120, groupSelector("height")).isApplicable());
 		}
 
 		@Test

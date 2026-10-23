@@ -51,6 +51,12 @@ package io.evitadb.externalApi.grpc.generated;
  * - the per-reference-type index types carry a reference name and no primary key - one index covers the whole
  *   reference,
  * - the per-referenced-entity index types carry both, plus whatever else distinguishes the target.
+ *
+ * Only physical indexes are browsed. A reference indexed for filtering only keeps each partition that has a single
+ * owner as a row of a registry held by its reference-type index rather than as a per-referenced-entity index of its
+ * own; such a partition is never a row of a browse, and asking to describe an index under its primary key fails
+ * exactly as it does for a key that names no index. How many of them a reference holds is reported by
+ * `GrpcIndexCardinality.virtualPartitionCount`.
  * </pre>
  *
  * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcBrowsedIndex}
@@ -1065,6 +1071,12 @@ private static final long serialVersionUID = 0L;
    * - the per-reference-type index types carry a reference name and no primary key - one index covers the whole
    *   reference,
    * - the per-referenced-entity index types carry both, plus whatever else distinguishes the target.
+   *
+   * Only physical indexes are browsed. A reference indexed for filtering only keeps each partition that has a single
+   * owner as a row of a registry held by its reference-type index rather than as a per-referenced-entity index of its
+   * own; such a partition is never a row of a browse, and asking to describe an index under its primary key fails
+   * exactly as it does for a key that names no index. How many of them a reference holds is reported by
+   * `GrpcIndexCardinality.virtualPartitionCount`.
    * </pre>
    *
    * Protobuf type {@code io.evitadb.externalApi.grpc.generated.GrpcBrowsedIndex}

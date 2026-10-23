@@ -449,7 +449,7 @@ class TransactionalListTest {
 			assertStateAfterCommit(
 				TransactionalListTest.this.tested,
 				original -> {
-					original.remove(0);
+					original.removeFirst();
 					original.add(1, 3);
 					original.add(1, 4);
 					original.remove(1);
@@ -607,8 +607,8 @@ class TransactionalListTest {
 			assertStateAfterCommit(
 				TransactionalListTest.this.tested,
 				original -> {
-					original.remove(0);
-					original.remove(0);
+					original.removeFirst();
+					original.removeFirst();
 					original.add(3);
 					original.add(3);
 
@@ -1387,7 +1387,7 @@ class TransactionalListTest {
 				},
 				(original, committedVersion) -> {
 					assertEquals(1, committedVersion.size());
-					assertEquals(Integer.valueOf(10), committedVersion.get(0));
+					assertEquals(Integer.valueOf(10), committedVersion.getFirst());
 				}
 			);
 		}
@@ -1403,7 +1403,7 @@ class TransactionalListTest {
 				single,
 				original -> {
 					assertEquals(1, original.size());
-					assertEquals(Integer.valueOf(42), original.get(0));
+					assertEquals(Integer.valueOf(42), original.getFirst());
 					original.remove(Integer.valueOf(42));
 					assertTrue(original.isEmpty());
 					original.add(99);
@@ -1411,7 +1411,7 @@ class TransactionalListTest {
 				},
 				(original, committedVersion) -> {
 					assertEquals(1, committedVersion.size());
-					assertEquals(Integer.valueOf(99), committedVersion.get(0));
+					assertEquals(Integer.valueOf(99), committedVersion.getFirst());
 				}
 			);
 		}

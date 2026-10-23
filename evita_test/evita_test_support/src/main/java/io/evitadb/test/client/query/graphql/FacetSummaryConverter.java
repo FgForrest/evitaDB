@@ -44,6 +44,8 @@ import io.evitadb.externalApi.graphql.api.catalog.dataApi.model.extraResult.Refe
 import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.Argument;
 import io.evitadb.test.client.query.graphql.GraphQLOutputFieldsBuilder.ArgumentSupplier;
 
+import io.evitadb.api.query.QueryUtils;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -217,6 +219,7 @@ public class FacetSummaryConverter extends RequireConverter {
 		return arguments.toArray(ArgumentSupplier[]::new);
 	}
 
+	/** Generates group body selections with the group filter's opinion before inheriting the enclosing locale. */
 	private void convertFacetSummaryOfReference(@Nonnull GraphQLOutputFieldsBuilder facetSummaryOfReferenceBuilder,
 	                                            @Nullable Locale locale,
 	                                            @Nonnull ReferenceSchemaContract referenceSchema,
@@ -230,7 +233,7 @@ public class FacetSummaryConverter extends RequireConverter {
 				groupEntityBuilder -> this.entityFetchBuilder.convert(
 					groupEntityBuilder,
 					referenceSchema.getReferencedGroupType(),
-					locale,
+					ofNullable(QueryUtils.resolveLocale(facetSummaryOfReference.getFilterGroupBy().orElse(null))).orElse(locale),
 					facetSummaryOfReference.getGroupEntityRequirement().orElse(null)
 				)
 			);
@@ -298,6 +301,7 @@ public class FacetSummaryConverter extends RequireConverter {
 		return arguments.toArray(ArgumentSupplier[]::new);
 	}
 
+	/** Generates facet body selections with the facet filter's opinion before inheriting the enclosing locale. */
 	private void convertFacetStatistics(@Nonnull GraphQLOutputFieldsBuilder facetStatisticsBuilder,
 										@Nullable Locale locale,
 										@Nonnull ReferenceSchemaContract referenceSchema,
@@ -321,7 +325,7 @@ public class FacetSummaryConverter extends RequireConverter {
 			facetEntityBuilder -> this.entityFetchBuilder.convert(
 				facetEntityBuilder,
 				referenceSchema.getReferencedEntityType(),
-				locale,
+				ofNullable(QueryUtils.resolveLocale(facetSummaryOfReference.getFilterBy().orElse(null))).orElse(locale),
 				facetSummaryOfReference.getFacetEntityRequirement().orElse(null)
 			)
 		);

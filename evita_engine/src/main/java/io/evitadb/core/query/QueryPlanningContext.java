@@ -65,7 +65,6 @@ import io.evitadb.api.requestResponse.EvitaRequest;
 import io.evitadb.api.requestResponse.EvitaRequest.FacetFilterBy;
 import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.EntityReferenceContract;
-import io.evitadb.api.requestResponse.data.mutation.reference.ReferenceKey;
 import io.evitadb.api.requestResponse.data.structure.EntityReference;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
@@ -84,6 +83,7 @@ import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.extraResult.CacheableEvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.EvitaResponseExtraResultComputer;
 import io.evitadb.core.query.extraResult.translator.reference.producer.FilteringFormulaPredicate;
+import io.evitadb.core.query.filter.SplitTargetPartitions;
 import io.evitadb.core.query.filter.translator.reference.HavingTranslatorHelper;
 import io.evitadb.core.query.policy.BitmapFavouringNoCachePolicy;
 import io.evitadb.core.query.policy.DefaultPolicy;
@@ -96,10 +96,13 @@ import io.evitadb.index.*;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
+import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.index.facet.FacetIndex;
 import io.evitadb.index.hierarchy.predicate.HierarchyFilteringPredicate;
 import io.evitadb.index.usage.SchemaCapabilityKey;
 import io.evitadb.index.usage.SchemaCapabilityUsage;
+import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
+import io.evitadb.roaringbitmap.RoaringBitmapWriter;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.CollectionUtils;
 import lombok.Getter;
@@ -107,7 +110,10 @@ import lombok.Getter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.util.*;
+import java.util.PrimitiveIterator.OfInt;
 import java.util.function.BiFunction;
+import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
@@ -234,7 +240,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * The very same indexes as in {@link #indexes}, keyed by the index primary key (the id the index is stored
 	 * under in the persistent data store) instead. This is the lookup direction needed when
 	 * {@link ReferencedTypeEntityIndex} hands out the primary keys of all reduced indexes belonging to
-	 * a particular referenced entity - see {@link #getEntityIndexByPrimaryKey(int, Class)}.
+	 * a particular referenced entity - see {@link #resolvePartition(int)}.
 	 */
 	@Nonnull private final Map<Integer, Index<?>> indexesByPk;
 	/**
@@ -397,6 +403,12 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @see #computeOncePerKey(Object, Supplier) for the contract
 	 */
 	private Map<Object, Object> valueKeyedCache;
+	/**
+	 * The memo of the by-key partition resolutions of this context - see
+	 * {@link #resolvePartitionForReadIfExists(String, Scope, RepresentativeReferenceKey)}. Created on the first such
+	 * resolution and never shared with another context, so it never outlives the index snapshots this context reads.
+	 */
+	@Nullable private PartitionKeyMemo partitionKeyMemo;
 
 
 	/**
@@ -1019,73 +1031,6 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Returns {@link EntityIndex} of the **queried** entity collection by its storage primary key, or `null` when the
-	 * collection holds no index of that key.
-	 *
-	 * The lenient counterpart of {@link #getEntityIndexByPrimaryKey(int, Class)}, for primary keys that come from an
-	 * accelerator rather than from the index that owns them - typically
-	 * {@link io.evitadb.index.membership.ReducedIndexMembership}, whose entries may name an index that has since been
-	 * dropped, or one of a different family than the caller walks. Such a caller must tolerate a miss and check the
-	 * type itself, which is why this method neither asserts the presence nor the type.
-	 *
-	 * @param indexPrimaryKey primary key of the requested index
-	 * @return the index or `null` when the queried collection holds no index of that primary key
-	 */
-	@Nullable
-	public EntityIndex getEntityIndexByPrimaryKeyIfExists(int indexPrimaryKey) {
-		return this.indexesByPk.get(indexPrimaryKey) instanceof EntityIndex entityIndex ? entityIndex : null;
-	}
-
-	/**
-	 * Returns {@link EntityIndex} of the **queried** entity collection by its storage primary key.
-	 *
-	 * The lookup reads {@link #indexesByPk}, which holds the indexes of the collection this context plans over and
-	 * nothing else. Whenever the primary keys were announced by an index of a *different* collection, use
-	 * {@link #getEntityIndexByPrimaryKey(String, int, Class)} instead - see the reasoning there.
-	 *
-	 * The primary key is expected to come from an index that already knows the index exists (typically
-	 * {@link ReferencedTypeEntityIndex} listing its reduced indexes), therefore a missing index is treated as
-	 * a programming error rather than an ordinary "not found" outcome.
-	 *
-	 * @param indexPrimaryKey primary key of the requested index
-	 * @param indexType       expected index implementation, verified at runtime
-	 * @return the requested index, never NULL
-	 */
-	@Nonnull
-	public <T extends EntityIndex> T getEntityIndexByPrimaryKey(int indexPrimaryKey, @Nonnull Class<T> indexType) {
-		return getEntityIndexByPrimaryKey(this.entityType, indexPrimaryKey, indexType);
-	}
-
-	/**
-	 * Returns {@link EntityIndex} of the named entity collection by its storage primary key.
-	 *
-	 * Index primary keys come from a per-collection sequence ({@link io.evitadb.core.sequence.SequenceType#INDEX} is
-	 * requested per entity type), so the same number names a different index in every collection. A caller resolving
-	 * keys handed out by {@link ReferencedTypeEntityIndex#getAllReferenceIndexes(int)} therefore has to say which
-	 * collection that type index belonged to - exactly as {@link #getEntityIndex(String, EntityIndexKey, Class)} does
-	 * for the by-key path. Resolving them against the queried collection instead returns whichever of its indexes
-	 * happens to carry the same number, which is a wrong answer rather than a missing one.
-	 */
-	@Nonnull
-	public <T extends EntityIndex> T getEntityIndexByPrimaryKey(
-		@Nullable String entityType,
-		int indexPrimaryKey,
-		@Nonnull Class<T> indexType
-	) {
-		final Index<?> index = Objects.equals(this.entityType, entityType) ?
-			this.indexesByPk.get(indexPrimaryKey) :
-			getEntityCollectionOrThrowException(entityType, "access entity index")
-				.getIndexByPrimaryKeyIfExists(indexPrimaryKey);
-		Assert.isPremiseValid(
-			indexType.isInstance(index),
-			() -> "Expected index of type " + indexType + " with primary key " + indexPrimaryKey + " in collection `" +
-				entityType + "` but got " + (index == null ? "NULL" : index.getClass()) + "!"
-		);
-		//noinspection unchecked
-		return (T) index;
-	}
-
-	/**
 	 * Returns the {@link CatalogIndex} of the scope when the catalog holds one, without creating it. Unlike
 	 * {@link #getIndexIfExists(IndexKey, Class)} with a {@link CatalogIndexKey}, which creates the archive catalog
 	 * index on its first access, this lookup leaves the catalog untouched - a scope the catalog has no index of holds
@@ -1112,9 +1057,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 */
 	@Nonnull
 	public <S extends IndexKey, T extends Index<S>> Optional<T> getIndexIfExists(@Nonnull S indexKey, @Nonnull Class<T> indexType) {
-		if (indexKey instanceof CatalogIndexKey cik) {
+		if (indexKey instanceof CatalogIndexKey(Scope scope)) {
 			//noinspection unchecked
-			return ofNullable((T) this.catalog.getCatalogIndex(cik.scope()));
+			return ofNullable((T) this.catalog.getCatalogIndex(scope));
 		} else {
 			final Index<?> index = this.indexes.get(indexKey);
 			Assert.isPremiseValid(
@@ -1127,78 +1072,9 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * Retrieves a stream of {@link ReducedEntityIndex} objects based on the provided scope, referenced
-	 * entity ID, entity schema, reference schema, and a supplier for handling missing indexes.
-	 *
-	 * The lookup path depends on the reference cardinality. When duplicates are allowed, a single referenced
-	 * entity may be covered by several reduced indexes, so they have to be enumerated through
-	 * the `REFERENCED_ENTITY_TYPE` index; otherwise there is at most one and it is addressed directly by
-	 * the `REFERENCED_ENTITY` key built from the reference key.
-	 *
-	 * @param scope the scope within which the entity indexes are retrieved
-	 * @param referencedEntityId the ID of the referenced entity
-	 * @param entitySchema the schema of the entity used for configuration
-	 * @param referenceSchema the schema of the reference defining the relationship to the referenced entity
-	 * @param missingIndexSupplier a supplier function to provide a fallback index when a requested index is missing;
-	 *                             it may return NULL, in which case an empty stream is produced
-	 * @return a stream of {@link ReducedEntityIndex} corresponding to the specified query criteria
-	 * @throws io.evitadb.core.exception.ReferenceComponentNotIndexedException when the reference is indexed in the
-	 *         scope without the `REFERENCED_ENTITY` component - see
-	 *         {@link HavingTranslatorHelper#assertEntityComponentIndexed}
-	 */
-	@Nonnull
-	public Stream<ReducedEntityIndex> getReducedEntityIndexes(
-		@Nonnull Scope scope,
-		int referencedEntityId,
-		@Nonnull EntitySchemaContract entitySchema,
-		@Nonnull ReferenceSchemaContract referenceSchema,
-		@Nonnull BiFunction<EntitySchemaContract, EntityIndexKey, ReducedEntityIndex> missingIndexSupplier
-	) {
-		// both branches below read the entity index family, which a scope indexed without the entity component never
-		// builds - they would answer it with an empty stream, indistinguishable from a referenced entity with no owners
-		HavingTranslatorHelper.assertEntityComponentIndexed(entitySchema, referenceSchema, scope, getScopes());
-		final String referenceName = referenceSchema.getName();
-		if (referenceSchema.getCardinality().allowsDuplicates()) {
-			final EntityIndexKey entityIndexKey = new EntityIndexKey(
-				EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName
-			);
-			return getEntityIndex(entitySchema.getName(), entityIndexKey, ReferencedTypeEntityIndex.class)
-				.map(referencedTypeEntityIndex -> {
-					final int[] allReducedEntityIndexPks = referencedTypeEntityIndex.getAllReferenceIndexes(
-						referencedEntityId
-					);
-					return Arrays.stream(allReducedEntityIndexPks)
-						.mapToObj(
-							// the keys were handed out by the type index of `entitySchema`, so they have to be
-							// resolved there too - this is the one branch that can be asked about a collection
-							// other than the queried one
-							pk -> getEntityIndexByPrimaryKey(
-								entitySchema.getName(), pk, ReducedEntityIndex.class
-							)
-						);
-				})
-				.orElseGet(() -> {
-					final ReducedEntityIndex missingIndex = missingIndexSupplier.apply(entitySchema, entityIndexKey);
-					return missingIndex == null ? Stream.empty() : Stream.of(missingIndex);
-				});
-		} else {
-			final EntityIndexKey entityIndexKey = new EntityIndexKey(
-				EntityIndexType.REFERENCED_ENTITY,
-				scope,
-				new RepresentativeReferenceKey(
-					new ReferenceKey(referenceName, referencedEntityId)
-				)
-			);
-			return getEntityIndex(entitySchema.getName(), entityIndexKey, ReducedEntityIndex.class)
-				.or(() -> Optional.ofNullable(missingIndexSupplier.apply(entitySchema, entityIndexKey)))
-				.stream();
-		}
-	}
-
-	/**
 	 * Retrieves a stream of {@link ReducedGroupEntityIndex} instances corresponding to the group entity
 	 * identified by `groupEntityId` within the given scope. This is the group-level counterpart of
-	 * {@link #getReducedEntityIndexes(Scope, int, EntitySchemaContract, ReferenceSchemaContract, BiFunction)}.
+	 * {@link #resolvePartitionsOfTarget(EntitySchemaContract, ReferenceSchemaContract, Scope, int)}.
 	 *
 	 * It differs from that sibling in one important aspect: **there is no cardinality branch here.** A single
 	 * group is routinely shared by many references, so the group indexes are always looked up through
@@ -1233,10 +1109,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 				);
 				return Arrays.stream(allReducedEntityIndexPks)
 					.mapToObj(
-						// same reasoning as in #getReducedEntityIndexes - the keys belong to `entitySchema`
-						pk -> getEntityIndexByPrimaryKey(
-							entitySchema.getName(), pk, ReducedGroupEntityIndex.class
-						)
+						// the keys were handed out by the type index of `entitySchema`, so they are resolved there too
+						pk -> requireReducedGroupEntityIndex(entitySchema.getName(), pk)
 					);
 			})
 			.orElseGet(() -> {
@@ -1244,6 +1118,453 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 					missingIndexSupplier.apply(entitySchema, entityIndexKey);
 				return missingIndex == null ? Stream.empty() : Stream.of(missingIndex);
 			});
+	}
+
+	/**
+	 * Returns the reduced group entity index of the **queried** collection registered under the primary key. The key
+	 * is expected to come from a type index that knows the index exists, so a miss or an index of another family is a
+	 * programming error. The group family has no partition handle; this is its typed by-primary-key path.
+	 *
+	 * @param groupIndexPrimaryKey primary key of the group index in the queried collection
+	 * @return the group index
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key names no reduced group entity index
+	 */
+	@Nonnull
+	public ReducedGroupEntityIndex getReducedGroupEntityIndexByPrimaryKey(int groupIndexPrimaryKey) {
+		return requireReducedGroupEntityIndex(this.entityType, groupIndexPrimaryKey);
+	}
+
+	/**
+	 * Returns the reference partition of the **queried** collection registered under the primary key, leniently -
+	 * see {@link ReferencePartitions}. For primary keys that come from an accelerator rather than from the index that
+	 * owns them - typically {@link io.evitadb.index.membership.ReducedIndexMembership}, whose entries may name a
+	 * partition that has since been dropped, or an index of the group family.
+	 *
+	 * @param partitionPrimaryKey primary key of the partition
+	 * @return the partition or `null` when the key names nothing or an index that is not a reference partition
+	 */
+	@Nullable
+	public ReferencePartition resolvePartitionIfExists(int partitionPrimaryKey) {
+		return ReferencePartitions.asPartition(getIndexByPrimaryKeyOf(this.entityType, partitionPrimaryKey));
+	}
+
+	/**
+	 * Returns the reference partition of the **queried** collection registered under the primary key, strictly - the
+	 * key must have been handed out by an index of the queried collection that knows the partition exists.
+	 *
+	 * @param partitionPrimaryKey primary key of the partition
+	 * @return the partition
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key names no reference partition
+	 */
+	@Nonnull
+	public ReferencePartition resolvePartition(int partitionPrimaryKey) {
+		return ReferencePartitions.requirePartition(
+			getIndexByPrimaryKeyOf(this.entityType, partitionPrimaryKey),
+			String.valueOf(this.entityType), partitionPrimaryKey
+		);
+	}
+
+	/**
+	 * Returns the reference partition of the **queried** collection holding the rows of the representative reference
+	 * key in the scope, read from the queried collection's own index maps this context was created with.
+	 *
+	 * @param scope                      the scope of the partition
+	 * @param representativeReferenceKey the representative reference key of the partition
+	 * @return the partition or `null` when the queried collection holds none
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key holds an index that is not a reference
+	 *                                                         partition
+	 */
+	@Nullable
+	public ReferencePartition resolvePartitionIfExists(
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey
+	) {
+		return ReferencePartitions.resolveIfExists(this.indexes::get, scope, representativeReferenceKey);
+	}
+
+	/**
+	 * Returns every reference partition of the entity type holding rows of the reference that point to the target
+	 * entity in the scope. When duplicates are allowed, one target may be covered by several partitions, so they are
+	 * enumerated through the `REFERENCED_ENTITY_TYPE` index; otherwise there is at most one, addressed directly by
+	 * the key built from the reference key. A missing type index or partition yields no element; a primary key the
+	 * type index lists must resolve. The queried collection is read from the index maps this context was created
+	 * with, any other collection from its live indexes (dirty buffer first).
+	 *
+	 * The primary keys the type index lists are resolved in the same collection. Index primary keys come from a
+	 * per-collection sequence ({@link io.evitadb.core.sequence.SequenceType#INDEX} is requested per entity type), so
+	 * the same number names a different index in every collection; resolving them against the queried collection
+	 * instead returns whichever of its indexes happens to carry the same number, which is a wrong answer rather than
+	 * a missing one.
+	 *
+	 * @param entitySchema     the entity type owning the reference
+	 * @param referenceSchema  the reference
+	 * @param scope            the scope of the partitions
+	 * @param targetPrimaryKey the primary key of the referenced entity
+	 * @return the partitions of the target, possibly empty
+	 * @throws io.evitadb.core.exception.ReferenceComponentNotIndexedException when the reference is indexed in the
+	 *         scope without the `REFERENCED_ENTITY` component - see
+	 *         {@link HavingTranslatorHelper#assertEntityComponentIndexed}
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when a listed primary key names no partition
+	 */
+	@Nonnull
+	public ReferencePartition[] resolvePartitionsOfTarget(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Scope scope,
+		int targetPrimaryKey
+	) {
+		// a scope indexed without the entity component builds no partitions - an empty answer would be
+		// indistinguishable from a target with no owners
+		HavingTranslatorHelper.assertEntityComponentIndexed(entitySchema, referenceSchema, scope, getScopes());
+		final String entityType = entitySchema.getName();
+		return ReferencePartitions.resolveOfTargetOrThrow(
+			getIndexByKeyReader(entityType), getIndexByPrimaryKeyReader(entityType),
+			scope, referenceSchema.getName(), referenceSchema.getCardinality().allowsDuplicates(), targetPrimaryKey,
+			entityType
+		);
+	}
+
+	/**
+	 * Returns the reference partition of the **queried** collection with the primary key, when it is a partition of the
+	 * reference of the type index in the type index's scope, for a read - see the read resolution of
+	 * {@link ReferencePartitions}. The type index must be the queried collection's own, as
+	 * {@link #getIndexIfExists(io.evitadb.index.IndexKey, Class)} returns it: a partition its registry holds a row for
+	 * answers its {@link VirtualReferencePartition}, read out of the row with one registry lookup; any other one
+	 * answers its reduced entity index.
+	 *
+	 * @param typeIndex           the referenced-type entity index of the reference in the scope, of the queried
+	 *                            collection
+	 * @param partitionPrimaryKey the primary key of the partition
+	 * @return the partition, or `null` when the primary key names no partition of the reference in the scope
+	 */
+	@Nullable
+	public ReferencePartition resolvePartitionForReadIfExists(
+		@Nonnull ReferencedTypeEntityIndex typeIndex,
+		int partitionPrimaryKey
+	) {
+		final EntityIndexKey typeIndexKey = typeIndex.getIndexKey();
+		return ReferencePartitions.resolveForReadIfExists(
+			this::resolvePartitionIfExists, typeIndex,
+			typeIndexKey.scope(), typeIndex.getReferenceName(), partitionPrimaryKey
+		);
+	}
+
+	/**
+	 * Returns the reference partition of the named collection holding the rows of the representative reference key in
+	 * the scope, for a read. A partition the registry holds a row for answers its
+	 * {@link VirtualReferencePartition}; the lookup goes through the memo of this context (see
+	 * {@link PartitionKeyMemo}), which builds the registered partitions of a target once per query, so a query
+	 * resolving the keys of many owners sharing one target costs one pass over the target's partitions. Any other key
+	 * answers its reduced entity index. The queried collection is read from the index maps this context was created
+	 * with, any other collection from its live indexes (dirty buffer first).
+	 *
+	 * @param entityType                 the collection owning the partition
+	 * @param scope                      the scope of the partition
+	 * @param representativeReferenceKey the representative reference key of the partition
+	 * @return the partition or `null` when the collection holds none under the key
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key holds an index that is not a reference
+	 *                                                         partition
+	 */
+	@Nullable
+	public ReferencePartition resolvePartitionForReadIfExists(
+		@Nonnull String entityType,
+		@Nonnull Scope scope,
+		@Nonnull RepresentativeReferenceKey representativeReferenceKey
+	) {
+		if (this.partitionKeyMemo == null) {
+			this.partitionKeyMemo = new PartitionKeyMemo();
+		}
+		return this.partitionKeyMemo.resolveIfExists(
+			getIndexByKeyReader(entityType),
+			getVirtualTypeIndex(entityType, scope, representativeReferenceKey.referenceName()),
+			scope, representativeReferenceKey
+		);
+	}
+
+	/**
+	 * Returns every reference partition of the entity type holding rows of the reference that point to the target
+	 * entity in the scope, for a read - see
+	 * {@link #resolvePartitionsOfTarget(EntitySchemaContract, ReferenceSchemaContract, Scope, int)}, which this
+	 * answers identically when the collection holds no referenced-type entity index of the reference in the scope.
+	 * Otherwise the partitions are enumerated through the type index whatever the cardinality of the reference, and
+	 * every one the registry holds a row for answers its {@link VirtualReferencePartition}.
+	 *
+	 * @param entitySchema     the entity type owning the reference
+	 * @param referenceSchema  the reference
+	 * @param scope            the scope of the partitions
+	 * @param targetPrimaryKey the primary key of the referenced entity
+	 * @return the partitions of the target, possibly empty
+	 * @throws io.evitadb.core.exception.ReferenceComponentNotIndexedException when the reference is indexed in the
+	 *         scope without the `REFERENCED_ENTITY` component
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when a listed primary key names no partition
+	 */
+	@Nonnull
+	public ReferencePartition[] resolvePartitionsOfTargetForRead(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Scope scope,
+		int targetPrimaryKey
+	) {
+		HavingTranslatorHelper.assertEntityComponentIndexed(entitySchema, referenceSchema, scope, getScopes());
+		final String entityType = entitySchema.getName();
+		final String referenceName = referenceSchema.getName();
+		return ReferencePartitions.resolveOfTargetForRead(
+			getIndexByKeyReader(entityType), getIndexByPrimaryKeyReader(entityType),
+			getVirtualTypeIndex(entityType, scope, referenceName),
+			scope, referenceName, referenceSchema.getCardinality().allowsDuplicates(), targetPrimaryKey, entityType
+		);
+	}
+
+	/**
+	 * Returns every reference partition of the entity type holding rows of the reference that point to any of the
+	 * target entities in any of the scopes, for a read, split by representation - the hierarchy routes ask the
+	 * partitions of the nodes of a tree for their owners and nothing else.
+	 *
+	 * In a scope whose collection holds no referenced-type entity index of the reference the partitions are those
+	 * {@link #resolvePartitionsOfTarget(EntitySchemaContract, ReferenceSchemaContract, Scope, int)} returns, target by
+	 * target and scope by scope, all materialized. In a scope holding one, the partitions of all the targets are
+	 * enumerated through the type index and split against its registry in one merge (see
+	 * {@link ReferencePartitions#splitOfTargetsForRead}): only the materialized ones are resolved to their index
+	 * objects, the registered single-owner ones contribute their owner read out of the registry row. The cost of such a
+	 * scope is one copy of the partitions of each target, one merge with the registry and one bitmap write per virtual
+	 * partition - nothing proportional to the owners of the materialized ones.
+	 *
+	 * @param entitySchema      the entity type owning the reference
+	 * @param referenceSchema   the reference
+	 * @param scopes            the scopes of the partitions
+	 * @param targetPrimaryKeys the primary keys of the referenced entities
+	 * @return the partitions of the targets split by representation
+	 * @throws io.evitadb.core.exception.ReferenceComponentNotIndexedException when there is a target and the reference
+	 *         is indexed in one of the scopes without the `REFERENCED_ENTITY` component
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when a listed primary key names no partition
+	 */
+	@Nonnull
+	public SplitTargetPartitions resolvePartitionsOfTargetsForRead(
+		@Nonnull EntitySchemaContract entitySchema,
+		@Nonnull ReferenceSchemaContract referenceSchema,
+		@Nonnull Collection<Scope> scopes,
+		@Nonnull Bitmap targetPrimaryKeys
+	) {
+		final String entityType = entitySchema.getName();
+		final String referenceName = referenceSchema.getName();
+		final List<ReducedEntityIndex> materializedIndexes =
+			new ArrayList<>(targetPrimaryKeys.size() * scopes.size());
+		ReferencedTypeEntityIndex[] virtualTypeIndexes = null;
+		int scopeIndex = 0;
+		for (final Scope scope : scopes) {
+			final ReferencedTypeEntityIndex virtualTypeIndex = getVirtualTypeIndex(entityType, scope, referenceName);
+			if (virtualTypeIndex != null) {
+				if (virtualTypeIndexes == null) {
+					virtualTypeIndexes = new ReferencedTypeEntityIndex[scopes.size()];
+				}
+				virtualTypeIndexes[scopeIndex] = virtualTypeIndex;
+			}
+			scopeIndex++;
+		}
+		// the scopes without a type index, read through the index objects alone, target by target and scope by scope -
+		// the order the hierarchy routes have always listed the partitions in
+		final OfInt targetIt = targetPrimaryKeys.iterator();
+		while (targetIt.hasNext()) {
+			final int targetPrimaryKey = targetIt.nextInt();
+			scopeIndex = 0;
+			for (final Scope scope : scopes) {
+				if (virtualTypeIndexes == null || virtualTypeIndexes[scopeIndex] == null) {
+					for (final ReferencePartition partition :
+						resolvePartitionsOfTarget(entitySchema, referenceSchema, scope, targetPrimaryKey)) {
+						// the partitions are evaluated through the query body channel
+						materializedIndexes.add(ReferencePartitions.toReducedEntityIndex(partition));
+					}
+				}
+				scopeIndex++;
+			}
+		}
+		if (virtualTypeIndexes == null) {
+			return new SplitTargetPartitions(materializedIndexes, EmptyBitmap.INSTANCE, 0);
+		}
+		// the scopes with a type index - one split over the partitions of all the targets per scope
+		final IntFunction<Index<?>> indexByPrimaryKey = getIndexByPrimaryKeyReader(entityType);
+		final IntFunction<ReferencePartition> partitionByPrimaryKey =
+			partitionPrimaryKey -> ReferencePartitions.asPartition(indexByPrimaryKey.apply(partitionPrimaryKey));
+		final RoaringBitmapWriter<PersistentRoaringBitmap> ownerWriter = RoaringBitmapBackedBitmap.buildWriter();
+		int virtualCount = 0;
+		// the split of each scope with a type index and where its materialized partitions start - kept so that a
+		// block-by-block ordering narrowed by the hierarchy option can build the virtual handles on demand
+		final ReferencePartitionSplit[] scopeSplits = new ReferencePartitionSplit[scopes.size()];
+		final int[] scopeMaterializedStarts = new int[scopes.size()];
+		int scopeSplitCount = 0;
+		scopeIndex = 0;
+		for (final Scope scope : scopes) {
+			final ReferencedTypeEntityIndex virtualTypeIndex = virtualTypeIndexes[scopeIndex++];
+			if (virtualTypeIndex == null || targetPrimaryKeys.isEmpty()) {
+				continue;
+			}
+			// a scope indexed without the entity component builds no partitions - an empty answer would be
+			// indistinguishable from targets with no owners
+			HavingTranslatorHelper.assertEntityComponentIndexed(entitySchema, referenceSchema, scope, getScopes());
+			final ReferencePartitionSplit split = ReferencePartitions.splitOfTargetsForRead(
+				virtualTypeIndex, scope, referenceName, targetPrimaryKeys
+			);
+			scopeSplits[scopeSplitCount] = split;
+			scopeMaterializedStarts[scopeSplitCount++] = materializedIndexes.size();
+			final OfInt materializedIt = split.getMaterializedPrimaryKeys().iterator();
+			while (materializedIt.hasNext()) {
+				materializedIndexes.add(
+					ReferencePartitions.toReducedEntityIndex(
+						// no type index - the registry has already answered that it holds no row for the key
+						ReferencePartitions.resolveForRead(
+							partitionByPrimaryKey, null, scope, referenceName, materializedIt.nextInt(), entityType
+						)
+					)
+				);
+			}
+			final int scopeVirtualCount = split.getVirtualCount();
+			for (int i = 0; i < scopeVirtualCount; i++) {
+				ownerWriter.add(split.getVirtualOwnerPrimaryKey(i));
+			}
+			virtualCount += scopeVirtualCount;
+		}
+		if (virtualCount == 0) {
+			return new SplitTargetPartitions(materializedIndexes, EmptyBitmap.INSTANCE, 0);
+		}
+		return new SplitTargetPartitions(
+			materializedIndexes, new BaseBitmap(ownerWriter.get()), virtualCount,
+			scopeSplitCount == scopeSplits.length ? scopeSplits : Arrays.copyOf(scopeSplits, scopeSplitCount),
+			scopeSplitCount == scopeMaterializedStarts.length ?
+				scopeMaterializedStarts : Arrays.copyOf(scopeMaterializedStarts, scopeSplitCount)
+		);
+	}
+
+	/**
+	 * Splits candidate partition primary keys of a reference of the named collection by representation, for a read -
+	 * see {@link ReferencePartitions#split(Bitmap, ReferencedTypeEntityIndex...)}. A scope whose collection holds no
+	 * referenced-type entity index of the reference has no registry, so its candidates are all materialized.
+	 *
+	 * @param entityType    the collection owning the partitions
+	 * @param referenceName the reference the partitions belong to
+	 * @param candidates    the candidate partition primary keys
+	 * @param scopes        the scopes the candidates come from
+	 * @return the split
+	 */
+	@Nonnull
+	public ReferencePartitionSplit splitPartitionsForRead(
+		@Nonnull String entityType,
+		@Nonnull String referenceName,
+		@Nonnull Bitmap candidates,
+		@Nonnull Scope... scopes
+	) {
+		ReferencedTypeEntityIndex[] typeIndexes = new ReferencedTypeEntityIndex[scopes.length];
+		int count = 0;
+		for (final Scope scope : scopes) {
+			final ReferencedTypeEntityIndex typeIndex = getVirtualTypeIndex(entityType, scope, referenceName);
+			if (typeIndex != null) {
+				typeIndexes[count++] = typeIndex;
+			}
+		}
+		if (count < typeIndexes.length) {
+			typeIndexes = Arrays.copyOf(typeIndexes, count);
+		}
+		return ReferencePartitions.split(candidates, typeIndexes);
+	}
+
+	/**
+	 * Returns the referenced-type entity index whose registry a read resolver reads for the reference of the named
+	 * collection in the scope.
+	 *
+	 * @param entityType    the collection
+	 * @param scope         the scope of the reference
+	 * @param referenceName the reference
+	 * @return the referenced-type entity index, or `null` when the collection holds none
+	 */
+	@Nullable
+	private ReferencedTypeEntityIndex getVirtualTypeIndex(
+		@Nonnull String entityType,
+		@Nonnull Scope scope,
+		@Nonnull String referenceName
+	) {
+		final EntityIndexKey typeIndexKey = new EntityIndexKey(
+			EntityIndexType.REFERENCED_ENTITY_TYPE, scope, referenceName
+		);
+		final Index<?> typeIndex = getIndexByKeyReader(entityType).apply(typeIndexKey);
+		if (typeIndex == null) {
+			return null;
+		}
+		Assert.isPremiseValid(
+			typeIndex instanceof ReferencedTypeEntityIndex,
+			() -> "Expected " + ReferencedTypeEntityIndex.class.getSimpleName() + " under `" + typeIndexKey +
+				"` but got " + typeIndex.getClass() + "!"
+		);
+		return (ReferencedTypeEntityIndex) typeIndex;
+	}
+
+	/**
+	 * Returns the reduced group entity index of the named collection registered under the primary key, strictly.
+	 *
+	 * @param entityType           the collection the primary key belongs to, `null` for the queried one
+	 * @param groupIndexPrimaryKey primary key of the group index
+	 * @return the group index
+	 * @throws io.evitadb.exception.GenericEvitaInternalError when the key names no reduced group entity index
+	 */
+	@Nonnull
+	private ReducedGroupEntityIndex requireReducedGroupEntityIndex(
+		@Nullable String entityType,
+		int groupIndexPrimaryKey
+	) {
+		final Index<?> index = getIndexByPrimaryKeyOf(entityType, groupIndexPrimaryKey);
+		Assert.isPremiseValid(
+			index instanceof ReducedGroupEntityIndex,
+			() -> "Expected index of type " + ReducedGroupEntityIndex.class + " with primary key " +
+				groupIndexPrimaryKey + " in collection `" + entityType + "` but got " +
+				(index == null ? "NULL" : index.getClass()) + "!"
+		);
+		return (ReducedGroupEntityIndex) index;
+	}
+
+	/**
+	 * Returns the index of the named collection registered under the primary key: the index maps this context was
+	 * created with for the queried collection, the collection's live indexes (dirty buffer first) for any other.
+	 *
+	 * @param entityType      the collection, `null` or equal to the queried entity type for the queried collection
+	 * @param indexPrimaryKey primary key of the index
+	 * @return the index or `null` when the primary key names nothing
+	 */
+	@Nullable
+	private Index<?> getIndexByPrimaryKeyOf(@Nullable String entityType, int indexPrimaryKey) {
+		return Objects.equals(this.entityType, entityType) ?
+			this.indexesByPk.get(indexPrimaryKey) :
+			getEntityCollectionOrThrowException(entityType, "access entity index")
+				.getIndexByPrimaryKeyIfExists(indexPrimaryKey);
+	}
+
+	/**
+	 * Returns the by-key index lookup of the named collection: the index maps this context was created with for the
+	 * queried collection, the collection's live indexes (dirty buffer first) for any other.
+	 *
+	 * @param entityType the collection
+	 * @return the lookup answering `null` when the key holds nothing
+	 */
+	@Nonnull
+	private Function<EntityIndexKey, Index<?>> getIndexByKeyReader(@Nonnull String entityType) {
+		if (Objects.equals(this.entityType, entityType)) {
+			return this.indexes::get;
+		}
+		final EntityCollection collection = getEntityCollectionOrThrowException(entityType, "access entity index");
+		return collection::getIndexByKeyIfExists;
+	}
+
+	/**
+	 * Returns the by-primary-key index lookup of the named collection: the index maps this context was created with
+	 * for the queried collection, the collection's live indexes (dirty buffer first) for any other.
+	 *
+	 * @param entityType the collection
+	 * @return the lookup answering `null` when the primary key names nothing
+	 */
+	@Nonnull
+	private IntFunction<Index<?>> getIndexByPrimaryKeyReader(@Nonnull String entityType) {
+		if (Objects.equals(this.entityType, entityType)) {
+			return this.indexesByPk::get;
+		}
+		final EntityCollection collection = getEntityCollectionOrThrowException(entityType, "access entity index");
+		return collection::getIndexByPrimaryKeyIfExists;
 	}
 
 	/**
@@ -1594,6 +1915,37 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
+	 * Returns the context that plans `entityType` in `locale`: this context when no locale is supplied or this
+	 * context already plans in it, otherwise a nested context whose request carries `locale` as an explicit
+	 * override. The locale becomes context only - no predicate is added to the filter. A nested context collects
+	 * the schema capabilities its planning requests on its own; the caller drains them into this context.
+	 *
+	 * @param entityType the entity type the nested context plans
+	 * @param filterBy   the filter of the nested request, NULL when it has none
+	 * @param locale     the locale to plan in, NULL to keep the locale of this context
+	 * @param scopes     the scopes of the nested request
+	 * @param reason     why the collection of `entityType` is needed, reported when it does not exist
+	 * @return this context, or a nested context planning in `locale`
+	 */
+	@Nonnull
+	public QueryPlanningContext getContextInLocale(
+		@Nonnull String entityType,
+		@Nullable FilterBy filterBy,
+		@Nullable Locale locale,
+		@Nonnull Set<Scope> scopes,
+		@Nonnull String reason
+	) {
+		if (locale == null || locale.equals(getLocale())) {
+			return this;
+		}
+		return getEntityCollectionOrThrowException(entityType, reason).createQueryContext(
+			this,
+			this.evitaRequest.deriveCopyWith(entityType, filterBy, null, locale, scopes),
+			this.evitaSession
+		);
+	}
+
+	/**
 	 * Method creates new {@link EvitaRequest} for particular `entityType` that takes all passed `requiredConstraints`
 	 * into the account. Fabricated request is expected to be used only for passing the scope to
 	 * {@link EntityCollection#limitEntity(EntityContract, EvitaRequest, EvitaSessionContract)}  or
@@ -1615,7 +1967,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 *
 	 * The cache always lives on the **root** context - a nested context forwards the call to its parent - so
 	 * a formula computed while planning one candidate index is reused by every other candidate and by every
-	 * sub-query of the same client query.
+	 * sub-query of the same client query. The caller's resolved locale is part of the key, so identical predicates
+	 * evaluated in different inherited locales cannot share an answer.
 	 *
 	 * @param entityIndexes       indexes the formula is going to be evaluated against; their ids form part of
 	 *                            the cache key, because the very same constraint yields a different result on
@@ -1635,6 +1988,28 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		@Nonnull Supplier<Formula> formulaSupplier,
 		long... additionalCacheKeys
 	) {
+		return computeOnlyOnce(entityIndexes, constraint, formulaSupplier, getLocale(), additionalCacheKeys);
+	}
+
+	/**
+	 * Forwards the caller's locale unchanged to the root cache. Identical filters evaluated against the same indexes
+	 * may produce different answers when their enclosing entity levels supply different locales.
+	 *
+	 * @param entityIndexes the indexes being evaluated
+	 * @param constraint the filter being evaluated
+	 * @param formulaSupplier the formula computation
+	 * @param locale the caller's resolved locale, NULL when absent
+	 * @param additionalCacheKeys the caller's other discriminators
+	 * @return the memoized or newly computed formula
+	 */
+	@Nonnull
+	private Formula computeOnlyOnce(
+		@Nonnull List<EntityIndex> entityIndexes,
+		@Nonnull FilterConstraint constraint,
+		@Nonnull Supplier<Formula> formulaSupplier,
+		@Nullable Locale locale,
+		@Nonnull long[] additionalCacheKeys
+	) {
 		if (this.parentContext == null) {
 			if (this.internalCache == null) {
 				this.internalCache = new HashMap<>();
@@ -1644,7 +2019,8 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 					entityIndexes.stream().mapToLong(EntityIndex::getId),
 					Arrays.stream(additionalCacheKeys).map(Math::negateExact)
 				).toArray(),
-				constraint
+				constraint,
+				locale
 			);
 			final Formula cachedResult = this.internalCache.get(cacheKey);
 			if (cachedResult == null) {
@@ -1657,7 +2033,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			}
 		} else {
 			return this.parentContext.computeOnlyOnce(
-				entityIndexes, constraint, formulaSupplier, additionalCacheKeys
+				entityIndexes, constraint, formulaSupplier, locale, additionalCacheKeys
 			);
 		}
 	}
@@ -2190,7 +2566,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	 * @param referenceSchema the schema of the reference to which the facet group belongs
 	 * @param groupId         the identifier of the group; NULL for the facets without a group
 	 * @param level           the level of the facet group relation
-	 * @return the declared relation, or NULL when the default of the level decides
+	 * @return the declared relation, or null when the default of the level decides
 	 */
 	@Nullable
 	private FacetRelationType getDeclaredFacetRelationType(
@@ -2537,7 +2913,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 			// it the entity type is passed in the query, we don't need to mask anything - all entities will share
 			// same primary key sequence
 			Assert.isPremiseValid(
-				this.entityType.equals(entityReference.getType()),
+				Objects.equals(this.entityType, entityReference.getType()),
 				() -> "Entity reference `" + entityReference + "` does not belong to the queried collection `" +
 					this.entityType + "`!"
 			);
@@ -2702,7 +3078,7 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 		 * Returns the memoized relation of the facets of the group at the passed level.
 		 *
 		 * @param level the level of the facet group relation
-		 * @return the relation, NULL when not resolved yet
+		 * @return the relation, or null when not resolved yet
 		 */
 		@Nullable
 		FacetRelationType getRelationType(@Nonnull FacetGroupRelationLevel level) {
@@ -2794,37 +3170,44 @@ public class QueryPlanningContext implements LocaleProvider, PrefetchStrategyRes
 	}
 
 	/**
-	 * The internal caching key.
+	 * The internal caching key, including the caller's locale context.
 	 *
 	 * @param indexKeys  array of {@link EntityIndex#getId()} that were used for result calculation
 	 * @param constraint the constraint that has been evaluated on those indexes
+	 * @param locale the resolved locale the formula was evaluated in
 	 */
 	private record InternalCacheKey(
 		@Nonnull long[] indexKeys,
-		@Nonnull Constraint<?> constraint
+		@Nonnull Constraint<?> constraint,
+		@Nullable Locale locale
 	) {
 
+		/** Compares the evaluated indexes, filter and resolved locale context. */
 		@Override
-		public boolean equals(Object o) {
+		public boolean equals(@Nullable Object o) {
 			if (this == o) return true;
 			if (o == null || getClass() != o.getClass()) return false;
-			InternalCacheKey that = (InternalCacheKey) o;
-			return Arrays.equals(this.indexKeys, that.indexKeys) && Objects.equals(this.constraint, that.constraint);
+			final InternalCacheKey that = (InternalCacheKey) o;
+			return Arrays.equals(this.indexKeys, that.indexKeys) && Objects.equals(this.constraint, that.constraint) &&
+				Objects.equals(this.locale, that.locale);
 		}
 
+		/** Hashes every discriminator of the evaluated formula. */
 		@Override
 		public int hashCode() {
-			int result = Objects.hash(this.constraint);
+			int result = 31 * this.constraint.hashCode() + Objects.hashCode(this.locale);
 			result = 31 * result + Arrays.hashCode(this.indexKeys);
 			return result;
 		}
 
+		/** Describes the indexes, filter and locale for cache diagnostics. */
 		@Nonnull
 		@Override
 		public String toString() {
 			return "InternalCacheKey{" +
 				"indexKeys=" + Arrays.toString(this.indexKeys) +
 				", constraint=" + this.constraint +
+				", locale=" + this.locale +
 				'}';
 		}
 	}

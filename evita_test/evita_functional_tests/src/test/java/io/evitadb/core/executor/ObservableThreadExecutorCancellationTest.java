@@ -855,7 +855,7 @@ class ObservableThreadExecutorCancellationTest {
 			assertThrows(
 				RejectedExecutionException.class,
 				() -> this.executor.invokeAll(List.of(
-					(Callable<String>) () -> "a",
+					() -> "a",
 					(Callable<String>) () -> "b"
 				)),
 				"invokeAll on a saturated pool must surface the RejectedExecutionException"

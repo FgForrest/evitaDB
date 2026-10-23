@@ -99,7 +99,7 @@ class OrderInScopeTest {
 		@Test
 		@DisplayName("should return null when factory receives null scope")
 		void shouldReturnNullWhenFactoryReceivesNullScope() {
-			final OrderInScope result = inScope((Scope) null, attributeNatural("code", ASC));
+			final OrderInScope result = inScope(null, attributeNatural("code", ASC));
 
 			assertNull(result);
 		}

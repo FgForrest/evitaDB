@@ -153,19 +153,19 @@
 		<lucene.version>9.12.3</lucene.version>
 		<mockito.junit.version>5.23.0</mockito.junit.version>
 		<assertj.version>3.27.7</assertj.version>
-		<maven.compiler.version>3.15.0</maven.compiler.version>
+		<maven.compiler.version>3.16.0</maven.compiler.version>
 		<maven.toolchains.version>3.3.0</maven.toolchains.version>
 		<lombok.version>1.18.46</lombok.version>
 		<grpc.version>1.84.0</grpc.version>
 		<bouncyCastle.version>1.86</bouncyCastle.version>
 		<swagger.version>2.2.55</swagger.version>
-		<armeria.version>1.41.1</armeria.version>
+		<armeria.version>1.42.0</armeria.version>
 		<prometheus.version>1.8.0</prometheus.version>
 		<micrometer.version>1.17.1</micrometer.version>
 		<byteBuddy.version>1.17.8</byteBuddy.version>
 		<graphql.version>25.0</graphql.version>
 		<okhttp.version>5.5.0</okhttp.version>
-		<opentelemetry.version>1.65.0</opentelemetry.version>
+		<opentelemetry.version>1.67.0</opentelemetry.version>
 		<opentelemetry.semconv.version>1.43.0</opentelemetry.semconv.version>
 		<minio.version>8.6.0</minio.version>
 		<jol.version>0.17</jol.version>
@@ -891,7 +891,7 @@
 			</plugin>
 			<plugin>
 				<artifactId>maven-deploy-plugin</artifactId>
-				<version>3.1.4</version>
+				<version>3.2.0</version>
 				<executions>
 					<execution>
 						<id>default-deploy</id>

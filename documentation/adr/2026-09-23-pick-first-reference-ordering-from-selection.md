@@ -1,7 +1,7 @@
 ---
 title: A pick-first reference ordering sorts on the first row of every selected owner, resolved from the selection rather than from the filter
 date: 2026-09-23
-updated: 2026-10-06 11:45
+updated: 2026-10-12 02:40
 status: accepted
 kind: fix
 issues: [1614]
@@ -14,7 +14,7 @@ areas:
   - documentation/user/en/query/ordering
 supersedes: []
 superseded-by: []
-relates: [2026-09-18-reference-planning-from-owner-membership, 2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-10-08-scope-faithful-planning-and-facet-summary-parity]
+relates: [2026-09-18-reference-planning-from-owner-membership, 2026-09-15-bidirectional-reference-counterpart-rewrite, 2026-10-08-scope-faithful-planning-and-facet-summary-parity, 2026-10-20-single-owner-partitions-as-registry-rows]
 ---
 
 # A pick-first reference ordering sorts on the first row of every selected owner, resolved from the selection
@@ -316,9 +316,10 @@ a measured production shape: that is where the per-query cost still follows `row
   declines queries that order by the reference they filter on because the ordering used to depend on the candidate
   set. A comparable pick-first ordering no longer does; the guard could be narrowed to traverse and chain orderings.
 - **Persistent owner projection** (issue #1614's "default ordering, full family" design) - deferred; see Decision.
-- **The chain-ordering gate issue #1614 hands to #1615 still stands.** Chains keep their per-partition blocks, so a
-  virtual singleton partition must still resolve as chain position `0` with the record id the write path would have
-  indexed before virtual partitions are activated for a chain path; nothing here implements that.
+- **The chain-ordering gate issue #1614 handed to #1615 is met (2026-10-12 note).** The gate: chains keep their
+  per-partition blocks, so a single-owner partition without an index object must resolve as chain position `0` with
+  the record id the write path indexes. #1615 implements exactly that (`a03e8d0445`) - see
+  [2026-10-20-single-owner-partitions-as-registry-rows](2026-10-20-single-owner-partitions-as-registry-rows.md).
 - **Found, fixed for pick-first only: the prefetch route ignores `inScope`.** The pick-first comparators now admit
   owners of the ordering's scopes only. The entity-level `AttributeComparator` (and the other entity comparators)
   still sort owners of every scope on the prefetch route under `inScope`, while their index route sorts the named
@@ -331,15 +332,19 @@ a measured production shape: that is where the per-query cost still follows `row
 - **The narrowed small-selection cost of rule 2** (see Decision) comes from the residual partitions - those above the
   membership's per-owner coverage threshold - being checked on every narrowed query. Tracking, per owner, the large
   partitions it belongs to as well would remove most of it at a memory cost in `ReducedIndexMembership`; that belongs
-  with the membership rework of #1615, not here.
-- **Found, not fixed: a localized sortable compound on a reference indexed for filtering alone cannot be ordered by
-  on the index route.** `EntityIndexLocalMutationExecutor#insertInitialSuiteOfSortableAttributeCompounds` (and its
-  removal twin) skip the reduced index unless the reference is `FOR_FILTERING_AND_PARTITIONING`, although
-  `ReferenceIndexMutator#applySortableAttributeCompoundSuite` already gates only its entity-level half; the
-  reference-level compound therefore never gets its per-locale entries, and the index route leaves every owner
-  unsorted while the prefetch route orders them. It predates this change and lives on the write path, so it was
-  left for its own fix; the oracle test declares the localized compound on the partitioning reference only and
-  says why.
+  with the membership rework of #1615, not here. **Still open (2026-10-12 note):** #1615 left `ReducedIndexMembership`
+  unchanged - its registry rows are ordinary covered entries - and did not re-measure this cost.
+- **Fixed under #1615: a localized sortable compound on a reference indexed for filtering alone could not be
+  ordered by on the index route.** `EntityIndexLocalMutationExecutor#insertInitialSuiteOfSortableAttributeCompounds`
+  (and its removal twin) skipped the reduced index unless the reference was `FOR_FILTERING_AND_PARTITIONING`,
+  although `ReferenceIndexMutator#applySortableAttributeCompoundSuite` already gates only its entity-level half; the
+  reference-level compound never got its per-locale entries, and the index route left every owner unsorted while the
+  prefetch route ordered them. Both gates are gone; the oracle test now crosses both references with both compounds
+  and `ReferenceLocalizedCompoundIndexingTest` covers every write path at both indexing levels. Catalogs written
+  before the fix lack these entries, and removing a reference, archiving or deleting an affected owner then fails -
+  they must be rebuilt (release note on #1615); removal was deliberately not made tolerant, because that would hide
+  genuine inconsistency. It was fixed first because promoting a single-owner partition would otherwise have changed
+  ordering - see [2026-10-20-single-owner-partitions-as-registry-rows](2026-10-20-single-owner-partitions-as-registry-rows.md).
 - **Found, not fixed: the two routes disagree on `traverseByEntityProperty`.** On the oracle test's dataset the
   index route and the prefetch route return different orders for a traverse ordering - off by 4-9 positions over
   live owners, by more than 100 over both scopes, the index route placing archived owners after live ones within a

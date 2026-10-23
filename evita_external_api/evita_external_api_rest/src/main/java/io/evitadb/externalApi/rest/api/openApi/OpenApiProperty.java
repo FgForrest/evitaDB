@@ -88,7 +88,9 @@ public class OpenApiProperty {
 	}
 
 	/**
-	 * Converts type to OpenAPI schema equivalent.
+	 * Converts type to an OpenAPI schema. A typed schema carries its type twice: as the 3.0 `type`, which request
+	 * handling reads through `getType()`, and in the 3.1 type set, the only form the 3.1 writers serialize - without
+	 * it the served document omits the type.
 	 */
 	@Nonnull
 	private Schema<?> toSchema(@Nonnull OpenApiSimpleType type) {
@@ -104,6 +106,7 @@ public class OpenApiProperty {
 			}
 
 			if (scalarTypeSchema.getType() != null) {
+				// 3.0 type for request handling, 3.1 type set for the served document
 				schema.type(scalarTypeSchema.getType());
 				schema.addType(scalarTypeSchema.getType());
 			}
@@ -142,7 +145,9 @@ public class OpenApiProperty {
 				schema.deprecated(true); // openapi doesn't support false here
 			}
 
+			// 3.0 type for request handling, 3.1 type set for the served document
 			schema.type(arrayTypeSchema.getType());
+			schema.addType(arrayTypeSchema.getType());
 			schema.items(arrayTypeSchema.getItems());
 
 			schema.minItems(arrayTypeSchema.getMinItems());

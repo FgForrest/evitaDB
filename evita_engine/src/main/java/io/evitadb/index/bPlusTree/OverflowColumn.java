@@ -254,9 +254,9 @@ final class OverflowColumn {
 	 *
 	 * The discriminating read is {@link #observableLiveRun()} rather than {@link #size()} alone, because the two
 	 * fields it compares — the count and the backing array — are read independently, and this method is reached from
-	 * a request thread holding no session (the leaf's heap-size walk and the bucket cursors). A slot that the raised
-	 * count already claims but the older array cannot yet serve therefore reads as the `null` an unwritten slot has
-	 * always held, instead of raising an {@link ArrayIndexOutOfBoundsException}. For any caller sharing a
+	 * a request thread holding no session (the leaf's heap-size walk and the forward bucket cursor). A slot that the
+	 * raised count already claims but the older array cannot yet serve therefore reads as the `null` an unwritten slot
+	 * has always held, instead of raising an {@link ArrayIndexOutOfBoundsException}. For any caller sharing a
 	 * happens-before edge with the writer the bound is `size()` exactly, since a grow always materializes the array
 	 * before it raises the count — see {@link ValueColumn#observableLiveRun()}.
 	 *

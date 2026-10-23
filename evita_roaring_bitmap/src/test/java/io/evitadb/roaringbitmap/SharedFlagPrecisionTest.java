@@ -3,12 +3,7 @@ package io.evitadb.roaringbitmap;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Pins how precisely the static binary operations of {@link PersistentRoaringBitmap} raise
@@ -22,11 +17,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * flags are tracked per slot: a chunk lent from one operand is flagged, a chunk recombined from both
  * into a private container ({@link ContainerBinaryOpFreshnessTest} pins that privateness) is not.
  *
- * **The operands** are marked wholesale instead, and that is on purpose rather than an oversight — see
- * `markAllShared`. A live bitmap can be an operand of two concurrent queries, and the flag array is
- * written unsynchronised; a full fill converges on the conservative value under a lost update, while
- * sparse writes would leave behind the unsafe one. The operand-side tests below therefore assert the
- * *conservative* behaviour deliberately, and tightening it is not a free optimisation.
+ * **The operands** are marked wholesale through `lent`. Concurrent borrowers set only that
+ * idempotent field; their next owner mutation expands it into the per-slot flags. Results keep
+ * precise flags, while operands conservatively clone every container they later write.
  */
 @DisplayName("Static or/xor/andNot flag result chunks precisely and operands conservatively")
 public class SharedFlagPrecisionTest {
@@ -55,9 +48,10 @@ public class SharedFlagPrecisionTest {
 			fillDenseChunk(bitmap, key, offset);
 		}
 		for (int i = 0; i < bitmap.highLowContainer.size(); i++) {
-			assertTrue(
-				bitmap.getContainerAtIndex(i) instanceof BitmapContainer,
-				"fixture drifted off the bitmap-container shape at slot " + i);
+			assertInstanceOf(
+				BitmapContainer.class, bitmap.getContainerAtIndex(i),
+				"fixture drifted off the bitmap-container shape at slot " + i
+			);
 		}
 		return bitmap;
 	}
@@ -116,8 +110,10 @@ public class SharedFlagPrecisionTest {
 		// every result chunk was recombined from both operands, so all three containers are private
 		assertAllFlags(result, false, "or result");
 		// the operands are still marked wholesale - deliberately conservative, see the class comment
-		assertAllFlags(left, true, "or left operand");
-		assertAllFlags(right, true, "or right operand");
+		assertTrue(left.lent);
+		assertTrue(right.lent);
+		assertArrayEquals(new boolean[left.shared.length], left.shared);
+		assertArrayEquals(new boolean[right.shared.length], right.shared);
 	}
 
 	@Test
@@ -169,6 +165,9 @@ public class SharedFlagPrecisionTest {
 		assertTrue(result.isShared(2), "chunk 2 has no counterpart and is aliased");
 
 		// andNot never carries a container out of its subtrahend, so it is not marked at all
+		assertTrue(left.lent);
+		assertFalse(right.lent);
+		assertArrayEquals(new boolean[left.shared.length], left.shared);
 		assertAllFlags(right, false, "andNot right operand");
 	}
 

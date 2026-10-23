@@ -30,11 +30,13 @@ import io.evitadb.core.query.QueryPlanner.FutureNotFormula;
 import io.evitadb.core.query.algebra.AbstractFormula;
 import io.evitadb.core.query.algebra.Formula;
 import io.evitadb.core.query.algebra.FormulaPostProcessor;
+import io.evitadb.core.query.algebra.base.EmptyFormula;
 import io.evitadb.core.query.algebra.facet.ScopeContainerFormula;
 import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.algebra.utils.visitor.FormulaCloner;
 import io.evitadb.core.query.common.translator.SelfTraversingTranslator;
 import io.evitadb.core.query.filter.FilterByVisitor;
+import io.evitadb.core.query.filter.VirtualPartitionRows;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.entity.EntityPrimaryKeyInSetTranslator;
 import io.evitadb.dataType.Scope;
@@ -64,6 +66,12 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 			requestedScopes.contains(scopeToUse),
 			"Scope `" + scopeToUse + "` used in `inScope` filter container was not requested by `scope` constraint!"
 		);
+
+		final VirtualPartitionRows virtualPartitionRows =
+			filterByVisitor.getProcessingScope().getVirtualPartitionRows();
+		if (virtualPartitionRows != null) {
+			return translateForVirtualPartitionRows(inScope, virtualPartitionRows, filterByVisitor);
+		}
 
 		// a nested evaluation may process fewer scopes than the query requested - the parent filter of a hierarchy
 		// constraint is resolved in the tree of one scope at a time - and the container must restrict only those
@@ -103,6 +111,48 @@ public class FilterInScopeTranslator implements FilteringConstraintTranslator<Fi
 							() -> filterByVisitor.getSuperSetFormula(scopeToUse)
 						)
 					);
+				}
+			);
+	}
+
+	/**
+	 * Answers the container for rows of registered single-owner partitions of one scope - see
+	 * {@link VirtualPartitionRows}. Every row lives in the scope of its partition, so the container is decided for all
+	 * of them at once, without the post-processor, which would read the type-level index of the rows' scope as the
+	 * whole answer and fill the other requested scopes with records of another kind:
+	 *
+	 * - naming the scope of the rows, the container is its children, translated in that scope;
+	 * - naming another scope, it is unmet: a constraint confined to another scope contributes nothing for a partition.
+	 *
+	 * @param inScope         the container
+	 * @param rows            the rows answered
+	 * @param filterByVisitor the visitor translating the body
+	 * @return the formula over the partition primary keys of the rows satisfying the container
+	 */
+	@Nonnull
+	private static Formula translateForVirtualPartitionRows(
+		@Nonnull FilterInScope inScope,
+		@Nonnull VirtualPartitionRows rows,
+		@Nonnull FilterByVisitor filterByVisitor
+	) {
+		final Scope scopeToUse = inScope.getScope();
+		if (scopeToUse != rows.getScope()) {
+			return EmptyFormula.INSTANCE;
+		}
+		return filterByVisitor.getProcessingScope()
+			.doWithScope(
+				EnumSet.of(scopeToUse),
+				() -> {
+					for (FilterConstraint innerConstraint : inScope.getChildren()) {
+						innerConstraint.accept(filterByVisitor);
+					}
+					final Formula[] innerFormulas = filterByVisitor.getCollectedFormulasOnCurrentLevel();
+					// the children are a conjunction, settled against the type-level index as any other level is
+					return innerFormulas.length == 0 ?
+						filterByVisitor.getSuperSetFormula() :
+						FutureNotFormula.postProcess(
+							innerFormulas, EnclosingContainerRelation.CONJUNCTION, filterByVisitor::getSuperSetFormula
+						);
 				}
 			);
 	}

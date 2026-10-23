@@ -136,6 +136,12 @@ import static java.util.Optional.ofNullable;
  * )
  * ```
  *
+ * The filter is evaluated on each reference of each returned entity on its own, so it needs no index: a reference
+ * attribute doesn't have to be filterable or unique, and the reference doesn't have to be indexed in the scope of the
+ * entity owning it. The filter admits the `and`, `or`, `not` and `inScope` containers, the attribute constraints,
+ * `entityPrimaryKeyInSet`, `entityLocaleEquals`, `entityHaving`, `groupHaving` and `scope` directly in the `filterBy`;
+ * any other constraint is refused with an {@link EvitaInvalidUsageException}.
+ *
  * ## Ordering references
  *
  * References are ordered by referenced entity primary key by default. A nested `orderBy` constraint can change this.

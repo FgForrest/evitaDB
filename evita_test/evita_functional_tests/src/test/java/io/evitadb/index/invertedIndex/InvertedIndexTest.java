@@ -1568,7 +1568,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 
 			final PageEmission<InvertedIndex.LeafPage> emission = index.collectChangedPages();
 			assertEquals(1, emission.changedPages().size(), "A small index must be a single leaf page.");
-			final ValueToRecord[] buckets = emission.changedPages().get(0).buckets();
+			final ValueToRecord[] buckets = emission.changedPages().getFirst().buckets();
 			assertEquals(3, buckets.length, "Every distinct value must yield exactly one bucket.");
 
 			assertInstanceOf(ValueToRecordPrimitive.class, buckets[0], "A single-record bucket must be the compact primitive.");
@@ -1629,7 +1629,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			final PageEmission<InvertedIndex.LeafPage> afterChange = index.collectChangedPages();
 			assertEquals(1, afterChange.changedPages().size(), "Only the changed leaf is re-written.");
 			assertEquals(
-				0, afterChange.changedPages().get(0).pageSequence(), "The first leaf (holding the smallest value) changed."
+				0, afterChange.changedPages().getFirst().pageSequence(), "The first leaf (holding the smallest value) changed."
 			);
 		}
 

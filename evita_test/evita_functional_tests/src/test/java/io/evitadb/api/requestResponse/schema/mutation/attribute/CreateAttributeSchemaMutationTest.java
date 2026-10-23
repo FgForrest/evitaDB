@@ -209,7 +209,7 @@ class CreateAttributeSchemaMutationTest {
 		// the untyped nulls would leave the array- and map-shaped overloads equally applicable
 		return GlobalAttributeSchema._internalBuild(
 			ATTRIBUTE_NAME, null, null,
-			(ScopedAttributeUniquenessType[]) null,
+			null,
 			(ScopedGlobalAttributeUniquenessType[]) null,
 			Scope.NO_SCOPE, null, null, Scope.NO_SCOPE,
 			false, false, false,

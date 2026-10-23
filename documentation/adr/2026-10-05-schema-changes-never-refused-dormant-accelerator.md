@@ -1,7 +1,7 @@
 ---
 title: A schema change is never refused because the collection holds data; a filter accelerator declared over stored values stays dormant
 date: 2026-10-05
-updated: 2026-10-05 11:30
+updated: 2026-10-21 15:04
 status: accepted
 kind: fix
 issues: [258, 409]
@@ -9,7 +9,7 @@ prs: []
 areas: [evita_engine/src/main/java/io/evitadb/core/collection, evita_engine/src/main/java/io/evitadb/core/catalog, evita_engine/src/main/java/io/evitadb/index/trigram, evita_engine/src/main/java/io/evitadb/index/invertedIndex, evita_engine/src/main/java/io/evitadb/index/GlobalEntityIndex.java, evita_api/src/main/java/io/evitadb/api/requestResponse/schema]
 supersedes: []
 superseded-by: []
-relates: [2026-08-24-fulltext-search-lucene-vs-inhouse, 2026-09-08-warm-up-invalid-schema-refuses-to-publish]
+relates: [2026-08-24-fulltext-search-lucene-vs-inhouse, 2026-09-08-warm-up-invalid-schema-refuses-to-publish, 2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures]
 ---
 
 # A schema change is never refused because the collection holds data; a filter accelerator declared over stored values stays dormant
@@ -136,6 +136,10 @@ instead of waiting for the next load.
   because accumulating a tree inside a transaction has not been shown to see the transaction's own layers.
   Such a branch is a new entry in `WarmUpRollbackConformanceTest`'s approved-gates list, for a speed-up that
   dormancy until the next load provides correctly anyway.
+  **Update 2026-10-21 (#1615):** that test was removed; the rule it enforced - no index structure branches on
+  `Transaction#isTransactionAvailable()` to choose what it writes outside a transaction - is now stated in the
+  javadoc of that method, which the branch would break just the same. Why:
+  `2026-10-20-structure-guards-yield-to-javadoc-and-runtime-failures`.
 
 ## Decision
 

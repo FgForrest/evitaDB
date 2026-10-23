@@ -2271,7 +2271,7 @@ public class EvitaSessionService extends EvitaSessionServiceGrpc.EvitaSessionSer
 				ChangeCatalogCaptureRecords.groupIntoRecords(mutationsHistoryStream)
 		) {
 			final List<List<ChangeCatalogCapture>> fetchedRecords = recordStream
-				.takeWhile(changeCaptureRecord -> withinBounds.test(changeCaptureRecord.get(0).version()))
+				.takeWhile(changeCaptureRecord -> withinBounds.test(changeCaptureRecord.getFirst().version()))
 				.skip(firstRecordNumber)
 				// one extra record fetched to detect whether a following page exists
 				.limit(pageSize + 1L)

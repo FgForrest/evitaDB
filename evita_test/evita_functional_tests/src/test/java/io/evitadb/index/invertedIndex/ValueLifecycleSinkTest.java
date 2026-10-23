@@ -151,7 +151,7 @@ class ValueLifecycleSinkTest {
 			final RecordingSink sink = new RecordingSink();
 			tree.addRecord("alpha", sink, 1, 2, 3);
 			assertEquals(1, sink.events.size(), () -> "expected exactly one notification, got " + sink.events);
-			assertEquals("created:" + tree.getValueId("alpha") + ":alpha", sink.events.get(0));
+			assertEquals("created:" + tree.getValueId("alpha") + ":alpha", sink.events.getFirst());
 		}
 
 		@Test
@@ -464,8 +464,8 @@ class ValueLifecycleSinkTest {
 
 			tree.addRecord(value, 1, sink);
 			assertEquals(1, sink.events.size(), "a new value must be reported exactly once");
-			assertTrue(sink.events.get(0).startsWith("created:"), sink.events.get(0));
-			assertTrue(sink.events.get(0).endsWith(":" + value), sink.events.get(0));
+			assertTrue(sink.events.getFirst().startsWith("created:"), sink.events.getFirst());
+			assertTrue(sink.events.getFirst().endsWith(":" + value), sink.events.getFirst());
 
 			// a second record joining an existing value costs the consumer nothing at all
 			tree.addRecord(value, 2, sink);
@@ -488,8 +488,8 @@ class ValueLifecycleSinkTest {
 
 			tree.removeRecord(openTo, sink, 2);
 			assertEquals(1, sink.events.size(), "the last record leaving must report the value dead exactly once");
-			assertTrue(sink.events.get(0).startsWith("removed:"), sink.events.get(0));
-			assertTrue(sink.events.get(0).endsWith(":" + openTo), sink.events.get(0));
+			assertTrue(sink.events.getFirst().startsWith("removed:"), sink.events.getFirst());
+			assertTrue(sink.events.getFirst().endsWith(":" + openTo), sink.events.getFirst());
 		}
 	}
 

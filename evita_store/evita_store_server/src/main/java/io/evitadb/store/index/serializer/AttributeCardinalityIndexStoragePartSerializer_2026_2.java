@@ -54,7 +54,12 @@ import java.util.Map;
  * migration, which owns the attribute schema and therefore the scale the normalizer needs; this reader
  * deliberately does not attempt it, having no access to either.
  *
- * @deprecated only for backward compatibility purposes
+ * @deprecated kept for backward compatibility; can be removed once no catalog holds a cardinality part written
+ *             before 2026.3 — which upgrading to protocol 7 does NOT establish. `Migration_2026_3` rewrites only the
+ *             parts whose keys change, so a counter that was already canonical (an `Integer`, `Boolean` or enum one,
+ *             or an ASCII-only `String` one) keeps this vintage's `serialVersionUID` after the upgrade and stays
+ *             readable only through this class until it is next flushed. This reader therefore outlives the
+ *             migration rather than leaving with it.
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @Deprecated(since = "2026.3", forRemoval = true)

@@ -108,7 +108,7 @@ class CatalogSchemaTest {
 					GlobalAttributeSchema._internalBuild(
 						"code", null, null,
 						uniqueInScopes,
-						(ScopedGlobalAttributeUniquenessType[]) null,
+						null,
 						filterableInScopes,
 						acceleratorsInScopes,
 						null,

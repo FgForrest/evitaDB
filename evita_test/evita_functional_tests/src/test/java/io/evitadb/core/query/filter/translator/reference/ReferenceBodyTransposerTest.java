@@ -584,7 +584,7 @@ class ReferenceBodyTransposerTest {
 			}
 			return switch (perIndex.size()) {
 				case 0 -> EmptyFormula.INSTANCE;
-				case 1 -> perIndex.get(0);
+				case 1 -> perIndex.getFirst();
 				default -> FormulaFactory.or(perIndex.toArray(Formula[]::new));
 			};
 		}

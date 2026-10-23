@@ -180,6 +180,26 @@ verifies, not just how long it takes.
 Product mean upsert 8,281.6 → 7,115.5 µs (−14.1 %), and the writer took **0 full GCs** across the
 whole load. Its goLive is the first in this table that both completed *and* was measured post-#1388.
 
+**Every figure above predates `a2eec9c8fb` (2026-10-09). Do not compare later runs with them.** Until that commit,
+`CatalogCopySupport` dropped three settings of the source schema:
+
+- `facetedPartially`;
+- the indexed components;
+- the overrides of reflected references.
+
+The copy therefore faceted every parameter value in every reduced index. Every build in the table carried the same
+copier, so its relative comparisons still hold; only the absolute figures are off.
+
+**Runs with the fixed copier.** A later, larger snapshot of the same export: 442,609 entities, 130,033 `Product`.
+Writer 23g with no engine restarts; reader 14g, the dev @ `aa3e7b281b` build for every arm (`READER_ROOT`). One run
+each, so ±9 %:
+
+| writer | load wall-clock | `Product` mean upsert |
+|---|---|---|
+| v2026.2.20 | 1,514.8 s | 10,696 µs |
+| dev @ `aa3e7b281b` | 1,321.2 s | 9,260 µs |
+| `a2eec9c8fb` | 1,246.1 s | 8,689 µs |
+
 ## 7. Two ways a run silently lies
 
 1. **`evitaDB treats every storage subdirectory as a catalog.`** Leftovers in `TARGET_DATA_DIR` from an
