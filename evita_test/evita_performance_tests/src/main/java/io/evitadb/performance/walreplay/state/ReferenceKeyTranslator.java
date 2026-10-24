@@ -65,13 +65,30 @@ import java.util.Set;
  * - `R <type> <pk> <referenceName> <referencedPk> <sourceId> <targetId>` - the pairing of the references present at
  *   T0, matched per reference name and referenced entity in ascending id order, which the rebuild preserves;
  * - `E <type> <pk> <sourceLastUsedId> <targetLastUsedId>` - the last id each side's counter handed out at T0. A
- *   reference created during the slice gets the next counter value on either side, and both counters advance by the
- *   same count per mutation, so its target id is its source id shifted by the difference of the two counters.
+ *   reference created during the slice gets the next counter value on either side, and the entity's own reference
+ *   mutations advance both counters alike, so its target id is its source id shifted by the difference of the two
+ *   counters.
  *
- * `X <type> <referenceName>` rows name reflected references, whose ids are accepted as given rather than assigned
- * and are therefore left untouched. Temporary (negative) and unknown (zero) ids are left untouched as well - they
- * mean the same in both catalogs. An entity the file does not name did not exist at T0 and needs no translation,
- * because both counters start from zero; the same holds after the slice removes an entity, so its entry is dropped.
+ * `X <type> <referenceName>` rows name reflected references, which are left untouched. Temporary (negative) and
+ * unknown (zero) ids are left untouched as well - they mean the same in both catalogs. An entity the file does not
+ * name did not exist at T0 and needs no translation, because both counters start from zero; the same holds after the
+ * slice removes an entity, so its entry is dropped.
+ *
+ * **Known limits.** The two rules hold while ids change only through the entity's own reference mutations, which is
+ * what production slices have shown so far (401 transactions replayed over a rebuild without a failure). They break
+ * in four cases this class does not track:
+ *
+ * - an entity whose last reference is removed loses its reference container, and both counters restart from zero;
+ *   the T0 entries still apply afterwards and may address a different duplicate of the same reference - silently;
+ * - a reflected reference takes its id from the owning reference, which the rebuild renumbered, so a mutation
+ *   addressing a reflected reference by a known id is passed through and fails;
+ * - an inherited attribute changed from the owning side updates the reflected side and may raise that entity's
+ *   counters, which shifts its later ids away from the offset rule;
+ * - an insert carrying a positive id that was removed before T0 is passed through and may collide with a rebuilt
+ *   duplicate.
+ *
+ * All but the first fail the transaction, which {@link WalReplayState} counts and refuses above its
+ * `evita.replay.maxFailedShare`.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -258,7 +275,8 @@ public class ReferenceKeyTranslator {
 			}
 			return shifted;
 		} else {
-			// removed before T0 - neither catalog holds it, so the source outcome is reproduced unchanged
+			// removed before T0 - passed through, which reproduces the source outcome unless the rebuild assigned this
+			// id to another duplicate (see the class documentation)
 			return sourceId;
 		}
 	}

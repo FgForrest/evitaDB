@@ -76,6 +76,8 @@ import static io.evitadb.api.query.QueryConstraints.referenceContentAll;
  * - `{@value WalReplayState#REFERENCE_KEY_MAP_PROPERTY}` - the file to write;
  * - `{@value WalReplayState#WORK_DIR_PROPERTY}` - both snapshots are opened from copies made here, because opening a
  *   snapshot may migrate its storage format and a pristine snapshot must stay as it was;
+ * - `{@value WalReplayState#OUTPUT_BUFFER_SIZE_PROPERTY}` - optional, for snapshots written with a larger buffer than
+ *   the default;
  *
  * plus `{@value #SOURCE_SNAPSHOT_DIR_PROPERTY}`, the snapshot the rebuild was made from.
  *
@@ -134,6 +136,11 @@ public class ReferenceKeyMapBuilder {
 		final Path targetDir = Path.of(requiredProperty(WalReplayState.PRISTINE_DATA_DIR_PROPERTY));
 		final Path mapFile = Path.of(requiredProperty(WalReplayState.REFERENCE_KEY_MAP_PROPERTY));
 		final Path workDir = Path.of(requiredProperty(WalReplayState.WORK_DIR_PROPERTY)).resolve("reference-key-map");
+		final int outputBufferSize = Integer.parseInt(
+			System.getProperty(
+				WalReplayState.OUTPUT_BUFFER_SIZE_PROPERTY, String.valueOf(StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE)
+			)
+		);
 		final List<Path> walSourceDirs = new ArrayList<>(4);
 		for (final String dir : requiredProperty(WalReplayState.WAL_SOURCE_DIR_PROPERTY).split(",")) {
 			if (!dir.isBlank()) {
@@ -149,10 +156,10 @@ public class ReferenceKeyMapBuilder {
 		FileUtils.deleteDirectory(workDir.toFile());
 		try {
 			final Snapshot source = collect(
-				copy(sourceDir, walCatalogName, workDir.resolve("source")), walCatalogName, touched
+				copy(sourceDir, walCatalogName, workDir.resolve("source")), walCatalogName, outputBufferSize, touched
 			);
 			final Snapshot target = collect(
-				copy(targetDir, catalogName, workDir.resolve("target")), catalogName, touched
+				copy(targetDir, catalogName, workDir.resolve("target")), catalogName, outputBufferSize, touched
 			);
 			write(mapFile, source, target);
 		} finally {
@@ -243,15 +250,17 @@ public class ReferenceKeyMapBuilder {
 	 * Boots a snapshot and collects, for every touched entity it holds, its non-reflected references and the last id
 	 * its reference counter handed out.
 	 *
-	 * @param storageDir  the storage directory holding the catalog
-	 * @param catalogName the catalog
-	 * @param touched     touched primary keys keyed by entity type
+	 * @param storageDir       the storage directory holding the catalog
+	 * @param catalogName      the catalog
+	 * @param outputBufferSize the output buffer to open it with - at least the one it was written with
+	 * @param touched          touched primary keys keyed by entity type
 	 * @return the collected references
 	 */
 	@Nonnull
 	private static Snapshot collect(
 		@Nonnull Path storageDir,
 		@Nonnull String catalogName,
+		int outputBufferSize,
 		@Nonnull Map<String, Set<Integer>> touched
 	) {
 		final long start = System.nanoTime();
@@ -263,6 +272,7 @@ public class ReferenceKeyMapBuilder {
 					.storageDirectory(storageDir)
 					// a server may have stored compressed records, which only an instance with compression on can read
 					.compress(true)
+					.outputBufferSize(outputBufferSize)
 					.build()
 			)
 			.build();

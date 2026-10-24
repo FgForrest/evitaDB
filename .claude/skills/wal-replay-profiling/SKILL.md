@@ -129,7 +129,7 @@ thread doing most of the allocation resolves to unresolved `libc` frames. Use `c
    A snapshot from a server configured above the 4 MiB default therefore needs `evita.replay.outputBufferSize` at
    least that large, or the first compaction of such a collection fails with `RecordExceedsOutputBufferException`
    and suspends the catalog. (Until the embedded default was raised from 2 MiB to the server's 4 MiB, every
-   server-written snapshot hit this - as an `ArrayIndexOutOfBoundsException`.)
+   server-written snapshot holding a fragment over 2 MiB hit this - as an `ArrayIndexOutOfBoundsException`.)
 7. **The replay starts after the source's last version.** A WAL stream is empty when it does not hold the requested
    version, and an empty replay is an instant one. The fixture now warns about a source that yields nothing - read
    the transaction count in the result block before the throughput.
