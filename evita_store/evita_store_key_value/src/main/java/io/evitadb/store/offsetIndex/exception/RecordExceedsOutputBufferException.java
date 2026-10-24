@@ -51,16 +51,14 @@ public class RecordExceedsOutputBufferException extends EvitaInternalError {
 	/**
 	 * Creates the exception for a record that does not fit the configured output buffer.
 	 *
-	 * @param recordPosition   position of the record in its file
 	 * @param recordLength     length of the stored record in bytes
 	 * @param outputBufferSize the configured output buffer size in bytes
 	 */
-	public RecordExceedsOutputBufferException(long recordPosition, int recordLength, int outputBufferSize) {
+	public RecordExceedsOutputBufferException(int recordLength, int outputBufferSize) {
 		super(
-			"The stored record at position " + recordPosition + " is " + recordLength + " bytes long, more than " +
-				"the configured `outputBufferSize` of " + outputBufferSize + " bytes - it was written by an instance " +
-				"configured with a larger output buffer. The stored data is intact; set `storage.outputBufferSize` " +
-				"to at least " + recordLength + " bytes."
+			"A stored record is " + recordLength + " bytes long, more than the configured `outputBufferSize` of " +
+				outputBufferSize + " bytes - it was written by an instance configured with a larger output buffer. " +
+				"The stored data is intact; set `storage.outputBufferSize` to at least " + recordLength + " bytes."
 		);
 		this.recordLength = recordLength;
 		this.outputBufferSize = outputBufferSize;

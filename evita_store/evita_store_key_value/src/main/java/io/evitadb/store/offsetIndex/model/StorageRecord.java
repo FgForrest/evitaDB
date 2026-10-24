@@ -385,7 +385,7 @@ public record StorageRecord<T>(
 			recordLength = input.readInt();
 			if (recordLength > scratchBuffer.length) {
 				// the whole record, not just its payload, must fit: the caller writes it back out unchanged
-				throw new RecordExceedsOutputBufferException(startingPosition, recordLength, scratchBuffer.length);
+				throw new RecordExceedsOutputBufferException(recordLength, scratchBuffer.length);
 			}
 			final byte originalControl = input.readByte();
 			// the generation id is read to advance the cursor past the 8-byte header field, but the raw-copy caller
