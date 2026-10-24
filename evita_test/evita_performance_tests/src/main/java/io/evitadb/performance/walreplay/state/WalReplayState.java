@@ -193,6 +193,13 @@ public class WalReplayState {
 	 */
 	public static final String OUTPUT_BUFFER_SIZE_PROPERTY = "evita.replay.outputBufferSize";
 	/**
+	 * System property capping the share of transactions that may fail before the replay is refused, by default
+	 * {@value #DEFAULT_MAX_FAILED_SHARE}. A failed transaction costs a fraction of a committed one, so a replay with
+	 * many failures reports a throughput of failures - a rebuilt snapshot replayed without its reference-key map, or
+	 * commits pipelined over entities a previous transaction has not made visible yet, both look like a fast run.
+	 */
+	public static final String MAX_FAILED_SHARE_PROPERTY = "evita.replay.maxFailedShare";
+	/**
 	 * System property switching the replaying thread to block on the visibility stage of every
 	 * commit (`WAIT_FOR_CHANGES_VISIBLE` semantics, empty pipeline) instead of the default
 	 * WAL-persistence stage. Measures the true per-transaction trunk-incorporation floor without
@@ -213,6 +220,10 @@ public class WalReplayState {
 	 */
 	static final int SERVER_OUTPUT_BUFFER_SIZE = 4_194_304;
 	/**
+	 * Default of {@value #MAX_FAILED_SHARE_PROPERTY}.
+	 */
+	private static final double DEFAULT_MAX_FAILED_SHARE = 0.01;
+	/**
 	 * Progress is logged every this many replayed transactions.
 	 */
 	private static final int PROGRESS_LOG_INTERVAL = 250;
@@ -224,6 +235,7 @@ public class WalReplayState {
 	private int maxTransactions;
 	private int maxPendingVisibility;
 	private boolean waitForVisibility;
+	private double maxFailedShare;
 	@Nullable private Path perTxCsv;
 	@Getter
 	private long startCatalogVersion;
@@ -293,6 +305,9 @@ public class WalReplayState {
 		this.maxTransactions = Integer.parseInt(System.getProperty(MAX_TRANSACTIONS_PROPERTY, "0"));
 		this.maxPendingVisibility = Integer.parseInt(System.getProperty(MAX_PENDING_VISIBILITY_PROPERTY, "512"));
 		this.waitForVisibility = Boolean.parseBoolean(System.getProperty(WAIT_FOR_VISIBILITY_PROPERTY, "false"));
+		this.maxFailedShare = Double.parseDouble(
+			System.getProperty(MAX_FAILED_SHARE_PROPERTY, String.valueOf(DEFAULT_MAX_FAILED_SHARE))
+		);
 		this.perTxCsv = System.getProperty(PER_TX_CSV_PROPERTY) == null ?
 			null : Path.of(System.getProperty(PER_TX_CSV_PROPERTY));
 		this.workDataDir = System.getProperty(WORK_DIR_PROPERTY) == null ?
@@ -580,6 +595,15 @@ public class WalReplayState {
 			applyLatency.summarize(), conflictLatency.summarize(), walLatency.summarize(),
 			visibleLatency.summarize(), endToEndLatency.summarize()
 		);
+		final long attemptedTransactions = this.replayedTransactions + this.failedTransactions;
+		if (this.failedTransactions > attemptedTransactions * this.maxFailedShare) {
+			throw new GenericEvitaInternalError(
+				this.failedTransactions + " of " + attemptedTransactions + " replayed transactions failed, more than the " +
+					"share of " + this.maxFailedShare + " allowed by `" + MAX_FAILED_SHARE_PROPERTY + "` - the result " +
+					"would measure failures, not commits.\n" + formatFailureCensus(),
+				"Too many replayed transactions failed."
+			);
+		}
 		return this.replayedTransactions;
 	}
 
@@ -765,18 +789,28 @@ public class WalReplayState {
 		return root.getClass().getSimpleName() + " | " + message;
 	}
 
+	/**
+	 * Formats the distinct failure signatures of the last replay with the number of transactions that failed with each.
+	 *
+	 * @return the census, one signature per line
+	 */
+	@Nonnull
+	private String formatFailureCensus() {
+		final StringBuilder census = new StringBuilder(256);
+		census.append("Distinct failure signatures encountered during replay:\n");
+		for (final Map.Entry<String, int[]> entry : this.failureSignatures.entrySet()) {
+			census.append(String.format("  [%6d x] %s%n", entry.getValue()[0], entry.getKey()));
+		}
+		return census.toString();
+	}
+
 	@TearDown(Level.Trial)
 	public void tearDown() throws IOException {
 		if (this.statistics != null) {
 			log.info("\n{}", this.statistics.format());
 		}
 		if (!this.failureSignatures.isEmpty()) {
-			final StringBuilder census = new StringBuilder(256);
-			census.append("Distinct failure signatures encountered during replay:\n");
-			for (final Map.Entry<String, int[]> entry : this.failureSignatures.entrySet()) {
-				census.append(String.format("  [%6d x] %s%n", entry.getValue()[0], entry.getKey()));
-			}
-			log.info("\n{}", census);
+			log.info("\n{}", formatFailureCensus());
 		}
 		if (this.evita != null) {
 			this.evita.close();
