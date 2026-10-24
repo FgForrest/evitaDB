@@ -109,7 +109,9 @@ import java.util.stream.Stream;
  *    normal boot-time recovery path, bringing the catalog to the state it was in when the backup
  *    was taken;
  * 2. reads {@link EvitaSessionContract#getCatalogVersion()} to determine the last transaction
- *    already incorporated into that snapshot.
+ *    already incorporated into that snapshot - unless `{@value #START_VERSION_PROPERTY}` names it
+ *    explicitly, which a snapshot rebuilt into a fresh catalog requires, because its own version
+ *    counter is unrelated to the versions of the source WAL.
  *
  * The actual benchmarked operation ({@link #replayPendingTransactions()}) then re-applies every
  * subsequent transaction found in the source WALs as a brand new transaction against the live
@@ -144,8 +146,8 @@ public class WalReplayState {
 	public static final String PRISTINE_DATA_DIR_PROPERTY = "evita.replay.pristineDataDir";
 	/**
 	 * System property pointing to one or more (comma separated) directories holding a
-	 * `&lt;catalogName&gt;/` subfolder with the newer WAL segments. Consumed left to right;
-	 * overlaps are skipped.
+	 * `&lt;catalogName&gt;/` subfolder (`{@value #WAL_CATALOG_NAME_PROPERTY}` when set) with the newer
+	 * WAL segments. Consumed left to right; overlaps are skipped.
 	 */
 	public static final String WAL_SOURCE_DIR_PROPERTY = "evita.replay.walSourceDir";
 	/**
@@ -212,6 +214,28 @@ public class WalReplayState {
 	 * unset (default) records nothing.
 	 */
 	public static final String PER_TX_CSV_PROPERTY = "evita.replay.perTxCsv";
+	/**
+	 * System property naming the source catalog version the replay starts after, overriding the version the booted
+	 * catalog reports. Needed when the pristine snapshot is not the original catalog but a rebuilt one - re-upserted
+	 * into a fresh catalog by `IsolatedWarmupLoadBenchmark`, for instance with a schema that differs from the
+	 * source - whose own version counter says nothing about which transactions of the source WAL it already holds.
+	 * Unset (the default) keeps the version of the booted catalog.
+	 */
+	public static final String START_VERSION_PROPERTY = "evita.replay.startVersion";
+	/**
+	 * System property naming the catalog the source WAL was written by - the name of the `&lt;name&gt;/` subfolder of
+	 * every WAL source directory and the prefix of its `*.wal` files. Defaults to `{@value #CATALOG_NAME_PROPERTY}`;
+	 * it differs only when the replayed catalog was rebuilt under another name, as an embedded
+	 * `IsolatedWarmupLoadBenchmark` must, because its source and target share one engine.
+	 */
+	public static final String WAL_CATALOG_NAME_PROPERTY = "evita.replay.walCatalogName";
+	/**
+	 * System property naming the reference-key map that translates the internal reference ids of the source WAL into
+	 * those of a rebuilt snapshot - see {@link ReferenceKeyTranslator}; {@link ReferenceKeyMapBuilder} writes it. A
+	 * rebuild assigns new ids to every reference it re-inserts, so without the map most transactions touching existing
+	 * references fail. Unset (the default) replays the ids as recorded, which is right for the original snapshot.
+	 */
+	public static final String REFERENCE_KEY_MAP_PROPERTY = "evita.replay.referenceKeyMap";
 
 	/**
 	 * The output buffer of a standalone server: its bundled `evita-configuration.yaml` sets 4 MB, while an embedded
@@ -229,6 +253,7 @@ public class WalReplayState {
 	private static final int PROGRESS_LOG_INTERVAL = 250;
 
 	private String catalogName;
+	private String walCatalogName;
 	private Path workDataDir;
 	private List<Path> walSourceDirs;
 	private Evita evita;
@@ -237,6 +262,7 @@ public class WalReplayState {
 	private boolean waitForVisibility;
 	private double maxFailedShare;
 	@Nullable private Path perTxCsv;
+	@Nullable private ReferenceKeyTranslator referenceKeyTranslator;
 	@Getter
 	private long startCatalogVersion;
 	@Getter
@@ -287,6 +313,9 @@ public class WalReplayState {
 	@Setup(Level.Trial)
 	public void setUp() throws IOException {
 		this.catalogName = requiredStringProperty(CATALOG_NAME_PROPERTY);
+		final String walCatalogNameProperty = System.getProperty(WAL_CATALOG_NAME_PROPERTY);
+		this.walCatalogName = walCatalogNameProperty == null || walCatalogNameProperty.isBlank() ?
+			this.catalogName : walCatalogNameProperty.trim();
 		final Path pristineDataDir = requiredPathProperty(PRISTINE_DATA_DIR_PROPERTY, this.catalogName);
 		final String walSourceProperty = System.getProperty(WAL_SOURCE_DIR_PROPERTY);
 		if (walSourceProperty == null || walSourceProperty.isBlank()) {
@@ -310,6 +339,15 @@ public class WalReplayState {
 		);
 		this.perTxCsv = System.getProperty(PER_TX_CSV_PROPERTY) == null ?
 			null : Path.of(System.getProperty(PER_TX_CSV_PROPERTY));
+		final String referenceKeyMap = System.getProperty(REFERENCE_KEY_MAP_PROPERTY);
+		if (referenceKeyMap != null && !referenceKeyMap.isBlank()) {
+			this.referenceKeyTranslator = ReferenceKeyTranslator.load(Path.of(referenceKeyMap.trim()));
+			log.info(
+				"Reference key map `{}` loaded: {} entities, {} reference pairs.",
+				referenceKeyMap, this.referenceKeyTranslator.getEntityCount(),
+				this.referenceKeyTranslator.getReferencePairCount()
+			);
+		}
 		this.workDataDir = System.getProperty(WORK_DIR_PROPERTY) == null ?
 			Files.createTempDirectory("evita-wal-replay-work") :
 			Path.of(System.getProperty(WORK_DIR_PROPERTY));
@@ -387,9 +425,18 @@ public class WalReplayState {
 		final long bootMillis = (System.nanoTime() - bootStart) / 1_000_000;
 		log.info("Catalog `{}` fully activated in {} ms (boot-time WAL recovery included).", this.catalogName, bootMillis);
 
-		this.startCatalogVersion = this.evita.queryCatalog(this.catalogName, EvitaSessionContract::getCatalogVersion);
+		final long bootedCatalogVersion = this.evita.queryCatalog(
+			this.catalogName, EvitaSessionContract::getCatalogVersion
+		);
+		final String startVersionOverride = System.getProperty(START_VERSION_PROPERTY);
+		this.startCatalogVersion = startVersionOverride == null || startVersionOverride.isBlank() ?
+			bootedCatalogVersion : Long.parseLong(startVersionOverride.trim());
 		this.lastReplayedVersion = this.startCatalogVersion;
-		log.info("Catalog `{}` booted at version {}.", this.catalogName, this.startCatalogVersion);
+		log.info(
+			"Catalog `{}` booted at version {}, the replay starts after source version {}{}.",
+			this.catalogName, bootedCatalogVersion, this.startCatalogVersion,
+			this.startCatalogVersion == bootedCatalogVersion ? "" : " (`" + START_VERSION_PROPERTY + "`)"
+		);
 	}
 
 	/**
@@ -399,7 +446,7 @@ public class WalReplayState {
 	 * would keep the JVM alive forever.
 	 */
 	@Nonnull
-	private static WalSource openWalSource(@Nonnull Path walSourceBaseDir, @Nonnull String catalogName) throws IOException {
+	static WalSource openWalSource(@Nonnull Path walSourceBaseDir, @Nonnull String catalogName) throws IOException {
 		final StorageSettings walStorageSettings = new StorageSettings(
 			StorageOptions.builder().storageDirectory(walSourceBaseDir).build(),
 			TransactionOptions.builder().build()
@@ -524,9 +571,14 @@ public class WalReplayState {
 			if (reachedTransactionCap()) {
 				break;
 			}
-			final WalSource walSource = openWalSource(walSourceDir, this.catalogName);
+			final WalSource walSource = openWalSource(walSourceDir, this.walCatalogName);
+			long transactionsReadFromSource = 0L;
+			// the stream starts AT the requested version and is empty when the source does not hold it, so ask for
+			// the first version still to be replayed: asking for the last applied one silently yields nothing
+			// whenever the source starts right after it - which a start version below the source's oldest
+			// transaction makes the rule rather than the exception
 			try (final Stream<CatalogBoundMutation> mutationStream =
-					 walSource.wal().getCommittedMutationStream(this.lastReplayedVersion)) {
+					 walSource.wal().getCommittedMutationStream(this.lastReplayedVersion + 1)) {
 				final Iterator<CatalogBoundMutation> iterator = mutationStream.iterator();
 				while (iterator.hasNext()) {
 					final CatalogBoundMutation leading = iterator.next();
@@ -549,6 +601,7 @@ public class WalReplayState {
 						}
 						txMutations.add(iterator.next());
 					}
+					transactionsReadFromSource++;
 
 					if (txMutation.getVersion() <= this.lastReplayedVersion) {
 						this.skippedTransactions++;
@@ -573,6 +626,14 @@ public class WalReplayState {
 					if (reachedTransactionCap()) {
 						break;
 					}
+				}
+				if (transactionsReadFromSource == 0L) {
+					// either everything in this source is already applied, or the source starts after a gap - the
+					// second one would otherwise pass for an empty, instant and therefore flattering replay
+					log.warn(
+						"Source WAL `{}` holds no transaction from version {} on (its first replayable version is {}).",
+						walSourceDir, this.lastReplayedVersion + 1, walSource.wal().getFirstReplayableVersion()
+					);
 				}
 			} finally {
 				walSource.close();
@@ -642,7 +703,7 @@ public class WalReplayState {
 			final CommitProgress commitProgress = this.evita.updateCatalogAsync(
 				this.catalogName,
 				session -> {
-					applyTransactionMutations(session, txMutations);
+					applyTransactionMutations(session, txMutations, this.referenceKeyTranslator);
 					commitHandoverNanos[0] = System.nanoTime();
 				},
 				CommitBehavior.WAIT_FOR_CHANGES_VISIBLE,
@@ -755,14 +816,19 @@ public class WalReplayState {
 	 * Applies the mutations of a single source transaction inside the given session, dispatching
 	 * each mutation to the appropriate session API based on its concrete type - mirrors exactly
 	 * what a real client sends when replaying captured traffic.
+	 *
+	 * @param session     the read-write session of the replayed transaction
+	 * @param txMutations the mutations of the source transaction
+	 * @param translator  rewrites reference ids for a rebuilt snapshot, or null when the ids apply as recorded
 	 */
 	private static void applyTransactionMutations(
 		@Nonnull EvitaSessionContract session,
-		@Nonnull List<CatalogBoundMutation> txMutations
+		@Nonnull List<CatalogBoundMutation> txMutations,
+		@Nullable ReferenceKeyTranslator translator
 	) {
 		for (final CatalogBoundMutation mutation : txMutations) {
 			if (mutation instanceof EntityMutation entityMutation) {
-				session.applyMutation(entityMutation);
+				session.applyMutation(translator == null ? entityMutation : translator.translate(entityMutation));
 			} else if (mutation instanceof LocalCatalogSchemaMutation schemaMutation) {
 				session.updateCatalogSchema(schemaMutation);
 			} else {
@@ -809,6 +875,13 @@ public class WalReplayState {
 		if (this.statistics != null) {
 			log.info("\n{}", this.statistics.format());
 		}
+		if (this.referenceKeyTranslator != null) {
+			log.info(
+				"Reference keys translated: {} through the T0 pairing, {} by the counter offset.",
+				this.referenceKeyTranslator.getTranslatedByPairing(),
+				this.referenceKeyTranslator.getTranslatedByOffset()
+			);
+		}
 		if (!this.failureSignatures.isEmpty()) {
 			log.info("\n{}", formatFailureCensus());
 		}
@@ -827,7 +900,7 @@ public class WalReplayState {
 	 * @param wal       the read-only write-ahead log
 	 * @param scheduler the scheduler backing it
 	 */
-	private record WalSource(@Nonnull CatalogWriteAheadLog wal, @Nonnull Scheduler scheduler) {
+	record WalSource(@Nonnull CatalogWriteAheadLog wal, @Nonnull Scheduler scheduler) {
 
 		/**
 		 * Closes the log and shuts the scheduler down - the latter's threads are non-daemon and would
