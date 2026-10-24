@@ -93,7 +93,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	/**
 	 * Size of the memory buffer used for write operations, in bytes.
 	 * This buffer size limits the maximum size of individual records that can be written.
-	 * Sourced from {@link io.evitadb.api.configuration.StorageOptions#outputBufferSize()}, typically defaults to 2MB.
+	 * Sourced from {@link io.evitadb.api.configuration.StorageOptions#outputBufferSize()}, typically defaults to 4MB.
 	 */
 	private final int outputBufferSize;
 	/**

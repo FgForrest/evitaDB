@@ -83,7 +83,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	/**
 	 * Size of the memory buffer used for serialization operations, in bytes.
 	 * This buffer size determines the size of buffers held by cached {@link ObservableOutput} instances.
-	 * Sourced from {@link StorageOptions#outputBufferSize()}, typically defaults to 2MB.
+	 * Sourced from {@link StorageOptions#outputBufferSize()}, typically defaults to 4MB.
 	 */
 	private final int outputBufferSize;
 	/**
@@ -143,7 +143,7 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	 */
 	@Nonnull
 	public static ObservableOutputKeeper _internalBuild(@Nonnull Scheduler scheduler) {
-		return new ObservableOutputKeeper(2_097_152, 5, 5, scheduler);
+		return new ObservableOutputKeeper(StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE, 5, 5, scheduler);
 	}
 
 	public ObservableOutputKeeper(

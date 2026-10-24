@@ -88,7 +88,7 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	/**
 	 * Size of the memory buffer used for write operations, in bytes.
 	 * This buffer size limits the maximum size of individual records that can be written.
-	 * Sourced from {@link StorageOptions#outputBufferSize()}, typically defaults to 2MB.
+	 * Sourced from {@link StorageOptions#outputBufferSize()}, typically defaults to 4MB.
 	 */
 	private final int outputBufferSize;
 	/**

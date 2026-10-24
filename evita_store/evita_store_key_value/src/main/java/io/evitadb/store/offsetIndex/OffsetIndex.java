@@ -161,13 +161,13 @@ public class OffsetIndex {
 	/**
 	 * Size of the memory buffer used for write operations, in bytes.
 	 * This buffer size limits the maximum size of individual records that can be written to the offset index.
-	 * Sourced from {@link StorageOptions#outputBufferSize()}, typically defaults to 2MB.
+	 * Sourced from {@link StorageOptions#outputBufferSize()}, typically defaults to 4MB.
 	 */
 	private final int outputBufferSize;
 	/**
 	 * Reusable scratch buffer for the {@link #copySnapshotTo} record-copy loop, retained across compactions so each
 	 * compaction does not allocate a fresh {@link #outputBufferSize}-byte array. Held through a {@link SoftReference}
-	 * so idle collections do not pin the (default 2MB) buffer under memory pressure, and allocated lazily so a
+	 * so idle collections do not pin the (default 4MB) buffer under memory pressure, and allocated lazily so a
 	 * never-compacted collection pays nothing. A single slot is sufficient — and no pool is needed — because every
 	 * writer of this instance is serialized by the {@link #writeHandle} lock, so at most one compaction reads it at a
 	 * time. See {@link #getCompactionScratchBuffer()}.

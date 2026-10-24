@@ -56,7 +56,7 @@ class StorageOptionsTest {
 		assertEquals(5, options.lockTimeoutSeconds());
 		assertEquals(5, options.waitOnCloseSeconds());
 		assertEquals(
-			2_097_152, options.outputBufferSize()
+			4_194_304, options.outputBufferSize()
 		);
 		assertTrue(options.computeCRC32C());
 		assertFalse(options.compress());
