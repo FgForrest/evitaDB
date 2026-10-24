@@ -345,6 +345,7 @@ public class EvitaParameterResolver
 					              .workDirectory(paths.work())
 					              .maxOpenedReadHandles(1000)
 					              .syncWrites(false)
+					              .outputBufferSize(TEST_OUTPUT_BUFFER_SIZE)
 					              .build()
 				)
 				.cache(
