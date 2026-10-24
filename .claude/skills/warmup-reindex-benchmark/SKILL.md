@@ -200,6 +200,10 @@ each, so ±9 %:
 | dev @ `aa3e7b281b` | 1,321.2 s | 9,260 µs |
 | `a2eec9c8fb` | 1,246.1 s | 8,689 µs |
 
+**Every figure in this section copied live entities only.** The loader queried without a scope, which reads the
+live scope alone; it now copies every scope. In a later snapshot of the same export 38,439 of 172,318 products are
+archived, so a current run loads more entities and is not comparable with the tables above.
+
 ## 7. Two ways a run silently lies
 
 1. **`evitaDB treats every storage subdirectory as a catalog.`** Leftovers in `TARGET_DATA_DIR` from an

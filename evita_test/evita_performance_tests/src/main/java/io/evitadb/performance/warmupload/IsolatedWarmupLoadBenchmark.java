@@ -39,6 +39,7 @@ import io.evitadb.api.requestResponse.data.SealedEntity;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.Evita;
+import io.evitadb.dataType.Scope;
 import io.evitadb.driver.EvitaClient;
 import io.evitadb.driver.config.ClientTimeoutOptions;
 import io.evitadb.driver.config.ClientTlsOptions;
@@ -77,6 +78,7 @@ import static io.evitadb.api.query.QueryConstraints.entityPrimaryKeyInSet;
 import static io.evitadb.api.query.QueryConstraints.filterBy;
 import static io.evitadb.api.query.QueryConstraints.page;
 import static io.evitadb.api.query.QueryConstraints.require;
+import static io.evitadb.api.query.QueryConstraints.scope;
 
 /**
  * Single-threaded WARM_UP bulk-load benchmark that reads from an **embedded** source catalog and writes
@@ -131,6 +133,10 @@ import static io.evitadb.api.query.QueryConstraints.require;
  *
  * The source archive is never touched - the pristine snapshot directory is copied into a disposable
  * working directory on every run and the embedded engine only ever opens that copy.
+ *
+ * Entities are copied in every scope, archived ones included, each into the scope it has in the source - a query
+ * that names no scope reads only live entities, and a rebuild short of the archived ones fails every replayed
+ * transaction that touches one.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -239,6 +245,10 @@ public class IsolatedWarmupLoadBenchmark {
 	 * Default number of entities read from the source per fetch.
 	 */
 	private static final int DEFAULT_BATCH_SIZE = 1_000;
+	/**
+	 * Every query on a collection reads all scopes - see the class documentation.
+	 */
+	private static final Scope[] ALL_SCOPES = Scope.values();
 	/**
 	 * Default number of upserts between two intra-collection progress lines.
 	 */
@@ -783,7 +793,7 @@ public class IsolatedWarmupLoadBenchmark {
 			final List<SealedEntity> entities = sourceSession.queryListOfSealedEntities(
 				Query.query(
 					collection(entityType),
-					filterBy(entityPrimaryKeyInSet(batch)),
+					filterBy(entityPrimaryKeyInSet(batch), scope(ALL_SCOPES)),
 					require(page(1, limit), contentRequirement)
 				)
 			);
@@ -836,7 +846,7 @@ public class IsolatedWarmupLoadBenchmark {
 			return new int[0];
 		}
 		final List<EntityReferenceContract> references = sourceSession.queryListOfEntityReferences(
-			Query.query(collection(entityType), require(page(1, total)))
+			Query.query(collection(entityType), filterBy(scope(ALL_SCOPES)), require(page(1, total)))
 		);
 		final int[] primaryKeys = new int[references.size()];
 		for (int i = 0; i < references.size(); i++) {
@@ -857,7 +867,7 @@ public class IsolatedWarmupLoadBenchmark {
 		@Nonnull final String entityType
 	) {
 		return session.queryEntityReference(
-			Query.query(collection(entityType), require(page(1, 1)))
+			Query.query(collection(entityType), filterBy(scope(ALL_SCOPES)), require(page(1, 1)))
 		).getTotalRecordCount();
 	}
 
