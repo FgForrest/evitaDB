@@ -58,6 +58,11 @@ Key system properties (full list in `WalReplayState`'s own JavaDoc):
 | `evita.replay.holdOpenSeconds` | keeps the JVM alive after the result block so an attached profiler can dump |
 | `evita.replay.waitForVisibility` | block on trunk incorporation per commit — measures the true empty-pipeline floor |
 | `evita.replay.perTxCsv` | one CSV row per transaction (mutation count + every stage latency) |
+| `evita.replay.startVersion` | the source version the snapshot already holds - required for a rebuilt snapshot (§9) |
+| `evita.replay.walCatalogName` | the catalog that wrote the WAL, when the replayed one was rebuilt under another name |
+| `evita.replay.referenceKeyMap` | reference-id map for a rebuilt snapshot, written by `ReferenceKeyMapBuilder` (§9) |
+| `evita.replay.outputBufferSize` | defaults to the standalone server's 4 MiB, not the embedded 2 MiB (§5) |
+| `evita.replay.maxFailedShare` | failed-transaction share above which the run throws, not reports (default 0.01) |
 
 Pin `-Xmx24g -Xms8g` on every run; heap size drives the collation cache's heap-derived default.
 
@@ -94,7 +99,7 @@ thread doing most of the allocation resolves to unresolved `libc` frames. Use `c
 - `mawk` (the default `awk` here) has **no `asorti`** — emit `KIND<TAB>count<TAB>name` and rank
   with `sort -rn`, not an awk-side sort.
 
-## 5. Four ways a run silently lies
+## 5. Ways a run silently lies
 
 1. **The profiler dump races JVM exit.** The harness tears down within seconds of printing its
    result block — too fast for a fresh `profiler stop` JVM to connect. Fixed via
@@ -113,6 +118,20 @@ thread doing most of the allocation resolves to unresolved `libc` frames. Use `c
 4. **Cross-run comparison without controls.** When total allocation falls, every surviving site's
    *percentage* inflates and looks like a regression. Find 3-4 sites no change touched and check
    their **absolute** sample counts match before trusting a percentage comparison.
+5. **Pipelined commits fail where production's did not.** By default the next commit is issued before the
+   previous one is visible. Production spread the same transactions over hours, so two consecutive ones on one
+   entity never met; replayed back to back they conflict, and the failure cascades into every later transaction
+   that builds on the lost one - 63 of 178 failed on an untouched original snapshot. Measuring per-transaction
+   cost needs `evita.replay.waitForVisibility=true`. A failed transaction costs a fraction of a commit, so the
+   throughput still looked fine; `evita.replay.maxFailedShare` now refuses such a run.
+6. **The output buffer is smaller than the one that wrote the snapshot.** `outputBufferSize` has two defaults:
+   4 MB in the standalone server's bundled `evita-configuration.yaml`, 2 MiB in `StorageOptions` for every embedded
+   instance. Server-written snapshots hold record fragments up to 4 MiB; reading them works, but compaction copies
+   each fragment through a buffer of the reader's size, so the first compaction of such a collection throws
+   `ArrayIndexOutOfBoundsException` and suspends the catalog. The harness defaults to 4 MiB.
+7. **The replay starts after the source's last version.** A WAL stream is empty when it does not hold the requested
+   version, and an empty replay is an instant one. The fixture now warns about a source that yields nothing - read
+   the transaction count in the result block before the throughput.
 
 ## 6. Interpretation rules that cost rounds to learn
 
@@ -156,3 +175,32 @@ throughput: launch `evita-server.jar` with JDWP
 **Point `storage.storageDirectory` at a scratch copy, never at the live `../data`.** Opening a real
 catalog with branch code can trigger a one-way format migration, and a T0 baseline must stay intact
 if it is also the source for a WAL replay.
+
+## 9. A/B of a schema change (rebuilt snapshots)
+
+A schema flag declared over stored data is accepted but not back-filled (#409), so replaying over the original with
+the flag switched on indexes only the replayed writes and under-measures the cost. Both arms are therefore rebuilt
+from the same T0 by `IsolatedWarmupLoadBenchmark` (`warmup-reindex-benchmark` skill, embedded target mode): arm A
+with the source schema, arm B with the delta. The embedded rebuild names the target catalog differently from the
+source.
+
+1. **Rebuild both arms** from the T0 snapshot. The loader copies every scope; a rebuild that predates that
+   misses the archived entities, and every transaction touching one fails in both arms.
+2. **Build each arm's reference-key map.** The engine assigns new internal ids to every reference it re-inserts,
+   while the WAL addresses references by id (those allowing duplicates only by id) - untranslated, 128 of 178
+   transactions failed. Run `io.evitadb.performance.walreplay.state.ReferenceKeyMapBuilder` (main class in
+   `benchmarks.jar`) with the replay's own properties plus `evita.replay.sourceSnapshotDir` (the T0 the arm was
+   rebuilt from); it opens copies of both snapshots in `evita.replay.workDir`. Two arms of one T0 have produced
+   identical maps so far.
+3. **Replay** each arm with `evita.replay.catalogName=<rebuilt name>`, `evita.replay.walCatalogName=<source
+   name>`, `evita.replay.startVersion=<T0 version>`, `evita.replay.referenceKeyMap=<map>`,
+   `evita.replay.waitForVisibility=true`. A dry run first: `failed` must be 0, or equal in both arms with an
+   explained cause.
+4. **Measure in ABBA order**, one JMH single-shot fork per JVM, at least 6 per arm, each started only once the box
+   is quiet (load1 under a fixed threshold). Throughput = transactions / score; report B/A with its standard
+   error and `gc.alloc.rate.norm`.
+
+For scale: the #258 write-path gate (fulltext on three global text attributes and one associated-data field of a
+production e-commerce catalog) measured B/A 0.965 and 0.985 on two production slices, per-run variation 1.4-2.7 %,
+so 6 runs per arm resolve differences of about 2 %. Rebuild time differences between the arms stayed inside the
+±9 % single-run band.
