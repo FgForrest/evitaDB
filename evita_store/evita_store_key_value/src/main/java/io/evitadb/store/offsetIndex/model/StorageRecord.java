@@ -29,6 +29,7 @@ import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.store.offsetIndex.exception.PrematureEndOfFileException;
+import io.evitadb.store.offsetIndex.exception.RecordExceedsOutputBufferException;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.utils.Assert;
 import lombok.Getter;
@@ -361,13 +362,16 @@ public record StorageRecord<T>(
 	 * copy loop consumes (control byte + payload length) are written into the caller-supplied `cursor` instead of a
 	 * freshly allocated header object — so a whole compaction copy allocates no per-record header garbage.
 	 *
-	 * The buffer must be at least `recordLength - CRC_NOT_COVERED_PART` bytes long. Since storage
-	 * records are written in fragments capped by the configured `outputBufferSize`, a buffer of
-	 * `outputBufferSize` bytes is always sufficient.
+	 * The caller sizes the buffer by the configured `outputBufferSize`, which caps every record fragment this
+	 * instance writes - and therefore every record it can write back out unchanged. A stored record longer than the
+	 * buffer was written by an instance configured with a larger one; it is refused with
+	 * {@link RecordExceedsOutputBufferException} before anything is read, because the configured size is the limit and
+	 * is never enlarged to fit the data.
 	 *
 	 * @param input         input stream positioned at the start of a record
-	 * @param scratchBuffer reusable buffer that will receive the payload bytes
+	 * @param scratchBuffer reusable buffer that will receive the payload bytes, as long as the configured output buffer
 	 * @param cursor        reusable holder that receives the record's control byte and payload length
+	 * @throws RecordExceedsOutputBufferException when the stored record is longer than the buffer
 	 */
 	public static void readRawInto(
 		@Nonnull ObservableInput<?> input,
@@ -379,6 +383,10 @@ public record StorageRecord<T>(
 		try {
 			startingPosition = input.markStart();
 			recordLength = input.readInt();
+			if (recordLength > scratchBuffer.length) {
+				// the whole record, not just its payload, must fit: the caller writes it back out unchanged
+				throw new RecordExceedsOutputBufferException(startingPosition, recordLength, scratchBuffer.length);
+			}
 			final byte originalControl = input.readByte();
 			// the generation id is read to advance the cursor past the 8-byte header field, but the raw-copy caller
 			// does not need its value (it stamps the target catalogVersion on the copied record instead)

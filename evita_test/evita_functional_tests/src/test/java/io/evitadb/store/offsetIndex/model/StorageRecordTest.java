@@ -38,6 +38,7 @@ import io.evitadb.store.compression.ZipCompressionFactory;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
+import io.evitadb.store.offsetIndex.exception.RecordExceedsOutputBufferException;
 import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecord;
 import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecordCursor;
 import io.evitadb.store.offsetIndex.model.StorageRecord.StorageRecordWithChecksum;
@@ -1284,6 +1285,45 @@ class StorageRecordTest {
 					originalBytes, copiedBytes, "Cursor-based raw round-trip should produce identical file");
 			} finally {
 				tempFile2.delete();
+			}
+		}
+
+		@DisplayName("Should refuse a record longer than the buffer, payload alone fitting or not")
+		@Test
+		void shouldThrowExceptionWhenRecordIsLongerThanBuffer() throws IOException {
+			try (final ObservableOutput<?> output = createOutput(
+				new FileOutputStream(StorageRecordTest.this.tempFile), 16_384, 0, ChecksumCheck.YES, Compression.NO)) {
+				//noinspection ResultOfObjectAllocationIgnored
+				new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, false, generateBytes(256));
+			}
+			final int recordLength;
+			try (final ObservableInput<?> input = createInput(
+				new FileInputStream(StorageRecordTest.this.tempFile), 8_192, ChecksumCheck.YES, Compression.NO)) {
+				recordLength = StorageRecord.readRaw(input).location().recordLength();
+			}
+
+			// a buffer as long as the whole record holds it
+			final RawRecordCursor cursor = new RawRecordCursor();
+			try (final ObservableInput<?> input = createInput(
+				new FileInputStream(StorageRecordTest.this.tempFile), 8_192, ChecksumCheck.YES, Compression.NO)) {
+				StorageRecord.readRawInto(input, new byte[recordLength], cursor);
+			}
+			assertEquals(recordLength - StorageRecord.CRC_NOT_COVERED_PART, cursor.payloadLength());
+
+			// one byte less refuses it, although the payload alone would still fit: the copy writes the whole record
+			// back out through a buffer of the same size
+			try (final ObservableInput<?> input = createInput(
+				new FileInputStream(StorageRecordTest.this.tempFile), 8_192, ChecksumCheck.YES, Compression.NO)) {
+				final RecordExceedsOutputBufferException exception = assertThrows(
+					RecordExceedsOutputBufferException.class,
+					() -> StorageRecord.readRawInto(input, new byte[recordLength - 1], cursor)
+				);
+				assertEquals(recordLength, exception.getRecordLength());
+				assertEquals(recordLength - 1, exception.getOutputBufferSize());
+				assertTrue(
+					exception.getMessage().contains("storage.outputBufferSize"),
+					"The message must name the setting to raise"
+				);
 			}
 		}
 
