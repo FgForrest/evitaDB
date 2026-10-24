@@ -24,6 +24,7 @@
 package io.evitadb.test.builder;
 
 import io.evitadb.api.EvitaSessionContract;
+import io.evitadb.api.query.expression.ExpressionFactory;
 import io.evitadb.api.query.require.EntityContentRequire;
 import io.evitadb.api.query.require.EntityFetch;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
@@ -49,14 +50,17 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.builder.SortableAttributeCompoundSchemaBuilder;
 import io.evitadb.dataType.Scope;
 import io.evitadb.dataType.expression.Expression;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Currency;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -92,6 +96,24 @@ import static io.evitadb.api.query.QueryConstraints.referenceContentWithAttribut
 public class CatalogCopySupport {
 
 	/**
+	 * Separates the segments of a searchable-field path: entity type, reference and field name.
+	 */
+	private static final String PATH_SEPARATOR = ".";
+	/**
+	 * Path prefix of a catalog-level global attribute - the flag lives on the global schema, so it applies to every
+	 * entity type that uses the attribute.
+	 */
+	private static final String GLOBAL_ATTRIBUTE_PREFIX = "*" + PATH_SEPARATOR;
+	/**
+	 * Marks the last path segment as associated data rather than an attribute - the two may share a name.
+	 */
+	private static final String ASSOCIATED_DATA_MARKER = "@";
+	/**
+	 * Separates an associated data path from the EvitaEL expression selecting the text of its complex values.
+	 */
+	private static final String TEXT_EXPRESSION_SEPARATOR = "=";
+
+	/**
 	 * Reference names promoted from `FOR_FILTERING` to `FOR_FILTERING_AND_PARTITIONING` on the target schema,
 	 * parsed once from the `evita.warmup.raiseReferences` system property. A single `*` promotes every plain
 	 * reference; an empty value (the default) replicates the source index types faithfully.
@@ -102,6 +124,17 @@ public class CatalogCopySupport {
 	 * afterwards, which is precisely the full-reindex path that *is* supported.
 	 */
 	private static final Set<String> RAISED_REFERENCES = parseRaisedReferences();
+	/**
+	 * Fields made searchable on the target schema, keyed by their path, parsed once from the
+	 * `evita.warmup.searchable` system property - see {@link #parseSearchableFields()} for the notation. Empty (the
+	 * default) replicates the source faithfully.
+	 *
+	 * This exists to measure what fulltext maintenance costs the write path of a real catalog whose schema predates
+	 * the fulltext index. Declaring a field searchable on a populated catalog does not index the values it already
+	 * holds (issue #409), but the target catalog here is created empty and populated afterwards, so every copied value
+	 * is indexed - the same reasoning as for {@link #RAISED_REFERENCES}.
+	 */
+	private static final Map<String, SearchableField> SEARCHABLE_FIELDS = parseSearchableFields();
 
 	/**
 	 * Purely static helper - never instantiated.
@@ -126,6 +159,7 @@ public class CatalogCopySupport {
 		@Nonnull final CatalogSchemaContract sourceCatalogSchema,
 		@Nonnull final Collection<EntitySchemaContract> sourceEntitySchemas
 	) {
+		verifySearchableFieldsExist(sourceCatalogSchema, sourceEntitySchemas);
 		replicateGlobalAttributes(sourceCatalogSchema, session);
 		// pass 1 - entity bodies without references
 		for (final EntitySchemaContract source : sourceEntitySchemas) {
@@ -209,6 +243,7 @@ public class CatalogCopySupport {
 				attribute.getType(),
 				editor -> {
 					applyAttribute(attribute, editor);
+					applySearchable(GLOBAL_ATTRIBUTE_PREFIX + attribute.getName(), editor);
 					final List<Scope> uniqueGlobally = new ArrayList<>(2);
 					final List<Scope> uniqueGloballyWithinLocale = new ArrayList<>(2);
 					for (final Scope scope : Scope.values()) {
@@ -290,12 +325,16 @@ public class CatalogCopySupport {
 				builder.withAttribute(
 					attribute.getName(),
 					attribute.getType(),
-					editor -> applyAttribute(attribute, editor)
+					editor -> {
+						applyAttribute(attribute, editor);
+						applySearchable(source.getName() + PATH_SEPARATOR + attribute.getName(), editor);
+					}
 				);
 			}
 		}
 
 		for (final AssociatedDataSchemaContract associatedData : source.getAssociatedData().values()) {
+			final String path = source.getName() + PATH_SEPARATOR + ASSOCIATED_DATA_MARKER + associatedData.getName();
 			builder.withAssociatedData(
 				associatedData.getName(),
 				associatedData.getType(),
@@ -305,6 +344,15 @@ public class CatalogCopySupport {
 					}
 					if (associatedData.isNullable()) {
 						editor.nullable();
+					}
+					final SearchableField searchable = SEARCHABLE_FIELDS.get(path);
+					if (searchable != null) {
+						if (searchable.textExpression() == null) {
+							editor.searchable();
+						} else {
+							editor.searchable(ExpressionFactory.parse(searchable.textExpression()));
+						}
+						printSearchable(searchable);
 					}
 				}
 			);
@@ -336,14 +384,14 @@ public class CatalogCopySupport {
 					reference.getName(),
 					reference.getReferencedEntityType(),
 					reference.getCardinality(),
-					editor -> applyReference(reference, editor)
+					editor -> applyReference(source.getName(), reference, editor)
 				);
 			} else {
 				builder.withReferenceTo(
 					reference.getName(),
 					reference.getReferencedEntityType(),
 					reference.getCardinality(),
-					editor -> applyReference(reference, editor)
+					editor -> applyReference(source.getName(), reference, editor)
 				);
 			}
 		}
@@ -445,6 +493,147 @@ public class CatalogCopySupport {
 	}
 
 	/**
+	 * Parses {@link #SEARCHABLE_FIELDS} from the `evita.warmup.searchable` system property. Entries are separated by
+	 * `;` rather than `,`, because an EvitaEL text expression may itself contain commas. Each entry is a path:
+	 *
+	 * - `*.name` - the catalog-level global attribute `name`
+	 * - `product.name` - the attribute `name` of entity type `product`
+	 * - `product.brand.name` - the attribute `name` of the reference `brand` of entity type `product`
+	 * - `product.@description` - the `String` / `String[]` associated data `description`
+	 * - `product.@content=$value.blocks.*[$.text]` - complex associated data with the expression selecting its text
+	 *
+	 * @return the fields keyed by their path (the entry without its expression), empty when the property is unset
+	 */
+	@Nonnull
+	private static Map<String, SearchableField> parseSearchableFields() {
+		final String raw = System.getProperty("evita.warmup.searchable", "");
+		if (raw.isBlank()) {
+			return Map.of();
+		}
+		final String[] entries = raw.split(";");
+		final Map<String, SearchableField> result = CollectionUtils.createLinkedHashMap(entries.length);
+		for (final String entry : entries) {
+			final String trimmed = entry.trim();
+			if (trimmed.isEmpty()) {
+				continue;
+			}
+			final int expressionStart = trimmed.indexOf(TEXT_EXPRESSION_SEPARATOR);
+			final String path = expressionStart < 0 ? trimmed : trimmed.substring(0, expressionStart).trim();
+			final String expression = expressionStart < 0 ? null : trimmed.substring(expressionStart + 1).trim();
+			if (expression != null && !path.contains(PATH_SEPARATOR + ASSOCIATED_DATA_MARKER)) {
+				throw new GenericEvitaInternalError(
+					"Searchable field `" + trimmed + "` carries a text expression, which only associated data takes.",
+					"Only associated data takes a text expression."
+				);
+			}
+			result.put(path, new SearchableField(path, expression));
+		}
+		return result;
+	}
+
+	/**
+	 * Fails the copy before anything is written when a path in {@link #SEARCHABLE_FIELDS} names no field of the
+	 * source schema. A misspelt path would otherwise be ignored silently, and the run would measure a catalog with
+	 * less fulltext maintenance than it claims.
+	 *
+	 * @param sourceCatalogSchema the source catalog schema (for global attributes)
+	 * @param sourceEntitySchemas the source entity schemas
+	 */
+	private static void verifySearchableFieldsExist(
+		@Nonnull final CatalogSchemaContract sourceCatalogSchema,
+		@Nonnull final Collection<EntitySchemaContract> sourceEntitySchemas
+	) {
+		if (SEARCHABLE_FIELDS.isEmpty()) {
+			return;
+		}
+		final Map<String, EntitySchemaContract> byName = CollectionUtils.createHashMap(sourceEntitySchemas.size());
+		for (final EntitySchemaContract schema : sourceEntitySchemas) {
+			byName.put(schema.getName(), schema);
+		}
+		final List<String> unresolved = new ArrayList<>(SEARCHABLE_FIELDS.size());
+		for (final String path : SEARCHABLE_FIELDS.keySet()) {
+			if (!searchableFieldExists(path, sourceCatalogSchema, byName)) {
+				unresolved.add(path);
+			}
+		}
+		if (!unresolved.isEmpty()) {
+			throw new GenericEvitaInternalError(
+				"Searchable fields " + unresolved + " name no field of the source schema. A global attribute is " +
+					"named `*.<attribute>`, an entity attribute `<entityType>.<attribute>` (only when it is not " +
+					"global), a reference attribute `<entityType>.<reference>.<attribute>` and associated data " +
+					"`<entityType>.@<associatedData>`.",
+				"Searchable fields name no field of the source schema."
+			);
+		}
+	}
+
+	/**
+	 * Tells whether a searchable-field path names a field of the source schema - see
+	 * {@link #parseSearchableFields()} for the notation.
+	 *
+	 * @param path                the searchable-field path
+	 * @param sourceCatalogSchema the source catalog schema (for global attributes)
+	 * @param entitySchemas       the source entity schemas keyed by entity type
+	 * @return true when the path names an existing field of the kind its shape implies
+	 */
+	private static boolean searchableFieldExists(
+		@Nonnull final String path,
+		@Nonnull final CatalogSchemaContract sourceCatalogSchema,
+		@Nonnull final Map<String, EntitySchemaContract> entitySchemas
+	) {
+		if (path.startsWith(GLOBAL_ATTRIBUTE_PREFIX)) {
+			return sourceCatalogSchema.getAttribute(path.substring(GLOBAL_ATTRIBUTE_PREFIX.length())).isPresent();
+		}
+		final String[] segments = path.split("\\" + PATH_SEPARATOR);
+		final EntitySchemaContract entitySchema = entitySchemas.get(segments[0]);
+		if (entitySchema == null) {
+			return false;
+		}
+		if (segments.length == 2 && segments[1].startsWith(ASSOCIATED_DATA_MARKER)) {
+			return entitySchema.getAssociatedData(segments[1].substring(ASSOCIATED_DATA_MARKER.length())).isPresent();
+		} else if (segments.length == 2) {
+			// a global attribute is flagged on the catalog schema, so an entity-level path would never be applied
+			return entitySchema.getAttribute(segments[1])
+				.filter(attribute -> !(attribute instanceof GlobalAttributeSchemaContract))
+				.isPresent();
+		} else if (segments.length == 3) {
+			return entitySchema.getReference(segments[1])
+				.filter(reference -> !(reference instanceof ReflectedReferenceSchemaContract))
+				.flatMap(reference -> reference.getAttribute(segments[2]))
+				.isPresent();
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * Makes the attribute being replicated searchable when {@link #SEARCHABLE_FIELDS} names its path.
+	 *
+	 * @param path   the path of the attribute in the notation of {@link #parseSearchableFields()}
+	 * @param editor the target attribute editor
+	 */
+	private static void applySearchable(@Nonnull final String path, @Nonnull final AttributeSchemaEditor<?> editor) {
+		final SearchableField searchable = SEARCHABLE_FIELDS.get(path);
+		if (searchable != null) {
+			editor.searchable();
+			printSearchable(searchable);
+		}
+	}
+
+	/**
+	 * Prints that a field was made searchable on the target, so a measurement run proves the flag actually applied
+	 * rather than assuming it did - the same purpose as the `[raise]` line.
+	 *
+	 * @param searchable the field that was made searchable
+	 */
+	private static void printSearchable(@Nonnull final SearchableField searchable) {
+		System.out.println(
+			"[searchable] " + searchable.path() +
+				(searchable.textExpression() == null ? "" : " with text expression " + searchable.textExpression())
+		);
+	}
+
+	/**
 	 * Copies the per-scope index type of the source reference onto the target editor.
 	 *
 	 * @param reference the source reference schema
@@ -523,10 +712,12 @@ public class CatalogCopySupport {
 	 * Applies the group type, per-scope index type, indexed components, faceting (including partial faceting),
 	 * attributes and sortable attribute compounds of a plain reference onto its target reference builder.
 	 *
-	 * @param reference the source reference schema
-	 * @param editor    the target reference builder
+	 * @param entityType name of the entity type owning the reference, for the searchable-field lookup
+	 * @param reference  the source reference schema
+	 * @param editor     the target reference builder
 	 */
 	private static void applyReference(
+		@Nonnull final String entityType,
 		@Nonnull final ReferenceSchemaContract reference,
 		@Nonnull final ReferenceSchemaBuilder editor
 	) {
@@ -559,7 +750,13 @@ public class CatalogCopySupport {
 			editor.withAttribute(
 				attribute.getName(),
 				attribute.getType(),
-				attributeEditor -> applyAttribute(attribute, attributeEditor)
+				attributeEditor -> {
+					applyAttribute(attribute, attributeEditor);
+					applySearchable(
+						entityType + PATH_SEPARATOR + reference.getName() + PATH_SEPARATOR + attribute.getName(),
+						attributeEditor
+					);
+				}
 			);
 		}
 
@@ -665,6 +862,18 @@ public class CatalogCopySupport {
 			}
 		}
 		return matching.toArray(Scope.NO_SCOPE);
+	}
+
+	/**
+	 * A field the target schema makes searchable although the source schema does not.
+	 *
+	 * @param path           the field's path in the notation of {@link #parseSearchableFields()}
+	 * @param textExpression the EvitaEL expression selecting the text of complex associated data, or null
+	 */
+	private record SearchableField(
+		@Nonnull String path,
+		@Nullable String textExpression
+	) {
 	}
 
 	/**
