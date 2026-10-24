@@ -584,7 +584,14 @@ public class CatalogCopySupport {
 		if (path.startsWith(GLOBAL_ATTRIBUTE_PREFIX)) {
 			return sourceCatalogSchema.getAttribute(path.substring(GLOBAL_ATTRIBUTE_PREFIX.length())).isPresent();
 		}
-		final String[] segments = path.split("\\" + PATH_SEPARATOR);
+		// keep trailing empty segments - `Product.name.` must not pass for `Product.name`, under which it is never
+		// looked up when the flag is applied
+		final String[] segments = path.split("\\" + PATH_SEPARATOR, -1);
+		for (final String segment : segments) {
+			if (segment.isEmpty()) {
+				return false;
+			}
+		}
 		final EntitySchemaContract entitySchema = entitySchemas.get(segments[0]);
 		if (entitySchema == null) {
 			return false;
