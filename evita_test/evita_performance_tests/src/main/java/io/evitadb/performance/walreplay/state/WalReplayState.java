@@ -187,11 +187,11 @@ public class WalReplayState {
 	 */
 	public static final String MINIMAL_ACTIVE_RECORD_SHARE_PROPERTY = "evita.replay.minimalActiveRecordShare";
 	/**
-	 * System property overriding {@link StorageOptions#outputBufferSize()}, by default
-	 * {@value #SERVER_OUTPUT_BUFFER_SIZE} bytes. A record is written in fragments no larger than the writer's buffer,
-	 * and compaction copies each fragment through a buffer of the reader's size - so a snapshot must be replayed with
-	 * at least the buffer that wrote it, or the first compaction of a collection holding a larger fragment fails and
-	 * suspends the catalog.
+	 * System property overriding {@link StorageOptions#outputBufferSize()}. A record is written in fragments no larger
+	 * than the writer's buffer, and compaction copies each fragment through a buffer of the configured size - so a
+	 * snapshot written by an instance configured with a larger buffer than the default must be replayed with at least
+	 * that buffer, or the first compaction of a collection holding a larger fragment is refused and suspends the
+	 * catalog.
 	 */
 	public static final String OUTPUT_BUFFER_SIZE_PROPERTY = "evita.replay.outputBufferSize";
 	/**
@@ -237,12 +237,6 @@ public class WalReplayState {
 	 */
 	public static final String REFERENCE_KEY_MAP_PROPERTY = "evita.replay.referenceKeyMap";
 
-	/**
-	 * The output buffer of a standalone server: its bundled `evita-configuration.yaml` sets 4 MB, while an embedded
-	 * instance defaults to {@link StorageOptions#DEFAULT_OUTPUT_BUFFER_SIZE} (2 MiB). The replayed snapshots come from
-	 * servers, so their record fragments may be up to this size.
-	 */
-	static final int SERVER_OUTPUT_BUFFER_SIZE = 4_194_304;
 	/**
 	 * Default of {@value #MAX_FAILED_SHARE_PROPERTY}.
 	 */
@@ -374,7 +368,7 @@ public class WalReplayState {
 			)
 		);
 		final int outputBufferSize = Integer.parseInt(
-			System.getProperty(OUTPUT_BUFFER_SIZE_PROPERTY, String.valueOf(SERVER_OUTPUT_BUFFER_SIZE))
+			System.getProperty(OUTPUT_BUFFER_SIZE_PROPERTY, String.valueOf(StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE))
 		);
 		log.info(
 			"Booting embedded evitaDB for catalog `{}` (flushFrequencyInMillis={}, syncWrites={}, " +
@@ -659,9 +653,9 @@ public class WalReplayState {
 		final long attemptedTransactions = this.replayedTransactions + this.failedTransactions;
 		if (this.failedTransactions > attemptedTransactions * this.maxFailedShare) {
 			throw new GenericEvitaInternalError(
-				this.failedTransactions + " of " + attemptedTransactions + " replayed transactions failed, more than the " +
-					"share of " + this.maxFailedShare + " allowed by `" + MAX_FAILED_SHARE_PROPERTY + "` - the result " +
-					"would measure failures, not commits.\n" + formatFailureCensus(),
+				this.failedTransactions + " of " + attemptedTransactions + " replayed transactions failed, more " +
+					"than the share of " + this.maxFailedShare + " allowed by `" + MAX_FAILED_SHARE_PROPERTY +
+					"` - the result would measure failures, not commits.\n" + formatFailureCensus(),
 				"Too many replayed transactions failed."
 			);
 		}

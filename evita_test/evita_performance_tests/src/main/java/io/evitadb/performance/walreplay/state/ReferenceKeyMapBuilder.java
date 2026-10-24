@@ -41,6 +41,7 @@ import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.performance.walreplay.state.WalReplayState.WalSource;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
+import io.evitadb.utils.CollectionUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.FileUtils;
 
@@ -53,8 +54,6 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -203,8 +202,10 @@ public class ReferenceKeyMapBuilder {
 				while (iterator.hasNext()) {
 					if (iterator.next() instanceof EntityMutation entityMutation &&
 						entityMutation.getEntityPrimaryKey() != null) {
-						touched.computeIfAbsent(entityMutation.getEntityType(), type -> new HashSet<>(1024))
-							.add(entityMutation.getEntityPrimaryKey());
+						final Set<Integer> ofType = touched.computeIfAbsent(
+							entityMutation.getEntityType(), type -> CollectionUtils.createHashSet(1024)
+						);
+						ofType.add(entityMutation.getEntityPrimaryKey());
 					}
 				}
 			} finally {
@@ -260,10 +261,8 @@ public class ReferenceKeyMapBuilder {
 			.storage(
 				StorageOptions.builder()
 					.storageDirectory(storageDir)
-					// the snapshots come from servers, which may have stored compressed records and records up to
-					// their own buffer size
+					// a server may have stored compressed records, which only an instance with compression on can read
 					.compress(true)
-					.outputBufferSize(WalReplayState.SERVER_OUTPUT_BUFFER_SIZE)
 					.build()
 			)
 			.build();
@@ -278,7 +277,7 @@ public class ReferenceKeyMapBuilder {
 					if (schema == null) {
 						continue;
 					}
-					final Set<String> reflectedNames = new HashSet<>(4);
+					final Set<String> reflectedNames = CollectionUtils.createHashSet(4);
 					for (final ReferenceSchemaContract reference : schema.getReferences().values()) {
 						if (reference instanceof ReflectedReferenceSchemaContract) {
 							reflectedNames.add(reference.getName());
@@ -307,7 +306,9 @@ public class ReferenceKeyMapBuilder {
 							.fetch(catalogVersion, primaryKey, ReferencesStoragePart.class);
 						entities.put(
 							new EntityId(entityType, primaryKey),
-							new EntityReferences(storagePart == null ? 0 : storagePart.getLastUsedPrimaryKey(), references)
+							new EntityReferences(
+								storagePart == null ? 0 : storagePart.getLastUsedPrimaryKey(), references
+							)
 						);
 					}
 				}
@@ -421,7 +422,7 @@ public class ReferenceKeyMapBuilder {
 	 */
 	@Nonnull
 	private static Map<String, List<Ref>> group(@Nonnull List<Ref> references) {
-		final Map<String, List<Ref>> groups = new HashMap<>(references.size());
+		final Map<String, List<Ref>> groups = CollectionUtils.createHashMap(references.size());
 		for (final Ref reference : references) {
 			groups.computeIfAbsent(
 				reference.referenceName() + '\t' + reference.referencedPrimaryKey(), key -> new ArrayList<>(2)

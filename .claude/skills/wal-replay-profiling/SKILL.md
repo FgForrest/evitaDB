@@ -61,7 +61,7 @@ Key system properties (full list in `WalReplayState`'s own JavaDoc):
 | `evita.replay.startVersion` | the source version the snapshot already holds - required for a rebuilt snapshot (§9) |
 | `evita.replay.walCatalogName` | the catalog that wrote the WAL, when the replayed one was rebuilt under another name |
 | `evita.replay.referenceKeyMap` | reference-id map for a rebuilt snapshot, written by `ReferenceKeyMapBuilder` (§9) |
-| `evita.replay.outputBufferSize` | defaults to the standalone server's 4 MiB, not the embedded 2 MiB (§5) |
+| `evita.replay.outputBufferSize` | at least the buffer the snapshot was written with (§5); defaults to 4 MiB |
 | `evita.replay.maxFailedShare` | failed-transaction share above which the run throws, not reports (default 0.01) |
 
 Pin `-Xmx24g -Xms8g` on every run; heap size drives the collation cache's heap-derived default.
@@ -124,11 +124,12 @@ thread doing most of the allocation resolves to unresolved `libc` frames. Use `c
    that builds on the lost one - 63 of 178 failed on an untouched original snapshot. Measuring per-transaction
    cost needs `evita.replay.waitForVisibility=true`. A failed transaction costs a fraction of a commit, so the
    throughput still looked fine; `evita.replay.maxFailedShare` now refuses such a run.
-6. **The output buffer is smaller than the one that wrote the snapshot.** `outputBufferSize` has two defaults:
-   4 MB in the standalone server's bundled `evita-configuration.yaml`, 2 MiB in `StorageOptions` for every embedded
-   instance. Server-written snapshots hold record fragments up to 4 MiB; reading them works, but compaction copies
-   each fragment through a buffer of the reader's size, so the first compaction of such a collection throws
-   `ArrayIndexOutOfBoundsException` and suspends the catalog. The harness defaults to 4 MiB.
+6. **The output buffer is smaller than the one that wrote the snapshot.** Record fragments are capped by the
+   writer's `outputBufferSize`, and compaction copies them through a buffer of the configured size, never enlarged.
+   A snapshot from a server configured above the 4 MiB default therefore needs `evita.replay.outputBufferSize` at
+   least that large, or the first compaction of such a collection fails with `RecordExceedsOutputBufferException`
+   and suspends the catalog. (Until the embedded default was raised from 2 MiB to the server's 4 MiB, every
+   server-written snapshot hit this - as an `ArrayIndexOutOfBoundsException`.)
 7. **The replay starts after the source's last version.** A WAL stream is empty when it does not hold the requested
    version, and an empty replay is an instant one. The fixture now warns about a source that yields nothing - read
    the transaction count in the result block before the throughput.
