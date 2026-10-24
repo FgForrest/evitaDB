@@ -150,7 +150,11 @@ public record StorageOptions(
 	double maxWasteActiveShare
 ) {
 
-	public static final int DEFAULT_OUTPUT_BUFFER_SIZE = 2_097_152; // 2MB
+	/**
+	 * The same value the standalone server's bundled configuration sets, so an embedded instance can copy - compact -
+	 * every record a server with the default configuration writes.
+	 */
+	public static final int DEFAULT_OUTPUT_BUFFER_SIZE = 4_194_304; // 4MB
 	public static final Path DEFAULT_DATA_DIRECTORY = Paths.get("").resolve("data");
 	public static final Path DEFAULT_WORK_DIRECTORY = Paths.get(System.getProperty("java.io.tmpdir")).resolve("evita");
 	public static final int DEFAULT_LOCK_TIMEOUT_SECONDS = 5;
