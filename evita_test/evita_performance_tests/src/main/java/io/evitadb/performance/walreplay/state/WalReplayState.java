@@ -185,6 +185,14 @@ public class WalReplayState {
 	 */
 	public static final String MINIMAL_ACTIVE_RECORD_SHARE_PROPERTY = "evita.replay.minimalActiveRecordShare";
 	/**
+	 * System property overriding {@link StorageOptions#outputBufferSize()}, by default
+	 * {@value #SERVER_OUTPUT_BUFFER_SIZE} bytes. A record is written in fragments no larger than the writer's buffer,
+	 * and compaction copies each fragment through a buffer of the reader's size - so a snapshot must be replayed with
+	 * at least the buffer that wrote it, or the first compaction of a collection holding a larger fragment fails and
+	 * suspends the catalog.
+	 */
+	public static final String OUTPUT_BUFFER_SIZE_PROPERTY = "evita.replay.outputBufferSize";
+	/**
 	 * System property switching the replaying thread to block on the visibility stage of every
 	 * commit (`WAIT_FOR_CHANGES_VISIBLE` semantics, empty pipeline) instead of the default
 	 * WAL-persistence stage. Measures the true per-transaction trunk-incorporation floor without
@@ -198,6 +206,12 @@ public class WalReplayState {
 	 */
 	public static final String PER_TX_CSV_PROPERTY = "evita.replay.perTxCsv";
 
+	/**
+	 * The output buffer of a standalone server: its bundled `evita-configuration.yaml` sets 4 MB, while an embedded
+	 * instance defaults to {@link StorageOptions#DEFAULT_OUTPUT_BUFFER_SIZE} (2 MiB). The replayed snapshots come from
+	 * servers, so their record fragments may be up to this size.
+	 */
+	static final int SERVER_OUTPUT_BUFFER_SIZE = 4_194_304;
 	/**
 	 * Progress is logged every this many replayed transactions.
 	 */
@@ -306,10 +320,14 @@ public class WalReplayState {
 				String.valueOf(StorageOptions.DEFAULT_MINIMAL_ACTIVE_RECORD_SHARE)
 			)
 		);
+		final int outputBufferSize = Integer.parseInt(
+			System.getProperty(OUTPUT_BUFFER_SIZE_PROPERTY, String.valueOf(SERVER_OUTPUT_BUFFER_SIZE))
+		);
 		log.info(
 			"Booting embedded evitaDB for catalog `{}` (flushFrequencyInMillis={}, syncWrites={}, " +
-				"minimalActiveRecordShare={}, waitForVisibility={})...",
-			this.catalogName, flushFrequencyInMillis, syncWrites, minimalActiveRecordShare, this.waitForVisibility
+				"minimalActiveRecordShare={}, outputBufferSize={}, waitForVisibility={})...",
+			this.catalogName, flushFrequencyInMillis, syncWrites, minimalActiveRecordShare, outputBufferSize,
+			this.waitForVisibility
 		);
 
 		final long bootStart = System.nanoTime();
@@ -338,6 +356,7 @@ public class WalReplayState {
 						.storageDirectory(this.workDataDir)
 						.syncWrites(syncWrites)
 						.minimalActiveRecordShare(minimalActiveRecordShare)
+						.outputBufferSize(outputBufferSize)
 						.build()
 				)
 				.transaction(
