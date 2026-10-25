@@ -27,29 +27,37 @@ import io.evitadb.core.metric.event.storage.ObservableOutputChangeEvent;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import javax.annotation.concurrent.ThreadSafe;
 
 /**
  * JVM-wide pool of exact-size frame buffers, shared by all engines and catalogs. Hard references retain at most
- * one idle buffer per CPU core for each size, giving idle memory a fixed, predictable ceiling based on CPU
- * concurrency. A fixed stack per size and primitive size lookup keep borrowing and releasing allocation-free
- * after warm-up. JFR events report only allocations and drops, when the retained array set changes.
+ * twice the available processor count in idle arrays across all sizes: one assembly array and one compression
+ * array per concurrent frame writer. With a largest buffer size of S bytes, idle memory is at most
+ * `2 × availableProcessors() × S` bytes, independent of the number of sizes ever requested. For one exact size,
+ * idle arrays cannot outnumber peak simultaneous borrows, so disabling compression does not fill the extra slots.
+ *
+ * A fixed array of idle references replaces per-size buckets, bounding metadata as well as retained buffers.
+ * Linear exact-size lookup and return allocate nothing after warm-up. When full, the oldest idle array is evicted
+ * in favor of the returned array so changing the configured size can warm up without retaining obsolete sizes.
+ * JFR events fire only on array allocation or eviction, never on reuse.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
+@ThreadSafe
 public final class ObservableOutputBufferPool {
 	/**
-	 * Shared pool for every output in this JVM.
+	 * Shared pool sized for one concurrent frame writer per processor in this JVM.
 	 */
-	public static final ObservableOutputBufferPool INSTANCE = new ObservableOutputBufferPool();
+	public static final ObservableOutputBufferPool INSTANCE =
+		new ObservableOutputBufferPool(Runtime.getRuntime().availableProcessors());
 	/**
-	 * Maximum number of idle arrays retained for each size.
+	 * Fixed-capacity store of idle arrays, ordered from oldest to most recently returned.
 	 */
-	private final int idleCapacity = Runtime.getRuntime().availableProcessors();
+	private final byte[][] idle;
 	/**
-	 * Exact-size stacks; the small set of sizes is searched without boxing.
+	 * Number of occupied idle slots; later slots are null.
 	 */
-	@Nullable private SizedBuffers sizes;
+	private int idleCount;
 	/**
 	 * Number of borrowed and idle arrays together.
 	 */
@@ -60,13 +68,19 @@ public final class ObservableOutputBufferPool {
 	private long occupiedMemoryBytes;
 
 	/**
-	 * Creates the single shared pool.
+	 * Creates a pool sized for the expected concurrent frame writers. Each writer can borrow two arrays when
+	 * compression is enabled. The shared instance uses the JVM's available processor count for concurrency.
+	 *
+	 * @param concurrency positive number of concurrent frame writers
+	 * @throws io.evitadb.exception.GenericEvitaInternalError if concurrency is not positive
 	 */
-	private ObservableOutputBufferPool() {
+	public ObservableOutputBufferPool(int concurrency) {
+		Assert.isPremiseValid(concurrency > 0, "Concurrency must be positive!");
+		this.idle = new byte[Math.multiplyExact(2, concurrency)][];
 	}
 
 	/**
-	 * Borrows an idle array of exactly the requested size, or allocates one and reports the added memory.
+	 * Borrows the most recently returned array of exactly the requested size, or allocates one and reports it.
 	 * The caller exclusively owns the array until it returns it with {@link #release(byte[])}.
 	 *
 	 * @param size exact number of bytes required by the output
@@ -76,93 +90,43 @@ public final class ObservableOutputBufferPool {
 	@Nonnull
 	public synchronized byte[] borrow(int size) {
 		Assert.isPremiseValid(size > 0, "Buffer size must be positive!");
-		final SizedBuffers sizedBuffers = getSizedBuffers(size);
-		final byte[] result;
-		if (sizedBuffers.count == 0) {
-			result = new byte[size];
-			this.openedBuffers++;
-			this.occupiedMemoryBytes += size;
-			emitChangeEvent();
-		} else {
-			result = sizedBuffers.idle[--sizedBuffers.count];
-			sizedBuffers.idle[sizedBuffers.count] = null;
+		for (int i = this.idleCount - 1; i >= 0; i--) {
+			if (this.idle[i].length == size) {
+				final byte[] result = this.idle[i];
+				System.arraycopy(this.idle, i + 1, this.idle, i, this.idleCount - i - 1);
+				this.idle[--this.idleCount] = null;
+				return result;
+			}
 		}
+		final byte[] result = new byte[size];
+		this.openedBuffers++;
+		this.occupiedMemoryBytes += size;
+		emitChangeEvent();
 		return result;
 	}
 
 	/**
-	 * Returns a borrowed array, dropping it and reporting the removed memory when its exact-size idle stack is full.
+	 * Returns a borrowed array, evicting and reporting the oldest idle array when the global store is full.
 	 * The caller must return each borrowed array exactly once and stop accessing it afterwards.
 	 *
 	 * @param buffer the array previously borrowed from this pool
 	 */
 	public synchronized void release(@Nonnull byte[] buffer) {
-		final SizedBuffers sizedBuffers = getSizedBuffers(buffer.length);
-		if (sizedBuffers.count < this.idleCapacity) {
-			sizedBuffers.idle[sizedBuffers.count++] = buffer;
-		} else {
+		if (this.idleCount == this.idle.length) {
+			final byte[] dropped = this.idle[0];
+			System.arraycopy(this.idle, 1, this.idle, 0, --this.idleCount);
+			this.idle[this.idleCount] = null;
 			this.openedBuffers--;
-			this.occupiedMemoryBytes -= buffer.length;
+			this.occupiedMemoryBytes -= dropped.length;
 			emitChangeEvent();
 		}
+		this.idle[this.idleCount++] = buffer;
 	}
 
 	/**
-	 * Finds or initializes the stack for an exact array size while holding the pool monitor.
-	 *
-	 * @param size exact array size to look up
-	 * @return the stack retaining idle arrays of that size
-	 */
-	@Nonnull
-	private SizedBuffers getSizedBuffers(int size) {
-		for (SizedBuffers current = this.sizes; current != null; current = current.next) {
-			if (current.size == size) {
-				return current;
-			}
-		}
-		this.sizes = new SizedBuffers(size, this.idleCapacity, this.sizes);
-		return this.sizes;
-	}
-
-	/**
-	 * Reports coherent JVM-wide counts after allocating or dropping an array while holding the pool monitor.
+	 * Reports coherent counts after allocating or dropping an array while holding the pool monitor.
 	 */
 	private void emitChangeEvent() {
 		new ObservableOutputChangeEvent(this.openedBuffers, this.occupiedMemoryBytes).commit();
-	}
-
-	/**
-	 * Fixed stack of idle arrays of one exact size. Access is guarded by the pool monitor.
-	 */
-	private static final class SizedBuffers {
-		/**
-		 * Exact size of every array retained by this stack.
-		 */
-		private final int size;
-		/**
-		 * Fixed-capacity stack of returned arrays; entries beyond {@link #count} are null.
-		 */
-		private final byte[][] idle;
-		/**
-		 * Next exact-size stack in the pool, or null for the last size.
-		 */
-		@Nullable private final SizedBuffers next;
-		/**
-		 * Number of idle arrays currently retained in this stack.
-		 */
-		private int count;
-
-		/**
-		 * Initializes one size's fixed stack, linked to the previously registered sizes.
-		 *
-		 * @param size exact size of arrays held by this stack
-		 * @param capacity maximum number of idle arrays to retain
-		 * @param next next size stack, or null when this is the first registered size
-		 */
-		private SizedBuffers(int size, int capacity, @Nullable SizedBuffers next) {
-			this.size = size;
-			this.idle = new byte[capacity][];
-			this.next = next;
-		}
 	}
 }

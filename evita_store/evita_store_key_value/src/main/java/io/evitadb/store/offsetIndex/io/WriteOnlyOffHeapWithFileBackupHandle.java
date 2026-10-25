@@ -87,7 +87,8 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	/**
 	 * Size of the in-memory buffer used to serialize records before appending them to data files, in bytes.
 	 * Larger records are split into chained frames, so this limits one frame and any single string or binary value,
-	 * rather than the record size. Buffers are retained while catalogs are written; larger buffers use more memory.
+	 * rather than the record size. A buffer of this size is borrowed from the shared pool only while a frame is
+	 * assembled; larger buffers use more memory.
 	 * Sourced from {@link io.evitadb.api.configuration.StorageOptions#outputBufferSize()}, typically defaults to 2MB.
 	 */
 	private final int outputBufferSize;
@@ -410,6 +411,8 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	/**
 	 * Offloads the data from the provided off-heap memory output stream to the disk.
 	 *
+	 * The discarded off-heap output is closed on both success and failure, ending its owned compressor.
+	 *
 	 * @param operation                 The name of the operation.
 	 * @param offHeapMemoryOutputStream The off-heap memory output stream containing the data to be offloaded.
 	 * @throws EvitaIOException If there is an error offloading the data to the disk.
@@ -419,7 +422,7 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 		@Nonnull OffHeapMemoryOutputStream offHeapMemoryOutputStream
 	) {
 		try (
-			offHeapMemoryOutputStream;
+			final ObservableOutput<OffHeapMemoryOutputStream> discardedOutput = this.offHeapMemoryOutput;
 			final FileOutputStream fos = new FileOutputStream(getTargetFile(this.targetFile));
 			final FileChannel fileChannel = fos.getChannel()
 		) {
@@ -435,10 +438,11 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 				"Failed to offload data to the disk.",
 				e
 			);
+		} finally {
+			this.offHeapMemoryOutput = null;
 		}
 
 		// switch output streams
-		this.offHeapMemoryOutput = null;
 		this.fileOutput = this.observableOutputKeeper.getObservableOutputOrCreate(
 			this.targetFile,
 			path -> this.createObservableOutput(path, this.lastConsistentChecksum)

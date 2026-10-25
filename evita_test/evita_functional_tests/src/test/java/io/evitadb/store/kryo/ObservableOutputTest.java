@@ -23,6 +23,11 @@
 
 package io.evitadb.store.kryo;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Locale;
+import org.mockito.Mockito;
+import com.esotericsoftware.kryo.io.Output;
+import com.esotericsoftware.kryo.KryoException;
 import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.checksum.Crc32CChecksumFactory;
 import io.evitadb.store.compression.ZipCompressionFactory;
@@ -41,7 +46,8 @@ import org.junit.jupiter.params.provider.ValueSource;
 import javax.annotation.Nonnull;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.lang.reflect.Field;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -73,6 +79,170 @@ import static io.evitadb.test.TestTags.SERIALIZATION;
 @Tag(STORAGE)
 @Tag(SERIALIZATION)
 public class ObservableOutputTest {
+	/**
+	 * Covers each oversized encoding independently so failures cannot hide later matrix entries.
+	 *
+	 * @return pooled and owned outputs, first and later values, and near-limit and much larger values
+	 */
+	@Nonnull
+	static Stream<Arguments> oversizedValues() {
+		final List<Arguments> cases = new ArrayList<>();
+		for (boolean pooled : new boolean[] {false, true}) {
+			for (int prefix : new int[] {0, 80}) {
+				for (int length : new int[] {108, 256}) {
+					for (String kind : new String[] {"bytes", "string", "utf8", "ascii"}) {
+						cases.add(Arguments.of(pooled, prefix, length, kind));
+					}
+				}
+			}
+		}
+		return cases.stream();
+	}
+
+	/** Regressions for indivisible values and output resource disposal. */
+	@Nested
+	@DisplayName("Value boundaries and disposal")
+	class ValueBoundariesAndDisposal {
+		/**
+		 * Values must fit alongside a frame header and tail, even when previous values force a continuation.
+		 *
+		 * @param pooled whether to borrow the frame array
+		 * @param prefix number of preceding payload bytes
+		 * @param length number of bytes or characters supplied to the writer
+		 * @param kind Kryo value encoding to exercise
+		 */
+		@ParameterizedTest
+		@MethodSource("io.evitadb.store.kryo.ObservableOutputTest#oversizedValues")
+		@DisplayName("Should reject oversized values with their size and outputBufferSize")
+		void shouldRejectOversizedValues(boolean pooled, int prefix, int length, @Nonnull String kind) {
+			final Consumer<Output> value = switch (kind) {
+				case "bytes" -> out -> out.writeBytes(new byte[length]);
+				case "string" -> out -> out.writeString("x".repeat(length));
+				case "utf8" -> out -> out.writeString("ž".repeat(length));
+				case "ascii" -> out -> out.writeAscii("x".repeat(length));
+				default -> throw new IllegalArgumentException(kind);
+			};
+			try (final Output reference =
+				new Output(4096)) {
+				value.accept(reference);
+				final int valueSize = reference.position();
+				try (final ObservableOutput<ByteArrayOutputStream> output = pooled ? pooledOutput(128) :
+					new ObservableOutput<>(new ByteArrayOutputStream(), 128, 0L, Checksum.NO_OP, null)) {
+					final KryoException failure = assertThrows(KryoException.class,
+						() -> new StorageRecord<>(output, 1L, false, out -> {
+							for (int i = 0; i < prefix; i++) {
+								out.writeByte(1);
+							}
+							value.accept(out);
+							return 1;
+						}));
+					assertTrue(failure.getMessage().contains("single value cannot be split across frames"),
+						failure::getMessage);
+					assertTrue(failure.getMessage().contains(valueSize + "B"), failure::getMessage);
+					assertTrue(failure.getMessage().contains("outputBufferSize=128"), failure::getMessage);
+				}
+			}
+		}
+
+		/**
+		 * An output exclusively owns its compressor and must end it on every disposal path.
+		 *
+		 * @param fail whether flushing pending raw bytes fails
+		 */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Should end the owned compressor when closing")
+		void shouldEndCompressorWhenClosing(boolean fail) {
+			final Deflater compressor = Mockito.spy(new Deflater());
+			final ByteArrayOutputStream stream = new ByteArrayOutputStream() {
+				/**
+				 * Simulates a failed raw append on disposal.
+				 *
+				 * @param bytes raw bytes to append
+				 * @param offset first source byte
+				 * @param length number of bytes to append
+				 * @throws KryoException when the failure scenario is selected
+				 */
+				@Override
+				public synchronized void write(byte[] bytes, int offset, int length) {
+					if (fail) {
+						throw new KryoException("Raw append failed");
+					}
+					super.write(bytes, offset, length);
+				}
+			};
+			final ObservableOutput<ByteArrayOutputStream> output = new ObservableOutput<>(
+				stream, 128, 0, Checksum.NO_OP, compressor, ObservableOutputBufferPool.INSTANCE);
+			try {
+				output.writeInt(1);
+				if (fail) {
+					assertThrows(KryoException.class, output::close);
+				} else {
+					output.close();
+				}
+				Mockito.verify(compressor).end();
+				assertEquals(0, output.getBuffer().length);
+			} finally {
+				compressor.end();
+			}
+		}
+
+		/**
+		 * Closing a stream must be attempted after a failed flush, preserving the first failure.
+		 *
+		 * @param unknown whether a previous failed append has already made the append position unknown
+		 */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Should close the stream and detach after a failed flush")
+		void shouldCloseStreamAfterFailedFlush(boolean unknown) {
+			final AtomicBoolean closed = new AtomicBoolean();
+			final KryoException firstFailure = new KryoException("Raw append failed");
+			final ByteArrayOutputStream stream = new ByteArrayOutputStream() {
+				/**
+				 * Fails every raw append, including the one attempted by close.
+				 *
+				 * @param bytes raw bytes to append
+				 * @param offset first source byte
+				 * @param length number of bytes to append
+				 * @throws KryoException always, preserving the same failure instance
+				 */
+				@Override
+				public synchronized void write(byte[] bytes, int offset, int length) {
+					throw firstFailure;
+				}
+				/**
+				 * Records disposal and adds a secondary failure.
+				 *
+				 * @throws IOException always, to check suppression onto the flush failure
+				 */
+				@Override
+				public void close() throws IOException {
+					closed.set(true);
+					throw new IOException("Close failed");
+				}
+			};
+			final ObservableOutput<ByteArrayOutputStream> output = new ObservableOutput<>(
+				stream, 128, 0, Checksum.NO_OP, null, ObservableOutputBufferPool.INSTANCE);
+			output.writeInt(1);
+			if (unknown) {
+				assertSame(firstFailure, assertThrows(KryoException.class, output::flush));
+			}
+			final KryoException failure = assertThrows(KryoException.class, output::close);
+			if (unknown) {
+				assertTrue(
+					failure.getMessage().toLowerCase(Locale.ROOT).contains("append position"),
+					failure::getMessage
+				);
+			} else {
+				assertSame(firstFailure, failure);
+			}
+			assertTrue(closed.get());
+			assertEquals(1, failure.getSuppressed().length);
+			assertEquals(0, output.getBuffer().length);
+		}
+	}
+
 	/** Borrowed buffers are attached only while assembling frames or pending raw data. */
 	@Nested
 	@DisplayName("Pooled frame buffers")
@@ -255,34 +425,29 @@ public class ObservableOutputTest {
 
 		/**
 		 * Compression scratch space and the assembly array both return after an append fails.
-		 *
-		 * @throws ReflectiveOperationException if the compression scratch buffer cannot be inspected
 		 */
 		@Test
 		@DisplayName("Should return compression scratch space when writing the frame fails")
-		void shouldReleaseCompressedBuffersOnFailure() throws ReflectiveOperationException {
-			final Field scratchField = ObservableOutput.class.getDeclaredField("deflateBuffer");
-			scratchField.setAccessible(true);
-			final AtomicReference<ObservableOutput<?>> reference =
-				new AtomicReference<>();
+		void shouldReleaseCompressedBuffersOnFailure() {
 			final byte[][] buffers = new byte[2][];
 			final ByteArrayOutputStream stream = new ByteArrayOutputStream() {
-				/** Captures borrowed scratch space at the failing physical append. */
+				/** Fails the physical append of the finished frame. */
 				@Override
 				public synchronized void write(byte[] bytes, int offset, int length) {
-					try {
-						buffers[1] = (byte[]) scratchField.get(reference.get());
-					} catch (IllegalAccessException exception) {
-						throw new AssertionError(exception);
-					}
 					throw new IllegalStateException("Append failed");
 				}
 			};
-			final Deflater deflater = new Deflater();
+			final Deflater deflater = new Deflater() {
+				/** Captures the borrowed scratch array that receives the compressed payload. */
+				@Override
+				public int deflate(byte[] output, int offset, int length) {
+					buffers[1] = output;
+					return super.deflate(output, offset, length);
+				}
+			};
 			try (final ObservableOutput<ByteArrayOutputStream> output = new ObservableOutput<>(
 				stream, 1031, 0, Checksum.NO_OP, deflater, ObservableOutputBufferPool.INSTANCE
 			)) {
-				reference.set(output);
 				assertThrows(IllegalStateException.class, () -> new StorageRecord<>(output, 1L, false, out -> {
 					buffers[0] = out.getBuffer();
 					out.writeBytes(new byte[500]);
@@ -290,7 +455,6 @@ public class ObservableOutputTest {
 				}));
 				assertEquals(0, output.getBuffer().length);
 				assertNotNull(buffers[1]);
-				assertNull(scratchField.get(output));
 				final byte[] first = ObservableOutputBufferPool.INSTANCE.borrow(1031);
 				final byte[] second = ObservableOutputBufferPool.INSTANCE.borrow(1031);
 				assertNotSame(first, second);
@@ -414,6 +578,32 @@ public class ObservableOutputTest {
 		return new ObservableOutput<>(
 			new ByteArrayOutputStream(), size, 0, Checksum.NO_OP, null, ObservableOutputBufferPool.INSTANCE
 		);
+	}
+
+	/**
+	 * Creates a stream that accepts its first array write and fails the second, as a full disk would.
+	 *
+	 * @param target stream receiving the accepted bytes
+	 * @return a stream failing on its second array write
+	 */
+	@Nonnull
+	private static OutputStream failingOnSecondArrayWrite(@Nonnull ByteArrayOutputStream target) {
+		return new OutputStream() {
+			private int arrayWrites;
+
+			@Override
+			public void write(int b) {
+				target.write(b);
+			}
+
+			@Override
+			public void write(@Nonnull byte[] bytes, int offset, int length) throws IOException {
+				if (++this.arrayWrites == 2) {
+					throw new IOException("No space left on device");
+				}
+				target.write(bytes, offset, length);
+			}
+		};
 	}
 
 	private static final int DEFAULT_BUFFER = 65_536;
@@ -573,6 +763,21 @@ public class ObservableOutputTest {
 				// We can verify this indirectly by checking the output works
 				assertNotNull(out);
 			}
+		}
+
+		/**
+		 * A pooled frame must leave room for the checksum tail, otherwise no frame could ever be finished.
+		 */
+		@Test
+		@DisplayName("Pooled constructor should reject a frame size that cannot hold the checksum tail")
+		void shouldRejectPooledFrameSizeWithoutRoomForTail() {
+			assertThrows(
+				io.evitadb.exception.GenericEvitaInternalError.class,
+				() -> new ObservableOutput<>(
+					new ByteArrayOutputStream(), ObservableOutput.TAIL_MANDATORY_SPACE, 0L, Checksum.NO_OP, null,
+					ObservableOutputBufferPool.INSTANCE
+				)
+			);
 		}
 	}
 
@@ -1398,6 +1603,38 @@ public class ObservableOutputTest {
 				assertEquals(0, bytes.size());
 				output.reset();
 				assertDoesNotThrow(() -> output.writeDirect(new byte[1], 0, 1));
+			}
+		}
+	}
+
+	/**
+	 * A stream write that fails part-way through an append leaves the physical end of the stream unknown.
+	 */
+	@Nested
+	@DisplayName("Failed appends")
+	class FailedAppendTests {
+
+		/**
+		 * The frame header reached the stream before the payload write failed, so no later location can be trusted.
+		 */
+		@Test
+		@DisplayName("Should refuse appends after a frame was partially appended")
+		void shouldRefuseAppendsAfterPartiallyAppendedFrame() {
+			final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+			try (final ObservableOutput<OutputStream> output = new ObservableOutput<>(
+				failingOnSecondArrayWrite(bytes), 1024, 0L, Checksum.NO_OP, null, ObservableOutputBufferPool.INSTANCE
+			)) {
+				assertThrows(KryoException.class, () -> new StorageRecord<>(output, 1L, false, out -> {
+					out.writeBytes(new byte[32]);
+					return 1;
+				}));
+				assertEquals(StorageRecord.CRC_NOT_COVERED_HEAD, bytes.size());
+
+				assertThrows(KryoException.class, () -> new StorageRecord<>(output, 2L, false, out -> {
+					out.writeBytes(new byte[8]);
+					return 1;
+				}));
+				assertEquals(StorageRecord.CRC_NOT_COVERED_HEAD, bytes.size());
 			}
 		}
 	}

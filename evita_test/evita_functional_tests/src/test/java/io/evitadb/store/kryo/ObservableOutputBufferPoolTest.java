@@ -23,7 +23,9 @@
 
 package io.evitadb.store.kryo;
 
+import java.util.zip.Deflater;
 import io.evitadb.core.metric.event.storage.ObservableOutputChangeEvent;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import jdk.jfr.Recording;
@@ -63,10 +65,11 @@ import static org.junit.jupiter.api.Assertions.*;
 @Tag(SERIALIZATION)
 @Isolated
 class ObservableOutputBufferPoolTest {
-	private final ObservableOutputBufferPool pool = ObservableOutputBufferPool.INSTANCE;
+	/** Isolated pool using the same concurrency constructor as the JVM-wide instance. */
+	private final ObservableOutputBufferPool pool = new ObservableOutputBufferPool(1);
 	@TempDir private Path directory;
 
-	/** Exact-size stacks retain a fixed number of exclusively owned arrays. */
+	/** Global idle storage retains a fixed number of exclusively owned exact-size arrays. */
 	@Nested
 	@DisplayName("Buffer ownership")
 	class Ownership {
@@ -88,11 +91,19 @@ class ObservableOutputBufferPoolTest {
 			pool.release(reusedSecond);
 		}
 
+		/** A buffer that could not hold a single byte is a caller error, not an empty borrow. */
+		@Test
+		@DisplayName("Should reject borrowing a non-positive size")
+		void shouldRejectNonPositiveSize() {
+			assertThrows(GenericEvitaInternalError.class, () -> pool.borrow(0));
+			assertThrows(GenericEvitaInternalError.class, () -> pool.borrow(-1));
+		}
+
 		/** Excess idle arrays are discarded instead of increasing the retained ceiling. */
 		@Test
-		@DisplayName("Should retain at most one idle array per core and size")
+		@DisplayName("Should retain at most two idle arrays per core across all sizes")
 		void shouldBoundIdleArraysByCoreCount() {
-			final int cores = Runtime.getRuntime().availableProcessors();
+			final int cores = 2;
 			final List<byte[]> borrowed = new ArrayList<>(cores + 2);
 			final Set<byte[]> originals = Collections.newSetFromMap(new IdentityHashMap<>());
 			for (int i = 0; i < cores + 2; i++) {
@@ -192,6 +203,65 @@ class ObservableOutputBufferPoolTest {
 	@DisplayName("JFR accounting")
 	class Events {
 		/**
+		 * A compressed frame requires two arrays, both retained even with one concurrent writer.
+		 *
+		 * @throws Exception if the recording cannot be persisted or read
+		 */
+		@Test
+		@DisplayName("Should reuse both compressed frame arrays after warm-up on one CPU")
+		void shouldReuseBothCompressedArraysOnOneCpu() throws Exception {
+			final Path recordingPath = directory.resolve("compressed.jfr");
+			try (final ObservableOutput<ByteArrayOutputStream> output = new ObservableOutput<>(
+				new ByteArrayOutputStream(), 1024, 0, Checksum.NO_OP, new Deflater(), pool
+			)) {
+				new StorageRecord<>(output, 1L, false, out -> {
+					out.writeBytes(new byte[500]);
+					return 1;
+				});
+				try (final Recording recording = new Recording()) {
+					recording.enable(ObservableOutputChangeEvent.class).withoutStackTrace();
+					recording.start();
+					for (int i = 0; i < 20; i++) {
+						new StorageRecord<>(output, 1L, false, out -> {
+							out.writeBytes(new byte[500]);
+							return 1;
+						});
+					}
+					recording.stop();
+					recording.dump(recordingPath);
+				}
+			}
+			assertTrue(RecordingFile.readAllEvents(recordingPath).stream()
+				.noneMatch(event -> event.getEventType().getName().endsWith(".ObservableOutputChange")));
+		}
+
+		/**
+		 * Distinct sizes cannot accumulate idle arrays or size metadata without a global bound.
+		 *
+		 * @throws Exception if the recording cannot be persisted or read
+		 */
+		@Test
+		@DisplayName("Should bound idle memory across many distinct sizes")
+		void shouldBoundIdleMemoryAcrossManySizes() throws Exception {
+			final Path recordingPath = directory.resolve("many-sizes.jfr");
+			try (final Recording recording = new Recording()) {
+				recording.enable(ObservableOutputChangeEvent.class).withoutStackTrace();
+				recording.start();
+				for (int size = 100; size < 200; size++) {
+					pool.release(pool.borrow(size));
+				}
+				recording.stop();
+				recording.dump(recordingPath);
+			}
+			final List<RecordedEvent> events = RecordingFile.readAllEvents(recordingPath).stream()
+				.filter(event -> event.getEventType().getName().endsWith(".ObservableOutputChange")).toList();
+			assertFalse(events.isEmpty());
+			// Allocation is reported before eviction, so inspect the final, completely idle state.
+			assertTrue(events.getLast().getInt("openedBuffers") <= 2);
+			assertTrue(events.getLast().getLong("occupiedMemoryBytes") <= 2L * 199);
+		}
+
+		/**
 		 * Only allocation and dropping change the array set; borrowing and returning retained arrays emit nothing.
 		 *
 		 * @throws Exception if the JFR recording cannot be written or read
@@ -199,7 +269,7 @@ class ObservableOutputBufferPoolTest {
 		@Test
 		@DisplayName("Should report borrowed plus idle arrays and drop excess memory")
 		void shouldReportBorrowedAndIdleMemory() throws Exception {
-			final int count = Runtime.getRuntime().availableProcessors() + 1;
+			final int count = 3;
 			final int size = 157;
 			final List<byte[]> buffers = new ArrayList<>(count);
 			final Path recordingPath = directory.resolve("buffers.jfr");

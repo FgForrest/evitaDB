@@ -160,7 +160,9 @@ public class OffsetIndex {
 	/**
 	 * Size of the in-memory buffer used to serialize records before appending them to data files, in bytes.
 	 * Larger records are split into chained frames, so this limits one frame and any single string or binary value,
-	 * rather than the record size. Buffers are retained while catalogs are written; larger buffers use more memory.
+	 * rather than the record size. Writers borrow a buffer of this size from the shared pool only while a frame is
+	 * assembled, and the {@link #decompressionPool} keeps arrays of this size for reads; larger buffers use more
+	 * memory.
 	 * Sourced from {@link StorageOptions#outputBufferSize()}, typically defaults to 2MB.
 	 */
 	private final int outputBufferSize;
@@ -1015,6 +1017,7 @@ public class OffsetIndex {
 	 * Copies entire living data set to the target output stream. The output stream is not closed in
 	 * the method, the caller is responsible for closing the stream.
 	 *
+	 * Temporary serializers are closed on success and failure, releasing their exclusively owned compressors.
 	 * The living data set is resolved as-of `catalogVersion`: the per-version snapshot exposed by
 	 * {@link #getEntries(long)} is copied verbatim, with no per-key historical reconstruction.
 	 *
@@ -1062,22 +1065,24 @@ public class OffsetIndex {
 									if (updatedStorageParts != null && updatedStorageParts.length > 0) {
 										overriddenEntries = CollectionUtils.createHashMap(updatedStorageParts.length);
 										final ByteArrayOutputStream baos = new ByteArrayOutputStream(this.outputBufferSize);
-										final ObservableOutput<ByteArrayOutputStream> observableOutput = new ObservableOutput<>(
+										try (final ObservableOutput<ByteArrayOutputStream> observableOutput =
+											new ObservableOutput<>(
 											baos, this.outputBufferSize, 0,
 											this.checksumFactory.createChecksum(),
 											this.compressionFactory.createCompressor().orElse(null)
-										);
-										for (StoragePart value : updatedStorageParts) {
-											final RecordKey recordKey = new RecordKey(
-												this.recordTypeRegistry.idFor(value.getClass()),
-												ofNullable(value.getStoragePartPK())
-													.orElseGet(() -> value.computeUniquePartIdAndSet(compressor))
-											);
-											baos.reset();
-											observableOutput.reset();
-											serializeValue(value, observableOutput);
-											observableOutput.flush();
-											overriddenEntries.put(recordKey, baos.toByteArray());
+										)) {
+											for (StoragePart value : updatedStorageParts) {
+												final RecordKey recordKey = new RecordKey(
+													this.recordTypeRegistry.idFor(value.getClass()),
+													ofNullable(value.getStoragePartPK())
+														.orElseGet(() -> value.computeUniquePartIdAndSet(compressor))
+												);
+												baos.reset();
+												observableOutput.reset();
+												serializeValue(value, observableOutput);
+												observableOutput.flush();
+												overriddenEntries.put(recordKey, baos.toByteArray());
+											}
 										}
 									} else {
 										overriddenEntries = Collections.emptyMap();

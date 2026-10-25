@@ -23,6 +23,9 @@
 
 package io.evitadb.store.offsetIndex;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.zip.Deflater;
+import org.junit.jupiter.params.provider.ValueSource;
 import com.esotericsoftware.kryo.io.Input;
 import com.github.javafaker.Faker;
 import io.evitadb.api.configuration.StorageOptions;
@@ -68,12 +71,15 @@ import org.mockito.Mockito;
 import org.opentest4j.AssertionFailedError;
 
 import javax.annotation.Nonnull;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -436,6 +442,60 @@ class OffsetIndexTest implements EvitaTestSupport {
 	@Nested
 	@DisplayName("Persistence round-trip")
 	class PersistenceRoundTrip {
+
+		/**
+		 * Snapshot-local serializers own their compressors but must leave the caller's stream open.
+		 *
+		 * @param fail whether progress reporting aborts the snapshot
+		 * @throws IOException if the storage fixture cannot be created
+		 */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Snapshot serializers end compressors on success and failure without closing the caller stream")
+		void shouldEndSnapshotCompressors(boolean fail) throws IOException {
+			final StorageSettings settings = Mockito.spy(configure(
+				StorageOptions.builder().outputBufferSize(4096).build(), ChecksumCheck.YES, Compression.YES));
+			final List<Deflater> compressors = new ArrayList<>();
+			Mockito.doAnswer(invocation -> {
+				final Deflater compressor = Mockito.spy(new Deflater());
+				compressors.add(compressor);
+				return Optional.of(compressor);
+			}).when(settings).createCompressor();
+			final AtomicBoolean closed = new AtomicBoolean();
+			try (final ObservableOutputKeeper keeper = createMockedObservableOutputKeeper()) {
+				final OffsetIndex index = createNewOffsetIndex(
+					0L, settings, createWriteOnlyFileHandle(OffsetIndexTest.this.targetFile, settings, keeper),
+					OffsetIndexTest.this.offsetIndexRecordTypeRegistry);
+				try {
+					index.put(1L, new EntityBodyStoragePart(1));
+					index.flush(1L);
+					final int initialCompressors = compressors.size();
+					final ByteArrayOutputStream target = new ByteArrayOutputStream() {
+						/** Observes whether the snapshot closes the caller-owned destination. */
+						@Override
+						public void close() {
+							closed.set(true);
+						}
+					};
+					if (fail) {
+						assertThrows(IllegalStateException.class, () -> index.copySnapshotTo(
+							target, count -> { throw new IllegalStateException("Progress failed"); },
+							1L, new EntityBodyStoragePart(1)));
+					} else {
+						index.copySnapshotTo(target, null, 1L, new EntityBodyStoragePart(1));
+					}
+					assertFalse(closed.get());
+					assertEquals(initialCompressors + 2, compressors.size());
+					for (int i = initialCompressors; i < compressors.size(); i++) {
+						Mockito.verify(compressors.get(i)).end();
+					}
+				} finally {
+					IOUtils.closeQuietly(index::close);
+				}
+			} finally {
+				compressors.forEach(Deflater::end);
+			}
+		}
 
 		/**
 		 * Copies records written with a larger frame buffer, including a record spanning several frames.

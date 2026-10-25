@@ -396,14 +396,10 @@ public record StorageRecord<T>(
 				final byte targetControl = checksum == Checksum.NO_OP
 					? originalControl : setBit(originalControl, CRC32_BIT, true);
 				// Kryo fixed-width integers are little-endian; reuse the transfer buffer without a wrapper.
-				for (int i = 0; i < Integer.BYTES; i++) {
-					chunkBuffer[i] = (byte) (frameLength >>> (i * Byte.SIZE));
-				}
+				putLittleEndian(chunkBuffer, 0, frameLength, Integer.BYTES);
 				chunkBuffer[Integer.BYTES] = targetControl;
-				for (int i = 0; i < Long.BYTES; i++) {
-					chunkBuffer[Integer.BYTES + 1 + i] = (byte) (generationId >>> (i * Byte.SIZE));
-				}
-				output.writeDirect(chunkBuffer, 0, Integer.BYTES + 1 + Long.BYTES);
+				putLittleEndian(chunkBuffer, RECORD_LENGTH_CONTROL_SIZE, generationId, Long.BYTES);
+				output.writeDirect(chunkBuffer, 0, CRC_NOT_COVERED_HEAD);
 				checksum.reset();
 				int remaining = frameLength - CRC_NOT_COVERED_PART;
 				while (remaining > 0) {
@@ -416,9 +412,7 @@ public record StorageRecord<T>(
 				input.markEnd(originalControl);
 				checksum.update(targetControl);
 				final long crc = checksum == Checksum.NO_OP ? -1L : checksum.getValue();
-				for (int i = 0; i < Long.BYTES; i++) {
-					chunkBuffer[i] = (byte) (crc >>> (i * Byte.SIZE));
-				}
+				putLittleEndian(chunkBuffer, 0, crc, Long.BYTES);
 				output.writeDirect(chunkBuffer, 0, Long.BYTES);
 				recordLength = Math.addExact(recordLength, frameLength);
 			} while (isBitSet(originalControl, CONTINUATION_BIT));
@@ -429,6 +423,21 @@ public record StorageRecord<T>(
 				checkUnderlyingInputStreamLength(input, new FileLocation(sourceStart, frameLength), ex);
 			}
 			throw ex;
+		}
+	}
+
+	/**
+	 * Writes the low `byteCount` bytes of `value` in little-endian order, the byte order Kryo uses for fixed-width
+	 * integers in the frame header and tail.
+	 *
+	 * @param target    array receiving the bytes
+	 * @param offset    index of the first byte to write
+	 * @param value     value to encode
+	 * @param byteCount number of low-order bytes to write
+	 */
+	private static void putLittleEndian(@Nonnull byte[] target, int offset, long value, int byteCount) {
+		for (int i = 0; i < byteCount; i++) {
+			target[offset + i] = (byte) (value >>> (i * Byte.SIZE));
 		}
 	}
 

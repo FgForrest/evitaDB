@@ -225,6 +225,7 @@ class ChainedStorageRecordTest {
 		assertTrue(splits > 0, "No record was chained - the configuration tests nothing.");
 	}
 
+	/** Reports the indivisible encoded string size and the configured frame limit. */
 	@Test
 	@DisplayName("should refuse a string longer than the writer's buffer instead of splitting it")
 	void shouldRefuseAStringLargerThanTheWriterBuffer() {
@@ -234,11 +235,13 @@ class ChainedStorageRecordTest {
 			KryoException.class, () -> write(file, values, 2_048, false)
 		);
 		assertTrue(
-			exception.getMessage().contains("exceeds buffer size"),
+			exception.getMessage().contains("single value cannot be split across frames"),
 			"Unexpected failure: " + exception.getMessage()
 		);
+		assertTrue(exception.getMessage().contains("outputBufferSize=2048"));
 	}
 
+	/** Reports the indivisible byte-array size and the configured frame limit. */
 	@Test
 	@DisplayName("should refuse a byte array longer than the writer's buffer instead of splitting it")
 	void shouldRefuseAByteArrayLargerThanTheWriterBuffer() {
@@ -250,9 +253,10 @@ class ChainedStorageRecordTest {
 			KryoException.class, () -> write(file, values, 2_048, false)
 		);
 		assertTrue(
-			exception.getMessage().contains("exceeds buffer size"),
+			exception.getMessage().contains("single value cannot be split across frames"),
 			"Unexpected failure: " + exception.getMessage()
 		);
+		assertTrue(exception.getMessage().contains("outputBufferSize=2048"));
 	}
 
 	/**

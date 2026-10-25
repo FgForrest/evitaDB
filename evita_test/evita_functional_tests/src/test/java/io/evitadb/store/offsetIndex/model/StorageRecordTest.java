@@ -24,11 +24,13 @@
 package io.evitadb.store.offsetIndex.model;
 
 import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.KryoDataInput;
 import com.esotericsoftware.kryo.io.KryoDataOutput;
 import com.esotericsoftware.kryo.io.Output;
+import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.checksum.Crc32CChecksum;
@@ -1301,6 +1303,75 @@ class StorageRecordTest {
 				));
 				assertEquals(-1, output.getStartPosition());
 				assertEquals(-1, output.getPayloadStartPosition());
+			}
+		}
+
+		/**
+		 * A transfer buffer that cannot hold a frame header and tail, or an output with an open frame, is refused
+		 * before the source is read or anything is appended.
+		 */
+		@Test
+		@DisplayName("Invalid copy arguments are refused before anything is copied")
+		void shouldRejectInvalidCopyArguments() {
+			final ByteArrayOutputStream source = new ByteArrayOutputStream();
+			try (final ObservableOutput<?> output = createOutput(source, 8_192, 0, ChecksumCheck.YES, Compression.NO)) {
+				StorageRecord.writeRaw(output, (byte) 0, 1L, new byte[100]);
+			}
+			final ByteArrayOutputStream target = new ByteArrayOutputStream();
+			try (
+				final ObservableInput<?> input = createInput(
+					new ByteArrayInputStream(source.toByteArray()), 64, ChecksumCheck.YES, Compression.NO
+				);
+				final ObservableOutput<?> output = createOutput(target, 128, 0, ChecksumCheck.YES, Compression.NO)
+			) {
+				assertThrows(GenericEvitaInternalError.class, () -> StorageRecord.copyRawRecord(
+					input, output, 2L, new byte[StorageRecord.CRC_NOT_COVERED_PART - 1], new Crc32CChecksum()
+				));
+				output.markStart();
+				assertThrows(GenericEvitaInternalError.class, () -> StorageRecord.copyRawRecord(
+					input, output, 2L, new byte[97], new Crc32CChecksum()
+				));
+				assertEquals(0, target.size());
+
+				// neither refusal consumed the source, so the record still copies whole
+				output.reset();
+				assertEquals(
+					new FileLocation(0L, source.size()),
+					StorageRecord.copyRawRecord(input, output, 2L, new byte[97], new Crc32CChecksum())
+				);
+			}
+		}
+
+		/**
+		 * The part of a frame copied before the source ended stays as unreferenced bytes in the target, and the next
+		 * record is located at the target's physical end.
+		 */
+		@Test
+		@DisplayName("A truncated source fails the copy and the output keeps appending at its physical end")
+		void shouldLeaveOutputUsableWhenSourceIsTruncated() {
+			final ByteArrayOutputStream source = new ByteArrayOutputStream();
+			try (final ObservableOutput<?> output = createOutput(source, 8_192, 0, ChecksumCheck.YES, Compression.NO)) {
+				StorageRecord.writeRaw(output, (byte) 0, 1L, new byte[4_000]);
+			}
+			final byte[] truncated = Arrays.copyOf(source.toByteArray(), StorageRecord.CRC_NOT_COVERED_HEAD + 2_000);
+			final ByteArrayOutputStream target = new ByteArrayOutputStream();
+			try (
+				final ObservableInput<?> input = createInput(
+					new ByteArrayInputStream(truncated), 64, ChecksumCheck.YES, Compression.NO
+				);
+				final ObservableOutput<?> output = createOutput(target, 128, 0, ChecksumCheck.YES, Compression.NO)
+			) {
+				assertThrows(KryoException.class, () -> StorageRecord.copyRawRecord(
+					input, output, 2L, new byte[97], new Crc32CChecksum()
+				));
+				assertEquals(-1, output.getStartPosition());
+				final int partialLength = target.size();
+				assertTrue(partialLength > 0, "Part of the frame must already have been appended");
+				assertEquals(partialLength, output.getWrittenBytesSinceReset());
+
+				final FileLocation next = StorageRecord.writeRaw(output, (byte) 0, 3L, new byte[16]);
+				assertEquals(partialLength, next.startingPosition());
+				assertEquals(target.size(), next.endPosition());
 			}
 		}
 

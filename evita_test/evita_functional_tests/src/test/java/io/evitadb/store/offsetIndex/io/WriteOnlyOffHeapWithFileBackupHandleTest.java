@@ -23,6 +23,12 @@
 
 package io.evitadb.store.offsetIndex.io;
 
+import java.util.zip.Deflater;
+import java.util.Optional;
+import java.util.ArrayList;
+import java.util.List;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.ParameterizedTest;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.store.checksum.ChecksumFactory;
@@ -75,6 +81,52 @@ class WriteOnlyOffHeapWithFileBackupHandleTest implements EvitaTestSupport {
 	@AfterEach
 	void tearDown() {
 		this.outputKeeper.close();
+	}
+
+	/**
+	 * Every discarded off-heap output ends its compressor, including failed spills.
+	 *
+	 * @param disposal normal close, successful spill or failed spill
+	 * @throws IOException if the failure fixture cannot be created
+	 */
+	@ParameterizedTest
+	@ValueSource(strings = {"close", "spill", "failedSpill"})
+	@DisplayName("Should end off-heap compressors on close and every spill path")
+	void shouldEndOffHeapCompressorOnDiscard(@Nonnull String disposal) throws IOException {
+		final CompressionFactory compression = Mockito.mock(CompressionFactory.class);
+		final List<Deflater> compressors = new ArrayList<>();
+		Mockito.when(compression.createCompressor()).thenAnswer(invocation -> {
+			final Deflater compressor = Mockito.spy(new Deflater());
+			compressors.add(compressor);
+			return Optional.of(compressor);
+		});
+		final Path target = this.targetDirectory.resolve(UUIDUtil.randomUUID() + ".tmp");
+		try (
+			final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
+				TEST_CATALOG, 32, 1, ChecksumFactory.NO_OP);
+			final WriteOnlyOffHeapWithFileBackupHandle handle = new WriteOnlyOffHeapWithFileBackupHandle(
+				target, 128, false, this.outputKeeper, memoryManager, ChecksumFactory.NO_OP, compression)
+		) {
+			handle.checkAndExecuteAndSync("initialize", () -> {}, output -> output.writeInt(1));
+			if (disposal.equals("close")) {
+				handle.close();
+			} else {
+				if (disposal.equals("failedSpill")) {
+					Files.createDirectories(target);
+					org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+						() -> handle.checkAndExecuteAndSync("spill", () -> {},
+							output -> output.writeBytes(new byte[64])));
+				} else {
+					handle.checkAndExecuteAndSync("spill", () -> {}, output -> output.writeBytes(new byte[64]));
+				}
+			}
+			Mockito.verify(compressors.getFirst()).end();
+		} finally {
+			compressors.forEach(Deflater::end);
+			if (Files.isDirectory(target)) {
+				Files.delete(target);
+			}
+		}
 	}
 
 	@Test

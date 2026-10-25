@@ -38,7 +38,7 @@ import javax.annotation.Nonnull;
 import java.io.Closeable;
 import java.io.FileOutputStream;
 import java.nio.file.Path;
-import java.util.Iterator;
+import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
@@ -57,7 +57,7 @@ import static java.util.Optional.ofNullable;
 @Slf4j
 public class ObservableOutputKeeper implements AutoCloseable {
 	/**
-	 * The time after which the WAL cache is dropped after inactivity.
+	 * Time without a lease after which a cached file stream is closed.
 	 */
 	private static final long CUT_OUTPUTS_AFTER_INACTIVITY_MS = 300_000L; // 5 minutes
 	/**
@@ -151,7 +151,14 @@ public class ObservableOutputKeeper implements AutoCloseable {
 
 	/**
 	 * Executes passed lambda with leased {@link ObservableOutput} for the target file and releases it safely when
-	 * the lambda finishes.
+	 * the lambda finishes. An output whose failed write left its append position unknown is closed on release, so
+	 * the next lease reopens the file at its physical length.
+	 *
+	 * @param targetFile file whose output is leased
+	 * @param createFct factory opening a fresh output at the file's physical length
+	 * @param lambda serialization operation performed with the exclusively leased output
+	 * @param <T> operation result type
+	 * @return result of the serialization operation
 	 */
 	public <T> T executeWithOutput(
 		@Nonnull Path targetFile,
@@ -161,16 +168,21 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		final OpenedOutputToFile openedOutputToFile = getOpenedOutputToFile(targetFile, createFct);
 		try {
 			return lambda.apply(
-				openedOutputToFile.leaseOutput()
+				openedOutputToFile.output
 			);
 		} finally {
-			openedOutputToFile.releaseOutput();
+			releaseOutput(targetFile, openedOutputToFile);
 		}
 	}
 
 	/**
 	 * Executes passed lambda with leased {@link ObservableOutput} for the target file and releases it safely when
-	 * the lambda finishes.
+	 * the lambda finishes. An output whose failed write left its append position unknown is closed on release, so
+	 * the next lease reopens the file at its physical length.
+	 *
+	 * @param targetFile file whose output is leased
+	 * @param createFct factory opening a fresh output at the file's physical length
+	 * @param lambda serialization operation performed with the exclusively leased output
 	 */
 	public void executeWithOutput(
 		@Nonnull Path targetFile,
@@ -180,22 +192,27 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		final OpenedOutputToFile openedOutputToFile = getOpenedOutputToFile(targetFile, createFct);
 		try {
 			lambda.accept(
-				openedOutputToFile.leaseOutput()
+				openedOutputToFile.output
 			);
 		} finally {
-			openedOutputToFile.releaseOutput();
+			releaseOutput(targetFile, openedOutputToFile);
 		}
 	}
 
 	/**
-	 * Returns existing or creates new {@link ObservableOutput} and cache it for the passed target file.
+	 * Returns an exclusively leased cached or newly opened output. A stale entry closed during lookup is retried.
+	 * The owner retains this lease until explicitly closing the path with {@link #close(Path)}.
+	 *
+	 * @param targetFile file whose output is leased
+	 * @param createFct factory opening a fresh output at the file's physical length
+	 * @return the exclusively leased output
 	 */
 	@Nonnull
 	public ObservableOutput<FileOutputStream> getObservableOutputOrCreate(
 		@Nonnull Path targetFile,
 		@Nonnull Function<Path, ObservableOutput<FileOutputStream>> createFct
 	) {
-		return getOpenedOutputToFile(targetFile, createFct).leaseOutput();
+		return getOpenedOutputToFile(targetFile, createFct).output;
 	}
 
 	/**
@@ -207,7 +224,10 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	}
 
 	/**
-	 * Method drops all cached {@link ObservableOutput} (closes streams and releases references).
+	 * Stops scheduled cuts and closes cached outputs only after their leases end. Lease acquisition and closing
+	 * share the entry monitor, so a writer's frame buffer cannot be returned to the pool by this thread.
+	 *
+	 * @throws RuntimeException if closing an idle output fails
 	 */
 	@Override
 	public void close() {
@@ -216,12 +236,10 @@ public class ObservableOutputKeeper implements AutoCloseable {
 			IOUtils.closeQuietly(this.cutTask::close);
 			int attempts = 0;
 			do {
-				final Iterator<OpenedOutputToFile> iterator = this.cachedOutputToFiles.values().iterator();
-				while (iterator.hasNext()) {
-					final OpenedOutputToFile outputToFile = iterator.next();
-					if (!outputToFile.isLeased()) {
-						outputToFile.close();
-						iterator.remove();
+				for (Entry<Path, OpenedOutputToFile> entry : this.cachedOutputToFiles.entrySet()) {
+					final OpenedOutputToFile outputToFile = entry.getValue();
+					if (outputToFile.closeIfNotLeased()) {
+						this.cachedOutputToFiles.remove(entry.getKey(), outputToFile);
 					}
 				}
 				attempts++;
@@ -257,7 +275,12 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	}
 
 	/**
-	 * Returns existing or creates new {@link ObservableOutput} and cache it for the passed target file.
+	 * Finds or creates and atomically leases an output. A cutter can close an entry between map lookup and lease;
+	 * in that case remove only that stale entry and retry with a fresh stream.
+	 *
+	 * @param targetFile file whose output is required
+	 * @param createFct factory reopening the file at its physical append position
+	 * @return an open, exclusively leased entry
 	 */
 	@Nonnull
 	private OpenedOutputToFile getOpenedOutputToFile(
@@ -265,30 +288,54 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		@Nonnull Function<Path, ObservableOutput<FileOutputStream>> createFct
 	) {
 		this.cutTask.schedule();
-		return this.cachedOutputToFiles
-			.computeIfAbsent(targetFile, path -> new OpenedOutputToFile(createFct.apply(path)));
+		while (true) {
+			final OpenedOutputToFile entry = this.cachedOutputToFiles.computeIfAbsent(
+				targetFile, path -> new OpenedOutputToFile(createFct.apply(path))
+			);
+			if (entry.leaseOutput()) {
+				return entry;
+			}
+			this.cachedOutputToFiles.remove(targetFile, entry);
+		}
+	}
+
+	/**
+	 * Ends the lease and drops an output that no longer knows where the file ends. A failed write may have left part
+	 * of its bytes in the file, and appending at the stale position would misplace every later record. Hold the entry
+	 * monitor through release, removal and closure so a writer cannot lease it between those steps.
+	 *
+	 * @param targetFile path the output is cached under
+	 * @param openedOutputToFile the leased output
+	 */
+	private void releaseOutput(@Nonnull Path targetFile, @Nonnull OpenedOutputToFile openedOutputToFile) {
+		synchronized (openedOutputToFile) {
+			openedOutputToFile.releaseOutput();
+			if (openedOutputToFile.output.isAppendPositionUnknown()) {
+				// Remove before closing so even a disposal failure cannot leave the unusable entry cached.
+				this.cachedOutputToFiles.remove(targetFile, openedOutputToFile);
+				openedOutputToFile.close();
+			}
+		}
 	}
 
 	/**
 	 * Check the cached output entries whether they should be cut because of long inactivity or left intact.
-	 * This method also re-plans the next cache cut if the cache is not empty.
+	 * Lease checks and closing are atomic with lease acquisition, preserving any writer's borrowed frame array.
+	 *
+	 * @return delay until the next cut, or -1 when no cached entry remains
 	 */
 	private long cutOutputCache() {
 		final long threshold = System.currentTimeMillis() - CUT_OUTPUTS_AFTER_INACTIVITY_MS;
 		long oldestNotCutEntryTouchTime = -1L;
-		final Iterator<OpenedOutputToFile> iterator = this.cachedOutputToFiles.values().iterator();
-		while (iterator.hasNext()) {
-			final OpenedOutputToFile outputToFile = iterator.next();
-			final boolean oldestRecord = oldestNotCutEntryTouchTime == -1L || outputToFile.getLastReadTime() < oldestNotCutEntryTouchTime;
-			if (outputToFile.getLastReadTime() < threshold) {
-				if (outputToFile.isLeased()) {
-					oldestNotCutEntryTouchTime = outputToFile.getLastReadTime();
-				} else {
-					outputToFile.close();
-					iterator.remove();
+		for (Entry<Path, OpenedOutputToFile> entry : this.cachedOutputToFiles.entrySet()) {
+			final OpenedOutputToFile outputToFile = entry.getValue();
+			if (outputToFile.getLastReadTime() < threshold && outputToFile.closeIfNotLeased()) {
+				this.cachedOutputToFiles.remove(entry.getKey(), outputToFile);
+			} else {
+				final long lastReadTime = outputToFile.getLastReadTime();
+				if (oldestNotCutEntryTouchTime == -1L || lastReadTime < oldestNotCutEntryTouchTime) {
+					oldestNotCutEntryTouchTime = lastReadTime;
 				}
-			} else if (oldestRecord) {
-				oldestNotCutEntryTouchTime = outputToFile.getLastReadTime();
 			}
 		}
 
@@ -297,7 +344,8 @@ public class ObservableOutputKeeper implements AutoCloseable {
 	}
 
 	/**
-	 * Cached file stream and its lease state.
+	 * Cached file stream with lease and closure state guarded by its monitor. The cutter reads the volatile
+	 * last-touch time without acquiring that monitor, then uses the monitor to decide whether closure is safe.
 	 */
 	@RequiredArgsConstructor
 	private static class OpenedOutputToFile implements Closeable {
@@ -306,51 +354,73 @@ public class ObservableOutputKeeper implements AutoCloseable {
 		 */
 		@Nonnull private final ObservableOutput<FileOutputStream> output;
 		/**
-		 * The time of the last read of the transaction locations.
+		 * Last lease or release time, visible to the scheduled cutter without taking the entry monitor.
 		 */
-		@Getter private long lastReadTime = System.currentTimeMillis();
+		@Getter private volatile long lastReadTime = System.currentTimeMillis();
 		/**
-		 * The flag indicating whether the output is leased. The output must not be leased more than once.
+		 * Whether a writer owns the output and its frame array; guarded by this entry's monitor.
 		 */
-		@Getter private boolean leased;
+		private boolean leased;
 		/**
-		 * The flag indicating whether the output is closed. The output must not be closed more than once.
+		 * Whether the output was disposed; guarded by this entry's monitor.
 		 */
-		@Getter private boolean closed;
+		private boolean closed;
 
 		/**
-		 * Returns the observable output for the file with an open file stream.
+		 * Acquires an exclusive lease while excluding both scheduled and owner-driven closure.
 		 *
-		 * @return the observable output for the file with an open file stream
+		 * @return true if leased, false if this stale entry was already closed
+		 * @throws io.evitadb.exception.GenericEvitaInternalError if the output already has a lease
 		 */
-		@Nonnull
-		public ObservableOutput<FileOutputStream> leaseOutput() {
-			Assert.isPremiseValid(!this.closed, "The output is already closed");
+		public synchronized boolean leaseOutput() {
+			if (this.closed) {
+				return false;
+			}
 			Assert.isPremiseValid(!this.leased, "The output is already leased");
 			this.leased = true;
 			this.lastReadTime = System.currentTimeMillis();
-			return this.output;
+			return true;
 		}
 
 		/**
-		 * Notifies about the usage of a transaction location object by updating the last read time.
+		 * Ends the lease while the keeper holds this monitor through any retirement of an unusable output.
+		 * Updating the touch time postpones the next inactivity cut for healthy outputs.
+		 *
+		 * @throws io.evitadb.exception.GenericEvitaInternalError if the entry is closed or has no lease
 		 */
-		public void releaseOutput() {
+		public synchronized void releaseOutput() {
 			Assert.isPremiseValid(!this.closed, "The output is already closed");
 			Assert.isPremiseValid(this.leased, "The output is not leased");
 			this.leased = false;
 			this.lastReadTime = System.currentTimeMillis();
 		}
 
-		@Override
-		public void close() {
-			Assert.isPremiseValid(!this.closed, "The output is already closed");
-			this.closed = true;
-			this.leased = false;
-			this.output.close();
+		/**
+		 * Closes only an idle entry, atomically with lease acquisition and release.
+		 *
+		 * @return true if closed or already closed, false while a writer owns the output
+		 */
+		public synchronized boolean closeIfNotLeased() {
+			if (this.leased) {
+				return false;
+			}
+			close();
+			return true;
 		}
 
+		/**
+		 * Explicitly closes the owner's output, including an outstanding lease. Repeated closure is harmless when
+		 * the cutter and owner both retire the same entry.
+		 *
+		 * @throws com.esotericsoftware.kryo.KryoException if disposing of the output fails
+		 */
+		@Override
+		public synchronized void close() {
+			if (!this.closed) {
+				this.closed = true;
+				this.leased = false;
+				this.output.close();
+			}
+		}
 	}
-
-
 }

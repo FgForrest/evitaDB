@@ -89,7 +89,8 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	/**
 	 * Size of the in-memory buffer used to serialize records before appending them to data files, in bytes.
 	 * Larger records are split into chained frames, so this limits one frame and any single string or binary value,
-	 * rather than the record size. Buffers are retained while catalogs are written; larger buffers use more memory.
+	 * rather than the record size. A buffer of this size is borrowed from the shared pool only while a frame is
+	 * assembled; larger buffers use more memory.
 	 * Sourced from {@link StorageOptions#outputBufferSize()}, typically defaults to 2MB.
 	 */
 	private final int outputBufferSize;
@@ -126,9 +127,10 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	 */
 	@Getter private final Path targetFile;
 	/**
-	 * Keeps reusable serialization outputs and their buffers. Cached file outputs are closed by the scheduled
-	 * inactivity check or by an explicit close of the file's output or the keeper. The off-heap free-list is
-	 * cleared after the same period without a borrow or recycle call, or when the keeper is closed.
+	 * Keeps the file's output stream open between writes so that each write does not reopen the file. The cached
+	 * output borrows its frame buffer from {@link ObservableOutputBufferPool} only while writing. The keeper closes
+	 * it after a period without a lease, on an explicit close of the file's output or the keeper, or when a failed
+	 * write left the end of the file unknown.
 	 */
 	private final ObservableOutputKeeper observableOutputKeeper;
 	/**
@@ -196,10 +198,13 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 	 * The method ensures the file is opened for writing, optionally computes a CRC32 checksum,
 	 * and applies compression if specified in the storage options.
 	 *
-	 * @param theFilePath The path to the target file to which data will be written.
-	 * @param outputBufferSize the size of the output buffer to use for writing data.
-	 * @param checksum The checksum calculator touse for data integrity verification.
-	 * @param deflater The deflater to use for compressing data, or {@code null} if no compression is desired.
+	 * The output exclusively owns the compressor after construction. If opening or initialization fails, this
+	 * factory closes any opened stream and ends the compressor before propagating the failure.
+	 *
+	 * @param theFilePath target file to append to
+	 * @param outputBufferSize exact size of each frame buffer, including header and tail
+	 * @param checksum checksum calculator used for data integrity verification
+	 * @param deflater exclusively owned compressor, or null if no compression is desired
 	 *
 	 * @return An {@code ObservableOutput} instance wrapping a {@code FileOutputStream} for the specified file.
 	 * @throws UnexpectedIOException If the target file cannot be opened or accessed.
@@ -214,15 +219,31 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 		try {
 			final File theFile = theFilePath.toFile();
 			final FileOutputStream targetOs = new FileOutputStream(theFile, true);
-			return new ObservableOutput<>(
-				targetOs,
-				outputBufferSize,
-				theFile.length(),
-				checksum,
-				deflater,
-				ObservableOutputBufferPool.INSTANCE
-			);
+			try {
+				return new ObservableOutput<>(
+					targetOs,
+					outputBufferSize,
+					theFile.length(),
+					checksum,
+					deflater,
+					ObservableOutputBufferPool.INSTANCE
+				);
+			} catch (RuntimeException | Error exception) {
+				try {
+					targetOs.close();
+				} catch (IOException closeFailure) {
+					exception.addSuppressed(closeFailure);
+				} finally {
+					if (deflater != null) {
+						deflater.end();
+					}
+				}
+				throw exception;
+			}
 		} catch (FileNotFoundException ex) {
+			if (deflater != null) {
+				deflater.end();
+			}
 			throw new UnexpectedIOException(
 				"Target file " + theFilePath + " cannot be opened!",
 				"Target file cannot be opened.",

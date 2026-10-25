@@ -23,6 +23,7 @@
 
 package io.evitadb.store.offsetIndex.io;
 
+import java.util.zip.Deflater;
 import com.esotericsoftware.kryo.Kryo;
 import com.esotericsoftware.kryo.KryoException;
 import io.evitadb.api.configuration.StorageOptions;
@@ -132,6 +133,37 @@ class WriteOnlyFileHandleTest implements EvitaTestSupport {
 			compressionFactory,
 			this.outputKeeper
 		);
+	}
+
+	/**
+	 * A compressor has no output owner when opening the file or initializing the output fails.
+	 *
+	 * @param initializationFailure whether output initialization fails after opening the stream
+	 * @throws IOException if the directory fixture cannot be created or removed
+	 */
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	@DisplayName("Should end the compressor when opening or initializing its output fails")
+	void shouldEndCompressorWhenOpeningFileFails(boolean initializationFailure) throws IOException {
+		final Path directory = Files.createTempDirectory("unopenable-output");
+		final Path file = directory.resolve("data.bin");
+		final Deflater compressor = Mockito.spy(new Deflater());
+		try {
+			if (initializationFailure) {
+				assertThrows(io.evitadb.exception.GenericEvitaInternalError.class, () ->
+					WriteOnlyFileHandle.createObservableOutput(
+						file, 8, ChecksumFactory.NO_OP.createChecksum(), compressor));
+			} else {
+				assertThrows(UnexpectedIOException.class, () ->
+					WriteOnlyFileHandle.createObservableOutput(
+						directory, 128, ChecksumFactory.NO_OP.createChecksum(), compressor));
+			}
+			Mockito.verify(compressor).end();
+		} finally {
+			compressor.end();
+			Files.deleteIfExists(file);
+			Files.delete(directory);
+		}
 	}
 
 	@Nested
