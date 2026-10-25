@@ -52,9 +52,11 @@ import static java.util.Optional.ofNullable;
  * @param waitOnCloseSeconds                 This timeout represents a time that will file offset index wait for processes to release their
  *                                           read handles to file. After this timeout files will be closed by force and processes may
  *                                           experience an exception.
- * @param outputBufferSize                   The output buffer size determines how large a buffer is kept in memory for output
- *                                           purposes. The size of the buffer limits the maximum size of an individual record in the
- *                                           key/value data store.
+ * @param outputBufferSize                   Size in bytes of the in-memory buffer used to serialize records before
+ *                                           appending them to data files. Larger records are split into chained frames,
+ *                                           so this limits one frame and any single string or binary value inside a
+ *                                           record, rather than the record size. Buffers of this size are kept in
+ *                                           memory while catalogs are written, so larger values use more memory.
  * @param maxOpenedReadHandles               Maximum number of simultaneously opened `InputStream` to file offset
  *                                           index file.
  * @param syncWrites                         Determines whether the storage layer forces the operating system to flush

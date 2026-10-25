@@ -159,8 +159,9 @@ public class OffsetIndex {
 	 */
 	private final Pool<byte[]> decompressionPool;
 	/**
-	 * Size of the memory buffer used for write operations, in bytes.
-	 * This buffer size limits the maximum size of individual records that can be written to the offset index.
+	 * Size of the in-memory buffer used to serialize records before appending them to data files, in bytes.
+	 * Larger records are split into chained frames, so this limits one frame and any single string or binary value,
+	 * rather than the record size. Buffers are retained while catalogs are written; larger buffers use more memory.
 	 * Sourced from {@link StorageOptions#outputBufferSize()}, typically defaults to 2MB.
 	 */
 	private final int outputBufferSize;
