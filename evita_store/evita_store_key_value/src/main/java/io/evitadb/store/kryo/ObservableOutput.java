@@ -48,7 +48,8 @@ import java.util.zip.Deflater;
 /**
  * Extends Kryo {@link Output} to compute frame checksums and write each frame's length before its contents.
  * A frame is assembled in the in-memory buffer because its length is known only when the frame is complete.
- * {@link #markEnd(byte)} writes each finished frame to the output stream immediately.
+ * {@link #markEnd(byte)} writes each finished frame to the output stream immediately. Frames whose length is
+ * already known can bypass the assembly buffer through {@link #writeDirect(byte[], int, int)}.
  *
  * A record larger than the buffer is continued in chained frames by {@link StorageRecord}, which uses
  * {@link StorageRecord#CONTINUATION_BIT} and the {@link #onBufferOverflow} handler. A single value written by
@@ -349,6 +350,37 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	}
 
 	/**
+	 * Appends already framed bytes directly, without imposing the serialization buffer's capacity.
+	 * Callers that know the frame length can emit its header, payload chunks and tail in order. Pending
+	 * buffered bytes are flushed first, and direct bytes participate in the same physical byte accounting
+	 * and cumulative checksum as buffered frames. No frame state is opened by this operation.
+	 *
+	 * @param bytes  bytes to append verbatim
+	 * @param offset start offset in the array
+	 * @param length number of bytes to append
+	 * @throws io.evitadb.exception.EvitaInternalError if a buffered frame is open
+	 */
+	public void writeDirect(@Nonnull byte[] bytes, int offset, int length) {
+		Assert.isPremiseValid(this.startPosition == -1, "Cannot append direct bytes while writing a record!");
+		writeDataToOutputStream();
+		IOUtils.executeSafely(
+			length,
+			KryoException::new,
+			theLength -> {
+				this.outputStream.write(bytes, offset, theLength);
+				this.total = Math.addExact(this.total, theLength);
+			}
+		);
+		if (this.cumulatingChecksum && this.checksum != Checksum.NO_OP) {
+			this.checksum.reset();
+			this.checksum.update(bytes, offset, length);
+			this.cumulativeChecksum = Crc32CWrapper.combine(
+				this.cumulativeChecksum, this.checksum.getValue(), length
+			);
+		}
+	}
+
+	/**
 	 * Returns the current checksum value.
 	 *
 	 * @return the current checksum as a long value.
@@ -588,7 +620,6 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 		this.recordLengthPosition = -1;
 		this.savedBytesByCompressionSinceReset = 0;
 		// drop the recycled spare so a pooled, repeatedly-reset output does not permanently retain two full buffers
-		// (copySnapshotTo never resets mid-copy, so the compaction benefit is preserved)
 		this.spareBuffer = null;
 		// reset cumulative checksum state
 		this.cumulatingChecksum = false;

@@ -985,6 +985,74 @@ public class ObservableOutputTest {
 	}
 
 	/**
+	 * Direct appends must compose with buffered writes, compression and cumulative checksums.
+	 */
+	@Nested
+	@DisplayName("Direct appends")
+	class DirectAppendTests {
+
+		/**
+		 * Mixes pending bytes, compressed frames and direct chunks, then reuses the output after reset.
+		 */
+		@ParameterizedTest
+		@MethodSource("io.evitadb.store.kryo.ObservableOutputTest#checksumAndCompressionSettings")
+		@DisplayName("Direct chunks preserve positions, byte counts and cumulative checksums")
+		void shouldAccountForDirectBytesAmongBufferedWrites(
+			@Nonnull ChecksumOption checksum, @Nonnull CompressionOption compression
+		) {
+			final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+			try (final ObservableOutput<ByteArrayOutputStream> output = createOutput(bytes, checksum, compression)) {
+				output.markCumulativeChecksumStart();
+				writeRecord(output, new byte[500], false);
+				final int prefixLength = bytes.size();
+				output.writeInt(123);
+				final byte[] chunk = new byte[DEFAULT_BUFFER * 2];
+				new Random(42).nextBytes(chunk);
+				output.writeDirect(chunk, 3, chunk.length - 7);
+				assertArrayEquals(
+					Arrays.copyOfRange(chunk, 3, chunk.length - 4),
+					Arrays.copyOfRange(bytes.toByteArray(), prefixLength + Integer.BYTES, bytes.size())
+				);
+				assertEquals(bytes.size(), output.getWrittenBytesSinceReset());
+				assertEquals(0, output.position());
+				final long nextStart = bytes.size();
+				assertEquals(nextStart, writeRecord(output, new byte[123], false).startingPosition());
+				assertEquals(bytes.size(), output.getWrittenBytesSinceReset());
+				assertEquals(
+					checksum == ChecksumOption.ENABLED ? computeManualChecksum(bytes.toByteArray()) : 0L,
+					output.markCumulativeChecksumEnd()
+				);
+				assertEquals(-1, output.getStartPosition());
+				assertEquals(-1, output.getPayloadStartPosition());
+				output.reset();
+				output.writeDirect(chunk, 1, 13);
+				assertEquals(13, output.total());
+				assertEquals(13, output.getWrittenBytesSinceReset());
+			}
+		}
+
+		/**
+		 * An attempted direct append cannot interleave bytes with an unfinished buffered frame.
+		 */
+		@Test
+		@DisplayName("Direct appends refuse an open frame")
+		void shouldRefuseDirectBytesWhenFrameIsOpen() {
+			final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+			try (final ObservableOutput<ByteArrayOutputStream> output = createOutput(
+				bytes, ChecksumOption.ENABLED, CompressionOption.DISABLED
+			)) {
+				output.markStart();
+				assertThrows(
+					io.evitadb.exception.EvitaInternalError.class, () -> output.writeDirect(new byte[1], 0, 1)
+				);
+				assertEquals(0, bytes.size());
+				output.reset();
+				assertDoesNotThrow(() -> output.writeDirect(new byte[1], 0, 1));
+			}
+		}
+	}
+
+	/**
 	 * Tests for compression behavior.
 	 */
 	@Nested

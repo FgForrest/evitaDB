@@ -36,7 +36,6 @@ import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.store.offsetIndex.exception.IncompleteSerializationException;
 import io.evitadb.store.offsetIndex.model.RecordKey;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
-import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecordCursor;
 import io.evitadb.store.offsetIndex.model.VersionedValue;
 import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.stream.RandomAccessFileInputStream;
@@ -234,7 +233,7 @@ public class OffsetIndexSerializationService {
 	 *                          {@code null}
 	 * @param checksumFactory   factory for the checksum applied to the output stream
 	 * @param compressionFactory factory for the optional compressor applied to the output stream
-	 * @param outputBufferSize  output buffer size in bytes; also bounds the per-fragment record length
+	 * @param outputBufferSize  buffer size for newly serialized records; copied frames retain their source length
 	 * @return location of the last written offset-index fragment and the total number of bytes written
 	 */
 	@Nonnull
@@ -269,14 +268,9 @@ public class OffsetIndexSerializationService {
 		final List<Entry<RecordKey, FileLocation>> entries = new ArrayList<>(liveEntries);
 		entries.sort(Comparator.comparingLong(entry -> entry.getValue().startingPosition()));
 		final Collection<VersionedValue> nonFlushedValues = new ArrayList<>(entries.size());
-		// Single scratch buffer reused across every storage-record fragment in this snapshot copy.
-		// Per-fragment recordLength is bounded by `outputBufferSize`, so a single buffer of that size is always enough.
-		// Sourced from the offset index so it survives across compactions instead of being reallocated each time; the
-		// caller holds the write handle, which serializes every writer of this instance.
-		final byte[] rawCopyScratchBuffer = offsetIndex.getCompactionScratchBuffer();
-		// Single reusable cursor filled by readRawInto for every fragment, instead of allocating a header object per
-		// fragment. Safe as a stack-local: this loop is single-threaded under the offset-index write handle.
-		final RawRecordCursor rawCursor = new RawRecordCursor();
+		// 16 KiB amortizes stream calls while keeping transfer memory independent of any writer's frame size.
+		final byte[] copyBuffer = new byte[16_384];
+		final Checksum copyChecksum = checksumFactory.createChecksum();
 		// position in the source file where the input cursor currently sits (i.e. the byte right after the last
 		// record copied so far); `-1` means the cursor position is unknown and a seek is mandatory. Because
 		// `entries` is sorted by source position, the common case is that the next record begins exactly here -
@@ -300,36 +294,12 @@ public class OffsetIndexSerializationService {
 					inputStream.seekWithUnknownLength(fileLocation.startingPosition());
 				}
 				// the live FileLocation spans every continuation fragment, so its end is where the cursor lands
-				// once the do/while below has consumed the whole record - record it for the next iteration's
+				// once the raw copy has consumed the whole record - record it for the next iteration's
 				// contiguity check
 				nextContiguousSourcePosition = fileLocation.endPosition();
-				long startPosition = -1;
-				int recordLength = 0;
-				byte control;
-				do {
-					StorageRecord.readRawInto(inputStream, rawCopyScratchBuffer, rawCursor);
-					control = rawCursor.control();
-
-					final FileLocation recordLocation = StorageRecord.writeRaw(
-						output, control, catalogVersion,
-						rawCopyScratchBuffer, 0, rawCursor.payloadLength()
-					);
-					if (startPosition == -1) {
-						startPosition = recordLocation.startingPosition();
-					}
-					recordLength += recordLocation.recordLength();
-				} while (BitUtils.isBitSet(control, StorageRecord.CONTINUATION_BIT));
-
-				Assert.isPremiseValid(
-					startPosition >= 0,
-					"Start position must be greater than 0!"
+				copiedRecordLocation = StorageRecord.copyRawRecord(
+					inputStream, output, catalogVersion, copyBuffer, copyChecksum
 				);
-				Assert.isPremiseValid(
-					recordLength > 0,
-					"Record length must be greater than 0!"
-				);
-
-				copiedRecordLocation = new FileLocation(startPosition, recordLength);
 			} else {
 				// write overridden value - this branch does not touch the source input stream, so the cursor
 				// stays put and we can no longer assume the following record is contiguous with it; force a

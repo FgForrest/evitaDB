@@ -24,7 +24,9 @@
 package io.evitadb.store.offsetIndex.model;
 
 import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.function.TriFunction;
+import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
@@ -355,51 +357,71 @@ public record StorageRecord<T>(
 	}
 
 	/**
-	 * Allocation-free sibling of {@link #readRaw(ObservableInput)} for streaming raw copy paths
-	 * such as `OffsetIndexSerializationService.copySnapshotTo`. The payload is read into the
-	 * caller-supplied `scratchBuffer` rather than into a freshly allocated `byte[]`, and the two scalars the
-	 * copy loop consumes (control byte + payload length) are written into the caller-supplied `cursor` instead of a
-	 * freshly allocated header object — so a whole compaction copy allocates no per-record header garbage.
+	 * Copies a raw record and all its continuation frames without decompressing or buffering a whole frame.
+	 * Each frame retains its length and control flags; enabling the target checksum sets the CRC bit just
+	 * as the buffered raw writer does. Disabling it preserves the source CRC bit and writes the blank tail.
+	 * Only the generation id is restamped. Source checksums are verified before completing each target frame.
 	 *
-	 * The buffer must be at least `recordLength - CRC_NOT_COVERED_PART` bytes long. Since storage
-	 * records are written in fragments capped by the configured `outputBufferSize`, a buffer of
-	 * `outputBufferSize` bytes is always sufficient.
-	 *
-	 * @param input         input stream positioned at the start of a record
-	 * @param scratchBuffer reusable buffer that will receive the payload bytes
-	 * @param cursor        reusable holder that receives the record's control byte and payload length
+	 * @param input        input positioned at the first frame
+	 * @param output       output receiving the copied frames
+	 * @param generationId generation id stamped on every target frame
+	 * @param chunkBuffer  reusable transfer buffer, at least large enough for the header and tail
+	 * @param checksum     target payload checksum, independent of the output's cumulative checksum calculator
+	 * @return the location spanning all copied frames
 	 */
-	public static void readRawInto(
+	@Nonnull
+	public static FileLocation copyRawRecord(
 		@Nonnull ObservableInput<?> input,
-		@Nonnull byte[] scratchBuffer,
-		@Nonnull RawRecordCursor cursor
+		@Nonnull ObservableOutput<?> output,
+		long generationId,
+		@Nonnull byte[] chunkBuffer,
+		@Nonnull Checksum checksum
 	) {
-		long startingPosition = -1L;
-		int recordLength = -1;
-		try {
-			startingPosition = input.markStart();
-			recordLength = input.readInt();
-			final byte originalControl = input.readByte();
-			// the generation id is read to advance the cursor past the 8-byte header field, but the raw-copy caller
-			// does not need its value (it stamps the target catalogVersion on the copied record instead)
-			input.readLong();
-			// if the data is compressed we need to override the control byte and read it uncompressed
-			byte control = setBit(originalControl, COMPRESSION_BIT, false);
-			input.markPayloadStart(recordLength, control);
-			final int payloadLength = recordLength - CRC_NOT_COVERED_PART;
-			input.readBytes(scratchBuffer, 0, payloadLength);
-			input.markEnd(originalControl);
-
-			// publish into the reusable cursor only after every read succeeded - the caller reads it solely on the
-			// normal-return path, so a throw below leaves the previous (already-consumed) cursor contents untouched
-			cursor.control = originalControl;
-			cursor.payloadLength = payloadLength;
+		Assert.isPremiseValid(
+			chunkBuffer.length >= CRC_NOT_COVERED_PART, "Copy buffer must fit a frame header and tail!"
+		);
+		Assert.isPremiseValid(output.getStartPosition() == -1, "Cannot copy while writing a record!");
+		final long targetStart = output.getWrittenBytesSinceReset();
+		long sourceStart = -1L;
+		int frameLength = -1;
+		int recordLength = 0;
+		try (final Output chunkOutput = new Output(chunkBuffer)) {
+			byte originalControl;
+			do {
+				sourceStart = input.markStart();
+				frameLength = input.readInt();
+				originalControl = input.readByte();
+				input.readLong();
+				// Suppress inflation while still verifying the original control byte at the source tail.
+				input.markPayloadStart(frameLength, setBit(originalControl, COMPRESSION_BIT, false));
+				final byte targetControl = checksum == Checksum.NO_OP
+					? originalControl : setBit(originalControl, CRC32_BIT, true);
+				chunkOutput.reset();
+				chunkOutput.writeInt(frameLength);
+				chunkOutput.writeByte(targetControl);
+				chunkOutput.writeLong(generationId);
+				output.writeDirect(chunkBuffer, 0, chunkOutput.position());
+				checksum.reset();
+				int remaining = frameLength - CRC_NOT_COVERED_PART;
+				while (remaining > 0) {
+					final int chunkLength = Math.min(remaining, chunkBuffer.length);
+					input.readBytes(chunkBuffer, 0, chunkLength);
+					checksum.update(chunkBuffer, 0, chunkLength);
+					output.writeDirect(chunkBuffer, 0, chunkLength);
+					remaining -= chunkLength;
+				}
+				input.markEnd(originalControl);
+				checksum.update(targetControl);
+				chunkOutput.reset();
+				chunkOutput.writeLong(checksum == Checksum.NO_OP ? -1L : checksum.getValue());
+				output.writeDirect(chunkBuffer, 0, chunkOutput.position());
+				recordLength = Math.addExact(recordLength, frameLength);
+			} while (isBitSet(originalControl, CONTINUATION_BIT));
+			return new FileLocation(targetStart, recordLength);
 		} catch (RuntimeException ex) {
-			// reset input stream to avoid partially initialized state
 			input.reset();
-			if (startingPosition != -1L && recordLength != -1) {
-				// if we know the location, we can verify it
-				checkUnderlyingInputStreamLength(input, new FileLocation(startingPosition, recordLength), ex);
+			if (sourceStart != -1L && frameLength != -1) {
+				checkUnderlyingInputStreamLength(input, new FileLocation(sourceStart, frameLength), ex);
 			}
 			throw ex;
 		}
@@ -596,32 +618,6 @@ public record StorageRecord<T>(
 		long generationId,
 		@Nonnull byte[] rawData
 	) {
-		return writeRaw(output, control, generationId, rawData, 0, rawData.length);
-	}
-
-	/**
-	 * Range-bounded sibling of {@link #writeRaw(ObservableOutput, byte, long, byte[])} that writes
-	 * `length` bytes from `rawData` starting at `offset`. Used by streaming raw-copy paths that
-	 * reuse a single scratch buffer across many records.
-	 *
-	 * @param output       observable output stream to write to
-	 * @param control      control byte (compression / CRC32 / continuation flags)
-	 * @param generationId generation id of the written record
-	 * @param rawData      buffer holding the raw (possibly compressed) payload data
-	 * @param offset       start offset within `rawData`
-	 * @param length       number of payload bytes to write
-	 * @return file location of the written record
-	 * @throws CorruptedRecordException if the written record length differs from expected
-	 */
-	@Nonnull
-	public static FileLocation writeRaw(
-		@Nonnull ObservableOutput<?> output,
-		byte control,
-		long generationId,
-		@Nonnull byte[] rawData,
-		int offset,
-		int length
-	) {
 		try {
 			output.markStart();
 			output.markRecordLengthPosition();
@@ -629,15 +625,15 @@ public record StorageRecord<T>(
 			output.writeByte(0);
 			output.writeLong(generationId);
 			output.markPayloadStart();
-			output.writeBytes(rawData, offset, length);
+			output.writeBytes(rawData);
 			final FileLocation resultLocation = output.markEndSuppressingCompression(control);
 			//noinspection StringConcatenationMissingWhitespace
 			Assert.isPremiseValid(
-				length + CRC_NOT_COVERED_PART == resultLocation.recordLength(),
+				rawData.length + CRC_NOT_COVERED_PART == resultLocation.recordLength(),
 				() -> new CorruptedRecordException(
 					"Record length differs (" + resultLocation.recordLength() + "B, " +
-						"expected " + (length + CRC_NOT_COVERED_PART) + "B) - it's probably corrupted!",
-					resultLocation.recordLength(), length + CRC_NOT_COVERED_PART
+						"expected " + (rawData.length + CRC_NOT_COVERED_PART) + "B) - it's probably corrupted!",
+					resultLocation.recordLength(), rawData.length + CRC_NOT_COVERED_PART
 				)
 			);
 			return resultLocation;
@@ -1182,41 +1178,6 @@ public record StorageRecord<T>(
 		long generationId,
 		byte[] rawData
 	) {
-	}
-
-	/**
-	 * Reusable mutable holder filled by {@link #readRawInto(ObservableInput, byte[], RawRecordCursor)} in place of a
-	 * freshly allocated header object, so a whole `copySnapshotTo` compaction allocates no per-record header garbage.
-	 * It carries only the two scalars the raw-copy loop consumes — the control byte and the number of payload bytes
-	 * written into the caller's scratch buffer.
-	 *
-	 * Not thread-safe by design: a single instance is meant to be reused across the records of ONE single-threaded copy
-	 * loop (which runs under the offset-index write handle). It must never be shared as a static/instance field of a
-	 * type whose statics are invoked concurrently by reader threads.
-	 *
-	 * The two scalar fields are valid only after a successful
-	 * {@link #readRawInto(ObservableInput, byte[], RawRecordCursor)} — a call that throws leaves the previous
-	 * (already-consumed) contents in place rather than partially overwriting them.
-	 */
-	public static final class RawRecordCursor {
-		/** Control byte (compression / CRC32 / continuation flags) of the last record successfully read into the cursor. */
-		private byte control;
-		/** Number of payload bytes the last successful read wrote into the caller's scratch buffer. */
-		private int payloadLength;
-
-		/**
-		 * @return the control byte of the last record successfully read into the cursor
-		 */
-		public byte control() {
-			return this.control;
-		}
-
-		/**
-		 * @return the number of payload bytes the last successful read wrote into the caller's scratch buffer
-		 */
-		public int payloadLength() {
-			return this.payloadLength;
-		}
 	}
 
 	/**
