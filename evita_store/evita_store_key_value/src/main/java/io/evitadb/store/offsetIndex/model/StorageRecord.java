@@ -24,7 +24,6 @@
 package io.evitadb.store.offsetIndex.model;
 
 import com.esotericsoftware.kryo.Kryo;
-import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.function.TriFunction;
 import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.kryo.ObservableInput;
@@ -385,7 +384,7 @@ public record StorageRecord<T>(
 		long sourceStart = -1L;
 		int frameLength = -1;
 		int recordLength = 0;
-		try (final Output chunkOutput = new Output(chunkBuffer)) {
+		try {
 			byte originalControl;
 			do {
 				sourceStart = input.markStart();
@@ -396,11 +395,15 @@ public record StorageRecord<T>(
 				input.markPayloadStart(frameLength, setBit(originalControl, COMPRESSION_BIT, false));
 				final byte targetControl = checksum == Checksum.NO_OP
 					? originalControl : setBit(originalControl, CRC32_BIT, true);
-				chunkOutput.reset();
-				chunkOutput.writeInt(frameLength);
-				chunkOutput.writeByte(targetControl);
-				chunkOutput.writeLong(generationId);
-				output.writeDirect(chunkBuffer, 0, chunkOutput.position());
+				// Kryo fixed-width integers are little-endian; reuse the transfer buffer without a wrapper.
+				for (int i = 0; i < Integer.BYTES; i++) {
+					chunkBuffer[i] = (byte) (frameLength >>> (i * Byte.SIZE));
+				}
+				chunkBuffer[Integer.BYTES] = targetControl;
+				for (int i = 0; i < Long.BYTES; i++) {
+					chunkBuffer[Integer.BYTES + 1 + i] = (byte) (generationId >>> (i * Byte.SIZE));
+				}
+				output.writeDirect(chunkBuffer, 0, Integer.BYTES + 1 + Long.BYTES);
 				checksum.reset();
 				int remaining = frameLength - CRC_NOT_COVERED_PART;
 				while (remaining > 0) {
@@ -412,9 +415,11 @@ public record StorageRecord<T>(
 				}
 				input.markEnd(originalControl);
 				checksum.update(targetControl);
-				chunkOutput.reset();
-				chunkOutput.writeLong(checksum == Checksum.NO_OP ? -1L : checksum.getValue());
-				output.writeDirect(chunkBuffer, 0, chunkOutput.position());
+				final long crc = checksum == Checksum.NO_OP ? -1L : checksum.getValue();
+				for (int i = 0; i < Long.BYTES; i++) {
+					chunkBuffer[i] = (byte) (crc >>> (i * Byte.SIZE));
+				}
+				output.writeDirect(chunkBuffer, 0, Long.BYTES);
 				recordLength = Math.addExact(recordLength, frameLength);
 			} while (isBitSet(originalControl, CONTINUATION_BIT));
 			return new FileLocation(targetStart, recordLength);
