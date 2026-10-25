@@ -1,12 +1,12 @@
 ---
 title: String attributes declare a single-pass normalization chain, and a populated index keeps the chain it was built with
 date: 2026-10-25
-updated: 2026-10-25 14:40
+updated: 2026-10-25 16:37
 status: accepted
 kind: feature
 issues: [545]
 prs: []
-areas: [evita_api/src/main/java/io/evitadb/api/requestResponse/schema/analysis, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaNormalizedMutation.java, evita_engine/src/main/java/io/evitadb/index/analysis, evita_engine/src/main/java/io/evitadb/spi/analysis, evita_engine/src/main/java/io/evitadb/index/attribute, evita_engine/src/main/java/io/evitadb/index/component/loader/LoadContext.java, evita_engine/src/main/java/io/evitadb/core/collection/EntityCollection.java, evita_engine/src/main/java/io/evitadb/core/catalog/Catalog.java, evita_engine/src/main/java/io/evitadb/core/query, evita_engine/src/main/java/io/evitadb/spi/store/catalog/persistence/storageParts/index, evita_store/evita_store_server/src/main/java/io/evitadb/store/index, evita_external_api]
+areas: [evita_api/src/main/java/io/evitadb/api/requestResponse/schema/analysis, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/builder/InternalSchemaBuilderHelper.java, evita_api/src/main/java/io/evitadb/api/requestResponse/schema/mutation/attribute/SetAttributeSchemaNormalizedMutation.java, evita_engine/src/main/java/io/evitadb/index/analysis, evita_engine/src/main/java/io/evitadb/spi/analysis, evita_engine/src/main/java/io/evitadb/index/attribute, evita_engine/src/main/java/io/evitadb/index/component/loader/LoadContext.java, evita_engine/src/main/java/io/evitadb/core/collection/EntityCollection.java, evita_engine/src/main/java/io/evitadb/core/catalog/Catalog.java, evita_engine/src/main/java/io/evitadb/core/query, evita_engine/src/main/java/io/evitadb/spi/store/catalog/persistence/storageParts/index, evita_store/evita_store_server/src/main/java/io/evitadb/store/index, evita_external_api]
 supersedes: []
 superseded-by: []
 relates: [2026-10-05-schema-changes-never-refused-dormant-accelerator, 2026-10-08-unique-indexes-normalize-like-filter-indexes, 2026-08-10-stored-value-normalization-split, 2026-09-21-cardinality-counter-normalized-keys, 2026-10-20-reference-content-filter-row-by-row, 2026-10-20-single-owner-partitions-as-registry-rows, 2026-08-24-fulltext-search-lucene-vs-inhouse]
@@ -230,6 +230,20 @@ rebuild and the rows become transient.
   `writeObject(Class)` (which appends ClassSerializer's primitive/wrapper flag) but read it with `readClass`, leaving
   the flag unread - replaying a type change to `Integer` or another wrapper misread `indexedDecimalPlaces`. The
   reader now consumes the flag; the writer and layout are unchanged. The same fix goes to `dev` separately (#1794).
+- **Pre-existing builder combination bugs fixed on the way.** The API-lane review found that a schema builder could
+  combine a `normalized(...)` statement with a later one across an attribute rename. The renamed attribute then lost
+  its chain, and every `Set*` / `Modify*` statement and every element kind behaved the same way.
+  - **The rules now** (`InternalSchemaBuilderHelper#addMutations`):
+    - a new mutation never combines with a rename of its element, or with anything collected before one;
+    - a creation never combines once its name was renamed, because creation combiners judge against the builder's
+      base schema (`#isJudgedAgainstBaseSchema`);
+    - rename mutations no longer combine with each other.
+  - **Merge order:** `ModifyEntitySchemaMutation#combineWith` now keeps older statements first.
+  - **Not the contract:** one-by-one equivalence. Builders accumulate repeated declarations (indexed scopes) through
+    combination, so statements after the last rename still combine.
+  - **Still open:** #1800 - merged entity edits moving past catalog mutations, entity-level removals swallowing
+    reference statements, and builders deciding create-vs-modify against the base schema.
+  - **Verification:** `SchemaMutationCombinationAcrossRenameTest`, 18 cases, each red before its rule.
 - **Known and not changed here:** removing an attribute of a reference to a managed entity type throws an NPE in
   `RemoveAttributeSchemaMutation#mutate` (pre-existing on the base; fixed on `dev` by #1795);
   `RepresentativeReferenceKey` identity stays on raw values; collection-less equality lookups of a cross-locale

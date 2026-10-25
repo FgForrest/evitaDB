@@ -33,8 +33,6 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
-import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -52,7 +50,6 @@ import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static io.evitadb.test.TestTags.CONTRACT;
@@ -69,75 +66,6 @@ import static io.evitadb.test.TestTags.REFERENCE;
 @Tag(SCHEMA)
 @Tag(REFERENCE)
 class ModifyReferenceSchemaNameMutationTest {
-
-	@Nested
-	@DisplayName("Combine with other mutations")
-	class CombineWith {
-
-		@Test
-		@DisplayName("should replace previous name mutation when names match")
-		void shouldOverrideNameOfPreviousMutationIfNamesMatch() {
-			final ModifyReferenceSchemaNameMutation mutation =
-				new ModifyReferenceSchemaNameMutation(REFERENCE_NAME, "newName");
-			final ModifyReferenceSchemaNameMutation existingMutation =
-				new ModifyReferenceSchemaNameMutation(REFERENCE_NAME, "differentName");
-			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
-			Mockito.when(entitySchema.getReference(REFERENCE_NAME))
-				.thenReturn(of(createExistingReferenceSchema()));
-			final MutationCombinationResult<LocalEntitySchemaMutation> result =
-				mutation.combineWith(
-					Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation
-				);
-
-			assertNotNull(result);
-			assertNull(result.origin());
-			assertNotNull(result.current());
-			assertInstanceOf(ModifyReferenceSchemaNameMutation.class, result.current()[0]);
-			assertEquals(
-				"categories",
-				((ModifyReferenceSchemaNameMutation) result.current()[0]).getName()
-			);
-			assertEquals(
-				"newName",
-				((ModifyReferenceSchemaNameMutation) result.current()[0]).getNewName()
-			);
-		}
-
-		@Test
-		@DisplayName("should not combine when reference names differ")
-		void shouldLeaveBothMutationsIfTheNameOfNewMutationDoesntMatch() {
-			final ModifyReferenceSchemaNameMutation mutation =
-				new ModifyReferenceSchemaNameMutation(REFERENCE_NAME, "newName");
-			final ModifyReferenceSchemaNameMutation existingMutation =
-				new ModifyReferenceSchemaNameMutation("differentName", "oldName");
-
-			assertNull(
-				mutation.combineWith(
-					Mockito.mock(CatalogSchemaContract.class),
-					Mockito.mock(EntitySchemaContract.class),
-					existingMutation
-				)
-			);
-		}
-
-		@Test
-		@DisplayName("should return null for unrelated mutation type")
-		void shouldReturnNullForUnrelatedMutation() {
-			final ModifyReferenceSchemaNameMutation mutation =
-				new ModifyReferenceSchemaNameMutation(REFERENCE_NAME, "newName");
-			final LocalEntitySchemaMutation unrelatedMutation =
-				new ModifyReferenceSchemaDescriptionMutation(REFERENCE_NAME, "desc");
-
-			final MutationCombinationResult<LocalEntitySchemaMutation> result =
-				mutation.combineWith(
-					Mockito.mock(CatalogSchemaContract.class),
-					Mockito.mock(EntitySchemaContract.class),
-					unrelatedMutation
-				);
-
-			assertNull(result);
-		}
-	}
 
 	@Nested
 	@DisplayName("Mutate reference schema")

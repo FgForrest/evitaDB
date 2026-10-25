@@ -23,13 +23,10 @@
 
 package io.evitadb.api.requestResponse.schema.mutation.reference;
 
-import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
-import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
-import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.utils.Assert;
 import io.evitadb.utils.NamingConvention;
@@ -46,8 +43,8 @@ import java.util.Collections;
 /**
  * Mutation is responsible for renaming an existing {@link ReferenceSchemaContract} in {@link EntitySchemaContract}.
  * Mutation can be used for altering also the existing {@link ReferenceSchemaContract} alone.
- * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
- * if the mutation is placed twice in the mutation pipeline.
+ * The mutation never combines with another one: a renamed name stands for two references in one pipeline, and a
+ * second rename of the same name addresses a reference that no longer has it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -56,7 +53,7 @@ import java.util.Collections;
 @EqualsAndHashCode(callSuper = true)
 public class ModifyReferenceSchemaNameMutation
 	extends AbstractModifyReferenceDataSchemaMutation
-	implements CombinableLocalEntitySchemaMutation {
+	implements LocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = 4468563525258576177L;
 	@Nonnull @Getter private final String newName;
 
@@ -66,22 +63,6 @@ public class ModifyReferenceSchemaNameMutation
 	public ModifyReferenceSchemaNameMutation(@Nonnull String name, @Nonnull String newName) {
 		super(name);
 		this.newName = newName;
-	}
-
-	@Nullable
-	@Override
-	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(
-		@Nonnull CatalogSchemaContract currentCatalogSchema,
-		@Nonnull EntitySchemaContract currentEntitySchema,
-		@Nonnull LocalEntitySchemaMutation existingMutation
-	) {
-		if (existingMutation instanceof ModifyReferenceSchemaNameMutation theExistingMutation
-			&& this.name.equals(theExistingMutation.getName())
-		) {
-			return new MutationCombinationResult<>(null, this);
-		} else {
-			return null;
-		}
 	}
 
 	@Nonnull

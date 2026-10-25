@@ -38,12 +38,26 @@ import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaCont
 import io.evitadb.api.requestResponse.schema.builder.InternalEntitySchemaBuilder.AttributeNamingConventionConflict;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
+import io.evitadb.api.requestResponse.schema.mutation.AssociatedDataSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.CreateMutation;
+import io.evitadb.api.requestResponse.schema.mutation.EntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.NamedSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.ReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.SchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.SortableAttributeCompoundSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.associatedData.ModifyAssociatedDataSchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.CreateReflectedReferenceSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceAttributeSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSchemaNameMutation;
+import io.evitadb.api.requestResponse.schema.mutation.reference.ModifyReferenceSortableAttributeCompoundSchemaMutation;
+import io.evitadb.api.requestResponse.schema.mutation.sortableAttributeCompound.ModifySortableAttributeCompoundSchemaNameMutation;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
@@ -82,6 +96,11 @@ public interface InternalSchemaBuilderHelper {
 	 * This method is quite slow - it has addition factorial complexity O(n!+). For each added mutation we need to
 	 * compute combination result with all previous mutations.
 	 *
+	 * A rename makes one name stand for two elements, so a new mutation addressing a renamed element is never combined
+	 * with the rename or with a mutation collected before it (see {@link #isRenamedSince(List, int, SchemaMutation)}),
+	 * and a mutation whose combiner judges it against the base schema is not combined at all once its name was
+	 * renamed (see {@link #isJudgedAgainstBaseSchema(SchemaMutation)}).
+	 *
 	 * @param mutationType      type class required for Java generics array creation
 	 * @param combiner          function that combines an existing mutation with a new mutation
 	 * @param existingMutations set of existing mutations in the pipeline
@@ -113,11 +132,18 @@ public interface InternalSchemaBuilderHelper {
 					boolean discarded = false;
 					for (int i = 0; i < mutationsToGoThrough.length; i++) {
 						T examinedMutation = mutationsToGoThrough[i];
+						// a combiner judging against the base schema must not see a name the pipeline renames
+						final boolean combinable = !isJudgedAgainstBaseSchema(examinedMutation) ||
+							!isRenamedSince(existingMutations, 0, examinedMutation);
 						final Iterator<T> existingIt = existingMutations.iterator();
 						int index = -1;
-						while (existingIt.hasNext()) {
+						while (combinable && existingIt.hasNext()) {
 							index++;
 							final T existingMutation = existingIt.next();
+							// a rename since the existing mutation makes the shared name stand for two different elements
+							if (isRenamedSince(existingMutations, index, examinedMutation)) {
+								continue;
+							}
 							// and try to combine them together
 							final MutationCombinationResult<T> combinationResult = combiner.apply(
 								existingMutation, examinedMutation
@@ -176,6 +202,116 @@ public interface InternalSchemaBuilderHelper {
 			}
 		}
 		return schemaUpdated;
+	}
+
+	/**
+	 * Tests whether the mutation at `fromIndex`, or any collected after it, renames the element `newMutation`
+	 * addresses - to or from its name. Such a name means the renamed element before the rename and its replacement
+	 * after it:
+	 *
+	 * - the new mutation is appended after all collected ones, so combining it with a mutation before the rename
+	 *   would move a statement from one element to the other;
+	 * - combining it with the rename itself would swallow the rename - one by one, the new mutation addresses the
+	 *   element the rename left the name to, never the renamed one; two renames of one name are therefore never
+	 *   merged either, as the second one addresses an element that no longer has the name.
+	 *
+	 * Statements collected after the last rename still combine with one another: builders accumulate repeated
+	 * declarations that way (indexed scopes, for example).
+	 *
+	 * @param existingMutations the collected mutations
+	 * @param fromIndex         the index of the first collected mutation to inspect
+	 * @param newMutation       the mutation being added
+	 * @param <T>               mutation type parameter required by Java generics constraints
+	 * @return true if a rename of the new mutation's element is collected at or after `fromIndex`
+	 */
+	private static <T extends SchemaMutation> boolean isRenamedSince(
+		@Nonnull List<T> existingMutations,
+		int fromIndex,
+		@Nonnull T newMutation
+	) {
+		for (final T collectedMutation : existingMutations.subList(fromIndex, existingMutations.size())) {
+			if (isRenameOf(collectedMutation, newMutation)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Tests whether `candidate` renames, to or from its name, the element `mutation` addresses. Names are compared
+	 * within one kind of element only - an attribute rename does not touch an associated data of the same name - and
+	 * a mutation wrapped for a reference is touched by a rename of that reference or by a rename wrapped for the same
+	 * reference.
+	 *
+	 * @param candidate the mutation that may be a rename
+	 * @param mutation  the mutation whose element is tested
+	 * @return true if `candidate` renames the element of `mutation`
+	 */
+	private static boolean isRenameOf(@Nonnull SchemaMutation candidate, @Nonnull SchemaMutation mutation) {
+		if (candidate instanceof ModifyReferenceAttributeSchemaMutation wrapper) {
+			return mutation instanceof ModifyReferenceAttributeSchemaMutation wrapped &&
+				wrapper.getName().equals(wrapped.getName()) &&
+				isRenameOf(wrapper.getAttributeSchemaMutation(), wrapped.getAttributeSchemaMutation());
+		} else if (candidate instanceof ModifyReferenceSortableAttributeCompoundSchemaMutation wrapper) {
+			return mutation instanceof ModifyReferenceSortableAttributeCompoundSchemaMutation wrapped &&
+				wrapper.getName().equals(wrapped.getName()) &&
+				isRenameOf(
+					wrapper.getSortableAttributeCompoundSchemaMutation(),
+					wrapped.getSortableAttributeCompoundSchemaMutation()
+				);
+		} else if (candidate instanceof ModifyAttributeSchemaNameMutation rename) {
+			return mutation instanceof AttributeSchemaMutation attributeMutation &&
+				isEitherName(rename.getName(), rename.getNewName(), attributeMutation.getName());
+		} else if (candidate instanceof ModifyReferenceSchemaNameMutation rename) {
+			return mutation instanceof ReferenceSchemaMutation referenceMutation &&
+				isEitherName(rename.getName(), rename.getNewName(), referenceMutation.getName());
+		} else if (candidate instanceof ModifyAssociatedDataSchemaNameMutation rename) {
+			return mutation instanceof AssociatedDataSchemaMutation associatedDataMutation &&
+				isEitherName(rename.getName(), rename.getNewName(), associatedDataMutation.getName());
+		} else if (candidate instanceof ModifySortableAttributeCompoundSchemaNameMutation rename) {
+			return mutation instanceof SortableAttributeCompoundSchemaMutation compoundMutation &&
+				isEitherName(rename.getName(), rename.getNewName(), compoundMutation.getName());
+		} else if (candidate instanceof ModifyEntitySchemaNameMutation rename) {
+			return mutation instanceof EntitySchemaMutation && mutation instanceof NamedSchemaMutation entityMutation &&
+				isEitherName(rename.getName(), rename.getNewName(), entityMutation.containerName());
+		} else {
+			return false;
+		}
+	}
+
+	/**
+	 * Tests whether `name` is the old or the new name of a rename that changes the name. A rename to the same name
+	 * leaves the name standing for one element.
+	 *
+	 * @param oldName the name the rename takes away
+	 * @param newName the name the rename gives
+	 * @param name    the tested name
+	 * @return true if the rename changes the name and `name` equals either of them
+	 */
+	private static boolean isEitherName(@Nonnull String oldName, @Nonnull String newName, @Nonnull String name) {
+		return !oldName.equals(newName) && (name.equals(oldName) || name.equals(newName));
+	}
+
+	/**
+	 * Tests whether the combiner of `mutation` judges it against the element of the same name in the base schema of
+	 * the builder: a creation compares its definition with the element a removal took away. Once the pipeline renames
+	 * that name, the base schema's element is not the one the mutation addresses.
+	 *
+	 * An entity edit (`ModifyEntitySchemaMutation`) is deliberately not listed: merging two edits of one entity type
+	 * after its last rename is how a catalog builder accumulates repeated declarations, and its nested creations are
+	 * judged by the nested pipeline.
+	 *
+	 * @param mutation the mutation being added
+	 * @return true if its combiner consults the base schema for its own element
+	 */
+	private static boolean isJudgedAgainstBaseSchema(@Nonnull SchemaMutation mutation) {
+		if (mutation instanceof ModifyReferenceAttributeSchemaMutation wrapper) {
+			return isJudgedAgainstBaseSchema(wrapper.getAttributeSchemaMutation());
+		} else if (mutation instanceof ModifyReferenceSortableAttributeCompoundSchemaMutation wrapper) {
+			return isJudgedAgainstBaseSchema(wrapper.getSortableAttributeCompoundSchemaMutation());
+		} else {
+			return mutation instanceof CreateMutation || mutation instanceof CreateReflectedReferenceSchemaMutation;
+		}
 	}
 
 	/**

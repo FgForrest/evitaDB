@@ -29,14 +29,11 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntityAttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeSchemaContract;
-import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntityAttributeSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.dto.GlobalAttributeSchema;
 import io.evitadb.api.requestResponse.schema.mutation.CatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.CombinableCatalogSchemaMutation;
-import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.utils.Assert;
@@ -54,8 +51,8 @@ import java.io.Serial;
  * or {@link GlobalAttributeSchemaContract} in {@link CatalogSchemaContract}.
  * Mutation can be used for altering also the existing {@link AttributeSchemaContract} or
  * {@link GlobalAttributeSchemaContract} alone.
- * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
- * if the mutation is placed twice in the mutation pipeline.
+ * The mutation never combines with another one: a renamed name stands for two attributes in one pipeline, and a
+ * second rename of the same name addresses an attribute that no longer has it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -65,42 +62,13 @@ import java.io.Serial;
 public class ModifyAttributeSchemaNameMutation
 	extends AbstractAttributeSchemaMutation
 	implements EntityAttributeSchemaMutation, GlobalAttributeSchemaMutation, ReferenceAttributeSchemaMutation,
-	CombinableLocalEntitySchemaMutation, CombinableCatalogSchemaMutation, CatalogSchemaMutation {
+	LocalEntitySchemaMutation, LocalCatalogSchemaMutation, CatalogSchemaMutation {
 	@Serial private static final long serialVersionUID = 7259840478218862547L;
 	@Getter @Nonnull private final String newName;
 
 	public ModifyAttributeSchemaNameMutation(@Nonnull String name, @Nonnull String newName) {
 		super(name);
 		this.newName = newName;
-	}
-
-	@Nullable
-	@Override
-	public MutationCombinationResult<LocalCatalogSchemaMutation> combineWith(
-		@Nonnull CatalogSchemaContract currentCatalogSchema, @Nonnull LocalCatalogSchemaMutation existingMutation) {
-		if (existingMutation instanceof ModifyAttributeSchemaNameMutation theExistingMutation &&
-			this.name.equals(theExistingMutation.getName())
-		) {
-			return new MutationCombinationResult<>(null, this);
-		} else {
-			return null;
-		}
-	}
-
-	@Nullable
-	@Override
-	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(
-		@Nonnull CatalogSchemaContract currentCatalogSchema,
-		@Nonnull EntitySchemaContract currentEntitySchema,
-		@Nonnull LocalEntitySchemaMutation existingMutation
-	) {
-		if (existingMutation instanceof ModifyAttributeSchemaNameMutation theExistingMutation &&
-			this.name.equals(theExistingMutation.getName())
-		) {
-			return new MutationCombinationResult<>(null, this);
-		} else {
-			return null;
-		}
 	}
 
 	@Nonnull
