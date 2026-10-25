@@ -220,7 +220,6 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 			final FileOutputStream targetOs = new FileOutputStream(theFile, true);
 			return new ObservableOutput<>(
 				targetOs,
-				Math.min(ObservableOutput.DEFAULT_FLUSH_SIZE, outputBufferSize),
 				outputBufferSize,
 				theFile.length(),
 				checksum,

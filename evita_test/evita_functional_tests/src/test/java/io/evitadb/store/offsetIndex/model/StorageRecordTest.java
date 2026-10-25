@@ -113,7 +113,7 @@ class StorageRecordTest {
 	 * Creates an ObservableOutput with the specified settings.
 	 *
 	 * @param outputStream    the underlying output stream
-	 * @param bufferSize      the buffer size (also used as flush size)
+	 * @param bufferSize      the frame buffer size
 	 * @param currentFileSize the current file size offset
 	 * @param checksumCheck   whether to enable CRC32 checksum computation
 	 * @param compression     whether to enable compression
@@ -129,40 +129,6 @@ class StorageRecordTest {
 	) {
 		return new ObservableOutput<>(
 			outputStream,
-			bufferSize,
-			currentFileSize,
-			checksumCheck == ChecksumCheck.YES ?
-				new Crc32CChecksum() : Checksum.NO_OP,
-			(compression == Compression.YES ?
-				new ZipCompressionFactory() : CompressionFactory.NO_COMPRESSION)
-				.createCompressor()
-				.orElse(null)
-		);
-	}
-
-	/**
-	 * Creates an ObservableOutput with explicit flush size for continuation record tests.
-	 *
-	 * @param outputStream    the underlying output stream
-	 * @param flushSize       the flush size (triggers buffer flush)
-	 * @param bufferSize      the buffer size
-	 * @param currentFileSize the current file size offset
-	 * @param checksumCheck   whether to enable CRC32 checksum computation
-	 * @param compression     whether to enable compression
-	 * @return the configured ObservableOutput
-	 */
-	@Nonnull
-	private static <T extends OutputStream> ObservableOutput<T> createOutputWithFlush(
-		@Nonnull T outputStream,
-		int flushSize,
-		int bufferSize,
-		int currentFileSize,
-		@Nonnull ChecksumCheck checksumCheck,
-		@Nonnull Compression compression
-	) {
-		return new ObservableOutput<>(
-			outputStream,
-			flushSize,
 			bufferSize,
 			currentFileSize,
 			checksumCheck == ChecksumCheck.YES ?
@@ -515,8 +481,8 @@ class StorageRecordTest {
 			ChecksumCheck crc32Check, Compression compression) throws IOException {
 			final StorageRecord<LongSetChunk> record;
 			try (
-				final ObservableOutput<?> output = createOutputWithFlush(
-					new FileOutputStream(StorageRecordTest.this.tempFile), 512, 2_048, 0, crc32Check, compression
+				final ObservableOutput<?> output = createOutput(
+					new FileOutputStream(StorageRecordTest.this.tempFile), 2_048, 0, crc32Check, compression
 				)
 			) {
 				record = new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, true, generateLongSetOfSize(5000));
@@ -566,7 +532,9 @@ class StorageRecordTest {
 			final StorageRecord<PersistentLongRoaringBitmap> record;
 			try (
 				final ObservableOutput<?> output =
-					createOutputWithFlush(new FileOutputStream(StorageRecordTest.this.tempFile), 512, 1024, 0, crc32Check, compression)
+					createOutput(
+						new FileOutputStream(StorageRecordTest.this.tempFile), 1024, 0, crc32Check, compression
+					)
 			) {
 				record = new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, true, bitmap);
 			}
@@ -741,9 +709,9 @@ class StorageRecordTest {
 			assumeTrue(crc32Check == ChecksumCheck.YES, "Cumulative checksum requires checksum to be enabled");
 
 			final StorageRecord<LongSetChunk> record;
-			// use small flush/buffer sizes to force record to span multiple physical records
-			try (final ObservableOutput<?> output = createOutputWithFlush(
-				new FileOutputStream(StorageRecordTest.this.tempFile), 512, 2_048, 0, crc32Check, compression)) {
+			// use a small buffer size to force record to span multiple physical records
+			try (final ObservableOutput<?> output = createOutput(
+				new FileOutputStream(StorageRecordTest.this.tempFile), 2_048, 0, crc32Check, compression)) {
 				record = new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, true, generateLongSetOfSize(5000));
 			}
 
@@ -782,9 +750,9 @@ class StorageRecordTest {
 			}
 
 			final StorageRecord<PersistentLongRoaringBitmap> record;
-			// use small flush/buffer sizes to force record to span multiple physical records
-			try (final ObservableOutput<?> output = createOutputWithFlush(
-				new FileOutputStream(StorageRecordTest.this.tempFile), 512, 1024, 0, crc32Check, compression)) {
+			// use a small buffer size to force record to span multiple physical records
+			try (final ObservableOutput<?> output = createOutput(
+				new FileOutputStream(StorageRecordTest.this.tempFile), 1024, 0, crc32Check, compression)) {
 				record = new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, true, bitmap);
 			}
 

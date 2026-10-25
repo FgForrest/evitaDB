@@ -23,7 +23,6 @@
 
 package io.evitadb.store.kryo;
 
-import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.checksum.Crc32CChecksumFactory;
 import io.evitadb.store.compression.ZipCompressionFactory;
@@ -67,7 +66,7 @@ import static io.evitadb.test.TestTags.SERIALIZATION;
 @Tag(STORAGE)
 @Tag(SERIALIZATION)
 public class ObservableOutputTest {
-	private static final int DEFAULT_BUFFER = ObservableOutput.DEFAULT_FLUSH_SIZE << 2;
+	private static final int DEFAULT_BUFFER = 65_536;
 
 	/**
 	 * Provides combinations of checksum and compression settings for parameterized tests.
@@ -188,30 +187,6 @@ public class ObservableOutputTest {
 	@Nested
 	@DisplayName("Constructor tests")
 	class ConstructorTests {
-
-		@Test
-		@DisplayName("Constructor should throw when buffer size is less than flush size")
-		void shouldThrowWhenBufferSizeLessThanFlushSize() {
-			final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-			final int flushSize = 1024;
-			final int bufferSize = 512; // smaller than flushSize
-
-			assertThrows(
-				UnexpectedIOException.class,
-				() -> {
-					//noinspection EmptyTryBlock
-					try (
-						final ObservableOutput<ByteArrayOutputStream> unused = new ObservableOutput<>(
-							baos, flushSize, bufferSize, 0L,
-							Crc32CChecksumFactory.INSTANCE.createChecksum(), null
-						)
-					) {
-						// no-op
-					}
-				},
-				"Should throw when buffer size < flush size"
-			);
-		}
 
 		@Test
 		@DisplayName("Constructor should initialize total from currentFileSize parameter")
@@ -1271,7 +1246,7 @@ public class ObservableOutputTest {
 			final List<byte[]> writtenPayloads = new ArrayList<>(activePercentOfCapacity.length);
 			try (ObservableOutput<ByteArrayOutputStream> out =
 				     new ObservableOutput<>(
-					     baos, bufferSize, bufferSize, 0L,
+					     baos, bufferSize, 0L,
 					     Crc32CChecksumFactory.INSTANCE.createChecksum(), null
 				     )) {
 

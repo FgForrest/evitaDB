@@ -253,7 +253,6 @@ public class OffsetIndexSerializationService {
 		// input stream is still used in callee and the output stream is managed by the callee
 		final ObservableOutput<OutputStream> output = new ObservableOutput<>(
 			outputStream,
-			Math.min(StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE, outputBufferSize),
 			outputBufferSize,
 			0,
 			checksumFactory.createChecksum(),
