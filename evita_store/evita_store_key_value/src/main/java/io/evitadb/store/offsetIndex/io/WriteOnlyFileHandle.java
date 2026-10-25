@@ -31,6 +31,7 @@ import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.kryo.ObservableOutput;
+import io.evitadb.store.kryo.ObservableOutputBufferPool;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.offsetIndex.OffsetIndex;
 import io.evitadb.store.offsetIndex.exception.InvalidStoragePathException;
@@ -218,7 +219,8 @@ public class WriteOnlyFileHandle implements WriteOnlyHandle {
 				outputBufferSize,
 				theFile.length(),
 				checksum,
-				deflater
+				deflater,
+				ObservableOutputBufferPool.INSTANCE
 			);
 		} catch (FileNotFoundException ex) {
 			throw new UnexpectedIOException(

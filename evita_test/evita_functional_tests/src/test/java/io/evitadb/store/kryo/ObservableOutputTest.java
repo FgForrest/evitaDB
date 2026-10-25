@@ -27,23 +27,29 @@ import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.checksum.Crc32CChecksumFactory;
 import io.evitadb.store.compression.ZipCompressionFactory;
 import io.evitadb.store.shared.model.FileLocation;
+import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.utils.Crc32CWrapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.parallel.Isolated;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
 import java.util.stream.Stream;
+import java.util.function.Consumer;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.zip.Deflater;
 import org.junit.jupiter.api.Tag;
 
@@ -62,10 +68,351 @@ import static io.evitadb.test.TestTags.SERIALIZATION;
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
+@Isolated
 @DisplayName("ObservableOutput comprehensive tests")
 @Tag(STORAGE)
 @Tag(SERIALIZATION)
 public class ObservableOutputTest {
+	/** Borrowed buffers are attached only while assembling frames or pending raw data. */
+	@Nested
+	@DisplayName("Pooled frame buffers")
+	class PooledBuffers {
+		/** A completed frame returns its buffer before another output starts writing. */
+		@Test
+		@DisplayName("Should attach on write and detach after every completed record")
+		void shouldBorrowOnlyWhileWritingFrames() {
+			byte[] shared = null;
+			final List<ObservableOutput<ByteArrayOutputStream>> outputs = new ArrayList<>(100);
+			try {
+				for (int i = 0; i < 100; i++) {
+					final ObservableOutput<ByteArrayOutputStream> output = pooledOutput(1024);
+					outputs.add(output);
+					assertEquals(0, output.getBuffer().length);
+					final byte[][] active = new byte[1][];
+					new StorageRecord<>(output, 1L, false, out -> {
+						active[0] = out.getBuffer();
+						assertEquals(1024, active[0].length);
+						out.writeString("příliš žluťoučký kůň");
+						return 1;
+					});
+					if (shared == null) {
+						shared = active[0];
+					} else {
+						assertSame(shared, active[0]);
+					}
+					assertEquals(0, output.getBuffer().length);
+					assertEquals(0, output.position());
+				}
+			} finally {
+				outputs.forEach(ObservableOutput::close);
+			}
+		}
+
+		/** Flush preserves an open frame; reset and close abandon it and release the array once. */
+		@Test
+		@DisplayName("Should detach after flush, reset and close while preserving open frames")
+		void shouldDetachOnFlushResetAndClose() {
+			final ObservableOutput<ByteArrayOutputStream> output = pooledOutput(1024);
+			output.writeInt(42);
+			assertEquals(1024, output.getBuffer().length);
+			output.flush();
+			assertEquals(0, output.getBuffer().length);
+			output.markStart();
+			output.writeInt(0);
+			output.flush();
+			assertEquals(1024, output.getBuffer().length);
+			assertEquals(4, output.position());
+			output.reset();
+			assertEquals(0, output.getBuffer().length);
+			output.reset();
+			output.markStart();
+			output.writeInt(0);
+			output.close();
+			assertEquals(0, output.getBuffer().length);
+			output.close();
+			final byte[] first = ObservableOutputBufferPool.INSTANCE.borrow(1024);
+			final byte[] second = ObservableOutputBufferPool.INSTANCE.borrow(1024);
+			assertNotSame(first, second, "Repeated reset/close must never release one array twice");
+			ObservableOutputBufferPool.INSTANCE.release(first);
+			ObservableOutputBufferPool.INSTANCE.release(second);
+		}
+
+		/** Kryo slow paths must work when their first capacity check sees an empty buffer. */
+		@Test
+		@DisplayName("Should support zero-byte require and Kryo writes starting detached")
+		void shouldSupportKryoWritesStartingDetached() {
+			try (final ObservableOutput<ByteArrayOutputStream> output = pooledOutput(1024)) {
+				assertTrue(output.require(0));
+				assertEquals(1024, output.getBuffer().length);
+				output.reset();
+				final List<Consumer<ObservableOutput<ByteArrayOutputStream>>> writes = List.of(
+					out -> out.writeString("příliš žluťoučký kůň"),
+					out -> out.writeAscii("ASCII slow path"),
+					out -> out.writeString("short ASCII"),
+					out -> out.writeBytes(new byte[] {1, 2, 3}),
+					out -> out.writeInts(new int[] {42, 999}, 0, 2),
+					out -> out.writeLongs(new long[] {Long.MAX_VALUE, -1}, 0, 2),
+					out -> out.writeFloats(new float[] {1.5F}, 0, 1),
+					out -> out.writeDoubles(new double[] {1.5D}, 0, 1),
+					out -> out.writeShorts(new short[] {42}, 0, 1),
+					out -> out.writeChars(new char[] {'ž'}, 0, 1),
+					out -> out.writeBooleans(new boolean[] {true}, 0, 1),
+					out -> out.writeVarInt(123, true),
+					out -> out.writeVarLong(Long.MAX_VALUE, true)
+				);
+				for (Consumer<ObservableOutput<ByteArrayOutputStream>> write : writes) {
+					final ByteArrayOutputStream expected = new ByteArrayOutputStream();
+					try (final ObservableOutput<ByteArrayOutputStream> owned = new ObservableOutput<>(
+						expected, 1024, 0, Checksum.NO_OP, null
+					)) {
+						write.accept(owned);
+					}
+					output.getOutputStream().reset();
+					write.accept(output);
+					output.flush();
+					assertEquals(0, output.getBuffer().length);
+					assertArrayEquals(expected.toByteArray(), output.getOutputStream().toByteArray());
+				}
+			}
+		}
+
+		/**
+		 * Chained records keep one assembly buffer, including while an atomic UTF-8 value crosses a boundary.
+		 *
+		 * @param compressed whether to compress completed frames
+		 */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Should preserve chained frame bytes with optional compression")
+		void shouldPreserveChainedFrameBytes(boolean compressed) {
+			final ByteArrayOutputStream expected = new ByteArrayOutputStream();
+			final ByteArrayOutputStream actual = new ByteArrayOutputStream();
+			final Deflater ownedDeflater = compressed ? new Deflater() : null;
+			final Deflater pooledDeflater = compressed ? new Deflater() : null;
+			try (
+				final ObservableOutput<ByteArrayOutputStream> owned = new ObservableOutput<>(
+					expected, 128, 0, Crc32CChecksumFactory.INSTANCE.createChecksum(), ownedDeflater);
+				final ObservableOutput<ByteArrayOutputStream> pooled = new ObservableOutput<>(
+					actual, 128, 0, Crc32CChecksumFactory.INSTANCE.createChecksum(), pooledDeflater,
+					ObservableOutputBufferPool.INSTANCE)
+			) {
+				owned.markCumulativeChecksumStart();
+				pooled.markCumulativeChecksumStart();
+				for (int record = 0; record < 3; record++) {
+					for (ObservableOutput<ByteArrayOutputStream> output : List.of(owned, pooled)) {
+						new StorageRecord<>(output, 1L, false, out -> {
+							final byte[] buffer = out.getBuffer();
+							for (int i = 0; i < 30; i++) {
+								out.writeInt(i);
+								out.writeString("žluťoučký kůň příliš");
+								assertSame(buffer, out.getBuffer());
+							}
+							return 1;
+						});
+					}
+					assertEquals(0, pooled.getBuffer().length);
+				}
+				assertEquals(owned.getWrittenBytesSinceReset(), pooled.getWrittenBytesSinceReset());
+				assertEquals(owned.markCumulativeChecksumEnd(), pooled.markCumulativeChecksumEnd());
+				assertArrayEquals(expected.toByteArray(), actual.toByteArray());
+			} finally {
+				if (ownedDeflater != null) {
+					ownedDeflater.end();
+					pooledDeflater.end();
+				}
+			}
+		}
+
+		/** A cached compressor must not retain the input array after the pool takes ownership again. */
+		@Test
+		@DisplayName("Should clear the compressor input reference after each frame")
+		void shouldClearCompressorInputReference() {
+			final AtomicReference<byte[]> input = new AtomicReference<>();
+			final Deflater deflater = new Deflater() {
+				/** Records the reference held by the compressor for lifecycle verification. */
+				@Override
+				public void setInput(byte[] bytes, int offset, int length) {
+					input.set(bytes);
+					super.setInput(bytes, offset, length);
+				}
+			};
+			try (final ObservableOutput<ByteArrayOutputStream> output = new ObservableOutput<>(
+				new ByteArrayOutputStream(), 1024, 0, Checksum.NO_OP, deflater, ObservableOutputBufferPool.INSTANCE
+			)) {
+				new StorageRecord<>(output, 1L, false, out -> {
+					out.writeBytes(new byte[500]);
+					return 1;
+				});
+				assertEquals(0, input.get().length);
+				assertEquals(0, output.getBuffer().length);
+			} finally {
+				deflater.end();
+			}
+		}
+
+		/**
+		 * Compression scratch space and the assembly array both return after an append fails.
+		 *
+		 * @throws ReflectiveOperationException if the compression scratch buffer cannot be inspected
+		 */
+		@Test
+		@DisplayName("Should return compression scratch space when writing the frame fails")
+		void shouldReleaseCompressedBuffersOnFailure() throws ReflectiveOperationException {
+			final Field scratchField = ObservableOutput.class.getDeclaredField("deflateBuffer");
+			scratchField.setAccessible(true);
+			final AtomicReference<ObservableOutput<?>> reference =
+				new AtomicReference<>();
+			final byte[][] buffers = new byte[2][];
+			final ByteArrayOutputStream stream = new ByteArrayOutputStream() {
+				/** Captures borrowed scratch space at the failing physical append. */
+				@Override
+				public synchronized void write(byte[] bytes, int offset, int length) {
+					try {
+						buffers[1] = (byte[]) scratchField.get(reference.get());
+					} catch (IllegalAccessException exception) {
+						throw new AssertionError(exception);
+					}
+					throw new IllegalStateException("Append failed");
+				}
+			};
+			final Deflater deflater = new Deflater();
+			try (final ObservableOutput<ByteArrayOutputStream> output = new ObservableOutput<>(
+				stream, 1031, 0, Checksum.NO_OP, deflater, ObservableOutputBufferPool.INSTANCE
+			)) {
+				reference.set(output);
+				assertThrows(IllegalStateException.class, () -> new StorageRecord<>(output, 1L, false, out -> {
+					buffers[0] = out.getBuffer();
+					out.writeBytes(new byte[500]);
+					return 1;
+				}));
+				assertEquals(0, output.getBuffer().length);
+				assertNotNull(buffers[1]);
+				assertNull(scratchField.get(output));
+				final byte[] first = ObservableOutputBufferPool.INSTANCE.borrow(1031);
+				final byte[] second = ObservableOutputBufferPool.INSTANCE.borrow(1031);
+				assertNotSame(first, second);
+				if (Runtime.getRuntime().availableProcessors() > 1) {
+					assertTrue(first == buffers[0] || second == buffers[0]);
+					assertTrue(first == buffers[1] || second == buffers[1]);
+				} else {
+					assertTrue(first == buffers[0] || first == buffers[1]);
+				}
+				ObservableOutputBufferPool.INSTANCE.release(first);
+				ObservableOutputBufferPool.INSTANCE.release(second);
+			} finally {
+				deflater.end();
+			}
+		}
+
+		/**
+		 * Appended continuation frames keep their byte counts, compression savings and cumulative checksum on failure.
+		 *
+		 * @param compressed whether completed frames are compressed
+		 */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Should preserve appended frames and cumulative accounting after abandoning a frame")
+		void shouldPreserveAccountingAfterAbandoningFrame(boolean compressed) {
+			final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+			final Deflater deflater = compressed ? new Deflater() : null;
+			try (final ObservableOutput<ByteArrayOutputStream> output = new ObservableOutput<>(
+				bytes, 256, 73L, Crc32CChecksumFactory.INSTANCE.createChecksum(), deflater,
+				ObservableOutputBufferPool.INSTANCE
+			)) {
+				output.markCumulativeChecksumStart();
+				writeRecord(output, new byte[128], false);
+				final int prefixSize = bytes.size();
+				assertThrows(IllegalStateException.class, () -> new StorageRecord<>(output, 1L, false, out -> {
+					for (int i = 0; i < 80; i++) {
+						out.writeInt(i);
+					}
+					throw new IllegalStateException("Serialization failed after a continuation");
+				}));
+				assertTrue(bytes.size() > prefixSize, "A continuation must already have been appended");
+				assertEquals(73L + bytes.size(), output.getWrittenBytesSinceReset());
+				assertEquals(computeManualChecksum(bytes.toByteArray()), output.getCumulativeChecksum());
+				assertEquals(0, output.getBuffer().length);
+				assertEquals(-1, output.getStartPosition());
+				assertEquals(-1, output.getPayloadStartPosition());
+				assertEquals(-1, output.getRecordLengthPosition());
+				final long nextStart = 73L + bytes.size();
+				assertEquals(nextStart, writeRecord(output, new byte[32], false).startingPosition());
+				assertEquals(73L + bytes.size(), output.getWrittenBytesSinceReset());
+				assertEquals(computeManualChecksum(bytes.toByteArray()), output.markCumulativeChecksumEnd());
+			} finally {
+				if (deflater != null) {
+					deflater.end();
+				}
+			}
+		}
+
+		/**
+		 * Abandoning a frame keeps bytes preceding its start pending until the next flush.
+		 */
+		@Test
+		@DisplayName("Should preserve pending bytes before an abandoned frame")
+		void shouldPreservePendingBytesBeforeAbandonedFrame() {
+			try (final ObservableOutput<ByteArrayOutputStream> output = pooledOutput(1024)) {
+				output.writeInt(42);
+				assertThrows(IllegalStateException.class, () -> output.doWithOnBufferOverflowHandler(null, () -> {
+					output.markStart();
+					output.writeInt(99);
+					throw new IllegalStateException("Serialization failed");
+				}));
+				assertEquals(Integer.BYTES, output.position());
+				assertEquals(1024, output.getBuffer().length);
+				assertEquals(0, output.getOutputStream().size());
+				output.flush();
+				assertArrayEquals(new byte[] {42, 0, 0, 0}, output.getOutputStream().toByteArray());
+				assertEquals(Integer.BYTES, output.getWrittenBytesSinceReset());
+				assertEquals(0, output.getBuffer().length);
+			}
+		}
+
+		/**
+		 * Raw-record overflow uses the same abandonment path and preserves previously appended bytes.
+		 */
+		@Test
+		@DisplayName("Should preserve the append position after a raw record fails")
+		void shouldPreservePositionAfterFailedRawRecord() {
+			try (final ObservableOutput<ByteArrayOutputStream> output = pooledOutput(128)) {
+				writeRecord(output, new byte[32], false);
+				final int prefixSize = output.getOutputStream().size();
+				assertThrows(com.esotericsoftware.kryo.KryoException.class,
+					() -> StorageRecord.writeRaw(output, (byte) 0, 1L, new byte[256]));
+				assertEquals(prefixSize, output.getWrittenBytesSinceReset());
+				assertEquals(0, output.getBuffer().length);
+				assertEquals(prefixSize, writeRecord(output, new byte[16], false).startingPosition());
+			}
+		}
+
+		/** Failed frame serialization abandons the unfinished frame and returns its assembly buffer. */
+		@Test
+		@DisplayName("Should release an abandoned frame after serialization fails")
+		void shouldReleaseAbandonedFrame() {
+			try (final ObservableOutput<ByteArrayOutputStream> output = pooledOutput(1024)) {
+				assertThrows(IllegalStateException.class, () -> new StorageRecord<>(output, 1L, false, out -> {
+					out.writeInt(42);
+					throw new IllegalStateException("Serialization failed");
+				}));
+				assertEquals(0, output.getBuffer().length);
+			}
+		}
+	}
+
+	/**
+	 * Creates an initially detached output for lifecycle tests.
+	 *
+	 * @param size exact size of the borrowed frame buffer
+	 * @return a pooled output backed by a fresh in-memory stream
+	 */
+	@Nonnull
+	private static ObservableOutput<ByteArrayOutputStream> pooledOutput(int size) {
+		return new ObservableOutput<>(
+			new ByteArrayOutputStream(), size, 0, Checksum.NO_OP, null, ObservableOutputBufferPool.INSTANCE
+		);
+	}
+
 	private static final int DEFAULT_BUFFER = 65_536;
 
 	/**

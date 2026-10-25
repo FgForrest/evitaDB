@@ -607,7 +607,8 @@ public record StorageRecord<T>(
 	/**
 	 * Writes raw data to the output stream without applying compression.
 	 * This method is used for writing data that were previously read using {@link #readRaw(ObservableInput)} method,
-	 * preserving the original compressed state of the data.
+	 * preserving the original compressed state of the data. On failure only the unfinished frame is abandoned;
+	 * previously appended bytes keep their positions and cumulative accounting.
 	 *
 	 * @param output       the observable output stream to write to
 	 * @param control      the control byte containing metadata flags (compression, CRC32, etc.)
@@ -615,6 +616,7 @@ public record StorageRecord<T>(
 	 * @param rawData      the raw payload data to write (possibly compressed)
 	 * @return the {@link FileLocation} specifying the position and length of the written record
 	 * @throws CorruptedRecordException if the written record length differs from expected
+	 * @throws com.esotericsoftware.kryo.KryoException if the raw frame does not fit or cannot be appended
 	 */
 	@Nonnull
 	public static FileLocation writeRaw(
@@ -623,7 +625,7 @@ public record StorageRecord<T>(
 		long generationId,
 		@Nonnull byte[] rawData
 	) {
-		try {
+		return output.doWithOnBufferOverflowHandler(null, () -> {
 			output.markStart();
 			output.markRecordLengthPosition();
 			output.writeInt(0);
@@ -642,11 +644,7 @@ public record StorageRecord<T>(
 				)
 			);
 			return resultLocation;
-		} catch (Exception ex) {
-			// reset output stream to avoid partially initialized state
-			output.reset();
-			throw ex;
-		}
+		});
 	}
 
 	/**
@@ -894,6 +892,7 @@ public record StorageRecord<T>(
 	 * @param <T>              The type of the payload.
 	 * @param <OS>             The type of the output stream.
 	 * @return The file location object specifying the position and length of the written record in the file.
+	 * @throws com.esotericsoftware.kryo.KryoException if payload serialization or appending a frame fails
 	 */
 	@Nonnull
 	private static <T, OS extends OutputStream> FileLocation writeRecord(
@@ -903,28 +902,22 @@ public record StorageRecord<T>(
 		@Nonnull Kryo kryo,
 		@Nonnull T payload
 	) {
-		try {
-			final AtomicReference<FileLocationPointer> recordLocations = new AtomicReference<>(
-				FileLocationPointer.INITIAL);
-			return output.doWithOnBufferOverflowHandler(
-				new OnBufferOverflowHandler<>(recordLocations, output, generationId),
-				() -> {
-					// write storage record header
-					writeHeader(output, generationId);
-					// finally, write payload
-					kryo.writeObject(output, payload);
-					// compute crc32 and fill in record length
-					final byte controlByte = setBit((byte) 0, GENERATION_CLOSING_BIT, closesGeneration);
-					final FileLocation completeRecordLocation = output.markEnd(controlByte);
-					// return file length that possibly spans multiple records
-					return recordLocations.get().computeOverallFileLocation(completeRecordLocation);
-				}
-			);
-		} catch (Exception ex) {
-			// reset output stream to avoid partially initialized state
-			output.reset();
-			throw ex;
-		}
+		final AtomicReference<FileLocationPointer> recordLocations = new AtomicReference<>(
+			FileLocationPointer.INITIAL);
+		return output.doWithOnBufferOverflowHandler(
+			new OnBufferOverflowHandler<>(recordLocations, output, generationId),
+			() -> {
+				// write storage record header
+				writeHeader(output, generationId);
+				// finally, write payload
+				kryo.writeObject(output, payload);
+				// compute crc32 and fill in record length
+				final byte controlByte = setBit((byte) 0, GENERATION_CLOSING_BIT, closesGeneration);
+				final FileLocation completeRecordLocation = output.markEnd(controlByte);
+				// return file length that possibly spans multiple records
+				return recordLocations.get().computeOverallFileLocation(completeRecordLocation);
+			}
+		);
 	}
 
 	/**

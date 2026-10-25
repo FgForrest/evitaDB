@@ -23,6 +23,8 @@
 
 package io.evitadb.store.offsetIndex.io;
 
+import com.esotericsoftware.kryo.Kryo;
+import com.esotericsoftware.kryo.KryoException;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.core.metric.event.storage.FileType;
@@ -34,6 +36,8 @@ import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.compression.ZipCompressionFactory;
 import io.evitadb.store.kryo.ObservableOutputKeeper;
 import io.evitadb.store.offsetIndex.exception.InvalidStoragePathException;
+import io.evitadb.store.offsetIndex.model.StorageRecord;
+import io.evitadb.store.shared.model.FileLocation;
 import io.evitadb.test.EvitaTestSupport;
 import io.evitadb.utils.UUIDUtil;
 import org.junit.jupiter.api.AfterEach;
@@ -42,6 +46,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
@@ -126,6 +132,57 @@ class WriteOnlyFileHandleTest implements EvitaTestSupport {
 			compressionFactory,
 			this.outputKeeper
 		);
+	}
+
+	@Nested
+	@DisplayName("Abandoned records")
+	class AbandonedRecordTest {
+
+		/**
+		 * A failed Kryo serialization must preserve the cached output's physical append position.
+		 *
+		 * @param compressed whether to compress completed frames
+		 * @throws IOException if the physical file size cannot be read
+		 */
+		@ParameterizedTest
+		@ValueSource(booleans = {false, true})
+		@DisplayName("Should append a readable record at the real file end after serialization fails")
+		void shouldPreserveFilePositionAfterFailedRecord(boolean compressed) throws IOException {
+			final Path filePath = WriteOnlyFileHandleTest.this.targetDirectory.resolve(UUIDUtil.randomUUID() + ".dat");
+			final Kryo kryo = new Kryo();
+			try (final WriteOnlyFileHandle handle = new WriteOnlyFileHandle(
+				filePath, 256, false, Crc32CChecksumFactory.INSTANCE,
+				compressed ? ZipCompressionFactory.INSTANCE : CompressionFactory.NO_COMPRESSION,
+				WriteOnlyFileHandleTest.this.outputKeeper
+			)) {
+				handle.checkAndExecuteAndSync(
+					"write prefix", () -> {},
+					output -> { new StorageRecord<>(kryo, output, 1L, false, "prefix".repeat(20)); }
+				);
+				assertThrows(KryoException.class, () -> handle.checkAndExecuteAndSync(
+					"fail oversized string", () -> {},
+					output -> { new StorageRecord<>(kryo, output, 1L, false, "x".repeat(1024)); }
+				));
+				final long physicalEnd = Files.size(filePath);
+				assertTrue(physicalEnd > 0);
+				final StorageRecord<String> record = handle.checkAndExecuteAndSync(
+					"write after failure", () -> {},
+					output -> new StorageRecord<>(kryo, output, 2L, true, "surviving record"),
+					(output, result) -> result
+				);
+				final FileLocation location = record.fileLocation();
+				assertEquals(physicalEnd, location.startingPosition());
+				assertEquals(Files.size(filePath), location.endPosition());
+				try (final ReadOnlyHandle readHandle = handle.toReadOnlyHandle()) {
+					final StorageRecord<String> restored = readHandle.execute(
+						input -> StorageRecord.read(
+							input, location, (in, length, control) -> kryo.readObject(in, String.class)
+						)
+					);
+					assertEquals(record, restored);
+				}
+			}
+		}
 	}
 
 	@Nested
@@ -353,7 +410,6 @@ class WriteOnlyFileHandleTest implements EvitaTestSupport {
 
 			try (
 				ObservableOutputKeeper shortTimeoutKeeper = new ObservableOutputKeeper(
-					StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE,
 					1,  // 1 second lock timeout
 					5,
 					Mockito.mock(Scheduler.class)
@@ -411,7 +467,6 @@ class WriteOnlyFileHandleTest implements EvitaTestSupport {
 
 			try (
 				ObservableOutputKeeper shortTimeoutKeeper = new ObservableOutputKeeper(
-					StorageOptions.DEFAULT_OUTPUT_BUFFER_SIZE,
 					1,  // 1 second lock timeout
 					5,
 					Mockito.mock(Scheduler.class)

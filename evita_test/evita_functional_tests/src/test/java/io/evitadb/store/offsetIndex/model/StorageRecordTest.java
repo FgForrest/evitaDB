@@ -37,6 +37,7 @@ import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.compression.ZipCompressionFactory;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
+import io.evitadb.store.kryo.ObservableOutputBufferPool;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.store.offsetIndex.model.StorageRecord.RawRecord;
 import io.evitadb.store.offsetIndex.model.StorageRecord.StorageRecordWithChecksum;
@@ -50,6 +51,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.ParameterizedClass;
+import org.junit.jupiter.params.Parameter;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import io.evitadb.roaringbitmap.PersistentLongRoaringBitmap;
@@ -78,6 +82,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
+import java.util.zip.Deflater;
 import org.junit.jupiter.api.Tag;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -94,7 +99,11 @@ import static io.evitadb.test.TestTags.MANAGEMENT;
 @SuppressWarnings({"SameParameterValue", "ResultOfMethodCallIgnored"})
 @Tag(STORAGE)
 @Tag(MANAGEMENT)
+@ParameterizedClass(name = "pooled={0}")
+@ValueSource(booleans = {false, true})
 class StorageRecordTest {
+	/** Runs every writer scenario with owned and borrowed frame buffers. */
+	@Parameter boolean pooled;
 	private final Random random = new Random();
 	private File tempFile;
 	private Kryo kryo;
@@ -124,24 +133,20 @@ class StorageRecordTest {
 	 * @return the configured ObservableOutput
 	 */
 	@Nonnull
-	private static <T extends OutputStream> ObservableOutput<T> createOutput(
+	private <T extends OutputStream> ObservableOutput<T> createOutput(
 		@Nonnull T outputStream,
 		int bufferSize,
 		int currentFileSize,
 		@Nonnull ChecksumCheck checksumCheck,
 		@Nonnull Compression compression
 	) {
-		return new ObservableOutput<>(
-			outputStream,
-			bufferSize,
-			currentFileSize,
-			checksumCheck == ChecksumCheck.YES ?
-				new Crc32CChecksum() : Checksum.NO_OP,
-			(compression == Compression.YES ?
-				new ZipCompressionFactory() : CompressionFactory.NO_COMPRESSION)
-				.createCompressor()
-				.orElse(null)
-		);
+		final Checksum checksum = checksumCheck == ChecksumCheck.YES ? new Crc32CChecksum() : Checksum.NO_OP;
+		final Deflater deflater = (compression == Compression.YES ?
+			new ZipCompressionFactory() : CompressionFactory.NO_COMPRESSION).createCompressor().orElse(null);
+		return this.pooled ?
+			new ObservableOutput<>(
+				outputStream, bufferSize, currentFileSize, checksum, deflater, ObservableOutputBufferPool.INSTANCE
+			) : new ObservableOutput<>(outputStream, bufferSize, currentFileSize, checksum, deflater);
 	}
 
 	/**
@@ -410,10 +415,8 @@ class StorageRecordTest {
 		void shouldWriteRecordWithoutCrc32CheckAndReadAvoidingCrc32EvenIfRequested() throws IOException {
 			final StorageRecord<ByteChunk> record;
 			try (
-				final ObservableOutput<?> output = new ObservableOutput<>(
-					new FileOutputStream(StorageRecordTest.this.tempFile), 16_384, 0,
-					Checksum.NO_OP,
-					null
+				final ObservableOutput<?> output = createOutput(
+					new FileOutputStream(StorageRecordTest.this.tempFile), 16_384, 0, ChecksumCheck.NO, Compression.NO
 				)
 			) {
 				record = new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, false, generateBytes(256));
@@ -444,10 +447,8 @@ class StorageRecordTest {
 		void shouldWriteAndReadRecordWithComputingButNotVerifyingCrc32Check() throws IOException {
 			final StorageRecord<ByteChunk> record;
 			try (
-				final ObservableOutput<?> output = new ObservableOutput<>(
-					new FileOutputStream(StorageRecordTest.this.tempFile), 16_384, 0,
-					Crc32CChecksumFactory.INSTANCE.createChecksum(),
-					null
+				final ObservableOutput<?> output = createOutput(
+					new FileOutputStream(StorageRecordTest.this.tempFile), 16_384, 0, ChecksumCheck.YES, Compression.NO
 				)
 			) {
 				record = new StorageRecord<>(StorageRecordTest.this.kryo, output, 1L, false, generateBytes(256));

@@ -102,9 +102,7 @@ public class OffsetIndexStoragePartPersistenceService implements StoragePartPers
 	 */
 	@Nonnull protected final CatalogOffHeapMemoryManager offHeapMemoryManager;
 	/**
-	 * This instance keeps references to the {@link ObservableOutput} instances that internally keep large buffers in
-	 * {@link ObservableOutput#getBuffer()} to use them for serialization. There buffers are not necessary when there are
-	 * no updates to the catalog / collection, so it's wise to get rid of them if there is no actual need.
+	 * Caches file outputs with open streams, closing them after inactivity. Frame buffers are borrowed only while writing.
 	 */
 	@Nonnull protected final ObservableOutputKeeper observableOutputKeeper;
 	/**

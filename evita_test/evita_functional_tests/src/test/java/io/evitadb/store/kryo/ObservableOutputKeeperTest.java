@@ -24,188 +24,113 @@
 package io.evitadb.store.kryo;
 
 import io.evitadb.core.executor.Scheduler;
-import io.evitadb.store.checksum.ChecksumFactory;
-import io.evitadb.store.offsetIndex.io.CatalogOffHeapMemoryManager;
-import io.evitadb.store.offsetIndex.io.OffHeapMemoryOutputStream;
-import io.evitadb.test.TestConstants;
+import io.evitadb.store.checksum.Checksum;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
 
 import javax.annotation.Nonnull;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import org.junit.jupiter.api.Tag;
+import java.nio.file.Path;
+import java.util.Map;
 
 import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.test.TestTags.STORAGE;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * This test verifies the keyless off-heap {@link ObservableOutput} free-list maintained by
- * {@link ObservableOutputKeeper}: borrowing falls back to the caller-supplied factory when the free-list is
- * empty, recycled instances are handed out (rebound to the new stream) instead of allocating fresh ones, and
- * the free-list is dropped both on idle eviction and on {@link ObservableOutputKeeper#close()}.
+ * Verifies that the keeper caches and expires file streams while frame buffers belong to the shared pool.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2023
  */
-@DisplayName("ObservableOutputKeeper off-heap free-list functionality")
+@DisplayName("ObservableOutputKeeper file stream cache")
 @Tag(STORAGE)
 @Tag(MANAGEMENT)
 class ObservableOutputKeeperTest {
-	/**
-	 * Size of the buffer of the off-heap outputs the tests borrow and recycle, in bytes.
-	 */
-	private static final int OUTPUT_BUFFER_SIZE = 16_384;
-
+	@TempDir private Path directory;
 	private final ObservableOutputKeeper keeper = ObservableOutputKeeper._internalBuild(Mockito.mock(Scheduler.class));
-	private final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
-		TestConstants.TEST_CATALOG, 65_536, 4, ChecksumFactory.NO_OP
-	);
 
+	/** Closes any remaining cached streams. */
 	@AfterEach
 	void tearDown() {
 		this.keeper.close();
-		this.memoryManager.close();
 	}
 
-	@Test
-	@DisplayName("Should construct a fresh output via the factory when the free-list is empty")
-	void shouldConstructFreshOutputWhenFreeListEmpty() {
-		final AtomicInteger createCount = new AtomicInteger();
-		final OffHeapMemoryOutputStream stream = acquireStream();
-		final ObservableOutput<OffHeapMemoryOutputStream> created = newObservableOutput(stream);
+	/** File streams remain cached independently of borrowed arrays. */
+	@Nested
+	@DisplayName("File stream lifecycle")
+	class FileStreams {
+		/** Reuses the stream after returning its frame buffer. */
+		@Test
+		@DisplayName("Should cache a detached output between leases")
+		void shouldCacheDetachedOutputBetweenLeases() {
+			final Path path = directory.resolve("data.bin");
+			final ObservableOutput<?> first = keeper.executeWithOutput(path, ObservableOutputKeeperTest.this::createOutput,
+				output -> {
+					output.writeInt(123);
+					output.flush();
+					return output;
+				});
+			assertEquals(0, first.getBuffer().length);
+			keeper.executeWithOutput(path, ObservableOutputKeeperTest.this::createOutput, output -> {
+				assertSame(first, output);
+			});
+		}
 
-		final ObservableOutput<OffHeapMemoryOutputStream> output = this.keeper.borrowOffHeapOutput(
-			stream,
-			() -> {
-				createCount.incrementAndGet();
-				return created;
-			}
-		);
+		/** Closing one path releases its stream and the next lease opens a fresh one. */
+		@Test
+		@DisplayName("Should close a cached stream explicitly")
+		void shouldCloseCachedStreamExplicitly() {
+			final Path path = directory.resolve("data.bin");
+			final ObservableOutput<FileOutputStream> first = keeper.executeWithOutput(
+				path, ObservableOutputKeeperTest.this::createOutput, output -> output
+			);
+			keeper.close(path);
+			assertFalse(first.getOutputStream().getChannel().isOpen());
+			keeper.executeWithOutput(path, ObservableOutputKeeperTest.this::createOutput, output -> {
+				assertNotSame(first, output);
+			});
+		}
 
-		assertNotNull(output);
-		assertEquals(1, createCount.get());
-		assertSame(created, output, "an empty free-list must hand back the factory-produced instance");
-		assertEquals(0, getFreeListSize(), "constructing a fresh output must leave the free-list empty");
-	}
-
-	@Test
-	@DisplayName("Should hand out a recycled instance instead of invoking the factory")
-	void shouldReuseRecycledInstance() {
-		final OffHeapMemoryOutputStream streamA = acquireStream();
-		final ObservableOutput<OffHeapMemoryOutputStream> instance = newObservableOutput(streamA);
-		this.keeper.recycleOffHeapOutput(instance);
-		assertEquals(1, getFreeListSize());
-
-		final OffHeapMemoryOutputStream streamB = acquireStream();
-		final AtomicInteger createCount = new AtomicInteger();
-		final ObservableOutput<OffHeapMemoryOutputStream> borrowed = this.keeper.borrowOffHeapOutput(
-			streamB,
-			() -> {
-				createCount.incrementAndGet();
-				return newObservableOutput(streamB);
-			}
-		);
-
-		assertSame(instance, borrowed, "the recycled instance must be returned instead of a fresh one");
-		assertEquals(0, createCount.get(), "the factory must not run when a recycled instance is available");
-		assertEquals(0, getFreeListSize(), "the borrow must drain the free-list");
-		assertSame(streamB, borrowed.getOutputStream(), "the recycled instance must be rebound to the new stream");
-	}
-
-	@Test
-	@DisplayName("Should evict the free-list once it has been idle past the inactivity threshold")
-	void shouldEvictFreeListAfterInactivity() throws ReflectiveOperationException {
-		this.keeper.recycleOffHeapOutput(newObservableOutput(acquireStream()));
-		assertEquals(1, getFreeListSize());
-
-		// simulate the free-list having been untouched for longer than the 5-minute inactivity threshold
-		setLastOffHeapActivityTime(System.currentTimeMillis() - 400_000L);
-		invokeCutOutputCache();
-
-		assertEquals(0, getFreeListSize(), "an idle free-list must be dropped");
-	}
-
-	@Test
-	@DisplayName("Should not evict the free-list while it is still within the inactivity threshold")
-	void shouldNotEvictFreeListWhileActive() throws ReflectiveOperationException {
-		this.keeper.recycleOffHeapOutput(newObservableOutput(acquireStream()));
-		assertEquals(1, getFreeListSize());
-
-		invokeCutOutputCache();
-
-		assertEquals(1, getFreeListSize(), "a recently-touched free-list must survive a cut cycle");
-	}
-
-	@Test
-	@DisplayName("Should refresh the inactivity timestamp when an output is recycled")
-	void shouldRefreshInactivityTimestampOnRecycle() throws ReflectiveOperationException {
-		// back-date the pool's activity timestamp well past the inactivity threshold
-		setLastOffHeapActivityTime(System.currentTimeMillis() - 400_000L);
-
-		// recycling must re-stamp the timestamp to "now" so the freshly recycled instance is protected
-		this.keeper.recycleOffHeapOutput(newObservableOutput(acquireStream()));
-		assertEquals(1, getFreeListSize());
-
-		invokeCutOutputCache();
-
-		assertEquals(
-			1, getFreeListSize(),
-			"recycle must refresh the activity timestamp so the recycled instance survives the next cut cycle"
-		);
-	}
-
-	@Test
-	@DisplayName("Should clear the free-list on close")
-	void shouldClearFreeListOnClose() {
-		this.keeper.recycleOffHeapOutput(newObservableOutput(acquireStream()));
-		assertEquals(1, getFreeListSize());
-
-		this.keeper.close();
-
-		assertEquals(0, getFreeListSize());
-	}
-
-	@Nonnull
-	private OffHeapMemoryOutputStream acquireStream() {
-		return this.memoryManager.acquireRegionOutputStream().orElseThrow();
-	}
-
-	@Nonnull
-	private static ObservableOutput<OffHeapMemoryOutputStream> newObservableOutput(@Nonnull OffHeapMemoryOutputStream stream) {
-		final ObservableOutput<OffHeapMemoryOutputStream> output = new ObservableOutput<>(
-			stream, OUTPUT_BUFFER_SIZE, 0, ChecksumFactory.NO_OP.createChecksum(), null
-		);
-		output.markCumulativeChecksumStart();
-		return output;
-	}
-
-	private int getFreeListSize() {
-		try {
-			final Field field = ObservableOutputKeeper.class.getDeclaredField("freeOffHeapOutputs");
-			field.setAccessible(true);
-			return ((ConcurrentLinkedDeque<?>) field.get(this.keeper)).size();
-		} catch (ReflectiveOperationException e) {
-			throw new IllegalStateException(e);
+		/** An expired stream is closed by the scheduled cache-cut operation. */
+		@Test
+		@DisplayName("Should close inactive streams")
+		void shouldCloseInactiveStreams() throws ReflectiveOperationException {
+			final Path path = directory.resolve("data.bin");
+			final ObservableOutput<FileOutputStream> output = keeper.executeWithOutput(
+				path, ObservableOutputKeeperTest.this::createOutput, stream -> stream
+			);
+			final Field cache = ObservableOutputKeeper.class.getDeclaredField("cachedOutputToFiles");
+			cache.setAccessible(true);
+			final Object entry = ((Map<?, ?>) cache.get(keeper)).get(path);
+			final Field touched = entry.getClass().getDeclaredField("lastReadTime");
+			touched.setAccessible(true);
+			touched.setLong(entry, System.currentTimeMillis() - 400_000L);
+			final Method cut = ObservableOutputKeeper.class.getDeclaredMethod("cutOutputCache");
+			cut.setAccessible(true);
+			assertEquals(-1L, cut.invoke(keeper));
+			assertFalse(output.getOutputStream().getChannel().isOpen());
 		}
 	}
 
-	private void setLastOffHeapActivityTime(long value) throws ReflectiveOperationException {
-		final Field field = ObservableOutputKeeper.class.getDeclaredField("lastOffHeapActivityTime");
-		field.setAccessible(true);
-		((AtomicLong) field.get(this.keeper)).set(value);
-	}
-
-	private void invokeCutOutputCache() throws ReflectiveOperationException {
-		final Method method = ObservableOutputKeeper.class.getDeclaredMethod("cutOutputCache");
-		method.setAccessible(true);
-		method.invoke(this.keeper);
+	/** Opens a pooled file output for the cache's production factory contract. */
+	@Nonnull
+	private ObservableOutput<FileOutputStream> createOutput(@Nonnull Path path) {
+		try {
+			return new ObservableOutput<>(
+				new FileOutputStream(path.toFile(), true), 1024, 0, Checksum.NO_OP, null,
+				ObservableOutputBufferPool.INSTANCE
+			);
+		} catch (IOException exception) {
+			throw new UncheckedIOException(exception);
+		}
 	}
 }

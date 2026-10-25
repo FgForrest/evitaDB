@@ -31,6 +31,7 @@ import io.evitadb.store.checksum.ChecksumFactory;
 import io.evitadb.store.compression.CompressionFactory;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
+import io.evitadb.store.kryo.ObservableOutputBufferPool;
 import io.evitadb.store.offsetIndex.OffsetIndex.FileOffsetIndexStatistics;
 import io.evitadb.store.offsetIndex.exception.CorruptedRecordException;
 import io.evitadb.store.offsetIndex.exception.IncompleteSerializationException;
@@ -255,7 +256,8 @@ public class OffsetIndexSerializationService {
 			outputBufferSize,
 			0,
 			checksumFactory.createChecksum(),
-			compressionFactory.createCompressor().orElse(null)
+			compressionFactory.createCompressor().orElse(null),
+			ObservableOutputBufferPool.INSTANCE
 		);
 		// the registry resolves the exact living data set as of catalogVersion, so each entry already carries the
 		// location valid for that version - no per-key historical reconstruction is needed

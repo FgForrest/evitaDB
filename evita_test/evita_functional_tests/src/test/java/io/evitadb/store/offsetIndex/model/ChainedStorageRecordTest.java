@@ -32,6 +32,7 @@ import io.evitadb.store.checksum.Crc32CChecksum;
 import io.evitadb.store.compression.ZipCompressionFactory;
 import io.evitadb.store.kryo.ObservableInput;
 import io.evitadb.store.kryo.ObservableOutput;
+import io.evitadb.store.kryo.ObservableOutputBufferPool;
 import io.evitadb.stream.RandomAccessFileInputStream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -39,6 +40,9 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.ParameterizedClass;
+import org.junit.jupiter.params.Parameter;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -59,6 +63,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Random;
 import java.util.stream.Stream;
+import java.util.zip.Deflater;
 import java.util.zip.DataFormatException;
 import java.util.zip.Inflater;
 
@@ -84,7 +89,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @DisplayName("Storage record chained over several physical records")
 @Tag(STORAGE)
 @Tag(SERIALIZATION)
+@ParameterizedClass(name = "pooled={0}")
+@ValueSource(booleans = {false, true})
 class ChainedStorageRecordTest {
+	/** Runs every writer scenario with owned and borrowed frame buffers. */
+	@Parameter boolean pooled;
 	/**
 	 * Size of the header a physical record starts with: length (4), control byte (1) and generation id (8).
 	 */
@@ -256,12 +265,13 @@ class ChainedStorageRecordTest {
 		int writerBufferSize,
 		boolean compression
 	) throws IOException {
-		try (
-			final ObservableOutput<FileOutputStream> output = new ObservableOutput<>(
-				new FileOutputStream(file), writerBufferSize, 0, new Crc32CChecksum(),
-				compression ? new ZipCompressionFactory().createCompressor().orElseThrow() : null
-			)
-		) {
+		final FileOutputStream stream = new FileOutputStream(file);
+		final Deflater deflater = compression ?
+			new ZipCompressionFactory().createCompressor().orElseThrow() : null;
+		try (final ObservableOutput<FileOutputStream> output = this.pooled ?
+			new ObservableOutput<>(
+				stream, writerBufferSize, 0, new Crc32CChecksum(), deflater, ObservableOutputBufferPool.INSTANCE
+			) : new ObservableOutput<>(stream, writerBufferSize, 0, new Crc32CChecksum(), deflater)) {
 			return new StorageRecord<>(this.kryo, output, 1L, true, values);
 		}
 	}
