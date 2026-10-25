@@ -56,10 +56,13 @@ import java.util.zip.Deflater;
  * `writeBytes`, `writeString` or `writeAscii` is never split across frames and must fit into one frame.
  *
  * Outputs created with an {@link ObservableOutputBufferPool} borrow an exact-size buffer when they first need to
- * write bytes and return it after the completed frame is appended; between frames they hold only an empty array.
- * Continuation frames keep the same buffer for the whole record; compression scratch space is borrowed just while
- * finishing each frame. Flush, reset and close also return buffers when no unfinished frame needs them. Outputs
- * created without a pool own their buffers for their whole life.
+ * write bytes and retain it while a frame is open or raw bytes are pending. Appending a completed frame returns
+ * the buffer, except that continuation frames keep the same buffer for the whole record. Compression scratch
+ * space is borrowed only during frame completion and returned before that call ends. Flush returns the assembly
+ * buffer when no unfinished frame or pending bytes need it; reset and close discard unfinished bytes and return
+ * the buffer. Outputs created without a pool own their buffers for their whole life.
+ * Discarding a pooled output while it holds a borrowed array without calling {@link #close()} leaves that array
+ * counted by the pool even after garbage collection reclaims it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -823,6 +826,11 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 * Flushes completed bytes, always closes the underlying stream, abandons any pending frame or raw bytes and
 	 * returns pooled arrays. The exclusively owned compressor is ended even if flushing or stream closure fails.
 	 * Closing is terminal and repeated calls do nothing.
+	 *
+	 * A pooled output holds its assembly array while a frame is open (including a record's continuation frames)
+	 * or raw bytes remain pending. Compression scratch space is borrowed only during frame completion and returned
+	 * before that call ends. Discarding an output that still holds a borrowed array without closing it leaves the
+	 * array counted by the pool even after garbage collection reclaims it.
 	 *
 	 * @throws KryoException if flushing or closing fails; the first failure is rethrown with later failures suppressed
 	 */

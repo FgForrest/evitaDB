@@ -41,6 +41,9 @@ import javax.annotation.concurrent.ThreadSafe;
  * in favor of the returned array so changing the configured size can warm up without retaining obsolete sizes.
  * JFR events fire only on array allocation or eviction, never on reuse.
  *
+ * Counters cover arrays this pool allocated and has not dropped, both borrowed and idle. An array its borrower
+ * never returns stays counted even after garbage collection reclaims it, so the counters then overstate memory.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
 @ThreadSafe
