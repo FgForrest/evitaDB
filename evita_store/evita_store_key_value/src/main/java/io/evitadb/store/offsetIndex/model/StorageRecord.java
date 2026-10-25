@@ -855,7 +855,8 @@ public record StorageRecord<T>(
 	 * @param payloadWriter    The payload writer function that writes the payload to the output stream.
 	 * @param <T>              The type of the payload.
 	 * @param <OS>             The type of the output stream.
-	 * @return A {@link PayloadWithFileLocation} object containing the payload and file location of the written record.
+	 * @return payload and physical location spanning every continuation frame of the written record
+	 * @throws com.esotericsoftware.kryo.KryoException if payload serialization or appending a frame fails
 	 */
 	@Nonnull
 	private static <T, OS extends OutputStream> PayloadWithFileLocation<T> writeRecord(
@@ -876,7 +877,9 @@ public record StorageRecord<T>(
 				final FileLocation theFileLocation = output.markEnd(
 					setBit((byte) 0, GENERATION_CLOSING_BIT, closesGeneration));
 				// return both
-				return new PayloadWithFileLocation<>(thePayload, theFileLocation);
+				return new PayloadWithFileLocation<>(
+					thePayload, recordLocations.get().computeOverallFileLocation(theFileLocation)
+				);
 			}
 		);
 	}

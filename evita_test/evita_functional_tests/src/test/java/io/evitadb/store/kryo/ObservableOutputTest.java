@@ -200,7 +200,8 @@ public class ObservableOutputTest {
 				pooled.markCumulativeChecksumStart();
 				for (int record = 0; record < 3; record++) {
 					for (ObservableOutput<ByteArrayOutputStream> output : List.of(owned, pooled)) {
-						new StorageRecord<>(output, 1L, false, out -> {
+						final long start = output.getWrittenBytesSinceReset();
+						final StorageRecord<Integer> written = new StorageRecord<>(output, 1L, false, out -> {
 							final byte[] buffer = out.getBuffer();
 							for (int i = 0; i < 30; i++) {
 								out.writeInt(i);
@@ -209,6 +210,8 @@ public class ObservableOutputTest {
 							}
 							return 1;
 						});
+						assertEquals(start, written.fileLocation().startingPosition());
+						assertEquals(output.getWrittenBytesSinceReset() - start, written.fileLocation().recordLength());
 					}
 					assertEquals(0, pooled.getBuffer().length);
 				}

@@ -1183,7 +1183,11 @@ class StorageRecordTest {
 	class StreamingCopyTests {
 
 		/**
-		 * Compares every copied byte, including CRC tails and continuation flags, allowing only generation changes.
+		 * Asserts the returned location spans every frame, then compares every copied byte, including CRC tails
+		 * and continuation flags, allowing only generation changes.
+		 *
+		 * @param checksumCheck whether source and copied frames include checksums
+		 * @param compression whether payloads are compressed
 		 */
 		@ParameterizedTest
 		@MethodSource("io.evitadb.store.offsetIndex.model.StorageRecordTest#combineSettings")
@@ -1198,16 +1202,18 @@ class StorageRecordTest {
 				for (int i = 0; i < sizes.length; i++) {
 					final int size = sizes[i];
 					final long start = output.getWrittenBytesSinceReset();
-					new StorageRecord<>(output, 1L, i == sizes.length - 1, theOutput -> {
-						for (int j = 0; j < size; j++) {
-							theOutput.writeByte((byte) (j % 7));
+					final StorageRecord<Integer> record = new StorageRecord<>(
+						output, 1L, i == sizes.length - 1, theOutput -> {
+							for (int j = 0; j < size; j++) {
+								theOutput.writeByte((byte) (j % 7));
+							}
+							return size;
 						}
-						return size;
-					});
-					// This low-level writer reports only its final frame; measure the complete source span instead.
-					locations[i] = new FileLocation(
-						start, Math.toIntExact(output.getWrittenBytesSinceReset() - start)
 					);
+					locations[i] = record.fileLocation();
+					assertEquals(new FileLocation(
+						start, Math.toIntExact(output.getWrittenBytesSinceReset() - start)
+					), locations[i]);
 				}
 			}
 			final ByteArrayOutputStream target = new ByteArrayOutputStream();
