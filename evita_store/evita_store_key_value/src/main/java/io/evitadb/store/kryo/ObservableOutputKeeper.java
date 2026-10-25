@@ -23,7 +23,6 @@
 
 package io.evitadb.store.kryo;
 
-import io.evitadb.api.EvitaSessionContract;
 import io.evitadb.api.configuration.StorageOptions;
 import io.evitadb.core.executor.DelayedAsyncTask;
 import io.evitadb.core.executor.Scheduler;
@@ -54,18 +53,14 @@ import java.util.function.Supplier;
 import static java.util.Optional.ofNullable;
 
 /**
- * This instance keeps references to the {@link ObservableOutput} instances that internally keep large buffers in
- * {@link ObservableOutput#getBuffer()} to use them for serialization. These buffers are not necessary when there are
- * no updates to the catalog / collection, so it's wise to get rid of them if there is no actual need.
+ * Caches {@link ObservableOutput} instances and their large serialization buffers for reuse by target file path.
+ * The scheduled cut task closes each cached file output after its file has not been used for
+ * {@link #CUT_OUTPUTS_AFTER_INACTIVITY_MS}, provided the output is not currently leased. Cached file outputs are
+ * also closed explicitly by {@link #close(Path)} or {@link #close()}.
  *
- * The need is determined by the number of opened read write {@link EvitaSessionContract} to the catalog. If there
- * is at least one opened read-write session we need to keep those outputs around. When there are only read sessions we
- * don't need the outputs.
- *
- * Besides that path-keyed cache, this instance also maintains a keyless free-list of recyclable off-heap WAL
- * {@link ObservableOutput} instances ({@link #freeOffHeapOutputs}) via {@link #borrowOffHeapOutput} /
- * {@link #recycleOffHeapOutput}, whose buffers are reclaimed in bulk on inactivity ({@link #cutOutputCache}) and on
- * {@link #close()} - i.e. its lifecycle is timer-driven rather than tied to the read-write-session count described above.
+ * A keyless free-list holds recyclable off-heap WAL outputs via {@link #borrowOffHeapOutput} and
+ * {@link #recycleOffHeapOutput}. The scheduled cut task clears this free-list once neither method has been called
+ * for the same inactivity period. {@link #close()} clears it as well.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
