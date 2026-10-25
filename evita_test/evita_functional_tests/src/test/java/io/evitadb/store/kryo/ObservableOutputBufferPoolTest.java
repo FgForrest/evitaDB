@@ -44,6 +44,7 @@ import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
@@ -301,11 +302,12 @@ class ObservableOutputBufferPoolTest {
 		}
 
 		/**
-		 * Reads events from this test's private pool, used synchronously only by the current test thread.
+		 * Reads events in commit order from this test's private pool, used synchronously by the current test thread.
 		 * Recordings also capture other pools in the JVM; disabling stack traces still retains the event thread.
+		 * JFR file order can place an earlier allocation after the final eviction, even on one thread.
 		 *
 		 * @param recordingPath recording to read
-		 * @return pool events committed by the current test thread
+		 * @return pool events committed by the current test thread, ordered by commit time
 		 * @throws IOException if the recording cannot be read
 		 */
 		@Nonnull
@@ -316,6 +318,7 @@ class ObservableOutputBufferPoolTest {
 			return RecordingFile.readAllEvents(recordingPath).stream()
 				.filter(event -> event.getEventType().getName().endsWith(".ObservableOutputChange"))
 				.filter(event -> event.getThread().getJavaThreadId() == threadId)
+				.sorted(Comparator.comparing(RecordedEvent::getEndTime))
 				.toList();
 		}
 	}
