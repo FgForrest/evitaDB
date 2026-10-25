@@ -32,30 +32,33 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchemaProvider;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaTypeMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaNormalizedMutation;
 import io.evitadb.dataType.Scope;
 import io.evitadb.test.Entities;
 import io.evitadb.utils.NamingConvention;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.math.BigDecimal;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import org.junit.jupiter.api.Tag;
 
+import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.*;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.CONTRACT;
+import static io.evitadb.test.TestTags.FULLTEXT;
+import static io.evitadb.test.TestTags.SCHEMA;
 import static java.util.Optional.empty;
 import static java.util.Optional.of;
 import static org.junit.jupiter.api.Assertions.*;
-import static io.evitadb.test.TestTags.CONTRACT;
-import static io.evitadb.test.TestTags.SCHEMA;
-import static io.evitadb.test.TestTags.ATTRIBUTE;
-import static io.evitadb.test.TestTags.FULLTEXT;
 
 /**
  * Tests for {@link io.evitadb.api.requestResponse.schema.builder.AttributeSchemaBuilder},
@@ -2425,4 +2428,100 @@ class AttributeSchemaBuilderTest {
 			);
 		}
 	}
+
+	/** Tests the scope-independent normalization axis on each builder location. */
+	@Nested
+	@DisplayName("Attribute normalization")
+	class Normalization {
+
+		/** Builder operations produce statements and unrelated operations must preserve their result. */
+		@Test
+		@DisplayName("Entity attribute builder emits normalization and preserves it through unrelated changes")
+		void shouldEmitNormalizationAndKeepItAcrossChanges() {
+			final EntitySchemaBuilder builder = createEntitySchemaBuilder().withAttribute(
+				"code", String.class, attribute -> {
+					attribute.normalized(lowercase(), trim());
+					attribute.withDescription("description").nullable().filterable();
+				}
+			);
+			assertTrue(Arrays.stream(builder.toMutation().orElseThrow().getSchemaMutations())
+				.anyMatch(SetAttributeSchemaNormalizedMutation.class::isInstance));
+			assertEquals(List.of(lowercase(), trim()), builder.toInstance()
+				.getAttribute("code").orElseThrow().getNormalization());
+			builder.withAttribute("code", String.class, attribute -> attribute.normalized());
+			assertTrue(builder.toInstance()
+				.getAttribute("code").orElseThrow().getNormalization().isEmpty());
+		}
+
+		/** A conditional declaration replaces the complete axis or clears it. */
+		@Test
+		@DisplayName("Conditional normalization applies or removes the complete list")
+		void shouldApplyConditionalNormalization() {
+			final EntitySchemaBuilder builder = createEntitySchemaBuilder().withAttribute(
+				"code", String.class, attribute -> attribute.normalized(() -> true, lowercase())
+			);
+			assertEquals(List.of(lowercase()), builder.toInstance()
+				.getAttribute("code").orElseThrow().getNormalization());
+			builder.withAttribute("code", String.class, attribute -> attribute.normalized(() -> false, trim()));
+			assertTrue(builder.toInstance()
+				.getAttribute("code").orElseThrow().getNormalization().isEmpty());
+		}
+
+		/** Reference attributes use the same steps independently of reference indexing. */
+		@Test
+		@DisplayName("Reference attributes and string arrays accept normalization")
+		void shouldNormalizeReferenceStringArrays() {
+			final EntitySchemaContract schema = createEntitySchemaBuilder().withReferenceTo(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				reference -> reference.withAttribute("codes", String[].class, attribute ->
+					attribute.normalized(lowercase(), removeCharacters("- ")).withDescription("description"))
+			).toInstance();
+			assertEquals(List.of(lowercase(), removeCharacters("- ")), schema.getReference("brand").orElseThrow()
+				.getAttribute("codes").orElseThrow().getNormalization());
+		}
+
+		/** Catalog attributes inherit their normalization when used in entity schemas. */
+		@Test
+		@DisplayName("Global attributes retain normalization through catalog and entity conversions")
+		void shouldNormalizeGlobalAttributes() {
+			final CatalogSchemaContract catalog = createCatalogSchemaBuilder().withAttribute(
+				"code", String.class, attribute -> attribute.normalized(lowercase()).withDescription("description")
+			).toInstance();
+			assertEquals(List.of(lowercase()), catalog.getAttribute("code").orElseThrow().getNormalization());
+			final EntitySchemaContract entity = new InternalEntitySchemaBuilder(
+				catalog, AttributeSchemaBuilderTest.this.productSchema
+			)
+				.withGlobalAttribute("code").toInstance();
+			assertEquals(List.of(lowercase()), entity.getAttribute("code").orElseThrow().getNormalization());
+		}
+
+		/** The completed schema, rather than a single operation, decides whether the type is valid. */
+		@Test
+		@DisplayName("Completed schemas reject normalization on non-string entity, reference and global attributes")
+		void shouldRejectNormalizationOnNonStringAttributes() {
+			assertThrows(InvalidSchemaMutationException.class, () -> createEntitySchemaBuilder()
+				.withAttribute("code", Integer.class, attribute -> attribute.normalized(lowercase())).toInstance());
+			assertThrows(InvalidSchemaMutationException.class, () -> createCatalogSchemaBuilder()
+				.withAttribute("code", Integer.class, attribute -> attribute.normalized(lowercase())).toInstance());
+			assertThrows(InvalidSchemaMutationException.class, () -> createEntitySchemaBuilder().withReferenceTo(
+				"brand", Entities.BRAND, Cardinality.ZERO_OR_ONE,
+				reference -> reference.withAttribute(
+					"code", Integer.class, attribute -> attribute.normalized(lowercase())
+				)
+			).toInstance());
+		}
+
+		/** Clients describe custom steps without knowing the server's installed provider set. */
+		@Test
+		@DisplayName("Clients accept structurally valid custom step names")
+		void shouldAcceptCustomStepsWithoutServerKnowledge() {
+			assertEquals(List.of(step("custom", parameter("setting", "value"))), createEntitySchemaBuilder()
+				.withAttribute(
+					"code", String.class, attribute ->
+						attribute.normalized(step("custom", parameter("setting", "value")))
+				)
+				.toInstance().getAttribute("code").orElseThrow().getNormalization());
+		}
+	}
+
 }

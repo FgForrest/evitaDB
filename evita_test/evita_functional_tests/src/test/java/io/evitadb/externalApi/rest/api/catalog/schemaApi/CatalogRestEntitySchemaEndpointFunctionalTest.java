@@ -45,24 +45,27 @@ import io.evitadb.test.tester.RestTester;
 import io.evitadb.test.tester.RestTester.Request;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import java.util.List;
 import java.util.Map;
+
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ENTITY_EMPTY;
 import static io.evitadb.externalApi.rest.api.testSuite.TestDataGenerator.REST_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.REST;
+import static io.evitadb.test.TestTags.SCHEMA;
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static io.evitadb.test.TestTags.REST;
-import static io.evitadb.test.TestTags.EXTERNAL_API;
-import static io.evitadb.test.TestTags.QUERY;
-import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Functional tests for REST endpoints managing internal evitaDB entity schemas.
@@ -81,6 +84,85 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 	@DataSet(value = REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE, openWebApi = RestProvider.CODE, readOnly = false, destroyAfterClass = true)
 	protected DataCarrier setUp(Evita evita, EvitaServer evitaServer) {
 		return super.setUpData(evita, evitaServer, 20, false);
+	}
+
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	@UseDataSet(REST_THOUSAND_PRODUCTS_FOR_SCHEMA_UPDATE)
+	@DisplayName("round-trips typed normalization for entity and reference attributes")
+	void shouldRoundTripAttributeNormalization(boolean reference, RestTester tester) {
+		final String attributeName = reference ? "normalizedReferenceCode" : "normalizedEntityCode";
+		final String path = reference ? "references.normalizationTags.attributes." : "attributes.";
+		if (reference) {
+			tester.test(TEST_CATALOG).urlPathSuffix("/empty/schema").httpMethod(Request.METHOD_PUT)
+				.requestBody("""
+					{"mutations":[{"createReferenceSchemaMutation":{"name":"normalizationTags",
+					"referencedEntityType":"tag","referencedEntityTypeManaged":false,
+					"referencedGroupTypeManaged":false}}]}
+					""")
+				.executeAndExpectOkAndThen();
+		}
+		final String create = """
+			{"createAttributeSchemaMutation":{"name":"%s","type":"String",
+			"normalization":[{"removeCharacters":{"characters":"- "}},{"trim":true},
+			{"lowercase":true},{"asciiFolding":true}]}}
+			""".formatted(attributeName);
+		final List<Map<String, Object>> expected = List.of(
+			Map.of("step", "remove-characters", "parameters", Map.of("characters", "- ")),
+			Map.of("step", "trim", "parameters", Map.of()),
+			Map.of("step", "lowercase", "parameters", Map.of()),
+			Map.of("step", "ascii-folding", "parameters", Map.of())
+		);
+		tester.test(TEST_CATALOG).urlPathSuffix("/empty/schema").httpMethod(Request.METHOD_PUT)
+			.requestBody(wrapNormalizationMutation(reference, create))
+			.executeAndExpectOkAndThen().body(path + attributeName + ".normalization", equalTo(expected));
+		tester.test(TEST_CATALOG).urlPathSuffix("/empty/schema").httpMethod(Request.METHOD_GET)
+			.executeAndExpectOkAndThen().body(path + attributeName + ".normalization", equalTo(expected));
+
+		final String replacement = """
+			{"setAttributeSchemaNormalizedMutation":{"name":"%s","normalization":[{"lowercase":true}]}}
+			""".formatted(attributeName);
+		tester.test(TEST_CATALOG).urlPathSuffix("/empty/schema").httpMethod(Request.METHOD_PUT)
+			.requestBody(wrapNormalizationMutation(reference, replacement))
+			.executeAndExpectOkAndThen().body(path + attributeName + ".normalization",
+				equalTo(List.of(Map.of("step", "lowercase", "parameters", Map.of()))));
+		for (final String invalid : List.of(
+			"{}", "{\"lowercase\":null}", "{\"lowercase\":false}",
+			"{\"lowercase\":true,\"trim\":true}", "{\"removeCharacters\":{}}",
+			"{\"removeCharacters\":{\"characters\":4}}"
+		)) {
+			tester.test(TEST_CATALOG).urlPathSuffix("/empty/schema").httpMethod(Request.METHOD_PUT)
+				.requestBody(wrapNormalizationMutation(reference, """
+					{"setAttributeSchemaNormalizedMutation":{"name":"%s","normalization":[%s]}}
+					""".formatted(attributeName, invalid)))
+				.executeAndThen().statusCode(400);
+		}
+		for (final String withdrawal : List.of("\"normalization\":[]", "")) {
+			final String mutation = """
+				{"setAttributeSchemaNormalizedMutation":{"name":"%s"%s}}
+				""".formatted(attributeName, withdrawal.isEmpty() ? "" : "," + withdrawal);
+			tester.test(TEST_CATALOG).urlPathSuffix("/empty/schema").httpMethod(Request.METHOD_PUT)
+				.requestBody(wrapNormalizationMutation(reference, mutation))
+				.executeAndExpectOkAndThen().body(path + attributeName + ".normalization", equalTo(List.of()));
+		}
+		tester.test(TEST_CATALOG).urlPathSuffix("/empty/schema").httpMethod(Request.METHOD_PUT)
+			.requestBody(wrapNormalizationMutation(reference,
+				"{\"removeAttributeSchemaMutation\":{\"name\":\"" + attributeName + "\"}}"))
+			.executeAndExpectOkAndThen();
+		if (reference) {
+			tester.test(TEST_CATALOG).urlPathSuffix("/empty/schema").httpMethod(Request.METHOD_PUT)
+				.requestBody("{\"mutations\":[{\"removeReferenceSchemaMutation\":{\"name\":\"normalizationTags\"}}]}")
+				.executeAndExpectOkAndThen();
+		}
+	}
+
+	/** Wraps an attribute mutation in the reference envelope only for reference-owned attributes. */
+	@Nonnull
+	private static String wrapNormalizationMutation(boolean reference, @Nonnull String mutation) {
+		return reference ?
+			"{\"mutations\":[{\"modifyReferenceAttributeSchemaMutation\":{\"name\":\"normalizationTags\"," +
+				"\"attributeSchemaMutation\":" + mutation + "}}]}" :
+			"{\"mutations\":[" + mutation + "]}";
 	}
 
 	@Test
@@ -258,6 +340,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), createAttributeUniquenessTypeDto(AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION))
 						.e(AttributeSchemaDescriptor.FILTERABLE.name(), list().i(Scope.LIVE.name()))
 						.e(AttributeSchemaDescriptor.ACCELERATORS_IN_SCOPES.name(), list())
+						.e(AttributeSchemaDescriptor.NORMALIZATION.name(), list())
 						.e(AttributeSchemaDescriptor.SORTABLE.name(), list().i(Scope.LIVE.name()))
 						.e(AttributeSchemaDescriptor.LOCALIZED.name(), false)
 						.e(AttributeSchemaDescriptor.NULLABLE.name(), false)
@@ -311,6 +394,7 @@ class CatalogRestEntitySchemaEndpointFunctionalTest extends CatalogRestSchemaEnd
 						.e(AttributeSchemaDescriptor.UNIQUENESS_TYPE.name(), createAttributeUniquenessTypeDto(AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION))
 						.e(AttributeSchemaDescriptor.FILTERABLE.name(), list().i(Scope.LIVE.name()))
 						.e(AttributeSchemaDescriptor.ACCELERATORS_IN_SCOPES.name(), list())
+						.e(AttributeSchemaDescriptor.NORMALIZATION.name(), list())
 						.e(AttributeSchemaDescriptor.SORTABLE.name(), list().i(Scope.LIVE.name()))
 						.e(AttributeSchemaDescriptor.LOCALIZED.name(), false)
 						.e(AttributeSchemaDescriptor.NULLABLE.name(), false)

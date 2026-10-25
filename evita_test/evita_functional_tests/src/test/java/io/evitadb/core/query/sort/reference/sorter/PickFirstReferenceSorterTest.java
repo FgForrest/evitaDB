@@ -40,6 +40,7 @@ import io.evitadb.index.ReferencedTypeEntityIndex;
 import io.evitadb.index.VirtualReferencePartition;
 import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
+import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.attribute.SortedRecordsSupplier;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -797,7 +798,8 @@ class PickFirstReferenceSorterTest {
 		registry.declareSortKey(
 			VALUE_KEY,
 			new ComparatorSource[]{new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)},
-			0
+			0,
+			() -> SortIndex.createLegacyNormalizerFor(new ComparatorSource[]{new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)}, 0)
 		);
 	}
 

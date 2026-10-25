@@ -43,6 +43,7 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.AttributeScope;
 import io.evitadb.index.attribute.ChainIndex;
@@ -102,6 +103,7 @@ import java.util.ArrayList;
 import java.util.Currency;
 import java.util.EnumSet;
 import java.util.HashMap;
+
 import io.evitadb.utils.CollectionUtils;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 
@@ -221,7 +223,7 @@ class EntityIndexRoundTripTest {
 		@Nonnull String name, @Nonnull Class<? extends Serializable> type
 	) {
 		return AttributeSchema._internalBuild(
-			name,
+			name, null, null,
 			null,
 			new Scope[]{Scope.LIVE},
 			null,
@@ -229,7 +231,8 @@ class EntityIndexRoundTripTest {
 			null,
 			false, false, false,
 			type, null,
-			ConflictResolutionOverride.INHERITED
+			0, ConflictResolutionOverride.INHERITED,
+			null
 		);
 	}
 
@@ -451,9 +454,12 @@ class EntityIndexRoundTripTest {
 				final Class<?> attributeType = filterPart.getAttributeType();
 				final Class<?> plainType = attributeType.isArray() ? attributeType.getComponentType() : attributeType;
 				final InvertedIndex shared = new InvertedIndex(
+					Comparable.class,
 					filterPart.getHistogramPoints(),
 					FilterIndex.getNormalizer(plainType, 0),
-					FilterIndex.getComparator(attrKey, plainType)
+					FilterIndex.getNormalizer(plainType, 0),
+					FilterIndex.getComparator(attrKey, plainType),
+					0
 				);
 				sharedValueIndexes.put(attrKey, shared);
 				final RangeIndex rangeIndex = filterPart.getRangeIndex();
@@ -479,9 +485,17 @@ class EntityIndexRoundTripTest {
 					uniqueIndexes.put(
 						attrKey,
 						new OwnerUniqueIndex(
-							entityType, attrKey, uniquePart.getType(), 0,
+							entityType,
+							attrKey,
+							uniquePart.getType(),
+							0,
 							Objects.requireNonNull(uniquePart.getValues()),
-							Objects.requireNonNull(uniquePart.getRecordIds())
+							Objects.requireNonNull(uniquePart.getRecordIds()),
+							FilterIndex.getNormalizer(
+								uniquePart.getType().isArray()
+									? uniquePart.getType().getComponentType() : uniquePart.getType(),
+								0
+							)
 						)
 					);
 				}
@@ -504,7 +518,9 @@ class EntityIndexRoundTripTest {
 						sortPart.getValueCardinalities(),
 						sortViewMode
 							? () -> sharedValueIndexes.get(attrKey)
-							: null
+							: null,
+						SortIndex.createLegacyNormalizerFor(sortPart.getComparatorBase(), // the scale is no longer persisted; these round-trips index no BigDecimal attribute, so it is 0
+						0)
 					)
 				);
 			} else if (part instanceof ChainIndexStoragePart chainPart) {
@@ -521,10 +537,27 @@ class EntityIndexRoundTripTest {
 		}
 		return referenceScoped
 			? new ReferenceAttributeIndex(
-				entityType, referenceKey, uniqueIndexes, filterIndexes, uniqueViewIndexes, sortIndexes, chainIndexes, sharedValueIndexes, sharedRangeIndexes
+				entityType,
+				referenceKey,
+				uniqueIndexes,
+				filterIndexes,
+				uniqueViewIndexes,
+				sortIndexes,
+				chainIndexes,
+				sharedValueIndexes,
+				sharedRangeIndexes,
+				AttributeNormalizationResolver.LEGACY_NFD
 			)
 			: new EntityAttributeIndex(
-				entityType, uniqueIndexes, filterIndexes, uniqueViewIndexes, sortIndexes, chainIndexes, sharedValueIndexes, sharedRangeIndexes
+				entityType,
+				uniqueIndexes,
+				filterIndexes,
+				uniqueViewIndexes,
+				sortIndexes,
+				chainIndexes,
+				sharedValueIndexes,
+				sharedRangeIndexes,
+				AttributeNormalizationResolver.LEGACY_NFD
 			);
 	}
 
@@ -1025,7 +1058,7 @@ class EntityIndexRoundTripTest {
 			final EntityIndexKey key =
 				new EntityIndexKey(EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE, rrk);
 			final ReducedGroupEntityIndex index =
-				new ReducedGroupEntityIndex(INDEX_PK, ENTITY_TYPE, key);
+				new ReducedGroupEntityIndex(INDEX_PK, ENTITY_TYPE, key, true, AttributeNormalizationResolver.LEGACY_NFD);
 			// the 1-arg assertPartitioningIndex (used by addFacet / addPrice) inspects getReferenceIndexType
 			// (FOR_FILTERING_AND_PARTITIONING here); the reference name flows into AttributeIndex.createAttributeKey
 			// as the manifest discriminator

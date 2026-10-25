@@ -40,10 +40,10 @@ import io.evitadb.core.catalog.UnusableCatalog;
 import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.EntityAttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.range.RangeIndex;
-import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.VMLayout;
 import org.apache.commons.io.FileUtils;
 
@@ -125,7 +125,7 @@ public class AttributeIndexScaffoldingProbe {
 	 * allocated. The shape it reports is JOL-cross-checked by `EntityIndexHeapSizeTest`.
 	 */
 	private static final long EMPTY_ATTRIBUTE_INDEX_BYTES =
-		new EntityAttributeIndex("emptyAttributeIndexProbe").getHeapSizeInBytes();
+		new EntityAttributeIndex("emptyAttributeIndexProbe", AttributeNormalizationResolver.LEGACY_NFD).getHeapSizeInBytes();
 	/**
 	 * How long to wait for the catalog to finish its asynchronous load before giving up.
 	 */

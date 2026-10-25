@@ -228,7 +228,7 @@ public class InvertedIndex implements
 	 * primitive `long[]` column, one of the six concrete `Range` subtypes stores its two comparison bounds in a pair
 	 * of `long[]` columns, otherwise the universal boxed column is used.
 	 */
-	@Nonnull private final Class<?> plainType;
+	@Nonnull @Getter private final Class<?> plainType;
 	/**
 	 * The decimal-places scale this tree's `BigDecimal` keys are encoded at, frozen when the tree is created. The scale
 	 * is baked into {@link #normalizer} at construction (see `FilterIndex.getNormalizer`) and the tree is never
@@ -507,40 +507,6 @@ public class InvertedIndex implements
 	}
 
 	/**
-	 * Creates an inverted index rebuilt from persisted buckets, using the boxed key column. Kept for callers (the Kryo
-	 * deserializer) that have no attribute type at hand.
-	 *
-	 * @param buckets    the persisted buckets (unique & monotonic by value)
-	 * @param normalizer the value normalizer
-	 * @param comparator the value order
-	 */
-	public InvertedIndex(
-		@Nonnull ValueToRecordBitmap[] buckets,
-		@Nonnull Function<Object, Serializable> normalizer,
-		@Nonnull Comparator comparator
-	) {
-		this(Comparable.class, buckets, normalizer, comparator);
-	}
-
-	/**
-	 * Creates an inverted index rebuilt from persisted buckets, selecting the leaf key-column kind from the attribute's
-	 * plain type: an integral / temporal type under natural order stores its keys in a primitive `long[]` column.
-	 *
-	 * @param plainType  the plain (non-array) declared attribute type
-	 * @param buckets    the persisted buckets (unique & monotonic by value)
-	 * @param normalizer the value normalizer
-	 * @param comparator the value order
-	 */
-	public InvertedIndex(
-		@Nonnull Class<?> plainType,
-		@Nonnull ValueToRecordBitmap[] buckets,
-		@Nonnull Function<Object, Serializable> normalizer,
-		@Nonnull Comparator comparator
-	) {
-		this(plainType, buckets, normalizer, comparator, 0);
-	}
-
-	/**
 	 * Creates an inverted index rebuilt from persisted buckets, selecting the leaf key-column kind from the attribute's
 	 * plain type: an integral / temporal type under natural order stores its keys in a primitive `long[]` column. The
 	 * `indexedDecimalPlaces` scale is frozen into the index as the consistency witness described on
@@ -562,10 +528,13 @@ public class InvertedIndex implements
 	 * {@link #alignPersistedValueIds(ValueToRecordBitmap[], int[], Function, Comparator)}'s job, and it is the
 	 * caller's to invoke it; skipping it fails the load outright rather than mis-stamping.
 	 *
+	 * Re-canonicalizing here heals keys written by older versions and must use the legacy function only.
+	 *
 	 * @param plainType            the plain (non-array) declared attribute type
 	 * @param buckets              the persisted buckets (unique by value and monotonic; see above for the one way two
 	 *                             of them can still meet in a single tree key)
-	 * @param normalizer           the value normalizer
+	 * @param normalizer           the raw-input key function retained for writes and probes
+	 * @param legacyCanonicalizer  the legacy type-level canonicalizer of persisted keys
 	 * @param comparator           the value order
 	 * @param indexedDecimalPlaces decimal-places scale the `BigDecimal` keys are encoded at (0 for other types)
 	 */
@@ -573,6 +542,7 @@ public class InvertedIndex implements
 		@Nonnull Class<?> plainType,
 		@Nonnull ValueToRecordBitmap[] buckets,
 		@Nonnull Function<Object, Serializable> normalizer,
+		@Nonnull Function<Object, Serializable> legacyCanonicalizer,
 		@Nonnull Comparator comparator,
 		int indexedDecimalPlaces
 	) {
@@ -585,7 +555,7 @@ public class InvertedIndex implements
 		boolean collapsed = false;
 		for (final ValueToRecordBitmap bucket : buckets) {
 			final Bitmap recordIds = bucket.getRecordIds();
-			final Comparable value = (Comparable) normalizer.apply(bucket.getValue());
+			final Comparable value = (Comparable) legacyCanonicalizer.apply(bucket.getValue());
 			// the birth-reporting variant costs nothing over the plain one and is the exact signal that this persisted
 			// bucket joined one already in the tree - i.e. that two persisted values collapsed onto a single key
 			final int bornValueId;
@@ -666,6 +636,8 @@ public class InvertedIndex implements
 	 * strictly ascending under the comparison that type used *before* it moved to milliseconds. A twin fails that
 	 * test — its pages overlap under either comparison — and reaches the corruption diagnostics untouched.
 	 *
+	 * Re-canonicalizing here heals keys written by older versions and must use the legacy function only.
+	 *
 	 * @param plainType            the plain (non-array) declared attribute type
 	 * @param orderedPageSequences      the persisted leaf-page sequences in ascending key order (the root's leaf list)
 	 * @param perPageBuckets       the buckets of each leaf page, positionally aligned with `orderedPageSequences`
@@ -674,7 +646,8 @@ public class InvertedIndex implements
 	 *                             `null` when the tree carries no value ids at all — the column is an
 	 *                             all-or-nothing property of a generation, never present on some pages only
 	 * @param highWaterPageSequence     the persisted stream high-water (largest page sequence ever allocated)
-	 * @param normalizer           the value normalizer
+	 * @param normalizer           the raw-input function retained for writes and probes
+	 * @param legacyCanonicalizer  the legacy type-level canonicalizer of persisted keys
 	 * @param comparator           the value order
 	 * @param indexedDecimalPlaces the frozen decimal-places scale (0 for non-`BigDecimal` types)
 	 * @return the rebuilt, boundary-stable `PAGED` inverted index
@@ -688,6 +661,7 @@ public class InvertedIndex implements
 		@Nullable int[][] perPageValueIds,
 		int highWaterPageSequence,
 		@Nonnull Function<Object, Serializable> normalizer,
+		@Nonnull Function<Object, Serializable> legacyCanonicalizer,
 		@Nonnull Comparator comparator,
 		int indexedDecimalPlaces
 	) {
@@ -727,7 +701,7 @@ public class InvertedIndex implements
 			final ValueToRecord[] buckets = perPageBuckets[i];
 			final Object[] keys = new Object[buckets.length];
 			for (int j = 0; j < buckets.length; j++) {
-				final Comparable key = (Comparable) normalizer.apply(buckets[j].getValue());
+				final Comparable key = (Comparable) legacyCanonicalizer.apply(buckets[j].getValue());
 				keys[j] = key;
 				if (previousKey != null) {
 					final int comparison = comparator.compare(previousKey, key);
@@ -1422,9 +1396,11 @@ public class InvertedIndex implements
 	 * reached, a collision the re-ordering left non-adjacent would go unnoticed here and `installValueIdMinter` would
 	 * refuse the misaligned column rather than stamp the wrong id onto a value.
 	 *
+	 * Re-canonicalizing here heals keys written by older versions and must use the legacy function only.
+	 *
 	 * @param persistedBuckets  the buckets as they were written, in ascending key order
 	 * @param persistedValueIds the ids as they were written, one per persisted bucket
-	 * @param normalizer        the value normalizer of the index being restored
+	 * @param normalizer        the legacy canonicalizer of the index being restored
 	 * @param comparator        the value order of the index being restored
 	 * @return the ids of the buckets the rebuilt index holds — `persistedValueIds` itself when nothing collapsed
 	 */

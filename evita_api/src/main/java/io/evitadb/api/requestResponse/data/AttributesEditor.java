@@ -139,7 +139,8 @@ public interface AttributesEditor<W extends AttributesEditor<W, S>, S extends At
 				attributeValue.key().attributeName(),
 				Objects.requireNonNull(attributeValue.value()).getClass(),
 				attributeValue.key().localized(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null
 			);
 		}
 
@@ -153,7 +154,8 @@ public interface AttributesEditor<W extends AttributesEditor<W, S>, S extends At
 				attributeValue.key().attributeName(),
 				Objects.requireNonNull(attributeValue.value()).getClass(),
 				attributeValue.key().localized(),
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null
 			);
 		}
 

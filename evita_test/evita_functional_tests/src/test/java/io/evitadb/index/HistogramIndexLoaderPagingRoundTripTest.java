@@ -34,6 +34,7 @@ import io.evitadb.dataType.DateTimeRange;
 import io.evitadb.dataType.IntegerNumberRange;
 import io.evitadb.dataType.Scope;
 import io.evitadb.function.Functions;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.component.EntityIndexManifest;
@@ -1739,7 +1740,9 @@ class HistogramIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 			Map.of(),
 			service,
 			null,
-			ANALYZER_REGISTRY
+			true,
+			ANALYZER_REGISTRY,
+			AttributeNormalizationResolver.LEGACY_NFD
 		);
 	}
 

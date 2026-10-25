@@ -167,7 +167,8 @@ public final class OwnerFilterIndex extends FilterIndex implements VoidTransacti
 
 	/**
 	 * Telescoping helper that builds the owned {@link InvertedIndex} from persisted buckets and the already-derived
-	 * comparator / normalizer.
+	 * comparator / legacy canonicalizer.
+	 * Re-canonicalizing here heals keys written by older versions and must use the legacy function only.
 	 */
 	private OwnerFilterIndex(
 		@Nonnull AttributeIndexKey attributeIndexKey,
@@ -175,17 +176,18 @@ public final class OwnerFilterIndex extends FilterIndex implements VoidTransacti
 		@Nullable RangeIndex rangeIndex,
 		@Nonnull Class<?> attributeType,
 		int indexedDecimalPlaces,
-		@Nonnull Function<Object, Serializable> normalizer,
+		@Nonnull Function<Object, Serializable> legacyCanonicalizer,
 		@Nonnull Comparator<? extends Comparable> comparator
 	) {
 		this(
 			attributeIndexKey,
 			attributeType,
 			indexedDecimalPlaces,
-			new InvertedIndex(plainTypeOf(attributeType), valueToRecords, normalizer, comparator, indexedDecimalPlaces),
+			new InvertedIndex(plainTypeOf(attributeType), valueToRecords, legacyCanonicalizer, legacyCanonicalizer,
+				comparator, indexedDecimalPlaces),
 			rangeIndex,
 			comparator,
-			normalizer
+			legacyCanonicalizer
 		);
 	}
 

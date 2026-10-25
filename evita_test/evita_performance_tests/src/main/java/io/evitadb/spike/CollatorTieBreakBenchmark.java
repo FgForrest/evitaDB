@@ -182,7 +182,7 @@ public class CollatorTieBreakBenchmark {
 			);
 		}
 		//noinspection rawtypes
-		this.tree = new InvertedIndex(String.class, buckets, normalizer, (Comparator) comparator, 0);
+		this.tree = new InvertedIndex(String.class, buckets, normalizer, normalizer, (Comparator) comparator, 0);
 
 		// a FRESH String instance, so the comparator's identity fast path and the cache's identity hit are both
 		// bypassed - a probe arriving from a query is never the same instance as the stored key

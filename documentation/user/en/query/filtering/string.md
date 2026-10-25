@@ -31,14 +31,20 @@ attributeContains(
     </dd>
     <dt>argument:string!</dt>
     <dd>
-        the arbitrary value to search for in the attribute value (case-sensitive)
+        the arbitrary value to search for in the attribute value (case-sensitive after normalization)
     </dd>
 </dl>
 
 The `attributeContains` searches the filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
 for the occurrence of the string. The constraint behaves exactly like the <LS to="e,j,r,g">[Java `contains` method](https://www.javatpoint.com/java-string-contains)</LS><LS to="c">[C# `Contains` method](https://learn.microsoft.com/en-us/dotnet/api/system.string.contains)</LS>.
-It's case-sensitive, works with national characters (since we're working with UTF-8 strings), and requires an exact
-match of the searched string anywhere in the attribute value.
+It works with national characters (since we're working with UTF-8 strings) and requires an exact match of the
+searched string anywhere in the attribute value.
+
+[Attribute normalization](../../use/schema.md#normalization) applies to both the stored index keys and the searched text
+before this case-sensitive comparison. With the `lowercase` step, a search for `ABC` also matches a value containing
+`abc`. A pattern that normalizes to the empty string - for example, `"---"` with a `remove-characters` step removing
+hyphens - matches every present value, exactly as an empty pattern does. Missing attributes do not match; an empty
+normalized value is still present. The same rules apply with the substring accelerator.
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -118,14 +124,20 @@ attributeStartsWith(
     </dd>
     <dt>argument:string!</dt>
     <dd>
-        the arbitrary value to search for in the attribute value (case-sensitive)
+        the arbitrary value to search for in the attribute value (case-sensitive after normalization)
     </dd>
 </dl>
 
 The `attributeStartsWith` searches the filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
 and checks if it starts with the specified string. The constraint behaves exactly like the <LS to="e,j,r,g">[Java `startsWith` method](https://www.javatpoint.com/java-string-startswith)</LS><LS to="c">[C# `StartsWith` method](https://learn.microsoft.com/en-us/dotnet/api/system.string.startswith)</LS>.
-It's case-sensitive, works with national characters (since we're working with UTF-8 strings), and requires an exact
-match of the search string at the beginning of the attribute value.
+It works with national characters (since we're working with UTF-8 strings) and requires an exact match of the
+search string at the beginning of the attribute value.
+
+[Attribute normalization](../../use/schema.md#normalization) applies to both the stored index keys and the searched text
+before this case-sensitive comparison. With the `lowercase` step, a search for `ABC` also matches a value starting with
+`abc`. A pattern that normalizes to the empty string - for example, `"---"` with a `remove-characters` step removing
+hyphens - matches every present value, exactly as an empty pattern does. Missing attributes do not match; an empty
+normalized value is still present.
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 
@@ -191,15 +203,21 @@ attributeEndsWith(
     </dd>
     <dt>argument:string!</dt>
     <dd>
-        the arbitrary value to search for in the attribute value (case-sensitive)
+        the arbitrary value to search for in the attribute value (case-sensitive after normalization)
     </dd>
 </dl>
 
 The `attributeEndsWith` searches the filterable or unique entity [attribute](../../use/data-model.md#attributes-unique-filterable-sortable-localized)
 and checks if it ends with the specified string. The constraint behaves exactly like the
 <LS to="e,j,r,g">[Java `endsWith` method](https://www.javatpoint.com/java-string-endswith)</LS><LS to="c">[C# `EndsWith` method](https://learn.microsoft.com/en-us/dotnet/api/system.string.endswith)</LS>.
-It's case-sensitive, works with national characters (since we're working with UTF-8 strings), and requires an exact
-match of the search string at the end of the attribute value.
+It works with national characters (since we're working with UTF-8 strings) and requires an exact match of the
+search string at the end of the attribute value.
+
+[Attribute normalization](../../use/schema.md#normalization) applies to both the stored index keys and the searched text
+before this case-sensitive comparison. With the `lowercase` step, a search for `ABC` also matches a value ending with
+`abc`. A pattern that normalizes to the empty string - for example, `"---"` with a `remove-characters` step removing
+hyphens - matches every present value, exactly as an empty pattern does. Missing attributes do not match; an empty
+normalized value is still present. The same rules apply with the substring accelerator.
 
 <SourceCodeTabs requires="evita_test/evita_documentation_tests/src/test/resources/META-INF/documentation/evitaql-init.java" langSpecificTabOnly>
 

@@ -49,12 +49,13 @@ import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Locale;
+
 import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.QUERY;
-import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * This test verifies contract of {@link ExistingAttributesBuilder}
@@ -266,44 +267,48 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 
 			assertEquals(
 				EntityAttributeSchema._internalBuild(
-					"int", null,
+					"int", null, null, null,
 					Scope.NO_SCOPE, null, null, Scope.NO_SCOPE,
 					false, false, false,
 					Integer.class, null,
-					ConflictResolutionOverride.INHERITED
+					0, ConflictResolutionOverride.INHERITED,
+					null
 				),
 				attributes.getAttributeSchema("int")
 					.orElse(null)
 			);
 			assertEquals(
 				EntityAttributeSchema._internalBuild(
-					"short", null,
+					"short", null, null, null,
 					Scope.NO_SCOPE, null, null, Scope.NO_SCOPE,
 					false, false, false,
 					Short.class, null,
-					ConflictResolutionOverride.INHERITED
+					0, ConflictResolutionOverride.INHERITED,
+					null
 				),
 				attributes.getAttributeSchema("short")
 					.orElse(null)
 			);
 			assertEquals(
 				EntityAttributeSchema._internalBuild(
-					"range", null,
+					"range", null, null, null,
 					Scope.NO_SCOPE, null, null, Scope.NO_SCOPE,
 					false, false, false,
 					IntegerNumberRange.class, null,
-					ConflictResolutionOverride.INHERITED
+					0, ConflictResolutionOverride.INHERITED,
+					null
 				),
 				attributes.getAttributeSchema("range")
 					.orElse(null)
 			);
 			assertEquals(
 				EntityAttributeSchema._internalBuild(
-					"bigDecimal", null,
+					"bigDecimal", null, null, null,
 					Scope.NO_SCOPE, null, null, Scope.NO_SCOPE,
 					false, false, false,
 					BigDecimal.class, null,
-					ConflictResolutionOverride.INHERITED
+					0, ConflictResolutionOverride.INHERITED,
+					null
 				),
 				attributes.getAttributeSchema(
 					"bigDecimal"
@@ -311,11 +316,12 @@ class ExistingAttributesBuilderTest extends AbstractBuilderTest {
 			);
 			assertEquals(
 				EntityAttributeSchema._internalBuild(
-					"greetings", null,
+					"greetings", null, null, null,
 					Scope.NO_SCOPE, null, null, Scope.NO_SCOPE,
 					true, false, false,
 					String.class, null,
-					ConflictResolutionOverride.INHERITED
+					0, ConflictResolutionOverride.INHERITED,
+					null
 				),
 				attributes.getAttributeSchema(
 					"greetings"

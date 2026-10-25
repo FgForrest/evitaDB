@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
@@ -52,12 +53,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
+import static io.evitadb.test.TestTags.INDEXING;
+import static io.evitadb.test.TestTags.MANAGEMENT;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterCommit;
 import static io.evitadb.utils.AssertionUtils.assertStateAfterRollback;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
-import static io.evitadb.test.TestTags.INDEXING;
-import static io.evitadb.test.TestTags.MANAGEMENT;
 
 /**
  * Tests for {@link ReducedGroupEntityIndex} verifying cardinality-aware primary key tracking
@@ -135,7 +136,7 @@ class ReducedGroupEntityIndexTest
 		final EntityIndexKey key = new EntityIndexKey(
 			EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE, rrk
 		);
-		return new ReducedGroupEntityIndex(INDEX_PK, ENTITY_TYPE, key);
+		return new ReducedGroupEntityIndex(INDEX_PK, ENTITY_TYPE, key, true, AttributeNormalizationResolver.LEGACY_NFD);
 	}
 
 	/**
@@ -150,7 +151,7 @@ class ReducedGroupEntityIndexTest
 		@Nonnull String name, @Nonnull Class<? extends Serializable> type
 	) {
 		return AttributeSchema._internalBuild(
-			name,
+			name, null, null,
 			null,
 			new Scope[]{Scope.LIVE},
 			null,
@@ -158,7 +159,8 @@ class ReducedGroupEntityIndexTest
 			null,
 			false, false, false,
 			type, null,
-			ConflictResolutionOverride.INHERITED
+			0, ConflictResolutionOverride.INHERITED,
+			null
 		);
 	}
 
@@ -637,7 +639,9 @@ class ReducedGroupEntityIndexTest
 			final ReducedGroupEntityIndex created = new ReducedGroupEntityIndex(
 				INDEX_PK,
 				ENTITY_TYPE,
-				new EntityIndexKey(EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE, rrk)
+				new EntityIndexKey(EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE, rrk),
+				true,
+				AttributeNormalizationResolver.LEGACY_NFD
 			);
 
 			assertNotNull(created);
@@ -654,7 +658,9 @@ class ReducedGroupEntityIndexTest
 				() -> new ReducedGroupEntityIndex(
 					INDEX_PK,
 					ENTITY_TYPE,
-					new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE)
+					new EntityIndexKey(EntityIndexType.GLOBAL, Scope.LIVE),
+					true,
+					AttributeNormalizationResolver.LEGACY_NFD
 				)
 			);
 			assertTrue(
@@ -674,7 +680,9 @@ class ReducedGroupEntityIndexTest
 				() -> new ReducedGroupEntityIndex(
 					INDEX_PK,
 					ENTITY_TYPE,
-					new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, Scope.LIVE, rrk)
+					new EntityIndexKey(EntityIndexType.REFERENCED_ENTITY, Scope.LIVE, rrk),
+					true,
+					AttributeNormalizationResolver.LEGACY_NFD
 				)
 			);
 			assertTrue(
@@ -693,7 +701,9 @@ class ReducedGroupEntityIndexTest
 					ENTITY_TYPE,
 					new EntityIndexKey(
 						EntityIndexType.REFERENCED_ENTITY_TYPE, Scope.LIVE, "CATEGORY"
-					)
+					),
+					true,
+					AttributeNormalizationResolver.LEGACY_NFD
 				)
 			);
 			assertTrue(

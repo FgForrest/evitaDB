@@ -93,7 +93,8 @@ public class AttributeSchemaSerializer_2026_1 extends Serializer<AttributeSchema
 			name, nameVariants, description, deprecationNotice,
 			unique, filterable, null, null, sortable, localized, nullable, representative,
 			type, (Serializable) defaultValue, indexedDecimalPlaces,
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			null
 		);
 	}
 

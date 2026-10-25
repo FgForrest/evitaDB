@@ -276,6 +276,8 @@ import java.util.function.Function;
  * protocol 7 and one bootstrap record. A failure before it leaves the published state of protocol 6 as it was, and the
  * next start runs the whole migration again from it. No file is deleted on the way.
  *
+ * Re-canonicalizing here heals keys written by older versions and must use the legacy function only.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @deprecated removable once no catalog older than 2026.3 can be encountered — at which point no catalog can
  * still carry raw-keyed cardinality counters, raw-keyed unique indexes, temporal keys beyond the supported window,

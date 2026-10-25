@@ -157,7 +157,7 @@ class FilterIndexLegacyLocalDateTimeSerializerTest {
 		final InvertedIndex reloaded = new InvertedIndex(
 			LocalDateTime.class,
 			migrated.getHistogramPoints(),
-			FilterIndex.getNormalizer(LocalDateTime.class, 0),
+			FilterIndex.getNormalizer(LocalDateTime.class, 0), FilterIndex.getNormalizer(LocalDateTime.class, 0),
 			Comparator.naturalOrder(),
 			0
 		);

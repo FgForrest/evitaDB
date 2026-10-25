@@ -39,6 +39,8 @@ import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.HistogramIndex.PersistedHistogramLeafPages;
+import io.evitadb.index.analysis.AnalysisStepRegistry;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.fulltext.FulltextFieldKey;
 import io.evitadb.index.fulltext.FulltextIndex;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
@@ -67,7 +69,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
+import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.lowercase;
 import static io.evitadb.index.IndexHeapSizeAssertions.AUTOBOX_CACHE_CEILING;
 import static io.evitadb.index.IndexHeapSizeAssertions.assertExceedsMeasuredHeapBy;
 import static io.evitadb.index.IndexHeapSizeAssertions.assertMatchesMeasuredHeap;
@@ -171,6 +175,19 @@ class EntityIndexHeapSizeTest {
 	@Nested
 	@DisplayName("attribute cardinality index")
 	class AttributeCardinalityIndexes {
+
+		@Test
+		@DisplayName("a bound String counter charges its function reference and borrows the compiled chain")
+		@SuppressWarnings({"unchecked", "rawtypes"})
+		void shouldMatchBoundStringCounter() {
+			final AnalysisStepRegistry registry =
+				new AnalysisStepRegistry();
+			final Function<Object, Serializable> function =
+				(Function) registry.compile(
+					List.of(lowercase()), null);
+			final AttributeCardinalityIndex index = new AttributeCardinalityIndex(String.class, function);
+			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, "valueType", "stringNormalizer");
+		}
 
 		@Test
 		@DisplayName("an empty one is measured exactly")
@@ -473,7 +490,7 @@ class EntityIndexHeapSizeTest {
 			// the collection's index map is keyed by this very instance, so the map owns it
 			"indexKey",
 			"entityIdsByLanguage.transactionalLayerWrapper",
-			"attributeIndex.entityType",
+			"attributeIndex.entityType", "attributeIndex.normalizationResolver",
 			"attributeIndex.uniqueIndex.transactionalLayerWrapper",
 			"attributeIndex.sortIndex.transactionalLayerWrapper",
 			"attributeIndex.chainIndex.transactionalLayerWrapper",
@@ -650,11 +667,14 @@ class EntityIndexHeapSizeTest {
 		@DisplayName("an empty reduced-group index is measured exactly")
 		void shouldMatchAnEmptyReducedGroupIndex() {
 			final ReducedGroupEntityIndex index = new ReducedGroupEntityIndex(
-				INDEX_PK, ENTITY_TYPE,
+				INDEX_PK,
+				ENTITY_TYPE,
 				new EntityIndexKey(
 					EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE,
 					new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, 1))
-				)
+				),
+				true,
+				AttributeNormalizationResolver.LEGACY_NFD
 			);
 			assertMatchesMeasuredHeap(index.getHeapSizeInBytes(), index, reducedGroupExclusions());
 		}

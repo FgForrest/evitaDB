@@ -93,6 +93,7 @@ import io.evitadb.externalApi.configuration.HeaderOptions;
 import io.evitadb.externalApi.dataType.DataTypeSerializer;
 import io.evitadb.externalApi.rest.api.Rest;
 import io.evitadb.externalApi.rest.api.builder.FinalRestBuilder;
+import io.evitadb.externalApi.rest.api.catalog.schemaApi.builder.AnalysisStepInputObjectBuilder;
 import io.evitadb.externalApi.rest.api.model.ErrorDescriptor;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiEnum;
 import io.evitadb.externalApi.rest.api.openApi.OpenApiObject;
@@ -148,6 +149,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 	}
 
 	private void buildCommonTypes() {
+		AnalysisStepInputObjectBuilder.registerTypes(this.buildingContext, this.objectBuilderTransformer);
 		this.buildingContext.registerType(buildScalarEnum());
 		this.buildingContext.registerType(buildAssociatedDataScalarEnum());
 
@@ -277,6 +279,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 			RemoveAttributeSchemaMutationDescriptor.THIS,
 			SetAttributeSchemaFilterableMutationDescriptor.THIS,
 			SetAttributeSchemaAcceleratedMutationDescriptor.THIS,
+			SetAttributeSchemaNormalizedMutationDescriptor.THIS,
 			SetAttributeSchemaLocalizedMutationDescriptor.THIS,
 			SetAttributeSchemaNullableMutationDescriptor.THIS,
 			SetAttributeSchemaRepresentativeMutationDescriptor.THIS,
@@ -415,6 +418,7 @@ public class SystemRestBuilder extends FinalRestBuilder<SystemRestBuildingContex
 					typeRefTo(RemoveAttributeSchemaMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaFilterableMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaAcceleratedMutationDescriptor.THIS.name()),
+					typeRefTo(SetAttributeSchemaNormalizedMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaLocalizedMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaNullableMutationDescriptor.THIS.name()),
 					typeRefTo(SetAttributeSchemaRepresentativeMutationDescriptor.THIS.name()),

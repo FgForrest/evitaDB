@@ -183,6 +183,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 	@Override
 	@Nonnull
 	public GraphQLSchema build() {
+		buildAnalysisStepTypes(false);
 		final GraphQLEnumType scalarEnum = buildScalarEnum();
 		this.buildingContext.registerType(scalarEnum);
 		this.buildingContext.registerType(buildAssociatedDataScalarEnum(scalarEnum));
@@ -317,6 +318,7 @@ public class SystemGraphQLSchemaBuilder extends FinalGraphQLSchemaBuilder<GraphQ
 			RemoveAttributeSchemaMutationDescriptor.THIS,
 			SetAttributeSchemaFilterableMutationDescriptor.THIS,
 			SetAttributeSchemaAcceleratedMutationDescriptor.THIS,
+			SetAttributeSchemaNormalizedMutationDescriptor.THIS,
 			SetAttributeSchemaLocalizedMutationDescriptor.THIS,
 			SetAttributeSchemaNullableMutationDescriptor.THIS,
 			SetAttributeSchemaRepresentativeMutationDescriptor.THIS,

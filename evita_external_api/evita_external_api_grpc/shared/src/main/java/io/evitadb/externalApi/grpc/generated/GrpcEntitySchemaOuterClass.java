@@ -154,7 +154,7 @@ public final class GrpcEntitySchemaOuterClass {
       "ableAttributeCompoundsEntry\022\013\n\003key\030\001 \001(\t" +
       "\022Y\n\005value\030\002 \001(\0132J.io.evitadb.externalApi" +
       ".grpc.generated.GrpcSortableAttributeCom" +
-      "poundSchema:\0028\001\"\356\n\n\023GrpcAttributeSchema\022" +
+      "poundSchema:\0028\001\"\276\013\n\023GrpcAttributeSchema\022" +
       "\014\n\004name\030\001 \001(\t\022R\n\nschemaType\030\002 \001(\0162>.io.e" +
       "vitadb.externalApi.grpc.generated.GrpcAt" +
       "tributeSchemaType\0221\n\013description\030\003 \001(\0132\034" +
@@ -189,7 +189,9 @@ public final class GrpcEntitySchemaOuterClass {
       "ctResolutionOverride\022j\n\024acceleratorsInSc" +
       "opes\030\026 \003(\0132L.io.evitadb.externalApi.grpc" +
       ".generated.GrpcScopedAttributeFilterAcce" +
-      "lerators\"\331\003\n\030GrpcAssociatedDataSchema\022\014\n" +
+      "lerators\022N\n\rnormalization\030\027 \003(\01327.io.evi" +
+      "tadb.externalApi.grpc.generated.GrpcAnal" +
+      "ysisStep\"\331\003\n\030GrpcAssociatedDataSchema\022\014\n" +
       "\004name\030\001 \001(\t\0221\n\013description\030\002 \001(\0132\034.googl" +
       "e.protobuf.StringValue\0227\n\021deprecationNot" +
       "ice\030\003 \001(\0132\034.google.protobuf.StringValue\022" +
@@ -320,7 +322,7 @@ public final class GrpcEntitySchemaOuterClass {
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcAttributeSchema_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_io_evitadb_externalApi_grpc_generated_GrpcAttributeSchema_descriptor,
-        new java.lang.String[] { "Name", "SchemaType", "Description", "DeprecationNotice", "Unique", "UniqueGlobally", "Filterable", "Sortable", "Localized", "Nullable", "Representative", "Type", "DefaultValue", "IndexedDecimalPlaces", "NameVariant", "Inherited", "UniqueInScopes", "UniqueGloballyInScopes", "FilterableInScopes", "SortableInScopes", "ConflictResolutionOverride", "AcceleratorsInScopes", });
+        new java.lang.String[] { "Name", "SchemaType", "Description", "DeprecationNotice", "Unique", "UniqueGlobally", "Filterable", "Sortable", "Localized", "Nullable", "Representative", "Type", "DefaultValue", "IndexedDecimalPlaces", "NameVariant", "Inherited", "UniqueInScopes", "UniqueGloballyInScopes", "FilterableInScopes", "SortableInScopes", "ConflictResolutionOverride", "AcceleratorsInScopes", "Normalization", });
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcAssociatedDataSchema_descriptor =
       getDescriptor().getMessageTypes().get(2);
     internal_static_io_evitadb_externalApi_grpc_generated_GrpcAssociatedDataSchema_fieldAccessorTable = new

@@ -24,6 +24,7 @@
 package io.evitadb.externalApi.grpc.requestResponse.schema.mutation.attribute;
 
 import com.google.protobuf.StringValue;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
@@ -44,8 +45,10 @@ import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toC
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcAttributeUniquenessType;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcConflictResolutionOverride;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toGrpcScopedAttributeFilterAccelerators;
-import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toScopedAttributeUniquenessTypes;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toScopedAttributeFilterAccelerators;
+import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.toScopedAttributeUniquenessTypes;
+import static io.evitadb.externalApi.grpc.requestResponse.schema.AnalysisStepConverter.toAnalysisSteps;
+import static io.evitadb.externalApi.grpc.requestResponse.schema.AnalysisStepConverter.toGrpcAnalysisSteps;
 
 /**
  * Converts between {@link CreateAttributeSchemaMutation} and {@link GrpcCreateAttributeSchemaMutation} in both directions.
@@ -81,7 +84,9 @@ public class CreateAttributeSchemaMutationConverter implements SchemaMutationCon
 			EvitaDataTypesConverter.toEvitaDataType(mutation.getType()),
 			mutation.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(mutation.getDefaultValue()) : null,
 			mutation.getIndexedDecimalPlaces(),
-			toConflictResolutionOverride(mutation.getConflictResolutionOverride())
+			toConflictResolutionOverride(mutation.getConflictResolutionOverride()),
+			mutation.getNormalizationCount() == 0 ? null :
+				toAnalysisSteps(mutation.getNormalizationList()).toArray(AnalysisStep[]::new)
 		);
 	}
 
@@ -106,6 +111,7 @@ public class CreateAttributeSchemaMutationConverter implements SchemaMutationCon
 					.map(EvitaEnumConverter::toGrpcScope)
 					.toList()
 			)
+			.addAllNormalization(toGrpcAnalysisSteps(mutation.getNormalization()))
 			.addAllAcceleratorsInScopes(
 				toGrpcScopedAttributeFilterAccelerators(mutation.getAcceleratorsInScopes())
 			)

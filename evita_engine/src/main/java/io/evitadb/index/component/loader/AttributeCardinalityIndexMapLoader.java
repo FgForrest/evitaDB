@@ -45,6 +45,7 @@ import static io.evitadb.utils.Assert.isPremiseValid;
  * The cardinality entries share the `AttributeIndexStorageKey` namespace with UNIQUE / FILTER /
  * SORT / CHAIN but are routed to a separate map on the in-memory side because they are owned by
  * the subclass cardinality bookkeeping rather than the shared `AttributeIndex`.
+ * Stored counter keys are copied verbatim; legacy re-keying belongs to the storage-protocol migration.
  */
 public final class AttributeCardinalityIndexMapLoader implements ComponentLoader {
 
@@ -83,7 +84,12 @@ public final class AttributeCardinalityIndexMapLoader implements ComponentLoader
 				"Cardinality index with id " + entityIndexId + " with key " + key.attribute() +
 					" was not found in persistent storage!"
 			);
-			cardinalityIndexes.put(part.getAttributeIndexKey(), part.getCardinalityIndex());
+			final AttributeCardinalityIndex stored = part.getCardinalityIndex();
+			cardinalityIndexes.put(part.getAttributeIndexKey(), stored.getValueType() == String.class
+				? new AttributeCardinalityIndex(
+					stored.getValueType(), stored.getCardinalities(),
+					context.resolveKeyNormalizer(part.getAttributeIndexKey(), String.class, 0))
+				: stored);
 		}
 		return new LoadedComponentBundle.AttributeCardinalityIndexes(cardinalityIndexes);
 	}

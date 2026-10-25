@@ -26,6 +26,7 @@ package io.evitadb.core.query.filter.translator.attribute;
 import io.evitadb.api.query.AttributeConstraint;
 import io.evitadb.api.query.FilterConstraint;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
+import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
@@ -34,7 +35,8 @@ import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeBi
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.attribute.AttributeIndex;
+import io.evitadb.function.TriFunction;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.NumberUtils;
@@ -44,9 +46,12 @@ import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.util.Locale;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
+
+import static io.evitadb.core.query.filter.translator.attribute.AbstractAttributeTranslator.isBoundToQueryLocale;
 
 /**
  * Implemented by the {@link FilteringConstraintTranslator translators} of the attribute constraints that test a
@@ -75,6 +80,7 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 	 * @param constraint        the constraint
 	 * @param attributeSchema   the schema of the attribute the constraint is applied to
 	 * @param attributeIndexKey key of the filter index the attribute is read from, its locale selects the comparator
+	 * @param stringNormalizer  the effective String key function for the selected lookup role and fold locale
 	 * @param now               supplier of the moment of the query, consulted by a constraint that names no moment of
 	 *                          its own
 	 * @return the matcher
@@ -85,6 +91,7 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 		@Nonnull T constraint,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull UnaryOperator<String> stringNormalizer,
 		@Nonnull Supplier<OffsetDateTime> now
 	);
 
@@ -151,7 +158,7 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 	/**
 	 * Creates the matcher of the constraint for the main query: refuses a decimal value the index cannot encode (see
 	 * {@link #assertIndexable}) and creates the {@link #createMatcher matcher} over the attribute as the filter index
-	 * keys it in the locale of the query.
+	 * keys it, using the selected lookup role and its fold locale.
 	 *
 	 * @param constraint      the constraint
 	 * @param filterByVisitor the visitor translating the query
@@ -167,7 +174,8 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 	) {
 		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();
 		return createMainQueryMatcher(
-			constraint, filterByVisitor, processingScope, processingScope.getScopes(), attributeSchema
+			null, constraint, filterByVisitor, processingScope, processingScope.getScopes(), attributeSchema,
+			processingScope.getScopes().iterator().next()
 		);
 	}
 
@@ -177,29 +185,41 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 	 * answers with the scopes in effect at the moment it is asked, which differ from those of the translation once
 	 * the translation of an `inScope` container is over. The locale is the one of the visitor.
 	 *
+	 * @param entityType      the entity type owning the attribute, `null` for the type of the processing scope
 	 * @param constraint      the constraint
 	 * @param filterByVisitor the visitor translating the query
 	 * @param processingScope the processing scope the constraint was translated in
 	 * @param requestedScopes the scopes the constraint was translated in
 	 * @param attributeSchema the schema of the attribute the constraint is applied to
+	 * @param lookupScope     the scope selecting the equality lookup role
 	 * @return the matcher
 	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the constraint cannot be applied to the attribute
 	 */
 	@Nonnull
 	private AttributeValueMatcher createMainQueryMatcher(
+		@Nullable String entityType,
 		@Nonnull T constraint,
 		@Nonnull FilterByVisitor filterByVisitor,
 		@Nonnull ProcessingScope<?> processingScope,
 		@Nonnull Set<Scope> requestedScopes,
-		@Nonnull AttributeSchemaContract attributeSchema
+		@Nonnull AttributeSchemaContract attributeSchema,
+		@Nonnull Scope lookupScope
 	) {
 		assertIndexable(constraint, attributeSchema, requestedScopes);
+		final EntitySchemaContract scopeSchema = processingScope.getEntitySchema();
+		final String ownerType = entityType == null && scopeSchema != null ? scopeSchema.getName() : entityType;
+		final Locale foldLocale = attributeSchema.isLocalized() &&
+			(!isAnsweredByUniqueIndex() || isBoundToQueryLocale(attributeSchema, lookupScope)) ?
+			filterByVisitor.getLocale() : null;
+		final String referenceName = processingScope.getReferenceSchema() == null ?
+			null : processingScope.getReferenceSchema().getName();
+		final AttributeNormalizationResolver resolver = filterByVisitor.getQueryContext()
+			.getAttributeNormalizationResolver(ownerType, "normalize attribute");
 		return createMatcher(
 			constraint,
 			attributeSchema,
-			AttributeIndex.createAttributeKey(
-				processingScope.getReferenceSchema(), attributeSchema, filterByVisitor.getLocale()
-			),
+			new AttributeIndexKey(referenceName, attributeSchema.getName(), foldLocale),
+			resolver.resolve(referenceName, attributeSchema, foldLocale),
 			filterByVisitor::getNow
 		);
 	}
@@ -222,15 +242,13 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 		@Nonnull AttributeValueMatcher matcher,
 		@Nonnull AttributeTrait... traits
 	) {
-		return createBitmapFilter(constraint, filterByVisitor, attributeSchema -> matcher, traits);
+		return createBitmapFilter(constraint, filterByVisitor, (entitySchema, attributeSchema, scope) -> matcher, traits);
 	}
 
 	/**
-	 * Creates the filter of the entities a query naming no collection finds by its other constraints. Such a query
-	 * targets the catalog index, which answers nothing but a lookup of a globally unique attribute, so any other
-	 * attribute constraint is answered by this filter: the matcher is created as {@link #createMainQueryMatcher} does,
-	 * over the processing scope and the scopes the constraint was translated in, for the schema each type of the
-	 * examined entities has the attribute with.
+	 * Creates a filter with one matcher per entity type and owner scope. Queries naming no collection use it
+	 * for attributes the catalog index cannot answer. Different scopes can select different equality lookup roles
+	 * and fold locales; the values are still read in the query locale, as for every entity filtering constraint.
 	 *
 	 * @param constraint      the constraint
 	 * @param filterByVisitor the visitor translating the query
@@ -247,8 +265,8 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 		final Set<Scope> requestedScopes = processingScope.getScopes();
 		return createBitmapFilter(
 			constraint, filterByVisitor,
-			attributeSchema -> createMainQueryMatcher(
-				constraint, filterByVisitor, processingScope, requestedScopes, attributeSchema
+			(entitySchema, attributeSchema, scope) -> createMainQueryMatcher(
+				entitySchema.getName(), constraint, filterByVisitor, processingScope, requestedScopes, attributeSchema, scope
 			),
 			traits
 		);
@@ -260,7 +278,7 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 	 *
 	 * @param constraint      the constraint
 	 * @param filterByVisitor the visitor translating the query
-	 * @param matcherFactory  creates the matcher from the schema of the attribute
+	 * @param matcherFactory  creates the matcher from the entity schema, the attribute schema and the owner scope
 	 * @param traits          the traits the attribute schema must have
 	 * @return the filter
 	 */
@@ -268,7 +286,7 @@ public interface AttributeValueMatchingTranslator<T extends FilterConstraint & A
 	private AttributeBitmapFilter createBitmapFilter(
 		@Nonnull T constraint,
 		@Nonnull FilterByVisitor filterByVisitor,
-		@Nonnull Function<AttributeSchemaContract, AttributeValueMatcher> matcherFactory,
+		@Nonnull TriFunction<EntitySchemaContract, AttributeSchemaContract, Scope, AttributeValueMatcher> matcherFactory,
 		@Nonnull AttributeTrait... traits
 	) {
 		final ProcessingScope<?> processingScope = filterByVisitor.getProcessingScope();

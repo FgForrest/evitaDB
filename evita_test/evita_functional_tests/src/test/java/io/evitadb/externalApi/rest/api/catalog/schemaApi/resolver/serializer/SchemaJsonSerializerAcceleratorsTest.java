@@ -97,7 +97,8 @@ class SchemaJsonSerializerAcceleratorsTest {
 			Scope.NO_SCOPE,
 			false, false, false,
 			String.class, null, 0,
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			null
 		);
 
 		final ArrayNode rendered = new TestSerializer().render(attributeSchema);
@@ -127,7 +128,8 @@ class SchemaJsonSerializerAcceleratorsTest {
 			Scope.NO_SCOPE,
 			false, false, false,
 			String.class, null, 0,
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			null
 		);
 
 		assertTrue(new TestSerializer().render(attributeSchema).isEmpty());

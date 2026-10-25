@@ -27,6 +27,7 @@ import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.PositionResolutio
 import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProvider;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.index.attribute.OwnerSortIndex;
+import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
@@ -134,7 +135,13 @@ public class SortIndexCommittedSnapshotCacheBenchmark {
 			shuffledValues[j] = tmp;
 		}
 
-		this.index = new OwnerSortIndex(Integer.class, ATTRIBUTE_KEY);
+		this.index = new OwnerSortIndex(
+			Integer.class,
+			null,
+			ATTRIBUTE_KEY,
+			0,
+			SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+		);
 		for (int i = 0; i < RECORD_COUNT; i++) {
 			this.index.addRecord(shuffledValues[i], i + 1);
 		}
@@ -216,7 +223,13 @@ public class SortIndexCommittedSnapshotCacheBenchmark {
 			shuffledValues[i] = shuffledValues[j];
 			shuffledValues[j] = tmp;
 		}
-		final OwnerSortIndex index = new OwnerSortIndex(Integer.class, ATTRIBUTE_KEY);
+		final OwnerSortIndex index = new OwnerSortIndex(
+			Integer.class,
+			null,
+			ATTRIBUTE_KEY,
+			0,
+			SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+		);
 		for (int i = 0; i < RECORD_COUNT; i++) {
 			index.addRecord(shuffledValues[i], i + 1);
 		}

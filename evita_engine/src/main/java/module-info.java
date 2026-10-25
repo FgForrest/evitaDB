@@ -67,6 +67,7 @@ module evita.engine {
 	exports io.evitadb.core.transaction.memory;
 	exports io.evitadb.core.transaction.stage.mutation;
 	exports io.evitadb.index;
+	exports io.evitadb.index.analysis;
 	exports io.evitadb.index.bool;
 	exports io.evitadb.index.bPlusTree;
 	exports io.evitadb.index.cardinality;
@@ -94,6 +95,7 @@ module evita.engine {
 	// VirtualReferencePartitionWriter
 	exports io.evitadb.index.mutation.local to evita.store.server;
 	exports io.evitadb.index.usage;
+	exports io.evitadb.spi.analysis;
 	exports io.evitadb.spi.store.catalog.chunk;
 	exports io.evitadb.spi.store.catalog.header;
 	exports io.evitadb.spi.store.catalog.header.model;
@@ -115,6 +117,13 @@ module evita.engine {
 	exports io.evitadb.spi.store.engine.model;
 	exports io.evitadb.spi.export;
 	exports io.evitadb.spi.export.model;
+
+	uses io.evitadb.spi.analysis.AnalysisStepFactory;
+	provides io.evitadb.spi.analysis.AnalysisStepFactory with
+		io.evitadb.index.analysis.LowercaseAnalysisStepFactory,
+		io.evitadb.index.analysis.AsciiFoldingAnalysisStepFactory,
+		io.evitadb.index.analysis.TrimAnalysisStepFactory,
+		io.evitadb.index.analysis.RemoveCharactersAnalysisStepFactory;
 
 	uses io.evitadb.spi.export.ExportServiceFactory;
 	uses io.evitadb.spi.store.engine.EnginePersistenceServiceFactory;

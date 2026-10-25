@@ -201,6 +201,11 @@ public interface LocalEntitySchemaMutationInputAggregateDescriptor {
 		"setAttributeSchemaAcceleratedMutation",
 		SetAttributeSchemaAcceleratedMutationDescriptor.THIS_INPUT
 	);
+	/** Complete entity attribute normalization replacement in the entity mutation input aggregate. */
+	PropertyDescriptor SET_ATTRIBUTE_SCHEMA_NORMALIZED_MUTATION = PropertyDescriptor.nullableFromObject(
+		"setAttributeSchemaNormalizedMutation",
+		SetAttributeSchemaNormalizedMutationDescriptor.THIS_INPUT
+	);
 	PropertyDescriptor SET_ATTRIBUTE_SCHEMA_LOCALIZED_MUTATION = PropertyDescriptor.nullableFromObject(
 		"setAttributeSchemaLocalizedMutation",
 		SetAttributeSchemaLocalizedMutationDescriptor.THIS_INPUT
@@ -368,6 +373,7 @@ public interface LocalEntitySchemaMutationInputAggregateDescriptor {
 			REMOVE_ATTRIBUTE_SCHEMA_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_FILTERABLE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_ACCELERATED_MUTATION,
+			SET_ATTRIBUTE_SCHEMA_NORMALIZED_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_LOCALIZED_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_NULLABLE_MUTATION,
 			SET_ATTRIBUTE_SCHEMA_CONFLICT_RESOLUTION_OVERRIDE_MUTATION,

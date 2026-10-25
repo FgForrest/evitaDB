@@ -2629,7 +2629,8 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 	/**
 	 * Method executes all the necessary referenced entities fetch. It loads only those referenced entities that are
 	 * mentioned in `referenceFetch`. Execution reuses potentially existing fetched referenced entities from
-	 * the last enrichment of the same entity.
+	 * the last enrichment of the same entity. Comparator requirements widen the request for `entitySchema`
+	 * even when the query context has no collection or targets a different owner.
 	 *
 	 * @param referenceFetch                      the map of reference names to their requirements
 	 * @param namedReferenceFetch                 the map of reference content instance and reference names to their requirements
@@ -2742,7 +2743,7 @@ public class ReferencedEntityFetcher implements ReferenceFetcher {
 		}
 
 		return ofNullable(globalPrefetchCollector.getEntityFetch())
-			.map(it -> executionContext.getEvitaRequest().deriveCopyWith(executionContext.getSchema().getName(), it))
+			.map(it -> executionContext.getEvitaRequest().deriveCopyWith(entitySchema.getName(), it))
 			.orElse(executionContext.getEvitaRequest());
 	}
 

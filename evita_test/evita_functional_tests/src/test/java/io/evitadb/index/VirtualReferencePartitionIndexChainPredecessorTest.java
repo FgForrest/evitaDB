@@ -26,6 +26,7 @@ package io.evitadb.index;
 import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart.ChainPredecessorSlot;
@@ -238,7 +239,7 @@ class VirtualReferencePartitionIndexChainPredecessorTest {
 		@DisplayName("a declared key has its own slot apart from the sort keys and keeps the index from being empty")
 		void shouldDeclareKeyInItsOwnSlot() {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
-			index.declareSortKey(ORDER, INTEGER_ASC, 0);
+			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
 			index.declareChainKey(CHAIN);
 			index.declareChainKey(CHAIN);
 			index.retireSortKey(ORDER);
@@ -251,7 +252,7 @@ class VirtualReferencePartitionIndexChainPredecessorTest {
 			assertTrue(slot.slotId() > VirtualReferencePartitionSlot.FIRST_DECLARED_SLOT_ID, "The sort key took the first id");
 
 			// a new key never takes an id in use - neither a chain's nor a sort key's
-			index.declareSortKey(ORDER, INTEGER_ASC, 0);
+			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
 			index.declareChainKey(LOCALIZED_CHAIN);
 			final VirtualReferencePartitionIndexStoragePart nextRoot = rootOf(flush(index));
 			final int sortSlotId = nextRoot.getSortValueSlots()[0].slotId();
@@ -271,10 +272,15 @@ class VirtualReferencePartitionIndexChainPredecessorTest {
 		@DisplayName("an attribute is a sort key or a chain key, never both")
 		void shouldRefuseOneAttributeAsBothSortAndChainKey() {
 			final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
-			index.declareSortKey(ORDER, INTEGER_ASC, 0);
+			index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
 			index.declareChainKey(CHAIN);
 			assertThrows(GenericEvitaInternalError.class, () -> index.declareChainKey(ORDER));
-			assertThrows(GenericEvitaInternalError.class, () -> index.declareSortKey(CHAIN, INTEGER_ASC, 0));
+			assertThrows(GenericEvitaInternalError.class, () -> index.declareSortKey(
+				CHAIN,
+				INTEGER_ASC,
+				0,
+				() -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0)
+			));
 		}
 
 		@Test

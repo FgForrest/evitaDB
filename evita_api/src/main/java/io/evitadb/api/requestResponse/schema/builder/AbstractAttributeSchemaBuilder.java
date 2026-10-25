@@ -32,6 +32,7 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.mutation.AttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDefaultValueMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ModifyAttributeSchemaDeprecationNoticeMutation;
@@ -43,6 +44,7 @@ import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeF
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaAcceleratedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaFilterableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaLocalizedMutation;
+import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaNormalizedMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaNullableMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaRepresentativeMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.SetAttributeSchemaSearchableMutation;
@@ -103,6 +105,30 @@ public abstract sealed class AbstractAttributeSchemaBuilder<T extends AttributeS
 		this.catalogSchema = catalogSchema;
 		this.entitySchema = entitySchema;
 		this.baseSchema = existingSchema;
+	}
+
+	/**
+	 * Replaces the complete normalization axis with a mutation; validation waits for the assembled schema.
+	 */
+	@Nonnull
+	@Override
+	public T normalized(@Nonnull AnalysisStep... steps) {
+		this.updatedSchemaDirty = updateMutationImpact(
+			this.updatedSchemaDirty,
+			addMutations(
+				new SetAttributeSchemaNormalizedMutation(getName(), steps)
+			)
+		);
+		return (T) this;
+	}
+
+	/**
+	 * Returns the normalization currently assembled from the accumulated mutations.
+	 */
+	@Nonnull
+	@Override
+	public List<AnalysisStep> getNormalization() {
+		return assembleInstance().getNormalization();
 	}
 
 	@Override

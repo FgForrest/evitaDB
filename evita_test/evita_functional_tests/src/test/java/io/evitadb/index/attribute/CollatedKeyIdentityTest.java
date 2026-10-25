@@ -304,7 +304,7 @@ class CollatedKeyIdentityTest {
 		final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(String.class, 0);
 		return new OwnerFilterIndex(
 			localizedKey(), String.class, 0,
-			new InvertedIndex(String.class, buckets, normalizer, comparator, 0),
+			new InvertedIndex(String.class, buckets, normalizer, normalizer, comparator, 0),
 			null, comparator, normalizer
 		);
 	}

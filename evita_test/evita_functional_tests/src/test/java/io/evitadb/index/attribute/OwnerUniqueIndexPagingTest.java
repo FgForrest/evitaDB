@@ -194,8 +194,18 @@ class OwnerUniqueIndexPagingTest {
 			perPageRecordIds[i] = leaf.getRecordIds();
 		}
 		return OwnerUniqueIndex.fromPersistedPages(
-			ENTITY_TYPE, ATTRIBUTE_KEY, attributeType, indexedDecimalPlaces,
-			orderedPageSequences, perPageValues, perPageRecordIds, root.getHighWaterPageSequence()
+			ENTITY_TYPE,
+			ATTRIBUTE_KEY,
+			attributeType,
+			indexedDecimalPlaces,
+			orderedPageSequences,
+			perPageValues,
+			perPageRecordIds,
+			root.getHighWaterPageSequence(),
+			FilterIndex.getNormalizer(
+				attributeType.isArray() ? attributeType.getComponentType() : attributeType,
+				indexedDecimalPlaces
+			)
 		);
 	}
 

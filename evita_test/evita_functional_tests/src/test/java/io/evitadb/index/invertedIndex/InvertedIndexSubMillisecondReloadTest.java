@@ -159,7 +159,7 @@ class InvertedIndexSubMillisecondReloadTest {
 			};
 
 			final InvertedIndex reloaded = new InvertedIndex(
-				OffsetDateTime.class, persisted, normalizer(), Comparator.naturalOrder(), 0
+				OffsetDateTime.class, persisted, normalizer(), normalizer(), Comparator.naturalOrder(), 0
 			);
 
 			assertEquals(2, reloaded.getBucketCount(), "the two twins must share one bucket");
@@ -188,7 +188,7 @@ class InvertedIndexSubMillisecondReloadTest {
 			};
 
 			final InvertedIndex reloaded = new InvertedIndex(
-				OffsetDateTime.class, persisted, normalizer(), Comparator.naturalOrder(), 0
+				OffsetDateTime.class, persisted, normalizer(), normalizer(), Comparator.naturalOrder(), 0
 			);
 
 			final ValueToRecordBitmap[] rehydrated = reloaded.getValueToRecordBitmap();
@@ -212,7 +212,7 @@ class InvertedIndexSubMillisecondReloadTest {
 			final int[] persistedValueIds = {11, 12, 13};
 
 			final InvertedIndex reloaded = new InvertedIndex(
-				OffsetDateTime.class, persisted, normalizer(), Comparator.naturalOrder(), 0
+				OffsetDateTime.class, persisted, normalizer(), normalizer(), Comparator.naturalOrder(), 0
 			);
 			// exactly what AttributeIndexLoader does for a SINGLE (inline) filter index carrying value ids
 			reloaded.restoreValueIds(
@@ -267,7 +267,7 @@ class InvertedIndexSubMillisecondReloadTest {
 			};
 
 			final InvertedIndex reloaded = new InvertedIndex(
-				OffsetDateTime.class, persisted, normalizer(), Comparator.naturalOrder(), 0
+				OffsetDateTime.class, persisted, normalizer(), normalizer(), Comparator.naturalOrder(), 0
 			);
 
 			assertEquals(2, reloaded.getBucketCount());
@@ -294,7 +294,7 @@ class InvertedIndexSubMillisecondReloadTest {
 			};
 
 			final InvertedIndex reloaded = new InvertedIndex(
-				LocalTime.class, persisted, normalizer(LocalTime.class), Comparator.naturalOrder(), 0
+				LocalTime.class, persisted, normalizer(LocalTime.class), normalizer(LocalTime.class), Comparator.naturalOrder(), 0
 			);
 
 			assertEquals(2, reloaded.getBucketCount(), "the two twins must share one bucket");
@@ -323,7 +323,7 @@ class InvertedIndexSubMillisecondReloadTest {
 			};
 
 			final InvertedIndex reloaded = new InvertedIndex(
-				LocalTime.class, persisted, normalizer(LocalTime.class), Comparator.naturalOrder(), 0
+				LocalTime.class, persisted, normalizer(LocalTime.class), normalizer(LocalTime.class), Comparator.naturalOrder(), 0
 			);
 
 			final ValueToRecordBitmap[] rehydrated = reloaded.getValueToRecordBitmap();
@@ -391,7 +391,7 @@ class InvertedIndexSubMillisecondReloadTest {
 
 			final InvertedIndex reloaded = InvertedIndex.fromPersistedPages(
 				DateTimeRange.class, new int[]{0, 1}, perPageBuckets, null, 1,
-				normalizer(DateTimeRange.class), Comparator.naturalOrder(), 0
+				normalizer(DateTimeRange.class), normalizer(DateTimeRange.class), Comparator.naturalOrder(), 0
 			);
 
 			assertEquals(3, reloaded.getBucketCount(), "no bucket may be lost when the persisted order is repaired");
@@ -441,7 +441,7 @@ class InvertedIndexSubMillisecondReloadTest {
 
 			final InvertedIndex reloaded = InvertedIndex.fromPersistedPages(
 				DateTimeRange.class, new int[]{0, 1}, perPageBuckets, null, 1,
-				normalizer(DateTimeRange.class), Comparator.naturalOrder(), 0
+				normalizer(DateTimeRange.class), normalizer(DateTimeRange.class), Comparator.naturalOrder(), 0
 			);
 
 			assertEquals(2, reloaded.getBucketCount(), "no bucket may be lost when the persisted order is repaired");
@@ -498,7 +498,7 @@ class InvertedIndexSubMillisecondReloadTest {
 
 			final InvertedIndex reloaded = InvertedIndex.fromPersistedPages(
 				DateTimeRange.class, new int[]{0, 1}, perPageBuckets, null, 1,
-				normalizer(DateTimeRange.class), Comparator.naturalOrder(), 0
+				normalizer(DateTimeRange.class), normalizer(DateTimeRange.class), Comparator.naturalOrder(), 0
 			);
 
 			assertEquals(3, reloaded.getBucketCount(), "the two twins must share one bucket, the other two keep theirs");
@@ -532,7 +532,7 @@ class InvertedIndexSubMillisecondReloadTest {
 
 			final InvertedIndex reloaded = InvertedIndex.fromPersistedPages(
 				DateTimeRange.class, new int[]{0, 1}, perPageBuckets, null, 1,
-				normalizer(DateTimeRange.class), Comparator.naturalOrder(), 0
+				normalizer(DateTimeRange.class), normalizer(DateTimeRange.class), Comparator.naturalOrder(), 0
 			);
 
 			assertEquals(3, reloaded.getBucketCount());
@@ -795,7 +795,7 @@ class InvertedIndexSubMillisecondReloadTest {
 
 			final InvertedIndex reloaded = InvertedIndex.fromPersistedPages(
 				OffsetDateTime.class, orderedPageSequences, perPageBuckets, null, 2,
-				normalizer(), Comparator.naturalOrder(), 0
+				normalizer(), normalizer(), Comparator.naturalOrder(), 0
 			);
 
 			assertEquals(3, reloaded.getBucketCount());
@@ -940,7 +940,7 @@ class InvertedIndexSubMillisecondReloadTest {
 		InvertedIndex reload() {
 			final InvertedIndex reloaded = InvertedIndex.fromPersistedPages(
 				OffsetDateTime.class, this.orderedPageSequences, this.perPageBuckets, this.perPageValueIds,
-				this.highWaterPageSequence, normalizer(), Comparator.naturalOrder(), 0
+				this.highWaterPageSequence, normalizer(), normalizer(), Comparator.naturalOrder(), 0
 			);
 			if (this.perPageValueIds != null) {
 				reloaded.restoreValueIds(this.nextValueId);

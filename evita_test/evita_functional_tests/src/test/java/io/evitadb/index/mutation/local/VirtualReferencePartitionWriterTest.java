@@ -37,6 +37,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.index.VirtualReferencePartitionIndex;
 import io.evitadb.index.VirtualReferencePartitionIndexEntries;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
+import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.NumberUtils;
 import org.junit.jupiter.api.DisplayName;
@@ -117,7 +118,10 @@ class VirtualReferencePartitionWriterTest {
 			new ComparatorSource[]{
 				new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 			},
-			0
+			0,
+			() -> SortIndex.createLegacyNormalizerFor(new ComparatorSource[]{
+				new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+			}, 0)
 		);
 		registry.declareChainKey(CHAIN);
 		for (int partition = 1; partition <= 2; partition++) {

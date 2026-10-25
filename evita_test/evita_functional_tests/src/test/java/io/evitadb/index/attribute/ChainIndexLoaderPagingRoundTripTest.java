@@ -33,6 +33,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.function.Functions;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.ChainIndex.ChainDescriptor;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -277,7 +278,9 @@ class ChainIndexLoaderPagingRoundTripTest implements EvitaTestSupport {
 			Map.of(),
 			service,
 			null,
-			ANALYZER_REGISTRY
+			true,
+			ANALYZER_REGISTRY,
+			AttributeNormalizationResolver.LEGACY_NFD
 		);
 	}
 

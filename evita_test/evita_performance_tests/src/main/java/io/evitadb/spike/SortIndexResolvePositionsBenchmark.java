@@ -29,6 +29,7 @@ import io.evitadb.core.query.sort.SortedRecordsSupplierFactory.SortedRecordsProv
 import io.evitadb.index.array.TransactionalUnorderedIntArray;
 import io.evitadb.index.array.UnorderedLookupTree.PositionCursor;
 import io.evitadb.index.attribute.OwnerSortIndex;
+import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.bitmap.RoaringBitmapBackedBitmap;
 import io.evitadb.roaringbitmap.PersistentRoaringBitmap;
 import io.evitadb.roaringbitmap.RoaringBitmapWriter;
@@ -209,7 +210,13 @@ public class SortIndexResolvePositionsBenchmark {
 			shuffledValues[j] = tmp;
 		}
 
-		this.index = new OwnerSortIndex(Integer.class, ATTRIBUTE_KEY);
+		this.index = new OwnerSortIndex(
+			Integer.class,
+			null,
+			ATTRIBUTE_KEY,
+			0,
+			SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+		);
 		for (int i = 0; i < RECORD_COUNT; i++) {
 			this.index.addRecord(shuffledValues[i], i + 1);
 		}

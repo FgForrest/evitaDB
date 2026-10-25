@@ -44,6 +44,7 @@ import io.evitadb.dataType.ReferencedEntityPredecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -241,8 +242,15 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		final Map<AttributeIndexKey, FilterIndex> filters = new HashMap<>();
 		filters.put(filterKey, view);
 		return new EntityAttributeIndex(
-			ENTITY_TYPE, Collections.emptyMap(), filters, Collections.emptyMap(), Collections.emptyMap(),
-			Collections.emptyMap(), sharedValues, new HashMap<>()
+			ENTITY_TYPE,
+			Collections.emptyMap(),
+			filters,
+			Collections.emptyMap(),
+			Collections.emptyMap(),
+			Collections.emptyMap(),
+			sharedValues,
+			new HashMap<>(),
+			AttributeNormalizationResolver.LEGACY_NFD
 		);
 	}
 
@@ -264,7 +272,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("empty constructor produces empty index with all maps empty")
 		void shouldCreateEmptyAttributeIndex() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertTrue(index.isAttributeIndexEmpty());
 			assertTrue(index.getUniqueIndexes().isEmpty());
@@ -291,7 +299,13 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 			final FilterIndex filterIdx = new FilterIndexView(filterKey, shared, null, String.class);
 
 			final AttributeIndexKey sortKey = new AttributeIndexKey(null, ATTRIBUTE_PRIORITY, null);
-			final SortIndex sortIdx = new OwnerSortIndex(Integer.class, sortKey);
+			final SortIndex sortIdx = new OwnerSortIndex(
+				Integer.class,
+				null,
+				sortKey,
+				0,
+				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+			);
 			sortIdx.addRecord(10, 1);
 
 			final AttributeIndexKey chainKey = new AttributeIndexKey(null, ATTRIBUTE_ORDER, null);
@@ -308,7 +322,8 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 				Map.of(sortKey, sortIdx),
 				Map.of(chainKey, chainIdx),
 				sharedValues,
-				new HashMap<>()
+				new HashMap<>(),
+				AttributeNormalizationResolver.LEGACY_NFD
 			);
 
 			assertFalse(index.isAttributeIndexEmpty());
@@ -326,7 +341,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("removing one locale value keeps the index while a sibling-locale value remains")
 		void shouldNotDropStandaloneUniqueIndexWhileSiblingLocaleValueRemains() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			final Locale czech = new Locale("cs");
 
 			// a `localized` + (across-locale) `unique` attribute has a locale-less unique key, so ONE record legitimately
@@ -373,8 +388,8 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("getId() returns stable unique value per instance")
 		void shouldReturnStableUniqueId() {
-			final AttributeIndex first = new EntityAttributeIndex(ENTITY_TYPE);
-			final AttributeIndex second = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex first = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
+			final AttributeIndex second = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertNotEquals(first.getId(), second.getId());
 			// id is stable across calls
@@ -384,7 +399,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("removeLayer cleans all four nested TransactionalMaps")
 		void shouldCleanAllMapsOnRemoveLayer() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			// insert into all four indexes, then rollback -- all transactional layers should be cleaned
 			assertStateAfterRollback(
@@ -414,7 +429,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("committed copy is new instance (assertNotSame)")
 		void shouldReturnNewInstanceAfterCommit() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertStateAfterCommit(
 				index,
@@ -431,7 +446,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("commit merges state from all four maps")
 		void shouldMergeAllFourMapsOnCommit() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertStateAfterCommit(
 				index,
@@ -462,7 +477,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("commit with null layer returns valid copy")
 		void shouldHandleNullLayerOnCommit() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			// insert outside tx first so state is populated
 			index.insertFilterAttribute(null, FOLDABLE_UNIQUE_CODE, ALLOWED_LOCALES, null, "hello", 1, false);
@@ -488,7 +503,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("unique index insertion and removal visible after commit")
 		void shouldCommitUniqueIndexInsertionAndRemoval() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			// commit insertion
 			assertStateAfterCommit(
@@ -506,7 +521,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("filter index insertion and removal visible after commit")
 		void shouldCommitFilterIndexInsertionAndRemoval() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertStateAfterCommit(
 				index,
@@ -523,7 +538,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("sort index insertion visible after commit")
 		void shouldCommitSortIndexInsertionAndRemoval() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertStateAfterCommit(
 				index,
@@ -540,7 +555,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("chain index upsert via Predecessor visible after commit")
 		void shouldCommitChainIndexViaPredecessor() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertStateAfterCommit(
 				index,
@@ -559,7 +574,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("chain index upsert via ReferencedEntityPredecessor")
 		void shouldCommitChainIndexViaReferencedEntityPredecessor() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertStateAfterCommit(
 				index,
@@ -576,7 +591,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("original unchanged after commit (T2)")
 		void shouldLeaveOriginalUnchangedAfterCommit() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			final EntityAttributeSchemaContract schema =
 				FOLDABLE_UNIQUE_CODE;
 
@@ -605,7 +620,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("unique index insertion rolled back")
 		void shouldRollbackUniqueIndexInsertion() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertStateAfterRollback(
 				index,
@@ -622,7 +637,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("filter index insertion rolled back")
 		void shouldRollbackFilterIndexInsertion() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertStateAfterRollback(
 				index,
@@ -639,7 +654,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("sort index insertion rolled back")
 		void shouldRollbackSortIndexInsertion() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertStateAfterRollback(
 				index,
@@ -656,7 +671,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("chain index insertion rolled back")
 		void shouldRollbackChainIndexInsertion() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertStateAfterRollback(
 				index,
@@ -678,7 +693,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("all four insert operations populate indexes directly")
 		void shouldInsertOutsideTransaction() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			final EntityAttributeSchemaContract codeSchema =
 				FOLDABLE_UNIQUE_CODE;
 
@@ -702,7 +717,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("all four remove operations leave index empty")
 		void shouldRemoveOutsideTransaction() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			final EntityAttributeSchemaContract codeSchema =
 				FOLDABLE_UNIQUE_CODE;
 			final EntityAttributeSchemaContract nameSchema =
@@ -809,7 +824,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("all four maps empty returns true")
 		void shouldReturnTrueWhenAllEmpty() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertTrue(index.isAttributeIndexEmpty());
 		}
@@ -817,7 +832,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("only unique index has data returns false")
 		void shouldReturnFalseWhenOnlyUniqueHasData() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			index.insertUniqueAttribute(null, GLOBAL_UNIQUE_LOCALIZED_CODE, ALLOWED_LOCALES, Scope.LIVE, Locale.ENGLISH, "X", 1);
 
@@ -827,7 +842,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("only filter index has data returns false")
 		void shouldReturnFalseWhenOnlyFilterHasData() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			index.insertFilterAttribute(null, FILTERABLE_NAME, ALLOWED_LOCALES, null, "Y", 1, false);
 
@@ -837,7 +852,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("only sort index has data returns false")
 		void shouldReturnFalseWhenOnlySortHasData() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			index.insertSortAttribute(null, SORTABLE_PRIORITY, ALLOWED_LOCALES, null, 5, 1);
 
@@ -847,7 +862,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("only chain index has data returns false")
 		void shouldReturnFalseWhenOnlyChainHasData() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			index.insertSortAttribute(null, CHAIN_ORDER, ALLOWED_LOCALES, null, Predecessor.HEAD, 1);
 
@@ -862,7 +877,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("Predecessor value routes to chain index")
 		void shouldRoutePredecessorToChainIndex() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			index.insertSortAttribute(null, CHAIN_ORDER, ALLOWED_LOCALES, null, Predecessor.HEAD, 1);
 
@@ -873,7 +888,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("ReferencedEntityPredecessor routes to chain index")
 		void shouldRouteReferencedEntityPredecessorToChainIndex() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			index.insertSortAttribute(
 				BRAND_REFERENCE, REFERENCED_CHAIN_ORDER, ALLOWED_LOCALES, null, ReferencedEntityPredecessor.HEAD, 1);
@@ -885,7 +900,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("Integer value routes to sort index")
 		void shouldRouteIntegerToSortIndex() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			index.insertSortAttribute(null, SORTABLE_PRIORITY, ALLOWED_LOCALES, null, 100, 1);
 
@@ -911,7 +926,13 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 			filterIdx.addRecord(2, "Product2");
 
 			final AttributeIndexKey sortKey = new AttributeIndexKey(null, ATTRIBUTE_PRIORITY, null);
-			final SortIndex sortIdx = new OwnerSortIndex(Integer.class, sortKey);
+			final SortIndex sortIdx = new OwnerSortIndex(
+				Integer.class,
+				null,
+				sortKey,
+				0,
+				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+			);
 			sortIdx.addRecord(10, 1);
 
 			final AttributeIndexKey chainKey = new AttributeIndexKey(null, ATTRIBUTE_ORDER, null);
@@ -932,7 +953,8 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 				Map.of(sortKey, sortIdx),
 				Map.of(chainKey, chainIdx),
 				sharedValues,
-				new HashMap<>()
+				new HashMap<>(),
+				AttributeNormalizationResolver.LEGACY_NFD
 			);
 
 			final TrappedChanges trappedChanges = new TrappedChanges();
@@ -973,7 +995,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("getUniqueIndex with unique-within-locale schema and null locale throws EntityLocaleMissingException")
 		void shouldThrowWhenUniqueWithinLocaleWithoutLocale() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertThrows(
 				EntityLocaleMissingException.class,
@@ -984,7 +1006,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("remove non-existent unique attribute throws")
 		void shouldThrowWhenRemovingNonExistentUnique() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertThrows(
 				EvitaInvalidUsageException.class,
@@ -995,7 +1017,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("remove non-existent filter attribute throws")
 		void shouldThrowWhenRemovingNonExistentFilter() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertThrows(
 				EvitaInvalidUsageException.class,
@@ -1006,7 +1028,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("remove non-existent sort attribute throws")
 		void shouldThrowWhenRemovingNonExistentSort() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertThrows(
 				EvitaInvalidUsageException.class,
@@ -1017,7 +1039,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("remove non-existent chain attribute throws")
 		void shouldThrowWhenRemovingNonExistentChain() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertThrows(
 				EvitaInvalidUsageException.class,
@@ -1033,7 +1055,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("created-then-removed UniqueIndex cleaned via rollback")
 		void shouldCleanCreatedThenRemovedUniqueIndex() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			final EntityAttributeSchemaContract schema =
 				FOLDABLE_UNIQUE_CODE;
 
@@ -1057,7 +1079,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("created-then-removed FilterIndex cleaned via rollback")
 		void shouldCleanCreatedThenRemovedFilterIndex() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			final EntityAttributeSchemaContract schema =
 				FILTERABLE_NAME;
 
@@ -1077,7 +1099,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("created-then-removed SortIndex cleaned via rollback")
 		void shouldCleanCreatedThenRemovedSortIndex() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			final EntityAttributeSchemaContract schema =
 				SORTABLE_PRIORITY;
 
@@ -1097,7 +1119,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("created-then-removed ChainIndex cleaned via rollback")
 		void shouldCleanCreatedThenRemovedChainIndex() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			final EntityAttributeSchemaContract schema =
 				CHAIN_ORDER;
 
@@ -1122,7 +1144,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("getUniqueIndex returns existing index")
 		void shouldReturnExistingUniqueIndex() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			final EntityAttributeSchemaContract schema =
 				FOLDABLE_UNIQUE_CODE;
 
@@ -1139,7 +1161,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("getUniqueIndex returns null for missing index")
 		void shouldReturnNullForMissingUniqueIndex() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			final UniqueIndex result = index.getUniqueIndex(null, FOLDABLE_UNIQUE_CODE, Scope.LIVE, null);
 
@@ -1149,7 +1171,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("getFilterIndex by key returns existing index")
 		void shouldReturnExistingFilterIndexByKey() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			index.insertFilterAttribute(null, FILTERABLE_NAME, ALLOWED_LOCALES, null, "Test", 1, false);
 
@@ -1162,7 +1184,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("getFilterIndex by schema returns existing index")
 		void shouldReturnExistingFilterIndexBySchema() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			final EntityAttributeSchemaContract schema =
 				FILTERABLE_NAME;
 
@@ -1176,7 +1198,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("getSortIndex returns existing index")
 		void shouldReturnExistingSortIndex() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			final EntityAttributeSchemaContract schema =
 				SORTABLE_PRIORITY;
 
@@ -1190,7 +1212,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("getChainIndex returns existing index")
 		void shouldReturnExistingChainIndex() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			final EntityAttributeSchemaContract schema =
 				CHAIN_ORDER;
 
@@ -1204,7 +1226,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("getChainIndex by key returns existing index")
 		void shouldReturnExistingChainIndexByKey() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			index.insertSortAttribute(null, CHAIN_ORDER, ALLOWED_LOCALES, null, Predecessor.HEAD, 1);
 
@@ -1239,14 +1261,15 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 				false, false, false,
 				BigDecimal.class, null,
 				indexedDecimalPlaces,
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null
 			);
 		}
 
 		@Test
 		@DisplayName("filter insert into a scale-drifted index fails loudly")
 		void shouldThrowWhenFilterInsertScaleDrifts() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			// build the shared filter tree frozen at two decimal places
 			index.insertFilterAttribute(
 				null, decimalAttribute(2), ALLOWED_LOCALES, null, new BigDecimal("1.50"), 1, false
@@ -1264,7 +1287,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("filter remove from a scale-drifted index fails loudly")
 		void shouldThrowWhenFilterRemoveScaleDrifts() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			index.insertFilterAttribute(
 				null, decimalAttribute(2), ALLOWED_LOCALES, null, new BigDecimal("1.50"), 1, false
 			);
@@ -1280,7 +1303,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("filter modification at the unchanged scale is accepted")
 		void shouldAcceptFilterModificationAtUnchangedScale() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			index.insertFilterAttribute(
 				null, decimalAttribute(2), ALLOWED_LOCALES, null, new BigDecimal("1.50"), 1, false
 			);
@@ -1296,7 +1319,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("sort insert into a scale-drifted index fails loudly")
 		void shouldThrowWhenSortInsertScaleDrifts() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			// build the sort index frozen at two decimal places
 			index.insertSortAttribute(
 				null, decimalAttribute(2), ALLOWED_LOCALES, null, new BigDecimal("1.50"), 1
@@ -1313,7 +1336,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("sort remove from a scale-drifted index fails loudly")
 		void shouldThrowWhenSortRemoveScaleDrifts() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			index.insertSortAttribute(
 				null, decimalAttribute(2), ALLOWED_LOCALES, null, new BigDecimal("1.50"), 1
 			);
@@ -1329,7 +1352,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("sort modification at the unchanged scale is accepted")
 		void shouldAcceptSortModificationAtUnchangedScale() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			index.insertSortAttribute(
 				null, decimalAttribute(2), ALLOWED_LOCALES, null, new BigDecimal("1.50"), 1
 			);
@@ -1362,7 +1385,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("dropping the emptied chain emits one leaf-page removal per previously-live page (no leak)")
 		void shouldEmitRemovalForEveryLeafPageWhenPagedChainIsEmptyDropped() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			// build one consistent chain 1 -> 2 -> ... -> CHAIN_SIZE through the real predecessor-routing mutator
 			for (int pk = 1; pk <= CHAIN_SIZE; pk++) {
 				index.insertSortAttribute(
@@ -1406,7 +1429,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("dropping an inline SINGLE chain emits no leaf-page removals (it never had leaf pages)")
 		void shouldEmitNoRemovalsWhenSingleChainIsEmptyDropped() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			// a tiny chain stays within a single leaf (the inline SINGLE shape - no leaf pages on disk)
 			for (int pk = 1; pk <= 5; pk++) {
 				index.insertSortAttribute(
@@ -1500,7 +1523,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("dropping an emptied PAGED owner unique index removes every previously-live leaf page")
 		void shouldReclaimOwnerUniqueLeafPagesOnEmptyDrop() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			for (int pk = 1; pk <= KEY_COUNT; pk++) {
 				index.insertUniqueAttribute(
 					null, GLOBAL_UNIQUE_LOCALIZED_CODE, ALLOWED_LOCALES, Scope.LIVE, Locale.ENGLISH, "u" + pk, pk
@@ -1532,7 +1555,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("dropping an emptied PAGED owner sort index removes every previously-live leaf page")
 		void shouldReclaimOwnerSortLeafPagesOnEmptyDrop() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			for (int pk = 1; pk <= KEY_COUNT; pk++) {
 				index.insertSortAttribute(null, SORTABLE_PRIORITY, ALLOWED_LOCALES, null, pk, pk);
 			}
@@ -1559,7 +1582,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("dropping an emptied PAGED filter (value) index removes every previously-live leaf page")
 		void shouldReclaimFilterValueLeafPagesOnEmptyDrop() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			for (int pk = 1; pk <= KEY_COUNT; pk++) {
 				index.insertFilterAttribute(null, FILTERABLE_NAME, ALLOWED_LOCALES, null, "f" + pk, pk, false);
 			}
@@ -1586,7 +1609,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("dropping an emptied PAGED range filter reclaims BOTH the value and the range companion leaf pages")
 		void shouldReclaimFilterRangeLeafPagesOnEmptyDrop() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			for (int pk = 1; pk <= KEY_COUNT; pk++) {
 				index.insertFilterAttribute(null, FILTERABLE_RANGE, ALLOWED_LOCALES, null, rangeValue(pk), pk, false);
 			}
@@ -1621,7 +1644,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("dropping emptied inline SINGLE sibling indexes emits no leaf-page removals (they never had pages)")
 		void shouldEmitNoRemovalsWhenSingleShapeSiblingIndexesAreEmptyDropped() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			// a handful of keys per family keeps every sub-index within a single leaf (the inline SINGLE shape - no pages)
 			for (int pk = 1; pk <= 5; pk++) {
 				index.insertUniqueAttribute(
@@ -1730,7 +1753,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("adding a record to an existing filter value re-emits the touched leaf but not the root")
 		void shouldSkipFilterRootWhenOnlyLeafContentChanges() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			for (int pk = 1; pk <= KEY_COUNT; pk++) {
 				index.insertFilterAttribute(null, FILTERABLE_NAME, ALLOWED_LOCALES, null, "f" + pk, pk, false);
 			}
@@ -1756,7 +1779,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("adding a record to an existing sort value re-emits the touched leaf but not the root")
 		void shouldSkipSortRootWhenOnlyLeafContentChanges() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			for (int pk = 1; pk <= KEY_COUNT; pk++) {
 				index.insertSortAttribute(null, SORTABLE_PRIORITY, ALLOWED_LOCALES, null, pk, pk);
 			}
@@ -1782,7 +1805,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("a content-only change to a range filter skips the fused root only when BOTH axes are unchanged")
 		void shouldSkipFilterRootWhenBothAxesArePagedAndUnchanged() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			for (int pk = 1; pk <= KEY_COUNT; pk++) {
 				index.insertFilterAttribute(null, FILTERABLE_RANGE, ALLOWED_LOCALES, null, rangeValue(pk), pk, false);
 			}
@@ -1809,7 +1832,7 @@ class AttributeIndexTest implements TimeBoundedTestSupport {
 		@Test
 		@DisplayName("a range-filter leaf split re-emits the fused root even though it is a pure page-list root")
 		void shouldReEmitFilterRootWhenPageListChangesWithBothAxesPaged() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			for (int pk = 1; pk <= KEY_COUNT; pk++) {
 				index.insertFilterAttribute(null, FILTERABLE_RANGE, ALLOWED_LOCALES, null, rangeValue(pk), pk, false);
 			}

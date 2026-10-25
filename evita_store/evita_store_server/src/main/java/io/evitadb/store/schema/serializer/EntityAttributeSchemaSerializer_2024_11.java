@@ -88,7 +88,8 @@ public class EntityAttributeSchemaSerializer_2024_11 extends Serializer<EntityAt
 			(sortable ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE),
 			localized, nullable, representative,
 			type, (Serializable) defaultValue, indexedDecimalPlaces,
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			null
 		);
 	}
 

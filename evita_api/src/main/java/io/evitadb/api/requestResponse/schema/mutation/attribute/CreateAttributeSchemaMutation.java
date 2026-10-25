@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaContract;
 import io.evitadb.api.requestResponse.schema.NamedSchemaWithDeprecationContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.annotation.SerializableCreator;
 import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
@@ -108,7 +109,10 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 	@Getter @Nullable private final Serializable defaultValue;
 	@Getter private final int indexedDecimalPlaces;
 	@Getter @Nonnull private final ConflictResolutionOverride conflictResolutionOverride;
+	/** Ordered normalization descriptions, or `null` for Unicode NFD only. */
+	@Nullable private final AnalysisStep[] normalization;
 
+	/** Creates an attribute using the default scope and Unicode NFD-only normalization. */
 	public CreateAttributeSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
@@ -255,7 +259,6 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 	 *                                         accelerator does not apply to {@code type} (see
 	 *                                         {@link #verifyAcceleratorsApplicableToType})
 	 */
-	@SerializableCreator
 	public CreateAttributeSchemaMutation(
 		@Nonnull String name,
 		@Nullable String description,
@@ -273,7 +276,53 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 		int indexedDecimalPlaces,
 		@Nonnull ConflictResolutionOverride conflictResolutionOverride
 	) {
+		this(
+			name,
+			description,
+			deprecationNotice,
+			uniqueInScopes,
+			filterableInScopes,
+			acceleratorsInScopes,
+			searchableInScopes,
+			sortableInScopes,
+			localized,
+			nullable,
+			representative,
+			type,
+			defaultValue,
+			indexedDecimalPlaces,
+			conflictResolutionOverride,
+			null
+		);
+	}
+
+	/**
+	 * Creates an attribute carrying the complete normalization statement. `null` means Unicode NFD only.
+	 * Cross-field normalization validity is checked when the assembled schema is validated.
+	 *
+	 * @param normalization ordered normalization descriptions
+	 */
+	@SerializableCreator
+	public CreateAttributeSchemaMutation(
+		@Nonnull String name,
+		@Nullable String description,
+		@Nullable String deprecationNotice,
+		@Nullable ScopedAttributeUniquenessType[] uniqueInScopes,
+		@Nullable Scope[] filterableInScopes,
+		@Nullable ScopedAttributeFilterAccelerators[] acceleratorsInScopes,
+		@Nullable Scope[] searchableInScopes,
+		@Nullable Scope[] sortableInScopes,
+		boolean localized,
+		boolean nullable,
+		boolean representative,
+		@Nonnull Class<? extends Serializable> type,
+		@Nullable Serializable defaultValue,
+		int indexedDecimalPlaces,
+		@Nonnull ConflictResolutionOverride conflictResolutionOverride,
+		@Nullable AnalysisStep[] normalization
+	) {
 		super(name);
+		this.normalization = normalization == null ? null : normalization.clone();
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ATTRIBUTE, name);
 		if (!EvitaDataTypes.isSupportedTypeOrItsArray(type)) {
 			throw new InvalidSchemaMutationException("The type `" + type + "` is not allowed in attributes!");
@@ -304,6 +353,14 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 		this.defaultValue = defaultValue;
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
 		this.conflictResolutionOverride = conflictResolutionOverride;
+	}
+
+	/**
+	 * Returns the normalization statement, defensively copying the array when present.
+	 */
+	@Nullable
+	public AnalysisStep[] getNormalization() {
+		return this.normalization == null ? null : this.normalization.clone();
 	}
 
 	@Nonnull
@@ -347,6 +404,14 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 			return new MutationCombinationResult<>(
 				null,
 				Stream.of(
+						makeMutationIfDifferent(
+							AttributeSchemaContract.class,
+							createdVersion, existingSchema,
+							AttributeSchemaContract::getNormalization,
+							newValue -> new SetAttributeSchemaNormalizedMutation(
+								this.name, newValue.toArray(AnalysisStep[]::new)
+							)
+						),
 						makeMutationIfDifferent(
 							AttributeSchemaContract.class,
 							createdVersion, existingSchema,
@@ -468,7 +533,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 				this.localized, this.nullable, this.representative,
 				(Class) this.type, this.defaultValue,
 				this.indexedDecimalPlaces,
-				this.conflictResolutionOverride
+				this.conflictResolutionOverride,
+				this.normalization == null ? null : Arrays.asList(this.normalization)
 			);
 		} else if (AttributeSchemaContract.class.isAssignableFrom(schemaType)) {
 			//noinspection unchecked,rawtypes
@@ -479,7 +545,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 				this.localized, this.nullable, this.representative,
 				(Class) this.type, this.defaultValue,
 				this.indexedDecimalPlaces,
-				this.conflictResolutionOverride
+				this.conflictResolutionOverride,
+				this.normalization == null ? null : Arrays.asList(this.normalization)
 			);
 		} else {
 			throw new InvalidSchemaMutationException("Unsupported schema type: " + schemaType);
@@ -551,7 +618,8 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 			this.localized, this.nullable, this.representative,
 			(Class) this.type, this.defaultValue,
 			this.indexedDecimalPlaces,
-			this.conflictResolutionOverride
+			this.conflictResolutionOverride,
+			this.normalization == null ? null : Arrays.asList(this.normalization)
 		);
 		final Optional<AttributeSchemaContract> existingAttributeSchema = getReferenceAttributeSchema(referenceSchema, this.name);
 		if (existingAttributeSchema.isEmpty()) {
@@ -634,6 +702,7 @@ public class CreateAttributeSchemaMutation extends AbstractAttributeSchemaMutati
 			", searchable=" +
 			(isSearchable() ? "(in scopes: " + Arrays.toString(this.searchableInScopes) + ")" : "no") +
 			", sortable=" + (isSortable() ? "(in scopes: " + Arrays.toString(this.sortableInScopes) + ")" : "no") +
+			", normalization=" + Arrays.toString(this.normalization) +
 			", localized=" + this.localized +
 			", nullable=" + this.nullable +
 			", representative=" + this.representative +

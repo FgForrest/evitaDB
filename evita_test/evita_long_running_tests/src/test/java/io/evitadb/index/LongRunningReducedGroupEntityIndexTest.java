@@ -30,6 +30,7 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -99,7 +100,7 @@ class LongRunningReducedGroupEntityIndexTest implements TimeBoundedTestSupport {
 		final EntityIndexKey key = new EntityIndexKey(
 			EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE, rrk
 		);
-		return new ReducedGroupEntityIndex(INDEX_PK, ENTITY_TYPE, key);
+		return new ReducedGroupEntityIndex(INDEX_PK, ENTITY_TYPE, key, true, AttributeNormalizationResolver.LEGACY_NFD);
 	}
 
 	/**
@@ -114,7 +115,7 @@ class LongRunningReducedGroupEntityIndexTest implements TimeBoundedTestSupport {
 		@Nonnull String name, @Nonnull Class<? extends Serializable> type
 	) {
 		return AttributeSchema._internalBuild(
-			name,
+			name, null, null,
 			null,
 			new Scope[]{Scope.LIVE},
 			null,
@@ -122,7 +123,8 @@ class LongRunningReducedGroupEntityIndexTest implements TimeBoundedTestSupport {
 			null,
 			false, false, false,
 			type, null,
-			ConflictResolutionOverride.INHERITED
+			0, ConflictResolutionOverride.INHERITED,
+			null
 		);
 	}
 

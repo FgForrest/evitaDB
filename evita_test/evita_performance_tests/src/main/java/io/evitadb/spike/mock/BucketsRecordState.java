@@ -85,7 +85,9 @@ public class BucketsRecordState {
 	public void setUp() {
 		this.entityIds = generateBitmap(VALUE_COUNT, 1);
 		this.request = new AttributeHistogramRequest(
-			AttributeSchema._internalBuild("whatever", Integer.class, false, ConflictResolutionOverride.INHERITED),
+			AttributeSchema._internalBuild(
+				"whatever", Integer.class, false, ConflictResolutionOverride.INHERITED, null
+			),
 			REQUESTED_BUCKET_COUNT,
 			HistogramBehavior.STANDARD,
 			Comparator.naturalOrder(),

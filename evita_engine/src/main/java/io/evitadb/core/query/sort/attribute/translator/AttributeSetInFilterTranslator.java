@@ -32,9 +32,7 @@ import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.sort.OrderByVisitor;
 import io.evitadb.core.query.sort.OrderByVisitor.ProcessingScope;
 import io.evitadb.core.query.sort.Sorter;
-import io.evitadb.core.query.sort.attribute.sorter.AttributeExactSorter;
 import io.evitadb.core.query.sort.translator.OrderingConstraintTranslator;
-import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.utils.Assert;
 
 import javax.annotation.Nonnull;
@@ -42,7 +40,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.stream.Stream;
 
-import static io.evitadb.api.query.QueryConstraints.attributeContentAll;
+import static io.evitadb.core.query.filter.translator.attribute.AbstractAttributeTranslator.toAttributeProbeValue;
 
 /**
  * This implementation of {@link OrderingConstraintTranslator} converts {@link AttributeSetInFilter} to {@link Sorter}.
@@ -70,16 +68,14 @@ public class AttributeSetInFilterTranslator implements OrderingConstraintTransla
 		);
 
 		// if prefetch happens we need to prefetch attributes so that the attribute comparator can work
-		orderByVisitor.addRequirementToPrefetch(attributeContentAll());
+		AttributeSetExactTranslator.addRequirementsToPrefetch(orderByVisitor);
 		return Stream.of(
-			new AttributeExactSorter(
-				attributeName,
+			AttributeSetExactTranslator.createExactSorter(
+				orderByVisitor, attributeSchema,
 				Arrays.stream(attributeInSet.getAttributeValues())
-					.map(it -> EvitaDataTypes.toTargetType(it, attributeSchema.getPlainType()))
+					.map(it -> toAttributeProbeValue(it, attributeSchema.getPlainType()))
 					.toArray(Serializable[]::new),
-				AttributeSetExactTranslator.getRecordsEqualTo(
-					orderByVisitor, attributeSchema, " You probably need to limit the scope of the query."
-				)
+				" You probably need to limit the scope of the query."
 			)
 		);
 	}

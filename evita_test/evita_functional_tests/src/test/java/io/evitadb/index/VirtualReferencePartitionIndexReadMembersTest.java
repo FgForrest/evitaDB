@@ -23,6 +23,7 @@
 
 package io.evitadb.index;
 
+import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -78,7 +79,7 @@ class VirtualReferencePartitionIndexReadMembersTest {
 		index.putRepresentativeTuple(2, new Serializable[]{"detail"});
 		assertEquals(3, VirtualReferencePartitionIndexEntries.count(index));
 
-		index.declareSortKey(ORDER, INTEGER_ASC, 0);
+		index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
 		index.declareChainKey(CHAIN);
 		assertEquals(3, VirtualReferencePartitionIndexEntries.count(index), "declaring a key adds no entry");
 		assertEquals(Set.of(ORDER), index.getDeclaredSortKeys());
@@ -106,7 +107,7 @@ class VirtualReferencePartitionIndexReadMembersTest {
 	void shouldForgetARetiredKey() {
 		final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
 		index.putPartitionOwner(1, 10, 100);
-		index.declareSortKey(ORDER, INTEGER_ASC, 0);
+		index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
 		index.declareChainKey(CHAIN);
 		index.putSortValue(ORDER, 1, 5);
 		index.putChainPredecessor(CHAIN, 1, -1);
@@ -128,7 +129,7 @@ class VirtualReferencePartitionIndexReadMembersTest {
 	@DisplayName("the declared keys are a copy the index does not change afterwards")
 	void shouldReturnACopyOfTheDeclaredKeys() {
 		final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
-		index.declareSortKey(ORDER, INTEGER_ASC, 0);
+		index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
 		final Set<AttributeIndexKey> declared = index.getDeclaredSortKeys();
 
 		index.retireSortKey(ORDER);
@@ -143,7 +144,7 @@ class VirtualReferencePartitionIndexReadMembersTest {
 	void shouldReadTheTransactionsOwnState() {
 		final VirtualReferencePartitionIndex index = new VirtualReferencePartitionIndex();
 		index.putPartitionOwner(1, 10, 100);
-		index.declareSortKey(ORDER, INTEGER_ASC, 0);
+		index.declareSortKey(ORDER, INTEGER_ASC, 0, () -> SortIndex.createLegacyNormalizerFor(INTEGER_ASC, 0));
 		index.putSortValue(ORDER, 1, 5);
 
 		assertStateAfterCommit(

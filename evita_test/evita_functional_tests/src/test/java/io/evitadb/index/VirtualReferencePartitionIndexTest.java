@@ -28,6 +28,7 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart;
@@ -521,7 +522,7 @@ class VirtualReferencePartitionIndexTest {
 			final VirtualReferencePartitionIndex reloaded = new VirtualReferencePartitionIndex(
 				REFERENCE_NAME, root.getKeys(), root.getPayloads(), persistedIds, root.getTuples(),
 				root.getSortValueSlots(), root.getChainPredecessorSlots()
-			);
+			, slot -> SortIndex.createLegacyNormalizerFor(slot.comparatorBase(), slot.indexedDecimalPlaces()));
 			reloaded.putRepresentativeTuple(4, POSTER);
 
 			final int posterId = reloaded.getTupleId(POSTER);
@@ -605,7 +606,8 @@ class VirtualReferencePartitionIndexTest {
 			index.declareSortKey(
 				VirtualReferencePartitionIndexSortValueTest.ORDER,
 				VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC,
-				0
+				0,
+				() -> SortIndex.createLegacyNormalizerFor(VirtualReferencePartitionIndexSortValueTest.INTEGER_ASC, 0)
 			);
 			index.declareChainKey(chain);
 			for (int partition = 1; partition <= 3; partition++) {

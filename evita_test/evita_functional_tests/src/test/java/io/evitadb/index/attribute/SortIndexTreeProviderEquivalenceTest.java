@@ -706,7 +706,13 @@ class SortIndexTreeProviderEquivalenceTest {
 	@Nonnull
 	private static Fixture buildFixture(long seed, int recordCount) {
 		final Random random = new Random(seed);
-		final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+		final SortIndex sortIndex = new OwnerSortIndex(
+			Integer.class,
+			null,
+			new AttributeIndexKey(null, "a", null),
+			0,
+			SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+		);
 		final List<int[]> pairs = new ArrayList<>(recordCount);
 		final int[] presentRecordIds = new int[recordCount];
 		for (int recordId = 1; recordId <= recordCount; recordId++) {

@@ -45,18 +45,20 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.List;
+import java.util.Map;
+
 import org.junit.jupiter.api.Tag;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
 import static io.evitadb.test.TestConstants.TEST_CATALOG;
+import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.GRAPHQL;
+import static io.evitadb.test.TestTags.QUERY;
+import static io.evitadb.test.TestTags.SCHEMA;
 import static io.evitadb.test.generator.DataGenerator.ATTRIBUTE_CODE;
 import static io.evitadb.utils.ListBuilder.list;
 import static io.evitadb.utils.MapBuilder.map;
 import static org.hamcrest.Matchers.*;
-import static io.evitadb.test.TestTags.GRAPHQL;
-import static io.evitadb.test.TestTags.EXTERNAL_API;
-import static io.evitadb.test.TestTags.QUERY;
-import static io.evitadb.test.TestTags.SCHEMA;
 
 /**
  * Tests for GraphQL updating catalog schema.
@@ -753,6 +755,56 @@ public class CatalogGraphQLUpdateCatalogSchemaQueryFunctionalTest extends Catalo
 				UPDATE_CATALOG_SCHEMA_PATH + "." + CatalogSchemaDescriptor.ALL_ENTITY_SCHEMAS.name() + "." + NamedSchemaDescriptor.NAME.name(),
 				not(containsInRelativeOrder(NEW_COLLECTION_NAME))
 			);
+	}
+
+	@Test
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_CATALOG_SCHEMA_CHANGE)
+	@DisplayName("round-trips typed normalization for global attributes")
+	void shouldRoundTripGlobalNormalization(GraphQLTester tester) {
+		applyGlobalNormalizationMutation(tester, """
+			createGlobalAttributeSchemaMutation: {name: "normalizedGlobalCode", type: String,
+				normalization: [{removeCharacters: {characters: "- "}}, {asciiFolding: true}, {lowercase: true}]}
+			""");
+		assertGlobalNormalization(tester, "normalizedGlobalCode", List.of(
+			Map.of("step", "remove-characters", "parameters", Map.of("characters", "- ")),
+			Map.of("step", "ascii-folding", "parameters", Map.of()),
+			Map.of("step", "lowercase", "parameters", Map.of())
+		));
+		applyGlobalNormalizationMutation(tester, """
+			setAttributeSchemaNormalizedMutation: {name: "normalizedGlobalCode", normalization: [{trim: true}]}
+			""");
+		assertGlobalNormalization(tester, "normalizedGlobalCode",
+			List.of(Map.of("step", "trim", "parameters", Map.of())));
+		applyGlobalNormalizationMutation(tester, """
+			setAttributeSchemaNormalizedMutation: {name: "normalizedGlobalCode", normalization: []}
+			""");
+		assertGlobalNormalization(tester, "normalizedGlobalCode", List.of());
+		applyGlobalNormalizationMutation(tester, """
+			createGlobalAttributeSchemaMutation: {name: "normalizationLegacyGlobalCode", type: String}
+			""");
+		assertGlobalNormalization(tester, "normalizationLegacyGlobalCode", List.of());
+		applyGlobalNormalizationMutation(tester, """
+			setAttributeSchemaNormalizedMutation: {name: "normalizedGlobalCode"}
+			""");
+		assertGlobalNormalization(tester, "normalizedGlobalCode", List.of());
+	}
+
+	/** Applies a global-attribute mutation using the shared catalog fixture. */
+	private static void applyGlobalNormalizationMutation(@Nonnull GraphQLTester tester, @Nonnull String mutation) {
+		tester.test(TEST_CATALOG).urlPathSuffix("/schema")
+			.document("mutation { updateCatalogSchema(mutations: [{" + mutation + "}]) { version } }")
+			.executeAndExpectOkAndThen();
+	}
+
+	/** Reads the declared global chain through the schema endpoint. */
+	private static void assertGlobalNormalization(
+		@Nonnull GraphQLTester tester, @Nonnull String attribute, @Nonnull List<Map<String, Object>> expected
+	) {
+		tester.test(TEST_CATALOG).urlPathSuffix("/schema")
+			.document("query { getCatalogSchema { allAttributes { name normalization { step parameters } } } }")
+			.executeAndExpectOkAndThen()
+			.body(CATALOG_SCHEMA_PATH + ".allAttributes.find { it.name == '" + attribute + "' }.normalization",
+				equalTo(expected));
 	}
 
 	private static int getCatalogSchemaVersion(@Nonnull GraphQLTester tester) {

@@ -52,6 +52,7 @@ import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.function.IntPredicate;
 import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
 
 /**
  * An abstract class designed to translate attribute comparison constraints into specific filtering formulas.
@@ -81,16 +82,19 @@ public class AbstractAttributeComparisonTranslator extends AbstractAttributeTran
 	 * @param attributeConstraint the comparison constraint
 	 * @param attributeSchema     the schema of the attribute the constraint is applied to
 	 * @param attributeIndexKey   key of the filter index the attribute is read from, its locale selects the comparator
+	 * @param stringNormalizer the effective String key function for the filter locale
 	 * @return the matcher
 	 */
 	@Nonnull
 	protected AttributeValueMatcher createComparisonMatcher(
 		@Nonnull AbstractAttributeFilterComparisonConstraintLeaf attributeConstraint,
 		@Nonnull AttributeSchemaContract attributeSchema,
-		@Nonnull AttributeIndexKey attributeIndexKey
+		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull UnaryOperator<String> stringNormalizer
 	) {
 		return AttributeValueMatcher.comparing(
 			attributeIndexKey, attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces(),
+			stringNormalizer,
 			attributeConstraint.getAttributeValue(), this.comparisonResultPredicate
 		);
 	}
@@ -133,7 +137,7 @@ public class AbstractAttributeComparisonTranslator extends AbstractAttributeTran
 
 			final ProcessingScope<? extends Index<?>> processingScope = filterByVisitor.getProcessingScope();
 			final Class<? extends Serializable> attributeType = attributeSchema.getPlainType();
-			final Serializable comparableValue = EvitaDataTypes.toTargetType(attributeValue, attributeType);
+			final Serializable comparableValue = toAttributeProbeValue(attributeValue, attributeType);
 			final AttributeFormula filteringFormula = new AttributeFormula(
 				attributeSchema instanceof GlobalAttributeSchemaContract,
 				attributeKey,

@@ -23,7 +23,6 @@
 
 package io.evitadb.index;
 
-import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.data.Versioned;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
@@ -41,6 +40,8 @@ import io.evitadb.core.query.algebra.locale.LocaleFormula;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.analysis.AttributeNormalizationPolicy;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.AttributeIndexContract;
 import io.evitadb.index.attribute.AttributeIndexEditorContract;
@@ -61,6 +62,7 @@ import io.evitadb.index.map.TransactionalMap;
 import io.evitadb.index.price.PriceIndexContract;
 import io.evitadb.index.price.model.PriceIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexRootRemoval;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexStorageKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.FacetIndexRootRemoval;
@@ -118,6 +120,41 @@ public abstract non-sealed class EntityIndex implements
 	IndexWriteTarget
 {
 	/**
+	 * Inspects physical String keys without invoking any persistence emitter.
+	 *
+	 * @param identity scope/locale-free attribute identity
+	 * @param policy retained compound bindings supplemented with legacy declarations
+	 * @return true if an indexed non-null String key survives
+	 */
+	public boolean hasIndexedStringKeys(
+		@Nonnull AttributeIndexKey identity,
+		@Nonnull AttributeNormalizationPolicy policy
+	) {
+		return this.attributeIndex.hasIndexedStringKeys(identity, policy);
+	}
+
+	/**
+	 * Tests retained compound footprints independently of their declaration.
+	 *
+	 * @param identity scope/locale-free compound identity
+	 * @return true if any tuple survives
+	 */
+	public boolean hasSortKeys(
+		@Nonnull AttributeIndexKey identity
+	) {
+		return this.attributeIndex.hasSortKeys(identity);
+	}
+
+	/**
+	 * Selects the immutable policy for future child creation in this transaction.
+	 *
+	 * @param resolver new effective owner policy
+	 */
+	public void useNormalizationResolver(@Nonnull AttributeNormalizationResolver resolver) {
+		this.attributeIndex.useNormalizationResolver(resolver);
+	}
+
+	/**
 	 * Capacity the {@link #components} list is pre-sized to — chosen to hold the three intrinsic components plus
 	 * every extension a subclass registers without a single grow. Named because the heap estimate models the backing
 	 * array from it: an unread capacity would have to be guessed.
@@ -133,6 +170,7 @@ public abstract non-sealed class EntityIndex implements
 	 */
 	@Delegate(types = AttributeIndexContract.class)
 	protected final AttributeIndex attributeIndex;
+
 	/**
 	 * Internal flag that tracks whether the entity-id membership bitmaps ({@link #entityIds} /
 	 * {@link #entityIdsByLanguage}) changed and must be re-persisted. It drives two things: the index
@@ -256,32 +294,7 @@ public abstract non-sealed class EntityIndex implements
 	}
 
 	/**
-	 * Creates a brand-new, empty entity index at version 1. Fresh attribute, hierarchy, and facet
-	 * sub-indexes are allocated and registered as the three intrinsic {@link IndexComponent}s. The
-	 * change-detection baseline (`original*` fields) is initialized to empty placeholders — no
-	 * snapshot is captured here because terminal subclasses still need to register their own
-	 * components (price, cardinality, histogram, etc.). Each terminal subclass constructor must
-	 * therefore invoke {@link #captureOriginalsFromComponents()} as its final step.
-	 *
-	 * The attribute sub-index variant is chosen from `indexKey`: a {@link ReferenceAttributeIndex}
-	 * for reference-scoped indexes (see {@link #isReferenceScoped}), a plain {@link EntityAttributeIndex}
-	 * for the global index.
-	 *
-	 * @param primaryKey the unique identifier of this index instance within the catalog
-	 * @param entityType the entity type this index belongs to
-	 * @param indexKey   the key (type + discriminator) describing what slice of data this index covers
-	 */
-	protected EntityIndex(
-		int primaryKey,
-		@Nonnull String entityType,
-		@Nonnull EntityIndexKey indexKey
-	) {
-		this(primaryKey, entityType, indexKey, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING);
-	}
-
-	/**
-	 * Creates a brand-new, empty entity index at version 1, stating whether it counts its own usage — see
-	 * {@link #EntityIndex(int, String, EntityIndexKey)} for everything else this constructor does.
+	 * Creates an empty entity index at version 1 with explicit usage tracking and the owner resolver for String keys.
 	 *
 	 * @param primaryKey              the unique identifier of this index instance within the catalog
 	 * @param entityType              the entity type this index belongs to
@@ -289,12 +302,14 @@ public abstract non-sealed class EntityIndex implements
 	 * @param usageStatisticsTracking whether to allocate an {@link IndexActivity} holder for this index; false leaves
 	 *                                it null for the index's whole lifetime, because the decision is per server rather
 	 *                                than per index and cannot change under a running catalog
+	 * @param normalizationResolver   the owner's resolver new attribute structures bind their key functions from
 	 */
 	protected EntityIndex(
 		int primaryKey,
 		@Nonnull String entityType,
 		@Nonnull EntityIndexKey indexKey,
-		boolean usageStatisticsTracking
+		boolean usageStatisticsTracking,
+		@Nonnull AttributeNormalizationResolver normalizationResolver
 	) {
 		this.primaryKey = primaryKey;
 		this.version = 1;
@@ -310,8 +325,8 @@ public abstract non-sealed class EntityIndex implements
 		final RepresentativeReferenceKey discriminatorRefKey =
 			indexKey.discriminator() instanceof RepresentativeReferenceKey rk ? rk : null;
 		this.attributeIndex = isReferenceScoped(indexKey)
-			? new ReferenceAttributeIndex(entityType, discriminatorRefKey)
-			: new EntityAttributeIndex(entityType);
+			? new ReferenceAttributeIndex(entityType, discriminatorRefKey, normalizationResolver)
+			: new EntityAttributeIndex(entityType, normalizationResolver);
 		this.hierarchyIndex = new HierarchyIndex();
 		this.facetIndex = new FacetIndex();
 		this.originalHierarchyIndexEmpty = true;

@@ -38,6 +38,7 @@ import javax.annotation.Nonnull;
 import java.time.OffsetDateTime;
 import java.util.function.BiPredicate;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link AttributeContains} to {@link AbstractFormula}.
@@ -89,9 +90,10 @@ public class AttributeContainsTranslator extends AbstractAttributeStringSearchTr
 		@Nonnull AttributeContains attributeContains,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull UnaryOperator<String> stringNormalizer,
 		@Nonnull Supplier<OffsetDateTime> now
 	) {
-		return createStringSearchMatcher(attributeContains, attributeSchema);
+		return createStringSearchMatcher(attributeContains, attributeSchema, stringNormalizer);
 	}
 
 }

@@ -69,6 +69,7 @@ import java.util.function.BiFunction;
 import java.util.function.BiPredicate;
 import java.util.function.Function;
 import java.util.function.IntPredicate;
+import java.util.function.UnaryOperator;
 
 import static io.evitadb.api.query.QueryConstraints.attributeBetween;
 import static io.evitadb.test.TestTags.ATTRIBUTE;
@@ -98,6 +99,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 @Tag(ATTRIBUTE)
 @Tag(REFERENCE)
 class AttributeValueMatcherTest {
+	/** Explicit legacy binding for fixtures without declared steps. */
+	private static final UnaryOperator<String> LEGACY_STRING_NORMALIZER =
+		text -> (String) FilterIndex.getLegacyStringNormalizer().apply(text);
+
 	/**
 	 * The key of a non-localized attribute.
 	 */
@@ -156,7 +161,8 @@ class AttributeValueMatcherTest {
 			false, false, false,
 			plainType, null,
 			indexedDecimalPlaces,
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			null
 		);
 	}
 
@@ -273,7 +279,8 @@ class AttributeValueMatcherTest {
 			discriminating |= assertSameRecords(
 				"equals " + probe,
 				index.getRecordsEqualToFormula(indexNormalizer.apply(converted)),
-				AttributeValueMatcher.comparing(key, plainType, indexedDecimalPlaces, probe, result -> result == 0),
+				AttributeValueMatcher.comparing(key, plainType, indexedDecimalPlaces, LEGACY_STRING_NORMALIZER,
+					probe, result -> result == 0),
 				stored
 			);
 			// `AbstractAttributeComparisonTranslator` probes it with the converted value
@@ -282,7 +289,8 @@ class AttributeValueMatcherTest {
 					operator.name() + " " + probe,
 					operator.indexLookup().apply(index, converted),
 					AttributeValueMatcher.comparing(
-						key, plainType, indexedDecimalPlaces, probe, operator.resultPredicate()
+						key, plainType, indexedDecimalPlaces, LEGACY_STRING_NORMALIZER, probe,
+							operator.resultPredicate()
 					),
 					stored
 				);
@@ -290,13 +298,15 @@ class AttributeValueMatcherTest {
 			discriminating |= assertSameRecords(
 				"between " + probe + " and nothing",
 				index.getRecordsGreaterThanEqFormula(converted),
-				AttributeValueMatcher.within(key, plainType, indexedDecimalPlaces, probe, null),
+				AttributeValueMatcher.within(key, plainType, indexedDecimalPlaces, LEGACY_STRING_NORMALIZER, probe,
+					null),
 				stored
 			);
 			discriminating |= assertSameRecords(
 				"between nothing and " + probe,
 				index.getRecordsLesserThanEqFormula(converted),
-				AttributeValueMatcher.within(key, plainType, indexedDecimalPlaces, null, probe),
+				AttributeValueMatcher.within(key, plainType, indexedDecimalPlaces, LEGACY_STRING_NORMALIZER, null,
+					probe),
 				stored
 			);
 			for (Serializable otherProbe : probes) {
@@ -308,7 +318,8 @@ class AttributeValueMatcherTest {
 						index.getRecordsEqualToFormula(indexNormalizer.apply(otherConverted))
 					),
 					AttributeValueMatcher.equalToAny(
-						key, plainType, indexedDecimalPlaces, new Serializable[]{probe, otherProbe}
+						key, plainType, indexedDecimalPlaces, LEGACY_STRING_NORMALIZER, new Serializable[]{probe,
+							otherProbe}
 					),
 					stored
 				);
@@ -358,13 +369,14 @@ class AttributeValueMatcherTest {
 			return assertSameRecords(
 				"between " + from + " and " + to,
 				indexAnswer,
-				AttributeValueMatcher.within(key, plainType, indexedDecimalPlaces, from, to),
+				AttributeValueMatcher.within(key, plainType, indexedDecimalPlaces, LEGACY_STRING_NORMALIZER, from, to),
 				stored
 			);
 		} else {
 			final EvitaInvalidUsageException matcherRefusal = assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> AttributeValueMatcher.within(key, plainType, indexedDecimalPlaces, from, to),
+				() -> AttributeValueMatcher.within(key, plainType, indexedDecimalPlaces, LEGACY_STRING_NORMALIZER,
+					from, to),
 				"between " + from + " and " + to + " is refused by the index"
 			);
 			assertEquals(indexRefusal.getMessage(), matcherRefusal.getMessage());
@@ -421,7 +433,8 @@ class AttributeValueMatcherTest {
 		@Nonnull BiPredicate<String, String> predicate,
 		@Nonnull Serializable[] stored
 	) {
-		return assertSameRecords(description, indexAnswer, AttributeValueMatcher.searching(text, predicate), stored);
+		return assertSameRecords(description, indexAnswer, AttributeValueMatcher.searching(text,
+			LEGACY_STRING_NORMALIZER, predicate), stored);
 	}
 
 	/**
@@ -459,7 +472,7 @@ class AttributeValueMatcherTest {
 					)
 				),
 				BETWEEN_TRANSLATOR.createMatcher(
-					attributeBetween("a", bound[0], bound[1]), attributeSchema, KEY, () -> NOW
+					attributeBetween("a", bound[0], bound[1]), attributeSchema, KEY, LEGACY_STRING_NORMALIZER, () -> NOW
 				),
 				stored
 			);
@@ -471,7 +484,7 @@ class AttributeValueMatcherTest {
 			discriminating |= assertSameRecords(
 				inRange.toString(),
 				index.getRecordsValidInFormula(point),
-				IN_RANGE_TRANSLATOR.createMatcher(inRange, attributeSchema, KEY, () -> NOW),
+				IN_RANGE_TRANSLATOR.createMatcher(inRange, attributeSchema, KEY, LEGACY_STRING_NORMALIZER, () -> NOW),
 				stored
 			);
 		}
@@ -780,18 +793,23 @@ class AttributeValueMatcherTest {
 			final BigDecimal huge = bd("12345678901.23");
 			// the index encoding overflows on this very value - the matcher must not
 			assertThrows(ArithmeticException.class, () -> NumberUtils.convertToInt(huge, 2));
-			assertTrue(AttributeValueMatcher.comparing(KEY, BigDecimal.class, 2, huge, r -> r == 0).matches(huge));
-			assertTrue(AttributeValueMatcher.comparing(KEY, BigDecimal.class, 2, 1, r -> r > 0).matches(huge));
+			assertTrue(AttributeValueMatcher.comparing(KEY, BigDecimal.class, 2, LEGACY_STRING_NORMALIZER, huge,
+				r -> r == 0).matches(huge));
+			assertTrue(AttributeValueMatcher.comparing(KEY, BigDecimal.class, 2, LEGACY_STRING_NORMALIZER, 1,
+				r -> r > 0).matches(huge));
 			assertFalse(
-				AttributeValueMatcher.comparing(KEY, BigDecimal.class, 2, bd("12345678901.235"), r -> r == 0)
+				AttributeValueMatcher.comparing(KEY, BigDecimal.class, 2, LEGACY_STRING_NORMALIZER,
+					bd("12345678901.235"), r -> r == 0)
 					.matches(huge)
 			);
 			assertTrue(
-				AttributeValueMatcher.comparing(KEY, BigDecimal.class, 2, bd("99999999999"), r -> r < 0)
+				AttributeValueMatcher.comparing(KEY, BigDecimal.class, 2, LEGACY_STRING_NORMALIZER,
+					bd("99999999999"), r -> r < 0)
 					.matches(bd("5"))
 			);
 			assertTrue(
-				AttributeValueMatcher.within(KEY, BigDecimal.class, 2, bd("12345678901.225"), null).matches(huge)
+				AttributeValueMatcher.within(KEY, BigDecimal.class, 2, LEGACY_STRING_NORMALIZER,
+					bd("12345678901.225"), null).matches(huge)
 			);
 		}
 
@@ -799,11 +817,13 @@ class AttributeValueMatcherTest {
 		@DisplayName("1.005 equals a stored 1.01 at two decimal places, as both scale half up to 101")
 		void shouldScaleBigDecimalHalfUp() {
 			assertTrue(
-				AttributeValueMatcher.comparing(KEY, BigDecimal.class, 2, bd("1.005"), r -> r == 0)
+				AttributeValueMatcher.comparing(KEY, BigDecimal.class, 2, LEGACY_STRING_NORMALIZER, bd("1.005"),
+					r -> r == 0)
 					.matches(bd("1.01"))
 			);
 			assertFalse(
-				AttributeValueMatcher.comparing(KEY, BigDecimal.class, 2, bd("1.0049"), r -> r == 0)
+				AttributeValueMatcher.comparing(KEY, BigDecimal.class, 2, LEGACY_STRING_NORMALIZER, bd("1.0049"),
+					r -> r == 0)
 					.matches(bd("1.01"))
 			);
 			assertEquals(bd("101"), NumberUtils.scaleToInteger(bd("1.005"), 2));
@@ -815,7 +835,7 @@ class AttributeValueMatcherTest {
 		@DisplayName("no value, an empty array and a null element match nothing")
 		void shouldMatchNoMissingValue() {
 			final AttributeValueMatcher matcher = AttributeValueMatcher.comparing(
-				KEY, Integer.class, 0, 1, r -> r != 0
+				KEY, Integer.class, 0, LEGACY_STRING_NORMALIZER, 1, r -> r != 0
 			);
 			assertFalse(matcher.matches(null));
 			assertFalse(matcher.matches(new Integer[0]));
@@ -830,7 +850,7 @@ class AttributeValueMatcherTest {
 		void shouldRefuseInvertedScalarInterval() {
 			final EvitaInvalidUsageException exception = assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> AttributeValueMatcher.within(KEY, Integer.class, 0, 10, 5)
+				() -> AttributeValueMatcher.within(KEY, Integer.class, 0, LEGACY_STRING_NORMALIZER, 10, 5)
 			);
 			assertEquals("From must be lower than to: 10 vs. 5", exception.getMessage());
 		}
@@ -839,7 +859,8 @@ class AttributeValueMatcherTest {
 		@DisplayName("an inverted range interval matches nothing, as the range index answers it")
 		void shouldMatchNothingForInvertedRangeInterval() {
 			final AttributeValueMatcher matcher = BETWEEN_TRANSLATOR.createMatcher(
-				attributeBetween("a", 10, 5), rangeSchema(IntegerNumberRange.class, 0), KEY, () -> NOW
+				attributeBetween("a", 10, 5), rangeSchema(IntegerNumberRange.class, 0), KEY,
+					LEGACY_STRING_NORMALIZER, () -> NOW
 			);
 			assertFalse(matcher.matches(IntegerNumberRange.between(0, 100)));
 		}
@@ -849,7 +870,8 @@ class AttributeValueMatcherTest {
 		void shouldRefuseTypeWithoutOrder() {
 			assertThrows(
 				EvitaInvalidUsageException.class,
-				() -> AttributeValueMatcher.comparing(KEY, Predecessor.class, 0, Predecessor.HEAD, r -> r == 0)
+				() -> AttributeValueMatcher.comparing(KEY, Predecessor.class, 0, LEGACY_STRING_NORMALIZER,
+					Predecessor.HEAD, r -> r == 0)
 			);
 		}
 
@@ -858,7 +880,8 @@ class AttributeValueMatcherTest {
 		void shouldRefuseInconvertibleValue() {
 			assertThrows(
 				InconvertibleDataTypeException.class,
-				() -> AttributeValueMatcher.comparing(KEY, Integer.class, 0, "not a number", r -> r == 0)
+				() -> AttributeValueMatcher.comparing(KEY, Integer.class, 0, LEGACY_STRING_NORMALIZER,
+					"not a number", r -> r == 0)
 			);
 		}
 
@@ -867,12 +890,12 @@ class AttributeValueMatcherTest {
 		void shouldCompareOffsetDateTimesAsInstants() {
 			assertTrue(
 				AttributeValueMatcher.comparing(
-					KEY, OffsetDateTime.class, 0, odt("2026-01-01T08:00:00Z"), r -> r == 0
+					KEY, OffsetDateTime.class, 0, LEGACY_STRING_NORMALIZER, odt("2026-01-01T08:00:00Z"), r -> r == 0
 				).matches(odt("2026-01-01T10:00:00+02:00"))
 			);
 			// the same instant written 1 ms apart in another offset falls on either side of the bound
 			final AttributeValueMatcher fromEightUtc = AttributeValueMatcher.within(
-				KEY, OffsetDateTime.class, 0, odt("2026-01-01T08:00:00Z"), null
+				KEY, OffsetDateTime.class, 0, LEGACY_STRING_NORMALIZER, odt("2026-01-01T08:00:00Z"), null
 			);
 			assertTrue(fromEightUtc.matches(odt("2026-01-01T10:00:00.001+02:00")));
 			assertFalse(fromEightUtc.matches(odt("2026-01-01T09:59:59.999+02:00")));
@@ -883,13 +906,13 @@ class AttributeValueMatcherTest {
 		void shouldCompareLocalDateTimesToTheMillisecond() {
 			final LocalDateTime newYear = LocalDateTime.parse("2026-01-01T00:00:00");
 			final AttributeValueMatcher fromNewYear = AttributeValueMatcher.within(
-				KEY, LocalDateTime.class, 0, newYear, null
+				KEY, LocalDateTime.class, 0, LEGACY_STRING_NORMALIZER, newYear, null
 			);
 			assertTrue(fromNewYear.matches(newYear.plusNanos(1_000_000)));
 			assertFalse(fromNewYear.matches(newYear.minusNanos(1_000_000)));
 			// the index truncates to milliseconds, so a value 0.4 ms past the bound is the bound itself
 			final AttributeValueMatcher untilNewYear = AttributeValueMatcher.within(
-				KEY, LocalDateTime.class, 0, null, newYear
+				KEY, LocalDateTime.class, 0, LEGACY_STRING_NORMALIZER, null, newYear
 			);
 			assertTrue(untilNewYear.matches(newYear.plusNanos(400_000)));
 			assertFalse(untilNewYear.matches(newYear.plusNanos(1_000_000)));
@@ -906,7 +929,7 @@ class AttributeValueMatcherTest {
 			final Serializable converted = EvitaDataTypes.toTargetType(value, plainType);
 			// the index stringifies the array to `[Ljava.lang.String;@...` and finds no such value
 			final AttributeValueMatcher equalsArray = AttributeValueMatcher.comparing(
-				KEY, String.class, 0, value, r -> r == 0
+				KEY, String.class, 0, LEGACY_STRING_NORMALIZER, value, r -> r == 0
 			);
 			assertSameRecords(
 				"equals an array",
@@ -917,7 +940,8 @@ class AttributeValueMatcherTest {
 			assertArrayEquals(
 				new int[0],
 				matchedRecords(
-					AttributeValueMatcher.equalToAny(KEY, String.class, 0, new Serializable[]{value, "q"}), stored
+					AttributeValueMatcher.equalToAny(KEY, String.class, 0, LEGACY_STRING_NORMALIZER,
+						new Serializable[]{value, "q"}), stored
 				)
 			);
 			// the comparisons order the stringified array as the index orders it - before every letter
@@ -925,7 +949,8 @@ class AttributeValueMatcherTest {
 				assertSameRecords(
 					operator.name() + " an array",
 					operator.indexLookup().apply(index, converted),
-					AttributeValueMatcher.comparing(KEY, String.class, 0, value, operator.resultPredicate()),
+					AttributeValueMatcher.comparing(KEY, String.class, 0, LEGACY_STRING_NORMALIZER, value,
+						operator.resultPredicate()),
 					stored
 				);
 			}

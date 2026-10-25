@@ -36,6 +36,7 @@ import io.evitadb.api.requestResponse.data.EntityContract;
 import io.evitadb.api.requestResponse.data.structure.AssociatedData;
 import io.evitadb.api.requestResponse.data.structure.Attributes;
 import io.evitadb.api.requestResponse.data.structure.Entity;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
@@ -44,6 +45,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -69,6 +71,20 @@ import java.util.stream.Stream;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
 public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContract, ConflictResolutionOverrideAwareSchemaContract {
+
+	/**
+	 * Ordered normalization steps for `String` and `String[]` attributes, shared by all scopes.
+	 * An empty list means no custom normalization: the engine applies only Unicode NFD.
+	 *
+	 * Normalization changes which values match for equality, uniqueness, sort order and substring search.
+	 * The stored attribute value is untouched. The engine enters in Unicode NFC, applies each step once in
+	 * declared order and leaves in Unicode NFD.
+	 * A change on an attribute whose indexes already hold values takes effect only after reindexing (#409).
+	 *
+	 * @return immutable ordered steps, empty for NFD only
+	 */
+	@Nonnull
+	List<AnalysisStep> getNormalization();
 
 	/**
 	 * Representative flag marks the attribute as one of the most important attributes in the entity, or when used
@@ -431,6 +447,34 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 							"locale its value is written in."
 					)
 				);
+			}
+		}
+		if (!getNormalization().isEmpty() && !String.class.equals(getPlainType())) {
+			errors = Stream.concat(
+				errors,
+				Stream.of(
+					"Attribute `" + getName() + "` declares normalization, but its type is `" + getType().getName() +
+						"`! Only attributes of type `String` or `String[]` can be normalized."
+				)
+			);
+		}
+		// Records validate individual descriptions at construction; keep the assembled contract responsible
+		// for structure too, including alternate contract implementations and deserialized schemas.
+		for (final AnalysisStep step : getNormalization()) {
+			if (step == null) {
+				errors = Stream.concat(
+					errors, Stream.of("Attribute `" + getName() + "` has a null normalization step.")
+				);
+			} else {
+				try {
+					new AnalysisStep(step.name(), step.parameters());
+				} catch (final IllegalArgumentException ex) {
+					errors = Stream.concat(
+						errors, Stream.of(
+							"Attribute `" + getName() + "` has an invalid normalization step: " + ex.getMessage()
+						)
+					);
+				}
 			}
 		}
 		return errors;

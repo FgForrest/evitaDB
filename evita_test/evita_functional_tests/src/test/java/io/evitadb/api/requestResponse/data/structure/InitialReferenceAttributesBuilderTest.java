@@ -122,7 +122,8 @@ class InitialReferenceAttributesBuilderTest
 			assertEquals(
 				AttributeSchema._internalBuild(
 					"abc", Integer.class, false,
-					ConflictResolutionOverride.INHERITED
+					ConflictResolutionOverride.INHERITED,
+					null
 				),
 				attributes.getAttributeSchema("abc")
 					.orElse(null)
@@ -133,7 +134,8 @@ class InitialReferenceAttributesBuilderTest
 					io.evitadb.dataType
 						.IntegerNumberRange.class,
 					false,
-					ConflictResolutionOverride.INHERITED
+					ConflictResolutionOverride.INHERITED,
+					null
 				),
 				attributes.getAttributeSchema("def")
 					.orElse(null)
@@ -141,7 +143,8 @@ class InitialReferenceAttributesBuilderTest
 			assertEquals(
 				AttributeSchema._internalBuild(
 					"dd", BigDecimal.class, false,
-					ConflictResolutionOverride.INHERITED
+					ConflictResolutionOverride.INHERITED,
+					null
 				),
 				attributes.getAttributeSchema("dd")
 					.orElse(null)
@@ -149,7 +152,8 @@ class InitialReferenceAttributesBuilderTest
 			assertEquals(
 				AttributeSchema._internalBuild(
 					"greetings", String.class, true,
-					ConflictResolutionOverride.INHERITED
+					ConflictResolutionOverride.INHERITED,
+					null
 				),
 				attributes
 					.getAttributeSchema("greetings")

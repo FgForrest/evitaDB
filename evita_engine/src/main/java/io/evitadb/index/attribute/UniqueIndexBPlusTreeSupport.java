@@ -53,19 +53,20 @@ import java.util.function.Function;
  *
  * # One key space with the filter index
  *
- * A unique tree keys every value exactly as the filter index keys it: through
- * {@link FilterIndex#getNormalizer(Class, int)}, at the attribute's `indexedDecimalPlaces`, in the leaf column
- * {@link ValueColumnFactory#forFilterKey} selects for that key. There is no per-type exception. Two values the filter
+ * A unique tree keys every value exactly as the filter index keys it: through the key function the owner binds -
+ * the attribute's normalization chain for a `String`, {@link FilterIndex#getNormalizer(Class, int)} at the
+ * attribute's `indexedDecimalPlaces` otherwise - in the leaf column {@link ValueColumnFactory#forFilterKey} selects
+ * for that key. There is no per-type exception. Two values the filter
  * index treats as one - the same instant at two offsets, a precomposed and a decomposed Unicode spelling, two decimals
  * equal at the indexed scale - are therefore one unique value as well: a lookup by either finds the owner, and the
- * second is refused for anyone else. Every entry point converts its value through {@link #toKey}: registration,
- * removal, lookup and the restore from persisted parts. The query translators probe with the filter normalizer's
- * output, which the conversion passes through unchanged because the normalizer is idempotent.
+ * second is refused for anyone else. Raw registration, removal and lookup values enter {@link #toKey} with the
+ * captured raw-input function.
+ * Persisted keys enter {@link #toPersistedKeys} with the legacy type-level canonicalizer only.
  *
  * Storage parts do not carry the keys themselves. Their serializers read every inline value back as the DECLARED
  * attribute type, so {@link #toDeclaredValue} turns each key into a value of that type naming the same key - an
  * `OffsetDateTime` at UTC, a `BigDecimal` at the indexed scale, the bare `Currency` / `Locale` - and the restore
- * converts it to the key again. The on-disk format is the one it has always been.
+ * converts it with the legacy function. The on-disk format is the one it has always been.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  */
@@ -106,8 +107,8 @@ final class UniqueIndexBPlusTreeSupport {
 	}
 
 	/**
-	 * Returns the function converting a value of `plainType` to its unique-tree key - the filter index's normalizer,
-	 * see the class javadoc.
+	 * Returns the legacy type-only function converting a value to its unique-tree key (NFD-only for String),
+	 * for migrations and standalone compatibility owners. Attribute paths supply their resolved function.
 	 *
 	 * @param plainType            the plain (array-unwrapped) attribute type
 	 * @param indexedDecimalPlaces the scale `BigDecimal` and `BigDecimalNumberRange` values are keyed at (ignored for
@@ -115,8 +116,9 @@ final class UniqueIndexBPlusTreeSupport {
 	 * @return the normalizer
 	 */
 	@Nonnull
-	static Function<Object, Serializable> normalizerFor(@Nonnull Class<?> plainType, int indexedDecimalPlaces) {
-		return FilterIndex.getNormalizer(plainType, indexedDecimalPlaces);
+	static Function<Object, Serializable> legacyNormalizerFor(@Nonnull Class<?> plainType, int indexedDecimalPlaces) {
+		return plainType == String.class ? FilterIndex.getLegacyStringNormalizer()
+			: FilterIndex.getNormalizer(plainType, indexedDecimalPlaces);
 	}
 
 	/**
@@ -124,10 +126,10 @@ final class UniqueIndexBPlusTreeSupport {
 	 * {@link Serializable} and {@link Comparable}. The check runs on the key, not on the value - a `Currency` or a
 	 * `Locale` is not comparable, while the `ComparableCurrency` / `ComparableLocale` it is keyed by is.
 	 *
-	 * The conversion is idempotent, so a probe the query translator has already normalized passes unchanged.
+	 * The supplied function accepts raw input; a declared chain must never receive an already-stored key.
 	 *
-	 * @param normalizer the normalizer of the tree (see {@link #normalizerFor})
-	 * @param value      the value (or an already normalized key)
+	 * @param normalizer the normalizer of the tree (see {@link #legacyNormalizerFor})
+	 * @param value      the raw attribute value or raw probe
 	 * @return the tree key
 	 * @throws io.evitadb.exception.EvitaInvalidUsageException when the key is not serializable or not comparable
 	 */
@@ -143,7 +145,7 @@ final class UniqueIndexBPlusTreeSupport {
 	 * {@link #foldOntoDistinctValues}. Two elements the normalizer maps to one key (two spellings of one value in one
 	 * array) are then one tree entry, exactly as two equal elements are.
 	 *
-	 * @param normalizer the normalizer of the tree (see {@link #normalizerFor})
+	 * @param normalizer the normalizer of the tree (see {@link #legacyNormalizerFor})
 	 * @param values     the array elements
 	 * @return the distinct tree keys, in the encounter order of their first element
 	 * @throws io.evitadb.exception.EvitaInvalidUsageException when a key is not serializable or not comparable
@@ -162,7 +164,9 @@ final class UniqueIndexBPlusTreeSupport {
 	 * {@link #toDistinctKeys} nothing is folded: persisted values are distinct keys of the tree that wrote them, and a
 	 * pair that is not must be refused by the caller rather than silently merged.
 	 *
-	 * @param normalizer the normalizer of the tree (see {@link #normalizerFor})
+	 * Re-canonicalizing here heals keys written by older versions and must use the legacy function only.
+	 *
+	 * @param normalizer the legacy type-level canonicalizer
 	 * @param values     the persisted values
 	 * @return the tree keys
 	 */
@@ -186,7 +190,7 @@ final class UniqueIndexBPlusTreeSupport {
 	 *   type already.
 	 *
 	 * Storage parts carry these values, because the inline serializers read every value back as the declared type;
-	 * the restore converts them to keys again, and {@link #toKey} of the result is the key itself. Violation messages
+	 * the restore converts them with the legacy canonicalizer. Violation messages
 	 * show them for the same reason: they name a value of the attribute's type.
 	 *
 	 * @param plainType            the plain (array-unwrapped) attribute type

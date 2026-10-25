@@ -45,6 +45,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
+
 import org.mockito.Mockito;
 import org.junit.jupiter.api.Tag;
 
@@ -53,11 +54,11 @@ import java.util.EnumSet;
 import java.util.Set;
 
 import static io.evitadb.api.requestResponse.schema.mutation.attribute.CreateAttributeSchemaMutationTest.*;
-import static java.util.Optional.of;
-import static org.junit.jupiter.api.Assertions.*;
+import static io.evitadb.test.TestTags.ATTRIBUTE;
 import static io.evitadb.test.TestTags.CONTRACT;
 import static io.evitadb.test.TestTags.SCHEMA;
-import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static java.util.Optional.of;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Test verifies {@link ModifyAttributeSchemaTypeMutation} class.
@@ -350,7 +351,8 @@ class ModifyAttributeSchemaTypeMutationTest {
 					null,
 					false, false, false,
 					Integer.class, null, 0,
-					ConflictResolutionOverride.INHERITED
+					ConflictResolutionOverride.INHERITED,
+					null
 				)
 			);
 		}

@@ -24,6 +24,7 @@
 package io.evitadb.index.attribute;
 
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.invertedIndex.InvertedIndex;
 import io.evitadb.index.range.RangeIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -63,34 +64,18 @@ public final class ReferenceAttributeIndex extends AttributeIndex {
 	@Serial private static final long serialVersionUID = -3826145918174926431L;
 
 	/**
-	 * Builds an empty reference-scoped attribute index.
-	 *
-	 * @param entityType   the owning entity type
-	 * @param referenceKey the representative reference key — `null` for
-	 *                     [io.evitadb.index.ReferencedTypeEntityIndex] which uses the index key's
-	 *                     reference-name discriminator directly
+	 * Creates an attribute container using the owner resolver for new child structures.
 	 */
 	public ReferenceAttributeIndex(
 		@Nonnull String entityType,
-		@Nullable RepresentativeReferenceKey referenceKey
+		@Nullable RepresentativeReferenceKey referenceKey,
+		@Nonnull AttributeNormalizationResolver normalizationResolver
 	) {
-		super(entityType, referenceKey);
+		super(entityType, referenceKey, normalizationResolver);
 	}
 
 	/**
-	 * Builds a reference-scoped attribute index pre-populated from deserialized maps. Used by the
-	 * persistence reload path in [io.evitadb.store.catalog.DefaultEntityCollectionPersistenceService].
-	 *
-	 * @param entityType   the owning entity type
-	 * @param referenceKey the representative reference key — `null` for
-	 *                     [io.evitadb.index.ReferencedTypeEntityIndex]
-	 * @param uniqueIndex  pre-loaded standalone (owner) unique sub-index map
-	 * @param filterIndex  filter VIEW map (carries each key's attributeType; rebuilt over the shared trees)
-	 * @param uniqueViewIndex folded-unique VIEW map (carries each foldable key; rebuilt over the shared trees)
-	 * @param sortIndex    pre-loaded sort sub-index map
-	 * @param chainIndex   pre-loaded chain sub-index map
-	 * @param sharedValueIndex pre-loaded shared value→ValueToRecord tree map
-	 * @param sharedRangeIndex pre-loaded shared range-structure map
+	 * Creates an attribute container using the owner resolver for new child structures.
 	 */
 	public ReferenceAttributeIndex(
 		@Nonnull String entityType,
@@ -101,9 +86,21 @@ public final class ReferenceAttributeIndex extends AttributeIndex {
 		@Nonnull Map<AttributeIndexKey, SortIndex> sortIndex,
 		@Nonnull Map<AttributeIndexKey, ChainIndex> chainIndex,
 		@Nonnull Map<AttributeIndexKey, InvertedIndex> sharedValueIndex,
-		@Nonnull Map<AttributeIndexKey, RangeIndex> sharedRangeIndex
+		@Nonnull Map<AttributeIndexKey, RangeIndex> sharedRangeIndex,
+		@Nonnull AttributeNormalizationResolver normalizationResolver
 	) {
-		super(entityType, referenceKey, uniqueIndex, filterIndex, uniqueViewIndex, sortIndex, chainIndex, sharedValueIndex, sharedRangeIndex);
+		super(
+			entityType,
+			referenceKey,
+			uniqueIndex,
+			filterIndex,
+			uniqueViewIndex,
+			sortIndex,
+			chainIndex,
+			sharedValueIndex,
+			sharedRangeIndex,
+			normalizationResolver
+		);
 	}
 
 	@Nonnull
@@ -123,10 +120,12 @@ public final class ReferenceAttributeIndex extends AttributeIndex {
 		@Nonnull Map<AttributeIndexKey, SortIndex> sortIndex,
 		@Nonnull Map<AttributeIndexKey, ChainIndex> chainIndex,
 		@Nonnull Map<AttributeIndexKey, InvertedIndex> sharedValueIndex,
-		@Nonnull Map<AttributeIndexKey, RangeIndex> sharedRangeIndex
+		@Nonnull Map<AttributeIndexKey, RangeIndex> sharedRangeIndex,
+		@Nonnull AttributeNormalizationResolver normalizationResolver
 	) {
 		return new ReferenceAttributeIndex(
-			entityType, referenceKey, uniqueIndex, filterIndex, uniqueViewIndex, sortIndex, chainIndex, sharedValueIndex, sharedRangeIndex
+			entityType, referenceKey, uniqueIndex, filterIndex, uniqueViewIndex, sortIndex, chainIndex,
+			sharedValueIndex, sharedRangeIndex, normalizationResolver
 		);
 	}
 

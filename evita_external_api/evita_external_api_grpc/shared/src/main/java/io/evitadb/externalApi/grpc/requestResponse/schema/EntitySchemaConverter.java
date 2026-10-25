@@ -67,6 +67,8 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.toGrpcNameVariant;
 import static io.evitadb.externalApi.grpc.requestResponse.EvitaEnumConverter.*;
+import static io.evitadb.externalApi.grpc.requestResponse.schema.AnalysisStepConverter.toAnalysisSteps;
+import static io.evitadb.externalApi.grpc.requestResponse.schema.AnalysisStepConverter.toGrpcAnalysisSteps;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -302,6 +304,7 @@ public class EntitySchemaConverter {
 					.map(EvitaEnumConverter::toGrpcScope)
 					.toList()
 			)
+			.addAllNormalization(toGrpcAnalysisSteps(attributeSchema.getNormalization()))
 			.addAllAcceleratorsInScopes(
 				toGrpcScopedAttributeFilterAccelerators(
 					AttributeSchema.toAcceleratorsArray(attributeSchema.getAcceleratorsInScopes())
@@ -699,7 +702,8 @@ public class EntitySchemaConverter {
 					EvitaDataTypesConverter.toEvitaDataType(attributeSchema.getType()),
 					attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
 					attributeSchema.getIndexedDecimalPlaces(),
-					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride())
+					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()),
+					toAnalysisSteps(attributeSchema.getNormalizationList())
 				);
 			} else {
 				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
@@ -723,7 +727,8 @@ public class EntitySchemaConverter {
 					EvitaDataTypesConverter.toEvitaDataType(attributeSchema.getType()),
 					attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
 					attributeSchema.getIndexedDecimalPlaces(),
-					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride())
+					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()),
+					toAnalysisSteps(attributeSchema.getNormalizationList())
 				);
 			} else {
 				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");
@@ -747,7 +752,8 @@ public class EntitySchemaConverter {
 					EvitaDataTypesConverter.toEvitaDataType(attributeSchema.getType()),
 					attributeSchema.hasDefaultValue() ? EvitaDataTypesConverter.toEvitaValue(attributeSchema.getDefaultValue()) : null,
 					attributeSchema.getIndexedDecimalPlaces(),
-					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride())
+					EvitaEnumConverter.toConflictResolutionOverride(attributeSchema.getConflictResolutionOverride()),
+					toAnalysisSteps(attributeSchema.getNormalizationList())
 				);
 			} else {
 				throw new EvitaInvalidUsageException("Expected global attribute, but `" + attributeSchema.getSchemaType() + "` was provided!");

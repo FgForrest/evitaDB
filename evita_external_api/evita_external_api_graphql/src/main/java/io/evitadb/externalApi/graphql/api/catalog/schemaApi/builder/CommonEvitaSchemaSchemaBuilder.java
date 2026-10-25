@@ -78,7 +78,6 @@ import io.evitadb.externalApi.graphql.api.catalog.schemaApi.model.mutation.Catal
 import io.evitadb.externalApi.graphql.api.catalog.schemaApi.resolver.subscribingDataFetcher.ChangeCatalogSchemaCaptureUntypedBodyDataFetcher;
 
 import javax.annotation.Nonnull;
-
 import java.util.Map;
 
 import static graphql.schema.GraphQLTypeReference.typeRef;
@@ -97,6 +96,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 
 	@Override
 	public void build() {
+		buildAnalysisStepTypes(true);
 		final GraphQLEnumType scalarEnum = buildScalarEnum();
 		this.buildingContext.registerType(scalarEnum);
 		this.buildingContext.registerType(buildAssociatedDataScalarEnum(scalarEnum));
@@ -227,6 +227,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 			RemoveAttributeSchemaMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaFilterableMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaAcceleratedMutationDescriptor.THIS_INPUT,
+			SetAttributeSchemaNormalizedMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaLocalizedMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaNullableMutationDescriptor.THIS_INPUT,
 			SetAttributeSchemaRepresentativeMutationDescriptor.THIS_INPUT,
@@ -334,6 +335,7 @@ public class CommonEvitaSchemaSchemaBuilder extends PartialGraphQLSchemaBuilder<
 			RemoveAttributeSchemaMutationDescriptor.THIS,
 			SetAttributeSchemaFilterableMutationDescriptor.THIS,
 			SetAttributeSchemaAcceleratedMutationDescriptor.THIS,
+			SetAttributeSchemaNormalizedMutationDescriptor.THIS,
 			SetAttributeSchemaLocalizedMutationDescriptor.THIS,
 			SetAttributeSchemaNullableMutationDescriptor.THIS,
 			SetAttributeSchemaRepresentativeMutationDescriptor.THIS,

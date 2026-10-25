@@ -52,6 +52,7 @@ import io.evitadb.core.collection.EntityCollection;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndex;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.mutation.local.VirtualReferencePartitionWriter;
@@ -1535,7 +1536,8 @@ class Migration_2026_3_VirtualPartitionsTest implements EvitaTestSupport {
 						final ReferenceSchemaContract referenceSchema =
 							schema.getReference(referenceName).orElseThrow();
 						final EntityIndex index = collectionService.readEntityIndex(
-							catalogVersion, indexPrimaryKey, schema, false, new FulltextAnalyzerRegistry()
+							catalogVersion, indexPrimaryKey, schema, false, new FulltextAnalyzerRegistry(),
+							AttributeNormalizationResolver.LEGACY_NFD
 						);
 						final boolean convertible =
 							VirtualReferencePartitionWriter.isWrittenVirtually(referenceSchema, scope) &&

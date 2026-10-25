@@ -23,7 +23,6 @@
 
 package io.evitadb.index;
 
-import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.exception.EntityLocaleMissingException;
 import io.evitadb.api.exception.UniqueValueViolationException;
 import io.evitadb.api.requestResponse.data.AttributesContract.AttributeKey;
@@ -37,8 +36,10 @@ import io.evitadb.core.transaction.memory.TransactionalContainerChanges.Containe
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.core.transaction.memory.TransactionalLayerProducer;
 import io.evitadb.core.transaction.memory.TransactionalObjectVersion;
+import io.evitadb.core.transaction.memory.WarmUpSavepoint;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.CatalogIndex.CatalogIndexChanges;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import io.evitadb.index.attribute.UniqueIndex;
@@ -81,6 +82,8 @@ public class CatalogIndex implements
 	IndexDataStructure
 {
 	@Getter private final long id = TransactionalObjectVersion.SEQUENCE.nextId();
+	/** Resolver used only when a global unique tree is created. */
+	@Nonnull private volatile AttributeNormalizationResolver normalizationResolver;
 	/**
 	 * Type of the index.
 	 */
@@ -111,18 +114,13 @@ public class CatalogIndex implements
 	 */
 	@Nullable private final IndexActivity activity;
 
-	public CatalogIndex(@Nonnull Scope scope) {
-		this(scope, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING);
-	}
-
 	/**
-	 * Creates a brand-new catalog index, stating whether it counts its own usage.
-	 *
-	 * @param scope                   the scope this index covers
-	 * @param usageStatisticsTracking whether to allocate an {@link IndexActivity} holder; false leaves it null for the
-	 *                                index's whole lifetime, because the decision is per server rather than per index
+	 * Creates an index using the owner resolver; child structures capture String functions when they are created.
 	 */
-	public CatalogIndex(@Nonnull Scope scope, boolean usageStatisticsTracking) {
+	public CatalogIndex(@Nonnull Scope scope, boolean usageStatisticsTracking,
+		@Nonnull AttributeNormalizationResolver normalizationResolver
+	) {
+		this.normalizationResolver = normalizationResolver;
 		this.version = 1;
 		this.indexKey = new CatalogIndexKey(scope);
 		this.dirty = new TransactionalBoolean();
@@ -133,21 +131,47 @@ public class CatalogIndex implements
 	}
 
 	/**
-	 * Reconstructs a catalog index from persisted or committed state.
+	 * Returns the immutable binding selected by this transaction or committed snapshot.
 	 *
-	 * @param version     version this index carries forward
-	 * @param indexKey    the key identifying this index — a bare scope
-	 * @param uniqueIndex the global unique indexes this index holds
-	 * @param activity    the activity holder to keep counting into — the copied index's own instance on either copy
-	 *                    path, a fresh one when loading from disk; see {@link IndexActivity}. Null when the server does
-	 *                    not track usage statistics, which every copy path passes straight through
+	 * @return the resolver for future child creation
+	 */
+	@Nonnull
+	public AttributeNormalizationResolver getNormalizationResolver() {
+		final CatalogIndexChanges layer = Transaction.getTransactionalMemoryLayerIfExists(this);
+		return layer == null || layer.normalizationResolver == null ? this.normalizationResolver :
+			layer.normalizationResolver;
+	}
+
+	/**
+	 * Changes only future child bindings; existing trees retain their captured functions.
+	 *
+	 * @param resolver new effective owner policy for future children and changed compound functions
+	 */
+	public void useNormalizationResolver(@Nonnull AttributeNormalizationResolver resolver) {
+		final CatalogIndexChanges layer = Transaction.getOrCreateTransactionalMemoryLayer(this);
+		if (layer == null) {
+			final WarmUpSavepoint savepoint = WarmUpSavepoint.getIfOpen();
+			if (savepoint != null) {
+				final AttributeNormalizationResolver previous = this.normalizationResolver;
+				savepoint.push(() -> this.normalizationResolver = previous);
+			}
+			this.normalizationResolver = resolver;
+		} else {
+			layer.normalizationResolver = resolver;
+		}
+	}
+
+	/**
+	 * Creates an index using the owner resolver; child structures capture String functions when they are created.
 	 */
 	public CatalogIndex(
 		int version,
 		@Nonnull CatalogIndexKey indexKey,
 		@Nonnull Map<AttributeKey, GlobalUniqueIndex> uniqueIndex,
-		@Nullable IndexActivity activity
+		@Nullable IndexActivity activity,
+		@Nonnull AttributeNormalizationResolver normalizationResolver
 	) {
+		this.normalizationResolver = normalizationResolver;
 		this.version = version;
 		this.indexKey = indexKey;
 		this.dirty = new TransactionalBoolean();
@@ -187,7 +211,7 @@ public class CatalogIndex implements
 		copy.putAll(this.uniqueIndex);
 		// the activity holder travels by reference, exactly as on the transactional copy: going live and renaming a
 		// catalog both carry the same logical index forward, and neither is a catalog load
-		return new CatalogIndex(this.version, this.indexKey, copy, this.activity);
+		return new CatalogIndex(this.version, this.indexKey, copy, this.activity, getNormalizationResolver());
 	}
 
 	@Override
@@ -227,7 +251,7 @@ public class CatalogIndex implements
 		final VMLayout layout = VMLayout.current();
 		// id and version, then the indexKey / dirty / uniqueIndex / activity slots
 		final long attributeKey = layout.sizeOfObject(2L * layout.referenceSize());
-		return layout.sizeOfObject(Long.BYTES + Integer.BYTES + 4L * layout.referenceSize())
+		return layout.sizeOfObject(Long.BYTES + Integer.BYTES + 5L * layout.referenceSize())
 			// the key record holds a single reference, to a JVM-shared enum constant
 			+ layout.sizeOfObject(layout.referenceSize())
 			// the activity holder: five longs and nothing else, since its CAS updaters are static - and nothing at all
@@ -258,7 +282,8 @@ public class CatalogIndex implements
 			lookupKey -> {
 				final GlobalUniqueIndex newUniqueIndex = new GlobalUniqueIndex(
 					this.getIndexKey().scope(), lookupKey, attributeSchema.getType(),
-					attributeSchema.getIndexedDecimalPlaces()
+					attributeSchema.getIndexedDecimalPlaces(),
+					getNormalizationResolver().resolveKeyNormalizer(null, attributeSchema, lookupKey.locale())
 				);
 				ofNullable(Transaction.getOrCreateTransactionalMemoryLayer(this))
 					.ifPresent(it -> it.addCreatedItem(newUniqueIndex));
@@ -368,7 +393,8 @@ public class CatalogIndex implements
 	 * {@link CatalogIndexChanges} is pure in-transaction bookkeeping — it records which contained items a commit-merge
 	 * has to visit — so outside a transaction there is no layer to create and the delegate branch writes nothing of
 	 * its own (every call site is `ofNullable(layer).ifPresent(...)`). The real state a mutation touches lives in the
-	 * contained transactional structures, which journal their own warm-up writes.
+	 * contained transactional structures, which journal their own warm-up writes. Future-child resolver changes
+	 * journal their inverse in {@link #useNormalizationResolver(AttributeNormalizationResolver)}.
 	 *
 	 * @return always `true` — see above
 	 */
@@ -386,7 +412,8 @@ public class CatalogIndex implements
 			this.indexKey,
 			transactionalLayer.getStateCopyWithCommittedChanges(this.uniqueIndex),
 			// the very same holder, not a copy: this is one logical index carried into the next catalog version
-			this.activity
+			this.activity, layer == null || layer.normalizationResolver == null ?
+				this.normalizationResolver : layer.normalizationResolver
 		);
 		ofNullable(layer).ifPresent(it -> it.clean(transactionalLayer));
 		return newCatalogIndex;
@@ -405,6 +432,9 @@ public class CatalogIndex implements
 	 * This class collects changes in {@link #uniqueIndex} transactional maps.
 	 */
 	public static class CatalogIndexChanges implements Snapshotable<CatalogIndexChanges.CatalogIndexChangesMemento> {
+		/** Transaction-local future-child binding; absent when this transaction never adopted policy. */
+		@Nullable private AttributeNormalizationResolver normalizationResolver;
+
 		private final TransactionalContainerChanges<GlobalUniqueIndex, GlobalUniqueIndex> uniqueIndexChanges = new TransactionalContainerChanges<>();
 
 		public void addCreatedItem(@Nonnull GlobalUniqueIndex uniqueIndex) {
@@ -426,21 +456,24 @@ public class CatalogIndex implements
 		@Nonnull
 		@Override
 		public CatalogIndexChangesMemento snapshot() {
-			return new CatalogIndexChangesMemento(this.uniqueIndexChanges.snapshot());
+			return new CatalogIndexChangesMemento(this.uniqueIndexChanges.snapshot(), this.normalizationResolver);
 		}
 
 		@Override
 		public void restore(@Nonnull CatalogIndexChangesMemento memento) {
 			this.uniqueIndexChanges.restore(memento.uniqueIndexChanges());
+			this.normalizationResolver = memento.normalizationResolver();
 		}
 
 		/**
 		 * Memento bundling the savepoint state of every {@link TransactionalContainerChanges} this aggregate tracks.
 		 *
 		 * @param uniqueIndexChanges snapshot of the global-unique-index created/removed bookkeeping
+		 * @param normalizationResolver transaction-local future-child binding, null when unchanged
 		 */
 		public record CatalogIndexChangesMemento(
-			@Nonnull ContainerChangesMemento<GlobalUniqueIndex> uniqueIndexChanges
+			@Nonnull ContainerChangesMemento<GlobalUniqueIndex> uniqueIndexChanges,
+			@Nullable AttributeNormalizationResolver normalizationResolver
 		) {
 		}
 

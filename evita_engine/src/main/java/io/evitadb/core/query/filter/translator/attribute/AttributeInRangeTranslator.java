@@ -49,6 +49,7 @@ import javax.annotation.Nonnull;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static java.util.Optional.ofNullable;
 
@@ -154,6 +155,7 @@ public class AttributeInRangeTranslator extends AbstractAttributeTranslator
 		@Nonnull AttributeInRange attributeInRange,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull UnaryOperator<String> stringNormalizer,
 		@Nonnull Supplier<OffsetDateTime> now
 	) {
 		return AttributeValueMatcher.enveloping(

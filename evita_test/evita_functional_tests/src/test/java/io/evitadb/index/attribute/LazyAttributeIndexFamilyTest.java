@@ -39,6 +39,7 @@ import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.AttributeIndex.UniquenessEnforcement;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
@@ -206,7 +207,7 @@ class LazyAttributeIndexFamilyTest {
 	 */
 	private static long emptyIndexBytes() {
 		final VMLayout layout = VMLayout.current();
-		return layout.sizeOfObject(Long.BYTES + 14L * layout.referenceSize());
+		return layout.sizeOfObject(Long.BYTES + 15L * layout.referenceSize());
 	}
 
 	@Nested
@@ -216,7 +217,7 @@ class LazyAttributeIndexFamilyTest {
 		@Test
 		@DisplayName("costs its own object alone, an eighth of the 680 B it used to cost")
 		void shouldCostOnlyItsOwnObject() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			final long reported = index.getHeapSizeInBytes();
 			assertEquals(
@@ -234,13 +235,13 @@ class LazyAttributeIndexFamilyTest {
 		@Test
 		@DisplayName("allocates none of the seven sub-index families")
 		void shouldAllocateNoFamilyAtConstruction() {
-			assertOnlyFamiliesAllocated(new EntityAttributeIndex(ENTITY_TYPE));
+			assertOnlyFamiliesAllocated(new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD));
 		}
 
 		@Test
 		@DisplayName("answers every read accessor without allocating anything")
 		void shouldNotAllocateAFamilyByReadingFromIt() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			final AttributeIndexKey probe = new AttributeIndexKey(null, ATTRIBUTE_NAME, null);
 
 			assertTrue(index.isAttributeIndexEmpty());
@@ -267,7 +268,7 @@ class LazyAttributeIndexFamilyTest {
 		@Test
 		@DisplayName("walks every index type it owns without allocating a family, and refuses the one it does not")
 		void shouldWalkEveryIndexTypeWithoutAllocatingAFamily() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			for (final AttributeIndexType type : List.of(
 				AttributeIndexType.UNIQUE, AttributeIndexType.FILTER,
@@ -298,7 +299,11 @@ class LazyAttributeIndexFamilyTest {
 		void shouldCostOnlyItsOwnObjectAsAReferenceScopedIndex() {
 			// the reduced indexes of a production catalog outnumber the entity ones several-fold, and they are the
 			// permit of the sealed hierarchy every other test here leaves untouched
-			final AttributeIndex index = new ReferenceAttributeIndex(ENTITY_TYPE, null);
+			final AttributeIndex index = new ReferenceAttributeIndex(
+				ENTITY_TYPE,
+				null,
+				AttributeNormalizationResolver.LEGACY_NFD
+			);
 
 			assertOnlyFamiliesAllocated(index);
 			assertEquals(
@@ -310,7 +315,7 @@ class LazyAttributeIndexFamilyTest {
 		@Test
 		@DisplayName("emits no storage part and no manifest key when flushed")
 		void shouldFlushWithoutTouchingAnAbsentFamily() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			final TrappedChanges changes = new TrappedChanges();
 			index.getModifiedStorageParts(1, changes);
@@ -330,7 +335,15 @@ class LazyAttributeIndexFamilyTest {
 			// the from-maps constructor reached straight, rather than through a commit merge - this is the shape every
 			// attribute index of a reloaded catalog is built in, and the overwhelming majority of them arrive empty
 			final AttributeIndex index = new EntityAttributeIndex(
-				ENTITY_TYPE, Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of()
+				ENTITY_TYPE,
+				Map.of(),
+				Map.of(),
+				Map.of(),
+				Map.of(),
+				Map.of(),
+				Map.of(),
+				Map.of(),
+				AttributeNormalizationResolver.LEGACY_NFD
 			);
 
 			assertTrue(index.isAttributeIndexEmpty(), "nothing was loaded, so nothing is held");
@@ -349,7 +362,7 @@ class LazyAttributeIndexFamilyTest {
 		@Test
 		@DisplayName("brings up the shared value tree and its filter view, and nothing else")
 		void shouldAllocateTheFilterFamiliesOnAPlainFilterWrite() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			index.insertFilterAttribute(null, FILTERABLE_NAME, ALLOWED_LOCALES, null, "value", 1, false);
 
@@ -361,7 +374,7 @@ class LazyAttributeIndexFamilyTest {
 		@Test
 		@DisplayName("brings up the range companion only for a range-typed attribute")
 		void shouldAllocateTheRangeCompanionOnlyForARangeTypedFilterWrite() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			index.insertFilterAttribute(
 				null, FILTERABLE_RANGE, ALLOWED_LOCALES, null, IntegerNumberRange.between(1, 10), 1, false
@@ -373,7 +386,7 @@ class LazyAttributeIndexFamilyTest {
 		@Test
 		@DisplayName("brings up the sort family alone on a sort write")
 		void shouldAllocateOnlyTheSortFamilyOnASortWrite() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			index.insertSortAttribute(null, SORTABLE_PRIORITY, ALLOWED_LOCALES, null, 10, 1);
 
@@ -383,7 +396,7 @@ class LazyAttributeIndexFamilyTest {
 		@Test
 		@DisplayName("brings up the chain family alone on a predecessor write")
 		void shouldAllocateOnlyTheChainFamilyOnAPredecessorWrite() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			index.insertSortAttribute(null, CHAIN_ORDER, ALLOWED_LOCALES, null, Predecessor.HEAD, 1);
 
@@ -393,7 +406,7 @@ class LazyAttributeIndexFamilyTest {
 		@Test
 		@DisplayName("brings up the owner unique family alone on a non-foldable unique write")
 		void shouldAllocateOnlyTheOwnerUniqueFamilyOnANonFoldableUniqueWrite() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			final UniquenessEnforcement enforcement = index.insertUniqueAttribute(
 				null, OWNER_UNIQUE_CODE, ALLOWED_LOCALES, Scope.LIVE, Locale.ENGLISH, "ABC", 1
@@ -409,7 +422,7 @@ class LazyAttributeIndexFamilyTest {
 		@Test
 		@DisplayName("brings up the folded unique view family on a folded unique write")
 		void shouldAllocateTheFoldedUniqueViewFamilyOnAFoldedUniqueWrite() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			final UniquenessEnforcement enforcement = index.insertUniqueAttribute(
 				null, FOLDABLE_UNIQUE_CODE, ALLOWED_LOCALES, Scope.LIVE, null, "ABC", 1
@@ -434,7 +447,7 @@ class LazyAttributeIndexFamilyTest {
 		@Test
 		@DisplayName("is visible in the committed copy, which brings up only the family that was written")
 		void shouldMakeAFirstWriteVisibleAfterCommitWithoutResurrectingTheRest() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertStateAfterCommit(
 				index,
@@ -456,7 +469,7 @@ class LazyAttributeIndexFamilyTest {
 		@Test
 		@DisplayName("leaves the family absent in a copy committed after the write was undone")
 		void shouldLeaveTheFamilyAbsentInACopyCommittedFromAnEmptiedFamily() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertStateAfterCommit(
 				index,
@@ -481,7 +494,7 @@ class LazyAttributeIndexFamilyTest {
 		@Test
 		@DisplayName("commits nothing when rolled back, and leaves behind only the family's empty shell")
 		void shouldKeepNoContentInAFamilyMaterialisedByARolledBackWrite() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 
 			assertStateAfterRollback(
 				index,
@@ -520,7 +533,7 @@ class LazyAttributeIndexFamilyTest {
 		 */
 		@Nonnull
 		private AttributeIndex fullySeededIndex() {
-			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+			final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 			index.insertUniqueAttribute(
 				null, OWNER_UNIQUE_CODE, ALLOWED_LOCALES, Scope.LIVE, Locale.ENGLISH, "OWNED", 1);
 			index.insertUniqueAttribute(null, FOLDABLE_UNIQUE_CODE, ALLOWED_LOCALES, Scope.LIVE, null, "FOLDED", 1);
@@ -605,25 +618,25 @@ class LazyAttributeIndexFamilyTest {
 	@Test
 	@DisplayName("the family fields this suite names are exactly the ones the index declares")
 	void shouldStillNameEveryFamilyField() {
-		final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+		final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 		for (final String field : FAMILY_FIELDS) {
 			// readField throws when the field is gone, which is the assertion - the null is the expected value
 			assertNull(family(index, field), "`" + field + "` must be absent on a fresh index");
 		}
 
-		// the families are exactly the class's volatile fields: a family is published by a plain write to a nullable
-		// slot, so it has to be volatile, and nothing else on the class is. Enumerating them is what catches an
+		// the families are exactly the class's volatile map fields: a family is published into a nullable slot, so
+		// it has to be volatile. The future-child resolver is volatile too, but is not a map. This catches an
 		// EIGHTH family being added - a count against a literal proves only that the literal was not edited, and an
 		// unnamed family would sail straight through `assertOnlyFamiliesAllocated`
 		final Set<String> declared = new HashSet<>();
 		for (final Field field : AttributeIndex.class.getDeclaredFields()) {
-			if (Modifier.isVolatile(field.getModifiers())) {
+			if (Modifier.isVolatile(field.getModifiers()) && Map.class.isAssignableFrom(field.getType())) {
 				declared.add(field.getName());
 			}
 		}
 		assertEquals(
 			declared, Set.of(FAMILY_FIELDS),
-			"every volatile field of AttributeIndex is a sub-index family and must be named by this suite"
+			"every volatile map of AttributeIndex is a sub-index family and must be named by this suite"
 		);
 	}
 

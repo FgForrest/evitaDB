@@ -45,6 +45,7 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.usage.SchemaCapabilityUsageRegistry;
 import io.evitadb.test.TestConstants;
@@ -125,7 +126,7 @@ abstract class AbstractMutatorTestBase {
 		alterCatalogSchema(catalogSchemaBuilder);
 		this.catalogSchema = (CatalogSchema) catalogSchemaBuilder.toInstance();
 		this.sealedCatalogSchema = new CatalogSchemaDecorator(this.catalogSchema);
-		this.catalogIndex = new CatalogIndex(Scope.LIVE);
+		this.catalogIndex = new CatalogIndex(Scope.LIVE, true, AttributeNormalizationResolver.LEGACY_NFD);
 		this.classifierResolver = new EntityTypeClassifierResolver() {
 			@Override
 			public int toEntityTypePrimaryKey(@Nonnull String entityType) {
@@ -168,7 +169,7 @@ abstract class AbstractMutatorTestBase {
 			this.classifierResolver,
 			this.usageRegistry,
 			this.catalogUsageRegistry,
-			new FulltextAnalyzerRegistry(),
+			new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 			true,
 			new PartitionReservations()
 		);

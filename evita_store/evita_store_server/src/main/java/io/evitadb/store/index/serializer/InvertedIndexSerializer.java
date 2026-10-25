@@ -56,7 +56,10 @@ public class InvertedIndexSerializer extends Serializer<InvertedIndex> {
 		for (int i = 0; i < pointCount; i++) {
 			points[i] = kryo.readObject(input, ValueToRecordBitmap.class);
 		}
-		return new InvertedIndex(points, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder());
+		return new InvertedIndex(
+			Comparable.class, points, FilterIndex.NO_NORMALIZATION, FilterIndex.NO_NORMALIZATION,
+			Comparator.naturalOrder(), 0
+		);
 	}
 
 }

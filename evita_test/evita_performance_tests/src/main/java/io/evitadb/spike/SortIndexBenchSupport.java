@@ -34,6 +34,7 @@ import io.evitadb.core.buffer.TrappedChanges;
 import io.evitadb.core.executor.Scheduler;
 import io.evitadb.function.Functions;
 import io.evitadb.index.attribute.OwnerSortIndex;
+import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.invertedIndex.ValueToRecord;
 import io.evitadb.spi.store.catalog.persistence.storageParts.DeferredRemovalStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
@@ -308,7 +309,13 @@ final class SortIndexBenchSupport {
 	 */
 	@Nonnull
 	static OwnerSortIndex buildOwner(@Nonnull List<ValueBlock> blocks) {
-		final OwnerSortIndex owner = new OwnerSortIndex(blocks.get(0).value().getClass(), ATTRIBUTE_KEY);
+		final OwnerSortIndex owner = new OwnerSortIndex(
+			blocks.get(0).value().getClass(),
+			null,
+			ATTRIBUTE_KEY,
+			0,
+			SortIndex.createLegacyNormalizerFor(blocks.get(0).value().getClass(), 0)
+		);
 		for (final ValueBlock block : blocks) {
 			final Serializable value = block.value();
 			for (final int recordId : block.recordIds()) {
@@ -529,9 +536,15 @@ final class SortIndexBenchSupport {
 				perPageBuckets[i] = bucketsBySequence.get(orderedPageSequences[i]);
 			}
 			return OwnerSortIndex.fromPersistedPages(
-				deserializedRoot.getComparatorBase(), null, deserializedRoot.getAttributeIndexKey(),
-				deserializedRoot.getIndexedDecimalPlaces(), orderedPageSequences, perPageBuckets,
-				deserializedRoot.getHighWaterPageSequence()
+				deserializedRoot.getComparatorBase(),
+				null,
+				deserializedRoot.getAttributeIndexKey(),
+				deserializedRoot.getIndexedDecimalPlaces(),
+				orderedPageSequences,
+				perPageBuckets,
+				deserializedRoot.getHighWaterPageSequence(),
+				SortIndex.createLegacyNormalizerFor(deserializedRoot.getComparatorBase(),
+					deserializedRoot.getIndexedDecimalPlaces())
 			);
 		}
 	}
@@ -649,8 +662,14 @@ final class SortIndexBenchSupport {
 			perPageBuckets[i] = leafPage.getBuckets();
 		}
 		return OwnerSortIndex.fromPersistedPages(
-			root.getComparatorBase(), null, root.getAttributeIndexKey(), root.getIndexedDecimalPlaces(),
-			orderedPageSequences, perPageBuckets, root.getHighWaterPageSequence()
+			root.getComparatorBase(),
+			null,
+			root.getAttributeIndexKey(),
+			root.getIndexedDecimalPlaces(),
+			orderedPageSequences,
+			perPageBuckets,
+			root.getHighWaterPageSequence(),
+			SortIndex.createLegacyNormalizerFor(root.getComparatorBase(), root.getIndexedDecimalPlaces())
 		);
 	}
 

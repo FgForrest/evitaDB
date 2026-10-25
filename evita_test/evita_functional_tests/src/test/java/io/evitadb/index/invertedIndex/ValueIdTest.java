@@ -1074,7 +1074,7 @@ class ValueIdTest {
 
 			final InvertedIndex reloaded = InvertedIndex.fromPersistedPages(
 				Integer.class, orderedPageSequences, perPageBuckets, perPageValueIds,
-				emission.highWaterPageSequence(), FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
+				emission.highWaterPageSequence(), FilterIndex.NO_NORMALIZATION, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
 			);
 			reloaded.restoreValueIds(source.getNextValueId());
 			return reloaded;
@@ -1141,7 +1141,7 @@ class ValueIdTest {
 				GenericEvitaInternalError.class,
 				() -> InvertedIndex.fromPersistedPages(
 					Integer.class, orderedPageSequences, perPageBuckets, tooFewValueIdColumns,
-					emission.highWaterPageSequence(), FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
+					emission.highWaterPageSequence(), FilterIndex.NO_NORMALIZATION, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
 				)
 			);
 		}
@@ -1170,7 +1170,7 @@ class ValueIdTest {
 			assertNotNull(
 				InvertedIndex.fromPersistedPages(
 					Integer.class, orderedPageSequences, perPageBuckets, intactValueIds,
-					emission.highWaterPageSequence(), FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
+					emission.highWaterPageSequence(), FilterIndex.NO_NORMALIZATION, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
 				),
 				"The unmodified page array must reload."
 			);
@@ -1185,7 +1185,7 @@ class ValueIdTest {
 				GenericEvitaInternalError.class,
 				() -> InvertedIndex.fromPersistedPages(
 					Integer.class, orderedPageSequences, perPageBuckets, oneColumnMissing,
-					emission.highWaterPageSequence(), FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
+					emission.highWaterPageSequence(), FilterIndex.NO_NORMALIZATION, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
 				)
 			);
 
@@ -1198,7 +1198,7 @@ class ValueIdTest {
 				GenericEvitaInternalError.class,
 				() -> InvertedIndex.fromPersistedPages(
 					Integer.class, orderedPageSequences, perPageBuckets, oneColumnShort,
-					emission.highWaterPageSequence(), FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
+					emission.highWaterPageSequence(), FilterIndex.NO_NORMALIZATION, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
 				)
 			);
 		}
@@ -1210,7 +1210,7 @@ class ValueIdTest {
 			assertFalse(index.isPaged(), "The fixture must be small enough to be persisted inline.");
 
 			final InvertedIndex reloaded = new InvertedIndex(
-				Integer.class, index.getValueToRecordBitmap(), FilterIndex.NO_NORMALIZATION,
+				Integer.class, index.getValueToRecordBitmap(), FilterIndex.NO_NORMALIZATION, FilterIndex.NO_NORMALIZATION,
 				Comparator.naturalOrder(), 0
 			);
 			reloaded.restoreValueIds(index.getNextValueId(), index.getValueIds());
@@ -1269,7 +1269,7 @@ class ValueIdTest {
 		void shouldContinueMintingAfterReload() {
 			final InvertedIndex index = indexWithIds(30, 10, 20);
 			final InvertedIndex reloaded = new InvertedIndex(
-				Integer.class, index.getValueToRecordBitmap(), FilterIndex.NO_NORMALIZATION,
+				Integer.class, index.getValueToRecordBitmap(), FilterIndex.NO_NORMALIZATION, FilterIndex.NO_NORMALIZATION,
 				Comparator.naturalOrder(), 0
 			);
 			reloaded.restoreValueIds(index.getNextValueId(), index.getValueIds());

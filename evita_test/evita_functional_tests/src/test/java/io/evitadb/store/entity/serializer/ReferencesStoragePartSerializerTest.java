@@ -137,15 +137,18 @@ class ReferencesStoragePartSerializerTest {
 			Map.of(
 				ATTRIBUTE_CODE,
 				AttributeSchema._internalBuild(
-					ATTRIBUTE_CODE, String.class, false, ConflictResolutionOverride.INHERITED
+					ATTRIBUTE_CODE, String.class, false, ConflictResolutionOverride.INHERITED,
+					null
 				),
 				ATTRIBUTE_NAME,
 				AttributeSchema._internalBuild(
-					ATTRIBUTE_NAME, String.class, false, ConflictResolutionOverride.INHERITED
+					ATTRIBUTE_NAME, String.class, false, ConflictResolutionOverride.INHERITED,
+					null
 				),
 				ATTRIBUTE_LABEL,
 				AttributeSchema._internalBuild(
-					ATTRIBUTE_LABEL, String.class, true, ConflictResolutionOverride.INHERITED
+					ATTRIBUTE_LABEL, String.class, true, ConflictResolutionOverride.INHERITED,
+					null
 				)
 			),
 			Collections.emptyMap(),

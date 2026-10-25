@@ -34,17 +34,19 @@ import io.evitadb.core.query.AttributeSchemaAccessor.AttributeTrait;
 import io.evitadb.core.query.QueryExecutionContext;
 import io.evitadb.core.query.algebra.prefetch.EntityToBitmapFilter;
 import io.evitadb.core.query.response.ServerEntityDecorator;
+import io.evitadb.dataType.Scope;
 import io.evitadb.function.TriFunction;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
 
 import javax.annotation.Nonnull;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiFunction;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
@@ -78,10 +80,10 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 	 */
 	private final BiFunction<EntityContract, String, Stream<Optional<AttributeValue>>> attributeValueAccessor;
 	/**
-	 * Contains the factory function that will create a predicate (based on passed entity schema) that must be fulfilled
-	 * in order attribute value is accepted by the filter.
+	 * Contains the factory function that will create a predicate (from the entity schema, the attribute schema and the
+	 * owner scope) that must be fulfilled in order attribute value is accepted by the filter.
 	 */
-	private final Function<AttributeSchemaContract, Predicate<Stream<Optional<AttributeValue>>>> filterFactory;
+	private final TriFunction<EntitySchemaContract, AttributeSchemaContract, Scope, Predicate<Stream<Optional<AttributeValue>>>> filterFactory;
 	/**
 	 * Contains array of all attribute required traits.
 	 */
@@ -99,8 +101,8 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 	 * @param attributeName           name of the attribute whose values are tested
 	 * @param attributeSchemaAccessor locates the attribute schema in the entity schema
 	 * @param attributeValueAccessor  locates the attribute values in the entity body
-	 * @param matcherFactory          creates the matcher from the schema of the attribute, called once per entity type
-	 *                                of the examined entities
+	 * @param matcherFactory          creates the matcher from the schema of the attribute, called per entity type and
+	 *                                owner scope
 	 * @param requiredAttributeTraits the traits the attribute schema must have
 	 * @return the filter
 	 */
@@ -110,7 +112,7 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 		@Nonnull TriFunction<EntitySchemaContract, String, AttributeTrait[], AttributeSchemaContract>
 			attributeSchemaAccessor,
 		@Nonnull BiFunction<EntityContract, String, Stream<Optional<AttributeValue>>> attributeValueAccessor,
-		@Nonnull Function<AttributeSchemaContract, AttributeValueMatcher> matcherFactory,
+		@Nonnull TriFunction<EntitySchemaContract, AttributeSchemaContract, Scope, AttributeValueMatcher> matcherFactory,
 		@Nonnull AttributeTrait... requiredAttributeTraits
 	) {
 		return new AttributeBitmapFilter(
@@ -118,8 +120,8 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 			attributeContent(attributeName),
 			attributeSchemaAccessor,
 			attributeValueAccessor,
-			attributeSchema -> {
-				final AttributeValueMatcher matcher = matcherFactory.apply(attributeSchema);
+			(entitySchema, attributeSchema, scope) -> {
+				final AttributeValueMatcher matcher = matcherFactory.apply(entitySchema, attributeSchema, scope);
 				return values -> values.anyMatch(value -> value.isPresent() && matcher.matches(value.get().value()));
 			},
 			requiredAttributeTraits
@@ -130,11 +132,12 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 	 * Creates the filter from a raw factory of the test of the entity values. Prefer {@link #matching}, which wraps a
 	 * matcher into that test.
 	 *
-	 * @param attributeName the name of the attribute
-	 * @param requirements the content the prefetched entities must be fetched with
+	 * @param attributeName           the name of the attribute
+	 * @param requirements            the content the prefetched entities must be fetched with
 	 * @param attributeSchemaAccessor resolves the schema of the attribute in the entity schema
-	 * @param attributeValueAccessor reads the values of the attribute of an entity
-	 * @param filterFactory creates the test of the values of an entity from the attribute schema
+	 * @param attributeValueAccessor  reads the values of the attribute of an entity
+	 * @param filterFactory           creates the test of the values of an entity from the entity schema, the
+	 *                                attribute schema and the owner scope
 	 * @param requiredAttributeTraits the traits the attribute schema must have
 	 */
 	public AttributeBitmapFilter(
@@ -142,7 +145,7 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 		@Nonnull EntityContentRequire requirements,
 		@Nonnull TriFunction<EntitySchemaContract, String, AttributeTrait[], AttributeSchemaContract> attributeSchemaAccessor,
 		@Nonnull BiFunction<EntityContract, String, Stream<Optional<AttributeValue>>> attributeValueAccessor,
-		@Nonnull Function<AttributeSchemaContract, Predicate<Stream<Optional<AttributeValue>>>> filterFactory,
+		@Nonnull TriFunction<EntitySchemaContract, AttributeSchemaContract, Scope, Predicate<Stream<Optional<AttributeValue>>>> filterFactory,
 		@Nonnull AttributeTrait... requiredAttributeTraits
 	) {
 		this.attributeName = attributeName;
@@ -168,7 +171,9 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 				this.memoizedResult = EmptyBitmap.INSTANCE;
 			} else {
 				String entityType = null;
-				Predicate<Stream<Optional<AttributeValue>>> filter = null;
+				AttributeSchemaContract attributeSchema = null;
+				final Map<Scope, Predicate<Stream<Optional<AttributeValue>>>> filtersByScope =
+					new EnumMap<>(Scope.class);
 				final BaseBitmap result = new BaseBitmap();
 				// iterate over all entities
 				for (SealedEntity entity : prefetchedEntities) {
@@ -180,10 +185,15 @@ public class AttributeBitmapFilter implements EntityToBitmapFilter {
 					final EntitySchemaContract entitySchema = entity.getSchema();
 					if (!Objects.equals(entityType, entitySchema.getName())) {
 						entityType = entitySchema.getName();
-						final AttributeSchemaContract attributeSchema = this.attributeSchemaAccessor.apply(
+						attributeSchema = this.attributeSchemaAccessor.apply(
 							entitySchema, this.attributeName, this.requiredAttributeTraits
 						);
-						filter = this.filterFactory.apply(attributeSchema);
+						filtersByScope.clear();
+					}
+					Predicate<Stream<Optional<AttributeValue>>> filter = filtersByScope.get(entity.getScope());
+					if (filter == null) {
+						filter = this.filterFactory.apply(entitySchema, attributeSchema, entity.getScope());
+						filtersByScope.put(entity.getScope(), filter);
 					}
 					// and filter by predicate
 					if (filter != null) {

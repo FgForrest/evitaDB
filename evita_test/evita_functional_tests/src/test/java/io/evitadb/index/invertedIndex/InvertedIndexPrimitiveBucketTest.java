@@ -236,12 +236,15 @@ class InvertedIndexPrimitiveBucketTest {
 
 			// built via the reconstruction constructor from bitmap buckets
 			final InvertedIndex viaBitmaps = new InvertedIndex(
+				Comparable.class,
 				new ValueToRecordBitmap[]{
 					new ValueToRecordBitmap(5, 1),
 					new ValueToRecordBitmap(10, 2)
 				},
 				FilterIndex.NO_NORMALIZATION,
-				Comparator.naturalOrder()
+				FilterIndex.NO_NORMALIZATION,
+				Comparator.naturalOrder(),
+				0
 			);
 
 			assertEquals(viaAdd, viaBitmaps);

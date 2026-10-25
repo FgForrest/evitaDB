@@ -40,6 +40,7 @@ import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.attribute.OwnerSortIndex;
@@ -290,7 +291,13 @@ class AttributeIndexLoaderTest {
 	@DisplayName("loads a granular PAGED owner sort part by reading its leaf pages and reconstructs the owner tree")
 	void shouldLoadPagedSortAndReconstructTree() {
 		final AttributeIndexKey key = new AttributeIndexKey(null, ATTRIBUTE_PRIORITY, null);
-		final OwnerSortIndex source = new OwnerSortIndex(String.class, key);
+		final OwnerSortIndex source = new OwnerSortIndex(
+			String.class,
+			null,
+			key,
+			0,
+			SortIndex.createLegacyNormalizerFor(String.class, 0)
+		);
 		// more than one leaf block (256) of distinct values so the owned tree spans multiple leaves and pages out
 		for (int i = 0; i < 1_000; i++) {
 			source.addRecord(String.format("value-%05d", i), i + 1);
@@ -353,7 +360,9 @@ class AttributeIndexLoaderTest {
 			Map.of(),
 			storage,
 			null,
-			ANALYZER_REGISTRY
+			true,
+			ANALYZER_REGISTRY,
+			AttributeNormalizationResolver.LEGACY_NFD
 		);
 		final LoadedComponentBundle bundle = new AttributeIndexLoader().load(context);
 		return assertInstanceOf(AttributeIndexes.class, bundle, "Loader must return an AttributeIndexes bundle");
@@ -982,21 +991,11 @@ class AttributeIndexLoaderTest {
 				assertNotNull(key);
 			}
 			final EntityIndexStoragePart manifest = storage.buildManifest(REFERENCED_TYPE_INDEX_KEY);
-			final LoadContext context = new LoadContext(
-				CATALOG_VERSION,
-				INDEX_PK,
-				buildReferenceSchema(),
-				REFERENCED_TYPE_INDEX_KEY,
-				manifest,
-				manifest.getVersion(),
-				EmptyBitmap.INSTANCE,
-				Map.of(),
-				storage,
+			final LoadContext context = new LoadContext(CATALOG_VERSION, INDEX_PK, buildReferenceSchema(),
+				REFERENCED_TYPE_INDEX_KEY, manifest, manifest.getVersion(), EmptyBitmap.INSTANCE, Map.of(), storage,
 				// REFERENCED_ENTITY_TYPE indexes carry a String discriminator and a `null` referenceKey, exactly as the
 				// engine's DefaultEntityCollectionPersistenceService builds the context
-				null,
-				ANALYZER_REGISTRY
-			);
+				null, true, ANALYZER_REGISTRY, AttributeNormalizationResolver.LEGACY_NFD);
 			final LoadedComponentBundle bundle = new AttributeIndexLoader().load(context);
 			return assertInstanceOf(AttributeIndexes.class, bundle, "Loader must return an AttributeIndexes bundle");
 		}

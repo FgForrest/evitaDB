@@ -78,7 +78,7 @@ import java.util.stream.Collectors;
 
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.collidingKeysError;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.findFirstNonAscendingKey;
-import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.normalizerFor;
+import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.legacyNormalizerFor;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.plainTypeOf;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.toDeclaredValue;
 import static io.evitadb.index.attribute.UniqueIndexBPlusTreeSupport.toDistinctKeys;
@@ -101,9 +101,10 @@ import static java.util.Optional.ofNullable;
  * {@link ValueColumnFactory#forFilterKey}), which is the memory win driving this backing: URL-slug unique attributes
  * share long common prefixes that a hash map cannot exploit.
  *
- * The index keys every value exactly as the attribute's filter index does - through
- * {@link FilterIndex#getNormalizer(Class, int)} at the attribute's `indexedDecimalPlaces` - so two values the filter
- * index treats as one are one unique value here too, across every collection of the catalog (see
+ * The index keys every value exactly as the attribute's filter index does - through the key function its owner
+ * binds: the attribute's normalization chain for a `String`, {@link FilterIndex#getNormalizer(Class, int)} at the
+ * attribute's `indexedDecimalPlaces` otherwise - so two values the filter index treats as one are one unique value
+ * here too, across every collection of the catalog (see
  * {@link UniqueIndexBPlusTreeSupport}). Every entry point converts its value to the key, and the storage parts carry
  * the key as a value of the declared type.
  *
@@ -157,8 +158,7 @@ public class GlobalUniqueIndex implements
 	 */
 	@Getter private final int indexedDecimalPlaces;
 	/**
-	 * Converts every value to its key in {@link #tree} - the filter index's normalizer for {@link #plainType} at
-	 * {@link #indexedDecimalPlaces}, see {@link UniqueIndexBPlusTreeSupport#normalizerFor}.
+	 * Converts raw values and probes to keys in {@link #tree}; persisted keys use the legacy canonicalizer separately.
 	 */
 	@Nonnull private final Function<Object, Serializable> normalizer;
 	/**
@@ -234,27 +234,8 @@ public class GlobalUniqueIndex implements
 	}
 
 	/**
-	 * Rebuilds a `PAGED` global unique index from its persisted leaf pages, preserving the original leaf boundaries and
-	 * page identities (mirrors {@code OwnerUniqueIndex.fromPersistedPages}). One leaf per persisted page is built from the
-	 * positionally-aligned value + packed-`long`-payload columns, each stamped with its page sequence, and the
-	 * page-stream bookkeeping (high-water + live set) is restored, so the first post-restart commit rewrites only
-	 * genuinely-changed leaves rather than re-paginating the whole index. {@link #localeToIdIndex} +
-	 * {@link #localePkSequence} are reconstructed from `idToLocaleIndex` exactly as the inline restore constructors do.
-	 *
-	 * Every persisted value is converted to its key first. A page whose keys do not come out strictly ascending is
-	 * refused, and when the cause is two values naming one key the error names both owners (see
-	 * {@link UniqueIndexBPlusTreeSupport#collidingKeysError}).
-	 *
-	 * @param scope                 scope of the owning {@link CatalogIndex}
-	 * @param attributeKey          identifies the indexed attribute (name and optional locale)
-	 * @param attributeType         runtime type of the indexed attribute value
-	 * @param indexedDecimalPlaces  the attribute schema's `indexedDecimalPlaces`
-	 * @param orderedPageSequences  the persisted leaf-page sequences in ascending key order
-	 * @param perPageValues         the values of each leaf page, positionally aligned with `orderedPageSequences`
-	 * @param perPagePayloads       the packed `long` payloads of each leaf page, positionally aligned with `perPageValues`
-	 * @param highWaterPageSequence the persisted stream high-water (largest page sequence ever allocated)
-	 * @param idToLocaleIndex       restored mapping of internal locale id to {@link Locale}
-	 * @return the rebuilt, boundary-stable `PAGED` global unique index
+	 * Binds the immutable raw-input key function supplied by the owner.
+	 * Re-canonicalizing persisted keys heals keys written by older versions and must use the legacy function only.
 	 */
 	@Nonnull
 	public static GlobalUniqueIndex fromPersistedPages(
@@ -266,7 +247,8 @@ public class GlobalUniqueIndex implements
 		@Nonnull Serializable[][] perPageValues,
 		@Nonnull long[][] perPagePayloads,
 		int highWaterPageSequence,
-		@Nonnull Map<Integer, Locale> idToLocaleIndex
+		@Nonnull Map<Integer, Locale> idToLocaleIndex,
+		@Nonnull Function<Object, Serializable> keyNormalizer
 	) {
 		Assert.isPremiseValid(
 			orderedPageSequences.length == perPageValues.length && perPageValues.length == perPagePayloads.length,
@@ -274,10 +256,11 @@ public class GlobalUniqueIndex implements
 		);
 		Assert.isPremiseValid(orderedPageSequences.length > 0, "A paged global unique index must have at least one leaf page.");
 		final Class<?> plainType = plainTypeOf(attributeType);
-		final Function<Object, Serializable> normalizer = normalizerFor(plainType, indexedDecimalPlaces);
+		final Function<Object, Serializable> legacyCanonicalizer =
+			legacyNormalizerFor(plainType, indexedDecimalPlaces);
 		final List<TransactionalBucketBPlusTree> pageTrees = new ArrayList<>(orderedPageSequences.length);
 		for (int i = 0; i < orderedPageSequences.length; i++) {
-			final Object[] keys = toPersistedKeys(normalizer, perPageValues[i]);
+			final Object[] keys = toPersistedKeys(legacyCanonicalizer, perPageValues[i]);
 			final long[] payloads = perPagePayloads[i];
 			// a page never exceeds a leaf's capacity, so this single-leaf tree never splits; the leaf's key/record
 			// columns are built in one bulk pass instead of `values.length` sequential addLongRecord calls, which
@@ -310,7 +293,8 @@ public class GlobalUniqueIndex implements
 			UNIQUE_PAGE_STREAM, highWaterPageSequence, tree.leafPageHandles()
 		);
 		return new GlobalUniqueIndex(
-			scope, attributeKey, attributeType, indexedDecimalPlaces, tree, pageStreamRegistry, idToLocaleIndex
+			scope, attributeKey, attributeType, indexedDecimalPlaces, tree, pageStreamRegistry, idToLocaleIndex,
+			keyNormalizer
 		);
 	}
 
@@ -330,13 +314,33 @@ public class GlobalUniqueIndex implements
 		@Nonnull Class<? extends Serializable> attributeType,
 		int indexedDecimalPlaces
 	) {
+		this(
+			scope,
+			attributeKey,
+			attributeType,
+			indexedDecimalPlaces,
+			legacyNormalizerFor(plainTypeOf(attributeType), indexedDecimalPlaces)
+		);
+	}
+
+	/**
+	 * Binds the immutable raw-input key function supplied by the owner.
+	 * Re-canonicalizing persisted keys heals keys written by older versions and must use the legacy function only.
+	 */
+	public GlobalUniqueIndex(
+		@Nonnull Scope scope,
+		@Nonnull AttributeKey attributeKey,
+		@Nonnull Class<? extends Serializable> attributeType,
+		int indexedDecimalPlaces,
+		@Nonnull Function<Object, Serializable> keyNormalizer
+	) {
 		this.dirty = new TransactionalBoolean();
 		this.scope = scope;
 		this.attributeKey = attributeKey;
 		this.type = attributeType;
 		this.plainType = plainTypeOf(attributeType);
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
-		this.normalizer = normalizerFor(this.plainType, indexedDecimalPlaces);
+		this.normalizer = keyNormalizer;
 		this.tree = createEmptyTree(this.plainType, indexedDecimalPlaces);
 		this.pageStreamRegistry = new PageStreamRegistry();
 		this.localeToIdIndex = new TransactionalMap<>(new HashMap<>());
@@ -367,13 +371,39 @@ public class GlobalUniqueIndex implements
 		@Nonnull long[] payloads,
 		@Nonnull Map<Integer, Locale> localeIndex
 	) {
+		this(
+			scope,
+			attributeKey,
+			attributeType,
+			indexedDecimalPlaces,
+			values,
+			payloads,
+			localeIndex,
+			legacyNormalizerFor(plainTypeOf(attributeType), indexedDecimalPlaces)
+		);
+	}
+
+	/**
+	 * Binds the immutable raw-input key function supplied by the owner.
+	 * Re-canonicalizing persisted keys heals keys written by older versions and must use the legacy function only.
+	 */
+	public GlobalUniqueIndex(
+		@Nonnull Scope scope,
+		@Nonnull AttributeKey attributeKey,
+		@Nonnull Class<? extends Serializable> attributeType,
+		int indexedDecimalPlaces,
+		@Nonnull Serializable[] values,
+		@Nonnull long[] payloads,
+		@Nonnull Map<Integer, Locale> localeIndex,
+		@Nonnull Function<Object, Serializable> keyNormalizer
+	) {
 		this.dirty = new TransactionalBoolean();
 		this.scope = scope;
 		this.attributeKey = attributeKey;
 		this.type = attributeType;
 		this.plainType = plainTypeOf(attributeType);
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
-		this.normalizer = normalizerFor(this.plainType, indexedDecimalPlaces);
+		this.normalizer = keyNormalizer;
 		this.tree = createEmptyTree(this.plainType, indexedDecimalPlaces);
 		this.pageStreamRegistry = new PageStreamRegistry();
 		seedTree(values, payloads, localeIndex);
@@ -403,6 +433,7 @@ public class GlobalUniqueIndex implements
 	 * @param committedTree        the already-committed value tree to adopt
 	 * @param pageStreamRegistry   the catalog-resident page bookkeeping, carried BY REFERENCE
 	 * @param localeIndex          committed mapping of internal locale id to {@link Locale}
+	 * @param keyNormalizer        the raw-input key function bound when the index was created or loaded
 	 */
 	private GlobalUniqueIndex(
 		@Nonnull Scope scope,
@@ -411,7 +442,8 @@ public class GlobalUniqueIndex implements
 		int indexedDecimalPlaces,
 		@Nonnull TransactionalBucketBPlusTree committedTree,
 		@Nonnull PageStreamRegistry pageStreamRegistry,
-		@Nonnull Map<Integer, Locale> localeIndex
+		@Nonnull Map<Integer, Locale> localeIndex,
+		@Nonnull Function<Object, Serializable> keyNormalizer
 	) {
 		this.dirty = new TransactionalBoolean();
 		this.scope = scope;
@@ -419,7 +451,7 @@ public class GlobalUniqueIndex implements
 		this.type = attributeType;
 		this.plainType = plainTypeOf(attributeType);
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
-		this.normalizer = normalizerFor(this.plainType, indexedDecimalPlaces);
+		this.normalizer = keyNormalizer;
 		this.tree = committedTree;
 		this.pageStreamRegistry = pageStreamRegistry;
 		this.idToLocaleIndex = new TransactionalMap<>(localeIndex);
@@ -488,9 +520,60 @@ public class GlobalUniqueIndex implements
 	 */
 	@Nonnull
 	public Optional<EntityReferenceWithLocale> getEntityReferenceByUniqueValue(@Nonnull Serializable value, @Nullable Locale locale, @Nonnull EntityTypeClassifierResolver resolver) {
-		return ofNullable(lookupTuple(value))
-			.filter(it -> locale == null || it.locale() == NO_LOCALE || lookupLocaleId(locale) == it.locale())
-			.map(it -> new EntityReferenceWithLocale(resolver.toEntityTypeName(it.entityType()), it.entityPrimaryKey(), toLocale(it.locale())));
+		return ofNullable(toOwnedEntityReference(lookupTuple(value), locale, resolver));
+	}
+
+	/**
+	 * Resolves raw set probes once with this catalog role's function. Colliding keys share the first tree lookup;
+	 * output positions are retained for the caller's first-scope precedence rule.
+	 *
+	 * @param values raw probes in request order
+	 * @param locale requested ownership locale, independent of the tree's fold locale
+	 * @param resolver entity type classifier resolver
+	 * @return owners at their original probe positions, null for misses
+	 */
+	@Nonnull
+	public EntityReferenceWithLocale[] getEntityReferencesByUniqueValues(
+		@Nonnull Serializable[] values,
+		@Nullable Locale locale,
+		@Nonnull EntityTypeClassifierResolver resolver
+	) {
+		final Map<Comparable<?>, EntityReferenceWithLocale> owners = CollectionUtils.createLinkedHashMap(values.length);
+		final EntityReferenceWithLocale[] result = new EntityReferenceWithLocale[values.length];
+		for (int i = 0; i < values.length; i++) {
+			final Comparable<?> key = toKey(this.normalizer, values[i]);
+			if (!owners.containsKey(key)) {
+				final EntityWithTypeTuple tuple = lookupTupleByKey(key);
+				owners.put(key, toOwnedEntityReference(tuple, locale, resolver));
+			}
+			result[i] = owners.get(key);
+		}
+		return result;
+	}
+
+	/**
+	 * Resolves a tuple's owner when it belongs to the requested locale, or when either side has no locale.
+	 *
+	 * @param tuple    the stored owner, null for a missing key
+	 * @param locale   the requested ownership locale, independent of the tree's fold locale
+	 * @param resolver translates the stored entity type to its name
+	 * @return the owner, null for a missing key or a different ownership locale
+	 */
+	@Nullable
+	private EntityReferenceWithLocale toOwnedEntityReference(
+		@Nullable EntityWithTypeTuple tuple,
+		@Nullable Locale locale,
+		@Nonnull EntityTypeClassifierResolver resolver
+	) {
+		if (tuple == null) {
+			return null;
+		}
+		if (locale != null && tuple.locale() != NO_LOCALE && lookupLocaleId(locale) != tuple.locale()) {
+			return null;
+		}
+		return new EntityReferenceWithLocale(
+			resolver.toEntityTypeName(tuple.entityType()), tuple.entityPrimaryKey(), toLocale(tuple.locale())
+		);
 	}
 
 	/**
@@ -692,7 +775,7 @@ public class GlobalUniqueIndex implements
 			this.scope, this.attributeKey, this.type, this.indexedDecimalPlaces,
 			committedTree,
 			this.pageStreamRegistry,
-			transactionalLayer.getStateCopyWithCommittedChanges(this.idToLocaleIndex)
+			transactionalLayer.getStateCopyWithCommittedChanges(this.idToLocaleIndex), this.normalizer
 		);
 		transactionalLayer.getStateCopyWithCommittedChanges(this.dirty);
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this.localeToIdIndex);
@@ -796,13 +879,14 @@ public class GlobalUniqueIndex implements
 	 * @param values      the persisted values
 	 * @param payloads    the persisted packed payloads, positionally aligned with `values`
 	 * @param localeIndex the persisted locale ids, to name the owners of a collision
+	 * Re-canonicalizing here heals keys written by older versions and must use the legacy function only.
 	 */
 	private void seedTree(
 		@Nonnull Serializable[] values,
 		@Nonnull long[] payloads,
 		@Nonnull Map<Integer, Locale> localeIndex
 	) {
-		final Object[] keys = toPersistedKeys(this.normalizer, values);
+		final Object[] keys = toPersistedKeys(legacyNormalizerFor(this.plainType, this.indexedDecimalPlaces), values);
 		for (int i = 0; i < keys.length; i++) {
 			try {
 				this.tree.addLongRecord((Comparable) keys[i], payloads[i]);

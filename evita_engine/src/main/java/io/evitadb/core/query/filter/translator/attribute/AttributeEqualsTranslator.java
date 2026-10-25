@@ -39,10 +39,8 @@ import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.FilterByVisitor.ProcessingScope;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
-import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
 import io.evitadb.index.Index;
-import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 
@@ -53,8 +51,8 @@ import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 import static java.util.Optional.ofNullable;
 
@@ -156,17 +154,10 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
 
 			final Class<? extends Serializable> plainType = attributeSchema.getPlainType();
-			// Normalize the probe with the filter normalizer (NFD strings, instant-folded OffsetDateTime, scaled-int
-			// BigDecimal). That form is what every value tree of the attribute stores - the filter tree and the
-			// standalone unique trees alike - and because the normalizer is idempotent each index re-normalizes the
-			// already-normalized probe without a ClassCastException.
-			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(
-				plainType, attributeSchema.getIndexedDecimalPlaces()
+			// Each index converts the raw probe with its captured function and fold locale.
+			final Serializable comparedValue = Objects.requireNonNull(
+				toAttributeProbeValue(attributeValue, plainType)
 			);
-			final Serializable targetValue = Objects.requireNonNull(
-				EvitaDataTypes.toTargetType(attributeValue, plainType)
-			);
-			final Serializable comparedValue = normalizer.apply(targetValue);
 
 			if (scopes.stream().anyMatch(scope -> isUniqueInScope(attributeSchema, scope))) {
 				return createUniqueAttributeFormula(
@@ -191,10 +182,12 @@ public class AttributeEqualsTranslator extends AbstractAttributeTranslator
 		@Nonnull AttributeEquals attributeEquals,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull UnaryOperator<String> stringNormalizer,
 		@Nonnull Supplier<OffsetDateTime> now
 	) {
 		return AttributeValueMatcher.comparing(
 			attributeIndexKey, attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces(),
+			stringNormalizer,
 			attributeEquals.getAttributeValue(), result -> result == 0
 		);
 	}

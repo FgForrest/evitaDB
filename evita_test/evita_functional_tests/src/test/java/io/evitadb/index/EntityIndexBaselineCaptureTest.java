@@ -99,7 +99,7 @@ class EntityIndexBaselineCaptureTest implements EvitaTestSupport {
 		@Nonnull String name, @Nonnull Class<? extends Serializable> type
 	) {
 		return AttributeSchema._internalBuild(
-			name,
+			name, null, null,
 			null,
 			new Scope[]{Scope.LIVE},
 			null,
@@ -107,7 +107,8 @@ class EntityIndexBaselineCaptureTest implements EvitaTestSupport {
 			new Scope[]{Scope.LIVE},
 			false, false, false,
 			type, null,
-			ConflictResolutionOverride.INHERITED
+			0, ConflictResolutionOverride.INHERITED,
+			null
 		);
 	}
 

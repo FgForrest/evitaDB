@@ -81,6 +81,7 @@ import io.evitadb.dataType.map.LazyHashMap;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.TriConsumer;
 import io.evitadb.index.*;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.mutation.ConsistencyCheckingLocalMutationExecutor;
 import io.evitadb.index.mutation.EntityIndexMutation;
@@ -186,6 +187,9 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * different primary keys depending on the index type.
 	 */
 	private final LinkedList<ToIntBiFunction<IndexType, Target>> entityPrimaryKey = new LinkedList<>();
+	/** The collection's resolver, available to bind new attribute structures before any of its indexes exists. */
+	@Getter @Nonnull private final AttributeNormalizationResolver normalizationResolver;
+
 	/**
 	 * The primary key of the entity this executor mutates - the owner of every reference it indexes. Unlike
 	 * {@link #getPrimaryKeyToIndex(IndexType, Target)}, it is never replaced by a primary key pushed for a nested
@@ -494,6 +498,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 	 * @param catalogUsageRegistry         the usage counters of the catalog written into
 	 * @param fulltextAnalyzerRegistry     the catalog-owned analyzer registry, which supplies the analyzer when the
 	 *                                     fulltext index of a locale is first created
+	 * @param normalizationResolver        the collection's resolver for new attribute index structures
 	 * @param usageStatisticsTracking      whether the mutation counts the index-maintenance effort it costs
 	 * @param partitionReservations        the reservations of the root mutation the executor belongs to, shared by all
 	 *                                     its executors - see {@link PartitionReservations}
@@ -513,6 +518,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull SchemaCapabilityUsageRegistry usageRegistry,
 		@Nonnull SchemaCapabilityUsageRegistry catalogUsageRegistry,
 		@Nonnull FulltextAnalyzerRegistry fulltextAnalyzerRegistry,
+		@Nonnull AttributeNormalizationResolver normalizationResolver,
 		boolean usageStatisticsTracking,
 		@Nonnull PartitionReservations partitionReservations
 	) {
@@ -520,7 +526,8 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			containerAccessor, entityPrimaryKey, entityIndexCreatingAccessor, catalogIndexCreatingAccessor,
 			schemaAccessor, priceInternalIdSupplier, fullEntitySupplier, triggerRegistrySupplier,
 			localFacetTriggerSupplier, crossEntitySchemaResolver, entityTypeClassifierResolver, usageRegistry,
-			catalogUsageRegistry, fulltextAnalyzerRegistry, usageStatisticsTracking, true, partitionReservations
+			catalogUsageRegistry, fulltextAnalyzerRegistry, normalizationResolver, usageStatisticsTracking, true,
+			partitionReservations
 		);
 	}
 
@@ -548,6 +555,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		@Nonnull SchemaCapabilityUsageRegistry usageRegistry,
 		@Nonnull SchemaCapabilityUsageRegistry catalogUsageRegistry,
 		@Nonnull FulltextAnalyzerRegistry fulltextAnalyzerRegistry,
+		@Nonnull AttributeNormalizationResolver normalizationResolver,
 		boolean usageStatisticsTracking,
 		boolean partitionRegistryWritten,
 		@Nonnull PartitionReservations partitionReservations
@@ -568,6 +576,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		this.usageRegistry = usageRegistry;
 		this.catalogUsageRegistry = catalogUsageRegistry;
 		this.fulltextAnalyzerRegistry = fulltextAnalyzerRegistry;
+		this.normalizationResolver = normalizationResolver;
 		this.usageStatisticsTracking = usageStatisticsTracking;
 		this.partitionRegistryWritten = partitionRegistryWritten;
 		this.partitionReservations = partitionReservations;
@@ -691,6 +700,7 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 			this.usageRegistry,
 			this.catalogUsageRegistry,
 			this.fulltextAnalyzerRegistry,
+			this.normalizationResolver,
 			false,
 			false,
 			PartitionReservations.REFUSING
@@ -2341,7 +2351,10 @@ public class EntityIndexLocalMutationExecutor implements LocalMutationExecutor {
 		final EntityIndex installed = this.entityIndexCreatingAccessor.installIndex(
 			indexKey,
 			partition.getPrimaryKey(),
-			primaryKey -> new ReducedEntityIndex(primaryKey, this.entityType, indexKey, this.usageStatisticsTracking)
+			primaryKey -> new ReducedEntityIndex(
+				primaryKey, this.entityType, indexKey, this.usageStatisticsTracking,
+				this.normalizationResolver
+			)
 		);
 		this.accessedIndexes.add(indexKey);
 		return (ReducedEntityIndex) installed;

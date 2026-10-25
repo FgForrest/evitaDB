@@ -38,9 +38,10 @@ import io.evitadb.core.query.algebra.utils.FormulaFactory;
 import io.evitadb.core.query.filter.FilterByVisitor;
 import io.evitadb.core.query.filter.translator.FilteringConstraintTranslator;
 import io.evitadb.core.query.filter.translator.attribute.alternative.AttributeValueMatcher;
-import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.dataType.Scope;
-import io.evitadb.index.attribute.FilterIndex;
+import io.evitadb.index.attribute.EntityReferenceWithLocale;
+import io.evitadb.index.attribute.GlobalUniqueIndex;
+import io.evitadb.index.attribute.UniqueIndex;
 import io.evitadb.index.bitmap.ArrayBitmap;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.utils.ArrayUtils;
@@ -50,11 +51,14 @@ import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
+import java.util.stream.IntStream;
 
+import static io.evitadb.utils.CollectionUtils.createHashMap;
 import static java.util.Optional.ofNullable;
 
 /**
@@ -87,20 +91,23 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 		@Nonnull AttributeKey attributeKey,
 		@Nonnull List<? extends Serializable> theComparedValues
 	) {
+		final Serializable[] rawValues = theComparedValues.toArray(Serializable[]::new);
+		final Map<GlobalUniqueIndex, EntityReferenceWithLocale[]> globalAnswers = createHashMap(2);
+		final Map<UniqueIndex, Integer[]> collectionAnswers = createHashMap(2);
 		return new AttributeFormula(
 			attributeSchema instanceof GlobalAttributeSchemaContract,
 			attributeKey,
 			FormulaFactory.or(
-				theComparedValues
-					.stream()
-					.map(
-						comparedValue -> filterByVisitor.applyOnFirstUniqueIndex(
+				IntStream.range(0, rawValues.length)
+					.mapToObj(
+						position -> filterByVisitor.applyOnFirstUniqueIndex(
 							filterByVisitor.getProcessingScope().getReferenceSchema(),
 							attributeSchema,
-							index -> index.getEntityReferenceByUniqueValue(
-								comparedValue, attributeKey.locale(), filterByVisitor.getEntityTypeClassifierResolver()
-							),
-							index -> ofNullable(index.getRecordIdByUniqueValue(comparedValue))
+							index -> ofNullable(globalAnswers.computeIfAbsent(index, role ->
+								role.getEntityReferencesByUniqueValues(rawValues, attributeKey.locale(),
+									filterByVisitor.getEntityTypeClassifierResolver()))[position]),
+							index -> ofNullable(collectionAnswers.computeIfAbsent(index, role ->
+								role.getRecordIdsByUniqueValues(rawValues))[position])
 								.map(it -> (Formula) new ConstantFormula(new ArrayBitmap(it)))
 								.orElse(EmptyFormula.INSTANCE)
 						)
@@ -138,7 +145,7 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 			filterByVisitor.applyStreamOnFilterIndexes(
 				filterByVisitor.getProcessingScope().getReferenceSchema(),
 				attributeSchema,
-				index -> theComparedValues.stream().map(index::getRecordsEqualToFormula)
+				index -> index.getRecordsEqualToFormula(theComparedValues.toArray(Serializable[]::new))
 			)
 		);
 	}
@@ -164,15 +171,9 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 			final AttributeKey attributeKey = createAttributeKey(filterByVisitor, attributeSchema);
 
 			final Class<? extends Serializable> plainType = attributeSchema.getPlainType();
-			// the filter normalizer (NFD strings / instant-folded OffsetDateTime / scaled-int BigDecimal) yields the form
-			// every value tree of the attribute stores - the filter tree and the standalone unique trees alike; each
-			// index re-normalizes idempotently, so the already-normalized probe flows through safely
-			final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(
-				plainType, attributeSchema.getIndexedDecimalPlaces()
-			);
+			// Each index converts the raw probe with its captured function and fold locale.
 			final List<? extends Serializable> theComparedValues = Arrays.stream(comparedValues)
-				.map(it -> EvitaDataTypes.toTargetType(it, plainType))
-				.map(normalizer)
+				.map(it -> toAttributeProbeValue(it, plainType))
 				.toList();
 
 			if (scopes.stream().anyMatch(scope -> isUniqueInScope(attributeSchema, scope))) {
@@ -198,10 +199,12 @@ public class AttributeInSetTranslator extends AbstractAttributeTranslator
 		@Nonnull AttributeInSet attributeInSet,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull UnaryOperator<String> stringNormalizer,
 		@Nonnull Supplier<OffsetDateTime> now
 	) {
 		return AttributeValueMatcher.equalToAny(
 			attributeIndexKey, attributeSchema.getPlainType(), attributeSchema.getIndexedDecimalPlaces(),
+			stringNormalizer,
 			attributeInSet.getAttributeValues()
 		);
 	}

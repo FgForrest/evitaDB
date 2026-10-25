@@ -31,7 +31,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
-
 import java.lang.management.ManagementFactory;
 import java.util.Arrays;
 import java.util.Locale;
@@ -216,7 +215,13 @@ class SortIndexRankScalingTest {
 	 */
 	@Nonnull
 	private static long[] measureFirstTouch(@Nonnull ThreadMXBean threads, int distinctValues) {
-		final SortIndex sortIndex = new OwnerSortIndex(String.class, new AttributeIndexKey(null, "a", CZECH));
+		final SortIndex sortIndex = new OwnerSortIndex(
+			String.class,
+			null,
+			new AttributeIndexKey(null, "a", CZECH),
+			0,
+			SortIndex.createLegacyNormalizerFor(String.class, 0)
+		);
 		for (int i = 1; i <= distinctValues; i++) {
 			sortIndex.addRecord(valueFor(i), i);
 		}

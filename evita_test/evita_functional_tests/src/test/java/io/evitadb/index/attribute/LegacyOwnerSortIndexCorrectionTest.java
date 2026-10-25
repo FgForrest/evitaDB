@@ -294,7 +294,13 @@ class LegacyOwnerSortIndexCorrectionTest {
 		@DisplayName("leaves an index without raw temporal values as it is")
 		void shouldLeaveNormalizedIndexUntouched() {
 			final ComparatorSource[] base = single(OffsetDateTime.class);
-			final OwnerSortIndex current = new OwnerSortIndex(OffsetDateTime.class, ATTRIBUTE_KEY);
+			final OwnerSortIndex current = new OwnerSortIndex(
+				OffsetDateTime.class,
+				null,
+				ATTRIBUTE_KEY,
+				0,
+				SortIndex.createLegacyNormalizerFor(OffsetDateTime.class, 0)
+			);
 			current.addRecord(NINE.atOffset(PLUS_ONE), 2);
 			current.addRecord(NINE.atOffset(PLUS_TWO), 1);
 			final SortIndexStoragePart part = root(emit(current));
@@ -1644,8 +1650,15 @@ class LegacyOwnerSortIndexCorrectionTest {
 		return assertInstanceOf(
 			OwnerSortIndex.class,
 			SortIndex.create(
-				part.getComparatorBase(), null, part.getAttributeIndexKey(), part.getIndexedDecimalPlaces(),
-				part.getSortedRecords(), part.getSortedRecordsValues(), part.getValueCardinalities(), null
+				part.getComparatorBase(),
+				null,
+				part.getAttributeIndexKey(),
+				part.getIndexedDecimalPlaces(),
+				part.getSortedRecords(),
+				part.getSortedRecordsValues(),
+				part.getValueCardinalities(),
+				null,
+				SortIndex.createLegacyNormalizerFor(part.getComparatorBase(), part.getIndexedDecimalPlaces())
 			)
 		);
 	}
@@ -1663,8 +1676,14 @@ class LegacyOwnerSortIndexCorrectionTest {
 		@Nonnull OffsetIndex offsetIndex, long catalogVersion, @Nonnull SortIndexStoragePart root
 	) {
 		return OwnerSortIndex.fromPersistedPages(
-			root.getComparatorBase(), null, root.getAttributeIndexKey(), root.getIndexedDecimalPlaces(),
-			root.getLeafPageSequences(), readPages(offsetIndex, catalogVersion, root), root.getHighWaterPageSequence()
+			root.getComparatorBase(),
+			null,
+			root.getAttributeIndexKey(),
+			root.getIndexedDecimalPlaces(),
+			root.getLeafPageSequences(),
+			readPages(offsetIndex, catalogVersion, root),
+			root.getHighWaterPageSequence(),
+			SortIndex.createLegacyNormalizerFor(root.getComparatorBase(), root.getIndexedDecimalPlaces())
 		);
 	}
 

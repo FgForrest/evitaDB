@@ -33,6 +33,7 @@ import io.evitadb.index.CatalogIndex;
 import io.evitadb.index.CatalogIndexKey;
 import io.evitadb.index.EntityTypeClassifierResolver;
 import io.evitadb.index.IndexActivity;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.GlobalUniqueIndex;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
@@ -140,7 +141,13 @@ class CatalogIndexConcurrentWriteTest {
 		};
 		uniqueIndexes.put(new AttributeKey("url"), filled(writing, "url", 3));
 		final CatalogIndex catalogIndex =
-			new CatalogIndex(1, new CatalogIndexKey(Scope.LIVE), uniqueIndexes, new IndexActivity());
+			new CatalogIndex(
+				1,
+				new CatalogIndexKey(Scope.LIVE),
+				uniqueIndexes,
+				new IndexActivity(),
+				AttributeNormalizationResolver.LEGACY_NFD
+			);
 		armed[0] = true;
 		return catalogIndex;
 	}
@@ -151,7 +158,7 @@ class CatalogIndexConcurrentWriteTest {
 		final boolean[] written = {false};
 		final CatalogIndex catalogIndex = catalogIndexWritingOnFirstRead(written);
 
-		final IndexDetail detail = CatalogIndexProjection.describe(catalogIndex);
+		final IndexDetail detail = CatalogIndexProjection.describe(catalogIndex, 0L);
 
 		assertTrue(written[0], "the write must have landed during the walk");
 		final Map<String, AttributeCardinality> byName = Arrays.stream(detail.cardinality().attributes())
@@ -203,7 +210,13 @@ class CatalogIndexConcurrentWriteTest {
 			filled(new GlobalUniqueIndex(Scope.LIVE, new AttributeKey("url"), String.class, 0), "url", 3)
 		);
 		final CatalogIndex catalogIndex =
-			new CatalogIndex(1, new CatalogIndexKey(Scope.LIVE), uniqueIndexes, new IndexActivity());
+			new CatalogIndex(
+				1,
+				new CatalogIndexKey(Scope.LIVE),
+				uniqueIndexes,
+				new IndexActivity(),
+				AttributeNormalizationResolver.LEGACY_NFD
+			);
 		uniqueIndexes.put(new AttributeKey("torn"), null);
 		return catalogIndex;
 	}
@@ -211,7 +224,7 @@ class CatalogIndexConcurrentWriteTest {
 	@Test
 	@DisplayName("the detail steps over a unique index whose value a racing writer has not published yet")
 	void shouldDescribeTheCatalogIndexPastAnUnpublishedValue() {
-		final IndexDetail detail = CatalogIndexProjection.describe(catalogIndexWithAnUnpublishedValue());
+		final IndexDetail detail = CatalogIndexProjection.describe(catalogIndexWithAnUnpublishedValue(), 0L);
 
 		final Map<String, AttributeCardinality> byName = Arrays.stream(detail.cardinality().attributes())
 			.collect(Collectors.toMap(AttributeCardinality::attributeName, it -> it));

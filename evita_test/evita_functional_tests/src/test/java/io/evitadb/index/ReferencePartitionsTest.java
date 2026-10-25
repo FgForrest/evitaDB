@@ -29,6 +29,7 @@ import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.core.buffer.DataStoreReader;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.utils.ArrayUtils;
@@ -130,11 +131,14 @@ class ReferencePartitionsTest {
 	@Nonnull
 	private ReducedGroupEntityIndex addGroupIndex(int primaryKey, int group) {
 		final ReducedGroupEntityIndex index = new ReducedGroupEntityIndex(
-			primaryKey, ENTITY_TYPE,
+			primaryKey,
+			ENTITY_TYPE,
 			new EntityIndexKey(
 				EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE,
 				new RepresentativeReferenceKey(new ReferenceKey(REFERENCE_NAME, group))
-			)
+			),
+			true,
+			AttributeNormalizationResolver.LEGACY_NFD
 		);
 		register(index);
 		return index;

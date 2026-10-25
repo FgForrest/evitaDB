@@ -90,7 +90,13 @@ class SortIndexBucketAnchorParityTest {
 	 * @param idBound        the exclusive upper bound of generated record ids
 	 */
 	private static void randomWalk(long seed, int operationCount, int distinctValues, int idOrigin, int idBound) {
-		final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+		final SortIndex sortIndex = new OwnerSortIndex(
+			Integer.class,
+			null,
+			new AttributeIndexKey(null, "a", null),
+			0,
+			SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+		);
 		final TreeMap<Integer, TreeSet<Integer>> model = new TreeMap<>();
 		final Map<Integer, Integer> valueOfRecord = new TreeMap<>();
 		final Random rnd = new Random(seed);
@@ -146,7 +152,13 @@ class SortIndexBucketAnchorParityTest {
 	@Test
 	@DisplayName("negative record ids are ordered by signed comparison, not unsigned")
 	void shouldOrderNegativeRecordIdsSigned() {
-		final SortIndex sortIndex = new OwnerSortIndex(Integer.class, new AttributeIndexKey(null, "a", null));
+		final SortIndex sortIndex = new OwnerSortIndex(
+			Integer.class,
+			null,
+			new AttributeIndexKey(null, "a", null),
+			0,
+			SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+		);
 		// one value ⇒ a single multi-record bucket: the order is decided purely by record-id comparison
 		sortIndex.addRecord(1, 5);
 		sortIndex.addRecord(1, -3);

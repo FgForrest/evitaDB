@@ -46,14 +46,20 @@ import org.junit.jupiter.api.Test;
 
 import javax.annotation.Nonnull;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
+
 import org.junit.jupiter.api.Tag;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static io.evitadb.test.TestTags.GRPC;
+import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.asciiFolding;
+import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.lowercase;
+import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.removeCharacters;
+import static io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps.trim;
 import static io.evitadb.test.TestTags.EXTERNAL_API;
+import static io.evitadb.test.TestTags.GRPC;
 import static io.evitadb.test.TestTags.QUERY;
 import static io.evitadb.test.TestTags.SCHEMA;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
  * This test verifies functionalities of methods in {@link CatalogSchemaConverter} class.
@@ -116,13 +122,15 @@ class CatalogSchemaConverterTest {
 					String.class,
 					null,
 					0,
-					ConflictResolutionOverride.ENTITY
+					ConflictResolutionOverride.ENTITY,
+					List.of(lowercase(), asciiFolding(), removeCharacters("- "), trim())
 				),
 				"priority", GlobalAttributeSchema._internalBuild(
 					"code",
 					Long[].class,
 					false,
-					ConflictResolutionOverride.INHERITED
+					ConflictResolutionOverride.INHERITED,
+					null
 				)
 			),
 			EmptyEntitySchemaAccessor.INSTANCE
@@ -163,6 +171,7 @@ class CatalogSchemaConverterTest {
 		assertEquals(expected.getDefaultValue(), actual.getDefaultValue());
 		assertEquals(expected.getIndexedDecimalPlaces(), actual.getIndexedDecimalPlaces());
 		assertEquals(expected.getConflictResolutionOverride(), actual.getConflictResolutionOverride());
+		assertEquals(expected.getNormalization(), actual.getNormalization());
 		assertEquals(expected.getAcceleratorsInScopes(), actual.getAcceleratorsInScopes());
 	}
 }

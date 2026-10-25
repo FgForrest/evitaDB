@@ -62,14 +62,17 @@ final class IndexDetailProjection {
 	/**
 	 * Describes the given index.
 	 *
-	 * @param entityType name of the collection holding the index
-	 * @param index      the index to describe, already resolved by the caller from its primary key
+	 * @param entityType      name of the collection holding the index
+	 * @param index           the index to describe, already resolved by the caller from its primary key
+	 * @param ownerPolicyHeap heap of the collection's normalization policy, added to the reported heap; the
+	 *                        collection charges it to a single global index only
 	 * @return the full description of that one index
 	 */
 	@Nonnull
 	static IndexDetail describe(
 		@Nonnull String entityType,
-		@Nonnull EntityIndex index
+		@Nonnull EntityIndex index,
+		long ownerPolicyHeap
 	) {
 		// read off the live index rather than off a snapshot, which is exactly right for counters that are shared
 		// across catalog versions and deliberately outside the transactional diff layer. Null when the server does not
@@ -78,7 +81,7 @@ final class IndexDetailProjection {
 		return new IndexDetail(
 			entityType,
 			index.getPrimaryKey(),
-			index.getHeapSizeInBytes(),
+			index.getHeapSizeInBytes() + ownerPolicyHeap,
 			IndexCardinalityProjection.describeIndex(
 				index.getIndexKey(),
 				IndexBrowseProjection.renderDiscriminator(index.getIndexKey()),

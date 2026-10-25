@@ -486,7 +486,8 @@ public final class EntitySchema implements EntitySchemaContract {
 				(Class) attributeSchemaContract.getType(),
 				attributeSchemaContract.getDefaultValue(),
 				attributeSchemaContract.getIndexedDecimalPlaces(),
-				attributeSchemaContract.getConflictResolutionOverride()
+				attributeSchemaContract.getConflictResolutionOverride(),
+				attributeSchemaContract.getNormalization()
 			);
 		}
 	}
@@ -526,7 +527,8 @@ public final class EntitySchema implements EntitySchemaContract {
 				(Class) attributeSchemaContract.getType(),
 				attributeSchemaContract.getDefaultValue(),
 				attributeSchemaContract.getIndexedDecimalPlaces(),
-				attributeSchemaContract.getConflictResolutionOverride()
+				attributeSchemaContract.getConflictResolutionOverride(),
+				attributeSchemaContract.getNormalization()
 			);
 	}
 

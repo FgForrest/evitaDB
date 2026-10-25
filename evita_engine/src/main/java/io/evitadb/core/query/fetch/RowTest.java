@@ -232,17 +232,17 @@ sealed interface RowTest {
 	 *
 	 * @param keysByScope the keys read in each scope, indexed by {@link Scope#ordinal()}; NULL for a scope the node
 	 *                    was not compiled for
-	 * @param matcher     the test of a value
+	 * @param matchersByScope the role-bound test of a raw value, indexed by scope ordinal
 	 */
 	record AttributeMatch(
 		@Nonnull AttributeKey[][] keysByScope,
-		@Nonnull AttributeValueMatcher matcher
+		@Nonnull AttributeValueMatcher[] matchersByScope
 	) implements RowTest {
 
 		@Override
 		public boolean test(@Nonnull Scope ownerScope, @Nonnull Entity owner, @Nonnull ReferenceContract row) {
 			for (AttributeKey key : getKeys(this.keysByScope, ownerScope)) {
-				if (this.matcher.matches(getValue(row, key))) {
+				if (this.matchersByScope[ownerScope.ordinal()].matches(getValue(row, key))) {
 					return true;
 				}
 			}

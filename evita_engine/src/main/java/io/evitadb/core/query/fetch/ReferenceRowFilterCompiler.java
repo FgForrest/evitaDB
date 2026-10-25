@@ -553,7 +553,12 @@ final class ReferenceRowFilterCompiler {
 	) {
 		final BiFunction<AttributeIndexKey, AttributeSchemaContract, AttributeValueMatcher> matcherFactory =
 			(indexKey, attributeSchema) -> translator.createMatcher(
-				constraint, attributeSchema, indexKey, this.context.filterByVisitor()::getNow
+				constraint, attributeSchema, indexKey,
+				this.context.filterByVisitor().getQueryContext()
+					.getEntityCollectionOrThrowException(this.context.entitySchema().getName(), "normalize reference rows")
+					.getAttributeNormalizationResolver()
+					.resolve(this.context.referenceSchema().getName(), attributeSchema, indexKey.locale()),
+				this.context.filterByVisitor()::getNow
 			);
 		return translator.isAnsweredByUniqueIndex() ?
 			compileEquality(attributeName, scopes, matcherFactory) :
@@ -577,9 +582,17 @@ final class ReferenceRowFilterCompiler {
 		@Nonnull BiFunction<AttributeIndexKey, AttributeSchemaContract, AttributeValueMatcher> matcherFactory
 	) {
 		final AttributeSchemaContract attributeSchema = getAttributeSchema(attributeName, scopes);
+		final AttributeValueMatcher[] matchersByScope = new AttributeValueMatcher[ALL_SCOPES.length];
+		for (final Scope scope : scopes) {
+			final AttributeIndexKey indexKey = new AttributeIndexKey(
+				this.context.referenceSchema().getName(), attributeName,
+				attributeSchema.isLocalized() && isBoundToQueryLocale(attributeSchema, scope) ? this.leafLocale : null
+			);
+			matchersByScope[scope.ordinal()] = matcherFactory.apply(indexKey, attributeSchema);
+		}
 		return new RowTest.AttributeMatch(
 			getKeysByScope(attributeSchema, scopes, scope -> isBoundToQueryLocale(attributeSchema, scope)),
-			matcherFactory.apply(getIndexKey(attributeSchema), attributeSchema)
+			matchersByScope
 		);
 	}
 
@@ -599,9 +612,13 @@ final class ReferenceRowFilterCompiler {
 		@Nonnull BiFunction<AttributeIndexKey, AttributeSchemaContract, AttributeValueMatcher> matcherFactory
 	) {
 		final AttributeSchemaContract attributeSchema = getAttributeSchema(attributeName, scopes);
+		final AttributeValueMatcher matcher = matcherFactory.apply(getIndexKey(attributeSchema), attributeSchema);
+		final AttributeValueMatcher[] matchersByScope = new AttributeValueMatcher[ALL_SCOPES.length];
+		for (final Scope scope : scopes) {
+			matchersByScope[scope.ordinal()] = matcher;
+		}
 		return new RowTest.AttributeMatch(
-			getKeysInEveryScope(scopes, getLeafLocaleKeys(attributeSchema)),
-			matcherFactory.apply(getIndexKey(attributeSchema), attributeSchema)
+			getKeysInEveryScope(scopes, getLeafLocaleKeys(attributeSchema)), matchersByScope
 		);
 	}
 

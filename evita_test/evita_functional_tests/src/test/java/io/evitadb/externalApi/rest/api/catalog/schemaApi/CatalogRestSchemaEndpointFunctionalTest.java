@@ -256,6 +256,13 @@ public abstract class CatalogRestSchemaEndpointFunctionalTest extends RestEndpoi
 				AttributeSchemaDescriptor.ACCELERATORS_IN_SCOPES.name(),
 				createAcceleratorsDto(attributeSchema)
 			)
+			.e(AttributeSchemaDescriptor.NORMALIZATION.name(), attributeSchema.getNormalization().stream()
+				.map(step -> map()
+					.e(AnalysisStepDescriptor.STEP.name(), step.name())
+					.e(AnalysisStepDescriptor.PARAMETERS.name(), step.parameters().entrySet().stream()
+						.collect(Collectors.toMap(Map.Entry::getKey, entry -> serializeDefaultValue(entry.getValue()))))
+					.build())
+				.toList())
 			.e(AttributeSchemaDescriptor.SORTABLE.name(), createFlagInScopesDto(attributeSchema::isSortableInScope))
 			.e(AttributeSchemaDescriptor.LOCALIZED.name(), attributeSchema.isLocalized())
 			.e(AttributeSchemaDescriptor.NULLABLE.name(), attributeSchema.isNullable());

@@ -29,6 +29,7 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
 import io.evitadb.api.requestResponse.schema.GlobalAttributeUniquenessType;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.CreateGlobalAttributeSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
@@ -38,7 +39,10 @@ import io.evitadb.store.wal.schema.MutationSerializationFunctions;
 
 import javax.annotation.Nonnull;
 import java.io.Serializable;
+import java.util.Arrays;
 
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readAnalysisSteps;
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.writeAnalysisSteps;
 import static io.evitadb.store.wal.schema.attribute.CreateAttributeSchemaMutationSerializer.readScopedUniquenessTypesMap;
 import static io.evitadb.store.wal.schema.attribute.CreateAttributeSchemaMutationSerializer.writeScopedUniquenessTypesMap;
 
@@ -101,11 +105,16 @@ public class CreateGlobalAttributeSchemaMutationSerializer extends Serializer<Cr
 		kryo.writeObjectOrNull(output, mutation.getDefaultValue(), mutation.getType());
 		output.writeVarInt(mutation.getIndexedDecimalPlaces(), true);
 		kryo.writeObject(output, mutation.getConflictResolutionOverride());
-		// two sections appended last, in this fixed order - the accelerators, then the searchable scopes; the
-		// release-2026.2 reader (CreateGlobalAttributeSchemaMutationSerializer_2026_2) stops before both and never
-		// looks for the accelerators' presence flag
+		// three sections appended last, in this fixed order - the accelerators, the searchable scopes, then the
+		// nullable normalization; the release-2026.2 reader (CreateGlobalAttributeSchemaMutationSerializer_2026_2)
+		// stops before all three and never looks for the accelerators' presence flag
 		writeScopedAcceleratorsArray(kryo, output, mutation.getAcceleratorsInScopes());
 		writeScopeArray(kryo, output, mutation.getSearchableInScopes());
+		final AnalysisStep[] normalization = mutation.getNormalization();
+		output.writeBoolean(normalization != null);
+		if (normalization != null) {
+			writeAnalysisSteps(kryo, output, Arrays.asList(normalization));
+		}
 	}
 
 	@Override
@@ -132,6 +141,8 @@ public class CreateGlobalAttributeSchemaMutationSerializer extends Serializer<Cr
 		final ScopedAttributeFilterAccelerators[] acceleratorsInScopes =
 			readScopedAcceleratorsArray(kryo, input);
 		final Scope[] searchableInScopes = readScopeArray(kryo, input);
+		final AnalysisStep[] normalization =
+			input.readBoolean() ? readAnalysisSteps(kryo, input).toArray(AnalysisStep[]::new) : null;
 		return new CreateGlobalAttributeSchemaMutation(
 			name,
 			description,
@@ -147,7 +158,8 @@ public class CreateGlobalAttributeSchemaMutationSerializer extends Serializer<Cr
 			theType,
 			defaultValue,
 			indexedDecimalPlaces,
-			conflictResolutionOverride
+			conflictResolutionOverride,
+			normalization
 		);
 	}
 }

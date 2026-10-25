@@ -30,13 +30,20 @@ import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.ReferenceIndexedComponents;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeFilterAccelerators;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexType;
 import io.evitadb.api.requestResponse.schema.mutation.reference.ScopedReferenceIndexedComponents;
 import io.evitadb.dataType.Scope;
+import io.evitadb.utils.CollectionUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Infrastructural interface allowing to share common method implementation among multiple serializers.
@@ -44,6 +51,53 @@ import javax.annotation.Nullable;
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2024
  */
 public interface MutationSerializationFunctions {
+
+	/**
+	 * Writes ordered analysis steps inline, without registering {@link AnalysisStep} with Kryo. Each step contains
+	 * its name and named parameters; parameter names are sorted so map iteration order cannot affect the bytes.
+	 *
+	 * @param kryo the Kryo instance used to serialize parameter values with their runtime types
+	 * @param output the destination for the step count and step descriptions
+	 * @param steps the ordered step descriptions, possibly empty
+	 */
+	static void writeAnalysisSteps(@Nonnull Kryo kryo, @Nonnull Output output, @Nonnull List<AnalysisStep> steps) {
+		output.writeVarInt(steps.size(), true);
+		for (AnalysisStep step : steps) {
+			output.writeString(step.name());
+			final Map<String, Serializable> parameters = step.parameters();
+			final String[] parameterNames = parameters.keySet().toArray(String[]::new);
+			Arrays.sort(parameterNames);
+			output.writeVarInt(parameterNames.length, true);
+			for (String parameterName : parameterNames) {
+				output.writeString(parameterName);
+				kryo.writeClassAndObject(output, parameters.get(parameterName));
+			}
+		}
+	}
+
+	/**
+	 * Reads ordered analysis steps written by {@link #writeAnalysisSteps(Kryo, Output, List)}.
+	 *
+	 * @param kryo the Kryo instance used to deserialize parameter values with their runtime types
+	 * @param input the source of the step count and step descriptions
+	 * @return the ordered step descriptions, empty when the stored count is zero
+	 */
+	@Nonnull
+	static List<AnalysisStep> readAnalysisSteps(@Nonnull Kryo kryo, @Nonnull Input input) {
+		final int count = input.readVarInt(true);
+		final List<AnalysisStep> steps = new ArrayList<>(count);
+		for (int i = 0; i < count; i++) {
+			final String name = input.readString();
+			final int parameterCount = input.readVarInt(true);
+			final Map<String, Serializable> parameters = CollectionUtils.createLinkedHashMap(parameterCount);
+			for (int j = 0; j < parameterCount; j++) {
+				final String parameterName = input.readString();
+				parameters.put(parameterName, (Serializable) kryo.readClassAndObject(input));
+			}
+			steps.add(new AnalysisStep(name, parameters));
+		}
+		return steps;
+	}
 
 	/**
 	 * Serializes an array of Scope objects to the given Kryo output.

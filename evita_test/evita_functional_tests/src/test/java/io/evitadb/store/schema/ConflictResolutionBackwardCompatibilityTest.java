@@ -218,7 +218,8 @@ class ConflictResolutionBackwardCompatibilityTest {
 			SchemaKryoConfigurer.INSTANCE.andThen(SharedClassesConfigurer.INSTANCE)
 		);
 		final AttributeSchema attributeSchema = AttributeSchema._internalBuild(
-			"code", String.class, false, ConflictResolutionOverride.ENTITY
+			"code", String.class, false, ConflictResolutionOverride.ENTITY,
+			null
 		);
 
 		final AttributeSchema deserialized = readThroughBackwardCompatibleRoute(
@@ -244,7 +245,8 @@ class ConflictResolutionBackwardCompatibilityTest {
 			SchemaKryoConfigurer.INSTANCE.andThen(SharedClassesConfigurer.INSTANCE)
 		);
 		final GlobalAttributeSchema attributeSchema = GlobalAttributeSchema._internalBuild(
-			"url", String.class, false, ConflictResolutionOverride.GRANULAR
+			"url", String.class, false, ConflictResolutionOverride.GRANULAR,
+			null
 		);
 
 		final GlobalAttributeSchema deserialized = readThroughBackwardCompatibleRoute(
@@ -270,7 +272,8 @@ class ConflictResolutionBackwardCompatibilityTest {
 			SchemaKryoConfigurer.INSTANCE.andThen(SharedClassesConfigurer.INSTANCE)
 		);
 		final EntityAttributeSchema attributeSchema = EntityAttributeSchema._internalBuild(
-			"name", String.class, false, ConflictResolutionOverride.ENTITY
+			"name", String.class, false, ConflictResolutionOverride.ENTITY,
+			null
 		);
 
 		final EntityAttributeSchema deserialized = readThroughBackwardCompatibleRoute(

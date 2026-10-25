@@ -24,6 +24,7 @@
 package io.evitadb.index;
 
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart.ChainPredecessorSlot;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart.SortValueSlot;
 import io.evitadb.utils.NumberUtils;
@@ -112,8 +113,16 @@ class VirtualReferencePartitionIndexStaleLeafPageTwinTest {
 			pageSequences[i] = i;
 		}
 		VirtualReferencePartitionIndex.fromPersistedPages(
-			"reference `media`", pageSequences, keyPages, payloadPages, keyPages.length - 1,
-			new int[0], new Serializable[0][], new SortValueSlot[0], new ChainPredecessorSlot[0]
+			"reference `media`",
+			pageSequences,
+			keyPages,
+			payloadPages,
+			keyPages.length - 1,
+			new int[0],
+			new Serializable[0][],
+			new SortValueSlot[0],
+			new ChainPredecessorSlot[0],
+			slot -> SortIndex.createLegacyNormalizerFor(slot.comparatorBase(), slot.indexedDecimalPlaces())
 		);
 	}
 

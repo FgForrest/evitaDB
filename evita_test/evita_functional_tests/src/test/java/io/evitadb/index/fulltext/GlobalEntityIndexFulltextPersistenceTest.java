@@ -34,6 +34,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.index.GlobalEntityIndex;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.bitmap.EmptyBitmap;
 import io.evitadb.index.component.loader.LoadContext;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
@@ -933,11 +934,19 @@ class GlobalEntityIndexFulltextPersistenceTest {
 				this.version, ENTITY_INDEX_PK, EntityIdsStoragePart.class
 			);
 			final LoadContext context = new LoadContext(
-				this.version, ENTITY_INDEX_PK, EntitySchema._internalBuild(ENTITY_TYPE), manifest.getEntityIndexKey(),
-				manifest, manifest.getVersion(),
+				this.version,
+				ENTITY_INDEX_PK,
+				EntitySchema._internalBuild(ENTITY_TYPE),
+				manifest.getEntityIndexKey(),
+				manifest,
+				manifest.getVersion(),
 				entityIds == null ? EmptyBitmap.INSTANCE : entityIds.getEntityIds(),
 				entityIds == null ? Map.of() : entityIds.getEntityIdsByLanguage(),
-				service, null, true, analyzerRegistry
+				service,
+				null,
+				true,
+				analyzerRegistry,
+				AttributeNormalizationResolver.LEGACY_NFD
 			);
 			return (GlobalEntityIndex) GlobalEntityIndex.reloadPlan().run(context);
 		}

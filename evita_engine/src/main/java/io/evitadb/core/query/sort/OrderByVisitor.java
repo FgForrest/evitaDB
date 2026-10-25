@@ -67,6 +67,7 @@ import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.ReferencePartition;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.index.usage.SchemaCapabilityUsage;
 import io.evitadb.utils.CollectionUtils;
@@ -306,6 +307,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 				null,
 				this.queryContext.isEntityTypeKnown() ?
 					this.queryContext.getSchema().getName() : null,
+				this.queryContext.isEntityTypeKnown() ? this.queryContext.getSchema().getName() : null,
 				null,
 				null,
 				attributeSchemaAccessor,
@@ -363,6 +365,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 					currentScope.entityIndex(),
 					currentScope.referencePartitions(),
 					currentScope.entityType(),
+					currentScope.attributeOwnerType(),
 					currentScope.referenceSchema(),
 					currentScope.locale(),
 					currentScope.attributeSchemaAccessor(),
@@ -397,6 +400,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 					requestedScopes,
 					entityIndex,
 					null,
+					entityType,
 					entityType,
 					null,
 					locale,
@@ -444,6 +448,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 					EMPTY_ENTITY_INDEXES,
 					referencePartitions,
 					referenceSchema.getReferencedEntityType(),
+					processingScope.attributeOwnerType(),
 					referenceSchema,
 					locale,
 					attributeSchemaAccessor,
@@ -468,6 +473,17 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		} else {
 			return this.scope.peek();
 		}
+	}
+
+	/**
+	 * Resolves policy from the collection owning the current sort scope, including traversed entity scopes.
+	 *
+	 * @return resolver for the attribute-owning collection of the current scope
+	 */
+	@Nonnull
+	public AttributeNormalizationResolver getAttributeNormalizationResolver() {
+		return this.queryContext.getAttributeNormalizationResolver(
+			getProcessingScope().attributeOwnerType(), "normalize sort keys");
 	}
 
 	/**
@@ -602,6 +618,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 	 * @param referencePartitions     contains the partitions of the reference a reference ordering sorts by, `null`
 	 *                                outside of such ordering
 	 * @param entityType              contains entity type the context refers to
+	 * @param attributeOwnerType      collection owning the attributes; reference attributes belong to the source collection
 	 * @param referenceSchema         contains reference schema the scope relates to
 	 * @param locale                  contains locale the context refers to
 	 * @param attributeSchemaAccessor consumer verifies prerequisites in attribute schema via {@link AttributeSchemaContract}
@@ -615,6 +632,7 @@ public class OrderByVisitor implements ConstraintVisitor, LocaleProvider {
 		@Nonnull EntityIndex[] entityIndex,
 		@Nullable ReferencePartition[] referencePartitions,
 		@Nullable String entityType,
+		@Nullable String attributeOwnerType,
 		@Nullable ReferenceSchema referenceSchema,
 		@Nullable Locale locale,
 		@Nonnull AttributeSchemaAccessor attributeSchemaAccessor,

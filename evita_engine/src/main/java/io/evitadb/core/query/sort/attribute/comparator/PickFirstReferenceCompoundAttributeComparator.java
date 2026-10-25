@@ -39,9 +39,11 @@ import io.evitadb.index.bitmap.Bitmap;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
+import java.io.Serializable;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 /**
  * Comparator for sorting entities according to a sortable compound attribute value. It combines multiple attribute
@@ -64,15 +66,16 @@ public class PickFirstReferenceCompoundAttributeComparator extends AbstractRefer
 	@Nonnull private final transient PickFirstReferenceTargetRanking targetRanking;
 
 	/**
-	 * Creates the comparator for the given compound and wires it to the resolver that provides the target order
-	 * its index-route twin ({@link PickFirstReducedIndexResolver}) walks.
+	 * Creates the comparator for the given compound with a bound key function for each element and the target order
+	 * its index-route twin ({@link PickFirstReducedIndexResolver}) walks. Non-localized elements fold by root even
+	 * when the compound is localized.
 	 *
 	 * @param compoundSchemaContract   the schema of the sortable attribute compound
 	 * @param referenceSchema          the schema of the reference the compound belongs to
-	 * @param locale                   the locale to use when reading localized attribute values, or `null` when
-	 *                                 none of the compound elements are localized
-	 * @param attributeSchemaExtractor resolves an attribute name of a compound element to its schema
+	 * @param locale                   the schema-masked read and collation locale of the compound
+	 * @param attributeSchemaExtractor resolves each element's type and decimal scale
 	 * @param orderDirection           the direction to sort in
+	 * @param normalizer               the bound compound key function; raw tuples pass through it once
 	 * @param indexResolver            resolver providing the target order the index route walks
 	 */
 	public PickFirstReferenceCompoundAttributeComparator(
@@ -81,6 +84,7 @@ public class PickFirstReferenceCompoundAttributeComparator extends AbstractRefer
 		@Nullable Locale locale,
 		@Nonnull Function<String, AttributeSchemaContract> attributeSchemaExtractor,
 		@Nonnull OrderDirection orderDirection,
+		@Nonnull UnaryOperator<Serializable> normalizer,
 		@Nonnull PickFirstReducedIndexResolver indexResolver
 	) {
 		super(
@@ -88,7 +92,8 @@ public class PickFirstReferenceCompoundAttributeComparator extends AbstractRefer
 			referenceSchema,
 			locale,
 			attributeSchemaExtractor,
-			orderDirection
+			orderDirection,
+			normalizer
 		);
 		this.targetRanking = new PickFirstReferenceTargetRanking(referenceSchema, indexResolver);
 	}

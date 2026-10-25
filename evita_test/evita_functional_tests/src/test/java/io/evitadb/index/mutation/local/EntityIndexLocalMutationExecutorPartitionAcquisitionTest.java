@@ -44,6 +44,7 @@ import io.evitadb.index.ReducedGroupEntityIndex;
 import io.evitadb.index.ReferencePartition;
 import io.evitadb.index.ReferencePartitions;
 import io.evitadb.index.ReferencedTypeEntityIndex;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.index.mutation.local.EntityIndexLocalMutationExecutor.Target;
 import io.evitadb.index.mutation.local.ReferenceIndexMutator.IterationPath;
@@ -66,9 +67,9 @@ import java.util.function.IntFunction;
 import static io.evitadb.index.mutation.local.PartitionWriteKind.ADDING;
 import static io.evitadb.test.TestTags.INDEXING;
 import static io.evitadb.test.TestTags.REFERENCE;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -142,7 +143,7 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 			this.classifierResolver,
 			this.usageRegistry,
 			this.catalogUsageRegistry,
-			new FulltextAnalyzerRegistry(),
+			new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 			true,
 			new PartitionReservations()
 		);
@@ -345,11 +346,14 @@ class EntityIndexLocalMutationExecutorPartitionAcquisitionTest extends AbstractM
 		void shouldThrowWhenListedPrimaryKeyNamesGroupIndex() {
 			EntityIndexLocalMutationExecutorPartitionAcquisitionTest.this.indexMaintainer.register(
 				new ReducedGroupEntityIndex(
-					12, ENTITY_NAME,
+					12,
+					ENTITY_NAME,
 					new EntityIndexKey(
 						EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE,
 						new RepresentativeReferenceKey(new ReferenceKey(DUPLICATE_REFERENCE, 3))
-					)
+					),
+					true,
+					AttributeNormalizationResolver.LEGACY_NFD
 				)
 			);
 			listInTypeIndex(12);

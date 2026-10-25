@@ -195,6 +195,7 @@ public final class HistogramIndexMapLoader implements ComponentLoader {
 	 * @param catalogVersion the catalog version to read pages at
 	 * @param entityIndexId  the owning entity index pk (part of the page-stream key)
 	 * @return the reconstructed owner filter index
+	 * Re-canonicalizing here heals keys written by older versions and must use the legacy function only.
 	 */
 	@Nonnull
 	private static OwnerFilterIndex reloadOwnerFilterIndex(
@@ -225,7 +226,7 @@ public final class HistogramIndexMapLoader implements ComponentLoader {
 		final InvertedIndex invertedIndex;
 		if (!part.isPaged()) {
 			invertedIndex = new InvertedIndex(
-				plainType, part.getHistogramPoints(), normalizer, comparator, indexedDecimalPlaces
+				plainType, part.getHistogramPoints(), normalizer, normalizer, comparator, indexedDecimalPlaces
 			);
 		} else {
 			final int streamId = service.getReadOnlyKeyCompressor().getId(
@@ -249,7 +250,7 @@ public final class HistogramIndexMapLoader implements ComponentLoader {
 			invertedIndex = InvertedIndex.fromPersistedPages(
 				// the histogram's own inverted index is private to it and carries no value ids
 				plainType, orderedPageSequences, perPageBuckets, null, part.getHighWaterPageSequence(),
-				normalizer, comparator, indexedDecimalPlaces
+				normalizer, normalizer, comparator, indexedDecimalPlaces
 			);
 		}
 

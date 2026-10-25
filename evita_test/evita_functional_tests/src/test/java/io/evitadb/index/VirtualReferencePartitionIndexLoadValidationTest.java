@@ -24,6 +24,7 @@
 package io.evitadb.index;
 
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart.ChainPredecessorSlot;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart.SortValueSlot;
@@ -181,7 +182,7 @@ class VirtualReferencePartitionIndexLoadValidationTest {
 			final long[] payloads = this.entries.values().stream().mapToLong(Long::longValue).toArray();
 			return new VirtualReferencePartitionIndex(
 				"media", keys, payloads, this.tupleIds, this.tuples, this.sortValueSlots, this.chainSlots
-			);
+			, slot -> SortIndex.createLegacyNormalizerFor(slot.comparatorBase(), slot.indexedDecimalPlaces()));
 		}
 	}
 

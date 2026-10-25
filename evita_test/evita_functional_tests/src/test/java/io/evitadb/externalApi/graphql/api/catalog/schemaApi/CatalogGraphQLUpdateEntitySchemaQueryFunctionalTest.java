@@ -45,9 +45,12 @@ import io.evitadb.utils.StringUtils;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import java.util.List;
+import java.util.Map;
 
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.ENTITY_EMPTY;
 import static io.evitadb.externalApi.graphql.api.testSuite.TestDataGenerator.GRAPHQL_THOUSAND_PRODUCTS;
@@ -1362,6 +1365,79 @@ public class CatalogGraphQLUpdateEntitySchemaQueryFunctionalTest extends Catalog
 			.executeAndThen()
 			.statusCode(200)
 			.body(ERRORS_PATH, nullValue());
+	}
+
+	@ParameterizedTest
+	@ValueSource(booleans = {false, true})
+	@UseDataSet(GRAPHQL_THOUSAND_PRODUCTS_FOR_SCHEMA_CHANGE)
+	@DisplayName("round-trips typed normalization for entity and reference attributes")
+	void shouldRoundTripNormalization(boolean reference, GraphQLTester tester) {
+		final String attribute = reference ? "normalizedReferenceCode" : "normalizedEntityCode";
+		if (reference) {
+			tester.test(TEST_CATALOG).urlPathSuffix("/schema")
+				.document("""
+					mutation { updateEmptySchema(mutations: [{createReferenceSchemaMutation: {
+						name: "normalizationReference", referencedEntityType: "tag",
+						referencedEntityTypeManaged: false, referencedGroupTypeManaged: false,
+						indexedInScopes: [{scope: LIVE, indexType: FOR_FILTERING}]
+					}}]) { version } }
+					""")
+				.executeAndExpectOkAndThen();
+		}
+		final String create = "createAttributeSchemaMutation: {name: \"" + attribute + "\", type: String, " +
+			"normalization: [{removeCharacters: {characters: \"- \"}}, {trim: true}, " +
+			"{asciiFolding: true}, {lowercase: true}]}";
+		applyNormalizationMutation(tester, reference, create);
+		assertNormalization(tester, reference, attribute, List.of(
+			Map.of("step", "remove-characters", "parameters", Map.of("characters", "- ")),
+			Map.of("step", "trim", "parameters", Map.of()),
+			Map.of("step", "ascii-folding", "parameters", Map.of()),
+			Map.of("step", "lowercase", "parameters", Map.of())
+		));
+		applyNormalizationMutation(tester, reference,
+			"setAttributeSchemaNormalizedMutation: {name: \"" + attribute +
+				"\", normalization: [{lowercase: true}]}"
+		);
+		assertNormalization(tester, reference, attribute,
+			List.of(Map.of("step", "lowercase", "parameters", Map.of())));
+		applyNormalizationMutation(tester, reference,
+			"setAttributeSchemaNormalizedMutation: {name: \"" + attribute + "\", normalization: []}");
+		assertNormalization(tester, reference, attribute, List.of());
+		// An omitted field remains valid in both create and set statements.
+		applyNormalizationMutation(tester, reference,
+			"createAttributeSchemaMutation: {name: \"" + attribute + "Legacy\", type: String}");
+		assertNormalization(tester, reference, attribute + "Legacy", List.of());
+		applyNormalizationMutation(tester, reference,
+			"setAttributeSchemaNormalizedMutation: {name: \"" + attribute + "\"}");
+		assertNormalization(tester, reference, attribute, List.of());
+	}
+
+	/** Applies one attribute mutation through its owning entity or reference. */
+	private static void applyNormalizationMutation(
+		@Nonnull GraphQLTester tester, boolean reference, @Nonnull String mutation
+	) {
+		final String wrapped = reference ?
+			"modifyReferenceAttributeSchemaMutation: {name: \"normalizationReference\", " +
+				"attributeSchemaMutation: {" + mutation + "}}" : mutation;
+		tester.test(TEST_CATALOG).urlPathSuffix("/schema")
+			.document("mutation { updateEmptySchema(mutations: [{" + wrapped + "}]) { version } }")
+			.executeAndExpectOkAndThen();
+	}
+
+	/** Reads the declared chain through the schema endpoint. */
+	private static void assertNormalization(
+		@Nonnull GraphQLTester tester, boolean reference, @Nonnull String attribute,
+		@Nonnull List<Map<String, Object>> expected
+	) {
+		final String selection = reference ?
+			"references { normalizationReference { allAttributes { name normalization { step parameters } } } }" :
+			"allAttributes { ... on EntityAttributeSchema { name normalization { step parameters } } }";
+		final String path = reference ? "references.normalizationReference.allAttributes" : "allAttributes";
+		tester.test(TEST_CATALOG).urlPathSuffix("/schema")
+			.document("query { getEmptySchema { " + selection + " } }")
+			.executeAndExpectOkAndThen()
+			.body(EMPTY_SCHEMA_PATH + "." + path + ".find { it.name == '" + attribute + "' }.normalization",
+				equalTo(expected));
 	}
 
 	private static int getEntitySchemaVersion(@Nonnull GraphQLTester tester, @Nonnull String entityType) {

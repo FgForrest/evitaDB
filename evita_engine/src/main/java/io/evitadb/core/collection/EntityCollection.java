@@ -32,7 +32,6 @@ import io.evitadb.api.exception.EntityMissingException;
 import io.evitadb.api.exception.IdentifierOverflowException;
 import io.evitadb.api.exception.IndexNotFoundException;
 import io.evitadb.api.exception.InvalidMutationException;
-import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.exception.SchemaAlteringException;
 import io.evitadb.api.exception.SchemaNotFoundException;
 import io.evitadb.api.index.EntityIndexType;
@@ -76,6 +75,7 @@ import io.evitadb.api.requestResponse.extraResult.QueryTelemetry;
 import io.evitadb.api.requestResponse.extraResult.QueryTelemetry.QueryPhase;
 import io.evitadb.api.requestResponse.progress.ProgressingFuture;
 import io.evitadb.api.requestResponse.schema.*;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.api.requestResponse.schema.dto.ReferenceSchema;
 import io.evitadb.api.requestResponse.schema.dto.ReflectedReferenceSchema;
@@ -130,6 +130,11 @@ import io.evitadb.dataType.champ.ChampMap;
 import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.function.Functions;
 import io.evitadb.index.*;
+import io.evitadb.index.analysis.AttributeNormalizationPolicy;
+import io.evitadb.index.analysis.AttributeNormalizationPolicyHeapSize;
+import io.evitadb.index.analysis.AttributeNormalizationReconciler;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
+import io.evitadb.index.analysis.BuiltWithAttributeNormalizationResolver;
 import io.evitadb.index.attribute.FilterIndex;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.bitmap.EmptyBitmap;
@@ -168,6 +173,7 @@ import io.evitadb.spi.store.catalog.persistence.VolatileDataFootprint;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.StoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeIndexKey;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.AttributeNormalizationStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.schema.EntitySchemaStoragePart;
 import io.evitadb.spi.store.catalog.shared.model.LogRecordReference;
 import io.evitadb.spi.store.catalog.shared.model.PriceInternalIdContainer;
@@ -195,6 +201,7 @@ import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 import static io.evitadb.api.query.QueryConstraints.*;
@@ -334,8 +341,8 @@ public final class EntityCollection implements
 	 *   and only a fresh collection or one loaded from disk mints a new one - which is what makes the counts "since
 	 *   catalog load".
 	 * - **Pruned when this collection adopts a new schema version** (see
-	 *   {@link #exchangeSchema(EntitySchema, EntitySchema)}), so a capability dropped from the schema and added back
-	 *   does not inherit the numbers accumulated before it was dropped.
+	 *   {@link #exchangeSchema(EntitySchema, EntitySchema, boolean)}), so a capability dropped from the schema and
+	 *   added back does not inherit the numbers accumulated before it was dropped.
 	 */
 	private final SchemaCapabilityUsageRegistry usageRegistry;
 	/**
@@ -367,6 +374,145 @@ public final class EntityCollection implements
 	 * the creation of the catalog copy).
 	 */
 	private Catalog catalog;
+	/** Transactional owner of built-with descriptions; no executable function is stored here. */
+	private final TransactionalReference<AttributeNormalizationPolicy> normalizationPolicy;
+
+	/**
+	 * Returns this collection snapshot's built-with policy.
+	 *
+	 * @return immutable built-with descriptions and retained identities
+	 */
+	@Nonnull
+	public AttributeNormalizationPolicy getNormalizationPolicy() {
+		return Objects.requireNonNull(this.normalizationPolicy.get());
+	}
+
+	/**
+	 * Returns an immutable resolver borrowing collection rows and the catalog's authoritative global rows.
+	 *
+	 * @return resolver for this collection snapshot
+	 */
+	@Nonnull
+	public AttributeNormalizationResolver getAttributeNormalizationResolver() {
+		return createNormalizationResolver();
+	}
+
+	/** Builds the resolver of {@link #getAttributeNormalizationResolver()} with its concrete type. */
+	@Nonnull
+	private BuiltWithAttributeNormalizationResolver createNormalizationResolver() {
+		return new BuiltWithAttributeNormalizationResolver(this.catalog.getAnalysisStepRegistry(),
+			getNormalizationPolicy(), this.catalog.getGlobalAttributeNormalizationRows());
+	}
+
+	/**
+	 * Adopts owner descriptions and future child bindings for schema changes and failed-cascade rollback.
+	 * Equal policies do nothing.
+	 *
+	 * @param policy immutable policy to adopt
+	 */
+	public void adoptNormalizationPolicy(@Nonnull AttributeNormalizationPolicy policy) {
+		final AttributeNormalizationPolicy previous = getNormalizationPolicy();
+		if (!previous.equals(policy)) {
+			this.normalizationPolicy.set(policy);
+			refreshNormalizationResolver(previous, this.catalog.getGlobalAttributeNormalizationRows());
+			persistNormalizationPolicy(policy);
+		}
+	}
+
+	/** Writes only an actual policy transition; empty metadata has no singleton on disk. */
+	private void persistNormalizationPolicy(@Nonnull AttributeNormalizationPolicy policy) {
+		if (AttributeNormalizationPolicy.EMPTY.equals(policy)) {
+			this.dataStoreBuffer.removeByPrimaryKey(
+				this.catalog.getVersion(), 1, AttributeNormalizationStoragePart.class);
+		} else {
+			this.dataStoreBuffer.update(this.catalog.getVersion(), new AttributeNormalizationStoragePart(policy));
+		}
+	}
+
+	/**
+	 * Prepares retained/legacy compound descriptions once for a reconciliation across both scopes and all locales.
+	 *
+	 * @return a transaction-visible probe; only relevant compound tuples are iterated
+	 */
+	@Nonnull
+	public Predicate<AttributeIndexKey> createStringKeyPredicate() {
+		return createStringKeyPredicate(seedCompounds(getInternalSchema(), getNormalizationPolicy()));
+	}
+
+	/**
+	 * Adds the compounds `schema` declares to the bindings `policy` retains, so that legacy compounds stored without
+	 * a binding can be probed too. A retained binding wins over the declaration.
+	 *
+	 * @param schema the schema whose compound declarations fill the missing bindings
+	 * @param policy the persisted policy
+	 * @return the policy with seeded compound bindings
+	 */
+	@Nonnull
+	private static AttributeNormalizationPolicy seedCompounds(
+		@Nonnull EntitySchemaContract schema, @Nonnull AttributeNormalizationPolicy policy
+	) {
+		final Map<AttributeIndexKey, List<AttributeNormalizationPolicy.ElementBinding>> compounds =
+			AttributeNormalizationReconciler.describeCompounds(schema);
+		compounds.putAll(policy.compounds());
+		return new AttributeNormalizationPolicy(policy.rows(), compounds, policy.globalAttributes());
+	}
+
+	/** Reuses the prepared compound identities while probing transaction-visible indexes. */
+	@Nonnull
+	private Predicate<AttributeIndexKey> createStringKeyPredicate(@Nonnull AttributeNormalizationPolicy policy) {
+		return identity -> {
+			for (final EntityIndex index : this.indexes.values()) {
+				if (index.hasIndexedStringKeys(identity, policy)) {
+					return true;
+				}
+			}
+			return false;
+		};
+	}
+
+	/** Tests retained compound tuples independently of the current schema. */
+	private boolean hasCompoundKeys(@Nonnull AttributeIndexKey identity) {
+		for (final EntityIndex index : this.indexes.values()) {
+			if (index.hasSortKeys(identity)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Refreshes index slots after an effective row used by this owner changed. Callers compare local rows or select
+	 * collections adopting or retaining a changed global name before entering this method.
+	 */
+	public void refreshNormalizationResolver() {
+		final AttributeNormalizationResolver resolver = getAttributeNormalizationResolver();
+		this.indexes.forEach((key, index) -> {
+			this.dataStoreBuffer.getOrCreateIndexForModification(key, ignored -> index);
+			index.useNormalizationResolver(resolver);
+		});
+	}
+
+	/** Rebinds slots only for changed effective rows, never merely for changed compound descriptions. */
+	private void refreshNormalizationResolver(
+		@Nonnull AttributeNormalizationPolicy previousPolicy,
+		@Nonnull Map<String, List<AnalysisStep>> previousGlobalRows
+	) {
+		final AttributeNormalizationPolicy policy = getNormalizationPolicy();
+		if (policy.rows().equals(previousPolicy.rows()) &&
+			policy.globalAttributes().equals(previousPolicy.globalAttributes()) &&
+			this.catalog.getGlobalAttributeNormalizationRows().equals(previousGlobalRows)) {
+			return;
+		}
+		final BuiltWithAttributeNormalizationResolver resolver = createNormalizationResolver();
+		final BuiltWithAttributeNormalizationResolver previous = new BuiltWithAttributeNormalizationResolver(
+			this.catalog.getAnalysisStepRegistry(), previousPolicy, previousGlobalRows);
+		// New compounds bind from their supplied schema; retained trees keep their captured functions. Changing
+		// compound bindings alone therefore needs no resolver-slot refresh when the effective rows are unchanged.
+		if (!resolver.hasSameRows(previous)) {
+			refreshNormalizationResolver();
+		}
+	}
+
 	/**
 	 * Contains schema of the entity type that is used for formal verification of the data consistency and indexing
 	 * prescription.
@@ -453,6 +599,9 @@ public final class EntityCollection implements
 				this::getIndexByPrimaryKeyIfExists,
 				this::getInternalSchema
 			);
+			this.normalizationPolicy = new TransactionalReference<>(ofNullable(
+				storagePartPersistenceService.getStoragePart(catalogVersion, 1, AttributeNormalizationStoragePart.class))
+				.map(AttributeNormalizationStoragePart::policy).orElse(AttributeNormalizationPolicy.EMPTY));
 			// initialize schema - still in constructor
 			this.initialSchema = ofNullable(storagePartPersistenceService.getStoragePart(catalogVersion, 1, EntitySchemaStoragePart.class))
 				.map(EntitySchemaStoragePart::entitySchema)
@@ -528,6 +677,7 @@ public final class EntityCollection implements
 		@Nonnull SequenceService sequenceService
 	) {
 		this.trafficRecorder = previousCollection.trafficRecorder;
+		this.normalizationPolicy = new TransactionalReference<>(previousCollection.getNormalizationPolicy());
 		final String entityType = previousCollection.getSchema().getName();
 		this.entityTypePrimaryKey = previousCollection.entityTypePrimaryKey;
 		this.initialSchema = previousCollection.getInternalSchema();
@@ -601,6 +751,7 @@ public final class EntityCollection implements
 		@Nonnull IndexPopulation indexPopulation,
 		@Nonnull CacheSupervisor cacheSupervisor,
 		@Nonnull SchemaCapabilityUsageRegistry usageRegistry,
+		@Nonnull AttributeNormalizationPolicy normalizationPolicy,
 		@Nonnull TrafficRecordingEngine trafficRecorder
 	) {
 		this.trafficRecorder = trafficRecorder;
@@ -630,6 +781,7 @@ public final class EntityCollection implements
 		// rename - and hands over the registry it already had. Minting one here instead would reset the counters of
 		// precisely the collections being written to, and nothing downstream would look wrong
 		this.usageRegistry = usageRegistry;
+		this.normalizationPolicy = new TransactionalReference<>(normalizationPolicy);
 		this.emptyOnStart = this.persistenceService.isEmpty(catalogVersion, this.dataStoreReader);
 		this.defaultMinimalQuery = new EvitaRequest(
 			Query.query(collection(entitySchema.getName())),
@@ -1081,6 +1233,7 @@ public final class EntityCollection implements
 	) throws SchemaAlteringException {
 		// internal schema is expected to be produced on the server side
 		final EntitySchema originalSchema = getInternalSchema();
+		final AttributeNormalizationPolicy originalPolicy = getNormalizationPolicy();
 		try {
 			EntitySchema updatedSchema = originalSchema;
 			final Set<String> updatedReferenceSchemas = CollectionUtils.createHashSet(originalSchema.getReferences().size());
@@ -1107,11 +1260,15 @@ public final class EntityCollection implements
 
 			if (updatedSchema.version() > originalSchema.version()) {
 				exchangeSchema(originalSchema, updatedSchema);
+			} else {
+				this.catalog.getAnalysisStepRegistry().validateNormalizationDescriptions(updatedSchema);
+				adoptNormalizationPolicy(reconcileNormalization(originalSchema, updatedSchema));
 			}
 		} catch (RuntimeException ex) {
 			// revert all changes in the schema (for current transaction) if anything failed
 			final EntitySchemaDecorator decorator = new EntitySchemaDecorator(() -> this.catalog.getSchema(), originalSchema);
 			this.schema.set(decorator);
+			adoptNormalizationPolicy(originalPolicy);
 			throw ex;
 		} finally {
 			// finally, store the updated catalog schema to disk
@@ -1225,7 +1382,10 @@ public final class EntityCollection implements
 		if (index == null) {
 			throw new IndexNotFoundException(getEntityType(), indexPrimaryKey);
 		}
-		return IndexDetailProjection.describe(getEntityType(), index);
+		return IndexDetailProjection.describe(getEntityType(), index,
+			index.getIndexKey().type() == EntityIndexType.GLOBAL &&
+				(index.getIndexKey().scope() == Scope.LIVE || getGlobalIndexIfExists().isEmpty()) ?
+				this.normalizationPolicy.getHeapSizeInBytes(AttributeNormalizationPolicyHeapSize::estimate) : 0L);
 	}
 
 	@Nonnull
@@ -1521,7 +1681,7 @@ public final class EntityCollection implements
 		);
 		// exchange schema if it was updated
 		if (boundSchema != originalSchema) {
-			exchangeSchema(originalSchema, boundSchema);
+			exchangeSchema(originalSchema, boundSchema, false);
 		}
 	}
 
@@ -2199,7 +2359,6 @@ public final class EntityCollection implements
 			.orElse(empty());
 	}
 
-
 	/**
 	 * Dispatches {@link IndexMutation} instances to their registered {@link IndexMutationExecutor}. Passes the
 	 * {@link EntityIndexMaintainer} (which implements {@link IndexMutationTarget}) so executors can access indexes,
@@ -2461,6 +2620,7 @@ public final class EntityCollection implements
 
 	@Override
 	public void removeLayer(@Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		this.normalizationPolicy.removeLayer(transactionalLayer);
 		transactionalLayer.removeTransactionalMemoryLayerIfExists(this);
 		this.schema.removeLayer(transactionalLayer);
 		this.indexes.removeLayer(transactionalLayer);
@@ -2470,6 +2630,8 @@ public final class EntityCollection implements
 	@Nonnull
 	@Override
 	public EntityCollection createCopyWithMergedTransactionalMemory(@Nullable DataStoreChanges layer, @Nonnull TransactionalLayerMaintainer transactionalLayer) {
+		final AttributeNormalizationPolicy committedPolicy = transactionalLayer
+			.getStateCopyWithCommittedChanges(this.normalizationPolicy).orElseThrow();
 		final long catalogVersion = this.catalog.getVersion();
 		final DataStoreChanges transactionalChanges = transactionalLayer.getTransactionalMemoryLayerIfExists(this);
 		final EntityCollectionPersistenceService<StorageDescriptor, EntityCollectionHeader> newPersistenceService = this.catalogPersistenceService.getOrCreateEntityCollectionPersistenceService(
@@ -2506,6 +2668,7 @@ public final class EntityCollection implements
 				indexTuple.indexPopulation(),
 				this.cacheSupervisor,
 				this.usageRegistry,
+				committedPolicy,
 				this.trafficRecorder
 			);
 		} else {
@@ -2544,6 +2707,7 @@ public final class EntityCollection implements
 					indexTuple.indexPopulation(),
 					this.cacheSupervisor,
 					this.usageRegistry,
+					committedPolicy,
 					this.trafficRecorder
 				);
 			} else {
@@ -2591,6 +2755,7 @@ public final class EntityCollection implements
 			this.indexPopulation.copy(),
 			this.cacheSupervisor,
 			this.usageRegistry,
+			getNormalizationPolicy(),
 			this.trafficRecorder
 		);
 		// the catalog remains the same here; attach only the collection shell. The fresh copy shares this.indexes by
@@ -2625,6 +2790,7 @@ public final class EntityCollection implements
 			indexTuple.indexPopulation(),
 			this.cacheSupervisor,
 			this.usageRegistry,
+			getNormalizationPolicy(),
 			this.trafficRecorder
 		);
 	}
@@ -2985,6 +3151,29 @@ public final class EntityCollection implements
 	}
 
 	/**
+	 * Exchanges the schema and adopts the built-with normalization policy reconciled against it - the form every
+	 * schema mutation and reflected-reference refresh uses; see
+	 * {@link #exchangeSchema(EntitySchema, EntitySchema, boolean)}.
+	 *
+	 * @param originalSchema the original schema to be exchanged
+	 * @param updatedSchema  the updated schema to replace the original
+	 */
+	private void exchangeSchema(@Nonnull EntitySchema originalSchema, @Nonnull EntitySchema updatedSchema) {
+		exchangeSchema(originalSchema, updatedSchema, true);
+	}
+
+	/** Reconciles retained collection ownership against catalog rows, using one set of compound probe bindings. */
+	@Nonnull
+	private AttributeNormalizationPolicy reconcileNormalization(
+		@Nonnull EntitySchema originalSchema, @Nonnull EntitySchema updatedSchema
+	) {
+		final AttributeNormalizationPolicy seededPolicy = seedCompounds(originalSchema, getNormalizationPolicy());
+		return AttributeNormalizationReconciler.reconcile(getEntityType(), seededPolicy, updatedSchema,
+			createStringKeyPredicate(seededPolicy), this::hasCompoundKeys,
+			this.catalog.getGlobalAttributeNormalizationRows());
+	}
+
+	/**
 	 * Exchanges the schema from the original to the updated schema.
 	 *
 	 * This is the **only** place this collection adopts a new schema version - every schema mutation, whether applied
@@ -3035,23 +3224,46 @@ public final class EntityCollection implements
 	 * protect. The cost of leaving it is one stale row, for one schema version, on a capability that was being queried
 	 * at the exact moment it was dropped.
 	 *
-	 * @param originalSchema the original schema to be exchanged
-	 * @param updatedSchema  the updated schema to replace the original
+	 * # Normalization policy and failure
+	 *
+	 * Schema mutations reconcile the built-with normalization policy against the updated schema and adopt it once
+	 * the exchange has won; startup binding of reflected references restores declarations and keeps the current
+	 * policy. A runtime failure from the exchange onward puts back the original schema and policy before it
+	 * propagates.
+	 *
+	 * @param originalSchema     the original schema to be exchanged
+	 * @param updatedSchema      the updated schema to replace the original
+	 * @param adoptNormalization true to reconcile and adopt the built-with normalization policy, false to keep the
+	 *                           current one
 	 */
-	private void exchangeSchema(@Nonnull EntitySchema originalSchema, @Nonnull EntitySchema updatedSchema) {
-		final EntitySchemaDecorator originalSchemaBeforeExchange = this.schema.compareAndExchange(
-			this.schema.get(),
-			new EntitySchemaDecorator(() -> this.catalog.getSchema(), updatedSchema)
-		);
-		final EntitySchemaContract finalUpdatedSchema = updatedSchema;
-		Assert.isTrue(
-			Objects.requireNonNull(originalSchemaBeforeExchange).version() == originalSchema.version(),
-			() -> new ConcurrentSchemaUpdateException(originalSchema, finalUpdatedSchema)
-		);
-		// only after the exchange is known to have won the race - a losing exchange changed nothing to align against
-		this.usageRegistry.alignWith(updatedSchema);
-		discardUnmaintainedReducedIndexMemberships(updatedSchema);
-		this.catalog.entitySchemaUpdated(updatedSchema);
+	private void exchangeSchema(
+		@Nonnull EntitySchema originalSchema, @Nonnull EntitySchema updatedSchema, boolean adoptNormalization
+	) {
+		this.catalog.getAnalysisStepRegistry().validateNormalizationDescriptions(updatedSchema);
+		final AttributeNormalizationPolicy originalPolicy = getNormalizationPolicy();
+		final AttributeNormalizationPolicy reconciled = adoptNormalization ?
+			reconcileNormalization(originalSchema, updatedSchema) : originalPolicy;
+
+		try {
+			final EntitySchemaDecorator originalSchemaBeforeExchange = this.schema.compareAndExchange(
+				this.schema.get(),
+				new EntitySchemaDecorator(() -> this.catalog.getSchema(), updatedSchema)
+			);
+			final EntitySchemaContract finalUpdatedSchema = updatedSchema;
+			Assert.isTrue(
+				Objects.requireNonNull(originalSchemaBeforeExchange).version() == originalSchema.version(),
+				() -> new ConcurrentSchemaUpdateException(originalSchema, finalUpdatedSchema)
+			);
+			// only after the exchange is known to have won the race - a losing exchange changed nothing to align against
+			adoptNormalizationPolicy(reconciled);
+			this.usageRegistry.alignWith(updatedSchema);
+			discardUnmaintainedReducedIndexMemberships(updatedSchema);
+			this.catalog.entitySchemaUpdated(updatedSchema);
+		} catch (RuntimeException ex) {
+			this.schema.set(new EntitySchemaDecorator(() -> this.catalog.getSchema(), originalSchema));
+			adoptNormalizationPolicy(originalPolicy);
+			throw ex;
+		}
 	}
 
 	/**
@@ -3752,6 +3964,7 @@ public final class EntityCollection implements
 			// their counters belong to the catalog rather than to whichever collection happened to write one
 			this.catalog.getUsageRegistry(),
 			this.catalog.getFulltextAnalyzerRegistry(),
+			getAttributeNormalizationResolver(),
 			this.catalog.isUsageStatisticsTracked(),
 			// the collector is shared by the whole root mutation, so its executors share the reservations too
 			localMutationExecutorCollector.getPartitionReservations()
@@ -4320,7 +4533,8 @@ public final class EntityCollection implements
 									EntityCollection.this.getNextIndexPrimaryKey(),
 									EntityCollection.this.getEntityType(),
 									eikAgain,
-									tracked
+									tracked,
+									EntityCollection.this.getAttributeNormalizationResolver()
 								);
 							} else if (
 								eikAgain.type() == EntityIndexType.REFERENCED_ENTITY_TYPE ||
@@ -4333,7 +4547,8 @@ public final class EntityCollection implements
 									EntityCollection.this.getNextIndexPrimaryKey(),
 									EntityCollection.this.getEntityType(),
 									eikAgain,
-									tracked
+									tracked,
+									EntityCollection.this.getAttributeNormalizationResolver()
 								);
 							} else if (eikAgain.type() == EntityIndexType.REFERENCED_ENTITY) {
 								final String referenceName =
@@ -4345,7 +4560,8 @@ public final class EntityCollection implements
 									EntityCollection.this.getNextIndexPrimaryKey(),
 									EntityCollection.this.getEntityType(),
 									eikAgain,
-									tracked
+									tracked,
+									EntityCollection.this.getAttributeNormalizationResolver()
 								);
 							} else if (eikAgain.type() == EntityIndexType.REFERENCED_GROUP_ENTITY) {
 								assertReferenceIndexPrerequisites(
@@ -4356,7 +4572,8 @@ public final class EntityCollection implements
 									EntityCollection.this.getNextIndexPrimaryKey(),
 									EntityCollection.this.getEntityType(),
 									eikAgain,
-									tracked
+									tracked,
+									EntityCollection.this.getAttributeNormalizationResolver()
 								);
 							} else {
 								throw new GenericEvitaInternalError("Unsupported entity index type: " + eikAgain.type());

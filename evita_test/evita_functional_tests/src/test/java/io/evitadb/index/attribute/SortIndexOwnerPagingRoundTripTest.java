@@ -654,8 +654,14 @@ class SortIndexOwnerPagingRoundTripTest implements EvitaTestSupport {
 			new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
 		};
 		final OwnerSortIndex source = new OwnerSortIndex(
-			base, null, ATTRIBUTE_KEY, 0,
-			new int[]{3, 1, 2}, new Serializable[]{"v00000"}, Map.of("v00000", 3)
+			base,
+			null,
+			ATTRIBUTE_KEY,
+			0,
+			new int[]{3, 1, 2},
+			new Serializable[]{"v00000"},
+			Map.of("v00000", 3),
+			SortIndex.createLegacyNormalizerFor(base, 0)
 		);
 		assertArrayEquals(
 			new int[]{3, 1, 2}, source.getSortedRecords(),
@@ -695,7 +701,7 @@ class SortIndexOwnerPagingRoundTripTest implements EvitaTestSupport {
 
 	@Nonnull
 	private static OwnerSortIndex scalarOwner() {
-		return new OwnerSortIndex(String.class, ATTRIBUTE_KEY);
+		return new OwnerSortIndex(String.class, null, ATTRIBUTE_KEY, 0, SortIndex.createLegacyNormalizerFor(String.class, 0));
 	}
 
 	@Nonnull
@@ -704,7 +710,7 @@ class SortIndexOwnerPagingRoundTripTest implements EvitaTestSupport {
 			new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 			new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_FIRST)
 		};
-		return new OwnerSortIndex(base, ATTRIBUTE_KEY);
+		return new OwnerSortIndex(base, null, ATTRIBUTE_KEY, SortIndex.createLegacyNormalizerFor(base, 0));
 	}
 
 	/**
@@ -843,8 +849,14 @@ class SortIndexOwnerPagingRoundTripTest implements EvitaTestSupport {
 			perPageBuckets[i] = leafPage.getBuckets();
 		}
 		return OwnerSortIndex.fromPersistedPages(
-			root.getComparatorBase(), null, root.getAttributeIndexKey(), root.getIndexedDecimalPlaces(),
-			orderedPageSequences, perPageBuckets, root.getHighWaterPageSequence()
+			root.getComparatorBase(),
+			null,
+			root.getAttributeIndexKey(),
+			root.getIndexedDecimalPlaces(),
+			orderedPageSequences,
+			perPageBuckets,
+			root.getHighWaterPageSequence(),
+			SortIndex.createLegacyNormalizerFor(root.getComparatorBase(), root.getIndexedDecimalPlaces())
 		);
 	}
 
@@ -854,8 +866,14 @@ class SortIndexOwnerPagingRoundTripTest implements EvitaTestSupport {
 	@Nonnull
 	private static OwnerSortIndex loadSingleOwner(@Nonnull SortIndexStoragePart root) {
 		return new OwnerSortIndex(
-			root.getComparatorBase(), null, root.getAttributeIndexKey(), root.getIndexedDecimalPlaces(),
-			root.getSortedRecords(), root.getSortedRecordsValues(), root.getValueCardinalities()
+			root.getComparatorBase(),
+			null,
+			root.getAttributeIndexKey(),
+			root.getIndexedDecimalPlaces(),
+			root.getSortedRecords(),
+			root.getSortedRecordsValues(),
+			root.getValueCardinalities(),
+			SortIndex.createLegacyNormalizerFor(root.getComparatorBase(), root.getIndexedDecimalPlaces())
 		);
 	}
 

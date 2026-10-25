@@ -109,7 +109,12 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 				new ValueToRecordBitmap(10, 40, 50)
 			};
 			final InvertedIndex index = new InvertedIndex(
-				buckets, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder()
+				Comparable.class,
+				buckets,
+				FilterIndex.NO_NORMALIZATION,
+				FilterIndex.NO_NORMALIZATION,
+				Comparator.naturalOrder(),
+				0
 			);
 
 			assertEquals(3, index.getBucketCount());
@@ -1281,20 +1286,26 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("equals: same buckets with different dirty state are equal")
 		void shouldBeEqualRegardlessOfDirtyState() {
 			final InvertedIndex index1 = new InvertedIndex(
+				Comparable.class,
 				new ValueToRecordBitmap[]{
 					new ValueToRecordBitmap(1, 10),
 					new ValueToRecordBitmap(2, 20)
 				},
 				FilterIndex.NO_NORMALIZATION,
-				Comparator.naturalOrder()
+				FilterIndex.NO_NORMALIZATION,
+				Comparator.naturalOrder(),
+				0
 			);
 			final InvertedIndex index2 = new InvertedIndex(
+				Comparable.class,
 				new ValueToRecordBitmap[]{
 					new ValueToRecordBitmap(1, 10),
 					new ValueToRecordBitmap(2, 20)
 				},
 				FilterIndex.NO_NORMALIZATION,
-				Comparator.naturalOrder()
+				FilterIndex.NO_NORMALIZATION,
+				Comparator.naturalOrder(),
+				0
 			);
 
 			// one dirty, one not — should still be equal (dirty excluded)
@@ -1309,20 +1320,26 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 		@DisplayName("hashCode: structurally identical indexes have same hashCode")
 		void shouldHaveSameHashCodeForIdenticalIndexes() {
 			final InvertedIndex index1 = new InvertedIndex(
+				Comparable.class,
 				new ValueToRecordBitmap[]{
 					new ValueToRecordBitmap(5, 1, 20),
 					new ValueToRecordBitmap(10, 3)
 				},
 				FilterIndex.NO_NORMALIZATION,
-				Comparator.naturalOrder()
+				FilterIndex.NO_NORMALIZATION,
+				Comparator.naturalOrder(),
+				0
 			);
 			final InvertedIndex index2 = new InvertedIndex(
+				Comparable.class,
 				new ValueToRecordBitmap[]{
 					new ValueToRecordBitmap(5, 1, 20),
 					new ValueToRecordBitmap(10, 3)
 				},
 				FilterIndex.NO_NORMALIZATION,
-				Comparator.naturalOrder()
+				FilterIndex.NO_NORMALIZATION,
+				Comparator.naturalOrder(),
+				0
 			);
 
 			assertEquals(index1.hashCode(), index2.hashCode());
@@ -1699,7 +1716,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 			// reload boundary-stable (one leaf per page, page identities + change-detection baseline restored)
 			final InvertedIndex reloaded = InvertedIndex.fromPersistedPages(
 				Comparable.class, orderedPageSequences, perPageBuckets, null, highWater,
-				FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
+				FilterIndex.NO_NORMALIZATION, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
 			);
 			assertTrue(reloaded.isPaged(), "Reloaded index must still be paged.");
 			assertEquals(index, reloaded, "Reloaded index must be content-equal to the original.");
@@ -1821,7 +1838,7 @@ class InvertedIndexTest implements TimeBoundedTestSupport {
 
 			final InvertedIndex reloaded = new InvertedIndex(
 				DateTimeRange.class, index.getValueToRecordBitmap(),
-				FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
+				FilterIndex.NO_NORMALIZATION, FilterIndex.NO_NORMALIZATION, Comparator.naturalOrder(), 0
 			);
 			assertEquals(index, reloaded, "a reload must reproduce the index it came from");
 			assertEquals(index.getBucketCount(), reloaded.getBucketCount());

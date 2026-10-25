@@ -23,7 +23,6 @@
 
 package io.evitadb.index;
 
-import io.evitadb.api.configuration.ServerOptions;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
@@ -34,6 +33,9 @@ import io.evitadb.core.transaction.Transaction;
 import io.evitadb.core.transaction.memory.TransactionalLayerMaintainer;
 import io.evitadb.dataType.Scope;
 import io.evitadb.exception.GenericEvitaInternalError;
+import io.evitadb.index.analysis.AttributeNormalizationPolicy;
+import io.evitadb.index.analysis.AttributeNormalizationReconciler;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.attribute.AttributeIndex;
 import io.evitadb.index.attribute.ReferenceAttributeIndex;
 import io.evitadb.index.attribute.FilterIndex;
@@ -97,7 +99,6 @@ import static java.util.Optional.ofNullable;
  * @author Jan Novotny (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
 public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implements HistogramCapableEntityIndex {
-
 	/**
 	 * Transactional flag that tracks whether the PK cardinality data has changed and needs to be persisted.
 	 */
@@ -135,35 +136,16 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 	@Nonnull private HistogramIndexMapComponent histogramComponent;
 
 	/**
-	 * Creates a new empty reduced group entity index.
-	 *
-	 * @param primaryKey     the primary key of this index
-	 * @param entityType     the type of entity being indexed
-	 * @param entityIndexKey the key identifying this index
-	 */
-	public ReducedGroupEntityIndex(
-		int primaryKey,
-		@Nonnull String entityType,
-		@Nonnull EntityIndexKey entityIndexKey
-	) {
-		this(primaryKey, entityType, entityIndexKey, ServerOptions.DEFAULT_USAGE_STATISTICS_TRACKING);
-	}
-
-	/**
-	 * Creates a fresh index, stating whether it counts its own usage.
-	 *
-	 * @param primaryKey              the primary key of this index
-	 * @param entityType              the type of entity being indexed
-	 * @param entityIndexKey          the key identifying this index
-	 * @param usageStatisticsTracking whether to allocate an {@link io.evitadb.index.IndexActivity} holder for it
+	 * Creates an index using the owner resolver; child structures capture String functions when they are created.
 	 */
 	public ReducedGroupEntityIndex(
 		int primaryKey,
 		@Nonnull String entityType,
 		@Nonnull EntityIndexKey entityIndexKey,
-		boolean usageStatisticsTracking
+		boolean usageStatisticsTracking,
+		@Nonnull AttributeNormalizationResolver normalizationResolver
 	) {
-		super(primaryKey, entityType, entityIndexKey, usageStatisticsTracking);
+		super(primaryKey, entityType, entityIndexKey, usageStatisticsTracking, normalizationResolver);
 		Assert.isPremiseValid(
 			entityIndexKey.type() == EntityIndexType.REFERENCED_GROUP_ENTITY,
 			() -> "ReducedGroupEntityIndex only supports REFERENCED_GROUP_ENTITY type, got: " +
@@ -245,6 +227,23 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 	}
 
 	/**
+	 * Includes cardinality-only String contributions in the schema-time population check.
+	 *
+	 * @param identity scope/locale-free attribute identity
+	 * @param policy retained compound bindings supplemented with legacy declarations
+	 * @return true if an indexed non-null String key survives
+	 */
+	@Override
+	public boolean hasIndexedStringKeys(
+		@Nonnull AttributeIndexKey identity, @Nonnull AttributeNormalizationPolicy policy
+	) {
+		if (super.hasIndexedStringKeys(identity, policy)) {
+			return true;
+		}
+		return AttributeNormalizationReconciler.hasStringCardinalityKeys(this.cardinalityIndexes, identity);
+	}
+
+	/**
 	 * Returns the read-side reload plan for `ReducedGroupEntityIndex`. Extends the shared
 	 * reduced-index plan (attribute / price-ref / hierarchy / facet) with three subclass-owned
 	 * loaders: per-attribute cardinality, histogram map, and group-cardinality bookkeeping. The
@@ -295,7 +294,7 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 					attributes.sortIndexes(),
 					attributes.chainIndexes(),
 					attributes.sharedValueIndexes(),
-					attributes.sharedRangeIndexes()
+					attributes.sharedRangeIndexes(), context.normalizationResolver()
 				),
 				new PriceRefIndex(scope, prices.priceIndexes()),
 				hierarchy.hierarchyIndex(),
@@ -547,7 +546,11 @@ public class ReducedGroupEntityIndex extends AbstractReducedEntityIndex implemen
 		final AttributeCardinalityIndex theCardinalityIndex = this.cardinalityIndexes.computeIfAbsent(
 			createAttributeKey(referenceSchema, attributeSchema, allowedLocales, locale, value),
 			lookupKey -> new AttributeCardinalityIndex(
-				attributeSchema.getPlainType()
+				attributeSchema.getPlainType(),
+				attributeSchema.getPlainType() == String.class
+					? this.attributeIndex.getNormalizationResolver().resolveKeyNormalizer(
+						lookupKey.referenceName(), attributeSchema, lookupKey.locale())
+					: null
 			)
 		);
 		final int indexedDecimalPlaces = attributeSchema.getIndexedDecimalPlaces();

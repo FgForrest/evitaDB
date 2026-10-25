@@ -28,6 +28,7 @@ import com.esotericsoftware.kryo.Serializer;
 import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import io.evitadb.api.requestResponse.mutation.conflict.ConflictResolutionOverride;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisStep;
 import io.evitadb.api.requestResponse.schema.dto.AttributeSchema;
 import io.evitadb.api.requestResponse.schema.AttributeUniquenessType;
 import io.evitadb.api.requestResponse.schema.AttributeFilterAccelerator;
@@ -39,9 +40,13 @@ import lombok.RequiredArgsConstructor;
 import java.io.Serializable;
 import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.readAnalysisSteps;
+import static io.evitadb.store.wal.schema.MutationSerializationFunctions.writeAnalysisSteps;
 
 /**
  * This {@link Serializer} implementation reads/writes {@link AttributeSchema} from/to binary format.
@@ -94,11 +99,12 @@ public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
 			output.writeBoolean(false);
 		}
 		kryo.writeObject(output, attributeSchema.getConflictResolutionOverride());
-		// two sections appended last, in this fixed order - the accelerators, then the searchable scopes - mirroring
-		// how the conflict-resolution override was added; the release-2026.2 reader
-		// (AttributeSchemaSerializer_2026_2) simply stops before both
+		// three sections appended last, in this fixed order - the accelerators, the searchable scopes, then the
+		// normalization - mirroring how the conflict-resolution override was added; the release-2026.2 reader
+		// (AttributeSchemaSerializer_2026_2) simply stops before all three
 		EntitySchemaSerializer.writeAccelerators(kryo, output, attributeSchema.getAcceleratorsInScopes());
 		EntitySchemaSerializer.writeScopeSet(kryo, output, attributeSchema.getSearchableInScopes());
+		writeAnalysisSteps(kryo, output, attributeSchema.getNormalization());
 	}
 
 	@SuppressWarnings({"rawtypes", "unchecked"})
@@ -137,10 +143,12 @@ public class AttributeSchemaSerializer extends Serializer<AttributeSchema> {
 		final Map<Scope, Set<AttributeFilterAccelerator>> accelerators =
 			EntitySchemaSerializer.readAccelerators(kryo, input);
 		final EnumSet<Scope> searchable = EntitySchemaSerializer.readScopeSet(kryo, input);
+		final List<AnalysisStep> normalization = readAnalysisSteps(kryo, input);
 		return AttributeSchema._internalBuild(
 			name, nameVariants, description, deprecationNotice,
 			unique, filterable, accelerators, searchable, sortable, localized, nullable, representative,
-			type, (Serializable) defaultValue, indexedDecimalPlaces, conflictResolutionOverride
+			type, (Serializable) defaultValue, indexedDecimalPlaces, conflictResolutionOverride,
+			normalization
 		);
 	}
 

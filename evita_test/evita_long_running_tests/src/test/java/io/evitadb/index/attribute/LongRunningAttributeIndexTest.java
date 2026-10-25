@@ -34,6 +34,7 @@ import io.evitadb.api.requestResponse.schema.dto.CatalogSchema;
 import io.evitadb.api.requestResponse.schema.dto.EntitySchema;
 import io.evitadb.dataType.Predecessor;
 import io.evitadb.dataType.Scope;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.test.duration.TimeArgumentProvider;
 import io.evitadb.test.duration.TimeArgumentProvider.GenerationalTestInput;
 import io.evitadb.test.duration.TimeBoundedTestSupport;
@@ -232,7 +233,7 @@ class LongRunningAttributeIndexTest implements TimeBoundedTestSupport {
 		@Nonnull List<Integer> chain,
 		@Nonnull StringBuilder code
 	) {
-		final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE);
+		final AttributeIndex index = new EntityAttributeIndex(ENTITY_TYPE, AttributeNormalizationResolver.LEGACY_NFD);
 		for (final int recordId : records) {
 			code.append("addRecord(index, ").append(recordId).append(");\n");
 			addRecord(index, recordId);

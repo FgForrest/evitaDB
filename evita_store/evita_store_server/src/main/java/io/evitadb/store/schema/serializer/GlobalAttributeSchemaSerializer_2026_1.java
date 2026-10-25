@@ -98,7 +98,8 @@ public class GlobalAttributeSchemaSerializer_2026_1 extends Serializer<GlobalAtt
 			sortable,
 			localized, nullable, representative,
 			type, (Serializable) defaultValue, indexedDecimalPlaces,
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			null
 		);
 	}
 

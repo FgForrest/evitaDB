@@ -241,9 +241,21 @@ class DifferentialComparisonTest {
 		@Test
 		@DisplayName("one record whose range prints alike but keeps other decimal places is found")
 		void shouldFindARangeThatPrintsAlike() {
-			final SortIndex atOnePlace = new OwnerSortIndex(BigDecimalNumberRange.class, KEY);
+			final SortIndex atOnePlace = new OwnerSortIndex(
+				BigDecimalNumberRange.class,
+				null,
+				KEY,
+				0,
+				SortIndex.createLegacyNormalizerFor(BigDecimalNumberRange.class, 0)
+			);
 			atOnePlace.addRecord(rangeAt(1), 1);
-			final SortIndex atTwoPlaces = new OwnerSortIndex(BigDecimalNumberRange.class, KEY);
+			final SortIndex atTwoPlaces = new OwnerSortIndex(
+				BigDecimalNumberRange.class,
+				null,
+				KEY,
+				0,
+				SortIndex.createLegacyNormalizerFor(BigDecimalNumberRange.class, 0)
+			);
 			atTwoPlaces.addRecord(rangeAt(2), 1);
 
 			assertEquals(
@@ -273,11 +285,23 @@ class DifferentialComparisonTest {
 		@Test
 		@DisplayName("the same records over the same values split into blocks of 1 and 2 versus 2 and 1 are found")
 		void shouldFindDifferentMultiplicities() {
-			final SortIndex oneThenTwo = new OwnerSortIndex(Integer.class, KEY);
+			final SortIndex oneThenTwo = new OwnerSortIndex(
+				Integer.class,
+				null,
+				KEY,
+				0,
+				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+			);
 			oneThenTwo.addRecord(10, 1);
 			oneThenTwo.addRecord(20, 2);
 			oneThenTwo.addRecord(20, 3);
-			final SortIndex twoThenOne = new OwnerSortIndex(Integer.class, KEY);
+			final SortIndex twoThenOne = new OwnerSortIndex(
+				Integer.class,
+				null,
+				KEY,
+				0,
+				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+			);
 			twoThenOne.addRecord(10, 1);
 			twoThenOne.addRecord(10, 2);
 			twoThenOne.addRecord(20, 3);
@@ -297,7 +321,13 @@ class DifferentialComparisonTest {
 		@Test
 		@DisplayName("locales, currencies and instants are walked in their stored, normalized form")
 		void shouldWalkWrappedValues() {
-			final SortIndex locales = new OwnerSortIndex(Locale.class, KEY);
+			final SortIndex locales = new OwnerSortIndex(
+				Locale.class,
+				null,
+				KEY,
+				0,
+				SortIndex.createLegacyNormalizerFor(Locale.class, 0)
+			);
 			locales.addRecord(Locale.GERMAN, 2);
 			locales.addRecord(Locale.ENGLISH, 1);
 			locales.addRecord(Locale.GERMAN, 3);
@@ -312,14 +342,26 @@ class DifferentialComparisonTest {
 				localeWalk.blocks()
 			);
 
-			final SortIndex currencies = new OwnerSortIndex(Currency.class, KEY);
+			final SortIndex currencies = new OwnerSortIndex(
+				Currency.class,
+				null,
+				KEY,
+				0,
+				SortIndex.createLegacyNormalizerFor(Currency.class, 0)
+			);
 			currencies.addRecord(Currency.getInstance("EUR"), 1);
 			currencies.addRecord(Currency.getInstance("CZK"), 2);
 			final SortIndexWalk currencyWalk = SortIndexWalk.of(currencies);
 			assertArrayEquals(new int[]{2, 1}, currencyWalk.records());
 			assertInstanceOf(ComparableCurrency.class, currencyWalk.values()[0]);
 
-			final SortIndex instants = new OwnerSortIndex(OffsetDateTime.class, KEY);
+			final SortIndex instants = new OwnerSortIndex(
+				OffsetDateTime.class,
+				null,
+				KEY,
+				0,
+				SortIndex.createLegacyNormalizerFor(OffsetDateTime.class, 0)
+			);
 			final OffsetDateTime moment = OffsetDateTime.of(2026, 10, 2, 14, 0, 0, 0, ZoneOffset.ofHours(2));
 			instants.addRecord(moment, 2);
 			instants.addRecord(moment.withOffsetSameInstant(ZoneOffset.UTC), 1);
@@ -331,14 +373,15 @@ class DifferentialComparisonTest {
 		@Test
 		@DisplayName("a compound with descending, nulls-first, wrapped and missing elements is walked whole")
 		void shouldWalkACompound() {
-			final SortIndex compound = new OwnerSortIndex(
-				new ComparatorSource[]{
+			final SortIndex compound = new OwnerSortIndex(new ComparatorSource[]{
 					new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
 					new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST),
 					new ComparatorSource(Currency.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
-				},
-				KEY
-			);
+				}, null, KEY, SortIndex.createLegacyNormalizerFor(new ComparatorSource[]{
+					new ComparatorSource(String.class, OrderDirection.ASC, OrderBehaviour.NULLS_FIRST),
+					new ComparatorSource(Integer.class, OrderDirection.DESC, OrderBehaviour.NULLS_LAST),
+					new ComparatorSource(Currency.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+				}, 0));
 			compound.addRecord(new Serializable[]{"B", 1, Currency.getInstance("EUR")}, 1);
 			compound.addRecord(new Serializable[]{null, 3, null}, 2);
 			compound.addRecord(new Serializable[]{"B", 9, null}, 3);
@@ -365,7 +408,13 @@ class DifferentialComparisonTest {
 		@Test
 		@DisplayName("an empty index is walked into nothing")
 		void shouldWalkAnEmptyIndex() {
-			final SortIndexWalk walk = SortIndexWalk.of(new OwnerSortIndex(Integer.class, KEY));
+			final SortIndexWalk walk = SortIndexWalk.of(new OwnerSortIndex(
+				Integer.class,
+				null,
+				KEY,
+				0,
+				SortIndex.createLegacyNormalizerFor(Integer.class, 0)
+			));
 
 			assertEquals(0, walk.records().length);
 			assertEquals(List.of(), walk.blocks());
@@ -391,13 +440,13 @@ class DifferentialComparisonTest {
 		 */
 		@Nonnull
 		private static SortIndex compoundOfRangeAndInteger() {
-			return new OwnerSortIndex(
-				new ComparatorSource[]{
+			return new OwnerSortIndex(new ComparatorSource[]{
 					new ComparatorSource(BigDecimalNumberRange.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
 					new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
-				},
-				KEY
-			);
+				}, null, KEY, SortIndex.createLegacyNormalizerFor(new ComparatorSource[]{
+					new ComparatorSource(BigDecimalNumberRange.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST),
+					new ComparatorSource(Integer.class, OrderDirection.ASC, OrderBehaviour.NULLS_LAST)
+				}, 0));
 		}
 	}
 

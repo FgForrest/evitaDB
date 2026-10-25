@@ -37,6 +37,7 @@ import javax.annotation.Nonnull;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.function.Supplier;
+import java.util.function.UnaryOperator;
 
 /**
  * This implementation of {@link FilteringConstraintTranslator} converts {@link AttributeLessThanEquals} to {@link AbstractFormula}.
@@ -67,9 +68,10 @@ public class AttributeLessThanEqualsTranslator extends AbstractAttributeComparis
 		@Nonnull AttributeLessThanEquals attributeLessThanEquals,
 		@Nonnull AttributeSchemaContract attributeSchema,
 		@Nonnull AttributeIndexKey attributeIndexKey,
+		@Nonnull UnaryOperator<String> stringNormalizer,
 		@Nonnull Supplier<OffsetDateTime> now
 	) {
-		return createComparisonMatcher(attributeLessThanEquals, attributeSchema, attributeIndexKey);
+		return createComparisonMatcher(attributeLessThanEquals, attributeSchema, attributeIndexKey, stringNormalizer);
 	}
 
 	@Nonnull

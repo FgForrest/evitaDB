@@ -38,6 +38,7 @@ import io.evitadb.exception.GenericEvitaInternalError;
 import io.evitadb.index.EntityIndexKey;
 import io.evitadb.api.index.EntityIndexType;
 import io.evitadb.index.ReducedGroupEntityIndex;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.bitmap.Bitmap;
 import io.evitadb.index.price.PriceListAndCurrencyPriceRefIndex;
 import io.evitadb.index.price.PriceSuperIndex;
@@ -673,7 +674,7 @@ class SharedRgeiMutationMatrixTest {
 		final EntityIndexKey indexKey = new EntityIndexKey(
 			EntityIndexType.REFERENCED_GROUP_ENTITY, Scope.LIVE, groupKey
 		);
-		return new ReducedGroupEntityIndex(INDEX_PK, ENTITY_TYPE, indexKey);
+		return new ReducedGroupEntityIndex(INDEX_PK, ENTITY_TYPE, indexKey, true, AttributeNormalizationResolver.LEGACY_NFD);
 	}
 
 	/**
@@ -716,9 +717,10 @@ class SharedRgeiMutationMatrixTest {
 		@Nonnull Class<? extends Serializable> type
 	) {
 		return AttributeSchema._internalBuild(
-			name, null, new Scope[]{Scope.LIVE}, null, null, null,
+			name, null, null, null, new Scope[]{Scope.LIVE}, null, null, null,
 			false, false, false, type, null,
-			ConflictResolutionOverride.INHERITED
+			0, ConflictResolutionOverride.INHERITED,
+			null
 		);
 	}
 

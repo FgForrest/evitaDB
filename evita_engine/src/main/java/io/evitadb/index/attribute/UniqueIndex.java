@@ -37,8 +37,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.Serial;
 import java.io.Serializable;
+import java.util.Map;
 
 import static io.evitadb.utils.Assert.isTrue;
+import static io.evitadb.utils.CollectionUtils.createLinkedHashMap;
 import static io.evitadb.utils.StringUtils.unknownToString;
 
 /**
@@ -125,7 +127,9 @@ public abstract sealed class UniqueIndex implements
 	) {
 		return UniqueIndexBPlusTreeSupport.toDeclaredValue(
 			plainType, indexedDecimalPlaces,
-			UniqueIndexBPlusTreeSupport.toKey(UniqueIndexBPlusTreeSupport.normalizerFor(plainType, indexedDecimalPlaces), value)
+			UniqueIndexBPlusTreeSupport.toKey(
+				UniqueIndexBPlusTreeSupport.legacyNormalizerFor(plainType, indexedDecimalPlaces), value
+			)
 		);
 	}
 
@@ -201,7 +205,38 @@ public abstract sealed class UniqueIndex implements
 	 * Returns record id by its unique value.
 	 */
 	@Nullable
-	public abstract Integer getRecordIdByUniqueValue(@Nonnull Serializable value);
+	public Integer getRecordIdByUniqueValue(@Nonnull Serializable value) {
+		return getRecordIdByUniqueKey(toLookupKey(value));
+	}
+
+	/**
+	 * Resolves raw probes once per index role. Colliding probes reuse the first lookup, including a miss,
+	 * while the output retains probe positions so callers can preserve precedence between scopes.
+	 *
+	 * @param values type-coerced raw probes in request order
+	 * @return owners at their original positions, null for misses
+	 */
+	@Nonnull
+	public Integer[] getRecordIdsByUniqueValues(@Nonnull Serializable[] values) {
+		final Map<Serializable, Integer> owners = createLinkedHashMap(values.length);
+		final Integer[] result = new Integer[values.length];
+		for (int i = 0; i < values.length; i++) {
+			final Serializable key = toLookupKey(values[i]);
+			if (!owners.containsKey(key)) {
+				owners.put(key, getRecordIdByUniqueKey(key));
+			}
+			result[i] = owners.get(key);
+		}
+		return result;
+	}
+
+	/** Converts a raw probe with this role's bound key function once. */
+	@Nonnull
+	protected abstract Serializable toLookupKey(@Nonnull Serializable rawValue);
+
+	/** Looks up an existing key verbatim, without applying the raw-input function. */
+	@Nullable
+	protected abstract Integer getRecordIdByUniqueKey(@Nonnull Serializable key);
 
 	/**
 	 * Returns the number of distinct records owning at least one value in this index - a statistics reading. Both

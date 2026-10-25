@@ -138,7 +138,7 @@ class SerialVersionBasedSerializerTest {
 		public AttributeSchema read(Kryo kryo, Input input, Class<? extends AttributeSchema> type) {
 			final String name = kryo.readObject(input, String.class);
 			@SuppressWarnings("unchecked") final Class<? extends Serializable> attrType = kryo.readClass(input).getType();
-			return AttributeSchema._internalBuild(name, attrType, false, ConflictResolutionOverride.INHERITED);
+			return AttributeSchema._internalBuild(name, attrType, false, ConflictResolutionOverride.INHERITED, null);
 		}
 
 	}

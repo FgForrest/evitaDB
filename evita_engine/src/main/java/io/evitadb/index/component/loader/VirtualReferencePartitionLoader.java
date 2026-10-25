@@ -24,16 +24,21 @@
 package io.evitadb.index.component.loader;
 
 import io.evitadb.index.VirtualReferencePartitionIndex;
+import io.evitadb.index.attribute.SortIndex;
 import io.evitadb.spi.store.catalog.persistence.StoragePartPersistenceService;
 import io.evitadb.spi.store.catalog.persistence.storageParts.KeyCompressor;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.ReferenceNameKey;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexLeafPagePart;
+import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart.SortValueSlot;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionIndexStoragePart;
 import io.evitadb.spi.store.catalog.persistence.storageParts.index.VirtualReferencePartitionLeafStreamKey;
 
 import javax.annotation.Nonnull;
+import java.io.Serializable;
 import java.util.Objects;
 import java.util.OptionalInt;
+import java.util.function.Function;
+import java.util.function.UnaryOperator;
 
 import static io.evitadb.utils.Assert.isPremiseValid;
 
@@ -60,15 +65,18 @@ public final class VirtualReferencePartitionLoader implements ComponentLoader {
 				context.storagePartService(),
 				context.catalogVersion(),
 				context.entityIndexId(),
-				Objects.requireNonNull((String) context.entityIndexKey().discriminator())
+				Objects.requireNonNull((String) context.entityIndexKey().discriminator()),
+				slot -> context.resolveSortNormalizer(
+					slot.attributeIndexKey(), slot.comparatorBase(), slot.indexedDecimalPlaces())
 			)
 		);
 	}
 
 	/**
 	 * Reloads the index of one referenced-type entity index on its own, without the rest of that entity index - the
-	 * way the storage protocol migration reads a registry it rewrites, holding no more than the registry itself.
-	 * {@link #load(LoadContext)} loads the index of a loading entity index through this method too.
+	 * way the storage protocol migration reads a registry it rewrites, holding no more than the registry itself. It
+	 * binds the legacy type-level key functions only; {@link #load(LoadContext)} goes through the overload taking the
+	 * owner-resolved functions instead.
 	 *
 	 * @param service        the storage part service of the collection
 	 * @param catalogVersion the catalog version to read at
@@ -82,6 +90,33 @@ public final class VirtualReferencePartitionLoader implements ComponentLoader {
 		long catalogVersion,
 		int entityIndexId,
 		@Nonnull String referenceName
+	) {
+		return loadIndex(
+			service,
+			catalogVersion,
+			entityIndexId,
+			referenceName,
+			slot -> SortIndex.createLegacyNormalizerFor(slot.comparatorBase(), slot.indexedDecimalPlaces())
+		);
+	}
+
+	/**
+	 * Loads with owner-resolved functions bound before constructing sort dictionaries and trees.
+	 *
+	 * @param service            the storage part service of the collection
+	 * @param catalogVersion     the catalog version to read at
+	 * @param entityIndexId      the primary key of the referenced-type entity index carrying the index
+	 * @param referenceName      the reference of that entity index
+	 * @param normalizerProvider supplies the key function of each persisted sort value slot
+	 * @return the loaded index, empty when it has no root on disk
+	 */
+	@Nonnull
+	public static VirtualReferencePartitionIndex loadIndex(
+		@Nonnull StoragePartPersistenceService<?> service,
+		long catalogVersion,
+		int entityIndexId,
+		@Nonnull String referenceName,
+		@Nonnull Function<SortValueSlot, UnaryOperator<Serializable>> normalizerProvider
 	) {
 		final KeyCompressor keyCompressor = service.getReadOnlyKeyCompressor();
 
@@ -129,14 +164,14 @@ public final class VirtualReferencePartitionLoader implements ComponentLoader {
 			index = VirtualReferencePartitionIndex.fromPersistedPages(
 				indexDescription, orderedPageSequences, perPageKeys, perPagePayloads,
 				part.getHighWaterPageSequence(), part.getTupleIds(), part.getTuples(), part.getSortValueSlots(),
-				part.getChainPredecessorSlots()
+				part.getChainPredecessorSlots(), normalizerProvider
 			);
 		} else {
 			index = new VirtualReferencePartitionIndex(
 				indexDescription,
 				Objects.requireNonNull(part.getKeys()), Objects.requireNonNull(part.getPayloads()),
 				part.getTupleIds(), part.getTuples(), part.getSortValueSlots(),
-				part.getChainPredecessorSlots()
+				part.getChainPredecessorSlots(), normalizerProvider
 			);
 		}
 		return index;

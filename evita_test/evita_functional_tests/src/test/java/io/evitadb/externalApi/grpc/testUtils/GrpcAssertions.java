@@ -88,6 +88,7 @@ import java.util.Set;
 
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.GRPC_MAX_INSTANT;
 import static io.evitadb.externalApi.grpc.dataType.EvitaDataTypesConverter.GRPC_MIN_INSTANT;
+import static io.evitadb.externalApi.grpc.requestResponse.schema.AnalysisStepConverter.toAnalysisSteps;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
@@ -147,6 +148,8 @@ public class GrpcAssertions {
 			}
 			assertEquals(expectedAttributeSchema.isUnique(), actualAttributeSchema.getUnique());
 			assertEquals(expectedAttributeSchema.isFilterable(), actualAttributeSchema.getFilterable());
+			assertEquals(expectedAttributeSchema.getNormalization(),
+				toAnalysisSteps(actualAttributeSchema.getNormalizationList()));
 			assertEquals(expectedAttributeSchema.isSortable(), actualAttributeSchema.getSortable());
 			assertEquals(expectedAttributeSchema.isLocalized(), actualAttributeSchema.getLocalized());
 			assertEquals(expectedAttributeSchema.isNullable(), actualAttributeSchema.getNullable());
@@ -229,6 +232,8 @@ public class GrpcAssertions {
 			}
 			assertEquals(expectedAttributeSchema.isUnique(), actualAttributeSchema.getUnique());
 			assertEquals(expectedAttributeSchema.isFilterable(), actualAttributeSchema.getFilterable());
+			assertEquals(expectedAttributeSchema.getNormalization(),
+				toAnalysisSteps(actualAttributeSchema.getNormalizationList()));
 			assertEquals(expectedAttributeSchema.isSortable(), actualAttributeSchema.getSortable());
 			assertEquals(expectedAttributeSchema.isLocalized(), actualAttributeSchema.getLocalized());
 			assertEquals(expectedAttributeSchema.isNullable(), actualAttributeSchema.getNullable());

@@ -23,7 +23,6 @@
 
 package io.evitadb.core.query.sort.attribute.comparator;
 
-
 import com.carrotsearch.hppc.IntObjectHashMap;
 import com.carrotsearch.hppc.IntObjectMap;
 import io.evitadb.api.query.order.OrderDirection;
@@ -33,8 +32,10 @@ import io.evitadb.api.requestResponse.schema.AttributeSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract.AttributeElement;
 import io.evitadb.core.query.sort.EntityComparator;
+import io.evitadb.dataType.array.CompositeObjectArray;
 import io.evitadb.index.attribute.SortIndex.ComparableArray;
 import io.evitadb.index.attribute.SortIndex.ComparatorSource;
+import io.evitadb.utils.ArrayUtils;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -48,7 +49,6 @@ import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
 import static io.evitadb.index.attribute.SortIndex.createCombinedComparatorFor;
-import static io.evitadb.index.attribute.SortIndex.createComparatorNormalizerFor;
 
 /**
  * Comparator for sorting entities according to a sortable compound attribute value. It combines multiple attribute
@@ -58,6 +58,13 @@ import static io.evitadb.index.attribute.SortIndex.createComparatorNormalizerFor
  */
 public class CompoundAttributeComparator implements EntityComparator, Serializable {
 	@Serial private static final long serialVersionUID = 3531363761422177481L;
+	/** All-null tuples have no index entry and must be handed to the next sorter in either direction. */
+	private static final ComparableArray MISSING =
+		new ComparableArray(new ComparatorSource[0], new Serializable[0]);
+	/** Uses the same owner order within an equal-key bucket as the index supplier. */
+	@Nonnull private final Comparator<EntityContract> pkComparator;
+	/** Owners with no compound key, memoized once per sorting pass. */
+	@Nullable private CompositeObjectArray<EntityContract> nonSortedEntities;
 	/**
 	 * Function for fetching the attribute value from the entity.
 	 */
@@ -84,11 +91,22 @@ public class CompoundAttributeComparator implements EntityComparator, Serializab
 	 */
 	@Nonnull private final IntObjectMap<ComparableArray> memoizedValues = new IntObjectHashMap<>(128);
 
+	/**
+	 * Creates a compound comparator with the effective key function bound separately for every element.
+	 * Non-localized elements fold by root even when the compound is localized.
+	 *
+	 * @param compoundSchemaContract the compound whose element order and directions are compared
+	 * @param locale the schema-masked read and collation locale of the compound
+	 * @param attributeSchemaExtractor resolves each element's type and decimal scale
+	 * @param orderDirection direction of the overall compound ordering
+	 * @param normalizer the bound compound key function; raw tuples are passed through it once
+	 */
 	public CompoundAttributeComparator(
 		@Nonnull SortableAttributeCompoundSchemaContract compoundSchemaContract,
 		@Nullable Locale locale,
 		@Nonnull Function<String, AttributeSchemaContract> attributeSchemaExtractor,
-		@Nonnull OrderDirection orderDirection
+		@Nonnull OrderDirection orderDirection,
+		@Nonnull UnaryOperator<Serializable> normalizer
 	) {
 		final List<AttributeElement> attributeElements = compoundSchemaContract
 			.getAttributeElements();
@@ -101,17 +119,10 @@ public class CompoundAttributeComparator implements EntityComparator, Serializab
 			))
 			.toArray(ComparatorSource[]::new);
 
-		// initialize normalizers
-		this.normalizer = createComparatorNormalizerFor(
-			this.comparatorSource,
-			attributeElements
-				.stream()
-				.mapToInt(
-					attributeElement -> attributeSchemaExtractor.apply(attributeElement.attributeName())
-						.getIndexedDecimalPlaces()
-				)
-				.toArray()
-		);
+		this.normalizer = normalizer;
+		this.pkComparator = orderDirection == OrderDirection.ASC ?
+			Comparator.comparingInt(EntityContract::getPrimaryKeyOrThrowException) :
+			Comparator.comparingInt(EntityContract::getPrimaryKeyOrThrowException).reversed();
 		//noinspection rawtypes
 		final Comparator baseComparator = createCombinedComparatorFor(locale, this.comparatorSource);
 		//noinspection unchecked
@@ -123,17 +134,31 @@ public class CompoundAttributeComparator implements EntityComparator, Serializab
 		this.attributeElements = attributeElements.toArray(new AttributeElement[0]);
 	}
 
+	/** Clears query-local values and missing owners before another sorting pass. */
+	@Override
+	public void prepareFor(int entityCount) {
+		this.memoizedValues.clear();
+		this.nonSortedEntities = null;
+	}
+
 	@Nonnull
 	@Override
 	public Iterable<EntityContract> getNonSortedEntities() {
-		return List.of();
+		return this.nonSortedEntities == null ? List.of() : this.nonSortedEntities;
 	}
 
 	@Override
 	public int compare(EntityContract o1, EntityContract o2) {
 		final ComparableArray valueToCompare1 = getAndMemoizeValue(o1);
 		final ComparableArray valueToCompare2 = getAndMemoizeValue(o2);
-		return this.comparator.compare(valueToCompare1, valueToCompare2);
+		if (valueToCompare1 == MISSING || valueToCompare2 == MISSING) {
+			if (valueToCompare1 == valueToCompare2) {
+				return 0;
+			}
+			return valueToCompare1 == MISSING ? 1 : -1;
+		}
+		final int comparison = this.comparator.compare(valueToCompare1, valueToCompare2);
+		return comparison == 0 ? this.pkComparator.compare(o1, o2) : comparison;
 	}
 
 	/**
@@ -153,10 +178,18 @@ public class CompoundAttributeComparator implements EntityComparator, Serializab
 				final AttributeElement attributeElement = this.attributeElements[i];
 				valueArray[i] = this.attributeValueFetcher.apply(entity, attributeElement.attributeName());
 			}
-			value = new ComparableArray(
-				this.comparatorSource,
-				(Serializable[]) this.normalizer.apply(valueArray)
-			);
+			if (ArrayUtils.isEmptyOrItsValuesNull(valueArray)) {
+				value = MISSING;
+				if (this.nonSortedEntities == null) {
+					this.nonSortedEntities = new CompositeObjectArray<>(EntityContract.class);
+				}
+				this.nonSortedEntities.add(entity);
+			} else {
+				value = new ComparableArray(
+					this.comparatorSource,
+					(Serializable[]) this.normalizer.apply(valueArray)
+				);
+			}
 			this.memoizedValues.put(entity.getPrimaryKeyOrThrowException(), value);
 		}
 		return value;

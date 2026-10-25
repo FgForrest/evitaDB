@@ -41,6 +41,7 @@ import io.evitadb.index.GlobalEntityIndex;
 import io.evitadb.index.IndexMaintainer;
 import io.evitadb.index.ReducedEntityIndex;
 import io.evitadb.index.ReducedGroupEntityIndex;
+import io.evitadb.index.analysis.AttributeNormalizationResolver;
 import io.evitadb.index.fulltext.analysis.FulltextAnalyzerRegistry;
 import io.evitadb.spi.store.catalog.persistence.storageParts.entity.ReferencesStoragePart;
 import io.evitadb.utils.Functions;
@@ -180,7 +181,7 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 			this.classifierResolver,
 			this.usageRegistry,
 			this.catalogUsageRegistry,
-			new FulltextAnalyzerRegistry(),
+			new FulltextAnalyzerRegistry(), AttributeNormalizationResolver.LEGACY_NFD,
 			true,
 			new PartitionReservations()
 		);
@@ -1210,7 +1211,13 @@ class ReferenceIndexIteratorSemanticsTest extends AbstractMutatorTestBase {
 			final String entityType = ReferenceIndexIteratorSemanticsTest.this.productSchema.getName();
 			return switch (key.type()) {
 				case REFERENCED_ENTITY -> new ReducedEntityIndex(pk, entityType, key);
-				case REFERENCED_GROUP_ENTITY -> new ReducedGroupEntityIndex(pk, entityType, key);
+				case REFERENCED_GROUP_ENTITY -> new ReducedGroupEntityIndex(
+					pk,
+					entityType,
+					key,
+					true,
+					AttributeNormalizationResolver.LEGACY_NFD
+				);
 				case GLOBAL -> new GlobalEntityIndex(pk, entityType, key);
 				default -> throw new UnsupportedOperationException(
 					"Test fixture does not create indexes of type " + key.type()

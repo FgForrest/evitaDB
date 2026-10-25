@@ -86,7 +86,8 @@ public class AttributeSchemaSerializer_2024_11 extends Serializer<AttributeSchem
 			(sortable ? Scope.DEFAULT_SCOPES : Scope.NO_SCOPE),
 			localized, nullable, false,
 			type, (Serializable) defaultValue, indexedDecimalPlaces,
-			ConflictResolutionOverride.INHERITED
+			ConflictResolutionOverride.INHERITED,
+			null
 		);
 	}
 

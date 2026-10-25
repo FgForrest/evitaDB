@@ -27,7 +27,6 @@ import io.evitadb.api.query.order.OrderDirection;
 import io.evitadb.api.requestResponse.data.structure.RepresentativeReferenceKey;
 import io.evitadb.api.requestResponse.schema.OrderBehaviour;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
-import io.evitadb.comparator.LocalizedStringComparator;
 import io.evitadb.comparator.NullsFirstComparatorWrapper;
 import io.evitadb.comparator.NullsLastComparatorWrapper;
 import io.evitadb.core.buffer.TrappedChanges;
@@ -150,8 +149,9 @@ public abstract sealed class SortIndex
 	 *
 	 * (source: <a href="https://jenkov.com/tutorials/java-internationalization/collator.html">Jenkov.com</a>)
 	 *
-	 * This is the index's OWN normalizer (built from {@link #comparatorBase}). View mode overrides
-	 * {@link #effectiveNormalizer()} to source the shared tree's normalizer instead; this own one stays as a fallback.
+	 * This is the immutable key function captured at creation/load. Attribute owners bind String policy through
+	 * {@link io.evitadb.index.analysis.AttributeNormalizationResolver}; legacy owners use type-only NFD. A view
+	 * captures the shared tree's function here, so {@link #effectiveNormalizer()} answers it in both modes.
 	 */
 	final UnaryOperator<Serializable> normalizer;
 	/**
@@ -297,6 +297,16 @@ public abstract sealed class SortIndex
 	}
 
 	/**
+	 * Captures already-bound per-element key functions for a compound, independently of schema or registry.
+	 */
+	@Nonnull
+	public static UnaryOperator<Serializable> createCompoundNormalizer(
+		@Nonnull UnaryOperator<Serializable>[] normalizers
+	) {
+		return new ComparableArrayNormalizer<>(normalizers.clone());
+	}
+
+	/**
 	 * Creates a normalizer if any element of the comparator base needs canonicalization (a {@link String},
 	 * {@link Locale}, {@link Currency}, or an `OffsetDateTime`, `LocalDateTime` or `LocalTime` normalized to its
 	 * millisecond form - see {@link #getNormalizedType(Class)}). `BigDecimal` elements are NOT scaled - see the comment
@@ -403,21 +413,32 @@ public abstract sealed class SortIndex
 		return createNormalizerFor(comparatorBase, indexedDecimalPlaces, true);
 	}
 
+	/** Legacy type-only encoding for a single-attribute migration or synthetic owner. */
+	@Nonnull
+	public static UnaryOperator<Serializable> createLegacyNormalizerFor(
+		@Nonnull Class<?> attributeType, int indexedDecimalPlaces
+	) {
+		return createNormalizerFor(
+			new ComparatorSource(attributeType, OrderDirection.ASC, OrderBehaviour.NULLS_LAST), indexedDecimalPlaces
+		).orElseGet(UnaryOperator::identity);
+	}
+
 	/**
-	 * Creates a single-attribute sort index that runs in **owner mode** when no shared tree is available, or in
-	 * **view mode** when the supplier resolves a shared {@link InvertedIndex} at construction. This is the single place
-	 * the owner-vs-view decision is made for freshly created single-attribute sort indexes (the value type drives the
-	 * comparator; ASC/NULLS_LAST is the single-attribute default). A supplier resolving `null` at construction (sort-only
-	 * attribute) yields an owner; a supplier resolving a non-null tree (both-flagged attribute) yields a view. The
-	 * decision is FIXED at construction — the shared tree can be transiently removed mid-mutation but the mode does not
-	 * flip.
-	 *
-	 * @param attributeType        the comparable type of the indexed attribute
-	 * @param referenceKey         discriminator of the owning {@link AbstractReducedEntityIndex}, or `null` for the global index
-	 * @param key                  identifies the indexed attribute (and its locale, if localized)
-	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
-	 * @param sharedSupplier       parent-bound supplier of the shared tree (view candidate) or `null` (always owner)
-	 * @return a freshly created {@link OwnerSortIndex} or {@link SortIndexView}
+	 * Legacy type-only sort key encoding for storage migrations and standalone synthetic owners.
+	 * Attribute write/load paths must supply an owner-resolved function instead.
+	 */
+	@Nonnull
+	public static UnaryOperator<Serializable> createLegacyNormalizerFor(
+		@Nonnull ComparatorSource[] comparatorBase, int indexedDecimalPlaces
+	) {
+		return comparatorBase.length == 1
+			? createNormalizerFor(comparatorBase[0], indexedDecimalPlaces).orElseGet(UnaryOperator::identity)
+			: createNormalizerFor(comparatorBase, indexedDecimalPlaces);
+	}
+
+	/**
+	 * Creates a scalar sort owner or view with the owner-resolved raw-input function.
+	 * A view borrows its shared filter tree's function; an owner captures the supplied function.
 	 */
 	@Nonnull
 	public static SortIndex create(
@@ -425,35 +446,20 @@ public abstract sealed class SortIndex
 		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeIndexKey key,
 		int indexedDecimalPlaces,
-		@Nullable Supplier<InvertedIndex> sharedSupplier
+		@Nullable Supplier<InvertedIndex> sharedSupplier,
+		@Nonnull UnaryOperator<Serializable> keyNormalizer
 	) {
 		// resolve the shared tree ONCE at construction (sort runs before filter, so for a brand-new key the tree is still
 		// absent → owner mode; a both-flagged key whose tree already exists → view mode bound directly to that instance)
 		final InvertedIndex sharedTree = sharedSupplier == null ? null : sharedSupplier.get();
 		return sharedTree != null
 			? new SortIndexView(attributeType, referenceKey, key, indexedDecimalPlaces, sharedTree)
-			: new OwnerSortIndex(attributeType, referenceKey, key, indexedDecimalPlaces);
+			: new OwnerSortIndex(attributeType, referenceKey, key, indexedDecimalPlaces, keyNormalizer);
 	}
 
 	/**
-	 * Rehydrates a sort index from its persisted state in **owner** or **view** mode. When `sharedSupplier` resolves a
-	 * shared tree the persisted `sortedRecordValues` / `cardinalities` are IGNORED (the slim part omits them) and a
-	 * {@link SortIndexView} is built; otherwise an {@link OwnerSortIndex} is rebuilt from the persisted arrays.
-	 * `sortedRecords` is always taken as-is, and so are the persisted values - nothing here normalizes a raw temporal
-	 * value an owner part of 2026.2 or an older release stored, nor re-sorts the localized texts or locales such a
-	 * release ordered by the bare collator or the language tag: the storage migration to protocol 7 rewrites every
-	 * such part before a catalog of that release loads. A catalog that reaches protocol 7 with such a part otherwise -
-	 * only a development build of 2026.3 writes one - is not supported, and its values are read as they are stored.
-	 *
-	 * @param comparatorBase       one descriptor per element (a single entry for plain attributes)
-	 * @param referenceKey         owning reference discriminator, or `null` for the global index
-	 * @param attributeIndexKey    identifies the indexed attribute / compound
-	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
-	 * @param sortedRecords        record ids ordered by their associated values, blocked per value
-	 * @param sortedRecordValues   the naturally sorted distinct values (ignored in view mode)
-	 * @param cardinalities        counts for values shared by more than one record (ignored in view mode)
-	 * @param sharedSupplier       parent-bound supplier of the shared tree (view mode) or `null` (owner mode)
-	 * @return a rehydrated {@link OwnerSortIndex} or {@link SortIndexView}
+	 * Restores a sort owner or view, taking persisted keys verbatim and binding the function for future raw input.
+	 * A slim view borrows the shared tree; an owner rebuilds its value blocks from the persisted arrays.
 	 */
 	@Nonnull
 	public static SortIndex create(
@@ -464,7 +470,8 @@ public abstract sealed class SortIndex
 		@Nonnull int[] sortedRecords,
 		@Nonnull Serializable[] sortedRecordValues,
 		@Nonnull Map<Serializable, Integer> cardinalities,
-		@Nullable Supplier<InvertedIndex> sharedSupplier
+		@Nullable Supplier<InvertedIndex> sharedSupplier,
+		@Nonnull UnaryOperator<Serializable> keyNormalizer
 	) {
 		// resolve the shared tree ONCE at load: a slim view-mode part folds onto the existing shared tree, an owner part
 		// rebuilds from its persisted arrays
@@ -474,7 +481,7 @@ public abstract sealed class SortIndex
 			comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces, sortedRecords, sharedTree)
 			: new OwnerSortIndex(
 				comparatorBase, referenceKey, attributeIndexKey, indexedDecimalPlaces,
-				sortedRecords, sortedRecordValues, cardinalities
+				sortedRecords, sortedRecordValues, cardinalities, keyNormalizer
 			);
 	}
 
@@ -581,27 +588,9 @@ public abstract sealed class SortIndex
 	}
 
 	/**
-	 * Base constructor shared by both variants. Derives the {@link #comparator} / {@link #normalizer} from the supplied
-	 * `comparatorBase` (single descriptor ⇒ single-attribute comparator, multiple ⇒ combined compound comparator) and
-	 * adopts the supplied {@link #sortedRecords} façade as-is.
-	 *
-	 * @param comparatorBase    one descriptor per element (a single entry for plain attributes)
-	 * @param referenceKey      owning reference discriminator, or `null` for the global index
-	 * @param attributeIndexKey identifies the indexed attribute / compound
-	 * @param sortedRecords     the sorted-records façade to adopt (fresh empty, rehydrated, or merged)
-	 */
-	protected SortIndex(
-		@Nonnull ComparatorSource[] comparatorBase,
-		@Nullable RepresentativeReferenceKey referenceKey,
-		@Nonnull AttributeIndexKey attributeIndexKey,
-		@Nonnull TransactionalUnorderedIntArray sortedRecords
-	) {
-		this(comparatorBase, referenceKey, attributeIndexKey, 0, sortedRecords);
-	}
-
-	/**
-	 * Base constructor shared by both variants, carrying the `BigDecimal` scaling decimal places so this index's OWN
-	 * {@link #normalizer} scales `BigDecimal` keys identically to the shared filter value tree (keeping a both-flagged
+	 * Base constructor shared by both variants, capturing the owner-resolved key function and the `BigDecimal` scale.
+	 * Its captured {@link #normalizer} scales `BigDecimal` keys identically to the shared filter value tree
+	 * (keeping a both-flagged
 	 * attribute's sort and filter keys in lockstep).
 	 *
 	 * @param comparatorBase       one descriptor per element (a single entry for plain attributes)
@@ -609,13 +598,15 @@ public abstract sealed class SortIndex
 	 * @param attributeIndexKey    identifies the indexed attribute / compound
 	 * @param indexedDecimalPlaces decimal-places scale used to encode `BigDecimal` values (0 for other types)
 	 * @param sortedRecords        the sorted-records façade to adopt (fresh empty, rehydrated, or merged)
+	 * @param keyNormalizer        immutable key function already bound to the attribute/element policy and locale
 	 */
 	protected SortIndex(
 		@Nonnull ComparatorSource[] comparatorBase,
 		@Nullable RepresentativeReferenceKey referenceKey,
 		@Nonnull AttributeIndexKey attributeIndexKey,
 		int indexedDecimalPlaces,
-		@Nonnull TransactionalUnorderedIntArray sortedRecords
+		@Nonnull TransactionalUnorderedIntArray sortedRecords,
+		@Nonnull UnaryOperator<Serializable> keyNormalizer
 	) {
 		this.dirty = new TransactionalBoolean();
 		this.comparatorBase = comparatorBase;
@@ -625,15 +616,38 @@ public abstract sealed class SortIndex
 		this.referenceKey = referenceKey;
 		this.attributeIndexKey = attributeIndexKey;
 		this.indexedDecimalPlaces = indexedDecimalPlaces;
+		this.normalizer = keyNormalizer;
 		if (this.comparatorBase.length == 1) {
-			this.normalizer = createNormalizerFor(this.comparatorBase[0], indexedDecimalPlaces)
-				.orElseGet(UnaryOperator::identity);
 			this.comparator = createComparatorFor(this.attributeIndexKey.locale(), this.comparatorBase[0]);
 		} else {
-			this.normalizer = createNormalizerFor(this.comparatorBase, indexedDecimalPlaces);
 			this.comparator = createCombinedComparatorFor(this.attributeIndexKey.locale(), this.comparatorBase);
 		}
 		this.sortedRecords = sortedRecords;
+	}
+
+	/**
+	 * Preserves pending content writes when replacing a function wrapper. A clean replacement returns itself from
+	 * commit: its stores are already committed and the producer-map put retains the new function. The function is
+	 * persisted by the owner policy, so changing it must not open the storage emitter's dirty gate.
+	 *
+	 * @param previous wrapper whose unchanged record/value stores the replacement shares
+	 */
+	protected final void inheritContentDirtyState(@Nonnull SortIndex previous) {
+		if (previous.dirty.isTrue()) {
+			this.dirty.setToTrue();
+		}
+	}
+
+	/** Returns the comparator descriptors used by this sort tree, for partition promotion/demotion. */
+	@Nonnull
+	public ComparatorSource[] getComparatorBase() {
+		return this.comparatorBase.clone();
+	}
+
+	/** Returns the immutable function that produced this index's canonical keys, including for partition demotion. */
+	@Nonnull
+	public UnaryOperator<Serializable> getKeyNormalizer() {
+		return effectiveNormalizer();
 	}
 
 	/**
@@ -702,6 +716,21 @@ public abstract sealed class SortIndex
 				this.attributeIndexKey + "`!"
 		);
 		removeRecordInternal(normalizedValue, recordId, sortIndexChanges);
+	}
+
+	/** Registers a key already held by another sort structure, without applying the raw-input function. */
+	public void addRecordByKey(@Nonnull Serializable key, int recordId) {
+		isTrue(this.sortedRecords.indexOf(recordId) < 0,
+			"Record id `" + recordId + "` is already present in the sort index!");
+		addRecordInternal(key, recordId);
+	}
+
+	/** Removes a key already held by this index, without applying the raw-input function. */
+	public void removeRecordByKey(@Nonnull Serializable key, int recordId) {
+		final SortIndexChanges changes = getOrCreateSortIndexChanges();
+		isTrue(valuePresentForRemoval(key, recordId),
+			"Value `" + key + "` is not present in the sort index of attribute `" + this.attributeIndexKey + "`!");
+		removeRecordInternal(key, recordId, changes);
 	}
 
 	/**
@@ -1235,11 +1264,12 @@ public abstract sealed class SortIndex
 	protected abstract InvertedIndex valueTreeOrNull();
 
 	/**
-	 * Returns the normalizer governing this index's VALUE SPACE. Owner mode keeps its own {@link #normalizer} (built from
-	 * {@link #comparatorBase}); view mode operates entirely in the shared tree's normalized space — so OffsetDateTime keys
-	 * are folded to Instant, localized Strings to NFD, etc. — and therefore adopts the shared {@link InvertedIndex}'s
-	 * normalizer. This reconciliation is mandatory: a value derived from the shared tree (a bucket key) and a value the
-	 * SortIndex itself normalizes MUST live in one space or comparisons throw / silently mismatch.
+	 * Returns the normalizer governing this index's VALUE SPACE. Owner mode keeps the {@link #normalizer} its owner
+	 * resolved at construction; view mode operates entirely in the shared tree's normalized space — OffsetDateTime
+	 * keys folded to Instant, Strings keyed by the attribute's normalization chain, etc. — and therefore adopts the
+	 * shared {@link InvertedIndex}'s normalizer. This reconciliation is mandatory: a value derived from the shared
+	 * tree (a bucket key) and a value the SortIndex itself normalizes MUST live in one space or comparisons throw /
+	 * silently mismatch.
 	 */
 	@Nonnull
 	protected abstract UnaryOperator<Serializable> effectiveNormalizer();

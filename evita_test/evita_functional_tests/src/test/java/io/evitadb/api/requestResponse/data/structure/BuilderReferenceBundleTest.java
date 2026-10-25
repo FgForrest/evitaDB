@@ -67,7 +67,7 @@ class BuilderReferenceBundleTest {
 		attrs.put(
 			"country",
 			AttributeSchema._internalBuild(
-				"country",
+				"country", null, null,
 				new io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType[0],
 				Scope.NO_SCOPE,
 				null,
@@ -78,14 +78,15 @@ class BuilderReferenceBundleTest {
 				true,
 				String.class,
 				null,
-				ConflictResolutionOverride.INHERITED
+				0, ConflictResolutionOverride.INHERITED,
+				null
 			)
 		);
 		// non-representative noise attribute
 		attrs.put(
 			"note",
 			AttributeSchema._internalBuild(
-				"note",
+				"note", null, null,
 				new io.evitadb.api.requestResponse.schema.mutation.attribute.ScopedAttributeUniquenessType[0],
 				Scope.NO_SCOPE,
 				null,
@@ -96,7 +97,8 @@ class BuilderReferenceBundleTest {
 				false,
 				String.class,
 				null,
-				ConflictResolutionOverride.INHERITED
+				0, ConflictResolutionOverride.INHERITED,
+				null
 			)
 		);
 		return Collections.unmodifiableMap(attrs);

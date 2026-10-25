@@ -115,7 +115,8 @@ class CatalogSchemaTest {
 						Scope.NO_SCOPE,
 						false, false, false,
 						String.class, null, 0,
-						ConflictResolutionOverride.INHERITED
+						ConflictResolutionOverride.INHERITED,
+						null
 					)
 				),
 				EMPTY_PROVIDER
@@ -235,7 +236,7 @@ class CatalogSchemaTest {
 		@DisplayName("should build schema with global attributes")
 		void shouldBuildWithGlobalAttributes() {
 			final GlobalAttributeSchema attr = GlobalAttributeSchema._internalBuild(
-				"url",
+				"url", null, null,
 				null,
 				new ScopedGlobalAttributeUniquenessType[]{
 					new ScopedGlobalAttributeUniquenessType(
@@ -248,7 +249,8 @@ class CatalogSchemaTest {
 				null,
 				false, false, false,
 				String.class, null,
-				ConflictResolutionOverride.INHERITED
+				0, ConflictResolutionOverride.INHERITED,
+				null
 			);
 
 			final Map<String, GlobalAttributeSchemaContract> attrs = Map.of("url", attr);
@@ -278,7 +280,8 @@ class CatalogSchemaTest {
 		void shouldFindAttributeByName() {
 			final GlobalAttributeSchema attr = GlobalAttributeSchema._internalBuild(
 				"code", String.class, false,
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null
 			);
 
 			final CatalogSchema schema = CatalogSchema._internalBuild(
@@ -301,7 +304,8 @@ class CatalogSchemaTest {
 		void shouldFindAttributeByNamingConvention() {
 			final GlobalAttributeSchema attr = GlobalAttributeSchema._internalBuild(
 				"productCode", String.class, false,
-				ConflictResolutionOverride.INHERITED
+				ConflictResolutionOverride.INHERITED,
+				null
 			);
 
 			final CatalogSchema schema = CatalogSchema._internalBuild(

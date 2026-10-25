@@ -505,4 +505,58 @@ public interface GrpcCreateAttributeSchemaMutationOrBuilder extends
    */
   io.evitadb.externalApi.grpc.generated.GrpcScopedAttributeFilterAcceleratorsOrBuilder getAcceleratorsInScopesOrBuilder(
       int index);
+
+  /**
+   * <pre>
+   * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+   * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+   * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 18;</code>
+   */
+  java.util.List<io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep> 
+      getNormalizationList();
+  /**
+   * <pre>
+   * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+   * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+   * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 18;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep getNormalization(int index);
+  /**
+   * <pre>
+   * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+   * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+   * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 18;</code>
+   */
+  int getNormalizationCount();
+  /**
+   * <pre>
+   * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+   * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+   * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 18;</code>
+   */
+  java.util.List<? extends io.evitadb.externalApi.grpc.generated.GrpcAnalysisStepOrBuilder> 
+      getNormalizationOrBuilderList();
+  /**
+   * <pre>
+   * Declared normalization steps, applied once in this order to String index keys. Empty means no declared
+   * normalization (the engine still uses its default Unicode canonical form). Stored attribute values are unchanged.
+   * A populated index can retain an earlier policy until reindexing; this field always reports the declaration.
+   * </pre>
+   *
+   * <code>repeated .io.evitadb.externalApi.grpc.generated.GrpcAnalysisStep normalization = 18;</code>
+   */
+  io.evitadb.externalApi.grpc.generated.GrpcAnalysisStepOrBuilder getNormalizationOrBuilder(
+      int index);
 }

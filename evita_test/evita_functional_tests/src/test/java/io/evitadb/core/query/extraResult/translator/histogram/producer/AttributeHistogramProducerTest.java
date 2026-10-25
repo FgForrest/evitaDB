@@ -45,16 +45,17 @@ import java.math.BigDecimal;
 import java.util.Comparator;
 import java.util.List;
 import java.util.function.ToIntFunction;
+
 import org.junit.jupiter.api.Tag;
 
+import static io.evitadb.test.TestTags.ATTRIBUTE;
+import static io.evitadb.test.TestTags.ENGINE;
+import static io.evitadb.test.TestTags.HISTOGRAM;
+import static io.evitadb.test.TestTags.QUERY;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static io.evitadb.test.TestTags.ENGINE;
-import static io.evitadb.test.TestTags.QUERY;
-import static io.evitadb.test.TestTags.HISTOGRAM;
-import static io.evitadb.test.TestTags.ATTRIBUTE;
 
 /**
  * This test verifies {@link AttributeHistogramProducer} contract.
@@ -362,7 +363,8 @@ class AttributeHistogramProducerTest {
 	) {
 		producer.addAttributeHistogramRequest(
 			AttributeSchema._internalBuild(
-				ATTRIBUTE_NAME, Integer.class, false, ConflictResolutionOverride.INHERITED
+				ATTRIBUTE_NAME, Integer.class, false, ConflictResolutionOverride.INHERITED,
+				null
 			),
 			bucketCount,
 			behavior,

@@ -128,7 +128,7 @@ private static final long serialVersionUID = 0L;
    *
    * <code>bool filterable = 2 [deprecated = true];</code>
    * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaFilterableMutation.filterable is deprecated.
-   *     See GrpcAttributeSchemaMutations.proto;l=215
+   *     See GrpcAttributeSchemaMutations.proto;l=225
    * @return The filterable.
    */
   @java.lang.Override
@@ -745,7 +745,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool filterable = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaFilterableMutation.filterable is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=215
+     *     See GrpcAttributeSchemaMutations.proto;l=225
      * @return The filterable.
      */
     @java.lang.Override
@@ -762,7 +762,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool filterable = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaFilterableMutation.filterable is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=215
+     *     See GrpcAttributeSchemaMutations.proto;l=225
      * @param value The filterable to set.
      * @return This builder for chaining.
      */
@@ -783,7 +783,7 @@ private static final long serialVersionUID = 0L;
      *
      * <code>bool filterable = 2 [deprecated = true];</code>
      * @deprecated io.evitadb.externalApi.grpc.generated.GrpcSetAttributeSchemaFilterableMutation.filterable is deprecated.
-     *     See GrpcAttributeSchemaMutations.proto;l=215
+     *     See GrpcAttributeSchemaMutations.proto;l=225
      * @return This builder for chaining.
      */
     @java.lang.Deprecated public Builder clearFilterable() {

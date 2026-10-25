@@ -140,6 +140,8 @@ import java.util.function.Function;
  *
  * The class performs no IO: the migration reads the parts and drains the sink into the collection data store.
  *
+ * Re-canonicalizing here heals keys written by older versions and must use the legacy function only.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
  * @deprecated its only caller is `Migration_2026_3`, the storage migration of catalogs written by 2026.2 and older
  * releases; it is public only because that migration lives in another module, and it is removed together with it -
@@ -260,7 +262,8 @@ public final class LegacyOwnerSortIndexCorrection {
 		// carry the reference key, so none is passed
 		final OwnerSortIndex rewritten = new OwnerSortIndex(
 			comparatorBase, null, root.getAttributeIndexKey(), root.getIndexedDecimalPlaces(),
-			new TransactionalUnorderedIntArray(SortIndexView.reconstructSortedRecords(ownedTree)), ownedTree
+			new TransactionalUnorderedIntArray(SortIndexView.reconstructSortedRecords(ownedTree)), ownedTree,
+			SortIndex.createLegacyNormalizerFor(comparatorBase, root.getIndexedDecimalPlaces())
 		);
 		// emitted here and now rather than flagged dirty for a later flush - see the class documentation
 		rewritten.doAppendStorageParts(root.getEntityIndexPrimaryKey(), sink);
@@ -540,7 +543,8 @@ public final class LegacyOwnerSortIndexCorrection {
 		@Nonnull Class<?> type,
 		int indexedDecimalPlaces
 	) {
-		final Function<Object, Serializable> normalizer = FilterIndex.getNormalizer(type, indexedDecimalPlaces);
+		final Function<Object, Serializable> normalizer = type == String.class
+			? FilterIndex.getLegacyStringNormalizer() : FilterIndex.getNormalizer(type, indexedDecimalPlaces);
 		return SortIndex.isTemporal(type) ?
 			value -> normalizer.apply(clampToSupportedWindow(value)) : normalizer;
 	}

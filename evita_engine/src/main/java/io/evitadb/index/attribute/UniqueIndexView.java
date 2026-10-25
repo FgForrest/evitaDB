@@ -109,14 +109,20 @@ public final class UniqueIndexView extends UniqueIndex {
 
 	@Nullable
 	@Override
-	public Integer getRecordIdByUniqueValue(@Nonnull Serializable value) {
+	protected Integer getRecordIdByUniqueKey(@Nonnull Serializable key) {
 		final FilterIndex filterView = this.sharedFilterView;
 		if (filterView == null) {
 			return null;
 		}
 		// the bucket of a unique value holds at most one record (uniqueness is enforced on insert)
-		final Bitmap records = filterView.getRecordsEqualTo(value);
+		final Bitmap records = filterView.getInvertedIndex().getRecordsEqualTo(key);
 		return records.isEmpty() ? null : records.getFirst();
+	}
+
+	@Nonnull
+	@Override
+	protected Serializable toLookupKey(@Nonnull Serializable rawValue) {
+		return this.sharedFilterView == null ? rawValue : this.sharedFilterView.getNormalizer().apply(rawValue);
 	}
 
 	@Override
