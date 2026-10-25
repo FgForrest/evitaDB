@@ -27,6 +27,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.Locale;
 import org.mockito.Mockito;
 import com.esotericsoftware.kryo.io.Output;
+import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.KryoException;
 import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.checksum.Crc32CChecksumFactory;
@@ -99,10 +100,84 @@ public class ObservableOutputTest {
 		return cases.stream();
 	}
 
+	/**
+	 * Cross-checks ASCII terminators, UTF-16 code units and flagged length prefixes against Kryo itself.
+	 *
+	 * @return encodings and boundary strings for both pooled and owned outputs
+	 */
+	@Nonnull
+	static Stream<Arguments> stringSizeBoundaries() {
+		final List<Arguments> cases = new ArrayList<>();
+		for (boolean pooled : new boolean[] {false, true}) {
+			for (int length : new int[] {0, 1, 2, 32, 33, 62, 63, 64, 8190, 8191, 8192,
+				(1 << 20) - 2, (1 << 20) - 1, 1 << 20}) {
+				cases.add(Arguments.of(pooled, false, "ASCII length " + length, "x".repeat(length)));
+			}
+			cases.add(Arguments.of(pooled, false, "mixed length 2", "xž"));
+			cases.add(Arguments.of(pooled, false, "mixed length 32", "x".repeat(31) + "ž"));
+			cases.add(Arguments.of(pooled, false, "two-byte code units", "žž"));
+			cases.add(Arguments.of(pooled, false, "three-byte code units", "€€"));
+			cases.add(Arguments.of(pooled, false, "surrogate pair", "😀"));
+			for (int length : new int[] {0, 1, 2, 33}) {
+				cases.add(Arguments.of(pooled, true, "ASCII length " + length, "x".repeat(length)));
+			}
+		}
+		return cases.stream();
+	}
+
 	/** Regressions for indivisible values and output resource disposal. */
 	@Nested
 	@DisplayName("Value boundaries and disposal")
 	class ValueBoundariesAndDisposal {
+		/**
+		 * Kryo's actual bytes must fit exactly, and one byte less must fail before the value can be split.
+		 *
+		 * @param pooled whether to borrow the frame array
+		 * @param ascii whether to use the explicit ASCII writer
+		 * @param description short case label used in parameterized test names
+		 * @param value string to encode
+		 */
+		@ParameterizedTest(name = "{index}: pooled={0}, ascii={1}, {2}")
+		@MethodSource("io.evitadb.store.kryo.ObservableOutputTest#stringSizeBoundaries")
+		@DisplayName("Should match Kryo string sizes at exact frame boundaries")
+		void shouldMatchKryoStringSizeAtFrameBoundary(
+			boolean pooled, boolean ascii, @Nonnull String description, @Nonnull String value
+		) {
+			final Consumer<Output> writer = ascii ? out -> out.writeAscii(value) : out -> out.writeString(value);
+			try (final Output reference = new Output(64, -1)) {
+				writer.accept(reference);
+				final int valueSize = reference.position();
+				final int frameSize = StorageRecord.OVERHEAD_SIZE + valueSize;
+				final ByteArrayOutputStream stream = new ByteArrayOutputStream();
+				try (final ObservableOutput<ByteArrayOutputStream> output = pooled ?
+					new ObservableOutput<>(stream, frameSize, 0L, Checksum.NO_OP, null,
+						ObservableOutputBufferPool.INSTANCE) :
+					new ObservableOutput<>(stream, frameSize, 0L, Checksum.NO_OP, null)) {
+					new StorageRecord<>(output, 1L, false, out -> {
+						writer.accept(out);
+						return value;
+					});
+					assertEquals(frameSize, stream.size());
+					try (final Input input = new Input(stream.toByteArray())) {
+						input.skip(StorageRecord.CRC_NOT_COVERED_HEAD);
+						assertArrayEquals(reference.toBytes(), input.readBytes(valueSize));
+						input.setPosition(StorageRecord.CRC_NOT_COVERED_HEAD);
+						assertEquals(value, input.readString());
+						assertEquals(StorageRecord.CRC_NOT_COVERED_HEAD + valueSize, input.position());
+					}
+				}
+				try (final ObservableOutput<ByteArrayOutputStream> output = pooled ? pooledOutput(frameSize - 1) :
+					new ObservableOutput<>(new ByteArrayOutputStream(), frameSize - 1, 0L, Checksum.NO_OP, null)) {
+					final KryoException failure = assertThrows(KryoException.class,
+						() -> new StorageRecord<>(output, 1L, false, out -> {
+							writer.accept(out);
+							return value;
+						}));
+					assertTrue(failure.getMessage().contains("value size " + valueSize + "B"), failure::getMessage);
+				}
+			}
+		}
+
 		/**
 		 * Values must fit alongside a frame header and tail, even when previous values force a continuation.
 		 *
