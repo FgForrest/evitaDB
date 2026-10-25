@@ -82,26 +82,32 @@ public final class ObservableOutputBufferPool {
 	/**
 	 * Borrows the most recently returned array of exactly the requested size, or allocates one and reports it.
 	 * The caller exclusively owns the array until it returns it with {@link #release(byte[])}.
+	 * Allocation happens outside the pool monitor so allocating a large array does not block other borrowers or
+	 * releasers. Counters and their event are updated together under the monitor only after allocation succeeds.
 	 *
 	 * @param size exact number of bytes required by the output
 	 * @return an exclusively borrowed array of the requested size
 	 * @throws io.evitadb.exception.GenericEvitaInternalError if the requested size is not positive
 	 */
 	@Nonnull
-	public synchronized byte[] borrow(int size) {
+	public byte[] borrow(int size) {
 		Assert.isPremiseValid(size > 0, "Buffer size must be positive!");
-		for (int i = this.idleCount - 1; i >= 0; i--) {
-			if (this.idle[i].length == size) {
-				final byte[] result = this.idle[i];
-				System.arraycopy(this.idle, i + 1, this.idle, i, this.idleCount - i - 1);
-				this.idle[--this.idleCount] = null;
-				return result;
+		synchronized (this) {
+			for (int i = this.idleCount - 1; i >= 0; i--) {
+				if (this.idle[i].length == size) {
+					final byte[] result = this.idle[i];
+					System.arraycopy(this.idle, i + 1, this.idle, i, this.idleCount - i - 1);
+					this.idle[--this.idleCount] = null;
+					return result;
+				}
 			}
 		}
 		final byte[] result = new byte[size];
-		this.openedBuffers++;
-		this.occupiedMemoryBytes += size;
-		emitChangeEvent();
+		synchronized (this) {
+			this.openedBuffers++;
+			this.occupiedMemoryBytes += size;
+			emitChangeEvent();
+		}
 		return result;
 	}
 
