@@ -28,10 +28,8 @@ import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
 import io.evitadb.api.requestResponse.schema.ReferenceSchemaContract;
 import io.evitadb.api.requestResponse.schema.SortableAttributeCompoundSchemaContract;
-import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.EntitySortableAttributeCompoundSchema;
 import io.evitadb.api.requestResponse.schema.dto.SortableAttributeCompoundSchema;
-import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.utils.Assert;
 import lombok.EqualsAndHashCode;
@@ -46,8 +44,8 @@ import java.io.Serial;
 /**
  * Mutation is responsible for renaming an existing {@link SortableAttributeCompoundSchema} in {@link EntitySchemaContract}.
  * Mutation can be used for altering also the existing {@link SortableAttributeCompoundSchema} alone.
- * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
- * if the mutation is placed twice in the mutation pipeline.
+ * The mutation never combines with another one: a renamed name stands for two compounds in one pipeline, and a
+ * second rename of the same name addresses a compound that no longer has it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -56,7 +54,7 @@ import java.io.Serial;
 @EqualsAndHashCode(callSuper = true)
 public class ModifySortableAttributeCompoundSchemaNameMutation
 	extends AbstractSortableAttributeCompoundSchemaMutation
-	implements CombinableLocalEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation {
+	implements LocalEntitySchemaMutation, ReferenceSortableAttributeCompoundSchemaMutation {
 	@Serial private static final long serialVersionUID = 836864915349561680L;
 	@Getter @Nonnull private final String newName;
 
@@ -93,22 +91,6 @@ public class ModifySortableAttributeCompoundSchemaNameMutation
 				existingSchema.getIndexedInScopes(),
 				existingSchema.getAttributeElements()
 			);
-		}
-	}
-
-	@Nullable
-	@Override
-	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(
-		@Nonnull CatalogSchemaContract currentCatalogSchema,
-		@Nonnull EntitySchemaContract currentEntitySchema,
-		@Nonnull LocalEntitySchemaMutation existingMutation
-	) {
-		if (existingMutation instanceof ModifySortableAttributeCompoundSchemaNameMutation theExistingMutation &&
-			this.name.equals(theExistingMutation.getName())
-		) {
-			return new MutationCombinationResult<>(null, this);
-		} else {
-			return null;
 		}
 	}
 

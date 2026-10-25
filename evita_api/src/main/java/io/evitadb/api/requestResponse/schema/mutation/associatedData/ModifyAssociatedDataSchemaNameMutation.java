@@ -27,9 +27,7 @@ import io.evitadb.api.exception.InvalidSchemaMutationException;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
 import io.evitadb.api.requestResponse.schema.dto.AssociatedDataSchema;
-import io.evitadb.api.requestResponse.schema.mutation.CombinableLocalEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.dataType.ClassifierType;
 import io.evitadb.utils.Assert;
@@ -47,8 +45,8 @@ import java.util.Optional;
 /**
  * Mutation is responsible for renaming an existing {@link AssociatedDataSchemaContract} in {@link EntitySchemaContract}.
  * Mutation can be used for altering also the existing {@link AssociatedDataSchemaContract} alone.
- * Mutation implements {@link CombinableLocalEntitySchemaMutation} allowing to resolve conflicts with the same mutation
- * if the mutation is placed twice in the mutation pipeline.
+ * The mutation never combines with another one: a renamed name stands for two associated data in one pipeline, and a
+ * second rename of the same name addresses associated data that no longer has it.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2022
  */
@@ -56,7 +54,7 @@ import java.util.Optional;
 @Immutable
 @EqualsAndHashCode(callSuper = true)
 public class ModifyAssociatedDataSchemaNameMutation
-	extends AbstractModifyAssociatedDataSchemaMutation implements CombinableLocalEntitySchemaMutation {
+	extends AbstractModifyAssociatedDataSchemaMutation implements LocalEntitySchemaMutation {
 	@Serial private static final long serialVersionUID = -9148725260493440657L;
 	@Getter @Nonnull private final String newName;
 
@@ -74,21 +72,6 @@ public class ModifyAssociatedDataSchemaNameMutation
 		super(name);
 		ClassifierUtils.validateClassifierFormat(ClassifierType.ASSOCIATED_DATA, newName);
 		this.newName = newName;
-	}
-
-	@Nullable
-	@Override
-	public MutationCombinationResult<LocalEntitySchemaMutation> combineWith(
-		@Nonnull CatalogSchemaContract currentCatalogSchema,
-		@Nonnull EntitySchemaContract currentEntitySchema,
-		@Nonnull LocalEntitySchemaMutation existingMutation
-	) {
-		if (existingMutation instanceof ModifyAssociatedDataSchemaNameMutation theExistingMutation && this.name.equals(
-			theExistingMutation.getName())) {
-			return new MutationCombinationResult<>(null, this);
-		} else {
-			return null;
-		}
 	}
 
 	@Nonnull

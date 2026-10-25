@@ -33,8 +33,6 @@ import io.evitadb.api.requestResponse.mutation.conflict.ConflictPolicy;
 import io.evitadb.api.requestResponse.schema.AssociatedDataSchemaContract;
 import io.evitadb.api.requestResponse.schema.CatalogSchemaContract;
 import io.evitadb.api.requestResponse.schema.EntitySchemaContract;
-import io.evitadb.api.requestResponse.schema.builder.InternalSchemaBuilderHelper.MutationCombinationResult;
-import io.evitadb.api.requestResponse.schema.mutation.LocalEntitySchemaMutation;
 import io.evitadb.exception.InvalidClassifierFormatException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -73,46 +71,6 @@ class ModifyAssociatedDataSchemaNameMutationTest {
 				InvalidClassifierFormatException.class,
 				() -> new ModifyAssociatedDataSchemaNameMutation(ASSOCIATED_DATA_NAME, "invalid name!")
 			);
-		}
-	}
-
-	@Nested
-	@DisplayName("Combine with other mutations")
-	class CombineWith {
-
-		@Test
-		@DisplayName("should override name of previous mutation when names match")
-		void shouldOverrideNameOfPreviousMutationIfNamesMatch() {
-			final ModifyAssociatedDataSchemaNameMutation mutation = new ModifyAssociatedDataSchemaNameMutation(
-				ASSOCIATED_DATA_NAME, "newName"
-			);
-			final ModifyAssociatedDataSchemaNameMutation existingMutation =
-				new ModifyAssociatedDataSchemaNameMutation(ASSOCIATED_DATA_NAME, "differentName");
-			final EntitySchemaContract entitySchema = Mockito.mock(EntitySchemaContract.class);
-			Mockito.when(entitySchema.getAssociatedData(ASSOCIATED_DATA_NAME)).thenReturn(
-				of(createExistingAssociatedDataSchema()));
-			final MutationCombinationResult<LocalEntitySchemaMutation> result = mutation.combineWith(
-				Mockito.mock(CatalogSchemaContract.class), entitySchema, existingMutation
-			);
-			assertNotNull(result);
-			assertNull(result.origin());
-			assertNotNull(result.current());
-			assertInstanceOf(ModifyAssociatedDataSchemaNameMutation.class, result.current()[0]);
-			assertEquals("name", ((ModifyAssociatedDataSchemaNameMutation) result.current()[0]).getName());
-			assertEquals("newName", ((ModifyAssociatedDataSchemaNameMutation) result.current()[0]).getNewName());
-		}
-
-		@Test
-		@DisplayName("should leave both mutations when names do not match")
-		void shouldLeaveBothMutationsIfTheNameOfNewMutationDoesntMatch() {
-			final ModifyAssociatedDataSchemaNameMutation mutation = new ModifyAssociatedDataSchemaNameMutation(
-				ASSOCIATED_DATA_NAME, "newName"
-			);
-			final ModifyAssociatedDataSchemaNameMutation existingMutation =
-				new ModifyAssociatedDataSchemaNameMutation("differentName", "oldName");
-			assertNull(mutation.combineWith(
-				Mockito.mock(CatalogSchemaContract.class), Mockito.mock(EntitySchemaContract.class), existingMutation
-			));
 		}
 	}
 
