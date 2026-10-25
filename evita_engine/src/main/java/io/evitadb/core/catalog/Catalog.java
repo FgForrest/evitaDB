@@ -1195,7 +1195,9 @@ public final class Catalog
 							throw new InvalidSchemaMutationException(
 								entityType, CatalogEvolutionMode.ADDING_ENTITY_TYPES);
 						}
-						currentSchema = createEntitySchema(
+						// the created schema is not installed yet - the modification builds on it and the exchange
+						// below installs both, as for an explicit creation followed by the modification
+						updatedSchema = createEntitySchema(
 							new CreateEntitySchemaMutation(entityType), transaction, updatedSchema);
 						entityCollection = Objects.requireNonNull(this.entityCollections.get(entityType));
 					}
