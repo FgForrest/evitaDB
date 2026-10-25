@@ -63,6 +63,7 @@ import io.evitadb.api.requestResponse.schema.mutation.catalog.AllowEvolutionMode
 import io.evitadb.api.requestResponse.schema.mutation.catalog.CreateEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.DisallowEvolutionModeInCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyCatalogSchemaDescriptionMutation;
+import io.evitadb.api.requestResponse.schema.mutation.catalog.ModifyEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.catalog.RemoveEntitySchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.CreateCatalogSchemaMutation;
 import io.evitadb.api.requestResponse.schema.mutation.engine.DuplicateCatalogMutation;
@@ -96,9 +97,12 @@ import io.evitadb.dataType.expression.Expression;
 import io.evitadb.store.shared.kryo.KryoFactory;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import javax.annotation.Nonnull;
 import java.io.ByteArrayOutputStream;
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.Currency;
@@ -153,6 +157,47 @@ public class WalMutationSerializationTest {
 		assertSerializationRound(new SetAttributeSchemaNullableMutation("testAttribute", true));
 		assertSerializationRound(new SetAttributeSchemaRepresentativeMutation("testAttribute", true));
 		assertSerializationRound(new SetAttributeSchemaUniqueMutation("testAttribute", AttributeUniquenessType.UNIQUE_WITHIN_COLLECTION));
+	}
+
+	/**
+	 * Verifies that attribute type changes preserve both the declared class and decimal precision.
+	 */
+	@ParameterizedTest
+	@ValueSource(classes = {Integer.class, Long.class, Boolean.class, int.class, long.class, boolean.class,
+		String.class, BigDecimal.class, Integer[].class})
+	@DisplayName("Should preserve the attribute type and non-zero indexed decimal places")
+	void shouldSerializeAttributeSchemaTypeMutation(@Nonnull Class<? extends Serializable> attributeType) {
+		final ModifyAttributeSchemaTypeMutation mutation = new ModifyAttributeSchemaTypeMutation(
+			"testAttribute", attributeType, 2
+		);
+		final ModifyAttributeSchemaTypeMutation deserialized = deserialize(mutation);
+		assertEquals(attributeType, deserialized.getType());
+		assertEquals(2, deserialized.getIndexedDecimalPlaces());
+		assertEquals(mutation, deserialized);
+	}
+
+	/**
+	 * Verifies that the class flag does not shift a following mutation in the same entity schema record.
+	 */
+	@ParameterizedTest
+	@ValueSource(classes = {Integer.class, Long.class, Boolean.class, int.class, long.class, boolean.class,
+		String.class, BigDecimal.class, Integer[].class})
+	@DisplayName("Should preserve the mutation following an attribute type change")
+	void shouldSerializeMutationFollowingAttributeSchemaTypeMutation(
+		@Nonnull Class<? extends Serializable> attributeType
+	) {
+		final ModifyAttributeSchemaTypeMutation typeMutation = new ModifyAttributeSchemaTypeMutation(
+			"testAttribute", attributeType, 2
+		);
+		final ModifyEntitySchemaDescriptionMutation followingMutation = new ModifyEntitySchemaDescriptionMutation(
+			"Description after the attribute type change"
+		);
+		final ModifyEntitySchemaMutation mutation = new ModifyEntitySchemaMutation(
+			"testEntity", typeMutation, followingMutation
+		);
+		final ModifyEntitySchemaMutation deserialized = deserialize(mutation);
+		assertEquals(mutation.getName(), deserialized.getName());
+		assertArrayEquals(mutation.getSchemaMutations(), deserialized.getSchemaMutations());
 	}
 
 	@Test
