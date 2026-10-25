@@ -38,7 +38,9 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.parallel.Isolated;
 
+import javax.annotation.Nonnull;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -231,8 +233,7 @@ class ObservableOutputBufferPoolTest {
 					recording.dump(recordingPath);
 				}
 			}
-			assertTrue(RecordingFile.readAllEvents(recordingPath).stream()
-				.noneMatch(event -> event.getEventType().getName().endsWith(".ObservableOutputChange")));
+			assertTrue(readPoolEventsFromCurrentThread(recordingPath).isEmpty());
 		}
 
 		/**
@@ -253,8 +254,7 @@ class ObservableOutputBufferPoolTest {
 				recording.stop();
 				recording.dump(recordingPath);
 			}
-			final List<RecordedEvent> events = RecordingFile.readAllEvents(recordingPath).stream()
-				.filter(event -> event.getEventType().getName().endsWith(".ObservableOutputChange")).toList();
+			final List<RecordedEvent> events = readPoolEventsFromCurrentThread(recordingPath);
 			assertFalse(events.isEmpty());
 			// Allocation is reported before eviction, so inspect the final, completely idle state.
 			assertTrue(events.getLast().getInt("openedBuffers") <= 2);
@@ -286,9 +286,7 @@ class ObservableOutputBufferPoolTest {
 				recording.stop();
 				recording.dump(recordingPath);
 			}
-			final List<RecordedEvent> events = RecordingFile.readAllEvents(recordingPath).stream()
-				.filter(event -> event.getEventType().getName().endsWith(".ObservableOutputChange"))
-				.toList();
+			final List<RecordedEvent> events = readPoolEventsFromCurrentThread(recordingPath);
 			assertEquals(count + 1, events.size());
 			assertNull(events.getFirst().getString("catalogName"));
 			final int initialCount = events.getFirst().getInt("openedBuffers");
@@ -300,6 +298,25 @@ class ObservableOutputBufferPoolTest {
 			assertEquals(initialCount + count - 2, events.getLast().getInt("openedBuffers"));
 			assertEquals(initialMemory + (long) (count - 2) * size,
 				events.getLast().getLong("occupiedMemoryBytes"));
+		}
+
+		/**
+		 * Reads events from this test's private pool, used synchronously only by the current test thread.
+		 * Recordings also capture other pools in the JVM; disabling stack traces still retains the event thread.
+		 *
+		 * @param recordingPath recording to read
+		 * @return pool events committed by the current test thread
+		 * @throws IOException if the recording cannot be read
+		 */
+		@Nonnull
+		private static List<RecordedEvent> readPoolEventsFromCurrentThread(
+			@Nonnull Path recordingPath
+		) throws IOException {
+			final long threadId = Thread.currentThread().threadId();
+			return RecordingFile.readAllEvents(recordingPath).stream()
+				.filter(event -> event.getEventType().getName().endsWith(".ObservableOutputChange"))
+				.filter(event -> event.getThread().getJavaThreadId() == threadId)
+				.toList();
 		}
 	}
 }
