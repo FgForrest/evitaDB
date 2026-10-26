@@ -145,7 +145,6 @@ exception when you enable the corresponding API in evitaDB's configuration.
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_grpc</artifactId>
     <version>2026.1.0</version>
-    <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
@@ -165,7 +164,6 @@ implementation 'io.evitadb:evita_external_api_grpc:2026.1.0'
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_graphql</artifactId>
     <version>2026.1.0</version>
-    <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
@@ -185,7 +183,6 @@ implementation 'io.evitadb:evita_external_api_graphql:2026.1.0'
     <groupId>io.evitadb</groupId>
     <artifactId>evita_external_api_rest</artifactId>
     <version>2026.1.0</version>
-    <type>pom</type>
 </dependency>
 ```
 </CodeTabsBlock>
