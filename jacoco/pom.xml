@@ -32,6 +32,11 @@
 		<artifactId>evita_root</artifactId>
 		<version>2026.3-SNAPSHOT</version>
 	</parent>
+	<properties>
+		<!-- Coverage report: not published to Maven Central. -->
+		<maven.deploy.skip>true</maven.deploy.skip>
+		<skipNexusStagingDeployMojo>true</skipNexusStagingDeployMojo>
+	</properties>
 	<dependencies>
 		<dependency>
 			<groupId>${project.parent.groupId}</groupId>

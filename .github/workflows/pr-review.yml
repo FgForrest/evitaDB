@@ -12,6 +12,7 @@ on:
       - evita*/**/*.java
       - evita*/**/pom.xml
       - pom.xml
+      - recipes/**
       - .github/**
       - tools/verify-driver-on-jdk.sh
       - tools/driver-smoke/**
@@ -95,15 +96,21 @@ jobs:
           path: 'evita_server/target/evita-server.jar'
           retention-days: 3
 
+      - name: Build shaded Java driver from recipe
+        run: |
+          mvn -T 1C -B -Dmaven.test.skip=true -pl :evita_java_driver -am install
+          EVITA_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          mvn -B -Dmaven.test.skip=true -f recipes/evita_java_driver_all_in_one/pom.xml -Drevision="$EVITA_VERSION" install
+
       - name: Upload shaded Java driver artifact   # consumed by the `driver-jdk17` job below
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: success()
         with:
           name: evita_java_driver_all_in_one.jar
           path: |
-            evita_external_api/evita_external_api_grpc/client_all_in_one/target/evita_java_driver_all_in_one-*.jar
-            !evita_external_api/evita_external_api_grpc/client_all_in_one/target/*-sources.jar
-            !evita_external_api/evita_external_api_grpc/client_all_in_one/target/*-javadoc.jar
+            recipes/evita_java_driver_all_in_one/target/evita_java_driver_all_in_one-*.jar
+            !recipes/evita_java_driver_all_in_one/target/*-sources.jar
+            !recipes/evita_java_driver_all_in_one/target/*-javadoc.jar
           retention-days: 3
 
   driver-jdk17:                    # the Java driver must keep running on JDK 17 while the server needs 21

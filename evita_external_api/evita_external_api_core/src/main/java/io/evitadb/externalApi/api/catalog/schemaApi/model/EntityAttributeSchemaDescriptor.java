@@ -79,7 +79,7 @@ public interface EntityAttributeSchemaDescriptor extends AttributeSchemaDescript
 			DEPRECATION_NOTICE,
 			UNIQUENESS_TYPE,
 			FILTERABLE,
-			ACCELERATORS_IN_SCOPES,
+			ACCELERATED,
 			NORMALIZED,
 			SORTABLE,
 			LOCALIZED,
