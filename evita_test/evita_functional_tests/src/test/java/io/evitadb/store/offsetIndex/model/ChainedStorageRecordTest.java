@@ -114,24 +114,24 @@ class ChainedStorageRecordTest {
 	 * Writer and reader buffer sizes the records are written and read with. Each one puts the reader's buffer edges
 	 * differently against the physical records of the chain.
 	 *
-	 * @return arguments: description, flush size, writer buffer size, reader buffer size, records written, compression
+	 * @return arguments: description, writer buffer size, reader buffer size, records written, compression
 	 */
 	@Nonnull
 	static Stream<Arguments> bufferConfigurations() {
 		return Stream.of(
 			// a whole physical part fits into the reader's buffer when its payload starts
-			Arguments.of("2 KB writer, 8 KB reader", 512, 2_048, 8_192, 40),
+			Arguments.of("2 KB writer, 8 KB reader", 2_048, 8_192, 40),
 			// the reader's buffer regularly ends inside the CRC32C tail of a physical part
-			Arguments.of("16 KB writer, 16 KB reader", 16_384, 16_384, 16_384, 40),
+			Arguments.of("16 KB writer, 16 KB reader", 16_384, 16_384, 40),
 			// a reader buffer much smaller than the parts
-			Arguments.of("8 KB writer, 1 KB reader", 8_192, 8_192, 1_024, 40),
+			Arguments.of("8 KB writer, 1 KB reader", 8_192, 1_024, 40),
 			// the writer's buffer far larger than the reader's, the proportion production storage has
-			Arguments.of("64 KB writer, 16 KB reader", 32_768, 65_536, 16_384, 200)
+			Arguments.of("64 KB writer, 16 KB reader", 65_536, 16_384, 200)
 		).flatMap(
 			it -> Stream.of(false, true).map(
 				compression -> Arguments.of(
-					it.get()[0] + (compression ? ", compressed" : ""), it.get()[1], it.get()[2], it.get()[3],
-					it.get()[4], compression
+					it.get()[0] + (compression ? ", compressed" : ""), it.get()[1], it.get()[2],
+					it.get()[3], compression
 				)
 			)
 		);
@@ -148,7 +148,6 @@ class ChainedStorageRecordTest {
 	@DisplayName("should read every value back, including single-byte reads right after a split")
 	void shouldReadEveryValueOfAChainedRecordBack(
 		@Nonnull String description,
-		int flushSize,
 		int writerBufferSize,
 		int readerBufferSize,
 		int recordCount,
@@ -159,7 +158,7 @@ class ChainedStorageRecordTest {
 		for (int sample = 0; sample < recordCount; sample++) {
 			final ValueSequence written = generateValues(new Random(sample));
 			final File file = this.tempDir.resolve("record-" + sample + ".bin").toFile();
-			final StorageRecord<ValueSequence> record = write(file, written, flushSize, writerBufferSize, compression);
+			final StorageRecord<ValueSequence> record = write(file, written, writerBufferSize, compression);
 
 			final int[] splitPoints = readSplitPoints(file);
 			final ValueLayout layout = ValueLayout.of(written);
@@ -192,7 +191,6 @@ class ChainedStorageRecordTest {
 	@DisplayName("should split a chained record only between two values, never inside one")
 	void shouldNeverSplitAValueBetweenPhysicalRecords(
 		@Nonnull String description,
-		int flushSize,
 		int writerBufferSize,
 		int readerBufferSize,
 		int recordCount,
@@ -202,7 +200,7 @@ class ChainedStorageRecordTest {
 		for (int sample = 0; sample < recordCount; sample++) {
 			final ValueSequence written = generateValues(new Random(sample));
 			final File file = this.tempDir.resolve("record-" + sample + ".bin").toFile();
-			write(file, written, flushSize, writerBufferSize, compression);
+			write(file, written, writerBufferSize, compression);
 
 			final ValueLayout layout = ValueLayout.of(written);
 			for (int splitPoint : readSplitPoints(file)) {
@@ -224,7 +222,7 @@ class ChainedStorageRecordTest {
 		final ValueSequence values = new ValueSequence(List.of("lead", text(new Random(1), 3 * 2_048, false)));
 		final File file = this.tempDir.resolve("oversized-string.bin").toFile();
 		final KryoException exception = assertThrows(
-			KryoException.class, () -> write(file, values, 512, 2_048, false)
+			KryoException.class, () -> write(file, values, 2_048, false)
 		);
 		assertTrue(
 			exception.getMessage().contains("exceeds buffer size"),
@@ -240,7 +238,7 @@ class ChainedStorageRecordTest {
 		final ValueSequence values = new ValueSequence(List.of("lead", oversized));
 		final File file = this.tempDir.resolve("oversized-bytes.bin").toFile();
 		final KryoException exception = assertThrows(
-			KryoException.class, () -> write(file, values, 512, 2_048, false)
+			KryoException.class, () -> write(file, values, 2_048, false)
 		);
 		assertTrue(
 			exception.getMessage().contains("exceeds buffer size"),
@@ -255,13 +253,12 @@ class ChainedStorageRecordTest {
 	private StorageRecord<ValueSequence> write(
 		@Nonnull File file,
 		@Nonnull ValueSequence values,
-		int flushSize,
 		int writerBufferSize,
 		boolean compression
 	) throws IOException {
 		try (
 			final ObservableOutput<FileOutputStream> output = new ObservableOutput<>(
-				new FileOutputStream(file), flushSize, writerBufferSize, 0, new Crc32CChecksum(),
+				new FileOutputStream(file), writerBufferSize, 0, new Crc32CChecksum(),
 				compression ? new ZipCompressionFactory().createCompressor().orElseThrow() : null
 			)
 		) {

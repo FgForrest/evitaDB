@@ -25,7 +25,6 @@ package io.evitadb.store.kryo;
 
 import com.esotericsoftware.kryo.KryoException;
 import com.esotericsoftware.kryo.io.Output;
-import io.evitadb.exception.UnexpectedIOException;
 import io.evitadb.store.checksum.Checksum;
 import io.evitadb.store.offsetIndex.model.StorageRecord;
 import io.evitadb.store.shared.model.FileLocation;
@@ -47,16 +46,13 @@ import java.util.function.Supplier;
 import java.util.zip.Deflater;
 
 /**
- * This observable output extends original Kryo {@link Output} allowing to automatically compute checksums after
- * record has been written to the storage. It also collects the written record size automatically and writes it to the
- * specified position in the record. To avoid writing to already committed file page the record flushing is postponed
- * until entire record has been written and record length update is performed in not yet stored buffer in the memory.
- * This also means that entire record must fit in the `bufferSize` size that defined in the constructor of this class.
+ * Extends Kryo {@link Output} to compute frame checksums and write each frame's length before its contents.
+ * A frame is assembled in the in-memory buffer because its length is known only when the frame is complete.
+ * {@link #markEnd(byte)} writes each finished frame to the output stream immediately.
  *
- * Because we need sufficiently big `buffer` because it limits our record sizes we need to specify another `flushSize`
- * limit that will control what size of "finalized" content (i.e. records which writing has been finished) will be flushed
- * to the disk. This means that even if we have very large buffer (say 16MB) and we write lot of small records (say 2KB)
- * we well be able to flush these records each 8KB (i.e. `flushSize=8KB`).
+ * A record larger than the buffer is continued in chained frames by {@link StorageRecord}, which uses
+ * {@link StorageRecord#CONTINUATION_BIT} and the {@link #onBufferOverflow} handler. A single value written by
+ * `writeBytes`, `writeString` or `writeAscii` is never split across frames and must fit into one frame.
  *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2021
  */
@@ -67,10 +63,6 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	 */
 	public static final int TAIL_MANDATORY_SPACE = MemoryMeasuringConstants.LONG_SIZE;
 	static final long NULL_CRC = 0xFFFFFFFFFFFFFFFFL;
-	/**
-	 * Default flush size in bytes.
-	 */
-	public static final int DEFAULT_FLUSH_SIZE = 16_384;
 	/**
 	 * Checksum computation instance. Reused - instantiated only once.
 	 */
@@ -175,27 +167,22 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 	}
 
 	/**
-	 * Creates an ObservableOutput with specified buffer and flush sizes.
+	 * Creates an ObservableOutput with the specified frame buffer size.
 	 *
 	 * @param outputStream    the output stream to write serialized data to
-	 * @param flushSize       the size threshold in bytes for automatic buffer flushing
-	 * @param bufferSize      the size of the internal byte buffer
+	 * @param bufferSize      maximal size of one frame, including its header and checksum
 	 * @param currentFileSize the current size of the output file for tracking total bytes written
 	 * @param checksum        the checksum instance for computing data integrity checksums
 	 * @param deflater        the deflater for optional data compression, or null if compression is disabled
 	 */
 	public ObservableOutput(
 		@Nonnull T outputStream,
-		int flushSize,
 		int bufferSize,
 		long currentFileSize,
 		@Nonnull Checksum checksum,
 		@Nullable Deflater deflater
 	) {
 		super(outputStream, bufferSize);
-		if (bufferSize < flushSize) {
-			throw new UnexpectedIOException("Buffer size cannot be lower than flush limit with some reserve space!");
-		}
 		this.total = currentFileSize;
 		this.checksum = checksum;
 		this.deflater = deflater;
@@ -203,26 +190,6 @@ public class ObservableOutput<T extends OutputStream> extends Output {
 		// we need to hide CRC mandatory space from the Kryo output so that it asks for `require` when it reaches
 		// the end of the capacity - this way we will have reserved space for safely writing the CRC checksum
 		this.capacity = bufferSize - TAIL_MANDATORY_SPACE;
-	}
-
-	/**
-	 * Initializes {@link ObservableInput} with recommended settings for SSD drives.
-	 *
-	 * @implNote <a href="https://codecapsule.com/2014/02/12/coding-for-ssds-part-6-a-summary-what-every-programmer-should-know-about-solid-state-drives/">Source</a>
-	 * @param outputStream    the output stream to write serialized data to
-	 * @param bufferSize      maximal size of the single record that can be stored
-	 * @param currentFileSize the current size of the output file for tracking total bytes written
-	 * @param checksum        the checksum instance for computing data integrity checksums
-	 * @param deflater        the deflater for optional data compression, or null if compression is disabled
-	 */
-	public ObservableOutput(
-		@Nonnull T outputStream,
-		int bufferSize,
-		long currentFileSize,
-		@Nonnull Checksum checksum,
-		@Nullable Deflater deflater
-	) {
-		this(outputStream, DEFAULT_FLUSH_SIZE, bufferSize, currentFileSize, checksum, deflater);
 	}
 
 	/**

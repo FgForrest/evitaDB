@@ -59,6 +59,11 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 @Tag(STORAGE)
 @Tag(MANAGEMENT)
 class ObservableOutputKeeperTest {
+	/**
+	 * Size of the buffer of the off-heap outputs the tests borrow and recycle, in bytes.
+	 */
+	private static final int OUTPUT_BUFFER_SIZE = 16_384;
+
 	private final ObservableOutputKeeper keeper = ObservableOutputKeeper._internalBuild(Mockito.mock(Scheduler.class));
 	private final CatalogOffHeapMemoryManager memoryManager = new CatalogOffHeapMemoryManager(
 		TestConstants.TEST_CATALOG, 65_536, 4, ChecksumFactory.NO_OP
@@ -176,7 +181,7 @@ class ObservableOutputKeeperTest {
 	@Nonnull
 	private static ObservableOutput<OffHeapMemoryOutputStream> newObservableOutput(@Nonnull OffHeapMemoryOutputStream stream) {
 		final ObservableOutput<OffHeapMemoryOutputStream> output = new ObservableOutput<>(
-			stream, ObservableOutput.DEFAULT_FLUSH_SIZE, 0, ChecksumFactory.NO_OP.createChecksum(), null
+			stream, OUTPUT_BUFFER_SIZE, 0, ChecksumFactory.NO_OP.createChecksum(), null
 		);
 		output.markCumulativeChecksumStart();
 		return output;

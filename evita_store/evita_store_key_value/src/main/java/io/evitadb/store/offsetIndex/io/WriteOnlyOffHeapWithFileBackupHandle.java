@@ -74,15 +74,9 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	 */
 	private final Path targetFile;
 	/**
-	 * The variable `observableOutputKeeper` is an instance of the class `ObservableOutputKeeper`. It is used to keep
-	 * references to `ObservableOutput` instances that internally maintain large buffers for serialization. The need for
-	 * these buffers is determined by the number of open read-write sessions to a catalog. If there is at least one open
-	 * read-write session, the `ObservableOutput` instances need to be kept. Otherwise, if there are only read sessions,
-	 * the `ObservableOutput` instances can be disposed of.
-	 *
-	 * The `ObservableOutputKeeper` class provides methods to get or create an `ObservableOutput` for a specific target
-	 * file, free an `ObservableOutput` for a target file, prepare the holder for `ObservableOutput`, check if
-	 * the cached outputs are prepared, and free all cached `ObservableOutput` instances.
+	 * Keeps reusable serialization outputs and their buffers. Cached file outputs are closed by the scheduled
+	 * inactivity check or by an explicit close of the file's output or the keeper. The off-heap free-list is
+	 * cleared after the same period without a borrow or recycle call, or when the keeper is closed.
 	 */
 	private final ObservableOutputKeeper observableOutputKeeper;
 	/**
@@ -91,8 +85,9 @@ public class WriteOnlyOffHeapWithFileBackupHandle implements WriteOnlyHandle {
 	 */
 	private final OffHeapMemoryManager offHeapMemoryManager;
 	/**
-	 * Size of the memory buffer used for write operations, in bytes.
-	 * This buffer size limits the maximum size of individual records that can be written.
+	 * Size of the in-memory buffer used to serialize records before appending them to data files, in bytes.
+	 * Larger records are split into chained frames, so this limits one frame and any single string or binary value,
+	 * rather than the record size. Buffers are retained while catalogs are written; larger buffers use more memory.
 	 * Sourced from {@link io.evitadb.api.configuration.StorageOptions#outputBufferSize()}, typically defaults to 2MB.
 	 */
 	private final int outputBufferSize;
