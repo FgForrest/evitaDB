@@ -35,9 +35,12 @@ import io.evitadb.dataType.EvitaDataTypes;
 import io.evitadb.index.bPlusTree.TransactionalIntToLongBPlusTree;
 import io.evitadb.index.bitmap.BaseBitmap;
 import io.evitadb.index.bitmap.Bitmap;
+import io.evitadb.utils.ArrayUtils;
 import io.evitadb.utils.Assert;
+import io.evitadb.utils.NumberUtils;
 import io.evitadb.utils.VMLayout;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -69,9 +72,14 @@ import java.util.PrimitiveIterator.OfInt;
  * DTO consumed downstream; this façade no longer renumbers a suffix or reallocates `O(N)` arrays per write, so a
  * single insert / remove is `O(log N)` with no humongous allocation, and a commit of `e` edits is `O(e·log N)`.
  *
+ * Every position-tree assignment is guarded against the reserved primary key. Incremental reports reach
+ * {@link #accept}; bulk construction collects reports, sorts by record id and builds the inverse tree directly.
+ * Duplicate bulk assignments keep the last order key, matching insert semantics, and are diagnosed once per load.
+ *
  * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2019
  */
 @ThreadSafe
+@Slf4j
 public class TransactionalUnorderedIntArray
 	implements TransactionalLayerProducer<Void, TransactionalUnorderedIntArray>,
 	OrderKeyConsumer,
@@ -161,8 +169,8 @@ public class TransactionalUnorderedIntArray
 	 * Assembles the position tree from the persisted leaf pages so the data establishes the committed BASE state.
 	 * Mirrors {@link #bulkLoadInBase}'s transaction-detach reasoning: were the build to run inside a transaction, the
 	 * data (head marks and page bookkeeping included) would land in per-transaction layers, and a later map.remove of
-	 * this value would discard those layers and silently empty the array. The order-key consumer ({@code this})
-	 * populates the value index.
+	 * this value would discard those layers and silently empty the array. A private order-key collector builds the
+	 * value index after all position leaves have reported their assignments.
 	 *
 	 * @param pages the persisted leaf pages in ascending logical order
 	 */
@@ -173,13 +181,29 @@ public class TransactionalUnorderedIntArray
 				// discardable per-transaction layer (see the method javadoc)
 				transaction.unbindTransactionFromThread();
 				try {
-					this.positionTree.assembleFromLeafPages(pages, this);
+					assembleFromPages(pages);
 				} finally {
 					transaction.bindTransactionToThread();
 				}
 			},
-			() -> this.positionTree.assembleFromLeafPages(pages, this)
+			() -> assembleFromPages(pages)
 		);
+	}
+
+	/**
+	 * Assembles persisted position leaves and bulk-builds their record-id inverse while the transaction is detached.
+	 * Neither position-tree bulk path reads the inverse index while reporting assignments or assembling its spine.
+	 *
+	 * @param pages persisted leaves in logical order
+	 */
+	private void assembleFromPages(@Nonnull List<UnorderedLookupTree.LeafPageInput> pages) {
+		int recordCount = 0;
+		for (final UnorderedLookupTree.LeafPageInput page : pages) {
+			recordCount += page.recordIds().length;
+		}
+		final RecordIdBulkBuilder builder = new RecordIdBulkBuilder(recordCount, this.id);
+		this.positionTree.assembleFromLeafPages(pages, builder);
+		builder.buildInto(this.valueIndex);
 	}
 
 	/**
@@ -226,15 +250,20 @@ public class TransactionalUnorderedIntArray
 	}
 
 	/**
-	 * Bulk-loads the position tree (`O(N)`); the order-key consumer ({@code this}) populates the value index. When
-	 * `sortedHeadPositions` is non-null the head-aware build additionally sets the chain-head marks.
+	 * Bulk-loads position records and optional head marks, then sorts the reported assignments to bulk-build the
+	 * record-id inverse index. The caller has detached any bound transaction for this fresh, unpublished array.
+	 *
+	 * @param delegate            records in logical order
+	 * @param sortedHeadPositions ascending head positions, or `null` for a plain build
 	 */
 	private void loadDelegate(@Nonnull int[] delegate, @Nullable int[] sortedHeadPositions) {
+		final RecordIdBulkBuilder builder = new RecordIdBulkBuilder(delegate.length, this.id);
 		if (sortedHeadPositions == null) {
-			this.positionTree.bulkLoad(delegate, this);
+			this.positionTree.bulkLoad(delegate, builder);
 		} else {
-			this.positionTree.bulkLoadWithHeads(delegate, sortedHeadPositions, this);
+			this.positionTree.bulkLoadWithHeads(delegate, sortedHeadPositions, builder);
 		}
+		builder.buildInto(this.valueIndex);
 	}
 
 	/**
@@ -253,11 +282,10 @@ public class TransactionalUnorderedIntArray
 	 * Order-key consumer hook used by the position tree to keep the value index coherent (INV-COUPLE): records each
 	 * `recordId → orderKey` assignment (insert overwrites an existing mapping).
 	 *
-	 * This is the single choke point every record passes through on its way into the position tree - the incremental
-	 * inserts alike the bulk builds (`bulkLoad`, `bulkLoadWithHeads`, `assembleFromLeafPages`) report each record here
-	 * exactly once - so the reserved-primary-key rejection lives here rather than in a separate pre-scan of the input:
-	 * it costs no extra pass over the data and leaves no bulk entry point unguarded. The `previousRecordId` argument of
-	 * {@link #add(int, int)} is NOT routed here (it is resolved to an order key and never becomes a record), so the
+	 * Incremental assignments report here; the private bulk collector applies the same reserved-primary-key guard
+	 * while collecting each assignment. The guard therefore costs no separate scan and covers every bulk entry point.
+	 * The `previousRecordId` argument of {@link #add(int, int)} is NOT routed here (it is resolved to an order key and
+	 * never becomes a record), so the
 	 * sentinel value legitimately used there cannot trip this guard.
 	 */
 	@Override
@@ -736,6 +764,90 @@ public class TransactionalUnorderedIntArray
 			transactionalLayer.getStateCopyWithCommittedChanges(this.positionTree),
 			transactionalLayer.getStateCopyWithCommittedChanges(this.valueIndex)
 		);
+	}
+
+	/**
+	 * Collects primitive assignments for a fresh array's inverse index. Packing the signed record id in the high word
+	 * and reporting ordinal in the low word sorts duplicate ids in report order, preserving last-write-wins semantics.
+	 * Collector arrays are released before allocating the tree's leaf columns.
+	 *
+	 * @author Jan Novotný (novotny@fg.cz), FG Forrest a.s. (c) 2026
+	 */
+	private static final class RecordIdBulkBuilder implements OrderKeyConsumer {
+		/** Record ids and reporting ordinals, sorted together before compaction. */
+		@Nonnull private long[] recordIdsAndOrdinals;
+		/** Order keys indexed by reporting ordinal. */
+		@Nonnull private long[] orderKeys;
+		/** Owning array identity for the duplicate-assignment diagnostic. */
+		private final long arrayId;
+		/** Number of assignments already reported by the position tree. */
+		private int count;
+
+		/**
+		 * Allocates exactly one slot per expected position-tree assignment.
+		 *
+		 * @param recordCount the number of records the position tree will report
+		 * @param arrayId     identity of the owning unordered array
+		 */
+		private RecordIdBulkBuilder(int recordCount, long arrayId) {
+			this.recordIdsAndOrdinals = new long[recordCount];
+			this.orderKeys = new long[recordCount];
+			this.arrayId = arrayId;
+		}
+
+		/**
+		 * Guards the record and retains its order key with the reporting ordinal.
+		 */
+		@Override
+		public void accept(int recordId, long orderKey) {
+			Assert.isPremiseValid(recordId != EvitaDataTypes.RESERVED_PRIMARY_KEY, RESERVED_PRIMARY_KEY_ERROR);
+			this.recordIdsAndOrdinals[this.count] = NumberUtils.pack(recordId, this.count);
+			this.orderKeys[this.count++] = orderKey;
+		}
+
+		/**
+		 * Sorts and compacts assignments, retaining each id's final report, then builds the detached inverse index.
+		 *
+		 * @param valueIndex the empty, unpublished inverse index owned by the array
+		 */
+		private void buildInto(@Nonnull TransactionalIntToLongBPlusTree valueIndex) {
+			Assert.isPremiseValid(this.count == this.orderKeys.length, "Bulk load must report every record.");
+			Arrays.sort(this.recordIdsAndOrdinals);
+			final int[] keys = new int[this.count];
+			final long[] values = new long[this.count];
+			int unique = 0;
+			int duplicatePosition = Integer.MAX_VALUE;
+			int duplicateId = 0;
+			int previousPosition = 0;
+			int previousOrdinal = 0;
+			for (final long packed : this.recordIdsAndOrdinals) {
+				final int recordId = NumberUtils.unpackHigh(packed);
+				final int ordinal = NumberUtils.unpackLow(packed);
+				if (unique == 0 || keys[unique - 1] != recordId) {
+					keys[unique++] = recordId;
+				} else if (ordinal < duplicatePosition) {
+					duplicatePosition = ordinal;
+					duplicateId = recordId;
+					previousPosition = previousOrdinal;
+				}
+				values[unique - 1] = this.orderKeys[ordinal];
+				previousOrdinal = ordinal;
+			}
+			if (duplicatePosition != Integer.MAX_VALUE) {
+				log.error(
+					"Record-id order-key index of unordered int array {} received duplicate record id {} at " +
+						"position {} (previous position {}). The last assignment was retained, matching inserts, " +
+						"and the tree is correct.",
+					this.arrayId, duplicateId, duplicatePosition, previousPosition
+				);
+			}
+			this.recordIdsAndOrdinals = ArrayUtils.EMPTY_LONG_ARRAY;
+			this.orderKeys = ArrayUtils.EMPTY_LONG_ARRAY;
+			valueIndex.bulkBuild(
+				unique == this.count ? keys : Arrays.copyOf(keys, unique),
+				unique == this.count ? values : Arrays.copyOf(values, unique)
+			);
+		}
 	}
 
 }
