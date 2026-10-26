@@ -41,7 +41,8 @@ public @interface AnalysisStepDef {
 	/**
 	 * Identifies the installed analysis provider. The name is stored in the schema, independently of its Java class.
 	 *
-	 * @return stable provider name, for example `lowercase`
+	 * @return stable provider name, for example
+	 * {@link io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps#LOWERCASE}
 	 */
 	@Nonnull
 	String step();

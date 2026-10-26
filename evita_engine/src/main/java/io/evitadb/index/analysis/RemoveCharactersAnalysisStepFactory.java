@@ -24,6 +24,7 @@
 
 package io.evitadb.index.analysis;
 
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.spi.analysis.AnalysisStepParameterDescriptor;
 import io.evitadb.spi.analysis.NormalizingAnalysisStepFactory;
@@ -53,20 +54,20 @@ public final class RemoveCharactersAnalysisStepFactory implements NormalizingAna
 	@Nonnull
 	@Override
 	public String getName() {
-		return "remove-characters";
+		return AnalysisSteps.REMOVE_CHARACTERS;
 	}
 
 	@Nonnull
 	@Override
 	public List<AnalysisStepParameterDescriptor> getParameters() {
 		return List.of(new AnalysisStepParameterDescriptor(
-			"characters", String.class, true, "Non-empty set of Unicode code points to remove."
+			AnalysisSteps.CHARACTERS, String.class, true, "Non-empty set of Unicode code points to remove."
 		));
 	}
 
 	@Override
 	public void validate(@Nonnull Map<String, Serializable> parameters) {
-		if (parameters.size() != 1 || !(parameters.get("characters") instanceof String characters) ||
+		if (parameters.size() != 1 || !(parameters.get(AnalysisSteps.CHARACTERS) instanceof String characters) ||
 			characters.isEmpty()) {
 			throw new EvitaInvalidUsageException(
 				"Step `remove-characters` requires only parameter `characters`, a non-empty String of code points."
@@ -78,7 +79,7 @@ public final class RemoveCharactersAnalysisStepFactory implements NormalizingAna
 	@Override
 	public StringNormalizationStep create(@Nonnull Map<String, Serializable> parameters, @Nullable Locale foldLocale) {
 		validate(parameters);
-		final int[] characters = ((String) parameters.get("characters")).codePoints().sorted().distinct().toArray();
+		final int[] characters = ((String) parameters.get(AnalysisSteps.CHARACTERS)).codePoints().sorted().distinct().toArray();
 		return text -> {
 			StringBuilder result = null;
 			for (int offset = 0; offset < text.length();) {

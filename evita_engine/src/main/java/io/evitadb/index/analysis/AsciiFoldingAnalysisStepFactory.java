@@ -24,6 +24,7 @@
 
 package io.evitadb.index.analysis;
 
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.spi.analysis.AnalysisStepParameterDescriptor;
 import io.evitadb.spi.analysis.NormalizingAnalysisStepFactory;
@@ -54,7 +55,7 @@ public final class AsciiFoldingAnalysisStepFactory implements NormalizingAnalysi
 	@Nonnull
 	@Override
 	public String getName() {
-		return "ascii-folding";
+		return AnalysisSteps.ASCII_FOLDING;
 	}
 
 	@Nonnull

@@ -57,8 +57,8 @@ public @interface Attribute {
 	/**
 	 * Ordered normalization descriptions, applied to `String` / `String[]` values in every scope.
 	 * Changes equality, uniqueness, sort order and substring search without changing stored values.
-	 * Steps apply once in declared order after Unicode NFC entry; NFD is always last. Populated indexes require
-	 * reindexing (#409).
+	 * Steps apply once in declared order after Unicode NFC entry; NFD is always last. Indexes that already hold
+	 * values keep the normalization they were built with until they are reindexed, which is not available yet.
 	 */
 	@Nonnull
 	AnalysisStepDef[] normalized() default {};

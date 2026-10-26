@@ -506,14 +506,15 @@ and spaces:
 import io.evitadb.api.requestResponse.data.annotation.AnalysisStepDef;
 import io.evitadb.api.requestResponse.data.annotation.Attribute;
 import io.evitadb.api.requestResponse.data.annotation.StepParameter;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps;
 
 public interface Product {
 	@Attribute(filterable = true, normalized = {
-		@AnalysisStepDef(step = "lowercase"),
-		@AnalysisStepDef(step = "ascii-folding"),
+		@AnalysisStepDef(step = AnalysisSteps.LOWERCASE),
+		@AnalysisStepDef(step = AnalysisSteps.ASCII_FOLDING),
 		@AnalysisStepDef(
-			step = "remove-characters",
-			parameters = @StepParameter(name = "characters", value = "- ")
+			step = AnalysisSteps.REMOVE_CHARACTERS,
+			parameters = @StepParameter(name = AnalysisSteps.CHARACTERS, value = "- ")
 		)
 	})
 	String getCode();

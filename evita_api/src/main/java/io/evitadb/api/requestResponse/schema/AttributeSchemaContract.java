@@ -79,7 +79,8 @@ public interface AttributeSchemaContract extends NamedSchemaWithDeprecationContr
 	 * Normalization changes which values match for equality, uniqueness, sort order and substring search.
 	 * The stored attribute value is untouched. The engine enters in Unicode NFC, applies each step once in
 	 * declared order and leaves in Unicode NFD.
-	 * A change on an attribute whose indexes already hold values takes effect only after reindexing (#409).
+	 * Indexes that already hold values keep the normalization they were built with until they are reindexed, which
+	 * is not available yet.
 	 *
 	 * @return immutable ordered steps, empty for NFD only
 	 */

@@ -31,6 +31,7 @@ import io.evitadb.api.requestResponse.data.annotation.Reference;
 import io.evitadb.api.requestResponse.data.annotation.ReferencedEntity;
 import io.evitadb.api.requestResponse.data.annotation.ScopeAttributeSettings;
 import io.evitadb.api.requestResponse.data.annotation.StepParameter;
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps;
 import io.evitadb.dataType.Scope;
 
 import javax.annotation.Nonnull;
@@ -49,8 +50,11 @@ public interface GetterBasedEntityNormalizedEvolutionV1 {
 	/** Entity attribute with an ordered normalization chain and archived-only filtering. */
 	@Attribute(
 		normalized = {
-			@AnalysisStepDef(step = "lowercase"),
-			@AnalysisStepDef(step = "remove-characters", parameters = @StepParameter(name = "characters", value = "- "))
+			@AnalysisStepDef(step = AnalysisSteps.LOWERCASE),
+			@AnalysisStepDef(
+				step = AnalysisSteps.REMOVE_CHARACTERS,
+				parameters = @StepParameter(name = AnalysisSteps.CHARACTERS, value = "- ")
+			)
 		},
 		scope = @ScopeAttributeSettings(scope = Scope.ARCHIVED, filterable = true)
 	)
@@ -58,7 +62,7 @@ public interface GetterBasedEntityNormalizedEvolutionV1 {
 	String getCode();
 
 	/** Global attribute with normalization shared across its uses. */
-	@Attribute(global = true, normalized = @AnalysisStepDef(step = "ascii-folding"))
+	@Attribute(global = true, normalized = @AnalysisStepDef(step = AnalysisSteps.ASCII_FOLDING))
 	@Nonnull
 	String getNormalizedGlobalCode();
 
@@ -74,7 +78,7 @@ public interface GetterBasedEntityNormalizedEvolutionV1 {
 		int getBrand();
 
 		/** Array attribute with trimming described by annotation. */
-		@Attribute(normalized = @AnalysisStepDef(step = "trim"))
+		@Attribute(normalized = @AnalysisStepDef(step = AnalysisSteps.TRIM))
 		@Nonnull
 	String[] getLabels();
 	}

@@ -54,8 +54,8 @@ public interface AttributeSchemaEditor<T extends AttributeSchemaEditor<T>> exten
 	 *
 	 * Normalization changes equality, uniqueness, sort order and substring search matches, while the stored value
 	 * is untouched. Steps apply once in declared order, after Unicode NFC entry.
-	 * Unicode NFD is always applied last. Changes on attributes whose indexes already hold values take effect
-	 * only after reindexing (#409).
+	 * Unicode NFD is always applied last. Indexes that already hold values keep the normalization they were built
+	 * with until they are reindexed, which is not available yet.
 	 *
 	 * @param steps ordered normalization descriptions
 	 * @return this editor

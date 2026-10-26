@@ -24,6 +24,7 @@
 
 package io.evitadb.index.analysis;
 
+import io.evitadb.api.requestResponse.schema.analysis.AnalysisSteps;
 import io.evitadb.exception.EvitaInvalidUsageException;
 import io.evitadb.spi.analysis.AnalysisStepParameterDescriptor;
 import io.evitadb.spi.analysis.NormalizingAnalysisStepFactory;
@@ -52,7 +53,7 @@ public final class LowercaseAnalysisStepFactory implements NormalizingAnalysisSt
 	@Nonnull
 	@Override
 	public String getName() {
-		return "lowercase";
+		return AnalysisSteps.LOWERCASE;
 	}
 
 	@Nonnull

@@ -33,6 +33,10 @@ import java.util.Map;
 /**
  * Factories for analysis descriptions shared by attribute normalization and future analysis APIs.
  * These factories describe steps; implementations belong to the server.
+ *
+ * The constants are the only definition of the built-in step and parameter names: the server's built-in providers
+ * report them, and a Java model can name them in `@AnalysisStepDef`, which needs a compile-time constant. A step from
+ * another provider is described with {@link #step(String, AnalysisStepParameter...)}.
  */
 public final class AnalysisSteps {
 	/** Name of the lowercase step. */
